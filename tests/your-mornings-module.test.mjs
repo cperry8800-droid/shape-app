@@ -52,7 +52,7 @@ test('each component opens by naming the window globals it uses, at call time', 
   // as undefined, and Nora's link that closes What we've noticed (part 3).
   assert.match(page, /^export function BSYourMornings\([^)]*\) \{\n  const \{ useBS, BSPage, BSDetailHeader, BSAskNoraLink \} = window;/m);
   // Nora's screen is named through the client's bsNoraOpen, read when the effect runs, never at load.
-  assert.match(page, /\n    const off = window\.bsNoraOpen\?\.\(\{ page: 'Your mornings', label: noraLabel \}\);\n    return typeof off === 'function' \? off : undefined;\n/);
+  assert.match(page, /\n    const off = window\.bsNoraOpen\?\.\(\{ page: 'Your mornings', label: noraLabel \}, noraOwner\.current\);\n    return typeof off === 'function' \? off : undefined;\n/);
   // And never the client-local helpers the test harness happens to put on window (useStateBSC,
   // _bsScrollTopOnMount, useBSPinnedMastTop): in the app they are not there.
   assert.doesNotMatch(page, /window\.(useStateBSC|_bsScrollTopOnMount|useBSPinnedMastTop|BSCycleTodayChip|BSSleepHistory)\b/);

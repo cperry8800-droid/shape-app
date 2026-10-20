@@ -259,6 +259,7 @@ async function expected(rows, { trainer = false, nutritionist = false, checkinsO
     hungerAsked: nutritionist,
     checkinsOn,
     whoSees: tr(whoKey),
+    whose: MM.MM_WHOSE,
     note: MM.MM_NOTE,
   };
 }
@@ -371,6 +372,11 @@ test('⚠ HUNGER ONLY WITH A NUTRITIONIST: a trainer-only member with hunger his
   assert.ok(!hasHunger(failed), 'an unread nutritionist link asks nothing');
   assert.equal(failed.coachesUnavailable, true);
   assert.ok(!('whoSees' in failed), 'who sees it is unknown, never "only you"');
+  // ...and the read says so, so a missing whoSees is never taken for "no coach" (review on part 3).
+  assert.equal(failed.coachesNote, MM.MM_COACHES_UNREAD);
+  assert.match(failed.coachesNote, /don't say who sees their answers, and don't say they have no coach/);
+  assert.equal(failed.whose, MM.MM_WHOSE);
+  assert.match(MM.MM_WHOSE, /never a client's/);
   // No coach at all: only they see it, and the read's follow-up keeps an eye on it.
   const none = await readMornings(db({ tables: tablesFor([row(0, { energy: 2, sleep_hours: 8 })]) }), U, { now: NOW, zone: ZONE });
   assert.equal(none.whoSees, 'Only you see these.');

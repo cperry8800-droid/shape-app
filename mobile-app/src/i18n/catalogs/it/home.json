@@ -180,7 +180,7 @@
   "mornings.patternBasedOn": "In base a {n, plural, one {# mattina} other {# mattine}}.",
   "mornings.patternsNone": "Per ora non emerge nulla. Gli schemi compaiono qui dopo qualche settimana di mattine.",
   "mornings.patternsShortRule": "Una notte corta dura meno di {h}, o almeno un’ora in meno del solito.",
-  "mornings.patternsOnlyYou": "Le vedi solo tu.",
+  "mornings.patternsOnlyYou": "Solo tu vedi questi schemi.",
   "mornings.askNora": "Chiedi a Nora delle tue mattine",
   "mornings.askNoraDraft": "Come sono andate le mie mattine?",
   "card.training": "Allenamento",

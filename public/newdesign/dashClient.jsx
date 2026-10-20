@@ -324,9 +324,16 @@ function DashTodayCard({ live }) {
   React.useEffect(() => {
     if (!live) return undefined;
     let on = true;
+    // ⚠ AN ADD SENT WHILE THIS READ IS OUT WINS (review on part 3): the read was taken before it, so
+    // its total is older than the add's answer. The target is still taken.
+    const seq0 = hydSeq.current;
     fetch("/api/client/hydration?date=" + localDay(), { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (on && d && d.ok) { setHyd(Number(d.hydrationL) || 0); setHydTarget(dclWaterTarget(d)); } })
+      .then((d) => {
+        if (!on || !d || !d.ok) return;
+        if (hydSeq.current === seq0) setHyd(Number(d.hydrationL) || 0);
+        setHydTarget(dclWaterTarget(d));
+      })
       .catch(() => {});
     return () => { on = false; };
   }, [live]);
@@ -343,6 +350,8 @@ function DashTodayCard({ live }) {
   // Optimistic + rollback + stale-response guard (hydSeq) + in-flight lock (hydBusy).
   const addWater = (deltaL) => {
     if (hydBusy) return;
+    // A failed add puts back what was shown, an unread "—" included, never a made-up 0 L.
+    const shown = hyd;
     const prev = Number(hyd) || 0;
     const optimistic = Math.max(0, Math.round((prev + deltaL) * 1000) / 1000);
     setHyd(optimistic); setLastDelta(deltaL);
@@ -358,7 +367,7 @@ function DashTodayCard({ live }) {
         const t = dclWaterTarget(d);
         if (t != null) setHydTarget(t);
       })
-      .catch(() => { if (seq === hydSeq.current) { setHyd(prev); setLastDelta(0); } })
+      .catch(() => { if (seq === hydSeq.current) { setHyd(shown); setLastDelta(0); } })
       .then(() => { if (seq === hydSeq.current) setHydBusy(false); });
   };
   const undoWater = () => { if (lastDelta && !hydBusy) { addWater(-lastDelta); setLastDelta(0); } };
@@ -375,8 +384,8 @@ function DashTodayCard({ live }) {
       {/* THE MORNING CHECK-IN — answered in the app; the website asks nothing */}
       <span className="dash-eyebrow">Morning check-in</span>
       <div style={{ fontFamily: serif, fontSize: 19, letterSpacing: "-0.015em", lineHeight: 1.2, marginTop: 6 }}>Your Morning check-in is in the Shape app.</div>
-      <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.5, marginTop: 6 }}>Answer it on Home each morning, and Your mornings shows how they go over time.</div>
-      <a href="GetApp.html" style={{ display: "inline-block", padding: "7px 8px", margin: "3px -8px -7px", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: teal, textDecoration: "none" }}>Get the app →</a>
+      <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.5, marginTop: 6 }}>Your mornings, in the app, shows them over time.</div>
+      <a href="GetApp.html#notify" style={{ display: "inline-block", padding: "7px 8px", margin: "3px -8px -7px", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: teal, textDecoration: "none" }}>Get the app →</a>
 
       {/* WATER — its own line; progress only against the member's own target */}
       <div data-dcl-water="" style={{ marginTop: 12, paddingTop: 11, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>

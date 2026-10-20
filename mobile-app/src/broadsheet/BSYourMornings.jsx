@@ -293,9 +293,11 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
 
   // Nora is told this screen, and her sheet's chip names it in the member's language. Back gives the
   // chip back to the screen underneath: bsNoraOpen keeps what each open screen set (Home's 'Home').
+  // The owner keeps the page's place above Home's when a language change re-runs both effects.
   const noraLabel = tr('home:mornings.link', { defaultValue: 'Your mornings' });
+  const noraOwner = React.useRef({});
   useEffect(() => {
-    const off = window.bsNoraOpen?.({ page: 'Your mornings', label: noraLabel });
+    const off = window.bsNoraOpen?.({ page: 'Your mornings', label: noraLabel }, noraOwner.current);
     return typeof off === 'function' ? off : undefined;
   }, [noraLabel]);
 

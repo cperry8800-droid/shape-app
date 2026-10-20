@@ -618,11 +618,15 @@ test('the website Today card points to the app and asks nothing', async () => {
     const all = readText(m.el);
     assert.match(all, /^Morning check-in /, all);
     assert.ok(all.includes('Your Morning check-in is in the Shape app.'), all);
-    assert.ok(all.includes('Answer it on Home each morning, and Your mornings shows how they go over time.'), all);
-    // The site's own App link (the bar's "App"), not a link of the card's own making.
+    // It says where the history is, never "answer it each morning": the site can't see whether the
+    // member turned Check-ins off in the app (ruling 12; review on part 3).
+    assert.ok(all.includes('Your mornings, in the app, shows them over time.'), all);
+    assert.doesNotMatch(all, /Answer it|each morning/, all);
+    // The site's own app page, at its doors (#notify), where "Or open it in your browser" is: the
+    // stores aren't open yet, so its marketing top is no way in for a signed-in member (review on part 3).
     const link = [...m.el.querySelectorAll('a')].find((a) => /Get the app/.test(a.textContent));
     assert.ok(link, 'no link to the app');
-    assert.equal(link.getAttribute('href'), 'GetApp.html');
+    assert.equal(link.getAttribute('href'), 'GetApp.html#notify');
     assert.doesNotMatch(all, /\/\s?10\b|of 10\b/, 'a figure out of 10 on the card');
     assert.doesNotMatch(all, /Log today|Energy|Hunger|Rested|Recovery|Trends|logged/, all);
     assert.ok(![...m.el.querySelectorAll('button')].some((b) => /of 10|hours of sleep/.test(b.getAttribute('aria-label') || '')), 'a gauge or an hour chip is still on the card');
@@ -657,9 +661,33 @@ test("the website's water line: progress only against the member's own target", 
     assert.equal(m.el.querySelectorAll('[data-dcl-water] div[aria-hidden="true"][style*="background: var(--sh-accent"]').length, 5, 'filled dots');
   } finally { await m.unmount(); }
 
-  // A failed read: "—", and the buttons still work.
+  // A failed read: "—", and the buttons still work. An add that fails too puts the "—" back, never a
+  // made-up 0 L (review on part 3).
   m = await at(null);
-  try { assert.match(m.water(), /^Water — /); assert.ok(m.button('+ 250 ml') && !m.button('+ 250 ml').disabled); } finally { await m.unmount(); }
+  try {
+    assert.match(m.water(), /^Water — /);
+    assert.ok(m.button('+ 250 ml') && !m.button('+ 250 ml').disabled);
+    await m.press('+ 250 ml');
+    assert.match(m.water(), /^Water — /, m.water());
+  } finally { await m.unmount(); }
+});
+
+test("the website's water line: a day's read that lands after an add never undoes it (review on part 3)", async () => {
+  const { React, CL } = await setup();
+  let releaseRead;
+  const readHeld = new Promise((r) => { releaseRead = r; });
+  const m = await mountCard(React, CL, async (path, init) => {
+    if (path !== '/api/client/hydration') return null;
+    if (init.method === 'POST') return { ok: true, hydrationL: 1.25, targetL: 2, targetStoredL: 2 };
+    await readHeld; // a cold read, taken before the add, answering after it
+    return { ok: true, hydrationL: 1, targetL: 2, targetStoredL: 2 };
+  });
+  try {
+    await m.press('+ 250 ml');
+    assert.match(m.water(), /^Water 1\.25 \/ 2 L /, m.water());
+    await React.act(async () => { releaseRead(); await new Promise((r) => setTimeout(r, 20)); });
+    assert.match(m.water(), /^Water 1\.25 \/ 2 L /, "the older read's total replaced the add's");
+  } finally { await m.unmount(); }
 });
 
 test("the website's + 250 ml, + 500 ml and Undo: optimistic, the server's total, rolled back on a failure", async () => {

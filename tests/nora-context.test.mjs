@@ -224,6 +224,31 @@ test('app: closing a screen gives back what the screen under it set, in any orde
   kept();
 });
 
+test('app: a screen keeps its place when its own effect re-runs, as a language change re-runs them (review on part 3)', () => {
+  const src = between(APP, 'const _bsNoraOpen = {};', 'let _bsNoraThread = null;');
+  const api = new Function(`${src}; return { bsNoraOpen, bsNoraContext, store: _bsNoraOpen };`)();
+  const homeOwner = {};
+  const pageOwner = {};
+  let home = api.bsNoraOpen({ page: 'Home', label: 'Home' }, homeOwner);
+  let page = api.bsNoraOpen({ page: 'Your mornings', label: 'Your mornings' }, pageOwner);
+  // One commit: every close first, then the opens, the child (the page) before its parent (Home).
+  home(); page();
+  page = api.bsNoraOpen({ page: 'Your mornings', label: 'Deine Morgen' }, pageOwner);
+  home = api.bsNoraOpen({ page: 'Home', label: 'Start' }, homeOwner);
+  assert.equal(api.bsNoraContext().page, 'Your mornings', "Home's re-run landed over the open page");
+  assert.equal(api.store.label, 'Deine Morgen');
+  page();
+  assert.equal(api.bsNoraContext().page, 'Home', 'Back still gives Home back');
+  assert.equal(api.store.label, 'Start');
+  home();
+  assert.ok(!('page' in api.bsNoraContext()));
+  // A screen with no owner still lands on top, as before.
+  const tab = api.bsNoraOpen({ page: 'Home' }, homeOwner);
+  const sheet = api.bsNoraOpen({ page: 'Eat' });
+  assert.equal(api.bsNoraContext().page, 'Eat');
+  sheet(); tab();
+});
+
 test('app: bsAskNora opens the sheet with the draft; an error goes with questions for ten minutes, and the chip says so', () => {
   const src = between(APP, 'let _bsNoraProblem = null;', 'let _bsNoraThread = null;');
   const ask = between(APP, 'function bsAskNora(text, opts) {', '\n}\n') + '\n}\n';
@@ -259,7 +284,7 @@ test('app: the sheet sends it through the backend; shells, the client profile, a
   const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
   assert.match(sheet, /context: bsNoraContext\(!screenOffRef\.current\)/);
   assert.match(sheet, /onClick=\{\(\) => setScreenOff\(true\)\} aria-label=\{tr\('feed:support\.screenOff'/);
-  assert.match(APP, /React\.useEffect\(\(\) => bsNoraOpen\(\{ page: bsNoraPage\(tab\), label: noraTabLabel \}\), \[tab, noraTabLabel\]\);/);
+  assert.match(APP, /React\.useEffect\(\(\) => bsNoraOpen\(\{ page: bsNoraPage\(tab\), label: noraTabLabel \}, noraOwner\.current\), \[tab, noraTabLabel\]\);/);
   assert.equal((PROS.match(/window\.bsNoraOpen\(\{ page: window\.bsNoraPage\(tab\), label: noraTabLabel \}\)/g) || []).length, 2, 'trainer and nutritionist');
   assert.match(between(PROS, 'function BSProClientFullProfilePage(', '\n}\n'), /window\.bsNoraOpen\(\{ clientId: clientUid \}\)/);
   assert.match(between(APP, 'function BSMealPreview(', '\n}\n'), /bsNoraOpen\(\{ item: \{ kind: 'meal', title: meal\.title \} \}\)/);

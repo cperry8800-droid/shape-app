@@ -446,7 +446,7 @@ const MEMBER_READ_TOOLS = [
   // ⚠ THE MEMBER'S OWN MORNINGS, IN WORDS (docs/REVIEW-2026-10-19-morning-checkin.md §3.9). No
   // arguments like every read here: a coach's RLS client can read subscriber snapshots, so a mornings
   // read that took an id would hand a coach a client's raw answers and readiness.
-  { type: 'function', name: 'get_mornings', description: "The member's OWN Morning check-in, in words: this morning's energy, how they woke up, last night's sleep (from a watch, typed, or skipped) and Morning readiness with what it was built from; the last 7 and 30 days per check as Your mornings says them (the word most days had or the range, the average night and its short nights, and which way each moved against the days before); readiness's average; the patterns Your mornings shows (What we've noticed); and hunger between meals only for a member with a nutritionist. Words only, never a 1-10 figure. Call for 'how have I been sleeping', 'why am I tired', 'how were my mornings', 'what's my readiness'.", parameters: NO_ARGS, strict: true },
+  { type: 'function', name: 'get_mornings', description: "The member's OWN Morning check-in, in words: this morning's energy, how they woke up, last night's sleep (from a watch, typed, or skipped) and Morning readiness with what it was built from; the last 7 and 30 days per check as Your mornings says them (the word most days had or the range, the average night and its short nights, and which way each moved against the days before); readiness's average; the patterns Your mornings shows (What we've noticed); and hunger between meals only for a member with a nutritionist. Words only, never a 1-10 figure. Never a client's: there is no read of a client's mornings. Call for 'how have I been sleeping', 'why am I tired', 'how were my mornings', 'what's my readiness'.", parameters: NO_ARGS, strict: true },
   { type: 'function', name: 'get_habits', description: "The member's habits with today's done state, the last-7-days count and the current streak. Call before check_habit when you need the exact habit name, and for any habit question.", parameters: NO_ARGS, strict: true },
   { type: 'function', name: 'get_coaching', description: "The member's coaches (their team), their next booked coaching sessions with coach names, and the last sessions held. Call for 'when is my next session', 'who is my coach'.", parameters: NO_ARGS, strict: true },
   { type: 'function', name: 'get_reminders', description: "The member's scheduled reminders (kind, time, days, timezone, on/off). Call before set_reminder to avoid duplicates and for any reminder question.", parameters: NO_ARGS, strict: true },
@@ -667,7 +667,9 @@ async function profileZone(sb: Actor['supabase'], uid: string): Promise<string |
 // for anyone else, so a fabricated call fails closed exactly like memory.
 // `dayZone`: the zone the Morning check-in's row is keyed to, the device's first. A coach's `zone`
 // is their listing's (their Schedule's), but the app dates the check-in by the device's day.
-type ReadCtx = { sb: Actor['supabase']; uid: string; now: Date; isCoach: boolean; zone: string; dayZone?: string; role?: string; admin?: { id: string; email: string } | null; surface?: 'web' | 'app' };
+// `mornings`: the account's own Morning check-in is offered (get_mornings and the MORNINGS note); off
+// where it would be misread, by the facts' own rule (see ownMorning below).
+type ReadCtx = { sb: Actor['supabase']; uid: string; now: Date; isCoach: boolean; zone: string; dayZone?: string; mornings?: boolean; role?: string; admin?: { id: string; email: string } | null; surface?: 'web' | 'app' };
 
 // The per-request context a direct memory tool runs with (member-verified).
 type MemoryCtx = {
@@ -996,7 +998,10 @@ async function runRead(name: string, args: Record<string, unknown>, reads: ReadC
       case 'get_reminders': return await readReminders(sb, uid);
       case 'get_points': return await readPoints(sb, uid, { now });
       case 'get_account': return await readAccount(sb, uid);
-      case 'get_mornings': return await readMornings(sb, uid, { now, zone: reads.dayZone || zone });
+      case 'get_mornings': {
+        if (!reads.mornings) return { error: 'not_available', message: "This account's own Morning check-in isn't read here, and there is no read of a client's mornings." };
+        return await readMornings(sb, uid, { now, zone: reads.dayZone || zone });
+      }
       case 'admin_lookup_account': {
         // Re-checked here: the schema is offered only to a confirmed admin, and a call from
         // anyone else is refused rather than trusted.
@@ -1129,7 +1134,7 @@ async function askOpenAI(
   const adminNote = member.adminTools && member.adminTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${ADMIN_PROMPT_NOTE}` : '';
   const noCardsNote = member.noCards && !member.cookMsg ? `\n\n${NO_CARDS_NOTE}` : '';
   const personNote = member.signedIn && !member.noCards && !member.cookMsg ? `\n\n${PERSON_NOTE}` : '';
-  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}\n\n${morningsPromptNote(member.coach.surface)}` : ''}${trainerNote}${nutritionNote}${adminNote}${noCardsNote}${personNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
+  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}${member.reads && member.reads.mornings ? `\n\n${morningsPromptNote(member.coach.surface)}` : ''}` : ''}${trainerNote}${nutritionNote}${adminNote}${noCardsNote}${personNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
     // Where they are: the clock in their zone and what the server verified (system), then
@@ -1162,7 +1167,7 @@ async function askOpenAI(
   // trainer draft_workout.
   const tools = member.cookMsg
     ? []
-    : [...(member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS, ...member.coachTools, ...(member.adminTools || []), ...member.trainerTools, ...(member.nutritionTools || [])] : TOOLS), ...(member.form ? [FILL_FORM_TOOL] : [])]
+    : [...(member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS.filter((t) => t.name !== 'get_mornings' || !!(member.reads && member.reads.mornings)), ...member.coachTools, ...(member.adminTools || []), ...member.trainerTools, ...(member.nutritionTools || [])] : TOOLS), ...(member.form ? [FILL_FORM_TOOL] : [])]
       .filter((t) => !(member.noCards && WRITE_TOOLS.has(String((t as { name?: unknown }).name))));
   // ⚠ MODEL TIERING: a signed-in-and-verified member rides the pin (Astra);
   // anyone else rides the public model. `model` is set explicitly for the
@@ -1454,9 +1459,20 @@ export async function POST(request: Request) {
       // allow-listed address someone registered without owning it is not an admin here.
       const admin = membership.isAdmin && actor.user.email && actor.user.email_confirmed_at
         ? { id: actor.user.id, email: actor.user.email.toLowerCase() } : null;
-      // The Morning check-in's day is the device's, whichever zone a coach's Schedule keeps.
-      const dayZone = screen.timezone || zone;
-      reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach, zone, dayZone, role: actor.role, admin, surface };
+      // The Morning check-in's day is the one the app dates its row on, whichever zone a coach's
+      // Schedule keeps: the device's in the app. ⚠ ON THE WEBSITE, THE APP'S STORED ZONE FIRST
+      // (review on part 3): only the app answers the check-in (§3.10), and a laptop browser set to
+      // another zone would read yesterday's row as this morning's.
+      const dayZone = surface === 'web'
+        ? ((await profileZone(actor.supabase, actor.user.id)) || screen.timezone || zone)
+        : (screen.timezone || zone);
+      // ⚠ THE ACCOUNT'S OWN MORNING IS LEFT OUT where it would be misread: on a page that names a
+      // client (a coach asking about them; there is no read of a client's mornings), and for an
+      // account the app opens as a coach's, whose Home has no Morning check-in
+      // (iosAppBroadsheetMain.jsx picks the app by the primary role). The facts, get_mornings and
+      // the MORNINGS note all follow it (review on part 3).
+      const ownMorning = !screen.clientId && !COACH_ROLE_NAMES.has(actor.role);
+      reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach, zone, dayZone, mornings: ownMorning, role: actor.role, admin, surface };
       if (isCoach) coachTools = COACH_TOOLS;
       if (admin) adminTools = ADMIN_TOOLS;
       // ⚠ THE ROLES THE REGISTRY GATES ON, not membership's coach verdict: draft_workout
@@ -1474,11 +1490,8 @@ export async function POST(request: Request) {
         isMember: true,
         casWrite: (kind, mutate) => casWriteUserGoals(actor.supabase, actor.user.id, kind, mutate),
       };
-      // Read beside the open client or session below; neither waits on the other.
-      // ⚠ TODAY'S MORNING IS LEFT OUT where it would be misread: on a page that names a client (a
-      // coach asking about them), and for an account the app opens as a coach's, whose Home has no
-      // Morning check-in (iosAppBroadsheetMain.jsx picks the app by the primary role).
-      const ownMorning = !screen.clientId && !COACH_ROLE_NAMES.has(actor.role);
+      // Read beside the open client or session below; neither waits on the other. Today's morning
+      // only where it is the account's own (ownMorning above).
       factsEarly = fetchMemberFacts(actor, zone, ownMorning ? dayZone : null).catch(() => ({ facts: null, failed: true }));
     } else if (!screen.timezone) {
       zone = (await profileZone(actor.supabase, actor.user.id)) || 'UTC';

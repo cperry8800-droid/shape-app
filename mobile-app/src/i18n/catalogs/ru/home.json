@@ -172,7 +172,7 @@
   "mornings.patternsTitle": "Что мы заметили",
   "mornings.patternShortMore": "После короткой ночи утра с низкой энергией бывают чаще.",
   "mornings.patternShortLess": "После короткой ночи утра с низкой энергией бывают реже.",
-  "mornings.patternShortCounts": "«{low}» или «{drained}» после {a} из {n, plural, one {# короткой ночи} few {# коротких ночей} many {# коротких ночей} other {# короткой ночи}}, и после {b} из {m, plural, one {# полноценной ночи} few {# полноценных ночей} many {# полноценных ночей} other {# полноценной ночи}}.",
+  "mornings.patternShortCounts": "«{low}» или «{drained}» после {a} из {n, plural, one {# короткой ночи} few {# коротких ночей} many {# коротких ночей} other {# короткой ночи}} и после {b} из {m, plural, one {# полноценной ночи} few {# полноценных ночей} many {# полноценных ночей} other {# полноценной ночи}}.",
   "mornings.patternTired": "После полноценной ночи вы часто просыпаетесь с ощущением усталости.",
   "mornings.patternTiredCounts": "«{tired}» или «{wrecked}» после {k} из {n, plural, one {# полноценной ночи} few {# полноценных ночей} many {# полноценных ночей} other {# полноценной ночи}}.",
   "mornings.patternTiredCoach": "Если так будет и дальше, скажите тренеру.",

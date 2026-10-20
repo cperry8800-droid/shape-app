@@ -918,18 +918,48 @@ test('⚠ the Morning check-in is keyed to the device\'s day, whatever zone a co
   const out = JSON.parse(dual.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
   assert.equal(out.today.date, '2026-12-20', 'get_mornings reads the device\'s day');
   assert.equal(out.today.energy, 'Good');
-  // A page that names a client: the facts leave their own morning out.
-  const open = await loadRoute({ role: 'client', roles: ['client', 'trainer'], isCoach: true, tables, rpcs: NAMES });
-  await open.mod.POST(post({ ...ask('how is this client doing?'), context: { page: 'Client', clientId: C1, timezone: 'America/New_York' } }));
-  assert.doesNotMatch(factsOf(open.calls.ai[0].body), /Morning check-in/);
-  // A coach's own account: the app opens as a coach's, whose Home has no Morning check-in.
-  const coach = await loadRoute({ role: 'trainer', tables, rpcs: NAMES });
-  await coach.mod.POST(post({ ...ask('hi'), context: { timezone: 'America/New_York' } }));
-  assert.doesNotMatch(factsOf(coach.calls.ai[0].body), /Morning check-in/);
-  // And a coach's tools carry no mornings read of a client: get_mornings takes no arguments.
-  const tool = coach.calls.ai[0].body.tools.find((x) => x.name === 'get_mornings');
+  // The member's own turn carries the read and the note, and the read takes no arguments.
+  const tool = dual.calls.ai[0].body.tools.find((x) => x.name === 'get_mornings');
   assert.ok(tool && tool.strict === true);
   assert.deepEqual(tool.parameters.properties, {});
+  assert.match(tool.description, /Never a client's/);
+  assert.match(systemTexts(dual.calls.ai[0].body), /MORNINGS:/);
+  // ⚠ Where the account's own morning would be misread, the facts, get_mornings and the MORNINGS note
+  // are all left out (review on part 3): a page that names a client (there is no read of a client's
+  // mornings, so "how did she sleep?" must never be answered with the coach's own), and an account the
+  // app opens as a coach's, whose Home has no Morning check-in to send them to.
+  const open = await loadRoute({ role: 'client', roles: ['client', 'trainer'], isCoach: true, tables, rpcs: NAMES, answers: [calls(call('get_mornings', {}, 'm')), say('ok')] });
+  await open.mod.POST(post({ ...ask('how has this client been sleeping?'), context: { page: 'Client', clientId: C1, timezone: 'America/New_York' } }));
+  const coach = await loadRoute({ role: 'trainer', tables, rpcs: NAMES });
+  await coach.mod.POST(post({ ...ask('hi'), context: { timezone: 'America/New_York' } }));
+  for (const [who, r] of [['a client page', open], ['a coach account', coach]]) {
+    const body = r.calls.ai[0].body;
+    assert.doesNotMatch(factsOf(body), /Morning check-in/, who);
+    assert.ok(!toolNames(body).includes('get_mornings'), `${who} was offered get_mornings`);
+    assert.doesNotMatch(systemTexts(body), /MORNINGS:/, `${who} got the MORNINGS note`);
+  }
+  // A call the model makes anyway reads nothing.
+  const refused = JSON.parse(open.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.equal(refused.error, 'not_available');
+  assert.ok(!('today' in refused));
+});
+
+test("⚠ on the website, Nora's Morning check-in day is the app's stored zone, not the laptop browser's (review on part 3)", async (t) => {
+  // 04:30 in London on the 21st is 23:30 on the 20th in New York: the phone, in London, is on the 21st.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-12-21T04:30:00Z') });
+  const tables = {
+    daily_health_snapshot: MORNING_ROWS,
+    client_profiles: [{ user_id: U, timezone: 'Europe/London' }],
+  };
+  const web = await loadRoute({ role: 'client', tables, rpcs: NAMES, answers: [calls(call('get_mornings', {}, 'm')), say('ok')] });
+  await web.mod.POST(post({ ...ask('how was my morning?'), surface: 'web', context: { timezone: 'America/New_York' } }));
+  const out = JSON.parse(web.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.equal(out.today.date, '2026-12-21', "the browser's zone named yesterday as this morning");
+  // In the app, the device's own zone is the day, as before.
+  const app = await loadRoute({ role: 'client', tables, rpcs: NAMES, answers: [calls(call('get_mornings', {}, 'm')), say('ok')] });
+  await app.mod.POST(post({ ...ask('how was my morning?'), surface: 'app', context: { timezone: 'America/New_York' } }));
+  const outApp = JSON.parse(app.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.equal(outApp.today.date, '2026-12-20');
 });
 
 // ── The sign-up and application forms (the Ask Nora plan, step 5) ─────────────────

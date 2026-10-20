@@ -180,7 +180,7 @@
   "mornings.patternBasedOn": "Sur la base de {n, plural, one {# matin} other {# matins}}.",
   "mornings.patternsNone": "Rien ne se dégage encore. Les tendances apparaissent ici après quelques semaines de matins.",
   "mornings.patternsShortRule": "Une nuit courte dure moins de {h}, ou au moins une heure de moins que d’habitude.",
-  "mornings.patternsOnlyYou": "Elles ne sont visibles que par vous.",
+  "mornings.patternsOnlyYou": "Ces tendances ne sont visibles que par vous.",
   "mornings.askNora": "Demandez à Nora comment vont vos matins",
   "mornings.askNoraDraft": "Comment se sont passés mes matins ?",
   "card.training": "Entraînement",

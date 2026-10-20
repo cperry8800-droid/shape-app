@@ -98,6 +98,11 @@ const MM_DIR = {
   hunger: { up: 'hungrier', down: 'less hungry' },
 };
 export const MM_NOTE = 'Words only. Readiness is a guide from their own answers, not a medical reading; coaches do not see readiness or these patterns.';
+// Whose rows these are, said in the read itself: a coach asking about a client must never be handed
+// the coach's own mornings as the client's (review on part 3).
+export const MM_WHOSE = "The signed-in account's own mornings, never a client's: there is no read of a client's Morning check-in.";
+// A failed coaching read is said as one, so "no whoSees" is never read as "no coach" (review on part 3).
+export const MM_COACHES_UNREAD = "Who coaches them could not be read right now: don't say who sees their answers, and don't say they have no coach.";
 
 // ── The card's and the page's rules, copied (see the header) ────────────────────────────────────
 
@@ -384,7 +389,8 @@ export async function readMornings(sb, uid, { now = new Date(), zone } = {}) {
     hungerAsked: hunger,
     checkinsOn: checkinsOnOf(settings),
     ...(who ? { whoSees: MM_WHO[who] } : {}),
-    ...(subs.ok ? {} : { coachesUnavailable: true }),
+    ...(subs.ok ? {} : { coachesUnavailable: true, coachesNote: MM_COACHES_UNREAD }),
+    whose: MM_WHOSE,
     note: MM_NOTE,
   };
 }
