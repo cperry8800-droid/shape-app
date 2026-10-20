@@ -252,9 +252,7 @@ planned builds.
   Today message draft still puts the coach's "/10" reason in front of the member. The card's streak
   line, evening label and Answer button are small amber text on light papers. Patterns
   (`morningPatterns.mjs`) count mornings from 2026-10-19 only, so none show for a few weeks. Nora
-  says the five words in English. The Shape Daily splash shows the engine's English energy and hunger
-  reason in every locale, the cycle card says "1.2 points" in English, and the signed-out demo
-  calendar shows "Energy 7/10".
+  says the five words in English. The signed-out demo calendar shows "Energy 7/10".
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
   `/m/`, sheets add no history entry.
 

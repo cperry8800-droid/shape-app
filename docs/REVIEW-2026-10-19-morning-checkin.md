@@ -324,10 +324,13 @@ Found while mapping part 3, fixed in it:
   showed there. It now takes the app's token too (owner, 2026-10-20), so each app member who opens
   Progress can spend that week's one model call.
 
+Found while mapping part 3, fixed after it (owner, 2026-10-20: "fix the splash and cycle card wording"):
+- The Shape Daily splash said the engine's English energy and hunger reason in every locale. It now
+  says the reason as Home's lead does, in the member's words and language.
+- The cycle card said "1.2 points" on the stored scale (ruling 11), in English. It now says the
+  read in words and in the member's language; sleep keeps a duration and habits no "pp".
+
 Found while mapping part 3, still open:
-- The Shape Daily splash shows members the engine's English energy and hunger reason in every
-  locale.
-- The cycle card says "1.2 points" on the stored scale (ruling 11), in English.
 - The signed-out demo calendar shows "Energy 7/10", and its check-in form saves nothing.
 - Nora says the five words in English and translates them herself, so her word can differ from the
   card's in another language.
