@@ -158,5 +158,6 @@
   "cover.targetBy": "Cible : {value} d’ici le {date}",
   "cover.target": "Cible : {value}",
   "cover.wordsLead": "Vos objectifs portent celui-ci",
-  "cover.wordsSub": "« {goal} » n’est pas un objectif de poids, donc pas de barre de poids. Ajoutez un poids cible pour le suivre aussi."
+  "cover.wordsSub": "« {goal} » n’est pas un objectif de poids, donc pas de barre de poids. Ajoutez un poids cible pour le suivre aussi.",
+  "terms.wordsNone": "« {goal} » n’est pas un objectif de poids, il n’a donc pas de jalons de poids."
 }

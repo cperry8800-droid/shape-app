@@ -158,5 +158,6 @@
   "cover.targetBy": "Objetivo: {value} para el {date}",
   "cover.target": "Objetivo: {value}",
   "cover.wordsLead": "Tus objetivos sostienen esta meta",
-  "cover.wordsSub": "«{goal}» no es una meta de peso, así que no hay barra de peso. Añade un peso objetivo para seguirlo también."
+  "cover.wordsSub": "«{goal}» no es una meta de peso, así que no hay barra de peso. Añade un peso objetivo para seguirlo también.",
+  "terms.wordsNone": "«{goal}» no es una meta de peso, así que no tiene hitos de peso."
 }

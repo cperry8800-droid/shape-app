@@ -158,5 +158,6 @@
   "cover.targetBy": "Hedef: {date} tarihine kadar {value}",
   "cover.target": "Hedef: {value}",
   "cover.wordsLead": "Bunu hedeflerin taşıyor",
-  "cover.wordsSub": "“{goal}” bir kilo hedefi değil, bu yüzden kilo çubuğu yok. Onu da izlemek için bir hedef kilo ekle."
+  "cover.wordsSub": "“{goal}” bir kilo hedefi değil, bu yüzden kilo çubuğu yok. Onu da izlemek için bir hedef kilo ekle.",
+  "terms.wordsNone": "“{goal}” bir kilo hedefi değil, bu yüzden kilo kilometre taşları yok."
 }

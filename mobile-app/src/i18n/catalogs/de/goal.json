@@ -158,5 +158,6 @@
   "cover.targetBy": "Vorgabe: {value} bis {date}",
   "cover.target": "Vorgabe: {value}",
   "cover.wordsLead": "Deine Teilziele tragen dieses Ziel",
-  "cover.wordsSub": "„{goal}“ ist kein Gewichtsziel, darum gibt es keinen Gewichtsbalken. Leg ein Zielgewicht fest, um auch das zu verfolgen."
+  "cover.wordsSub": "„{goal}“ ist kein Gewichtsziel, darum gibt es keinen Gewichtsbalken. Leg ein Zielgewicht fest, um auch das zu verfolgen.",
+  "terms.wordsNone": "„{goal}“ ist kein Gewichtsziel, darum gibt es keine Gewichts-Meilensteine."
 }

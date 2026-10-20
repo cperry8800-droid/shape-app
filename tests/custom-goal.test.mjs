@@ -173,10 +173,10 @@ Object.assign(globalThis.useBS(), { weightUnit: 'kg', kgToDisplay: (kg) => (kg =
 const noop = () => {};
 // i18next fills a string's {placeholders}; with no catalog loaded, the default text stands in.
 const fillingTr = { t: (key, o) => (o && typeof o.defaultValue === 'string' ? o.defaultValue.replace(/\{(\w+)\}/g, (m, k) => (k in o ? String(o[k]) : m)) : key) };
-function goalCard(data, overall = NO_TARGET) {
+function goalCard(data, overall = NO_TARGET, view = 'cover') {
   signIn({});
   globalThis.window.ShapeI18n = fillingTr;
-  return drive(BSGoalsContract, { overall, data, heat: '#c0533b', view: 'cover', onOpenView: noop, onBack: noop, onLog: noop, onEditTargets: noop, onOpenProgress: noop, onAddGoal: noop, onEditGoal: noop, onEditHeadline: noop });
+  return drive(BSGoalsContract, { overall, data, heat: '#c0533b', view, onOpenView: noop, onBack: noop, onLog: noop, onEditTargets: noop, onOpenProgress: noop, onAddGoal: noop, onEditGoal: noop, onEditHeadline: noop });
 }
 const wordsOf = (d) => d.nodes().find((n) => n.props && 'data-goal-words' in n.props);
 const redacted = (d) => d.nodes().some((n) => n.props && n.props.label === 'No goal set yet');
@@ -193,6 +193,21 @@ test("a goal that isn't about weight reads in words on the Goal card, with no we
   assert.equal(redacted(d), false, 'and no "No goal set yet": the member has a goal');
   // A listed goal that isn't about weight reads in its own label.
   assert.match(textOf(wordsOf(goalCard({ primaryGoal: 'strength' }))), /“Get stronger” isn’t a weight goal/);
+});
+
+test("the terms door and page read a goal in words too, never \"No goal set yet\" (Codex on #2416)", () => {
+  const termsDoor = (d) => d.nodes().find((n) => n.props && n.props['data-goal-door'] === 'terms');
+  const cover = goalCard({ primaryGoal: 'Run my first 10k' });
+  assert.match(textOf(termsDoor(cover)), /Add your why/);
+  assert.doesNotMatch(textOf(termsDoor(cover)), /Set the terms/);
+  assert.match(textOf(termsDoor(goalCard({ primaryGoal: 'Run my first 10k' }, { ...NO_TARGET, why: 'For my dad' }))), /Your why/);
+  const terms = goalCard({ primaryGoal: 'Run my first 10k' }, NO_TARGET, 'terms');
+  assert.equal(redacted(terms), false);
+  assert.match(textOf(wordsOf(terms)), /“Run my first 10k” isn’t a weight goal, so it has no weight milestones\./);
+  assert.ok(terms.nodes().some((n) => n.props && n.props.label === 'Edit targets'), 'and the way to add a weight target');
+  // A weight goal with no target still asks for one there.
+  assert.equal(redacted(goalCard({ primaryGoal: 'fat_loss' }, NO_TARGET, 'terms')), true);
+  assert.match(textOf(termsDoor(goalCard({ primaryGoal: 'fat_loss' }))), /Set the terms/);
 });
 
 test('a weight target set as well brings the weight read back', () => {
@@ -213,6 +228,7 @@ test('a weight goal with no target still asks for one, as before', () => {
 
 async function homeDoor(docs) {
   signIn(docs);
+  globalThis.window.ShapeI18n = fillingTr;
   const d = drive(BSMeGoalCard, { onOpen: noop });
   await settle();
   d.render();
@@ -234,6 +250,21 @@ test("Home's Goal door: a weight goal with no target stays hidden; a weight targ
   const door = await homeDoor({ client_goals: { primaryGoal: 'Run my first 10k', overall: { start: 80, now: 78, target: 75, unit: 'kg' } } });
   assert.equal(door.props.figure, '40%');
   assert.equal(door.props.pct, 40);
+});
+
+test("Home's Goal door reads a target in either direction, as the Goal page does (Codex on #2416)", async () => {
+  // A build: 70 → 75 kg, now 72. It read "—" and 0% on Home, and a goal in words lost the bar.
+  const build = { start: 70, now: 72, target: 75, unit: 'kg' };
+  for (const primaryGoal of ['Run my first 10k', 'muscle']) {
+    const door = await homeDoor({ client_goals: { primaryGoal, overall: build } });
+    assert.equal(door.props.figure, '40%', primaryGoal);
+    assert.equal(door.props.pct, 40, primaryGoal);
+    assert.equal(door.props.status, '3 kg to go', primaryGoal);
+  }
+  // Past a build's target is a hit, never a negative amount to go.
+  const past = await homeDoor({ client_goals: { primaryGoal: 'muscle', overall: { ...build, now: 76 } } });
+  assert.equal(past.props.status, 'goal hit ✓');
+  assert.equal(past.props.pct, 100);
 });
 
 test('the door speaks a figure drawn as an element through figureText', async () => {

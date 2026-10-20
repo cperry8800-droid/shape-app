@@ -158,5 +158,6 @@
   "cover.targetBy": "Chỉ tiêu {value} trước {date}",
   "cover.target": "Chỉ tiêu {value}",
   "cover.wordsLead": "Các chỉ tiêu bên dưới gánh mục tiêu này",
-  "cover.wordsSub": "“{goal}” không phải mục tiêu cân nặng nên không có thanh cân nặng. Thêm cân nặng mục tiêu để theo dõi cả nó."
+  "cover.wordsSub": "“{goal}” không phải mục tiêu cân nặng nên không có thanh cân nặng. Thêm cân nặng mục tiêu để theo dõi cả nó.",
+  "terms.wordsNone": "“{goal}” không phải mục tiêu cân nặng nên không có cột mốc cân nặng."
 }

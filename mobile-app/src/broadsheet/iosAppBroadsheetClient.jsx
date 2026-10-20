@@ -27983,6 +27983,12 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
     <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('goal:station.supportingTargets', { defaultValue: 'Supporting targets · serve the goal' })}</div>
   );
   const hasGoal = range !== 0 && Number.isFinite(start) && Number.isFinite(target) && start && target;
+  // ⚠ A GOAL THAT ISN'T ABOUT WEIGHT HAS NO WEIGHT READ (owner, 2026-10-20: "Show the goal's
+  // words"). "Run my first 10k" with no weight target read "Set the terms." and asked for a start
+  // and target weight. The goal's words are the page's title above; the card says the targets
+  // below carry it, with no bar or weight figures, until a weight target is set as well. Read
+  // here, before the sub-pages, so the terms door and page say the same (Codex on #2416).
+  const wordsOnly = !hasGoal && !bsPrimaryGoalIsWeight(data && data.primaryGoal);
   // Milestones from the real goal trajectory (start -> quarter points -> target).
   const milestones = (() => {
     if (!hasGoal) return [];
@@ -28087,7 +28093,9 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   // uppercase`, so the JS fold was undone one line later by a transform that IS
   // locale-aware. How a label sits in a meta line is the catalog's call.
   const weekDoorSub = weekTargets.slice(0, 2).map((w) => `${w.v} ${String(w.l || '')}`).join(' · ');
-  const termsDoorSub = hasGoal
+  const termsDoorSub = wordsOnly
+    ? (overall.why ? tr('goal:terms.whyHead', { defaultValue: 'Your why' }) : tr('goal:terms.addWhy', { defaultValue: 'Add your why' }))
+    : hasGoal
     ? (overall.why
       ? tr('goal:door.milestonesWhy', { defaultValue: '{done}/{total} milestones · your why', done: milestones.filter((m) => m.done).length, total: milestones.length })
       : tr('goal:door.milestones', { defaultValue: '{done}/{total} milestones', done: milestones.filter((m) => m.done).length, total: milestones.length }))
@@ -28179,7 +28187,14 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
         {view === 'terms' && (
           <>
             <div style={{ padding: `10px ${t.padX}px 0` }}>
-              {!hasGoal ? (
+              {wordsOnly ? (
+                <>
+                  <div data-goal-words style={{ padding: '6px 0 2px', fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70, overflowWrap: 'anywhere' }}>
+                    {tr('goal:terms.wordsNone', { defaultValue: '“{goal}” isn’t a weight goal, so it has no weight milestones.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}
+                  </div>
+                  <BSOLAct heat={heat} label={tr('goal:cover.editTargets', { defaultValue: 'Edit targets' })} onClick={onEditTargets} t={t} />
+                </>
+              ) : !hasGoal ? (
                 <><BSTRedact INK={t.INK} label={tr('goal:terms.noGoal', { defaultValue: 'No goal set yet' })} /><BSOLAct heat={heat} label={tr('goal:door.setTerms', { defaultValue: 'Set the terms' })} onClick={onEditTargets} t={t} /></>
               ) : (
                 <>
@@ -28220,11 +28235,6 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
       : tr('goal:cover.target', { defaultValue: 'Target {value}', value: `${dsp(target)} ${unit}` }))
     : null;
   const ctaInk = t.isLight ? '#fff' : '#04201d';
-  // ⚠ A GOAL THAT ISN'T ABOUT WEIGHT HAS NO WEIGHT READ (owner, 2026-10-20: "Show the goal's
-  // words"). "Run my first 10k" with no weight target read "Set the terms." and asked for a start
-  // and target weight. The goal's words are the page's title above; the card says the targets
-  // below carry it, with no bar or weight figures, until a weight target is set as well.
-  const wordsOnly = !hasGoal && !bsPrimaryGoalIsWeight(data && data.primaryGoal);
   const statLabel = { fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.62) };
   return (
     <>
@@ -30531,15 +30541,17 @@ function BSMeGoalCard({ onOpen }) {
   // Reading `ov.unit` here rendered the DOCUMENT's unit, so a member on Metric
   // saw their goal quoted in pounds on Home and in kilograms one tap away.
   const start = bsGoalDocKg(ov.start, ov) || 0, now = bsGoalDocKg(ov.now, ov) || 0, target = bsGoalDocKg(ov.target, ov) || 0, unit = t.weightUnit;
-  const range = start - target;
-  const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
-  const toGo = +(now - target).toFixed(1);
+  // In either direction, as the Goal page reads it (bsGoalPct / bsGoalRemaining): a build
+  // target (70 → 75 kg) read "—" and 0% here while the Goal page read it (Codex on #2416).
+  const pctOf = bsGoalPct({ start, now, target });
+  const toGo = bsGoalRemaining({ start, now, target });
+  const pct = pctOf == null ? 0 : pctOf / 100;
   // Honest status — never a fabricated "on track": goal reached (within a
   // small epsilon, so float rounding doesn't withhold the ✓) reads 'goal hit
   // ✓'; otherwise a real '{N} {unit} to go'; when the values aren't usable,
-  // an honest '—'. toGo = now - target on a cut-framed goal (range > 0):
-  // at-or-past target reads as HIT — never a false "to go" when over-achieved.
-  const hasRange = range > 0 && isFinite(toGo) && !!unit;
+  // an honest '—'. toGo is what is left in the goal's direction, never below
+  // zero, so at-or-past the target reads as HIT — never a false "to go".
+  const hasRange = pctOf != null && toGo != null && !!unit;
   const goalHit = hasRange && toGo <= 0.05;
   const goalStatus = goalHit ? tr('home:goal.hit', { defaultValue: 'goal hit ✓' }) : hasRange ? tr('home:goal.toGo', { defaultValue: '{amount} {unit} to go', amount: +Math.max(0, t.kgToDisplay(toGo)).toFixed(1), unit }) : '—';
   // A goal that isn't about weight, with no weight target to read: the door is the goal in words

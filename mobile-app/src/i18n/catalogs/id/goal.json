@@ -158,5 +158,6 @@
   "cover.targetBy": "Sasaran {value} sebelum {date}",
   "cover.target": "Sasaran {value}",
   "cover.wordsLead": "Target-targetmu yang menopang yang ini",
-  "cover.wordsSub": "“{goal}” bukan tujuan berat badan, jadi tidak ada bilah berat. Tambahkan target berat untuk melacaknya juga."
+  "cover.wordsSub": "“{goal}” bukan tujuan berat badan, jadi tidak ada bilah berat. Tambahkan target berat untuk melacaknya juga.",
+  "terms.wordsNone": "“{goal}” bukan tujuan berat badan, jadi tidak ada pencapaian berat."
 }

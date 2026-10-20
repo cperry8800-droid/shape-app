@@ -42,7 +42,12 @@ export default {
     { name: 'the card says "No goal set yet" for words', file: APP, find: '      {!wordsOnly && <div style={{ margin: `18px ${t.padX}px 0` }}>', replace: '      {true && <div style={{ margin: `18px ${t.padX}px 0` }}>' },
     { name: 'the card does not name the goal', file: APP, find: ", goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}", replace: " })}" },
 
+    { name: 'the terms door says "Set the terms" for words', file: APP, find: '  const termsDoorSub = wordsOnly\n', replace: '  const termsDoorSub = false\n' },
+    { name: 'the terms page says "No goal set yet" for words', file: APP, find: "              {wordsOnly ? (\n                <>\n                  <div data-goal-words style={{ padding: '6px 0 2px',", replace: "              {false ? (\n                <>\n                  <div data-goal-words style={{ padding: '6px 0 2px'," },
+
     // ── Home's Goal door ──
+    { name: 'Home reads only a falling target', file: APP, find: '  const hasRange = pctOf != null && toGo != null && !!unit;', replace: '  const hasRange = pctOf != null && toGo != null && start > target && !!unit;' },
+    { name: "past a build's target is no hit", file: APP, find: '  const goalHit = hasRange && toGo <= 0.05;', replace: '  const goalHit = hasRange && now - target <= 0.05;' },
     { name: 'the door hides a goal in words', file: APP, find: '  if (bsGoalSignedIn && !g && !words) return null;', replace: '  if (bsGoalSignedIn && !g) return null;' },
     { name: 'the door reads a percentage for words', file: APP, find: '  if (words && !hasRange) {', replace: '  if (false) {' },
     { name: "the door's words are silent", file: APP, find: ' onOpen={onOpen} figureText={words}', replace: ' onOpen={onOpen}' },
