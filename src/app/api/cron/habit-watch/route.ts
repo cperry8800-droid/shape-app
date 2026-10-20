@@ -210,6 +210,8 @@ async function handle(request: Request) {
   for (const r of quietRows) quietOf.set(str(r.user_id), r);
   const personZone = new Map<string, string>();
   for (const r of peopleZones) { const z = zone(r.timezone); if (z) personZone.set(str(r.user_id), z); }
+  // The person's own clock: their profile zone, then their notification zone, then UTC.
+  const tzOf = (u: string) => personZone.get(u) || zone((quietOf.get(u) || {}).tz) || 'UTC';
   const nameOf = new Map<string, string>();
   for (const r of names) nameOf.set(str(r.id), str(r.full_name));
   // A catch-up hour sends only what has not landed. If that read fails, everything due is tried
@@ -217,17 +219,19 @@ async function handle(request: Request) {
   // ⚠ THE PERSON'S DAILY CAP (notification_settings.daily_cap, 4 by default) BOUNDS THE PUSHES.
   // Several friends' habits can fall due in one evening; past the cap a notice still lands in the
   // app but does not push, as inside quiet hours (Codex on #2413). Counted from these notices that
-  // pushed in the last 24 hours, and reserved before each send so the eight at a time cannot
-  // overshoot it.
+  // pushed on the person's own date today, so their midnight resets it, as the AI engine's count
+  // resets; the 30 hours read covers any local day. Reserved before each send so the eight at a
+  // time cannot overshoot it.
   const stored = new Set<string>();
   const pushed = new Map<string, number>();
-  const dayAgo = now - 24 * 60 * 60 * 1000;
   if (landed) {
     for (const r of landed) {
       const d = r.data as Row | null;
-      if (d && typeof d.dedupe === 'string') stored.add(`${str(r.user_id)}|${d.dedupe}`);
+      const u = str(r.user_id);
+      if (d && typeof d.dedupe === 'string') stored.add(`${u}|${d.dedupe}`);
       const ch = d && (d.channels as Row | undefined);
-      if (ch && ch.push === true && Date.parse(str(r.created_at)) >= dayAgo) pushed.set(str(r.user_id), (pushed.get(str(r.user_id)) || 0) + 1);
+      const at = Date.parse(str(r.created_at));
+      if (ch && ch.push === true && Number.isFinite(at) && bsYmdIn(at, tzOf(u)) === bsYmdIn(now, tzOf(u))) pushed.set(u, (pushed.get(u) || 0) + 1);
     }
   } else {
     console.error("[shape] habit watch: could not read the evening's notices; the dedupe index refuses repeats");
@@ -245,7 +249,7 @@ async function handle(request: Request) {
     try {
       const q = quietOf.get(n.watcherId) || {};
       const asleep = inQuietHours(new Date(now), {
-        tz: personZone.get(n.watcherId) || zone(q.tz) || 'UTC',
+        tz: tzOf(n.watcherId),
         quietStart: typeof q.quiet_start === 'number' ? q.quiet_start : undefined,
         quietEnd: typeof q.quiet_end === 'number' ? q.quiet_end : undefined,
       });

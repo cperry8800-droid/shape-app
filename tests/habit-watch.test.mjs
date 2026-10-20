@@ -317,8 +317,8 @@ test('the person\'s daily cap bounds the pushes: past it a notice lands in the a
   assert.deepEqual(body, { ok: true, owed: 5, sent: 5, failed: 0, unsent: 0, truncated: false });
   assert.equal(sent.filter((n) => !n.quiet).length, 1, 'one push, the rest in the app only');
   t.mock.timers.reset();
-  // A push from more than a day ago does not count, read as a time and not as text: in +14:00 it
-  // reads later than a day ago.
+  // A push from yesterday does not count, read as a time and not as text: in +14:00 it reads as
+  // later than now.
   const at14 = (ms) => new Date(ms + 14 * 60 * 60 * 1000).toISOString().replace('Z', '+14:00');
   const stale = [{ ...prior[0], created_at: at14(NOW - 30 * 60 * 60 * 1000 + 60_000) }];
   const fresh = await run(t, CAPPED({ n: 5, cap: 2, prior: stale }));
@@ -329,6 +329,17 @@ test('the person\'s daily cap bounds the pushes: past it a notice lands in the a
   tables.notification_settings = [];
   const plain = await run(t, tables);
   assert.equal(plain.sent.filter((n) => !n.quiet).length, 4);
+});
+
+test("the cap is per day on the person's own clock: their midnight resets it (Codex on #2413)", async (t) => {
+  // NOW is 8:30 pm on Oct 19 in New York, so Pia's day began 20½ hours ago. A push 21 hours ago
+  // (11:30 pm on the 18th there) is inside the last 24 hours but not today; one 20 hours ago is.
+  const push = (hoursAgo) => [{ id: 'n0', user_id: 'pia', type: 'friend_habit', created_at: new Date(NOW - hoursAgo * 60 * 60 * 1000).toISOString(), data: { dedupe: 'habit:other:2026-10-18', channels: { inapp: true, push: true } } }];
+  const before = await run(t, CAPPED({ n: 2, cap: 1, prior: push(21) }));
+  assert.equal(before.sent.filter((n) => !n.quiet).length, 1, "yesterday's push leaves today's place");
+  t.mock.timers.reset();
+  const after = await run(t, CAPPED({ n: 2, cap: 1, prior: push(20) }));
+  assert.equal(after.sent.filter((n) => !n.quiet).length, 0, "today's push took it");
 });
 
 test('a push that failed gives its place under the cap back to a later notice', async (t) => {
@@ -364,6 +375,10 @@ test('the migration: RLS on, no direct writes, both functions closed to anon and
     assert.ok(sql.includes(`grant execute on function public.${fn} to authenticated;`), fn);
   }
   assert.equal((sql.match(/security definer set search_path = public, pg_temp/g) || []).length, 2);
+  // Every person the caller may pick, uncut (Codex on #2413): the app pages through them.
+  const candidates = sql.slice(sql.indexOf('create or replace function public.habit_watch_candidates'), sql.indexOf('revoke all on function public.habit_watch_candidates'));
+  assert.ok(candidates.includes('order by p.full_name nulls last, p.id;'));
+  assert.doesNotMatch(candidates, /\blimit\b/i, 'no one is left out');
   // set_habit_watchers checks the caller, the habit, the count and every person before writing.
   const body = sql.slice(sql.indexOf('create or replace function public.set_habit_watchers'));
   const firstWrite = body.indexOf('delete from public.habit_watchers');

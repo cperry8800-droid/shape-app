@@ -47,7 +47,9 @@ revoke insert, update, truncate, references, trigger on public.habit_watchers fr
 grant select, delete on public.habit_watchers to authenticated;
 
 -- The people the caller may share a habit with: everyone joined to them by an accepted follow,
--- either way round. A signed-out caller (NULL uid) matches no follow row and gets nothing.
+-- either way round. A signed-out caller (NULL uid) matches no follow row and gets nothing. No
+-- limit: the sheet offers only these people, so one left out could never be picked (Codex on
+-- #2413). The app reads it in pages, since PostgREST's Max rows caps a single request.
 create or replace function public.habit_watch_candidates()
 returns table (user_id uuid, full_name text)
 language sql stable security definer set search_path = public, pg_temp as $$
@@ -59,8 +61,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
     select f.follower_id from public.user_follows f where f.following_id = auth.uid() and f.status = 'accepted'
   )
   and p.id <> auth.uid()
-  order by p.full_name nulls last, p.id
-  limit 500;
+  order by p.full_name nulls last, p.id;
 $$;
 revoke all on function public.habit_watch_candidates() from public, anon;
 grant execute on function public.habit_watch_candidates() to authenticated;

@@ -168,8 +168,8 @@ test('ShapeHabitWatch answers ready, not_ready, anon or error, never a failure d
   const make = (supabase, state = { user: { id: 'ann' } }) =>
     new Function('supabase', 'state', `${src.slice(at, end)}\nreturn { habitWatchCandidates, habitWatchList, habitWatchSet };`)(supabase, state);
   const rpcSays = (answer) => {
-    const chain = { select: () => chain, eq: () => chain, order: () => chain, range: async () => answer };
-    return { rpc: async () => answer, from: () => chain };
+    const chain = { select: () => chain, eq: () => chain, order: () => chain, range: async () => answer, then: (res, rej) => Promise.resolve(answer).then(res, rej) };
+    return { rpc: () => chain, from: () => chain };
   };
 
   const ok = make(rpcSays({ data: [{ user_id: 'u-ben', full_name: 'Ben Ode' }, { user_id: 'u-x', full_name: null }], error: null }));
@@ -186,6 +186,20 @@ test('ShapeHabitWatch answers ready, not_ready, anon or error, never a failure d
   assert.deepEqual(await down.habitWatchList(), { kind: 'error' });
   assert.equal((await down.habitWatchSet('h1', ['u-ben'])).kind, 'error');
   assert.deepEqual(await make(rpcSays({ data: [], error: null }), { user: null }).habitWatchCandidates(), { kind: 'anon' });
+  // Codex on #2413: the candidates stopped at 500 names, and one request stops at PostgREST's
+  // 1,000; someone left out could never be picked. 1,234 people, read in pages under that cap and
+  // ordered by a unique key.
+  const crowd = Array.from({ length: 1234 }, (_, i) => ({ user_id: `u${String(i).padStart(4, '0')}`, full_name: i % 7 ? `Name ${i}` : null }));
+  const orders = [];
+  const paged = make({ rpc: (name) => {
+    assert.equal(name, 'habit_watch_candidates');
+    const q = { order: (col, o) => { orders.push([col, o]); return q; }, range: async (from, to) => ({ data: crowd.slice(from, Math.min(to + 1, from + 1000)), error: null }) };
+    return q;
+  } });
+  const everyone = await paged.habitWatchCandidates();
+  assert.equal(everyone.kind, 'ready');
+  assert.equal(new Set(everyone.people.map((p) => p.userId)).size, 1234, 'everyone, once');
+  assert.deepEqual(orders.slice(0, 2), [['full_name', { nullsFirst: false }], ['user_id', undefined]], 'ordered by a unique key');
 
   const rows = make(rpcSays({ data: [{ habit_id: 'h1', watcher_id: 'u-ben' }, { habit_id: 'h1', watcher_id: 'u-cat' }, { habit_id: 'h2', watcher_id: 'u-ben' }], error: null }));
   assert.deepEqual(await rows.habitWatchList(), { kind: 'ready', byHabit: { h1: ['u-ben', 'u-cat'], h2: ['u-ben'] } });

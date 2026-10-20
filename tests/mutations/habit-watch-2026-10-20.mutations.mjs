@@ -48,13 +48,15 @@ export default {
     { name: "the person's own cap is ignored", file: CRON, find: "      const cap = typeof q.daily_cap === 'number' && Number.isFinite(q.daily_cap) ? q.daily_cap : DAILY_CAP;", replace: '      const cap = DAILY_CAP;' },
     { name: 'no place under the cap is reserved', file: CRON, find: '      if (!quiet) { pushed.set(n.watcherId, used + 1); reserved = true; }', replace: '      if (!quiet) { reserved = true; }' },
     { name: 'a push that did not happen keeps its place', file: CRON, find: "      if (reserved && outcome !== 'stored') pushed.set(n.watcherId, (pushed.get(n.watcherId) || 1) - 1);\n", replace: '' },
-    { name: 'pushes older than a day count against the cap', file: CRON, find: ' && Date.parse(str(r.created_at)) >= dayAgo', replace: '' },
+    { name: 'pushes older than a day count against the cap', file: CRON, find: ' && bsYmdIn(at, tzOf(u)) === bsYmdIn(now, tzOf(u))', replace: '' },
+    { name: 'the cap runs a rolling day, not the person\'s date', file: CRON, find: ' && bsYmdIn(at, tzOf(u)) === bsYmdIn(now, tzOf(u))', replace: ' && at >= now - 24 * 60 * 60 * 1000' },
+    { name: "the cap's day is UTC's, not the person's", file: CRON, find: ' && bsYmdIn(at, tzOf(u)) === bsYmdIn(now, tzOf(u))', replace: " && bsYmdIn(at, 'UTC') === bsYmdIn(now, 'UTC')" },
     { name: 'a notice that landed quiet counts against the cap', file: CRON, find: 'if (ch && ch.push === true && ', replace: 'if (ch && ' },
     { name: 'a failed send counts as a mute', file: CRON, find: "      else if (outcome === 'failed') failed += 1;\n", replace: '' },
     { name: 'a failed zone read sends anyway', file: CRON, find: '  if (!profiles || !settings) {', replace: '  if (false) {' },
     { name: 'a failed check-off, follow or watcher read sends anyway', file: CRON, find: '  if (!watchers || !completions || !follows || !names) {', replace: '  if (!watchers || !names) {' },
     { name: 'a failed quiet-hours read sends anyway', file: CRON, find: '  if (!quietRows || !peopleZones) {', replace: '  if (false) {' },
-    { name: "quiet hours read on UTC, not the person's clock", file: CRON, find: "tz: personZone.get(n.watcherId) || zone(q.tz) || 'UTC',", replace: "tz: zone(q.tz) || 'UTC'," },
+    { name: "quiet hours read on UTC, not the person's clock", file: CRON, find: "  const tzOf = (u: string) => personZone.get(u) || zone((quietOf.get(u) || {}).tz) || 'UTC';", replace: "  const tzOf = (u: string) => zone((quietOf.get(u) || {}).tz) || 'UTC';" },
     { name: 'the notice is filed under another type', file: CRON, find: "        type: 'friend_habit',", replace: "        type: 'habit_reminder'," },
     { name: 'the notice opens nowhere', file: CRON, find: "        route: 'person',", replace: "        route: 'home'," },
     { name: "the notice rides a follow's route, which opens the reader's own profile", file: CRON, find: "        route: 'person',", replace: "        route: 'profile'," },
@@ -88,9 +90,11 @@ export default {
 
     // ── The data layer ──
     { name: 'a missing function is a failed read', file: DATA, find: "  if (['PGRST202', 'PGRST205', '42883', '42P01'].includes(code)) return true;", replace: "  if (['42883'].includes(code)) return true;" },
-    { name: 'any failure is "not switched on"', file: DATA, find: "    if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error' };\n    return { kind: 'ready', people:", replace: "    if (error) return { kind: 'not_ready' };\n    return { kind: 'ready', people:" },
-    { name: 'a failed list reads as nobody', file: DATA, find: "      if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error' };\n      const page = data || [];", replace: "      if (error) return { kind: 'ready', byHabit: {} };\n      const page = data || [];" },
-    { name: "the owner's list is one request, cut at the row cap", file: DATA, find: '      if (page.length < HABIT_WATCH_PAGE) break;', replace: '      break;' },
+    { name: 'any failure is "not switched on"', file: DATA, find: ".order('full_name', { nullsFirst: false }).order('user_id').range(from, from + HABIT_WATCH_PAGE - 1);\n      if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error' };", replace: ".order('full_name', { nullsFirst: false }).order('user_id').range(from, from + HABIT_WATCH_PAGE - 1);\n      if (error) return { kind: 'not_ready' };" },
+    { name: 'a failed list reads as nobody', file: DATA, find: ".order('habit_id').order('watcher_id').range(from, from + HABIT_WATCH_PAGE - 1);\n      if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error' };", replace: ".order('habit_id').order('watcher_id').range(from, from + HABIT_WATCH_PAGE - 1);\n      if (error) return { kind: 'ready', byHabit: {} };" },
+    { name: "the owner's list is one request, cut at the row cap", file: DATA, find: '      if (page.length < HABIT_WATCH_PAGE) break;\n    }\n    if (state.user?.id !== uid)', replace: '      break;\n    }\n    if (state.user?.id !== uid)' },
+    { name: 'the candidates are one request, cut at the row cap', file: DATA, find: "      if (page.length < HABIT_WATCH_PAGE) break;\n    }\n    return { kind: 'ready', people:", replace: "      break;\n    }\n    return { kind: 'ready', people:" },
+    { name: 'the candidates come back in no set order, so pages can skip or repeat', file: DATA, find: ".order('full_name', { nullsFirst: false }).order('user_id').range(", replace: ".range(" },
     { name: 'the same person is sent twice', file: DATA, find: 'p_watchers: [...new Set(userIds || [])]', replace: 'p_watchers: userIds || []' },
 
     // ── The button and the sheet ──
@@ -103,6 +107,7 @@ export default {
     { name: 'a failed load has no retry', file: UI, find: `note(tr('habits:share.loadFailed', { defaultValue: "Couldn't load your people." }), true)`, replace: `note(tr('habits:share.loadFailed', { defaultValue: "Couldn't load your people." }))` },
 
     // ── The migration's guards and the settings rows (held by their source checks) ──
+    { name: 'the candidates stop at 500', file: SQL, find: '  order by p.full_name nulls last, p.id;\n', replace: '  order by p.full_name nulls last, p.id\n  limit 500;\n' },
     { name: 'anon may run set_habit_watchers', file: SQL, find: 'revoke all on function public.set_habit_watchers(uuid, uuid[]) from public, anon;', replace: '' },
     { name: 'two saves for one habit can merge', file: SQL, find: '  where h.id = p_habit and h.user_id = v_me and h.archived_at is null\n  for update;\n', replace: '  where h.id = p_habit and h.user_id = v_me and h.archived_at is null;\n' },
     { name: 'a pending follow can be picked', file: SQL, find: "         where f.status = 'accepted'\n", replace: '         where true\n' },
