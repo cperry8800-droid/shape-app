@@ -211,6 +211,9 @@ planned builds.
   it). Sharing is set from the Habits page only, and its sheet has no search. The cron counts
   every push against the daily cap, but the AI notify engine counts only its own sends, so the
   evening's friend pushes don't hold back its later ones.
+- A goal in the member's own words is set in the app only (the Goal page's picker and the
+  first-run step). The website's sign-up offers just the listed goals, its Goals page shows
+  goals and adds none, and the app's Goal card is the weight goal whatever the goal says.
 - A client whose payment is retrying keeps access until Stripe cancels the plan; a
   Stripe setting that leaves it past_due keeps it open.
 - In the hosted `/m/` app signed out in its own client, a Nora load that starts as one

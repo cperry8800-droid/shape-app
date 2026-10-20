@@ -27618,6 +27618,21 @@ function bsPrimaryGoalToken(stored) {
   const hit = BS_PRIMARY_GOALS.find((g) => g.en.toLowerCase() === s.toLowerCase());
   return hit ? hit.id : s;
 }
+// A goal in the member's own words (owner, 2026-10-20: "make sure user can make custom
+// goals"). It is stored as they typed it, tidied: spaces collapsed and at most
+// BS_PRIMARY_GOAL_MAX characters (counted by code point, so an emoji is never cut in half).
+// Both destinations take the same words, because an unrecognised value already renders as
+// itself. Typing one of the listed goals ("lose fat") resolves to its token, so it reads as
+// that goal in every language.
+const BS_PRIMARY_GOAL_MAX = 60;
+function bsPrimaryGoalFromText(text) {
+  const s = Array.from(String(text == null ? '' : text).replace(/\s+/g, ' ').trim()).slice(0, BS_PRIMARY_GOAL_MAX).join('').trim();
+  return s ? bsPrimaryGoalToken(s) : '';
+}
+function bsPrimaryGoalIsCustom(id) {
+  const s = bsPrimaryGoalToken(id);
+  return !!s && !BS_PRIMARY_GOALS.some((g) => g.id === s);
+}
 const BS_GOALS_DEFAULT = {
   share: true,
   primaryGoal: 'fat_loss', // a TOKEN (BS_PRIMARY_GOALS) — mirrored to the profile as a label
@@ -29958,6 +29973,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const [editOverall, setEditOverall] = useStateBSC(false); // overall body-comp targets sheet
   const [editHeadline, setEditHeadline] = useStateBSC(null); // 'training' | 'nutrition' | null
   const [editPrimary, setEditPrimary] = useStateBSC(false); // in-place primary-goal chips
+  const [customGoal, setCustomGoal] = useStateBSC(null); // the picker's own-words field: null = closed
   const [logWeigh, setLogWeigh] = useStateBSC(false);
   // Cover-page routing (owner pick 2026-08-28, Concept B): 'cover' plus one
   // full-screen page per station. The old five-item anchor index existed only
@@ -30265,6 +30281,27 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const hWords = String(hTitle).trim().split(/\s+/);
   const hLast = hWords.length ? hWords.pop() : '';
   const hHead = hWords.join(' ');
+  // A goal in the member's own words may end in its own stop ("Get fit!"); no second one.
+  const hStop = /[.!?…]$/.test(hLast) ? '' : '.';
+  const closePrimary = () => { setEditPrimary(false); setCustomGoal(null); };
+  // Saves to client_goals.primaryGoal and mirrors the profile's client_identity.goal so the
+  // edit-profile chips agree. `id` is a listed goal's token or the member's own words
+  // (bsPrimaryGoalFromText).
+  const setPrimaryGoal = async (id) => {
+    if (!id) return;
+    const label = bsPrimaryGoalLabel(id, tr);
+    persist({ ...data, primaryGoal: id });
+    try {
+      const ident = (await window.shapeDb?.getUserGoals?.('client_identity')) || {};
+      await window.shapeDb?.saveUserGoals?.('client_identity', { ...ident, goal: label });
+      window.ShapeIdentity = { ...(window.ShapeIdentity || {}), goal: label };
+      try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+    } catch (e) {}
+    closePrimary();
+    window.__bsToast?.(tr('goal:primary.toast', { defaultValue: 'Goal set · {goal}', goal: label }), 'ok');
+  };
+  const ownGoal = bsPrimaryGoalIsCustom(data.primaryGoal) ? data.primaryGoal : '';
+  const ownGoalNext = customGoal == null ? '' : bsPrimaryGoalFromText(customGoal);
   return (
     <BSPage>
       {/* Header — Back where every page keeps it, the eyebrow, then the goal and
@@ -30276,7 +30313,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
         <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat }}>{tr('home:goal.eyebrow', { defaultValue: 'Your goal' })}</div>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginTop: 6 }}>
-          <h1 style={{ margin: 0, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: heat }}>{hLast}.</span></h1>
+          <h1 style={{ margin: 0, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: heat }}>{hLast}{hStop}</span></h1>
           <button onClick={() => setEditPrimary(true)} style={{ flexShrink: 0, minHeight: 40, padding: '0 14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:page.edit', { defaultValue: 'Edit' })}</button>
         </div>
       </div>}
@@ -30314,13 +30351,14 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       {editPrimary && createPortal(
         <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
           {/* Header — the question and a way out (owner, 2026-10-20: the chip wall
-              read as a puzzle; a list with one check reads at a glance). */}
-          <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+              read as a puzzle; a list with one check reads at a glance). Its hairline
+              keeps the scrolled list from running up under the two-line hint. */}
+          <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 12px`, borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
               <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 28, letterSpacing: '-0.03em', color: t.INK, margin: '6px 0 0', lineHeight: 1.05 }}>{tr('goal:primary.titlePre', { defaultValue: 'Your primary' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('goal:primary.titleAccent', { defaultValue: 'goal.' })}</span></h1>
-              <button onClick={() => setEditPrimary(false)} aria-label={tr('goal:sheet.closeAria', { defaultValue: 'Close' })} style={{ flexShrink: 0, width: 44, height: 44, marginRight: -10, background: 'transparent', border: 0, color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 17, fontWeight: 800, lineHeight: 1 }}>✕</button>
+              <button onClick={closePrimary} aria-label={tr('goal:sheet.closeAria', { defaultValue: 'Close' })} style={{ flexShrink: 0, width: 44, height: 44, marginRight: -10, background: 'transparent', border: 0, color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 17, fontWeight: 800, lineHeight: 1 }}>✕</button>
             </div>
-            <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>{tr('goal:primary.hint', { defaultValue: 'Pick one · syncs with your profile' })}</div>
+            <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>{tr('goal:primary.hint', { defaultValue: 'Pick one or write your own · syncs with your profile' })}</div>
           </div>
           {/* The list — scrollbar hidden */}
           <div className="bs-hide-scroll" role="radiogroup" aria-label={tr('goal:primary.titlePre', { defaultValue: 'Your primary' }) + ' ' + tr('goal:primary.titleAccent', { defaultValue: 'goal.' })} style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `12px ${t.padX}px 18px` }}>
@@ -30335,26 +30373,37 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
               const on = (data.primaryGoal || '') === g.id;
               const label = bsPrimaryGoalLabel(g.id, tr);
               return (
-                <button key={g.id} role="radio" aria-checked={on} onClick={async () => {
-                  persist({ ...data, primaryGoal: g.id });
-                  try {
-                    const ident = (await window.shapeDb?.getUserGoals?.('client_identity')) || {};
-                    await window.shapeDb?.saveUserGoals?.('client_identity', { ...ident, goal: label });
-                    window.ShapeIdentity = { ...(window.ShapeIdentity || {}), goal: label };
-                    try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
-                  } catch (e) {}
-                  setEditPrimary(false);
-                  window.__bsToast?.(tr('goal:primary.toast', { defaultValue: 'Goal set · {goal}', goal: label }), 'ok');
-                }} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 54, padding: '0 2px', background: 'transparent', border: 0, borderBottom: `1px solid ${t.HAIR || t.RULE}`, cursor: 'pointer', textAlign: 'left', color: on ? teal : t.INK, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: on ? 700 : 500, letterSpacing: '-0.01em' }}>
+                <button key={g.id} role="radio" aria-checked={on} onClick={() => setPrimaryGoal(g.id)} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 54, padding: '0 2px', background: 'transparent', border: 0, borderBottom: `1px solid ${t.HAIR || t.RULE}`, cursor: 'pointer', textAlign: 'left', color: on ? teal : t.INK, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: on ? 700 : 500, letterSpacing: '-0.01em' }}>
                   <span>{label}</span>
                   <span aria-hidden style={{ flexShrink: 0, width: 22, height: 22, boxSizing: 'border-box', borderRadius: 99, border: `1.5px solid ${on ? teal : t.RULE}`, background: on ? teal : 'transparent', color: t.isLight ? '#fff' : '#04201d', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
                 </button>
               );
             })}
+            {/* A goal in the member's own words (owner, 2026-10-20: "make sure user can
+                make custom goals"). Checked while the stored goal is none of the listed
+                ones; tapping it opens the field, filled with their words. */}
+            <button role="radio" aria-checked={!!ownGoal} aria-expanded={customGoal != null} onClick={() => setCustomGoal(customGoal != null ? null : ownGoal)} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 54, padding: '8px 2px', background: 'transparent', border: 0, borderBottom: customGoal != null ? 0 : `1px solid ${t.HAIR || t.RULE}`, cursor: 'pointer', textAlign: 'left', color: ownGoal ? teal : t.INK, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: ownGoal ? 700 : 500, letterSpacing: '-0.01em' }}>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block' }}>{tr('goal:primary.custom', { defaultValue: 'Your own goal' })}</span>
+                {ownGoal && customGoal == null && <span data-own-goal style={{ display: 'block', marginTop: 2, fontFamily: t.BODY, fontSize: 14, fontWeight: 400, letterSpacing: 0, color: t.INK70, overflowWrap: 'anywhere' }}>{ownGoal}</span>}
+              </span>
+              <span aria-hidden style={{ flexShrink: 0, width: 22, height: 22, boxSizing: 'border-box', borderRadius: 99, border: `1.5px solid ${ownGoal ? teal : t.RULE}`, background: ownGoal ? teal : 'transparent', color: t.isLight ? '#fff' : '#04201d', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800 }}>{ownGoal ? '✓' : ''}</span>
+            </button>
+            {customGoal != null && (
+              <div style={{ padding: '2px 2px 16px', borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>
+                <input className="bs-uline" autoFocus enterKeyHint="done" value={customGoal} maxLength={BS_PRIMARY_GOAL_MAX}
+                  aria-label={tr('goal:primary.customLabel', { defaultValue: 'Your goal, in your words' })}
+                  placeholder={tr('goal:primary.customPlaceholder', { defaultValue: 'e.g. Run my first 10k' })}
+                  onChange={(e) => setCustomGoal(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setPrimaryGoal(ownGoalNext); } }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) }} />
+                <button onClick={() => setPrimaryGoal(ownGoalNext)} disabled={!ownGoalNext} style={{ marginTop: 12, width: '100%', padding: '14px', borderRadius: 6, border: 0, background: ownGoalNext ? teal : t.RULE, color: ownGoalNext ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: ownGoalNext ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('goal:primary.customSave', { defaultValue: 'Set goal' })}</button>
+              </div>
+            )}
           </div>
           {/* Pinned footer */}
           <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, background: t.PAPER }}>
-            <button onClick={() => setEditPrimary(false)} style={{ width: '100%', padding: '14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:primary.close', { defaultValue: 'Close' })}</button>
+            <button onClick={closePrimary} style={{ width: '100%', padding: '14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:primary.close', { defaultValue: 'Close' })}</button>
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
@@ -30679,6 +30728,8 @@ function BSIntentStep({ onDone }) {
   _bsScrollTopOnMount();
   React.useEffect(() => { try { window.ShapeAnalytics?.track?.('onboarding_started'); } catch (e) {} }, []);
   const [picked, setPicked] = useStateBSC(null);
+  const [own, setOwn] = useStateBSC(null); // the member's own words: null = field closed
+  const ownNext = own == null ? '' : bsPrimaryGoalFromText(own);
   // ⚠ THE PICK IS A TOKEN, NOT A LABEL — and this is the SECOND writer of
   // client_goals.primaryGoal (BSGoalsContract's picker is the other), so the two
   // must agree or a goal set at first run matches no chip on the Goals page.
@@ -30785,7 +30836,20 @@ function BSIntentStep({ onDone }) {
           {BS_PRIMARY_GOALS.map((g) => (
             <button key={g.id} onClick={() => pick(g.id)} disabled={saving} style={{ padding: '11px 16px', borderRadius: 999, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.6 : 1, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{bsPrimaryGoalLabel(g.id, tr)}</button>
           ))}
+          {/* A goal in their own words (owner, 2026-10-20), saved like any pick. */}
+          <button onClick={() => setOwn(own == null ? '' : null)} aria-expanded={own != null} disabled={saving} style={{ padding: '11px 16px', borderRadius: 999, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.6 : 1, border: `1px ${own != null ? 'solid' : 'dashed'} ${own != null ? teal : t.RULE}`, background: 'transparent', color: own != null ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>＋ {tr('goal:primary.custom', { defaultValue: 'Your own goal' })}</button>
         </div>
+        {own != null && (
+          <div style={{ marginTop: 16 }}>
+            <input className="bs-uline" autoFocus enterKeyHint="done" value={own} maxLength={BS_PRIMARY_GOAL_MAX}
+              aria-label={tr('goal:primary.customLabel', { defaultValue: 'Your goal, in your words' })}
+              placeholder={tr('goal:primary.customPlaceholder', { defaultValue: 'e.g. Run my first 10k' })}
+              onChange={(e) => setOwn(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (ownNext) pick(ownNext); } }}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) }} />
+            <button onClick={() => pick(ownNext)} disabled={!ownNext || saving} style={{ marginTop: 12, width: '100%', padding: '14px', borderRadius: 999, border: 0, background: ownNext ? teal : t.RULE, color: ownNext ? '#04201d' : t.INK50, cursor: ownNext && !saving ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('goal:primary.customSave', { defaultValue: 'Set goal' })}</button>
+          </div>
+        )}
         <button onClick={skip} style={{ marginTop: 28, background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', padding: 0 }}>{tr('onboarding:intent.skip', { defaultValue: 'Skip for now →' })}</button>
       </div>
     </BSPage>
