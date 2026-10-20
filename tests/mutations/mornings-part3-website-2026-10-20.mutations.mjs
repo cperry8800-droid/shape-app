@@ -24,7 +24,9 @@ export default {
       // the current one. The guard stays as belt and braces; what CAN be stale, the day's read, has its
       // own check (seq0), killed above.
       expectSurvive: true },
-    { name: "the add's target is never taken", file: SITE, find: "        if (t != null) setHydTarget(t);\n", replace: "" },
+    { name: "the add's target is never taken", file: SITE, find: '        if ("targetStoredL" in d) setHydTarget(dclWaterTarget(d));\n', replace: "" },
+    { name: "a target removed in the app stays", file: SITE, find: 'if ("targetStoredL" in d) setHydTarget(dclWaterTarget(d));', replace: 'if (dclWaterTarget(d) != null) setHydTarget(dclWaterTarget(d));' },
+    { name: "an older route's answer clears the target", file: SITE, find: 'if ("targetStoredL" in d) setHydTarget(dclWaterTarget(d));', replace: 'setHydTarget(dclWaterTarget(d));' },
     { name: "the readout serves a caller with no account", file: READOUT, find: "  if (!user) {\n    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });", replace: "  if (false) {\n    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });" },
     { name: "the readout's queries run on the cookie client", file: READOUT, find: "  const supabase = await clientForRequest(request);", replace: "  const supabase = await clientForRequest(new Request('http://x/'));" },
   ],

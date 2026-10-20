@@ -363,9 +363,10 @@ function DashTodayCard({ live }) {
       .then((d) => {
         if (seq !== hydSeq.current || !d || !d.ok) return;
         setHyd(Number(d.hydrationL) || 0);
-        // The answer carries the member's target too: one set in the app since the read shows here.
-        const t = dclWaterTarget(d);
-        if (t != null) setHydTarget(t);
+        // The answer carries the member's target too: one set in the app since the read shows here,
+        // and one removed there goes here too (Codex P2 on #2410). An older route without the field
+        // says nothing about it, so the target stands.
+        if ("targetStoredL" in d) setHydTarget(dclWaterTarget(d));
       })
       .catch(() => { if (seq === hydSeq.current) { setHyd(shown); setLastDelta(0); } })
       .then(() => { if (seq === hydSeq.current) setHydBusy(false); });

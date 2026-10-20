@@ -672,6 +672,33 @@ test("the website's water line: progress only against the member's own target", 
   } finally { await m.unmount(); }
 });
 
+test("the website's water line follows a target set or removed in the app, from an add's answer (Codex P2 on #2410)", async () => {
+  const { React, CL } = await setup();
+  const dots = (m) => m.el.querySelectorAll('[data-dcl-water] div[aria-hidden="true"]').length;
+  const card = (read, added) => mountCard(React, CL, async (path, init) => (path !== '/api/client/hydration' ? null : init.method === 'POST' ? added : read));
+  // Set in the app since the page loaded: the add's answer brings it.
+  let m = await card({ ok: true, hydrationL: 1, targetL: 3, targetStoredL: null }, { ok: true, hydrationL: 1.25, targetL: 2, targetStoredL: 2 });
+  try {
+    assert.equal(dots(m), 0);
+    await m.press('+ 250 ml');
+    assert.match(m.water(), /^Water 1\.25 \/ 2 L · 63% /, m.water());
+  } finally { await m.unmount(); }
+  // Removed in the app: the add's answer says there is none, and the progress goes.
+  m = await card({ ok: true, hydrationL: 1, targetL: 2, targetStoredL: 2 }, { ok: true, hydrationL: 1.25, targetL: 3, targetStoredL: null });
+  try {
+    assert.match(m.water(), /^Water 1 \/ 2 L /, m.water());
+    await m.press('+ 250 ml');
+    assert.equal(m.water(), 'Water 1.25 L + 250 ml + 500 ml ↶', 'a removed target still drew progress');
+    assert.equal(dots(m), 0);
+  } finally { await m.unmount(); }
+  // An older route whose answer has no targetStoredL says nothing about the target: it stands.
+  m = await card({ ok: true, hydrationL: 1, targetL: 2, targetStoredL: 2 }, { ok: true, hydrationL: 1.25, targetL: 2 });
+  try {
+    await m.press('+ 250 ml');
+    assert.match(m.water(), /^Water 1\.25 \/ 2 L /, m.water());
+  } finally { await m.unmount(); }
+});
+
 test("the website's water line: a day's read that lands after an add never undoes it (review on part 3)", async () => {
   const { React, CL } = await setup();
   let releaseRead;
