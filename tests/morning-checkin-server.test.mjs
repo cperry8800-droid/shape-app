@@ -207,8 +207,8 @@ async function scoreComposite(snaps) {
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/request-utils', { dbError: () => nextServer.NextResponse.json({ error: 'db' }, { status: 500 }) }],
-      ['@/lib/supabase/server', { createClient: async () => supabase }],
-      ['@/lib/score-derive', { deriveScore: () => ({ shapeScore: 0, highWaterScore: 0, spendableBalance: 0 }) }],
+      ['@/lib/request-auth', { clientForRequest: async () => supabase, currentUser: async () => ({ id: 'member-1' }) }],
+      ['@/lib/score-derive',{ deriveScore: () => ({ shapeScore: 0, highWaterScore: 0, spendableBalance: 0 }) }],
       ['@/lib/require-membership', { requireMembership: async () => null }],
       ['@/lib/score-ledger-read', { readAllLedgerRows: async () => ({ rows: [], error: null }) }],
     ]),

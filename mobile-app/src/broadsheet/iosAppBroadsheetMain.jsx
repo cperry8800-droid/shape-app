@@ -6,7 +6,7 @@ import { I18nextProvider } from 'react-i18next';
 import { initI18n, applyDir, useTr, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
 import BSDobGate from './BSDobGate.jsx';
-import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines } from '../services/dailyWire.mjs';
+import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines, bsWireTraining, bsWireCoachNote, bsWireNutrition } from '../services/dailyWire.mjs';
 import { bsMemberGate, bsMembershipAfter, bsMembershipSeed, bsPollMembership } from '../services/memberGate.mjs';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
@@ -375,27 +375,13 @@ async function bsDigestScore(auth) {
 async function bsDigestTraining() {
   try {
     const plan = (window.ShapePlan && window.ShapePlan.get) ? await window.ShapePlan.get() : null;
-    if (!plan || !plan.training || !plan.training.hasPlan) return null;
-    const workouts = plan.training.workouts || [];
-    const coach = plan.training.coach || null;
-    const now = new Date();
-    const iso = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-    const w = workouts.find((x) => x.scheduledDate === iso) || workouts.find((x) => !x.scheduledDate) || workouts[0];
-    if (!w) return { coach: coach, hasWorkout: false };
-    return { title: w.title || 'Workout', time: w.time || null, durationMin: w.durationMin || null, moveCount: (w.exercises || []).length, coach: coach, hasWorkout: true };
+    return bsWireTraining(plan);
   } catch (e) { return null; }
 }
 async function bsDigestCoach() {
   try {
     const res = (window.ShapeMessages && window.ShapeMessages.listDirectCoachThreads) ? await window.ShapeMessages.listDirectCoachThreads() : null;
-    const threads = ((res && res.data) || []).filter((th) => !th.as_coach);
-    const norm = threads.map((th) => {
-      const cm = (th.messages || []).filter((m) => m.coach);
-      const last = cm.length ? cm[cm.length - 1] : null;
-      return { who: th.who, role: th.provider_role, text: (last && last.t) || th.last || null, at: th.updatedAt || null };
-    }).filter((th) => th.text);
-    norm.sort((a, b) => String(b.at).localeCompare(String(a.at)));
-    return norm[0] || null;
+    return bsWireCoachNote(res && res.data);
   } catch (e) { return null; }
 }
 async function bsDigestNutrition() {
@@ -404,12 +390,7 @@ async function bsDigestNutrition() {
       (window.ShapeProgress && window.ShapeProgress.nutrition) ? window.ShapeProgress.nutrition() : null,
       (window.ShapeProgress && window.ShapeProgress.analytics) ? window.ShapeProgress.analytics() : null,
     ]);
-    const today = (r[0] && r[0].today) || null;
-    const ticker = (r[1] && r[1].ticker) || null;
-    const cal = (today && today.calories != null) ? today.calories : ((ticker && ticker.cal != null) ? ticker.cal : null);
-    const protein = (today && today.protein != null) ? today.protein : ((ticker && ticker.protein_g != null) ? ticker.protein_g : null);
-    if (cal == null && protein == null) return null;
-    return { cal: cal, calTarget: (ticker && ticker.cal_target != null) ? ticker.cal_target : null, protein: protein, proteinTarget: (ticker && ticker.protein_target != null) ? ticker.protein_target : null };
+    return bsWireNutrition(r[0], r[1]);
   } catch (e) { return null; }
 }
 async function bsDigestStreakChallenge(auth) {

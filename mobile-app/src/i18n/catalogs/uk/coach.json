@@ -497,11 +497,8 @@
   "grocery.itemsPlaceholder": "По одній позиції в рядку\nКуряча грудка\nРис жасмин\nБроколі",
   "grocery.kickerNutri": "Доставка харчування",
   "grocery.kickerTrainer": "Підтримка з харчування",
-  "grocery.leadEyebrow": "Списки · {mode}",
   "grocery.listNamePlaceholder": "Назва списку — напр. День великої тарілки",
   "grocery.listsCount": "{count, plural, one {# список} few {# списки} many {# списків} other {# списку}}",
-  "grocery.modeNutri": "доставка харчування",
-  "grocery.modeTrainer": "підтримка з харчування",
   "grocery.newList": "＋ Новий список покупок",
   "grocery.personal": "Особисті",
   "grocery.sendToClient": "Надіслати {name} →",
@@ -1365,5 +1362,7 @@
   "business.weeks.head": "Чистими на місяць, останні 13 тижнів",
   "business.window": "за останні 3 місяці",
   "offer.row": "Місячна пропозиція",
-  "offer.rowSub": "Що входить, показується у вашому профілі на маркетплейсі"
+  "offer.rowSub": "Що входить, показується у вашому профілі на маркетплейсі",
+  "grocery.loadFailed": "Не вдалося завантажити ваші списки.",
+  "grocery.clientsFailed": "Не вдалося завантажити клієнтів."
 }

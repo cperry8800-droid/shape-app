@@ -355,7 +355,6 @@
   "kitchen.eyebrow": "Shape Kitchen",
   "kitchen.filters": "Фільтри",
   "kitchen.fromSource": "Від {name}",
-  "kitchen.menuSub": "Рецепти від нутриціологів і дієтологів Shape та з відкритих джерел, згруповані за часом приготування. Натисніть будь-який рядок, щоб відкрити рецепт повністю.",
   "kitchen.nRecipes": "{n, plural, one {# рецепт} few {# рецепти} many {# рецептів} other {# рецепта}}",
   "kitchen.publicDomainCredit": "Рецепти із суспільного надбання взято з USDA MyPlate Kitchen — джерело вказано в кожному рядку та на кожній сторінці.",
   "kitchen.rdCarbs": "В",

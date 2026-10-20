@@ -497,11 +497,8 @@
   "grocery.itemsPlaceholder": "Mỗi dòng một mục\nỨc gà\nGạo thơm\nBông cải xanh",
   "grocery.kickerNutri": "Giao hàng dinh dưỡng",
   "grocery.kickerTrainer": "Hỗ trợ bữa ăn",
-  "grocery.leadEyebrow": "Các danh sách · {mode}",
   "grocery.listNamePlaceholder": "Tên danh sách — ví dụ Ngày ăn nhiều",
   "grocery.listsCount": "{count, plural, one {# danh sách} other {# danh sách}}",
-  "grocery.modeNutri": "giao hàng dinh dưỡng",
-  "grocery.modeTrainer": "hỗ trợ bữa ăn",
   "grocery.newList": "＋ Danh sách mua sắm mới",
   "grocery.personal": "Cá nhân",
   "grocery.sendToClient": "Gửi cho {name} →",
@@ -1365,5 +1362,7 @@
   "business.weeks.head": "Thực nhận mỗi tháng, 13 tuần qua",
   "business.window": "trong 3 tháng qua",
   "offer.row": "Gói hằng tháng",
-  "offer.rowSub": "Những gì được bao gồm, hiển thị trên hồ sơ chợ của bạn"
+  "offer.rowSub": "Những gì được bao gồm, hiển thị trên hồ sơ chợ của bạn",
+  "grocery.loadFailed": "Không tải được danh sách của bạn.",
+  "grocery.clientsFailed": "Không tải được khách hàng của bạn."
 }

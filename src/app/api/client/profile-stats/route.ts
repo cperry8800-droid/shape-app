@@ -5,7 +5,7 @@
 // back to its example sub-data per field.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
 
 export const dynamic = 'force-dynamic';
@@ -20,10 +20,8 @@ const DISC_ORDER: Array<[key: string, label: string]> = [
 export async function GET(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }

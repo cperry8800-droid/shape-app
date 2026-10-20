@@ -453,7 +453,10 @@ test('app: the thread view loads its history by id, shows the welcome as a note,
   assert.match(client, /const listed = \(threadRows \|\| \[\]\)\.find\(r => r\.conversation_id === openRequest\.conversationId\);/);
   // Member views that pick "my coach" from these threads never pick one of the account's own clients.
   assert.equal((client.match(/\.filter\(\(?c\)? => !c\.as_coach\)/g) || []).length, 2, 'the dispatch register and the profile chip');
-  assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx'), /const threads = \(\(res && res\.data\) \|\| \[\]\)\.filter\(\(th\) => !th\.as_coach\);/);
+  // The launch telegram's coach note reads the member's threads through bsWireCoachNote (its
+  // behaviour is in tests/daily-wire.test.mjs), which skips a thread held as the coach.
+  assert.match(read('mobile-app/src/services/dailyWire.mjs'), /\.filter\(\(th\) => th && !th\.as_coach\)/);
+  assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx'), /return bsWireCoachNote\(res && res\.data\);/);
 });
 
 test('the new-client alert opens the thread: the app\'s router and the website\'s inbox both read "chat:<id>"', () => {

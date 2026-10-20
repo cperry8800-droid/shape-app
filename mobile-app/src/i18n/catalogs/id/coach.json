@@ -497,11 +497,8 @@
   "grocery.itemsPlaceholder": "Satu item per baris\nDada ayam\nBeras melati\nBrokoli",
   "grocery.kickerNutri": "Pengiriman nutrisi",
   "grocery.kickerTrainer": "Dukungan makan",
-  "grocery.leadEyebrow": "Daftar · {mode}",
   "grocery.listNamePlaceholder": "Nama daftar — mis. Hari porsi besar",
   "grocery.listsCount": "{count, plural, one {# daftar} other {# daftar}}",
-  "grocery.modeNutri": "pengiriman nutrisi",
-  "grocery.modeTrainer": "dukungan makan",
   "grocery.newList": "＋ Daftar belanja baru",
   "grocery.personal": "Pribadi",
   "grocery.sendToClient": "Kirim ke {name} →",
@@ -1365,5 +1362,7 @@
   "business.weeks.head": "Bersih per bulan, 13 minggu terakhir",
   "business.window": "dalam 3 bulan terakhir",
   "offer.row": "Penawaran bulanan",
-  "offer.rowSub": "Apa saja yang termasuk, tampil di profil marketplace-mu"
+  "offer.rowSub": "Apa saja yang termasuk, tampil di profil marketplace-mu",
+  "grocery.loadFailed": "Tidak bisa memuat daftarmu.",
+  "grocery.clientsFailed": "Tidak bisa memuat klienmu."
 }

@@ -83,7 +83,9 @@ back or the file grows past 20 KB.
 - **Next.js app (`src/`):** API routes, the gated `/dashboard` and `/admin`. Typecheck
   with `npx tsc --noEmit`. This Next version has breaking changes, so read
   `node_modules/next/dist/docs/` before writing Next code. When you add a route,
-  register it in the War Room's `RAW_ROUTES`.
+  register it in the War Room's `RAW_ROUTES`. A route the app calls reads the caller with
+  `clientForRequest`/`currentUser` (`src/lib/request-auth.ts`): the installed app sends a
+  Bearer token and no cookie. `tests/app-routes-bearer.test.mjs` enforces it.
 - **Mobile app: `mobile-app/`** (Capacitor/Vite SPA, served at `/m/`).
   - Build: from `mobile-app/`, run `VITE_BASE=/m/ npm run build`.
   - `public/m` isn't committed: `scripts/build-m.sh` builds it at deploy (Vercel's
@@ -206,8 +208,8 @@ planned builds.
   inside it. The dashboard routes' session reads and their coach-row read drop their
   errors. Renewals and the origin feed show "—" for both an unread name and none on
   file.
-- `/api/client/score` reads only the cookie, so the installed app's member Score page
-  likely gets 401.
+- Shape Wire (the launch telegram) shows the coach's latest note however old it is, and
+  in the morning its protein line is usually absent (it reads only today's row).
 - A client whose payment is retrying keeps access until Stripe cancels the plan; a
   Stripe setting that leaves it past_due keeps it open.
 - In the hosted `/m/` app signed out in its own client, a Nora load that starts as one

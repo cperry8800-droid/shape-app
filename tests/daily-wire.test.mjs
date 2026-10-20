@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   bsLaunchRoute, bsDailyStamp, bsAfterBeat,
   bsWireDirective, bsWireLines, BS_LEVER_HEADS,
+  bsWireTraining, bsWireCoachNote, bsWireNutrition,
 } from '../mobile-app/src/services/dailyWire.mjs';
 
 // ── bsLaunchRoute — the warm-relaunch decision ─────────────────────────────
@@ -223,4 +224,84 @@ test('BSSplash actually hands bsWireLines the translator + locale', async () => 
     'useTr is used in the launch shell but never imported');
   assert.match(src, /const \{ tr, locale \} = useTr\('onboarding'\)/,
     'BSSplash must resolve both tr and locale — the locale drives the clock convention');
+});
+
+// ── The digest legs — which of the member's data reaches the telegram ───────
+// Wednesday 2026-10-21, 7am local. Its week runs Mon 10-19 … Sun 10-25.
+const WED = new Date(2026, 9, 21, 7, 0);
+const wk = (over) => ({ id: over.id, title: over.title, exercises: [{ name: 'x' }], scheduledDate: null, repeatDow: null, selfAuthored: false, coach: null, ...over });
+const planOf = (workouts) => ({ training: { hasPlan: workouts.length > 0, coach: 'First Trainer', workouts } });
+
+test('wireTraining: a rest day with a dated plan reads as a rest day, not Monday\'s session', () => {
+  const plan = planOf([wk({ id: 'mon', title: 'Lower', scheduledDate: '2026-10-19' }), wk({ id: 'fri', title: 'Upper', scheduledDate: '2026-10-23' })]);
+  assert.deepEqual(bsWireTraining(plan, WED), { hasWorkout: false });
+  // …and the rest line is what the member reads.
+  const lines = bsWireLines({ signedIn: true, training: bsWireTraining(plan, WED), score: null, nutrition: null, streak: 0, coach: null }, null);
+  assert.deepEqual(lines.map((l) => l.text), ['REST DAY ON THE BOOKS']);
+});
+
+test('wireTraining: today\'s dated session, with the coach who wrote it', () => {
+  const plan = planOf([wk({ id: 'mon', title: 'Lower', scheduledDate: '2026-10-19', coach: 'Ana' }), wk({ id: 'wed', title: 'Pull', scheduledDate: '2026-10-21', coach: 'Ben', time: '17:45', durationMin: 45 })]);
+  assert.deepEqual(bsWireTraining(plan, WED), { title: 'Pull', time: '17:45', durationMin: 45, moveCount: 1, coach: 'Ben', hasWorkout: true });
+});
+
+test('wireTraining: a weekly repeat lands only on its own weekdays', () => {
+  const plan = planOf([wk({ id: 'r', title: 'Run', repeatDow: [0, 2], selfAuthored: true })]); // Mon + Wed
+  assert.equal(bsWireTraining(plan, WED).title, 'Run');
+  assert.deepEqual(bsWireTraining(plan, new Date(2026, 9, 22, 7, 0)), { hasWorkout: false }); // Thursday
+});
+
+test('wireTraining: undated sessions fill the week from Monday, as Train lays them out', () => {
+  const plan = planOf([wk({ id: 'a', title: 'A' }), wk({ id: 'b', title: 'B' })]);
+  assert.deepEqual(bsWireTraining(plan, WED), { hasWorkout: false }); // A on Mon, B on Tue, Wed open
+  assert.equal(bsWireTraining(plan, new Date(2026, 9, 20, 7, 0)).title, 'B'); // Tuesday
+});
+
+test('wireTraining: a session the member wrote names no coach, whoever leads the plan', () => {
+  const plan = planOf([wk({ id: 'wed', title: 'Mine', scheduledDate: '2026-10-21', selfAuthored: true })]);
+  assert.equal(bsWireTraining(plan, WED).coach, null);
+});
+
+test('wireTraining: no plan is null (the no-session lines), and a dated row from another week is not today', () => {
+  assert.equal(bsWireTraining(null, WED), null);
+  assert.equal(bsWireTraining({ training: { hasPlan: false, workouts: [] } }, WED), null);
+  assert.deepEqual(bsWireTraining(planOf([wk({ id: 'n', title: 'Next', scheduledDate: '2026-10-28' })]), WED), { hasWorkout: false });
+});
+
+test('wireTraining and Train read the same slotting', async () => {
+  const fs = await import('node:fs');
+  const src = fs.readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', 'utf8');
+  assert.match(src, /const slots = bsSlotWeek\(workouts, monday\);/, 'Train no longer slots its week through bsSlotWeek');
+  assert.match(fs.readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx', 'utf8'), /return bsWireTraining\(plan\);/);
+});
+
+const thread = (over) => ({ as_coach: false, who: 'Jordan', provider_role: 'trainer', updatedAt: '2026-10-20T10:00:00Z', messages: [], last: 'New conversation', ...over });
+
+test('wireCoachNote: the coach\'s own last written line, never the member\'s or a placeholder', () => {
+  const t1 = thread({ messages: [{ coach: true, t: 'Leave two in the tank.' }, { coach: false, me: true, t: 'Will do!' }], last: 'Will do!' });
+  assert.deepEqual(bsWireCoachNote([t1]), { who: 'Jordan', role: 'trainer', text: 'Leave two in the tank.', at: '2026-10-20T10:00:00Z' });
+  // No coach message at all: no note (the thread's `last` is the member's, or a placeholder).
+  assert.equal(bsWireCoachNote([thread({ messages: [{ coach: false, me: true, t: 'Hi coach' }], last: 'Hi coach' })]), null);
+  assert.equal(bsWireCoachNote([thread({})]), null);
+  // A voice note with no text gives way to the coach's last written line.
+  const t2 = thread({ messages: [{ coach: true, t: 'Eat before you lift.' }, { coach: true, t: '', audio: 'x.m4a' }] });
+  assert.equal(bsWireCoachNote([t2]).text, 'Eat before you lift.');
+});
+
+test('wireCoachNote: the newest thread wins; a thread held as the coach is skipped', () => {
+  const older = thread({ who: 'Ana', updatedAt: '2026-10-18T10:00:00Z', messages: [{ coach: true, t: 'Old' }] });
+  const newer = thread({ who: 'Ben', updatedAt: '2026-10-20T10:00:00Z', messages: [{ coach: true, t: 'New' }] });
+  const mine = thread({ as_coach: true, updatedAt: '2026-10-21T10:00:00Z', messages: [{ coach: true, t: 'To my client' }] });
+  assert.equal(bsWireCoachNote([older, mine, newer]).who, 'Ben');
+  assert.equal(bsWireCoachNote(null), null);
+});
+
+test('wireNutrition: only today\'s row reaches the telegram', () => {
+  const ana = { ticker: { cal_target: 2100, protein_target: 140, protein_g: 150 } };
+  assert.deepEqual(bsWireNutrition({ today: { date: '2026-10-21', calories: 1200, protein: 96 } }, ana, WED), { cal: 1200, calTarget: 2100, protein: 96, proteinTarget: 140 });
+  // The newest row is Monday's: nothing logged today, so no protein line (and not the ticker's 150 either).
+  assert.equal(bsWireNutrition({ today: { date: '2026-10-19', calories: 2000, protein: 150 } }, ana, WED), null);
+  // Today's row with no meal on it (a Morning check-in made it).
+  assert.equal(bsWireNutrition({ today: { date: '2026-10-21', calories: null, protein: null } }, ana, WED), null);
+  assert.equal(bsWireNutrition(null, ana, WED), null);
 });

@@ -52,6 +52,7 @@ async function readout({ model = null } = {}) {
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/supabase/server', { createClient: async () => client }],
+      ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => (await client.auth.getUser()).data.user ?? null }],
       ['@/lib/request-utils', { readJson: async () => ({ ok: true, data: {} }), dbError: () => { throw new Error('unexpected db error'); } }],
       ['@/lib/ai', {
         hasOpenAIKey: () => !!model,

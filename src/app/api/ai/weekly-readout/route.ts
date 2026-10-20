@@ -29,7 +29,7 @@
 // route did before, it does not fail the request.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { requireMembership } from '@/lib/require-membership';
@@ -398,9 +398,8 @@ export async function POST(request: Request) {
   if (!bodyResult.ok) return bodyResult.response;
   body = bodyResult.data;
 
-  const supabase = await createClient();
-  const { data: authData } = await supabase.auth.getUser();
-  const user = authData.user;
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }

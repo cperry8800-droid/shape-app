@@ -355,7 +355,6 @@
   "kitchen.eyebrow": "Shape Kitchen",
   "kitchen.filters": "Filter",
   "kitchen.fromSource": "Von {name}",
-  "kitchen.menuSub": "Rezepte von den Ernährungsberatern und Diätassistenten auf Shape und aus gemeinfreien Quellen, nach Kochzeit gruppiert. Tippe auf eine Zeile für das ganze Rezept.",
   "kitchen.nRecipes": "{n, plural, one {# Rezept} other {# Rezepte}}",
   "kitchen.publicDomainCredit": "Gemeinfreie Rezepte kommen von USDA MyPlate Kitchen — die Quelle steht in jeder Zeile und auf jeder Seite.",
   "kitchen.rdCarbs": "K",

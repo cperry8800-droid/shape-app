@@ -6,6 +6,8 @@
 // Home lead (BS_LEVER_HEADS) so the two surfaces cannot drift.
 // Spec: docs/superpowers/specs/2026-07-10-splash-wire-briefing-design.md
 
+import { bsSlotWeek } from './trainingBuilder.mjs';
+
 // ── Warm-relaunch route ───────────────────────────────────────────────────
 // The briefing is a morning ritual, not a toll: a same-local-day reopen by a
 // known member skips straight to the app. `stamp` is the persisted
@@ -79,6 +81,70 @@ export function bsWireDirective(dir) {
   if (!head) return null;
   if (dir.lever === 'sleep' && !bsSleepLeadOk(dir)) return null;
   return { head: head, reason: dir.reason || null };
+}
+
+// ── The digest legs — the member's real day, shaped for the lines below ─────
+// The member's local calendar day, "YYYY-MM-DD".
+function isoDay(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// Today's session from /api/client/plan, on the day Train shows it (bsSlotWeek).
+// ⚠ THIS USED TO FALL BACK TO THE PLAN'S FIRST WORKOUT. With no row dated today it
+// took the first undated row, else workouts[0] — so on a rest day the telegram named
+// Monday's session (or next week's) as today's, with REPLY BY SHOWING UP under it,
+// and REST DAY ON THE BOOKS could never be reached by a member with any plan at all.
+// The coach is the one who wrote TODAY's session (a member may pay two), never the
+// plan's first trainer, and none for a session the member wrote themselves.
+// null = no plan; { hasWorkout: false } = a plan with nothing on today.
+export function bsWireTraining(plan, now = new Date()) {
+  const training = plan && plan.training;
+  if (!training || !training.hasPlan) return null;
+  const monday = new Date(now); monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const w = bsSlotWeek(training.workouts || [], monday)[(now.getDay() + 6) % 7];
+  if (!w) return { hasWorkout: false };
+  const coach = !w.selfAuthored && typeof w.coach === 'string' && w.coach.trim() ? w.coach.trim() : null;
+  return { title: w.title || null, time: w.time || null, durationMin: w.durationMin || null, moveCount: (w.exercises || []).length, coach, hasWorkout: true };
+}
+
+// The latest note a coach wrote to the member, from listDirectCoachThreads().
+// ⚠ ONLY THE COACH'S OWN WORDS. The thread's `last` is whoever spoke last — the
+// member, or Shape's welcome — and is 'New conversation' on an empty thread, so
+// falling back to it put the member's own message, or a placeholder, after the
+// coach's name. A photo or voice note with no text is skipped for the coach's last
+// written line. Threads the member holds as a coach are not theirs to read here.
+export function bsWireCoachNote(threads) {
+  const notes = (Array.isArray(threads) ? threads : [])
+    .filter((th) => th && !th.as_coach)
+    .map((th) => {
+      const said = (th.messages || []).filter((m) => m && m.coach && typeof m.t === 'string' && m.t.trim());
+      const last = said.length ? said[said.length - 1] : null;
+      return last ? { who: th.who || null, role: th.provider_role || null, text: last.t.trim(), at: th.updatedAt || null } : null;
+    })
+    .filter(Boolean);
+  notes.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  return notes[0] || null;
+}
+
+// Today's intake from /api/client/nutrition (+ the targets from /api/client/analytics).
+// ⚠ ONLY TODAY'S ROW. The route's `today` is the member's NEWEST snapshot, whatever
+// its date, and the analytics ticker is the newest row too — so a member who last
+// logged on Friday read Friday's protein on Monday morning as today's. A row dated
+// another day, or one with no meal on it, leaves the line out.
+export function bsWireNutrition(nutrition, analytics, now = new Date()) {
+  const today = nutrition && nutrition.today;
+  if (!today || today.date !== isoDay(now)) return null;
+  const cal = today.calories != null ? today.calories : null;
+  const protein = today.protein != null ? today.protein : null;
+  if (cal == null && protein == null) return null;
+  const ticker = (analytics && analytics.ticker) || null;
+  return {
+    cal,
+    calTarget: ticker && ticker.cal_target != null ? ticker.cal_target : null,
+    protein,
+    proteinTarget: ticker && ticker.protein_target != null ? ticker.protein_target : null,
+  };
 }
 
 // ── The telegram lines ─────────────────────────────────────────────────────

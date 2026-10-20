@@ -497,11 +497,8 @@
   "grocery.itemsPlaceholder": "Abu ɗaya a kowane layi\nƘirjin kaza\nShinkafar Jasmine\nBroccoli",
   "grocery.kickerNutri": "Isar da gina jiki",
   "grocery.kickerTrainer": "Tallafin abinci",
-  "grocery.leadEyebrow": "Jerin · {mode}",
   "grocery.listNamePlaceholder": "Sunan jeri — misali Ranar faranti mai girma",
   "grocery.listsCount": "{count, plural, one {# jeri} other {# jerurruka}}",
-  "grocery.modeNutri": "isar da gina jiki",
-  "grocery.modeTrainer": "tallafin abinci",
   "grocery.newList": "＋ Sabon jerin kayan sayayya",
   "grocery.personal": "Na kaina",
   "grocery.sendToClient": "Aika ga {name} →",
@@ -1365,5 +1362,7 @@
   "business.weeks.head": "Tsabta a wata, makonni 13 da suka wuce",
   "business.window": "cikin watanni 3 da suka wuce",
   "offer.row": "Tayin wata-wata",
-  "offer.rowSub": "Abin da ya ƙunsa, ana nuna shi a bayanin martabarka a kasuwa"
+  "offer.rowSub": "Abin da ya ƙunsa, ana nuna shi a bayanin martabarka a kasuwa",
+  "grocery.loadFailed": "An kasa loda jerin sunayenka.",
+  "grocery.clientsFailed": "An kasa loda abokan cinikinka."
 }

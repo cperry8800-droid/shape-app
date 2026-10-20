@@ -53,7 +53,7 @@ import { bsTrackLanes, bsTrackLaneStatus, bsTrackWindow, bsCookNowMin, bsCookFin
 import { bsCkModalSync, bsCkFocusOwner, bsCkGiveBack } from '../services/cookFocus.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
-import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
+import { bsProgramFits, bsProgramRowCount, bsSlotWeek, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
 import { BS_LEVER_HEADS, bsSleepLeadOk } from '../services/dailyWire.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
@@ -5454,38 +5454,10 @@ function bsBuildTrainProgram(workouts, t, tr) {
   monday.setDate(monday.getDate() - bsWeekdayIdx(monday));
   const dateFor = (i) => { const d = new Date(monday); d.setDate(d.getDate() + i); return d; };
 
-  // Slot workouts onto the week. Dated rows claim their day first; then
-  // weekly-repeat self sessions (payload.repeatDow) fill their weekdays via
-  // bsSlotRepeats (respecting taken slots); finally any remaining undated rows
-  // fill the gaps in order.
-  const mondayISO = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
-  const slots = [null, null, null, null, null, null, null];
-  const repeats = [];
-  const unscheduled = [];
-  for (const w of (workouts || [])) {
-    if (w.scheduledDate) {
-      // Dated rows belong to their exact day. In this week + slot free → place it;
-      // slot taken or outside this week (a program's future/past day) → ignore
-      // (the deck is a 7-day view; other weeks show on the calendar).
-      const dt = new Date(w.scheduledDate + 'T00:00:00');
-      const idx = Math.round((dt - monday) / 86400000);
-      if (idx >= 0 && idx <= 6 && !slots[idx]) slots[idx] = w;
-      continue;
-    }
-    if (Array.isArray(w.repeatDow) && w.repeatDow.length) { repeats.push({ ...w, payload: { repeatDow: w.repeatDow } }); continue; }
-    unscheduled.push(w);
-  }
-  // bsSlotRepeats reads payload.repeatDow — carry the original workout on the slot.
-  const repeatByDow = bsSlotRepeats(repeats, mondayISO);
-  for (let i = 0; i < 7; i++) {
-    if (!slots[i] && repeatByDow[i]) {
-      const orig = repeats.find((r) => r === repeatByDow[i]);
-      slots[i] = orig || repeatByDow[i];
-    }
-  }
-  for (let i = 0; i < 7 && unscheduled.length; i++) {
-    if (!slots[i]) slots[i] = unscheduled.shift();
-  }
+  // Slot workouts onto the week (dated rows, then weekly repeats, then the
+  // undated rest in order). The launch telegram reads the same slotting, so
+  // the two never disagree about whether today is a rest day.
+  const slots = bsSlotWeek(workouts, monday);
 
   return slots.map((w, i) => {
     const d = dateFor(i);
@@ -8041,9 +8013,6 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
         <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, lineHeight: 0.94, letterSpacing: '-0.035em', color: t.INK }}>
           {tr('nutrition:eat.menuKicker', { defaultValue: 'The menu' })}<span style={{ color: t.ACCENT }}>.</span>
         </h1>
-        <div style={{ marginTop: 10, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>
-          {tr('nutrition:kitchen.menuSub', { defaultValue: "Recipes from Shape's nutritionists and dieticians, and from the public record, grouped by how long they take to cook. Tap any row for the full recipe." })}
-        </div>
       </div>
       <BSNutritionTopTabs active="recipes" onChange={onChangeView} />
 

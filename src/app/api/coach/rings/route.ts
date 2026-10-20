@@ -6,14 +6,14 @@
 // RLS scopes every query to the signed-in coach, so this is self-only by design.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+export async function GET(request: Request) {
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const [trainerRow, nutritionistRow] = await Promise.all([

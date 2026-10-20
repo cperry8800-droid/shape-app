@@ -6,7 +6,7 @@
 // The user sees an immediate "submitted" toast on the client.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { sendEmail } from '@/lib/email';
 import { readJson } from '@/lib/request-utils';
 
@@ -17,8 +17,8 @@ const ALLOWED = new Set(['Export', 'Pause', 'Delete']);
 const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'chris.perry@shapecommunity.onmicrosoft.com';
 
 export async function POST(req: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(req);
+  const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const bodyResult = await readJson<Record<string, unknown>>(req, { allowEmpty: true });

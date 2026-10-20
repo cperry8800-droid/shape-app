@@ -5,7 +5,7 @@
 // Synced to the account so it shows on web + mobile (both via the nutrition feed).
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
 import { requireMembership } from '@/lib/require-membership';
 
@@ -23,8 +23,8 @@ function int(v: unknown): number {
 export async function GET(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const date = new URL(request.url).searchParams.get('date') || todayStr();
   const { data } = await supabase
@@ -39,8 +39,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
@@ -67,8 +67,8 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;

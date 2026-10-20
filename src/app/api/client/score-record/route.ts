@@ -5,7 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { dbError } from '@/lib/request-utils';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { bsScoreRecord, type LedgerRow } from '@/lib/scoreHistory';
 import { requireMembership } from '@/lib/require-membership';
 import { readAllLedgerRows } from '@/lib/score-ledger-read';
@@ -15,8 +15,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   // The FULL ledger — no cap. `/api/client/score` computes the Standing from every

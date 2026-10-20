@@ -4,7 +4,7 @@
 // the client; existing conversation RLS handles read/write afterward.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
@@ -15,10 +15,8 @@ export async function POST(
   { params }: { params: Promise<{ clientId: string }> }
 ) {
   const { clientId } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(req);
+  const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const bodyResult = await readJson<Record<string, unknown>>(req, { allowEmpty: true });
