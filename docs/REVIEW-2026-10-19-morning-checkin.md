@@ -4,8 +4,8 @@
 style, but again the purpose and where you can see the data over time, and what it means to the
 member"* and *"make sure it makes sense and set up properly"*.
 
-**Status:** Part 1 shipped in #2407 and its reminder fix in #2408. Part 2 is in this PR; part 3 is
-planned (§5). This replaces the design in
+**Status:** Part 1 shipped in #2407 and its reminder fix in #2408, part 2 in #2409. Part 3 is in this
+PR (§3.6, §3.9, §3.10). This replaces the design in
 [`REVIEW-2026-10-18-daily-checkin.md`](REVIEW-2026-10-18-daily-checkin.md); its rulings that still
 stand are carried into §6.
 
@@ -75,8 +75,9 @@ window (today and the six days before it; first match):
 - Otherwise a word that holds most days: "Mostly Good mornings this week."
 - Fewer than 3 answered days: "{n} more mornings and your week shows here."
 
-**Who sees this:** "Your trainer and nutritionist see your 7-day averages", the coach roles the
-member has, or "Only you".
+**Who sees this:** "Your trainer and nutritionist see your answers", the coach roles the member has,
+or "Only you see these." (Part 3: it said "your 7-day averages", but the nutritionist's day review
+shows each day's energy and hunger, and the case file the latest Rested.)
 
 **Sleep on Home:** "Get to bed earlier tonight." leads only on a real shortfall: the engine's
 sleep_low (a 7-day average under 6h over 3 or more nights) or a coach who set sleep as the move. The
@@ -110,12 +111,42 @@ Doors: Home's done line and the walkthrough summary ("Your mornings →"), the e
 (where its Energy, Hunger and Rested tabs were), and with Check-ins off, the quiet Home row, the Daily
 check-in reminder and the sleep lead. With Check-ins off the page also says that nothing new is
 asked. Signed out it shows example mornings, marked as an example. It replaces the old "How are you."
-page and its Sleep detail overlay.
+page and its Sleep detail overlay. Part 3 puts What we've noticed (§3.6) between the cycle chip and
+7 days | 30 days: its window is its own, so it sits above the switch.
 
-### 3.6 Patterns (part 3)
-"Your energy runs lower after nights under 7h", "You often wake tired after a full night: it's how
-you sleep, not how long." Only the weekly readout's tested findings and plain counts, each with
-"Based on {n} mornings".
+### 3.6 What we've noticed (part 3)
+Plain counts of the member's own mornings, made on the device by `morningPatterns.mjs`, which Nora's
+read runs too, so the two say one thing. There are two patterns, and only two, so a member is never
+shown the one comparison of many that happened to differ:
+1. **Energy after short nights.** Mornings with energy and a night with hours (typed or a watch's; a
+   0h or skipped night is left out), split by the card's short night: under 6h, or an hour or more
+   under the usual night, as the Sleep section counts them. It shows only with 8 or more mornings on
+   each side, and a gap in Low or Drained mornings of 15 points or more that is also at least 1.65
+   standard errors (the house gate, as `crossoverRead` and `bsCycleRead` use). It is said in either
+   direction, with both counts: "Low mornings come more often after a short night." (or "less
+   often"), then "Low or Drained after 5 of 9 short nights, and after 3 of 21 full nights."
+2. **Waking tired after full nights.** 8 or more full nights answered How did you wake up?, with
+   Tired or Wrecked on more than half: "You often wake up tired after a full night." then "Tired or
+   Wrecked after 6 of 10 full nights." and the card's follow-up: tell your coach, or with no coach,
+   keep an eye on it. The 10-19 draft's "it's how you sleep, not how long" is dropped, because nothing
+   tests it.
+
+Each line ends "Based on {n} mornings". The window is the 60 days ending today, but it counts only
+mornings from 2026-10-19 (#2407), when the questions became the morning's (energy before that was
+"right now", at any hour). The window is not the page's 7 or 30 days, so the section sits above that
+switch. When nothing stands out, it says "Nothing stands out yet. Patterns show here after a few weeks
+of mornings." With Check-ins off, the section is not drawn at all in that case. The footer says "A
+short night is under 6h, or an hour or more under your usual. Only you see these." and "Ask Nora
+about your mornings" closes the section.
+
+The section never:
+- says "because" (patterns say "after");
+- gives a number other than counts;
+- uses readiness, which is built from the same answers;
+- shows the signed-out example (the readout card's ruling: a demo insight is a fabricated one).
+
+Hunger, training and steps are not in it yet: the evening question is days old, and the weekly
+readout already tests those. Its findings stay on Progress, under "The read".
 
 ### 3.7 Water
 Water leaves the check-in. It is a Home line all day, whatever the Check-ins setting: the day's
@@ -139,6 +170,48 @@ Bands: 80+ Ready · 60-79 Steady · 40-59 Take it easy · under 40 Run down. Hom
 the window's average, and a strip of each answered morning's readiness. It is a guide built from the
 member's own answers, not a medical reading, and coaches don't see it yet.
 
+### 3.9 Nora reads the mornings (part 3)
+- **Facts, every turn:** this morning's own answers in words: energy, how they woke up, the night
+  (its hours, from a watch or typed, or skipped), and Morning readiness with its band.
+  - Before 4 a.m. local there is no morning to report.
+  - After 4 a.m., an open morning is "not answered yet", never "missed".
+  - With Check-ins off, the facts say they are off.
+  - The facts are labelled as the account's own, and left out on a coach's screen that has a client
+    open.
+- **`get_mornings`** (no arguments; it reads only the caller's own rows):
+  - today;
+  - the last 7 and 30 days for each check, said as Your mornings says them: the word most days had or
+    the range, the average night and the number of short nights, and which way each moved against the
+    days before;
+  - readiness's average;
+  - the §3.6 patterns;
+  - hunger between meals, only for a member with a nutritionist.
+
+  Words only.
+- **The prompt:**
+  - Never a 1-10 figure, "/10" or the scale.
+  - Each answer is named by its source (this morning's energy, How you woke up, hunger between meals),
+    never confused with the weekly coach form's ratings.
+  - Patterns only as the read gives them, said with "after".
+  - She can't record a morning: it is answered on Home in the app (on the website, in the Shape app).
+  - Who sees what is said as §3.4 says it.
+  - Readiness is a guide, not a medical reading, and coaches don't see it.
+- **Your mornings tells Nora its screen,** and her screen chip goes back to Home's on Back.
+- **Coaches gain nothing.** Readiness and patterns never reach a coach tool.
+- **`get_week_summary`'s sleep average leaves out 0h nights,** as Your mornings does.
+
+### 3.10 The website: no check-in (part 3; owner, 2026-10-20: "dont need a website check in")
+The website's Today card asked every member on 1-10 gauges at any hour, ignored the Check-ins switch,
+and showed "/10". It now points to the app (the owner's choice: "Point to the app instead"): "Your
+Morning check-in is in the Shape app", and Your mornings there shows it over time. The gauges and the
+Recovery line are gone.
+
+Water stays as its own line: the day's amount, + 250 ml, + 500 ml and Undo. Progress is shown only
+against a target the member set (ruling 8).
+
+Progress's Energy, Hunger and Rested tabs plotted the answers as "/10". They go, and the history is
+in Your mornings.
+
 ## 4. What must not change
 - `energy`, `hunger`, `sleep_hours` and `sleep_quality` on one `daily_health_snapshot` row per member
   per **local** day, written through `POST /api/client/checkin`.
@@ -157,8 +230,12 @@ member's own answers, not a medical reading, and coaches don't see it yet.
    reminder and the sleep lead open Your mornings. Progress's Energy, Hunger and Rested tabs move to
    Your mornings. A skipped night is read from the day's row too, so it holds on every device. The
    member's engine reasons said in words (energy, hunger and sleep), coaches keep /10.
-3. **What we've noticed.** Patterns (§3.6), Nora reading energy, hunger and Rested, then the
-   website's daily card on the same reads.
+3. **What we've noticed (this PR).**
+   - Patterns on Your mornings (§3.6).
+   - Nora reading the mornings in words (§3.9).
+   - The website's card pointing to the app, with water kept, and its check-in trend tabs gone
+     (§3.10).
+   - Who sees this said truthfully (§3.4).
 
 ## 6. Rulings
 **Carried from 10-18:**
@@ -185,6 +262,20 @@ member's own answers, not a medical reading, and coaches don't see it yet.
     word never disagrees with the engine's thresholds at 4 and 8.
 12. With Check-ins off there is nothing to answer in the app; Your mornings still shows the history.
 13. A coach's own reason on Home is never reworded.
+
+**Part 3 calls (2026-10-20):**
+14. The website asks nothing in the morning. Its card points to the app (owner, 2026-10-20), and
+    water stays on it.
+15. Patterns are plain counts of the member's own mornings over 60 days from 2026-10-19:
+    - two of them;
+    - behind the house gate: 8 mornings a side, 15 points and 1.65 standard errors;
+    - said with "after", never "because";
+    - never from readiness, and never for the example.
+16. One short night per page. Patterns use the card's: under 6h, or an hour or more under the usual
+    night. Never "under 7h".
+17. Nora reads the mornings in words, from the member's own rows only, and can't record one. Coaches
+    get no new reads.
+18. Who sees this says coaches see your answers. Patterns and readiness are only yours.
 
 ## 7. Defects found while mapping it
 Fixed in part 1:
@@ -214,9 +305,38 @@ Still open:
   signed-in member always sees "not tracked".
 - The Progress trend chart (its other series) plots up to 400 entries evenly spaced, with no dates or
   range, and opens on Weight whichever series was asked for.
-- The route's own recovery readiness (`kpis.readiness`, now read only by the website's daily card)
+- The route's own recovery readiness (`kpis.readiness`, which no member screen reads since part 3)
   takes each measure's newest reading however old. Morning readiness on the app is dated.
 - The push cron re-checks a stored snapshot for 14 days, so a "this week" push can repeat the next
   week, including after Check-ins is switched off.
 - Demo Home widgets with made-up numbers can show for a signed-in member whose saved layout lists
   them.
+
+Found while mapping part 3, fixed in it:
+- Who sees this said coaches see "your 7-day averages". In fact the nutritionist's day review shows
+  each day's energy and hunger, and the case file shows the latest Rested.
+- The website wrote any 1-10 value, at any hour, with the Check-ins switch ignored. It asked hunger
+  of every member, so a trainer-only client's DAILY HUNGER line stayed lit (ruling 6).
+- Nora counted 0h nights in her week's sleep average.
+- Nora's screen chip went blank after a page that had set its own closed. `bsNoraOpen` now restores
+  the one before.
+- `/api/ai/weekly-readout` read only the cookie, so the installed app got 401 and "The read" never
+  showed there. It now takes the app's token too (owner, 2026-10-20), so each app member who opens
+  Progress can spend that week's one model call.
+
+Found while mapping part 3, fixed after it (owner, 2026-10-20: "fix the splash and cycle card wording"):
+- The Shape Daily splash said the engine's English energy and hunger reason in every locale. It now
+  says the reason as Home's lead does, in the member's words and language.
+- The cycle card said "1.2 points" on the stored scale (ruling 11), in English. It now says the
+  read in words and in the member's language; sleep keeps a duration and habits no "pp".
+
+Found while mapping part 3, still open:
+- The signed-out demo calendar shows "Energy 7/10", and its check-in form saves nothing.
+- Nora says the five words in English and translates them herself, so her word can differ from the
+  card's in another language.
+- For the counsel review:
+  - The health-data privacy page lists only the weekly check-in, not the Morning check-in, readiness
+    or patterns.
+  - The data export leaves out Nora's conversation and the stored readouts.
+- Same as yesterday copies yesterday's answers, so repeated mornings make a pattern look steadier
+  than it was.

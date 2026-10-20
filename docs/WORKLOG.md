@@ -141,7 +141,9 @@ planned builds.
   (closing it means refunds).
 - In-app purchase outside the US (Phase 2) is on hold.
 - Decide how a suspended coach appeals.
-- Have counsel read the 2026-10-13 privacy policy text.
+- Have counsel read the 2026-10-13 privacy policy text. The health-data page lists only the weekly
+  check-in, not the Morning check-in, readiness or patterns, and the data export leaves out Nora's
+  conversation and the stored readouts.
 - Make the direct-charges test purchase (#2403's Owner steps): in Stripe test mode, add the
   Connected accounts destination with `invoice.paid`, set both Connect variables under
   Vercel's Preview (the test-mode `ca_…`), then buy from a test coach on staging.
@@ -171,13 +173,6 @@ planned builds.
 - Nora as a Shape Radio DJ, Phase 2 onward
   ([`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md)). This waits on a
   signed station provider.
-- The Morning check-in
-  ([`REVIEW-2026-10-19-morning-checkin.md`](REVIEW-2026-10-19-morning-checkin.md) §5). Parts 1
-  and 2 are built: the two morning steps with a read of what they mean, evening hunger for
-  nutritionist clients, water as its own Home line, Morning readiness (`morningReadiness.mjs`) and
-  Your mornings (`BSYourMornings.jsx`), which replaced the old "How are you." page and took its
-  doors. Still to build, part 3: patterns, Nora reading the answers, and the website's
-  `DashTodayCard`.
 
 **Known gaps**
 - `get_display_names` returns a full name and photo for any id, whoever asks.
@@ -258,10 +253,10 @@ planned builds.
   Same as yesterday still won't copy Rested onto it. The energy lead still says "I'll take it
   lighter →" but opens Your mornings, and the hydration lead does nothing when Home's water line
   isn't on screen. Pushes and bell rows sent before part 2 keep their "/10", and the website's coach
-  Today message draft still puts the coach's "/10" reason in front of the member. The website (part
-  3) still asks every member hunger on 1-10 gauges and shows its own Energy, Hunger and Rested
-  trends. The card's streak line, evening label and Answer button are small amber text on light
-  papers.
+  Today message draft still puts the coach's "/10" reason in front of the member. The card's streak
+  line, evening label and Answer button are small amber text on light papers. Patterns
+  (`morningPatterns.mjs`) count mornings from 2026-10-19 only, so none show for a few weeks. Nora
+  says the five words in English. The signed-out demo calendar shows "Energy 7/10".
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
   `/m/`, sheets add no history entry.
 

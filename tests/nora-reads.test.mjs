@@ -192,6 +192,20 @@ test('readWeekSummary: averages over the days that carry a value, weigh-in chang
   assert.deepEqual(r.habits, { active: 2, completions7d: 5, possible7d: 14 });
 });
 
+test('readWeekSummary: a 0h night is no night, as Your mornings and the progress route count them', async () => {
+  // A watch can sync 0 hours; the average night and the count leave it out (§3.9).
+  const sb = fakeSupabase({ tables: { daily_health_snapshot: [
+    { user_id: U, snapshot_date: '2026-09-21', sleep_hours: 8 },
+    { user_id: U, snapshot_date: '2026-09-22', sleep_hours: 0 },
+    { user_id: U, snapshot_date: '2026-09-23', sleep_hours: 7 },
+  ] } });
+  const r = await readWeekSummary(sb, U, { now: NOW });
+  assert.deepEqual(r.recovery, { avgSleepHours: 7.5, sleepNights: 2 });
+  // Only 0h nights: no average at all, never "0 hours a night".
+  const zero = await readWeekSummary(fakeSupabase({ tables: { daily_health_snapshot: [{ user_id: U, snapshot_date: '2026-09-22', sleep_hours: 0 }] } }), U, { now: NOW });
+  assert.ok(!('recovery' in zero));
+});
+
 test('readWeekSummary: no zero-fill, no cross-unit change, honest failure per leg', async () => {
   const empty = await readWeekSummary(fakeSupabase({ tables: { daily_health_snapshot: [] } }), U, { now: NOW });
   assert.equal(empty.ok, true);

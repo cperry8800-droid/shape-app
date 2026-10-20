@@ -85,6 +85,13 @@ export const SHAPE_KNOWLEDGE = Object.freeze([
     source: 'The app',
   },
   {
+    id: 'morning-checkin',
+    title: 'The Morning check-in, Your mornings and Morning readiness',
+    tags: ['morning check-in', 'check-in', 'checkin', 'morning', 'mornings', 'your mornings', 'readiness', 'morning readiness', 'energy', 'woke up', 'rested', 'tired', 'noticed', 'patterns', 'who sees'],
+    body: 'The Morning check-in is on Home in the Shape app from 4 a.m.: how you slept (your hours, or your watch’s night), How did you wake up? and this morning’s energy, each in five words, and every tap saves. With a nutritionist, Home also asks about hunger between meals from 6 p.m. Morning readiness is a 0-100 guide from your own answers and your watch’s readings (Ready, Steady, Take it easy, Run down), not a medical reading. Your mornings shows it with your last 7 or 30 days and What we’ve noticed: plain counts, like low mornings after short nights, once there are enough mornings. Your trainer and nutritionist see your answers; readiness and the patterns are only yours. The website has no check-in. Check-ins can be turned off in Settings. The weekly check-in for your coach is a separate form.',
+    source: 'The app’s Morning check-in and Your mornings',
+  },
+  {
     id: 'units',
     title: 'Weigh-ins, goals and units',
     tags: ['weigh', 'weigh-in', 'weight', 'goal', 'units', 'imperial', 'metric', 'kg', 'lb', 'pounds', 'kilograms', 'miles', 'kilometres'],

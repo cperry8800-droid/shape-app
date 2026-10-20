@@ -601,7 +601,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const [tab, setTab] = useStateBSC(initialTab);
   // Nora is told the tab they asked from (the Ask Nora plan, step 4).
   const noraTabLabel = { home: tr('common:nav.home', { defaultValue: 'Home' }), train: tr('common:nav.train', { defaultValue: 'Train' }), eat: tr('common:nav.eat', { defaultValue: 'Eat' }), chat: tr('common:nav.chat', { defaultValue: 'Chat' }), me: tr('common:nav.me', { defaultValue: 'Me' }) }[tab];
-  React.useEffect(() => bsNoraOpen({ page: bsNoraPage(tab), label: noraTabLabel }), [tab, noraTabLabel]);
+  const noraOwner = React.useRef({});
+  React.useEffect(() => bsNoraOpen({ page: bsNoraPage(tab), label: noraTabLabel }, noraOwner.current), [tab, noraTabLabel]);
   const [showSettings, setShowSettings] = useStateBSC(false);
   const [settingsStart, setSettingsStart] = useStateBSC('');
   const [showCalendar, setShowCalendar] = useStateBSC(false);
@@ -25142,11 +25143,44 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 // closes. The server keeps an id only after checking it against the account, so a screen
 // can narrow what Nora is told, never widen it. `label` is the screen's name in the
 // member's language, for the sheet's chip; `page` is the English one Nora is told.
+// ⚠ CLOSING A SCREEN GIVES BACK WHAT WAS THERE (Morning check-in part 3, §3.9). A page opened over a
+// tab (Your mornings over Home) sets `page`, and its close used to delete it, so Home's chip was gone
+// until the tab changed. Each key keeps a stack of what the open screens set: a close takes its own
+// entry out, whatever order screens close in, and the key reads the newest entry left, or is absent.
+// ⚠ A SCREEN KEEPS ITS PLACE WHEN ITS OWN EFFECT RE-RUNS (review on part 3). A language change re-runs
+// Home's tab effect and the page's in one commit, every close first and then the opens child first,
+// so Home's open landed on top and the chip said Home over Your mornings. A screen that passes an
+// `owner` (a ref's stable object) is placed by when that owner first opened, not by the latest re-run.
 const _bsNoraOpen = {};
-function bsNoraOpen(patch) {
-  const set = {};
-  Object.keys(patch || {}).forEach((k) => { if (patch[k] != null) { _bsNoraOpen[k] = patch[k]; set[k] = patch[k]; } });
-  return () => { Object.keys(set).forEach((k) => { if (_bsNoraOpen[k] === set[k]) delete _bsNoraOpen[k]; }); };
+const _bsNoraOpenStack = {};
+let _bsNoraOpenSeq = 0;
+const _bsNoraOwnerSeq = new WeakMap();
+function bsNoraOpen(patch, owner) {
+  const token = {};
+  const set = [];
+  let seq;
+  if (owner && typeof owner === 'object') {
+    if (!_bsNoraOwnerSeq.has(owner)) _bsNoraOwnerSeq.set(owner, (_bsNoraOpenSeq += 1));
+    seq = _bsNoraOwnerSeq.get(owner);
+  } else {
+    seq = (_bsNoraOpenSeq += 1);
+  }
+  Object.keys(patch || {}).forEach((k) => {
+    if (patch[k] == null) return;
+    const stack = (_bsNoraOpenStack[k] = _bsNoraOpenStack[k] || []);
+    stack.push({ token, seq, value: patch[k] });
+    stack.sort((a, b) => a.seq - b.seq);
+    _bsNoraOpen[k] = stack[stack.length - 1].value;
+    set.push(k);
+  });
+  return () => {
+    set.forEach((k) => {
+      const stack = (_bsNoraOpenStack[k] || []).filter((e) => e.token !== token);
+      _bsNoraOpenStack[k] = stack;
+      if (stack.length) _bsNoraOpen[k] = stack[stack.length - 1].value;
+      else delete _bsNoraOpen[k];
+    });
+  };
 }
 const BS_NORA_PAGES = { home: 'Home', train: 'Train', eat: 'Eat', chat: 'Chat', me: 'Me', today: 'Today', clients: 'Clients', plans: 'Plans', programs: 'Plans' };
 function bsNoraPage(tab) { return BS_NORA_PAGES[tab] || String(tab || '').replace(/[-_]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase()); }
@@ -38558,6 +38592,43 @@ function bsCycleLabelDays(starts, rows) {
   }
   return out;
 }
+// The read in the member's words and language. Composed from the read's own
+// fields, never from read.copy, which is the engine's English: hi and lo are the
+// higher- and lower-valued phase codes, and sleep carries its gap in minutes.
+// ⚠ No figure on the check-in scale (ruling 11): energy, rested and habits say
+// only which phase runs lower, never "1.2 points" or "12pp".
+// ⚠ Each cycle:read.* sentence picks its phrase with an ICU select on hi and lo,
+// so a locale inflects the phase where it stands ("in deiner Lutealphase", "в
+// лютеиновой фазе") rather than having the capitalised label dropped into the
+// middle of a sentence. Sleep's gap is a duration through Home's own keys, by
+// the card's rules: minutes under an hour ("40 min", never "0h 40"), else hours
+// with the minutes padded as bsCiHM pads them ("1h 05"). The engine has already
+// rounded them to whole fives, so there is nothing left to round here.
+// read.copy is the defaultValue only (tests/cycle-phase.test.mjs holds the en
+// catalog to it), and the whole line for a metric or phase this doesn't know.
+const BS_CYCLE_READ_PHASES = new Set(['menstrual', 'follicular', 'ovulatory', 'luteal']);
+function bsCycleReadText(tr, read) {
+  if (!read || typeof read !== 'object') return null;
+  const english = typeof read.copy === 'string' && read.copy ? read.copy : null;
+  if (!BS_CYCLE_READ_PHASES.has(read.hi) || !BS_CYCLE_READ_PHASES.has(read.lo)) return english;
+  const at = { hi: read.hi, lo: read.lo, defaultValue: english };
+  if (read.metric === 'energy') return tr('cycle:read.energy', at);
+  if (read.metric === 'rested') return tr('cycle:read.rested', at);
+  if (read.metric === 'adherence') return tr('cycle:read.adherence', at);
+  if (read.metric === 'sleep') {
+    const min = Number(read.minutes);
+    if (!Number.isInteger(min) || min <= 0) return english;
+    const hh = Math.floor(min / 60);
+    const mm = min % 60;
+    const dur = !hh
+      ? tr('home:checkin.mOnly', { defaultValue: '{m} min', m: mm })
+      : mm
+        ? tr('home:checkin.hm', { defaultValue: '{h}h {m}', h: hh, m: String(mm).padStart(2, '0') })
+        : tr('home:checkin.hOnly', { defaultValue: '{h}h', h: hh });
+    return tr('cycle:read.sleep', { ...at, dur });
+  }
+  return english;
+}
 function BSCycleCard({ isSelf }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -38615,6 +38686,7 @@ function BSCycleCard({ isSelf }) {
         ? tr('cycle:cal.lateHead', { d: cycle.day, defaultValue: 'Cycle day {d}' })
         : tr('cycle:cal.phaseHead', { phase: phaseLabel, d: cycle.day, defaultValue: '{phase} · day {d}' });
   const cycles = bsCycleCompleteCycles(starts);
+  const readText = bsCycleReadText(tr, read);
   return (
     <div style={{ marginBottom: 22 }}>
       <BSTStationHead heat={heat} INK={t.INK} label={tr('cycle:card.station', { defaultValue: 'The cycle' })} meta={tr('cycle:card.meta', { defaultValue: 'Private to you' })} />
@@ -38628,11 +38700,11 @@ function BSCycleCard({ isSelf }) {
           </div>
         ) : null}
         {/* The read fires only past every floor; below them the card simply
-            carries no read — never an invented one. Copy is baked in-module
-            (the crossoverCopy no-drift rule). */}
-        {read && read.copy ? (
+            carries no read — never an invented one. Its words are composed in
+            the member's language from the read's fields (bsCycleReadText). */}
+        {readText ? (
           <div style={{ marginTop: 11, paddingTop: 10, borderTop: `1px solid ${bsTHexA(t.INK, 0.09)}` }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.4, color: t.INK }}>{read.copy}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.4, color: t.INK }}>{readText}</div>
           </div>
         ) : null}
       </button>

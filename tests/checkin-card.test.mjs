@@ -849,7 +849,7 @@ test('signed out, the card previews the flow and saves nothing', async () => {
     assert.match(m.text(), /Join Shape to save your check-in/);
     assert.doesNotMatch(m.text(), /checked in/i, 'the preview claimed a check-in it never saved');
     assert.doesNotMatch(m.text(), /days running/);
-    assert.doesNotMatch(m.text(), /see your 7-day averages|Only you see/, 'the preview said who sees answers it never saved');
+    assert.doesNotMatch(m.text(), /sees? your answers|Only you see/, 'the preview said who sees answers it never saved');
     await m.click(/^Done$/);
     assert.match(m.text(), /Join Shape to save your check-in/);
   } finally { m.unmount(); }
@@ -901,9 +901,11 @@ test("who sees the morning: the member's coaches by role, or only them, and noth
     const m = await mount({ openRequest: 1 });
     try { return document.querySelector('[data-bs-checkin-who]')?.textContent || null; } finally { m.unmount(); }
   };
-  assert.equal(await who(BOTH), 'Your trainer and nutritionist see your 7-day averages.');
-  assert.equal(await who(TRAINER), 'Your trainer sees your 7-day averages.');
-  assert.equal(await who(NUTRITIONIST), 'Your nutritionist sees your 7-day averages.');
+  // Coaches see the answers, not only averages: the nutritionist's day review shows each day's (§3.4,
+  // ruling 18).
+  assert.equal(await who(BOTH), 'Your trainer and nutritionist see your answers.');
+  assert.equal(await who(TRAINER), 'Your trainer sees your answers.');
+  assert.equal(await who(NUTRITIONIST), 'Your nutritionist sees your answers.');
   assert.equal(await who(NONE), 'Only you see these.');
   assert.equal(await who({ training: {}, meals: {} }), null, 'a failed coaching read said who sees the answers');
   assert.equal(await who(undefined), null);

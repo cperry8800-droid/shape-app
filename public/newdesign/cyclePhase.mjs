@@ -84,21 +84,40 @@ export function bsDeriveCycle(starts, today) {
 // picked here would be fabricated precision. Volume therefore CANNOT fire in
 // v1; it stays out of the roster until the owner ratifies a floor. Flagged in
 // the PR body alongside phase:'late'.
+// The floors are the engine's own units and never reach the member: the copy
+// below says none of them.
 const READ_METRICS = [
-  { key: 'sleepH', metric: 'sleep', floor: 0.5, fmt: (g) => `${Math.abs(g).toFixed(1)}h` },
-  { key: 'energy', metric: 'energy', floor: 1.0, fmt: (g) => `${Math.abs(g).toFixed(1)} points` },
-  { key: 'rested', metric: 'rested', floor: 1.0, fmt: (g) => `${Math.abs(g).toFixed(1)} points` },
-  { key: 'adherence', metric: 'adherence', floor: 0.12, fmt: (g) => `${Math.round(Math.abs(g) * 100)}pp` },
+  { key: 'sleepH', metric: 'sleep', floor: 0.5 },
+  { key: 'energy', metric: 'energy', floor: 1.0 },
+  { key: 'rested', metric: 'rested', floor: 1.0 },
+  { key: 'adherence', metric: 'adherence', floor: 0.12 },
 ];
 
-// Never-shaming copy, figures baked in-module (the crossoverCopy rule — words
-// and numbers share one no-drift source). Framed as the body working WITH her,
-// per doctrine; `lo` is the lower-valued phase.
+// Sleep's gap as the member reads it: whole minutes, rounded to 5 ("about 40
+// min"), never "0.6h". The floor is 30 min, so a read that fires says 30 or more.
+const readMinutes = (gapH) => Math.round(Math.abs(gapH) * 12) * 5;
+// "40 min" · "1h 10" · "1h": the app's own English durations (home:checkin
+// mOnly / hm / hOnly, with bsCiHM's padded minutes), so this fallback and the
+// app's en sentence read the same.
+const readDuration = (min) => (min < 60
+  ? `${min} min`
+  : `${Math.floor(min / 60)}h${min % 60 ? ` ${String(min % 60).padStart(2, '0')}` : ''}`);
+
+// Never-shaming copy, framed as the body working WITH her, per doctrine; `lo`
+// is the lower-valued phase, `hi` the higher.
+// ⚠ No figure on the check-in scale. A member is never quoted the 1-10 scale, a
+// "/10" or "points" (ruling 11, docs/REVIEW-2026-10-19-morning-checkin.md §6),
+// and "12pp" is the same leak for habits, so energy, rested and adherence say
+// only which phase runs lower. Sleep keeps its gap, said as a duration.
+// ⚠ This English is the FALLBACK, for a consumer with no translator. The app
+// composes cycle:read.* in the member's language from the read's hi, lo and
+// minutes (bsCycleReadText), and tests/cycle-phase.test.mjs holds the en
+// catalog to these exact sentences, so the two Englishes cannot drift apart.
 const READ_COPY = {
-  sleep: (hi, lo, f) => `Your sleep runs ${f} shorter in your ${lo} phase than your ${hi} — that's your body moving through the cycle, not a slip. Protect the wind-down there.`,
-  energy: (hi, lo, f) => `Your energy check-ins run ${f} lower in your ${lo} phase than your ${hi} — plan the heavier work where the energy already is.`,
-  rested: (hi, lo, f) => `You wake ${f} less rested in your ${lo} phase than your ${hi} — recovery is doing different work there, and that's normal.`,
-  adherence: (hi, lo, f) => `Your habits land ${f} less often in your ${lo} phase than your ${hi} — shaving the load there keeps the streak honest, not smaller.`,
+  sleep: (r) => `Your sleep runs about ${readDuration(r.minutes)} shorter in your ${r.lo} phase than your ${r.hi} — that's your body moving through the cycle, not a slip. Protect the wind-down there.`,
+  energy: (r) => `Your energy check-ins run lower in your ${r.lo} phase than your ${r.hi} — plan the heavier work where the energy already is.`,
+  rested: (r) => `You wake less rested in your ${r.lo} phase than your ${r.hi} — recovery is doing different work there, and that's normal.`,
+  adherence: (r) => `Your habits land less often in your ${r.lo} phase than your ${r.hi} — shaving the load there keeps the streak honest, not smaller.`,
 };
 
 // A missing observation must NEVER read as a zero-value day (review: Codex P1
@@ -149,12 +168,14 @@ export function bsCycleRead(days, cycle) {
     // ranking is total even when a zero-variance bucket makes |gap|/se infinite.
     const standardized = Math.abs(gap) / m.floor;
     if (!best || standardized > best.standardized) {
+      // hi/lo are what a translator needs: the higher- and lower-valued phase
+      // codes, so each language can inflect them in its own sentence.
       const hi = gap >= 0 ? phaseA : phaseB;
       const lo = gap >= 0 ? phaseB : phaseA;
-      best = {
-        standardized,
-        read: { metric: m.metric, phaseA, phaseB, gap, se, copy: READ_COPY[m.metric](hi, lo, m.fmt(gap)) },
-      };
+      const read = { metric: m.metric, phaseA, phaseB, gap, se, hi, lo };
+      if (m.metric === 'sleep') read.minutes = readMinutes(gap);
+      read.copy = READ_COPY[m.metric](read);
+      best = { standardized, read };
     }
   }
   return best ? best.read : null;

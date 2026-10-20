@@ -64,5 +64,9 @@
   "card.meta": "Private to you",
   "card.setup": "Log a period start to begin.",
   "card.cycles": "{n} cycles of data",
+  "read.energy": "Your energy check-ins run lower in {lo, select, menstrual {your menstrual phase} follicular {your follicular phase} ovulatory {your ovulatory phase} luteal {your luteal phase} other {one phase}} than {hi, select, menstrual {your menstrual} follicular {your follicular} ovulatory {your ovulatory} luteal {your luteal} other {the other one}} — plan the heavier work where the energy already is.",
+  "read.rested": "You wake less rested in {lo, select, menstrual {your menstrual phase} follicular {your follicular phase} ovulatory {your ovulatory phase} luteal {your luteal phase} other {one phase}} than {hi, select, menstrual {your menstrual} follicular {your follicular} ovulatory {your ovulatory} luteal {your luteal} other {the other one}} — recovery is doing different work there, and that's normal.",
+  "read.sleep": "Your sleep runs about {dur} shorter in {lo, select, menstrual {your menstrual phase} follicular {your follicular phase} ovulatory {your ovulatory phase} luteal {your luteal phase} other {one phase}} than {hi, select, menstrual {your menstrual} follicular {your follicular} ovulatory {your ovulatory} luteal {your luteal} other {the other one}} — that's your body moving through the cycle, not a slip. Protect the wind-down there.",
+  "read.adherence": "Your habits land less often in {lo, select, menstrual {your menstrual phase} follicular {your follicular phase} ovulatory {your ovulatory phase} luteal {your luteal phase} other {one phase}} than {hi, select, menstrual {your menstrual} follicular {your follicular} ovulatory {your ovulatory} luteal {your luteal} other {the other one}} — shaving the load there keeps the streak honest, not smaller.",
   "todayChip": "Period started? Log it"
 }

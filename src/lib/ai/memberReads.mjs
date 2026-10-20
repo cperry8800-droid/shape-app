@@ -12,8 +12,9 @@
 //     now" instead of "you have nothing" — those are different claims.
 //   • Member-authored strings (titles, notes, habit names) are DATA. They are
 //     clipped, never interpreted; the prompt header tells the model the same.
-//   • Days are UTC calendar days (`toISOString().slice(0,10)`), the same key
-//     log_meal writes the snapshot under — one clock for the whole rail.
+//   • A reader that takes the member's zone counts their own calendar days
+//     (dayIn(now, zone)), the same key log_meal writes the snapshot under —
+//     one clock for the whole rail. Without a zone it falls back to UTC's.
 //
 // The caps below bound what one tool call can put into the prompt: GPT-6
 // Astra bills input by the token, and a member with a 26-week program does
@@ -318,6 +319,7 @@ export async function readWeekSummary(sb, uid, { now = new Date(), zone } = {}) 
   const col = (k, pred = (n) => n != null) => rows.map((r) => num(r[k])).filter((n) => n != null && pred(n));
   // Calories EATEN (`dietary_kcal`); the snapshot's `calories` is a device's burn.
   const logged = rows.filter((r) => num(r.dietary_kcal) != null);
+  const nights = col('sleep_hours', (n) => n > 0);
   const out = {
     ok: true, since, until: today,
     nutrition: {
@@ -334,7 +336,9 @@ export async function readWeekSummary(sb, uid, { now = new Date(), zone } = {}) 
       ...(col('strain').length ? { avgStrain: avg(col('strain')) } : {}),
     },
     recovery: {
-      ...(col('sleep_hours').length ? { avgSleepHours: avg(col('sleep_hours')), sleepNights: col('sleep_hours').length } : {}),
+      // A 0h night is not a night (a watch can sync one): Your mornings, the progress route and the
+      // engine leave it out, and counting it put Nora's weekly average under the page's.
+      ...(nights.length ? { avgSleepHours: avg(nights), sleepNights: nights.length } : {}),
       ...(col('recovery_score').length ? { avgRecovery: Math.round(avg(col('recovery_score'))) } : {}),
       ...(col('resting_hr').length ? { avgRestingHr: Math.round(avg(col('resting_hr'))) } : {}),
       ...(col('hrv_ms').length ? { avgHrvMs: Math.round(avg(col('hrv_ms'))) } : {}),

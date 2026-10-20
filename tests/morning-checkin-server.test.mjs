@@ -113,8 +113,8 @@ test('a busy hour reads the mornings 200 members at a time, and a failed read se
   assert.equal(fired.length, 451);
 });
 
-// The owner, 2026-10-19 ("yes fix"): energy saved alone, as the website's daily card still can (the
-// app's old "How are you." page did too, until part 2 retired it), is not a finished morning. The
+// The owner, 2026-10-19 ("yes fix"): energy saved alone, as the website's old daily card could (until
+// part 3 retired it) and the app's old "How are you." page did (until part 2), is not a finished morning. The
 // night has to be in too, by the card's own rule (bsCiStep): hours, typed or a watch's, or a skip
 // the card saved. Rested alone leaves the night open there, so here too, and a watch's 0h night is a
 // night there, so here too (review on #2408).

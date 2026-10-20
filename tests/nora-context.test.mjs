@@ -163,6 +163,92 @@ test('app: the store sets, clears and builds the context the same way', () => {
   assert.equal(api.bsNoraPage('cycle-log'), 'Cycle log');
 });
 
+test('app: closing a screen gives back what the screen under it set, in any order (Morning check-in part 3)', () => {
+  const src = between(APP, 'const _bsNoraOpen = {};', 'let _bsNoraThread = null;');
+  const api = new Function(`${src}; return { bsNoraOpen, bsNoraContext, store: _bsNoraOpen };`)();
+  // Home's tab effect, then Your mornings over it: Back gives the chip back to Home, not to nothing.
+  const home = api.bsNoraOpen({ page: 'Home', label: 'Start' });
+  const mornings = api.bsNoraOpen({ page: 'Your mornings', label: 'Deine Morgen' });
+  assert.equal(api.bsNoraContext().page, 'Your mornings');
+  assert.equal(api.store.label, 'Deine Morgen');
+  mornings();
+  assert.equal(api.bsNoraContext().page, 'Home', "Back from Your mornings left Nora's screen blank");
+  assert.equal(api.store.label, 'Start', "the chip lost Home's label");
+  // A close called twice takes nothing else with it.
+  mornings();
+  assert.equal(api.bsNoraContext().page, 'Home');
+  home();
+  assert.ok(!('page' in api.bsNoraContext()) && !('label' in api.store));
+
+  // Out of order: the tab changes (its close, then its next open) while a page over it is still open,
+  // and the page closes last. Neither close leaves a stale value: the newest open screen's stays.
+  const tab = api.bsNoraOpen({ page: 'Home', label: 'Home' });
+  const page = api.bsNoraOpen({ page: 'Your mornings', label: 'Your mornings' });
+  tab();
+  assert.equal(api.bsNoraContext().page, 'Your mornings', "the tab's close took the open page's name");
+  const next = api.bsNoraOpen({ page: 'Train', label: 'Train' });
+  page();
+  assert.equal(api.bsNoraContext().page, 'Train', "the page's close put back a tab that had closed");
+  assert.equal(api.store.label, 'Train');
+  next();
+  assert.ok(!('page' in api.bsNoraContext()) && !('label' in api.store), 'a value outlived every screen that set it');
+
+  // Three deep: the top's close gives back the one just under it, never the oldest; a middle one's
+  // close leaves the top alone.
+  const a = api.bsNoraOpen({ page: 'Home' });
+  const b = api.bsNoraOpen({ page: 'Your mornings' });
+  const c = api.bsNoraOpen({ page: 'Eat' });
+  c();
+  assert.equal(api.bsNoraContext().page, 'Your mornings', 'the close gave back the oldest screen, not the one under it');
+  const d = api.bsNoraOpen({ page: 'Train' });
+  b();
+  assert.equal(api.bsNoraContext().page, 'Train', "a middle screen's close moved the top");
+  d();
+  assert.equal(api.bsNoraContext().page, 'Home');
+  a();
+
+  // Keys stack apart: an item a meal set, closed under a page, leaves the page alone, and the reverse.
+  const p = api.bsNoraOpen({ page: 'Eat' });
+  const meal = api.bsNoraOpen({ item: { kind: 'meal', title: 'Oats' } });
+  p();
+  assert.ok(!('page' in api.bsNoraContext()));
+  assert.deepEqual(api.bsNoraContext().item, { kind: 'meal', title: 'Oats' });
+  meal();
+  assert.ok(!('item' in api.bsNoraContext()));
+  // A null in a patch sets nothing, so its close removes nothing.
+  const kept = api.bsNoraOpen({ clientId: 'c-1' });
+  const none = api.bsNoraOpen({ clientId: null });
+  assert.equal(api.bsNoraContext().clientId, 'c-1', 'a null replaced the open client');
+  none();
+  assert.equal(api.bsNoraContext().clientId, 'c-1');
+  kept();
+});
+
+test('app: a screen keeps its place when its own effect re-runs, as a language change re-runs them (review on part 3)', () => {
+  const src = between(APP, 'const _bsNoraOpen = {};', 'let _bsNoraThread = null;');
+  const api = new Function(`${src}; return { bsNoraOpen, bsNoraContext, store: _bsNoraOpen };`)();
+  const homeOwner = {};
+  const pageOwner = {};
+  let home = api.bsNoraOpen({ page: 'Home', label: 'Home' }, homeOwner);
+  let page = api.bsNoraOpen({ page: 'Your mornings', label: 'Your mornings' }, pageOwner);
+  // One commit: every close first, then the opens, the child (the page) before its parent (Home).
+  home(); page();
+  page = api.bsNoraOpen({ page: 'Your mornings', label: 'Deine Morgen' }, pageOwner);
+  home = api.bsNoraOpen({ page: 'Home', label: 'Start' }, homeOwner);
+  assert.equal(api.bsNoraContext().page, 'Your mornings', "Home's re-run landed over the open page");
+  assert.equal(api.store.label, 'Deine Morgen');
+  page();
+  assert.equal(api.bsNoraContext().page, 'Home', 'Back still gives Home back');
+  assert.equal(api.store.label, 'Start');
+  home();
+  assert.ok(!('page' in api.bsNoraContext()));
+  // A screen with no owner still lands on top, as before.
+  const tab = api.bsNoraOpen({ page: 'Home' }, homeOwner);
+  const sheet = api.bsNoraOpen({ page: 'Eat' });
+  assert.equal(api.bsNoraContext().page, 'Eat');
+  sheet(); tab();
+});
+
 test('app: bsAskNora opens the sheet with the draft; an error goes with questions for ten minutes, and the chip says so', () => {
   const src = between(APP, 'let _bsNoraProblem = null;', 'let _bsNoraThread = null;');
   const ask = between(APP, 'function bsAskNora(text, opts) {', '\n}\n') + '\n}\n';
@@ -198,7 +284,7 @@ test('app: the sheet sends it through the backend; shells, the client profile, a
   const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
   assert.match(sheet, /context: bsNoraContext\(!screenOffRef\.current\)/);
   assert.match(sheet, /onClick=\{\(\) => setScreenOff\(true\)\} aria-label=\{tr\('feed:support\.screenOff'/);
-  assert.match(APP, /React\.useEffect\(\(\) => bsNoraOpen\(\{ page: bsNoraPage\(tab\), label: noraTabLabel \}\), \[tab, noraTabLabel\]\);/);
+  assert.match(APP, /React\.useEffect\(\(\) => bsNoraOpen\(\{ page: bsNoraPage\(tab\), label: noraTabLabel \}, noraOwner\.current\), \[tab, noraTabLabel\]\);/);
   assert.equal((PROS.match(/window\.bsNoraOpen\(\{ page: window\.bsNoraPage\(tab\), label: noraTabLabel \}\)/g) || []).length, 2, 'trainer and nutritionist');
   assert.match(between(PROS, 'function BSProClientFullProfilePage(', '\n}\n'), /window\.bsNoraOpen\(\{ clientId: clientUid \}\)/);
   assert.match(between(APP, 'function BSMealPreview(', '\n}\n'), /bsNoraOpen\(\{ item: \{ kind: 'meal', title: meal\.title \} \}\)/);
