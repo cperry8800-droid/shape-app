@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bsGoalVerdict } from '../mobile-app/src/services/goalContract.mjs';
+import { bsGoalVerdict, bsGoalPct } from '../mobile-app/src/services/goalContract.mjs';
 
 const base = { start: 86, now: 81.8, target: 78, unit: 'kg' };
 
@@ -64,4 +64,19 @@ test('build direction reads "up" and BUILD', () => {
 test('zero movement never reads a signed zero', () => {
   const v = bsGoalVerdict({ start: 86, now: 86, target: 78, unit: 'kg', proj: null });
   assert.equal(v.lead, 'The terms are set. 8 kg to go.');
+});
+
+// The cover's progress bar (2026-10-20 redesign) reads bsGoalPct, and the verdict's
+// "% THERE" reads it too, so the two can never be a point apart (the first cut of the
+// bar computed in kilograms and read 27% under a 28% verdict).
+test('bsGoalPct is the verdict\'s own "% there", cutting or building, clamped, null with no goal', () => {
+  const pctOf = (v) => Number(/(\d+)% THERE/.exec(v.sub)[1]);
+  for (const g of [base, { start: 177.3, now: 174.6, target: 167.6, unit: 'lb' }, { start: 60, now: 63.4, target: 66, unit: 'kg' }]) {
+    assert.equal(bsGoalPct(g), pctOf(bsGoalVerdict({ ...g, proj: null })), JSON.stringify(g));
+  }
+  assert.equal(bsGoalPct({ start: 177.3, now: 174.6, target: 167.6 }), 28);
+  assert.equal(bsGoalPct({ start: 86, now: 88, target: 78 }), 0, 'moving away reads 0, not negative');
+  assert.equal(bsGoalPct({ start: 86, now: 76, target: 78 }), 100, 'past the target reads 100');
+  assert.equal(bsGoalPct({ start: 0, now: 0, target: 0 }), null);
+  assert.equal(bsGoalPct({ start: 80, now: 80, target: 80 }), null);
 });

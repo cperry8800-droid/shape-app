@@ -22,6 +22,16 @@ const fmt = (v) => {
   return Number.isInteger(n) ? String(n) : n.toLocaleString('en-US');
 };
 
+// How far along the goal is, 0–100, or null with no goal. The verdict's "% there"
+// and the cover's progress bar both read this, so they cannot disagree.
+export function bsGoalPct({ start, now, target }) {
+  const s = Number(start) || 0, n = Number(now) || 0, g = Number(target) || 0;
+  if (!s || !g || s === g) return null;
+  const range = r1(Math.abs(g - s));
+  const toGo = r1(g > s ? g - n : n - g);
+  return Math.round(Math.max(0, Math.min(1, range ? (range - Math.max(0, toGo)) / range : 0)) * 100);
+}
+
 export function bsGoalVerdict({ start, now, target, unit = 'kg', proj = null, tr = null }) {
   const s = Number(start) || 0, n = Number(now) || 0, g = Number(target) || 0;
   if (!s || !g || s === g) {
@@ -35,7 +45,7 @@ export function bsGoalVerdict({ start, now, target, unit = 'kg', proj = null, tr
   const moved = r1(build ? n - s : s - n);          // progress in the goal's direction
   const range = r1(Math.abs(g - s));
   const toGo = r1(build ? g - n : n - g);
-  const pct = Math.max(0, Math.min(1, range ? (range - Math.max(0, toGo)) / range : 0));
+  const pct = bsGoalPct({ start: s, now: n, target: g }) / 100;
   const amount = fmt(Math.abs(moved));
   // Two keys, not one with a {dir} placeholder: "up"/"down" is the verb of the
   // sentence, and a locale that inflects around it cannot be served by swapping
