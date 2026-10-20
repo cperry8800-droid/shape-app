@@ -73,7 +73,9 @@ export default {
     { name: 'opening a person closes it at once', file: ROUTER, find: "  return !(e && e.type === 'shape:openPage' && e.detail && e.detail.page === 'person');", replace: '  return true;' },
     { name: 'Home leaves the person over the page', file: ROUTER, find: "  'shape:goHome', 'shape:goCommunity',", replace: "  'shape:goCommunity'," },
     { name: 'the member app never closes the person on navigation', file: MEMBER, find: '    BS_NAV_EVENTS.forEach((n) => window.addEventListener(n, close));\n', replace: '' },
-    { name: 'a coach-only session draws no person', file: PROS, find: "  import('./iosAppBroadsheetClient.jsx').then(() => setNotifPerson(id)).catch(() => {});", replace: '  setNotifPerson(id);' },
+    { name: 'a coach-only session draws no person', file: PROS, find: "  import('./iosAppBroadsheetClient.jsx').then(() => { if (gen === _bsProPersonGen) setNotifPerson(id); }).catch(() => {});", replace: '  setNotifPerson(id);' },
+    { name: 'a load that lands after a navigation still opens', file: PROS, find: '.then(() => { if (gen === _bsProPersonGen) setNotifPerson(id); })', replace: '.then(() => { setNotifPerson(id); })' },
+    { name: 'a close leaves a pending load to open', file: PROS, find: '  _bsProPersonGen += 1;\n  setNotifPerson(null);', replace: '  setNotifPerson(null);' },
     { name: 'the website inbox opens nothing for a person', file: INBOX, find: 'if (n.route === "profile" || n.route === "person") {', replace: 'if (n.route === "profile") {' },
 
     // ── The data layer ──

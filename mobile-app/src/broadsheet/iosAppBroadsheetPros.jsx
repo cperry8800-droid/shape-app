@@ -1164,7 +1164,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const [notifPerson, setNotifPerson] = useStateBSP(null);
   // It closes on any other navigation (BS_NAV_EVENTS), so nothing moves only the page under it.
   useEffectBSP(() => {
-    const close = (e) => { if (bsClosesPerson(e)) setNotifPerson(null); };
+    const close = (e) => { if (bsClosesPerson(e)) bsProClosePerson(setNotifPerson); };
     BS_NAV_EVENTS.forEach((n) => window.addEventListener(n, close));
     return () => BS_NAV_EVENTS.forEach((n) => window.removeEventListener(n, close));
   }, []);
@@ -1352,7 +1352,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const navResolve = (loc) => {
     if (!loc) return;
     // A notified person's profile is no location of its own: any step back closes it.
-    setNotifPerson(null);
+    bsProClosePerson(setNotifPerson);
     setShowSoundtracks(loc.overlay === 'soundtracks');
     setShowCalendar(loc.overlay === 'calendar');
     setShowReviews(loc.overlay === 'reviews');
@@ -3100,10 +3100,18 @@ function BSProCatRow({ index, name, meta, price, onOpen, onAssign, onDuplicate, 
 // A notified person's profile is the client module's BSNotifiedPerson. A coach session can run
 // without that module (loadProsBundle), so it is imported first when missing, as BSProAskNora
 // does (Codex on #2413); the import is a no-op once loaded.
+// A load still pending when the coach goes elsewhere opens nothing (Codex on #2413): every close
+// moves the generation on, and a late load opens only if it is still the latest request.
+let _bsProPersonGen = 0;
 function bsProOpenPerson(id, setNotifPerson) {
   if (!id) return;
+  const gen = ++_bsProPersonGen;
   if (typeof window !== 'undefined' && window.BSNotifiedPerson) { setNotifPerson(id); return; }
-  import('./iosAppBroadsheetClient.jsx').then(() => setNotifPerson(id)).catch(() => {});
+  import('./iosAppBroadsheetClient.jsx').then(() => { if (gen === _bsProPersonGen) setNotifPerson(id); }).catch(() => {});
+}
+function bsProClosePerson(setNotifPerson) {
+  _bsProPersonGen += 1;
+  setNotifPerson(null);
 }
 
 function BSProAskNora(props) {
@@ -7237,7 +7245,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const [notifPerson, setNotifPerson] = useStateBSP(null);
   // It closes on any other navigation (BS_NAV_EVENTS), so nothing moves only the page under it.
   useEffectBSP(() => {
-    const close = (e) => { if (bsClosesPerson(e)) setNotifPerson(null); };
+    const close = (e) => { if (bsClosesPerson(e)) bsProClosePerson(setNotifPerson); };
     BS_NAV_EVENTS.forEach((n) => window.addEventListener(n, close));
     return () => BS_NAV_EVENTS.forEach((n) => window.removeEventListener(n, close));
   }, []);
@@ -7413,7 +7421,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const navResolve = (loc) => {
     if (!loc) return;
     // A notified person's profile is no location of its own: any step back closes it.
-    setNotifPerson(null);
+    bsProClosePerson(setNotifPerson);
     setShowSoundtracks(loc.overlay === 'soundtracks');
     setShowCalendar(loc.overlay === 'calendar');
     setShowReviews(loc.overlay === 'reviews');

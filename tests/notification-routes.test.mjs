@@ -160,11 +160,70 @@ test('a person route opens that person, never the reader\'s own profile, in all 
     assert.match(shellSrc, /const takeover = \(el\) => \(<>\{el\}\{settingsOverlay\}\{searchOverlay\}\{noraSheet\}\{personOverlay\}<\/>\);/, name);
     assert.match(shellSrc, /\{searchOverlay\}\n\s*\{personOverlay\}/, `${name}: the main return renders it`);
     assert.match(shellSrc, /onClose: \(\) => \{ if \(!navBack\(\)\) setNotifPerson\(null\); \}/, `${name}: Back goes through the history`);
-    assert.match(shellSrc, /const navResolve = \(loc\) => \{\n\s*if \(!loc\) return;\n[^\n]*\n\s*setNotifPerson\(null\);/, `${name}: a step back closes it`);
-    assert.match(shellSrc, CLOSES_ON_NAV, `${name}: any other navigation closes it`);
+    // The coach apps close through bsProClosePerson, which also drops a load still pending.
+    assert.match(shellSrc, /const navResolve = \(loc\) => \{\n\s*if \(!loc\) return;\n[^\n]*\n\s*bsProClosePerson\(setNotifPerson\);/, `${name}: a step back closes it`);
+    assert.match(shellSrc, /const close = \(e\) => \{ if \(bsClosesPerson\(e\)\) bsProClosePerson\(setNotifPerson\); \};\n\s*BS_NAV_EVENTS\.forEach\(\(n\) => window\.addEventListener\(n, close\)\);/, `${name}: any other navigation closes it`);
   }
   assert.match(CLIENT, CLOSES_ON_NAV, 'the member app: any other navigation closes it');
-  assert.match(PROS, /function bsProOpenPerson\(id, setNotifPerson\) \{\n\s*if \(!id\) return;\n\s*if \(typeof window !== 'undefined' && window\.BSNotifiedPerson\) \{ setNotifPerson\(id\); return; \}\n\s*import\('\.\/iosAppBroadsheetClient\.jsx'\)\.then\(\(\) => setNotifPerson\(id\)\)/, 'a coach-only session loads the client module first');
+});
+
+// The coach apps' open and close, run from their own source with the client module's import
+// stubbed, so the order of a load and a navigation can be played out (Codex on #2413).
+function coachPerson(windowObj) {
+  const grab = (head) => {
+    const at = PROS.indexOf(head);
+    assert.ok(at >= 0, head);
+    let depth = 0;
+    for (let i = PROS.indexOf('{', at); i < PROS.length; i++) {
+      if (PROS[i] === '{') depth++;
+      else if (PROS[i] === '}' && --depth === 0) return PROS.slice(at, i + 1);
+    }
+    throw new Error('unbalanced ' + head);
+  };
+  const gen = PROS.match(/^let _bsProPersonGen = 0;$/m);
+  assert.ok(gen, 'the generation counter is gone');
+  const loads = [];
+  const body = [gen[0], grab('function bsProOpenPerson(id, setNotifPerson) {'), grab('function bsProClosePerson(setNotifPerson) {'), 'return { bsProOpenPerson, bsProClosePerson };']
+    .join('\n').replace("import('./iosAppBroadsheetClient.jsx')", '__load()');
+  assert.ok(!body.includes('import('), 'the import was stubbed');
+  // eslint-disable-next-line no-new-func
+  const api = new Function('window', '__load', body)(windowObj, () => new Promise((resolve) => loads.push(resolve)));
+  return { ...api, loads };
+}
+
+test('a coach-only session loads the profile first, and a navigation before it lands opens nothing', async () => {
+  const flush = () => new Promise((r) => setImmediate(r));
+  // Loaded already: it opens at once.
+  let shown = 'unset';
+  const ready = coachPerson({ BSNotifiedPerson: () => null });
+  ready.bsProOpenPerson('u-3', (v) => { shown = v; });
+  assert.equal(shown, 'u-3');
+  assert.equal(ready.loads.length, 0, 'no load when the module is there');
+  // Not loaded: it opens once the load lands.
+  const cold = coachPerson({});
+  cold.bsProOpenPerson('u-3', (v) => { shown = v; });
+  shown = 'unset';
+  assert.equal(cold.loads.length, 1, 'the client module is loaded first');
+  cold.loads[0]();
+  await flush();
+  assert.equal(shown, 'u-3');
+  // Not loaded, and the coach goes elsewhere before it lands: nothing opens over the new page.
+  const late = coachPerson({});
+  const seen = [];
+  late.bsProOpenPerson('u-4', (v) => seen.push(v));
+  late.bsProClosePerson((v) => seen.push(v));
+  late.loads[0]();
+  await flush();
+  assert.deepEqual(seen, [null], 'the late load opened nothing');
+  // Two opens in a row: only the latest one opens.
+  const twice = coachPerson({});
+  const got = [];
+  twice.bsProOpenPerson('u-5', (v) => got.push(v));
+  twice.bsProOpenPerson('u-6', (v) => got.push(v));
+  twice.loads[1]();
+  twice.loads[0]();
+  await flush();
+  assert.deepEqual(got, ['u-6']);
 });
 
 const CLOSES_ON_NAV = /const close = \(e\) => \{ if \(bsClosesPerson\(e\)\) setNotifPerson\(null\); \};\n\s*BS_NAV_EVENTS\.forEach\(\(n\) => window\.addEventListener\(n, close\)\);/;
