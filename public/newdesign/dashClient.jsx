@@ -287,98 +287,71 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
   );
 }
 
-// Today — the home daily check-in (energy/hunger/sleep/rested) + hydration on ONE
-// instrument plate. It was the web twin of the app's old BSTodayCard, which the app retired
-// for the Morning check-in and Your mornings (part 2); bringing this card onto the same reads is
-// part 3 (docs/REVIEW-2026-10-19-morning-checkin.md §5). Energy/Hunger/Rested are
-// tap-to-set 1-10 gauges; Sleep is device-first (read-only snapshot when a wearable
-// synced last night, else manual hour chips). Hydration folds in as a dot-progress +
-// quick-add row that STAYS LIVE after the check-in collapses to its one-line summary.
-// Reads today's values from /api/client/progress + /api/client/hydration; writes via
-// /api/client/checkin + /api/client/hydration (cookie session). Demo = signed-out
-// preview (band on top) — taps work locally and nothing persists.
+// ── Today: the Morning check-in is in the app, and water stays ──────────────
+// Owner, 2026-10-20: "dont need a website check in" (docs/REVIEW-2026-10-19-morning-checkin.md §3.10,
+// ruling 14). This card asked every member Energy, Hunger and Rested on 1-10 gauges at any hour,
+// ignored the Check-ins switch and showed each answer as a figure. The app's Morning check-in asks
+// in words from 4 a.m., asks hunger only of a nutritionist's client, in the evening, and Your
+// mornings shows the history. So the website asks nothing: the card says where the check-in is (the
+// owner's "Point to the app instead"), with the site's own App link (the bar's "App", the phone
+// banner's "Get it →").
+//
+// ⚠ WATER STAYS, AS ITS OWN LINE. The card was the website's only water logger: the day's amount,
+// + 250 ml, + 500 ml and Undo, optimistic and rolled back on a failure, behind a stale-answer guard
+// (hydSeq) and an in-flight lock (hydBusy).
+//
+// ⚠ PROGRESS ONLY AGAINST A TARGET THE MEMBER SET (ruling 8). The hydration route answers
+// targetStoredL, the member's own (null when none is set), beside targetL, which is 3 L when none is
+// set; only the first is a target, as the app's water line reads it (bsWaterTargetOf). The card used
+// to show every member progress against the 3 L.
+//
+// Demo = signed-out preview (band on top): the pointer, and the water line against an example 3 L
+// target, whose taps work locally and save nothing.
+function dclWaterTarget(d) {
+  const n = Number(d && d.targetStoredL);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
 function DashTodayCard({ live }) {
-  const teal = DCL_TEAL, amber = "var(--sh-gold, #d8a23a)", blue = "var(--sh-sky, #7ed4ff)";
-  const ink50 = DCL_INK50, mono = DCL_MONO;
-  const sleepHM = (h) => { const m = Math.round(Number(h) * 60); return Math.floor(m / 60) + "h " + (m % 60) + "m"; };
-  const todayISO = dclTodayISO();
+  const teal = DCL_TEAL, ink50 = DCL_INK50, mono = DCL_MONO;
   const localDay = () => new Date().toLocaleDateString("en-CA"); // user's calendar day, matches meal-log
 
-  // ── check-in state (demo seeds a logged example so the preview reads alive) ──
-  const [energy, setEnergy] = React.useState(live ? null : 7);
-  const [hunger, setHunger] = React.useState(live ? null : 4);
-  const [sleepHours, setSleepHours] = React.useState(live ? null : 7.5);
-  const [rested, setRested] = React.useState(live ? null : 8);
-  const [sleepMeta, setSleepMeta] = React.useState(null);
-  const [sleepSynced, setSleepSynced] = React.useState(false);
-  const [logged, setLogged] = React.useState(!live);
-  const [editing, setEditing] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [readiness, setReadiness] = React.useState(null);
-  const [readinessLabel, setReadinessLabel] = React.useState(null);
-
-  React.useEffect(() => {
-    if (!live) return undefined;
-    let on = true;
-    fetch("/api/client/progress", { credentials: "same-origin" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((p) => {
-        if (!on || !p || !p.series) return;
-        if (p.kpis) { if (p.kpis.readiness != null) setReadiness(Number(p.kpis.readiness)); if (p.kpis.readinessLabel) setReadinessLabel(p.kpis.readinessLabel); }
-        const find = (k) => (p.series[k] || []).find((s) => s.date === todayISO);
-        const e = find("energy"), h = find("hunger");
-        if (e) setEnergy(Math.round(Number(e.value)));
-        if (h) setHunger(Math.round(Number(h.value)));
-        const s = find("sleep"), q = find("sleepQuality");
-        const eff = find("sleepEfficiency"), rhr = find("restingHr"), hrv = find("hrv");
-        const meta = { efficiency: eff ? Math.round(Number(eff.value)) : null, rhr: rhr ? Math.round(Number(rhr.value)) : null, hrv: hrv ? Math.round(Number(hrv.value)) : null };
-        const hasDeviceMeta = meta.efficiency != null || meta.rhr != null || meta.hrv != null;
-        // The night is a watch's when a device sync wrote its hours: the route's `sleepFromDevice`,
-        // from the snapshot's per-field sources (the app's check-in reads it the same way). A watch
-        // worn by day reports a resting heart rate with no night, so that is the sign only on a
-        // server without the series.
-        const devNights = Array.isArray(p.series.sleepFromDevice) ? p.series.sleepFromDevice : null;
-        const devToday = devNights ? devNights.some((x) => x && x.date === todayISO) : hasDeviceMeta;
-        // Logged from a MANUAL signal only — energy/hunger, the rested rating, or
-        // manually-entered sleep hours — never a passive device sync alone.
-        if (e || h || q || (s && !devToday)) setLogged(true);
-        if (s) { setSleepHours(Number(s.value)); setSleepSynced(devToday); if (hasDeviceMeta) setSleepMeta(meta); }
-        if (q) setRested(Math.round(Number(q.value)));
-      })
-      .catch(() => {});
-    return () => { on = false; };
-  }, [live]);
-
-  // ── hydration state (always live) ──
+  // ── water (always live) ──
   const [hyd, setHyd] = React.useState(live ? null : 1.5);
-  const [hydTarget, setHydTarget] = React.useState(3.0);
+  const [hydTarget, setHydTarget] = React.useState(live ? null : 3.0);
   const [lastDelta, setLastDelta] = React.useState(0);
   const [hydBusy, setHydBusy] = React.useState(false);
   const hydSeq = React.useRef(0);
   React.useEffect(() => {
     if (!live) return undefined;
     let on = true;
+    // ⚠ AN ADD SENT WHILE THIS READ IS OUT WINS (review on part 3): the read was taken before it, so
+    // its total is older than the add's answer. The target is still taken.
+    const seq0 = hydSeq.current;
     fetch("/api/client/hydration?date=" + localDay(), { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (on && d && d.ok) { setHyd(Number(d.hydrationL) || 0); setHydTarget(Number(d.targetL) || 3.0); } })
+      .then((d) => {
+        if (!on || !d || !d.ok) return;
+        if (hydSeq.current === seq0) setHyd(Number(d.hydrationL) || 0);
+        setHydTarget(dclWaterTarget(d));
+      })
       .catch(() => {});
     return () => { on = false; };
   }, [live]);
 
-  // When the dashboard resolves to a LIVE account (today: null → dash), drop the
-  // demo seeds so a signed-in member with nothing logged today never sees a
-  // fabricated "logged ✓" — the fetch effects above repopulate from real data (or
-  // leave it honestly empty). Runs once on the false→true transition.
+  // When the dashboard resolves to a LIVE account (today: null → dash), drop the demo's water and
+  // its example target, so a signed-in member never reads the preview's 1.5 L as their own — the
+  // read above fills them from real data (or leaves them honestly empty). Runs once on the
+  // false→true transition.
   React.useEffect(() => {
     if (!live) return;
-    setEnergy(null); setHunger(null); setSleepHours(null); setRested(null);
-    setSleepMeta(null); setSleepSynced(false); setLogged(false); setEditing(false);
-    setHyd(null); setLastDelta(0);
+    setHyd(null); setHydTarget(null); setLastDelta(0);
   }, [live]);
 
   // Optimistic + rollback + stale-response guard (hydSeq) + in-flight lock (hydBusy).
   const addWater = (deltaL) => {
     if (hydBusy) return;
+    // A failed add puts back what was shown, an unread "—" included, never a made-up 0 L.
+    const shown = hyd;
     const prev = Number(hyd) || 0;
     const optimistic = Math.max(0, Math.round((prev + deltaL) * 1000) / 1000);
     setHyd(optimistic); setLastDelta(deltaL);
@@ -387,121 +360,51 @@ function DashTodayCard({ live }) {
     setHydBusy(true);
     fetch("/api/client/hydration", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deltaL, date: localDay() }) })
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((d) => { if (seq === hydSeq.current && d && d.ok) setHyd(Number(d.hydrationL) || 0); })
-      .catch(() => { if (seq === hydSeq.current) { setHyd(prev); setLastDelta(0); } })
+      .then((d) => {
+        if (seq !== hydSeq.current || !d || !d.ok) return;
+        setHyd(Number(d.hydrationL) || 0);
+        // The answer carries the member's target too: one set in the app since the read shows here,
+        // and one removed there goes here too (Codex P2 on #2410). An older route without the field
+        // says nothing about it, so the target stands.
+        if ("targetStoredL" in d) setHydTarget(dclWaterTarget(d));
+      })
+      .catch(() => { if (seq === hydSeq.current) { setHyd(shown); setLastDelta(0); } })
       .then(() => { if (seq === hydSeq.current) setHydBusy(false); });
   };
   const undoWater = () => { if (lastDelta && !hydBusy) { addWater(-lastDelta); setLastDelta(0); } };
 
-  const nothingSet = energy == null && hunger == null && sleepHours == null && rested == null;
-  const showForm = !logged || editing;
-  const doLog = () => {
-    if (nothingSet || saving) return;
-    if (!live) { setLogged(true); setEditing(false); return; } // preview — local only
-    setSaving(true);
-    fetch("/api/client/checkin", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ energy, hunger, sleepHours, sleepQuality: rested, date: localDay() }) })
-      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((d) => {
-        // A watch's night stands over typed hours (the route keeps it), so show the watch's.
-        if (d && d.sleepFromDevice && d.sleepHours != null) { setSleepHours(Number(d.sleepHours)); setSleepSynced(true); }
-        setLogged(true); setEditing(false);
-      })
-      .catch(() => {})
-      .then(() => setSaving(false));
-  };
-
-  // ── gauge (tap-to-set 1-10, filled with an end-anchor knob over 10 tap zones) ──
-  const Gauge = ({ label, val, set, c }) => {
-    const pct = Math.max(0, Math.min(1, (val || 0) / 10));
-    return (
-      <div style={{ marginBottom: 11 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
-          <span style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50 }}>{label}</span>
-          <span style={{ fontFamily: serif, fontSize: 18, lineHeight: 1, color: val ? c : ink50 }}>{val || "—"}<span style={{ fontFamily: mono, fontSize: 9, color: ink50 }}> /10</span></span>
-        </div>
-        <div style={{ position: "relative", height: 44 }}>
-          <div style={{ position: "absolute", left: 0, right: 0, top: "50%", transform: "translateY(-50%)", height: 9, borderRadius: 999, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", overflow: "hidden" }}>
-            <div style={{ width: (pct * 100) + "%", height: "100%", background: c, transition: "width .16s ease" }} />
-          </div>
-          {[...Array(9)].map((_, i) => (<div key={i} aria-hidden="true" style={{ position: "absolute", left: (((i + 1) / 10) * 100) + "%", top: "50%", transform: "translate(-50%,-50%)", width: 1, height: 9, background: PAPER, opacity: 0.6 }} />))}
-          {val ? <div aria-hidden="true" style={{ position: "absolute", left: (pct * 100) + "%", top: "50%", transform: "translate(-50%,-50%)", width: 13, height: 13, borderRadius: 999, background: c, border: "2px solid " + PAPER, boxShadow: "0 0 6px " + c }} /> : null}
-          <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: "repeat(10,1fr)" }}>
-            {[...Array(10)].map((_, i) => { const v = i + 1; return <button key={v} onClick={() => set(v)} aria-pressed={val === v ? "true" : "false"} aria-label={label + " " + v + " of 10"} style={{ height: "100%", minHeight: 44, border: 0, background: "transparent", cursor: "pointer", padding: 0 }} />; })}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const cur = Number(hyd) || 0;
-  const hpct = hydTarget > 0 ? Math.min(1, cur / hydTarget) : 0;
+  const hpct = hydTarget ? Math.min(1, cur / hydTarget) : 0;
   const Ln = (n) => "" + (Math.round(n * 100) / 100);
-  const dotCount = Math.max(6, Math.min(14, Math.round((hydTarget || 3) / 0.25)));
+  const dotCount = hydTarget ? Math.max(6, Math.min(14, Math.round(hydTarget / 0.25))) : 0;
   const filledDots = Math.max(0, Math.min(dotCount, Math.round(hpct * dotCount)));
-  const hydDisplay = Ln(cur) + " / " + Ln(hydTarget) + " L";
   const waterBtn = { fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", color: INK, borderRadius: 5, padding: "10px", cursor: "pointer", flex: 1 };
 
   return (
     <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": teal, paddingLeft: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: showForm ? 10 : 8 }}>
-        <span className="dash-eyebrow">Today · how are you</span>
-        {logged && !editing && <button onClick={() => setEditing(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: "7px 8px", margin: "-7px -8px", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: ink50 }}>Edit</button>}
-      </div>
+      {/* THE MORNING CHECK-IN — answered in the app; the website asks nothing */}
+      <span className="dash-eyebrow">Morning check-in</span>
+      <div style={{ fontFamily: serif, fontSize: 19, letterSpacing: "-0.015em", lineHeight: 1.2, marginTop: 6 }}>Your Morning check-in is in the Shape app.</div>
+      <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.5, marginTop: 6 }}>Your mornings, in the app, shows them over time.</div>
+      <a href="GetApp.html#notify" style={{ display: "inline-block", padding: "7px 8px", margin: "3px -8px -7px", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: teal, textDecoration: "none" }}>Get the app →</a>
 
-      {showForm ? (
-        <>
-          <Gauge label="Energy" val={energy} set={setEnergy} c={teal} />
-          <Gauge label="Hunger" val={hunger} set={setHunger} c={amber} />
-          {/* SLEEP — device-first hours + an always-on Rested gauge */}
-          <div style={{ marginTop: 2, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 7 }}>
-              <span style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50 }}>Sleep · last night</span>
-              {sleepHours != null && <span style={{ fontFamily: serif, fontSize: 15, color: blue }}>{sleepHM(sleepHours)}</span>}
-            </div>
-            {sleepSynced ? (
-              <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.04em", textTransform: "uppercase", color: ink50 }}>
-                {[sleepMeta && sleepMeta.efficiency != null ? sleepMeta.efficiency + "% efficient" : null, sleepMeta && sleepMeta.rhr != null ? "RHR " + sleepMeta.rhr : null, sleepMeta && sleepMeta.hrv != null ? "HRV " + sleepMeta.hrv : null].filter(Boolean).join(" · ") || "Synced from your device"}
-              </div>
-            ) : (
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {[6, 6.5, 7, 7.5, 8, 8.5].map((h) => { const sel = sleepHours === h; return (
-                  <button key={h} onClick={() => setSleepHours(sel ? null : h)} aria-label={h + " hours of sleep"} aria-pressed={sel ? "true" : "false"} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: "1px solid " + (sel ? blue : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: sel ? "rgba(126,212,255,0.14)" : "transparent", color: sel ? blue : INK, cursor: "pointer", padding: "8px 0", fontFamily: mono, fontSize: 10, fontWeight: 700 }}>{h}</button>
-                ); })}
-              </div>
-            )}
-            <div style={{ marginTop: 10 }}><Gauge label="Rested" val={rested} set={setRested} c={blue} /></div>
+      {/* WATER — its own line; progress only against the member's own target */}
+      <div data-dcl-water="" style={{ marginTop: 12, paddingTop: 11, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: hydTarget ? 8 : 10 }}>
+          <span className="dash-eyebrow">Water</span>
+          <span style={{ fontFamily: serif, fontSize: 16, color: INK }}>{hyd == null ? "—" : hydTarget ? <>{Ln(cur) + " / " + Ln(hydTarget) + " L"}<span style={{ fontFamily: mono, fontSize: 9, color: ink50 }}>{" · " + Math.round(hpct * 100) + "%"}</span></> : Ln(cur) + " L"}</span>
+        </div>
+        {hydTarget ? (
+          <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+            {[...Array(dotCount)].map((_, i) => (<div key={i} aria-hidden="true" style={{ flex: "1 1 0", minWidth: 6, height: 9, borderRadius: 2, background: i < filledDots ? teal : "transparent", border: "1px solid " + (i < filledDots ? teal : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)") }} />))}
           </div>
-          <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 2, width: "100%", border: 0, background: (nothingSet || saving) ? "rgba(var(--sh-ink-rgb, 242,237,228),0.12)" : teal, color: (nothingSet || saving) ? ink50 : "var(--sh-deep, #06231f)", cursor: saving ? "default" : "pointer", padding: "11px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>{saving ? "Saving…" : "Log today"}</button>
-        </>
-      ) : (
-        <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.5 }}>Energy <b style={{ color: teal }}>{energy ?? "—"}</b> · Hunger <b style={{ color: amber }}>{hunger ?? "—"}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{sleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
-      )}
-
-      {/* HYDRATION — folded in, STAYS LIVE whether or not the check-in is logged */}
-      <div style={{ marginTop: 12, paddingTop: 11, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-          <span className="dash-eyebrow">Hydration</span>
-          <span style={{ fontFamily: serif, fontSize: 16, color: INK }}>{hyd == null ? "—" : <>{hydDisplay}<span style={{ fontFamily: mono, fontSize: 9, color: ink50 }}> · {Math.round(hpct * 100)}%</span></>}</span>
-        </div>
-        <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
-          {[...Array(dotCount)].map((_, i) => (<div key={i} aria-hidden="true" style={{ flex: "1 1 0", minWidth: 6, height: 9, borderRadius: 2, background: i < filledDots ? teal : "transparent", border: "1px solid " + (i < filledDots ? teal : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)") }} />))}
-        </div>
+        ) : null}
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => addWater(0.25)} disabled={hydBusy} style={{ ...waterBtn, opacity: hydBusy ? 0.5 : 1 }}>+250 ml</button>
-          <button onClick={() => addWater(0.5)} disabled={hydBusy} style={{ ...waterBtn, opacity: hydBusy ? 0.5 : 1 }}>+500 ml</button>
+          <button onClick={() => addWater(0.25)} disabled={hydBusy} style={{ ...waterBtn, opacity: hydBusy ? 0.5 : 1 }}>+ 250 ml</button>
+          <button onClick={() => addWater(0.5)} disabled={hydBusy} style={{ ...waterBtn, opacity: hydBusy ? 0.5 : 1 }}>+ 500 ml</button>
           <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label="Undo last water" style={{ width: 44, borderRadius: 5, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", background: "transparent", color: (lastDelta && !hydBusy) ? INK : ink50, cursor: (lastDelta && !hydBusy) ? "pointer" : "default", fontFamily: mono, fontSize: 13, fontWeight: 700 }}>↶</button>
         </div>
       </div>
-
-      {/* recovery readiness + the door to the trends page */}
-      {live && (
-        <div style={{ marginTop: 11, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: ink50 }}>
-            {readiness != null ? <>Recovery <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : "Sleep & recovery"}
-          </span>
-          <a href={dashShellHref("ClientProgress.html")} style={{ display: "inline-block", padding: "7px 8px", margin: "-7px -8px", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: blue, textDecoration: "none" }}>Trends →</a>
-        </div>
-      )}
     </div>
   );
 }

@@ -41,6 +41,7 @@ const cookContext = await import(join(ROOT, 'src/lib/ai/cookContext.mjs'));
 const actions = await import(join(ROOT, 'src/lib/ai/actions.mjs'));
 const replyText = await import(join(ROOT, 'src/lib/ai/replyText.mjs'));
 const memberReads = await import(join(ROOT, 'src/lib/ai/memberReads.mjs'));
+const memberMornings = await import(join(ROOT, 'src/lib/ai/memberMornings.mjs'));
 const shapeKnowledge = await import(join(ROOT, 'src/lib/ai/shapeKnowledge.mjs'));
 const voiceLang = await import(join(ROOT, 'src/lib/ai/voiceLang.mjs'));
 
@@ -79,6 +80,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', role
     // The REAL readers run against the fake — a stubbed reader would prove
     // only that the route calls a function, not that a member's rows come back.
     ['@/lib/ai/memberReads.mjs', memberReads],
+    ['@/lib/ai/memberMornings.mjs', memberMornings],
     ['@/lib/ai/shapeKnowledge.mjs', shapeKnowledge],
     ['@/lib/ai/voiceLang.mjs', voiceLang],
     // The anonymous client a signed-out caller's coach lookup reads the public
@@ -136,7 +138,7 @@ function pinToday(t) {
   return memberReads.isoDay(new Date());
 }
 
-const READ_NAMES = ['get_training_plan', 'get_recent_workouts', 'get_week_summary', 'get_habits', 'get_coaching', 'get_reminders', 'get_points'];
+const READ_NAMES = ['get_training_plan', 'get_recent_workouts', 'get_week_summary', 'get_mornings', 'get_habits', 'get_coaching', 'get_reminders', 'get_points'];
 
 test('⚠ WHO GETS WHAT: an anonymous caller gets the base tools on the PUBLIC model; a member gets the read tools on the pin; a coach also gets the lookups', async () => {
   const anon = await loadRoute({ user: null });
@@ -821,6 +823,144 @@ test('a nutritionist\'s day and an open session are on their listing\'s clock, t
   assert.match(sys, /\(Europe\/London\)/, 'the listing\'s zone, not the device\'s');
   assert.match(sys, /the session with Priya Shah on Fri, Oct 9, 2:00 PM/, '13:00Z is 2 PM in London');
   assert.match(sys, /A time they give for it is Europe\/London time\./);
+});
+
+// ── The Morning check-in (docs/REVIEW-2026-10-19-morning-checkin.md §3.9) ─────────────
+// Nora reads the member's OWN mornings in words: today's in the facts, the rest through
+// get_mornings, both on the device's day. tests/member-mornings.test.mjs drives the reader itself.
+const MORNING_ROWS = [
+  { user_id: U, snapshot_date: '2026-12-20', energy: 7, sleep_quality: 3, hunger: 9, sleep_hours: 6.25, sources: { sleep_hours: 'oura' } },
+  { user_id: U, snapshot_date: '2026-12-19', energy: 5, sleep_hours: 7.5 },
+  { user_id: 'other', snapshot_date: '2026-12-20', energy: 1, sleep_hours: 2 },
+];
+const factsOf = (body) => body.input.filter((m) => m.role === 'system' && /FACTS ABOUT THIS MEMBER/.test(m.content)).map((m) => m.content).join('\n');
+
+test('⚠ get_mornings: the member\'s own mornings in words; nothing the model is handed says a 1-10 figure', async (t) => {
+  // 10 a.m. in New York.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-12-20T15:00:00Z') });
+  const tables = { daily_health_snapshot: MORNING_ROWS, subscriptions: [{ client_id: U, provider_id: 1, provider_role: 'nutritionist', status: 'active' }] };
+  const r = await loadRoute({ tables, answers: [calls(call('get_mornings', {}, 'm')), say('Good energy this morning.')] });
+  await r.mod.POST(post({ ...ask('how were my mornings?'), surface: 'app', context: { timezone: 'America/New_York' } }));
+  const fco = r.calls.ai[1].body.input.find((it) => it.type === 'function_call_output' && it.call_id === 'm');
+  const out = JSON.parse(fco.output);
+  assert.equal(out.ok, true);
+  assert.equal(out.today.date, '2026-12-20');
+  assert.equal(out.today.energy, 'Good');
+  assert.equal(out.today.wokeUp, 'Tired');
+  assert.equal(out.today.hunger, 'Starving', 'a member with a nutritionist hears hunger');
+  assert.deepEqual(out.today.night, { hours: '6h 15', fromWatch: true });
+  assert.equal(out.whoSees, 'Your nutritionist sees your answers.');
+  // The words, never the stored values: no check carries a number, and nothing reads as a scale.
+  assert.doesNotMatch(fco.output, /"(energy|hunger|wokeUp|sleep_quality|rested|mostDays)":\s*-?\d/);
+  assert.doesNotMatch(fco.output, /\/\s?10\b|out of 10/);
+  assert.doesNotMatch(fco.output, /"value"|"date":"2026-12-20","value"/);
+  const facts = factsOf(r.calls.ai[0].body);
+  assert.match(facts, /- Their own Morning check-in today \(this account's, not a client's\): energy Good, woke up Tired, slept 6h 15 \(their watch's night\)\. Morning readiness \d+ · (Ready|Steady|Take it easy|Run down)\./);
+  assert.doesNotMatch(facts, /\/\s?10\b/);
+  // The prompt says the rule too, for the app.
+  const sys = r.calls.ai[0].body.input[0].content;
+  assert.match(sys, /MORNINGS: /);
+  assert.match(sys, /never a 1-10 figure, a "\/10", points or the scale/);
+  assert.match(sys, /it is answered in the Morning check-in on Home\. You can draft a daily_checkin reminder/);
+  assert.match(sys, /never "because"/);
+  assert.match(sys, /Hunger control, where a higher hunger control means less hunger/);
+});
+
+test('the mornings prompt rides for members only, and on the website says the check-in is in the app', async () => {
+  const web = await loadRoute({});
+  await web.mod.POST(post(ask('hi')));
+  assert.match(web.calls.ai[0].body.input[0].content, /it is answered in the Morning check-in on Home in the Shape app \(the website has none\)\./);
+  for (const opts of [{ user: null }, { isMember: false }]) {
+    const r = await loadRoute(opts);
+    await r.mod.POST(post(ask('hi')));
+    assert.doesNotMatch(r.calls.ai[0].body.input[0].content, /MORNINGS:/, JSON.stringify(opts));
+    assert.ok(!toolNames(r.calls.ai[0].body).includes('get_mornings'), JSON.stringify(opts));
+  }
+  // Mid-cook there are no tools, so there is no mornings note either.
+  const cook = await loadRoute({});
+  await cook.mod.POST(post({ messages: [{ role: 'user', content: 'how long?' }], cookContext: { recipeTitle: 'Steak', stepIndex: 1, stepText: 'Sear.', ingredients: ['steak'] } }));
+  assert.doesNotMatch(cook.calls.ai[0].body.input[0].content, /MORNINGS:/);
+});
+
+test('today\'s morning in the facts: open is "not answered yet", Check-ins off says so, and before 4 a.m. nothing', async (t) => {
+  const at = (iso) => t.mock.timers.enable({ apis: ['Date'], now: Date.parse(iso) });
+  const run = async (tables, context = { timezone: 'America/New_York' }) => {
+    const r = await loadRoute({ tables });
+    await r.mod.POST(post({ ...ask('hi'), context }));
+    return factsOf(r.calls.ai[0].body);
+  };
+  at('2026-12-20T15:00:00Z');
+  const open = await run({ daily_health_snapshot: [{ user_id: U, snapshot_date: '2026-12-20', sleep_hours: 7, sources: { sleep_hours: 'oura' } }] });
+  assert.match(open, /- Their own Morning check-in today: not answered yet \(never call it missed\); so far slept 7h \(their watch's night\)\./);
+  const off = await run({ user_goals: [{ user_id: U, kind: 'client_settings', data: { dailyCheckin: 'Off' } }] });
+  assert.match(off, /- Morning check-ins are switched off in their Settings, so nothing is asked\./);
+  assert.doesNotMatch(off, /not answered yet/);
+  t.mock.timers.reset();
+  // 3 a.m. in New York: last night has not been slept.
+  at('2026-12-20T08:00:00Z');
+  const night = await run({});
+  assert.doesNotMatch(night, /Morning check-in/);
+});
+
+test('⚠ the Morning check-in is keyed to the device\'s day, whatever zone a coach\'s Schedule keeps; and it is left out where it would be misread', async (t) => {
+  // 10 a.m. on the 20th in New York is midnight on the 21st in Tokyo.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-12-20T15:00:00Z') });
+  const tables = {
+    daily_health_snapshot: MORNING_ROWS,
+    trainers: [{ id: 7, name: 'Maya', owner_id: U, timezone: 'Asia/Tokyo' }], nutritionists: [],
+    subscriptions: [{ client_id: C1, provider_id: 7, provider_role: 'trainer', status: 'active' }],
+  };
+  // A member who also trains: the app opens as a member's, so their own morning is asked on Home.
+  const dual = await loadRoute({ role: 'client', roles: ['client', 'trainer'], isCoach: true, tables, rpcs: NAMES, answers: [calls(call('get_mornings', {}, 'm')), say('ok')] });
+  // In the app: the device's zone is the day (the website reads the app's stored zone first, below).
+  await dual.mod.POST(post({ ...ask('how was my morning?'), surface: 'app', context: { timezone: 'America/New_York' } }));
+  assert.match(systemTexts(dual.calls.ai[0].body), /\(Asia\/Tokyo\)/, 'the Schedule keeps the listing\'s zone');
+  assert.match(factsOf(dual.calls.ai[0].body), /Morning check-in today \(this account's, not a client's\): energy Good/, 'the facts read the device\'s day');
+  const out = JSON.parse(dual.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.equal(out.today.date, '2026-12-20', 'get_mornings reads the device\'s day');
+  assert.equal(out.today.energy, 'Good');
+  // The member's own turn carries the read and the note, and the read takes no arguments.
+  const tool = dual.calls.ai[0].body.tools.find((x) => x.name === 'get_mornings');
+  assert.ok(tool && tool.strict === true);
+  assert.deepEqual(tool.parameters.properties, {});
+  assert.match(tool.description, /Never a client's/);
+  assert.match(systemTexts(dual.calls.ai[0].body), /MORNINGS:/);
+  // ⚠ Where the account's own morning would be misread, the facts, get_mornings and the MORNINGS note
+  // are all left out (review on part 3): a page that names a client (there is no read of a client's
+  // mornings, so "how did she sleep?" must never be answered with the coach's own), and an account the
+  // app opens as a coach's, whose Home has no Morning check-in to send them to.
+  const open = await loadRoute({ role: 'client', roles: ['client', 'trainer'], isCoach: true, tables, rpcs: NAMES, answers: [calls(call('get_mornings', {}, 'm')), say('ok')] });
+  await open.mod.POST(post({ ...ask('how has this client been sleeping?'), context: { page: 'Client', clientId: C1, timezone: 'America/New_York' } }));
+  const coach = await loadRoute({ role: 'trainer', tables, rpcs: NAMES });
+  await coach.mod.POST(post({ ...ask('hi'), context: { timezone: 'America/New_York' } }));
+  for (const [who, r] of [['a client page', open], ['a coach account', coach]]) {
+    const body = r.calls.ai[0].body;
+    assert.doesNotMatch(factsOf(body), /Morning check-in/, who);
+    assert.ok(!toolNames(body).includes('get_mornings'), `${who} was offered get_mornings`);
+    assert.doesNotMatch(systemTexts(body), /MORNINGS:/, `${who} got the MORNINGS note`);
+  }
+  // A call the model makes anyway reads nothing.
+  const refused = JSON.parse(open.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.equal(refused.error, 'not_available');
+  assert.ok(!('today' in refused));
+});
+
+test("⚠ on the website, Nora's Morning check-in day is the app's stored zone, not the laptop browser's (review on part 3)", async (t) => {
+  // 04:30 in London on the 21st is 23:30 on the 20th in New York: the phone, in London, is on the 21st.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-12-21T04:30:00Z') });
+  const tables = {
+    daily_health_snapshot: MORNING_ROWS,
+    client_profiles: [{ user_id: U, timezone: 'Europe/London' }],
+  };
+  const web = await loadRoute({ role: 'client', tables, rpcs: NAMES, answers: [calls(call('get_mornings', {}, 'm')), say('ok')] });
+  await web.mod.POST(post({ ...ask('how was my morning?'), surface: 'web', context: { timezone: 'America/New_York' } }));
+  const out = JSON.parse(web.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.equal(out.today.date, '2026-12-21', "the browser's zone named yesterday as this morning");
+  // In the app, the device's own zone is the day, as before.
+  const app = await loadRoute({ role: 'client', tables, rpcs: NAMES, answers: [calls(call('get_mornings', {}, 'm')), say('ok')] });
+  await app.mod.POST(post({ ...ask('how was my morning?'), surface: 'app', context: { timezone: 'America/New_York' } }));
+  const outApp = JSON.parse(app.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.equal(outApp.today.date, '2026-12-20');
 });
 
 // ── The sign-up and application forms (the Ask Nora plan, step 5) ─────────────────

@@ -24,8 +24,9 @@ const DEFAULT_TARGET_L = 3.0;
 // (jsonb) — that table exists but hydration_target_l is NOT stored there; it
 // lives in user_goals as confirmed by tracing the write path.
 // Returns the STORED target, or null when the member never set one. Callers
-// decide what absence means: the hydration CARD charges against
-// DEFAULT_TARGET_L (a UI default everyone sees), but the signals engine must
+// decide what absence means: `targetL` falls back to DEFAULT_TARGET_L for
+// display, but the app's water line and the website's Today card show progress
+// only against a stored target (ruling 8), and the signals engine must
 // be able to tell a chosen target from that default — a "you're behind on
 // water" directive fired against a target the member never picked is exactly
 // the unearned nag the engine's absence gates exist to prevent. Hence the GET

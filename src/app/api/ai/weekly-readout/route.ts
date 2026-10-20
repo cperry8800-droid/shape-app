@@ -23,6 +23,12 @@
 // or for a member it coaches. The claim token is the capability those two take;
 // the claim is where its holder was authorized.
 //
+// ⚠ THE CALLER IS THE BEARER TOKEN WHEN ONE IS SENT, ELSE THE COOKIE. The
+// installed app posts cross-origin with its access token and no cookie, so a
+// cookie-only read answered it 401 and Progress → Overall never showed the
+// readout. The claim and the snapshot read run on that same client, so the
+// database's self-or-coach check and row rules see the token's account.
+//
 // ⚠ EVERY CLAIM PATH DEGRADES TO THE PRE-MIGRATION BEHAVIOUR. Until the owner
 // applies the migration the RPCs do not exist, and a readout is worth more to a
 // member than a cache is: an absent RPC computes and generates exactly as this

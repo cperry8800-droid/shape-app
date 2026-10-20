@@ -573,64 +573,232 @@ test('the living profile’s own trajectory, lifts and setting', async () => {
 // ClientScore.html redirect stub does not, so that call is guarded like the shared
 // workout card's.
 
-// ── The website's check-in and a watch's night (owner, 2026-10-18: device data first) ──
-// The night is a watch's when the server says a device sync wrote its hours (sleepFromDevice). A
-// watch worn by day reports a resting heart rate with no night, so typed hours on such a day stay
-// the member's own; and hours the route keeps a watch's night over show as the watch's.
-test("the website check-in knows a watch's night from the server's sources, and shows the hours that stand", async () => {
-  const { React, CL } = await setup();
-  const d = new Date();
-  const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  const pt = (value) => [{ date: day, value }];
-  const Card = () => React.createElement(CL.DashTodayCard, { live: true });
-  const page = async (series, checkin = { ok: true }) => mount(React, Card, {
-    '/api/client/progress': { series },
-    '/api/client/hydration': { ok: true, hydrationL: 0, targetL: 3 },
-    '/api/client/checkin': checkin,
-  });
-  const press = async (m, label) => {
-    const b = [...m.el.querySelectorAll('button')].find((x) => x.textContent.trim() === label || x.getAttribute('aria-label') === label);
-    assert.ok(b, `no ${label} in: ${readText(m.el)}`);
+// ── The website's Today card: the Morning check-in is in the app, and water stays ──
+// Owner, 2026-10-20: "dont need a website check in" (docs/REVIEW-2026-10-19-morning-checkin.md
+// §3.10). The card points to the app and asks nothing: no gauge, no "/10", no Log today, no write to
+// /api/client/checkin and no progress read. Water stays as its own line, with progress only against
+// a target the member set (ruling 8), never the route's defaulted 3 L.
+// Mount the card live with every request recorded, answered by `answer(path, init)` (a promise, so
+// a test can hold a write open).
+async function mountCard(React, CL, answer) {
+  const { createRoot } = require('react-dom/client');
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const prev = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (p, init = {}) => {
+    const path = String(p).split('?')[0];
+    calls.push({ url: String(p), path, method: init.method || 'GET', body: init.body ? JSON.parse(init.body) : null });
+    const body = await answer(path, init);
+    return { ok: !!body, status: body ? 200 : 500, json: async () => body || {} };
+  };
+  const el = document.createElement('div'); document.body.appendChild(el);
+  const root = createRoot(el);
+  const close = track(React, root, el);
+  await React.act(async () => root.render(React.createElement(CL.DashTodayCard, { live: true })));
+  await React.act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+  const water = () => readText(el.querySelector('[data-dcl-water]'));
+  const button = (label) => [...el.querySelectorAll('button')].find((x) => x.textContent.trim() === label || x.getAttribute('aria-label') === label);
+  const press = async (label) => {
+    const b = button(label);
+    assert.ok(b, `no ${label} in: ${readText(el)}`);
     await React.act(async () => { b.click(); await new Promise((r) => setTimeout(r, 20)); });
   };
+  return { el, calls, water, button, press, unmount: async () => { await close(); globalThis.fetch = prev; } };
+}
+const localIso = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 
-  let m = await page({ sleep: pt(7), restingHr: pt(58), sleepFromDevice: [] });
+test('the website Today card points to the app and asks nothing', async () => {
+  const { React, CL } = await setup();
+  const m = await mountCard(React, CL, async (path, init) => {
+    if (path === '/api/client/hydration') return init.method === 'POST' ? { ok: true, hydrationL: 1.5, targetL: 3, targetStoredL: null } : { ok: true, hydrationL: 1.25, targetL: 3, targetStoredL: null };
+    if (path === '/api/client/progress') return { series: { energy: [{ date: localIso(), value: 8 }] }, kpis: { readiness: 82, readinessLabel: 'Primed' } };
+    return { ok: true };
+  });
   try {
-    await press(m, 'Edit');
-    assert.doesNotMatch(readText(m.el), /RHR 58|Synced from your device/, "typed hours on a day-only watch's day read as the watch's");
-    assert.ok(!!m.el.querySelector('button[aria-label="7 hours of sleep"][aria-pressed="true"]'), 'the typed night lost its hour chips');
+    const all = readText(m.el);
+    assert.match(all, /^Morning check-in /, all);
+    assert.ok(all.includes('Your Morning check-in is in the Shape app.'), all);
+    // It says where the history is, never "answer it each morning": the site can't see whether the
+    // member turned Check-ins off in the app (ruling 12; review on part 3).
+    assert.ok(all.includes('Your mornings, in the app, shows them over time.'), all);
+    assert.doesNotMatch(all, /Answer it|each morning/, all);
+    // The site's own app page, at its doors (#notify), where "Or open it in your browser" is: the
+    // stores aren't open yet, so its marketing top is no way in for a signed-in member (review on part 3).
+    const link = [...m.el.querySelectorAll('a')].find((a) => /Get the app/.test(a.textContent));
+    assert.ok(link, 'no link to the app');
+    assert.equal(link.getAttribute('href'), 'GetApp.html#notify');
+    assert.doesNotMatch(all, /\/\s?10\b|of 10\b/, 'a figure out of 10 on the card');
+    assert.doesNotMatch(all, /Log today|Energy|Hunger|Rested|Recovery|Trends|logged/, all);
+    assert.ok(![...m.el.querySelectorAll('button')].some((b) => /of 10|hours of sleep/.test(b.getAttribute('aria-label') || '')), 'a gauge or an hour chip is still on the card');
+    assert.ok(!m.calls.some((c) => c.path === '/api/client/progress'), 'the card still reads progress');
+    for (const label of ['+ 250 ml', '+ 500 ml', 'Undo last water']) await m.press(label);
+    assert.ok(!m.calls.some((c) => c.path === '/api/client/checkin'), 'the card still writes a check-in');
+  } finally { await m.unmount(); }
+});
+
+test("the website's water line: progress only against the member's own target", async () => {
+  const { React, CL } = await setup();
+  const at = (read) => mountCard(React, CL, async (path) => (path === '/api/client/hydration' ? read : null));
+  const dots = (m) => m.el.querySelectorAll('[data-dcl-water] div[aria-hidden="true"]').length;
+
+  // No target set: the route's defaulted targetL (3 L) is not a target, so the day's amount alone.
+  let m = await at({ ok: true, hydrationL: 1.25, targetL: 3, targetStoredL: null });
+  try {
+    assert.equal(m.water(), 'Water 1.25 L + 250 ml + 500 ml ↶');
+    assert.equal(dots(m), 0, 'progress dots with no target set');
+  } finally { await m.unmount(); }
+  // An older route that answers only targetL is the same.
+  m = await at({ ok: true, hydrationL: 1.25, targetL: 3 });
+  try { assert.doesNotMatch(m.water(), /\/|%/); assert.equal(dots(m), 0); } finally { await m.unmount(); }
+  m = await at({ ok: true, hydrationL: 1.25, targetL: 3, targetStoredL: 0 });
+  try { assert.doesNotMatch(m.water(), /\/|%/, 'a zero target drew progress'); } finally { await m.unmount(); }
+
+  // The member's own 2 L: the amount against it, and its dots (one per 250 ml, 6 to 14).
+  m = await at({ ok: true, hydrationL: 1.25, targetL: 2, targetStoredL: 2 });
+  try {
+    assert.match(m.water(), /^Water 1\.25 \/ 2 L · 63% /, m.water());
+    assert.equal(dots(m), 8);
+    assert.equal(m.el.querySelectorAll('[data-dcl-water] div[aria-hidden="true"][style*="background: var(--sh-accent"]').length, 5, 'filled dots');
   } finally { await m.unmount(); }
 
-  // A watch's night alone is not a check-in, so the form stays open with the night read-only.
-  m = await page({ sleep: pt(7), restingHr: pt(58), sleepFromDevice: pt(1) });
+  // A failed read: "—", and the buttons still work. An add that fails too puts the "—" back, never a
+  // made-up 0 L (review on part 3).
+  m = await at(null);
   try {
-    assert.match(readText(m.el), /7h 0m RHR 58/);
-    // (assert.ok, not equal: a failing equal would print a jsdom node, which hangs the run.)
-    assert.ok(![...m.el.querySelectorAll('button')].some((b) => /hours of sleep/.test(b.getAttribute('aria-label') || '')), "the watch's night could be typed over");
+    assert.match(m.water(), /^Water — /);
+    assert.ok(m.button('+ 250 ml') && !m.button('+ 250 ml').disabled);
+    await m.press('+ 250 ml');
+    assert.match(m.water(), /^Water — /, m.water());
   } finally { await m.unmount(); }
+});
 
-  // A server without the series keeps the old sign.
-  m = await page({ sleep: pt(7), restingHr: pt(58) });
-  try { assert.match(readText(m.el), /RHR 58/); } finally { await m.unmount(); }
-
-  // Typed hours the route keeps a watch's night over: the watch's hours show, as the watch's.
-  m = await page({ energy: pt(6), sleepFromDevice: [] }, { ok: true, sleepHours: 6.2, sleepFromDevice: true });
+test("the website's water line follows a target set or removed in the app, from an add's answer (Codex P2 on #2410)", async () => {
+  const { React, CL } = await setup();
+  const dots = (m) => m.el.querySelectorAll('[data-dcl-water] div[aria-hidden="true"]').length;
+  const card = (read, added) => mountCard(React, CL, async (path, init) => (path !== '/api/client/hydration' ? null : init.method === 'POST' ? added : read));
+  // Set in the app since the page loaded: the add's answer brings it.
+  let m = await card({ ok: true, hydrationL: 1, targetL: 3, targetStoredL: null }, { ok: true, hydrationL: 1.25, targetL: 2, targetStoredL: 2 });
   try {
-    await press(m, 'Edit');
-    await press(m, '7.5 hours of sleep');
-    await press(m, 'Log today');
-    assert.match(readText(m.el), /6h 12m/, 'the card says the typed hours were logged, which the route did not keep');
-    await press(m, 'Edit');
-    assert.match(readText(m.el), /Synced from your device/);
+    assert.equal(dots(m), 0);
+    await m.press('+ 250 ml');
+    assert.match(m.water(), /^Water 1\.25 \/ 2 L · 63% /, m.water());
   } finally { await m.unmount(); }
-
-  // Hours the route kept stay the member's own.
-  m = await page({ energy: pt(6), sleepFromDevice: [] }, { ok: true, sleepHours: 7.5, sleepFromDevice: false });
+  // Removed in the app: the add's answer says there is none, and the progress goes.
+  m = await card({ ok: true, hydrationL: 1, targetL: 2, targetStoredL: 2 }, { ok: true, hydrationL: 1.25, targetL: 3, targetStoredL: null });
   try {
-    await press(m, 'Edit');
-    await press(m, '7.5 hours of sleep');
-    await press(m, 'Log today');
-    await press(m, 'Edit');
-    assert.doesNotMatch(readText(m.el), /Synced from your device/, "hours the route kept read as the watch's");
+    assert.match(m.water(), /^Water 1 \/ 2 L /, m.water());
+    await m.press('+ 250 ml');
+    assert.equal(m.water(), 'Water 1.25 L + 250 ml + 500 ml ↶', 'a removed target still drew progress');
+    assert.equal(dots(m), 0);
   } finally { await m.unmount(); }
+  // An older route whose answer has no targetStoredL says nothing about the target: it stands.
+  m = await card({ ok: true, hydrationL: 1, targetL: 2, targetStoredL: 2 }, { ok: true, hydrationL: 1.25, targetL: 2 });
+  try {
+    await m.press('+ 250 ml');
+    assert.match(m.water(), /^Water 1\.25 \/ 2 L /, m.water());
+  } finally { await m.unmount(); }
+});
+
+test("the website's water line: a day's read that lands after an add never undoes it (review on part 3)", async () => {
+  const { React, CL } = await setup();
+  let releaseRead;
+  const readHeld = new Promise((r) => { releaseRead = r; });
+  const m = await mountCard(React, CL, async (path, init) => {
+    if (path !== '/api/client/hydration') return null;
+    if (init.method === 'POST') return { ok: true, hydrationL: 1.25, targetL: 2, targetStoredL: 2 };
+    await readHeld; // a cold read, taken before the add, answering after it
+    return { ok: true, hydrationL: 1, targetL: 2, targetStoredL: 2 };
+  });
+  try {
+    await m.press('+ 250 ml');
+    assert.match(m.water(), /^Water 1\.25 \/ 2 L /, m.water());
+    await React.act(async () => { releaseRead(); await new Promise((r) => setTimeout(r, 20)); });
+    assert.match(m.water(), /^Water 1\.25 \/ 2 L /, "the older read's total replaced the add's");
+  } finally { await m.unmount(); }
+});
+
+test("the website's + 250 ml, + 500 ml and Undo: optimistic, the server's total, rolled back on a failure", async () => {
+  const { React, CL } = await setup();
+  let hold = null, fail = false;
+  const m = await mountCard(React, CL, async (path, init) => {
+    if (path !== '/api/client/hydration') return null;
+    if (init.method !== 'POST') return { ok: true, hydrationL: 1, targetL: 3, targetStoredL: null };
+    if (hold) await hold;
+    if (fail) return null;
+    const { deltaL } = JSON.parse(init.body);
+    // The server's running total, which another device moved too (+0.1), stands over the guess.
+    return { ok: true, hydrationL: Math.round((1 + 0.1 + (deltaL > 0 ? deltaL : 0)) * 100) / 100, targetL: 3, targetStoredL: null };
+  });
+  try {
+    assert.ok(m.button('Undo last water').disabled, 'Undo before any water');
+    let release; hold = new Promise((r) => { release = r; });
+    await m.press('+ 250 ml');
+    assert.match(m.water(), /^Water 1\.25 L /, 'the add shows before the server answers');
+    assert.ok(m.button('+ 500 ml').disabled, 'a second add while one is saving');
+    hold = null;
+    await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 20)); });
+    const post = m.calls.filter((c) => c.method === 'POST');
+    assert.deepEqual(post.map((c) => [c.path, c.body]), [['/api/client/hydration', { deltaL: 0.25, date: localIso() }]]);
+    assert.match(m.water(), /^Water 1\.35 L /, "the server's total stands over the guess");
+
+    await m.press('Undo last water');
+    assert.deepEqual(m.calls.filter((c) => c.method === 'POST').at(-1).body, { deltaL: -0.25, date: localIso() });
+    assert.ok(m.button('Undo last water').disabled, 'Undo twice');
+
+    fail = true;
+    const before = m.water();
+    await m.press('+ 500 ml');
+    assert.deepEqual(m.calls.filter((c) => c.method === 'POST').at(-1).body, { deltaL: 0.5, date: localIso() });
+    assert.equal(m.water(), before, 'a failed add stayed on screen');
+    assert.ok(m.button('Undo last water').disabled, 'Undo offered for an add that failed');
+  } finally { await m.unmount(); }
+});
+
+test("the website Today card's signed-out preview: the pointer and the example water line", async () => {
+  const { React, CL, text } = await setup();
+  const out = text(React.createElement(CL.DashTodayCard, { live: false }));
+  assert.ok(out.includes('Your Morning check-in is in the Shape app.'), out);
+  assert.match(out, /1\.5 \/ 3 L · 50%/, out);
+  assert.doesNotMatch(out, /\/\s?10\b|Log today/, out);
+
+  // The dashboard resolves to a live account after the preview drew: the example's water and its
+  // 3 L target go, even when the member's own read fails.
+  const { createRoot } = require('react-dom/client');
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const prev = globalThis.fetch;
+  // The day's read fails; an add answers with the total and no target of the member's own.
+  globalThis.fetch = async (p, init = {}) => (init.method === 'POST'
+    ? { ok: true, status: 200, json: async () => ({ ok: true, hydrationL: 0.25, targetL: 3, targetStoredL: null }) }
+    : { ok: false, status: 500, json: async () => ({}) });
+  const el = document.createElement('div'); document.body.appendChild(el);
+  const root = createRoot(el);
+  const close = track(React, root, el);
+  try {
+    await React.act(async () => root.render(React.createElement(CL.DashTodayCard, { live: false })));
+    assert.match(readText(el.querySelector('[data-dcl-water]')), /1\.5 \/ 3 L/);
+    await React.act(async () => root.render(React.createElement(CL.DashTodayCard, { live: true })));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    assert.match(readText(el.querySelector('[data-dcl-water]')), /^Water — \+ 250 ml/, "the preview's water stayed on a live account");
+    const add = [...el.querySelectorAll('button')].find((b) => b.textContent.trim() === '+ 250 ml');
+    await React.act(async () => { add.click(); await new Promise((r) => setTimeout(r, 20)); });
+    assert.match(readText(el.querySelector('[data-dcl-water]')), /^Water 0\.25 L \+ 250 ml/, "the preview's 3 L target stayed on a live account");
+  } finally { await close(); globalThis.fetch = prev; }
+});
+
+// ── Progress's Energy, Hunger and Rested tabs left with the website's check-in (§3.10) ──
+test("the website's Progress trend has no Energy, Hunger or Rested tab", async () => {
+  const { React, P, as } = await setup();
+  as(IMPERIAL);
+  const pts = (vals) => vals.map((value, i) => ({ date: '2026-10-' + String(10 + i).padStart(2, '0'), value }));
+  const page = await mount(React, P.ClientProgressPage, {
+    '/api/client/progress': { series: { weight: pts([180, 179]), energy: pts([6, 8, 8]), hunger: pts([4, 6, 6]), sleepQuality: pts([8, 8, 6]), sleep: pts([7, 7.5]) } },
+  });
+  try {
+    const tabs = [...page.el.querySelectorAll('button')].map((b) => b.textContent.trim());
+    for (const kept of ['Weight', 'Sleep']) assert.ok(tabs.includes(kept), `the trend lost ${kept}: ${tabs}`);
+    for (const gone of ['Energy', 'Hunger', 'Rested']) assert.ok(!tabs.includes(gone), `the trend still plots ${gone}`);
+  } finally { await page.unmount(); }
+  const src = readFileSync(ND('dashProgress.jsx'), 'utf8');
+  const tabsSrc = src.slice(src.indexOf('const DPR_TREND_TABS = ['), src.indexOf('const DPR_TREND_KEYS'));
+  assert.doesNotMatch(tabsSrc, /\/10|k: "(energy|hunger|sleepQuality)"/);
 });

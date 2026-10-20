@@ -49,8 +49,10 @@ test('each component opens by naming the window globals it uses, at call time', 
     assert.ok(m[1].split(',').map((s) => s.trim()).includes('useBS'), `${n} must take the theme hook from window at call time`);
   }
   // The page renders the client module's own chrome, exactly the names a top-level read would capture
-  // as undefined.
-  assert.match(page, /^export function BSYourMornings\([^)]*\) \{\n  const \{ useBS, BSPage, BSDetailHeader \} = window;/m);
+  // as undefined, and Nora's link that closes What we've noticed (part 3).
+  assert.match(page, /^export function BSYourMornings\([^)]*\) \{\n  const \{ useBS, BSPage, BSDetailHeader, BSAskNoraLink \} = window;/m);
+  // Nora's screen is named through the client's bsNoraOpen, read when the effect runs, never at load.
+  assert.match(page, /\n    const off = window\.bsNoraOpen\?\.\(\{ page: 'Your mornings', label: noraLabel \}, noraOwner\.current\);\n    return typeof off === 'function' \? off : undefined;\n/);
   // And never the client-local helpers the test harness happens to put on window (useStateBSC,
   // _bsScrollTopOnMount, useBSPinnedMastTop): in the app they are not there.
   assert.doesNotMatch(page, /window\.(useStateBSC|_bsScrollTopOnMount|useBSPinnedMastTop|BSCycleTodayChip|BSSleepHistory)\b/);
@@ -67,9 +69,10 @@ test('the module carries its own translator, bound the way the i18n ratchet reco
   assert.equal((page.match(/window\.ShapeI18n\?\.t\b/g) || []).length, 1, 'window.ShapeI18n.t must be read only inside useShapeTr()');
 });
 
-test('the module imports react, the card and the readiness module, and the card never imports it back', () => {
+test('the module imports react, the card, the readiness and patterns modules, and the card never imports it back', () => {
+  // morningPatterns.mjs (part 3) counts What we've noticed: pure, so Nora's server read runs it too.
   const imports = [...page.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);
-  assert.deepEqual(imports, ['react', './BSCheckinCard.jsx', '../services/morningReadiness.mjs'], `unexpected imports: ${imports.join(', ')}`);
+  assert.deepEqual(imports, ['react', './BSCheckinCard.jsx', '../services/morningReadiness.mjs', '../services/morningPatterns.mjs'], `unexpected imports: ${imports.join(', ')}`);
   // react-dom is stubbed as { createPortal } in the client harnesses; the page needs none of it.
   assert.doesNotMatch(page, /from 'react-dom/);
   const cardImports = [...card.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);

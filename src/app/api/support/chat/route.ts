@@ -76,6 +76,7 @@ import {
   readTrainingPlan, readRecentTraining, readWeekSummary, readHabits, readCoaching, readReminders, readPoints,
   readCoachRoster, findClient, readClientSnapshot, readAccount,
 } from '@/lib/ai/memberReads.mjs';
+import { readMornings, readMorningFacts } from '@/lib/ai/memberMornings.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -441,7 +442,11 @@ const NO_ARGS = { type: 'object', properties: {}, required: [] as string[], addi
 const MEMBER_READ_TOOLS = [
   { type: 'function', name: 'get_training_plan', description: "The member's training plan for this week — which sessions are on today (dated or a weekly repeat), everything scheduled this week with exercises, how many later weeks exist — and today's meals off their active menu with the day's targets. Call before answering 'what's on today', 'what do I eat', or anything about their plan.", parameters: NO_ARGS, strict: true },
   { type: 'function', name: 'get_recent_workouts', description: 'The last few sessions the member completed, with the top sets per move exactly as logged (units as stated in the log). Call for questions about what they lifted or trained recently.', parameters: NO_ARGS, strict: true },
-  { type: 'function', name: 'get_week_summary', description: 'The last 7 days in numbers: days logged and average intake, days trained and workout minutes, sleep and recovery averages where a wearable reports them, the latest weigh-in and the change from the one before, habit completion. Call for "how was my week", "am I on track", trend questions.', parameters: NO_ARGS, strict: true },
+  { type: 'function', name: 'get_week_summary', description: 'The last 7 days in numbers: days logged and average intake, days trained and workout minutes, the average night (typed or from a watch, a 0h night left out) and recovery averages where a wearable reports them, the latest weigh-in and the change from the one before, habit completion. Call for "how was my week", "am I on track", trend questions.', parameters: NO_ARGS, strict: true },
+  // ⚠ THE MEMBER'S OWN MORNINGS, IN WORDS (docs/REVIEW-2026-10-19-morning-checkin.md §3.9). No
+  // arguments like every read here: a coach's RLS client can read subscriber snapshots, so a mornings
+  // read that took an id would hand a coach a client's raw answers and readiness.
+  { type: 'function', name: 'get_mornings', description: "The member's OWN Morning check-in, in words: this morning's energy, how they woke up, last night's sleep (from a watch, typed, or skipped) and Morning readiness with what it was built from; the last 7 and 30 days per check as Your mornings says them (the word most days had or the range, the average night and its short nights, and which way each moved against the days before); readiness's average; the patterns Your mornings shows (What we've noticed); and hunger between meals only for a member with a nutritionist. Words only, never a 1-10 figure. Never a client's: there is no read of a client's mornings. Call for 'how have I been sleeping', 'why am I tired', 'how were my mornings', 'what's my readiness'.", parameters: NO_ARGS, strict: true },
   { type: 'function', name: 'get_habits', description: "The member's habits with today's done state, the last-7-days count and the current streak. Call before check_habit when you need the exact habit name, and for any habit question.", parameters: NO_ARGS, strict: true },
   { type: 'function', name: 'get_coaching', description: "The member's coaches (their team), their next booked coaching sessions with coach names, and the last sessions held. Call for 'when is my next session', 'who is my coach'.", parameters: NO_ARGS, strict: true },
   { type: 'function', name: 'get_reminders', description: "The member's scheduled reminders (kind, time, days, timezone, on/off). Call before set_reminder to avoid duplicates and for any reminder question.", parameters: NO_ARGS, strict: true },
@@ -551,6 +556,27 @@ const MEMBER_PROMPT_NOTE =
   "MEMORY: The member can ask you to remember or forget personal preferences — use the remember/forget tools (applied immediately, no confirm; managed under Settings → What Nora remembers). If a forget returns candidates, list them and ask which one.\n" +
   "MEMBER ACTIONS: They can also log a weigh-in (log_weigh_in), log water (log_water), check off a habit (check_habit), and set reminders (set_reminder) — each DRAFTS a confirm card, so say you've drafted it, never that it's done. For a NAMED food, call find_food first and propose log_meal with the REAL returned macros.\n" +
   'THE READ TOOLS ARE AVAILABLE on this turn — use them (see LOOKUPS) before answering anything about this member\'s own plan, schedule, progress or numbers.';
+// The Morning check-in (docs/REVIEW-2026-10-19-morning-checkin.md §3.9): rides with the member note.
+// ⚠ WORDS, NEVER THE SCALE. The member answers in words and the reads send only words; this tells
+// the model so too, and names each answer by its source, because the weekly check-in for the coach
+// rates its own Energy and Sleep quality in numbers.
+// ⚠ THE WEBSITE HAS NO CHECK-IN (§3.10): there, a morning is answered in the Shape app.
+function morningsPromptNote(surface: 'web' | 'app'): string {
+  const where = surface === 'app'
+    ? 'in the Morning check-in on Home'
+    : 'in the Morning check-in on Home in the Shape app (the website has none)';
+  return [
+    "MORNINGS: The Morning check-in asks each morning how they slept (their hours, or a watch's night), How did you wake up? (Wrecked, Tired, OK, Rested, Fresh) and this morning's energy (Drained, Low, OK, Good, Great); a member with a nutritionist is also asked in the evening about hunger between meals (Not hungry, A little, Normal, Hungry, Starving).",
+    "The facts carry today's morning when there is one to ask about; call get_mornings before answering anything about their mornings, sleep, energy or readiness over time.",
+    'Say their answers in those words: never a 1-10 figure, a "/10", points or the scale, and never turn a word into a number.',
+    "Name each answer by its source (this morning's energy, How you woke up, hunger between meals), and never mix them up with the weekly check-in for their coach, whose ratings (Energy, Sleep quality, Stress, Hunger control, where a higher hunger control means less hunger) are a different form.",
+    'Morning readiness is a 0-100 guide built from their own answers (Ready, Steady, Take it easy, Run down), not a medical reading, and coaches do not see it.',
+    'Say a pattern only as get_mornings returns it, with "after", never "because", and never as a health claim.',
+    `You cannot record a morning: it is answered ${where}. You can draft a daily_checkin reminder for it.`,
+    'Mention hunger only when get_mornings says it is asked (hungerAsked). Who sees their answers is exactly what get_mornings says (whoSees); readiness and the patterns are only theirs.',
+    'A morning not answered yet is open, never missed.',
+  ].join(' ');
+}
 // A plain chat (confirmCards: false) has no write tools and says so: the model must not
 // offer a change it has no way to draft. Rides last among the role notes, so it wins.
 const NO_CARDS_NOTE =
@@ -639,7 +665,11 @@ async function profileZone(sb: Actor['supabase'], uid: string): Promise<string |
 // The per-request context the READ tools run with: the caller's own RLS client
 // and id (member-verified), the clock, and whether the caller is a coach — null
 // for anyone else, so a fabricated call fails closed exactly like memory.
-type ReadCtx = { sb: Actor['supabase']; uid: string; now: Date; isCoach: boolean; zone: string; role?: string; admin?: { id: string; email: string } | null; surface?: 'web' | 'app' };
+// `dayZone`: the zone the Morning check-in's row is keyed to, the device's first. A coach's `zone`
+// is their listing's (their Schedule's), but the app dates the check-in by the device's day.
+// `mornings`: the account's own Morning check-in is offered (get_mornings and the MORNINGS note); off
+// where it would be misread, by the facts' own rule (see ownMorning below).
+type ReadCtx = { sb: Actor['supabase']; uid: string; now: Date; isCoach: boolean; zone: string; dayZone?: string; mornings?: boolean; role?: string; admin?: { id: string; email: string } | null; surface?: 'web' | 'app' };
 
 // The per-request context a direct memory tool runs with (member-verified).
 type MemoryCtx = {
@@ -654,10 +684,14 @@ type MemoryCtx = {
 // leg independent. `failed` is true only when EVERY leg rejected (a resolved-
 // but-empty leg is honest absence, not failure) — that's the UNAVAILABLE_NOTE
 // trigger per the spec's honest-unavailable contract.
-async function fetchMemberFacts(actor: Actor, zone = 'UTC'): Promise<{ facts: Record<string, unknown> | null; failed: boolean }> {
+// `morningZone`: today's Morning check-in rides as its own read on the device's day (ReadCtx's
+// dayZone), or null to leave it out. It is not one of the legs above: `failed` is still theirs, and
+// the snapshot select stays the kcal leg's own (an unknown column would 400 the whole leg).
+async function fetchMemberFacts(actor: Actor, zone = 'UTC', morningZone: string | null = null): Promise<{ facts: Record<string, unknown> | null; failed: boolean }> {
   const sb = actor.supabase;
   const uid = actor.user.id;
   const today = dayIn(new Date(), zone); // their calendar day — the day log_meal now writes to
+  const morning = morningZone ? readMorningFacts(sb, uid, { now: new Date(), zone: morningZone }).catch(() => null) : null;
   const legs = await Promise.allSettled([
     sb.from('daily_health_snapshot').select('dietary_kcal, protein_g, workout_minutes').eq('user_id', uid).eq('snapshot_date', today).maybeSingle(),
     sb.rpc('compute_momentum'),
@@ -741,6 +775,8 @@ async function fetchMemberFacts(actor: Actor, zone = 'UTC'): Promise<{ facts: Re
   if (memDoc && Array.isArray(memDoc.notes) && memDoc.notes.length) {
     facts.memory = memDoc.notes.slice(0, 10).filter((n) => n && n.text).map((n) => `${n.text} (id ${n.id})`);
   }
+  const mornings = morning ? await morning : null;
+  if (mornings) facts.morning = mornings;
   return { facts: Object.keys(facts).length ? facts : null, failed: false };
 }
 
@@ -962,6 +998,10 @@ async function runRead(name: string, args: Record<string, unknown>, reads: ReadC
       case 'get_reminders': return await readReminders(sb, uid);
       case 'get_points': return await readPoints(sb, uid, { now });
       case 'get_account': return await readAccount(sb, uid);
+      case 'get_mornings': {
+        if (!reads.mornings) return { error: 'not_available', message: "This account's own Morning check-in isn't read here, and there is no read of a client's mornings." };
+        return await readMornings(sb, uid, { now, zone: reads.dayZone || zone });
+      }
       case 'admin_lookup_account': {
         // Re-checked here: the schema is offered only to a confirmed admin, and a call from
         // anyone else is refused rather than trusted.
@@ -1094,7 +1134,7 @@ async function askOpenAI(
   const adminNote = member.adminTools && member.adminTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${ADMIN_PROMPT_NOTE}` : '';
   const noCardsNote = member.noCards && !member.cookMsg ? `\n\n${NO_CARDS_NOTE}` : '';
   const personNote = member.signedIn && !member.noCards && !member.cookMsg ? `\n\n${PERSON_NOTE}` : '';
-  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${trainerNote}${nutritionNote}${adminNote}${noCardsNote}${personNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
+  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}${member.reads && member.reads.mornings ? `\n\n${morningsPromptNote(member.coach.surface)}` : ''}` : ''}${trainerNote}${nutritionNote}${adminNote}${noCardsNote}${personNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
     // Where they are: the clock in their zone and what the server verified (system), then
@@ -1127,7 +1167,7 @@ async function askOpenAI(
   // trainer draft_workout.
   const tools = member.cookMsg
     ? []
-    : [...(member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS, ...member.coachTools, ...(member.adminTools || []), ...member.trainerTools, ...(member.nutritionTools || [])] : TOOLS), ...(member.form ? [FILL_FORM_TOOL] : [])]
+    : [...(member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS.filter((t) => t.name !== 'get_mornings' || !!(member.reads && member.reads.mornings)), ...member.coachTools, ...(member.adminTools || []), ...member.trainerTools, ...(member.nutritionTools || [])] : TOOLS), ...(member.form ? [FILL_FORM_TOOL] : [])]
       .filter((t) => !(member.noCards && WRITE_TOOLS.has(String((t as { name?: unknown }).name))));
   // ⚠ MODEL TIERING: a signed-in-and-verified member rides the pin (Astra);
   // anyone else rides the public model. `model` is set explicitly for the
@@ -1419,7 +1459,20 @@ export async function POST(request: Request) {
       // allow-listed address someone registered without owning it is not an admin here.
       const admin = membership.isAdmin && actor.user.email && actor.user.email_confirmed_at
         ? { id: actor.user.id, email: actor.user.email.toLowerCase() } : null;
-      reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach, zone, role: actor.role, admin, surface };
+      // The Morning check-in's day is the one the app dates its row on, whichever zone a coach's
+      // Schedule keeps: the device's in the app. ⚠ ON THE WEBSITE, THE APP'S STORED ZONE FIRST
+      // (review on part 3): only the app answers the check-in (§3.10), and a laptop browser set to
+      // another zone would read yesterday's row as this morning's.
+      const dayZone = surface === 'web'
+        ? ((await profileZone(actor.supabase, actor.user.id)) || screen.timezone || zone)
+        : (screen.timezone || zone);
+      // ⚠ THE ACCOUNT'S OWN MORNING IS LEFT OUT where it would be misread: on a page that names a
+      // client (a coach asking about them; there is no read of a client's mornings), and for an
+      // account the app opens as a coach's, whose Home has no Morning check-in
+      // (iosAppBroadsheetMain.jsx picks the app by the primary role). The facts, get_mornings and
+      // the MORNINGS note all follow it (review on part 3).
+      const ownMorning = !screen.clientId && !COACH_ROLE_NAMES.has(actor.role);
+      reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach, zone, dayZone, mornings: ownMorning, role: actor.role, admin, surface };
       if (isCoach) coachTools = COACH_TOOLS;
       if (admin) adminTools = ADMIN_TOOLS;
       // ⚠ THE ROLES THE REGISTRY GATES ON, not membership's coach verdict: draft_workout
@@ -1437,8 +1490,9 @@ export async function POST(request: Request) {
         isMember: true,
         casWrite: (kind, mutate) => casWriteUserGoals(actor.supabase, actor.user.id, kind, mutate),
       };
-      // Read beside the open client or session below; neither waits on the other.
-      factsEarly = fetchMemberFacts(actor, zone).catch(() => ({ facts: null, failed: true }));
+      // Read beside the open client or session below; neither waits on the other. Today's morning
+      // only where it is the account's own (ownMorning above).
+      factsEarly = fetchMemberFacts(actor, zone, ownMorning ? dayZone : null).catch(() => ({ facts: null, failed: true }));
     } else if (!screen.timezone) {
       zone = (await profileZone(actor.supabase, actor.user.id)) || 'UTC';
     }

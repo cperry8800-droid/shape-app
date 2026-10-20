@@ -601,7 +601,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const [tab, setTab] = useStateBSC(initialTab);
   // Nora is told the tab they asked from (the Ask Nora plan, step 4).
   const noraTabLabel = { home: tr('common:nav.home', { defaultValue: 'Home' }), train: tr('common:nav.train', { defaultValue: 'Train' }), eat: tr('common:nav.eat', { defaultValue: 'Eat' }), chat: tr('common:nav.chat', { defaultValue: 'Chat' }), me: tr('common:nav.me', { defaultValue: 'Me' }) }[tab];
-  React.useEffect(() => bsNoraOpen({ page: bsNoraPage(tab), label: noraTabLabel }), [tab, noraTabLabel]);
+  const noraOwner = React.useRef({});
+  React.useEffect(() => bsNoraOpen({ page: bsNoraPage(tab), label: noraTabLabel }, noraOwner.current), [tab, noraTabLabel]);
   const [showSettings, setShowSettings] = useStateBSC(false);
   const [settingsStart, setSettingsStart] = useStateBSC('');
   const [showCalendar, setShowCalendar] = useStateBSC(false);
@@ -25092,11 +25093,44 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 // closes. The server keeps an id only after checking it against the account, so a screen
 // can narrow what Nora is told, never widen it. `label` is the screen's name in the
 // member's language, for the sheet's chip; `page` is the English one Nora is told.
+// ⚠ CLOSING A SCREEN GIVES BACK WHAT WAS THERE (Morning check-in part 3, §3.9). A page opened over a
+// tab (Your mornings over Home) sets `page`, and its close used to delete it, so Home's chip was gone
+// until the tab changed. Each key keeps a stack of what the open screens set: a close takes its own
+// entry out, whatever order screens close in, and the key reads the newest entry left, or is absent.
+// ⚠ A SCREEN KEEPS ITS PLACE WHEN ITS OWN EFFECT RE-RUNS (review on part 3). A language change re-runs
+// Home's tab effect and the page's in one commit, every close first and then the opens child first,
+// so Home's open landed on top and the chip said Home over Your mornings. A screen that passes an
+// `owner` (a ref's stable object) is placed by when that owner first opened, not by the latest re-run.
 const _bsNoraOpen = {};
-function bsNoraOpen(patch) {
-  const set = {};
-  Object.keys(patch || {}).forEach((k) => { if (patch[k] != null) { _bsNoraOpen[k] = patch[k]; set[k] = patch[k]; } });
-  return () => { Object.keys(set).forEach((k) => { if (_bsNoraOpen[k] === set[k]) delete _bsNoraOpen[k]; }); };
+const _bsNoraOpenStack = {};
+let _bsNoraOpenSeq = 0;
+const _bsNoraOwnerSeq = new WeakMap();
+function bsNoraOpen(patch, owner) {
+  const token = {};
+  const set = [];
+  let seq;
+  if (owner && typeof owner === 'object') {
+    if (!_bsNoraOwnerSeq.has(owner)) _bsNoraOwnerSeq.set(owner, (_bsNoraOpenSeq += 1));
+    seq = _bsNoraOwnerSeq.get(owner);
+  } else {
+    seq = (_bsNoraOpenSeq += 1);
+  }
+  Object.keys(patch || {}).forEach((k) => {
+    if (patch[k] == null) return;
+    const stack = (_bsNoraOpenStack[k] = _bsNoraOpenStack[k] || []);
+    stack.push({ token, seq, value: patch[k] });
+    stack.sort((a, b) => a.seq - b.seq);
+    _bsNoraOpen[k] = stack[stack.length - 1].value;
+    set.push(k);
+  });
+  return () => {
+    set.forEach((k) => {
+      const stack = (_bsNoraOpenStack[k] || []).filter((e) => e.token !== token);
+      _bsNoraOpenStack[k] = stack;
+      if (stack.length) _bsNoraOpen[k] = stack[stack.length - 1].value;
+      else delete _bsNoraOpen[k];
+    });
+  };
 }
 const BS_NORA_PAGES = { home: 'Home', train: 'Train', eat: 'Eat', chat: 'Chat', me: 'Me', today: 'Today', clients: 'Clients', plans: 'Plans', programs: 'Plans' };
 function bsNoraPage(tab) { return BS_NORA_PAGES[tab] || String(tab || '').replace(/[-_]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase()); }
