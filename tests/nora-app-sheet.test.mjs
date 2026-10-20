@@ -56,7 +56,7 @@ test('every shell opens the sheet for the ✦ and for a support request, over Se
   assert.match(APP, /const noraSheet = showNoraSheet \? <BSNoraSheet onClose=\{\(\) => setShowNoraSheet\(false\)\} \/> : null;/);
   assert.equal((PROS.match(/if \(d\.support\) \{ setShowSearch\(false\); setShowSettings\(false\); setShowNoraSheet\(true\); return; \}/g) || []).length, 2, 'trainer and nutritionist');
   assert.equal((PROS.match(/window\.addEventListener\('shape:openNora', open\);/g) || []).length, 2);
-  assert.equal((PROS.match(/const takeover = \(el\) => \(<>\{el\}\{settingsOverlay\}\{searchOverlay\}\{noraSheet\}<\/>\);/g) || []).length, 2);
+  assert.equal((PROS.match(/const takeover = \(el\) => \(<>\{el\}\{settingsOverlay\}\{searchOverlay\}\{noraSheet\}\{personOverlay\}<\/>\);/g) || []).length, 2);
 });
 
 test('the Help page points at the ✦', () => {

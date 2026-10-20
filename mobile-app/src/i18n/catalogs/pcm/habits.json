@@ -70,5 +70,20 @@
   "toast.setPrivate": "Don turn private",
   "toast.sharedFriends": "Don share with friends",
   "toast.updateError": "We no fit update di habit",
-  "page.loading": "E dey load…"
+  "page.loading": "E dey load…",
+  "share.title": "Who go hear if you miss am",
+  "share.sub": "For 8 pm your time, if you never tick am, di people wey you pick go get notification. Na only di habit name dem go see.",
+  "share.loadFailed": "We no fit load your people.",
+  "share.notReady": "Habit sharing never on yet.",
+  "share.signIn": "Sign in make you share habit.",
+  "share.empty": "Follow person, or accept follower, make you fit share habit with dem.",
+  "share.retry": "Try again",
+  "share.save": "Save",
+  "share.saveFailed": "We no fit save am. Try again.",
+  "share.savedOn": "{count, plural, one {You share am with # person} other {You share am with # people}}",
+  "share.savedOff": "You never share am",
+  "share.max": "Pick 20 people or less.",
+  "share.aria": "Share dis habit",
+  "share.ariaShared": "{count, plural, one {You share am with # person} other {You share am with # people}}",
+  "share.notConnected": "Una no dey connected again"
 }

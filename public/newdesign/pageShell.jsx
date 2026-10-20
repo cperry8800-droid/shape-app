@@ -581,8 +581,8 @@ function dashInboxHref(n, role, accountCoach) {
   // A waiting-list invite ("coach:<role>:<id>") opens that coach's profile, where the invited member books.
   const coachInvite = /^coach:(trainer|nutritionist):(\d+)$/.exec(n.route);
   if (coachInvite) return "/" + (coachInvite[1] === "trainer" ? "trainers" : "nutritionists") + "/" + coachInvite[2];
-  // A follow ("profile", data.actorId): that person's profile.
-  if (n.route === "profile") {
+  // A follow ("profile", data.actorId) or a friend's habit ("person"): that person's profile.
+  if (n.route === "profile" || n.route === "person") {
     const actor = n.data && typeof n.data.actorId === "string" ? n.data.actorId : "";
     return actor ? "/newdesign/MemberProfile.html?u=" + encodeURIComponent(actor) : null;
   }

@@ -19,7 +19,7 @@ import { coachIntakeView, screeningState } from '../services/coachIntake.mjs';
 import { bsDeriveCycle } from '../services/cyclePhase.mjs';
 import { BS_LISTING_GALLERY_MAX, BS_LISTING_CAPTION_MAX } from '../services/listingMedia.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
-import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES } from './bsNotificationRoute.mjs';
+import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -1160,6 +1160,14 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const [showTour, setShowTour] = useStateBSP(false);
   // Universal search — the ⌕ in the header opens it (shared client component).
   const [showSearch, setShowSearch] = useStateBSP(false);
+  // Another person's profile, opened from a notification (person:<user>): a friend's habit.
+  const [notifPerson, setNotifPerson] = useStateBSP(null);
+  // It closes on any other navigation (BS_NAV_EVENTS), so nothing moves only the page under it.
+  useEffectBSP(() => {
+    const close = (e) => { if (bsClosesPerson(e)) bsProClosePerson(setNotifPerson); };
+    BS_NAV_EVENTS.forEach((n) => window.addEventListener(n, close));
+    return () => BS_NAV_EVENTS.forEach((n) => window.removeEventListener(n, close));
+  }, []);
   // Nora's sheet (the header ✦, option D) — the client module's BSNoraSheet,
   // read off window at render time like the other shared surfaces.
   const [showNoraSheet, setShowNoraSheet] = useStateBSP(false);
@@ -1295,6 +1303,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         case 'waitlist': clear(); setSettingsStart('practice'); setShowSettings(true); return;
         case 'settings': clear(); setShowSettings(true); return;
         case 'profile': clear(); setTab('me'); return;
+        // Someone else's profile (a friend's habit not done by 8 pm), over the page they were on.
+        case 'person': clear(); bsProOpenPerson(d.id, setNotifPerson); return;
         case 'feed': case 'community': case 'messages': clear(); setChatRequest(null); setTab('chat'); return;
         default: return;
       }
@@ -1341,6 +1351,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   // re-opening a stale watch would fabricate a session that may have ended).
   const navResolve = (loc) => {
     if (!loc) return;
+    // A notified person's profile is no location of its own: any step back closes it.
+    bsProClosePerson(setNotifPerson);
     setShowSoundtracks(loc.overlay === 'soundtracks');
     setShowCalendar(loc.overlay === 'calendar');
     setShowReviews(loc.overlay === 'reviews');
@@ -1495,7 +1507,10 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   // leaves its flag set, so that branch returns before the main render.
   const noraSheet = showNoraSheet && typeof window !== 'undefined' && window.BSNoraSheet
     ? React.createElement(window.BSNoraSheet, { onClose: () => setShowNoraSheet(false) }) : null;
-  const takeover = (el) => (<>{el}{settingsOverlay}{searchOverlay}{noraSheet}</>);
+  // Read at call time: the client module defines it (BSNotifiedPerson).
+  const personOverlay = notifPerson && typeof window !== 'undefined' && window.BSNotifiedPerson
+    ? React.createElement(window.BSNotifiedPerson, { userId: notifPerson, onClose: () => { if (!navBack()) setNotifPerson(null); } }) : null;
+  const takeover = (el) => (<>{el}{settingsOverlay}{searchOverlay}{noraSheet}{personOverlay}</>);
   if (showSoundtracks) return takeover(<BSProSoundtracks role="trainer" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />);
   if (showCalendar) return takeover(<BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />);
   if (showReviews) return takeover(<BSWorkoutReviewPage role="trainer" onBack={() => { if (!navBack()) setShowReviews(false); }} />);
@@ -1533,6 +1548,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       {settingsOverlay}
       {noraSheet}
       {searchOverlay}
+      {personOverlay}
       {showTour && <BSProOnboardingTour role="trainer" plansKey="programs" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );
@@ -3081,6 +3097,23 @@ function BSProCatRow({ index, name, meta, price, onOpen, onAssign, onDuplicate, 
 // BEFORE THE CLIENT MODULE, OR WITHOUT IT (loadProsBundle loads only the feature modules and
 // this one; Codex, #2261), so the client module is imported on demand, as the live-boost
 // sheet does (#1514). The import is a no-op once loaded.
+// A notified person's profile is the client module's BSNotifiedPerson. A coach session can run
+// without that module (loadProsBundle), so it is imported first when missing, as BSProAskNora
+// does (Codex on #2413); the import is a no-op once loaded.
+// A load still pending when the coach goes elsewhere opens nothing (Codex on #2413): every close
+// moves the generation on, and a late load opens only if it is still the latest request.
+let _bsProPersonGen = 0;
+function bsProOpenPerson(id, setNotifPerson) {
+  if (!id) return;
+  const gen = ++_bsProPersonGen;
+  if (typeof window !== 'undefined' && window.BSNotifiedPerson) { setNotifPerson(id); return; }
+  import('./iosAppBroadsheetClient.jsx').then(() => { if (gen === _bsProPersonGen) setNotifPerson(id); }).catch(() => {});
+}
+function bsProClosePerson(setNotifPerson) {
+  _bsProPersonGen += 1;
+  setNotifPerson(null);
+}
+
 function BSProAskNora(props) {
   const Link = typeof window !== 'undefined' ? window.BSAskNoraLink : null;
   const [, setLoaded] = useStateBSP(false);
@@ -7208,6 +7241,14 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const [showTour, setShowTour] = useStateBSP(false);
   // Universal search — the ⌕ in the header opens it (shared client component).
   const [showSearch, setShowSearch] = useStateBSP(false);
+  // Another person's profile, opened from a notification (person:<user>): a friend's habit.
+  const [notifPerson, setNotifPerson] = useStateBSP(null);
+  // It closes on any other navigation (BS_NAV_EVENTS), so nothing moves only the page under it.
+  useEffectBSP(() => {
+    const close = (e) => { if (bsClosesPerson(e)) bsProClosePerson(setNotifPerson); };
+    BS_NAV_EVENTS.forEach((n) => window.addEventListener(n, close));
+    return () => BS_NAV_EVENTS.forEach((n) => window.removeEventListener(n, close));
+  }, []);
   // Nora's sheet (the header ✦, option D) — the client module's BSNoraSheet,
   // read off window at render time like the other shared surfaces.
   const [showNoraSheet, setShowNoraSheet] = useStateBSP(false);
@@ -7342,6 +7383,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         case 'waitlist': clear(); setSettingsStart('practice'); setShowSettings(true); return;
         case 'settings': clear(); setShowSettings(true); return;
         case 'profile': clear(); setTab('me'); return;
+        // Someone else's profile (a friend's habit not done by 8 pm), over the page they were on.
+        case 'person': clear(); bsProOpenPerson(d.id, setNotifPerson); return;
         case 'feed': case 'community': case 'messages': clear(); setChatRequest(null); setTab('chat'); return;
         default: return;
       }
@@ -7377,6 +7420,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   };
   const navResolve = (loc) => {
     if (!loc) return;
+    // A notified person's profile is no location of its own: any step back closes it.
+    bsProClosePerson(setNotifPerson);
     setShowSoundtracks(loc.overlay === 'soundtracks');
     setShowCalendar(loc.overlay === 'calendar');
     setShowReviews(loc.overlay === 'reviews');
@@ -7500,7 +7545,10 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   // leaves its flag set, so that branch returns before the main render.
   const noraSheet = showNoraSheet && typeof window !== 'undefined' && window.BSNoraSheet
     ? React.createElement(window.BSNoraSheet, { onClose: () => setShowNoraSheet(false) }) : null;
-  const takeover = (el) => (<>{el}{settingsOverlay}{searchOverlay}{noraSheet}</>);
+  // Read at call time: the client module defines it (BSNotifiedPerson).
+  const personOverlay = notifPerson && typeof window !== 'undefined' && window.BSNotifiedPerson
+    ? React.createElement(window.BSNotifiedPerson, { userId: notifPerson, onClose: () => { if (!navBack()) setNotifPerson(null); } }) : null;
+  const takeover = (el) => (<>{el}{settingsOverlay}{searchOverlay}{noraSheet}{personOverlay}</>);
   if (showSoundtracks) return takeover(<BSProSoundtracks role="nutritionist" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />);
   if (showCalendar) return takeover(<BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />);
   if (showReviews) return takeover(<BSWorkoutReviewPage role="nutritionist" onBack={() => { if (!navBack()) setShowReviews(false); }} />);
@@ -7537,6 +7585,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       {settingsOverlay}
       {noraSheet}
       {searchOverlay}
+      {personOverlay}
       {showTour && <BSProOnboardingTour role="nutritionist" plansKey="plans" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );

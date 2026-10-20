@@ -83,14 +83,23 @@ export function fakeSupabase({ tables = {}, rpcs = {}, fail = [], maxRows = null
       lte(col, v) { state.filters.push((r) => r[col] != null && String(r[col]) <= String(v)); return chain; },
       lt(col, v) { state.filters.push((r) => r[col] != null && String(r[col]) < String(v)); return chain; },
       gt(col, v) { state.filters.push((r) => r[col] != null && String(r[col]) > String(v)); return chain; },
-      // PostgREST's 'col.op.value,col.op.value' disjunction — the two operators
-      // the readers use.
+      // PostgREST's 'col.op.value,col.op.value' disjunction — the operators the
+      // readers use. A comma inside `in.(a,b)` belongs to the list, not the split.
       or(expr) {
-        const terms = String(expr).split(',').map((t) => { const [col, op, ...rest] = t.split('.'); return { col, op, val: rest.join('.') }; });
+        const parts = [];
+        let depth = 0, cur = '';
+        for (const ch of String(expr)) {
+          if (ch === '(') depth += 1;
+          if (ch === ')') depth -= 1;
+          if (ch === ',' && depth === 0) { parts.push(cur); cur = ''; } else cur += ch;
+        }
+        if (cur) parts.push(cur);
+        const terms = parts.map((t) => { const [col, op, ...rest] = t.split('.'); return { col, op, val: rest.join('.') }; });
         state.filters.push((r) => terms.some(({ col, op, val }) => {
           if (op === 'is' && val === 'null') return r[col] == null;
           if (op === 'gte') return r[col] != null && String(r[col]) >= val;
           if (op === 'eq') return String(r[col]) === val;
+          if (op === 'in') return val.replace(/^\(|\)$/g, '').split(',').includes(String(r[col]));
           throw new Error(`fake-supabase: unsupported or() operator ${op}`);
         }));
         return chain;

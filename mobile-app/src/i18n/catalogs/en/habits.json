@@ -70,5 +70,20 @@
   "toast.setPrivate": "Set to private",
   "toast.sharedFriends": "Shared with friends",
   "toast.updateError": "Could not update habit",
-  "page.loading": "Loading…"
+  "page.loading": "Loading…",
+  "share.title": "Who hears if you miss it",
+  "share.sub": "At 8 pm your time, if it isn't checked off, the people you pick get a notification. They see the habit's name, nothing else.",
+  "share.loadFailed": "Couldn't load your people.",
+  "share.notReady": "Sharing habits isn't switched on yet.",
+  "share.signIn": "Sign in to share a habit.",
+  "share.empty": "Follow someone, or accept a follower, to share a habit with them.",
+  "share.retry": "Retry",
+  "share.save": "Save",
+  "share.saveFailed": "Could not save. Try again.",
+  "share.savedOn": "{count, plural, one {Shared with # person} other {Shared with # people}}",
+  "share.savedOff": "Not shared",
+  "share.max": "Pick 20 people or fewer.",
+  "share.aria": "Share this habit",
+  "share.ariaShared": "{count, plural, one {Shared with # person} other {Shared with # people}}",
+  "share.notConnected": "No longer connected"
 }

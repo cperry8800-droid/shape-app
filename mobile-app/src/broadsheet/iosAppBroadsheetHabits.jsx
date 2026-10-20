@@ -306,7 +306,88 @@ function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
   );
   return target ? createPortal(sheet, target) : sheet;
 }
-function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderChange, first = false }) {
+// Shared habits (owner, 2026-10-20): pick who hears, at 8 pm your time, that this habit is not
+// checked off yet (/api/cron/habit-watch). The people are the ones joined to you by an accepted
+// follow, either way round (habit_watch_candidates); saving goes through set_habit_watchers,
+// which checks the habit and every person again. Picking no one makes the habit private.
+function _bsPeopleIcon(color) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" />
+      <path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.4c1.9.8 3 2.8 3 5.6" />
+    </svg>
+  );
+}
+function BSHabitShareSheet({ habit, accent, current, onClose, onSaved }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const c = accent;
+  const [people, setPeople] = React.useState(null); // null = loading · { kind, people? }
+  const [picked, setPicked] = React.useState(() => new Set(current || []));
+  const [pending, setPending] = React.useState(false);
+  const load = React.useCallback(() => {
+    setPeople(null);
+    const api = window.ShapeHabitWatch;
+    if (!api?.candidates) { setPeople({ kind: 'error' }); return; }
+    api.candidates().then(r => setPeople(r && r.kind ? r : { kind: 'error' })).catch(() => setPeople({ kind: 'error' }));
+  }, []);
+  React.useEffect(() => { load(); }, [load]);
+  const toggle = (id) => setPicked(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const tooMany = picked.size > 20;
+  const save = async () => {
+    if (pending || tooMany) return;
+    setPending(true);
+    const r = await (window.ShapeHabitWatch?.set?.(habit.id, [...picked]) || Promise.resolve({ kind: 'error' })).catch(() => ({ kind: 'error' }));
+    setPending(false);
+    if (!r || r.kind !== 'ready') { window.__bsToast?.(tr('habits:share.saveFailed', { defaultValue: 'Could not save. Try again.' }), 'err'); return; }
+    window.__bsToast?.(r.watchers.length
+      ? tr('habits:share.savedOn', { defaultValue: '{count, plural, one {Shared with # person} other {Shared with # people}}', count: r.watchers.length })
+      : tr('habits:share.savedOff', { defaultValue: 'Not shared' }), 'ok');
+    onSaved && onSaved();
+    onClose();
+  };
+  const note = (text, retry) => (
+    <div style={{ padding: '18px 0', fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>
+      {text}
+      {retry && <button onClick={load} style={{ marginLeft: 10, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', color: c, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('habits:share.retry', { defaultValue: 'Retry' })}</button>}
+    </div>
+  );
+  // People already picked who are no longer connected stay listed, so saving can drop them.
+  const listed = people && people.kind === 'ready'
+    ? [...people.people, ...[...picked].filter(id => !people.people.some(p => p.userId === id)).map(id => ({ userId: id, name: tr('habits:share.notConnected', { defaultValue: 'No longer connected' }) }))]
+    : [];
+  const target = typeof document !== 'undefined' ? document.getElementById('bs-phone-surface') : null;
+  const body = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end' }}>
+      <div role="dialog" aria-label={tr('habits:share.title', { defaultValue: 'Who hears if you miss it' })} onClick={e => e.stopPropagation()} style={{ width: '100%', maxHeight: '86%', display: 'flex', flexDirection: 'column', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '18px 18px 24px', borderTop: `1px solid ${t.RULE}`, boxSizing: 'border-box' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>{tr('habits:share.title', { defaultValue: 'Who hears if you miss it' })}</div>
+        <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{habit.name}</div>
+        <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>{tr('habits:share.sub', { defaultValue: "At 8 pm your time, if it isn't checked off, the people you pick get a notification. They see the habit's name, nothing else." })}</div>
+        <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 10, borderTop: `1px solid ${t.HAIR}` }}>
+          {people === null && note(tr('habits:page.loading', { defaultValue: 'Loading…' }))}
+          {people && people.kind === 'error' && note(tr('habits:share.loadFailed', { defaultValue: "Couldn't load your people." }), true)}
+          {people && people.kind === 'not_ready' && note(tr('habits:share.notReady', { defaultValue: "Sharing habits isn't switched on yet." }))}
+          {people && people.kind === 'anon' && note(tr('habits:share.signIn', { defaultValue: 'Sign in to share a habit.' }))}
+          {people && people.kind === 'ready' && listed.length === 0 && note(tr('habits:share.empty', { defaultValue: 'Follow someone, or accept a follower, to share a habit with them.' }))}
+          {listed.map(p => { const on = picked.has(p.userId); return (
+            <button key={p.userId} role="checkbox" aria-checked={on} onClick={() => toggle(p.userId)} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 52, padding: '0 2px', background: 'transparent', border: 0, borderBottom: `1px solid ${t.HAIR}`, cursor: 'pointer', textAlign: 'left', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: on ? 700 : 500 }}>
+              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+              <span aria-hidden style={{ flexShrink: 0, width: 22, height: 22, boxSizing: 'border-box', borderRadius: 4, border: `1.5px solid ${on ? c : t.RULE}`, background: on ? c : 'transparent', color: '#04201d', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 900 }}>{on ? '✓' : ''}</span>
+            </button>
+          ); })}
+        </div>
+        {tooMany && <div role="alert" style={{ marginTop: 10, fontFamily: t.BODY, fontSize: 13, color: t.RUST || '#c0533b' }}>{tr('habits:share.max', { defaultValue: 'Pick 20 people or fewer.' })}</div>}
+        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+          <button onClick={onClose} style={{ flex: '0 0 auto', minHeight: 44, padding: '12px 18px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.BODY, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{tr('habits:common.cancel', { defaultValue: 'Cancel' })}</button>
+          <button onClick={save} disabled={pending || tooMany || !people || people.kind !== 'ready'} style={{ flex: 1, minHeight: 44, padding: '12px', borderRadius: 999, background: c, color: '#04201d', border: 0, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: pending ? 'wait' : 'pointer', opacity: (pending || tooMany || !people || people.kind !== 'ready') ? 0.55 : 1 }}>{tr('habits:share.save', { defaultValue: 'Save' })}</button>
+        </div>
+      </div>
+    </div>
+  );
+  return target ? createPortal(body, target) : body;
+}
+function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderChange, first = false, watchers = null, onShareChange = null }) {
   const t = useBS();
   const tr = useShapeTr();
   const done = (habit.history || []).includes(_bsHabitsToday());
@@ -314,10 +395,12 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
   const pts = _bsHabitPts(habit);
   const c = accent;
   const [remOpen, setRemOpen] = React.useState(false);
+  const [shareOpen, setShareOpen] = React.useState(false);
   const hasRem = !!reminder && reminder.enabled !== false;
+  const shared = Array.isArray(watchers) ? watchers.length : 0;
   return (
     <div style={{
-      display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', alignItems: 'center', gap: 10,
+      display: 'grid', gridTemplateColumns: Array.isArray(watchers) ? 'auto 1fr auto auto auto' : 'auto 1fr auto auto', alignItems: 'center', gap: 10,
       padding: '11px 0', minHeight: 44, borderTop: first ? 0 : `1px solid ${t.HAIR}`,
     }}>
       <button onClick={() => onToggle(habit.id)} aria-pressed={done} aria-label={done ? tr('habits:row.markNotDone', { defaultValue: 'Mark not done' }) : tr('habits:row.markDone', { defaultValue: 'Mark done' })} style={{
@@ -335,16 +418,20 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
             : `${isAvoid ? tr('habits:row.avoid', { defaultValue: 'Avoid' }) : tr('habits:row.do', { defaultValue: 'Do' })} · ${tr('habits:row.pts', { defaultValue: '{count, plural, one {+# pt} other {+# pts}}', count: pts })}`}
         </div>
       </button>
+      {Array.isArray(watchers) && (
+        <button onClick={(e) => { e.stopPropagation(); setShareOpen(true); }} aria-label={shared ? tr('habits:share.ariaShared', { defaultValue: '{count, plural, one {Shared with # person} other {Shared with # people}}', count: shared }) : tr('habits:share.aria', { defaultValue: 'Share this habit' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: shared ? c : t.INK50, padding: '0 1px', minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, fontFamily: t.MONO, fontSize: 10, fontWeight: 800 }}>{_bsPeopleIcon(shared ? c : t.INK50)}{shared ? <span>{shared}</span> : null}</button>
+      )}
       <button onClick={(e) => { e.stopPropagation(); setRemOpen(true); }} aria-label={tr('habits:reminder.title', { defaultValue: 'Habit reminder' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: hasRem ? c : t.INK50, padding: '0 1px', minWidth: 44, minHeight: 44, display: 'grid', placeItems: 'center', lineHeight: 0 }}>{_bsBellIcon(hasRem, hasRem ? c : t.INK50)}</button>
       <button onClick={async () => { if (await window.bsAskConfirm({ title: tr('habits:list.deleteTitle', { defaultValue: 'Delete this habit?' }), name: habit.name, message: tr('habits:list.deleteMessage', { defaultValue: 'This removes the habit from your daily list. Past check-offs are kept.' }), confirmLabel: tr('habits:list.deleteConfirm', { defaultValue: 'Delete habit' }) })) onRemove(habit.id); }} aria-label={tr('habits:list.removeHabit', { defaultValue: 'Remove habit' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, minWidth: 44, minHeight: 44, padding: '0 2px' }}>×</button>
       {remOpen && <BSHabitReminderSheet habit={habit} reminder={reminder} accent={c} onClose={() => setRemOpen(false)} onSaved={onReminderChange} />}
+      {shareOpen && <BSHabitShareSheet habit={habit} accent={c} current={watchers} onClose={() => setShareOpen(false)} onSaved={onShareChange} />}
     </div>
   );
 }
 
 // Section: "To do" / "To don't" — a station head (accent tick + mono count)
 // over tick-divider rows; ＋ Add is an underline text-action.
-function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd, reminders, onReminderChange }) {
+function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd, reminders, onReminderChange, watch = null, onShareChange = null }) {
   const t = useBS();
   const tr = useShapeTr();
   const done = habits.filter(h => (h.history || []).includes(_bsHabitsToday())).length;
@@ -364,7 +451,7 @@ function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd
           {type === 'avoid' ? tr('habits:list.addToDont', { defaultValue: '＋ Add a to-don’t' }) : tr('habits:list.addToDo', { defaultValue: '＋ Add a to-do' })}
         </button>
       ) : habits.map((h, i) => (
-        <BSHabitRow key={h.id} habit={h} first={i === 0} accent={accent} onToggle={onToggle} onRemove={onRemove} reminder={reminders && reminders[h.id]} onReminderChange={onReminderChange} />
+        <BSHabitRow key={h.id} habit={h} first={i === 0} accent={accent} onToggle={onToggle} onRemove={onRemove} reminder={reminders && reminders[h.id]} onReminderChange={onReminderChange} watchers={watch ? (watch[h.id] || []) : null} onShareChange={onShareChange} />
       ))}
     </div>
   );
@@ -669,6 +756,14 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
     window.ShapeHabitReminders.list().then(list => { const m = {}; (list || []).forEach(r => { m[r.habit_id] = r; }); setReminders(m); }).catch(() => {});
   }, []);
   React.useEffect(() => { loadReminders(); }, [loadReminders]);
+  // Who hears about each habit (Shared habits). The share button shows only once this has read:
+  // a failed read or a migration not yet run leaves it hidden rather than offering a dead end.
+  const [watch, setWatch] = React.useState(null);
+  const loadWatch = React.useCallback(() => {
+    if (!window.ShapeHabitWatch?.list) return;
+    window.ShapeHabitWatch.list().then(r => setWatch(r && r.kind === 'ready' ? r.byHabit : null)).catch(() => setWatch(null));
+  }, []);
+  React.useEffect(() => { loadWatch(); }, [loadWatch, habits.length]);
   const dos = habits.filter(h => h.type !== 'avoid');
   const donts = habits.filter(h => h.type === 'avoid');
   const onCreate = async ({ name, type, domain }) => { if (await create({ name, type, domain, visibility: 'private' })) setAdding(null); };
@@ -686,12 +781,12 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <BSHabitGrid habits={habits} />
       </div>
-      <BSHabitSection title={tr('habits:list.toDo', { defaultValue: 'To do' })} type="do" accent={teal} habits={dos} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('do')} reminders={reminders} onReminderChange={loadReminders} />
-      <BSHabitSection title={tr('habits:list.toDont', { defaultValue: "To don't" })} type="avoid" accent={t.RUST} habits={donts} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('avoid')} reminders={reminders} onReminderChange={loadReminders} />
+      <BSHabitSection title={tr('habits:list.toDo', { defaultValue: 'To do' })} type="do" accent={teal} habits={dos} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('do')} reminders={reminders} onReminderChange={loadReminders} watch={watch} onShareChange={loadWatch} />
+      <BSHabitSection title={tr('habits:list.toDont', { defaultValue: "To don't" })} type="avoid" accent={t.RUST} habits={donts} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('avoid')} reminders={reminders} onReminderChange={loadReminders} watch={watch} onShareChange={loadWatch} />
       <div style={{ height: 28 }} />
       {adding && <BSHabitAddSheet type={adding} accent={adding === 'avoid' ? t.RUST : teal} onClose={() => setAdding(null)} onCreate={onCreate} />}
     </BSPage>
   );
 }
 
-Object.assign(window, { BSHabitsPage, _bsDecodeHabits, _bsEncodeHabits, _bsHabitPts, _BS_HABIT_DEMO_ROWS });
+Object.assign(window, { BSHabitsPage, BSHabitShareSheet, _bsDecodeHabits, _bsEncodeHabits, _bsHabitPts, _BS_HABIT_DEMO_ROWS });

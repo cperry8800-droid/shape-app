@@ -46,7 +46,7 @@ import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from '../services/mealPrep.mjs';
 import { bsMakeAheadIndex, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepRecordsFor, bsYmdAdd, bsYmdIn } from '../services/prepAhead.mjs';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
-import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES } from './bsNotificationRoute.mjs';
+import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsTrackLanes, bsTrackLaneStatus, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
@@ -620,6 +620,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // THE CYCLE (spec 2026-07-19) — the calendar rides the takeover pattern so
   // back returns to wherever the member opened it from.
   const [showCycle, setShowCycle] = useStateBSC(false);
+  // Another person's profile, opened from a notification (person:<user>): a friend's habit.
+  const [notifPerson, setNotifPerson] = useStateBSC(null);
   // The shell-visible location. Child-owned sub-state (Settings' active
   // sub-page, Eat's view, Me's sub-page, Chat's open thread) rides in via the
   // announce register at compose time — see bsNavCompose.
@@ -635,6 +637,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // Replay a popped descriptor onto the existing entry points. NEVER pushes.
   const navResolve = (loc) => {
     if (!loc) return;
+    // A notified person's profile is no location of its own: any step back closes it.
+    setNotifPerson(null);
     setShowSearch(loc.overlay === 'search');
     setShowCalendar(loc.overlay === 'calendar');
     setShowCycle(loc.overlay === 'cycle');
@@ -695,6 +699,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, goCycle, onNavGesture };
   useBSNavGestureHandler(navJumpRef);
 
+  // A notified person's profile closes on any other navigation (BS_NAV_EVENTS), so nothing moves
+  // only the page under it.
+  React.useEffect(() => {
+    const close = (e) => { if (bsClosesPerson(e)) setNotifPerson(null); };
+    BS_NAV_EVENTS.forEach((n) => window.addEventListener(n, close));
+    return () => BS_NAV_EVENTS.forEach((n) => window.removeEventListener(n, close));
+  }, []);
   React.useEffect(() => {
     window.__shapeActiveTab = tab;
     window.dispatchEvent?.(new CustomEvent('shape:activeTabChanged', { detail: { tab } }));
@@ -812,6 +823,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         case 'today': clear(); setCheckinOpen({ nonce: Date.now() }); setTab('home'); return;
         // The goal, progress and follows (requests are answered on the member's own profile).
         case 'goal': case 'progress': case 'profile': clear(); setTab('me'); return;
+        // Someone else's profile (a friend's habit not done by 8 pm), over the page they were on.
+        case 'person': clear(); setNotifPerson(d.id || null); return;
         case 'feed': case 'community': case 'messages': clear(); setTab('chat'); return;
         default: return;
       }
@@ -1181,6 +1194,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     </div>,
     (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body,
   ) : null;
+  // Back goes through the history its opening pushed (clear()), so it lands where the member was.
+  const personOverlay = notifPerson ? <BSNotifiedPerson userId={notifPerson} onClose={() => { if (!navBack()) setNotifPerson(null); }} /> : null;
   // ⚠ The remaining early returns still have to render BOTH overlays themselves —
   // opening Settings from the calendar leaves showCalendar true, so the calendar
   // branch returns first and a main-return-only overlay would never paint.
@@ -1193,6 +1208,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         {noraSheet}
         {searchOverlay}
         {screeningOverlay}
+        {personOverlay}
       </div>
     );
   }
@@ -1205,6 +1221,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         {noraSheet}
         {searchOverlay}
         {screeningOverlay}
+        {personOverlay}
       </div>
     );
   }
@@ -1253,6 +1270,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       {noraSheet}
       {searchOverlay}
       {screeningOverlay}
+      {personOverlay}
       {showScoreIntro && <BSScoreIntro onClose={(skipped) => { setShowScoreIntro(false); if (!skipped) chainTourAfterIntro(); }} onOpenScore={() => { setShowScoreIntro(false); goScore(); }} />}
       {showTour && <BSOnboardingTour onClose={() => setShowTour(false)} onNavigate={setTab} />}
     </div>
@@ -19961,6 +19979,44 @@ function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false,
   return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
 }
 
+// Someone's profile opened from a notification that names only their id (person:<user>; Codex on
+// #2413: the friend's 8 pm habit notice opened the reader's own Me tab). The profile read
+// (get_public_profile, visibility-gated) gives their name, role and photo; without it the page
+// still opens on the id and the profile's own read fills it in. Every shell renders it over the
+// page underneath, as search does, and Back closes it, from the first frame: while the read is out
+// the page is a Back and nothing else, never a blank screen with no way out (Codex on #2413).
+function BSNotifiedPerson({ userId, onClose }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const [person, setPerson] = useStateBSC(null);
+  React.useEffect(() => {
+    let on = true;
+    setPerson(null);
+    const bare = { userId, who: '', kind: 'CLIENT', public: true };
+    Promise.resolve(window.ShapeProfiles?.getPublicProfile ? window.ShapeProfiles.getPublicProfile(userId) : null)
+      .then((p) => {
+        if (!on) return;
+        if (!p) { setPerson(bare); return; }
+        const kind = p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
+        setPerson({ userId, who: p.name || '', kind, init: bsInitials(p.name || ''), photo: p.avatar || undefined, tier: Number.isFinite(p.points) ? bsTierForPoints(p.points) : undefined, public: true });
+      })
+      .catch(() => { if (on) setPerson(bare); });
+    return () => { on = false; };
+  }, [userId]);
+  const me = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
+  return createPortal(
+    <div data-notified-person style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
+      {person
+        ? <BSPublicProfile person={person} onBack={onClose}
+            onMessage={me && person.userId !== me ? (p) => bsOpenMemberConversation(p, onClose) : null} />
+        : <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+            <button data-person-back onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
+          </div>}
+    </div>,
+    (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body,
+  );
+}
+
 // ── Universal search — find anyone on Shape ──────────────────────────────────
 // Opened from the ⌕ in every header (`shape:openSearch`). Live typeahead over
 // every account (search_shape_people RPC — members + coaches, photo + tier),
@@ -26958,8 +27014,8 @@ function BSNotifyPrefs({ onBack, role }) {
   const toggleCh = (type, ch) => { const next = !chOn(type, ch); setMatrix(m => ({ ...m, [type]: { ...(m[type] || {}), [ch]: next } })); window.ShapeNotifyPrefs?.setChannel?.(type, ch, next); };
 
   const TYPES = isCoach
-    ? [['client_red', 'Clients in the red', 'Crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up'], ['checkin_submitted', 'Check-in submitted', 'A client logs their week'], ['waitlist_join', 'Waiting list', 'When someone joins your waiting list']]
-    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Score dips', 'When your Shape Score drops'], ['tier_up', 'Tier ups', 'When you reach a new Shape Score tier'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never shaming'], ['waitlist_invite', 'Waitlist invites', 'When a coach has room for you'], ['habit_reminder', 'Habit reminders', 'Set per-habit on the Habits page'], ['meal_prep', 'Prep reminders', 'The night before a meal that needs it']];
+    ? [['client_red', 'Clients in the red', 'Crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up'], ['checkin_submitted', 'Check-in submitted', 'A client logs their week'], ['waitlist_join', 'Waiting list', 'When someone joins your waiting list'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"]]
+    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Score dips', 'When your Shape Score drops'], ['tier_up', 'Tier ups', 'When you reach a new Shape Score tier'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never shaming'], ['waitlist_invite', 'Waitlist invites', 'When a coach has room for you'], ['habit_reminder', 'Habit reminders', 'Set per-habit on the Habits page'], ['meal_prep', 'Prep reminders', 'The night before a meal that needs it'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"]];
 
   const Toggle = ({ on, onClick }) => (
     <button onClick={onClick} aria-pressed={on} style={{ width: 46, height: 27, borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
@@ -32827,6 +32883,7 @@ Object.assign(window, {
   BSShapeScorePage,
   BSShapeStorePage,
   BSPublicProfile,
+  BSNotifiedPerson,
   BSReconcile,
   BSFacetAvatar,
   bsAmLive,

@@ -109,13 +109,17 @@ test('the exemptions are the eleven that were checked, and each is deliberate', 
   // dashboards after #2395). Their session reads, a few lines below, keep the newest rows on their
   // own, and the last assertion here keeps the walk's marker from covering them.
   // coach/score/route.ts joined on 2026-10-18: the score counts distinct clients now (owner, Codex on
-  // #2400), which a head count cannot, so it walks the open subscriptions by the same readAllById.)
+  // #2400), which a head count cannot, so it walks the open subscriptions by the same readAllById.
+  // cron/habit-watch/route.ts joined on 2026-10-20: it finds the shared habits by the same cursor
+  // walk on `id` as cron/prep-reminders, a page at a time to the end of the table or a reported
+  // ceiling, where a newest-first cap would drop the habits past it.)
   const marked = capped().filter((r) => r.exempt).map((r) => r.where.replace(/:\d+$/, ''));
   assert.deepEqual([...new Set(marked)].sort(), [
     'client/onboarding/route.ts',
     'coach/capacity/route.ts',
     'coach/score/route.ts',
     'conversations/[id]/messages/route.ts',
+    'cron/habit-watch/route.ts',
     'cron/prep-reminders/route.ts',
     'nutritionist/analytics/route.ts',
     'nutritionist/dashboard/route.ts',
