@@ -619,6 +619,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // THE CYCLE (spec 2026-07-19) — the calendar rides the takeover pattern so
   // back returns to wherever the member opened it from.
   const [showCycle, setShowCycle] = useStateBSC(false);
+  // Another person's profile, opened from a notification (person:<user>): a friend's habit.
+  const [notifPerson, setNotifPerson] = useStateBSC(null);
   // The shell-visible location. Child-owned sub-state (Settings' active
   // sub-page, Eat's view, Me's sub-page, Chat's open thread) rides in via the
   // announce register at compose time — see bsNavCompose.
@@ -634,6 +636,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // Replay a popped descriptor onto the existing entry points. NEVER pushes.
   const navResolve = (loc) => {
     if (!loc) return;
+    // A notified person's profile is no location of its own: any step back closes it.
+    setNotifPerson(null);
     setShowSearch(loc.overlay === 'search');
     setShowCalendar(loc.overlay === 'calendar');
     setShowCycle(loc.overlay === 'cycle');
@@ -759,7 +763,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => {
     const open = () => {
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
-      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setNotifPerson(null);
       setChatRequest(null); setTab('chat');
     };
     window.addEventListener('shape:goCommunity', open);
@@ -771,7 +775,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => {
     const open = () => {
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
-      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setNotifPerson(null);
       setChatRequest(null); setTab('home');
     };
     window.addEventListener('shape:goHome', open);
@@ -788,7 +792,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => {
     const clear = () => {
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
-      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setChatRequest(null);
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setNotifPerson(null); setChatRequest(null);
     };
     const toSettings = (page) => { clear(); setSettingsStart(page); setShowSettings(true); };
     const open = (e) => {
@@ -811,6 +815,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         case 'today': clear(); setCheckinOpen({ nonce: Date.now() }); setTab('home'); return;
         // The goal, progress and follows (requests are answered on the member's own profile).
         case 'goal': case 'progress': case 'profile': clear(); setTab('me'); return;
+        // Someone else's profile (a friend's habit not done by 8 pm), over the page they were on.
+        case 'person': clear(); setNotifPerson(d.id || null); return;
         case 'feed': case 'community': case 'messages': clear(); setTab('chat'); return;
         default: return;
       }
@@ -832,7 +838,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => {
     const open = () => {
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
-      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setNotifPerson(null);
       setChatRequest({ wall: true, nonce: Date.now() }); setTab('chat');
     };
     window.addEventListener('shape:goWall', open);
@@ -857,7 +863,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       const c = e && e.detail && e.detail.cookable;
       if (!c || !(c.steps || []).length) return;
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
-      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setNotifPerson(null);
       setCookWith({ cookable: c, mine: !!(e.detail && e.detail.mine), nonce: Date.now() });
       setTab('eat');
     };
@@ -877,7 +883,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       const slug = e && e.detail && typeof e.detail.slug === 'string' ? e.detail.slug : '';
       if (!slug) return;
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
-      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setNotifPerson(null);
       setPrepTonight({ slug, nonce: Date.now() });
       setTab('eat');
     };
@@ -1180,6 +1186,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     </div>,
     (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body,
   ) : null;
+  // Back goes through the history its opening pushed (clear()), so it lands where the member was.
+  const personOverlay = notifPerson ? <BSNotifiedPerson userId={notifPerson} onClose={() => { if (!navBack()) setNotifPerson(null); }} /> : null;
   // ⚠ The remaining early returns still have to render BOTH overlays themselves —
   // opening Settings from the calendar leaves showCalendar true, so the calendar
   // branch returns first and a main-return-only overlay would never paint.
@@ -1192,6 +1200,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         {noraSheet}
         {searchOverlay}
         {screeningOverlay}
+        {personOverlay}
       </div>
     );
   }
@@ -1204,6 +1213,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         {noraSheet}
         {searchOverlay}
         {screeningOverlay}
+        {personOverlay}
       </div>
     );
   }
@@ -1252,6 +1262,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       {noraSheet}
       {searchOverlay}
       {screeningOverlay}
+      {personOverlay}
       {showScoreIntro && <BSScoreIntro onClose={(skipped) => { setShowScoreIntro(false); if (!skipped) chainTourAfterIntro(); }} onOpenScore={() => { setShowScoreIntro(false); goScore(); }} />}
       {showTour && <BSOnboardingTour onClose={() => setShowTour(false)} onNavigate={setTab} />}
     </div>
@@ -19960,6 +19971,38 @@ function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false,
   return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
 }
 
+// Someone's profile opened from a notification that names only their id (person:<user>; Codex on
+// #2413: the friend's 8 pm habit notice opened the reader's own Me tab). The profile read
+// (get_public_profile, visibility-gated) gives their name, role and photo; without it the page
+// still opens on the id and the profile's own read fills it in. Every shell renders it over the
+// page underneath, as search does, and Back closes it.
+function BSNotifiedPerson({ userId, onClose }) {
+  const t = useBS();
+  const [person, setPerson] = useStateBSC(null);
+  React.useEffect(() => {
+    let on = true;
+    setPerson(null);
+    const bare = { userId, who: '', kind: 'CLIENT', public: true };
+    Promise.resolve(window.ShapeProfiles?.getPublicProfile ? window.ShapeProfiles.getPublicProfile(userId) : null)
+      .then((p) => {
+        if (!on) return;
+        if (!p) { setPerson(bare); return; }
+        const kind = p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
+        setPerson({ userId, who: p.name || '', kind, init: bsInitials(p.name || ''), photo: p.avatar || undefined, tier: Number.isFinite(p.points) ? bsTierForPoints(p.points) : undefined, public: true });
+      })
+      .catch(() => { if (on) setPerson(bare); });
+    return () => { on = false; };
+  }, [userId]);
+  const me = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
+  return createPortal(
+    <div data-notified-person style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
+      {person && <BSPublicProfile person={person} onBack={onClose}
+        onMessage={me && person.userId !== me ? (p) => bsOpenMemberConversation(p, onClose) : null} />}
+    </div>,
+    (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body,
+  );
+}
+
 // ── Universal search — find anyone on Shape ──────────────────────────────────
 // Opened from the ⌕ in every header (`shape:openSearch`). Live typeahead over
 // every account (search_shape_people RPC — members + coaches, photo + tier),
@@ -32793,6 +32836,7 @@ Object.assign(window, {
   BSShapeScorePage,
   BSShapeStorePage,
   BSPublicProfile,
+  BSNotifiedPerson,
   BSReconcile,
   BSFacetAvatar,
   bsAmLive,

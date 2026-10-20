@@ -36,7 +36,8 @@ export const ROUTES = Object.freeze({
   progress: 'member',    // weigh-ins, check-in photos
   feed: 'either',        // the community feed (feed:<post>)
   community: 'either',   // the community feed (a coach's co-sign)
-  profile: 'either',     // a person's profile (profile:<user>): follows
+  profile: 'either',     // a follow (profile:<user>): the app opens the recipient's own profile, where requests are answered
+  person: 'either',      // another person's profile (person:<user>): a friend's habit not done by 8 pm
   settings: 'either',    // Settings: a connected app shared a workout
 });
 
@@ -80,7 +81,7 @@ export function canonicalRoute(route, data) {
     return id ? (role ? `client:${role}:${id}` : `client:${id}`) : route;
   }
   if ((route === 'schedule' || route === 'waitlist' || route === 'credentials') && role) return `${route}:${role}`;
-  if (route === 'profile' && ID(d.actorId)) return 'profile:' + ID(d.actorId);
+  if ((route === 'profile' || route === 'person') && ID(d.actorId)) return route + ':' + ID(d.actorId);
   if ((route === 'feed' || route === 'community') && ID(d.postId)) return 'feed:' + ID(d.postId);
   return route;
 }
@@ -116,6 +117,8 @@ export function parseRoute(str) {
   if (kind === 'prep') return rest ? { kind, id: rest, role: null } : null;
   if (kind === 'schedule' || kind === 'waitlist' || kind === 'credentials') return { kind, id: null, role: ROLE(rest) };
   if (kind === 'profile' || kind === 'feed') return { kind, id: rest || null, role: null };
+  // A person's profile opens only with the person named.
+  if (kind === 'person') return rest ? { kind, id: rest, role: null } : null;
   return { kind, id: null, role: null };
 }
 

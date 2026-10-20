@@ -115,7 +115,7 @@ const TABLES = () => ({
   notification_settings: [{ user_id: 'zoe', tz: 'UTC', quiet_start: 22, quiet_end: 7 }],
 });
 
-async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet = false } = {}) {
+async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet = false, notify = null } = {}) {
   t.mock.timers.enable({ apis: ['Date'], now: NOW });
   process.env.CRON_SECRET = SECRET;
   const db = fakeSupabase({ tables, fail });
@@ -140,7 +140,7 @@ async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/supabase/admin', { createAdminClient: () => db }],
-      ['@/lib/notify', { createPreferredNotification: async (_admin, n) => { sent.push(n); return true; } }],
+      ['@/lib/notify', { createPreferredNotification: notify ? (admin, n) => notify(admin, n, sent) : async (_admin, n) => { sent.push(n); return true; } }],
       ['@/lib/time', time],
       ['@/lib/ai/notifications.mjs', notifyLayer],
       ['@/lib/habit-watch.mjs', await import('../src/lib/habit-watch.mjs')],
@@ -156,10 +156,10 @@ test('the cron tells each connected person about each shared habit not done by 8
   const got = sent.map((n) => `${n.data.habitId}>${n.userId}`).sort();
   assert.deepEqual(got, ['h1>yan', 'h1>zoe', 'h2>zoe', 'h7>zoe'],
     'Stretch was done, Run is not Ben\'s evening, Xia only asked to follow, and the forged row speaks for no one');
-  assert.deepEqual(body, { ok: true, owed: 4, sent: 4, truncated: false });
+  assert.deepEqual(body, { ok: true, owed: 4, sent: 4, unsent: 0, truncated: false });
   const walk = sent.find((n) => n.data.habitId === 'h1' && n.userId === 'yan');
   assert.equal(walk.type, 'friend_habit');
-  assert.equal(walk.route, 'profile', 'it opens Ann\'s profile, where she can be messaged');
+  assert.equal(walk.route, 'person', 'it opens Ann\'s profile, where she can be messaged (a follow\'s `profile` opens the reader\'s own)');
   assert.equal(walk.data.actorId, 'ann');
   assert.equal(walk.data.dedupe, 'habit:h1:2026-10-19', 'one per person, per habit, per Ann\'s day');
   assert.equal(walk.title, 'Ann hasn\'t done “Walk 10k steps” yet today');
@@ -187,12 +187,50 @@ test('nobody at 8 pm reads no watchers, and the wrong secret reads nothing', asy
   const tables = TABLES();
   tables.client_profiles = [{ user_id: 'ann', timezone: 'Asia/Tokyo' }, { user_id: 'ben', timezone: 'UTC' }];
   const quiet = await run(t, tables);
-  assert.deepEqual(quiet.body, { ok: true, owed: 0, sent: 0, truncated: false });
+  assert.deepEqual(quiet.body, { ok: true, owed: 0, sent: 0, unsent: 0, truncated: false });
   assert.ok(!quiet.calls.some((c) => c.table === 'habit_watchers'));
   t.mock.timers.reset();
   const denied = await run(t, TABLES(), { secret: 'nope' });
   assert.equal(denied.status, 401);
   assert.equal(denied.calls.length, 0);
+});
+
+// Twenty people on Ann's walk, all connected to her.
+const CROWD = () => {
+  const tables = TABLES();
+  const people = Array.from({ length: 20 }, (_, i) => `p${String(i).padStart(2, '0')}`);
+  tables.habit_watchers = people.map((w) => ({ habit_id: 'h1', owner_id: 'ann', watcher_id: w }));
+  tables.user_follows = people.map((w) => ({ follower_id: w, following_id: 'ann', status: 'accepted' }));
+  tables.user_habits = tables.user_habits.filter((h) => h.id === 'h1');
+  return tables;
+};
+
+test('the notices go out several at a time, never all at once (Codex on #2413)', async (t) => {
+  let inFlight = 0, most = 0;
+  const notify = async (_admin, n, sent) => {
+    inFlight += 1; most = Math.max(most, inFlight);
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    inFlight -= 1;
+    sent.push(n);
+    return true;
+  };
+  const { body, sent } = await run(t, CROWD(), { notify });
+  assert.deepEqual(body, { ok: true, owed: 20, sent: 20, unsent: 0, truncated: false });
+  assert.equal(new Set(sent.map((n) => n.userId)).size, 20, 'each person once');
+  assert.equal(most, 8, 'eight at a time');
+});
+
+test('none is started once the run nears its limit, and what is left is reported', async (t) => {
+  // Each notice takes 40 s of the run: three start inside the 90 s budget, and the rest are
+  // reported as unsent rather than cut off when the function is stopped.
+  const notify = async (_admin, n, sent) => { t.mock.timers.tick(40_000); sent.push(n); return true; };
+  const errors = [];
+  t.mock.method(console, 'error', (...a) => errors.push(a.join(' ')));
+  const { body, sent } = await run(t, CROWD(), { notify });
+  assert.deepEqual(body, { ok: true, owed: 20, sent: 3, unsent: 17, truncated: false });
+  assert.equal(sent.length, 3);
+  assert.ok(errors.some((e) => /out of time with 17 notices unsent/.test(e)), 'the shortfall is logged');
 });
 
 // ── The wiring ──────────────────────────────────────────────────────────────

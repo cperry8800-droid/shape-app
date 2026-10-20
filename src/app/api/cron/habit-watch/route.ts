@@ -39,6 +39,11 @@ const CHUNK = 150;
 // end of the table, and its ceiling, which bounds the run (maxDuration) and is reported when hit.
 const HABIT_PAGE = 500;
 const HABIT_MAX_ROWS = 50_000;
+// The notices go out several at a time (Codex on #2413: one at a time, a large 8 pm hour outran
+// maxDuration and the rest were never sent), and none is started once the run nears its limit:
+// what is left is reported as `unsent` and logged, never cut off unseen.
+const SEND_AT_ONCE = 8;
+const SEND_BUDGET_MS = 90_000;
 
 function safeEqual(a: string, b: string): boolean {
   const x = Buffer.from(String(a || ''));
@@ -112,7 +117,7 @@ async function handle(request: Request) {
     cursor = last;
   }
   if (truncated) console.error(`[shape] habit watch: habit scan stopped at its ${HABIT_MAX_ROWS}-row ceiling; habits past it are not watched`);
-  if (!habits.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, truncated });
+  if (!habits.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, unsent: 0, truncated });
 
   // Each owner's zone: the one the app saves on every open, else their notification zone.
   const owners = [...new Set(habits.map((h) => h.user_id))];
@@ -140,7 +145,7 @@ async function handle(request: Request) {
   };
   const dayOf = (tz: string) => bsYmdIn(now, tz);
   const due = habits.filter((h) => hourOf(zoneOf.get(h.user_id) || 'UTC') === HABIT_WATCH_HOUR);
-  if (!due.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, truncated });
+  if (!due.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, unsent: 0, truncated });
 
   const dueIds = due.map((h) => h.id);
   const dueOwners = [...new Set(due.map((h) => h.user_id))];
@@ -169,7 +174,7 @@ async function handle(request: Request) {
     dayOf,
     connected,
   });
-  if (!notices.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, truncated });
+  if (!notices.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, unsent: 0, truncated });
 
   // The people's own quiet hours, read on their own clock (the zone the app saves, else their
   // notification zone, as for the owners), and the owners' names.
@@ -190,9 +195,9 @@ async function handle(request: Request) {
   for (const r of names) nameOf.set(str(r.id), str(r.full_name));
 
   // `owed`: notices due. `sent`: those stored, so a muted person, the type off, unreadable
-  // preferences or a duplicate are owed, not sent.
+  // preferences or a duplicate are owed, not sent. `unsent`: those the time ran out on.
   let sent = 0;
-  for (const n of notices) {
+  const send = async (n: (typeof notices)[number]) => {
     try {
       const q = quietOf.get(n.watcherId) || {};
       const quiet = inQuietHours(new Date(now), {
@@ -206,8 +211,9 @@ async function handle(request: Request) {
         type: 'friend_habit',
         title: text.title,
         body: text.body,
-        // Their profile, where the person can message them.
-        route: 'profile',
+        // Their profile, where the person can message them: `person`, not a follow's `profile`,
+        // which the app opens on the reader's own profile (Codex on #2413).
+        route: 'person',
         quiet,
         data: { actorId: n.ownerId, habitId: n.habitId, dedupe: habitWatchDedupe(n.habitId, n.day) },
       });
@@ -215,9 +221,16 @@ async function handle(request: Request) {
     } catch (err) {
       console.error('[shape] habit watch notice failed:', n.habitId, err);
     }
-  }
+  };
+  let next = 0;
+  const worker = async () => {
+    while (next < notices.length && Date.now() - now < SEND_BUDGET_MS) await send(notices[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(SEND_AT_ONCE, notices.length) }, worker));
+  const unsent = notices.length - next;
+  if (unsent) console.error('[shape] habit watch: out of time with', unsent, 'notices unsent');
 
-  return NextResponse.json({ ok: true, owed: notices.length, sent, truncated });
+  return NextResponse.json({ ok: true, owed: notices.length, sent, unsent, truncated });
 }
 
 export async function GET(request: Request) {

@@ -10,9 +10,13 @@ const DATA = 'mobile-app/src/services/shapeBackend.js';
 const UI = 'mobile-app/src/broadsheet/iosAppBroadsheetHabits.jsx';
 const SQL = 'supabase-migrations/2026-10-20-habit-watchers.sql';
 const WEB = 'public/newdesign/clientMeSettings.jsx';
+const ROUTES = 'public/newdesign/notificationRoutes.mjs';
+const INBOX = 'public/newdesign/pageShell.jsx';
+const MEMBER = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
+const PROS = 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx';
 
 export default {
-  test: 'node --test tests/habit-watch.test.mjs tests/habit-share-sheet.test.mjs',
+  test: 'node --test tests/habit-watch.test.mjs tests/habit-share-sheet.test.mjs tests/notification-routes.test.mjs tests/notified-person.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── The rules ──
@@ -38,9 +42,28 @@ export default {
     { name: 'a failed quiet-hours read sends anyway', file: CRON, find: '  if (!quietRows || !peopleZones) {', replace: '  if (false) {' },
     { name: "quiet hours read on UTC, not the person's clock", file: CRON, find: "tz: personZone.get(n.watcherId) || zone(q.tz) || 'UTC',", replace: "tz: zone(q.tz) || 'UTC'," },
     { name: 'the notice is filed under another type', file: CRON, find: "        type: 'friend_habit',", replace: "        type: 'habit_reminder'," },
-    { name: 'the notice opens nowhere', file: CRON, find: "        route: 'profile',", replace: "        route: 'home'," },
+    { name: 'the notice opens nowhere', file: CRON, find: "        route: 'person',", replace: "        route: 'home'," },
+    { name: "the notice rides a follow's route, which opens the reader's own profile", file: CRON, find: "        route: 'person',", replace: "        route: 'profile'," },
+    { name: 'the notices go out one at a time', file: CRON, find: 'Array.from({ length: Math.min(SEND_AT_ONCE, notices.length) }, worker)', replace: 'Array.from({ length: Math.min(1, notices.length) }, worker)' },
+    { name: 'the notices go out all at once', file: CRON, find: 'Array.from({ length: Math.min(SEND_AT_ONCE, notices.length) }, worker)', replace: 'Array.from({ length: notices.length }, worker)' },
+    { name: 'no notice is held back near the limit', file: CRON, find: ' && Date.now() - now < SEND_BUDGET_MS', replace: '' },
+    { name: 'what the time ran out on is not reported', file: CRON, find: '  const unsent = notices.length - next;', replace: '  const unsent = 0;' },
     { name: 'the notice does not say whose', file: CRON, find: 'data: { actorId: n.ownerId, ', replace: 'data: { ' },
     { name: 'the wrong secret is let in', file: CRON, find: "  if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });", replace: '' },
+
+    // ── Opening the person (Codex on #2413) ──
+    { name: 'a push loses the person', file: ROUTES, find: "if ((route === 'profile' || route === 'person') && ID(d.actorId)) return route + ':' + ID(d.actorId);", replace: "if (route === 'profile' && ID(d.actorId)) return 'profile:' + ID(d.actorId);" },
+    { name: 'a person route with no one named still opens', file: ROUTES, find: "  if (kind === 'person') return rest ? { kind, id: rest, role: null } : null;", replace: "  if (kind === 'person') return { kind, id: rest || null, role: null };" },
+    { name: "the member app opens the reader's own profile", file: MEMBER, find: "        case 'person': clear(); setNotifPerson(d.id || null); return;", replace: "        case 'person': clear(); setTab('me'); return;" },
+    { name: 'the main return does not draw the person', file: MEMBER, find: "      {screeningOverlay}\n      {personOverlay}\n", replace: "      {screeningOverlay}\n" },
+    { name: 'a step back leaves the person open', file: MEMBER, find: "    // A notified person's profile is no location of its own: any step back closes it.\n    setNotifPerson(null);\n    setShowSearch(loc.overlay === 'search');", replace: "    setShowSearch(loc.overlay === 'search');" },
+    { name: 'Back from the person leaves a dead back', file: MEMBER, find: 'onClose={() => { if (!navBack()) setNotifPerson(null); }}', replace: 'onClose={() => setNotifPerson(null)}' },
+    { name: 'a coach profile opens as a member\'s', file: MEMBER, find: "        const kind = p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT';", replace: "        const kind = 'CLIENT';" },
+    { name: 'an unreadable profile opens nothing', file: MEMBER, find: "        if (!p) { setPerson(bare); return; }", replace: "        if (!p) return;" },
+    { name: 'one can message oneself', file: MEMBER, find: 'onMessage={me && person.userId !== me ?', replace: 'onMessage={me ?' },
+    { name: 'the trainer app does not draw the person', file: PROS, find: '      {personOverlay}\n      {showTour && <BSProOnboardingTour role="trainer"', replace: '      {showTour && <BSProOnboardingTour role="trainer"' },
+    { name: 'the nutritionist app does not draw the person', file: PROS, find: '      {personOverlay}\n      {showTour && <BSProOnboardingTour role="nutritionist"', replace: '      {showTour && <BSProOnboardingTour role="nutritionist"' },
+    { name: 'the website inbox opens nothing for a person', file: INBOX, find: 'if (n.route === "profile" || n.route === "person") {', replace: 'if (n.route === "profile") {' },
 
     // ── The data layer ──
     { name: 'a missing function is a failed read', file: DATA, find: "  if (['PGRST202', 'PGRST205', '42883', '42P01'].includes(code)) return true;", replace: "  if (['42883'].includes(code)) return true;" },

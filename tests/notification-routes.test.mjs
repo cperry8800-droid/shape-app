@@ -119,7 +119,7 @@ const SAMPLE = {
   credentials: ['credentials'], prep: ['prep:overnight-oats'], coach: ['coach:trainer:7'],
   sessions: ['sessions'], train: ['train'], eat: ['eat'], score: ['score'], checkin: ['checkin'], today: ['today'], goal: ['goal'],
   habits: ['habits'], progress: ['progress'], feed: ['feed'], community: ['community'],
-  profile: ['profile', { actorId: 'u-2' }], settings: ['settings'],
+  profile: ['profile', { actorId: 'u-2' }], person: ['person', { actorId: 'u-3' }], settings: ['settings'],
 };
 
 test('the router opens every route in the table, from the list and from a push alike', () => {
@@ -135,6 +135,32 @@ test('the router opens every route in the table, from the list and from a push a
   assert.deepEqual(page('schedule', { providerRole: 'nutritionist' }), ['shape:openPage', { page: 'schedule', id: null, role: 'nutritionist', fromNotification: true }]);
   assert.deepEqual(page('coach:trainer:7'), ['shape:openMarket', { role: 'trainer', coachId: 7, fromNotification: true }]);
   assert.deepEqual(page('profile', { actorId: 'u-2' }), ['shape:openPage', { page: 'profile', id: 'u-2', role: null, fromNotification: true }]);
+  // A friend's habit names the person, and a push carries them in the route (Codex on #2413).
+  assert.equal(R.canonicalRoute('person', { actorId: 'u-3' }), 'person:u-3');
+  assert.deepEqual(page('person', { actorId: 'u-3' }), ['shape:openPage', { page: 'person', id: 'u-3', role: null, fromNotification: true }]);
+  assert.equal(R.parseRoute('person'), null, 'a person route that names no one opens nothing');
+  assert.equal(R.parseRoute('person:'), null);
+});
+
+test('a person route opens that person, never the reader\'s own profile, in all three shells', () => {
+  // A follow opens the member's own profile, where requests are answered; a friend's habit opens
+  // the friend (Codex on #2413: it rode the follow's route and opened the reader's Me tab).
+  const member = pageEffect(CLIENT, '⚠ EVERY OTHER NOTIFICATION LANDS HERE');
+  assert.match(member, /case 'person': clear\(\); setNotifPerson\(d\.id \|\| null\); return;/);
+  // Back goes through the history its opening pushed, and any step back closes it, so it never
+  // leaves a back that lands where the member already is.
+  assert.match(CLIENT, /const personOverlay = notifPerson \? <BSNotifiedPerson userId=\{notifPerson\} onClose=\{\(\) => \{ if \(!navBack\(\)\) setNotifPerson\(null\); \}\} \/> : null;/);
+  assert.equal((CLIENT.match(/\{personOverlay\}/g) || []).length, 3, 'every return of the member shell renders it');
+  assert.match(CLIENT, /const navResolve = \(loc\) => \{\n\s*if \(!loc\) return;\n[^\n]*\n\s*setNotifPerson\(null\);/, 'a step back closes it');
+  assert.ok(CLIENT.indexOf('const [notifPerson, setNotifPerson]') < CLIENT.indexOf('const navResolve = (loc) => {'), 'declared before the resolver reads it');
+  for (const name of ['function BSTrainerAppInner(', 'function BSNutritionistAppInner(']) {
+    const shellSrc = PROS.slice(PROS.indexOf(name), PROS.indexOf(name) + 30000);
+    assert.match(pageEffect(shellSrc, '⚠ EVERY OTHER NOTIFICATION LANDS HERE'), /case 'person': clear\(\); setNotifPerson\(d\.id \|\| null\); return;/, name);
+    assert.match(shellSrc, /const takeover = \(el\) => \(<>\{el\}\{settingsOverlay\}\{searchOverlay\}\{noraSheet\}\{personOverlay\}<\/>\);/, name);
+    assert.match(shellSrc, /\{searchOverlay\}\n\s*\{personOverlay\}/, `${name}: the main return renders it`);
+    assert.match(shellSrc, /onClose: \(\) => \{ if \(!navBack\(\)\) setNotifPerson\(null\); \}/, `${name}: Back goes through the history`);
+    assert.match(shellSrc, /const navResolve = \(loc\) => \{\n\s*if \(!loc\) return;\n[^\n]*\n\s*setNotifPerson\(null\);/, `${name}: a step back closes it`);
+  }
 });
 
 // The handlers each shell has, read from its source.
@@ -228,7 +254,7 @@ test('the website inbox opens every route for the people who receive it', () => 
     sessions: { route: 'sessions' }, train: { route: 'train' }, eat: { route: 'eat' }, score: { route: 'score' },
     checkin: { route: 'checkin' }, today: { route: 'today' }, goal: { route: 'goal' }, habits: { route: 'habits' }, progress: { route: 'progress' },
     feed: { route: 'feed' }, community: { route: 'community' }, profile: { route: 'profile', data: { actorId: 'u-2' } },
-    settings: { route: 'settings' },
+    person: { route: 'person', data: { actorId: 'u-3' } }, settings: { route: 'settings' },
   };
   for (const [kind, audience] of Object.entries(R.ROUTES)) {
     assert.ok(ROW[kind], kind);
