@@ -79,20 +79,33 @@ type Habit = { id: string; user_id: string; name: string; type: string | null; c
 // can hold 3,000 watcher rows, and 75 owners more than 1,000 follows (Codex on #2413). Each query
 // orders by a unique key so the pages neither skip nor repeat a row, and a page shorter than
 // READ_PAGE (under the 1,000 cap, as HABIT_PAGE is) is the end.
+// The chunks of one read go READ_AT_ONCE at a time: one after another, the 50,000-habit ceiling's
+// owners would be hundreds of round trips before the first notice is sent (Codex on #2413). The
+// rows keep the chunks' order.
 const READ_PAGE = 500;
+const READ_AT_ONCE = 4;
 type Pageable = { range: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }> };
 async function readIn(ids: string[], run: (chunk: string[]) => Pageable, size = CHUNK): Promise<Row[] | null> {
-  const rows: Row[] = [];
-  for (const chunk of chunks(ids, size)) {
-    for (let from = 0; ; from += READ_PAGE) {
-      const { data, error } = await run(chunk).range(from, from + READ_PAGE - 1);
-      if (error) return null;
-      const page = (data ?? []) as Row[];
-      rows.push(...page);
-      if (page.length < READ_PAGE) break;
+  const parts = chunks(ids, size);
+  const out: Row[][] = [];
+  let next = 0;
+  let failed = false;
+  const worker = async () => {
+    while (!failed && next < parts.length) {
+      const i = next++;
+      const rows: Row[] = [];
+      for (let from = 0; ; from += READ_PAGE) {
+        const { data, error } = await run(parts[i]).range(from, from + READ_PAGE - 1);
+        if (error) { failed = true; return; }
+        const page = (data ?? []) as Row[];
+        rows.push(...page);
+        if (page.length < READ_PAGE) break;
+      }
+      out[i] = rows;
     }
-  }
-  return rows;
+  };
+  await Promise.all(Array.from({ length: Math.min(READ_AT_ONCE, parts.length) }, worker));
+  return failed ? null : out.flat();
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');

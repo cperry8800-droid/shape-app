@@ -119,10 +119,11 @@ const TABLES = () => ({
   notification_settings: [{ user_id: 'zoe', tz: 'UTC', quiet_start: 22, quiet_end: 7 }],
 });
 
-async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet = false, notify = null, now = NOW, maxRows = null } = {}) {
+async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet = false, notify = null, now = NOW, maxRows = null, wrapDb = null } = {}) {
   t.mock.timers.enable({ apis: ['Date'], now });
   process.env.CRON_SECRET = SECRET;
   const db = fakeSupabase({ tables, fail, maxRows });
+  if (wrapDb) wrapDb(db);
   if (failQuiet) {
     // Only the people's quiet-hours read fails: the owners' zones (the same table) answer.
     const from = db.from;
@@ -291,6 +292,46 @@ test('every read is paged past PostgREST\'s 1,000-row cap: no watcher or follow 
   assert.equal(body.owed, 1200, 'all 60 habits × 20 people');
   assert.equal(body.sent, 1200);
   assert.equal(new Set(sent.map((n) => `${n.data.habitId}>${n.userId}`)).size, 1200, 'each notice once');
+});
+
+test('each read runs its chunks four at a time, and keeps every chunk (Codex on #2413)', async (t) => {
+  // 1,000 owners, each sharing one habit with Pia: the owners' zone read is 7 chunks and their
+  // follows 14. One after another, the reads before the first notice grow with the owners.
+  const owners = Array.from({ length: 1000 }, (_, i) => `o${String(i).padStart(4, '0')}`);
+  const tables = TABLES();
+  tables.user_habits = owners.map((o) => ({ id: `h-${o}`, user_id: o, name: 'Walk', type: 'do', cadence: 'daily', visibility: 'friends', archived_at: null }));
+  tables.user_habit_completions = [];
+  tables.habit_watchers = owners.map((o) => ({ habit_id: `h-${o}`, owner_id: o, watcher_id: 'pia' }));
+  tables.user_follows = owners.map((o) => ({ follower_id: 'pia', following_id: o, status: 'accepted' }));
+  tables.client_profiles = [...owners.map((o) => ({ user_id: o, timezone: 'America/New_York' })), { user_id: 'pia', timezone: 'America/New_York' }];
+  tables.profiles = owners.map((o) => ({ id: o, full_name: `Owner ${o}` }));
+  tables.notification_settings = [];
+  tables.notifications = [];
+  // Each request takes 2 ms, and the reads in flight are counted per table.
+  const inFlight = {};
+  const peak = {};
+  const wrapDb = (db) => {
+    const from = db.from;
+    db.from = (table) => {
+      const chain = from(table);
+      const then = chain.then.bind(chain);
+      chain.then = (res, rej) => {
+        inFlight[table] = (inFlight[table] || 0) + 1;
+        peak[table] = Math.max(peak[table] || 0, inFlight[table]);
+        return new Promise((r) => setTimeout(r, 2))
+          .then(() => new Promise((ok, no) => then(ok, no)))
+          .finally(() => { inFlight[table] -= 1; })
+          .then(res, rej);
+      };
+      return chain;
+    };
+  };
+  const { status, body } = await run(t, tables, { wrapDb });
+  assert.equal(status, 200);
+  assert.equal(body.owed, 1000, "every chunk's rows: an owner whose zone was lost would read as UTC, not due");
+  assert.equal(body.sent, 1000);
+  assert.equal(peak.client_profiles, 4, 'the zone read: four chunks at a time');
+  assert.equal(peak.user_follows, 4, 'the follows read: four chunks at a time');
 });
 
 // Pia is in New York with a cap of `cap`, connected to Ann, and picked on `n` of Ann's habits.
