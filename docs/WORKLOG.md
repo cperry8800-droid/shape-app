@@ -208,7 +208,7 @@ planned builds.
 - Shared habits (`habit_watchers`, `/api/cron/habit-watch`): the friend's 8 pm notice is in
   English, like every notice the server writes. A friend stops hearing only by turning
   Friends' habits off or unfollowing (no per-habit stop button yet, though the policy allows
-  it), and sharing is set from the Habits page only.
+  it). Sharing is set from the Habits page only, and its sheet has no search.
 - A client whose payment is retrying keeps access until Stripe cancels the plan; a
   Stripe setting that leaves it past_due keeps it open.
 - In the hosted `/m/` app signed out in its own client, a Nora load that starts as one
