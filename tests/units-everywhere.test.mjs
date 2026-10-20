@@ -31,7 +31,7 @@ const themeFor = (prefs) => new Proxy({}, {
 });
 let CURRENT = THEME;
 globalThis.useBS = () => CURRENT;
-const { BSClientProgress, BSTerrainProfile, bsProgressWeight, bsProgressLoad } = await loadBroadsheet(['BSClientProgress', 'BSTerrainProfile', 'bsProgressWeight', 'bsProgressLoad']);
+const { BSClientProgress, BSTerrainProfile, bsProgressWeight, bsProgressLoad, BSYourMornings, BSMorningsDoor, BSCycleTodayChip, bsGoalWeekSleep } = await loadBroadsheet(['BSClientProgress', 'BSTerrainProfile', 'bsProgressWeight', 'bsProgressLoad', 'BSYourMornings', 'BSMorningsDoor', 'BSCycleTodayChip', 'bsGoalWeekSleep']);
 const W = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetWidgets.jsx'), {
   registry: new Map([['react', SHIM]]),
   appendExports: 'export { WWeight, WBody, WMeasurements, WPR };',
@@ -94,6 +94,48 @@ test('the Progress page reads in the member\'s units on every tab', () => {
   // 9,120 lb of volume is 4,137 kg; 38,450 lb is 17,441 kg.
   assert.ok(training.includes('4.1k kg') && training.includes('17.4k kg'), `volume: ${training.filter((s) => /k (kg|lb)/.test(s))}`);
   assert.ok(training.some((s) => /^was \d+(\.\d)?kg$/.test(s)), `a PR's previous best: ${training.filter((s) => /^was/.test(s))}`);
+});
+
+// ⚠ AND THE TREND LOST ITS '/10' SERIES (part 2). Energy, Hunger and Rested were plotted here as
+// evenly spaced points out of 10; they moved to Your mornings, which reads them by date and in the
+// member's words. Their door sits under 'The trend' and opens the page in Progress's place, with the
+// cycle chip handed in, and the page's Back is Progress again, on the tab it left.
+test("Progress's Energy, Hunger and Rested moved behind the Your mornings door", () => {
+  const d = drive(BSClientProgress, { onBack() {}, initialTab: 'overall' });
+  const labels = d.buttons().map((b) => b.label);
+  for (const gone of ['Energy', 'Hunger', 'Rested']) assert.ok(!labels.includes(gone), `the trend still plots ${gone}`);
+  for (const kept of ['Weight', 'Sleep', 'HRV', 'Hydration']) assert.ok(labels.includes(kept), `the trend lost ${kept}`);
+  assert.doesNotMatch(d.text, /\/10/, 'Progress still writes a figure out of 10');
+  const nodes = d.nodes();
+  const trend = nodes.findIndex((n) => n.props && n.props.label === 'The trend');
+  const records = nodes.findIndex((n) => n.props && n.props.label === 'Personal records');
+  const door = nodes.findIndex((n) => n.type === BSMorningsDoor);
+  assert.ok(trend >= 0 && door > trend && door < records, 'the door is not under The trend');
+  nodes[door].props.onOpen();
+  d.render();
+  const page = d.nodes()[0];
+  assert.equal(page.type, BSYourMornings, 'the door did not open Your mornings');
+  assert.equal(page.props.cycleChip && page.props.cycleChip.type, BSCycleTodayChip, 'the page lost the cycle chip');
+  assert.equal(page.props.checkinsOn, true, 'signed out, Check-ins reads on');
+  page.props.onBack();
+  d.render();
+  assert.ok(d.nodes().some((n) => n.type === BSMorningsDoor), 'Back did not return to Progress on its tab');
+});
+
+// Goals' "This week · Sleep" is this week's nights, by date (part 2). It read kpis.sleepAvg, which is
+// now the last 30 days, so the month would have stood under "This week".
+test("Goals' week of sleep is the nights dated today and the six days before, nothing after", () => {
+  const n = (date, value) => ({ date, value });
+  const week = { sleep: [n('2026-10-12', 4), n('2026-10-13', 8), n('2026-10-15', 0), n('2026-10-17', 6.5), n('2026-10-19', 7), n('2026-10-20', 2)] };
+  // 10-13 to 10-19: 8, 6.5 and 7 (the 0h night is no night); 10-12 is the week before, 10-20 tomorrow.
+  assert.equal(bsGoalWeekSleep(week, '2026-10-19'), 7.2);
+  // Over a month end, by the member's own days.
+  assert.equal(bsGoalWeekSleep({ sleep: [n('2026-10-27', 9), n('2026-10-28', 7.33), n('2026-11-03', 7.5)] }, '2026-11-03'), 7.4);
+  assert.equal(bsGoalWeekSleep({ sleep: [] }, '2026-10-19'), 0, 'no night reads as none');
+  assert.equal(bsGoalWeekSleep(null, '2026-10-19'), 0);
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(src, /const sleep = bsGoalWeekSleep\(prog && prog\.series, bsCiIso\(new Date\(\)\)\);/, 'Goals does not read its week of sleep by date');
+  assert.doesNotMatch(src.slice(src.indexOf('function BSClientGoals(')), /^\s*const sleep = [^\n]*kpis\.sleepAvg/m, 'Goals still quotes the 30-day average as the week');
 });
 
 test('the profile\'s trajectory reads in the member\'s unit', () => {

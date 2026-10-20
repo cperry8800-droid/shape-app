@@ -690,7 +690,8 @@
     if (!rr || rr.avg == null) return null;
     if (rr.target - rr.avg <= THRESHOLDS.SLEEP_DEFICIT_H) return null;
     var avgR = Math.round(rr.avg * 10) / 10;
-    return { key: "sleep_low", label: "Sleep low", reason: "Averaging " + avgR + "h sleep vs a " + rr.target + "h target — recovery is running down" };
+    // `avg` and `n` as the vitals flags carry them, for Home's line in the member's own words.
+    return { key: "sleep_low", label: "Sleep low", reason: "Averaging " + avgR + "h sleep vs a " + rr.target + "h target — recovery is running down", avg: rr.avg, n: rr.n };
   }
 
   // ── Check-in vitals rules (spec §3A) ──────────────────────────────────────
@@ -708,19 +709,59 @@
     var n = v.n != null && isFinite(Number(v.n)) ? Number(v.n) : 0;
     return { avg: avg, avgL: avgL, n: n, targetL: v.targetL != null && isFinite(Number(v.targetL)) ? Number(v.targetL) : null };
   }
+  // The reason is a coach's wording, a figure out of 10. The flag also carries the raw
+  // average and the day count (`avg`, `n`) so the member's view can say it in words
+  // (memberVitalsReason) and the app can compose its own translated line from them.
   function ruleEnergyLow(c) {
     var v = vitalsLeg(c, "energy");
     if (!v || v.avg == null || v.n < THRESHOLDS.ENERGY_MIN_DAYS) return null;
     if (!(v.avg <= THRESHOLDS.ENERGY_LOW_AVG)) return null;
     var avgR = Math.round(v.avg * 10) / 10;
-    return { key: "energy_low", label: "Energy low", reason: "Energy has averaged " + avgR + "/10 this week — a lighter session still counts" };
+    return { key: "energy_low", label: "Energy low", reason: "Energy has averaged " + avgR + "/10 this week — a lighter session still counts", avg: v.avg, n: v.n };
   }
   function ruleHungerHigh(c) {
     var v = vitalsLeg(c, "hunger");
     if (!v || v.avg == null || v.n < THRESHOLDS.HUNGER_MIN_DAYS) return null;
     if (!(v.avg >= THRESHOLDS.HUNGER_HIGH_AVG)) return null;
     var avgR = Math.round(v.avg * 10) / 10;
-    return { key: "hunger_high", label: "Hunger high", reason: "Hunger has averaged " + avgR + "/10 this week — the plan may be running light on fuel" };
+    return { key: "hunger_high", label: "Hunger high", reason: "Hunger has averaged " + avgR + "/10 this week — the plan may be running light on fuel", avg: v.avg, n: v.n };
+  }
+
+  // ⚠ THE MEMBER IS NEVER QUOTED A SCALE THEY WERE NOT SHOWN (Morning check-in part 2, rulings
+  // 11 and 13). The check-in asks in five words and stores them as 2 · 4 · 6 · 8 · 10, so
+  // "Energy has averaged 3.4/10" told the member about a 1-10 gauge they never saw. Their own
+  // view (disciplineForRole 'general') says the word instead; a coach keeps the figure byte for
+  // byte, because the roster, the case file, the coach Today read and the coach pushes (whose
+  // signature holds the reason) all read it.
+  // An average becomes a word by the card's one rule (BSCheckinCard.jsx bsCiWordIndex: (2i, 2i+2]
+  // is word i), so the edges sit on ENERGY_LOW_AVG (4) and HUNGER_HIGH_AVG (8): a flagged week
+  // reads Drained or Low, Hungry or Starving, never OK or Normal. Rounding to the nearest stored
+  // value instead would call a 4.6 week Low with no flag behind it.
+  // These English words serve what has no locale: the push, the bell row it leaves and the Shape
+  // Daily splash. Home composes its own line from the app's catalog out of directive.evidence.
+  var MEMBER_VITALS_WORDS = {
+    energy_low: ["drained", "low", "OK", "good", "great"],
+    hunger_high: ["not hungry", "a little", "normal", "hungry", "starving"],
+  };
+  function vitalsWordIndex(v) {
+    var n = Number(v);
+    if (!isFinite(n) || n <= 0) return null;
+    return Math.max(0, Math.min(4, Math.ceil(Math.min(10, n) / 2) - 1));
+  }
+  // The member's wording of a vitals flag, or null when the flag is not one (the caller keeps
+  // its own reason then).
+  // ⚠ AN AVERAGE IS SAID AS AN AVERAGE. The word is the band of the week's average, so the line
+  // says "on average". It said "mostly", and Your mornings, which the energy lead opens, says
+  // "Most days" only for the answer that holds most of the days: answers of Drained, Drained,
+  // Drained and Great average 4, so the push said "mostly low" in a week with no Low in it while
+  // the page said Drained. The word stays lower case: a flagged week reads only Drained or Low,
+  // Hungry or Starving.
+  function memberVitalsReason(f) {
+    var words = f ? MEMBER_VITALS_WORDS[f.key] : null;
+    var i = words ? vitalsWordIndex(f.avg) : null;
+    if (i == null) return null;
+    if (f.key === "energy_low") return "Your energy has been " + words[i] + " on average this week — a lighter session still counts";
+    return "You've been " + words[i] + " between meals on average this week — the plan may be running light on fuel";
   }
   // CLIENT DIRECTIVE ONLY (owner ruling): hydration never becomes a coach flag.
   // evaluateClient runs this rule only for the client role, so getTriageFeed
@@ -1285,7 +1326,8 @@
   // cacheable and never fabricates.
   //
   //   { source:'coach'|'engine', lever, severity, verdict, reason,
-  //     action:{label,kind}|null, read:{ summary30d, oneThingNow }, cited:[…] }
+  //     action:{label,kind}|null, read:{ summary30d, oneThingNow }, cited:[…],
+  //     evidence?:{ key, avg, n } }   // only when an engine flag leads; avg/n null without them
 
   var DIRECTIVE_MOVES = {
     sleep: { kind: "log_sleep", label: "Log last night's sleep" },
@@ -1364,7 +1406,7 @@
     var lastNight = s.lastNight != null && isFinite(Number(s.lastNight)) ? Number(s.lastNight) : null;
     // "low" if logged-but-short, OR last night not logged yet (nothing to act on).
     var low = (avg != null && avg < target - 0.5) || s.lastNight == null;
-    return { avg: avg, target: target, lastNight: lastNight, low: low, hasData: avg != null || s.lastNight != null };
+    return { avg: avg, target: target, lastNight: lastNight, low: low, hasData: avg != null || s.lastNight != null, n: nights };
   }
   // "Deficit's fine" — nutrition is present and holding (≤ target+5%, no flag).
   function nutritionHolding(rec) {
@@ -1421,11 +1463,16 @@
     var top = topFlag(ev.flags);
     if (top) {
       var lever2 = directiveKeyToLever(top.key) || "training";
+      // The member's own view says a check-in average in words; every coach role keeps the
+      // flag's figure (memberVitalsReason). `evidence` is what the reason was built from, so
+      // Home can say the same thing in the member's language.
+      var topReason = (disciplineForRole(role) === "general" && memberVitalsReason(top)) || top.reason;
       return {
         source: "engine", lever: lever2, severity: ev.severity,
         verdict: DIRECTIVE_VERDICTS[lever2] || "Your move",
-        reason: top.reason, action: DIRECTIVE_MOVES[lever2] || null,
-        read: buildDirectiveRead(rec, top.reason), cited: [top.key],
+        reason: topReason, action: DIRECTIVE_MOVES[lever2] || null,
+        read: buildDirectiveRead(rec, topReason), cited: [top.key],
+        evidence: { key: top.key, avg: top.avg != null ? top.avg : null, n: top.n != null ? top.n : null },
       };
     }
 
@@ -2395,6 +2442,7 @@
     flagDiscipline: flagDiscipline,
     disciplineOwner: disciplineOwner,
     disciplineForRole: disciplineForRole,
+    vitalsWordIndex: vitalsWordIndex,
     buildMilestones: buildMilestones,
     findJointAttention: findJointAttention,
     getTriageFeed: getTriageFeed,

@@ -59,8 +59,9 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
-import { BSCheckinCard } from './BSCheckinCard.jsx';
-import { BSWaterLine } from './BSWaterLine.jsx';
+import { BSCheckinCard, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
+import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
+import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
@@ -706,8 +707,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:openIntegrations', open);
   }, []);
 
-  // THE CYCLE — Settings' "Open cycle calendar", the Today chip and the
-  // Progress card all fire this one event, so no prop threading.
+  // THE CYCLE — Settings' "Open cycle calendar", the cycle chip on Your mornings
+  // and the Progress card all fire this one event, so no prop threading.
   React.useEffect(() => {
     const open = () => navJumpRef.current.goCycle();
     window.addEventListener('shape:openCycle', open);
@@ -805,7 +806,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         case 'eat': clear(); setTab('eat'); return;
         case 'score': clear(); setStoreView('score'); setTab('store'); return;
         case 'checkin': clear(); setTab('home'); return;
-        // A Daily check-in reminder (owner, 2026-10-18): Home, with the card's walkthrough open.
+        // A Daily check-in reminder (owner, 2026-10-18): Home, with the card's walkthrough open (with
+        // Check-ins off there is no card, and Home opens Your mornings).
         case 'today': clear(); setCheckinOpen({ nonce: Date.now() }); setTab('home'); return;
         // The goal, progress and follows (requests are answered on the member's own profile).
         case 'goal': case 'progress': case 'profile': clear(); setTab('me'); return;
@@ -1825,7 +1827,7 @@ function useBSMembership() {
 
 // ── THE CYCLE — shared member settings state (spec 2026-07-19) ───────────────
 // ONE resolved truth for every cycle consumer (Settings pane · calendar page ·
-// Today chip · Progress card · the neutral Home lever): fetched once, cached on
+// the Your mornings chip · Progress card · the neutral Home lever): fetched once, cached on
 // window.ShapeCycleState, and re-broadcast on 'shape:cycleSettings' after any
 // write so every mounted consumer flips together. Signed-out, pre-migration,
 // and never-opted-in all resolve to { optIn:false, share:false } — absence,
@@ -4468,7 +4470,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const [showLogMeal, setShowLogMeal] = useStateBSC(false);
   const [habitsPage, setHabitsPage] = useStateBSC(false);
   const [goalsPage, setGoalsPage] = useStateBSC(false);
-  const [todayPage, setTodayPage] = useStateBSC(false);   // the daily check-in + hydration page
+  const [morningsPage, setMorningsPage] = useStateBSC(false); // Your mornings (BSYourMornings.jsx): the morning check-in over time
   // Engine-driven top move — the signal engine's single highest-value action for
   // the signed-in client today (check-in overdue · streak at risk · food gap ·
   // goal slip · score drop). Honest: only a real flag from the live self record;
@@ -4510,21 +4512,22 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // reminder"). The shell hands over a nonce; Home closes the page it shows and holds the request
   // until the account's Check-ins setting has answered (useBSDailyCheckinPrefState). Then, with
   // Check-ins on, the card takes it and opens its walkthrough at the first check not yet answered
-  // once today is read; with Check-ins off there is no card, so the check-in page opens instead,
-  // and the request is dropped rather than wait to open the walkthrough whenever Check-ins is next
-  // switched on.
+  // once today is read; with Check-ins off there is no card and nothing to answer, so Your mornings
+  // opens instead (the history still shows, part 2), and the request is dropped rather than wait to
+  // open the walkthrough whenever Check-ins is next switched on. The sleep lead's button lands here
+  // too, so with Check-ins off it opens Your mornings as well.
   const [checkinOpenReq, setCheckinOpenReq] = useStateBSC(null);
   React.useEffect(() => {
     if (!checkinOpen || !checkinOpen.nonce) return;
     setPreviewMeal(null); setShowWorkoutPreview(false); setShowLogMeal(false); setHabitsPage(false);
     setCheckinPage(false); setHomeProgressPage(false); setGoalsPage(false); setStepsHistory(false);
-    setTodayPage(false); setCheckinOpenReq(checkinOpen.nonce);
+    setMorningsPage(false); setCheckinOpenReq(checkinOpen.nonce);
     onCheckinOpenConsumed();
   }, [checkinOpen && checkinOpen.nonce]);
   React.useEffect(() => {
     if (!checkinOpenReq || !checkinPrefSettled || checkinPrefOn) return;
     setCheckinOpenReq(null);
-    setTodayPage(true);
+    setMorningsPage(true);
   }, [checkinOpenReq, checkinPrefSettled, checkinPrefOn]);
   // Weekly check-in nudge — due when a signed-in client has no row this week.
   React.useEffect(() => {
@@ -4779,8 +4782,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   if (goalsPage) {
     return <BSClientGoals onBack={() => setGoalsPage(false)} onOpenProgress={() => { setGoalsPage(false); setHomeProgressPage(true); }} />;
   }
-  if (todayPage) {
-    return <BSTodayPage onBack={() => setTodayPage(false)} />;
+  // Your mornings (part 2): the card's done line and summary, the energy lead, and with Check-ins off
+  // the quiet row and a reminder open it. The cycle chip rides on it, never on Home (doctrine).
+  if (morningsPage) {
+    return <BSYourMornings onBack={() => setMorningsPage(false)} cycleChip={<BSCycleTodayChip />} checkinsOn={checkinPrefOn} />;
   }
 
   // "Today · your move" — ONE clear next move. The signal engine's top action
@@ -4813,11 +4818,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       goal:      { head: tr('home:lead.goal.head', { defaultValue: BS_LEVER_HEADS.goal }), cta: [tr('home:lead.goal.cta', { defaultValue: "I'll weigh in →" }), () => setGoalsPage(true)], c: t.AMBER },
       score:     { head: tr('home:lead.score.head', { defaultValue: BS_LEVER_HEADS.score }), cta: [tr('home:lead.score.cta', { defaultValue: "I'll grab a win →" }), () => setHabitsPage(true)], c: t.AMBER },
       // Check-in vitals levers (spec §3A) — observation + one concrete move,
-      // never shaming. energy/hydration land on the Today check-in page (it
-      // hosts the gauges + the hydration quick-add); hunger lands on Eat.
-      energy:    { head: tr('home:lead.energy.head', { defaultValue: BS_LEVER_HEADS.energy }), cta: [tr('home:lead.energy.cta', { defaultValue: "I'll take it lighter →" }), () => setTodayPage(true)], c: t.BLUE },
+      // never shaming. Energy opens Your mornings, the week behind the lead (part 2); hydration
+      // brings Home's own water line up with focus on + Glass (water has no page, §3.7); hunger
+      // lands on Eat.
+      energy:    { head: tr('home:lead.energy.head', { defaultValue: BS_LEVER_HEADS.energy }), cta: [tr('home:lead.energy.cta', { defaultValue: "I'll take it lighter →" }), () => setMorningsPage(true)], c: t.BLUE },
       hunger:    { head: tr('home:lead.hunger.head', { defaultValue: BS_LEVER_HEADS.hunger }), cta: [tr('home:lead.hunger.cta', { defaultValue: "I'll eat properly →" }), () => goEat()], c: _teal },
-      hydration: { head: tr('home:lead.hydration.head', { defaultValue: BS_LEVER_HEADS.hydration }), cta: [tr('home:lead.hydration.cta', { defaultValue: "I'll log water →" }), () => setTodayPage(true)], c: _teal },
+      hydration: { head: tr('home:lead.hydration.head', { defaultValue: BS_LEVER_HEADS.hydration }), cta: [tr('home:lead.hydration.cta', { defaultValue: "I'll log water →" }), () => bsWaterLineFocus()], c: _teal },
       // Sleep leads only on a real shortfall (bsSleepLeadOk: the engine's sleep_low, under 6h a night
       // over 3 or more nights, or a coach's sleep move), the rule the push keeps too, so the two say
       // the same move (owner, 2026-10-19). Signed in only: the signed-out preview seeds a demo coach
@@ -4838,8 +4844,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     const cycleNote = (cycleOptIn && cycleNow && cycleNow.phase === 'menstrual')
       ? tr('home:lever.recoverySub', { defaultValue: 'Lighter load reads well today.' })
       : null;
+    // The lead's reason in the member's words (part 2, bsCiLeadReason): the engine's energy, hunger
+    // and sleep reads are said in the card's words, never '/10'; any other reason, and a coach's
+    // own, reads as written (ruling 13).
+    const engineSub = engineFlag ? bsCiLeadReason(engineFlag, tr) : null;
     const todo = [];
-    if (engineMove) todo.push({ head: engineMove.head, sub: [engineFlag.reason, engineMove.stakes].filter(Boolean).join(' · '), cta: engineMove.cta, c: engineMove.c, engine: true });
+    if (engineMove) todo.push({ head: engineMove.head, sub: [engineSub, engineMove.stakes].filter(Boolean).join(' · '), cta: engineMove.cta, c: engineMove.c, engine: true });
     if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: [tr('home:lead.workout.cta', { defaultValue: "I'll train today →" }), () => setShowWorkoutPreview(true)], c: t.RUST, workout: true });
     selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: tr('home:lead.logMeal', { defaultValue: 'Log {title}', title: m.title }), cta: [tr('home:lead.meal.cta', { defaultValue: "I'll log it →" }), () => { setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id, meal: m }));
     const habitsLeft = selDayHabits.filter(h => !h.done).length;
@@ -5180,18 +5190,18 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           (owner, 2026-10-11: "check-in should be towards the top"). The daily
           check-in is the one-tap card itself (BSCheckinCard, 2026-10-18), shown
           whatever the lead is: the 'checkin' lever is the WEEKLY check-in, and
-          the card is where today's answers are given, not a nag. The weekly
-          line is suppressed when its own lever is the lead; the wall bulletin
-          yields to it. */}
-      <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" openRequest={checkinPrefSettled ? checkinOpenReq : null} onOpenRequestConsumed={() => setCheckinOpenReq(null)} />
+          the card is where today's answers are given, not a nag. Its done line
+          and summary open Your mornings (part 2). The weekly line is suppressed
+          when its own lever is the lead; the wall bulletin yields to it. */}
+      <BSTodayNudge onOpen={() => setMorningsPage(true)} variant="bulletin" openRequest={checkinPrefSettled ? checkinOpenReq : null} onOpenRequestConsumed={() => setCheckinOpenReq(null)} />
       {/* Water, all day and whatever the Check-ins setting: it left the morning check-in (owner, 2026-10-19). */}
       <BSWaterLine />
       {checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') && (
         <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
       )}
       {!(checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin')) && <BSHomeWallBulletin />}
-      {/* With Check-ins off, the quiet door to the check-in page and water. */}
-      <BSTodayNudge variant="row" onOpen={() => setTodayPage(true)} />
+      {/* With Check-ins off, the quiet door to Your mornings: nothing is asked, the history still shows. */}
+      <BSTodayNudge variant="row" onOpen={() => setMorningsPage(true)} />
 
       {/* ── YOUR FIRST 30 DAYS — the member's own board (client-onboarding review, fix 4), only while
           there is one: the membership's first 30 days. The tour ends here, on Home, so it is the
@@ -28346,7 +28356,7 @@ function BSCycleOptInSheet({ onClose, onDone }) {
 // ── THE CYCLE — shared derivation for every consumer ────────────────────────
 // Fetches the member's logged starts ONCE per mount and derives through the
 // canonical engine. Cached on window.ShapeCycleDerived so the calendar page,
-// the Today chip and the Progress card don't each re-fetch; a
+// the Your mornings chip and the Progress card don't each re-fetch; a
 // 'shape:cycleLogged' event re-derives every mounted consumer after a write.
 // Never opted in → { starts: [], cycle: null } and every surface renders
 // nothing (absence, per doctrine).
@@ -29065,178 +29075,6 @@ function BSStepsHistory({ onClose }) {
   return portal ? createPortal(overlay, portal) : overlay;
 }
 
-// Sleep duration → "Xh Ym", rounding total minutes ONCE so e.g. 7.9917h reads
-// "8h 0m" rather than "7h 60m".
-function bsSleepHM(h) {
-  const total = Math.round(Number(h) * 60);
-  return `${Math.floor(total / 60)}h ${total % 60}m`;
-}
-
-// Sleep detail / history page — the recovery-readiness ring, last night's stage
-// breakdown (deep/REM/light/awake), bed/wake window, latency + respiratory rate,
-// and the trend sparklines. Device-sourced (currently Oura); fields a wearable
-// doesn't expose render an honest "—". Opened from the check-in card.
-function BSSleepHistory({ onClose }) {
-  const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const blue = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5');
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const [p, setP] = useStateBSC(null);
-  _bsScrollTopOnMount();
-  React.useEffect(() => {
-    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
-    let on = true;
-    window.ShapeProgress.progress().then((d) => { if (on) setP(d || {}); }).catch(() => {});
-    return () => { on = false; };
-  }, [signedIn]);
-
-  const series = (p && p.series) || {};
-  const kpis = (p && p.kpis) || {};
-  const sleepPts = Array.isArray(series.sleep) ? series.sleep : [];
-  const hasSleep = sleepPts.length > 0;
-  const lastOf = (arr) => (Array.isArray(arr) && arr.length ? Number(arr[arr.length - 1].value) : null);
-  const sleepLast = lastOf(series.sleep);
-  const rested = lastOf(series.sleepQuality);
-  const readiness = kpis.readiness != null ? Number(kpis.readiness) : null;
-  const band = kpis.readinessLabel || null;
-  const stages = kpis.sleepStages || null;
-  const eff = kpis.sleepEfficiency != null ? Number(kpis.sleepEfficiency) : null;
-  const rhr = kpis.restingHr != null ? Number(kpis.restingHr) : null;
-  const hrv = kpis.hrvLatest != null ? Number(kpis.hrvLatest) : null;
-  const latency = kpis.sleepLatencyLatest != null ? Number(kpis.sleepLatencyLatest) : null;
-  const resp = kpis.respiratoryLatest != null ? Number(kpis.respiratoryLatest) : null;
-  const fmtTime = (iso) => { if (!iso) return null; const d = new Date(iso); return isNaN(d.getTime()) ? null : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
-  const bed = fmtTime(kpis.bedTime); const wake = fmtTime(kpis.wakeTime);
-  const readinessColor = readiness == null ? t.INK50 : readiness >= 80 ? teal : readiness >= 60 ? blue : readiness >= 40 ? (t.AMBER || '#e8b14a') : (t.RUST || '#c0533b');
-
-  // Sleep-hours sparkline (last 14 nights).
-  const spark = (pts, color) => {
-    const vals = (Array.isArray(pts) ? pts : []).map((s) => Number(s.value)).filter((v) => Number.isFinite(v)).slice(-14);
-    if (vals.length < 2) return null;
-    const min = Math.min(...vals), max = Math.max(...vals), rng = max - min || 1;
-    const d = vals.map((v, i) => [(i / (vals.length - 1)) * 150, 34 - ((v - min) / rng) * 28 - 3]).map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
-    return <svg viewBox="0 0 150 34" width="100%" height="34" preserveAspectRatio="none" style={{ display: 'block' }}><path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
-  };
-
-  const eyebrow = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 };
-  const plate = { borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(blue, 0.55)}`, background: bsTHexA(t.INK, 0.03), padding: 13, marginBottom: 12 };
-  const tile = (label, val, unit) => (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ ...eyebrow, fontSize: 8, color: t.INK50 }}>{label}</div>
-      <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: val == null ? t.INK50 : t.INK, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{val == null ? '—' : val}{val != null && unit ? <span style={{ fontSize: 10, color: t.INK50, marginLeft: 2 }}>{unit}</span> : null}</div>
-    </div>
-  );
-  // Stage breakdown bar (deep/rem/light/awake minutes → proportional segments).
-  const STAGES = [['Deep', stages && stages.deep, '#3a4f8a'], ['REM', stages && stages.rem, blue], ['Light', stages && stages.light, bsTHexA(blue, 0.45)], ['Awake', stages && stages.awake, t.INK50]];
-  const stageTotal = STAGES.reduce((a, [, m]) => a + (Number.isFinite(Number(m)) ? Number(m) : 0), 0);
-
-  return (
-    <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 60, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 10px` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
-        <button onClick={onClose} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, padding: 0 }}>← BACK</button>
-      </div>
-      <div style={{ padding: `0 ${t.padX}px 90px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: blue, marginBottom: 6 }}>RECOVERY · SLEEP</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', marginBottom: 16 }}>Your <span style={{ fontStyle: 'italic', color: blue }}>sleep.</span></div>
-
-        {!signedIn && (
-          <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.5, padding: '20px 0' }}>Sign in to see your sleep & recovery detail.</div>
-        )}
-        {signedIn && !hasSleep && (
-          <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.5, padding: '20px 0' }}>
-            No sleep data yet. Connect a sleep tracker (Oura, Apple Health, Garmin or Whoop) and your nightly sleep, stages and recovery readiness will show here.
-            <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} }} style={{ display: 'block', marginTop: 12, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>Connect a device →</button>
-          </div>
-        )}
-
-        {signedIn && hasSleep && (
-          <>
-            {/* Recovery readiness hero */}
-            <div style={{ ...plate, borderLeft: `3px solid ${bsTHexA(readinessColor, 0.7)}` }}>
-              <div style={eyebrow}>Recovery readiness · today</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 700, color: readinessColor, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{readiness == null ? '—' : readiness}</span>
-                {readiness != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>/ 100</span>}
-                {band && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: readinessColor }}>{band}</span>}
-              </div>
-              <div style={{ marginTop: 10, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
-                <div style={{ width: `${readiness == null ? 0 : Math.max(2, Math.min(100, readiness))}%`, height: '100%', borderRadius: 999, background: readinessColor }} />
-              </div>
-              <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.45 }}>
-                {readiness == null ? 'Readiness needs a night of sleep data to score.'
-                  : readiness >= 80 ? 'Primed — your body is well recovered. A good day to push.'
-                  : readiness >= 60 ? 'Ready — recovered enough to train as planned.'
-                  : readiness >= 40 ? 'Run down — ease the intensity and prioritize tonight’s sleep.'
-                  : 'Depleted — recovery is low. Favor rest, easy movement and an early night.'}
-              </div>
-            </div>
-
-            {/* Last night */}
-            <div style={plate}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-                <span style={eyebrow}>Last night</span>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: blue }}>{sleepLast != null ? bsSleepHM(sleepLast) : '—'}</span>
-              </div>
-              {(bed || wake) && (
-                <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50, marginBottom: 10 }}>{bed || '—'} <span style={{ color: t.INK50 }}>→</span> {wake || '—'}</div>
-              )}
-              <div style={{ display: 'flex', gap: 10 }}>
-                {tile('Rested', rested, '/10')}
-                {tile('Efficiency', eff, '%')}
-                {tile('Latency', latency, 'm')}
-              </div>
-              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-                {tile('Resting HR', rhr, '')}
-                {tile('HRV', hrv, 'ms')}
-                {tile('Respiratory', resp, '/min')}
-              </div>
-            </div>
-
-            {/* Stage breakdown */}
-            <div style={plate}>
-              <div style={eyebrow}>Sleep stages · last night</div>
-              {stageTotal > 0 ? (
-                <>
-                  <div style={{ display: 'flex', height: 12, borderRadius: 4, overflow: 'hidden', marginTop: 10, background: t.HAIR }}>
-                    {STAGES.map(([lab, m, col]) => { const mn = Number.isFinite(Number(m)) ? Number(m) : 0; return mn > 0 ? <div key={lab} title={`${lab} ${mn}m`} style={{ width: `${(mn / stageTotal) * 100}%`, background: col }} /> : null; })}
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 10 }}>
-                    {STAGES.map(([lab, m, col]) => (
-                      <div key={lab} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: 2, background: col }} />
-                        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK70 }}>{lab}</span>
-                        <span style={{ fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 700, color: m == null ? t.INK50 : t.INK }}>{m == null ? '—' : `${m}m`}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK50, lineHeight: 1.45, marginTop: 8 }}>Sleep stages need a wearable that tracks them (e.g. Oura). Your hours + rest are shown above.</div>
-              )}
-            </div>
-
-            {/* Trends */}
-            <div style={plate}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-                <span style={eyebrow}>Sleep · last 14 nights</span>
-                {kpis.sleepAvg != null && <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}>avg {kpis.sleepAvg}h</span>}
-              </div>
-              {spark(series.sleep, blue) || <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>Not enough nights yet.</div>}
-              {Array.isArray(series.recovery) && series.recovery.length >= 2 && (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ ...eyebrow, marginBottom: 6 }}>Device recovery score</div>
-                  {spark(series.recovery, readinessColor)}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // PROGRESS door — Home's slim entry to the progress hub, in the instrument
 // language: clipped notch, teal spine, corner bracket, and one colored tick per
 // section behind the door (streak teal · trends blue · training rust ·
@@ -29343,6 +29181,8 @@ function BSSlateRow({ tag, tagColor, title, status, right, onOpen, ariaLabel, in
 // BSIndexRow — one row in the "Inside." index. 44px, grid 86px domain-label / 1fr
 // dot-leader / auto figure / 18px chevron. No background/border/radius — pure
 // typographic rows. `due` pulses the 5px status tick; `done` shows a ✓ instead.
+// The label column grows past 86px for a longer name (the Check-ins-off row says "Your mornings",
+// which runs to 17 letters in Vietnamese), so it pushes the leader rather than run over it.
 function BSIndexRow({ label, figure, status, due, done, onOpen }) {
   const t = useBS();
   const interactive = typeof onOpen === 'function';
@@ -29356,7 +29196,7 @@ function BSIndexRow({ label, figure, status, due, done, onOpen }) {
       onKeyDown={interactive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } : undefined}
       aria-label={interactive ? [label, ariaFigure, status].filter(Boolean).join(' ') : undefined}
       style={{
-        display: 'grid', gridTemplateColumns: '86px 1fr auto 18px', alignItems: 'center', gap: 8,
+        display: 'grid', gridTemplateColumns: 'minmax(86px, auto) 1fr auto 18px', alignItems: 'center', gap: 8,
         width: '100%', height: 44, boxSizing: 'border-box', border: 0, background: 'transparent',
         padding: `0 ${t.padX}px`, textAlign: 'left', cursor: interactive ? 'pointer' : 'default', font: 'inherit', color: 'inherit',
       }}
@@ -29868,21 +29708,15 @@ function useBSStepsToday() {
   return { hasData, todayKnown, val, goal: TARGET, pct, hit };
 }
 
-// Today instrument plate — the home daily check-in + hydration, consolidated into
-// ONE BSPlate. Energy / Hunger / Rested are tap-to-set 1–10 gauges (no migration —
-// the same 1–10 values the old tap-rows wrote); Sleep stays device-first (read-only
-// when a wearable synced last night, else manual hour chips). Hydration folds in as a
-// dot-progress + quick-add row that STAYS LIVE even after the check-in collapses to
-// its one-line summary (you sip water all day). Recovery readiness + the sleep-detail
-// door sit in the footer. Replaces BSDailyCheckinCard + BSHydrationCard.
 // TODAY nudge — the check-in on Home. `variant` is REQUIRED: an omitted or mistyped one renders
 // nothing rather than silently picking a surface.
 //   'bulletin' → the one-tap card (BSCheckinCard.jsx, owner 2026-10-18, design A): it asks one
 //                question at a time, saves every tap and decays to its own done line, so there is
 //                no separate "logged" row any more.
 //   'row'      → only with the member's dailyCheckin pref OFF (spec §3D "Optional check-in"): a
-//                quiet, always-present "Check-in · add water" door to the check-in page, never the
-//                word "due" and never a done tick. Pref OFF, the bulletin renders NOTHING.
+//                quiet, always-present "Your mornings" door to the history (part 2: with Check-ins
+//                off nothing is asked, and water is its own Home line), never the word "due" and
+//                never a done tick. Pref OFF, the bulletin renders NOTHING.
 function BSTodayNudge({ onOpen, variant, openRequest = null, onOpenRequestConsumed = null }) {
   const tr = useShapeTr();
   const checkinOn = useBSDailyCheckinPref();
@@ -29892,295 +29726,9 @@ function BSTodayNudge({ onOpen, variant, openRequest = null, onOpenRequestConsum
   }
   if (variant !== 'row') return null;
   if (checkinOn) return null; // the card carries the done line
-  // The quiet door: the existing home:today keys, no `figure` and no `done` tick — a neutral
+  // The quiet door: the page's own name, no `figure`, no `status` and no `done` tick — a neutral
   // index entry, not a status claim.
-  return <BSIndexRow label={tr('home:today.checkinLabel', { defaultValue: 'Check-in' })} status={tr('home:today.addWater', { defaultValue: 'add water' })} onOpen={onOpen} />;
-}
-
-// TODAY page — the full daily check-in + hydration box on its own page,
-// opened from the Home nudge above.
-function BSTodayPage({ onBack }) {
-  const t = useBS();
-  const tr = useShapeTr();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  _bsScrollTopOnMount();
-  return (
-    <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={tr('home:today.eyebrow', { defaultValue: 'Section · Check-in' })} title={<>{tr('home:today.titlePre', { defaultValue: 'How are' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('home:today.titleYou', { defaultValue: 'you.' })}</span></>} />
-      <div style={{ paddingTop: 4 }}>
-        <BSTodayCard />
-      </div>
-      <div style={{ height: 28 }} />
-    </BSPage>
-  );
-}
-
-function BSTodayCard() {
-  const t = useBS();
-  const tr = useShapeTr();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const amber = t.isLight ? '#b9802a' : '#e8b14a';
-  const blue = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5'); // recovery accent
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  // Un-boxed page layout: each block is its own slim instrument plate that
-  // staggers in (shared sd keyframes; reduced-motion renders the final state).
-  const reduced = bsSdReduced();
-  React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
-
-  // ── check-in state ──
-  const [energy, setEnergy] = useStateBSC(null);
-  const [hunger, setHunger] = useStateBSC(null);
-  const [sleepHours, setSleepHours] = useStateBSC(null);   // today's logged/synced hours (number)
-  const [rested, setRested] = useStateBSC(null);           // today's 1-10 rested rating
-  const [sleepMeta, setSleepMeta] = useStateBSC(null);     // { efficiency, rhr, hrv } from a wearable, when present
-  const [sleepSynced, setSleepSynced] = useStateBSC(false); // true only when hours came from a device sync (read-only)
-  const [logged, setLogged] = useStateBSC(false);
-  const [editing, setEditing] = useStateBSC(false);
-  const [saving, setSaving] = useStateBSC(false);
-  const [readiness, setReadiness] = useStateBSC(null);       // 0-100 recovery readiness (kpis.readiness)
-  const [readinessLabel, setReadinessLabel] = useStateBSC(null);
-  const [detail, setDetail] = useStateBSC(false);            // sleep history overlay open
-  React.useEffect(() => {
-    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
-    let on = true;
-    const d = new Date();
-    const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    window.ShapeProgress.progress().then((p) => {
-      if (!on || !p || !p.series) return;
-      if (p.kpis) { if (p.kpis.readiness != null) setReadiness(Number(p.kpis.readiness)); if (p.kpis.readinessLabel) setReadinessLabel(p.kpis.readinessLabel); }
-      const e = (p.series.energy || []).find((s) => s.date === todayIso);
-      const h = (p.series.hunger || []).find((s) => s.date === todayIso);
-      if (e) setEnergy(Math.round(Number(e.value)));
-      if (h) setHunger(Math.round(Number(h.value)));
-      // Sleep — device-first hours + the 1-10 rested rating, today's points.
-      const sToday = (p.series.sleep || []).find((s) => s.date === todayIso);
-      const qToday = (p.series.sleepQuality || []).find((s) => s.date === todayIso);
-      // Device-only recovery metrics for TODAY (a manual log never writes these) —
-      // their presence is the only honest signal that the hours came from a wearable.
-      const effToday = (p.series.sleepEfficiency || []).find((s) => s.date === todayIso);
-      const rhrToday = (p.series.restingHr || []).find((s) => s.date === todayIso);
-      const hrvToday = (p.series.hrv || []).find((s) => s.date === todayIso);
-      const meta = { efficiency: effToday ? Math.round(Number(effToday.value)) : null, rhr: rhrToday ? Math.round(Number(rhrToday.value)) : null, hrv: hrvToday ? Math.round(Number(hrvToday.value)) : null };
-      const hasDeviceMeta = meta.efficiency != null || meta.rhr != null || meta.hrv != null;
-      // The night is a watch's when a device sync wrote its hours: the route's `sleepFromDevice`,
-      // from the snapshot's per-field sources (bsCiDay in BSCheckinCard.jsx keeps the same rule).
-      // A watch worn by day reports a resting heart rate with no night, so that is the sign only
-      // on a server without the series.
-      const devNights = Array.isArray(p.series.sleepFromDevice) ? p.series.sleepFromDevice : null;
-      const devToday = devNights ? devNights.some((s) => s && s.date === todayIso) : hasDeviceMeta;
-      // A check-in counts as logged from a MANUAL signal: energy/hunger, the rested
-      // rating, or manually-entered sleep hours — never a passive device sync alone
-      // (so sleep/rested-only check-ins stay collapsed after reload, but a wearable
-      // syncing sleep doesn't fake a "logged ✓" the member never tapped).
-      if (e || h || qToday || (sToday && !devToday)) setLogged(true);
-      if (sToday) {
-        setSleepHours(Number(sToday.value));
-        setSleepSynced(devToday);
-        if (hasDeviceMeta) setSleepMeta(meta);
-      }
-      if (qToday) setRested(Math.round(Number(qToday.value)));
-    }).catch(() => {});
-    return () => { on = false; };
-  }, [signedIn]);
-
-  // ── hydration state (always live) ──
-  const [hyd, setHyd] = useStateBSC(null);   // liters today
-  // The member's own target, or null: progress is shown only against one they set (owner,
-  // 2026-10-19), never the route's 3 L stand-in (targetL).
-  const [hydTarget, setHydTarget] = useStateBSC(null);
-  const [lastDelta, setLastDelta] = useStateBSC(0);
-  const [hydBusy, setHydBusy] = useStateBSC(false);
-  const hydSeq = React.useRef(0);
-  React.useEffect(() => {
-    if (!signedIn || !window.ShapeHydration?.get) return undefined;
-    let on = true;
-    window.ShapeHydration.get().then((d) => { if (on && d && d.ok) { setHyd(Number(d.hydrationL) || 0); setHydTarget(Number(d.targetStoredL) > 0 ? Number(d.targetStoredL) : null); } }).catch(() => {});
-    return () => { on = false; };
-  }, [signedIn]);
-
-  // Optimistic update + rollback on failure + stale-response guard (hydSeq) + an
-  // in-flight lock (hydBusy) so rapid taps can't overlap. Signed-out preview updates
-  // locally only (no write).
-  const addWater = async (deltaL) => {
-    if (hydBusy) return;
-    // Signed-in but the live writer is missing → fail closed: never show an optimistic
-    // value that can't persist (honest data). Signed-out preview stays local-only below.
-    if (signedIn && !window.ShapeHydration?.add) { window.__bsToast?.(tr('home:today.hydrationUnavailable', { defaultValue: 'Hydration is unavailable — try again' }), 'err'); return; }
-    const prev = Number(hyd) || 0;
-    const optimistic = Math.max(0, Math.round((prev + deltaL) * 1000) / 1000);
-    setHyd(optimistic); setLastDelta(deltaL);
-    if (!signedIn) return;   // preview/demo — local only
-    const seq = ++hydSeq.current;
-    setHydBusy(true);
-    try {
-      const d = await window.ShapeHydration.add(deltaL);
-      if (seq === hydSeq.current && d && d.ok) setHyd(Number(d.hydrationL) || 0);   // reconcile, ignore stale
-    } catch (e) {
-      if (seq === hydSeq.current) { setHyd(prev); setLastDelta(0); }                 // roll back the failed add
-      window.__bsToast?.(tr('home:today.waterFailed', { defaultValue: 'Could not log water — try again' }), 'err');
-    } finally {
-      if (seq === hydSeq.current) setHydBusy(false);
-    }
-  };
-  const undoWater = () => { if (lastDelta && !hydBusy) { addWater(-lastDelta); setLastDelta(0); } };
-
-  // ── derived ──
-  const nothingSet = energy == null && hunger == null && sleepHours == null && rested == null;
-  const showForm = !logged || editing;
-
-  const doLog = async () => {
-    if (nothingSet || saving) return;
-    // Signed-out preview: never fake a "logged ✓" — nothing is persisted. Nudge to join.
-    if (!signedIn) { window.__bsToast?.(tr('home:today.joinToSave', { defaultValue: 'Join Shape to save your check-in' }), 'ok'); return; }
-    // Live writer missing → fail closed: don't await an undefined call as "success".
-    if (!window.ShapeCheckin?.log) { window.__bsToast?.(tr('home:today.checkinUnavailable', { defaultValue: 'Check-in is unavailable — try again' }), 'err'); return; }
-    setSaving(true);
-    try {
-      const d = await window.ShapeCheckin.log({ energy, hunger, sleepHours, sleepQuality: rested });
-      // A watch's night stands over typed hours (the route keeps it), so show the watch's.
-      if (d && d.sleepFromDevice && d.sleepHours != null) { setSleepHours(Number(d.sleepHours)); setSleepSynced(true); }
-      setLogged(true); setEditing(false);   // only after the write succeeds
-    } catch (e) {
-      window.__bsToast?.(tr('home:today.checkinFailed', { defaultValue: 'Could not save check-in — try again' }), 'err');
-    } finally { setSaving(false); }
-  };
-
-  // ── gauge (tap-to-set 1–10, filled with an end-anchor knob over 10 tap zones) ──
-  const Gauge = ({ label, val, set, c }) => {
-    const pct = Math.max(0, Math.min(1, (val || 0) / 10));
-    return (
-      <div style={{ marginBottom: 2 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}><span aria-hidden style={{ display: 'inline-block', width: 10, height: 3, background: c, marginRight: 7, verticalAlign: '2px' }} />{label}</span>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1, color: val ? c : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{val || '—'}<span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}> /10</span></span>
-        </div>
-        {/* gauge track (bare hairline fill + segment ticks + end-anchor) inside a
-            34px tap row — squared, frameless (the Open Ledger pass); still
-            comfortably over the 24px tap floor */}
-        <div style={{ position: 'relative', height: 34 }}>
-          <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 5, background: bsTHexA(t.INK, 0.09), overflow: 'hidden' }}>
-            <div style={{ width: `${pct * 100}%`, height: '100%', background: c, transition: 'width .16s ease' }} />
-          </div>
-          {Array.from({ length: 9 }).map((_, i) => (
-            <div key={i} aria-hidden style={{ position: 'absolute', left: `${((i + 1) / 10) * 100}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 1, height: 5, background: t.PAPER, opacity: 0.55 }} />
-          ))}
-          {val ? <div aria-hidden style={{ position: 'absolute', left: `${pct * 100}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 13, height: 13, borderRadius: 999, background: c, border: `2px solid ${t.PAPER}`, boxShadow: `0 0 6px ${c}99` }} /> : null}
-          <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)' }}>
-            {Array.from({ length: 10 }).map((_, i) => { const v = i + 1; return (
-              <button key={v} onClick={() => set(v)} aria-pressed={val === v ? 'true' : 'false'} aria-label={tr('home:today.gaugeAria', { defaultValue: '{label} {v} of 10', label, v })} style={{ height: '100%', minHeight: 34, border: 0, background: 'transparent', cursor: 'pointer', padding: 0 }} />
-            ); })}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ── hydration display ──
-  const cur = Number(hyd) || 0;
-  const hpct = hydTarget > 0 ? Math.min(1, cur / hydTarget) : 0;
-  const L = (n) => `${(Math.round(n * 100) / 100)}`;
-  const ML = 0.25, ML2 = 0.5, OZ = 0.2366, OZ2 = 0.4732; // 8oz / 16oz in liters
-  const glassL = t.isMetric ? 0.25 : 0.2366;             // one quick-add ≈ one dot
-  const dotCount = Math.max(6, Math.min(14, Math.round((hydTarget || 3) / glassL)));
-  const filledDots = Math.max(0, Math.min(dotCount, Math.round(hpct * dotCount)));
-  const chips = t.isMetric ? [['+250 ml', ML], ['+500 ml', ML2]] : [['+8 oz', OZ], ['+16 oz', OZ2]];
-  const hydDisplay = !hydTarget ? (t.isMetric ? `${L(cur)} L` : `${Math.round(cur * 33.814)} oz`)
-    : t.isMetric ? `${L(cur)} / ${L(hydTarget)} L` : `${Math.round(cur * 33.814)} / ${Math.round(hydTarget * 33.814)} oz`;
-
-  // ── Open Ledger stations (owner call 2026-07-13: the tinted clipped plates
-  // die) — each block is a zero-box station on a hairline rule; the accent
-  // rides each eyebrow's tick and the gauge fills, never a fill or a frame.
-  // Plain function (not a JSX component) so React keeps the DOM nodes stable
-  // across re-renders and the one-shot entrances never replay on a gauge tap.
-  const station = (key, c, i, body) => (
-    <div key={key} style={{ padding: '11px 0 12px', borderBottom: `1px solid ${t.HAIR}`, ...(reduced ? null : { animation: `bsSdFadeUp 420ms ease ${80 + i * 85}ms both` }) }}>
-      {body}
-    </div>
-  );
-  const tick = (c) => <span aria-hidden style={{ display: 'inline-block', width: 10, height: 3, background: c, marginRight: 7, verticalAlign: '2px' }} />;
-  return (
-    <div data-bs-checkin style={{ margin: `0 ${t.padX}px 12px` }}>
-      {showForm ? (
-        <>
-          {station('energy', teal, 0, <Gauge label={tr('home:today.energy', { defaultValue: 'Energy' })} val={energy} set={setEnergy} c={teal} />)}
-          {station('hunger', amber, 1, <Gauge label={tr('home:today.hunger', { defaultValue: 'Hunger' })} val={hunger} set={setHunger} c={amber} />)}
-          {/* SLEEP — device-first hours (read-only snapshot when a wearable synced) */}
-          {station('sleep', blue, 2, (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>{tick(blue)}{tr('home:today.sleepLastNight', { defaultValue: 'Sleep · last night' })}</span>
-                {sleepHours != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: blue }}>{bsSleepHM(sleepHours)}</span>}
-              </div>
-              {sleepSynced ? (
-                // device-synced → read-only recovery snapshot (hours shown above)
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>
-                  {[
-                    sleepMeta && sleepMeta.efficiency != null ? `${sleepMeta.efficiency}% efficient` : null,
-                    sleepMeta && sleepMeta.rhr != null ? `RHR ${sleepMeta.rhr}` : null,
-                    sleepMeta && sleepMeta.hrv != null ? `HRV ${sleepMeta.hrv}` : null,
-                  ].filter(Boolean).join(' · ') || tr('home:today.syncedFromDevice', { defaultValue: 'Synced from your device' })}
-                </div>
-              ) : (
-                // not synced → manual hours chips: stay visible, selectable, tap-again to clear
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {[6, 6.5, 7, 7.5, 8, 8.5].map((h) => { const sel = sleepHours === h; return (
-                    <button key={h} onClick={() => setSleepHours(sel ? null : h)} aria-label={tr('home:today.hoursOfSleep', { defaultValue: '{h} hours of sleep', h })} aria-pressed={sel ? 'true' : 'false'} style={{ flex: 1, minWidth: 44, borderRadius: 0, border: 0, borderBottom: `2px solid ${sel ? blue : t.HAIR}`, background: 'transparent', color: sel ? blue : t.INK70, cursor: 'pointer', padding: '7px 0 6px', fontFamily: t.MONO, fontSize: 10, fontWeight: sel ? 800 : 700 }}>{h}</button>
-                  ); })}
-                </div>
-              )}
-            </>
-          ))}
-          {station('rested', blue, 3, <Gauge label={tr('home:today.rested', { defaultValue: 'Rested' })} val={rested} set={setRested} c={blue} />)}
-          <button onClick={doLog} disabled={nothingSet || saving} style={{ margin: '14px 0 4px', width: '100%', border: 0, background: (nothingSet || saving) ? t.HAIR : teal, color: (nothingSet || saving) ? t.INK50 : '#04201d', cursor: saving ? 'default' : 'pointer', padding: '11px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)', ...(reduced ? null : { animation: 'bsSdFadeUp 420ms ease 425ms both' }) }}>{saving ? tr('home:today.saving', { defaultValue: 'Saving…' }) : tr('home:today.logToday', { defaultValue: 'Log today' })}</button>
-        </>
-      ) : (
-        station('summary', teal, 0, (
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-            <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.5, minWidth: 0 }}>{tr('home:today.energy', { defaultValue: 'Energy' })} <b style={{ color: teal }}>{energy ?? '—'}</b> · {tr('home:today.hunger', { defaultValue: 'Hunger' })} <b style={{ color: amber }}>{hunger ?? '—'}</b>{sleepHours != null ? <> · {tr('home:today.sleep', { defaultValue: 'Sleep' })} <b style={{ color: blue }}>{bsSleepHM(sleepHours)}</b></> : null}{rested != null ? <> · {tr('home:today.rested', { defaultValue: 'Rested' })} <b style={{ color: blue }}>{rested}</b></> : null} · {tr('home:today.loggedInline', { defaultValue: 'logged ✓' })}</div>
-            <button onClick={() => setEditing(true)} style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50 }}>{tr('home:action.edit', { defaultValue: 'Edit' })}</button>
-          </div>
-        ))
-      )}
-
-      {/* HYDRATION — its own station, STAYS LIVE whether or not the check-in is logged */}
-      {station('hydration', teal, showForm ? 5 : 1, (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{tick(teal)}{tr('home:today.hydration', { defaultValue: 'Hydration' })}</span>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hyd == null ? '—' : <>{hydDisplay}{hydTarget ? <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> · {Math.round(hpct * 100)}%</span> : null}</>}</span>
-          </div>
-          {/* dot progress — one dot ≈ one quick-add glass, against the member's own target only */}
-          {hydTarget ? <div style={{ display: 'flex', gap: 4, marginBottom: 7 }}>
-            {Array.from({ length: dotCount }).map((_, i) => (
-              <div key={i} aria-hidden style={{ flex: '1 1 0', minWidth: 6, height: 9, borderRadius: 2, background: i < filledDots ? teal : 'transparent', border: `1px solid ${i < filledDots ? teal : t.RULE}` }} />
-            ))}
-          </div> : null}
-          {/* quick-add row */}
-          <div style={{ display: 'flex', gap: 8 }}>
-            {chips.map(([lab, d]) => (
-              <button key={lab} onClick={() => addWater(d)} disabled={hydBusy} style={{ flex: 1, borderRadius: 3, clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)', border: `1px solid ${teal}66`, background: `${teal}14`, color: t.INK, cursor: hydBusy ? 'default' : 'pointer', opacity: hydBusy ? 0.5 : 1, padding: '8px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>{lab}</button>
-            ))}
-            <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label={tr('home:today.undoWater', { defaultValue: 'Undo last water' })} style={{ width: 44, borderRadius: 0, border: 0, borderBottom: `2px solid ${(lastDelta && !hydBusy) ? t.RULE : t.HAIR}`, background: 'transparent', color: (lastDelta && !hydBusy) ? t.INK : t.INK50, cursor: (lastDelta && !hydBusy) ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
-          </div>
-        </>
-      ))}
-
-      {/* recovery readiness + the door to the full sleep detail page */}
-      {signedIn && (
-        <div style={{ padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...(reduced ? null : { animation: `bsSdFadeUp 420ms ease ${showForm ? 595 : 250}ms both` }) }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>
-            {readiness != null ? <>{tr('home:today.recovery', { defaultValue: 'Recovery' })} <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : tr('home:today.sleepRecovery', { defaultValue: 'Sleep & recovery' })}
-          </span>
-          <button onClick={() => setDetail(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>{tr('home:today.sleepDetail', { defaultValue: 'Sleep detail →' })}</button>
-        </div>
-      )}
-      {/* THE CYCLE — the quiet Today chip. Renders itself only inside the
-          expected window (opted in · a real prediction · today not already
-          logged); on every other day it is simply absent. */}
-      <BSCycleTodayChip />
-      {detail && <BSSleepHistory onClose={() => setDetail(false)} />}
-    </div>
-  );
+  return <BSIndexRow label={tr('home:mornings.link', { defaultValue: 'Your mornings' })} onOpen={onOpen} />;
 }
 
 function bsStrengthStatusMeta(status, t, tier) {
@@ -30314,6 +29862,17 @@ function bsGoalVolume(t, lb) {
   if (!n) return '—';
   const m = t.uMeasure(n, 'lb');
   return `${(Number(m.value) / 1000).toFixed(1)}k ${m.unit || 'lb'}`;
+}
+
+// The week's sleep for Goals' "This week": the average of the nights dated today and the six days
+// before, by the member's own days (the engine's week; nothing dated after today), to a tenth of an
+// hour. 0 when no night is in it, which the row reads as "—". kpis.sleepAvg is the last 30 days
+// (part 2), so it would have quoted the month under "This week".
+function bsGoalWeekSleep(series, todayIso) {
+  const from = bsCiShift(todayIso, -6);
+  const nights = (series && Array.isArray(series.sleep) ? series.sleep : [])
+    .filter((p) => p && p.date >= from && p.date <= todayIso && Number(p.value) > 0).map((p) => Number(p.value));
+  return nights.length ? Math.round((nights.reduce((a, b) => a + b, 0) / nights.length) * 10) / 10 : 0;
 }
 
 function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
@@ -30492,7 +30051,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       const thisWk = (train && train.stats && Number(train.stats.thisWeekCount)) || 0;
       const adher = (nutr && Number(nutr.adherentDays7)) || 0;
       const proteinTgt = (det.nutrition && det.nutrition.protein) || null; // same rule as sessTarget — no invented threshold
-      const sleep = (prog && prog.kpis && Number(prog.kpis.sleepAvg)) || 0;
+      const sleep = bsGoalWeekSleep(prog && prog.series, bsCiIso(new Date())); // this week's nights, by date
       const vol7 = (train && train.stats && Number(train.stats.volume7dLb)) || 0;
       setLiveWeek([
         // Unknown target → the same words the honest-empty set above uses, so the
@@ -38664,9 +38223,6 @@ const BSPROG_DEMO = {
       volume: [180, 195, 205, 210, 225, 200, 230, 240, 250, 235, 255, 260, 270, 255, 280, 275, 290, 285, 300, 295],
       protein: [142, 138, 156, 148, 160, 164, 158, 168, 172, 165, 170, 175, 168, 180, 172, 178, 184, 175, 182, 185],
       hydration: [2.1, 2.4, 2.2, 2.6, 2.5, 2.7, 2.3, 2.8, 2.6, 2.9, 2.7, 3, 2.8, 3.1, 2.9, 3, 2.8, 3.1, 2.9, 3],
-      energy: [5, 5, 6, 5, 6, 6, 7, 6, 7, 7, 6, 7, 8, 7, 7, 8, 8, 7, 8, 8],
-      hunger: [7, 7, 6, 7, 6, 6, 6, 5, 6, 5, 6, 5, 5, 5, 4, 5, 5, 4, 5, 4],
-      sleepQuality: [5, 6, 6, 5, 7, 6, 7, 7, 6, 7, 8, 7, 7, 8, 7, 8, 8, 7, 8, 8],
     },
   },
   train: {
@@ -38714,7 +38270,7 @@ const BSPROG_EMPTY = {
   overall: {
     kpis: { weightChange: null, weightLatest: null, bodyFatLatest: null, bodyFatFirst: null, restingHr: null, restingHrDelta: null, sleepAvg: null },
     prs: [],
-    series: { weight: [], bodyFat: [], strength: [], restingHr: [], sleep: [], hrv: [], volume: [], protein: [], hydration: [], energy: [], hunger: [], sleepQuality: [] },
+    series: { weight: [], bodyFat: [], strength: [], restingHr: [], sleep: [], hrv: [], volume: [], protein: [], hydration: [] },
   },
   train: {
     stats: { completedCount: 0, thisWeekCount: 0, volume7dLb: 0, avgRpe: null, currentStreak: 0, longestStreak: 0, totalVolumeLb: 0 },
@@ -38734,12 +38290,9 @@ const BSPROG_TREND_TABS = [
   { k: 'strength', label: 'Strength', unit: 'lb', fmt: (v) => Math.round(v) },
   { k: 'restingHr', label: 'Resting HR', unit: 'bpm', fmt: (v) => Math.round(v) },
   { k: 'sleep', label: 'Sleep', unit: 'h', fmt: (v) => v.toFixed(1) },
-  // The daily check-in gauges (1–10 self-ratings, series served by
-  // /api/client/progress since the check-in engine wave) — a member who logs
-  // energy/hunger/rested every day can finally SEE the trend they're feeding.
-  { k: 'energy', label: 'Energy', unit: '/10', fmt: (v) => v.toFixed(1) },
-  { k: 'hunger', label: 'Hunger', unit: '/10', fmt: (v) => v.toFixed(1) },
-  { k: 'sleepQuality', label: 'Rested', unit: '/10', fmt: (v) => v.toFixed(1) },
+  // Energy, Hunger and Rested left these tabs for Your mornings (part 2, the BSMorningsDoor under
+  // 'The trend'): there they read by date and in the member's words, where a chart here spaced the
+  // answers evenly and printed them '/10'.
   { k: 'hrv', label: 'HRV', unit: 'ms', fmt: (v) => Math.round(v) },
   { k: 'volume', label: 'Volume', unit: 'min', fmt: (v) => Math.round(v) },
   { k: 'protein', label: 'Protein', unit: 'g', fmt: (v) => Math.round(v) },
@@ -39068,12 +38621,13 @@ function BSCycleCard({ isSelf }) {
   );
 }
 
-// ── THE CYCLE — the Today chip (spec 2026-07-19) ────────────────────────────
+// ── THE CYCLE — the cycle chip (spec 2026-07-19) ────────────────────────────
 // Quiet, and ONLY inside the expected window: opted in AND the engine actually
 // has a prediction (predictedStart is null for no-starts and for 'paused' —
 // the window arithmetic must never run on it) AND today sits in
-// [from − 2d, to + 7d] AND today isn't already logged. Lives on the Today
-// page, never the Home slate (doctrine: Home stays neutral).
+// [from − 2d, to + 7d] AND today isn't already logged. Lives on Your mornings
+// (BSYourMornings.jsx, handed in as its `cycleChip` by Home and by Progress, since the page
+// never imports this module), never on Home or the morning card (doctrine: Home stays neutral).
 function BSCycleTodayChip() {
   const t = useBS();
   const tr = useShapeTr();
@@ -39236,6 +38790,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   const [measRows, setMeasRows] = useStateBSC([]);
   const [photoRows, setPhotoRows] = useStateBSC([]);
   const [strengthOpen, setStrengthOpen] = useStateBSC(null); // null | { key } when open
+  const [morningsOpen, setMorningsOpen] = useStateBSC(false); // Your mornings, opened from its door under 'The trend'
   React.useEffect(() => {
     let on = true;
     window.ShapeProgress?.progress?.().then((d) => { if (on && d) setProg(d); }).catch(() => {});
@@ -39322,7 +38877,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   const wc = (v) => { if (v == null) return '—'; const m = wt(v); return (m.n > 0 ? '+' : m.n < 0 ? '−' : '') + Math.abs(m.n) + ' ' + m.unit; };
   // ⚠ THE SERIES AND ITS LABEL CONVERT TOGETHER OR NOT AT ALL. The tabs declare
   // their native unit — 'lb' for Weight and Strength, and a non-convertible
-  // token ('bpm', '%', 'h', '/10') for the rest, which `uMeasure`/`uLabel` pass
+  // token ('bpm', '%', 'h', 'ms') for the rest, which `uMeasure`/`uLabel` pass
   // through untouched. Converting the heading alone would plot pounds under a
   // "kg" label, which is the one outcome worse than not converting at all.
   const activeTrendRaw = BSPROG_TREND_TABS.find((x) => x.k === trend) || BSPROG_TREND_TABS[0];
@@ -39369,6 +38924,8 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
           <BSProgChart points={trendVals} color={heat} />
         </>
       ))}
+      {/* Energy, Hunger and Rested live on Your mornings now, by date and in words: their door. */}
+      <BSMorningsDoor onOpen={() => setMorningsOpen(true)} />
       {station('Personal records', 'From your sets', (O.prs || []).length ? (O.prs || []).map((p, i) => (
         <div key={i} role="button" tabIndex={0} onClick={() => setStrengthOpen({})} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStrengthOpen({}); } }} style={{ display: 'flex', alignItems: 'baseline', gap: 10, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${hair}` : 0, cursor: 'pointer' }}>
         <span style={{ minWidth: 0 }}>
@@ -39548,6 +39105,12 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
     </div>
   );
   const tabBody = tab === 'overall' ? overallView : tab === 'training' ? trainingView : nutritionView;
+  // Your mornings is Progress's own takeover, as the strength history is, so both of Progress's hosts
+  // (Home and Settings) get it with nothing to wire, and its Back returns here on the same tab. It is
+  // a page of its own (its own BSPage), so it replaces this one rather than sit over it.
+  if (morningsOpen) {
+    return <BSYourMornings onBack={() => setMorningsOpen(false)} cycleChip={<BSCycleTodayChip />} checkinsOn={window.ShapeCheckinPref ? window.ShapeCheckinPref.on() !== false : true} />;
+  }
   return (
     <BSPage>
       {strengthOpen && <BSStrengthHistory focusKey={strengthOpen.key || null} onClose={() => setStrengthOpen(null)} />}

@@ -563,6 +563,9 @@ test('the app station: the timeline, the next step, and the member\'s own target
 test('the app station sits on Home for a signed-in member, after the check-ins, and reads the route the website reads', () => {
   const home = slice(client, 'function BSClientHome(', '\nfunction ');
   assert.match(home, /\{bsHomeSignedIn && \(\n\s+<BSMemberSetupStation onGoal=\{\(\) => setGoalsPage\(true\)\} onTrain=\{\(\) => goTrain\?\.\(\)\} onCheckin=\{\(\) => setCheckinPage\(true\)\} onFindCoach=\{goMarket \? \(\) => goMarket\(\) : null\} \/>/);
+  // The Check-ins-off row (the door to Your mornings since part 2) has to be there for "under" to
+  // mean anything: a missing one reads -1 and the order check below would pass on nothing.
+  assert.ok(home.indexOf('<BSTodayNudge variant="row"') > 0, 'the Check-ins-off row is gone from Home');
   assert.ok(home.indexOf('<BSMemberSetupStation') > home.indexOf('<BSTodayNudge variant="row"'), 'under the check-ins');
   assert.ok(home.indexOf('<BSMemberSetupStation') < home.indexOf('FOCUS · THE NEXT STOP'), 'above the next stop');
   const backend = read('mobile-app/src/services/shapeBackend.js');

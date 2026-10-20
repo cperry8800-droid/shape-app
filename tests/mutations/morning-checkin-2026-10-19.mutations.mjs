@@ -383,12 +383,8 @@ export default {
     { name: "the queue reads the signature's week as the cited list", file: NOTIFY,
       find: 'quietSleepMove(\'sleep\', parts[parts.length - 2].split(\',\'))',
       replace: 'quietSleepMove(\'sleep\', parts[parts.length - 1].split(\',\'))' },
-    { name: 'the check-in page shows progress against the 3 L stand-in', file: CLIENT,
-      find: 'setHydTarget(Number(d.targetStoredL) > 0 ? Number(d.targetStoredL) : null)',
-      replace: 'setHydTarget(Number(d.targetL) || 3.0)' },
-    { name: 'the check-in page says a percentage of no target', file: CLIENT,
-      find: '{hydTarget ? <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> · {Math.round(hpct * 100)}%</span> : null}',
-      replace: '<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> · {Math.round(hpct * 100)}%</span>' },
+    // The old check-in page's two water-target mutations went with the page (part 2, 2026-10-19): water
+    // is Home's line alone, and its own-target rule is guarded with the water line above.
     { name: 'Same as yesterday types over a skipped night', file: CARD,
       find: 'const same = bsCiSamePatch(yesterday, today, sleepSkipped);',
       replace: 'const same = bsCiSamePatch(yesterday, today);' },

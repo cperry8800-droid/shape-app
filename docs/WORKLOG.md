@@ -170,13 +170,12 @@ planned builds.
   ([`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md)). This waits on a
   signed station provider.
 - The Morning check-in
-  ([`REVIEW-2026-10-19-morning-checkin.md`](REVIEW-2026-10-19-morning-checkin.md) §5). Part 1
-  is built: two morning steps (sleep with "How did you wake up?", then energy) with a read of
-  what the answers mean, hunger as an evening question for nutritionist clients, water as its
-  own Home line, a sleep lead on Home, and a reminder that skips a day already answered. Still
-  to build:
-  - Part 2: the Your mornings page, retiring the old "How are you." page and moving its doors;
-  - Part 3: patterns, Nora reading the answers, and the website's `DashTodayCard`.
+  ([`REVIEW-2026-10-19-morning-checkin.md`](REVIEW-2026-10-19-morning-checkin.md) §5). Parts 1
+  and 2 are built: the two morning steps with a read of what they mean, evening hunger for
+  nutritionist clients, water as its own Home line, Morning readiness (`morningReadiness.mjs`) and
+  Your mornings (`BSYourMornings.jsx`), which replaced the old "How are you." page and took its
+  doors. Still to build, part 3: patterns, Nora reading the answers, and the website's
+  `DashTodayCard`.
 
 **Known gaps**
 - `get_display_names` returns a full name and photo for any id, whoever asks.
@@ -247,12 +246,16 @@ planned builds.
   samples, as for steps), and so does a drink logged in both Apple Health and Shape. Deleting every
   drink in a sync's window leaves Apple Health's last reading. Nora's meal-log undo refuses when a
   sync moved the day's water in between. The Daily check-in reminder fires on a day already done.
-- The Morning check-in (part 1): until part 2 retires it, the old "How are you." page (the energy and
-  water leads, and Check-ins off) still asks every member hunger on a 1-10 gauge and saves on Log
-  today. A failed read of a stored water target reads as none, so the water line offers "Set a daily
-  target". With Check-ins off the engine reads no water, so a target never brings "Water is behind".
-  A night skipped on one device is still asked on another: the card reads its skip from the device,
-  and only the reminder reads the one saved on the day's row (`sleep_skipped`).
+- The Morning check-in: a failed read of a stored water target reads as none, so the water line
+  offers "Set a daily target". With Check-ins off the engine reads no water, so a target never brings
+  "Water is behind". A skip is never cleared: a skipped night that later gets hours counts them, but
+  Same as yesterday still won't copy Rested onto it. The energy lead still says "I'll take it
+  lighter →" but opens Your mornings, and the hydration lead does nothing when Home's water line
+  isn't on screen. Pushes and bell rows sent before part 2 keep their "/10", and the website's coach
+  Today message draft still puts the coach's "/10" reason in front of the member. The website (part
+  3) still asks every member hunger on 1-10 gauges and shows its own Energy, Hunger and Rested
+  trends. The card's streak line, evening label and Answer button are small amber text on light
+  papers.
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
   `/m/`, sheets add no history entry.
 

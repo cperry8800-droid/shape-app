@@ -8,9 +8,10 @@ import {
   inQuietHours, localHour, DEFAULT_PREFS, channelsForType, habitReminderCandidates,
   dailyCheckinOn, MAX_SIGS_PER_KEY, MAX_STAMP_KEYS, MAX_PENDING_DIGEST, isQuietSleepItem,
 } from '../src/lib/ai/notifications.mjs';
+import { speakableDirective } from '../src/lib/ai/tone.mjs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { evaluateClient, buildDirective } = require('../public/newdesign/dashSignals.js');
+const { evaluateClient, buildDirective, getTriageFeed } = require('../public/newdesign/dashSignals.js');
 
 const TZ = 'UTC';
 const DAYTIME = new Date('2026-06-17T10:00:00Z'); // 10:00 — outside default quiet
@@ -987,4 +988,33 @@ test('a real shortfall and a coach sleep move queued overnight reach the digest;
   const out = decideNotifications({ candidates: streak, last: { date: 'never', pendingDigest: [mild] }, prefs, now: DAYTIME, audience: 'client' });
   assert.equal(out.digest, null, 'the purged queue fired this call\'s deferral at once');
   assert.deepEqual(out.nextState.pendingDigest.map((i) => i.type), ['streak_broken']);
+});
+
+// ── the member's push says the check-in's words; the coach's keeps /10 (Morning check-in part 2) ──
+// The same steps as notify-core.candidatesFor (TypeScript, so not loadable here): the member's
+// record through buildDirective as 'client' and speakableDirective into clientCandidates, and the
+// coach's roster through getTriageFeed with their role into coachCandidates. The push is also the
+// bell row the app shows word for word, so a figure here reaches the member twice.
+test("an energy or hunger push to the member says the word, never /10; the coach's alert keeps the figure", () => {
+  const push = (vitals) => {
+    const record = { profile: { id: 'u1', name: 'You' }, vitals };
+    const directive = buildDirective(record, DAYTIME, 'client');
+    const line = speakableDirective(directive, 'supportive');
+    const { flags } = evaluateClient(record, DAYTIME, 'client');
+    return clientCandidates({ directive: { ...directive, line }, flags, now: DAYTIME, tone: 'supportive' }).find((c) => c.type === 'directive');
+  };
+  const energy = push({ energy: { avg7: 3.4, n: 5 } });
+  assert.equal(energy.body, "Energy is running low. Your energy has been low on average this week — a lighter session still counts. When you're ready, take today lighter.");
+  assert.doesNotMatch(energy.body, /\/10/);
+  const hunger = push({ hunger: { avg7: 8.6, n: 4 } });
+  assert.equal(hunger.body, "Fuel is running short. You've been starving between meals on average this week — the plan may be running light on fuel. When you're ready, add a real meal today.");
+  assert.doesNotMatch(hunger.body, /\/10/);
+
+  const client = { userId: 'c1', profile: { name: 'Ana' }, vitals: { energy: { avg7: 3.4, n: 5 } } };
+  const rows = getTriageFeed('trainer', [client], DAYTIME).map((r) => ({
+    clientId: r.client.userId, clientName: r.client.profile.name, severity: r.severity, reason: r.reasons[0] || '', flags: r.flags,
+  }));
+  const [alert] = coachCandidates({ triageRows: rows, lastSeverity: {}, providerRole: 'trainer' });
+  assert.equal(alert.body, 'Energy has averaged 3.4/10 this week — a lighter session still counts');
+  assert.equal(alert.sig, 'amber:Energy has averaged 3.4/10 this week — a lighter session still counts', "the coach's alert signature moved, so every coach would be re-sent");
 });

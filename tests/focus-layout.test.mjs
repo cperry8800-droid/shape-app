@@ -220,7 +220,7 @@ globalThis.window.addEventListener = () => {};
 globalThis.window.removeEventListener = () => {};
 const sent = [];
 globalThis.ShapeIntegrations = { sendGroceryToInstacart: async (x) => { sent.push(x); } };
-const { BSGrocery, BSClientTrain, BSClientHome, bsBuildPlanGrocery } = await loadBroadsheet(['BSGrocery', 'BSClientTrain', 'BSClientHome', 'bsBuildPlanGrocery'], SHIM);
+const { BSGrocery, BSClientTrain, BSClientHome, bsBuildPlanGrocery, BSYourMornings, BSCycleTodayChip } = await loadBroadsheet(['BSGrocery', 'BSClientTrain', 'BSClientHome', 'bsBuildPlanGrocery', 'BSYourMornings', 'BSCycleTodayChip'], SHIM);
 const byType = (d, name) => d.nodes().filter((n) => typeof n.type === 'function' && n.type.name === name);
 
 test('the Grocery page opens by aisle, on the first aisle with anything left', () => {
@@ -292,6 +292,29 @@ test('Home reads in the Focus order: check-in, next stop, your line, at a glance
   assert.ok(habits > steps, 'daily habits is a link at the foot');
   assert.equal(typeof order[habits].props.onOpen, 'function');
   assert.doesNotMatch(d.text, /Today's slate/, 'the old slate head is gone');
+});
+
+// Part 2: the morning card's door (its done line and summary) and, with Check-ins off, the quiet row
+// open Your mornings in Home's place, with the cycle chip handed in (it is never drawn on Home), and
+// the page's Back is Home again.
+test("Home's check-in doors open Your mornings in Home's place, and its Back is Home", () => {
+  delete globalThis.ShapeAuth;
+  const d = drive(BSClientHome, { onProfile() {}, goCalendar() {}, goRadio() {}, goTrain() {}, goEat() {}, goMarket() {}, goScore() {}, goChat() {}, goIntegrations() {}, tweaks: {}, setTweak() {} });
+  const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
+  assert.equal(d.nodes().some(fn('BSCycleTodayChip')), false, 'the cycle chip is drawn on Home');
+  for (const variant of ['bulletin', 'row']) {
+    const door = d.nodes().find((n) => fn('BSTodayNudge')(n) && n.props.variant === variant);
+    assert.ok(door && typeof door.props.onOpen === 'function', `Home has no ${variant} door`);
+    door.props.onOpen();
+    d.render();
+    const page = d.nodes()[0];
+    assert.equal(page.type, BSYourMornings, `the ${variant} door did not open Your mornings`);
+    assert.equal(page.props.cycleChip && page.props.cycleChip.type, BSCycleTodayChip, 'the page lost the cycle chip');
+    assert.equal(page.props.checkinsOn, true, 'signed out, Check-ins reads on');
+    page.props.onBack();
+    d.render();
+    assert.ok(d.nodes().some(fn('BSTodayNudge')), `Back from the ${variant} door did not return to Home`);
+  }
 });
 
 test('the plan\'s list keeps every meal an ingredient is for, though its line names two', () => {

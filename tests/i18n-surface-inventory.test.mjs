@@ -351,7 +351,7 @@ const UNCOVERED = new Set([
   'BSIntegrationsPage::BSReconcile',
   'Client::BSRecordTrace', 'Client::BSSaveButton',
   'Client::BSScoreCardDark', 'Client::BSSearchCorner',
-  'Client::BSSessionsScreen', 'Client::BSSleepHistory', 'Client::BSStepGoalSheet',
+  'Client::BSSessionsScreen', 'Client::BSStepGoalSheet',
   'Client::BSStepsHistory', 'Client::BSStrengthCard', 'Client::BSStrengthHistory',
   'Client::BSSubprocessorsPage', 'Client::BSSwapSheet', 'Client::BSTermsPage',
   'Client::BSVideoCall', 'Client::BSWeekendsCard',
@@ -870,9 +870,15 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // (BSReminderManager, 2026-10-18) was localized when the Daily check-in reminder was added
   // (Codex on #2405): its 14 hardcoded strings, the six kind labels and the weekday names are keyed
   // under settings:reminders.* in all 13 locales or read from bsWeekdayName. Its line left UNCOVERED.
-  assert.equal(noneStrings, 638, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // ⚠ AND noneStrings 638 -> 617, none.length 81 -> 80: BSSleepHistory, the Sleep detail overlay
+  // only the old "How are you." page opened, was deleted with that page (Morning check-in part 2,
+  // 2026-10-19), with its 21 hardcoded strings. Your mornings (BSYourMornings.jsx) took its place,
+  // its page and its Progress door fully keyed under home:mornings.* in all 13 locales, so the
+  // fully-covered count holds at 172: those two came in as BSTodayPage and BSTodayCard went. Its
+  // line left UNCOVERED.
+  assert.equal(noneStrings, 617, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   assert.equal(part.length, 33, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 81, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 80, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

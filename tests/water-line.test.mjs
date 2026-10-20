@@ -648,3 +648,59 @@ test("litres are said in the member's language", async () => {
     m.unmount();
   } finally { theme.isMetric = false; delete dom.window.ShapeI18n.intlLocale; }
 });
+
+// ── The hydration lead opens this line (part 2, §3.7) ───────────────────────
+test("the hydration lead brings today's line to the middle of the screen and puts focus on + Glass", async () => {
+  const proto = dom.window.HTMLElement.prototype;
+  const had = Object.prototype.hasOwnProperty.call(proto, 'scrollIntoView') ? proto.scrollIntoView : undefined;
+  const scrolled = [];
+  assert.equal(WATER.bsWaterLineFocus(), false, 'a line that is not on screen was found');
+  env();
+  const m = await mount();
+  try {
+    const glass = m.button(/\+ Glass/);
+    // Where the browser has no scrollIntoView (jsdom), focus still lands.
+    delete proto.scrollIntoView;
+    assert.equal(WATER.bsWaterLineFocus(), true);
+    assert.ok(document.activeElement === glass, '+ Glass did not take focus');
+    glass.blur();
+    proto.scrollIntoView = function scrollIntoView(opts) { scrolled.push([this.hasAttribute('data-bs-water'), opts]); };
+    assert.equal(WATER.bsWaterLineFocus(), true);
+    assert.deepEqual(scrolled, [[true, { block: 'center', behavior: 'smooth' }]], 'the line was not brought to the middle of the screen');
+    assert.ok(document.activeElement === glass, '+ Glass lost focus after the scroll');
+    // With Reduce Motion on it jumps there: an explicit smooth scroll would override the setting.
+    glass.blur();
+    scrolled.length = 0;
+    const asked = [];
+    dom.window.matchMedia = (q) => { asked.push(q); return { matches: q === '(prefers-reduced-motion: reduce)' }; };
+    try {
+      assert.equal(WATER.bsWaterLineFocus(), true);
+      assert.deepEqual(asked, ['(prefers-reduced-motion: reduce)']);
+      assert.deepEqual(scrolled, [[true, { block: 'center', behavior: 'auto' }]], 'a member with Reduce Motion on got a smooth scroll');
+      assert.ok(document.activeElement === glass);
+      // Reduce Motion off is the smooth scroll; a matchMedia that throws still scrolls and focuses.
+      scrolled.length = 0;
+      dom.window.matchMedia = () => ({ matches: false });
+      WATER.bsWaterLineFocus();
+      assert.deepEqual(scrolled, [[true, { block: 'center', behavior: 'smooth' }]]);
+      scrolled.length = 0;
+      glass.blur();
+      dom.window.matchMedia = () => { throw new Error('no media queries here'); };
+      assert.equal(WATER.bsWaterLineFocus(), true);
+      assert.deepEqual(scrolled, [[true, { block: 'center', behavior: 'smooth' }]], 'a matchMedia that throws stopped the scroll');
+      assert.ok(document.activeElement === glass);
+    } finally { delete dom.window.matchMedia; }
+    // A scroll that throws still leaves the member one tap from a glass.
+    glass.blur();
+    proto.scrollIntoView = () => { throw new Error('no smooth scrolling here'); };
+    assert.equal(WATER.bsWaterLineFocus(), true);
+    assert.ok(document.activeElement === glass, 'a failed scroll left focus nowhere');
+    // The focused + Glass is the real one: it adds a glass.
+    await m.click(/\+ Glass/);
+    assert.match(m.text(), /Water25 oz/);
+  } finally {
+    if (had) proto.scrollIntoView = had; else delete proto.scrollIntoView;
+    m.unmount();
+  }
+  assert.equal(WATER.bsWaterLineFocus(), false, 'a line that left the screen was found');
+});

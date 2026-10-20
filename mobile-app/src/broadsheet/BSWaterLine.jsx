@@ -252,7 +252,7 @@ function BSWaterDay({ dayIso }) {
             {known ? litres(water.l) : '—'}
             {known && target ? <span style={{ color: t.INK50 }}> {tr('home:checkin.ofTarget', { defaultValue: 'of {target}', target: litres(target) })}</span> : null}
           </span>
-          <button type="button" onClick={addWater} disabled={!water} style={{ minHeight: 34, padding: '5px 12px', borderRadius: 4, border: `1px solid ${sky}80`, background: `${sky}14`, color: sky, cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5, ...mono, fontSize: 8.5, letterSpacing: '0.1em' }}>{tr('home:checkin.addGlass', { defaultValue: '+ Glass' })}</button>
+          <button type="button" data-bs-water-add="" onClick={addWater} disabled={!water} style={{ minHeight: 34, padding: '5px 12px', borderRadius: 4, border: `1px solid ${sky}80`, background: `${sky}14`, color: sky, cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5, ...mono, fontSize: 8.5, letterSpacing: '0.1em' }}>{tr('home:checkin.addGlass', { defaultValue: '+ Glass' })}</button>
         </div>
         {known && target ? (
           <span aria-hidden style={{ display: 'block', height: 3, background: t.HAIR, position: 'relative' }}>
@@ -275,4 +275,23 @@ function BSWaterDay({ dayIso }) {
 export function BSWaterLine() {
   const day = bsCiIso(new Date());
   return <BSWaterDay key={day} dayIso={day} />;
+}
+
+// ⚠ THE HYDRATION LEAD OPENS THIS LINE (part 2, §3.7): water has no page of its own any more, so "I'll
+// log water →" brings today's line to the middle of the screen and puts focus on + Glass, one tap
+// from a glass. True when the line is on screen to bring; false when it is not (a day that is over,
+// or Home not showing), and the lead then does nothing rather than open a page. With Reduce Motion on
+// it jumps there: an explicit smooth scroll overrides the setting (review on this PR). 'auto', never
+// 'instant', which older WebKit throws on.
+export function bsWaterLineFocus() {
+  const line = typeof document !== 'undefined' ? document.querySelector('[data-bs-water]') : null;
+  if (!line) return false;
+  let still = false;
+  try { still = !!window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* no matchMedia: a smooth scroll */ }
+  try {
+    if (typeof line.scrollIntoView === 'function') line.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
+  } catch (e) { /* a scroll that fails still leaves focus on + Glass */ }
+  // The scroll is already moving it, so focusing must not jump the page a second time.
+  line.querySelector('[data-bs-water-add]')?.focus?.({ preventScroll: true });
+  return true;
 }

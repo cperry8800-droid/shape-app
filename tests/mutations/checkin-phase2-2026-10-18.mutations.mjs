@@ -122,7 +122,7 @@ export default {
       find: '    setCheckinPage(false); setHomeProgressPage(false); setGoalsPage(false); setStepsHistory(false);\n',
       replace: '' },
     { name: 'with Check-ins off the reminder opens nothing', file: CLIENT,
-      find: '    setCheckinOpenReq(null);\n    setTodayPage(true);\n  }, [checkinOpenReq, checkinPrefSettled, checkinPrefOn]);',
+      find: '    setCheckinOpenReq(null);\n    setMorningsPage(true);\n  }, [checkinOpenReq, checkinPrefSettled, checkinPrefOn]);',
       replace: '    setCheckinOpenReq(null);\n  }, [checkinOpenReq, checkinPrefSettled, checkinPrefOn]);' },
     { name: "the card takes the reminder before the account's Check-ins setting has answered", file: CLIENT,
       find: 'openRequest={checkinPrefSettled ? checkinOpenReq : null}',
