@@ -48,7 +48,7 @@ export default {
     { name: "the person's own cap is ignored", file: CRON, find: "      const cap = typeof q.daily_cap === 'number' && Number.isFinite(q.daily_cap) ? q.daily_cap : DAILY_CAP;", replace: '      const cap = DAILY_CAP;' },
     { name: 'no place under the cap is reserved', file: CRON, find: '      if (!quiet) { pushed.set(n.watcherId, used + 1); reserved = true; }', replace: '      if (!quiet) { reserved = true; }' },
     { name: 'a push that did not happen keeps its place', file: CRON, find: "      if (reserved && outcome !== 'stored') pushed.set(n.watcherId, (pushed.get(n.watcherId) || 1) - 1);\n", replace: '' },
-    { name: 'pushes older than a day count against the cap', file: CRON, find: ' && str(r.created_at) >= dayAgo', replace: '' },
+    { name: 'pushes older than a day count against the cap', file: CRON, find: ' && Date.parse(str(r.created_at)) >= dayAgo', replace: '' },
     { name: 'a notice that landed quiet counts against the cap', file: CRON, find: 'if (ch && ch.push === true && ', replace: 'if (ch && ' },
     { name: 'a failed send counts as a mute', file: CRON, find: "      else if (outcome === 'failed') failed += 1;\n", replace: '' },
     { name: 'a failed zone read sends anyway', file: CRON, find: '  if (!profiles || !settings) {', replace: '  if (false) {' },

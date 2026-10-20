@@ -317,8 +317,10 @@ test('the person\'s daily cap bounds the pushes: past it a notice lands in the a
   assert.deepEqual(body, { ok: true, owed: 5, sent: 5, failed: 0, unsent: 0, truncated: false });
   assert.equal(sent.filter((n) => !n.quiet).length, 1, 'one push, the rest in the app only');
   t.mock.timers.reset();
-  // A push from more than a day ago does not count.
-  const stale = [{ ...prior[0], created_at: new Date(NOW - 30 * 60 * 60 * 1000 + 60_000).toISOString() }];
+  // A push from more than a day ago does not count, read as a time and not as text: in +14:00 it
+  // reads later than a day ago.
+  const at14 = (ms) => new Date(ms + 14 * 60 * 60 * 1000).toISOString().replace('Z', '+14:00');
+  const stale = [{ ...prior[0], created_at: at14(NOW - 30 * 60 * 60 * 1000 + 60_000) }];
   const fresh = await run(t, CAPPED({ n: 5, cap: 2, prior: stale }));
   assert.equal(fresh.sent.filter((n) => !n.quiet).length, 2);
   t.mock.timers.reset();

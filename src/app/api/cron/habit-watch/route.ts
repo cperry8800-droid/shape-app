@@ -221,13 +221,13 @@ async function handle(request: Request) {
   // overshoot it.
   const stored = new Set<string>();
   const pushed = new Map<string, number>();
-  const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+  const dayAgo = now - 24 * 60 * 60 * 1000;
   if (landed) {
     for (const r of landed) {
       const d = r.data as Row | null;
       if (d && typeof d.dedupe === 'string') stored.add(`${str(r.user_id)}|${d.dedupe}`);
       const ch = d && (d.channels as Row | undefined);
-      if (ch && ch.push === true && str(r.created_at) >= dayAgo) pushed.set(str(r.user_id), (pushed.get(str(r.user_id)) || 0) + 1);
+      if (ch && ch.push === true && Date.parse(str(r.created_at)) >= dayAgo) pushed.set(str(r.user_id), (pushed.get(str(r.user_id)) || 0) + 1);
     }
   } else {
     console.error("[shape] habit watch: could not read the evening's notices; the dedupe index refuses repeats");
