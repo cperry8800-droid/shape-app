@@ -280,12 +280,16 @@ export function BSWaterLine() {
 // ⚠ THE HYDRATION LEAD OPENS THIS LINE (part 2, §3.7): water has no page of its own any more, so "I'll
 // log water →" brings today's line to the middle of the screen and puts focus on + Glass, one tap
 // from a glass. True when the line is on screen to bring; false when it is not (a day that is over,
-// or Home not showing), and the lead then does nothing rather than open a page.
+// or Home not showing), and the lead then does nothing rather than open a page. With Reduce Motion on
+// it jumps there: an explicit smooth scroll overrides the setting (review on this PR). 'auto', never
+// 'instant', which older WebKit throws on.
 export function bsWaterLineFocus() {
   const line = typeof document !== 'undefined' ? document.querySelector('[data-bs-water]') : null;
   if (!line) return false;
+  let still = false;
+  try { still = !!window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* no matchMedia: a smooth scroll */ }
   try {
-    if (typeof line.scrollIntoView === 'function') line.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (typeof line.scrollIntoView === 'function') line.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
   } catch (e) { /* a scroll that fails still leaves focus on + Glass */ }
   // The scroll is already moving it, so focusing must not jump the page a second time.
   line.querySelector('[data-bs-water-add]')?.focus?.({ preventScroll: true });

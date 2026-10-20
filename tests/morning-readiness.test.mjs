@@ -122,20 +122,30 @@ test('sleep: 100 less 30 per hour short of the usual night, or of 6h', () => {
   assert.equal(sleep(6.5, null), 70);
   assert.equal(sleep(6.5, 0), 70);
   // No hours, no sleep part.
-  for (const h of [null, undefined, 0, NaN]) assert.equal(morningReadiness({ energy: 10, sleepHours: h }).parts.sleep, undefined);
+  for (const h of [null, undefined, NaN, -1, '7']) assert.equal(morningReadiness({ energy: 10, sleepHours: h }).parts.sleep, undefined, String(h));
+  // A 0h night is a night, the shortest there is: it scores 0, never more than 30 minutes would.
+  assert.equal(sleep(0, 7.5), 0);
+  assert.equal(sleep(0, 3), 0);
+  const none = morningReadiness({ energy: 7, sleepHours: 0, usualNight: 7.5 });
+  assert.deepEqual(none.parts, { energy: 85, sleep: 0 });
+  assert.equal(none.score, 50); // (35 · 85 + 25 · 0) / 60 = 49.6
+  assert.equal(none.score, morningReadiness({ energy: 7, sleepHours: 0.5, usualNight: 7.5 }).score, 'a 0h night outscored 30 minutes');
   // (35 · 100 + 25 · 70) / 60 = 87.5: a half rounds up, not on float noise.
   assert.equal(morningReadiness({ energy: 10, sleepHours: 6.5, usualNight: 7.5 }).score, 88);
 });
 
-test('a skipped night has no sleep part, and the other parts share its weight', () => {
-  const answers = { energy: 8, rested: 8, sleepHours: 4, usualNight: 7.5 };
-  const skipped = morningReadiness({ ...answers, skipped: true });
+test('a night with no hours has no sleep part and the other parts share its weight; hours win over a skip', () => {
+  // A night skipped and never given hours: Good and Rested alone.
+  const skipped = morningReadiness({ energy: 8, rested: 8, usualNight: 7.5 });
   assert.deepEqual(skipped.parts, { energy: 85, rested: 85 });
   assert.equal(skipped.score, 85);
-  // The same morning counted: 3h 30 short is 0, so (35 · 85 + 25 · 0 + 15 · 85) / 75 = 56.7.
-  const counted = morningReadiness({ ...answers, skipped: false });
+  // Hours that came after the skip (a watch's sync, or typed on Edit) count: 3h 30 short is 0, so
+  // (35 · 85 + 25 · 0 + 15 · 85) / 75 = 56.7. A skip is not an input, so saying one changes nothing.
+  const answers = { energy: 8, rested: 8, sleepHours: 4, usualNight: 7.5 };
+  const counted = morningReadiness(answers);
   assert.deepEqual(counted.parts, { energy: 85, sleep: 0, rested: 85 });
   assert.equal(counted.score, 57);
+  assert.deepEqual(morningReadiness({ ...answers, skipped: true }), counted, "a skip dropped the night's hours");
 });
 
 test('the watch’s own recovery score counts as it is, within 0-100', () => {
@@ -311,19 +321,20 @@ test('a point dated after the day is never read', () => {
   assert.equal(r.usesWatch, false);
 });
 
-test('a skipped night: the caller’s word, or the day’s row', () => {
-  const s = series({ [TODAY]: { energy: 8, sleep: 4, sleepSkipped: 1 } });
-  // Left out, the skip is read from the day's row, so it holds on every device.
-  assert.equal(morningReadinessForDay(s, TODAY).parts.sleep, undefined);
-  assert.equal(morningReadinessForDay(s, TODAY, { usualNight: 7.5 }).parts.sleep, undefined);
-  // Said, the caller's word wins either way.
-  assert.equal(morningReadinessForDay(s, TODAY, { skipped: false, usualNight: 7.5 }).parts.sleep, 0);
-  const typed = series({ [TODAY]: { energy: 8, sleep: 4 } });
-  assert.equal(morningReadinessForDay(typed, TODAY, { usualNight: 7.5 }).parts.sleep, 0);
-  assert.equal(morningReadinessForDay(typed, TODAY, { skipped: true }).parts.sleep, undefined);
-  // Yesterday's skip is not today's.
-  const ySkip = series({ [YDAY]: { sleepSkipped: 1 }, [TODAY]: { energy: 8, sleep: 4 } });
-  assert.equal(morningReadinessForDay(ySkip, TODAY, { usualNight: 7.5 }).parts.sleep, 0);
+test('a night skipped on the day’s row counts the hours it got after all, and has no sleep part without any', () => {
+  // The row keeps its skip for good (the route never clears it), so a watch's 4h that synced after the
+  // skip is on a skipped row: it counts, as the card's read and the sleep strip count it.
+  const late = series({ [TODAY]: { energy: 8, sleepQuality: 8, sleep: 4, sleepFromDevice: 1, sleepSkipped: 1 } });
+  const r = morningReadinessForDay(late, TODAY, { usualNight: 7.5 });
+  assert.deepEqual(r.parts, { energy: 85, sleep: 0, rested: 85 });
+  assert.equal(r.score, 57);
+  assert.equal(r.band, 'easy');
+  assert.deepEqual(morningReadinessForDay(late, TODAY, { usualNight: 7.5, skipped: true }), r, "the caller's skip dropped the night's hours");
+  assert.deepEqual(r, morningReadinessForDay(series({ [TODAY]: { energy: 8, sleepQuality: 8, sleep: 4 } }), TODAY, { usualNight: 7.5 }), 'a skipped row with hours scored apart from the same row unskipped');
+  // A skip with no hours: energy alone.
+  assert.deepEqual(morningReadinessForDay(series({ [TODAY]: { energy: 8, sleepSkipped: 1 } }), TODAY).parts, { energy: 85 });
+  // A watch's 0h night on the row is a night: it scores 0.
+  assert.equal(morningReadinessForDay(series({ [TODAY]: { energy: 8, sleep: 0, sleepFromDevice: 1 } }), TODAY, { usualNight: 7.5 }).parts.sleep, 0);
 });
 
 test('the usual night is the card’s, given by the caller', () => {

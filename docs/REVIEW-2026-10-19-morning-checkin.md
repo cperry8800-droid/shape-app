@@ -69,8 +69,9 @@ usual night, or under 6h):
 **This week**, the engine's existing thresholds said in the member's words, over the engine's own
 window (today and the six days before it; first match):
 - Sleep averaging under 6h on 3 or more nights: "Short on sleep this week: {avg} a night."
-- Energy averaging Low or Drained on 3 or more days: "Your energy has been mostly Low this week. A
-  lighter session still counts."
+- Energy averaging Low or Drained on 3 or more days: "Your energy has been low on average this week.
+  A lighter session still counts." The word is the band of the average, so it is said as one: an
+  average of Drained and Great days is Low without a single Low day.
 - Otherwise a word that holds most days: "Mostly Good mornings this week."
 - Fewer than 3 answered days: "{n} more mornings and your week shows here."
 
@@ -93,8 +94,8 @@ makes. Top to bottom:
 4. A section per check the member is asked: **Sleep**, **Energy**, **How you woke up** (Rested), and
    **Hunger between meals** only when the plan read says there is a nutritionist (unknown hides it).
    Each section has:
-   - a headline in words: "Mostly Good this week" when one word holds most answered days, else
-     "Mixed, from Low to Good", and Sleep "7h 10 a night on average";
+   - a headline in words, each said as the label it is: "Most days this week: Good" when one word
+     holds most answered days, else "Mixed: Low to Good", and Sleep "7h 10 a night on average";
    - a strip: one bar per day, with gaps for days not answered, and skipped nights marked;
    - a direction against the window before, said for what it is: Energy and Rested "Better" /
      "Lower", Sleep "Longer" / "Shorter", Hunger "Hungrier" / "Less hungry", else "About the
@@ -198,17 +199,24 @@ Fixed after part 1 (owner, 2026-10-19: "yes fix"):
   has hours (typed or a watch's) or a skip: the card's own rule, so Rested alone leaves it open on
   both. The Score page's Consistency counts a check-in day, as momentum does.
 
+Fixed in part 2:
+- Sleep's "30-day avg" was the last 30 nights logged: it is now the member's last 30 local days, 0h
+  nights left out, and Goals' "This week · Sleep" is the week's own nights. The Sleep page's "Last
+  night" and Rested tiles took the newest entry however old: Sleep detail is retired, and Your
+  mornings shows a watch's tiles only when they are dated last night.
+- The weekly readout's fallback said "sleep quality" for Rested: it names every column in words.
+- Home's lead text and pushes quoted "/10" figures for answers given as words: the member's energy,
+  hunger and sleep reasons are said in words (on Home in the app's language); coaches keep /10.
+- A night skipped on one device was still asked on another: the card reads the day's row too.
+
 Still open:
 - Progress → Nutrition's "Hydration · 7 days" reads a field `/api/client/nutrition` never sends, so a
   signed-in member always sees "not tracked".
-- The Progress trend chart plots up to 400 entries evenly spaced, with no dates or range, and opens
-  on Weight whichever tab was asked for.
-- Sleep's "30-day avg" is the last 30 nights logged. The Sleep page's "Last night" and Rested tiles
-  take the newest entry however old.
-- Recovery readiness takes each measure's newest reading however old.
+- The Progress trend chart (its other series) plots up to 400 entries evenly spaced, with no dates or
+  range, and opens on Weight whichever series was asked for.
+- The route's own recovery readiness (`kpis.readiness`, now read only by the website's daily card)
+  takes each measure's newest reading however old. Morning readiness on the app is dated.
 - The push cron re-checks a stored snapshot for 14 days, so a "this week" push can repeat the next
   week, including after Check-ins is switched off.
 - Demo Home widgets with made-up numbers can show for a signed-in member whose saved layout lists
   them.
-- The weekly readout's fallback says "sleep quality" for Rested.
-- Home's lead text and pushes quote "/10" figures for answers given as words.

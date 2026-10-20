@@ -248,12 +248,14 @@ planned builds.
   sync moved the day's water in between. The Daily check-in reminder fires on a day already done.
 - The Morning check-in: a failed read of a stored water target reads as none, so the water line
   offers "Set a daily target". With Check-ins off the engine reads no water, so a target never brings
-  "Water is behind". A night skipped and then given hours (typed after Skip, or a watch's night that
-  syncs later) keeps `sleep_skipped`, so readiness leaves those hours out while Your mornings' Sleep
-  counts them (owner call). The energy lead still says "I'll take it lighter →" but opens Your
-  mornings, and the hydration lead does nothing when Home's water line isn't on screen. Pushes and
-  bell rows sent before part 2 keep their "/10", and the website's coach Today message draft still
-  puts the coach's "/10" reason in front of the member.
+  "Water is behind". A skip is never cleared: a skipped night that later gets hours counts them, but
+  Same as yesterday still won't copy Rested onto it. The energy lead still says "I'll take it
+  lighter →" but opens Your mornings, and the hydration lead does nothing when Home's water line
+  isn't on screen. Pushes and bell rows sent before part 2 keep their "/10", and the website's coach
+  Today message draft still puts the coach's "/10" reason in front of the member. The website (part
+  3) still asks every member hunger on 1-10 gauges and shows its own Energy, Hunger and Rested
+  trends. The card's streak line, evening label and Answer button are small amber text on light
+  papers.
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
   `/m/`, sheets add no history entry.
 

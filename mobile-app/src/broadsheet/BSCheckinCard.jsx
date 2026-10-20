@@ -252,6 +252,20 @@ export function bsCiTodayRead(today, usual) {
   return short ? 'shortOk' : 'ready';
 }
 
+// Today's read (bsCiTodayRead's key) in the member's words, said on the summary, on Home's done line
+// and under Your mornings' readiness, so the three say one sentence. `coached`: a trainer or a
+// nutritionist, who a low morning after a full night is told to tell. Null for no key.
+export function bsCiTodayReadText(tr, key, coached) {
+  return key === 'shortLow' ? tr('home:checkin.readShortLow', { defaultValue: 'Short night, low morning. Keep training easy and aim for bed earlier.' })
+    : key === 'fullLow' ? (coached
+      ? tr('home:checkin.readFullLowCoach', { defaultValue: 'Low after a full night. If it keeps happening, tell your coach.' })
+      : tr('home:checkin.readFullLow', { defaultValue: 'Low after a full night. If it keeps happening, take it easy and keep an eye on it.' }))
+    : key === 'low' ? tr('home:checkin.readLow', { defaultValue: 'A low morning. Keep training easy today.' })
+    : key === 'shortOk' ? tr('home:checkin.readShortOk', { defaultValue: 'Short night, but you feel fine. Go by how the warm-up feels.' })
+    : key === 'ready' ? tr('home:checkin.readReady', { defaultValue: "Ready for today's plan." })
+    : null;
+}
+
 // The week in the member's words: the engine's own lines over the seven days ending today (sleep_low,
 // under 6h on 3 or more nights; energy_low, at or under 4 on 3 or more days), then the word most
 // mornings had, then how many more mornings a week needs. Null when none of them holds. `week` is the
@@ -316,11 +330,16 @@ export function bsCiWords(tr) {
   };
 }
 
-// A word mid-sentence is lower case in the app's language: "Mostly good this week", "Diese Woche
-// meist gut". The card's own rule, for the lines said outside it.
+// A word mid-sentence starts lower case in the app's language: "Mostly good mornings this week",
+// "Diese Woche meist gut". Only its first letter is lowered, so a noun inside it keeps its capital
+// ("kein Hunger", never "kein hunger"), and a word in capitals stays as it is ("Mostly OK", never
+// "Mostly ok"; review on part 2).
 export function bsCiLower(w) {
+  const s = String(w);
   const locale = window.ShapeI18n?.intlLocale?.() || undefined;
-  try { return String(w).toLocaleLowerCase(locale); } catch (e) { return String(w).toLowerCase(); }
+  const up = (x) => { try { return x.toLocaleUpperCase(locale); } catch (e) { return x.toUpperCase(); } };
+  if (s.length > 1 && s === up(s)) return s;
+  try { return s.charAt(0).toLocaleLowerCase(locale) + s.slice(1); } catch (e) { return s.charAt(0).toLowerCase() + s.slice(1); }
 }
 
 // Morning readiness's bands (morningReadiness.mjs) in the member's words, keyed as the module keys them.
@@ -336,9 +355,12 @@ export function bsCiBandWords(tr) {
 // ⚠ HOME'S LEAD SAYS THE ENGINE'S CHECK-IN FLAGS IN THE MEMBER'S WORDS (part 2; rulings 11 and 13).
 // The engine's own member reason is English, for what has no locale (the push, the bell, the splash),
 // so Home says it again from the app's catalog out of directive.evidence, the flag's raw average: in
-// the week line's own keys and the card's word rule, so the lead and the summary say one thing. Sleep
-// is to the 5 minutes, as the week line has it. A coach's own reason (source 'coach'), an engine lead
-// that is not one of these three flags, and one without a finite average are said as they came.
+// the week line's own keys and the card's word rule, so the lead and the summary say one thing. An
+// average is said as one ("low on average"), never "mostly": Your mornings' "Most days" is the word
+// most days had, and an average of Drained and Great days is Low without one Low day (review on this
+// PR). Sleep is to the 5 minutes, as the week line has it. A coach's own reason (source 'coach'), an
+// engine lead that is not one of these three flags, and one without a finite average are said as
+// they came.
 export function bsCiLeadReason(dir, tr) {
   if (!dir) return null;
   const ev = dir.source === 'engine' && dir.evidence ? dir.evidence : null;
@@ -346,10 +368,10 @@ export function bsCiLeadReason(dir, tr) {
   if (avg == null) return dir.reason;
   const i = bsCiWordIndex(avg);
   if (ev.key === 'energy_low' && i != null) {
-    return tr('home:checkin.weekEnergyLow', { defaultValue: 'Your energy has been mostly {word} this week. A lighter session still counts.', word: bsCiLower(bsCiWords(tr).E[i]) });
+    return tr('home:checkin.weekEnergyLow', { defaultValue: 'Your energy has been {word} on average this week. A lighter session still counts.', word: bsCiLower(bsCiWords(tr).E[i]) });
   }
   if (ev.key === 'hunger_high' && i != null) {
-    return tr('home:lead.hungerReason', { defaultValue: "You've been mostly {word} between meals this week. The plan may be running light on fuel.", word: bsCiLower(bsCiWords(tr).H[i]) });
+    return tr('home:lead.hungerReason', { defaultValue: "You've been {word} between meals on average this week. The plan may be running light on fuel.", word: bsCiLower(bsCiWords(tr).H[i]) });
   }
   if (ev.key === 'sleep_low' && avg > 0) {
     const say = (hh, mm) => (mm == null ? tr('home:checkin.hOnly', { defaultValue: '{h}h', h: hh }) : tr('home:checkin.hm', { defaultValue: '{h}h {m}', h: hh, m: mm }));
@@ -394,6 +416,10 @@ export function bsCiSettled(line) {
   const waited = new Promise((r) => { timer = setTimeout(r, BS_CI_READ_WAIT_MS); });
   return Promise.race([bsCiLines[line], waited]).finally(() => clearTimeout(timer));
 }
+// A line's saves queued so far, landed or failed, with no cap (it never rejects): for a reader the
+// 3-second wait let read before them, which reads again once they land (Your mornings). A save that
+// lands has cleared the 60-second cache, so that read is fresh.
+export function bsCiLanded(line) { return bsCiLines[line]; }
 
 // The card tells the water line that a watch sync may have moved the day's water.
 export const BS_CI_HYDRATION_SYNCED = 'shape:hydration-synced';
@@ -683,7 +709,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   const { E, H, R } = bsCiWords(tr);
   const word = (list, v) => { const i = bsCiWordIndex(v); return i == null ? null : list[i]; };
   const locale = window.ShapeI18n?.intlLocale?.() || undefined;
-  const lower = (w) => { try { return w.toLocaleLowerCase(locale); } catch (e) { return String(w).toLowerCase(); } };
+  const lower = (w) => bsCiLower(w);
   const hm = (h) => bsCiHM(h, (hh, mm) => (mm == null
     ? tr('home:checkin.hOnly', { defaultValue: '{h}h', h: hh })
     : tr('home:checkin.hm', { defaultValue: '{h}h {m}', h: hh, m: mm })));
@@ -713,24 +739,18 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   // What the answers mean: today's read, the week's line, and who sees them.
   const readKey = bsCiTodayRead(today, usual);
   const coached = coaching.trainer === true || coaching.nutritionist === true;
-  const readText = readKey === 'shortLow' ? tr('home:checkin.readShortLow', { defaultValue: 'Short night, low morning. Keep training easy and aim for bed earlier.' })
-    : readKey === 'fullLow' ? (coached
-      ? tr('home:checkin.readFullLowCoach', { defaultValue: 'Low after a full night. If it keeps happening, tell your coach.' })
-      : tr('home:checkin.readFullLow', { defaultValue: 'Low after a full night. If it keeps happening, take it easy and keep an eye on it.' }))
-    : readKey === 'low' ? tr('home:checkin.readLow', { defaultValue: 'A low morning. Keep training easy today.' })
-    : readKey === 'shortOk' ? tr('home:checkin.readShortOk', { defaultValue: 'Short night, but you feel fine. Go by how the warm-up feels.' })
-    : readKey === 'ready' ? tr('home:checkin.readReady', { defaultValue: "Ready for today's plan." })
-    : null;
+  const readText = bsCiTodayReadText(tr, readKey, coached);
   const weekLine = bsCiWeekLine(week, today);
   const weekText = !weekLine ? null
     : weekLine.kind === 'sleepShort' ? tr('home:checkin.weekSleepShort', { defaultValue: 'Short on sleep this week: {hours} a night.', hours: hm(Math.round(weekLine.hours * 12) / 12) })
-    : weekLine.kind === 'energyLow' ? tr('home:checkin.weekEnergyLow', { defaultValue: 'Your energy has been mostly {word} this week. A lighter session still counts.', word: lower(E[weekLine.word]) })
+    : weekLine.kind === 'energyLow' ? tr('home:checkin.weekEnergyLow', { defaultValue: 'Your energy has been {word} on average this week. A lighter session still counts.', word: lower(E[weekLine.word]) })
     : weekLine.kind === 'mostly' ? tr('home:checkin.weekMostly', { defaultValue: 'Mostly {word} mornings this week.', word: lower(E[weekLine.word]) })
     : tr('home:checkin.weekMore', { defaultValue: '{n, plural, one {# more morning and your week shows here.} other {# more mornings and your week shows here.}}', n: weekLine.n });
-  // The morning's readiness (§3.8), for the done line: the answers shown here, with the night left
-  // out when it was skipped, and the watch's readings dated today off the same read. Null until
-  // energy is in. Signed out it is the preview's own answers, like today's read.
-  const readiness = morningReadiness({ energy: today.energy, rested: today.rested, sleepHours: today.sleep, usualNight: usual, skipped: sleepSkipped, watch });
+  // The morning's readiness (§3.8), for the done line: the answers shown here, the night's hours
+  // whenever there are some (a skip's too: hours win over a skip, as today's read counts them), and
+  // the watch's readings dated today off the same read. Null until energy is in. Signed out it is the
+  // preview's own answers, like today's read.
+  const readiness = morningReadiness({ energy: today.energy, rested: today.rested, sleepHours: today.sleep, usualNight: usual, watch });
   const readinessText = readiness ? tr('home:mornings.readinessLine', { defaultValue: 'Readiness {score} · {band}', score: readiness.score, band: bsCiBandWords(tr)[readiness.band] }) : null;
   const who = signedIn ? bsCiWhoSees(coaching) : null;
   const whoText = who === 'both' ? tr('home:checkin.whoBoth', { defaultValue: 'Your trainer and nutritionist see your 7-day averages.' })

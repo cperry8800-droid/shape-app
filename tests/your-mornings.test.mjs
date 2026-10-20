@@ -232,14 +232,14 @@ test('seven days are today and the six before it, in words, against the seven be
     const cells = m.cells('energy');
     assert.deepEqual(cells.map((c) => c.getAttribute('data-bs-mornings-day')), [6, 5, 4, 3, 2, 1, 0].map(day), 'the window is not today and the six before, oldest first');
     assert.ok(!m.q(`[data-bs-mornings-day="${day(-1)}"]`), "tomorrow's row was read");
-    assert.equal(m.headline('energy'), 'Mostly good this week');
+    assert.equal(m.headline('energy'), 'Most days this week: Good');
     assert.equal(m.dir('energy').getAttribute('data-bs-mornings-dir'), 'up');
     assert.match(m.dir('energy').textContent, /^Betterthan the 7 days before$/);
     // A day nobody answered is an empty cell that says so.
     assert.equal(cells[5].getAttribute('aria-label'), `${new Date(2026, 9, 17, 12).toLocaleDateString('en-US', { weekday: 'short' })} 17: No answer`);
     assert.match(cells[6].getAttribute('aria-label'), /18: Good$/);
     // How you woke up, in its own words; the week before was Rested every day.
-    assert.equal(m.headline('rested'), 'Mostly rested this week');
+    assert.equal(m.headline('rested'), 'Most days this week: Rested');
     assert.equal(m.dir('rested').getAttribute('data-bs-mornings-dir'), 'same');
     assert.equal(m.dir('rested').textContent, 'About the same', '"About the same" was said against the window before');
     assert.match(m.cells('rested')[4].getAttribute('aria-label'), /: Tired$/);
@@ -276,7 +276,7 @@ test('thirty days are a month of thin bars, compared with the thirty before, and
     const strip = m.q('[data-bs-mornings-strip="energy"] [role="img"]');
     assert.equal(strip.getAttribute('aria-label'), 'Energy, the last 30 days');
     assert.ok(cells.every((c) => !c.hasAttribute('aria-label')));
-    assert.equal(m.headline('energy'), 'Mostly good this month');
+    assert.equal(m.headline('energy'), 'Most days this month: Good');
     assert.match(m.dir('energy').textContent, /^Betterthan the 30 days before$/);
     // Thirty nights of 7h against none before: a headline, and no direction.
     assert.equal(m.headline('sleep'), '7h a night on average');
@@ -294,7 +294,7 @@ test('the window before is the seven days before the window, sharing none of its
   env({ days: d, plan: NONE });
   const m = await mount();
   try {
-    assert.equal(m.headline('energy'), 'Mostly good this week');
+    assert.equal(m.headline('energy'), 'Most days this week: Good');
     assert.equal(m.dir('energy'), null, 'the window before counted a day of this week');
   } finally { m.unmount(); }
 });
@@ -306,11 +306,31 @@ test('mixed and too few answers say so in words', async () => {
   env({ days: d, plan: NONE });
   const m = await mount();
   try {
-    assert.equal(m.headline('energy'), 'Mixed, from drained to great');
+    assert.equal(m.headline('energy'), 'Mixed: Drained to Great');
     assert.equal(m.headline('rested'), '2 more answers and this fills in');
     assert.equal(m.headline('sleep'), '3 more answers and this fills in');
     assert.equal(m.dir('energy'), null, 'a direction without 3 answers the week before');
   } finally { m.unmount(); }
+});
+
+test('a headline says the words as the card labels them, never lower-cased into a sentence', async () => {
+  // OK stays OK, in a week mostly OK and in a mixed one ("ok" was the lower-casing).
+  const d = run('energy', 6, [6, 6, 5, 6, 8, 6, 6]);
+  run('sleepQuality', 6, [4, 6, 2, 8, null, null, null], d);
+  env({ days: d, plan: NONE });
+  let m = await mount();
+  try {
+    assert.equal(m.headline('energy'), 'Most days this week: OK');
+    assert.equal(m.headline('rested'), 'Mixed: Wrecked to Rested');
+  } finally { m.unmount(); }
+  // A word's own capitals are the catalog's: German's noun keeps its capital (h0 "Kein Hunger").
+  const real = dom.window.ShapeI18n.t;
+  dom.window.ShapeI18n.t = (key, opts) => (key === 'home:checkin.h0' ? 'Kein Hunger' : real(key, opts));
+  env({ days: run('hunger', 6, [2, 2, 2, 2, 4, 2, 2]), plan: NUTRITIONIST });
+  m = await mount();
+  try {
+    assert.equal(m.headline('hunger'), 'Most days this week: Kein Hunger');
+  } finally { m.unmount(); dom.window.ShapeI18n.t = real; }
 });
 
 test('Hunger is a section only with a nutritionist: never for none, a trainer only, or a plan read that failed', async () => {
@@ -321,7 +341,7 @@ test('Hunger is a section only with a nutritionist: never for none, a trainer on
   try {
     assert.ok(m.section('hunger'), 'a member with a nutritionist has no Hunger section');
     assert.equal(m.q('[data-bs-mornings-section="hunger"] h2').textContent, 'Hunger between meals');
-    assert.equal(m.headline('hunger'), 'Mostly hungry this week');
+    assert.equal(m.headline('hunger'), 'Most days this week: Hungry');
     assert.equal(m.dir('hunger').getAttribute('data-bs-mornings-dir'), 'up');
     assert.match(m.dir('hunger').textContent, /^Hungrier/);
     assert.deepEqual(m.all('[data-bs-mornings-section]').map((s) => s.getAttribute('data-bs-mornings-section')), ['readiness', 'sleep', 'energy', 'rested', 'hunger']);
@@ -430,13 +450,117 @@ test("readiness today is morningReadinessForDay's, with what it was built from, 
     assert.equal(m.q('[data-bs-mornings-band]').getAttribute('data-bs-mornings-band'), want.band);
     const hero = m.q('[data-bs-mornings-hero]').textContent;
     assert.match(hero, /^Readiness today/);
-    assert.match(hero, /Built from your energy, your sleep, how you woke up and your watch's readings\./);
+    // Every part counted, in the app's language's list (en-US's has the serial comma).
+    assert.equal(m.q('[data-bs-mornings-from]').textContent, "Built from your energy, your sleep, how you woke up, and your watch's readings.");
     assert.match(hero, /A guide from your own answers, not a medical reading\./);
     // Each answered morning's readiness on the strip, and the average of the window's.
     const week = [6, 5, 4, 3, 2, 1, 0].map((k) => morningReadinessForDay(s, day(k), { usualNight: CARD.bsCiUsualNight(s, day(k)) }));
     const avg = Math.round(week.reduce((a, r) => a + r.score, 0) / week.length);
     assert.equal(m.q('[data-bs-mornings-avg]').textContent, `Averaging ${avg} over 7 mornings`);
     assert.deepEqual(m.cells('readiness').map((c) => c.getAttribute('aria-label').replace(/^.*: /, '')), week.map((r) => `Readiness ${r.score} · ${{ ready: 'Ready', steady: 'Steady', easy: 'Take it easy', low: 'Run down' }[r.band]}`));
+  } finally { m.unmount(); }
+});
+
+test('the hero says what the score was built from, naming only the parts it counted', async () => {
+  const from = async (days, opts = {}) => {
+    const s = series(days);
+    if (opts.skip) s.sleepSkipped = [{ date: TODAY, value: 1 }];
+    env({ progress: async () => ({ ok: true, series: s }), plan: NONE });
+    const m = await mount();
+    try {
+      const want = morningReadinessForDay(s, TODAY, { usualNight: CARD.bsCiUsualNight(s, TODAY) });
+      assert.equal(m.q('[data-bs-mornings-score]').textContent, String(want.score));
+      return { line: m.q('[data-bs-mornings-from]').textContent, parts: Object.keys(want.parts) };
+    } finally { m.unmount(); }
+  };
+  // A night skipped with no How did you wake up?: the energy alone.
+  let r = await from({ [TODAY]: { energy: 8 } }, { skip: true });
+  assert.deepEqual(r.parts, ['energy']);
+  assert.equal(r.line, 'Built from your energy.');
+  // Hours with no How did you wake up?
+  r = await from({ [TODAY]: { energy: 8, sleep: 7 } });
+  assert.equal(r.line, 'Built from your energy and your sleep.');
+  // How did you wake up? on a skipped night.
+  r = await from({ [TODAY]: { energy: 8, sleepQuality: 6 } }, { skip: true });
+  assert.equal(r.line, 'Built from your energy and how you woke up.');
+  // One HRV reading against a baseline makes it the watch's too, and claims nothing else.
+  const base = {};
+  for (let k = 1; k <= 4; k += 1) base[day(k)] = { hrv: 50 };
+  r = await from({ ...base, [TODAY]: { energy: 8, hrv: 55 } });
+  assert.deepEqual(r.parts, ['energy', 'hrv']);
+  assert.equal(r.line, "Built from your energy and your watch's readings.");
+  // In the app's language's own list, and a list it cannot make is joined with commas.
+  const intl = dom.window.ShapeI18n.intlLocale;
+  dom.window.ShapeI18n.intlLocale = () => 'en-GB';
+  try {
+    r = await from({ [TODAY]: { energy: 8, sleep: 7, sleepQuality: 8 } });
+    assert.equal(r.line, 'Built from your energy, your sleep and how you woke up.');
+  } finally { dom.window.ShapeI18n.intlLocale = intl; }
+  const LF = Intl.ListFormat;
+  Intl.ListFormat = undefined;
+  try {
+    r = await from({ [TODAY]: { energy: 8, sleep: 7, sleepQuality: 8 } });
+    assert.equal(r.line, 'Built from your energy, your sleep, how you woke up.');
+  } finally { Intl.ListFormat = LF; }
+});
+
+test("today's read is the card's sentence, under the score: the coach's only with a coach, nothing before energy", async () => {
+  // Low (4) after a 5h night: short and low.
+  env({ days: { [TODAY]: { energy: 4, sleep: 5 } }, plan: NONE });
+  let m = await mount();
+  try {
+    const read = m.q('[data-bs-mornings-read]');
+    assert.equal(read.textContent, 'Short night, low morning. Keep training easy and aim for bed earlier.');
+    assert.equal(read.textContent, CARD.bsCiTodayReadText((k, o) => dom.window.ShapeI18n.t(k, o), CARD.bsCiTodayRead({ energy: 4, sleep: 5 }, 7.5), false));
+    // Under the score, above what it was built from.
+    assert.ok(m.q('[data-bs-mornings-score]').compareDocumentPosition(read) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+    assert.ok(read.compareDocumentPosition(m.q('[data-bs-mornings-from]')) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+  } finally { m.unmount(); }
+  // Low after a full night: tell the coach, with one; without one, keep an eye on it.
+  for (const [plan, want] of [[TRAINER, 'Low after a full night. If it keeps happening, tell your coach.'], [NUTRITIONIST, 'Low after a full night. If it keeps happening, tell your coach.'], [NONE, 'Low after a full night. If it keeps happening, take it easy and keep an eye on it.']]) {
+    env({ days: { [TODAY]: { energy: 2, sleep: 8 } }, plan });
+    m = await mount();
+    try { assert.equal(m.q('[data-bs-mornings-read]').textContent, want); } finally { m.unmount(); }
+  }
+  // A skipped night's later hours are read like any (hours win over a skip): Good after 5h is short but fine.
+  const s = series({ [TODAY]: { energy: 8, sleep: 5, sleepFromDevice: 1 } });
+  s.sleepSkipped = [{ date: TODAY, value: 1 }];
+  env({ progress: async () => ({ ok: true, series: s }), plan: NONE });
+  m = await mount();
+  try { assert.equal(m.q('[data-bs-mornings-read]').textContent, 'Short night, but you feel fine. Go by how the warm-up feels.'); } finally { m.unmount(); }
+  // No energy today, no read.
+  env({ days: { [TODAY]: { sleep: 7 }, [day(1)]: { energy: 2, sleep: 5 } }, plan: NONE });
+  m = await mount();
+  try {
+    assert.equal(m.q('[data-bs-mornings-read]'), null, "a read was said for a morning not answered");
+    assert.ok(m.q('[data-bs-mornings-open]'));
+  } finally { m.unmount(); }
+});
+
+test("a night skipped on the row that got hours after all shows them and counts them; a watch's 0h night is a night", async () => {
+  const s = series({
+    [day(2)]: { energy: 8 },
+    [day(1)]: { energy: 8, sleep: 5, sleepFromDevice: 1 },
+    [TODAY]: { energy: 8, sleep: 0, sleepFromDevice: 1 },
+  });
+  s.sleepSkipped = [{ date: day(2), value: 1 }, { date: day(1), value: 1 }];
+  env({ progress: async () => ({ ok: true, series: s }), plan: NONE });
+  const m = await mount();
+  try {
+    const cells = m.cells('sleep');
+    // Skipped, never answered: marked.
+    assert.equal(cells[4].getAttribute('data-bs-mornings-mark'), 'skipped');
+    // Skipped, then the watch's 5h: the hours, never "Skipped".
+    assert.equal(cells[5].getAttribute('data-bs-mornings-mark'), 'watch');
+    assert.match(cells[5].getAttribute('aria-label'), /17: 5h · From your watch$/);
+    assert.doesNotMatch(cells[5].textContent, /Skipped/);
+    // The watch's 0h night is its hours too.
+    assert.match(cells[6].getAttribute('aria-label'), /18: 0h · From your watch$/);
+    // Readiness counts both: yesterday Good and 5h (60), today Good and 0h (50).
+    const ready = m.cells('readiness').map((c) => c.getAttribute('aria-label').replace(/^.*: /, ''));
+    assert.deepEqual(ready.slice(4), ['Readiness 85 · Ready', 'Readiness 60 · Steady', 'Readiness 50 · Take it easy']);
+    assert.equal(m.q('[data-bs-mornings-score]').textContent, '50');
+    assert.equal(m.q('[data-bs-mornings-from]').textContent, 'Built from your energy and your sleep.');
   } finally { m.unmount(); }
 });
 
@@ -469,8 +593,16 @@ test('an unanswered morning asks for the check-in, unless check-ins are off, whi
   m = await mount(PAGE.BSYourMornings, { checkinsOn: false });
   try {
     assert.equal(m.q('[data-bs-mornings-open]'), null, 'check-ins off, and the page still asked for one');
+    assert.equal(m.all('[data-bs-mornings-off]').length, 1);
     assert.equal(m.q('[data-bs-mornings-off]').textContent, 'Morning check-ins are off, so nothing new is asked. You can turn them on in Settings.');
+    // With no score today the line is under "Readiness today", so the label never stands alone.
+    const hero = m.q('[data-bs-mornings-hero]');
+    assert.ok(hero.contains(m.q('[data-bs-mornings-off]')), 'the check-ins line is not under Readiness today');
+    assert.equal(hero.textContent, 'Readiness todayMorning check-ins are off, so nothing new is asked. You can turn them on in Settings.');
     assert.ok(m.section('energy'), 'the history is hidden with check-ins off');
+    // A section short of answers says so, and never asks for answers nothing will ask for.
+    for (const kind of ['sleep', 'energy', 'rested']) assert.equal(m.headline(kind), 'Not enough answers in these days', kind);
+    assert.doesNotMatch(m.text(), /more answers? and this fills in/);
   } finally { m.unmount(); }
 
   env({ days: { [TODAY]: { energy: 8, sleep: 7.5 } }, plan: NONE });
@@ -478,8 +610,24 @@ test('an unanswered morning asks for the check-in, unless check-ins are off, whi
   try {
     assert.ok(m.q('[data-bs-mornings-score]'), 'a morning already answered lost its readiness with check-ins off');
     const hero = m.q('[data-bs-mornings-hero]');
+    assert.equal(m.all('[data-bs-mornings-off]').length, 1);
     assert.equal(hero.nextElementSibling, m.q('[data-bs-mornings-off]'), 'the check-ins line is not under the hero');
-    assert.match(hero.textContent, /Built from your energy, your sleep and how you woke up\./);
+    assert.equal(m.q('[data-bs-mornings-from]').textContent, 'Built from your energy and your sleep.', 'the hero named How you woke up, which was not answered');
+  } finally { m.unmount(); }
+
+  // Three answers fill a headline in whatever the setting: only a section short of them changes.
+  env({ days: run('energy', 6, [8, 8, 8, null, null, null, null]), plan: NONE });
+  m = await mount(PAGE.BSYourMornings, { checkinsOn: false });
+  try {
+    assert.equal(m.headline('energy'), 'Most days this week: Good');
+    assert.equal(m.headline('rested'), 'Not enough answers in these days');
+  } finally { m.unmount(); }
+  // A read that fails with check-ins off still says they are off.
+  env({ progress: async () => null, plan: NONE });
+  m = await mount(PAGE.BSYourMornings, { checkinsOn: false });
+  try {
+    assert.equal(m.q('[data-bs-mornings-hero]'), null);
+    assert.equal(m.all('[data-bs-mornings-off]').length, 1);
   } finally { m.unmount(); }
 });
 
@@ -496,7 +644,7 @@ test('signed out, the page shows example mornings, says so, and reads nothing', 
     assert.equal(m.q('[data-bs-mornings-watch]'), null, 'the example has a watch block');
     assert.equal(m.q('[data-bs-mornings-who]'), null);
     assert.equal(m.section('hunger'), null);
-    assert.equal(m.headline('energy'), 'Mostly good this week');
+    assert.equal(m.headline('energy'), 'Most days this week: Good');
     assert.ok(m.cells('sleep').some((c) => c.getAttribute('data-bs-mornings-mark') === 'skipped'), "the example's week has no skipped night");
   } finally { m.unmount(); }
 });
@@ -588,6 +736,48 @@ test("the read waits for the card's saves on their way, through the card's own q
   } finally { m.unmount(); }
 });
 
+test('a save that outlives the 3-second wait is read again when it lands, so the hero shows its score', async () => {
+  // The read the wait let through answers from before the save (the 60-second cache): no energy yet.
+  let stored = { [TODAY]: { sleep: 7 } };
+  const calls = env({ progress: async () => ({ ok: true, series: series(stored) }), plan: NONE });
+  let land;
+  const save = CARD.bsCiEnqueue('checkin', 'member-1', () => new Promise((r) => { land = r; }));
+  const m = await mount();
+  try {
+    assert.equal(calls.progress, 0, 'the page read before the 3-second wait');
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 3100)); });
+    await m.flush();
+    assert.equal(calls.progress, 1, 'a held save kept the page from reading');
+    assert.ok(m.q('[data-bs-mornings-open]'), 'the read from before the save is not shown');
+    // The save lands, which clears the cache: the page reads again, once, and shows the morning.
+    stored = { [TODAY]: { sleep: 7, energy: 8 } };
+    land({ ok: true });
+    await save;
+    await m.flush();
+    await m.flush();
+    assert.equal(calls.progress, 2, 'the page did not read again when the save landed');
+    assert.equal(m.q('[data-bs-mornings-score]')?.textContent, String(morningReadinessForDay(series(stored), TODAY, { usualNight: 7.5 }).score));
+    assert.equal(m.q('[data-bs-mornings-open]'), null);
+    await m.flush();
+    assert.equal(calls.progress, 2, 'the read again read again');
+  } finally { m.unmount(); }
+});
+
+test('a page closed before a held save lands reads nothing when it does', async () => {
+  const calls = env({ days: { [TODAY]: { energy: 8 } }, plan: NONE });
+  let land;
+  const save = CARD.bsCiEnqueue('checkin', 'member-1', () => new Promise((r) => { land = r; }));
+  const m = await mount();
+  await React.act(async () => { await new Promise((r) => setTimeout(r, 3100)); });
+  await m.flush();
+  assert.equal(calls.progress, 1);
+  m.unmount();
+  land({ ok: true });
+  await save;
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(calls.progress, 1, 'a closed page read again');
+});
+
 test('Who sees this is the card\'s, and the cycle chip is drawn as Home hands it', async () => {
   env({ days: { [TODAY]: { energy: 8 } }, plan: BOTH });
   const chip = React.createElement('button', { type: 'button', 'data-test-chip': '' }, 'Period started? Log it →');
@@ -603,6 +793,45 @@ test('Who sees this is the card\'s, and the cycle chip is drawn as Home hands it
   env({ days: { [TODAY]: { energy: 8 } }, plan: NONE });
   const solo = await mount();
   try { assert.equal(solo.q('[data-bs-mornings-who]').textContent, 'Only you see these.'); } finally { solo.unmount(); }
+});
+
+test('amber marks but is never text on a light paper: the example line, the hunger chip, Take it easy', async () => {
+  const css = (c) => { const el = document.createElement('i'); el.style.color = c; return el.style.color; };
+  const bg = (c) => { const el = document.createElement('i'); el.style.borderLeftColor = c; return el.style.borderLeftColor; };
+  const AMBER = '#b9802a';
+  // Signed out: the example line is the notes' ink, with an amber rule beside it.
+  env({ uid: null });
+  let m = await mount();
+  try {
+    const p = m.q('[data-bs-mornings-sample]');
+    assert.equal(p.style.color, css(theme.INK70));
+    assert.equal(p.firstElementChild.style.borderLeftColor, bg(AMBER));
+    assert.notEqual(p.firstElementChild.style.color, css(AMBER));
+  } finally { m.unmount(); }
+  // A Take it easy morning and a hungrier week: the band word and the chip's word in ink, the bar and
+  // the chip's border amber.
+  const d = run('hunger', 6, [8, 8, 8, 8, 8, 8, 8], run('hunger', 13, [4, 4, 4, 4, 4, 4, 4]));
+  d[TODAY] = { ...d[TODAY], energy: 4, sleep: 8, sleepQuality: 4 }; // (35·35 + 25·100 + 15·35) / 75 = 57
+  env({ days: d, plan: NUTRITIONIST });
+  m = await mount();
+  try {
+    const band = m.q('[data-bs-mornings-band]');
+    assert.equal(band.getAttribute('data-bs-mornings-band'), 'easy');
+    assert.equal(band.textContent, 'Take it easy');
+    assert.equal(band.style.color, css(theme.INK70));
+    assert.equal(m.q('[data-bs-mornings-score]').style.color, css(AMBER), 'the score lost its band colour');
+    const chip = m.dir('hunger').firstElementChild;
+    assert.equal(chip.textContent, 'Hungrier');
+    assert.equal(chip.style.color, css(theme.INK70));
+    assert.match(chip.style.border, /rgba\(185, 128, 42/);
+  } finally { m.unmount(); }
+  // A dark paper keeps the amber words: #e8b14a reads there.
+  theme.isLight = false;
+  m = await mount();
+  try {
+    assert.equal(m.q('[data-bs-mornings-band]').style.color, css('#e8b14a'));
+    assert.equal(m.dir('hunger').firstElementChild.style.color, css('#e8b14a'));
+  } finally { m.unmount(); theme.isLight = true; }
 });
 
 test('no /10 anywhere: every value is a word, an hour or a score', async () => {

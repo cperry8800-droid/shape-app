@@ -712,7 +712,8 @@ test("Home's lead says the engine's reason in the member's words, and a coach's 
   const now = new Date(2026, 9, 18, 12);
   const energy = { profile: { name: 'Q' }, vitals: { energy: { avg7: 3.2, n: 5 } } };
   const mine = buildDirective(energy, now, 'client');
-  assert.equal(CARD.bsCiLeadReason(mine, tr), 'Your energy has been mostly low this week. A lighter session still counts.');
+  // The average said as an average: "mostly" contradicted Your mornings' "Most days" (review on this PR).
+  assert.equal(CARD.bsCiLeadReason(mine, tr), 'Your energy has been low on average this week. A lighter session still counts.');
   // A coach's own move is never reworded (ruling 13).
   const coach = { ...mine, source: 'coach', reason: 'Energy 3/10, ease today' };
   assert.equal(CARD.bsCiLeadReason(coach, tr), 'Energy 3/10, ease today');

@@ -447,7 +447,7 @@ export default {
       find: "    : tr('home:checkin.hm', { defaultValue: '{h}h {m}', h: hh, m: mm })));",
       replace: "    : `${hh}h ${mm}`));" },
     { name: "the trend's word keeps its capital mid-sentence", file: CARD,
-      find: 'const lower = (w) => { try { return w.toLocaleLowerCase(locale); } catch (e) { return String(w).toLowerCase(); } };',
+      find: 'const lower = (w) => bsCiLower(w);',
       replace: 'const lower = (w) => w;' },
     { name: "a day with no answer is read out as a dash", file: CARD,
       find: '`${dayName} ${dd}: ${has ? label : noAnswer}`',

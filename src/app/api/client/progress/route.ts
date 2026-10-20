@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { epleyE1rm } from '@/lib/e1rm';
+import { clientLocalDay } from '@/lib/local-day';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { requireMembership } from '@/lib/require-membership';
 import { setLoadLb, setLoadUnit } from '@/lib/set-load';
@@ -173,13 +174,23 @@ export async function GET(request: Request) {
   // ⚠ THE LAST 30 DAYS, NOT THE LAST 30 NIGHTS LOGGED. This was `avg(sleeps.slice(-30))`: the
   // newest 30 entries however old, so a member who logs a night now and then was shown months of
   // nights under Progress's "30-day avg", and Your mornings, which windows its nights by date,
-  // disagreed with it. The window is the server's UTC today and the 29 days before it, plus a day
-  // above it for a member east of UTC whose local day is already tomorrow; a night dated later than
-  // that is ignored. Dates are YYYY-MM-DD strings, which compare as dates.
-  const nowMs = Date.now();
-  const sleepFrom = new Date(nowMs - 29 * DAY_MS).toISOString().slice(0, 10);
-  const sleepTo = new Date(nowMs + DAY_MS).toISOString().slice(0, 10);
-  const sleepAvg = avg(sleepSeries.filter((p) => p.date >= sleepFrom && p.date <= sleepTo).map((p) => p.value));
+  // disagreed with it.
+  // ⚠ THE MEMBER'S DAY, NOT THE SERVER'S. The window is the member's local today and the 29 days
+  // before it, the 30 days Your mornings reads. The app sends that day (`?date=`, getClientProgress
+  // in shapeBackend.js). Windowed on the server's UTC day, a member in Los Angeles lost their 30th
+  // night every evening once UTC's day turned over, and one in Tokyo got a 31st every morning until
+  // it did. The website sends no date and gets the UTC day (clientLocalDay), so its edge can still
+  // be a day off. A day above today is read too, for a device whose clock runs a little ahead of
+  // the one that dated the night; a night dated later than that is ignored. The day is shifted
+  // from noon UTC in whole days, so it never slips, and a date of the right shape that is no date
+  // ('2026-13-45') reads as none. Dates are YYYY-MM-DD strings, which compare as dates.
+  // A 0-hour night is not a night (a watch can sync one): Your mornings, Goals, the engine and the
+  // score route all drop it, and counting it here put Progress's average under theirs.
+  const sentNoon = Date.parse(`${clientLocalDay(new URL(request.url).searchParams.get('date'))}T12:00:00Z`);
+  const dayNoon = Number.isFinite(sentNoon) ? sentNoon : Date.parse(`${clientLocalDay(null)}T12:00:00Z`);
+  const sleepFrom = new Date(dayNoon - 29 * DAY_MS).toISOString().slice(0, 10);
+  const sleepTo = new Date(dayNoon + DAY_MS).toISOString().slice(0, 10);
+  const sleepAvg = avg(sleepSeries.filter((p) => p.value > 0 && p.date >= sleepFrom && p.date <= sleepTo).map((p) => p.value));
 
   // Recovery readiness (0-100) from tonight's sleep + cardio vs a trailing baseline,
   // plus the wearable's own recovery score when present. null when there's no sleep.

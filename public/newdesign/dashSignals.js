@@ -750,12 +750,18 @@
   }
   // The member's wording of a vitals flag, or null when the flag is not one (the caller keeps
   // its own reason then).
+  // ⚠ AN AVERAGE IS SAID AS AN AVERAGE. The word is the band of the week's average, so the line
+  // says "on average". It said "mostly", and Your mornings, which the energy lead opens, says
+  // "Most days" only for the answer that holds most of the days: answers of Drained, Drained,
+  // Drained and Great average 4, so the push said "mostly low" in a week with no Low in it while
+  // the page said Drained. The word stays lower case: a flagged week reads only Drained or Low,
+  // Hungry or Starving.
   function memberVitalsReason(f) {
     var words = f ? MEMBER_VITALS_WORDS[f.key] : null;
     var i = words ? vitalsWordIndex(f.avg) : null;
     if (i == null) return null;
-    if (f.key === "energy_low") return "Your energy has been mostly " + words[i] + " this week — a lighter session still counts";
-    return "You've been mostly " + words[i] + " between meals this week — the plan may be running light on fuel";
+    if (f.key === "energy_low") return "Your energy has been " + words[i] + " on average this week — a lighter session still counts";
+    return "You've been " + words[i] + " between meals on average this week — the plan may be running light on fuel";
   }
   // CLIENT DIRECTIVE ONLY (owner ruling): hydration never becomes a coach flag.
   // evaluateClient runs this rule only for the client role, so getTriageFeed

@@ -10,7 +10,7 @@
 //   energy 0.35  the five words score 10 · 35 · 60 · 85 · 100
 //   sleep  0.25  100 less 30 per hour short, where short is the larger of the hours under the usual
 //                night (the card's bsCiUsualNight: the median of the last 14, 7h 30 with none) and
-//                the hours under 6. A skipped night has no sleep part.
+//                the hours under 6. Whenever the day has hours, a 0h night included (it scores 0).
 //   rested 0.15  How did you wake up?, on the same five scores
 //   watch  0.15  the watch's own recovery score
 //   hrv    0.05  HRV against the member's own 30-day baseline (4 readings or more)
@@ -19,6 +19,11 @@
 //
 // Bands: 80+ Ready · 60-79 Steady · 40-59 Take it easy · under 40 Run down. It is a guide built from
 // the member's own answers, not a medical reading, and coaches don't see it yet.
+//
+// ⚠ HOURS WIN OVER A SKIP (review on this PR). A skip says only why a night has no hours, so it is
+// not read here: a night with none has no sleep part, skipped or not, and hours that come after a
+// skip (a watch's sync, or typed on Edit) count, as the card's read and Your mornings' strip show
+// them. The row's sleep_skipped is never cleared, so reading it here dropped real nights.
 //
 // ⚠ NOT recoveryReadiness.mjs. That is the watch's night: 6h typed alone reads 80 there, and
 // recoveryReadinessFromSeries takes each metric's newest reading however old it is. This is the
@@ -67,17 +72,19 @@ export function morningReadinessBand(score) {
 }
 
 // One morning's readiness from its answers. `energy` and `rested` are stored 1-10 values, read as
-// words; `sleepHours` is the night's hours (typed or a watch's); `usualNight` is the card's
-// bsCiUsualNight; `watch` is { score, hrv, hrvBaseline, restingHr, rhrBaseline }, the day's own
-// readings (mrWatchForDay), any of them null. Null without the morning's energy. Otherwise
-// { score, band, parts, usesWatch }: `parts` holds each counted part's 0-100 score, unrounded.
-export function morningReadiness({ energy, rested, sleepHours, usualNight, skipped, watch } = {}) {
+// words; `sleepHours` is the night's hours (typed or a watch's, whose 0 is a night too);
+// `usualNight` is the card's bsCiUsualNight; `watch` is { score, hrv, hrvBaseline, restingHr,
+// rhrBaseline }, the day's own readings (mrWatchForDay), any of them null. Null without the morning's
+// energy. Otherwise { score, band, parts, usesWatch }: `parts` holds each counted part's 0-100 score,
+// unrounded.
+export function morningReadiness({ energy, rested, sleepHours, usualNight, watch } = {}) {
   const e = mrWordIndex(energy);
   if (e == null) return null;
   const parts = { energy: MR_WORD_SCORE[e] };
 
-  const hours = pos(sleepHours);
-  if (hours != null && !skipped) {
+  // A 0h night is a night, the shortest there is: left out, it scored above a night of 30 minutes.
+  const hours = fin(sleepHours);
+  if (hours != null && hours >= 0) {
     const usual = pos(usualNight) ?? MR_USUAL_NIGHT_H;
     const short = Math.max(usual - hours, MR_SHORT_FLOOR_H - hours, 0);
     parts.sleep = clamp(100 - 30 * short, 0, 100);
@@ -160,18 +167,16 @@ export function mrWatchForDay(series, iso) {
 }
 
 // One day's readiness off the series: its energy, Rested (sleepQuality) and hours, and the watch's
-// readings dated that day. `skipped` left out reads the day's row (series.sleepSkipped), so a night
-// skipped on another device stays skipped here; `usualNight` is the card's bsCiUsualNight for the day.
+// readings dated that day. `usualNight` is the card's bsCiUsualNight for the day. The day's skip
+// (series.sleepSkipped) is not read: its hours, when it has any, count (hours win over a skip, above).
 export function morningReadinessForDay(series, iso, opts = {}) {
   if (typeof iso !== 'string' || !MR_ISO.test(iso)) return null;
-  const { usualNight, skipped } = opts || {};
-  const nightSkipped = skipped == null ? mrPoints(series, 'sleepSkipped').some((p) => p && p.date === iso) : !!skipped;
+  const { usualNight } = opts || {};
   return morningReadiness({
     energy: mrAt(series, 'energy', iso),
     rested: mrAt(series, 'sleepQuality', iso),
     sleepHours: mrAt(series, 'sleep', iso),
     usualNight,
-    skipped: nightSkipped,
     watch: mrWatchForDay(series, iso),
   });
 }

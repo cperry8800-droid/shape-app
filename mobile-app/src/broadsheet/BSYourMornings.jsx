@@ -1,14 +1,14 @@
 import React from 'react';
-import { bsCiIso, bsCiShift, bsCiDay, bsCiWindow, bsCiWordIndex, bsCiMostly, bsCiHM, bsCiShortNight, bsCiUsualNight, bsCiWornNight, bsCiCoachingOf, bsCiWhoSees, bsCiSettled, bsCiWords, bsCiLower, bsCiBandWords, BS_CI_HYDRATION_SYNCED } from './BSCheckinCard.jsx';
+import { bsCiIso, bsCiShift, bsCiDay, bsCiWindow, bsCiWordIndex, bsCiMostly, bsCiHM, bsCiShortNight, bsCiUsualNight, bsCiWornNight, bsCiCoachingOf, bsCiWhoSees, bsCiSettled, bsCiLanded, bsCiWords, bsCiBandWords, bsCiTodayRead, bsCiTodayReadText, BS_CI_HYDRATION_SYNCED } from './BSCheckinCard.jsx';
 import { morningReadinessForDay } from '../services/morningReadiness.mjs';
 // ─── YOUR MORNINGS: THE MORNING CHECK-IN OVER TIME ───────────────────────────────────────────────
 // docs/REVIEW-2026-10-19-morning-checkin.md §3.5 and §3.8 (part 2). One read-only page, from the same
 // /api/client/progress read the morning card makes, so a page opened from the card costs no request.
 //
-//   Readiness today (morningReadiness.mjs: the number Home's done line shows) · the cycle chip, inside
-//   its expected window only · 7 days | 30 days · the window's readiness · Sleep, Energy, How you woke
-//   up, and Hunger between meals with a nutritionist · last night from a watch, or a Connect door ·
-//   Who sees this
+//   Readiness today (morningReadiness.mjs: the number Home's done line shows), with today's read and
+//   what it was built from · the cycle chip, inside its expected window only · 7 days | 30 days · the
+//   window's readiness · Sleep, Energy, How you woke up, and Hunger between meals with a nutritionist ·
+//   last night from a watch, or a Connect door · Who sees this
 //
 // Doors: Home's done line and the walkthrough summary ("Your mornings →"), the energy lead, Progress
 // (BSMorningsDoor, where its Energy, Hunger and Rested tabs were), and with Check-ins off the quiet
@@ -23,6 +23,13 @@ import { morningReadinessForDay } from '../services/morningReadiness.mjs';
 // bsCiWordIndex, and the words are the card's own (bsCiWords), so the page, the card and Home's lead
 // say one thing. A headline needs 3 answered days. A direction needs 3 in both windows, and a move of
 // under half a word (1 point) or 20 minutes reads "About the same".
+//
+// ⚠ A HEADLINE SAYS THE WORDS AS THE LABELS THEY ARE: "Most days this week: Good", "Mixed: Low to
+// Good", never lower-cased into a sentence (review on this PR: that made "ok" of OK and "kein hunger" of
+// German's noun). "Most days" is the word most answered days had (bsCiMostly), never an average.
+//
+// ⚠ CHECK-INS OFF ASK NOTHING (ruling 12): the history still shows, a section short of answers says so
+// instead of asking for more, and readiness today with no score says nothing new is asked.
 //
 // ⚠ HUNGER ONLY WITH A NUTRITIONIST (ruling 6): the plan read has to say there is one. A member
 // without one, or whose read failed, sees no Hunger section, whatever history the old page left.
@@ -209,6 +216,9 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
   const pinnedTop = useMorningsPinnedTop();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const amber = t.isLight ? '#b9802a' : '#e8b14a';
+  // Amber marks (bars, borders, rules) but is never text on a light paper, where #b9802a is under 3:1
+  // (review on this PR): words it would colour are drawn in ink there.
+  const amberText = t.isLight ? t.INK70 : amber;
   const blue = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5');
   const rust = t.RUST || '#c0533b';
   // Sleep and How you woke up are the card's night blue, energy its teal, hunger its amber.
@@ -233,6 +243,10 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
   // The card's read, after any save still on its way (bsCiSettled, as the card waits), so an answer
   // given a moment ago is shown. The 60-second cache makes it free when the card has just read. What
   // is on screen stays until a read lands, and a read again after a sync that fails keeps it.
+  // ⚠ A SAVE THE 3-SECOND WAIT GAVE UP ON IS READ AGAIN WHEN IT LANDS (review on this PR). The read
+  // went out before it, so it answered from the day before the answer, and the page said a morning
+  // Home had just scored was still open until it was opened again. A save that lands clears the cache
+  // (bsCiLanded), so the read again is fresh; a line that had landed when the read went out reads once.
   useEffect(() => {
     if (!uid) return undefined;
     let on = true;
@@ -241,7 +255,14 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
       if (!on || bsMorningsUid() !== uid) return;
       setRead((cur) => (!s && cur && cur.uid === uid && cur.series ? cur : { uid, series: s }));
     };
-    const pending = P && P.progress ? bsCiSettled('checkin').then(() => P.progress()) : Promise.resolve(null);
+    // Marked before bsCiSettled races the same promise, so a line that lands in time is marked first.
+    const landed = bsCiLanded('checkin');
+    let drained = false;
+    landed.then(() => { drained = true; });
+    const pending = P && P.progress ? bsCiSettled('checkin').then(() => {
+      if (!drained) landed.then(() => { if (on && bsMorningsUid() === uid) setSynced((n) => n + 1); });
+      return P.progress();
+    }) : Promise.resolve(null);
     pending.then((p) => land(p && p.series ? p.series : null), () => land(null));
     return () => { on = false; };
   }, [uid, synced]);
@@ -300,18 +321,20 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
   const skippedWord = tr('home:mornings.skipped', { defaultValue: 'Skipped' });
   const fromWatch = tr('home:mornings.fromWatch', { defaultValue: 'From your watch' });
 
-  // A headline in the member's words. A word mid-sentence is lower case in the app's language (the
-  // card's rule, bsCiLower). Sleep is to the 5 minutes, as the card's week line says it.
+  // A headline in the member's words: each word as the card says it, a label after the colon (see the
+  // header). Sleep is to the 5 minutes, as the card's week line says it. Short of 3 answers it says how
+  // many more fill it in, or with Check-ins off, which will ask for none, that there are too few.
   const headline = (kind, h) => {
     if (!h) return null;
-    const word = (i) => bsCiLower(WORDS[kind][i]);
+    const word = (i) => WORDS[kind][i];
     if (h.key === 'home:mornings.sleepHead') {
       const avg = tr('home:mornings.sleepHead', { defaultValue: '{hours} a night on average', hours: hm(Math.round(h.vars.hours * 12) / 12) });
       return h.vars.short > 0 ? `${avg} · ${tr('home:mornings.sleepShort', { defaultValue: '{n, plural, one {# short night} other {# short nights}}', n: h.vars.short })}` : avg;
     }
-    if (h.key === 'home:mornings.headMostlyWeek') return tr('home:mornings.headMostlyWeek', { defaultValue: 'Mostly {word} this week', word: word(h.vars.word) });
-    if (h.key === 'home:mornings.headMostlyMonth') return tr('home:mornings.headMostlyMonth', { defaultValue: 'Mostly {word} this month', word: word(h.vars.word) });
-    if (h.key === 'home:mornings.headMixed') return tr('home:mornings.headMixed', { defaultValue: 'Mixed, from {low} to {high}', low: word(h.vars.low), high: word(h.vars.high) });
+    if (h.key === 'home:mornings.headMostlyWeek') return tr('home:mornings.headMostlyWeek', { defaultValue: 'Most days this week: {word}', word: word(h.vars.word) });
+    if (h.key === 'home:mornings.headMostlyMonth') return tr('home:mornings.headMostlyMonth', { defaultValue: 'Most days this month: {word}', word: word(h.vars.word) });
+    if (h.key === 'home:mornings.headMixed') return tr('home:mornings.headMixed', { defaultValue: 'Mixed: {low} to {high}', low: word(h.vars.low), high: word(h.vars.high) });
+    if (!checkinsOn) return tr('home:mornings.headNone', { defaultValue: 'Not enough answers in these days' });
     return tr('home:mornings.headMore', { defaultValue: '{n, plural, one {# more answer} other {# more answers}} and this fills in', n: h.vars.n });
   };
 
@@ -328,8 +351,10 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
       return { ...empty, pct: r.score / 100, label: String(r.score), color: BAND_COLOR[r.band], value: tr('home:mornings.readinessLine', { defaultValue: 'Readiness {score} · {band}', score: r.score, band: BAND[r.band] }) };
     }
     if (kind === 'sleep') {
-      const h = Number(d.sleep);
-      if (Number.isFinite(h) && h > 0) {
+      // Hours win over a skip, as readiness counts them: a night with hours shows them, a watch's 0h
+      // included, however the row was skipped before they came.
+      const h = d.sleep == null ? NaN : Number(d.sleep);
+      if (Number.isFinite(h) && h >= 0) {
         const worn = bsCiWornNight(d);
         return { ...empty, pct: Math.min(1, h / 12), label: hm(h), color: COLOR.sleep, mark: worn ? 'watch' : null, value: worn ? `${hm(h)} · ${fromWatch}` : hm(h) };
       }
@@ -407,11 +432,33 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
     );
   };
 
-  // Readiness today, with what it was built from. Today's read (the card's sentence) is the card's; it
-  // is not said again here.
+  // What a score was built from: only the parts it counted (morningReadiness's `parts`), joined as the
+  // app's language lists things ("your energy and your sleep"). A morning with the night skipped, or
+  // no How did you wake up?, is never told it was built from them (review on this PR).
+  const builtFrom = (r) => {
+    const names = [
+      r.parts.energy != null ? tr('home:mornings.fromEnergy', { defaultValue: 'your energy' }) : null,
+      r.parts.sleep != null ? tr('home:mornings.fromSleep', { defaultValue: 'your sleep' }) : null,
+      r.parts.rested != null ? tr('home:mornings.fromRested', { defaultValue: 'how you woke up' }) : null,
+      r.usesWatch ? tr('home:mornings.fromWatchReadings', { defaultValue: "your watch's readings" }) : null,
+    ].filter(Boolean);
+    let parts;
+    try { parts = new Intl.ListFormat(locale, { type: 'conjunction' }).format(names); } catch (e) { parts = names.join(', '); }
+    return tr('home:mornings.readinessFromParts', { defaultValue: 'Built from {parts}.', parts });
+  };
+  // Check-ins off asks nothing, so the page says so: in the hero when today has no score, under it
+  // when it has one, and alone while there is no hero.
+  const offLine = (style) => <p data-bs-mornings-off="" style={style}>{tr('home:mornings.checkinsOff', { defaultValue: 'Morning check-ins are off, so nothing new is asked. You can turn them on in Settings.' })}</p>;
+  const heroLine = { margin: '8px 0 0', fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.45, color: t.INK70 };
+
+  // Readiness today, with today's read under it (§3.5: the card's own sentence, bsCiTodayReadText, so
+  // the page and Home say one thing) and what it was built from. "Readiness today" never stands alone:
+  // with no score the line under it asks for the check-in, or with Check-ins off says nothing is asked.
   const hero = () => {
     const r = model.ready[model.ready.length - 1];
+    const d = model.cur[model.cur.length - 1];
     const color = r ? BAND_COLOR[r.band] : t.INK50;
+    const readText = r ? bsCiTodayReadText(tr, bsCiTodayRead(d, d.usual), coaching.trainer === true || coaching.nutritionist === true) : null;
     return (
       <div data-bs-mornings-hero="" style={{ padding: `10px ${t.padX}px 2px` }}>
         <div style={{ ...mono, color: t.INK50 }}>{tr('home:mornings.readinessToday', { defaultValue: 'Readiness today' })}</div>
@@ -419,22 +466,18 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
           <>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 6 }}>
               <span data-bs-mornings-score="" style={{ fontFamily: t.DISPLAY, fontSize: 56, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1, color, fontVariantNumeric: 'tabular-nums' }}>{r.score}</span>
-              <span data-bs-mornings-band={r.band} style={{ ...mono, fontSize: 10.5, letterSpacing: '0.12em', color }}>{BAND[r.band]}</span>
+              <span data-bs-mornings-band={r.band} style={{ ...mono, fontSize: 10.5, letterSpacing: '0.12em', color: r.band === 'easy' ? amberText : color }}>{BAND[r.band]}</span>
             </div>
             <div aria-hidden style={{ marginTop: 10, height: 4, background: t.HAIR }}>
               <div style={{ width: `${Math.max(2, Math.min(100, r.score))}%`, height: '100%', background: color }} />
             </div>
-            <p style={{ margin: '12px 0 0', fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>
-              {r.usesWatch
-                ? tr('home:mornings.readinessFromWatch', { defaultValue: "Built from your energy, your sleep, how you woke up and your watch's readings." })
-                : tr('home:mornings.readinessFrom', { defaultValue: 'Built from your energy, your sleep and how you woke up.' })}
-            </p>
+            {readText ? <p data-bs-mornings-read="" style={{ margin: '12px 0 0', fontFamily: t.BODY, fontSize: 15.5, lineHeight: 1.4, color: t.INK }}>{readText}</p> : null}
+            <p data-bs-mornings-from="" style={{ margin: readText ? '8px 0 0' : '12px 0 0', fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>{builtFrom(r)}</p>
             <p style={{ margin: '6px 0 0', fontFamily: t.BODY, fontSize: 12, lineHeight: 1.4, color: t.INK50 }}>{tr('home:mornings.readinessNote', { defaultValue: 'A guide from your own answers, not a medical reading.' })}</p>
           </>
         ) : checkinsOn ? (
-          // Check-ins off asks nothing, so the line below says so instead of sending them to answer.
-          <p data-bs-mornings-open="" style={{ margin: '8px 0 0', fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.45, color: t.INK70 }}>{tr('home:mornings.readinessOpen', { defaultValue: "Answer this morning's check-in to see today's readiness." })}</p>
-        ) : null}
+          <p data-bs-mornings-open="" style={heroLine}>{tr('home:mornings.readinessOpen', { defaultValue: "Answer this morning's check-in to see today's readiness." })}</p>
+        ) : offLine(heroLine)}
       </div>
     );
   };
@@ -480,7 +523,7 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
         <p data-bs-mornings-headline="" style={{ margin: '0 0 8px', fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.25, color: t.INK }}>{headline(kind, h)}</p>
         {dir ? (
           <div data-bs-mornings-dir={dir} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 8px', margin: '0 0 12px' }}>
-            <span style={{ padding: '4px 9px', borderRadius: 999, border: `1px solid ${COLOR[kind]}66`, color: COLOR[kind], ...mono, fontSize: 8.5, letterSpacing: '0.12em' }}>{dir === 'same' ? same : DIR[kind][dir]}</span>
+            <span style={{ padding: '4px 9px', borderRadius: 999, border: `1px solid ${COLOR[kind]}66`, color: kind === 'hunger' ? amberText : COLOR[kind], ...mono, fontSize: 8.5, letterSpacing: '0.12em' }}>{dir === 'same' ? same : DIR[kind][dir]}</span>
             {/* "About the same" stands alone: the window before is what every direction is against. */}
             {dir === 'same' ? null : <span style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>{vs}</span>}
           </div>
@@ -537,16 +580,18 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
     : null;
   const kinds = ['sleep', 'energy', 'rested', ...(coaching.nutritionist === true ? ['hunger'] : [])];
   const note = { margin: '0', padding: `10px ${t.padX}px 0`, fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 };
+  const todayScored = !!(model && model.ready[model.ready.length - 1]);
 
   return (
     <BSPage>
       <BSDetailHeader onBack={onBack} eyebrow={tr('home:mornings.eyebrow', { defaultValue: 'Morning check-in · history' })}
         title={<>{tr('home:mornings.titlePre', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('home:mornings.titleWord', { defaultValue: 'mornings.' })}</span></>} />
       <div data-bs-mornings="" style={{ paddingTop: 4 }}>
-        {!uid ? <p data-bs-mornings-sample="" style={{ ...note, color: amber }}>{tr('home:mornings.sample', { defaultValue: 'Example mornings. Join Shape to see your own.' })}</p> : null}
+        {/* The example is said in the note's ink, marked by an amber rule beside it (amber is no text colour). */}
+        {!uid ? <p data-bs-mornings-sample="" style={note}><span style={{ display: 'block', paddingLeft: 10, borderLeft: `2px solid ${amber}` }}>{tr('home:mornings.sample', { defaultValue: 'Example mornings. Join Shape to see your own.' })}</span></p> : null}
         {failed ? <p data-bs-mornings-failed="" role="alert" style={{ ...note, color: rust }}>{tr('home:mornings.loadFailed', { defaultValue: "Couldn't load your mornings. Try again in a minute." })}</p> : null}
         {model ? hero() : null}
-        {checkinsOn ? null : <p data-bs-mornings-off="" style={note}>{tr('home:mornings.checkinsOff', { defaultValue: 'Morning check-ins are off, so nothing new is asked. You can turn them on in Settings.' })}</p>}
+        {checkinsOn || (model && !todayScored) ? null : offLine(note)}
         {cycleChip ? <div style={{ padding: `0 ${t.padX}px` }}>{cycleChip}</div> : null}
         {model ? (
           <>

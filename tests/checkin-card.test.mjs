@@ -239,6 +239,21 @@ test('a short night is under 6h, or an hour or more under the usual night', () =
   assert.equal(CARD.bsCiShortNight(null, 7.5), null, 'no hours read as a full night');
 });
 
+test("today's read in words: one sentence per read, the coach's only for a member with one", () => {
+  const T = CARD.bsCiTodayReadText;
+  assert.equal(T(trEn, 'shortLow', false), 'Short night, low morning. Keep training easy and aim for bed earlier.');
+  assert.equal(T(trEn, 'fullLow', true), 'Low after a full night. If it keeps happening, tell your coach.');
+  assert.equal(T(trEn, 'fullLow', false), 'Low after a full night. If it keeps happening, take it easy and keep an eye on it.');
+  assert.equal(T(trEn, 'low', true), 'A low morning. Keep training easy today.');
+  assert.equal(T(trEn, 'shortOk', false), 'Short night, but you feel fine. Go by how the warm-up feels.');
+  assert.equal(T(trEn, 'ready', false), "Ready for today's plan.");
+  for (const key of [null, undefined, 'mostly']) assert.equal(T(trEn, key, true), null, String(key));
+  // The card says its read from it: the keys are asked for in one place only.
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSCheckinCard.jsx'), 'utf8');
+  for (const k of ['readShortLow', 'readFullLowCoach', 'readFullLow', 'readLow', 'readShortOk', 'readReady']) assert.equal(src.split(`'home:checkin.${k}'`).length - 1, 1, `${k} is asked for in more than one place`);
+  assert.match(src, /const readText = bsCiTodayReadText\(tr, readKey, coached\);/);
+});
+
 test("today's read: short and low, low after a full night, low with no night, short but fine, ready", () => {
   assert.equal(CARD.bsCiTodayRead({ energy: 4, sleep: 5 }, 7.5), 'shortLow');
   assert.equal(CARD.bsCiTodayRead({ energy: 2, sleep: 8 }, 7.5), 'fullLow');
@@ -512,6 +527,30 @@ test('a skipped night stays skipped: Start opens energy, and Edit then Next writ
     await m.click(/Thirty minutes less/);
     await m.click(/^Next/);
     assert.deepEqual(calls.log[2], { sleepHours: 7 });
+  } finally { m.unmount(); dom.window.localStorage.clear(); }
+});
+
+test("hours typed on Edit after a skip count in the done line's readiness, as its read counts them", async () => {
+  dom.window.localStorage.clear();
+  const calls = env({ uid: 'skip-then-hours' });
+  const m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Skip$/);
+    await m.click(/^Good$/);
+    await m.click(/^Done$/);
+    // A skipped night has no sleep part: Good alone.
+    assert.equal(document.querySelector('[data-bs-checkin-readiness]')?.textContent, 'Readiness 85 · Ready');
+    await m.click(/^Edit$/);
+    for (let i = 0; i < 7; i += 1) await m.click(/Thirty minutes less/); // 7h 30 down to 4h
+    await m.click(/^Next/);
+    await m.click(/^Finish/);
+    await m.click(/^Done$/);
+    assert.deepEqual(calls.log, [{ sleepSkipped: true }, { energy: 8 }, { sleepHours: 4 }]);
+    assert.match(m.text(), /Sleep 4h/);
+    assert.match(m.text(), /Short night, but you feel fine/);
+    // Good (85) and 4h, 3h 30 short of 7h 30 (0): (35·85 + 25·0) / 60 = 49.6.
+    assert.equal(document.querySelector('[data-bs-checkin-readiness]')?.textContent, 'Readiness 50 · Take it easy', 'the hours typed after the skip were left out');
   } finally { m.unmount(); dom.window.localStorage.clear(); }
 });
 
@@ -842,13 +881,14 @@ test("today's read: a short night and a low morning, said on the summary and on 
   try { assert.match(m.text(), /Short night, but you feel fine\. Go by how the warm-up feels\./); } finally { m.unmount(); }
 });
 
-test('the summary says the week in words: short on sleep, mostly low, mostly good', async () => {
+test('the summary says the week in words: short on sleep, low on average, mostly good', async () => {
   env({ days: { '2026-10-15': { energy: 8, sleep: 5 }, '2026-10-16': { energy: 8, sleep: 5.5 }, [YDAY]: { energy: 8, sleep: 5 }, [TODAY]: { energy: 8, sleep: 5 } } });
   let m = await mount({ openRequest: 1 });
   try { assert.match(m.text(), /Short on sleep this week: 5h 10 a night\./); } finally { m.unmount(); }
   env({ days: { '2026-10-15': { energy: 4, sleep: 7 }, '2026-10-16': { energy: 2, sleep: 7 }, [YDAY]: { energy: 4, sleep: 7 }, [TODAY]: { energy: 4, sleep: 7 } } });
   m = await mount({ openRequest: 1 });
-  try { assert.match(m.text(), /Your energy has been mostly low this week\. A lighter session still counts\./); } finally { m.unmount(); }
+  // An average is said as one: Drained and Low days average Low without most of them being Low.
+  try { assert.match(m.text(), /Your energy has been low on average this week\. A lighter session still counts\./); } finally { m.unmount(); }
   env({ days: { '2026-10-15': { energy: 8, sleep: 7 }, '2026-10-16': { energy: 8, sleep: 7 }, [TODAY]: { energy: 8, sleep: 7 } } });
   m = await mount({ openRequest: 1 });
   try { assert.match(m.text(), /Mostly good mornings this week\./); } finally { m.unmount(); }
@@ -1268,6 +1308,32 @@ test('a save the network holds keeps the next card waiting 3 seconds at most', a
   } finally { m.unmount(); land({ ok: true }); }
 });
 
+test("a line's saves have landed once every save queued on it has, a failed one too (bsCiLanded, for a reader that read before them)", async () => {
+  dom.window.ShapeAuth = { getCachedState: () => ({ user: { id: 'landed-1' } }) };
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  let land;
+  let fail;
+  const seen = [];
+  const a = CARD.bsCiEnqueue('checkin', 'landed-1', () => new Promise((r) => { land = r; }));
+  CARD.bsCiLanded('checkin').then(() => seen.push('first'));
+  const b = CARD.bsCiEnqueue('checkin', 'landed-1', () => new Promise((_, r) => { fail = r; }));
+  CARD.bsCiLanded('checkin').then(() => seen.push('both'), () => seen.push('rejected'));
+  await tick();
+  assert.deepEqual(seen, [], 'the line read as landed with a save still out');
+  land({ ok: true });
+  await a;
+  await tick();
+  assert.deepEqual(seen, ['first'], 'the line as it stood did not land with its save');
+  fail(new Error('network'));
+  await assert.rejects(b);
+  await tick();
+  assert.deepEqual(seen, ['first', 'both'], 'a failed save never settled the line, or rejected it');
+  // A line with nothing on it has landed.
+  let idle = false;
+  await CARD.bsCiLanded('water').then(() => { idle = true; });
+  assert.equal(idle, true);
+});
+
 test('two failed answers to one question put back what is stored, not the first unsaved answer', async () => {
   let failFirst;
   const first = new Promise((_, reject) => { failFirst = reject; });
@@ -1583,14 +1649,16 @@ test('a night skipped on another device is skipped here: the day\'s row says so'
     assert.equal(m.walk()?.getAttribute('data-bs-checkin-walk'), String(CARD.BS_CI_SUMMARY), 'a reminder opened a night the row says was skipped');
     assert.match(m.text(), /Skipped/);
   } finally { m.unmount(); }
-  // A night skipped on the row that has hours after all (a watch that synced later) is still left out,
-  // as Your mornings leaves it out: Good alone is 85; counting 5h against 7h 30 would make it 60.
+  // A night skipped on the row that has hours after all (a watch that synced later) counts them, as
+  // today's read and Your mornings do: hours win over a skip. Good (85) and 5h against 7h 30 (25):
+  // (35·85 + 25·25) / 60 = 60. Left out, Good alone would say 85.
   const late = { [TODAY]: { energy: 8, sleep: 5, sleepFromDevice: 1, sleepSkipped: 1 } };
   env({ uid: 'mornings-4', days: late });
   m = await mount();
   try {
-    assert.equal(document.querySelector('[data-bs-checkin-readiness]')?.textContent, 'Readiness 85 · Ready', "a skipped night's hours were counted");
-    assert.equal(morningReadinessForDay(series(late), TODAY, { usualNight: 7.5 }).score, 85, "Home's number is not the page's");
+    assert.equal(document.querySelector('[data-bs-checkin-readiness]')?.textContent, 'Readiness 60 · Steady', "a skipped night's later hours were left out");
+    assert.match(m.text(), /Short night, but you feel fine/);
+    assert.equal(morningReadinessForDay(series(late), TODAY, { usualNight: 7.5 }).score, 60, "Home's number is not the page's");
   } finally { m.unmount(); }
   // Start opens energy for a night skipped on the row and nothing else answered.
   env({ uid: 'mornings-4', days: { [TODAY]: { sleepSkipped: 1 } } });
@@ -1670,17 +1738,21 @@ test("the five words come from one list with every key written out, and the card
 
 test("Home's lead says the engine's check-in flags in the member's words, and never rewords a coach", () => {
   const engine = (key, avg, reason = 'the engine said it') => ({ source: 'engine', lever: 'energy', reason, cited: [key], evidence: { key, avg, n: 4 } });
-  const energy = CARD.bsCiLeadReason(engine('energy_low', 3.2, 'Your energy has been mostly low this week — a lighter session still counts'), trEn);
-  assert.equal(energy, 'Your energy has been mostly low this week. A lighter session still counts.');
+  const energy = CARD.bsCiLeadReason(engine('energy_low', 3.2, 'Your energy has been low on average this week — a lighter session still counts'), trEn);
+  // The flag's average is said as an average, never "mostly": Your mornings' "Most days" is the word
+  // most days had, and Drained, Drained, Drained, Great averages Low with no Low day.
+  assert.equal(energy, 'Your energy has been low on average this week. A lighter session still counts.');
   assert.doesNotMatch(energy, /\/10/);
   // By the card's one rule, (2i, 2i+2] is word i: 2 is Drained, 2.5 and 4 are Low.
-  assert.match(CARD.bsCiLeadReason(engine('energy_low', 2), trEn), /mostly drained this week/);
-  assert.match(CARD.bsCiLeadReason(engine('energy_low', 2.5), trEn), /mostly low this week/);
-  assert.match(CARD.bsCiLeadReason(engine('energy_low', 4), trEn), /mostly low this week/);
+  assert.match(CARD.bsCiLeadReason(engine('energy_low', 2), trEn), /been drained on average this week/);
+  assert.match(CARD.bsCiLeadReason(engine('energy_low', 2.5), trEn), /been low on average this week/);
+  assert.match(CARD.bsCiLeadReason(engine('energy_low', 4), trEn), /been low on average this week/);
   // hunger_high flags at or over 8: 8 is Hungry, anything over it Starving.
-  assert.equal(CARD.bsCiLeadReason(engine('hunger_high', 8), trEn), "You've been mostly hungry between meals this week. The plan may be running light on fuel.");
-  assert.match(CARD.bsCiLeadReason(engine('hunger_high', 8.4), trEn), /mostly starving between meals/);
-  assert.match(CARD.bsCiLeadReason(engine('hunger_high', 10), trEn), /mostly starving between meals/);
+  assert.equal(CARD.bsCiLeadReason(engine('hunger_high', 8), trEn), "You've been hungry between meals on average this week. The plan may be running light on fuel.");
+  assert.match(CARD.bsCiLeadReason(engine('hunger_high', 8.4), trEn), /been starving between meals on average/);
+  assert.match(CARD.bsCiLeadReason(engine('hunger_high', 10), trEn), /been starving between meals on average/);
+  for (const avg of [2, 3.2, 4]) assert.doesNotMatch(CARD.bsCiLeadReason(engine('energy_low', avg), trEn), /mostly/i);
+  assert.doesNotMatch(CARD.bsCiLeadReason(engine('hunger_high', 9), trEn), /mostly/i);
   // Sleep to the 5 minutes, as the summary's week line says it: 5.2h is 5h 10.
   assert.equal(CARD.bsCiLeadReason(engine('sleep_low', 5.2), trEn), 'Short on sleep this week: 5h 10 a night.');
   assert.equal(CARD.bsCiLeadReason(engine('sleep_low', 5), trEn), 'Short on sleep this week: 5h a night.');
@@ -1698,4 +1770,27 @@ test("Home's lead says the engine's check-in flags in the member's words, and ne
   assert.equal(CARD.bsCiLeadReason({ ...engine('hydration_low', 1.2), reason: 'Water is behind' }, trEn), 'Water is behind');
   assert.equal(CARD.bsCiLeadReason({ ...engine('training_gap', 3), reason: 'Two sessions missed' }, trEn), 'Two sessions missed');
   assert.equal(CARD.bsCiLeadReason(null, trEn), null);
+});
+
+test("a word set into a sentence lowers only its first letter, so a noun and a word in capitals keep theirs", () => {
+  const intl = dom.window.ShapeI18n.intlLocale;
+  try {
+    assert.equal(CARD.bsCiLower('Drained'), 'drained');
+    assert.equal(CARD.bsCiLower('Not hungry'), 'not hungry');
+    assert.equal(CARD.bsCiLower('OK'), 'OK', "the English OK is not 'ok'");
+    dom.window.ShapeI18n.intlLocale = () => 'de-DE';
+    assert.equal(CARD.bsCiLower('Kein Hunger'), 'kein Hunger', 'a German noun keeps its capital');
+    assert.equal(CARD.bsCiLower('Sehr hungrig'), 'sehr hungrig');
+    dom.window.ShapeI18n.intlLocale = () => 'tr-TR';
+    assert.equal(CARD.bsCiLower('İdare eder'), 'idare eder', 'the dotted capital I lowers by the language');
+  } finally { dom.window.ShapeI18n.intlLocale = intl; }
+});
+
+test("the card's majority line keeps OK in capitals", async () => {
+  env({ days: { '2026-10-15': { energy: 6, sleep: 7 }, '2026-10-16': { energy: 6, sleep: 7 }, [TODAY]: { energy: 6, sleep: 7 } } });
+  const m = await mount({ openRequest: 1 });
+  try {
+    assert.match(m.text(), /Mostly OK mornings this week\./);
+    assert.doesNotMatch(m.text(), /Mostly ok/);
+  } finally { m.unmount(); }
 });

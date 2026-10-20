@@ -1004,10 +1004,10 @@ test("an energy or hunger push to the member says the word, never /10; the coach
     return clientCandidates({ directive: { ...directive, line }, flags, now: DAYTIME, tone: 'supportive' }).find((c) => c.type === 'directive');
   };
   const energy = push({ energy: { avg7: 3.4, n: 5 } });
-  assert.equal(energy.body, "Energy is running low. Your energy has been mostly low this week — a lighter session still counts. When you're ready, take today lighter.");
+  assert.equal(energy.body, "Energy is running low. Your energy has been low on average this week — a lighter session still counts. When you're ready, take today lighter.");
   assert.doesNotMatch(energy.body, /\/10/);
   const hunger = push({ hunger: { avg7: 8.6, n: 4 } });
-  assert.equal(hunger.body, "Fuel is running short. You've been mostly starving between meals this week — the plan may be running light on fuel. When you're ready, add a real meal today.");
+  assert.equal(hunger.body, "Fuel is running short. You've been starving between meals on average this week — the plan may be running light on fuel. When you're ready, add a real meal today.");
   assert.doesNotMatch(hunger.body, /\/10/);
 
   const client = { userId: 'c1', profile: { name: 'Ana' }, vitals: { energy: { avg7: 3.4, n: 5 } } };

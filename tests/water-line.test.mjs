@@ -668,6 +668,28 @@ test("the hydration lead brings today's line to the middle of the screen and put
     assert.equal(WATER.bsWaterLineFocus(), true);
     assert.deepEqual(scrolled, [[true, { block: 'center', behavior: 'smooth' }]], 'the line was not brought to the middle of the screen');
     assert.ok(document.activeElement === glass, '+ Glass lost focus after the scroll');
+    // With Reduce Motion on it jumps there: an explicit smooth scroll would override the setting.
+    glass.blur();
+    scrolled.length = 0;
+    const asked = [];
+    dom.window.matchMedia = (q) => { asked.push(q); return { matches: q === '(prefers-reduced-motion: reduce)' }; };
+    try {
+      assert.equal(WATER.bsWaterLineFocus(), true);
+      assert.deepEqual(asked, ['(prefers-reduced-motion: reduce)']);
+      assert.deepEqual(scrolled, [[true, { block: 'center', behavior: 'auto' }]], 'a member with Reduce Motion on got a smooth scroll');
+      assert.ok(document.activeElement === glass);
+      // Reduce Motion off is the smooth scroll; a matchMedia that throws still scrolls and focuses.
+      scrolled.length = 0;
+      dom.window.matchMedia = () => ({ matches: false });
+      WATER.bsWaterLineFocus();
+      assert.deepEqual(scrolled, [[true, { block: 'center', behavior: 'smooth' }]]);
+      scrolled.length = 0;
+      glass.blur();
+      dom.window.matchMedia = () => { throw new Error('no media queries here'); };
+      assert.equal(WATER.bsWaterLineFocus(), true);
+      assert.deepEqual(scrolled, [[true, { block: 'center', behavior: 'smooth' }]], 'a matchMedia that throws stopped the scroll');
+      assert.ok(document.activeElement === glass);
+    } finally { delete dom.window.matchMedia; }
     // A scroll that throws still leaves the member one tap from a glass.
     glass.blur();
     proto.scrollIntoView = () => { throw new Error('no smooth scrolling here'); };

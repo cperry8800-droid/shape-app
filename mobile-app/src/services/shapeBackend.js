@@ -7727,7 +7727,11 @@ window.ShapeProfiles = { getPublicProfile, getUserPoints, getUserAvatars };
 // Progress hub — the same rollups the website Progress / Train / Nutrition pages
 // read (KPIs, trend series, PRs, volume, macros). Each returns null on no-data so
 // the mobile screen can fall back to its demo shape.
-async function getClientProgress() { return cachedClientJson('/api/client/progress').then((d) => (d && d.ok ? d : null)); }
+// The progress read sends the member's LOCAL day, so the route's 30-day sleep average windows the
+// same 30 days Your mornings reads; without it the route uses the server's UTC day, a night off at
+// one edge for part of every day. The day is in the URL, so the cache key turns over at local
+// midnight with it.
+async function getClientProgress() { return cachedClientJson(`/api/client/progress?date=${_localDate()}`).then((d) => (d && d.ok ? d : null)); }
 async function getClientAnalytics() { return cachedClientJson('/api/client/analytics').then((d) => (d && d.has_data ? d : null)); }
 async function getClientTrain() { return cachedClientJson('/api/client/train').then((d) => (d && d.ok ? d : null)); }
 async function getClientNutrition() { return cachedClientJson('/api/client/nutrition').then((d) => (d && d.ok ? d : null)); }

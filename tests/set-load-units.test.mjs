@@ -58,13 +58,14 @@ async function routes() {
   const { loadRealModule } = await import('./helpers/load-real-module.mjs');
   const nextServer = require('next/server');
   const lib = (f) => loadRealModule(join(ROOT, 'src/lib', f), { typescript: true });
-  const [time, setLoad, e1rm, readiness] = await Promise.all([lib('time.ts'), lib('set-load.ts'), lib('e1rm.ts'), lib('recovery-readiness.ts')]);
+  const [time, setLoad, e1rm, readiness, localDay] = await Promise.all([lib('time.ts'), lib('set-load.ts'), lib('e1rm.ts'), lib('recovery-readiness.ts'), lib('local-day.ts')]);
   let client = null;
   const registry = () => new Map([
     ['next/server', nextServer],
     ['@/lib/time', time],
     ['@/lib/set-load', setLoad],
     ['@/lib/e1rm', e1rm],
+    ['@/lib/local-day', localDay],
     ['@/lib/recovery-readiness', readiness],
     ['@/lib/require-membership', { requireMembership: async () => null }],
     ['@/lib/supabase/server', { createClient: async () => client }],

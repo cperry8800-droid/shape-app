@@ -197,8 +197,10 @@ test('within the vitals: energy (34) outranks hunger (33) outranks hydration (32
 // says the word an average reads as, by the card's one rule. Every coach surface reads the same
 // flags through a coach role and keeps the figure, byte for byte: the roster, the case file,
 // coach pushes (whose signature holds the reason) and the coach's Today read.
-const energyWords = (w) => `Your energy has been mostly ${w} this week — a lighter session still counts`;
-const hungerWords = (w) => `You've been mostly ${w} between meals this week — the plan may be running light on fuel`;
+// The word is the band of an average, so the line says "on average", never "mostly": Your mornings
+// says "Most days" only for the answer that holds most of the days (part 2 review fixes, K5).
+const energyWords = (w) => `Your energy has been ${w} on average this week — a lighter session still counts`;
+const hungerWords = (w) => `You've been ${w} between meals on average this week — the plan may be running light on fuel`;
 
 test("the engine turns an average into a word by the card's one rule (bsCiWordIndex)", () => {
   for (let i = 1; i <= 100; i++) {
@@ -232,6 +234,17 @@ test("the member's hunger_high reason says the word between meals, never /10", (
     assert.equal(d.reason, hungerWords(w), `avg ${avg7}`);
     assert.doesNotMatch(d.reason, /\/10|\d/);
   }
+});
+
+test("the member's line says the week's average as an average, never as the most common answer", () => {
+  // Drained, Drained, Drained and Great (2, 2, 2, 10) average 4: Low by the card's rule, though not
+  // one answer was Low. Your mornings says "Most days this week: Drained" for the same week, so a
+  // "mostly low" here contradicted the page the lead opens.
+  const energy = buildDirective(rec({ energy: { avg7: (2 + 2 + 2 + 10) / 4, n: 4 } }), NOW, 'client');
+  assert.equal(energy.reason, 'Your energy has been low on average this week — a lighter session still counts');
+  const hunger = buildDirective(rec({ hunger: { avg7: 8.5, n: 4 } }), NOW, 'client');
+  assert.equal(hunger.reason, "You've been starving between meals on average this week — the plan may be running light on fuel");
+  for (const d of [energy, hunger]) assert.doesNotMatch(d.reason, /mostly/i, 'an average was said as the usual answer');
 });
 
 test('every coach role keeps the figure out of 10, byte for byte', () => {
