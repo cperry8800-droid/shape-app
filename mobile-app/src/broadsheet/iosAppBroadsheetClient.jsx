@@ -19983,9 +19983,11 @@ function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false,
 // #2413: the friend's 8 pm habit notice opened the reader's own Me tab). The profile read
 // (get_public_profile, visibility-gated) gives their name, role and photo; without it the page
 // still opens on the id and the profile's own read fills it in. Every shell renders it over the
-// page underneath, as search does, and Back closes it.
+// page underneath, as search does, and Back closes it, from the first frame: while the read is out
+// the page is a Back and nothing else, never a blank screen with no way out (Codex on #2413).
 function BSNotifiedPerson({ userId, onClose }) {
   const t = useBS();
+  const tr = useShapeTr();
   const [person, setPerson] = useStateBSC(null);
   React.useEffect(() => {
     let on = true;
@@ -20004,8 +20006,12 @@ function BSNotifiedPerson({ userId, onClose }) {
   const me = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
   return createPortal(
     <div data-notified-person style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
-      {person && <BSPublicProfile person={person} onBack={onClose}
-        onMessage={me && person.userId !== me ? (p) => bsOpenMemberConversation(p, onClose) : null} />}
+      {person
+        ? <BSPublicProfile person={person} onBack={onClose}
+            onMessage={me && person.userId !== me ? (p) => bsOpenMemberConversation(p, onClose) : null} />
+        : <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+            <button data-person-back onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
+          </div>}
     </div>,
     (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body,
   );

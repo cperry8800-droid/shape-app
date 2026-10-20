@@ -67,6 +67,7 @@ export default {
     { name: 'Back from the person leaves a dead back', file: MEMBER, find: 'onClose={() => { if (!navBack()) setNotifPerson(null); }}', replace: 'onClose={() => setNotifPerson(null)}' },
     { name: 'a coach profile opens as a member\'s', file: MEMBER, find: "        const kind = p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT';", replace: "        const kind = 'CLIENT';" },
     { name: 'an unreadable profile opens nothing', file: MEMBER, find: "        if (!p) { setPerson(bare); return; }", replace: "        if (!p) return;" },
+    { name: 'a profile still loading has no way out', file: MEMBER, find: '<button data-person-back onClick={onClose}', replace: '<button data-person-back' },
     { name: 'one can message oneself', file: MEMBER, find: 'onMessage={me && person.userId !== me ?', replace: 'onMessage={me ?' },
     { name: 'the trainer app does not draw the person', file: PROS, find: '      {personOverlay}\n      {showTour && <BSProOnboardingTour role="trainer"', replace: '      {showTour && <BSProOnboardingTour role="trainer"' },
     { name: 'the nutritionist app does not draw the person', file: PROS, find: '      {personOverlay}\n      {showTour && <BSProOnboardingTour role="nutritionist"', replace: '      {showTour && <BSProOnboardingTour role="nutritionist"' },

@@ -9,7 +9,7 @@
 // Mounted with a react impl whose effects run, so the read → render path is production's.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadBroadsheet, drive, SHIM } from './helpers/broadsheet-mount.mjs';
+import { loadBroadsheet, drive, textOf, SHIM } from './helpers/broadsheet-mount.mjs';
 
 // The overlay portals into #bs-phone-surface, else document.body; the harness hands it back in place.
 if (typeof globalThis.document === 'undefined') globalThis.document = { getElementById: () => null, body: {} };
@@ -27,14 +27,20 @@ async function open(userId, { me = 'zoe', profile } = {}) {
   const onClose = () => {};
   const d = drive(BSNotifiedPerson, { userId, onClose });
   const before = profileOf(d);
+  const backBefore = d.nodes().find((n) => n.type === 'button' && n.props['data-person-back']);
   await settle();
   d.render();
-  return { d, before, asked, onClose };
+  return { d, before, backBefore, asked, onClose };
 }
 
 test('it opens the named person\'s profile, read by their id', async () => {
-  const { d, before, asked, onClose } = await open('ann', { profile: { userId: 'ann', name: 'Ann Lee', role: 'client', avatar: 'ann.png', points: 800 } });
-  assert.equal(before, undefined, 'nothing is drawn over the page until the read answers');
+  const { d, before, backBefore, asked, onClose } = await open('ann', { profile: { userId: 'ann', name: 'Ann Lee', role: 'client', avatar: 'ann.png', points: 800 } });
+  assert.equal(before, undefined, 'no profile is drawn until the read answers');
+  // Codex on #2413: while the read is out the page is a Back, never a blank screen with no way out.
+  assert.ok(backBefore, 'a Back is there from the first frame');
+  assert.equal(backBefore.props.onClick, onClose, 'and it closes the page');
+  assert.match(textOf(backBefore), /Back/);
+  assert.equal(d.nodes().find((n) => n.type === 'button' && n.props['data-person-back']), undefined, 'the profile\'s own Back takes over once it is drawn');
   assert.ok(asked.length >= 1 && asked.every((id) => id === 'ann'), 'the read asks for that person, and only them');
   const p = profileOf(d);
   assert.ok(p, 'the profile opens');
