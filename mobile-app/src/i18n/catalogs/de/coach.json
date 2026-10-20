@@ -497,11 +497,8 @@
   "grocery.itemsPlaceholder": "Ein Artikel pro Zeile\nHähnchenbrust\nJasminreis\nBrokkoli",
   "grocery.kickerNutri": "Ernährungslieferung",
   "grocery.kickerTrainer": "Mahlzeiten-Unterstützung",
-  "grocery.leadEyebrow": "Die Listen · {mode}",
   "grocery.listNamePlaceholder": "Listenname — z. B. Großer-Teller-Tag",
   "grocery.listsCount": "{count, plural, one {# Liste} other {# Listen}}",
-  "grocery.modeNutri": "Ernährungslieferung",
-  "grocery.modeTrainer": "Mahlzeiten-Unterstützung",
   "grocery.newList": "＋ Neue Einkaufsliste",
   "grocery.personal": "Persönlich",
   "grocery.sendToClient": "An {name} senden →",
@@ -1365,5 +1362,7 @@
   "business.weeks.head": "Netto im Monat, letzte 13 Wochen",
   "business.window": "in den letzten 3 Monaten",
   "offer.row": "Monatsangebot",
-  "offer.rowSub": "Was enthalten ist, angezeigt in deinem Marktplatz-Profil"
+  "offer.rowSub": "Was enthalten ist, angezeigt in deinem Marktplatz-Profil",
+  "grocery.loadFailed": "Deine Listen konnten nicht geladen werden.",
+  "grocery.clientsFailed": "Deine Klienten konnten nicht geladen werden."
 }

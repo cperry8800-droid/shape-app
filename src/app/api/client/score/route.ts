@@ -8,7 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import { dbError } from '@/lib/request-utils';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { deriveScore } from '@/lib/score-derive';
 import { requireMembership } from '@/lib/require-membership';
 import { readAllLedgerRows } from '@/lib/score-ledger-read';
@@ -108,8 +108,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 export async function GET(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const now = new Date();

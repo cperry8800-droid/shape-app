@@ -6,7 +6,7 @@
 // exercises as freeform JSONB and carry no scheduled dates.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { DAY_MS, startOfWeek } from '@/lib/time';
 import { requireMembership } from '@/lib/require-membership';
 import { setLoadLb, setLoadUnit } from '@/lib/set-load';
@@ -36,10 +36,8 @@ function pnum(v: unknown): number {
 export async function GET(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
 
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });

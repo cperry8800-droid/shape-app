@@ -700,59 +700,84 @@ function bsGroAisle(name) {
 }
 function BSProGroceryLists({ t, isNutri, onBack }) {
   const tr = useShapeTr();
+  // Sample lists for the signed-out preview ONLY (`demo: true`). A signed-in coach sees
+  // their own lists or none: these used to stand in whenever the coach had no lists or
+  // the read failed, so a new coach read three made-up clients (Riley Kim, Sara Mendez,
+  // Ava Brooks) with a Send button for each.
   const DEMO = [
-    { id: 'd0', name: 'My weekly prep', client_id: null, client_name: null, status: 'ready', items: [{ name: 'Chicken breast' }, { name: 'Jasmine rice' }, { name: 'Broccoli' }, { name: 'Greek yogurt' }, { name: 'Olive oil' }, { name: 'Eggs' }].map(x => ({ name: x.name, aisle: bsGroAisle(x.name) })) },
-    { id: 'd1', name: 'Big-plate day list', client_id: null, client_name: 'Riley Kim', status: 'ready', items: ['Chicken breast', 'Jasmine rice', 'Pineapple', 'Chili base', 'Greek yogurt'].map(n => ({ name: n, aisle: bsGroAisle(n) })) },
-    { id: 'd2', name: 'Low-FODMAP cut', client_id: null, client_name: 'Sara Mendez', status: 'review', items: ['Zucchini', 'Firm tofu', 'Rice noodles', 'Lactose-free milk'].map(n => ({ name: n, aisle: bsGroAisle(n) })) },
-    { id: 'd3', name: 'Vegetarian prep', client_id: null, client_name: 'Ava Brooks', status: 'approval', items: ['Spinach', 'Tempeh', 'Lentils', 'Feta'].map(n => ({ name: n, aisle: bsGroAisle(n) })) },
+    { id: 'd0', demo: true, name: 'My weekly prep', client_id: null, client_name: null, status: 'ready', items: [{ name: 'Chicken breast' }, { name: 'Jasmine rice' }, { name: 'Broccoli' }, { name: 'Greek yogurt' }, { name: 'Olive oil' }, { name: 'Eggs' }].map(x => ({ name: x.name, aisle: bsGroAisle(x.name) })) },
+    ...(isNutri ? [
+      { id: 'd1', demo: true, name: 'Big-plate day list', client_id: null, client_name: 'Riley Kim', status: 'ready', items: ['Chicken breast', 'Jasmine rice', 'Pineapple', 'Chili base', 'Greek yogurt'].map(n => ({ name: n, aisle: bsGroAisle(n) })) },
+      { id: 'd2', demo: true, name: 'Low-FODMAP cut', client_id: null, client_name: 'Sara Mendez', status: 'ready', items: ['Zucchini', 'Firm tofu', 'Rice noodles', 'Lactose-free milk'].map(n => ({ name: n, aisle: bsGroAisle(n) })) },
+    ] : []),
   ];
-  const [lists, setLists] = useStateBSP(null);
-  const [tab, setTab] = useStateBSP('clients');
+  const signedIn = () => { try { return !!window.ShapeAuth?.getCachedState?.()?.user?.id; } catch (e) { return false; } };
+  const [lists, setLists] = useStateBSP(null);   // null = loading
+  const [failed, setFailed] = useStateBSP(false); // the read failed: say so, never stand in samples
+  // Trainers keep personal lists only (owner, 2026-10-20): a client list from a trainer
+  // delivered nothing, and its notice told the client a meal plan had been loaded.
+  // Nutritionists keep both, and a client list goes to that client's Eat page.
+  const [tab, setTab] = useStateBSP(isNutri ? 'clients' : 'mine');
   const [creating, setCreating] = useStateBSP(false);
-  const [draft, setDraft] = useStateBSP({ name: '', items: '', forClient: true, clientName: '' });
+  const blank = { name: '', items: '', forClient: isNutri, clientId: '' };
+  const [draft, setDraft] = useStateBSP(blank);
   const [busy, setBusy] = useStateBSP(false);
+  // The nutritionist's linked clients, for the "For a client" picker. null = loading, false = failed.
+  const [roster, setRoster] = useStateBSP(null);
   const reload = React.useCallback(() => {
-    if (!window.ShapeGroceryLists?.list) { setLists(DEMO); return; }
-    window.ShapeGroceryLists.list().then(r => setLists(Array.isArray(r) && r.length ? r : DEMO)).catch(() => setLists(DEMO));
+    if (!window.ShapeGroceryLists?.list || !signedIn()) { setLists(DEMO); setFailed(false); return; }
+    window.ShapeGroceryLists.list()
+      .then(r => { if (Array.isArray(r)) { setLists(r); setFailed(false); } else { setLists([]); setFailed(true); } })
+      .catch(() => { setLists([]); setFailed(true); });
   }, []);
   React.useEffect(() => { reload(); }, [reload]);
-  const all = lists || DEMO;
+  React.useEffect(() => {
+    if (!isNutri || !creating || roster) return;
+    if (!window.ShapeAssign?.clients || !signedIn()) { setRoster([]); return; }
+    window.ShapeAssign.clients('nutritionist', { strict: true }).then(r => setRoster(Array.isArray(r) ? r : [])).catch(() => setRoster(false));
+  }, [isNutri, creating, roster]);
+  const all = lists || [];
   const mine = all.filter(g => !g.client_name && !g.client_id);
   const clients = all.filter(g => g.client_name || g.client_id);
-  const shown = tab === 'mine' ? mine : clients;
+  // A trainer's older client lists stay visible (they are theirs) but carry no Send.
+  const shown = !isNutri ? all : (tab === 'mine' ? mine : clients);
   // Role-true heat (trainer rust / nutritionist gold), line-only; teal = the one action.
   const heat = bsProHeat(t, isNutri ? 'nutritionist' : 'trainer');
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const STAT = { ready: [tr('coach:grocery.statusReady', { defaultValue: 'Ready to send' }), '#5fae7e'], review: [tr('coach:grocery.statusReview', { defaultValue: 'In review' }), t.AMBER || '#d8a23a'], approval: [tr('coach:grocery.statusApproval', { defaultValue: 'Awaiting approval' }), t.INK70], sent: [tr('coach:grocery.statusSent', { defaultValue: 'Sent' }), heat] };
-  const aislesOf = (items) => { const m = {}; (items || []).forEach(it => { const a = it.aisle || bsGroAisle(it.name); m[a] = (m[a] || 0) + 1; }); return Object.keys(m).map(a => [a, m[a]]); };
+  const aislesOf = (items) => { const m = {}; (items || []).forEach(it => { const a = it.aisle || bsGroAisle(it.name); m[a] = (m[a] || 0) + 1; }); return Object.keys(m); };
   const create = async () => {
     const name = draft.name.trim();
     if (!name) { window.__bsToast?.(tr('coach:grocery.toastAddName', { defaultValue: 'Add a list name' }), 'err'); return; }
     const items = draft.items.split('\n').map(s => s.trim()).filter(Boolean).map(n => ({ name: n, aisle: bsGroAisle(n) }));
-    const clientName = draft.forClient ? draft.clientName.trim() : '';
+    const forClient = isNutri && draft.forClient;
+    const client = forClient ? (Array.isArray(roster) ? roster.find(c => c.userId === draft.clientId) : null) : null;
+    if (forClient && !client) { window.__bsToast?.(tr('coach:assign.pickClient', { defaultValue: 'Pick a client' }), 'err'); return; }
     setBusy(true);
     try {
-      if (window.ShapeGroceryLists?.create) { await window.ShapeGroceryLists.create({ name, items, status: 'ready', clientName }); window.__bsToast?.(tr('coach:grocery.toastCreated', { defaultValue: 'List created' }), 'ok'); }
-      else { setLists(l => [{ id: 'l' + Date.now(), name, items, status: 'ready', client_name: clientName || null, client_id: null }, ...(l || DEMO)]); }
-      setCreating(false); setDraft({ name: '', items: '', forClient: true, clientName: '' });
-      setTab(clientName ? 'clients' : 'mine');
-      reload();
+      if (window.ShapeGroceryLists?.create && signedIn()) {
+        await window.ShapeGroceryLists.create({ name, items, status: 'ready', clientId: client ? client.userId : '', clientName: client ? client.name : '' });
+        window.__bsToast?.(tr('coach:grocery.toastCreated', { defaultValue: 'List created' }), 'ok');
+        reload();
+      } else {
+        setLists(l => [{ id: 'l' + Date.now(), demo: true, name, items, status: 'ready', client_name: client ? client.name : null, client_id: null }, ...(l || [])]);
+      }
+      setCreating(false); setDraft(blank);
+      setTab(client ? 'clients' : 'mine');
     } catch (e) { window.__bsToast?.(e.message || tr('coach:grocery.toastCouldNotSave', { defaultValue: 'Could not save' }), 'err'); }
     finally { setBusy(false); }
   };
   const send = async (g) => {
+    // A list made before clients were picked from the roster carries only a typed name.
     if (!g.client_id) { window.__bsToast?.(tr('coach:grocery.toastDeliversLinked', { defaultValue: 'Delivers once this client is linked' }), 'info'); return; }
-    try {
-      // Deliver to the client's EAT page (grocery) — not chat. Nutritionists push
-      // it into the client's grocery (review + sub-out there); the push fires the
-      // tailored "loaded into grocery lists" notification. Trainers just notify.
-      let pushed = false;
-      if (isNutri && window.ShapeGroceryLists?.push) pushed = await window.ShapeGroceryLists.push({ clientId: g.client_id, name: g.name, items: g.items });
-      if (!pushed) { try { await window.ShapeGroceryLists?.notify?.(g.client_id, g.name); } catch (e) {} }
-      if (window.ShapeGroceryLists?.update && !String(g.id).startsWith('d')) await window.ShapeGroceryLists.update({ id: g.id, status: 'sent' });
-      window.__bsToast?.(tr('coach:grocery.toastSentTo', { defaultValue: 'Sent to {name} · on their Eat page', name: String(g.client_name || tr('coach:grocery.clientWord', { defaultValue: 'client' })).split(' ')[0] }), 'ok');
-      reload();
-    } catch (e) { window.__bsToast?.(tr('coach:grocery.toastCouldNotSend', { defaultValue: 'Could not send' }), 'err'); }
+    // ⚠ "SENT" ONLY WHEN IT ARRIVED. A failed delivery used to fall back to the bare
+    // notice (which tells the client their meal plan is in their grocery lists), mark the
+    // list Sent and toast success, so neither side could tell nothing had landed.
+    const pushed = window.ShapeGroceryLists?.push ? await window.ShapeGroceryLists.push({ clientId: g.client_id, name: g.name, items: g.items }) : false;
+    if (!pushed) { window.__bsToast?.(tr('coach:grocery.toastCouldNotSend', { defaultValue: 'Could not send' }), 'err'); return; }
+    try { if (window.ShapeGroceryLists?.update) await window.ShapeGroceryLists.update({ id: g.id, status: 'sent' }); } catch (e) { /* delivered; the badge catches up on the next load */ }
+    window.__bsToast?.(tr('coach:grocery.toastSentTo', { defaultValue: 'Sent to {name} · on their Eat page', name: String(g.client_name || tr('coach:grocery.clientWord', { defaultValue: 'client' })).split(' ')[0] }), 'ok');
+    reload();
   };
   const del = async (g) => {
     if (!(await window.bsAskConfirm({
@@ -761,15 +786,21 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
       message: g.client_name ? tr('coach:grocery.deleteMsgClient', { defaultValue: 'This permanently removes the list for {name}.', name: String(g.client_name).split(' ')[0] }) : tr('coach:grocery.deleteMsg', { defaultValue: 'This permanently removes the list.' }),
       confirmLabel: tr('coach:grocery.deleteConfirm', { defaultValue: 'Delete list' }),
     }))) return;
-    if (window.ShapeGroceryLists?.remove && !String(g.id).startsWith('d')) await window.ShapeGroceryLists.remove(g.id);
-    setLists(l => (l || DEMO).filter(x => x.id !== g.id));
+    // A real list leaves the screen only once the server removed it. (`demo` marks the
+    // samples: a real id is a uuid, and one in sixteen of those starts with "d" too, so
+    // the old id test skipped the delete and the list came back on the next load.)
+    if (!g.demo && window.ShapeGroceryLists?.remove) {
+      const ok = await window.ShapeGroceryLists.remove(g.id).catch(() => false);
+      if (!ok) { window.__bsToast?.(tr('coach:grocery.toastCouldNotSave', { defaultValue: 'Could not save' }), 'err'); return; }
+    }
+    setLists(l => (l || []).filter(x => x.id !== g.id));
   };
   const heatInk = t.isLight ? '#fff' : '#04201d';       // text on the teal action CTA
   const uline = { width: '100%', boxSizing: 'border-box', padding: '7px 0 9px', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, outline: 'none', background: 'transparent', '--bs-uline-ink': `${t.INK}40`, '--bs-accent': heat };
   const tabItem = (k, label, count) => {
     const on = tab === k;
     return (
-      <button key={k} onClick={() => setTab(k)} aria-pressed={on} style={{ background: 'transparent', border: 0, padding: '2px 0 8px', cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'baseline', gap: 6 }}>
+      <button key={k} onClick={() => setTab(k)} aria-pressed={on} style={{ background: 'transparent', border: 0, padding: '2px 0 8px', minHeight: 32, cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'baseline', gap: 6 }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>{label}</span>
         <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: on ? heat : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{count}</span>
         {on && <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: heat }} />}
@@ -779,93 +810,102 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
   const tealCta = { borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', border: 0, background: teal, color: heatInk, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' };
   const textAction = (color) => ({ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color, borderBottom: `2px solid ${color}66` });
   const rust = t.RUST || '#c0533b';
+  const quiet = { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 };
   return (
     <BSPage>
-      <BSMasthead title={tr('coach:grocery.title', { defaultValue: 'Grocery Lists' })} leftKicker={isNutri ? tr('coach:grocery.kickerNutri', { defaultValue: 'Nutrition delivery' }) : tr('coach:grocery.kickerTrainer', { defaultValue: 'Meal support' })} rightKicker={tr('coach:grocery.listsCount', { defaultValue: '{count, plural, one {# list} other {# lists}}', count: all.length })} onBack={onBack} trailing={creating ? null : bsProCorner()}
+      {/* One hairline under the masthead: the 3px rule + double rule read as a heavy band (owner, 2026-10-20). */}
+      <BSMasthead title={tr('coach:grocery.title', { defaultValue: 'Grocery Lists' })} leftKicker={isNutri ? tr('coach:grocery.kickerNutri', { defaultValue: 'Nutrition delivery' }) : tr('coach:grocery.kickerTrainer', { defaultValue: 'Meal support' })} onBack={onBack} trailing={creating ? null : bsProCorner()} thinRule showDoubleRule={false}
       />
 
-      {/* Verdict lead — the whole queue on one line, heat = role */}
-      <div style={{ padding: `8px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
-          <span aria-hidden style={{ width: 8, height: 8, borderRadius: 2, background: heat, flexShrink: 0 }} />
-          {tr('coach:grocery.leadEyebrow', { defaultValue: 'The lists · {mode}', mode: isNutri ? tr('coach:grocery.modeNutri', { defaultValue: 'nutrition delivery' }) : tr('coach:grocery.modeTrainer', { defaultValue: 'meal support' }) })}
+      {/* The count — client lists for a nutritionist, every list for a trainer */}
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.02 }}>
+          {lists === null ? '…' : isNutri
+            ? tr('coach:grocery.clientListsCount', { defaultValue: '{count, plural, one {# client list} other {# client lists}}', count: clients.length })
+            : tr('coach:grocery.listsCount', { defaultValue: '{count, plural, one {# list} other {# lists}}', count: all.length })}<span style={{ color: heat }}>.</span>
         </div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.02 }}>
-          {tr('coach:grocery.clientListsCount', { defaultValue: '{count, plural, one {# client list} other {# client lists}}', count: clients.length })}<span style={{ color: heat }}>.</span>
-        </div>
-        <div aria-hidden style={{ marginTop: 7, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${heat} 60%, transparent)` }} />
       </div>
 
-      {/* Typographic index — Clients / Mine */}
-      <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', gap: 20, borderBottom: `1px solid ${t.HAIR}` }}>
-        {tabItem('clients', tr('coach:grocery.tabClients', { defaultValue: 'Clients' }), clients.length)}
-        {tabItem('mine', tr('coach:grocery.tabMine', { defaultValue: 'Mine' }), mine.length)}
-      </div>
+      {/* Clients / Mine — nutritionists only */}
+      {isNutri && (
+        <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', gap: 20, borderBottom: `1px solid ${t.HAIR}` }}>
+          {tabItem('clients', tr('coach:grocery.tabClients', { defaultValue: 'Clients' }), clients.length)}
+          {tabItem('mine', tr('coach:grocery.tabMine', { defaultValue: 'Mine' }), mine.length)}
+        </div>
+      )}
 
       {/* New list — dashed add box, or the quiet create form */}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         {!creating ? (
-          <button onClick={() => setCreating(true)} style={{ width: '100%', padding: '13px', borderRadius: 6, border: `1.5px dashed ${t.INK}40`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('coach:grocery.newList', { defaultValue: '＋ New grocery list' })}</button>
+          <button onClick={() => { setDraft({ ...blank, forClient: isNutri && tab === 'clients' }); setCreating(true); }} style={{ width: '100%', padding: '13px', minHeight: 44, borderRadius: 6, border: `1.5px dashed ${t.INK}40`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('coach:grocery.newList', { defaultValue: '＋ New grocery list' })}</button>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <input autoFocus value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} placeholder={tr('coach:grocery.listNamePlaceholder', { defaultValue: 'List name — e.g. Big-plate day' })} className="bs-uline" style={uline} />
             <textarea value={draft.items} onChange={e => setDraft(d => ({ ...d, items: e.target.value }))} rows={4} placeholder={tr('coach:grocery.itemsPlaceholder', { defaultValue: 'One item per line\nChicken breast\nJasmine rice\nBroccoli' })} className="bs-uline" style={{ ...uline, resize: 'vertical', fontSize: 14 }} />
-            <div style={{ display: 'flex', gap: 20 }}>
-              {[[tr('coach:grocery.forMine', { defaultValue: 'Mine' }), false], [tr('coach:grocery.forClient', { defaultValue: 'For a client' }), true]].map(([l, v]) => {
-                const on = draft.forClient === v;
-                return <button key={String(v)} onClick={() => setDraft(d => ({ ...d, forClient: v }))} aria-pressed={on} style={{ background: 'transparent', border: 0, padding: '2px 0 6px', cursor: 'pointer', position: 'relative', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>{l}{on && <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: heat }} />}</button>;
-              })}
-            </div>
-            {draft.forClient && <input value={draft.clientName} onChange={e => setDraft(d => ({ ...d, clientName: e.target.value }))} placeholder={tr('coach:grocery.clientNamePlaceholder', { defaultValue: 'Client name' })} className="bs-uline" style={uline} />}
+            {isNutri && (
+              <div style={{ display: 'flex', gap: 20 }}>
+                {[[tr('coach:grocery.forMine', { defaultValue: 'Mine' }), false], [tr('coach:grocery.forClient', { defaultValue: 'For a client' }), true]].map(([l, v]) => {
+                  const on = draft.forClient === v;
+                  return <button key={String(v)} onClick={() => setDraft(d => ({ ...d, forClient: v }))} aria-pressed={on} style={{ background: 'transparent', border: 0, padding: '2px 0 6px', minHeight: 32, cursor: 'pointer', position: 'relative', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>{l}{on && <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: heat }} />}</button>;
+                })}
+              </div>
+            )}
+            {/* The client is picked from the nutritionist's linked clients, so Send can deliver.
+                (A typed name could never be delivered: every Send read "delivers once linked".) */}
+            {isNutri && draft.forClient && (
+              roster === null ? <div style={quiet}>{tr('coach:assign.loadingClients', { defaultValue: 'Loading your clients…' })}</div>
+              : roster === false ? <div style={quiet}><span>{tr('coach:grocery.clientsFailed', { defaultValue: "Couldn't load your clients." })}</span><button type="button" onClick={() => setRoster(null)} style={textAction(teal)}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button></div>
+              : roster.length === 0 ? <div style={quiet}>{tr('coach:roster.noClients', { defaultValue: 'NO CLIENTS YET' })}</div>
+              : (
+                <select value={draft.clientId} onChange={e => setDraft(d => ({ ...d, clientId: e.target.value }))} aria-label={tr('coach:assign.pickClient', { defaultValue: 'Pick a client' })} className="bs-uline" style={{ ...uline, appearance: 'none', WebkitAppearance: 'none', minHeight: 44, color: draft.clientId ? t.INK : t.INK50 }}>
+                  <option value="">{tr('coach:assign.pickClient', { defaultValue: 'Pick a client' })}</option>
+                  {roster.map(c => <option key={c.userId} value={c.userId}>{c.name}</option>)}
+                </select>
+              )
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 2 }}>
-              <button onClick={() => { setCreating(false); setDraft({ name: '', items: '', forClient: true, clientName: '' }); }} style={textAction(t.INK70)}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
-              <button disabled={busy} onClick={create} style={{ ...tealCta, marginLeft: 'auto', padding: '11px 18px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? tr('coach:common.saving', { defaultValue: 'Saving…' }) : tr('coach:grocery.createList', { defaultValue: 'Create list' })}</button>
+              <button onClick={() => { setCreating(false); setDraft(blank); }} style={{ ...textAction(t.INK70), minHeight: 32 }}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
+              <button disabled={busy} onClick={create} style={{ ...tealCta, marginLeft: 'auto', padding: '11px 18px', minHeight: 44, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? tr('coach:common.saving', { defaultValue: 'Saving…' }) : tr('coach:grocery.createList', { defaultValue: 'Create list' })}</button>
             </div>
           </div>
         )}
       </div>
 
-      {/* The lists — zero-box, heat-spine blocks */}
+      {/* The lists — one plain block each: who, name, count, a preview, the actions */}
       <div style={{ padding: `16px ${t.padX}px 22px`, display: 'flex', flexDirection: 'column' }}>
-        {shown.length === 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+        {failed && (
+          <div style={{ ...quiet, color: t.INK70 }}>
+            <span>{tr('coach:grocery.loadFailed', { defaultValue: "Couldn't load your lists." })}</span>
+            <button type="button" onClick={reload} style={textAction(teal)}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button>
+          </div>
+        )}
+        {!failed && lists !== null && shown.length === 0 && (
+          <div style={quiet}>
             <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${t.INK}40` }} />
-            {tab === 'mine' ? tr('coach:grocery.emptyMine', { defaultValue: 'No personal lists yet' }) : tr('coach:grocery.emptyClients', { defaultValue: 'No client lists yet' })}
+            {isNutri && tab === 'clients' ? tr('coach:grocery.emptyClients', { defaultValue: 'No client lists yet' }) : tr('coach:grocery.emptyMine', { defaultValue: 'No personal lists yet' })}
             <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${t.INK}40` }} />
           </div>
         )}
         {shown.map((g, i) => {
           const [sl, sc] = STAT[g.status] || STAT.ready;
           const first = String(g.client_name || '').split(' ')[0];
-          const ais = aislesOf(g.items);
+          const n = (g.items || []).length;
           const preview = (g.items || []).slice(0, 4).map(it => it.name);
-          const more = (g.items || []).length - preview.length;
+          const more = n - preview.length;
+          const canSend = isNutri && !!g.client_name;
           return (
             <div key={g.id || i} style={{ position: 'relative', borderTop: i ? `1px solid ${t.HAIR}` : 0, paddingTop: i ? 16 : 0, paddingBottom: 16, paddingLeft: 13 }}>
               <span aria-hidden style={{ position: 'absolute', left: 0, top: i ? 16 : 0, bottom: 16, width: 3, background: heat }} />
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat, fontWeight: 900 }}>{g.client_name || tr('coach:grocery.personal', { defaultValue: 'Personal' })}</div>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: sc }}>{sl}</span>
+                {canSend && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: sc }}>{sl}</span>}
               </div>
               <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{g.name}</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:grocery.itemsCount', { defaultValue: '{count, plural, one {# item} other {# items}}', count: (g.items || []).length })} · {tr('coach:grocery.aislesCount', { defaultValue: '{count, plural, one {# aisle} other {# aisles}}', count: ais.length })}</div>
-              {ais.length > 0 && (
-                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {ais.map(([a, n]) => (
-                    <div key={a} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK70 }}>{a}</span>
-                      <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}40`, transform: 'translateY(-3px)' }} />
-                      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {preview.length > 0 && <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.4 }}>{preview.join(' · ')}{more > 0 ? tr('coach:grocery.andMore', { defaultValue: ' +{count} more', count: more }) : ''}</div>}
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:grocery.itemsCount', { defaultValue: '{count, plural, one {# item} other {# items}}', count: n })} · {tr('coach:grocery.aislesCount', { defaultValue: '{count, plural, one {# aisle} other {# aisles}}', count: aislesOf(g.items).length })}</div>
+              {preview.length > 0 && <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>{preview.join(' · ')}{more > 0 ? tr('coach:grocery.andMore', { defaultValue: ' +{count} more', count: more }) : ''}</div>}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 13 }}>
-                {g.client_name
-                  ? <button type="button" onClick={() => send(g)} style={{ ...tealCta, padding: '10px 16px' }}>{tr('coach:grocery.sendToClient', { defaultValue: 'Send to {name} →', name: first || tr('coach:grocery.clientWord', { defaultValue: 'client' }) })}</button>
-                  : <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:grocery.yourList', { defaultValue: 'Your list' })}</span>}
-                <button type="button" onClick={() => del(g)} aria-label={tr('coach:grocery.deleteConfirm', { defaultValue: 'Delete list' })} style={{ ...textAction(rust), marginLeft: 'auto' }}>{tr('coach:common.delete', { defaultValue: 'Delete' })}</button>
+                {canSend && <button type="button" onClick={() => send(g)} style={{ ...tealCta, padding: '10px 16px', minHeight: 40 }}>{tr('coach:grocery.sendToClient', { defaultValue: 'Send to {name} →', name: first || tr('coach:grocery.clientWord', { defaultValue: 'client' }) })}</button>}
+                <button type="button" onClick={() => del(g)} aria-label={tr('coach:grocery.deleteConfirm', { defaultValue: 'Delete list' })} style={{ ...textAction(rust), marginLeft: 'auto', minHeight: 32 }}>{tr('coach:common.delete', { defaultValue: 'Delete' })}</button>
               </div>
             </div>
           );

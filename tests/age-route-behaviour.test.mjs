@@ -38,6 +38,7 @@ function loadRoute(file, client, { adminClient, adminThrows } = {}) {
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/supabase/server', { createClient: async () => client }],
+      ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => (await client.auth.getUser()).data.user ?? null }],
       ['@/lib/supabase/admin', {
         createAdminClient: () => {
           if (adminThrows) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY');

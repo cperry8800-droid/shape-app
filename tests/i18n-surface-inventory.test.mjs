@@ -876,7 +876,11 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // its page and its Progress door fully keyed under home:mornings.* in all 13 locales, so the
   // fully-covered count holds at 172: those two came in as BSTodayPage and BSTodayCard went. Its
   // line left UNCOVERED.
-  assert.equal(noneStrings, 617, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // ⚠ AND noneStrings 617 -> 616: the Progress redesign (owner, 2026-10-20: "easier to read")
+  // dropped BSClientProgress's header eyebrow ("Strength · body · recovery", which read as three
+  // links) and its kicker ("Your progress", the title again), and its nine trend tabs became one
+  // picker whose aria-label is "Trend". BSClientProgress stays UNCOVERED; localizing it is its own cut.
+  assert.equal(noneStrings, 616, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   assert.equal(part.length, 33, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 80, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its

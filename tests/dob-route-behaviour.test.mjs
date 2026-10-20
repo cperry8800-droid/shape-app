@@ -42,6 +42,7 @@ function loadRoute(client) {
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/supabase/server', { createClient: async () => client }],
+      ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => (await client.auth.getUser()).data.user ?? null }],
       ['@/lib/age-derive.mjs', ageDerive],
       ['@/lib/request-utils', requestUtils],
     ]),

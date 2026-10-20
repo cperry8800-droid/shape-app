@@ -355,7 +355,6 @@
   "kitchen.eyebrow": "Shape Kitchen",
   "kitchen.filters": "Bộ lọc",
   "kitchen.fromSource": "Từ {name}",
-  "kitchen.menuSub": "Công thức từ các chuyên gia dinh dưỡng và chuyên gia tiết chế của Shape, và từ nguồn thuộc phạm vi công cộng, xếp nhóm theo thời gian nấu. Chạm vào dòng bất kỳ để xem công thức đầy đủ.",
   "kitchen.nRecipes": "{n, plural, one {# công thức} other {# công thức}}",
   "kitchen.publicDomainCredit": "Các công thức thuộc phạm vi công cộng đến từ USDA MyPlate Kitchen và được ghi nguồn ở mọi dòng, mọi trang.",
   "kitchen.rdCarbs": "B",

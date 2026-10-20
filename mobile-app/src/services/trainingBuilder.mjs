@@ -97,6 +97,40 @@ export function bsRepeatSpec({ name, discipline, repeatDow, moves, time }) {
   return { title: String(name || 'Workout'), description: '', payload };
 }
 
+// The plan's workouts laid onto one Mon–Sun week, index 0 = Monday, exactly as Train
+// shows them: a dated row claims its own day (the first one to arrive wins; a row
+// dated outside this week is left off), a weekly-repeat row (repeatDow) fills its
+// weekdays, and the remaining undated rows fill the open days in order. An empty
+// slot is a rest day. Train's deck and the launch telegram (Shape Wire) both read
+// this, so the telegram never names a session Train calls a rest day.
+// `monday` is local midnight of the week's Monday.
+export function bsSlotWeek(workouts, monday) {
+  const mondayISO = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+  const slots = [null, null, null, null, null, null, null];
+  const repeats = [];
+  const unscheduled = [];
+  for (const w of (Array.isArray(workouts) ? workouts : [])) {
+    if (!w) continue;
+    if (w.scheduledDate) {
+      const dt = new Date(w.scheduledDate + 'T00:00:00');
+      const idx = Math.round((dt - monday) / 86400000);
+      if (idx >= 0 && idx <= 6 && !slots[idx]) slots[idx] = w;
+      continue;
+    }
+    // bsSlotRepeats reads payload.repeatDow, so the slot carries a copy with it there.
+    if (Array.isArray(w.repeatDow) && w.repeatDow.length) { repeats.push({ ...w, payload: { repeatDow: w.repeatDow } }); continue; }
+    unscheduled.push(w);
+  }
+  const repeatByDow = bsSlotRepeats(repeats, mondayISO);
+  for (let i = 0; i < 7; i++) {
+    if (!slots[i] && repeatByDow[i]) slots[i] = repeatByDow[i];
+  }
+  for (let i = 0; i < 7 && unscheduled.length; i++) {
+    if (!slots[i]) slots[i] = unscheduled.shift();
+  }
+  return slots;
+}
+
 // Given self rows carrying payload.repeatDow, return a 7-slot week (index 0 =
 // Monday) with the first repeat claiming each of its weekdays. Slots the caller
 // already filled with dated rows are passed in via `base` and never overwritten.

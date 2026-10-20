@@ -7,7 +7,7 @@
 
 import { NextResponse } from 'next/server';
 import { dbError } from '@/lib/request-utils';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
@@ -44,8 +44,8 @@ function fmtNextSession(iso: string) {
 export async function GET(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const { data: subs, error: subsErr } = await supabase

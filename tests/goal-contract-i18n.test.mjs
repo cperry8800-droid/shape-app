@@ -78,8 +78,10 @@ test('the discipline maps are THREE keys each, never one frame with {kind}', () 
   }
   assert.match(src, /pageHead\(STATION_LABEL\[view\]/,
     'the station page title does not read STATION_LABEL')
-  assert.match(src, /label=\{STATION_LABEL\.terms\}/,
-    'the terms station head does not read STATION_LABEL')
+  // The cover's "The terms" head went with the 2026-10-20 redesign: the next
+  // milestone is one row that opens the terms page, whose title is STATION_LABEL's.
+  assert.match(src, /data-goal-next onClick=\{\(\) => onOpenView\('terms'\)\}/,
+    'the next milestone no longer opens the terms page')
 })
 
 test("a plan's discipline is a compared TOKEN, never rendered copy", () => {

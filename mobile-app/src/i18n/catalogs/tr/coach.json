@@ -497,11 +497,8 @@
   "grocery.itemsPlaceholder": "Her satıra bir öğe\nTavuk göğsü\nYasemin pirinci\nBrokoli",
   "grocery.kickerNutri": "Beslenme teslimatı",
   "grocery.kickerTrainer": "Öğün desteği",
-  "grocery.leadEyebrow": "Listeler · {mode}",
   "grocery.listNamePlaceholder": "Liste adı — örn. Büyük tabak günü",
   "grocery.listsCount": "{count, plural, one {# liste} other {# liste}}",
-  "grocery.modeNutri": "beslenme teslimatı",
-  "grocery.modeTrainer": "öğün desteği",
   "grocery.newList": "＋ Yeni alışveriş listesi",
   "grocery.personal": "Kişisel",
   "grocery.sendToClient": "{name} kişisine gönder →",
@@ -1365,5 +1362,7 @@
   "business.weeks.head": "Aylık net, son 13 hafta",
   "business.window": "son 3 ayda",
   "offer.row": "Aylık teklif",
-  "offer.rowSub": "Neler dahil, pazar yeri profilinde gösterilir"
+  "offer.rowSub": "Neler dahil, pazar yeri profilinde gösterilir",
+  "grocery.loadFailed": "Listelerin yüklenemedi.",
+  "grocery.clientsFailed": "Danışanların yüklenemedi."
 }

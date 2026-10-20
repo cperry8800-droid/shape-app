@@ -4,7 +4,7 @@
 // Member-gated by the proxy (the /api/client prefix). No-op shapes until the migration.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
 
 export const dynamic = 'force-dynamic';
@@ -19,8 +19,8 @@ function weekMonday(d: Date): string {
 export async function GET(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const wk = weekMonday(new Date());
@@ -50,8 +50,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const body = (await request.json().catch(() => ({}))) as { action?: string; targets?: unknown; stake?: number; id?: string };

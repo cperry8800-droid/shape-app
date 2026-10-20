@@ -497,11 +497,8 @@
   "grocery.itemsPlaceholder": "Um item por linha\nPeito de frango\nArroz jasmim\nBrócolis",
   "grocery.kickerNutri": "Entrega de nutrição",
   "grocery.kickerTrainer": "Apoio às refeições",
-  "grocery.leadEyebrow": "As listas · {mode}",
   "grocery.listNamePlaceholder": "Nome da lista — ex. Dia de prato cheio",
   "grocery.listsCount": "{count, plural, one {# lista} other {# listas}}",
-  "grocery.modeNutri": "entrega de nutrição",
-  "grocery.modeTrainer": "apoio às refeições",
   "grocery.newList": "＋ Nova lista de compras",
   "grocery.personal": "Pessoal",
   "grocery.sendToClient": "Enviar para {name} →",
@@ -1365,5 +1362,7 @@
   "business.weeks.head": "Líquido por mês, últimas 13 semanas",
   "business.window": "nos últimos 3 meses",
   "offer.row": "Oferta mensal",
-  "offer.rowSub": "O que está incluído, mostrado no seu perfil do marketplace"
+  "offer.rowSub": "O que está incluído, mostrado no seu perfil do marketplace",
+  "grocery.loadFailed": "Não foi possível carregar suas listas.",
+  "grocery.clientsFailed": "Não foi possível carregar seus clientes."
 }

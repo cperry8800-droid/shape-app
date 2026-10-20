@@ -404,11 +404,11 @@ export async function POST(request: Request) {
   if (!bodyResult.ok) return bodyResult.response;
   body = bodyResult.data;
 
+  const supabase = await clientForRequest(request);
   const user = await currentUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
-  const supabase = await clientForRequest(request);
 
   // ⚠ A CALLER-SUPPLIED id IS A REQUEST TO READ SOMEONE ELSE, NOT A DEFAULT.
   // This read `body.user_id || user.id` with no check of its own, and the

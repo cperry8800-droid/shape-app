@@ -102,7 +102,9 @@ test('the Progress page reads in the member\'s units on every tab', () => {
 // cycle chip handed in, and the page's Back is Progress again, on the tab it left.
 test("Progress's Energy, Hunger and Rested moved behind the Your mornings door", () => {
   const d = drive(BSClientProgress, { onBack() {}, initialTab: 'overall' });
-  const labels = d.buttons().map((b) => b.label);
+  // The series are one picker's options since the 2026-10-20 redesign (nine tabs on two rows before).
+  const labels = d.nodes().filter((n) => n.type === 'option').map((n) => String(n.props.children));
+  assert.ok(labels.length >= 9, `the trend picker lists ${labels.length} series`);
   for (const gone of ['Energy', 'Hunger', 'Rested']) assert.ok(!labels.includes(gone), `the trend still plots ${gone}`);
   for (const kept of ['Weight', 'Sleep', 'HRV', 'Hydration']) assert.ok(labels.includes(kept), `the trend lost ${kept}`);
   assert.doesNotMatch(d.text, /\/10/, 'Progress still writes a figure out of 10');

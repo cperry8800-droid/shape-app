@@ -497,11 +497,8 @@
   "grocery.itemsPlaceholder": "One item per line\nChicken breast\nJasmine rice\nBroccoli",
   "grocery.kickerNutri": "Nutrition delivery",
   "grocery.kickerTrainer": "Meal support",
-  "grocery.leadEyebrow": "The lists · {mode}",
   "grocery.listNamePlaceholder": "List name — e.g. Big-plate day",
   "grocery.listsCount": "{count, plural, one {# list} other {# lists}}",
-  "grocery.modeNutri": "nutrition delivery",
-  "grocery.modeTrainer": "meal support",
   "grocery.newList": "＋ New grocery list",
   "grocery.personal": "Personal",
   "grocery.sendToClient": "Send to {name} →",
@@ -1365,5 +1362,7 @@
   "business.weeks.head": "Net a month, last 13 weeks",
   "business.window": "over the last 3 months",
   "offer.row": "Monthly offer",
-  "offer.rowSub": "What's included, shown on your marketplace listing"
+  "offer.rowSub": "What's included, shown on your marketplace listing",
+  "grocery.loadFailed": "Couldn't load your lists.",
+  "grocery.clientsFailed": "Couldn't load your clients."
 }
