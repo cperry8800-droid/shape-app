@@ -22,7 +22,7 @@ globalThis.cancelAnimationFrame = () => {};
 if (typeof globalThis.document === 'undefined') globalThis.document = { getElementById: () => null, body: {} };
 
 const RUN_EFFECTS = { ...SHIM, useEffect(fn) { fn(); } };
-const { BSClientGoals, BSIntentStep } = await loadBroadsheet(['BSClientGoals', 'BSIntentStep'], RUN_EFFECTS);
+const { BSClientGoals, BSIntentStep, BSMeGoalCard, BSGoalsContract } = await loadBroadsheet(['BSClientGoals', 'BSIntentStep', 'BSMeGoalCard', 'BSGoalsContract'], RUN_EFFECTS);
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
@@ -161,4 +161,83 @@ test('the first-run goal step takes a goal in the member\'s own words', async ()
   assert.deepEqual(lastSave(db, 'client_identity'), { bio: 'Hi', goal: 'Climb Kilimanjaro' });
   assert.equal(lastSave(db, 'client_onboarding').intentSeen, true);
   assert.match(d.text, /someone who shows up/, 'an own goal takes the general line, never a raw key');
+});
+
+// ── The Goal card and Home's Goal door read a goal that isn't about weight in words ──
+// (owner, 2026-10-20: "Show the goal's words"). "Run my first 10k" with no weight target read
+// "Set the terms." and asked for a start and target weight; Home showed no door at all.
+// The harness renders one component at a time, so the Goal page's card is driven as itself.
+const NO_TARGET = { title: '', start: '', now: '', target: '', unit: 'kg', by: null, why: '' };
+// The card and the door read weights in the member's unit; this suite's member is on Metric.
+Object.assign(globalThis.useBS(), { weightUnit: 'kg', kgToDisplay: (kg) => (kg == null ? null : Number(kg)) });
+const noop = () => {};
+// i18next fills a string's {placeholders}; with no catalog loaded, the default text stands in.
+const fillingTr = { t: (key, o) => (o && typeof o.defaultValue === 'string' ? o.defaultValue.replace(/\{(\w+)\}/g, (m, k) => (k in o ? String(o[k]) : m)) : key) };
+function goalCard(data, overall = NO_TARGET) {
+  signIn({});
+  globalThis.window.ShapeI18n = fillingTr;
+  return drive(BSGoalsContract, { overall, data, heat: '#c0533b', view: 'cover', onOpenView: noop, onBack: noop, onLog: noop, onEditTargets: noop, onOpenProgress: noop, onAddGoal: noop, onEditGoal: noop, onEditHeadline: noop });
+}
+const wordsOf = (d) => d.nodes().find((n) => n.props && 'data-goal-words' in n.props);
+const redacted = (d) => d.nodes().some((n) => n.props && n.props.label === 'No goal set yet');
+const bars = (d) => d.nodes().filter((n) => n.props && n.props.role === 'img').length;
+
+test("a goal that isn't about weight reads in words on the Goal card, with no weight read", () => {
+  const d = goalCard({ primaryGoal: 'Run my first 10k' });
+  assert.ok(wordsOf(d), 'the card reads in words');
+  assert.match(textOf(wordsOf(d)), /^Your targets carry this one\./);
+  assert.match(textOf(wordsOf(d)), /“Run my first 10k” isn’t a weight goal, so there’s no weight bar\./);
+  assert.doesNotMatch(d.text, /Set the terms\./, 'no weight prompt as its read');
+  assert.doesNotMatch(d.text, /To go|Current|Pace/, 'no weight figures');
+  assert.equal(bars(d), 0, 'no weight bar');
+  assert.equal(redacted(d), false, 'and no "No goal set yet": the member has a goal');
+  // A listed goal that isn't about weight reads in its own label.
+  assert.match(textOf(wordsOf(goalCard({ primaryGoal: 'strength' }))), /“Get stronger” isn’t a weight goal/);
+});
+
+test('a weight target set as well brings the weight read back', () => {
+  const d = goalCard({ primaryGoal: 'Run my first 10k' }, { title: 'Race weight', start: 80, now: 78, target: 75, unit: 'kg' });
+  assert.equal(wordsOf(d), undefined);
+  assert.match(d.text, /To go/);
+  assert.equal(bars(d), 1, 'the weight bar');
+});
+
+test('a weight goal with no target still asks for one, as before', () => {
+  for (const primaryGoal of ['fat_loss', 'muscle', 'recomp', 'maintain', 'tone', '', 'Lose fat']) {
+    const d = goalCard({ primaryGoal });
+    assert.equal(wordsOf(d), undefined, primaryGoal);
+    assert.match(d.text, /Set the terms\./, primaryGoal);
+    assert.equal(redacted(d), true, primaryGoal);
+  }
+});
+
+async function homeDoor(docs) {
+  signIn(docs);
+  const d = drive(BSMeGoalCard, { onOpen: noop });
+  await settle();
+  d.render();
+  return d.nodes().find((n) => n.props && n.props.tourId === 'hero-goal');
+}
+
+test("Home's Goal door opens on the goal's words when there is no weight to read", async () => {
+  const door = await homeDoor({ client_goals: { primaryGoal: 'Run my first 10k' } });
+  assert.ok(door, 'a door, though no weight goal is set');
+  assert.equal(door.props.figureText, 'Run my first 10k', 'the words are spoken too');
+  assert.equal(textOf(door.props.figure), 'Run my first 10k');
+  assert.equal(door.props.figure.props.style.textOverflow, 'ellipsis', 'cut to fit the row');
+  assert.equal(door.props.pct, undefined, 'no bar');
+  assert.equal(door.props.status, undefined, 'and no "to go"');
+});
+
+test("Home's Goal door: a weight goal with no target stays hidden; a weight target shows the bar", async () => {
+  assert.equal(await homeDoor({ client_goals: { primaryGoal: 'fat_loss' } }), undefined);
+  const door = await homeDoor({ client_goals: { primaryGoal: 'Run my first 10k', overall: { start: 80, now: 78, target: 75, unit: 'kg' } } });
+  assert.equal(door.props.figure, '40%');
+  assert.equal(door.props.pct, 40);
+});
+
+test('the door speaks a figure drawn as an element through figureText', async () => {
+  const { BSShelfDoor } = await loadBroadsheet(['BSShelfDoor'], RUN_EFFECTS);
+  const d = drive(BSShelfDoor, { eyebrow: 'Goal', figure: { type: 'span', props: { children: 'Run my first 10k' } }, figureText: 'Run my first 10k', onOpen: noop });
+  assert.equal(d.nodes().find((n) => n.type === 'button').props['aria-label'], 'Goal Run my first 10k');
 });

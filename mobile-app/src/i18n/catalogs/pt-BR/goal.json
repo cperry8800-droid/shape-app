@@ -156,5 +156,7 @@
   "primary.goal.race": "Correr uma prova",
   "primary.goal.postpartum": "Pós-parto",
   "cover.targetBy": "Objetivo: {value} até {date}",
-  "cover.target": "Objetivo: {value}"
+  "cover.target": "Objetivo: {value}",
+  "cover.wordsLead": "Suas metas sustentam esta",
+  "cover.wordsSub": "“{goal}” não é uma meta de peso, então não há barra de peso. Adicione um peso-alvo para acompanhar também."
 }

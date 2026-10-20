@@ -156,5 +156,7 @@
   "primary.goal.race": "Bir yarışa katılmak",
   "primary.goal.postpartum": "Doğum sonrası",
   "cover.targetBy": "Hedef: {date} tarihine kadar {value}",
-  "cover.target": "Hedef: {value}"
+  "cover.target": "Hedef: {value}",
+  "cover.wordsLead": "Bunu hedeflerin taşıyor",
+  "cover.wordsSub": "“{goal}” bir kilo hedefi değil, bu yüzden kilo çubuğu yok. Onu da izlemek için bir hedef kilo ekle."
 }

@@ -156,5 +156,7 @@
   "primary.goal.race": "Run a race",
   "primary.goal.postpartum": "Postpartum",
   "cover.targetBy": "Target {value} by {date}",
-  "cover.target": "Target {value}"
+  "cover.target": "Target {value}",
+  "cover.wordsLead": "Your targets carry this one",
+  "cover.wordsSub": "“{goal}” isn’t a weight goal, so there’s no weight bar. Add a weight target to track one too."
 }

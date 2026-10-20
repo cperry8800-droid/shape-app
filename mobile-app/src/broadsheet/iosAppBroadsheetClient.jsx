@@ -27619,15 +27619,25 @@ function bsPrimaryGoalToken(stored) {
   return hit ? hit.id : s;
 }
 // A goal in the member's own words (owner, 2026-10-20: "make sure user can make custom
-// goals"). It is stored as they typed it, tidied: spaces collapsed and at most
-// BS_PRIMARY_GOAL_MAX characters (counted by code point, so an emoji is never cut in half).
+// goals"). It is stored as they typed it, tidied: control characters dropped, spaces collapsed
+// and at most BS_PRIMARY_GOAL_MAX characters (counted by code point, so an emoji is never cut in
+// half). The website's sign-up tidies the same way (signupGoalFromText, src/lib/signup-answers.mjs).
 // Both destinations take the same words, because an unrecognised value already renders as
 // itself. Typing one of the listed goals ("lose fat") resolves to its token, so it reads as
 // that goal in every language.
 const BS_PRIMARY_GOAL_MAX = 60;
 function bsPrimaryGoalFromText(text) {
-  const s = Array.from(String(text == null ? '' : text).replace(/\s+/g, ' ').trim()).slice(0, BS_PRIMARY_GOAL_MAX).join('').trim();
+  const s = Array.from(String(text == null ? '' : text).replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim()).slice(0, BS_PRIMARY_GOAL_MAX).join('').trim();
   return s ? bsPrimaryGoalToken(s) : '';
+}
+// The listed goals a weight target describes. Any other goal (a race, strength, a goal in the
+// member's own words) has no weight read of its own: the Goal page's card and Home's Goal door
+// show it in words, and bring the weight read back only once a weight target is set (owner,
+// 2026-10-20: "Show the goal's words"). No goal yet reads as a weight goal, as before.
+const BS_WEIGHT_GOAL_IDS = ['fat_loss', 'muscle', 'recomp', 'maintain', 'tone'];
+function bsPrimaryGoalIsWeight(id) {
+  const s = bsPrimaryGoalToken(id);
+  return !s || BS_WEIGHT_GOAL_IDS.includes(s);
 }
 function bsPrimaryGoalIsCustom(id) {
   const s = bsPrimaryGoalToken(id);
@@ -28210,6 +28220,11 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
       : tr('goal:cover.target', { defaultValue: 'Target {value}', value: `${dsp(target)} ${unit}` }))
     : null;
   const ctaInk = t.isLight ? '#fff' : '#04201d';
+  // ⚠ A GOAL THAT ISN'T ABOUT WEIGHT HAS NO WEIGHT READ (owner, 2026-10-20: "Show the goal's
+  // words"). "Run my first 10k" with no weight target read "Set the terms." and asked for a start
+  // and target weight. The goal's words are the page's title above; the card says the targets
+  // below carry it, with no bar or weight figures, until a weight target is set as well.
+  const wordsOnly = !hasGoal && !bsPrimaryGoalIsWeight(data && data.primaryGoal);
   const statLabel = { fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.62) };
   return (
     <>
@@ -28217,9 +28232,20 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
 
       {/* THE READ — the verdict, the bar, the three figures */}
       <div ref={readRef} style={{ margin: `16px ${t.padX}px 0`, padding: '16px 16px 14px', border: `1px solid ${t.RULE}`, borderRadius: 8, background: t.PAPER2 }}>
+        {wordsOnly ? (
+          <div data-goal-words>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.22, color: t.INK }}>
+              {tr('goal:cover.wordsLead', { defaultValue: 'Your targets carry this one' })}<span style={{ color: heat }}>.</span>
+            </div>
+            <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70, overflowWrap: 'anywhere' }}>
+              {tr('goal:cover.wordsSub', { defaultValue: '“{goal}” isn’t a weight goal, so there’s no weight bar. Add a weight target to track one too.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}
+            </div>
+          </div>
+        ) : (
         <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.22, color: verdict.tone === 'bad' ? t.RUST : t.INK }}>
           {leadBody}{leadDot ? <span style={{ color: heat }}>{leadDot}</span> : null}
         </div>
+        )}
         {pct != null && (
           <>
             <div role="img" aria-label={`${pct}%`} style={{ marginTop: 14, height: 8, borderRadius: 4, background: bsTHexA(t.INK, 0.1), overflow: 'hidden' }}>
@@ -28232,7 +28258,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
             </div>
           </>
         )}
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+        {!wordsOnly && <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
           {[
             { l: tr('goal:cover.statCurrent', { defaultValue: 'Current' }), v: dsp(now), u: unit },
             { l: tr('goal:cover.statToGo', { defaultValue: 'To go' }), v: hasGoal ? bsGoalRemaining({ start: dsp(start), now: dsp(now), target: dsp(target) }) : null, u: unit },
@@ -28245,7 +28271,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
               </div>
             </div>
           ))}
-        </div>
+        </div>}
       </div>
 
       {/* The one action, and its quiet partner */}
@@ -28254,8 +28280,9 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
         <BSOLAct heat={heat} label={tr('goal:cover.editTargets', { defaultValue: 'Edit targets' })} onClick={onEditTargets} t={t} />
       </div>
 
-      {/* The next milestone — one row; every milestone is behind it */}
-      <div style={{ margin: `18px ${t.padX}px 0` }}>
+      {/* The next milestone — one row; every milestone is behind it. The milestones are
+          weight points, so a goal read in words has none (and is no "No goal set yet"). */}
+      {!wordsOnly && <div style={{ margin: `18px ${t.padX}px 0` }}>
         {!hasGoal ? (
           <>
             <BSTRedact INK={t.INK} size={9.5} label={tr('goal:terms.noGoal', { defaultValue: 'No goal set yet' })} />
@@ -28268,7 +28295,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
             <span aria-hidden style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 13, fontWeight: 800, color: heat }}>→</span>
           </button>
         )}
-      </div>
+      </div>}
 
       {/* THE STATIONS — each opens its full-screen page */}
       <div style={{ margin: `8px ${t.padX}px 0` }}>
@@ -29415,7 +29442,7 @@ function BSHomeWallBulletin() {
 // (DOM order = VoiceOver order); `figure` may be a ReactNode (e.g. the
 // PROGRESS 4-tick row). `pct` (0–100), when a number, fills the row's bottom
 // hairline to that width — the old door sliver carried onto the rule itself.
-function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen, tourId }) {
+function BSShelfDoor({ c, eyebrow, figure, figureText, status, pct, onOpen, tourId }) {
   const t = useBS();
   const accent = c || (t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5'));
   const [pressed, setPressed] = useStateBSC(false);
@@ -29423,8 +29450,9 @@ function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen, tourId }) {
   const hasPct = typeof pct === 'number' && isFinite(pct);
   React.useInsertionEffect(() => { bsInjectBsHomeCss(); }, []);
   // aria-label must carry the visible figure too — a screen-reader user
-  // otherwise never hears the actual value the door displays.
-  const ariaFigure = (typeof figure === 'string' || typeof figure === 'number') ? String(figure) : '';
+  // otherwise never hears the actual value the door displays. A figure drawn as
+  // an element says its words through `figureText`.
+  const ariaFigure = (typeof figure === 'string' || typeof figure === 'number') ? String(figure) : (figureText || '');
   return (
     <button
       type="button" onClick={onOpen} data-tour={tourId || undefined} aria-label={[eyebrow, ariaFigure, status].filter(Boolean).join(' ')}
@@ -30485,17 +30513,20 @@ function BSMeGoalCard({ onOpen }) {
   const tr = useShapeTr();
   const TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
   const [g, setG] = useStateBSC(null);
+  const [primary, setPrimary] = useStateBSC('');
   React.useEffect(() => {
     let on = true;
-    (async () => { try { const d = await window.shapeDb?.getUserGoals?.('client_goals'); if (on && d && d.overall) setG(d.overall); } catch (e) {} })();
+    (async () => { try { const d = await window.shapeDb?.getUserGoals?.('client_goals'); if (on && d) { if (d.overall) setG(d.overall); if (d.primaryGoal) setPrimary(d.primaryGoal); } } catch (e) {} })();
     return () => { on = false; };
   }, []);
   // Signed in with no goal set → render nothing (never the demo goal); the demo
   // is the signed-out preview only. A real goal (g) shows once it loads — a door
-  // never appears for a signed-in account with no goal.
+  // never appears for a signed-in account with no goal. A goal that isn't about
+  // weight opens the door on its own words (below).
   const bsGoalSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  if (bsGoalSignedIn && !g) return null;
-  const ov = g || { title: 'Lean by summer', start: 78, now: 76.8, target: 73.6, unit: 'kg', by: null, why: '' };
+  const words = bsGoalSignedIn && !bsPrimaryGoalIsWeight(primary) ? bsPrimaryGoalLabel(primary, tr) : '';
+  if (bsGoalSignedIn && !g && !words) return null;
+  const ov = g || (words ? {} : { title: 'Lean by summer', start: 78, now: 76.8, target: 73.6, unit: 'kg', by: null, why: '' });
   // Kilograms in, the member's unit out — the same contract as the Goal page.
   // Reading `ov.unit` here rendered the DOCUMENT's unit, so a member on Metric
   // saw their goal quoted in pounds on Home and in kilograms one tap away.
@@ -30511,6 +30542,14 @@ function BSMeGoalCard({ onOpen }) {
   const hasRange = range > 0 && isFinite(toGo) && !!unit;
   const goalHit = hasRange && toGo <= 0.05;
   const goalStatus = goalHit ? tr('home:goal.hit', { defaultValue: 'goal hit ✓' }) : hasRange ? tr('home:goal.toGo', { defaultValue: '{amount} {unit} to go', amount: +Math.max(0, t.kgToDisplay(toGo)).toFixed(1), unit }) : '—';
+  // A goal that isn't about weight, with no weight target to read: the door is the goal in words
+  // (owner, 2026-10-20: "Show the goal's words"), cut to fit the row, with no bar.
+  if (words && !hasRange) {
+    return (
+      <BSShelfDoor tourId="hero-goal" c={TEAL} eyebrow={tr('home:door.goal', { defaultValue: 'Goal' })} onOpen={onOpen} figureText={words}
+        figure={<span data-goal-words style={{ display: 'block', maxWidth: 'min(210px, 52vw)', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{words}</span>} />
+    );
+  }
   return (
     <BSShelfDoor tourId="hero-goal" c={TEAL} eyebrow={tr('home:door.goal', { defaultValue: 'Goal' })} figure={`${Math.round(pct * 100)}%`} status={goalStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
   );

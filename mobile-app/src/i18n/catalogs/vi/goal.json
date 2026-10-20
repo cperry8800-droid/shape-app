@@ -156,5 +156,7 @@
   "primary.goal.race": "Chạy một giải",
   "primary.goal.postpartum": "Sau sinh",
   "cover.targetBy": "Chỉ tiêu {value} trước {date}",
-  "cover.target": "Chỉ tiêu {value}"
+  "cover.target": "Chỉ tiêu {value}",
+  "cover.wordsLead": "Các chỉ tiêu bên dưới gánh mục tiêu này",
+  "cover.wordsSub": "“{goal}” không phải mục tiêu cân nặng nên không có thanh cân nặng. Thêm cân nặng mục tiêu để theo dõi cả nó."
 }

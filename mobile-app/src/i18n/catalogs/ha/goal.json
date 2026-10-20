@@ -156,5 +156,7 @@
   "primary.goal.race": "Gudun gasa",
   "primary.goal.postpartum": "Bayan haihuwa",
   "cover.targetBy": "Manufa {value} kafin {date}",
-  "cover.target": "Manufa {value}"
+  "cover.target": "Manufa {value}",
+  "cover.wordsLead": "Maƙasudanka ne ke ɗaukar wannan",
+  "cover.wordsSub": "“{goal}” ba burin nauyi ba ne, don haka babu sandar nauyi. Ƙara maƙasudin nauyi don bin sa ma."
 }

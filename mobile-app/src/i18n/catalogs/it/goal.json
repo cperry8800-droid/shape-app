@@ -156,5 +156,7 @@
   "primary.goal.race": "Correre una gara",
   "primary.goal.postpartum": "Post-parto",
   "cover.targetBy": "Target: {value} entro il {date}",
-  "cover.target": "Target: {value}"
+  "cover.target": "Target: {value}",
+  "cover.wordsLead": "Lo portano avanti i tuoi obiettivi",
+  "cover.wordsSub": "«{goal}» non è un obiettivo di peso, quindi non c’è la barra del peso. Aggiungi un peso obiettivo per seguire anche quello."
 }

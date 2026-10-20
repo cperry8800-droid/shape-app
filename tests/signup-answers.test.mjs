@@ -20,7 +20,7 @@ const { parse } = require_('@babel/parser');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 const imp = (rel) => import(pathToFileURL(join(ROOT, rel)).href);
 
-const { SIGNUP_GOALS, COACHING_KINDS, normalizeSignupAnswers, planOnboardingSeed } = await imp('src/lib/signup-answers.mjs');
+const { SIGNUP_GOALS, SIGNUP_GOAL_MAX, signupGoalFromText, COACHING_KINDS, normalizeSignupAnswers, planOnboardingSeed } = await imp('src/lib/signup-answers.mjs');
 const { BS_PREF_OPTIONS } = await imp('mobile-app/src/services/prefOptions.mjs');
 const { bsFirstRunStage, bsFirstRunNeedsSeed } = await imp('mobile-app/src/services/firstRun.mjs');
 const { CHOICES, FORMS } = await imp('src/lib/ai/noraForms.mjs');
@@ -66,7 +66,7 @@ test('one goal vocabulary: the server, the app and the website form agree', () =
 
 test('the website form sends tokens, asks the coaching question, and asks no health questions (H4)', () => {
   const lifted = new Function(
-    ['SU_GOALS', 'SU_EXPERIENCE', 'SU_SESSIONS', 'SU_COACHING', 'suTokenOf', 'suOnboardingAnswers'].map((n) => declSource(SIGNUP, n)).join('\n') + '\nreturn suOnboardingAnswers;'
+    ['SU_GOALS', 'SU_EXPERIENCE', 'SU_SESSIONS', 'SU_COACHING', 'suTokenOf', 'SU_OWN_GOAL', 'suOnboardingAnswers'].map((n) => declSource(SIGNUP, n)).join('\n') + '\nreturn suOnboardingAnswers;'
   )();
   assert.deepEqual(lifted({ goal: 'Build muscle', experience: 'Advanced', frequency: '4 days a week', coaching: 'Both' }),
     { goal: 'muscle', experience: 'advanced', sessionsPerWeek: '4', wantsCoaching: true, coachingFor: ['training', 'nutrition'] });
@@ -75,6 +75,11 @@ test('the website form sends tokens, asks the coaching question, and asks no hea
   assert.deepEqual(lifted({ coaching: 'Not right now', goal: 'nonsense' }),
     { goal: null, experience: null, sessionsPerWeek: null, wantsCoaching: false, coachingFor: [] });
   assert.equal(lifted({}).wantsCoaching, null);
+  // A goal in the member's own words rides as goalText, and only while its chip is the one picked.
+  assert.deepEqual(lifted({ goal: 'Your own goal', goalText: '  Run my first 10k ', coaching: 'Not right now' }),
+    { goal: null, goalText: 'Run my first 10k', experience: null, sessionsPerWeek: null, wantsCoaching: false, coachingFor: [] });
+  assert.equal('goalText' in lifted({ goal: 'Lose fat', goalText: 'Run my first 10k' }), false, 'a listed goal picked after drops the words');
+  assert.equal('goalText' in lifted({ goal: 'Your own goal', goalText: '   ' }), false, 'no words, no goal');
 
   assert.match(SIGNUP, /steps: \["Personal", "Goals", "Coaching"\],/);
   assert.match(SIGNUP, /date_of_birth: values\.dob,\r?\n(?:\s*\/\/.*\r?\n)*\s*onboarding: suOnboardingAnswers\(values\),/, 'the answers ride in the sign-up\'s metadata');
@@ -97,6 +102,36 @@ test('normalizeSignupAnswers keeps only what is on a list', () => {
     { goal: null, experience: null, sessionsPerWeek: null, wantsCoaching: false, coachingFor: [] }, 'a no carries no kind');
   assert.equal(normalizeSignupAnswers({ wantsCoaching: 'yes' }), null, 'only a real boolean');
   assert.equal(normalizeSignupAnswers({ goal: 'fat_loss' }).goal, 'fat_loss');
+});
+
+test("a goal in the member's own words: the website tidies it as the app does (owner, 2026-10-20)", () => {
+  // The app's own tidy-up, lifted from the client module.
+  const app = new Function(['BS_PRIMARY_GOALS', 'bsPrimaryGoalToken', 'BS_PRIMARY_GOAL_MAX', 'bsPrimaryGoalFromText'].map((n) => declSource(CLIENT, n)).join('\n')
+    + '\nreturn { max: BS_PRIMARY_GOAL_MAX, tidy: bsPrimaryGoalFromText };')();
+  assert.equal(SIGNUP_GOAL_MAX, app.max, "the server keeps as many characters as the app");
+  assert.equal(constArray(SIGNUP, 'SU_GOAL_MAX'), SIGNUP_GOAL_MAX, "the website's field stops there too");
+  const long = 'Run '.repeat(20);
+  const emoji = 'x'.repeat(59) + '\u{1F3C3}\u{1F3C3}';
+  for (const text of ['  Run my   first 10k ', 'lose FAT', 'fat_loss', 'FAT_LOSS', 'Get fit!', 'Run\u0007 a\u0000 marathon', long, emoji, '   ', '']) {
+    assert.equal(signupGoalFromText(text), app.tidy(text), JSON.stringify(text));
+  }
+  assert.equal(signupGoalFromText('lose FAT'), 'fat_loss', 'a listed goal typed out is that goal');
+  assert.equal(signupGoalFromText('Run\u0007 a\u0000 marathon'), 'Run a marathon', 'no control characters');
+  assert.equal(Array.from(signupGoalFromText(emoji)).length, 60, 'cut by code point, never mid-emoji');
+  assert.equal(signupGoalFromText(42), '');
+  // The answers: the words when no listed goal came; a listed one wins; nothing for blank.
+  assert.equal(normalizeSignupAnswers({ goalText: '  Run my first 10k ' }).goal, 'Run my first 10k');
+  assert.equal(normalizeSignupAnswers({ goal: 'race', goalText: 'Run my first 10k' }).goal, 'race');
+  assert.equal(normalizeSignupAnswers({ goalText: '   ' }), null);
+  assert.equal(normalizeSignupAnswers({ goalText: 'Lose fat' }).goal, 'fat_loss');
+  // Written to both records as the words themselves, as the app's picker writes them.
+  assert.deepEqual(planOnboardingSeed({ goal: 'Run my first 10k', experience: null, sessionsPerWeek: null, wantsCoaching: null, coachingFor: [] }, {}, 'T').slice(0, 2), [
+    { kind: 'client_goals', data: { primaryGoal: 'Run my first 10k' } },
+    { kind: 'client_identity', data: { goal: 'Run my first 10k' } },
+  ]);
+  // The form offers it, with a field that stops at the limit.
+  assert.match(SIGNUP, /<Chip on=\{v\.goal === SU_OWN_GOAL\} onClick=\{\(\) => set\(\{ goal: SU_OWN_GOAL \}\)\}>\{SU_OWN_GOAL\}<\/Chip>/);
+  assert.match(SIGNUP, /\{v\.goal === SU_OWN_GOAL && \(\s*<TextInput autoFocus value=\{v\.goalText \|\| ""\} maxLength=\{SU_GOAL_MAX\}/);
 });
 
 test('planOnboardingSeed fills only what is empty, and marks the account seeded last', () => {

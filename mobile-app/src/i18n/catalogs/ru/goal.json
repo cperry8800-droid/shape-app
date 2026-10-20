@@ -156,5 +156,7 @@
   "primary.goal.race": "Пробежать забег",
   "primary.goal.postpartum": "После родов",
   "cover.targetBy": "Задача: {value}, срок: {date}",
-  "cover.target": "Задача: {value}"
+  "cover.target": "Задача: {value}",
+  "cover.wordsLead": "Эту цель несут ваши задачи",
+  "cover.wordsSub": "«{goal}» — не цель по весу, поэтому шкалы веса нет. Добавьте целевой вес, чтобы следить и за ним."
 }

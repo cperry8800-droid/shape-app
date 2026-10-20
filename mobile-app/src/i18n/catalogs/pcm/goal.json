@@ -156,5 +156,7 @@
   "primary.goal.race": "Run race",
   "primary.goal.postpartum": "After born pikin",
   "cover.targetBy": "Target {value} by {date}",
-  "cover.target": "Target {value}"
+  "cover.target": "Target {value}",
+  "cover.wordsLead": "Na your targets dey carry dis one",
+  "cover.wordsSub": "“{goal}” no be weight goal, so weight bar no dey. Add weight target if you wan track am too."
 }

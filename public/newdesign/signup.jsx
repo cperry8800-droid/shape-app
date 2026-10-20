@@ -259,12 +259,21 @@ const SU_COACHING = [
   { id: "no", en: "Not right now" },
 ];
 const suTokenOf = (list, label) => { const row = list.find(o => o.en === label); return row ? row.id : null; };
+// A goal in the member's own words (owner, 2026-10-20: "Website sign-up too"), as the app's Goal
+// page offers. Its chip is one more value of `goal`, so picking a listed goal (or Nora filling
+// one) turns it off. The words ride as `goalText`; the server tidies them and keeps at most
+// SIGNUP_GOAL_MAX (src/lib/signup-answers.mjs), so the field stops there too.
+const SU_OWN_GOAL = "Your own goal";
+const SU_GOAL_MAX = 60;
 
-// The answers as the metadata carries them: tokens only, and nothing that was not picked.
+// The answers as the metadata carries them: tokens only (and the member's own goal, in their
+// words), and nothing that was not picked.
 function suOnboardingAnswers(v) {
   const coaching = suTokenOf(SU_COACHING, v.coaching);
+  const own = v.goal === SU_OWN_GOAL ? String(v.goalText || "").trim() : "";
   return {
     goal: suTokenOf(SU_GOALS, v.goal),
+    ...(own ? { goalText: own } : {}),
     experience: suTokenOf(SU_EXPERIENCE, v.experience),
     sessionsPerWeek: suTokenOf(SU_SESSIONS, v.frequency),
     wantsCoaching: coaching === null ? null : coaching !== "no",
@@ -278,7 +287,12 @@ function ClientGoals({ v, set }) {
       <Field label="What brings you to Shape?">
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {SU_GOALS.map(g => <Chip key={g.id} on={v.goal === g.en} onClick={() => set({ goal: g.en })}>{g.en}</Chip>)}
+          <Chip on={v.goal === SU_OWN_GOAL} onClick={() => set({ goal: SU_OWN_GOAL })}>{SU_OWN_GOAL}</Chip>
         </div>
+        {v.goal === SU_OWN_GOAL && (
+          <TextInput autoFocus value={v.goalText || ""} maxLength={SU_GOAL_MAX} onChange={e => set({ goalText: e.target.value })}
+            placeholder="e.g. Run my first 10k" aria-label="Your goal, in your words" style={{ ...inputStyle, marginTop: 12 }} />
+        )}
       </Field>
       <Field label="Experience level">
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
