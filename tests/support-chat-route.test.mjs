@@ -912,7 +912,8 @@ test('⚠ the Morning check-in is keyed to the device\'s day, whatever zone a co
   };
   // A member who also trains: the app opens as a member's, so their own morning is asked on Home.
   const dual = await loadRoute({ role: 'client', roles: ['client', 'trainer'], isCoach: true, tables, rpcs: NAMES, answers: [calls(call('get_mornings', {}, 'm')), say('ok')] });
-  await dual.mod.POST(post({ ...ask('how was my morning?'), context: { timezone: 'America/New_York' } }));
+  // In the app: the device's zone is the day (the website reads the app's stored zone first, below).
+  await dual.mod.POST(post({ ...ask('how was my morning?'), surface: 'app', context: { timezone: 'America/New_York' } }));
   assert.match(systemTexts(dual.calls.ai[0].body), /\(Asia\/Tokyo\)/, 'the Schedule keeps the listing\'s zone');
   assert.match(factsOf(dual.calls.ai[0].body), /Morning check-in today \(this account's, not a client's\): energy Good/, 'the facts read the device\'s day');
   const out = JSON.parse(dual.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
