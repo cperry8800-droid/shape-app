@@ -17,10 +17,17 @@ export default {
     { name: "the day's pushes replace the engine's own count", file: GATE, find: '  let usedToday = Math.max(state.sentToday, Number.isFinite(pushedToday) ? pushedToday : 0);', replace: '  let usedToday = Number.isFinite(pushedToday) ? pushedToday : state.sentToday;' },
     { name: "this run's sends do not count", file: GATE, find: '    state.sentToday += 1;\n    usedToday += 1;', replace: '    state.sentToday += 1;' },
 
+    // ── The digest (Codex on #2417) ──
+    { name: 'the digest pushes past the cap', file: GATE, find: "const pushes = items.some((i) => i.channels && i.channels.push) && usedToday < cap;", replace: "const pushes = items.some((i) => i.channels && i.channels.push);" },
+    { name: 'the digest pushes when nothing in it wants one', file: GATE, find: "const pushes = items.some((i) => i.channels && i.channels.push) && usedToday < cap;", replace: "const pushes = usedToday < cap;" },
+    { name: 'a pushed digest is not counted', file: GATE, find: '    if (pushes) { state.sentToday += 1; usedToday += 1; }\n', replace: '' },
+    { name: 'an unpushed digest is counted', file: GATE, find: '    if (pushes) { state.sentToday += 1; usedToday += 1; }', replace: '    { state.sentToday += 1; usedToday += 1; }' },
+
     // ── The day's pushes ──
-    { name: 'an in-app-only notice counts as a push', file: CORE, find: 'if (r.data?.channels?.push === true && Number.isFinite(at)', replace: 'if (r.data?.channels && Number.isFinite(at)' },
+    { name: 'every notice counts as a push', file: CORE, find: ".eq('data->channels->>push', 'true')", replace: '' },
+    { name: 'an in-app-only notice counts as a push', file: CORE, find: ".eq('data->channels->>push', 'true')", replace: ".not('data->channels->>push', 'is', null)" },
     { name: "yesterday's pushes count today", file: CORE, find: " && ymdInTz(new Date(at), tz) === today) n += 1;", replace: ') n += 1;' },
-    { name: "another person's pushes count", file: CORE, find: ".eq('user_id', userId).gte('created_at', since)", replace: ".gte('created_at', since)" },
+    { name: "another person's pushes count", file: CORE, find: ".eq('user_id', userId).eq('data->channels->>push', 'true')", replace: ".eq('data->channels->>push', 'true')" },
     { name: 'a failed read counts as none', file: CORE, find: "counting this engine\\'s own', error.message); return null; }", replace: "counting this engine\\'s own', error.message); return 0; }" },
 
     // ── The routes ──

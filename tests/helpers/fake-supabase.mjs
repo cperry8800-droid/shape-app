@@ -57,11 +57,14 @@ export function fakeSupabase({ tables = {}, rpcs = {}, fail = [], maxRows = null
     }
     return out;
   }
-  // A column, or a JSON text path ('metadata->>shape'), the way PostgREST reads it.
+  // A column, or a JSON text path ('metadata->>shape', 'data->channels->>push'), the way
+  // PostgREST reads it: each '->' steps into an object, and '->>' reads the last key as text.
   function val(r, col) {
     const at = String(col).indexOf('->>');
     if (at < 0) return r[col];
-    const doc = r[col.slice(0, at)];
+    const [head, ...steps] = col.slice(0, at).split('->');
+    let doc = r[head];
+    for (const k of steps) doc = doc && typeof doc === 'object' ? doc[k] : undefined;
     const v = doc && typeof doc === 'object' ? doc[col.slice(at + 3)] : undefined;
     return v == null ? null : String(v);
   }

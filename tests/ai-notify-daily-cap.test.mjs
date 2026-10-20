@@ -97,3 +97,47 @@ test('both the live route and the cron read the day before deciding', () => {
     assert.ok(src.indexOf('loadPushedToday(') < src.indexOf('Notify.decideNotifications('), `${rel}: the count is read first`);
   }
 });
+
+// Codex on #2417: the newest 50 rows of any kind let a day of in-app notices hide the morning's
+// pushes, so the engine sent a fresh cap's worth. Only pushed rows are read now.
+test("a day of in-app notices doesn't hide the morning's pushes", async () => {
+  const rows = [
+    row('m1', 'ann', 12, { inapp: true, push: true }),
+    row('m2', 'ann', 11.5, { inapp: true, push: true }),
+    row('m3', 'ann', 11, { inapp: true, push: true }),
+    row('m4', 'ann', 10.5, { inapp: true, push: true }),
+  ];
+  for (let i = 0; i < 60; i += 1) rows.push(row(`q${i}`, 'ann', 10 - i / 10, i % 2 ? { inapp: true, push: false } : null));
+  const db = fakeSupabase({ tables: { notifications: rows } });
+  assert.equal(await core.loadPushedToday(db, 'ann', NOW, TZ), 4);
+  const src = read('src/lib/ai/notify-core.ts');
+  assert.match(src, /\.eq\('data->channels->>push', 'true'\)/, 'filtered in the database, before the limit');
+});
+
+// Codex on #2417: a digest held from an earlier run went out with a push whether or not the cap
+// was spent, so past the cap every hourly run with something held pushed once more.
+const held = () => ({
+  date: '2026-10-19',
+  sentToday: 0,
+  pendingDigest: [{ type: 'score_drop', title: 'Down 12', body: 'b', route: 'home', data: {}, priority: 'high', channels: { inapp: true, push: true, email: false }, sig: 's1', key: 'k1', at: +DAY - 3600e3 }],
+});
+const digestOf = (opts) => decideNotifications({ candidates: [], prefs: { tz: TZ, maxPerDay: 4 }, now: DAY, audience: 'client', ...opts });
+
+test('past the cap the digest lands without a push, and under it a pushed digest counts', () => {
+  const spent = digestOf({ last: held(), pushedToday: 4 });
+  assert.ok(spent.digest, 'the held items still land');
+  assert.equal(spent.digest.channels.push, false);
+  assert.equal(spent.digest.channels.inapp, true);
+  assert.equal(spent.nextState.sentToday, 0, 'an unpushed digest is not counted');
+
+  const ownSpent = digestOf({ last: { ...held(), sentToday: 4 }, pushedToday: null });
+  assert.equal(ownSpent.digest.channels.push, false, "the engine's own count holds it too");
+
+  const room = digestOf({ last: held(), pushedToday: 3 });
+  assert.equal(room.digest.channels.push, true);
+  assert.equal(room.nextState.sentToday, 1, 'a pushed digest counts against the cap');
+
+  const inAppOnly = held();
+  inAppOnly.pendingDigest[0].channels = { inapp: true, push: false, email: false };
+  assert.equal(digestOf({ last: inAppOnly, pushedToday: 0 }).nextState.sentToday, 0, 'nothing to push, nothing counted');
+});

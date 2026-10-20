@@ -63,21 +63,25 @@ export async function loadPrefs(client: SupabaseClient, userId: string): Promise
 
 // How many notices pushed to the person on their own date today, from any sender: every
 // preference-aware send and this engine's deliver() stamp data.channels, and the cap is the
-// person's one daily limit (decideNotifications' pushedToday). The cap is at most
-// PUSH_SCAN_LIMIT's handful, so the newest rows answer it; a row written without the stamp
+// person's one daily limit (decideNotifications' pushedToday). A row written without the stamp
 // (createNotification) can't say whether it pushed and isn't counted. Null when the read fails:
 // the engine then counts only its own sends, as it always did.
+// ⚠ ONLY PUSHED ROWS ARE READ (Codex on #2417). Reading the newest rows of any kind let a day of
+// in-app notices push the morning's pushes out of the window, so the engine sent a fresh cap's
+// worth. Filtered in the database, the newest PUSH_SCAN_LIMIT are all pushes, today's first, and
+// the count stops only past any cap.
 const PUSH_SCAN_LIMIT = 50;
 export async function loadPushedToday(client: SupabaseClient, userId: string, now: Date, tz: string): Promise<number | null> {
   const today = ymdInTz(now, tz);
   const since = new Date(now.getTime() - 30 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await client.from('notifications').select('created_at, data')
-    .eq('user_id', userId).gte('created_at', since).order('created_at', { ascending: false }).limit(PUSH_SCAN_LIMIT);
+  const { data, error } = await client.from('notifications').select('created_at')
+    .eq('user_id', userId).eq('data->channels->>push', 'true').gte('created_at', since)
+    .order('created_at', { ascending: false }).limit(PUSH_SCAN_LIMIT);
   if (error) { console.warn('[shape-ai] could not read the day\'s pushes; counting this engine\'s own', error.message); return null; }
   let n = 0;
-  for (const r of (data || []) as { created_at?: string; data?: { channels?: { push?: unknown } } | null }[]) {
+  for (const r of (data || []) as { created_at?: string }[]) {
     const at = Date.parse(String(r.created_at || ''));
-    if (r.data?.channels?.push === true && Number.isFinite(at) && ymdInTz(new Date(at), tz) === today) n += 1;
+    if (Number.isFinite(at) && ymdInTz(new Date(at), tz) === today) n += 1;
   }
   return n;
 }
