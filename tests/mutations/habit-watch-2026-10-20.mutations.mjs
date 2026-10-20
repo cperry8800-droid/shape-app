@@ -20,7 +20,9 @@ export default {
   timeoutMs: 300_000,
   mutations: [
     // ── The rules ──
-    { name: 'any hour sends', file: RULES, find: '    if (hourOf(tz) !== hour) continue;\n', replace: '' },
+    { name: 'any hour sends', file: RULES, find: '    if (at < hour || at > through) continue;\n', replace: '' },
+    { name: 'no catch-up hours in the rule', file: RULES, find: '    if (at < hour || at > through) continue;\n', replace: '    if (at !== hour) continue;\n' },
+    { name: 'the catch-up never ends', file: RULES, find: '    if (at < hour || at > through) continue;\n', replace: '    if (at < hour) continue;\n' },
     { name: 'a habit checked off today still sends', file: RULES, find: '    if (doneOn.has(`${h.id}|${day}`)) continue;\n', replace: '' },
     { name: 'someone no longer connected is still told', file: RULES, find: '      if (!connected(h.user_id, w.watcher_id)) continue;\n', replace: '' },
     { name: "a row can speak for someone else's habit", file: RULES, find: 'w.owner_id !== h.user_id || ', replace: '' },
@@ -36,7 +38,11 @@ export default {
     { name: 'private habits are scanned', file: CRON, find: "      .eq('visibility', 'friends')\n", replace: '\n' },
     { name: 'archived habits are scanned', file: CRON, find: "      .is('archived_at', null);", replace: ';' },
     { name: 'a pending follow connects', file: CRON, find: ".from('user_follows').select('follower_id, following_id').eq('status', 'accepted')", replace: ".from('user_follows').select('follower_id, following_id')" },
-    { name: 'the evening is UTC for everyone', file: CRON, find: "const due = habits.filter((h) => hourOf(zoneOf.get(h.user_id) || 'UTC') === HABIT_WATCH_HOUR);", replace: "const due = habits.filter(() => hourOf('UTC') === HABIT_WATCH_HOUR);" },
+    { name: 'the evening is UTC for everyone', file: CRON, find: "const due = habits.filter((h) => inWindow(hourOf(zoneOf.get(h.user_id) || 'UTC')));", replace: "const due = habits.filter(() => inWindow(hourOf('UTC')));" },
+    { name: 'no catch-up hours in the cron', file: CRON, find: 'const inWindow = (at: number) => at >= HABIT_WATCH_HOUR && at <= HABIT_WATCH_HOUR + HABIT_WATCH_CATCHUP;', replace: 'const inWindow = (at: number) => at === HABIT_WATCH_HOUR;' },
+    { name: 'a notice that landed is sent again', file: CRON, find: '  const owed = notices.filter((n) => !stored.has(`${n.watcherId}|${habitWatchDedupe(n.habitId, n.day)}`));', replace: '  const owed = notices;' },
+    { name: 'an unreadable list of landed notices stops the run', file: CRON, find: "  if (landed) {", replace: "  if (!landed) return NextResponse.json({ error: 'x' }, { status: 500 });\n  if (landed) {" },
+    { name: 'a failed send counts as a mute', file: CRON, find: "      else if (outcome === 'failed') failed += 1;\n", replace: '' },
     { name: 'a failed zone read sends anyway', file: CRON, find: '  if (!profiles || !settings) {', replace: '  if (false) {' },
     { name: 'a failed check-off, follow or watcher read sends anyway', file: CRON, find: '  if (!watchers || !completions || !follows || !names) {', replace: '  if (!watchers || !names) {' },
     { name: 'a failed quiet-hours read sends anyway', file: CRON, find: '  if (!quietRows || !peopleZones) {', replace: '  if (false) {' },
@@ -44,10 +50,10 @@ export default {
     { name: 'the notice is filed under another type', file: CRON, find: "        type: 'friend_habit',", replace: "        type: 'habit_reminder'," },
     { name: 'the notice opens nowhere', file: CRON, find: "        route: 'person',", replace: "        route: 'home'," },
     { name: "the notice rides a follow's route, which opens the reader's own profile", file: CRON, find: "        route: 'person',", replace: "        route: 'profile'," },
-    { name: 'the notices go out one at a time', file: CRON, find: 'Array.from({ length: Math.min(SEND_AT_ONCE, notices.length) }, worker)', replace: 'Array.from({ length: Math.min(1, notices.length) }, worker)' },
-    { name: 'the notices go out all at once', file: CRON, find: 'Array.from({ length: Math.min(SEND_AT_ONCE, notices.length) }, worker)', replace: 'Array.from({ length: notices.length }, worker)' },
+    { name: 'the notices go out one at a time', file: CRON, find: 'Array.from({ length: Math.min(SEND_AT_ONCE, owed.length) }, worker)', replace: 'Array.from({ length: Math.min(1, owed.length) }, worker)' },
+    { name: 'the notices go out all at once', file: CRON, find: 'Array.from({ length: Math.min(SEND_AT_ONCE, owed.length) }, worker)', replace: 'Array.from({ length: owed.length }, worker)' },
     { name: 'no notice is held back near the limit', file: CRON, find: ' && Date.now() - now < SEND_BUDGET_MS', replace: '' },
-    { name: 'what the time ran out on is not reported', file: CRON, find: '  const unsent = notices.length - next;', replace: '  const unsent = 0;' },
+    { name: 'what the time ran out on is not reported', file: CRON, find: '  const unsent = owed.length - next;', replace: '  const unsent = 0;' },
     { name: 'the notice does not say whose', file: CRON, find: 'data: { actorId: n.ownerId, ', replace: 'data: { ' },
     { name: 'the wrong secret is let in', file: CRON, find: "  if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });", replace: '' },
 
@@ -82,6 +88,7 @@ export default {
 
     // ── The migration's guards and the settings rows (held by their source checks) ──
     { name: 'anon may run set_habit_watchers', file: SQL, find: 'revoke all on function public.set_habit_watchers(uuid, uuid[]) from public, anon;', replace: '' },
+    { name: 'two saves for one habit can merge', file: SQL, find: '  where h.id = p_habit and h.user_id = v_me and h.archived_at is null\n  for update;\n', replace: '  where h.id = p_habit and h.user_id = v_me and h.archived_at is null;\n' },
     { name: 'a pending follow can be picked', file: SQL, find: "         where f.status = 'accepted'\n", replace: '         where true\n' },
     { name: 'a signed-out caller is not refused first', file: SQL, find: "  if v_me is null then\n    raise exception 'Authentication required.' using errcode = '42501';\n  end if;\n", replace: '' },
     { name: 'members may write the table directly', file: SQL, find: 'revoke insert, update, truncate, references, trigger on public.habit_watchers from authenticated;', replace: "create policy habit_watchers_insert on public.habit_watchers for insert to authenticated with check (true);" },

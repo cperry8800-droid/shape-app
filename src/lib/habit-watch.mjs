@@ -10,9 +10,14 @@
 // 8 pm, the member's time: late enough that the day was theirs to use, early enough to act on
 // it, and before the default quiet hours (22:00).
 export const HABIT_WATCH_HOUR = 20;
+// The hours after it in which a notice that did not land (a failed write, or a run that ran out
+// of time) is tried again (Codex on #2413). One that did land is never sent twice: the cron reads
+// the evening's notices first, and the dedupe index refuses a second row.
+export const HABIT_WATCH_CATCHUP = 2;
 
-// The notices owed this hour, one per (shared habit, person), for a habit whose owner is at
-// HABIT_WATCH_HOUR and has not checked it off on their own calendar day.
+// The notices owed this hour, one per (shared habit, person), for a habit whose owner is between
+// HABIT_WATCH_HOUR and the end of the catch-up hours and has not checked it off on their own
+// calendar day.
 //   habits     the shared habits: { id, user_id, name, type, cadence, archived_at }
 //   watchers   { habit_id, owner_id, watcher_id }
 //   doneOn     a Set of `${habitId}|${YYYY-MM-DD}`: the check-offs that exist
@@ -21,7 +26,7 @@ export const HABIT_WATCH_HOUR = 20;
 //   connected  (a, b) -> whether an accepted follow joins them, either way round, right now
 // ⚠ CONNECTED IS RE-CHECKED AT SEND TIME. A person was connected when picked; if either side has
 // since unfollowed, they are no longer told. set_habit_watchers cannot see the future.
-export function habitWatchDue({ habits, watchers, doneOn, zoneOf, hourOf, dayOf, connected, hour = HABIT_WATCH_HOUR }) {
+export function habitWatchDue({ habits, watchers, doneOn, zoneOf, hourOf, dayOf, connected, hour = HABIT_WATCH_HOUR, through = HABIT_WATCH_HOUR + HABIT_WATCH_CATCHUP }) {
   const out = [];
   const byHabit = new Map();
   for (const w of watchers || []) {
@@ -35,7 +40,8 @@ export function habitWatchDue({ habits, watchers, doneOn, zoneOf, hourOf, dayOf,
     // Every habit in the app is daily today; anything else is not this rule's to judge.
     if (h.cadence && h.cadence !== 'daily') continue;
     const tz = zoneOf(h.user_id) || 'UTC';
-    if (hourOf(tz) !== hour) continue;
+    const at = hourOf(tz);
+    if (at < hour || at > through) continue;
     const day = dayOf(tz);
     if (doneOn.has(`${h.id}|${day}`)) continue;
     const seen = new Set();
@@ -63,8 +69,8 @@ export function habitWatchText({ ownerName, habitName, type }) {
   const first = clamp(String(ownerName || '').trim().split(/\s+/)[0] || '', 40) || 'Your friend';
   const habit = clamp(habitName, 60) || 'a habit';
   return type === 'avoid'
-    ? { title: `${first} hasn't checked in on “${habit}” today`, body: 'It’s 8 pm where they are. A quick message could help them stay on track.' }
-    : { title: `${first} hasn't done “${habit}” yet today`, body: 'It’s 8 pm where they are. A quick message could help them get it done.' };
+    ? { title: `${first} hasn't checked in on “${habit}” today`, body: 'Their day isn’t over yet. A quick message could help them stay on track.' }
+    : { title: `${first} hasn't done “${habit}” yet today`, body: 'Their day isn’t over yet. A quick message could help them get it done.' };
 }
 
 // One notice per person, per habit, per the owner's day: the notifications dedupe index

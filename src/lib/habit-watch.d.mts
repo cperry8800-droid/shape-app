@@ -1,4 +1,5 @@
 export declare const HABIT_WATCH_HOUR: number;
+export declare const HABIT_WATCH_CATCHUP: number;
 
 export type HabitWatchNotice = {
   habitId: string;
@@ -18,6 +19,7 @@ export declare function habitWatchDue(args: {
   dayOf: (tz: string) => string;
   connected: (a: string, b: string) => boolean;
   hour?: number;
+  through?: number;
 }): HabitWatchNotice[];
 
 export declare function habitWatchText(args: { ownerName?: string | null; habitName?: string | null; type?: string | null }): { title: string; body: string };

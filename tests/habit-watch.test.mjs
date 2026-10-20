@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
-import { habitWatchDue, habitWatchText, habitWatchDedupe, HABIT_WATCH_HOUR } from '../src/lib/habit-watch.mjs';
+import { habitWatchDue, habitWatchText, habitWatchDedupe, HABIT_WATCH_HOUR, HABIT_WATCH_CATCHUP } from '../src/lib/habit-watch.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
@@ -40,7 +40,11 @@ const rule = (over = {}) => habitWatchDue({
 test('the rule: 8 pm the owner\'s time, not checked off on their day, a connected person', () => {
   assert.equal(HABIT_WATCH_HOUR, 20);
   assert.deepEqual(rule(), [{ habitId: 'h1', ownerId: 'ann', watcherId: 'zoe', day: '2026-10-19', name: 'Walk', type: 'do' }]);
-  assert.deepEqual(rule({ hourOf: () => 19 }), [], 'any other hour sends nothing');
+  assert.equal(HABIT_WATCH_CATCHUP, 2);
+  assert.deepEqual(rule({ hourOf: () => 19 }), [], 'before 8 pm: nothing');
+  assert.equal(rule({ hourOf: () => 21 }).length, 1, '9 pm catches up a notice that did not land');
+  assert.equal(rule({ hourOf: () => 22 }).length, 1, 'and 10 pm');
+  assert.deepEqual(rule({ hourOf: () => 23 }), [], 'after the catch-up hours: nothing');
   assert.deepEqual(rule({ doneOn: new Set(['h1|2026-10-19']) }), [], 'checked off today: nothing');
   assert.equal(rule({ doneOn: new Set(['h1|2026-10-20']) }).length, 1, 'a check-off on another day is not today\'s');
   assert.deepEqual(rule({ connected: () => false }), [], 'no longer connected: not told');
@@ -59,7 +63,7 @@ test('the rule refuses rows that do not belong, and tells each person once', () 
 test('the words: first name, the habit, and a to-don\'t reads "checked in on"', () => {
   assert.deepEqual(habitWatchText({ ownerName: 'Ann Lee', habitName: 'Walk 10k steps', type: 'do' }), {
     title: 'Ann hasn\'t done “Walk 10k steps” yet today',
-    body: 'It’s 8 pm where they are. A quick message could help them get it done.',
+    body: 'Their day isn’t over yet. A quick message could help them get it done.',
   });
   assert.equal(habitWatchText({ ownerName: 'Ann Lee', habitName: 'No sugar', type: 'avoid' }).title, 'Ann hasn\'t checked in on “No sugar” today');
   assert.match(habitWatchText({ ownerName: '', habitName: 'Walk' }).title, /^Your friend /);
@@ -115,8 +119,8 @@ const TABLES = () => ({
   notification_settings: [{ user_id: 'zoe', tz: 'UTC', quiet_start: 22, quiet_end: 7 }],
 });
 
-async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet = false, notify = null } = {}) {
-  t.mock.timers.enable({ apis: ['Date'], now: NOW });
+async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet = false, notify = null, now = NOW } = {}) {
+  t.mock.timers.enable({ apis: ['Date'], now });
   process.env.CRON_SECRET = SECRET;
   const db = fakeSupabase({ tables, fail });
   if (failQuiet) {
@@ -140,7 +144,7 @@ async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/supabase/admin', { createAdminClient: () => db }],
-      ['@/lib/notify', { createPreferredNotification: notify ? (admin, n) => notify(admin, n, sent) : async (_admin, n) => { sent.push(n); return true; } }],
+      ['@/lib/notify', { preferredNotificationOutcome: notify ? (admin, n) => notify(admin, n, sent) : async (_admin, n) => { sent.push(n); return 'stored'; } }],
       ['@/lib/time', time],
       ['@/lib/ai/notifications.mjs', notifyLayer],
       ['@/lib/habit-watch.mjs', await import('../src/lib/habit-watch.mjs')],
@@ -156,7 +160,7 @@ test('the cron tells each connected person about each shared habit not done by 8
   const got = sent.map((n) => `${n.data.habitId}>${n.userId}`).sort();
   assert.deepEqual(got, ['h1>yan', 'h1>zoe', 'h2>zoe', 'h7>zoe'],
     'Stretch was done, Run is not Ben\'s evening, Xia only asked to follow, and the forged row speaks for no one');
-  assert.deepEqual(body, { ok: true, owed: 4, sent: 4, unsent: 0, truncated: false });
+  assert.deepEqual(body, { ok: true, owed: 4, sent: 4, failed: 0, unsent: 0, truncated: false });
   const walk = sent.find((n) => n.data.habitId === 'h1' && n.userId === 'yan');
   assert.equal(walk.type, 'friend_habit');
   assert.equal(walk.route, 'person', 'it opens Ann\'s profile, where she can be messaged (a follow\'s `profile` opens the reader\'s own)');
@@ -187,7 +191,7 @@ test('nobody at 8 pm reads no watchers, and the wrong secret reads nothing', asy
   const tables = TABLES();
   tables.client_profiles = [{ user_id: 'ann', timezone: 'Asia/Tokyo' }, { user_id: 'ben', timezone: 'UTC' }];
   const quiet = await run(t, tables);
-  assert.deepEqual(quiet.body, { ok: true, owed: 0, sent: 0, unsent: 0, truncated: false });
+  assert.deepEqual(quiet.body, { ok: true, owed: 0, sent: 0, failed: 0, unsent: 0, truncated: false });
   assert.ok(!quiet.calls.some((c) => c.table === 'habit_watchers'));
   t.mock.timers.reset();
   const denied = await run(t, TABLES(), { secret: 'nope' });
@@ -213,10 +217,10 @@ test('the notices go out several at a time, never all at once (Codex on #2413)',
     await new Promise((r) => setImmediate(r));
     inFlight -= 1;
     sent.push(n);
-    return true;
+    return 'stored';
   };
   const { body, sent } = await run(t, CROWD(), { notify });
-  assert.deepEqual(body, { ok: true, owed: 20, sent: 20, unsent: 0, truncated: false });
+  assert.deepEqual(body, { ok: true, owed: 20, sent: 20, failed: 0, unsent: 0, truncated: false });
   assert.equal(new Set(sent.map((n) => n.userId)).size, 20, 'each person once');
   assert.equal(most, 8, 'eight at a time');
 });
@@ -224,13 +228,49 @@ test('the notices go out several at a time, never all at once (Codex on #2413)',
 test('none is started once the run nears its limit, and what is left is reported', async (t) => {
   // Each notice takes 40 s of the run: three start inside the 90 s budget, and the rest are
   // reported as unsent rather than cut off when the function is stopped.
-  const notify = async (_admin, n, sent) => { t.mock.timers.tick(40_000); sent.push(n); return true; };
+  const notify = async (_admin, n, sent) => { t.mock.timers.tick(40_000); sent.push(n); return 'stored'; };
   const errors = [];
   t.mock.method(console, 'error', (...a) => errors.push(a.join(' ')));
   const { body, sent } = await run(t, CROWD(), { notify });
-  assert.deepEqual(body, { ok: true, owed: 20, sent: 3, unsent: 17, truncated: false });
+  assert.deepEqual(body, { ok: true, owed: 20, sent: 3, failed: 0, unsent: 17, truncated: false });
   assert.equal(sent.length, 3);
   assert.ok(errors.some((e) => /out of time with 17 notices unsent/.test(e)), 'the shortfall is logged');
+});
+
+test('a notice that failed is tried again the next hour; one that landed is not (Codex on #2413)', async (t) => {
+  const tables = TABLES();
+  tables.notifications = [];
+  // 8:30 pm in New York: the write for Zoe's "No sugar" fails, the rest land.
+  const landing = async (_admin, n, sent) => {
+    if (n.userId === 'zoe' && n.data.habitId === 'h2') return 'failed';
+    tables.notifications.push({ user_id: n.userId, type: n.type, created_at: new Date(Date.now()).toISOString(), data: n.data });
+    sent.push(n);
+    return 'stored';
+  };
+  const errors = [];
+  t.mock.method(console, 'error', (...a) => errors.push(a.join(' ')));
+  const first = await run(t, tables, { notify: landing });
+  assert.deepEqual(first.body, { ok: true, owed: 4, sent: 3, failed: 1, unsent: 0, truncated: false });
+  assert.ok(errors.some((e) => /1 notices failed/.test(e)), 'the failure is logged');
+  t.mock.timers.reset();
+  // 9:30 pm: only the one that failed is owed, and it goes.
+  const second = await run(t, tables, { now: NOW + 60 * 60 * 1000 });
+  assert.deepEqual(second.body, { ok: true, owed: 1, sent: 1, failed: 0, unsent: 0, truncated: false });
+  assert.deepEqual(second.sent.map((n) => `${n.data.habitId}>${n.userId}`), ['h2>zoe']);
+  assert.equal(second.sent[0].data.dedupe, 'habit:h2:2026-10-19', 'still that evening\'s notice');
+  t.mock.timers.reset();
+  // 11:30 pm: the evening is over.
+  const late = await run(t, TABLES(), { now: NOW + 3 * 60 * 60 * 1000 });
+  assert.equal(late.body.owed, 0);
+});
+
+test('an unreadable list of the evening\'s notices tries them all; the dedupe index refuses repeats', async (t) => {
+  const errors = [];
+  t.mock.method(console, 'error', (...a) => errors.push(a.join(' ')));
+  const { status, body } = await run(t, TABLES(), { fail: ['notifications'] });
+  assert.equal(status, 200);
+  assert.equal(body.owed, 4);
+  assert.ok(errors.some((e) => /could not read the evening's notices/.test(e)));
 });
 
 // ── The wiring ──────────────────────────────────────────────────────────────
@@ -243,7 +283,10 @@ test('the migration: RLS on, no direct writes, both functions closed to anon and
   const sql = read('supabase-migrations/2026-10-20-habit-watchers.sql');
   assert.match(sql, /create table if not exists public\.habit_watchers/);
   assert.match(sql, /alter table public\.habit_watchers enable row level security/);
-  assert.doesNotMatch(sql, /for insert|for update|for all/i, 'members never write the table directly');
+  assert.doesNotMatch(sql, /create policy[^;]*\bfor (insert|update|all)\b/i, 'members never write the table directly');
+  // Two saves for one habit run one after the other (Codex on #2413): the habit's row is locked
+  // before its watchers are replaced.
+  assert.match(sql, /perform 1 from public\.user_habits h\s+where h\.id = p_habit and h\.user_id = v_me and h\.archived_at is null\s+for update;\s+if not found then/);
   for (const fn of ['habit_watch_candidates()', 'set_habit_watchers(uuid, uuid[])']) {
     assert.ok(sql.includes(`revoke all on function public.${fn} from public, anon;`), fn);
     assert.ok(sql.includes(`grant execute on function public.${fn} to authenticated;`), fn);

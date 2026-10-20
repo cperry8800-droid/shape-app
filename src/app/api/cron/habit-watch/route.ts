@@ -4,9 +4,11 @@
 // At 8 pm in the member's own timezone, each of those people hears about a shared habit that is
 // not checked off yet, so there is still time to nudge. The rules are src/lib/habit-watch.mjs.
 //
-// It goes through createPreferredNotification: a person who muted everything or turned "Friends'
+// It goes through preferredNotificationOutcome: a person who muted everything or turned "Friends'
 // habits" off gets nothing, and inside their own quiet hours the row lands in the app with no
 // push. One notice per person, per habit, per the owner's day (the notifications dedupe index).
+// A notice that did not land (a failed read or write, or a run that ran out of time) is tried
+// again in the two hours after 8 pm; one that landed is not (Codex on #2413).
 //
 // ⚠ A READ THAT FAILS IS NOT AN EMPTY ANSWER. A check-off read as "none" would tell friends a
 // habit was missed when it was done, and a follow read as "none" would quietly drop people; so a
@@ -18,10 +20,10 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createPreferredNotification } from '@/lib/notify';
+import { preferredNotificationOutcome } from '@/lib/notify';
 import { normalizeZone } from '@/lib/time';
 import * as NotifyLayer from '@/lib/ai/notifications.mjs';
-import { habitWatchDue, habitWatchText, habitWatchDedupe, HABIT_WATCH_HOUR } from '@/lib/habit-watch.mjs';
+import { habitWatchDue, habitWatchText, habitWatchDedupe, HABIT_WATCH_HOUR, HABIT_WATCH_CATCHUP } from '@/lib/habit-watch.mjs';
 import { bsYmdIn } from '../../../../../mobile-app/src/services/prepAhead.mjs';
 
 export const runtime = 'nodejs';
@@ -41,7 +43,7 @@ const HABIT_PAGE = 500;
 const HABIT_MAX_ROWS = 50_000;
 // The notices go out several at a time (Codex on #2413: one at a time, a large 8 pm hour outran
 // maxDuration and the rest were never sent), and none is started once the run nears its limit:
-// what is left is reported as `unsent` and logged, never cut off unseen.
+// what is left is reported as `unsent` and logged, and the next hour of the evening sends it.
 const SEND_AT_ONCE = 8;
 const SEND_BUDGET_MS = 90_000;
 
@@ -117,7 +119,7 @@ async function handle(request: Request) {
     cursor = last;
   }
   if (truncated) console.error(`[shape] habit watch: habit scan stopped at its ${HABIT_MAX_ROWS}-row ceiling; habits past it are not watched`);
-  if (!habits.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, unsent: 0, truncated });
+  if (!habits.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, failed: 0, unsent: 0, truncated });
 
   // Each owner's zone: the one the app saves on every open, else their notification zone.
   const owners = [...new Set(habits.map((h) => h.user_id))];
@@ -144,8 +146,10 @@ async function handle(request: Request) {
     return hourCache.get(tz) as number;
   };
   const dayOf = (tz: string) => bsYmdIn(now, tz);
-  const due = habits.filter((h) => hourOf(zoneOf.get(h.user_id) || 'UTC') === HABIT_WATCH_HOUR);
-  if (!due.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, unsent: 0, truncated });
+  // 8 pm, or one of the catch-up hours after it, on the owner's clock.
+  const inWindow = (at: number) => at >= HABIT_WATCH_HOUR && at <= HABIT_WATCH_HOUR + HABIT_WATCH_CATCHUP;
+  const due = habits.filter((h) => inWindow(hourOf(zoneOf.get(h.user_id) || 'UTC')));
+  if (!due.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, failed: 0, unsent: 0, truncated });
 
   const dueIds = due.map((h) => h.id);
   const dueOwners = [...new Set(due.map((h) => h.user_id))];
@@ -174,14 +178,16 @@ async function handle(request: Request) {
     dayOf,
     connected,
   });
-  if (!notices.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, unsent: 0, truncated });
+  if (!notices.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, failed: 0, unsent: 0, truncated });
 
   // The people's own quiet hours, read on their own clock (the zone the app saves, else their
-  // notification zone, as for the owners), and the owners' names.
+  // notification zone, as for the owners), and the evening's notices already stored for them.
   const people = [...new Set(notices.map((n) => n.watcherId))];
-  const [quietRows, peopleZones] = await Promise.all([
+  const since = new Date(now - 30 * 60 * 60 * 1000).toISOString();
+  const [quietRows, peopleZones, landed] = await Promise.all([
     readIn(people, (c) => admin.from('notification_settings').select('user_id, tz, quiet_start, quiet_end').in('user_id', c)),
     readIn(people, (c) => admin.from('client_profiles').select('user_id, timezone').in('user_id', c)),
+    readIn(people, (c) => admin.from('notifications').select('user_id, data').eq('type', 'friend_habit').in('user_id', c).gte('created_at', since)),
   ]);
   if (!quietRows || !peopleZones) {
     console.error('[shape] habit watch: could not read quiet hours');
@@ -193,10 +199,25 @@ async function handle(request: Request) {
   for (const r of peopleZones) { const z = zone(r.timezone); if (z) personZone.set(str(r.user_id), z); }
   const nameOf = new Map<string, string>();
   for (const r of names) nameOf.set(str(r.id), str(r.full_name));
+  // A catch-up hour sends only what has not landed. If that read fails, everything due is tried
+  // again and the dedupe index refuses the ones that did.
+  const stored = new Set<string>();
+  if (landed) {
+    for (const r of landed) {
+      const d = r.data as Row | null;
+      if (d && typeof d.dedupe === 'string') stored.add(`${str(r.user_id)}|${d.dedupe}`);
+    }
+  } else {
+    console.error("[shape] habit watch: could not read the evening's notices; the dedupe index refuses repeats");
+  }
+  const owed = notices.filter((n) => !stored.has(`${n.watcherId}|${habitWatchDedupe(n.habitId, n.day)}`));
+  if (!owed.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, failed: 0, unsent: 0, truncated });
 
-  // `owed`: notices due. `sent`: those stored, so a muted person, the type off, unreadable
-  // preferences or a duplicate are owed, not sent. `unsent`: those the time ran out on.
+  // `owed`: notices due and not yet landed. `sent`: those stored now; a muted person, the type
+  // off or a duplicate is owed and not sent. `failed`: a read or write that did not work, and
+  // `unsent`: those the time ran out on; the next hour of the evening tries both again.
   let sent = 0;
+  let failed = 0;
   const send = async (n: (typeof notices)[number]) => {
     try {
       const q = quietOf.get(n.watcherId) || {};
@@ -206,7 +227,7 @@ async function handle(request: Request) {
         quietEnd: typeof q.quiet_end === 'number' ? q.quiet_end : undefined,
       });
       const text = habitWatchText({ ownerName: nameOf.get(n.ownerId), habitName: n.name, type: n.type });
-      const stored = await createPreferredNotification(admin, {
+      const outcome = await preferredNotificationOutcome(admin, {
         userId: n.watcherId,
         type: 'friend_habit',
         title: text.title,
@@ -217,20 +238,23 @@ async function handle(request: Request) {
         quiet,
         data: { actorId: n.ownerId, habitId: n.habitId, dedupe: habitWatchDedupe(n.habitId, n.day) },
       });
-      if (stored) sent += 1;
+      if (outcome === 'stored') sent += 1;
+      else if (outcome === 'failed') failed += 1;
     } catch (err) {
+      failed += 1;
       console.error('[shape] habit watch notice failed:', n.habitId, err);
     }
   };
   let next = 0;
   const worker = async () => {
-    while (next < notices.length && Date.now() - now < SEND_BUDGET_MS) await send(notices[next++]);
+    while (next < owed.length && Date.now() - now < SEND_BUDGET_MS) await send(owed[next++]);
   };
-  await Promise.all(Array.from({ length: Math.min(SEND_AT_ONCE, notices.length) }, worker));
-  const unsent = notices.length - next;
+  await Promise.all(Array.from({ length: Math.min(SEND_AT_ONCE, owed.length) }, worker));
+  const unsent = owed.length - next;
   if (unsent) console.error('[shape] habit watch: out of time with', unsent, 'notices unsent');
+  if (failed) console.error('[shape] habit watch:', failed, 'notices failed');
 
-  return NextResponse.json({ ok: true, owed: notices.length, sent, unsent, truncated });
+  return NextResponse.json({ ok: true, owed: owed.length, sent, failed, unsent, truncated });
 }
 
 export async function GET(request: Request) {

@@ -78,10 +78,13 @@ begin
   if v_me is null then
     raise exception 'Authentication required.' using errcode = '42501';
   end if;
-  if not exists (
-    select 1 from public.user_habits h
-    where h.id = p_habit and h.user_id = v_me and h.archived_at is null
-  ) then
+  -- The habit's row is locked for the rest of the call, so two saves for one habit (two devices)
+  -- run one after the other: each leaves exactly its own list, never the two merged (Codex on
+  -- #2413).
+  perform 1 from public.user_habits h
+  where h.id = p_habit and h.user_id = v_me and h.archived_at is null
+  for update;
+  if not found then
     raise exception 'Habit not found.' using errcode = '42501';
   end if;
   select coalesce(array_agg(distinct w), '{}') into v_wanted
