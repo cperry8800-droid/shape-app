@@ -38541,6 +38541,43 @@ function bsCycleLabelDays(starts, rows) {
   }
   return out;
 }
+// The read in the member's words and language. Composed from the read's own
+// fields, never from read.copy, which is the engine's English: hi and lo are the
+// higher- and lower-valued phase codes, and sleep carries its gap in minutes.
+// ⚠ No figure on the check-in scale (ruling 11): energy, rested and habits say
+// only which phase runs lower, never "1.2 points" or "12pp".
+// ⚠ Each cycle:read.* sentence picks its phrase with an ICU select on hi and lo,
+// so a locale inflects the phase where it stands ("in deiner Lutealphase", "в
+// лютеиновой фазе") rather than having the capitalised label dropped into the
+// middle of a sentence. Sleep's gap is a duration through Home's own keys, by
+// the card's rules: minutes under an hour ("40 min", never "0h 40"), else hours
+// with the minutes padded as bsCiHM pads them ("1h 05"). The engine has already
+// rounded them to whole fives, so there is nothing left to round here.
+// read.copy is the defaultValue only (tests/cycle-phase.test.mjs holds the en
+// catalog to it), and the whole line for a metric or phase this doesn't know.
+const BS_CYCLE_READ_PHASES = new Set(['menstrual', 'follicular', 'ovulatory', 'luteal']);
+function bsCycleReadText(tr, read) {
+  if (!read || typeof read !== 'object') return null;
+  const english = typeof read.copy === 'string' && read.copy ? read.copy : null;
+  if (!BS_CYCLE_READ_PHASES.has(read.hi) || !BS_CYCLE_READ_PHASES.has(read.lo)) return english;
+  const at = { hi: read.hi, lo: read.lo, defaultValue: english };
+  if (read.metric === 'energy') return tr('cycle:read.energy', at);
+  if (read.metric === 'rested') return tr('cycle:read.rested', at);
+  if (read.metric === 'adherence') return tr('cycle:read.adherence', at);
+  if (read.metric === 'sleep') {
+    const min = Number(read.minutes);
+    if (!Number.isInteger(min) || min <= 0) return english;
+    const hh = Math.floor(min / 60);
+    const mm = min % 60;
+    const dur = !hh
+      ? tr('home:checkin.mOnly', { defaultValue: '{m} min', m: mm })
+      : mm
+        ? tr('home:checkin.hm', { defaultValue: '{h}h {m}', h: hh, m: String(mm).padStart(2, '0') })
+        : tr('home:checkin.hOnly', { defaultValue: '{h}h', h: hh });
+    return tr('cycle:read.sleep', { ...at, dur });
+  }
+  return english;
+}
 function BSCycleCard({ isSelf }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -38598,6 +38635,7 @@ function BSCycleCard({ isSelf }) {
         ? tr('cycle:cal.lateHead', { d: cycle.day, defaultValue: 'Cycle day {d}' })
         : tr('cycle:cal.phaseHead', { phase: phaseLabel, d: cycle.day, defaultValue: '{phase} · day {d}' });
   const cycles = bsCycleCompleteCycles(starts);
+  const readText = bsCycleReadText(tr, read);
   return (
     <div style={{ marginBottom: 22 }}>
       <BSTStationHead heat={heat} INK={t.INK} label={tr('cycle:card.station', { defaultValue: 'The cycle' })} meta={tr('cycle:card.meta', { defaultValue: 'Private to you' })} />
@@ -38611,11 +38649,11 @@ function BSCycleCard({ isSelf }) {
           </div>
         ) : null}
         {/* The read fires only past every floor; below them the card simply
-            carries no read — never an invented one. Copy is baked in-module
-            (the crossoverCopy no-drift rule). */}
-        {read && read.copy ? (
+            carries no read — never an invented one. Its words are composed in
+            the member's language from the read's fields (bsCycleReadText). */}
+        {readText ? (
           <div style={{ marginTop: 11, paddingTop: 10, borderTop: `1px solid ${bsTHexA(t.INK, 0.09)}` }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.4, color: t.INK }}>{read.copy}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.4, color: t.INK }}>{readText}</div>
           </div>
         ) : null}
       </button>

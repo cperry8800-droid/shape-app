@@ -1,7 +1,11 @@
 // tests/cycle-phase.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { IntlMessageFormat } from 'intl-messageformat';
 import { bsDeriveCycle, bsCycleRead } from '../public/newdesign/cyclePhase.mjs';
+import { ACTIVE_LOCALES } from '../mobile-app/src/i18n/locales.mjs';
+import { loadBroadsheet } from './helpers/broadsheet-mount.mjs';
 
 const D = (s) => s; // ISO helper for readability
 // 4 starts, perfect 28s: intervals [28,28,28]
@@ -123,4 +127,172 @@ test('late/paused days are excluded from read buckets', () => {
   const real = [...mk(12, 'follicular', 7.6), ...mk(12, 'luteal', 6.5), ...mk(12, 'paused', 1)];
   const r = bsCycleRead(real, { completeCycles: 2 });
   assert.ok(r && !r.copy.includes('paused') && !/\blate\b/.test(r.copy));
+});
+
+// ── The read in words (ruling 11, docs/REVIEW-2026-10-19-morning-checkin.md §6) ──
+// The read used to say "1.2 points" (the 1-10 check-in scale), "12pp" and "0.6h",
+// in English in every locale. A member is never quoted the scale, a "/10" or
+// "points": energy, rested and habits now say only which phase runs lower, and
+// sleep says its gap as a duration. The read carries what a translator needs (hi,
+// lo and, for sleep, minutes), and the app composes cycle:read.* from those.
+const PHASES = ['menstrual', 'follicular', 'ovulatory', 'luteal'];
+const METRIC_KEY = { sleep: 'sleepH', energy: 'energy', rested: 'rested', adherence: 'adherence' };
+// hiVal in the `hi` phase, loVal in the `lo` one, 12 days each — past every floor.
+const fire = (metric, hi, lo, hiVal, loVal) => {
+  const k = METRIC_KEY[metric];
+  const mk = (n, phase, v) => Array.from({ length: n }, () => ({ phase, [k]: v }));
+  return bsCycleRead([...mk(12, hi, hiVal), ...mk(12, lo, loVal)], { completeCycles: 2 });
+};
+const VALUES = { sleep: [7.6, 6.9], energy: [7, 4], rested: [8, 5], adherence: [0.9, 0.6] };
+
+test('the read says no figure on the check-in scale: no points, /10 or pp; sleep is a duration', () => {
+  for (const metric of Object.keys(VALUES)) {
+    const r = fire(metric, 'follicular', 'luteal', ...VALUES[metric]);
+    assert.equal(r && r.metric, metric);
+    assert.doesNotMatch(r.copy, /points|\/10|\bpp\b|\d\.\d/, `${metric}: ${r.copy}`);
+    if (metric !== 'sleep') assert.doesNotMatch(r.copy, /\d/, `${metric} carries a figure: ${r.copy}`);
+  }
+  const sleep = (loH) => fire('sleep', 'follicular', 'luteal', 7.6, loH).copy;
+  assert.match(sleep(6.9), /^Your sleep runs about 40 min shorter in your luteal phase than your follicular — /);
+  assert.match(sleep(7.6 - 7 / 6), /about 1h 10 shorter/);                // 70 min
+  assert.match(sleep(6.6), /about 1h shorter/);                           // a whole hour, no "00"
+  assert.match(sleep(7.6 - 13 / 12), /about 1h 05 shorter/);              // padded like bsCiHM
+});
+
+test('the read carries hi, lo and (sleep only) minutes, agreeing with the sign of gap', () => {
+  for (const metric of Object.keys(VALUES)) {
+    for (const [hi, lo] of [['follicular', 'luteal'], ['luteal', 'follicular'], ['ovulatory', 'menstrual']]) {
+      const r = fire(metric, hi, lo, ...VALUES[metric]);
+      assert.equal(r.hi, hi, `${metric} ${hi}/${lo}`);
+      assert.equal(r.lo, lo, `${metric} ${hi}/${lo}`);
+      // gap is phaseA − phaseB, so hi is phaseA exactly when gap is positive.
+      assert.equal(r.hi, r.gap > 0 ? r.phaseA : r.phaseB);
+      assert.equal(r.lo, r.gap > 0 ? r.phaseB : r.phaseA);
+      if (metric === 'sleep') {
+        assert.equal(r.minutes, Math.round(Math.abs(r.gap) * 12) * 5);
+        assert.equal(r.minutes % 5, 0);
+        assert.ok(r.minutes >= 30, 'the 30-min floor');
+      } else {
+        assert.equal('minutes' in r, false, `${metric} carries minutes`);
+      }
+    }
+  }
+  assert.equal(fire('sleep', 'follicular', 'luteal', 7.6, 6.9).minutes, 40);   // 42 min → 40
+});
+
+// ── The app's sentences, in all 13 locales ──
+const CAT_DIR = new URL('../mobile-app/src/i18n/catalogs/', import.meta.url);
+const CATS = new Map();
+const catalog = (loc, ns) => {
+  const id = `${loc}/${ns}`;
+  if (!CATS.has(id)) CATS.set(id, JSON.parse(readFileSync(new URL(`${id}.json`, CAT_DIR), 'utf8')));
+  return CATS.get(id);
+};
+// The runtime's resolution order: the member's locale, then en, then defaultValue.
+const trFor = (loc) => (key, opts = {}) => {
+  const [ns, k] = key.split(':');
+  const raw = catalog(loc, ns)[k] ?? catalog('en', ns)[k];
+  if (raw == null) return opts.defaultValue ?? key;
+  return String(new IntlMessageFormat(raw, loc).format(opts));
+};
+const READ_KEYS = ['read.energy', 'read.rested', 'read.adherence', 'read.sleep'];
+const PAIRS = PHASES.flatMap((hi) => PHASES.filter((lo) => lo !== hi).map((lo) => [hi, lo]));
+
+test('the en catalog says the engine\'s English exactly, for every metric and phase pair', () => {
+  const en = catalog('en', 'cycle');
+  for (const metric of Object.keys(VALUES)) {
+    for (const [hi, lo] of PAIRS) {
+      const r = fire(metric, hi, lo, ...VALUES[metric]);
+      const dur = metric === 'sleep' ? '40 min' : undefined;
+      assert.equal(new IntlMessageFormat(en[`read.${metric}`], 'en').format({ hi, lo, dur }), r.copy, `${metric} ${hi}/${lo}`);
+    }
+  }
+});
+
+test('every locale: each read sentence names both phases by its own select, with no figure', () => {
+  for (const loc of ACTIVE_LOCALES) {
+    const cat = catalog(loc, 'cycle');
+    for (const key of READ_KEYS) {
+      assert.ok(typeof cat[key] === 'string' && cat[key], `${loc}/cycle:${key} missing`);
+      const say = (hi, lo) => new IntlMessageFormat(cat[key], loc).format({ hi, lo, dur: '§DUR§' });
+      for (const [hi, lo] of PAIRS) {
+        const s = say(hi, lo);
+        assert.doesNotMatch(s, /[{}]|\d|points|\/10|\bpp\b/, `${loc}/${key} ${hi}/${lo}: ${s}`);
+        assert.equal(s.split('§DUR§').length - 1, key === 'read.sleep' ? 1 : 0, `${loc}/${key}: the duration`);
+      }
+      // The select is real: each phase reads differently on each side, and none
+      // of the four ever falls through to `other`.
+      for (const fixed of PHASES) {
+        const others = PHASES.filter((p) => p !== fixed);
+        const byLo = others.map((lo) => say(fixed, lo));
+        const byHi = others.map((hi) => say(hi, fixed));
+        assert.equal(new Set(byLo).size, 3, `${loc}/${key}: lo phases read alike`);
+        assert.equal(new Set(byHi).size, 3, `${loc}/${key}: hi phases read alike`);
+        assert.ok(!byLo.includes(say(fixed, 'zzz')) && !byHi.includes(say('zzz', fixed)), `${loc}/${key}: a phase reads as other`);
+      }
+    }
+  }
+});
+
+// ⚠ UKRAINIAN SAYS "IN" BY THE LETTER BEFORE IT (Правопис §23). After a vowel and before a
+// consonant it is "в" ("енергія в лютеїновій"), between consonants "у" ("ніж у менструальній"),
+// and "у" stays before в, ф and the льв/св/тв/хв clusters ("у фолікулярній"). The `lo` phase
+// follows its word with no pause, so the select alone can't know; the whole sentence is checked
+// for every pair and for `other` (review on this PR: the menstrual and luteal `lo` branches read
+// "у" after "енергія", "бадьоро", "менше" and "рідше").
+test('uk: each read sentence says "in" as the spelling rules have it, for every phase on each side', () => {
+  const cat = catalog('uk', 'cycle');
+  const afterVowelU = /[аеєиіїоуюя]\s+у\s+(?!льв|св|тв|хв)[бгґджзйклмнпрстхцчшщ]/iu;
+  const betweenConsonantsV = /[бвгґджзклмнпрстфхцчшщь]\s+в\s+[бвгґджзйклмнпрстфхцчшщ]/iu;
+  const sides = [...PAIRS, ...PHASES.flatMap((p) => [[p, 'zzz'], ['zzz', p]])];
+  for (const key of READ_KEYS) {
+    for (const [hi, lo] of sides) {
+      const s = new IntlMessageFormat(cat[key], 'uk').format({ hi, lo, dur: '40 хв' });
+      assert.doesNotMatch(s, afterVowelU, `uk/${key} ${hi}/${lo} says "у" after a vowel: ${s}`);
+      assert.doesNotMatch(s, betweenConsonantsV, `uk/${key} ${hi}/${lo} says "в" between consonants: ${s}`);
+    }
+  }
+});
+
+// The card is not mounted by any suite (its read arrives from an effect), so the
+// composition is a helper the card calls, driven here against the real catalogs.
+const { bsCycleReadText } = await loadBroadsheet(['bsCycleReadText']);
+
+test('the app card composes the read with tr in the member\'s language, never read.copy', () => {
+  const lut = (metric, loVal) => fire(metric, 'follicular', 'luteal', VALUES[metric][0], loVal ?? VALUES[metric][1]);
+  // English is the engine's English, word for word.
+  for (const metric of Object.keys(VALUES)) assert.equal(bsCycleReadText(trFor('en'), lut(metric)), lut(metric).copy);
+  // German inflects the phase into its compound; Russian into its case.
+  assert.equal(bsCycleReadText(trFor('de'), lut('energy')),
+    'Deine Energie-Check-ins liegen in deiner Lutealphase niedriger als in deiner Follikelphase — leg die schwerere Arbeit dorthin, wo die Energie ohnehin ist.');
+  assert.match(bsCycleReadText(trFor('ru'), lut('rested')), /^Ты просыпаешься менее бодро в лютеиновой фазе, чем в фолликулярной, — /);
+  // Sleep's duration through Home's keys: minutes under an hour, else hours.
+  assert.match(bsCycleReadText(trFor('ru'), lut('sleep')), /примерно на 40 мин меньше в лютеиновой фазе/);
+  assert.match(bsCycleReadText(trFor('ru'), lut('sleep', 7.6 - 7 / 6)), /примерно на 1 ч 10 меньше/);
+  assert.match(bsCycleReadText(trFor('de'), lut('sleep', 6.6)), /etwa 1 Std\. kürzer als/);
+  assert.match(bsCycleReadText(trFor('en'), lut('sleep', 7.6 - 13 / 12)), /about 1h 05 shorter/);
+  for (const loc of ACTIVE_LOCALES) {
+    for (const metric of Object.keys(VALUES)) {
+      const s = bsCycleReadText(trFor(loc), lut(metric));
+      const dur = metric === 'sleep' ? trFor(loc)('home:checkin.mOnly', { m: 40 }) : undefined;
+      assert.equal(s, trFor(loc)(`cycle:read.${metric}`, { hi: 'follicular', lo: 'luteal', dur }), `${loc} ${metric}`);
+      assert.doesNotMatch(s, /points|\/10|\bpp\b/, `${loc} ${metric}: ${s}`);
+      if (loc !== 'en') assert.notEqual(s, lut(metric).copy, `${loc} ${metric} is the engine's English`);
+    }
+  }
+  // read.copy only for what the composition doesn't know.
+  const base = lut('energy');
+  assert.equal(bsCycleReadText(trFor('de'), { ...base, metric: 'volume' }), base.copy);
+  assert.equal(bsCycleReadText(trFor('de'), { ...base, hi: 'paused' }), base.copy);
+  assert.equal(bsCycleReadText(trFor('de'), { ...lut('sleep'), minutes: null }), lut('sleep').copy);
+  assert.equal(bsCycleReadText(trFor('de'), null), null);
+});
+
+test('the card renders the composed read, not read.copy', () => {
+  const src = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
+  const card = src.slice(src.indexOf('function BSCycleCard('), src.indexOf('function BSCycleTodayChip('));
+  assert.ok(card.length > 1000, 'the card was not found');
+  assert.equal(card.split('const readText = bsCycleReadText(tr, read);').length - 1, 1);
+  assert.match(card, /\{readText\}<\/div>/);
+  assert.doesNotMatch(card, /read\.copy/);
 });

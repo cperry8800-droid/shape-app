@@ -64,5 +64,9 @@
   "card.meta": "Yalnızca sana özel",
   "card.setup": "Başlamak için bir regl başlangıcı kaydet.",
   "card.cycles": "{n} döngü verisi",
+  "read.energy": "Enerji check-in’lerin {lo, select, menstrual {menstrüel evrende} follicular {foliküler evrende} ovulatory {ovulasyon evrende} luteal {luteal evrende} other {bir evrede}} {hi, select, menstrual {menstrüel evrene} follicular {foliküler evrene} ovulatory {ovulasyon evrene} luteal {luteal evrene} other {diğer evreye}} göre daha düşük çıkıyor — ağır işleri enerjinin zaten olduğu yere planla.",
+  "read.rested": "Sabahları {lo, select, menstrual {menstrüel evrende} follicular {foliküler evrende} ovulatory {ovulasyon evrende} luteal {luteal evrende} other {bir evrede}} {hi, select, menstrual {menstrüel evrene} follicular {foliküler evrene} ovulatory {ovulasyon evrene} luteal {luteal evrene} other {diğer evreye}} göre daha az dinlenmiş uyanıyorsun — toparlanma orada farklı bir iş yapıyor ve bu normal.",
+  "read.sleep": "Uykun {lo, select, menstrual {menstrüel evrende} follicular {foliküler evrende} ovulatory {ovulasyon evrende} luteal {luteal evrende} other {bir evrede}} {hi, select, menstrual {menstrüel evrene} follicular {foliküler evrene} ovulatory {ovulasyon evrene} luteal {luteal evrene} other {diğer evreye}} göre yaklaşık {dur} daha kısa — bu bir aksama değil, vücudunun döngüde ilerleyişi. Orada uyku öncesi sakinleşme zamanını koru.",
+  "read.adherence": "Alışkanlıkların {lo, select, menstrual {menstrüel evrende} follicular {foliküler evrende} ovulatory {ovulasyon evrende} luteal {luteal evrende} other {bir evrede}} {hi, select, menstrual {menstrüel evrene} follicular {foliküler evrene} ovulatory {ovulasyon evrene} luteal {luteal evrene} other {diğer evreye}} göre daha seyrek tutuyor — orada yükü biraz hafifletmek seriyi küçültmez, dürüst tutar.",
   "todayChip": "Regl başladı mı? Kaydet"
 }
