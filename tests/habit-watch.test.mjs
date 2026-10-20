@@ -377,6 +377,19 @@ test('the person\'s daily cap bounds the pushes: past it a notice lands in the a
   assert.equal(plain.sent.filter((n) => !n.quiet).length, 4);
 });
 
+test("the cap is the person's one daily limit: another type's push counts, its dedupe key doesn't (Codex on #2413)", async (t) => {
+  // Pia had a coach message pushed today, with a cap of 2: one place left of three habits. A row of
+  // another type that happens to carry a habit's key is not that habit's notice.
+  const at = new Date(NOW - 2 * 60 * 60 * 1000).toISOString();
+  const prior = [
+    { id: 'n0', user_id: 'pia', type: 'coach_message', created_at: at, data: { channels: { inapp: true, push: true } } },
+    { id: 'n1', user_id: 'pia', type: 'coach_message', created_at: at, data: { dedupe: habitWatchDedupe('hc0', '2026-10-19'), channels: { inapp: true, push: false } } },
+  ];
+  const { body, sent } = await run(t, CAPPED({ n: 3, cap: 2, prior }));
+  assert.equal(body.owed, 3, "hc0 is still owed: the key on a coach message isn't its notice");
+  assert.equal(sent.filter((n) => !n.quiet).length, 1, "the coach message's push took a place");
+});
+
 test("the cap is per day on the person's own clock: their midnight resets it (Codex on #2413)", async (t) => {
   // NOW is 8:30 pm on Oct 19 in New York, so Pia's day began 20½ hours ago. A push 21 hours ago
   // (11:30 pm on the 18th there) is inside the last 24 hours but not today; one 20 hours ago is.
@@ -435,6 +448,14 @@ test('the migration: RLS on, no direct writes, both functions closed to anon and
 });
 
 test('a friend can turn these off: "Friends\' habits" is in the app\'s and the website\'s settings', () => {
-  assert.ok(read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx').includes(`['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"]`));
+  const row = `['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"]`;
+  const app = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  // Both of the app's lists: a coach can be picked too, and opens the notice in a coach app
+  // (Codex on #2413).
+  const types = app.slice(app.indexOf('const TYPES = isCoach'), app.indexOf('const Toggle = ({ on, onClick })'));
+  const [coach, member] = types.split('\n    : ');
+  assert.ok(coach.includes(row), "the app's coach list");
+  assert.ok(member.includes(row), "the app's member list");
   assert.ok(read('public/newdesign/clientMeSettings.jsx').includes(`["friend_habit", "Friends' habits", "When a friend hasn't done a habit they shared with you"]`));
+  assert.ok(read('public/newdesign/coachSettings.jsx').includes(`["friend_habit", "Friends' habits", "When a friend hasn't done a habit they shared with you"]`), "the website's coach settings");
 });

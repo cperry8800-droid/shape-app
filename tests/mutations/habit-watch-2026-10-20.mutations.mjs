@@ -10,6 +10,7 @@ const DATA = 'mobile-app/src/services/shapeBackend.js';
 const UI = 'mobile-app/src/broadsheet/iosAppBroadsheetHabits.jsx';
 const SQL = 'supabase-migrations/2026-10-20-habit-watchers.sql';
 const WEB = 'public/newdesign/clientMeSettings.jsx';
+const COACHWEB = 'public/newdesign/coachSettings.jsx';
 const ROUTES = 'public/newdesign/notificationRoutes.mjs';
 const INBOX = 'public/newdesign/pageShell.jsx';
 const MEMBER = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
@@ -46,6 +47,8 @@ export default {
     { name: "a read's chunks all go at once", file: CRON, find: 'Array.from({ length: Math.min(READ_AT_ONCE, parts.length) }, worker)', replace: 'Array.from({ length: parts.length }, worker)' },
     { name: "a chunk's rows land in another's place", file: CRON, find: '      out[i] = rows;', replace: '      out[next - 1] = rows;' },
     { name: 'a failed chunk reads as empty', file: CRON, find: '        if (error) { failed = true; return; }', replace: '        if (error) break;' },
+    { name: "the cap counts only friends'-habit pushes", file: CRON, find: ".select('user_id, type, data, created_at').in('user_id', c)", replace: ".select('user_id, type, data, created_at').eq('type', 'friend_habit').in('user_id', c)" },
+    { name: "another type's dedupe key counts as landed", file: CRON, find: "if (str(r.type) === 'friend_habit' && d && typeof d.dedupe === 'string')", replace: "if (d && typeof d.dedupe === 'string')" },
     { name: 'a notice that landed is sent again', file: CRON, find: '  const owed = notices.filter((n) => !stored.has(`${n.watcherId}|${habitWatchDedupe(n.habitId, n.day)}`));', replace: '  const owed = notices;' },
     { name: 'an unreadable list of landed notices still sends, its cap uncounted', file: CRON, find: "  if (!landed) {\n    console.error(\"[shape] habit watch: could not read the evening's notices\");\n    return NextResponse.json({ error: \"Could not read the evening's notices.\" }, { status: 500 });\n  }\n  const stored = new Set<string>();\n  const pushed = new Map<string, number>();\n  for (const r of landed) {", replace: "  const stored = new Set<string>();\n  const pushed = new Map<string, number>();\n  for (const r of landed || []) {" },
     { name: 'the daily cap is ignored', file: CRON, find: '      const quiet = asleep || used >= cap;', replace: '      const quiet = asleep;' },
@@ -117,6 +120,8 @@ export default {
     { name: 'a pending follow can be picked', file: SQL, find: "         where f.status = 'accepted'\n", replace: '         where true\n' },
     { name: 'a signed-out caller is not refused first', file: SQL, find: "  if v_me is null then\n    raise exception 'Authentication required.' using errcode = '42501';\n  end if;\n", replace: '' },
     { name: 'members may write the table directly', file: SQL, find: 'revoke insert, update, truncate, references, trigger on public.habit_watchers from authenticated;', replace: "create policy habit_watchers_insert on public.habit_watchers for insert to authenticated with check (true);" },
+    { name: "a coach in the app has no Friends' habits switch", file: MEMBER, find: `['waitlist_join', 'Waiting list', 'When someone joins your waiting list'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"]]`, replace: `['waitlist_join', 'Waiting list', 'When someone joins your waiting list']]` },
+    { name: "a coach on the website has no Friends' habits switch", file: COACHWEB, find: `  ["friend_habit", "Friends' habits", "When a friend hasn't done a habit they shared with you"],\n];`, replace: '];' },
     { name: "the website has no Friends' habits switch", file: WEB, find: `  ["friend_habit", "Friends' habits", "When a friend hasn't done a habit they shared with you"],\n`, replace: '' },
   ],
 };

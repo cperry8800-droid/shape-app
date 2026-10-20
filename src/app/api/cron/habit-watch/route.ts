@@ -213,7 +213,7 @@ async function handle(request: Request) {
   const [quietRows, peopleZones, landed] = await Promise.all([
     readIn(people, (c) => admin.from('notification_settings').select('user_id, tz, quiet_start, quiet_end, daily_cap').in('user_id', c).order('user_id')),
     readIn(people, (c) => admin.from('client_profiles').select('user_id, timezone').in('user_id', c).order('user_id')),
-    readIn(people, (c) => admin.from('notifications').select('user_id, data, created_at').eq('type', 'friend_habit').in('user_id', c).gte('created_at', since).order('id')),
+    readIn(people, (c) => admin.from('notifications').select('user_id, type, data, created_at').in('user_id', c).gte('created_at', since).order('id')),
   ]);
   if (!quietRows || !peopleZones) {
     console.error('[shape] habit watch: could not read quiet hours');
@@ -230,10 +230,12 @@ async function handle(request: Request) {
   // A catch-up hour sends only what has not landed.
   // ⚠ THE PERSON'S DAILY CAP (notification_settings.daily_cap, 4 by default) BOUNDS THE PUSHES.
   // Several friends' habits can fall due in one evening; past the cap a notice still lands in the
-  // app but does not push, as inside quiet hours (Codex on #2413). Counted from these notices that
-  // pushed on the person's own date today, so their midnight resets it, as the AI engine's count
-  // resets; the 30 hours read covers any local day. Reserved before each send so the eight at a
-  // time cannot overshoot it.
+  // app but does not push, as inside quiet hours (Codex on #2413). It is the person's one daily
+  // limit, so every notice stamped as pushed (data.channels.push) counts, whatever its type; a row
+  // written without the stamp (createNotification) can't say whether it pushed. Counted on the
+  // person's own date today, so their midnight resets it, as the AI engine's count resets; the 30
+  // hours read covers any local day. Reserved before each send so the eight at a time cannot
+  // overshoot it.
   // ⚠ A FAILED READ OF THE EVENING'S NOTICES STOPS THE RUN, like the others. They are both what has
   // landed and the cap's count: read as none, a friend at their cap would get a fresh cap's worth
   // of pushes (Codex on #2413). The next hour of the evening tries again.
@@ -246,7 +248,7 @@ async function handle(request: Request) {
   for (const r of landed) {
     const d = r.data as Row | null;
     const u = str(r.user_id);
-    if (d && typeof d.dedupe === 'string') stored.add(`${u}|${d.dedupe}`);
+    if (str(r.type) === 'friend_habit' && d && typeof d.dedupe === 'string') stored.add(`${u}|${d.dedupe}`);
     const ch = d && (d.channels as Row | undefined);
     const at = Date.parse(str(r.created_at));
     if (ch && ch.push === true && Number.isFinite(at) && bsYmdIn(at, tzOf(u)) === bsYmdIn(now, tzOf(u))) pushed.set(u, (pushed.get(u) || 0) + 1);
