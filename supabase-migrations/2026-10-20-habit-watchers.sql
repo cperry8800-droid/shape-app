@@ -12,7 +12,9 @@
 -- connected to them, and keeps user_habits.visibility in step ('friends' with anyone picked,
 -- 'private' with no one). The owner reads their habits' rows; a person reads the rows that name
 -- them, and either side can delete a row (the owner stops sharing; the person stops watching).
--- habit_watch_candidates lists who the caller may pick.
+-- habit_watch_candidates lists who the caller may pick. Because a watcher can now read a habit's
+-- id, the completions insert policy is replaced with one that also checks the habit is the
+-- caller's.
 --
 -- Until this runs, the app's share button answers "not switched on yet" and the cron finds no
 -- table and stops. Idempotent, safe to re-run.
@@ -45,6 +47,18 @@ create policy habit_watchers_delete on public.habit_watchers
 revoke all on public.habit_watchers from anon;
 revoke insert, update, truncate, references, trigger on public.habit_watchers from authenticated;
 grant select, delete on public.habit_watchers to authenticated;
+
+-- ⚠ A CHECK-OFF IS WRITTEN ONLY ON THE CALLER'S OWN HABIT. habit_watchers shows a watcher the
+-- habit's id, and the completions insert policy checked only user_id, so a watcher could write a
+-- completion on someone else's habit: it would silence that evening's notice and, since
+-- (habit_id, done_on) is unique, stop the owner checking the habit off that day (Codex on
+-- #2413). The table has no update policy, so an insert is the only way in.
+drop policy if exists "completions insertable by owner" on public.user_habit_completions;
+create policy "completions insertable by owner" on public.user_habit_completions
+  for insert with check (
+    auth.uid() = user_id
+    and exists (select 1 from public.user_habits h where h.id = habit_id and h.user_id = auth.uid())
+  );
 
 -- The people the caller may share a habit with: everyone joined to them by an accepted follow,
 -- either way round. A signed-out caller (NULL uid) matches no follow row and gets nothing. No

@@ -182,7 +182,7 @@ async function handle(request: Request) {
   const days = [...new Set(dueOwners.map((u) => dayOf(zoneOf.get(u) || 'UTC')))];
   const [watchers, completions, follows, names] = await Promise.all([
     readIn(dueIds, (c) => admin.from('habit_watchers').select('habit_id, owner_id, watcher_id').in('habit_id', c).order('habit_id').order('watcher_id')),
-    readIn(dueIds, (c) => admin.from('user_habit_completions').select('habit_id, done_on').in('habit_id', c).in('done_on', days).order('habit_id').order('done_on')),
+    readIn(dueIds, (c) => admin.from('user_habit_completions').select('habit_id, user_id, done_on').in('habit_id', c).in('done_on', days).order('habit_id').order('done_on')),
     // Every accepted follow touching a due owner, either way round: who is still connected.
     // The list rides the URL twice, so its chunk is half the usual.
     readIn(dueOwners, (c) => admin.from('user_follows').select('follower_id, following_id').eq('status', 'accepted').or(`follower_id.in.(${c.join(',')}),following_id.in.(${c.join(',')})`).order('follower_id').order('following_id'), CHUNK / 2),
@@ -192,7 +192,11 @@ async function handle(request: Request) {
     console.error('[shape] habit watch: could not read watchers, check-offs, follows or names');
     return NextResponse.json({ error: 'Could not read who to tell.' }, { status: 500 });
   }
-  const doneOn = new Set(completions.map((r) => `${str(r.habit_id)}|${str(r.done_on)}`));
+  // ⚠ ONLY THE OWNER'S OWN CHECK-OFF COUNTS. A watcher can read the habit's id, so a row someone
+  // else wrote on it must not silence the notice (Codex on #2413; the migration refuses such a
+  // row from now on).
+  const ownerOf = new Map(due.map((h) => [h.id, h.user_id]));
+  const doneOn = new Set(completions.filter((r) => str(r.user_id) === ownerOf.get(str(r.habit_id))).map((r) => `${str(r.habit_id)}|${str(r.done_on)}`));
   const pairs = new Set(follows.map((r) => `${str(r.follower_id)}|${str(r.following_id)}`));
   const connected = (a: string, b: string) => pairs.has(`${a}|${b}`) || pairs.has(`${b}|${a}`);
   const notices = habitWatchDue({

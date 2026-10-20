@@ -87,8 +87,11 @@ const TABLES = () => ({
     { id: 'h7', user_id: 'ann', name: 'Meditate', type: 'do', cadence: 'daily', visibility: 'friends', archived_at: null },
   ],
   user_habit_completions: [
-    { habit_id: 'h3', done_on: '2026-10-19' },
-    { habit_id: 'h7', done_on: '2026-10-20' },
+    { habit_id: 'h3', user_id: 'ann', done_on: '2026-10-19' },
+    { habit_id: 'h7', user_id: 'ann', done_on: '2026-10-20' },
+    // Zoe can read h1's id as its watcher, so a row she wrote on it is not Ann's check-off
+    // (Codex on #2413): h1 is still owed.
+    { habit_id: 'h1', user_id: 'zoe', done_on: '2026-10-19' },
   ],
   habit_watchers: [
     { habit_id: 'h1', owner_id: 'ann', watcher_id: 'zoe' },
@@ -425,7 +428,10 @@ test('the migration: RLS on, no direct writes, both functions closed to anon and
   const sql = read('supabase-migrations/2026-10-20-habit-watchers.sql');
   assert.match(sql, /create table if not exists public\.habit_watchers/);
   assert.match(sql, /alter table public\.habit_watchers enable row level security/);
-  assert.doesNotMatch(sql, /create policy[^;]*\bfor (insert|update|all)\b/i, 'members never write the table directly');
+  assert.doesNotMatch(sql, /create policy[^;]*on public\.habit_watchers[^;]*\bfor (insert|update|all)\b/i, 'members never write the table directly');
+  // A watcher can read the habit's id, so a check-off is written only on the caller's own habit
+  // (Codex on #2413).
+  assert.match(sql, /create policy "completions insertable by owner" on public\.user_habit_completions\s+for insert with check \(\s+auth\.uid\(\) = user_id\s+and exists \(select 1 from public\.user_habits h where h\.id = habit_id and h\.user_id = auth\.uid\(\)\)\s+\);/);
   // Two saves for one habit run one after the other (Codex on #2413): the habit's row is locked
   // before its watchers are replaced.
   assert.match(sql, /perform 1 from public\.user_habits h\s+where h\.id = p_habit and h\.user_id = v_me and h\.archived_at is null\s+for update;\s+if not found then/);

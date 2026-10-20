@@ -49,6 +49,7 @@ export default {
     { name: 'a failed chunk reads as empty', file: CRON, find: '        if (error) { failed = true; return; }', replace: '        if (error) break;' },
     { name: "the cap counts only friends'-habit pushes", file: CRON, find: ".select('user_id, type, data, created_at').in('user_id', c)", replace: ".select('user_id, type, data, created_at').eq('type', 'friend_habit').in('user_id', c)" },
     { name: "another type's dedupe key counts as landed", file: CRON, find: "if (str(r.type) === 'friend_habit' && d && typeof d.dedupe === 'string')", replace: "if (d && typeof d.dedupe === 'string')" },
+    { name: "someone else's check-off silences the notice", file: CRON, find: 'completions.filter((r) => str(r.user_id) === ownerOf.get(str(r.habit_id))).map(', replace: 'completions.map(' },
     { name: 'a notice that landed is sent again', file: CRON, find: '  const owed = notices.filter((n) => !stored.has(`${n.watcherId}|${habitWatchDedupe(n.habitId, n.day)}`));', replace: '  const owed = notices;' },
     { name: 'an unreadable list of landed notices still sends, its cap uncounted', file: CRON, find: "  if (!landed) {\n    console.error(\"[shape] habit watch: could not read the evening's notices\");\n    return NextResponse.json({ error: \"Could not read the evening's notices.\" }, { status: 500 });\n  }\n  const stored = new Set<string>();\n  const pushed = new Map<string, number>();\n  for (const r of landed) {", replace: "  const stored = new Set<string>();\n  const pushed = new Map<string, number>();\n  for (const r of landed || []) {" },
     { name: 'the daily cap is ignored', file: CRON, find: '      const quiet = asleep || used >= cap;', replace: '      const quiet = asleep;' },
@@ -115,6 +116,7 @@ export default {
 
     // ── The migration's guards and the settings rows (held by their source checks) ──
     { name: 'the candidates stop at 500', file: SQL, find: '  order by p.full_name nulls last, p.id;\n', replace: '  order by p.full_name nulls last, p.id\n  limit 500;\n' },
+    { name: "a watcher can write a check-off on the owner's habit", file: SQL, find: '    auth.uid() = user_id\n    and exists (select 1 from public.user_habits h where h.id = habit_id and h.user_id = auth.uid())\n', replace: '    auth.uid() = user_id\n' },
     { name: 'anon may run set_habit_watchers', file: SQL, find: 'revoke all on function public.set_habit_watchers(uuid, uuid[]) from public, anon;', replace: '' },
     { name: 'two saves for one habit can merge', file: SQL, find: '  where h.id = p_habit and h.user_id = v_me and h.archived_at is null\n  for update;\n', replace: '  where h.id = p_habit and h.user_id = v_me and h.archived_at is null;\n' },
     { name: 'a pending follow can be picked', file: SQL, find: "         where f.status = 'accepted'\n", replace: '         where true\n' },
