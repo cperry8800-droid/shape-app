@@ -44,6 +44,12 @@ export default {
     { name: 'one request per chunk, cut at the row cap', file: CRON, find: '      if (page.length < READ_PAGE) break;', replace: '      break;' },
     { name: 'a notice that landed is sent again', file: CRON, find: '  const owed = notices.filter((n) => !stored.has(`${n.watcherId}|${habitWatchDedupe(n.habitId, n.day)}`));', replace: '  const owed = notices;' },
     { name: 'an unreadable list of landed notices stops the run', file: CRON, find: "  if (landed) {", replace: "  if (!landed) return NextResponse.json({ error: 'x' }, { status: 500 });\n  if (landed) {" },
+    { name: 'the daily cap is ignored', file: CRON, find: '      const quiet = asleep || used >= cap;', replace: '      const quiet = asleep;' },
+    { name: "the person's own cap is ignored", file: CRON, find: "      const cap = typeof q.daily_cap === 'number' && Number.isFinite(q.daily_cap) ? q.daily_cap : DAILY_CAP;", replace: '      const cap = DAILY_CAP;' },
+    { name: 'no place under the cap is reserved', file: CRON, find: '      if (!quiet) { pushed.set(n.watcherId, used + 1); reserved = true; }', replace: '      if (!quiet) { reserved = true; }' },
+    { name: 'a push that did not happen keeps its place', file: CRON, find: "      if (reserved && outcome !== 'stored') pushed.set(n.watcherId, (pushed.get(n.watcherId) || 1) - 1);\n", replace: '' },
+    { name: 'pushes older than a day count against the cap', file: CRON, find: ' && str(r.created_at) >= dayAgo', replace: '' },
+    { name: 'a notice that landed quiet counts against the cap', file: CRON, find: 'if (ch && ch.push === true && ', replace: 'if (ch && ' },
     { name: 'a failed send counts as a mute', file: CRON, find: "      else if (outcome === 'failed') failed += 1;\n", replace: '' },
     { name: 'a failed zone read sends anyway', file: CRON, find: '  if (!profiles || !settings) {', replace: '  if (false) {' },
     { name: 'a failed check-off, follow or watcher read sends anyway', file: CRON, find: '  if (!watchers || !completions || !follows || !names) {', replace: '  if (!watchers || !names) {' },
@@ -84,6 +90,7 @@ export default {
     { name: 'a missing function is a failed read', file: DATA, find: "  if (['PGRST202', 'PGRST205', '42883', '42P01'].includes(code)) return true;", replace: "  if (['42883'].includes(code)) return true;" },
     { name: 'any failure is "not switched on"', file: DATA, find: "    if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error' };\n    return { kind: 'ready', people:", replace: "    if (error) return { kind: 'not_ready' };\n    return { kind: 'ready', people:" },
     { name: 'a failed list reads as nobody', file: DATA, find: "    if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error' };\n    if (state.user?.id !== uid)", replace: "    if (error) return { kind: 'ready', byHabit: {} };\n    if (state.user?.id !== uid)" },
+    { name: "the owner's list is one request, cut at the row cap", file: DATA, find: '      if (page.length < HABIT_WATCH_PAGE) break;', replace: '      break;' },
     { name: 'the same person is sent twice', file: DATA, find: 'p_watchers: [...new Set(userIds || [])]', replace: 'p_watchers: userIds || []' },
 
     // ── The button and the sheet ──

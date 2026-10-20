@@ -46,6 +46,8 @@ const HABIT_MAX_ROWS = 50_000;
 // what is left is reported as `unsent` and logged, and the next hour of the evening sends it.
 const SEND_AT_ONCE = 8;
 const SEND_BUDGET_MS = 90_000;
+// notification_settings.daily_cap's default (2026-06-17-notification-center.sql).
+const DAILY_CAP = 4;
 
 function safeEqual(a: string, b: string): boolean {
   const x = Buffer.from(String(a || ''));
@@ -196,9 +198,9 @@ async function handle(request: Request) {
   const people = [...new Set(notices.map((n) => n.watcherId))];
   const since = new Date(now - 30 * 60 * 60 * 1000).toISOString();
   const [quietRows, peopleZones, landed] = await Promise.all([
-    readIn(people, (c) => admin.from('notification_settings').select('user_id, tz, quiet_start, quiet_end').in('user_id', c).order('user_id')),
+    readIn(people, (c) => admin.from('notification_settings').select('user_id, tz, quiet_start, quiet_end, daily_cap').in('user_id', c).order('user_id')),
     readIn(people, (c) => admin.from('client_profiles').select('user_id, timezone').in('user_id', c).order('user_id')),
-    readIn(people, (c) => admin.from('notifications').select('user_id, data').eq('type', 'friend_habit').in('user_id', c).gte('created_at', since).order('id')),
+    readIn(people, (c) => admin.from('notifications').select('user_id, data, created_at').eq('type', 'friend_habit').in('user_id', c).gte('created_at', since).order('id')),
   ]);
   if (!quietRows || !peopleZones) {
     console.error('[shape] habit watch: could not read quiet hours');
@@ -212,11 +214,20 @@ async function handle(request: Request) {
   for (const r of names) nameOf.set(str(r.id), str(r.full_name));
   // A catch-up hour sends only what has not landed. If that read fails, everything due is tried
   // again and the dedupe index refuses the ones that did.
+  // ⚠ THE PERSON'S DAILY CAP (notification_settings.daily_cap, 4 by default) BOUNDS THE PUSHES.
+  // Several friends' habits can fall due in one evening; past the cap a notice still lands in the
+  // app but does not push, as inside quiet hours (Codex on #2413). Counted from these notices that
+  // pushed in the last 24 hours, and reserved before each send so the eight at a time cannot
+  // overshoot it.
   const stored = new Set<string>();
+  const pushed = new Map<string, number>();
+  const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
   if (landed) {
     for (const r of landed) {
       const d = r.data as Row | null;
       if (d && typeof d.dedupe === 'string') stored.add(`${str(r.user_id)}|${d.dedupe}`);
+      const ch = d && (d.channels as Row | undefined);
+      if (ch && ch.push === true && str(r.created_at) >= dayAgo) pushed.set(str(r.user_id), (pushed.get(str(r.user_id)) || 0) + 1);
     }
   } else {
     console.error("[shape] habit watch: could not read the evening's notices; the dedupe index refuses repeats");
@@ -230,13 +241,18 @@ async function handle(request: Request) {
   let sent = 0;
   let failed = 0;
   const send = async (n: (typeof notices)[number]) => {
+    let reserved = false;
     try {
       const q = quietOf.get(n.watcherId) || {};
-      const quiet = inQuietHours(new Date(now), {
+      const asleep = inQuietHours(new Date(now), {
         tz: personZone.get(n.watcherId) || zone(q.tz) || 'UTC',
         quietStart: typeof q.quiet_start === 'number' ? q.quiet_start : undefined,
         quietEnd: typeof q.quiet_end === 'number' ? q.quiet_end : undefined,
       });
+      const cap = typeof q.daily_cap === 'number' && Number.isFinite(q.daily_cap) ? q.daily_cap : DAILY_CAP;
+      const used = pushed.get(n.watcherId) || 0;
+      const quiet = asleep || used >= cap;
+      if (!quiet) { pushed.set(n.watcherId, used + 1); reserved = true; }
       const text = habitWatchText({ ownerName: nameOf.get(n.ownerId), habitName: n.name, type: n.type });
       const outcome = await preferredNotificationOutcome(admin, {
         userId: n.watcherId,
@@ -251,8 +267,11 @@ async function handle(request: Request) {
       });
       if (outcome === 'stored') sent += 1;
       else if (outcome === 'failed') failed += 1;
+      // A push that did not happen gives its place under the cap back.
+      if (reserved && outcome !== 'stored') pushed.set(n.watcherId, (pushed.get(n.watcherId) || 1) - 1);
     } catch (err) {
       failed += 1;
+      if (reserved) pushed.set(n.watcherId, (pushed.get(n.watcherId) || 1) - 1);
       console.error('[shape] habit watch notice failed:', n.habitId, err);
     }
   };

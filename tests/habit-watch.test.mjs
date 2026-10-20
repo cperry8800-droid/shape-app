@@ -293,6 +293,56 @@ test('every read is paged past PostgREST\'s 1,000-row cap: no watcher or follow 
   assert.equal(new Set(sent.map((n) => `${n.data.habitId}>${n.userId}`)).size, 1200, 'each notice once');
 });
 
+// Pia is in New York with a cap of `cap`, connected to Ann, and picked on `n` of Ann's habits.
+const CAPPED = ({ n, cap, prior = [] }) => {
+  const tables = TABLES();
+  tables.user_habits = Array.from({ length: n }, (_, i) => ({ id: `hc${i}`, user_id: 'ann', name: `Habit ${i}`, type: 'do', cadence: 'daily', visibility: 'friends', archived_at: null }));
+  tables.user_habit_completions = [];
+  tables.habit_watchers = tables.user_habits.map((h) => ({ habit_id: h.id, owner_id: 'ann', watcher_id: 'pia' }));
+  tables.user_follows = [{ follower_id: 'pia', following_id: 'ann', status: 'accepted' }];
+  tables.client_profiles = [...tables.client_profiles, { user_id: 'pia', timezone: 'America/New_York' }];
+  tables.notification_settings = [{ user_id: 'pia', tz: 'America/New_York', quiet_start: 23, quiet_end: 6, daily_cap: cap }];
+  tables.notifications = prior;
+  return tables;
+};
+
+test('the person\'s daily cap bounds the pushes: past it a notice lands in the app without one (Codex on #2413)', async (t) => {
+  // One friend's-habit push already today (and one that landed quiet, which doesn't count); a cap
+  // of 2 leaves room for one more of the five.
+  const prior = [
+    { id: 'n0', user_id: 'pia', type: 'friend_habit', created_at: new Date(NOW - 2 * 60 * 60 * 1000).toISOString(), data: { dedupe: 'habit:other:2026-10-19', channels: { inapp: true, push: true } } },
+    { id: 'n1', user_id: 'pia', type: 'friend_habit', created_at: new Date(NOW - 2 * 60 * 60 * 1000).toISOString(), data: { dedupe: 'habit:quiet:2026-10-19', channels: { inapp: true, push: false } } },
+  ];
+  const { body, sent } = await run(t, CAPPED({ n: 5, cap: 2, prior }));
+  assert.deepEqual(body, { ok: true, owed: 5, sent: 5, failed: 0, unsent: 0, truncated: false });
+  assert.equal(sent.filter((n) => !n.quiet).length, 1, 'one push, the rest in the app only');
+  t.mock.timers.reset();
+  // A push from more than a day ago does not count.
+  const stale = [{ ...prior[0], created_at: new Date(NOW - 30 * 60 * 60 * 1000 + 60_000).toISOString() }];
+  const fresh = await run(t, CAPPED({ n: 5, cap: 2, prior: stale }));
+  assert.equal(fresh.sent.filter((n) => !n.quiet).length, 2);
+  t.mock.timers.reset();
+  // No cap on file: the default 4.
+  const tables = CAPPED({ n: 6, cap: 2 });
+  tables.notification_settings = [];
+  const plain = await run(t, tables);
+  assert.equal(plain.sent.filter((n) => !n.quiet).length, 4);
+});
+
+test('a push that failed gives its place under the cap back to a later notice', async (t) => {
+  // Cap 1, nine notices: the first takes the place and fails; the eight that started with it are
+  // in the app only; the ninth, started after the failure, takes the place back and pushes.
+  let first = true;
+  const notify = async (_admin, n, sent) => {
+    if (!n.quiet && first) { first = false; return 'failed'; }
+    sent.push(n);
+    return 'stored';
+  };
+  const { body, sent } = await run(t, CAPPED({ n: 9, cap: 1 }), { notify });
+  assert.equal(body.failed, 1);
+  assert.equal(sent.filter((n) => !n.quiet).length, 1, 'the place came back and was used');
+});
+
 // ── The wiring ──────────────────────────────────────────────────────────────
 test('the cron runs hourly', () => {
   const crons = JSON.parse(read('vercel.json')).crons;

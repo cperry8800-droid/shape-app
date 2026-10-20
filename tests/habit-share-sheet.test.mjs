@@ -9,6 +9,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { fakeSupabase } from './helpers/fake-supabase.mjs';
 
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -166,7 +167,10 @@ test('ShapeHabitWatch answers ready, not_ready, anon or error, never a failure d
   assert.ok(at > 0 && end > at);
   const make = (supabase, state = { user: { id: 'ann' } }) =>
     new Function('supabase', 'state', `${src.slice(at, end)}\nreturn { habitWatchCandidates, habitWatchList, habitWatchSet };`)(supabase, state);
-  const rpcSays = (answer) => ({ rpc: async () => answer, from: () => ({ select: () => ({ eq: async () => answer }) }) });
+  const rpcSays = (answer) => {
+    const chain = { select: () => chain, eq: () => chain, order: () => chain, range: async () => answer };
+    return { rpc: async () => answer, from: () => chain };
+  };
 
   const ok = make(rpcSays({ data: [{ user_id: 'u-ben', full_name: 'Ben Ode' }, { user_id: 'u-x', full_name: null }], error: null }));
   assert.deepEqual(await ok.habitWatchCandidates(), { kind: 'ready', people: [{ userId: 'u-ben', name: 'Ben Ode' }, { userId: 'u-x', name: 'Shape member' }] });
@@ -185,6 +189,15 @@ test('ShapeHabitWatch answers ready, not_ready, anon or error, never a failure d
 
   const rows = make(rpcSays({ data: [{ habit_id: 'h1', watcher_id: 'u-ben' }, { habit_id: 'h1', watcher_id: 'u-cat' }, { habit_id: 'h2', watcher_id: 'u-ben' }], error: null }));
   assert.deepEqual(await rows.habitWatchList(), { kind: 'ready', byHabit: { h1: ['u-ben', 'u-cat'], h2: ['u-ben'] } });
+  // Codex on #2413: past PostgREST's 1,000-row cap, one request read 1,000 rows and the rest of the
+  // habits as unshared, so saving one dropped its people. 60 habits × 20 people, under the cap.
+  const people = Array.from({ length: 20 }, (_, i) => `w${String(i).padStart(2, '0')}`);
+  const habits = Array.from({ length: 60 }, (_, i) => `h${String(i).padStart(2, '0')}`);
+  const big = make(fakeSupabase({ maxRows: 1000, tables: { habit_watchers: habits.flatMap((h) => people.map((w) => ({ habit_id: h, owner_id: 'ann', watcher_id: w }))) } }));
+  const read = await big.habitWatchList();
+  assert.equal(read.kind, 'ready');
+  assert.equal(Object.keys(read.byHabit).length, 60, 'every habit');
+  assert.ok(Object.values(read.byHabit).every((ws) => ws.length === 20), 'with all 20 people');
   let sent = null;
   const setter = make({ rpc: async (name, args) => { sent = [name, args]; return { data: args.p_watchers, error: null }; } });
   assert.deepEqual(await setter.habitWatchSet('h1', ['u-ben', 'u-ben', 'u-cat']), { kind: 'ready', watchers: ['u-ben', 'u-cat'] });

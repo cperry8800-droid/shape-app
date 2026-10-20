@@ -7290,15 +7290,26 @@ async function habitWatchCandidates() {
     return { kind: 'ready', people: (data || []).map((r) => ({ userId: r.user_id, name: r.full_name || 'Shape member' })) };
   } catch (e) { return { kind: 'error' }; }
 }
+// ⚠ READ IN PAGES. PostgREST answers at most its "Max rows" (1,000) per request and says nothing
+// when it cuts a list short; a habit left out would read as unshared, and saving it would drop its
+// people (Codex on #2413). Ordered by the primary key, so the pages neither skip nor repeat a row.
+const HABIT_WATCH_PAGE = 500;
 async function habitWatchList() {
   const uid = state.user?.id;
   if (!supabase || !uid) return { kind: 'anon' };
   try {
-    const { data, error } = await supabase.from('habit_watchers').select('habit_id, watcher_id').eq('owner_id', uid);
-    if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error' };
+    const rows = [];
+    for (let from = 0; ; from += HABIT_WATCH_PAGE) {
+      const { data, error } = await supabase.from('habit_watchers').select('habit_id, watcher_id').eq('owner_id', uid)
+        .order('habit_id').order('watcher_id').range(from, from + HABIT_WATCH_PAGE - 1);
+      if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error' };
+      const page = data || [];
+      rows.push(...page);
+      if (page.length < HABIT_WATCH_PAGE) break;
+    }
     if (state.user?.id !== uid) return { kind: 'error' };
     const byHabit = {};
-    for (const r of data || []) (byHabit[r.habit_id] = byHabit[r.habit_id] || []).push(r.watcher_id);
+    for (const r of rows) (byHabit[r.habit_id] = byHabit[r.habit_id] || []).push(r.watcher_id);
     return { kind: 'ready', byHabit };
   } catch (e) { return { kind: 'error' }; }
 }
