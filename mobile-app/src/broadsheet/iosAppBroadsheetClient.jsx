@@ -46,7 +46,7 @@ import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from '../services/mealPrep.mjs';
 import { bsMakeAheadIndex, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepRecordsFor, bsYmdAdd, bsYmdIn } from '../services/prepAhead.mjs';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
-import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES } from './bsNotificationRoute.mjs';
+import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsTrackLanes, bsTrackLaneStatus, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
@@ -698,6 +698,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, goCycle, onNavGesture };
   useBSNavGestureHandler(navJumpRef);
 
+  // A notified person's profile closes on any other navigation (BS_NAV_EVENTS), so nothing moves
+  // only the page under it.
+  React.useEffect(() => {
+    const close = (e) => { if (bsClosesPerson(e)) setNotifPerson(null); };
+    BS_NAV_EVENTS.forEach((n) => window.addEventListener(n, close));
+    return () => BS_NAV_EVENTS.forEach((n) => window.removeEventListener(n, close));
+  }, []);
   React.useEffect(() => {
     window.__shapeActiveTab = tab;
     window.dispatchEvent?.(new CustomEvent('shape:activeTabChanged', { detail: { tab } }));
@@ -763,7 +770,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => {
     const open = () => {
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
-      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setNotifPerson(null);
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
       setChatRequest(null); setTab('chat');
     };
     window.addEventListener('shape:goCommunity', open);
@@ -775,7 +782,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => {
     const open = () => {
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
-      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setNotifPerson(null);
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
       setChatRequest(null); setTab('home');
     };
     window.addEventListener('shape:goHome', open);
@@ -792,7 +799,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => {
     const clear = () => {
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
-      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setNotifPerson(null); setChatRequest(null);
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setChatRequest(null);
     };
     const toSettings = (page) => { clear(); setSettingsStart(page); setShowSettings(true); };
     const open = (e) => {
@@ -838,7 +845,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => {
     const open = () => {
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
-      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setNotifPerson(null);
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
       setChatRequest({ wall: true, nonce: Date.now() }); setTab('chat');
     };
     window.addEventListener('shape:goWall', open);
@@ -863,7 +870,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       const c = e && e.detail && e.detail.cookable;
       if (!c || !(c.steps || []).length) return;
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
-      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setNotifPerson(null);
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
       setCookWith({ cookable: c, mine: !!(e.detail && e.detail.mine), nonce: Date.now() });
       setTab('eat');
     };
@@ -883,7 +890,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       const slug = e && e.detail && typeof e.detail.slug === 'string' ? e.detail.slug : '';
       if (!slug) return;
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
-      setShowCalendar(false); setShowSearch(false); setShowCycle(false); setNotifPerson(null);
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
       setPrepTonight({ slug, nonce: Date.now() });
       setTab('eat');
     };

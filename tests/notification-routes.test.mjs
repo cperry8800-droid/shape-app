@@ -155,12 +155,39 @@ test('a person route opens that person, never the reader\'s own profile, in all 
   assert.ok(CLIENT.indexOf('const [notifPerson, setNotifPerson]') < CLIENT.indexOf('const navResolve = (loc) => {'), 'declared before the resolver reads it');
   for (const name of ['function BSTrainerAppInner(', 'function BSNutritionistAppInner(']) {
     const shellSrc = PROS.slice(PROS.indexOf(name), PROS.indexOf(name) + 30000);
-    assert.match(pageEffect(shellSrc, '⚠ EVERY OTHER NOTIFICATION LANDS HERE'), /case 'person': clear\(\); setNotifPerson\(d\.id \|\| null\); return;/, name);
+    // A coach session can run without the client module that draws it, so it is loaded first.
+    assert.match(pageEffect(shellSrc, '⚠ EVERY OTHER NOTIFICATION LANDS HERE'), /case 'person': clear\(\); bsProOpenPerson\(d\.id, setNotifPerson\); return;/, name);
     assert.match(shellSrc, /const takeover = \(el\) => \(<>\{el\}\{settingsOverlay\}\{searchOverlay\}\{noraSheet\}\{personOverlay\}<\/>\);/, name);
     assert.match(shellSrc, /\{searchOverlay\}\n\s*\{personOverlay\}/, `${name}: the main return renders it`);
     assert.match(shellSrc, /onClose: \(\) => \{ if \(!navBack\(\)\) setNotifPerson\(null\); \}/, `${name}: Back goes through the history`);
     assert.match(shellSrc, /const navResolve = \(loc\) => \{\n\s*if \(!loc\) return;\n[^\n]*\n\s*setNotifPerson\(null\);/, `${name}: a step back closes it`);
+    assert.match(shellSrc, CLOSES_ON_NAV, `${name}: any other navigation closes it`);
   }
+  assert.match(CLIENT, CLOSES_ON_NAV, 'the member app: any other navigation closes it');
+  assert.match(PROS, /function bsProOpenPerson\(id, setNotifPerson\) \{\n\s*if \(!id\) return;\n\s*if \(typeof window !== 'undefined' && window\.BSNotifiedPerson\) \{ setNotifPerson\(id\); return; \}\n\s*import\('\.\/iosAppBroadsheetClient\.jsx'\)\.then\(\(\) => setNotifPerson\(id\)\)/, 'a coach-only session loads the client module first');
+});
+
+const CLOSES_ON_NAV = /const close = \(e\) => \{ if \(bsClosesPerson\(e\)\) setNotifPerson\(null\); \};\n\s*BS_NAV_EVENTS\.forEach\(\(n\) => window\.addEventListener\(n, close\)\);/;
+
+test('a notified person closes on every route the router fires and every header control, but not on its own route', () => {
+  // Codex on #2413: in the coach apps Home, a client and a conversation moved only the page under it.
+  for (const ev of ['shape:goHome', 'shape:openConversation', 'shape:openClient', 'shape:openMarket', 'shape:openPrep', 'shape:openPage', 'shape:openSearch', 'shape:openNora', 'shape:openProfile']) {
+    assert.ok(ROUTER.BS_NAV_EVENTS.includes(ev), ev);
+  }
+  const ev = (type, detail) => ({ type, detail });
+  assert.equal(ROUTER.bsClosesPerson(ev('shape:openPage', { page: 'person', id: 'u-3' })), false, 'opening a person does not close it');
+  assert.equal(ROUTER.bsClosesPerson(ev('shape:openPage', { page: 'train' })), true);
+  assert.equal(ROUTER.bsClosesPerson(ev('shape:goHome')), true);
+  assert.equal(ROUTER.bsClosesPerson(ev('shape:openConversation', { conversationId: 'c-1' })), true);
+  // Every shell event that opens a screen is in the list, read from the shells themselves.
+  const opens = new Set();
+  for (const src of [CLIENT, PROS]) {
+    for (const m of src.matchAll(/window\.addEventListener\('(shape:(?:go|open|start|cook|meal|edit|pro)[A-Za-z]+)'/g)) opens.add(m[1]);
+  }
+  // shape:cookreads says the cook-mode reads changed; it opens nothing.
+  const notNav = new Set(['shape:cookreads']);
+  assert.ok(opens.size >= 20, `the scan found the shells' events: ${[...opens].join(', ')}`);
+  for (const e of opens) if (!notNav.has(e)) assert.ok(ROUTER.BS_NAV_EVENTS.includes(e), `${e} opens a screen and is not in BS_NAV_EVENTS`);
 });
 
 // The handlers each shell has, read from its source.

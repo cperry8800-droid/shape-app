@@ -494,7 +494,7 @@ test('the app opens the membership welcome ("home") and a new client with no thr
   assert.equal(route('client:'), false);
   assert.deepEqual(events, [['shape:goHome', undefined], ['shape:openClient', { clientId: 'client-1', providerRole: null, fromNotification: true }], ['shape:openClient', { clientId: 'client-2', providerRole: null, fromNotification: true }]]);
   // The member shell lands on Home, clearing the takeovers above the tabs.
-  assert.match(client, /const open = \(\) => \{\s+navJumpRef\.current\.navPush\(\); setShowSettings\(false\); setSettingsStart\(''\);\s+setShowCalendar\(false\); setShowSearch\(false\); setShowCycle\(false\); setNotifPerson\(null\);\s+setChatRequest\(null\); setTab\('home'\);\s+\};\s+window\.addEventListener\('shape:goHome', open\);/);
+  assert.match(client, /const open = \(\) => \{\s+navJumpRef\.current\.navPush\(\); setShowSettings\(false\); setSettingsStart\(''\);\s+setShowCalendar\(false\); setShowSearch\(false\); setShowCycle\(false\);\s+setChatRequest\(null\); setTab\('home'\);\s+\};\s+window\.addEventListener\('shape:goHome', open\);/);
   // Both coach shells answer shape:openClient with the Clients tab and the request, and each
   // Clients screen opens that client once the roster has them, and only them.
   const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');

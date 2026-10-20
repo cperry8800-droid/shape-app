@@ -19,7 +19,7 @@ import { coachIntakeView, screeningState } from '../services/coachIntake.mjs';
 import { bsDeriveCycle } from '../services/cyclePhase.mjs';
 import { BS_LISTING_GALLERY_MAX, BS_LISTING_CAPTION_MAX } from '../services/listingMedia.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
-import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES } from './bsNotificationRoute.mjs';
+import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -1162,6 +1162,12 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const [showSearch, setShowSearch] = useStateBSP(false);
   // Another person's profile, opened from a notification (person:<user>): a friend's habit.
   const [notifPerson, setNotifPerson] = useStateBSP(null);
+  // It closes on any other navigation (BS_NAV_EVENTS), so nothing moves only the page under it.
+  useEffectBSP(() => {
+    const close = (e) => { if (bsClosesPerson(e)) setNotifPerson(null); };
+    BS_NAV_EVENTS.forEach((n) => window.addEventListener(n, close));
+    return () => BS_NAV_EVENTS.forEach((n) => window.removeEventListener(n, close));
+  }, []);
   // Nora's sheet (the header ✦, option D) — the client module's BSNoraSheet,
   // read off window at render time like the other shared surfaces.
   const [showNoraSheet, setShowNoraSheet] = useStateBSP(false);
@@ -1275,7 +1281,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       navJumpRef.current.navPush();
       setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
       setShowCalendar(false); setShowReviews(false); setShowHabits(false);
-      setQueueView(null); setLiveWatch(null); setShowSearch(false); setNotifPerson(null);
+      setQueueView(null); setLiveWatch(null); setShowSearch(false);
     };
     const open = (e) => {
       const d = (e && e.detail) || {};
@@ -1298,7 +1304,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         case 'settings': clear(); setShowSettings(true); return;
         case 'profile': clear(); setTab('me'); return;
         // Someone else's profile (a friend's habit not done by 8 pm), over the page they were on.
-        case 'person': clear(); setNotifPerson(d.id || null); return;
+        case 'person': clear(); bsProOpenPerson(d.id, setNotifPerson); return;
         case 'feed': case 'community': case 'messages': clear(); setChatRequest(null); setTab('chat'); return;
         default: return;
       }
@@ -3091,6 +3097,15 @@ function BSProCatRow({ index, name, meta, price, onOpen, onAssign, onDuplicate, 
 // BEFORE THE CLIENT MODULE, OR WITHOUT IT (loadProsBundle loads only the feature modules and
 // this one; Codex, #2261), so the client module is imported on demand, as the live-boost
 // sheet does (#1514). The import is a no-op once loaded.
+// A notified person's profile is the client module's BSNotifiedPerson. A coach session can run
+// without that module (loadProsBundle), so it is imported first when missing, as BSProAskNora
+// does (Codex on #2413); the import is a no-op once loaded.
+function bsProOpenPerson(id, setNotifPerson) {
+  if (!id) return;
+  if (typeof window !== 'undefined' && window.BSNotifiedPerson) { setNotifPerson(id); return; }
+  import('./iosAppBroadsheetClient.jsx').then(() => setNotifPerson(id)).catch(() => {});
+}
+
 function BSProAskNora(props) {
   const Link = typeof window !== 'undefined' ? window.BSAskNoraLink : null;
   const [, setLoaded] = useStateBSP(false);
@@ -7220,6 +7235,12 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const [showSearch, setShowSearch] = useStateBSP(false);
   // Another person's profile, opened from a notification (person:<user>): a friend's habit.
   const [notifPerson, setNotifPerson] = useStateBSP(null);
+  // It closes on any other navigation (BS_NAV_EVENTS), so nothing moves only the page under it.
+  useEffectBSP(() => {
+    const close = (e) => { if (bsClosesPerson(e)) setNotifPerson(null); };
+    BS_NAV_EVENTS.forEach((n) => window.addEventListener(n, close));
+    return () => BS_NAV_EVENTS.forEach((n) => window.removeEventListener(n, close));
+  }, []);
   // Nora's sheet (the header ✦, option D) — the client module's BSNoraSheet,
   // read off window at render time like the other shared surfaces.
   const [showNoraSheet, setShowNoraSheet] = useStateBSP(false);
@@ -7332,7 +7353,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       navJumpRef.current.navPush();
       setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
       setShowCalendar(false); setShowReviews(false); setShowHabits(false);
-      setQueueView(null); setShowSearch(false); setNotifPerson(null);
+      setQueueView(null); setShowSearch(false);
     };
     const open = (e) => {
       const d = (e && e.detail) || {};
@@ -7355,7 +7376,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         case 'settings': clear(); setShowSettings(true); return;
         case 'profile': clear(); setTab('me'); return;
         // Someone else's profile (a friend's habit not done by 8 pm), over the page they were on.
-        case 'person': clear(); setNotifPerson(d.id || null); return;
+        case 'person': clear(); bsProOpenPerson(d.id, setNotifPerson); return;
         case 'feed': case 'community': case 'messages': clear(); setChatRequest(null); setTab('chat'); return;
         default: return;
       }

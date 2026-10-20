@@ -14,6 +14,7 @@ const ROUTES = 'public/newdesign/notificationRoutes.mjs';
 const INBOX = 'public/newdesign/pageShell.jsx';
 const MEMBER = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const PROS = 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx';
+const ROUTER = 'mobile-app/src/broadsheet/bsNotificationRoute.mjs';
 
 export default {
   test: 'node --test tests/habit-watch.test.mjs tests/habit-share-sheet.test.mjs tests/notification-routes.test.mjs tests/notified-person.test.mjs',
@@ -69,6 +70,10 @@ export default {
     { name: 'one can message oneself', file: MEMBER, find: 'onMessage={me && person.userId !== me ?', replace: 'onMessage={me ?' },
     { name: 'the trainer app does not draw the person', file: PROS, find: '      {personOverlay}\n      {showTour && <BSProOnboardingTour role="trainer"', replace: '      {showTour && <BSProOnboardingTour role="trainer"' },
     { name: 'the nutritionist app does not draw the person', file: PROS, find: '      {personOverlay}\n      {showTour && <BSProOnboardingTour role="nutritionist"', replace: '      {showTour && <BSProOnboardingTour role="nutritionist"' },
+    { name: 'opening a person closes it at once', file: ROUTER, find: "  return !(e && e.type === 'shape:openPage' && e.detail && e.detail.page === 'person');", replace: '  return true;' },
+    { name: 'Home leaves the person over the page', file: ROUTER, find: "  'shape:goHome', 'shape:goCommunity',", replace: "  'shape:goCommunity'," },
+    { name: 'the member app never closes the person on navigation', file: MEMBER, find: '    BS_NAV_EVENTS.forEach((n) => window.addEventListener(n, close));\n', replace: '' },
+    { name: 'a coach-only session draws no person', file: PROS, find: "  import('./iosAppBroadsheetClient.jsx').then(() => setNotifPerson(id)).catch(() => {});", replace: '  setNotifPerson(id);' },
     { name: 'the website inbox opens nothing for a person', file: INBOX, find: 'if (n.route === "profile" || n.route === "person") {', replace: 'if (n.route === "profile") {' },
 
     // ── The data layer ──
