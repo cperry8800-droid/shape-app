@@ -72,12 +72,23 @@ type Admin = ReturnType<typeof createAdminClient>;
 type Habit = { id: string; user_id: string; name: string; type: string | null; cadence: string | null; archived_at: string | null };
 
 // Every row of a query run over the ids in chunks, or null when any chunk fails.
-async function readIn(ids: string[], run: (chunk: string[]) => PromiseLike<{ data: unknown; error: unknown }>, size = CHUNK): Promise<Row[] | null> {
+// ⚠ EACH CHUNK IS READ IN PAGES. PostgREST answers at most its "Max rows" per request and says
+// nothing when it cuts a list short, so one request per chunk silently dropped rows: 150 habits
+// can hold 3,000 watcher rows, and 75 owners more than 1,000 follows (Codex on #2413). Each query
+// orders by a unique key so the pages neither skip nor repeat a row, and a page shorter than
+// READ_PAGE (under the 1,000 cap, as HABIT_PAGE is) is the end.
+const READ_PAGE = 500;
+type Pageable = { range: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }> };
+async function readIn(ids: string[], run: (chunk: string[]) => Pageable, size = CHUNK): Promise<Row[] | null> {
   const rows: Row[] = [];
   for (const chunk of chunks(ids, size)) {
-    const { data, error } = await run(chunk);
-    if (error) return null;
-    rows.push(...((data ?? []) as Row[]));
+    for (let from = 0; ; from += READ_PAGE) {
+      const { data, error } = await run(chunk).range(from, from + READ_PAGE - 1);
+      if (error) return null;
+      const page = (data ?? []) as Row[];
+      rows.push(...page);
+      if (page.length < READ_PAGE) break;
+    }
   }
   return rows;
 }
@@ -124,8 +135,8 @@ async function handle(request: Request) {
   // Each owner's zone: the one the app saves on every open, else their notification zone.
   const owners = [...new Set(habits.map((h) => h.user_id))];
   const [profiles, settings] = await Promise.all([
-    readIn(owners, (c) => admin.from('client_profiles').select('user_id, timezone').in('user_id', c)),
-    readIn(owners, (c) => admin.from('notification_settings').select('user_id, tz').in('user_id', c)),
+    readIn(owners, (c) => admin.from('client_profiles').select('user_id, timezone').in('user_id', c).order('user_id')),
+    readIn(owners, (c) => admin.from('notification_settings').select('user_id, tz').in('user_id', c).order('user_id')),
   ]);
   if (!profiles || !settings) {
     console.error('[shape] habit watch: could not read zones');
@@ -155,12 +166,12 @@ async function handle(request: Request) {
   const dueOwners = [...new Set(due.map((h) => h.user_id))];
   const days = [...new Set(dueOwners.map((u) => dayOf(zoneOf.get(u) || 'UTC')))];
   const [watchers, completions, follows, names] = await Promise.all([
-    readIn(dueIds, (c) => admin.from('habit_watchers').select('habit_id, owner_id, watcher_id').in('habit_id', c)),
-    readIn(dueIds, (c) => admin.from('user_habit_completions').select('habit_id, done_on').in('habit_id', c).in('done_on', days)),
+    readIn(dueIds, (c) => admin.from('habit_watchers').select('habit_id, owner_id, watcher_id').in('habit_id', c).order('habit_id').order('watcher_id')),
+    readIn(dueIds, (c) => admin.from('user_habit_completions').select('habit_id, done_on').in('habit_id', c).in('done_on', days).order('habit_id').order('done_on')),
     // Every accepted follow touching a due owner, either way round: who is still connected.
     // The list rides the URL twice, so its chunk is half the usual.
-    readIn(dueOwners, (c) => admin.from('user_follows').select('follower_id, following_id').eq('status', 'accepted').or(`follower_id.in.(${c.join(',')}),following_id.in.(${c.join(',')})`), CHUNK / 2),
-    readIn(dueOwners, (c) => admin.from('profiles').select('id, full_name').in('id', c)),
+    readIn(dueOwners, (c) => admin.from('user_follows').select('follower_id, following_id').eq('status', 'accepted').or(`follower_id.in.(${c.join(',')}),following_id.in.(${c.join(',')})`).order('follower_id').order('following_id'), CHUNK / 2),
+    readIn(dueOwners, (c) => admin.from('profiles').select('id, full_name').in('id', c).order('id')),
   ]);
   if (!watchers || !completions || !follows || !names) {
     console.error('[shape] habit watch: could not read watchers, check-offs, follows or names');
@@ -185,9 +196,9 @@ async function handle(request: Request) {
   const people = [...new Set(notices.map((n) => n.watcherId))];
   const since = new Date(now - 30 * 60 * 60 * 1000).toISOString();
   const [quietRows, peopleZones, landed] = await Promise.all([
-    readIn(people, (c) => admin.from('notification_settings').select('user_id, tz, quiet_start, quiet_end').in('user_id', c)),
-    readIn(people, (c) => admin.from('client_profiles').select('user_id, timezone').in('user_id', c)),
-    readIn(people, (c) => admin.from('notifications').select('user_id, data').eq('type', 'friend_habit').in('user_id', c).gte('created_at', since)),
+    readIn(people, (c) => admin.from('notification_settings').select('user_id, tz, quiet_start, quiet_end').in('user_id', c).order('user_id')),
+    readIn(people, (c) => admin.from('client_profiles').select('user_id, timezone').in('user_id', c).order('user_id')),
+    readIn(people, (c) => admin.from('notifications').select('user_id, data').eq('type', 'friend_habit').in('user_id', c).gte('created_at', since).order('id')),
   ]);
   if (!quietRows || !peopleZones) {
     console.error('[shape] habit watch: could not read quiet hours');

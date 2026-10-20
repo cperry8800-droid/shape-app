@@ -41,6 +41,7 @@ export default {
     { name: 'a pending follow connects', file: CRON, find: ".from('user_follows').select('follower_id, following_id').eq('status', 'accepted')", replace: ".from('user_follows').select('follower_id, following_id')" },
     { name: 'the evening is UTC for everyone', file: CRON, find: "const due = habits.filter((h) => inWindow(hourOf(zoneOf.get(h.user_id) || 'UTC')));", replace: "const due = habits.filter(() => inWindow(hourOf('UTC')));" },
     { name: 'no catch-up hours in the cron', file: CRON, find: 'const inWindow = (at: number) => at >= HABIT_WATCH_HOUR && at <= HABIT_WATCH_HOUR + HABIT_WATCH_CATCHUP;', replace: 'const inWindow = (at: number) => at === HABIT_WATCH_HOUR;' },
+    { name: 'one request per chunk, cut at the row cap', file: CRON, find: '      if (page.length < READ_PAGE) break;', replace: '      break;' },
     { name: 'a notice that landed is sent again', file: CRON, find: '  const owed = notices.filter((n) => !stored.has(`${n.watcherId}|${habitWatchDedupe(n.habitId, n.day)}`));', replace: '  const owed = notices;' },
     { name: 'an unreadable list of landed notices stops the run', file: CRON, find: "  if (landed) {", replace: "  if (!landed) return NextResponse.json({ error: 'x' }, { status: 500 });\n  if (landed) {" },
     { name: 'a failed send counts as a mute', file: CRON, find: "      else if (outcome === 'failed') failed += 1;\n", replace: '' },

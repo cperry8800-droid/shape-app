@@ -119,10 +119,10 @@ const TABLES = () => ({
   notification_settings: [{ user_id: 'zoe', tz: 'UTC', quiet_start: 22, quiet_end: 7 }],
 });
 
-async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet = false, notify = null, now = NOW } = {}) {
+async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet = false, notify = null, now = NOW, maxRows = null } = {}) {
   t.mock.timers.enable({ apis: ['Date'], now });
   process.env.CRON_SECRET = SECRET;
-  const db = fakeSupabase({ tables, fail });
+  const db = fakeSupabase({ tables, fail, maxRows });
   if (failQuiet) {
     // Only the people's quiet-hours read fails: the owners' zones (the same table) answer.
     const from = db.from;
@@ -271,6 +271,26 @@ test('an unreadable list of the evening\'s notices tries them all; the dedupe in
   assert.equal(status, 200);
   assert.equal(body.owed, 4);
   assert.ok(errors.some((e) => /could not read the evening's notices/.test(e)));
+});
+
+test('every read is paged past PostgREST\'s 1,000-row cap: no watcher or follow is dropped (Codex on #2413)', async (t) => {
+  // 60 of Ann's habits, each shared with the same 20 people: 1,200 watcher rows in one chunk. And
+  // 1,080 other accepted follows of Ann's that sort before those 20, so the first 1,000 follow rows
+  // name none of the people. One request per chunk read 1,000 of each and lost notices.
+  const people = Array.from({ length: 20 }, (_, i) => `w${String(i).padStart(2, '0')}`);
+  const tables = TABLES();
+  tables.user_habits = Array.from({ length: 60 }, (_, i) => ({ id: `hh${String(i).padStart(2, '0')}`, user_id: 'ann', name: `Habit ${i}`, type: 'do', cadence: 'daily', visibility: 'friends', archived_at: null }));
+  tables.user_habit_completions = [];
+  tables.habit_watchers = tables.user_habits.flatMap((h) => people.map((w) => ({ habit_id: h.id, owner_id: 'ann', watcher_id: w })));
+  tables.user_follows = [
+    ...Array.from({ length: 1080 }, (_, i) => ({ follower_id: `a${String(i).padStart(4, '0')}`, following_id: 'ann', status: 'accepted' })),
+    ...people.map((w) => ({ follower_id: w, following_id: 'ann', status: 'accepted' })),
+  ];
+  const { status, body, sent } = await run(t, tables, { maxRows: 1000 });
+  assert.equal(status, 200);
+  assert.equal(body.owed, 1200, 'all 60 habits × 20 people');
+  assert.equal(body.sent, 1200);
+  assert.equal(new Set(sent.map((n) => `${n.data.habitId}>${n.userId}`)).size, 1200, 'each notice once');
 });
 
 // ── The wiring ──────────────────────────────────────────────────────────────
