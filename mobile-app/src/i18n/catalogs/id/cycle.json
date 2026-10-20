@@ -64,5 +64,9 @@
   "card.meta": "Privat untuk kamu",
   "card.setup": "Catat awal menstruasi untuk mulai.",
   "card.cycles": "{n} siklus data",
+  "read.energy": "Check-in energimu lebih rendah di {lo, select, menstrual {fase menstruasimu} follicular {fase folikularmu} ovulatory {fase ovulasimu} luteal {fase lutealmu} other {satu fase}} dibanding {hi, select, menstrual {fase menstruasi} follicular {fase folikular} ovulatory {fase ovulasi} luteal {fase luteal} other {fase lainnya}} — rencanakan kerja yang lebih berat di saat energinya sudah ada.",
+  "read.rested": "Kamu bangun kurang segar di {lo, select, menstrual {fase menstruasimu} follicular {fase folikularmu} ovulatory {fase ovulasimu} luteal {fase lutealmu} other {satu fase}} dibanding {hi, select, menstrual {fase menstruasi} follicular {fase folikular} ovulatory {fase ovulasi} luteal {fase luteal} other {fase lainnya}} — pemulihan sedang bekerja dengan cara lain di sana, dan itu normal.",
+  "read.sleep": "Tidurmu sekitar {dur} lebih pendek di {lo, select, menstrual {fase menstruasimu} follicular {fase folikularmu} ovulatory {fase ovulasimu} luteal {fase lutealmu} other {satu fase}} dibanding {hi, select, menstrual {fase menstruasi} follicular {fase folikular} ovulatory {fase ovulasi} luteal {fase luteal} other {fase lainnya}} — itu tubuhmu yang sedang melewati siklus, bukan kelalaian. Jaga waktu menenangkan diri sebelum tidur di sana.",
+  "read.adherence": "Kebiasaanmu lebih jarang terlaksana di {lo, select, menstrual {fase menstruasimu} follicular {fase folikularmu} ovulatory {fase ovulasimu} luteal {fase lutealmu} other {satu fase}} dibanding {hi, select, menstrual {fase menstruasi} follicular {fase folikular} ovulatory {fase ovulasi} luteal {fase luteal} other {fase lainnya}} — mengurangi beban di sana menjaga rentetanmu tetap jujur, bukan lebih kecil.",
   "todayChip": "Menstruasi dimulai? Catat"
 }

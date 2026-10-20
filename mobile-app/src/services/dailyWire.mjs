@@ -179,6 +179,19 @@ function time12(hhmm, locale) {
 // locale it is byte-identical to the previous toUpperCase().
 function up(s, locale) { return locale ? String(s).toLocaleUpperCase(locale) : String(s).toUpperCase(); }
 
+// ⚠ THE DIRECTIVE'S REASON IS SAID THE WAY HOME SAYS IT (rulings 11 and 13). The engine's own
+// reason is English, so on its own every locale read "YOUR ENERGY HAS BEEN LOW ON AVERAGE THIS
+// WEEK" under a translated head. `say` is the caller's opts.reason(directive): the app passes
+// Home's bsCiLeadReason, which needs the catalog and the card's words, so this module stays
+// pure. An answer that is not a non-empty string, or a throw, keeps the engine's reason.
+function wireReason(directive, fallback, say) {
+  if (typeof say !== 'function') return fallback;
+  try {
+    const r = say(directive);
+    return typeof r === 'string' && r.trim() ? r.trim() : fallback;
+  } catch (e) { return fallback; }
+}
+
 // Assemble the ordered wire lines from the digest + the resolved directive.
 // SIGNED-OUT CONTRACT: null when the digest is absent OR digest.signedIn is not
 // true — the caller renders the invite edition instead. A member digest with
@@ -191,7 +204,8 @@ function up(s, locale) { return locale ? String(s).toLocaleUpperCase(locale) : S
 // fallback, so it stays pure, dependency-free and unit-testable exactly as
 // before. T(key, en, vars) resolves through the translator when one is supplied
 // and otherwise returns `en` — which the caller passes already interpolated, so
-// no ICU is ever evaluated on the fallback path.
+// no ICU is ever evaluated on the fallback path. `opts.reason`, also optional,
+// says the directive's reason in the member's words (wireReason above).
 export function bsWireLines(digest, directive, opts) {
   if (!digest || digest.signedIn !== true) return null;
   const xl = (opts && opts.tr) || null;
@@ -241,7 +255,8 @@ export function bsWireLines(digest, directive, opts) {
     // shared BS_LEVER_HEADS English as the default — so the telegram and the
     // Home lead cannot say a different move in ANY locale, not just in English.
     const head = up(T('home:lead.' + directive.lever + '.head', d.head), loc);
-    const txt = d.reason ? T('onboarding:wire.directive', head + ' — ' + up(d.reason, loc), { head, reason: up(d.reason, loc) }) : head;
+    const why = wireReason(directive, d.reason, opts && opts.reason);
+    const txt = why ? T('onboarding:wire.directive', head + ' — ' + up(why, loc), { head, reason: up(why, loc) }) : head;
     lines.push({ text: txt, sep: true, hot: true });
   }
 

@@ -64,5 +64,9 @@
   "card.meta": "Privado, solo para ti",
   "card.setup": "Registra un inicio de periodo para empezar.",
   "card.cycles": "{n} ciclos de datos",
+  "read.energy": "Tus check-ins de energía salen más bajos {lo, select, menstrual {en tu fase menstrual} follicular {en tu fase folicular} ovulatory {en tu fase ovulatoria} luteal {en tu fase lútea} other {en una fase}} que {hi, select, menstrual {en la menstrual} follicular {en la folicular} ovulatory {en la ovulatoria} luteal {en la lútea} other {en la otra}} — planifica el trabajo más duro donde la energía ya está.",
+  "read.rested": "Te despiertas con menos descanso {lo, select, menstrual {en tu fase menstrual} follicular {en tu fase folicular} ovulatory {en tu fase ovulatoria} luteal {en tu fase lútea} other {en una fase}} que {hi, select, menstrual {en la menstrual} follicular {en la folicular} ovulatory {en la ovulatoria} luteal {en la lútea} other {en la otra}} — la recuperación está haciendo otro trabajo ahí, y es normal.",
+  "read.sleep": "Duermes alrededor de {dur} menos {lo, select, menstrual {en tu fase menstrual} follicular {en tu fase folicular} ovulatory {en tu fase ovulatoria} luteal {en tu fase lútea} other {en una fase}} que {hi, select, menstrual {en la menstrual} follicular {en la folicular} ovulatory {en la ovulatoria} luteal {en la lútea} other {en la otra}} — es tu cuerpo recorriendo el ciclo, no un desliz. Protege ahí tu rato para desconectar antes de dormir.",
+  "read.adherence": "Tus hábitos se cumplen menos a menudo {lo, select, menstrual {en tu fase menstrual} follicular {en tu fase folicular} ovulatory {en tu fase ovulatoria} luteal {en tu fase lútea} other {en una fase}} que {hi, select, menstrual {en la menstrual} follicular {en la folicular} ovulatory {en la ovulatoria} luteal {en la lútea} other {en la otra}} — aligerar la carga ahí mantiene la racha honesta, no más pequeña.",
   "todayChip": "¿Empezó tu periodo? Regístralo"
 }

@@ -353,14 +353,15 @@ export function bsCiBandWords(tr) {
 }
 
 // ⚠ HOME'S LEAD SAYS THE ENGINE'S CHECK-IN FLAGS IN THE MEMBER'S WORDS (part 2; rulings 11 and 13).
-// The engine's own member reason is English, for what has no locale (the push, the bell, the splash),
-// so Home says it again from the app's catalog out of directive.evidence, the flag's raw average: in
-// the week line's own keys and the card's word rule, so the lead and the summary say one thing. An
-// average is said as one ("low on average"), never "mostly": Your mornings' "Most days" is the word
-// most days had, and an average of Drained and Great days is Low without one Low day (review on this
-// PR). Sleep is to the 5 minutes, as the week line has it. A coach's own reason (source 'coach'), an
-// engine lead that is not one of these three flags, and one without a finite average are said as
-// they came.
+// The engine's own member reason is English, for what has no locale (the push and the bell row it
+// leaves), so Home, and the Shape Daily splash through bsWireLines' opts.reason in
+// iosAppBroadsheetMain.jsx, say it again from the app's catalog out of directive.evidence, the flag's
+// raw average: in the week line's own keys and the card's word rule, so the lead and the summary say
+// one thing. An average is said as one ("low on average"), never "mostly": Your mornings' "Most days"
+// is the word most days had, and an average of Drained and Great days is Low without one Low day
+// (review on this PR). Sleep is to the 5 minutes, as the week line has it. A coach's own reason
+// (source 'coach'), an engine lead that is not one of these three flags, and one without a finite
+// average are said as they came.
 export function bsCiLeadReason(dir, tr) {
   if (!dir) return null;
   const ev = dir.source === 'engine' && dir.evidence ? dir.evidence : null;

@@ -737,8 +737,9 @@
   // is word i), so the edges sit on ENERGY_LOW_AVG (4) and HUNGER_HIGH_AVG (8): a flagged week
   // reads Drained or Low, Hungry or Starving, never OK or Normal. Rounding to the nearest stored
   // value instead would call a 4.6 week Low with no flag behind it.
-  // These English words serve what has no locale: the push, the bell row it leaves and the Shape
-  // Daily splash. Home composes its own line from the app's catalog out of directive.evidence.
+  // These English words serve what has no locale: the push and the bell row it leaves. Home and
+  // the Shape Daily splash compose their own line from the app's catalog out of
+  // directive.evidence (BSCheckinCard.jsx bsCiLeadReason), so both say it in the app's language.
   var MEMBER_VITALS_WORDS = {
     energy_low: ["drained", "low", "OK", "good", "great"],
     hunger_high: ["not hungry", "a little", "normal", "hungry", "starving"],

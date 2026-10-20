@@ -7,6 +7,7 @@ import { initI18n, applyDir, useTr, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
 import BSDobGate from './BSDobGate.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines, bsWireTraining, bsWireCoachNote, bsWireNutrition } from '../services/dailyWire.mjs';
+import { bsCiLeadReason } from './BSCheckinCard.jsx';
 import { bsMemberGate, bsMembershipAfter, bsMembershipSeed, bsPollMembership } from '../services/memberGate.mjs';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
@@ -553,7 +554,11 @@ function BSSplash({ onDone, style = 'wire-beat' }) {
     // The telegram body is the most-read screen of the cold open, so it takes
     // the translator + locale: the wire's own words, the member's clock
     // convention, and locale-correct upper-casing of their coach's name.
-    const wireLines = bsWireLines(dg, dg && dg.directive, { tr, locale });
+    // ⚠ THE REASON IS HOME'S, NOT THE ENGINE'S ENGLISH (rulings 11 and 13): the energy, hunger
+    // and sleep reads are said through the card's words in the app's language, and a coach's
+    // own reason, or any other, as written. The card reads window only at call time, and `tr`
+    // resolves its 'home:' keys as it does the lead's head.
+    const wireLines = bsWireLines(dg, dg && dg.directive, { tr, locale, reason: (dir) => bsCiLeadReason(dir, tr) });
     const reduced = bsPrefersReducedMotion();
     const wireGround = 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.14), transparent 50%), radial-gradient(120% 70% at 50% 112%, rgba(52,214,197,0.05), transparent 60%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)';
     // The full-screen enter control is a real keyboard button (role/tabIndex/
