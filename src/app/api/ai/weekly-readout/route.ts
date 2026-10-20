@@ -23,13 +23,19 @@
 // or for a member it coaches. The claim token is the capability those two take;
 // the claim is where its holder was authorized.
 //
+// ⚠ THE CALLER IS THE BEARER TOKEN WHEN ONE IS SENT, ELSE THE COOKIE. The
+// installed app posts cross-origin with its access token and no cookie, so a
+// cookie-only read answered it 401 and Progress → Overall never showed the
+// readout. The claim and the snapshot read run on that same client, so the
+// database's self-or-coach check and row rules see the token's account.
+//
 // ⚠ EVERY CLAIM PATH DEGRADES TO THE PRE-MIGRATION BEHAVIOUR. Until the owner
 // applies the migration the RPCs do not exist, and a readout is worth more to a
 // member than a cache is: an absent RPC computes and generates exactly as this
 // route did before, it does not fail the request.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { requireMembership } from '@/lib/require-membership';
@@ -398,12 +404,11 @@ export async function POST(request: Request) {
   if (!bodyResult.ok) return bodyResult.response;
   body = bodyResult.data;
 
-  const supabase = await createClient();
-  const { data: authData } = await supabase.auth.getUser();
-  const user = authData.user;
+  const user = await currentUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
+  const supabase = await clientForRequest(request);
 
   // ⚠ A CALLER-SUPPLIED id IS A REQUEST TO READ SOMEONE ELSE, NOT A DEFAULT.
   // This read `body.user_id || user.id` with no check of its own, and the

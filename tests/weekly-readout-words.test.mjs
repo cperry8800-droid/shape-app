@@ -35,8 +35,9 @@ const CORRELATIONS = [
 ];
 
 async function readout({ model = null } = {}) {
+  // The caller's client has no auth here: the route takes its user from request-auth, never from
+  // the client (whose Bearer form has no stored session to read).
   const client = {
-    auth: { getUser: async () => ({ data: { user: { id: 'u-1' } } }) },
     rpc: async () => ({ data: null, error: { code: 'PGRST202', message: 'Could not find the function' } }),
     from: () => {
       const q = {
@@ -51,7 +52,7 @@ async function readout({ model = null } = {}) {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@/lib/supabase/server', { createClient: async () => client }],
+      ['@/lib/request-auth', { currentUser: async () => ({ id: 'u-1' }), clientForRequest: async () => client }],
       ['@/lib/request-utils', { readJson: async () => ({ ok: true, data: {} }), dbError: () => { throw new Error('unexpected db error'); } }],
       ['@/lib/ai', {
         hasOpenAIKey: () => !!model,
