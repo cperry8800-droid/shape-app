@@ -89,7 +89,7 @@ export default {
     // ── The data layer ──
     { name: 'a missing function is a failed read', file: DATA, find: "  if (['PGRST202', 'PGRST205', '42883', '42P01'].includes(code)) return true;", replace: "  if (['42883'].includes(code)) return true;" },
     { name: 'any failure is "not switched on"', file: DATA, find: "    if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error' };\n    return { kind: 'ready', people:", replace: "    if (error) return { kind: 'not_ready' };\n    return { kind: 'ready', people:" },
-    { name: 'a failed list reads as nobody', file: DATA, find: "    if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error' };\n    if (state.user?.id !== uid)", replace: "    if (error) return { kind: 'ready', byHabit: {} };\n    if (state.user?.id !== uid)" },
+    { name: 'a failed list reads as nobody', file: DATA, find: "      if (error) return { kind: habitWatchMissing(error) ? 'not_ready' : 'error' };\n      const page = data || [];", replace: "      if (error) return { kind: 'ready', byHabit: {} };\n      const page = data || [];" },
     { name: "the owner's list is one request, cut at the row cap", file: DATA, find: '      if (page.length < HABIT_WATCH_PAGE) break;', replace: '      break;' },
     { name: 'the same person is sent twice', file: DATA, find: 'p_watchers: [...new Set(userIds || [])]', replace: 'p_watchers: userIds || []' },
 
