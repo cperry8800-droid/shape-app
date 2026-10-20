@@ -40,7 +40,8 @@ export default {
     { name: 'a weight target set still reads in words', file: APP, find: '  const wordsOnly = !hasGoal && !bsPrimaryGoalIsWeight(data && data.primaryGoal);', replace: '  const wordsOnly = !bsPrimaryGoalIsWeight(data && data.primaryGoal);' },
     { name: 'the card keeps its weight figures for words', file: APP, find: "        {!wordsOnly && <div style={{ marginTop: 14, paddingTop: 12,", replace: "        {true && <div style={{ marginTop: 14, paddingTop: 12," },
     { name: 'the card says "No goal set yet" for words', file: APP, find: '      {!wordsOnly && <div style={{ margin: `18px ${t.padX}px 0` }}>', replace: '      {true && <div style={{ margin: `18px ${t.padX}px 0` }}>' },
-    { name: 'the card does not name the goal', file: APP, find: ", goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}", replace: " })}" },
+    { name: 'the card does not name the goal', file: APP, find: "Add a weight target to track one too.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}", replace: "Add a weight target to track one too.' })}" },
+    { name: 'the terms page does not name the goal', file: APP, find: "so it has no weight milestones.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}", replace: "so it has no weight milestones.' })}" },
 
     { name: 'the terms door says "Set the terms" for words', file: APP, find: '  const termsDoorSub = wordsOnly\n', replace: '  const termsDoorSub = false\n' },
     { name: 'the terms page says "No goal set yet" for words', file: APP, find: "              {wordsOnly ? (\n                <>\n                  <div data-goal-words style={{ padding: '6px 0 2px',", replace: "              {false ? (\n                <>\n                  <div data-goal-words style={{ padding: '6px 0 2px'," },
