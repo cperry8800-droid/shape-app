@@ -265,13 +265,18 @@ test('a notice that failed is tried again the next hour; one that landed is not 
   assert.equal(late.body.owed, 0);
 });
 
-test('an unreadable list of the evening\'s notices tries them all; the dedupe index refuses repeats', async (t) => {
+test("an unreadable list of the evening's notices stops the run: it is the cap's count too (Codex on #2413)", async (t) => {
   const errors = [];
   t.mock.method(console, 'error', (...a) => errors.push(a.join(' ')));
-  const { status, body } = await run(t, TABLES(), { fail: ['notifications'] });
-  assert.equal(status, 200);
-  assert.equal(body.owed, 4);
+  const { status, sent } = await run(t, TABLES(), { fail: ['notifications'] });
+  assert.equal(status, 500);
+  assert.equal(sent.length, 0, 'nothing sent on a count it could not read');
   assert.ok(errors.some((e) => /could not read the evening's notices/.test(e)));
+  t.mock.timers.reset();
+  // 9:30 pm, the read works: all four are still owed and go out.
+  const next = await run(t, TABLES(), { now: NOW + 60 * 60 * 1000 });
+  assert.equal(next.body.owed, 4);
+  assert.equal(next.body.sent, 4);
 });
 
 test('every read is paged past PostgREST\'s 1,000-row cap: no watcher or follow is dropped (Codex on #2413)', async (t) => {

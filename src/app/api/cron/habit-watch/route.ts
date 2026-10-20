@@ -227,27 +227,29 @@ async function handle(request: Request) {
   const tzOf = (u: string) => personZone.get(u) || zone((quietOf.get(u) || {}).tz) || 'UTC';
   const nameOf = new Map<string, string>();
   for (const r of names) nameOf.set(str(r.id), str(r.full_name));
-  // A catch-up hour sends only what has not landed. If that read fails, everything due is tried
-  // again and the dedupe index refuses the ones that did.
+  // A catch-up hour sends only what has not landed.
   // ⚠ THE PERSON'S DAILY CAP (notification_settings.daily_cap, 4 by default) BOUNDS THE PUSHES.
   // Several friends' habits can fall due in one evening; past the cap a notice still lands in the
   // app but does not push, as inside quiet hours (Codex on #2413). Counted from these notices that
   // pushed on the person's own date today, so their midnight resets it, as the AI engine's count
   // resets; the 30 hours read covers any local day. Reserved before each send so the eight at a
   // time cannot overshoot it.
+  // ⚠ A FAILED READ OF THE EVENING'S NOTICES STOPS THE RUN, like the others. They are both what has
+  // landed and the cap's count: read as none, a friend at their cap would get a fresh cap's worth
+  // of pushes (Codex on #2413). The next hour of the evening tries again.
+  if (!landed) {
+    console.error("[shape] habit watch: could not read the evening's notices");
+    return NextResponse.json({ error: "Could not read the evening's notices." }, { status: 500 });
+  }
   const stored = new Set<string>();
   const pushed = new Map<string, number>();
-  if (landed) {
-    for (const r of landed) {
-      const d = r.data as Row | null;
-      const u = str(r.user_id);
-      if (d && typeof d.dedupe === 'string') stored.add(`${u}|${d.dedupe}`);
-      const ch = d && (d.channels as Row | undefined);
-      const at = Date.parse(str(r.created_at));
-      if (ch && ch.push === true && Number.isFinite(at) && bsYmdIn(at, tzOf(u)) === bsYmdIn(now, tzOf(u))) pushed.set(u, (pushed.get(u) || 0) + 1);
-    }
-  } else {
-    console.error("[shape] habit watch: could not read the evening's notices; the dedupe index refuses repeats");
+  for (const r of landed) {
+    const d = r.data as Row | null;
+    const u = str(r.user_id);
+    if (d && typeof d.dedupe === 'string') stored.add(`${u}|${d.dedupe}`);
+    const ch = d && (d.channels as Row | undefined);
+    const at = Date.parse(str(r.created_at));
+    if (ch && ch.push === true && Number.isFinite(at) && bsYmdIn(at, tzOf(u)) === bsYmdIn(now, tzOf(u))) pushed.set(u, (pushed.get(u) || 0) + 1);
   }
   const owed = notices.filter((n) => !stored.has(`${n.watcherId}|${habitWatchDedupe(n.habitId, n.day)}`));
   if (!owed.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, failed: 0, unsent: 0, truncated });
