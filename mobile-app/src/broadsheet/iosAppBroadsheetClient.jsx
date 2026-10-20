@@ -26,7 +26,7 @@ import { BS_SESSION_MINUTES_CEILING, BS_SESSION_MINUTES_MAX } from '../../../pub
 // locale (it was 'en-US' for all thirteen). The server side of the same table
 // maps the locale to the transcription hint.
 import { speechLangFor } from '../../../src/lib/ai/voiceLang.mjs';
-import { bsGoalVerdict, bsGoalPct } from '../services/goalContract.mjs';
+import { bsGoalVerdict, bsGoalPct, bsGoalRemaining } from '../services/goalContract.mjs';
 import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionDisplay, bsPrefOptionToken, bsGoalKind } from '../services/prefOptions.mjs';
 import { bsFirstRunStage, bsFirstRunNeedsSeed } from '../services/firstRun.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
@@ -27777,7 +27777,6 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   const dsp = (kg) => (kg == null || !Number.isFinite(Number(kg)) ? null : Math.round(t.kgToDisplay(Number(kg)) * 10) / 10);
   const down = +(now - start).toFixed(1);
   const range = +(start - target).toFixed(1);
-  const toGo = +(now - target).toFixed(1);
   const byD = overall.by ? new Date(overall.by) : null;
   // ⚠ THE SELECTED UI LANGUAGE, NOT THE DEVICE — `[]` hands Intl the device
   // locale, so Spanish-in-Shape on an English phone read "MAY 21" (the cut-1
@@ -28131,7 +28130,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
           {[
             { l: tr('goal:cover.statCurrent', { defaultValue: 'Current' }), v: dsp(now), u: unit },
-            { l: tr('goal:cover.statToGo', { defaultValue: 'To go' }), v: hasGoal ? dsp(Math.abs(toGo)) : null, u: unit },
+            { l: tr('goal:cover.statToGo', { defaultValue: 'To go' }), v: hasGoal ? bsGoalRemaining({ start: dsp(start), now: dsp(now), target: dsp(target) }) : null, u: unit },
             { l: tr('goal:cover.statPace', { defaultValue: 'Pace' }), v: paceVal != null ? dsp(paceVal) : null, u: `${unit}/wk` },
           ].map((r, i) => (
             <div key={i} style={{ minWidth: 0 }}>

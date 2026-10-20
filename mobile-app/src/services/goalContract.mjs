@@ -32,6 +32,15 @@ export function bsGoalPct({ start, now, target }) {
   return Math.round(Math.max(0, Math.min(1, range ? (range - Math.max(0, toGo)) / range : 0)) * 100);
 }
 
+// What is left to go, in the goal's direction and never below zero, or null with no goal: past a
+// cut's target it is 0, not the overshoot (Codex on #2412: `Math.abs` read 77.8 against a 78
+// target as 0.2 to go under a 100% bar), and a build's remaining amount is not a negative.
+export function bsGoalRemaining({ start, now, target }) {
+  const s = Number(start) || 0, n = Number(now) || 0, g = Number(target) || 0;
+  if (!s || !g || s === g) return null;
+  return Math.max(0, r1(g > s ? g - n : n - g));
+}
+
 export function bsGoalVerdict({ start, now, target, unit = 'kg', proj = null, tr = null }) {
   const s = Number(start) || 0, n = Number(now) || 0, g = Number(target) || 0;
   if (!s || !g || s === g) {

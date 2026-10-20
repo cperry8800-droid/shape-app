@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bsGoalVerdict, bsGoalPct } from '../mobile-app/src/services/goalContract.mjs';
+import { bsGoalVerdict, bsGoalPct, bsGoalRemaining } from '../mobile-app/src/services/goalContract.mjs';
 
 const base = { start: 86, now: 81.8, target: 78, unit: 'kg' };
 
@@ -79,4 +79,16 @@ test('bsGoalPct is the verdict\'s own "% there", cutting or building, clamped, n
   assert.equal(bsGoalPct({ start: 86, now: 76, target: 78 }), 100, 'past the target reads 100');
   assert.equal(bsGoalPct({ start: 0, now: 0, target: 0 }), null);
   assert.equal(bsGoalPct({ start: 80, now: 80, target: 80 }), null);
+});
+
+// The cover's "To go" (Codex on #2412): in the goal's direction, never below zero, so a target
+// passed reads 0 beside a 100% bar, and a build's remaining amount is positive.
+test('bsGoalRemaining is what is left in the goal\'s direction, 0 once the target is passed', () => {
+  assert.equal(bsGoalRemaining({ start: 86, now: 77.8, target: 78 }), 0, 'past a cut\'s target');
+  assert.equal(bsGoalPct({ start: 86, now: 77.8, target: 78 }), 100);
+  assert.equal(bsGoalRemaining({ start: 177.3, now: 174.6, target: 167.6 }), 7);
+  assert.equal(bsGoalRemaining({ start: 60, now: 63.4, target: 66 }), 2.6, 'a build reads positive');
+  assert.equal(bsGoalRemaining({ start: 60, now: 66.5, target: 66 }), 0, 'past a build\'s target');
+  assert.equal(bsGoalRemaining({ start: 86, now: 88, target: 78 }), 10, 'moving away reads the whole way');
+  assert.equal(bsGoalRemaining({ start: 0, now: 0, target: 0 }), null);
 });
