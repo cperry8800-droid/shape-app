@@ -477,7 +477,7 @@ function pruneStamps(types, now) {
 }
 
 // ⚠ THE DAILY CAP IS THE PERSON'S ONE LIMIT, NOT THIS ENGINE'S (owner, 2026-10-20: separate PR
-// after #2413). `sentToday` counts only what this engine sent, so a day of coach messages or
+// after #2413). `sentToday` counts only what this engine pushed, so a day of coach messages or
 // friends' habit pushes never held back its own. `pushedToday` is every notice stamped as pushed
 // on the person's date today (loadPushedToday, notify-core.ts), this engine's included; the cap
 // reads the larger of the two, so nothing is counted twice. Null (the read failed) keeps the
@@ -564,7 +564,11 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
 
     const item = { type: c.type, title: c.title, body: c.body, route: c.route, data: c.data || {}, priority: c.priority, channels: ch };
 
-    const overCap = usedToday >= cap;
+    // ⚠ THE CAP COUNTS AND HOLDS PUSHES ONLY (Codex on #2417). The day's count from other
+    // senders is their pushes, so counting this engine's in-app-only sends too let one of them
+    // take the last place and hold back the push after it. An item with no push neither takes a
+    // place nor waits for one.
+    const overCap = !!ch.push && usedToday >= cap;
     const lowPri = c.priority === 'low';
     // quiet hours OR over the daily cap OR low-priority → roll into the digest.
     if (quiet || overCap || lowPri) {
@@ -577,8 +581,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     }
 
     send.push(item);
-    state.sentToday += 1;
-    usedToday += 1;
+    if (ch.push) { state.sentToday += 1; usedToday += 1; }
     rememberSig(state.types, sigKey, c.sig, now);
     if (audience === 'coach' && c._severity) state.coachClients[c.key] = c._severity;
   }

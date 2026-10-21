@@ -15,7 +15,9 @@ export default {
     // ── The gate ──
     { name: 'the engine counts only its own sends', file: GATE, find: '  let usedToday = Math.max(state.sentToday, Number.isFinite(pushedToday) ? pushedToday : 0);', replace: '  let usedToday = state.sentToday;' },
     { name: "the day's pushes replace the engine's own count", file: GATE, find: '  let usedToday = Math.max(state.sentToday, Number.isFinite(pushedToday) ? pushedToday : 0);', replace: '  let usedToday = Number.isFinite(pushedToday) ? pushedToday : state.sentToday;' },
-    { name: "this run's sends do not count", file: GATE, find: '    state.sentToday += 1;\n    usedToday += 1;', replace: '    state.sentToday += 1;' },
+    { name: "this run's sends do not count", file: GATE, find: 'if (ch.push) { state.sentToday += 1; usedToday += 1; }', replace: 'if (ch.push) { state.sentToday += 1; }' },
+    { name: 'an in-app-only send takes a place', file: GATE, find: 'if (ch.push) { state.sentToday += 1; usedToday += 1; }', replace: '{ state.sentToday += 1; usedToday += 1; }' },
+    { name: 'an in-app-only alert waits for the cap', file: GATE, find: 'const overCap = !!ch.push && usedToday >= cap;', replace: 'const overCap = usedToday >= cap;' },
 
     // ── The digest (Codex on #2417) ──
     { name: 'the digest pushes past the cap', file: GATE, find: "const pushes = pushRoom && wants('push');", replace: "const pushes = wants('push');" },

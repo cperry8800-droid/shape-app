@@ -176,3 +176,16 @@ test('past the cap a mixed queue sends what has a channel open and holds the pus
   assert.equal(tomorrow.digest.channels.push, true);
   assert.deepEqual(tomorrow.nextState.pendingDigest, []);
 });
+
+// Codex on #2417: the day's count from other senders is their pushes, but this engine's own
+// in-app-only sends took a place too, so one of them could hold back the push after it.
+test('the cap counts and holds pushes only: an in-app-only alert neither takes a place nor waits', () => {
+  const inAppDirective = { tz: TZ, maxPerDay: 4, matrix: { directive: { push: false } } };
+  const room = decideNotifications({ candidates: cands(), last: {}, prefs: inAppDirective, now: DAY, audience: 'client', pushedToday: 3 });
+  assert.deepEqual(room.send.map((i) => [i.type, i.channels.push]), [['directive', false], ['score_drop', true]], 'the in-app alert left the last place to the push');
+  assert.equal(room.nextState.sentToday, 1, 'only the push is counted');
+
+  const spent = decideNotifications({ candidates: cands(), last: {}, prefs: inAppDirective, now: DAY, audience: 'client', pushedToday: 4 });
+  assert.deepEqual(spent.send.map((i) => i.type), ['directive'], 'past the cap the in-app alert still goes now');
+  assert.ok(spent.suppressed.filter((s) => s.reason === 'capped').length === 2, 'the pushes wait for the digest');
+});
