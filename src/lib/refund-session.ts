@@ -12,6 +12,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createNotification } from '@/lib/notify';
+import { np, phrase, usdOf } from '../../mobile-app/src/services/noticeCopy.mjs';
 
 export async function cancelRefundedSession(
   admin: SupabaseClient,
@@ -47,15 +48,21 @@ export async function cancelRefundedSession(
     admin.from(role === 'trainer' ? 'trainers' : 'nutritionists').select('owner_id, name').eq('id', row.provider_id).maybeSingle(),
     admin.from('profiles').select('full_name').eq('id', row.client_id).maybeSingle(),
   ]);
-  const coach = String((listing as { name?: string | null } | null)?.name || '').trim() || 'your coach';
-  const client = String((who as { full_name?: string | null } | null)?.full_name || '').trim() || 'Your client';
+  const coachName = String((listing as { name?: string | null } | null)?.name || '').trim();
+  const clientName = String((who as { full_name?: string | null } | null)?.full_name || '').trim();
+  const coach = coachName || 'your coach';
+  const client = clientName || 'Your client';
   await createNotification(admin, {
     userId: row.client_id,
     type: 'session_cancelled',
     title: 'Session cancelled: refunded',
     body: `Your paid session with ${coach} was refunded, so it is off your calendar.`,
     route: 'sessions',
-    data: { sessionId: row.session_id, dedupe: `refund-cancel:${row.session_id}` },
+    data: {
+      sessionId: row.session_id, dedupe: `refund-cancel:${row.session_id}`,
+      // How the bell and the push say it in the member's language (noticeCopy.mjs).
+      copy: { title: np('session.refunded.title'), body: coachName ? np('session.refunded.body', { coach: coachName }) : np('session.refunded.bodyAnon') },
+    },
   });
   const ownerId = (listing as { owner_id?: string | null } | null)?.owner_id;
   if (ownerId) {
@@ -65,7 +72,10 @@ export async function cancelRefundedSession(
       title: 'Refunded session cancelled',
       body: `${client}'s paid session was refunded, so it is off your calendar.`,
       route: 'schedule',
-      data: { sessionId: row.session_id, providerRole: role, dedupe: `refund-cancel:${row.session_id}` },
+      data: {
+        sessionId: row.session_id, providerRole: role, dedupe: `refund-cancel:${row.session_id}`,
+        copy: { title: np('session.refundedCoach.title'), body: clientName ? np('session.refundedCoach.body', { client: clientName }) : np('session.refundedCoach.bodyAnon') },
+      },
     });
   }
   return 'cancelled';

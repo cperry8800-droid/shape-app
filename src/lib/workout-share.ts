@@ -6,6 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
+import { np } from '../../mobile-app/src/services/noticeCopy.mjs';
 import {
   bsWorkoutSharePrivacy as workoutSharePrivacy,
   bsIsDuplicateWorkoutPost as isDuplicateWorkoutPost,
@@ -97,6 +98,8 @@ export async function maybeSendFirstShareNotice(
       title: 'Your workouts now share automatically',
       body: 'Logged and synced workouts show on your profile and in the community feed. Manage this in Settings → Share workout data.',
       route: 'settings',
+      // How the bell and the push say it in the member's language (noticeCopy.mjs).
+      data: { copy: { title: np('workoutShare.title'), body: np('workoutShare.body') } },
     });
   } catch { /* best-effort */ }
 }

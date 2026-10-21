@@ -15,6 +15,7 @@ import { unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 import { gateProviderAction, blockMessage } from '@/lib/compliance/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
+import { np } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const runtime = 'nodejs';
@@ -115,7 +116,9 @@ export async function POST(request: Request) {
       title: 'New meal plan from your coach',
       body: title,
       route: 'eat',
-      data: { mealPlanId: inserted?.id ?? null },
+      // The plan's title is the coach's own words; the bell and the push say the rest in the member's
+      // language (noticeCopy.mjs).
+      data: { mealPlanId: inserted?.id ?? null, copy: { title: np('mealPlan.title') } },
     });
   } catch (e) {
     console.error('[shape-api] meal plan notice failed:', e instanceof Error ? e.message : e);

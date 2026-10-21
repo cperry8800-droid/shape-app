@@ -85,7 +85,8 @@ async function run(request: Request) {
     // The coach's own office-settings tuning (R14), so the cron's alerts agree with
     // the roster the same thresholds produce on their dashboard.
     const thresholds = isCoach ? await loadCoachThresholds(admin, userId) : null;
-    const copy = isCoach ? null : memberCopy(localeDoc, settings);
+    // The reader's language: a member's notices, and a coach's alert titles and digest.
+    const copy = memberCopy(localeDoc, settings);
 
     const { audience, candidates } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy });
     const { send, digest, nextState } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr });

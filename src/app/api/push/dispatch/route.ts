@@ -22,6 +22,8 @@ import { sendEmail } from '@/lib/email';
 import { inQuietHours, channelsForType } from '@/lib/ai/notifications.mjs';
 import { canonicalRoute } from '../../../../../public/newdesign/notificationRoutes.mjs';
 import { isEmailType } from '../../../../../public/newdesign/notificationSurfaces.mjs';
+import { noticeText } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
+import { readerCopy, type Translate } from '@/lib/reader-copy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -137,26 +139,53 @@ export async function emailDecision(
   return { send: true };
 }
 
+// ⚠ A NOTICE IS PUSHED AND EMAILED IN ITS RECIPIENT'S LANGUAGE (owner, 2026-10-21: "fix the other
+// server notices wording too"). The row keeps the English it was written in; a recipient whose app is
+// set to another language is sent it again from the notice catalog (noticeCopy.mjs: a writer's
+// data.copy, or a trigger row's known shape), with the email's own frame. An English reader, a row
+// the catalog cannot say, and a language that cannot be read all get the row as written. Read once per
+// webhook, only when something is sent.
+export type Said = { title: string; body: string; say: (key: string, en: string, vars?: Record<string, unknown>) => string };
+export async function readerText(admin: ReturnType<typeof createAdminClient>, record: NotificationRecord): Promise<Said> {
+  const title = String(record.title ?? '');
+  const body = String(record.body ?? '');
+  const plain: Said = { title, body, say: (_key, en) => en };
+  if (!record.user_id) return plain;
+  const copy = await readerCopy(admin, record.user_id);
+  if (copy.code === 'en') return plain;
+  const t = noticeText(record, copy.tr, { english: false, locale: copy.locale });
+  const tr: Translate = copy.tr;
+  const say = (key: string, en: string, vars?: Record<string, unknown>) => {
+    try {
+      const v = tr(key, { defaultValue: en, ...(vars || {}) });
+      return typeof v === 'string' && v.trim() && v !== key ? v : en;
+    } catch { return en; }
+  };
+  return { title: t.title, body: t.body, say };
+}
+
 const htmlEscape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
 // Sends the email and, only when it went, stamps the row so the cooldown counts it. A failed send
 // (sendEmail logs why) is not stamped, so the next eligible notice can still email. Email here is
 // best-effort, as in notify.ts and the AI layer: answering the webhook with an error to have it
 // retried would push the notification a second time.
-async function emailRow(admin: ReturnType<typeof createAdminClient>, record: NotificationRecord): Promise<boolean> {
+async function emailRow(admin: ReturnType<typeof createAdminClient>, record: NotificationRecord, said: Said): Promise<boolean> {
   const { data } = await admin.auth.admin.getUserById(record.user_id as string);
   const to = data?.user?.email;
   if (!to) return false;
   const site = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://theshapecommunity.com').replace(/\/+$/, '');
-  const title = String(record.title ?? '');
-  const body = String(record.body ?? '');
+  const { title, body } = said;
+  const open = said.say('notice:email.open', `Open Shape: ${site}`, { site });
+  const link = said.say('notice:email.link', 'Open Shape');
+  const manage = said.say('notice:email.manage', 'Change which emails you get in Settings → Notifications.');
   const sent = await sendEmail({
     to,
     subject: title,
-    text: `${body ? body + '\n\n' : ''}Open Shape: ${site}\n\nChange which emails you get in Settings → Notifications.`,
+    text: `${body ? body + '\n\n' : ''}${open}\n\n${manage}`,
     html: `<div style="font-family:system-ui,sans-serif;max-width:480px"><h2 style="margin:0 0 8px">${htmlEscape(title)}</h2>`
       + (body ? `<p style="font-size:14px;line-height:1.5;white-space:pre-line">${htmlEscape(body)}</p>` : '')
-      + `<p><a href="${site}">Open Shape</a></p><p style="font-size:12px;color:#888">Change which emails you get in Settings → Notifications.</p></div>`,
+      + `<p><a href="${site}">${htmlEscape(link)}</a></p><p style="font-size:12px;color:#888">${htmlEscape(manage)}</p></div>`,
   });
   if (!sent.ok) return false;
   const { error } = await admin.from('notifications')
@@ -185,13 +214,21 @@ export async function POST(request: Request) {
   if (!record.user_id || !record.title) {
     return NextResponse.json({ ok: true, skipped: 'no_record' });
   }
+  // The recipient's words for it, read once and only when something goes out (readerText).
+  let said: Said | null = null;
+  const sayIt = async (admin: ReturnType<typeof createAdminClient>): Promise<Said> => {
+    if (!said) {
+      try { said = await readerText(admin, record); } catch { said = { title: String(record.title ?? ''), body: String(record.body ?? ''), say: (_k, en) => en }; }
+    }
+    return said;
+  };
   // Email first, and whether or not push is set up: it does not wait on Apple or Firebase.
   const emailType = preferenceTypeFor(record.type ?? 'general', record.data ?? null);
   if (isEmailType(emailType)) {
     try {
       const admin = createAdminClient();
       const mail = await emailDecision(admin, record, emailType);
-      if (mail.send) await emailRow(admin, record);
+      if (mail.send) await emailRow(admin, record, await sayIt(admin));
       else if (mail.why === 'preferences_unreadable' || mail.why === 'cooldown_unreadable') console.error('[push] could not read what an email needs; not emailing:', record.type);
     } catch (err) {
       console.error('[push] email failed:', err instanceof Error ? err.message : err);
@@ -214,9 +251,10 @@ export async function POST(request: Request) {
     if (gate.why === 'preferences_unreadable') console.error('[push] could not read preferences; not pushing:', record.type);
     return NextResponse.json({ ok: true, skipped: gate.why });
   }
+  const text = await sayIt(admin);
   await sendPushToUser(admin, record.user_id, {
-    title: record.title,
-    body: record.body ?? '',
+    title: text.title,
+    body: text.body,
     data: { route: pushRoute(record), type: record.type ?? 'general' },
   });
   return NextResponse.json({ ok: true });

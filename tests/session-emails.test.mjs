@@ -102,7 +102,11 @@ test('complete: one follow-up after an intro, for a member who has not subscribe
   assert.equal(sent.notifications.length, 1);
   const n = sent.notifications[0];
   assert.deepEqual([n.userId, n.type, n.route], ['member-1', 'intro_followup', 'coach:trainer:7']);
-  assert.deepEqual(n.data, { dedupe: 'intro:s-1', providerRole: 'trainer', providerId: 7 });
+  assert.deepEqual(n.data, {
+    dedupe: 'intro:s-1', providerRole: 'trainer', providerId: 7,
+    // How the bell and the push say it in the member's language (noticeCopy.mjs).
+    copy: { title: ['intro.title', { coach: 'Tom Trainer' }], body: ['intro.body', { coach: 'Tom Trainer' }] },
+  });
   assert.equal(n.title, 'How was your intro with Tom Trainer?');
   assert.equal(sent.emails.length, 1);
   assert.match(sent.emails[0].text, /\/trainers\/7\b/);

@@ -205,13 +205,14 @@ planned builds.
   file.
 - Shape Wire (the launch telegram) shows the coach's latest note however old it is, and
   in the morning its protein line is usually absent (it reads only today's row).
-- Server notices are in English, except the AI notify layer's member notices (the move, check-in,
-  goal, Score, streak and habit ones and their digest), which use the member's stored language
-  (`app_locale`) and units. Still English: every coach notice, and the Morning check-in, prep,
-  friends' habits, waiting-list, tier-up and payment notices. A member whose app never stored a
-  language reads English.
-- Shared habits (`habit_watchers`, `/api/cron/habit-watch`): the friend's 8 pm notice is in
-  English (above). A friend stops hearing only by turning
+- Server notices are said in the reader's stored language (`app_locale`): the app's bell, the push
+  and the notice email say them again from the `notice` catalog (`noticeCopy.mjs`); the row keeps
+  its English, which the website and English readers see. A writer stores `data.copy`; a trigger's
+  row is matched by its fixed English (`triggerCopy`), so a trigger whose English changes needs its
+  shape there too. Still English: the owners' payment notice, a coach alert's reason (the engine's,
+  as the roster says it), and the standalone emails (session emails with their .ics, the hire,
+  welcome and intro emails). A reader whose app never stored a language reads English.
+- Shared habits (`habit_watchers`, `/api/cron/habit-watch`): a friend stops hearing only by turning
   Friends' habits off or unfollowing (no per-habit stop button yet, though the policy allows
   it). Sharing is set from the Habits page only, and its sheet has no search. The daily cap
   counts every notice stamped as pushed on the member's day, so an unstamped

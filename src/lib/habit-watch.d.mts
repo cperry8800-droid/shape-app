@@ -24,4 +24,6 @@ export declare function habitWatchDue(args: {
 
 export declare function habitWatchText(args: { ownerName?: string | null; habitName?: string | null; type?: string | null }): { title: string; body: string };
 
+export declare function habitWatchCopy(args: { ownerName?: string | null; habitName?: string | null; type?: string | null }): { title: [string, Record<string, unknown>]; body: [string] };
+
 export declare function habitWatchDedupe(habitId: string, day: string): string;

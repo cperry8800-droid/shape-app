@@ -536,7 +536,7 @@ test('a published meal plan notifies the member on Eat; a failed publish notifie
   assert.equal(ok.notices.length, 1);
   const [client, n] = ok.notices[0];
   assert.deepEqual(client, { admin: true }, 'written as the service role: the row is the member\'s');
-  assert.deepEqual(n, { userId: A, type: 'meal_plan', title: 'New meal plan from your coach', body: 'Lean week', route: 'eat', data: { mealPlanId: 'plan-1' } });
+  assert.deepEqual(n, { userId: A, type: 'meal_plan', title: 'New meal plan from your coach', body: 'Lean week', route: 'eat', data: { mealPlanId: 'plan-1', copy: { title: ['mealPlan.title'] } } });
   const R = await import(pathToFileURL(join(ROOT, 'public/newdesign/notificationRoutes.mjs')).href);
   assert.equal(R.ROUTES.eat, 'member');
   const failed = await mealPlanRoute({ insertError: { message: 'boom' } });

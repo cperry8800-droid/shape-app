@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
+import { np } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,25 +49,29 @@ function localNow(tz: string): { hour: number; dow: number; date: string } {
   }
 }
 
-function content(kind: string, label: string): { type: string; title: string; body: string; route: string | null } {
+// `copy` is how the bell and the push say it in another language (noticeCopy.mjs). A label the member
+// wrote is their own words, said as they wrote it, so the title has no copy then.
+type Copy = { title?: [string]; body?: [string] };
+function content(kind: string, label: string): { type: string; title: string; body: string; route: string | null; copy: Copy } {
   const l = (label || '').trim();
+  const said = (k: string, withBody = true): Copy => ({ ...(l ? {} : { title: np(`reminder.${k}.title`) as [string] }), ...(withBody ? { body: np(`reminder.${k}.body`) as [string] } : {}) });
   switch (kind) {
     case 'weigh_in':
-      return { type: 'reminder_weigh_in', title: l || 'Time to weigh in', body: 'A quick weigh-in keeps your trend honest.', route: 'progress' };
+      return { type: 'reminder_weigh_in', title: l || 'Time to weigh in', body: 'A quick weigh-in keeps your trend honest.', route: 'progress', copy: said('weighIn') };
     case 'checkin':
-      return { type: 'reminder_checkin', title: l || 'Weekly check-in', body: 'Your check-in is ready when you are.', route: 'progress' };
+      return { type: 'reminder_checkin', title: l || 'Weekly check-in', body: 'Your check-in is ready when you are.', route: 'progress', copy: said('checkin') };
     // The Morning check-in (owner, 2026-10-18: a Daily check-in reminder opens the card; renamed
     // 2026-10-19): a tap lands on Home with the walkthrough open at the first question not yet
     // answered. It is not sent on a day whose morning is already answered: energy, and the night's
     // hours or a skip, as the card asks (morningsAnswered).
     case 'daily_checkin':
-      return { type: 'reminder_daily_checkin', title: l || 'Morning check-in', body: 'Two quick checks: last night and this morning.', route: 'today' };
+      return { type: 'reminder_daily_checkin', title: l || 'Morning check-in', body: 'Two quick checks: last night and this morning.', route: 'today', copy: said('morning') };
     case 'water':
-      return { type: 'reminder_water', title: l || 'Hydration check', body: 'Water break — keep it flowing.', route: null };
+      return { type: 'reminder_water', title: l || 'Hydration check', body: 'Water break — keep it flowing.', route: null, copy: said('water') };
     case 'photo':
-      return { type: 'reminder_photo', title: l || 'Progress photo', body: 'Snap today’s progress photo while you’re thinking about it.', route: 'progress' };
+      return { type: 'reminder_photo', title: l || 'Progress photo', body: 'Snap today’s progress photo while you’re thinking about it.', route: 'progress', copy: said('photo') };
     default:
-      return { type: 'reminder_custom', title: l || 'Reminder', body: l ? '' : 'You set a reminder for now.', route: null };
+      return { type: 'reminder_custom', title: l || 'Reminder', body: l ? '' : 'You set a reminder for now.', route: null, copy: said('custom', !l) };
   }
 }
 
@@ -174,7 +179,7 @@ async function handle(request: Request) {
         title: c.title,
         body: c.body,
         route: c.route || undefined,
-        data: { channels: { inapp: true, push: true, email: false }, reminderId: r.id },
+        data: { channels: { inapp: true, push: true, email: false }, reminderId: r.id, copy: c.copy },
       });
       await admin.from('user_scheduled_reminders').update({ last_fired_on: date }).eq('id', r.id);
       fired += 1;

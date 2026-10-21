@@ -658,7 +658,7 @@ test('Home routes the reminder: the shell hands Home a nonce, Home clears its pa
   assert.match(src, /<BSTodayNudge onOpen=\{\(\) => setMorningsPage\(true\)\} variant="bulletin" openRequest=\{checkinPrefSettled \? checkinOpenReq : null\} onOpenRequestConsumed=\{\(\) => setCheckinOpenReq\(null\)\} \/>/, 'Home keeps a used request, or hands it over before the account has answered');
   // The reminder itself: a kind of its own, opening the card, in the app's and the website's lists.
   const cron = readFileSync(join(ROOT, 'src/app/api/cron/reminders/route.ts'), 'utf8');
-  assert.match(cron, /case 'daily_checkin':\n\s+return \{ type: 'reminder_daily_checkin', title: l \|\| 'Morning check-in', body: 'Two quick checks: last night and this morning\.', route: 'today' \};/);
+  assert.match(cron, /case 'daily_checkin':\n\s+return \{ type: 'reminder_daily_checkin', title: l \|\| 'Morning check-in', body: 'Two quick checks: last night and this morning\.', route: 'today', copy: said\('morning'\) \};/);
   // A morning already answered (its energy is in) is not reminded (owner, 2026-10-19).
   assert.match(cron, /if \(r\.kind === 'daily_checkin' && answered\.has\(`\$\{r\.user_id\}\|\$\{date\}`\)\) \{/);
   assert.match(readFileSync(join(ROOT, 'src/app/api/client/reminders/route.ts'), 'utf8'), /const KINDS = \[[^\]]*'daily_checkin'/);

@@ -38,6 +38,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { coachCheckoutEntries } from './helpers/coach-checkout-module.mjs';
+import { READER_COPY_EN } from './helpers/reader-copy-en.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(join(ROOT, 'package.json'));
@@ -388,7 +389,7 @@ test('L7: the push webhook\'s secret is compared in constant time, and a wrong l
       ['@/lib/supabase/admin', { createAdminClient: () => recorder().client }],
       ['@/lib/push', { pushConfigured: () => false, sendPushToUser: async () => ({ sent: 0 }) }],
       ['@/lib/email', { sendEmail: async () => ({ ok: true }) }],
-      ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')],
+      ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')], ['@/lib/reader-copy', READER_COPY_EN],
     ]),
   });
   const post = async (secret) => (await route.POST(new Request('https://shape.test/api/push/dispatch', { method: 'POST', headers: secret == null ? {} : { 'x-push-secret': secret }, body: '{}' }))).status;

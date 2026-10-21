@@ -28,6 +28,7 @@ import { SHAPE_KITCHEN_RECIPES } from '../../../../../mobile-app/src/broadsheet/
 import {
   bsMakeAheadIndex,
   bsPrepDueTonight,
+  bsPrepReminderCopy,
   bsPrepReminderText,
   bsPrepRoute,
   bsYmdIn,
@@ -243,6 +244,8 @@ async function handle(request: Request) {
           // Read back by the next evenings' runs, so a day is never named twice.
           forMeals: groups.flatMap((g: { meals: { date: string; mealId: string }[] }) => g.meals.map((m) => `${m.date}|${m.mealId}`)),
           recipes: groups.map((g: { slug: string }) => g.slug),
+          // How the bell and the push say it in the member's language (noticeCopy.mjs).
+          copy: bsPrepReminderCopy(groups),
         },
       });
       owed += 1;

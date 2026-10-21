@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createPreferredNotification } from '@/lib/notify';
+import { np } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
 import { readJson } from '@/lib/request-utils';
 import { resolveRequestClient, UUID_RE } from '@/lib/waitlist';
 
@@ -56,7 +57,11 @@ export async function POST(request: Request) {
       title: `${result.provider_name ?? 'Your coach'} has room for you`,
       body: 'Tap to book before this coach reopens to everyone.',
       route: `coach:${result.provider_role}:${result.provider_id}`,
-      data: { providerRole: result.provider_role, providerId: result.provider_id, entryId },
+      data: {
+        providerRole: result.provider_role, providerId: result.provider_id, entryId,
+        // How the bell and the push say it in the member's language (noticeCopy.mjs).
+        copy: { title: result.provider_name ? np('waitlist.invite.title', { coach: result.provider_name }) : np('waitlist.invite.titleAnon'), body: np('waitlist.invite.body') },
+      },
     });
   } catch (e) {
     console.error('[waitlist invite] notification failed', { entryId, error: e instanceof Error ? e.message : String(e) });

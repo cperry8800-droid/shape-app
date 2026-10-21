@@ -14,6 +14,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { READER_COPY_EN } from './helpers/reader-copy-en.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -464,7 +465,7 @@ test('a push answers the recipient\'s preferences, whichever way the row was wri
       ['@/lib/supabase/admin', { createAdminClient: () => st.admin }],
       ['@/lib/push', { pushConfigured: () => true, sendPushToUser: async (_a, userId, p) => { st.sent.push({ userId, ...p }); } }],
       ['@/lib/email', { sendEmail: async () => ({ ok: true }) }],
-      ['@/lib/ai/notifications.mjs', NOTIFY],
+      ['@/lib/ai/notifications.mjs', NOTIFY], ['@/lib/reader-copy', READER_COPY_EN],
     ]),
   });
   // notification_settings for the recipient; notification_preferences rows by type, as stored.
@@ -540,7 +541,7 @@ test('the AI\'s client alerts carry the listing\'s role, so a coach with both op
     assert.equal(R.canonicalRoute(c.route, c.data), `client:${want}:u-1`);
   }
   assert.equal('providerRole' in N.coachCandidates({ triageRows: rows, lastSeverity: {} })[0].data, false);
-  assert.match(read('src/lib/ai/notify-core.ts'), /Notify\.coachCandidates\(\{ triageRows: rows, lastSeverity: opts\.lastSeverity, providerRole: role \}\)/);
+  assert.match(read('src/lib/ai/notify-core.ts'), /Notify\.coachCandidates\(\{ triageRows: rows, lastSeverity: opts\.lastSeverity, providerRole: role, tr: opts\.copy\?\.tr \}\)/);
 });
 
 // ── 6. The two Codex findings carried from #2360 ───────────────────────────────────────────────

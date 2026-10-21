@@ -19,7 +19,7 @@ export function memberLocaleCode(doc) {
   return code && ACTIVE_LOCALES.includes(code) ? code : 'en';
 }
 
-// resources: { [locale]: { home: catalog } }. Returns copyFor(code, metric) → { code, locale, metric,
+// resources: { [locale]: { home: catalog, notice: catalog } }. Returns copyFor(code, metric) → { code, locale, metric,
 // tr }: `code` the catalog's, `locale` the Intl locale numbers and dates are said in, `tr` the
 // translator (one per language, kept).
 export function makeMemberCopy(resources) {
@@ -28,7 +28,7 @@ export function makeMemberCopy(resources) {
     lng: 'en',
     fallbackLng: 'en',
     supportedLngs: ACTIVE_LOCALES,
-    ns: ['home'],
+    ns: ['home', 'notice'],
     defaultNS: 'home',
     resources,
     keySeparator: false,

@@ -9,6 +9,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
+import { READER_COPY_EN } from './helpers/reader-copy-en.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
@@ -71,7 +72,7 @@ async function run(t, tables, { fail = [], secret = SECRET, failPayloads = false
       ['@/lib/supabase/admin', { createAdminClient: () => db }],
       ['@/lib/notify', { createPreferredNotification: async (_admin, n) => { sent.push(n); return stored(n); } }],
       ['@/lib/time', time],
-      ['@/lib/ai/notifications.mjs', notifyLayer],
+      ['@/lib/ai/notifications.mjs', notifyLayer], ['@/lib/reader-copy', READER_COPY_EN],
     ]),
   });
   const res = await mod.GET(new Request('https://x/api/cron/prep-reminders', { headers: { 'x-cron-secret': secret } }));
@@ -213,7 +214,7 @@ test('inside quiet hours the reminder still lands in the app, with no push', asy
   };
   const notify = await loadRealModule(join(ROOT, 'src/lib/notify.ts'), {
     typescript: true,
-    registry: new Map([['@/lib/email', { sendEmail: async () => {} }], ['@/lib/ai/notifications.mjs', notifyLayer]]),
+    registry: new Map([['@/lib/email', { sendEmail: async () => {} }], ['@/lib/ai/notifications.mjs', notifyLayer], ['@/lib/reader-copy', READER_COPY_EN]]),
   });
   await notify.createPreferredNotification(admin, { userId: 'u1', type: 'meal_prep', title: 'Prep tonight', body: 'b', route: 'prep:x', quiet: true, data: { forMeals: ['a'] } });
   await notify.createPreferredNotification(admin, { userId: 'u1', type: 'meal_prep', title: 'Prep tonight', body: 'b', route: 'prep:x', quiet: false });

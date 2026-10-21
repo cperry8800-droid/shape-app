@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
+import { READER_COPY_EN } from './helpers/reader-copy-en.mjs';
 import { clientCandidates, decideNotifications } from '../src/lib/ai/notifications.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -24,9 +25,9 @@ const core = await loadRealModule(join(ROOT, 'src/lib/ai/notify-core.ts'), {
   typescript: true,
   registry: new Map([
     ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')],
-    // The member's language (#2418): loadPrefs and loadPushedToday don't use it.
-    ['@/lib/ai/memberTranslator.mjs', { makeMemberCopy: () => () => null, memberLocaleCode: () => 'en' }],
-    ['@/lib/ai/memberCatalogs', { MEMBER_HOME_CATALOGS: {} }],
+    // The reader's language (#2418, reader-copy.ts): loadPrefs and loadPushedToday don't use it.
+    ['@/lib/ai/memberTranslator.mjs', { memberLocaleCode: () => 'en' }],
+    ['@/lib/reader-copy', READER_COPY_EN],
     ['../../../mobile-app/src/services/leadReason.mjs', await import('../mobile-app/src/services/leadReason.mjs')],
     ['@/lib/roles.mjs', await import('../src/lib/roles.mjs')],
     ['@/lib/notify', { createNotification: async () => true }],

@@ -9,6 +9,8 @@
 
 // 8 pm, the member's time: late enough that the day was theirs to use, early enough to act on
 // it, and before the default quiet hours (22:00).
+import { np, phrase } from '../../mobile-app/src/services/noticeCopy.mjs';
+
 export const HABIT_WATCH_HOUR = 20;
 // The hours after it in which a notice that did not land (a failed write, or a run that ran out
 // of time) is tried again (Codex on #2413). One that did land is never sent twice: the cron reads
@@ -63,14 +65,25 @@ const clamp = (s, n) => {
 
 // What the person reads. The owner by first name; a "to-don't" habit is one they check off at
 // the end of a clean day, so it is "hasn't checked in on", not "hasn't done".
-// ⚠ ENGLISH, like every notification the server writes today (the push and the bell show the
-// stored title). Localizing server copy per recipient is its own piece of work.
+// The English is what the notifications table keeps; the bell and the push say it in the reader's
+// language from habitWatchCopy (below, noticeCopy.mjs).
 export function habitWatchText({ ownerName, habitName, type }) {
   const first = clamp(String(ownerName || '').trim().split(/\s+/)[0] || '', 40) || 'Your friend';
   const habit = clamp(habitName, 60) || 'a habit';
   return type === 'avoid'
     ? { title: `${first} hasn't checked in on “${habit}” today`, body: 'Their day isn’t over yet. A quick message could help them stay on track.' }
     : { title: `${first} hasn't done “${habit}” yet today`, body: 'Their day isn’t over yet. A quick message could help them get it done.' };
+}
+
+// The same notice as copy: the friend's first name and the habit's name as written, or the catalog's
+// stand-ins when either is missing, as habitWatchText has them.
+export function habitWatchCopy({ ownerName, habitName, type }) {
+  const first = clamp(String(ownerName || '').trim().split(/\s+/)[0] || '', 40);
+  const habit = clamp(habitName, 60);
+  const vars = { name: first || phrase('word.yourFriend'), habit: habit || phrase('word.aHabit') };
+  return type === 'avoid'
+    ? { title: np('friend.avoidTitle', vars), body: np('friend.avoidBody') }
+    : { title: np('friend.title', vars), body: np('friend.body') };
 }
 
 // One notice per person, per habit, per the owner's day: the notifications dedupe index

@@ -17,6 +17,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createNotification } from '@/lib/notify';
+import { np } from '../../mobile-app/src/services/noticeCopy.mjs';
 import { buildIcs, calendarOrganizerEmail, sendEmail } from '@/lib/email';
 import { WRAP_OPEN, SIGN_OFF_HTML, SIGN_OFF_TEXT, button, escapeHtml, siteUrl } from '@/lib/coach-application-emails';
 import { OPEN_SUB_STATUSES } from './coach-trajectory.mjs';
@@ -200,7 +201,13 @@ export async function afterSessionStep(
         title: `How was your intro with ${coachName}?`,
         body: `If it felt right, subscribe to keep working with ${coachName}: your thread, plan and check-ins in one place.`,
         route: `coach:${role}:${s.provider_id}`,
-        data: { dedupe: `intro:${s.id}`, providerRole: role, providerId: s.provider_id },
+        data: {
+          dedupe: `intro:${s.id}`, providerRole: role, providerId: s.provider_id,
+          // How the bell and the push say it in the member's language (noticeCopy.mjs).
+          copy: coach.name
+            ? { title: np('intro.title', { coach: coach.name }), body: np('intro.body', { coach: coach.name }) }
+            : { title: np('intro.titleAnon'), body: np('intro.bodyAnon') },
+        },
       });
       out.followedUp = stored;
       if (stored) {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { createPreferredNotification } from '@/lib/notify';
+import { np } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
 import { readJson } from '@/lib/request-utils';
 import { resolveRequestClient, type ProviderRole } from '@/lib/waitlist';
 
@@ -136,7 +137,7 @@ export async function POST(request: Request) {
         userId: ownerId, type: 'waitlist_join',
         title: 'New waiting-list request',
         body: 'Someone joined your waiting list.', route: 'waitlist',
-        data: { providerRole, providerId },
+        data: { providerRole, providerId, copy: { title: np('waitlist.join.title'), body: np('waitlist.join.body') } },
       });
     }
   }

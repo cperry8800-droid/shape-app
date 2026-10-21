@@ -19,6 +19,7 @@
 // copy and the tests drive it with recorded fakes.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { np } from '../../mobile-app/src/services/noticeCopy.mjs';
 
 export type CapacityRole = 'trainer' | 'nutritionist';
 
@@ -112,7 +113,8 @@ export async function tellWaitingList(
       for (const r of (seen ?? []) as { user_id: string }[]) told.add(r.user_id);
     }
     const todo = rows.filter((r) => !told.has(r.client_id));
-    const coach = (name || '').trim() || 'A coach you waited for';
+    const named = (name || '').trim();
+    const coach = named || 'A coach you waited for';
     let sent = 0;
     let failed = 0;
     for (let i = 0; i < todo.length; i += 10) {
@@ -123,7 +125,11 @@ export async function tellWaitingList(
         title: `${coach} is taking new clients`,
         body: 'You were on their waiting list. Their spots are open now, first come first served.',
         route: `coach:${role}:${providerId}`,
-        data: { providerRole: role, providerId, reopened: true, dedupe },
+        data: {
+          providerRole: role, providerId, reopened: true, dedupe,
+          // How the bell and the push say it in the member's language (noticeCopy.mjs).
+          copy: { title: named ? np('waitlist.reopen.title', { coach: named }) : np('waitlist.reopen.titleAnon'), body: np('waitlist.reopen.body') },
+        },
       })));
       sent += batch.filter((o) => o === true || o === 'stored').length;
       failed += batch.filter((o) => o === 'failed').length;

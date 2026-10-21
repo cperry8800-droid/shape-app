@@ -13,6 +13,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { READER_COPY_EN } from './helpers/reader-copy-en.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -417,7 +418,7 @@ test('a member who leaves while the list is read costs no one else their notice 
 test('notify: why a preferred notice was not stored (Codex on #2375)', async () => {
   const notify = await loadRealModule(join(ROOT, 'src/lib/notify.ts'), {
     typescript: true,
-    registry: new Map([['@/lib/email', { sendEmail: async () => {} }], ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')]]),
+    registry: new Map([['@/lib/email', { sendEmail: async () => {} }], ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')], ['@/lib/reader-copy', READER_COPY_EN]]),
   });
   const db = ({ muted = false, prefsErr = null, insertErr = null } = {}) => ({
     from: (table) => {

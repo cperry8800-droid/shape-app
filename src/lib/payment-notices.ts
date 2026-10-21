@@ -24,6 +24,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createNotification } from '@/lib/notify';
+import { np, phrase, usdOf } from '../../mobile-app/src/services/noticeCopy.mjs';
 import { getOwnerEmails } from '@/lib/admin-access';
 
 export type CoachRole = 'trainer' | 'nutritionist';
@@ -117,6 +118,36 @@ export function coachRenewal(p: PaymentNotice, client: string): { title: string;
   return { title: `Monthly payment: ${who}`, body: `${who}'s monthly plan renewed${pay}.` };
 }
 
+// The receipt and the renewal notice as copy (noticeCopy.mjs): what the bell and the push say in the
+// reader's language. Each says what memberReceipt and coachRenewal say, from the same notice. The
+// owners' notice is for Shape's staff and stays in English.
+export function memberReceiptCopy(p: PaymentNotice, coach: string): { title: [string, Record<string, unknown>]; body: [string, Record<string, unknown>?] } {
+  const anon = coach ? '' : 'Anon';
+  const by = coach ? { coach } : {};
+  let body: [string, Record<string, unknown>?];
+  switch (p.paidFor) {
+    case 'membership':
+      body = np(p.renewal ? 'receipt.membershipRenewal' : 'receipt.membershipFirst') as [string];
+      break;
+    case 'coaching':
+      body = np(`receipt.coaching${p.renewal ? 'Renewal' : 'First'}${anon}`, coach ? by : undefined) as [string, Record<string, unknown>?];
+      break;
+    default: {
+      const name = (p.itemName || '').trim();
+      body = np(`receipt.product${anon}`, { what: name || phrase(p.paidFor === 'program' ? 'payment.aProgram' : 'payment.aMealPlan'), ...by }) as [string, Record<string, unknown>];
+    }
+  }
+  return { title: np('receipt.title', { amount: usdOf(p.amountCents) }) as [string, Record<string, unknown>], body };
+}
+
+export function coachRenewalCopy(p: PaymentNotice, client: string): { title: [string, Record<string, unknown>]; body: [string, Record<string, unknown>] } {
+  const who = client || phrase('word.aClient');
+  return {
+    title: np('payment.renewal.title', { client: who }) as [string, Record<string, unknown>],
+    body: np(p.coachCents ? 'payment.renewal.bodyPay' : 'payment.renewal.body', { client: who, ...(p.coachCents ? { amount: usdOf(p.coachCents) } : {}) }) as [string, Record<string, unknown>],
+  };
+}
+
 /**
  * The owners' accounts, found by their sign-in identity (admin_account_by_email reads auth.users;
  * the service role only), never by profiles.email: a profile is created best effort and can be
@@ -180,7 +211,7 @@ export async function announcePayment(admin: SupabaseClient, p: PaymentNotice): 
         userId: p.clientId,
         type: 'payment_receipt',
         ...memberReceipt(p, coach.name),
-        data: { dedupe: `receipt:${p.key}`, paidFor: p.paidFor, renewal: p.renewal, amountCents: p.amountCents, providerRole: role, side: 'client' },
+        data: { dedupe: `receipt:${p.key}`, paidFor: p.paidFor, renewal: p.renewal, amountCents: p.amountCents, providerRole: role, side: 'client', copy: memberReceiptCopy(p, coach.name) },
       });
     }
 
@@ -189,7 +220,7 @@ export async function announcePayment(admin: SupabaseClient, p: PaymentNotice): 
         userId: coach.ownerId,
         type: 'payment',
         ...coachRenewal(p, client),
-        data: { dedupe: `renewal:${p.key}`, clientId: p.clientId, providerRole: role, side: 'coach' },
+        data: { dedupe: `renewal:${p.key}`, clientId: p.clientId, providerRole: role, side: 'coach', copy: coachRenewalCopy(p, client) },
       });
     }
   } catch (err) {
