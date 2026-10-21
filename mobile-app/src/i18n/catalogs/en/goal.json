@@ -92,9 +92,13 @@
   "page.shareAria": "Toggle coach visibility",
   "primary.titlePre": "Your primary",
   "primary.titleAccent": "goal.",
-  "primary.hint": "Pick one · syncs with your profile",
+  "primary.hint": "Pick one or write your own · syncs with your profile",
   "primary.toast": "Goal set · {goal}",
   "primary.close": "Close",
+  "primary.custom": "Your own goal",
+  "primary.customPlaceholder": "e.g. Run my first 10k",
+  "primary.customSave": "Set goal",
+  "primary.customLabel": "Your goal, in your words",
   "award.toast": "+{points} pts · {milestone}",
   "sheet.closeAria": "Close",
   "edit.eyebrowNew": "New · Target",
@@ -152,5 +156,8 @@
   "primary.goal.race": "Run a race",
   "primary.goal.postpartum": "Postpartum",
   "cover.targetBy": "Target {value} by {date}",
-  "cover.target": "Target {value}"
+  "cover.target": "Target {value}",
+  "cover.wordsLead": "Your targets carry this one",
+  "cover.wordsSub": "“{goal}” isn’t a weight goal, so there’s no weight bar. Add a weight target to track one too.",
+  "terms.wordsNone": "“{goal}” isn’t a weight goal, so it has no weight milestones."
 }

@@ -92,9 +92,13 @@
   "page.shareAria": "Canja ganuwa ga kociyoyi",
   "primary.titlePre": "Babbar",
   "primary.titleAccent": "manufarka.",
-  "primary.hint": "Zaɓi ɗaya · yana daidaita da bayanan martabarka",
+  "primary.hint": "Zaɓi ɗaya ko rubuta naka · yana daidaita da bayanan martabarka",
   "primary.toast": "An saita manufa · {goal}",
   "primary.close": "Rufe",
+  "primary.custom": "Manufarka ta kanka",
+  "primary.customPlaceholder": "misali: Gudun kilomita 10 na farko",
+  "primary.customSave": "Saita manufa",
+  "primary.customLabel": "Manufarka, da kalmominka",
   "award.toast": "+{points} maki · {milestone}",
   "sheet.closeAria": "Rufe",
   "edit.eyebrowNew": "Sabuwa · Manufa",
@@ -152,5 +156,8 @@
   "primary.goal.race": "Gudun gasa",
   "primary.goal.postpartum": "Bayan haihuwa",
   "cover.targetBy": "Manufa {value} kafin {date}",
-  "cover.target": "Manufa {value}"
+  "cover.target": "Manufa {value}",
+  "cover.wordsLead": "Maƙasudanka ne ke ɗaukar wannan",
+  "cover.wordsSub": "“{goal}” ba burin nauyi ba ne, don haka babu sandar nauyi. Ƙara maƙasudin nauyi don bin sa ma.",
+  "terms.wordsNone": "“{goal}” ba burin nauyi ba ne, don haka babu gagarumin ci gaban nauyi."
 }

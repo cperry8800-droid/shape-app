@@ -46,7 +46,7 @@ import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from '../services/mealPrep.mjs';
 import { bsMakeAheadIndex, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepRecordsFor, bsYmdAdd, bsYmdIn } from '../services/prepAhead.mjs';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
-import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES } from './bsNotificationRoute.mjs';
+import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsTrackLanes, bsTrackLaneStatus, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
@@ -620,6 +620,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // THE CYCLE (spec 2026-07-19) — the calendar rides the takeover pattern so
   // back returns to wherever the member opened it from.
   const [showCycle, setShowCycle] = useStateBSC(false);
+  // Another person's profile, opened from a notification (person:<user>): a friend's habit.
+  const [notifPerson, setNotifPerson] = useStateBSC(null);
   // The shell-visible location. Child-owned sub-state (Settings' active
   // sub-page, Eat's view, Me's sub-page, Chat's open thread) rides in via the
   // announce register at compose time — see bsNavCompose.
@@ -635,6 +637,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // Replay a popped descriptor onto the existing entry points. NEVER pushes.
   const navResolve = (loc) => {
     if (!loc) return;
+    // A notified person's profile is no location of its own: any step back closes it.
+    setNotifPerson(null);
     setShowSearch(loc.overlay === 'search');
     setShowCalendar(loc.overlay === 'calendar');
     setShowCycle(loc.overlay === 'cycle');
@@ -695,6 +699,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, goCycle, onNavGesture };
   useBSNavGestureHandler(navJumpRef);
 
+  // A notified person's profile closes on any other navigation (BS_NAV_EVENTS), so nothing moves
+  // only the page under it.
+  React.useEffect(() => {
+    const close = (e) => { if (bsClosesPerson(e)) setNotifPerson(null); };
+    BS_NAV_EVENTS.forEach((n) => window.addEventListener(n, close));
+    return () => BS_NAV_EVENTS.forEach((n) => window.removeEventListener(n, close));
+  }, []);
   React.useEffect(() => {
     window.__shapeActiveTab = tab;
     window.dispatchEvent?.(new CustomEvent('shape:activeTabChanged', { detail: { tab } }));
@@ -812,6 +823,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         case 'today': clear(); setCheckinOpen({ nonce: Date.now() }); setTab('home'); return;
         // The goal, progress and follows (requests are answered on the member's own profile).
         case 'goal': case 'progress': case 'profile': clear(); setTab('me'); return;
+        // Someone else's profile (a friend's habit not done by 8 pm), over the page they were on.
+        case 'person': clear(); setNotifPerson(d.id || null); return;
         case 'feed': case 'community': case 'messages': clear(); setTab('chat'); return;
         default: return;
       }
@@ -1181,6 +1194,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     </div>,
     (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body,
   ) : null;
+  // Back goes through the history its opening pushed (clear()), so it lands where the member was.
+  const personOverlay = notifPerson ? <BSNotifiedPerson userId={notifPerson} onClose={() => { if (!navBack()) setNotifPerson(null); }} /> : null;
   // ⚠ The remaining early returns still have to render BOTH overlays themselves —
   // opening Settings from the calendar leaves showCalendar true, so the calendar
   // branch returns first and a main-return-only overlay would never paint.
@@ -1193,6 +1208,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         {noraSheet}
         {searchOverlay}
         {screeningOverlay}
+        {personOverlay}
       </div>
     );
   }
@@ -1205,6 +1221,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         {noraSheet}
         {searchOverlay}
         {screeningOverlay}
+        {personOverlay}
       </div>
     );
   }
@@ -1253,6 +1270,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       {noraSheet}
       {searchOverlay}
       {screeningOverlay}
+      {personOverlay}
       {showScoreIntro && <BSScoreIntro onClose={(skipped) => { setShowScoreIntro(false); if (!skipped) chainTourAfterIntro(); }} onOpenScore={() => { setShowScoreIntro(false); goScore(); }} />}
       {showTour && <BSOnboardingTour onClose={() => setShowTour(false)} onNavigate={setTab} />}
     </div>
@@ -19961,6 +19979,44 @@ function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false,
   return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
 }
 
+// Someone's profile opened from a notification that names only their id (person:<user>; Codex on
+// #2413: the friend's 8 pm habit notice opened the reader's own Me tab). The profile read
+// (get_public_profile, visibility-gated) gives their name, role and photo; without it the page
+// still opens on the id and the profile's own read fills it in. Every shell renders it over the
+// page underneath, as search does, and Back closes it, from the first frame: while the read is out
+// the page is a Back and nothing else, never a blank screen with no way out (Codex on #2413).
+function BSNotifiedPerson({ userId, onClose }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const [person, setPerson] = useStateBSC(null);
+  React.useEffect(() => {
+    let on = true;
+    setPerson(null);
+    const bare = { userId, who: '', kind: 'CLIENT', public: true };
+    Promise.resolve(window.ShapeProfiles?.getPublicProfile ? window.ShapeProfiles.getPublicProfile(userId) : null)
+      .then((p) => {
+        if (!on) return;
+        if (!p) { setPerson(bare); return; }
+        const kind = p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
+        setPerson({ userId, who: p.name || '', kind, init: bsInitials(p.name || ''), photo: p.avatar || undefined, tier: Number.isFinite(p.points) ? bsTierForPoints(p.points) : undefined, public: true });
+      })
+      .catch(() => { if (on) setPerson(bare); });
+    return () => { on = false; };
+  }, [userId]);
+  const me = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
+  return createPortal(
+    <div data-notified-person style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
+      {person
+        ? <BSPublicProfile person={person} onBack={onClose}
+            onMessage={me && person.userId !== me ? (p) => bsOpenMemberConversation(p, onClose) : null} />
+        : <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+            <button data-person-back onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
+          </div>}
+    </div>,
+    (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body,
+  );
+}
+
 // ── Universal search — find anyone on Shape ──────────────────────────────────
 // Opened from the ⌕ in every header (`shape:openSearch`). Live typeahead over
 // every account (search_shape_people RPC — members + coaches, photo + tier),
@@ -26958,8 +27014,8 @@ function BSNotifyPrefs({ onBack, role }) {
   const toggleCh = (type, ch) => { const next = !chOn(type, ch); setMatrix(m => ({ ...m, [type]: { ...(m[type] || {}), [ch]: next } })); window.ShapeNotifyPrefs?.setChannel?.(type, ch, next); };
 
   const TYPES = isCoach
-    ? [['client_red', 'Clients in the red', 'Crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up'], ['checkin_submitted', 'Check-in submitted', 'A client logs their week'], ['waitlist_join', 'Waiting list', 'When someone joins your waiting list']]
-    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Score dips', 'When your Shape Score drops'], ['tier_up', 'Tier ups', 'When you reach a new Shape Score tier'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never shaming'], ['waitlist_invite', 'Waitlist invites', 'When a coach has room for you'], ['habit_reminder', 'Habit reminders', 'Set per-habit on the Habits page'], ['meal_prep', 'Prep reminders', 'The night before a meal that needs it']];
+    ? [['client_red', 'Clients in the red', 'Crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up'], ['checkin_submitted', 'Check-in submitted', 'A client logs their week'], ['waitlist_join', 'Waiting list', 'When someone joins your waiting list'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"]]
+    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Score dips', 'When your Shape Score drops'], ['tier_up', 'Tier ups', 'When you reach a new Shape Score tier'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never shaming'], ['waitlist_invite', 'Waitlist invites', 'When a coach has room for you'], ['habit_reminder', 'Habit reminders', 'Set per-habit on the Habits page'], ['meal_prep', 'Prep reminders', 'The night before a meal that needs it'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"]];
 
   const Toggle = ({ on, onClick }) => (
     <button onClick={onClick} aria-pressed={on} style={{ width: 46, height: 27, borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
@@ -27562,6 +27618,31 @@ function bsPrimaryGoalToken(stored) {
   const hit = BS_PRIMARY_GOALS.find((g) => g.en.toLowerCase() === s.toLowerCase());
   return hit ? hit.id : s;
 }
+// A goal in the member's own words (owner, 2026-10-20: "make sure user can make custom
+// goals"). It is stored as they typed it, tidied: control characters dropped, spaces collapsed
+// and at most BS_PRIMARY_GOAL_MAX characters (counted by code point, so an emoji is never cut in
+// half). The website's sign-up tidies the same way (signupGoalFromText, src/lib/signup-answers.mjs).
+// Both destinations take the same words, because an unrecognised value already renders as
+// itself. Typing one of the listed goals ("lose fat") resolves to its token, so it reads as
+// that goal in every language.
+const BS_PRIMARY_GOAL_MAX = 60;
+function bsPrimaryGoalFromText(text) {
+  const s = Array.from(String(text == null ? '' : text).replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim()).slice(0, BS_PRIMARY_GOAL_MAX).join('').trim();
+  return s ? bsPrimaryGoalToken(s) : '';
+}
+// The listed goals a weight target describes. Any other goal (a race, strength, a goal in the
+// member's own words) has no weight read of its own: the Goal page's card and Home's Goal door
+// show it in words, and bring the weight read back only once a weight target is set (owner,
+// 2026-10-20: "Show the goal's words"). No goal yet reads as a weight goal, as before.
+const BS_WEIGHT_GOAL_IDS = ['fat_loss', 'muscle', 'recomp', 'maintain', 'tone'];
+function bsPrimaryGoalIsWeight(id) {
+  const s = bsPrimaryGoalToken(id);
+  return !s || BS_WEIGHT_GOAL_IDS.includes(s);
+}
+function bsPrimaryGoalIsCustom(id) {
+  const s = bsPrimaryGoalToken(id);
+  return !!s && !BS_PRIMARY_GOALS.some((g) => g.id === s);
+}
 const BS_GOALS_DEFAULT = {
   share: true,
   primaryGoal: 'fat_loss', // a TOKEN (BS_PRIMARY_GOALS) — mirrored to the profile as a label
@@ -27902,6 +27983,12 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
     <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('goal:station.supportingTargets', { defaultValue: 'Supporting targets · serve the goal' })}</div>
   );
   const hasGoal = range !== 0 && Number.isFinite(start) && Number.isFinite(target) && start && target;
+  // ⚠ A GOAL THAT ISN'T ABOUT WEIGHT HAS NO WEIGHT READ (owner, 2026-10-20: "Show the goal's
+  // words"). "Run my first 10k" with no weight target read "Set the terms." and asked for a start
+  // and target weight. The goal's words are the page's title above; the card says the targets
+  // below carry it, with no bar or weight figures, until a weight target is set as well. Read
+  // here, before the sub-pages, so the terms door and page say the same (Codex on #2416).
+  const wordsOnly = !hasGoal && !bsPrimaryGoalIsWeight(data && data.primaryGoal);
   // Milestones from the real goal trajectory (start -> quarter points -> target).
   const milestones = (() => {
     if (!hasGoal) return [];
@@ -28006,7 +28093,9 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   // uppercase`, so the JS fold was undone one line later by a transform that IS
   // locale-aware. How a label sits in a meta line is the catalog's call.
   const weekDoorSub = weekTargets.slice(0, 2).map((w) => `${w.v} ${String(w.l || '')}`).join(' · ');
-  const termsDoorSub = hasGoal
+  const termsDoorSub = wordsOnly
+    ? (overall.why ? tr('goal:terms.whyHead', { defaultValue: 'Your why' }) : tr('goal:terms.addWhy', { defaultValue: 'Add your why' }))
+    : hasGoal
     ? (overall.why
       ? tr('goal:door.milestonesWhy', { defaultValue: '{done}/{total} milestones · your why', done: milestones.filter((m) => m.done).length, total: milestones.length })
       : tr('goal:door.milestones', { defaultValue: '{done}/{total} milestones', done: milestones.filter((m) => m.done).length, total: milestones.length }))
@@ -28098,7 +28187,14 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
         {view === 'terms' && (
           <>
             <div style={{ padding: `10px ${t.padX}px 0` }}>
-              {!hasGoal ? (
+              {wordsOnly ? (
+                <>
+                  <div data-goal-words style={{ padding: '6px 0 2px', fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70, overflowWrap: 'anywhere' }}>
+                    {tr('goal:terms.wordsNone', { defaultValue: '“{goal}” isn’t a weight goal, so it has no weight milestones.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}
+                  </div>
+                  <BSOLAct heat={heat} label={tr('goal:cover.editTargets', { defaultValue: 'Edit targets' })} onClick={onEditTargets} t={t} />
+                </>
+              ) : !hasGoal ? (
                 <><BSTRedact INK={t.INK} label={tr('goal:terms.noGoal', { defaultValue: 'No goal set yet' })} /><BSOLAct heat={heat} label={tr('goal:door.setTerms', { defaultValue: 'Set the terms' })} onClick={onEditTargets} t={t} /></>
               ) : (
                 <>
@@ -28146,9 +28242,20 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
 
       {/* THE READ — the verdict, the bar, the three figures */}
       <div ref={readRef} style={{ margin: `16px ${t.padX}px 0`, padding: '16px 16px 14px', border: `1px solid ${t.RULE}`, borderRadius: 8, background: t.PAPER2 }}>
+        {wordsOnly ? (
+          <div data-goal-words>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.22, color: t.INK }}>
+              {tr('goal:cover.wordsLead', { defaultValue: 'Your targets carry this one' })}<span style={{ color: heat }}>.</span>
+            </div>
+            <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70, overflowWrap: 'anywhere' }}>
+              {tr('goal:cover.wordsSub', { defaultValue: '“{goal}” isn’t a weight goal, so there’s no weight bar. Add a weight target to track one too.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}
+            </div>
+          </div>
+        ) : (
         <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.22, color: verdict.tone === 'bad' ? t.RUST : t.INK }}>
           {leadBody}{leadDot ? <span style={{ color: heat }}>{leadDot}</span> : null}
         </div>
+        )}
         {pct != null && (
           <>
             <div role="img" aria-label={`${pct}%`} style={{ marginTop: 14, height: 8, borderRadius: 4, background: bsTHexA(t.INK, 0.1), overflow: 'hidden' }}>
@@ -28161,7 +28268,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
             </div>
           </>
         )}
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+        {!wordsOnly && <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
           {[
             { l: tr('goal:cover.statCurrent', { defaultValue: 'Current' }), v: dsp(now), u: unit },
             { l: tr('goal:cover.statToGo', { defaultValue: 'To go' }), v: hasGoal ? bsGoalRemaining({ start: dsp(start), now: dsp(now), target: dsp(target) }) : null, u: unit },
@@ -28174,7 +28281,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
               </div>
             </div>
           ))}
-        </div>
+        </div>}
       </div>
 
       {/* The one action, and its quiet partner */}
@@ -28183,8 +28290,9 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
         <BSOLAct heat={heat} label={tr('goal:cover.editTargets', { defaultValue: 'Edit targets' })} onClick={onEditTargets} t={t} />
       </div>
 
-      {/* The next milestone — one row; every milestone is behind it */}
-      <div style={{ margin: `18px ${t.padX}px 0` }}>
+      {/* The next milestone — one row; every milestone is behind it. The milestones are
+          weight points, so a goal read in words has none (and is no "No goal set yet"). */}
+      {!wordsOnly && <div style={{ margin: `18px ${t.padX}px 0` }}>
         {!hasGoal ? (
           <>
             <BSTRedact INK={t.INK} size={9.5} label={tr('goal:terms.noGoal', { defaultValue: 'No goal set yet' })} />
@@ -28197,7 +28305,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
             <span aria-hidden style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 13, fontWeight: 800, color: heat }}>→</span>
           </button>
         )}
-      </div>
+      </div>}
 
       {/* THE STATIONS — each opens its full-screen page */}
       <div style={{ margin: `8px ${t.padX}px 0` }}>
@@ -29344,7 +29452,7 @@ function BSHomeWallBulletin() {
 // (DOM order = VoiceOver order); `figure` may be a ReactNode (e.g. the
 // PROGRESS 4-tick row). `pct` (0–100), when a number, fills the row's bottom
 // hairline to that width — the old door sliver carried onto the rule itself.
-function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen, tourId }) {
+function BSShelfDoor({ c, eyebrow, figure, figureText, status, pct, onOpen, tourId }) {
   const t = useBS();
   const accent = c || (t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5'));
   const [pressed, setPressed] = useStateBSC(false);
@@ -29352,8 +29460,9 @@ function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen, tourId }) {
   const hasPct = typeof pct === 'number' && isFinite(pct);
   React.useInsertionEffect(() => { bsInjectBsHomeCss(); }, []);
   // aria-label must carry the visible figure too — a screen-reader user
-  // otherwise never hears the actual value the door displays.
-  const ariaFigure = (typeof figure === 'string' || typeof figure === 'number') ? String(figure) : '';
+  // otherwise never hears the actual value the door displays. A figure drawn as
+  // an element says its words through `figureText`.
+  const ariaFigure = (typeof figure === 'string' || typeof figure === 'number') ? String(figure) : (figureText || '');
   return (
     <button
       type="button" onClick={onOpen} data-tour={tourId || undefined} aria-label={[eyebrow, ariaFigure, status].filter(Boolean).join(' ')}
@@ -29902,6 +30011,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const [editOverall, setEditOverall] = useStateBSC(false); // overall body-comp targets sheet
   const [editHeadline, setEditHeadline] = useStateBSC(null); // 'training' | 'nutrition' | null
   const [editPrimary, setEditPrimary] = useStateBSC(false); // in-place primary-goal chips
+  const [customGoal, setCustomGoal] = useStateBSC(null); // the picker's own-words field: null = closed
   const [logWeigh, setLogWeigh] = useStateBSC(false);
   // Cover-page routing (owner pick 2026-08-28, Concept B): 'cover' plus one
   // full-screen page per station. The old five-item anchor index existed only
@@ -30209,6 +30319,27 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const hWords = String(hTitle).trim().split(/\s+/);
   const hLast = hWords.length ? hWords.pop() : '';
   const hHead = hWords.join(' ');
+  // A goal in the member's own words may end in its own stop ("Get fit!"); no second one.
+  const hStop = /[.!?…]$/.test(hLast) ? '' : '.';
+  const closePrimary = () => { setEditPrimary(false); setCustomGoal(null); };
+  // Saves to client_goals.primaryGoal and mirrors the profile's client_identity.goal so the
+  // edit-profile chips agree. `id` is a listed goal's token or the member's own words
+  // (bsPrimaryGoalFromText).
+  const setPrimaryGoal = async (id) => {
+    if (!id) return;
+    const label = bsPrimaryGoalLabel(id, tr);
+    persist({ ...data, primaryGoal: id });
+    try {
+      const ident = (await window.shapeDb?.getUserGoals?.('client_identity')) || {};
+      await window.shapeDb?.saveUserGoals?.('client_identity', { ...ident, goal: label });
+      window.ShapeIdentity = { ...(window.ShapeIdentity || {}), goal: label };
+      try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+    } catch (e) {}
+    closePrimary();
+    window.__bsToast?.(tr('goal:primary.toast', { defaultValue: 'Goal set · {goal}', goal: label }), 'ok');
+  };
+  const ownGoal = bsPrimaryGoalIsCustom(data.primaryGoal) ? data.primaryGoal : '';
+  const ownGoalNext = customGoal == null ? '' : bsPrimaryGoalFromText(customGoal);
   return (
     <BSPage>
       {/* Header — Back where every page keeps it, the eyebrow, then the goal and
@@ -30220,7 +30351,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
         <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat }}>{tr('home:goal.eyebrow', { defaultValue: 'Your goal' })}</div>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginTop: 6 }}>
-          <h1 style={{ margin: 0, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: heat }}>{hLast}.</span></h1>
+          <h1 style={{ margin: 0, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: heat }}>{hLast}{hStop}</span></h1>
           <button onClick={() => setEditPrimary(true)} style={{ flexShrink: 0, minHeight: 40, padding: '0 14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:page.edit', { defaultValue: 'Edit' })}</button>
         </div>
       </div>}
@@ -30258,13 +30389,14 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       {editPrimary && createPortal(
         <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
           {/* Header — the question and a way out (owner, 2026-10-20: the chip wall
-              read as a puzzle; a list with one check reads at a glance). */}
-          <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+              read as a puzzle; a list with one check reads at a glance). Its hairline
+              keeps the scrolled list from running up under the two-line hint. */}
+          <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 12px`, borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
               <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 28, letterSpacing: '-0.03em', color: t.INK, margin: '6px 0 0', lineHeight: 1.05 }}>{tr('goal:primary.titlePre', { defaultValue: 'Your primary' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('goal:primary.titleAccent', { defaultValue: 'goal.' })}</span></h1>
-              <button onClick={() => setEditPrimary(false)} aria-label={tr('goal:sheet.closeAria', { defaultValue: 'Close' })} style={{ flexShrink: 0, width: 44, height: 44, marginRight: -10, background: 'transparent', border: 0, color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 17, fontWeight: 800, lineHeight: 1 }}>✕</button>
+              <button onClick={closePrimary} aria-label={tr('goal:sheet.closeAria', { defaultValue: 'Close' })} style={{ flexShrink: 0, width: 44, height: 44, marginRight: -10, background: 'transparent', border: 0, color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 17, fontWeight: 800, lineHeight: 1 }}>✕</button>
             </div>
-            <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>{tr('goal:primary.hint', { defaultValue: 'Pick one · syncs with your profile' })}</div>
+            <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>{tr('goal:primary.hint', { defaultValue: 'Pick one or write your own · syncs with your profile' })}</div>
           </div>
           {/* The list — scrollbar hidden */}
           <div className="bs-hide-scroll" role="radiogroup" aria-label={tr('goal:primary.titlePre', { defaultValue: 'Your primary' }) + ' ' + tr('goal:primary.titleAccent', { defaultValue: 'goal.' })} style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `12px ${t.padX}px 18px` }}>
@@ -30279,26 +30411,37 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
               const on = (data.primaryGoal || '') === g.id;
               const label = bsPrimaryGoalLabel(g.id, tr);
               return (
-                <button key={g.id} role="radio" aria-checked={on} onClick={async () => {
-                  persist({ ...data, primaryGoal: g.id });
-                  try {
-                    const ident = (await window.shapeDb?.getUserGoals?.('client_identity')) || {};
-                    await window.shapeDb?.saveUserGoals?.('client_identity', { ...ident, goal: label });
-                    window.ShapeIdentity = { ...(window.ShapeIdentity || {}), goal: label };
-                    try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
-                  } catch (e) {}
-                  setEditPrimary(false);
-                  window.__bsToast?.(tr('goal:primary.toast', { defaultValue: 'Goal set · {goal}', goal: label }), 'ok');
-                }} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 54, padding: '0 2px', background: 'transparent', border: 0, borderBottom: `1px solid ${t.HAIR || t.RULE}`, cursor: 'pointer', textAlign: 'left', color: on ? teal : t.INK, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: on ? 700 : 500, letterSpacing: '-0.01em' }}>
+                <button key={g.id} role="radio" aria-checked={on} onClick={() => setPrimaryGoal(g.id)} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 54, padding: '0 2px', background: 'transparent', border: 0, borderBottom: `1px solid ${t.HAIR || t.RULE}`, cursor: 'pointer', textAlign: 'left', color: on ? teal : t.INK, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: on ? 700 : 500, letterSpacing: '-0.01em' }}>
                   <span>{label}</span>
                   <span aria-hidden style={{ flexShrink: 0, width: 22, height: 22, boxSizing: 'border-box', borderRadius: 99, border: `1.5px solid ${on ? teal : t.RULE}`, background: on ? teal : 'transparent', color: t.isLight ? '#fff' : '#04201d', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
                 </button>
               );
             })}
+            {/* A goal in the member's own words (owner, 2026-10-20: "make sure user can
+                make custom goals"). Checked while the stored goal is none of the listed
+                ones; tapping it opens the field, filled with their words. */}
+            <button role="radio" aria-checked={!!ownGoal} aria-expanded={customGoal != null} onClick={() => setCustomGoal(customGoal != null ? null : ownGoal)} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 54, padding: '8px 2px', background: 'transparent', border: 0, borderBottom: customGoal != null ? 0 : `1px solid ${t.HAIR || t.RULE}`, cursor: 'pointer', textAlign: 'left', color: ownGoal ? teal : t.INK, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: ownGoal ? 700 : 500, letterSpacing: '-0.01em' }}>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block' }}>{tr('goal:primary.custom', { defaultValue: 'Your own goal' })}</span>
+                {ownGoal && customGoal == null && <span data-own-goal style={{ display: 'block', marginTop: 2, fontFamily: t.BODY, fontSize: 14, fontWeight: 400, letterSpacing: 0, color: t.INK70, overflowWrap: 'anywhere' }}>{ownGoal}</span>}
+              </span>
+              <span aria-hidden style={{ flexShrink: 0, width: 22, height: 22, boxSizing: 'border-box', borderRadius: 99, border: `1.5px solid ${ownGoal ? teal : t.RULE}`, background: ownGoal ? teal : 'transparent', color: t.isLight ? '#fff' : '#04201d', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800 }}>{ownGoal ? '✓' : ''}</span>
+            </button>
+            {customGoal != null && (
+              <div style={{ padding: '2px 2px 16px', borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>
+                <input className="bs-uline" autoFocus enterKeyHint="done" value={customGoal} maxLength={BS_PRIMARY_GOAL_MAX}
+                  aria-label={tr('goal:primary.customLabel', { defaultValue: 'Your goal, in your words' })}
+                  placeholder={tr('goal:primary.customPlaceholder', { defaultValue: 'e.g. Run my first 10k' })}
+                  onChange={(e) => setCustomGoal(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setPrimaryGoal(ownGoalNext); } }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) }} />
+                <button onClick={() => setPrimaryGoal(ownGoalNext)} disabled={!ownGoalNext} style={{ marginTop: 12, width: '100%', padding: '14px', borderRadius: 6, border: 0, background: ownGoalNext ? teal : t.RULE, color: ownGoalNext ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: ownGoalNext ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('goal:primary.customSave', { defaultValue: 'Set goal' })}</button>
+              </div>
+            )}
           </div>
           {/* Pinned footer */}
           <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, background: t.PAPER }}>
-            <button onClick={() => setEditPrimary(false)} style={{ width: '100%', padding: '14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:primary.close', { defaultValue: 'Close' })}</button>
+            <button onClick={closePrimary} style={{ width: '100%', padding: '14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:primary.close', { defaultValue: 'Close' })}</button>
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
@@ -30380,32 +30523,45 @@ function BSMeGoalCard({ onOpen }) {
   const tr = useShapeTr();
   const TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
   const [g, setG] = useStateBSC(null);
+  const [primary, setPrimary] = useStateBSC('');
   React.useEffect(() => {
     let on = true;
-    (async () => { try { const d = await window.shapeDb?.getUserGoals?.('client_goals'); if (on && d && d.overall) setG(d.overall); } catch (e) {} })();
+    (async () => { try { const d = await window.shapeDb?.getUserGoals?.('client_goals'); if (on && d) { if (d.overall) setG(d.overall); if (d.primaryGoal) setPrimary(d.primaryGoal); } } catch (e) {} })();
     return () => { on = false; };
   }, []);
   // Signed in with no goal set → render nothing (never the demo goal); the demo
   // is the signed-out preview only. A real goal (g) shows once it loads — a door
-  // never appears for a signed-in account with no goal.
+  // never appears for a signed-in account with no goal. A goal that isn't about
+  // weight opens the door on its own words (below).
   const bsGoalSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  if (bsGoalSignedIn && !g) return null;
-  const ov = g || { title: 'Lean by summer', start: 78, now: 76.8, target: 73.6, unit: 'kg', by: null, why: '' };
+  const words = bsGoalSignedIn && !bsPrimaryGoalIsWeight(primary) ? bsPrimaryGoalLabel(primary, tr) : '';
+  if (bsGoalSignedIn && !g && !words) return null;
+  const ov = g || (words ? {} : { title: 'Lean by summer', start: 78, now: 76.8, target: 73.6, unit: 'kg', by: null, why: '' });
   // Kilograms in, the member's unit out — the same contract as the Goal page.
   // Reading `ov.unit` here rendered the DOCUMENT's unit, so a member on Metric
   // saw their goal quoted in pounds on Home and in kilograms one tap away.
   const start = bsGoalDocKg(ov.start, ov) || 0, now = bsGoalDocKg(ov.now, ov) || 0, target = bsGoalDocKg(ov.target, ov) || 0, unit = t.weightUnit;
-  const range = start - target;
-  const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
-  const toGo = +(now - target).toFixed(1);
+  // In either direction, as the Goal page reads it (bsGoalPct / bsGoalRemaining): a build
+  // target (70 → 75 kg) read "—" and 0% here while the Goal page read it (Codex on #2416).
+  const pctOf = bsGoalPct({ start, now, target });
+  const toGo = bsGoalRemaining({ start, now, target });
+  const pct = pctOf == null ? 0 : pctOf / 100;
   // Honest status — never a fabricated "on track": goal reached (within a
   // small epsilon, so float rounding doesn't withhold the ✓) reads 'goal hit
   // ✓'; otherwise a real '{N} {unit} to go'; when the values aren't usable,
-  // an honest '—'. toGo = now - target on a cut-framed goal (range > 0):
-  // at-or-past target reads as HIT — never a false "to go" when over-achieved.
-  const hasRange = range > 0 && isFinite(toGo) && !!unit;
+  // an honest '—'. toGo is what is left in the goal's direction, never below
+  // zero, so at-or-past the target reads as HIT — never a false "to go".
+  const hasRange = pctOf != null && toGo != null && !!unit;
   const goalHit = hasRange && toGo <= 0.05;
   const goalStatus = goalHit ? tr('home:goal.hit', { defaultValue: 'goal hit ✓' }) : hasRange ? tr('home:goal.toGo', { defaultValue: '{amount} {unit} to go', amount: +Math.max(0, t.kgToDisplay(toGo)).toFixed(1), unit }) : '—';
+  // A goal that isn't about weight, with no weight target to read: the door is the goal in words
+  // (owner, 2026-10-20: "Show the goal's words"), cut to fit the row, with no bar.
+  if (words && !hasRange) {
+    return (
+      <BSShelfDoor tourId="hero-goal" c={TEAL} eyebrow={tr('home:door.goal', { defaultValue: 'Goal' })} onOpen={onOpen} figureText={words}
+        figure={<span data-goal-words style={{ display: 'block', maxWidth: 'min(210px, 52vw)', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{words}</span>} />
+    );
+  }
   return (
     <BSShelfDoor tourId="hero-goal" c={TEAL} eyebrow={tr('home:door.goal', { defaultValue: 'Goal' })} figure={`${Math.round(pct * 100)}%`} status={goalStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
   );
@@ -30623,6 +30779,8 @@ function BSIntentStep({ onDone }) {
   _bsScrollTopOnMount();
   React.useEffect(() => { try { window.ShapeAnalytics?.track?.('onboarding_started'); } catch (e) {} }, []);
   const [picked, setPicked] = useStateBSC(null);
+  const [own, setOwn] = useStateBSC(null); // the member's own words: null = field closed
+  const ownNext = own == null ? '' : bsPrimaryGoalFromText(own);
   // ⚠ THE PICK IS A TOKEN, NOT A LABEL — and this is the SECOND writer of
   // client_goals.primaryGoal (BSGoalsContract's picker is the other), so the two
   // must agree or a goal set at first run matches no chip on the Goals page.
@@ -30729,7 +30887,20 @@ function BSIntentStep({ onDone }) {
           {BS_PRIMARY_GOALS.map((g) => (
             <button key={g.id} onClick={() => pick(g.id)} disabled={saving} style={{ padding: '11px 16px', borderRadius: 999, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.6 : 1, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{bsPrimaryGoalLabel(g.id, tr)}</button>
           ))}
+          {/* A goal in their own words (owner, 2026-10-20), saved like any pick. */}
+          <button onClick={() => setOwn(own == null ? '' : null)} aria-expanded={own != null} disabled={saving} style={{ padding: '11px 16px', borderRadius: 999, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.6 : 1, border: `1px ${own != null ? 'solid' : 'dashed'} ${own != null ? teal : t.RULE}`, background: 'transparent', color: own != null ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>＋ {tr('goal:primary.custom', { defaultValue: 'Your own goal' })}</button>
         </div>
+        {own != null && (
+          <div style={{ marginTop: 16 }}>
+            <input className="bs-uline" autoFocus enterKeyHint="done" value={own} maxLength={BS_PRIMARY_GOAL_MAX}
+              aria-label={tr('goal:primary.customLabel', { defaultValue: 'Your goal, in your words' })}
+              placeholder={tr('goal:primary.customPlaceholder', { defaultValue: 'e.g. Run my first 10k' })}
+              onChange={(e) => setOwn(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (ownNext) pick(ownNext); } }}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) }} />
+            <button onClick={() => pick(ownNext)} disabled={!ownNext || saving} style={{ marginTop: 12, width: '100%', padding: '14px', borderRadius: 999, border: 0, background: ownNext ? teal : t.RULE, color: ownNext ? '#04201d' : t.INK50, cursor: ownNext && !saving ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('goal:primary.customSave', { defaultValue: 'Set goal' })}</button>
+          </div>
+        )}
         <button onClick={skip} style={{ marginTop: 28, background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', padding: 0 }}>{tr('onboarding:intent.skip', { defaultValue: 'Skip for now →' })}</button>
       </div>
     </BSPage>
@@ -32827,6 +32998,7 @@ Object.assign(window, {
   BSShapeScorePage,
   BSShapeStorePage,
   BSPublicProfile,
+  BSNotifiedPerson,
   BSReconcile,
   BSFacetAvatar,
   bsAmLive,

@@ -92,9 +92,13 @@
   "page.shareAria": "Alternar visibilidade para coaches",
   "primary.titlePre": "Sua meta",
   "primary.titleAccent": "principal.",
-  "primary.hint": "Escolha uma · sincroniza com seu perfil",
+  "primary.hint": "Escolha uma ou escreva a sua · sincroniza com seu perfil",
   "primary.toast": "Meta definida · {goal}",
   "primary.close": "Fechar",
+  "primary.custom": "Sua própria meta",
+  "primary.customPlaceholder": "ex.: Correr meus primeiros 10 km",
+  "primary.customSave": "Definir meta",
+  "primary.customLabel": "Sua meta, com suas palavras",
   "award.toast": "+{points} pts · {milestone}",
   "sheet.closeAria": "Fechar",
   "edit.eyebrowNew": "Novo · Objetivo",
@@ -152,5 +156,8 @@
   "primary.goal.race": "Correr uma prova",
   "primary.goal.postpartum": "Pós-parto",
   "cover.targetBy": "Objetivo: {value} até {date}",
-  "cover.target": "Objetivo: {value}"
+  "cover.target": "Objetivo: {value}",
+  "cover.wordsLead": "Suas metas sustentam esta",
+  "cover.wordsSub": "“{goal}” não é uma meta de peso, então não há barra de peso. Adicione um peso-alvo para acompanhar também.",
+  "terms.wordsNone": "“{goal}” não é uma meta de peso, então não tem marcos de peso."
 }

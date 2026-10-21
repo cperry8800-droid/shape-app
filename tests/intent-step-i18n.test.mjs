@@ -19,7 +19,7 @@ import { parse } from '@babel/parser';
 //      so no slot may be authored empty in any of the thirteen.
 
 const CLIENT = path.join('mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx');
-const CAT = (loc) => path.join('mobile-app', 'src', 'i18n', 'catalogs', loc, 'onboarding.json');
+const CAT = (loc, ns = 'onboarding') => path.join('mobile-app', 'src', 'i18n', 'catalogs', loc, ns + '.json');
 const LOCALES = ['en', 'es', 'pt-BR', 'fr', 'de', 'it', 'id', 'vi', 'tr', 'ha', 'pcm', 'ru', 'uk'];
 
 const src = fs.readFileSync(CLIENT, 'utf8');
@@ -67,6 +67,8 @@ function derivedEn() {
       if (o && o.type === 'ObjectExpression') {
         const dv = o.properties.find((p) => p.key && p.key.name === 'defaultValue');
         if (dv && dv.value.type === 'StringLiteral') {
+          // An onboarding key is kept bare; another namespace's key (the own-goal
+          // field shares the Goals picker's goal:primary.custom* words) keeps its prefix.
           out[n.arguments[0].value.replace(/^onboarding:/, '')] = dv.value.value;
         }
       }
@@ -81,19 +83,25 @@ function derivedEn() {
 }
 const EN_WANTED = derivedEn();
 const KEYS = Object.keys(EN_WANTED).sort();
-const cats = Object.fromEntries(LOCALES.map((l) => [l, JSON.parse(fs.readFileSync(CAT(l), 'utf8'))]));
+const goalCats = Object.fromEntries(LOCALES.map((l) => [l, JSON.parse(fs.readFileSync(CAT(l, 'goal'), 'utf8'))]));
+const cats = Object.fromEntries(LOCALES.map((l) => {
+  const own = JSON.parse(fs.readFileSync(CAT(l), 'utf8'));
+  // The goal: keys this screen reads, under their full key.
+  for (const [k, v] of Object.entries(goalCats[l])) own['goal:' + k] = v;
+  return [l, own];
+}));
 
 // The five slots that compose the two split-accent frames.
 const FRAME = ['intent.becomingPre', 'intent.becomingPost',
                'intent.titlePre', 'intent.titleAccent', 'intent.titlePost'];
 
-test('guard-the-guard: the region is the component and it derives 26 keys', () => {
+test('guard-the-guard: the region is the component and it derives 30 keys', () => {
   assert.ok(region.includes('const IDENTITY = {'), 'the region carries the IDENTITY table');
   assert.ok(region.includes('identityOf'), 'the region carries the resolver');
   assert.ok(!/\bfunction BSHealthIntake\b/.test(region), 'the region stops at the next component');
-  assert.equal(KEYS.length, 26, '13 chrome keys + 12 identity sentences + the save-failed line it shares with the coaching step');
+  assert.equal(KEYS.length, 30, '13 chrome keys + 12 identity sentences + the save-failed line it shares with the coaching step + the 4 own-goal words it shares with the Goals picker');
   assert.equal(LOCALES.length, 13);
-  for (const k of KEYS) assert.ok(k.startsWith('intent.') || k === 'firstRun.saveFailed', `${k} is namespaced under intent.`);
+  for (const k of KEYS) assert.ok(k.startsWith('intent.') || k === 'firstRun.saveFailed' || k.startsWith('goal:primary.custom'), `${k} is namespaced under intent.`);
 });
 
 test('the identity keys are exactly the twelve shipped goal tokens — derived, never listed', () => {
@@ -109,7 +117,7 @@ test('every derived key is authored in en, byte-identical to the source', () => 
   }
 });
 
-test('all 26 keys are present and NON-EMPTY in every locale', () => {
+test('all 30 keys are present and NON-EMPTY in every locale', () => {
   // Under `returnEmptyString: false` an empty value renders the RAW KEY, which
   // key parity cannot see (a key whose value is "" IS present).
   for (const loc of LOCALES) {
@@ -159,8 +167,10 @@ test('both label calls take tr — the client_identity.goal mirror agreed to dis
     'no bsPrimaryGoalLabel call may still pass null');
   assert.match(region, /const label = bsPrimaryGoalLabel\(id, tr\);/, 'the mirror writer passes tr');
   assert.match(region, /\{bsPrimaryGoalLabel\(g\.id, tr\)\}/, 'the chip renders a translated label');
-  // And the OTHER writer still does, so the two cannot drift apart again.
-  assert.ok(/const label = bsPrimaryGoalLabel\(g\.id, tr\);/.test(src),
+  // And the OTHER writer still does, so the two cannot drift apart again: the Goals
+  // page's setPrimaryGoal, which every row of its picker and its own-words field call.
+  const outside = src.slice(0, src.indexOf(region)) + src.slice(src.indexOf(region) + region.length);
+  assert.ok(/const setPrimaryGoal = async \(id\) => \{\n\s*if \(!id\) return;\n\s*const label = bsPrimaryGoalLabel\(id, tr\);/.test(outside),
     "BSGoalsContract's mirror writer still passes tr");
 });
 

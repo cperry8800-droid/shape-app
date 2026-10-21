@@ -92,9 +92,13 @@
   "page.shareAria": "Koç görünürlüğünü aç veya kapat",
   "primary.titlePre": "Ana",
   "primary.titleAccent": "hedefin.",
-  "primary.hint": "Birini seç · profilinle eşitlenir",
+  "primary.hint": "Birini seç ya da kendin yaz · profilinle eşitlenir",
   "primary.toast": "Hedef belirlendi · {goal}",
   "primary.close": "Kapat",
+  "primary.custom": "Kendi hedefin",
+  "primary.customPlaceholder": "ör. İlk 10 kilometremi koşmak",
+  "primary.customSave": "Hedefi belirle",
+  "primary.customLabel": "Hedefin, kendi sözlerinle",
   "award.toast": "+{points} puan · {milestone}",
   "sheet.closeAria": "Kapat",
   "edit.eyebrowNew": "Yeni · Hedef",
@@ -152,5 +156,8 @@
   "primary.goal.race": "Bir yarışa katılmak",
   "primary.goal.postpartum": "Doğum sonrası",
   "cover.targetBy": "Hedef: {date} tarihine kadar {value}",
-  "cover.target": "Hedef: {value}"
+  "cover.target": "Hedef: {value}",
+  "cover.wordsLead": "Bunu hedeflerin taşıyor",
+  "cover.wordsSub": "“{goal}” bir kilo hedefi değil, bu yüzden kilo çubuğu yok. Onu da izlemek için bir hedef kilo ekle.",
+  "terms.wordsNone": "“{goal}” bir kilo hedefi değil, bu yüzden kilo kilometre taşları yok."
 }

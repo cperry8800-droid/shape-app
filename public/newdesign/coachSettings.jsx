@@ -61,6 +61,10 @@ const CST_COACH_TYPES = [
   // payment were the ONLY notifications this panel does not govern, which made the
   // omission a false claim rather than a gap.
   ["waitlist_join", "Waiting-list requests", "Someone joined your waiting list"],
+  // Shared habits (src/app/api/cron/habit-watch): a coach can be picked like anyone joined to the
+  // member by an accepted follow, so they need the same switch (Codex on #2413). Sent through
+  // preferredNotificationOutcome, which reads the matrix; the cron applies quiet hours and the cap.
+  ["friend_habit", "Friends' habits", "When a friend hasn't done a habit they shared with you"],
 ];
 // The registry's coach types, which this panel must cover in full — the extra entries
 // above are preference-gated sends that never become candidates.
@@ -669,7 +673,7 @@ function CoachNotificationCard({ signedIn, acct }) {
             something they did not. */}
         These are the notifications this panel governs. Credential-expiry and payment
         alerts are sent outside the preference matrix and arrive whatever is set here.
-        {" "}Quiet hours and the daily cap apply to the client alerts above;
+        {" "}Quiet hours and the daily cap apply to the client alerts and friends' habits above;
         waiting-list requests are delivered as they happen.
       </div>
     </React.Fragment>

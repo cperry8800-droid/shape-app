@@ -70,5 +70,20 @@
   "toast.setPrivate": "Auf privat gestellt",
   "toast.sharedFriends": "Mit Freunden geteilt",
   "toast.updateError": "Gewohnheit konnte nicht aktualisiert werden",
-  "page.loading": "Wird geladen…"
+  "page.loading": "Wird geladen…",
+  "share.title": "Wer es erfährt, wenn du sie auslässt",
+  "share.sub": "Um 20 Uhr deiner Zeit, falls sie nicht abgehakt ist, bekommen die Personen, die du auswählst, eine Benachrichtigung. Sie sehen nur den Namen der Gewohnheit.",
+  "share.loadFailed": "Deine Kontakte konnten nicht geladen werden.",
+  "share.notReady": "Das Teilen von Gewohnheiten ist noch nicht eingeschaltet.",
+  "share.signIn": "Melde dich an, um eine Gewohnheit zu teilen.",
+  "share.empty": "Folge jemandem oder nimm einen Follower an, um eine Gewohnheit mit ihm zu teilen.",
+  "share.retry": "Erneut versuchen",
+  "share.save": "Speichern",
+  "share.saveFailed": "Konnte nicht gespeichert werden. Versuch es noch einmal.",
+  "share.savedOn": "{count, plural, one {Mit # Person geteilt} other {Mit # Personen geteilt}}",
+  "share.savedOff": "Nicht geteilt",
+  "share.max": "Wähle höchstens 20 Personen.",
+  "share.aria": "Diese Gewohnheit teilen",
+  "share.ariaShared": "{count, plural, one {Mit # Person geteilt} other {Mit # Personen geteilt}}",
+  "share.notConnected": "Nicht mehr verbunden"
 }

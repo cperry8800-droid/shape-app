@@ -252,7 +252,7 @@ test('the coach matrix matches the registry’s coach-audience types exactly', (
     const hit = execSync("grep -rl \"type: '" + k + "'\" src/app --include=*.ts", { encoding: 'utf8' }).trim().split('\n');
     assert.ok(hit.length && hit[0], k + ' is offered as a switch but nothing sends it');
     const src = readFileSync(new URL('../' + hit[0], import.meta.url), 'utf8');
-    assert.match(src, /createPreferredNotification\(/,
+    assert.match(src, /createPreferredNotification\(|preferredNotificationOutcome\(/,
       k + ' is offered as a switch but is not sent preference-aware — the toggle governs nothing');
   }
 });
@@ -269,7 +269,7 @@ test('the panel says which notifications it does NOT govern', () => {
   // `createPreferredNotification` reads only `muted` — never quiet_start, quiet_end, tz
   // or daily_cap — so listing that type beneath those controls made them misleading for
   // it. Said on the card rather than left for a coach to discover at 3 a.m.
-  assert.match(src, /Quiet hours and the daily cap apply to the client alerts above/,
+  assert.match(src, /Quiet hours and the daily cap apply to the client alerts and friends' habits above/,
     'the card does not say which notifications the quiet hours and cap actually cover');
 });
 

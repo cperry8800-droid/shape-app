@@ -85,6 +85,24 @@ export const BS_MEMBER_PAGES = Object.freeze(['sessions', 'train', 'eat', 'score
 /** The coach pages: the member app hands these to the coach app. */
 export const BS_COACH_PAGES = Object.freeze(['clients', 'schedule', 'waitlist', 'credentials']);
 
+/**
+ * Every event that takes a shell somewhere: a notification's route, a header control (search,
+ * Nora, the corner avatar) or an in-app jump. A notified person's profile (BSNotifiedPerson) is
+ * drawn over the page, so each shell closes it on any of these, and a later notification or a tap
+ * never moves only the page hidden under it (Codex on #2413).
+ */
+export const BS_NAV_EVENTS = Object.freeze([
+  'shape:goHome', 'shape:goCommunity', 'shape:goWall', 'shape:openConversation', 'shape:openClient',
+  'shape:openMarket', 'shape:openPrep', 'shape:openPage', 'shape:openProfile', 'shape:editProfile',
+  'shape:openSearch', 'shape:openNora', 'shape:openCycle', 'shape:openIntegrations', 'shape:openProSettings',
+  'shape:cookWith', 'shape:mealPrep', 'shape:startWorkout', 'shape:openCoachPlan', 'shape:proSoundtracks',
+  'shape:proMessageCoach', 'shape:proMessageClient', 'shape:proAvailability', 'shape:startTour',
+]);
+/** Whether a navigation event closes a notified person's profile: all but the person route itself. */
+export function bsClosesPerson(e) {
+  return !(e && e.type === 'shape:openPage' && e.detail && e.detail.page === 'person');
+}
+
 /** The canonical string for an open event's detail, for a hand-over. */
 export function bsRouteFor(kind, detail) {
   const d = detail || {};

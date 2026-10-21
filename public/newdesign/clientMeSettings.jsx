@@ -1016,6 +1016,9 @@ const NP_TYPES = [
   ["habit_reminder", "Habit reminders", "Set per-habit on the app's Habits page"],
   // The night-before prep reminder (src/app/api/cron/prep-reminders), sent at 7 pm local.
   ["meal_prep", "Prep reminders", "The night before a meal that needs it"],
+  // Shared habits (src/app/api/cron/habit-watch): someone you're connected to missed a habit they
+  // shared with you, at 8 pm their time.
+  ["friend_habit", "Friends' habits", "When a friend hasn't done a habit they shared with you"],
 ];
 
 function NotificationDashboard({ signedIn }) {

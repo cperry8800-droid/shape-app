@@ -64,12 +64,17 @@ function extractArray(name) {
   throw new Error('unbalanced');
 }
 
-const { BS_PRIMARY_GOALS, bsPrimaryGoalLabel, bsPrimaryGoalToken } = new Function(
+const MAX_LINE = src.match(/^const BS_PRIMARY_GOAL_MAX = \d+;$/m);
+assert.ok(MAX_LINE, 'BS_PRIMARY_GOAL_MAX is gone — re-point this guard');
+const { BS_PRIMARY_GOALS, BS_PRIMARY_GOAL_MAX, bsPrimaryGoalLabel, bsPrimaryGoalToken, bsPrimaryGoalFromText, bsPrimaryGoalIsCustom } = new Function(
   [
     extractArray('BS_PRIMARY_GOALS'),
+    MAX_LINE[0],
     extractFn('function bsPrimaryGoalLabel('),
     extractFn('function bsPrimaryGoalToken('),
-    'return { BS_PRIMARY_GOALS, bsPrimaryGoalLabel, bsPrimaryGoalToken };',
+    extractFn('function bsPrimaryGoalFromText('),
+    extractFn('function bsPrimaryGoalIsCustom('),
+    'return { BS_PRIMARY_GOALS, BS_PRIMARY_GOAL_MAX, bsPrimaryGoalLabel, bsPrimaryGoalToken, bsPrimaryGoalFromText, bsPrimaryGoalIsCustom };',
   ].join('\n'),
 )();
 
@@ -158,6 +163,43 @@ test('token → label → token round-trips', () => {
   }
 });
 
+// ── A goal in the member's own words (owner, 2026-10-20) ─────────────────────
+
+test('bsPrimaryGoalFromText keeps the member\'s words, tidied', () => {
+  assert.equal(bsPrimaryGoalFromText('  Run   my first\n10k  '), 'Run my first 10k');
+  assert.equal(bsPrimaryGoalFromText('Get fit!'), 'Get fit!');
+  for (const blank of ['', '   ', '\n\t', null, undefined]) assert.equal(bsPrimaryGoalFromText(blank), '', `${JSON.stringify(blank)} is no goal`);
+  // The words survive to the page and the profile as themselves.
+  assert.equal(bsPrimaryGoalLabel(bsPrimaryGoalFromText('Climb Kilimanjaro'), shouty), 'Climb Kilimanjaro');
+});
+
+test('bsPrimaryGoalFromText caps the words by code point, never cutting a character', () => {
+  assert.equal(BS_PRIMARY_GOAL_MAX, 60);
+  const long = 'a'.repeat(80);
+  assert.equal(bsPrimaryGoalFromText(long), 'a'.repeat(60));
+  const emoji = '💪'.repeat(70);
+  const out = bsPrimaryGoalFromText(emoji);
+  assert.equal(Array.from(out).length, 60);
+  assert.equal(out, '💪'.repeat(60), 'no half of a surrogate pair is left at the end');
+  // A cut that lands on a space leaves no trailing space.
+  assert.equal(bsPrimaryGoalFromText('a'.repeat(59) + ' b'), 'a'.repeat(59));
+});
+
+test('a listed goal typed by its name becomes its token', () => {
+  for (const g of BS_PRIMARY_GOALS) {
+    assert.equal(bsPrimaryGoalFromText(`  ${g.en.toUpperCase()} `), g.id, `"${g.en}" typed in did not resolve to ${g.id}`);
+  }
+});
+
+test('bsPrimaryGoalIsCustom is true only for words outside the list', () => {
+  for (const g of BS_PRIMARY_GOALS) {
+    assert.equal(bsPrimaryGoalIsCustom(g.id), false, g.id);
+    assert.equal(bsPrimaryGoalIsCustom(g.en), false, `legacy "${g.en}" is a listed goal`);
+  }
+  for (const none of ['', '  ', null, undefined]) assert.equal(bsPrimaryGoalIsCustom(none), false);
+  assert.equal(bsPrimaryGoalIsCustom('Run my first 10k'), true);
+});
+
 // ── Coverage: every token has a key, in every shipped catalog ───────────────
 
 test('every primary goal is authored in every shipped catalog', () => {
@@ -209,9 +251,17 @@ test('every writer stores the TOKEN in client_goals.primaryGoal', () => {
     assert.doesNotMatch(w, /^'(?!fat_loss')[^']* [^']*'$/,
       `a primaryGoal write stores a sentence, not a token: ${w}`);
   }
-  // The two live writers hand it the id straight from the table.
-  assert.ok(writes.includes('g.id'), 'the Goals-page picker no longer writes the token');
-  assert.ok(writes.includes('id'), "BSIntentStep's first-run step no longer writes the token");
+  // Both live writers write `id`: the Goals page through setPrimaryGoal, BSIntentStep
+  // through persistIntent. Each is handed a row's token straight from the table, or the
+  // member's own words through bsPrimaryGoalFromText (which turns a listed goal's name
+  // into its token).
+  assert.equal(writes.filter((w) => w === 'id').length, 2, 'the Goals-page picker or the first-run step no longer writes the token');
+  assert.match(code, /onClick=\{\(\) => setPrimaryGoal\(g\.id\)\}/, 'a picker row no longer saves its own token');
+  assert.match(code, /const ownGoalNext = customGoal == null \? '' : bsPrimaryGoalFromText\(customGoal\);/, "the Goals page's own-words field no longer goes through bsPrimaryGoalFromText");
+  assert.match(code, /setPrimaryGoal\(ownGoalNext\)/, "the Goals page's own-words field no longer saves");
+  assert.match(code, /onClick=\{\(\) => pick\(g\.id\)\}/, 'a first-run chip no longer saves its own token');
+  assert.match(code, /const ownNext = own == null \? '' : bsPrimaryGoalFromText\(own\);/, "the first-run own-words field no longer goes through bsPrimaryGoalFromText");
+  assert.match(code, /pick\(ownNext\)/, 'the first-run own-words field no longer saves');
 });
 
 test('every writer mirrors the LABEL — never the token — to client_identity.goal', () => {

@@ -70,5 +70,20 @@
   "toast.setPrivate": "An mai da shi na sirri",
   "toast.sharedFriends": "An raba da abokai",
   "toast.updateError": "An kasa sabunta al'ada",
-  "page.loading": "Ana lodawa…"
+  "page.loading": "Ana lodawa…",
+  "share.title": "Wa zai ji idan ka tsallake shi",
+  "share.sub": "Da ƙarfe 8 na dare a lokacinka, idan ba a duba shi ba, mutanen da ka zaɓa za su sami sanarwa. Sunan al'adar kawai suke gani.",
+  "share.loadFailed": "An kasa loda mutanenka.",
+  "share.notReady": "Ba a kunna raba al'adu ba tukuna.",
+  "share.signIn": "Shiga don raba al'ada.",
+  "share.empty": "Bi wani, ko karɓi mai bin ka, don raba al'ada da shi.",
+  "share.retry": "Sake gwadawa",
+  "share.save": "Ajiye",
+  "share.saveFailed": "An kasa ajiyewa. Sake gwadawa.",
+  "share.savedOn": "{count, plural, one {An raba da mutum #} other {An raba da mutane #}}",
+  "share.savedOff": "Ba a raba ba",
+  "share.max": "Zaɓi mutane 20 ko ƙasa da haka.",
+  "share.aria": "Raba wannan al'ada",
+  "share.ariaShared": "{count, plural, one {An raba da mutum #} other {An raba da mutane #}}",
+  "share.notConnected": "Ba ku da alaƙa yanzu"
 }

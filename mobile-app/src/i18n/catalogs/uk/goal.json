@@ -92,9 +92,13 @@
   "page.shareAria": "Перемкнути видимість для тренерів",
   "primary.titlePre": "Ваша головна",
   "primary.titleAccent": "ціль.",
-  "primary.hint": "Оберіть одну · синхронізується з профілем",
+  "primary.hint": "Оберіть одну або напишіть свою · синхронізується з профілем",
   "primary.toast": "Ціль задано · {goal}",
   "primary.close": "Закрити",
+  "primary.custom": "Своя ціль",
+  "primary.customPlaceholder": "напр. Пробігти перші 10 км",
+  "primary.customSave": "Задати ціль",
+  "primary.customLabel": "Ваша ціль вашими словами",
   "award.toast": "+{points} б. · {milestone}",
   "sheet.closeAria": "Закрити",
   "edit.eyebrowNew": "Нове · Завдання",
@@ -152,5 +156,8 @@
   "primary.goal.race": "Пробігти забіг",
   "primary.goal.postpartum": "Після пологів",
   "cover.targetBy": "Завдання: {value}, термін: {date}",
-  "cover.target": "Завдання: {value}"
+  "cover.target": "Завдання: {value}",
+  "cover.wordsLead": "Цю ціль несуть ваші завдання",
+  "cover.wordsSub": "«{goal}» — не ціль щодо ваги, тому шкали ваги немає. Додайте цільову вагу, щоб стежити й за нею.",
+  "terms.wordsNone": "«{goal}» — не ціль щодо ваги, тому віх щодо ваги немає."
 }
