@@ -555,9 +555,9 @@ function BSSplash({ onDone, style = 'wire-beat' }) {
     // the translator + locale: the wire's own words, the member's clock
     // convention, and locale-correct upper-casing of their coach's name.
     // ⚠ THE REASON IS HOME'S, NOT THE ENGINE'S ENGLISH (rulings 11 and 13): the energy, hunger
-    // and sleep reads are said through the card's words in the app's language, and a coach's
-    // own reason, or any other, as written. The card reads window only at call time, and `tr`
-    // resolves its 'home:' keys as it does the lead's head.
+    // and sleep reads through the card's words, and every other engine reason from its figures, in
+    // the app's language and the member's units; a coach's own reason as written. The card reads
+    // window only at call time, and `tr` resolves its 'home:' keys as it does the lead's head.
     const wireLines = bsWireLines(dg, dg && dg.directive, { tr, locale, reason: (dir) => bsCiLeadReason(dir, tr) });
     const reduced = bsPrefersReducedMotion();
     const wireGround = 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.14), transparent 50%), radial-gradient(120% 70% at 50% 112%, rgba(52,214,197,0.05), transparent 60%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)';

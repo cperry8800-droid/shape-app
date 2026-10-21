@@ -4863,9 +4863,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     const cycleNote = (cycleOptIn && cycleNow && cycleNow.phase === 'menstrual')
       ? tr('home:lever.recoverySub', { defaultValue: 'Lighter load reads well today.' })
       : null;
-    // The lead's reason in the member's words (part 2, bsCiLeadReason): the engine's energy, hunger
-    // and sleep reads are said in the card's words, never '/10'; any other reason, and a coach's
-    // own, reads as written (ruling 13).
+    // The lead's reason in the member's words (bsCiLeadReason): the engine's energy, hunger and sleep
+    // reads in the card's words, never '/10', and every other engine reason from its figures in the
+    // app's language and the member's units; a coach's own reads as written (ruling 13).
     const engineSub = engineFlag ? bsCiLeadReason(engineFlag, tr) : null;
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: [engineSub, engineMove.stakes].filter(Boolean).join(' · '), cta: engineMove.cta, c: engineMove.c, engine: true });
