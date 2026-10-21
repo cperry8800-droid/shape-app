@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
+import { listOf, np, phrase } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
 import { ACTIVE_SUB } from '@/lib/membership-core';
 import { dailyCheckinOn } from '@/lib/ai/notifications.mjs';
 
@@ -228,6 +229,8 @@ async function run(request: Request) {
       try {
         evaluated += 1;
         const dipped: string[] = [];
+        // The same reasons by their kind, for the copy the bell and the push say (noticeCopy.mjs).
+        const dippedKinds: string[] = [];
         let dipTotal = 0;
 
         const penalize = async (kind: string, refId: string | null, day: string, label: string) => {
@@ -242,6 +245,7 @@ async function run(request: Request) {
             penalties += 1;
             dipTotal += Number(r.amount || 0);
             dipped.push(label);
+            dippedKinds.push(kind);
           }
         };
 
@@ -279,7 +283,12 @@ async function run(request: Request) {
                 ? `You hit your weekly commitment — +${Math.abs(s.amount || 0)} pts. Set the next one.`
                 : "Last week's commitment didn't land. No worries — set a fresh one and earn it back.",
               route: 'score',
-              data: { commitment: true, met: !!s.met, amount: s.amount },
+              data: {
+                commitment: true, met: !!s.met, amount: s.amount,
+                copy: s.met
+                  ? { title: np('score.kept.title'), body: np('score.kept.body', { points: Math.abs(s.amount || 0) }) }
+                  : { title: np('score.short.title'), body: np('score.short.body') },
+              },
             });
           }
         }
@@ -296,7 +305,10 @@ async function run(request: Request) {
             title: 'Your Shape Score dipped a little',
             body: `${Math.abs(dipTotal)} pts came off for ${reasons}. No worries — jump back in and you'll earn it right back.`,
             route: 'score',
-            data: { accountability: true, total: dipTotal },
+            data: {
+              accountability: true, total: dipTotal,
+              copy: { title: np('score.dip.title'), body: np('score.dip.body', { points: Math.abs(dipTotal), reasons: listOf(dippedKinds.map((k) => phrase('score.reason.' + k))) }) },
+            },
           });
         }
       } catch {

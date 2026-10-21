@@ -35,6 +35,7 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
+import { atTime, np } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 import { normalizeZone, wallClockInZone } from '@/lib/time';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
@@ -181,7 +182,11 @@ export async function POST(request: Request) {
         title: 'New session request',
         body: `${clientName} requested a session on ${when}.`,
         route: 'schedule', // the coach's calendar (the member's own sessions are 'sessions')
-        data: { sessionId: (inserted as { id: string }).id, providerRole: role },
+        data: {
+          sessionId: (inserted as { id: string }).id, providerRole: role,
+          // How the bell and the push say it in the coach's language, on the same clock (noticeCopy.mjs).
+          copy: { title: np('session.request.title'), body: np('session.request.body', { client: clientName, when: atTime(new Date(startMs).toISOString(), zone, true) }) },
+        },
       });
     } catch {
       /* best-effort: the request stands without its notice */

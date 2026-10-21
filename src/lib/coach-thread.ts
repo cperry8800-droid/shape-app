@@ -31,6 +31,7 @@ import { createNotification } from '@/lib/notify';
 import { sendEmail } from '@/lib/email';
 import { WRAP_OPEN, SIGN_OFF_HTML, SIGN_OFF_TEXT, button, escapeHtml, siteUrl } from '@/lib/coach-application-emails';
 import { shapeFirstName, shapeWelcomeText } from '../../mobile-app/src/services/shapeWelcome.mjs';
+import { np, phrase, usdOf } from '../../mobile-app/src/services/noticeCopy.mjs';
 
 export type CoachRole = 'trainer' | 'nutritionist';
 type BuiltEmail = { subject: string; html: string; text: string };
@@ -280,6 +281,10 @@ export async function startCoaching(
         // opened nothing in either); with no thread, "client" opens the client's page.
         route: out.conversationId ? `chat:${out.conversationId}` : 'client',
         data: { dedupe: `hire:${a.subscriptionKey}`, clientId: a.clientId, conversationId: out.conversationId, providerRole: a.providerRole, side: 'coach' },
+      }, {
+        // How the bell and the push say it in the coach's language (noticeCopy.mjs).
+        title: np('client.new.title', { client: clientName || phrase('word.aNewClient') }),
+        body: np(`client.new.${out.conversationId ? 'bodyThread' : 'bodyNoThread'}${a.monthlyCents ? 'Pay' : ''}`, { client: clientName || phrase('word.aNewClient'), ...(a.monthlyCents ? { amount: usdOf(a.monthlyCents) } : {}) }),
       });
       // Only the call that stored the alert emails: a redelivered event finds the dedupe row.
       if (out.coachAlerted) {
@@ -310,7 +315,7 @@ export async function welcomeMember(admin: SupabaseClient, clientId: string): Pr
       body: 'Your membership is active. Your plan, your log and the community are open to you now.',
       route: 'home',
       data: { dedupe: 'membership-welcome' },
-    });
+    }, { title: np('welcome.title'), body: np('welcome.body') });
     if (!stored) return false;
     const to = await emailOf(admin, clientId);
     if (to) await sendEmail({ to, ...membershipWelcomeEmail({ firstName: first }) });
@@ -358,6 +363,13 @@ export async function coachPaid(
           title: `Payment received: ${shown}`,
           body: `${shown} bought ${what}${pay}.`,
           data: { dedupe: `paid:${a.checkoutId}`, clientId: a.clientId, providerRole: a.providerRole, kind: a.kind },
+        }, {
+          title: np('payment.product.title', { client: clientName || phrase('word.aClient') }),
+          body: np(a.coachCents ? 'payment.product.bodyPay' : 'payment.product.body', {
+            client: clientName || phrase('word.aClient'),
+            what: (a.itemName || '').trim() || phrase(a.kind === 'program' ? 'payment.aProgram' : 'payment.aMealPlan'),
+            ...(a.coachCents ? { amount: usdOf(a.coachCents) } : {}),
+          }),
         });
       }
       return out;
@@ -383,6 +395,9 @@ export async function coachPaid(
         body: `${shown} paid for a session${pay}. It waits on your Schedule under To schedule until you book a time with them.`,
         route: 'schedule',
         data: { dedupe: `paid:${a.checkoutId}`, clientId: a.clientId, conversationId: out.conversationId, providerRole: a.providerRole },
+      }, {
+        title: np('session.paidCoach.title', { client: clientName || phrase('word.aClient') }),
+        body: np(a.coachCents ? 'session.paidCoach.bodyPay' : 'session.paidCoach.body', { client: clientName || phrase('word.aClient'), ...(a.coachCents ? { amount: usdOf(a.coachCents) } : {}) }),
       });
       if (out.coachAlerted) {
         const to = await emailOf(admin, ownerId);
@@ -398,7 +413,9 @@ export async function coachPaid(
       // The thread, by id, where they agree the time; with none, the chat.
       route: out.conversationId ? `chat:${out.conversationId}` : 'messages',
       data: { dedupe: `paid-member:${a.checkoutId}`, conversationId: out.conversationId, providerRole: a.providerRole, side: 'client' },
-    });
+    }, coachName
+      ? { title: np('session.paid.title', { coach: coachName }), body: np('session.paid.body', { coach: coachName }) }
+      : { title: np('session.paid.titleAnon'), body: np('session.paid.bodyAnon') });
     if (out.memberTold) {
       const to = await emailOf(admin, a.clientId);
       if (to) await sendEmail({ to, ...memberPaidSessionEmail({ coachName, firstName: first }) });

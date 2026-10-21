@@ -15,6 +15,7 @@
 // date. No React, no window, so Node tests and the server run it as written.
 import { bsCookableFromRecipe, bsCookSlug } from './cookable.mjs';
 import { bsPrepWeekKey, bsPrunePrep } from './mealPrep.mjs';
+import { np, phrase, listOf, weekdayOf } from './noticeCopy.mjs';
 
 const isYmd = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const norm = (s) => String(s || '').trim().toLowerCase();
@@ -165,9 +166,8 @@ export function bsPrepRecordsFor(group, now) {
   }));
 }
 
-// The server's words for the reminder. ⚠ ENGLISH ONLY, like every server-written notification
-// today (/api/cron/reminders): the notifications table has no locale to write in. The app's own
-// card is translated.
+// The server's words for the reminder, in English: the notifications table keeps the English, and the
+// bell and the push say it in the reader's language from bsPrepReminderCopy (below, noticeCopy.mjs).
 const DAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const SLOT = { BFAST: 'breakfast', BREAKFAST: 'breakfast', LUNCH: 'lunch', SNACK: 'snack', DINNER: 'dinner', DINR: 'dinner' };
 const andList = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
@@ -186,6 +186,26 @@ export function bsPrepReminderText(groups) {
   if (g.meals.length === 1) return { title: `Prep tonight: ${g.title}`, body: `For tomorrow's ${slot}. Make it tonight so it is ready.` };
   const days = andList([...new Set(g.meals.map((m) => DAY[m.dow]))]);
   return { title: `Prep tonight: ${g.title}`, body: `Make ${g.meals.length} tonight, for ${slot} on ${days}.` };
+}
+
+// The same reminder as copy (noticeCopy.mjs), said in the reader's language: each recipe's name as
+// written, the meal slot and the weekdays from the catalog. It says what bsPrepReminderText says, from
+// the same groups.
+export function bsPrepReminderCopy(groups) {
+  const gs = (Array.isArray(groups) ? groups : []).filter((g) => g && Array.isArray(g.meals) && g.meals.length);
+  if (!gs.length) return null;
+  if (gs.length > 1) {
+    return {
+      title: np('prep.many.title'),
+      body: np('prep.many.body', { list: listOf(gs.map((g) => (g.meals.length > 1 ? phrase('prep.itemMany', { title: g.title, count: g.meals.length }) : g.title))) }),
+    };
+  }
+  const g = gs[0];
+  const slots = [...new Set(g.meals.map((m) => SLOT[m.slot] || 'meal'))];
+  const slot = phrase('prep.slot.' + (slots.length === 1 ? slots[0] : 'meals'));
+  if (g.meals.length === 1) return { title: np('prep.one.title', { recipe: g.title }), body: np('prep.one.body', { slot }) };
+  const days = [...new Set(g.meals.map((m) => m.dow))].filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+  return { title: np('prep.one.title', { recipe: g.title }), body: np('prep.days.body', { count: g.meals.length, slot, days: listOf(days.map(weekdayOf)) }) };
 }
 
 // The notification's route: the in-app list and a tapped push open the cook screen on this

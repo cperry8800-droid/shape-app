@@ -1,4 +1,5 @@
 import React from 'react';
+import { noticeText } from '../services/noticeCopy.mjs';
 // ─── NOTIFICATIONS (the bell's list) ─────────────────────────────────────────
 // The in-app feed behind /api/notifications. Tapping a notification marks it read and, when it
 // carries a route, opens it (onRoute). Moved out of iosAppBroadsheetClient.jsx when Clear all was
@@ -55,6 +56,18 @@ export function bsNotifNewest(rows) {
     if (Number.isFinite(ms) && ms > bestMs) { best = r.createdAt; bestMs = ms; }
   }
   return best;
+}
+
+// ⚠ A ROW IS SAID IN THE APP'S LANGUAGE (owner, 2026-10-21: "fix the other server notices wording
+// too"). The server keeps the English it wrote; in another language the row is said again from the
+// notice catalog (noticeCopy.mjs: the writer's data.copy, or a trigger row's known shape), so the list
+// follows a language change. A row the catalog cannot say, and English, read as written. Window
+// globals are read at call time, as everywhere in this module.
+export function bsNoticeRow(n, tr) {
+  let code = 'en';
+  try { code = window.ShapeLocale?.get?.() || 'en'; } catch (e) { code = 'en'; }
+  const locale = window.ShapeI18n?.intlLocale?.() || undefined;
+  return noticeText(n, tr, { english: !code || code === 'en', locale });
 }
 
 export function BSNotifications({ onBack, onRoute = () => {} }) {
@@ -164,6 +177,7 @@ export function BSNotifications({ onBack, onRoute = () => {} }) {
         <div style={{ padding: `12px ${t.padX}px 4px` }}>
           {list.map((n) => {
             const accent = bsNotifStyle(n.type, t);
+            const said = bsNoticeRow(n, tr);
             return (
               <button key={n.id} onClick={() => open(n)} style={{
                 width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: 11,
@@ -174,9 +188,9 @@ export function BSNotifications({ onBack, onRoute = () => {} }) {
                 <span style={{ minWidth: 0 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     {!n.read && <span style={{ width: 6, height: 6, borderRadius: 99, background: accent, flexShrink: 0 }} />}
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: n.read ? 600 : 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: n.read ? 600 : 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{said.title}</span>
                   </span>
-                  {n.body ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, fontWeight: 500, lineHeight: 1.35 }}>{n.body}</span> : null}
+                  {said.body ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, fontWeight: 500, lineHeight: 1.35 }}>{said.body}</span> : null}
                   {n.route ? <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>{tr('common:notifications.open', { defaultValue: 'Open →' })}</span> : null}
                 </span>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', marginTop: 2 }}>{bsNotifAgo(n.createdAt, tr)}</span>

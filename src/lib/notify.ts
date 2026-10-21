@@ -12,6 +12,8 @@ import { sendEmail } from '@/lib/email';
 // The pure per-type × per-channel resolver the AI notify layer already uses —
 // one source of truth for "override wins, default in-app + push on, email off".
 import * as NotifyLayer from '@/lib/ai/notifications.mjs';
+import { readerCopy } from '@/lib/reader-copy';
+import { noticeText } from '../../mobile-app/src/services/noticeCopy.mjs';
 
 const channelsForType = (NotifyLayer as unknown as {
   channelsForType: (
@@ -29,9 +31,17 @@ export type NewNotification = {
   data?: Record<string, unknown>;
 };
 
+// How the bell and the push say a notice in its reader's language (noticeCopy.mjs): the catalog key
+// and raw values of its title and its body. It rides in the row as data.copy; the English the writer
+// passes is what the row keeps, and what an English reader and the website read.
+export type NoticeCopy = { title?: unknown; body?: unknown };
+function withCopy(n: NewNotification, copy?: NoticeCopy | null): NewNotification {
+  return copy ? { ...n, data: { ...(n.data ?? {}), copy } } : n;
+}
+
 // Resolves true when the row was stored. A caller with a follow-up effect (an email) waits on it.
-export async function createNotification(client: SupabaseClient, n: NewNotification): Promise<boolean> {
-  return (await insertNotification(client, n)) === 'stored';
+export async function createNotification(client: SupabaseClient, n: NewNotification, copy?: NoticeCopy | null): Promise<boolean> {
+  return (await insertNotification(client, withCopy(n, copy))) === 'stored';
 }
 
 // The insert, with why a row was not stored: a duplicate the dedupe index refused is a send that
@@ -66,6 +76,19 @@ function escapeHtml(s: string): string {
   return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 }
 
+// A notice's title and body in its recipient's language, or as written for an English reader and on
+// any failure (a notice is never held back for its wording).
+async function saidFor(admin: SupabaseClient, n: NewNotification): Promise<{ title: string; body: string }> {
+  const plain = { title: n.title, body: n.body || '' };
+  try {
+    const copy = await readerCopy(admin, n.userId);
+    if (copy.code === 'en') return plain;
+    return noticeText({ type: n.type, title: n.title, body: n.body || '', data: n.data || {} }, copy.tr, { english: false, locale: copy.locale });
+  } catch {
+    return plain;
+  }
+}
+
 // Preference-aware createNotification for event-driven sends whose TYPE is
 // registered in the notification-center matrix (e.g. waitlist_join /
 // waitlist_invite). Resolves the RECIPIENT's notification_settings +
@@ -82,8 +105,9 @@ function escapeHtml(s: string): string {
 export async function createPreferredNotification(
   admin: SupabaseClient,
   n: NewNotification & { type: string; quiet?: boolean },
+  copy?: NoticeCopy | null,
 ): Promise<boolean> {
-  return (await preferredNotificationOutcome(admin, n)) === 'stored';
+  return (await preferredNotificationOutcome(admin, n, copy)) === 'stored';
 }
 
 // createPreferredNotification, saying why nothing was stored: 'skipped' is the member's own choice
@@ -91,8 +115,10 @@ export async function createPreferredNotification(
 // that did not work, which a caller that promised the notice can try again (capacity-reopen.ts).
 export async function preferredNotificationOutcome(
   admin: SupabaseClient,
-  n: NewNotification & { type: string; quiet?: boolean },
+  given: NewNotification & { type: string; quiet?: boolean },
+  copy?: NoticeCopy | null,
 ): Promise<'stored' | 'skipped' | 'failed'> {
+  const n = { ...withCopy(given, copy), type: given.type, quiet: given.quiet };
   if (!n.userId || !n.title) return 'failed';
   let stored = false;
   try {
@@ -142,11 +168,14 @@ export async function preferredNotificationOutcome(
       const { data } = await admin.auth.admin.getUserById(n.userId);
       const email = data?.user?.email || '';
       if (email) {
+        // In the recipient's language (noticeCopy.mjs, as push dispatch says it): the row keeps its
+        // English.
+        const said = await saidFor(admin, n);
         await sendEmail({
           to: email,
-          subject: n.title,
-          html: `<p>${escapeHtml(n.body || n.title)}</p>`,
-          text: n.body || n.title,
+          subject: said.title,
+          html: `<p>${escapeHtml(said.body || said.title)}</p>`,
+          text: said.body || said.title,
         });
       }
     }

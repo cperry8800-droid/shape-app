@@ -23,7 +23,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { preferredNotificationOutcome } from '@/lib/notify';
 import { normalizeZone } from '@/lib/time';
 import * as NotifyLayer from '@/lib/ai/notifications.mjs';
-import { habitWatchDue, habitWatchText, habitWatchDedupe, HABIT_WATCH_HOUR, HABIT_WATCH_CATCHUP } from '@/lib/habit-watch.mjs';
+import { habitWatchDue, habitWatchCopy, habitWatchText, habitWatchDedupe, HABIT_WATCH_HOUR, HABIT_WATCH_CATCHUP } from '@/lib/habit-watch.mjs';
 import { bsYmdIn } from '../../../../../mobile-app/src/services/prepAhead.mjs';
 
 export const runtime = 'nodejs';
@@ -279,6 +279,7 @@ async function handle(request: Request) {
       const quiet = asleep || used >= cap;
       if (!quiet) { pushed.set(n.watcherId, used + 1); reserved = true; }
       const text = habitWatchText({ ownerName: nameOf.get(n.ownerId), habitName: n.name, type: n.type });
+      const copy = habitWatchCopy({ ownerName: nameOf.get(n.ownerId), habitName: n.name, type: n.type });
       const outcome = await preferredNotificationOutcome(admin, {
         userId: n.watcherId,
         type: 'friend_habit',
@@ -288,7 +289,7 @@ async function handle(request: Request) {
         // which the app opens on the reader's own profile (Codex on #2413).
         route: 'person',
         quiet,
-        data: { actorId: n.ownerId, habitId: n.habitId, dedupe: habitWatchDedupe(n.habitId, n.day) },
+        data: { actorId: n.ownerId, habitId: n.habitId, dedupe: habitWatchDedupe(n.habitId, n.day), copy },
       });
       if (outcome === 'stored') sent += 1;
       else if (outcome === 'failed') failed += 1;

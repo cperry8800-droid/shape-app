@@ -20,6 +20,7 @@ import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
+import { np, onDay } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
 import { clearListingVerified } from '@/lib/coach-verification';
 
 export const runtime = 'nodejs';
@@ -72,7 +73,8 @@ async function handle(request: Request) {
 
   // One reminder for this owner+kind this calendar month — only when the ledger row
   // is freshly inserted (ignoreDuplicates makes a re-send a no-op).
-  const remindOnce = async (ownerId: string, kind: string, notify: { title: string; body: string }) => {
+  // `copy` is how the bell and the push say it in the coach's language (noticeCopy.mjs).
+  const remindOnce = async (ownerId: string, kind: string, notify: { title: string; body: string; copy: Record<string, unknown> }) => {
     try {
       const { data: ins } = await admin
         .from('coach_credential_expiry_reminders')
@@ -85,7 +87,7 @@ async function handle(request: Request) {
         title: notify.title,
         body: notify.body,
         route: 'credentials', // the coach's certifications ('profile' is a person's profile)
-        data: { channels: { inapp: true, push: true, email: false }, kind },
+        data: { channels: { inapp: true, push: true, email: false }, kind, copy: notify.copy },
       });
       sent += 1;
     } catch (err) {
@@ -111,12 +113,14 @@ async function handle(request: Request) {
       await remindOnce(c.owner_id, 'insurance', {
         title: 'Insurance renewal coming up',
         body: `Your liability insurance expires ${c.insurance_expires}. Renew and re-upload your COI to keep your Verified badge.`,
+        copy: { title: np('credential.insurance.title'), body: np('credential.insurance.body', { date: onDay(String(c.insurance_expires).slice(0, 10), 'long') }) },
       });
     }
     for (const l of (licenses.data ?? []) as Array<{ owner_id: string; state: string; expires_on: string }>) {
       await remindOnce(l.owner_id, `license:${l.state}`, {
         title: `License renewal — ${l.state}`,
         body: `Your ${l.state} license expires ${l.expires_on}. Update it to stay verified for clients in that state.`,
+        copy: { title: np('credential.license.title', { state: l.state }), body: np('credential.license.body', { state: l.state, date: onDay(String(l.expires_on).slice(0, 10), 'long') }) },
       });
     }
 
@@ -182,6 +186,7 @@ async function handle(request: Request) {
       await remindOnce(ownerId, 'insurance_expired', {
         title: 'Your insurance has expired',
         body: `Your liability insurance expired ${expires}, so your Verified badge is off for now. Upload a current COI on your profile and we’ll re-verify you.`,
+        copy: { title: np('credential.expired.title'), body: np('credential.expired.body', { date: onDay(String(expires).slice(0, 10), 'long') }) },
       });
     }
   } catch (err) {

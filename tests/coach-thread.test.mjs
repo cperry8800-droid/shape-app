@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { READER_COPY_EN } from './helpers/reader-copy-en.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
@@ -601,7 +602,7 @@ test('the thread asked for keeps its history in a busy inbox: its messages are r
 test('a "New message" notification opens its thread: push, the app\'s list, and the website\'s inbox', async () => {
   const push = await loadRealModule(join(ROOT, 'src/app/api/push/dispatch/route.ts'), {
     typescript: true,
-    registry: new Map([['next/server', { NextResponse: { json: () => null } }], ['@/lib/supabase/admin', {}], ['@/lib/push', {}], ['@/lib/email', {}], ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')], ['node:crypto', { timingSafeEqual: () => false }], ['crypto', { timingSafeEqual: () => false }]]),
+    registry: new Map([['next/server', { NextResponse: { json: () => null } }], ['@/lib/supabase/admin', {}], ['@/lib/push', {}], ['@/lib/email', {}], ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')], ['@/lib/reader-copy', READER_COPY_EN], ['node:crypto', { timingSafeEqual: () => false }], ['crypto', { timingSafeEqual: () => false }]]),
   });
   assert.equal(push.pushRoute({ route: 'messages', data: { conversationId: 'conv-3' } }), 'chat:conv-3');
   assert.equal(push.pushRoute({ route: 'messages', data: {} }), 'messages', 'no id: as it was');
@@ -656,7 +657,7 @@ test('an open thread that receives Shape\'s welcome keeps it read, as it does an
 // coach with both listings, and the website's member bubble.
 const PUSH = await loadRealModule(join(ROOT, 'src/app/api/push/dispatch/route.ts'), {
   typescript: true,
-  registry: new Map([['next/server', { NextResponse: { json: () => null } }], ['@/lib/supabase/admin', {}], ['@/lib/push', {}], ['@/lib/email', {}], ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')], ['node:crypto', { timingSafeEqual: () => false }], ['crypto', { timingSafeEqual: () => false }]]),
+  registry: new Map([['next/server', { NextResponse: { json: () => null } }], ['@/lib/supabase/admin', {}], ['@/lib/push', {}], ['@/lib/email', {}], ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')], ['@/lib/reader-copy', READER_COPY_EN], ['node:crypto', { timingSafeEqual: () => false }], ['crypto', { timingSafeEqual: () => false }]]),
 });
 const routed = (route, data) => { const out = []; const ok = routerWith((e) => out.push([e.type, e.detail]))(route, data); return { ok, out }; };
 

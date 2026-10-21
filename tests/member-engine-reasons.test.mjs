@@ -420,10 +420,11 @@ test("every member notice is in the member's language, and its English is the ca
     // No placeholder or ICU left anywhere.
     for (const [t, title, body] of [...es, ...direct, [d5.type, d5.title, d5.body]]) assert.doesNotMatch(`${title} ${body}`, /[{}]/, `${loc} ${t}`);
   }
-  // A coach's digest stays in English, whatever translator is passed.
+  // A coach's digest is in the coach's language too ("fix the other server notices wording too").
   const pending = [1, 2].map((i) => ({ type: 'client_red', title: `T${i}`, body: '', route: 'client', data: {}, channels: { push: true }, sig: `s${i}`, key: `k${i}`, at: +NOW - 3600000 }));
   const coach = decideNotifications({ candidates: [], last: { pendingDigest: pending }, prefs: { tz: 'UTC', quietStart: 23, quietEnd: 6 }, now: NOW, audience: 'coach', tr: copyFor('es', false).tr }).digest;
-  assert.equal(coach.title, '2 updates for you');
+  assert.equal(coach.title, trIn('es')('home:push.digestTitle', { count: 2 }));
+  assert.notEqual(coach.title, '2 updates for you');
 });
 
 // ⚠ THE SHAMING GUARD READS ENGLISH (tone.mjs containsShaming), AND A PUSH IT TRIPS IS SENT BLANK.
@@ -502,7 +503,7 @@ test("the member's language and units, as the server reads them", () => {
   }
 });
 
-test('the notify routes say a member\'s notices in their language and units, and a coach\'s in English', () => {
+test('the notify routes say a member\'s notices in their language and units, and a coach\'s alerts in theirs', () => {
   const core = fs.readFileSync(path.join(ROOT, 'src/lib/ai/notify-core.ts'), 'utf8');
   assert.match(core, /const line = Notify\.memberMoveLine\(directive, \{ tr: copy\?\.tr, locale: copy\?\.locale, metric: copy\?\.metric, tone: opts\.tone \}\);/);
   assert.match(core, /tr: copy\?\.tr,\n\s*locale: copy\?\.locale,\n\s*metric: copy\?\.metric,\n\s*\}\)\);/);
@@ -512,7 +513,7 @@ test('the notify routes say a member\'s notices in their language and units, and
   for (const rel of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) {
     const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
     assert.match(src, /readUserGoal\([^)]*'app_locale'\)/, rel);
-    assert.match(src, /const copy = isCoach \? null : memberCopy\(localeDoc, settings\);/, rel);
+    assert.match(src, /const copy = memberCopy\(localeDoc, settings\);/, rel);
     assert.match(src, /candidatesFor\(snapshot, \{.*\bthresholds, copy \}\)/, rel);
     assert.match(src, /decideNotifications\(\{[^}]*tr: copy\?\.tr \}\)/, rel);
   }

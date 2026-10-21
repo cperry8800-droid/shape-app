@@ -28,6 +28,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { createNotification } from '@/lib/notify';
+import { np } from '../../../../mobile-app/src/services/noticeCopy.mjs';
 import { buildIcs, calendarOrganizerEmail, sendEmail } from '@/lib/email';
 
 // The calendar ORGANIZER shown to whoever requested the booking. A no-reply
@@ -391,7 +392,11 @@ export async function POST(req: NextRequest) {
       title: 'New session request',
       body: `${clientName} requested a consultation${topic ? ` · ${topic}` : ''}.`,
       route: 'schedule', // the coach's calendar (the member's own sessions are 'sessions')
-      data: { sessionId: inserted.id, providerRole },
+      data: {
+        sessionId: inserted.id, providerRole,
+        // How the bell and the push say it in the coach's language (noticeCopy.mjs).
+        copy: { title: np('session.request.title'), body: topic ? np('session.consult.bodyTopic', { client: clientName, topic }) : np('session.consult.body', { client: clientName }) },
+      },
     });
   }
 

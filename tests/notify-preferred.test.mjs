@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { READER_COPY_EN } from './helpers/reader-copy-en.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const notifyLayer = await import('../src/lib/ai/notifications.mjs');
@@ -37,7 +38,7 @@ const notify = await loadRealModule(join(ROOT, 'src/lib/notify.ts'), {
   typescript: true,
   registry: new Map([
     ['@/lib/email', { sendEmail: async (m) => { emails.push(m); } }],
-    ['@/lib/ai/notifications.mjs', notifyLayer],
+    ['@/lib/ai/notifications.mjs', notifyLayer], ['@/lib/reader-copy', READER_COPY_EN],
   ]),
 });
 

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
 import { createNotification } from '@/lib/notify';
+import { np } from '../../../../mobile-app/src/services/noticeCopy.mjs';
 
 function clean(value: FormDataEntryValue | null, max = 4000): string {
   return String(value ?? '').trim().slice(0, max);
@@ -68,7 +69,7 @@ export async function approveCredential(formData: FormData): Promise<void> {
     title: 'You’re verified ✓',
     body: 'Your credentials checked out — a Verified badge now shows on your marketplace profile.',
     route: 'credentials', // the coach's certifications ('profile' is a person's profile)
-    data: { channels: { inapp: true, push: true, email: false } },
+    data: { channels: { inapp: true, push: true, email: false }, copy: { title: np('credential.verified.title'), body: np('credential.verified.body') } },
   });
 
   revalidatePath('/dashboard/credentials');
@@ -139,7 +140,8 @@ export async function requestCredentialChanges(formData: FormData): Promise<void
     title: 'Credential review — a quick fix needed',
     body: notes ? notes.slice(0, 160) : 'We need a bit more to verify your credentials. Open your profile to update them.',
     route: 'credentials', // the coach's certifications ('profile' is a person's profile)
-    data: { channels: { inapp: true, push: true, email: false } },
+    // The reviewer's own notes are said as they wrote them.
+    data: { channels: { inapp: true, push: true, email: false }, copy: { title: np('credential.changes.title'), ...(notes ? {} : { body: np('credential.changes.body') }) } },
   });
 
   revalidatePath('/dashboard/credentials');

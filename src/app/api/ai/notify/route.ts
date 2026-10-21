@@ -84,7 +84,8 @@ export async function POST(request: Request) {
   // The coach's office-settings tuning drives the same engine these candidates come
   // from, so the alerts agree with the roster that produced them (R14).
   const thresholds = isCoach ? await loadCoachThresholds(actor.supabase, actor.user.id) : null;
-  const copy = isCoach ? null : memberCopy(localeDoc, settings);
+  // The reader's language: a member's notices, and a coach's alert titles and digest.
+  const copy = memberCopy(localeDoc, settings);
   const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy });
   const { send, digest, nextState, suppressed } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr });
 

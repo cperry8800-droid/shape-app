@@ -7,8 +7,8 @@
 // from a stored snapshot without the app being open. No data is mutated.
 
 import * as NotifyLayer from '@/lib/ai/notifications.mjs';
-import { makeMemberCopy, memberLocaleCode } from '@/lib/ai/memberTranslator.mjs';
-import { MEMBER_HOME_CATALOGS } from '@/lib/ai/memberCatalogs';
+import { memberLocaleCode } from '@/lib/ai/memberTranslator.mjs';
+import { copyFor, type Translate as ReaderTranslate } from '@/lib/reader-copy';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { createNotification } from '@/lib/notify';
 import { sendEmail } from '@/lib/email';
@@ -22,7 +22,7 @@ export type Candidate = { type: string; title: string; body: string; route: stri
 export type DecideResult = { send: Candidate[]; digest: Candidate | null; nextState: Record<string, unknown>; suppressed: { type: string; reason: string }[] };
 export type Snapshot = { role?: string; tz?: string; record?: Record<string, unknown>; clients?: unknown[]; at?: number };
 
-export type Translate = (key: string, opts?: Record<string, unknown>) => string;
+export type Translate = ReaderTranslate;
 // The member's notices in their language and units: `tr` their translator, `locale` the Intl locale,
 // `metric` their units preference (memberCopy, below).
 export type MemberCopy = { code: string; locale: string; metric: boolean; tr: Translate };
@@ -123,8 +123,7 @@ export async function loadHabitContext(client: SupabaseClient, userId: string, n
 // ⚠ A MEMBER'S NOTICES ARE IN THEIR LANGUAGE AND UNITS (owner, 2026-10-21: "fix the push and bell row
 // wording too"). The language is the one the app stores for the account (user_goals 'app_locale'), and
 // the units the Settings preference both routes already read (client_settings.units). One translator
-// per language, built once per server instance. A coach's notices stay in English.
-const copyFor = makeMemberCopy(MEMBER_HOME_CATALOGS) as (code: string, metric: boolean) => MemberCopy;
+// per language, built once per server instance (reader-copy.ts), shared with push dispatch.
 export function memberCopy(localeDoc: Record<string, unknown>, settings: Record<string, unknown>): MemberCopy {
   return copyFor(memberLocaleCode(localeDoc), bsUnitsMetric(settings && settings.units));
 }
@@ -160,7 +159,8 @@ export function candidatesFor(
     // process, and a global would let one coach's tuning decide another's alerts.
     // A caller that omits it gets house policy, which is the safe default.
     thresholds?: Record<string, number> | null;
-    // The member's language and units (memberCopy). A caller that omits it gets the English notices.
+    // The reader's language and units (memberCopy): a member's notices, or a coach's alert titles.
+    // A caller that omits it gets the English notices.
     copy?: MemberCopy | null;
   },
 ): { audience: 'client' | 'coach'; candidates: Candidate[] } {
@@ -174,7 +174,8 @@ export function candidatesFor(
       reason: (r.reasons && r.reasons[0]) || '',
       flags: r.flags,
     }));
-    return { audience: 'coach', candidates: Notify.coachCandidates({ triageRows: rows, lastSeverity: opts.lastSeverity, providerRole: role }) };
+    // The alert's title in the coach's language (their copy, from the same stored language).
+    return { audience: 'coach', candidates: Notify.coachCandidates({ triageRows: rows, lastSeverity: opts.lastSeverity, providerRole: role, tr: opts.copy?.tr }) };
   }
   const candidates: Candidate[] = [];
   const record = snapshot.record;

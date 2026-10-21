@@ -14,6 +14,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { EMAIL_TYPES, EMAIL_ON_BY_DEFAULT, isEmailType, PHONE_ONLY_TYPES } from '../public/newdesign/notificationSurfaces.mjs';
+import { READER_COPY_EN } from './helpers/reader-copy-en.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (f) => readFileSync(join(ROOT, f), 'utf8');
@@ -101,7 +102,7 @@ const route = await loadRealModule(join(ROOT, 'src/app/api/push/dispatch/route.t
     ['@/lib/supabase/admin', { createAdminClient: () => st.admin }],
     ['@/lib/push', { pushConfigured: () => st.pushReady, sendPushToUser: async (_a, userId, p) => { st.pushes.push({ userId, ...p }); } }],
     ['@/lib/email', { sendEmail: async (m) => { st.emails.push(m); return st.sendOk ? { ok: true } : { ok: false, error: 'resend_500' }; } }],
-    ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')],
+    ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')], ['@/lib/reader-copy', READER_COPY_EN],
   ]),
 });
 process.env.PUSH_WEBHOOK_SECRET = 'test-secret';

@@ -26,6 +26,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { videoRoomUrl } from '@/lib/video';
 import { createNotification } from '@/lib/notify';
+import { atTime, np } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
 import { afterSessionStep, type SessionForEmail } from '@/lib/session-emails';
 import { linkPaidSession, openPaidSessions } from '@/lib/paid-sessions';
 import { isSessionReschedulable, unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
@@ -147,18 +148,19 @@ export async function GET(request: Request) {
 //
 // Shared by every notice this route sends (2026-10-07: the coach's create and cancel joined
 // confirm, decline and reschedule), so there is one reading of the member's clock, not five.
-async function memberClock(supabase: SupabaseClient, clientId: string, whenSource: string): Promise<string> {
-  let memberZone: string | null = null;
+async function memberZoneOf(supabase: SupabaseClient, clientId: string): Promise<string | null> {
   try {
     const { data: prof } = await supabase
       .from('client_profiles')
       .select('timezone')
       .eq('user_id', clientId)
       .maybeSingle();
-    memberZone = normalizeZone((prof as { timezone?: unknown } | null)?.timezone);
+    return normalizeZone((prof as { timezone?: unknown } | null)?.timezone);
   } catch {
-    memberZone = null; // a refused or failed read must not stop the notification
+    return null; // a refused or failed read must not stop the notification
   }
+}
+function clockText(whenSource: string, memberZone: string | null): string {
   return new Date(whenSource).toLocaleString('en-US', {
     month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
     timeZone: memberZone || 'UTC',
@@ -166,6 +168,15 @@ async function memberClock(supabase: SupabaseClient, clientId: string, whenSourc
     // fallback that does not say "UTC" is exactly the unlabelled claim being removed.
     ...(memberZone ? {} : { timeZoneName: 'short' as const }),
   });
+}
+async function memberClock(supabase: SupabaseClient, clientId: string, whenSource: string): Promise<string> {
+  return clockText(whenSource, await memberZoneOf(supabase, clientId));
+}
+// The same moment for a notice: its English, and the time on the same clock for the copy the bell and
+// the push say in the member's language (noticeCopy.mjs atTime, which names UTC when no zone was read).
+async function memberMoment(supabase: SupabaseClient, clientId: string, whenSource: string): Promise<{ when: string; at: ReturnType<typeof atTime> }> {
+  const zone = await memberZoneOf(supabase, clientId);
+  return { when: clockText(whenSource, zone), at: atTime(new Date(whenSource).toISOString(), zone) };
 }
 
 // "Priya S. at 9:00 AM" — the booking a move or a new booking would land on, on the COACH's
@@ -327,14 +338,14 @@ async function createSession(request: Request, body: Record<string, unknown>) {
   }
 
   try {
-    const when = await memberClock(supabase, clientId, new Date(at).toISOString());
+    const { when, at: moment } = await memberMoment(supabase, clientId, new Date(at).toISOString());
     await createNotification(createAdminClient(), {
       userId: clientId,
       type: 'session_booked',
       title: 'Session booked',
       body: `Your coach booked a session with you on ${when}.`,
       route: 'sessions',
-      data: { sessionId: id },
+      data: { sessionId: id, copy: { title: np('session.booked.title'), body: np('session.booked.body', { when: moment }) } },
     });
   } catch {
     /* best-effort: the booking stands without its notice */
@@ -448,7 +459,7 @@ async function createRun(o: {
   booked.sort((a, b) => Date.parse(a.scheduled_at) - Date.parse(b.scheduled_at));
 
   try {
-    const when = await memberClock(o.supabase, o.clientId, booked[0].scheduled_at);
+    const { when, at: moment } = await memberMoment(o.supabase, o.clientId, booked[0].scheduled_at);
     await createNotification(createAdminClient(), {
       userId: o.clientId,
       type: 'session_booked',
@@ -457,7 +468,12 @@ async function createRun(o: {
         ? `Your coach booked a session with you on ${when}.`
         : `Your coach booked ${booked.length} sessions with you, starting ${when}.`,
       route: 'sessions',
-      data: { sessionId: booked[0].id, seriesId },
+      data: {
+        sessionId: booked[0].id, seriesId,
+        copy: booked.length === 1
+          ? { title: np('session.booked.title'), body: np('session.booked.body', { when: moment }) }
+          : { title: np('session.bookedMany.title'), body: np('session.bookedMany.body', { count: booked.length, when: moment }) },
+      },
     });
   } catch {
     /* best-effort: the run stands without its notice */
@@ -506,11 +522,13 @@ async function runFollowing(o: {
   const run = (data ?? []) as Array<{ id: string; scheduled_at: string; duration_min: number | null; status: string; client_id: string | null }>;
   if (!run.length) return NextResponse.json({ error: 'Nothing in this run is left to change.' }, { status: 409 });
   const ids = run.map((r) => r.id);
-  const notify = async (title: string, type: string, body: (when: string) => string, whenSource: string) => {
+  // `copy` names the notice's keys (noticeCopy.mjs); the time rides in as `when`, on the same clock.
+  const notify = async (title: string, type: string, body: (when: string) => string, whenSource: string, copy: { title: string; body: string; count?: number }) => {
     if (!o.session.client_id || !o.isCoach || o.session.client_id === o.userId) return;
     try {
-      const when = await memberClock(o.supabase, o.session.client_id, whenSource);
-      await createNotification(createAdminClient(), { userId: o.session.client_id, type, title, body: body(when), route: 'sessions', data: { sessionId: o.session.id, seriesId: sid } });
+      const { when, at: moment } = await memberMoment(o.supabase, o.session.client_id, whenSource);
+      const vars = { ...(copy.count != null ? { count: copy.count } : {}), when: moment };
+      await createNotification(createAdminClient(), { userId: o.session.client_id, type, title, body: body(when), route: 'sessions', data: { sessionId: o.session.id, seriesId: sid, copy: { title: np(copy.title), body: np(copy.body, vars) } } });
     } catch { /* best-effort */ }
   };
 
@@ -518,7 +536,8 @@ async function runFollowing(o: {
     const { error: updErr } = await o.supabase.from('sessions').update({ status: 'cancelled' }).in('id', ids);
     if (updErr) return dbError(updErr, 'session run cancel', 500);
     await notify(run.length === 1 ? 'Session cancelled' : 'Sessions cancelled', 'session_cancelled',
-      (when) => run.length === 1 ? `Your coach cancelled your session on ${when}.` : `Your coach cancelled ${run.length} sessions, from ${when} on.`, run[0].scheduled_at);
+      (when) => run.length === 1 ? `Your coach cancelled your session on ${when}.` : `Your coach cancelled ${run.length} sessions, from ${when} on.`, run[0].scheduled_at,
+      run.length === 1 ? { title: 'session.cancelled.title', body: 'session.cancelled.body' } : { title: 'session.cancelledMany.title', body: 'session.cancelledMany.body', count: run.length });
     return NextResponse.json({ ok: true, series: { id: sid, count: run.length } });
   }
 
@@ -562,7 +581,8 @@ async function runFollowing(o: {
     return dbError(moveErr, 'session run reschedule', 500);
   }
   await notify(run.length === 1 ? 'Session moved' : 'Sessions moved', 'session_rescheduled',
-    (when) => run.length === 1 ? `Your coach moved your session to ${when}.` : `Your coach moved ${run.length} sessions; the next is on ${when}.`, new Date(ats[0]).toISOString());
+    (when) => run.length === 1 ? `Your coach moved your session to ${when}.` : `Your coach moved ${run.length} sessions; the next is on ${when}.`, new Date(ats[0]).toISOString(),
+    run.length === 1 ? { title: 'session.moved.title', body: 'session.moved.body' } : { title: 'session.movedMany.title', body: 'session.movedMany.body', count: run.length });
   return NextResponse.json({ ok: true, series: { id: sid, count: run.length, sessions: run.map((r, i) => ({ id: r.id, scheduledAt: new Date(ats[i]).toISOString() })) } });
 }
 
@@ -741,12 +761,12 @@ export async function POST(request: Request) {
     try {
       // For a reschedule, the meaningful time is the NEW slot, not the old.
       const whenSource = action === 'reschedule' && newScheduledAt ? newScheduledAt : session.scheduled_at;
-      const when = await memberClock(supabase, session.client_id, whenSource);
+      const { when, at: moment } = await memberMoment(supabase, session.client_id, whenSource);
       const copy = {
-        confirm: { type: 'session_confirmed', title: 'Session confirmed', body: `Your coach confirmed your session on ${when}.` },
-        decline: { type: 'session_declined', title: 'Session declined', body: `Your coach couldn’t take the session on ${when}.` },
-        reschedule: { type: 'session_rescheduled', title: 'Session moved', body: `Your coach moved your session to ${when}.` },
-        cancel: { type: 'session_cancelled', title: 'Session cancelled', body: `Your coach cancelled your session on ${when}.` },
+        confirm: { type: 'session_confirmed', title: 'Session confirmed', body: `Your coach confirmed your session on ${when}.`, key: 'session.confirmed' },
+        decline: { type: 'session_declined', title: 'Session declined', body: `Your coach couldn’t take the session on ${when}.`, key: 'session.declined' },
+        reschedule: { type: 'session_rescheduled', title: 'Session moved', body: `Your coach moved your session to ${when}.`, key: 'session.moved' },
+        cancel: { type: 'session_cancelled', title: 'Session cancelled', body: `Your coach cancelled your session on ${when}.`, key: 'session.cancelled' },
       }[action as 'confirm' | 'decline' | 'reschedule' | 'cancel'];
       await createNotification(createAdminClient(), {
         userId: session.client_id,
@@ -754,7 +774,7 @@ export async function POST(request: Request) {
         title: copy.title,
         body: copy.body,
         route: 'sessions',
-        data: { sessionId: session.id },
+        data: { sessionId: session.id, copy: { title: np(`${copy.key}.title`), body: np(`${copy.key}.body`, { when: moment }) } },
       });
     } catch {
       /* best-effort */

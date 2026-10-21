@@ -166,8 +166,8 @@ function lower1(s) { const t = String(s || '').trim(); return t ? t.charAt(0).to
 // too"). `tr` is the member's translator over the app's catalogs (home:push.*), from their stored
 // language (notify-core memberCopy); with none, the English below is said exactly as before. say()
 // is the Shape Daily splash's T: the English it carries is already interpolated, so no ICU runs on
-// the fallback path, and a translator that answers nothing keeps the English. The coach's notices
-// (coachCopy) stay in English.
+// the fallback path, and a translator that answers nothing keeps the English. A coach's alert titles
+// and digest are said in the coach's language the same way (coachCopy, notice:coach.*).
 function sayWith(tr) {
   return (key, en, vars) => {
     if (typeof tr !== 'function') return en;
@@ -262,11 +262,21 @@ export function memberMoveLine(directive, opts) {
   if (lever === 'none') return say('home:push.onPace', "You're on pace. Keep the routine going.");
   return speakableDirective(d, o.tone);
 }
-function coachCopy(type, ctx) {
-  const who = ctx.clientName || 'A client';
+// A coach's alert, in the coach's language when `tr` is theirs (notice:coach.*, noticeCopy.mjs). The
+// reason is the engine's, as the coach's roster says it (ruling 13), so it stays as it came.
+function coachCopy(type, ctx, tr) {
+  const say = sayWith(tr);
+  const named = nonEmpty(ctx.clientName) ? ctx.clientName : '';
+  const who = named || 'A client';
   const reason = nonEmpty(ctx.reason) ? ctx.reason : '';
-  if (type === 'client_red') return { title: `${who} needs you`, body: reason || 'Flagged on your triage.' };
-  return { title: `${who} — worth a look`, body: reason || 'Edging amber on your triage.' };
+  const k = type === 'client_red' ? 'red' : 'amber';
+  const titleKey = `notice:coach.${k}.${named ? 'title' : 'titleAnon'}`;
+  const en = type === 'client_red' ? `${who} needs you` : `${who} — worth a look`;
+  return {
+    title: say(titleKey, en, named ? { client: named } : undefined),
+    titleCopy: { key: titleKey, vars: named ? { client: named } : null },
+    body: reason || say(`notice:coach.${k}.body`, type === 'client_red' ? 'Flagged on your triage.' : 'Edging amber on your triage.'),
+  };
 }
 
 // Final guard: we never ship shaming copy. If a body somehow trips the guard,
@@ -474,7 +484,7 @@ function finalizeClient(c, tone, tr) {
 // (routed to THIS pro by discipline) become notifications; the reason is the top
 // owned flag. lastSeverity (from state) suppresses re-firing while unchanged.
 export function coachCandidates(input) {
-  const { triageRows = [], lastSeverity = {} } = input;
+  const { triageRows = [], lastSeverity = {}, tr } = input;
   // The listing's role rides on the alert, so a coach with both listings opens the client in the
   // right app (the notification audit, 2026-10-15). A dietitian is on the nutritionist rails.
   const providerRole = input.providerRole === 'trainer' ? 'trainer' : input.providerRole === 'nutritionist' || input.providerRole === 'dietitian' ? 'nutritionist' : null;
@@ -493,8 +503,8 @@ export function coachCandidates(input) {
     const reason = (ownedFlags[0] && ownedFlags[0].reason) || row.reason || '';
     if (!nonEmpty(reason)) continue;              // honest: no reason → no notification
     const type = sev === 'red' ? 'client_red' : 'client_amber';
-    const copy = sanitize(coachCopy(type, { clientName: row.clientName, reason }));
-    out.push({ type, key: row.clientId, sig: `${sev}:${reason}`, priority: NOTIFY_TYPES[type].priority, route: 'client', data: { clientId: row.clientId, discipline: ownedFlags[0].discipline || null, ...(providerRole ? { providerRole } : {}) }, title: copy.title, body: copy.body, _severity: sev });
+    const copy = sanitize(coachCopy(type, { clientName: row.clientName, reason }, tr));
+    out.push({ type, key: row.clientId, sig: `${sev}:${reason}`, priority: NOTIFY_TYPES[type].priority, route: 'client', data: { clientId: row.clientId, discipline: ownedFlags[0].discipline || null, ...(providerRole ? { providerRole } : {}) }, title: copy.title, body: copy.body, ...(copy.titleCopy ? { titleCopy: copy.titleCopy } : {}), _severity: sev });
   }
   return out;
 }
@@ -707,8 +717,9 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
   if (!quiet && hadPending && items.length > 0) {
     const n = items.length;
     const pushes = pushRoom && wants('push');
-    // The member's digest is in their language, as its items are; a coach's stays in English.
-    const say = sayWith(audience === 'client' ? tr : null);
+    // The digest is in its reader's language, as its items are (a member's, and a coach's when the
+    // route passes the coach's translator).
+    const say = sayWith(tr);
     // ⚠ A HELD NOTICE IS TITLED AGAIN IN THE MEMBER'S LANGUAGE NOW (Codex on #2418). Its title was
     // said when it was queued, which may have been in another language or, for one held before
     // notices were translated, in English. One that carries its key is said again from it; one
