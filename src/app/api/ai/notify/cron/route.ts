@@ -72,7 +72,7 @@ async function run(request: Request) {
     const [last, settings, pushedToday] = await Promise.all([
       readUserGoal(admin, userId, 'notify_state'),
       readUserGoal(admin, userId, 'client_settings'),
-      loadPushedToday(admin, userId, now, prefs.tz),
+      loadPushedToday(admin, userId, now, prefs.capTz),
     ]);
     // ⚠ SPEC §3D. Turning Daily check-in off stopped the Home bulletin and nothing
     // else: the stored snapshot keeps its check-in state, so this cron kept nudging a

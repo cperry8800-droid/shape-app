@@ -484,7 +484,9 @@ function pruneStamps(types, now) {
 // engine's own count, as before. The digest is held to it too (below).
 export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false, pushedToday = null }) {
   const P = { ...DEFAULT_PREFS, ...prefs, matrix: { ...(prefs.matrix || {}) } };
-  const today = ymd(now, P.tz);
+  // The engine's own count resets on the cap's day (P.capTz, the habit cron's zone), the day the
+  // other senders' pushes are counted on; quiet hours below stay on P.tz.
+  const today = ymd(now, P.capTz || P.tz);
   const state = {
     date: today,
     sentToday: last.date === today ? (last.sentToday || 0) : 0,

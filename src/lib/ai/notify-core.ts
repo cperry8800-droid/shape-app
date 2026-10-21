@@ -29,7 +29,7 @@ export const Notify = NotifyLayer as unknown as {
   dailyCheckinOn: (v: unknown) => boolean;
 };
 
-export type Prefs = { muted: boolean; quietStart: number; quietEnd: number; tz: string; maxPerDay: number; tone: string; matrix: Record<string, Record<string, boolean>> };
+export type Prefs = { muted: boolean; quietStart: number; quietEnd: number; tz: string; capTz: string; maxPerDay: number; tone: string; matrix: Record<string, Record<string, boolean>> };
 export type HabitContext = { reminders: unknown[]; doneToday: string[] };
 
 function ymdInTz(now: Date, tz: string): string {
@@ -48,11 +48,14 @@ export async function loadPrefs(client: SupabaseClient, userId: string): Promise
     client.from('client_profiles').select('timezone').eq('user_id', userId).maybeSingle(),
   ]);
   const s = (settingsRes.data || {}) as { muted?: boolean; quiet_start?: number; quiet_end?: number; tz?: string; daily_cap?: number };
-  // ⚠ THE MEMBER'S DAY IS READ IN THE ZONE THE HABIT CRON USES (Codex on #2417): the profile's
-  // zone, which the app refreshes on sign-in, then the notification settings' zone, which moves
-  // only when settings are saved, then UTC. The daily cap is shared with /api/cron/habit-watch,
-  // so after travel two zones would date the same pushes on different days around either
-  // midnight, and each sender would grant its own allowance.
+  // ⚠ THE CAP'S DAY IS READ IN THE ZONE THE HABIT CRON USES (Codex on #2417): the profile's zone,
+  // which the app refreshes on sign-in, then the notification settings' zone, which moves only
+  // when settings are saved, then UTC. The daily cap is shared with /api/cron/habit-watch, so
+  // after travel two zones would date the same pushes on different days around either midnight,
+  // and each sender would grant its own allowance.
+  // ⚠ ONLY THE CAP'S DAY (Codex on #2417). Quiet hours stay on `tz`, the settings' zone, because
+  // push delivery checks them there (pushAllowed, push/dispatch/route.ts): read in another zone,
+  // the engine pushed what delivery then dropped as quiet, and never held it for the digest.
   const profileTz = normalizeZone((profileRes.data as { timezone?: string } | null)?.timezone);
   const matrix: Record<string, Record<string, boolean>> = {};
   for (const row of (prefsRes.data || []) as { type: string; channel: string; enabled: boolean }[]) {
@@ -62,7 +65,8 @@ export async function loadPrefs(client: SupabaseClient, userId: string): Promise
     muted: s.muted === true,
     quietStart: Number.isFinite(s.quiet_start) ? (s.quiet_start as number) : 22,
     quietEnd: Number.isFinite(s.quiet_end) ? (s.quiet_end as number) : 7,
-    tz: profileTz || normalizeZone(s.tz) || 'UTC',
+    tz: s.tz || 'UTC',
+    capTz: profileTz || normalizeZone(s.tz) || 'UTC',
     maxPerDay: Number.isFinite(s.daily_cap) ? (s.daily_cap as number) : 4,
     tone: (voice as { tone?: string }).tone === 'direct' ? 'direct' : 'supportive',
     matrix,

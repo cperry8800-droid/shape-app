@@ -36,15 +36,19 @@ export default {
     { name: "yesterday's pushes count today", file: CORE, find: " && ymdInTz(new Date(at), tz) === today) n += 1;", replace: ') n += 1;' },
     { name: "another person's pushes count", file: CORE, find: ".eq('user_id', userId).eq('data->channels->>push', 'true')", replace: ".eq('data->channels->>push', 'true')" },
     // ── The member's day (Codex on #2417: the habit cron's zone) ──
-    { name: 'the engine reads only the settings zone', file: CORE, find: "tz: profileTz || normalizeZone(s.tz) || 'UTC',", replace: "tz: normalizeZone(s.tz) || 'UTC'," },
-    { name: 'the settings zone beats the profile', file: CORE, find: "tz: profileTz || normalizeZone(s.tz) || 'UTC',", replace: "tz: normalizeZone(s.tz) || profileTz || 'UTC'," },
+    { name: "the cap's day is the settings zone only", file: CORE, find: "capTz: profileTz || normalizeZone(s.tz) || 'UTC',", replace: "capTz: normalizeZone(s.tz) || 'UTC'," },
+    { name: 'the settings zone beats the profile', file: CORE, find: "capTz: profileTz || normalizeZone(s.tz) || 'UTC',", replace: "capTz: normalizeZone(s.tz) || profileTz || 'UTC'," },
+    { name: "quiet hours move to the profile's zone", file: CORE, find: "    tz: s.tz || 'UTC',\n", replace: "    tz: profileTz || s.tz || 'UTC',\n" },
+    { name: "the engine's own count resets on the settings' day", file: GATE, find: 'const today = ymd(now, P.capTz || P.tz);', replace: 'const today = ymd(now, P.tz);' },
+    { name: "the live route counts the day's pushes on the settings' day", file: LIVE, find: 'now, prefs.capTz),', replace: 'now, prefs.tz),' },
+    { name: "the cron counts the day's pushes on the settings' day", file: CRON, find: 'now, prefs.capTz),', replace: 'now, prefs.tz),' },
     { name: "another person's profile zone is read", file: CORE, find: "client.from('client_profiles').select('timezone').eq('user_id', userId).maybeSingle()", replace: "client.from('client_profiles').select('timezone').maybeSingle()" },
     { name: 'a failed read counts as none', file: CORE, find: "counting this engine\\'s own', error.message); return null; }", replace: "counting this engine\\'s own', error.message); return 0; }" },
 
     // ── The routes ──
     { name: 'the live route leaves the day out', file: LIVE, find: 'Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday })', replace: 'Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut })' },
-    { name: 'the cron reads the day on its own round trip', file: CRON, find: "      loadPushedToday(admin, userId, now, prefs.tz),\n    ]);", replace: "    ]);\n    const pushedToday = await loadPushedToday(admin, userId, now, prefs.tz);" },
-    { name: 'the live route reads the day on its own round trip', file: LIVE, find: "    loadPushedToday(actor.supabase, actor.user.id, now, prefs.tz),\n  ]);", replace: "  ]);\n  const pushedToday = await loadPushedToday(actor.supabase, actor.user.id, now, prefs.tz);" },
+    { name: 'the cron reads the day on its own round trip', file: CRON, find: "      loadPushedToday(admin, userId, now, prefs.capTz),\n    ]);", replace: "    ]);\n    const pushedToday = await loadPushedToday(admin, userId, now, prefs.capTz);" },
+    { name: 'the live route reads the day on its own round trip', file: LIVE, find: "    loadPushedToday(actor.supabase, actor.user.id, now, prefs.capTz),\n  ]);", replace: "  ]);\n  const pushedToday = await loadPushedToday(actor.supabase, actor.user.id, now, prefs.capTz);" },
     { name: 'the cron leaves the day out', file: CRON, find: 'Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday })', replace: 'Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut })' },
   ],
 };

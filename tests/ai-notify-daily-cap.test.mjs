@@ -195,15 +195,34 @@ test('the cap counts and holds pushes only: an in-app-only alert neither takes a
 
 // Codex on #2417: the habit cron dates the shared cap in the profile's zone first, the engine read
 // only the notification settings' zone, so after travel the two senders counted different days.
-test("the engine reads the member's day in the habit cron's zone: profile, then settings, then UTC", async () => {
+// Only the cap's day moved: quiet hours stay on the settings' zone, where push delivery reads them.
+test("the cap's day is read in the habit cron's zone: profile, then settings, then UTC; quiet hours keep the settings' zone", async () => {
   const prefsWith = (tables) => core.loadPrefs(fakeSupabase({ tables }), 'ann');
   const settings = { notification_settings: [{ user_id: 'ann', tz: 'America/New_York' }] };
-  assert.equal((await prefsWith({ ...settings, client_profiles: [{ user_id: 'ann', timezone: 'Asia/Tokyo' }] })).tz, 'Asia/Tokyo');
-  assert.equal((await prefsWith({ ...settings })).tz, 'America/New_York', 'no profile zone falls back to the settings');
-  assert.equal((await prefsWith({ ...settings, client_profiles: [{ user_id: 'ann', timezone: 'Not/AZone' }] })).tz, 'America/New_York', 'an unusable profile zone is skipped');
-  assert.equal((await prefsWith({ client_profiles: [{ user_id: 'ben', timezone: 'Asia/Tokyo' }] })).tz, 'UTC', "another person's profile is not read");
+  const travelled = await prefsWith({ ...settings, client_profiles: [{ user_id: 'ann', timezone: 'Asia/Tokyo' }] });
+  assert.equal(travelled.capTz, 'Asia/Tokyo');
+  assert.equal(travelled.tz, 'America/New_York', 'quiet hours stay where push delivery reads them');
+  assert.equal((await prefsWith({ ...settings })).capTz, 'America/New_York', 'no profile zone falls back to the settings');
+  assert.equal((await prefsWith({ ...settings, client_profiles: [{ user_id: 'ann', timezone: 'Not/AZone' }] })).capTz, 'America/New_York', 'an unusable profile zone is skipped');
+  assert.equal((await prefsWith({ client_profiles: [{ user_id: 'ben', timezone: 'Asia/Tokyo' }] })).capTz, 'UTC', "another person's profile is not read");
   // The habit cron resolves the same order, so both senders date the cap alike.
   assert.match(read('src/app/api/cron/habit-watch/route.ts'), /const tzOf = \(u: string\) => personZone\.get\(u\) \|\| zone\(\(quietOf\.get\(u\) \|\| \{\}\)\.tz\) \|\| 'UTC';/);
+  for (const rel of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) {
+    assert.match(read(rel), /loadPushedToday\([^)]*, now, prefs\.capTz\)/, `${rel}: the day's pushes are counted on the cap's day`);
+  }
+});
+
+test("the engine's own count resets on the cap's day, and quiet hours are read on the settings' clock", () => {
+  // 15:00Z: 11 am on the 19th in New York, midnight starting the 20th in Tokyo.
+  const prefs = { tz: 'America/New_York', capTz: 'Asia/Tokyo', maxPerDay: 4 };
+  const yesterdaysFour = { date: '2026-10-19', sentToday: 4 };
+  const fresh = decideNotifications({ candidates: cands(), last: yesterdaysFour, prefs, now: DAY, audience: 'client' });
+  assert.equal(fresh.nextState.date, '2026-10-20', "the cap's day is Tokyo's");
+  assert.ok(fresh.send.length > 0, "yesterday's four no longer hold today's pushes back");
+  // 03:00Z: noon in Tokyo, 11 pm in New York, inside the settings' quiet hours (22 to 7).
+  const night = decideNotifications({ candidates: cands(), last: {}, prefs, now: new Date('2026-10-20T03:00:00Z'), audience: 'client' });
+  assert.equal(night.send.length, 0, 'held, as push delivery would hold it');
+  assert.ok(night.suppressed.every((x) => x.reason === 'quiet_hours'));
 });
 
 // Codex on #2417: new pushes were let in before the held digest, so a morning with a cap's worth of

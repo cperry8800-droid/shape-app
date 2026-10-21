@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   const [last, settings, pushedToday] = await Promise.all([
     readUserGoal(actor.supabase, actor.user.id, 'notify_state'),
     readUserGoal(actor.supabase, actor.user.id, 'client_settings'),
-    loadPushedToday(actor.supabase, actor.user.id, now, prefs.tz),
+    loadPushedToday(actor.supabase, actor.user.id, now, prefs.capTz),
   ]);
   const checkinOptedOut = !Notify.dailyCheckinOn(settings.dailyCheckin);
   const tone = prefs.tone;
