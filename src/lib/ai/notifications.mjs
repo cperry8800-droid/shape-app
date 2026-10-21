@@ -19,7 +19,9 @@
 //   • INFORMATIONAL ONLY — every item is a title/body + a deep-link route.
 //   • ROLE-SCOPED — client items address the client; coach items the coach.
 
-import { normalizeTone, containsShaming } from './tone.mjs';
+import { normalizeTone, containsShaming, speakableDirective } from './tone.mjs';
+import { bsLeadReason, bsFlagReason } from '../../../mobile-app/src/services/leadReason.mjs';
+import { BS_LEVER_HEADS, bsSleepLeadOk } from '../../../mobile-app/src/services/dailyWire.mjs';
 import { isEmailType, emailOnByDefault } from '../../../public/newdesign/notificationSurfaces.mjs';
 
 // type → { audience, priority, route, defaultOn }. Route is the in-app
@@ -41,6 +43,14 @@ export const NOTIFY_TYPES = {
 };
 
 export const CHANNELS = ['inapp', 'push', 'email'];
+// The member notices whose title takes no variable: one held before titles carried their key is
+// titled again from these when the digest goes out (decideNotifications).
+const FIXED_TITLE_KEYS = {
+  directive: 'home:push.moveTitle',
+  checkin_due: 'home:push.checkinTitle',
+  goal_slip: 'home:push.goalTitle',
+  score_drop: 'home:push.scoreTitle',
+};
 // Default channel matrix: opt-IN for high-value low-frequency types means in-app +
 // push on, email off everywhere by default. The per-habit reminder itself is the
 // opt-in (no reminders exist until the user makes one), so the TYPE gate is on so
@@ -152,32 +162,105 @@ function nonEmpty(s) { return typeof s === 'string' && s.trim().length > 0; }
 // ── copy (never shaming; supportive vs direct framing) ──────────────────────
 function lower1(s) { const t = String(s || '').trim(); return t ? t.charAt(0).toLowerCase() + t.slice(1) : t; }
 
-function clientCopy(type, ctx, tone) {
+// ⚠ A MEMBER'S NOTICE IS IN THEIR LANGUAGE (owner, 2026-10-21: "fix the push and bell row wording
+// too"). `tr` is the member's translator over the app's catalogs (home:push.*), from their stored
+// language (notify-core memberCopy); with none, the English below is said exactly as before. say()
+// is the Shape Daily splash's T: the English it carries is already interpolated, so no ICU runs on
+// the fallback path, and a translator that answers nothing keeps the English. The coach's notices
+// (coachCopy) stay in English.
+function sayWith(tr) {
+  return (key, en, vars) => {
+    if (typeof tr !== 'function') return en;
+    try {
+      const v = tr(key, Object.assign({ defaultValue: en }, vars || {}));
+      return v == null || v === '' || v === key ? en : String(v);
+    } catch (e) { return en; }
+  };
+}
+
+function clientCopy(type, ctx, tone, tr) {
   const t = normalizeTone(tone);
   const direct = t === 'direct';
+  const say = sayWith(tr);
+  // The title, and the key and variables it was said from: a notice held for the digest is titled
+  // again in the member's language when the digest goes out (Codex on #2418). A title whose
+  // variables hold a word this call translated (a default) is not held to its key, and keeps its text.
+  const titled = (key, en, vars, stable = true) => ({ title: say(key, en, vars), ...(stable ? { titleCopy: { key, vars: vars || null } } : {}) });
+  const reason = String(ctx.reason || '').trim();
   switch (type) {
     case 'directive':
-      // Reuse the engine's own line (verbatim) so notification === in-app text.
-      return { title: 'Your move today', body: String(ctx.line || '').trim() };
+      // Home's lead, said as Home says it (memberMoveLine), so notification === in-app text.
+      return { ...titled('home:push.moveTitle', 'Your move today'), body: String(ctx.line || '').trim() };
     case 'coach_message':
-      return { title: `${ctx.coach || 'Your coach'} sent you a note`, body: ctx.preview ? String(ctx.preview).slice(0, 140) : 'Open the thread to read it.' };
+      return {
+        ...(ctx.coach ? titled('home:push.noteTitle', `${ctx.coach} sent you a note`, { coach: ctx.coach }) : titled('home:push.noteTitleAnon', 'Your coach sent you a note')),
+        // The coach's own words, as they wrote them.
+        body: ctx.preview ? String(ctx.preview).slice(0, 140) : say('home:push.noteBody', 'Open the thread to read it.'),
+      };
     case 'checkin_due':
-      return { title: 'Your weekly check-in is ready', body: direct ? 'Two minutes to log the week.' : 'Whenever you have two minutes — a quick read on your week helps.' };
+      return { ...titled('home:push.checkinTitle', 'Your weekly check-in is ready'), body: direct ? say('home:push.checkinDirect', 'Two minutes to log the week.') : say('home:push.checkinSupportive', 'Whenever you have two minutes — a quick read on your week helps.') };
     case 'goal_slip':
-      return { title: `Your ${ctx.goalLabel || 'goal'} pace eased off`, body: direct ? `Projected date moved out. ${ctx.reason || ''}`.trim() : `The pace dipped a little — a small adjust brings the date back. ${ctx.reason || ''}`.trim() };
+      // The reason names the goal that slipped (bsFlagReason), so the title does not: it named the
+      // member's first goal, which need not be the one that slipped.
+      return {
+        ...titled('home:push.goalTitle', 'Your goal pace eased off'),
+        body: (direct ? say('home:push.goalDirect', `Projected date moved out. ${reason}`, { reason }) : say('home:push.goalSupportive', `The pace dipped a little — a small adjust brings the date back. ${reason}`, { reason })).trim(),
+      };
     case 'score_drop':
-      return { title: 'Your Shape Score dipped this week', body: direct ? `${ctx.reason || ''}`.trim() || 'One thing moves it back.' : `It happens — here's the one thing that moves it back. ${ctx.reason || ''}`.trim() };
-    case 'coach_cosign':
-      return { title: `${ctx.coach || 'Your coach'} co-signed your ${ctx.activity || 'session'}`, body: direct ? 'Logged.' : 'Nice work — your coach noticed.' };
+      return {
+        ...titled('home:push.scoreTitle', 'Your Shape Score dipped this week'),
+        body: direct ? (reason || say('home:push.scoreDirectBare', 'One thing moves it back.')) : say('home:push.scoreSupportive', `It happens — here's the one thing that moves it back. ${reason}`, { reason }).trim(),
+      };
+    case 'coach_cosign': {
+      const activity = ctx.activity || say('home:push.cosignActivity', 'session');
+      return {
+        ...(ctx.coach ? titled('home:push.cosignTitle', `${ctx.coach} co-signed your ${activity}`, { coach: ctx.coach, activity }, !!ctx.activity) : titled('home:push.cosignTitleAnon', `Your coach co-signed your ${activity}`, { activity }, !!ctx.activity)),
+        body: direct ? say('home:push.cosignDirect', 'Logged.') : say('home:push.cosignSupportive', 'Nice work — your coach noticed.'),
+      };
+    }
     case 'streak_broken':
       // Explicitly NOT streak-shaming.
-      return { title: `Ready to restart your ${ctx.habit || 'habit'}?`, body: direct ? 'Pick it back up today.' : 'No streak-shaming — just a clean restart whenever you are.' };
+      return {
+        ...(ctx.habit ? titled('home:push.streakTitleHabit', `Ready to restart your ${ctx.habit}?`, { habit: ctx.habit }) : titled('home:push.streakTitle', 'Ready to restart your habit?')),
+        body: direct ? say('home:push.streakDirect', 'Pick it back up today.') : say('home:push.streakSupportive', 'No streak-shaming — just a clean restart whenever you are.'),
+      };
     case 'habit_reminder':
       // Gentle + encouraging, NEVER "you still haven't…". Just the cue.
-      return { title: `Time for: ${ctx.label || 'your habit'}`, body: direct ? 'Tap to log it.' : 'A quick nudge — tap to check it off.' };
+      return {
+        ...titled('home:push.habitTitle', `Time for: ${ctx.label || 'your habit'}`, { label: ctx.label || say('home:push.habitAnon', 'your habit') }, !!ctx.label),
+        body: direct ? say('home:push.habitDirect', 'Tap to log it.') : say('home:push.habitSupportive', 'A quick nudge — tap to check it off.'),
+      };
     default:
       return { title: 'Update', body: String(ctx.reason || '') };
   }
+}
+
+// THE MEMBER'S MOVE, AS HOME LEADS WITH IT: the lever's head and the reason in the member's words,
+// language and units (bsLeadReason), the sentence Home and the Shape Daily splash say. It used to be
+// the engine's English verdict, reason and move (speakableDirective), so a metric member read "1L of
+// a 2.5L water target", the check-in named an ISO date, and every locale read English.
+// `opts`: { tr, locale, metric, tone } — `tr` the member's translator, `locale` the Intl locale,
+// `metric` their units preference. Without a translator, or for a move Home does not lead with (a
+// coach's own lever it has no head for), the line is the engine's, as before. On pace, Home leads
+// with the day's plan instead, so the notice says only that.
+export function memberMoveLine(directive, opts) {
+  const d = directive || {};
+  const o = opts || {};
+  const tr = typeof o.tr === 'function' ? o.tr : null;
+  if (!tr) return speakableDirective(d, o.tone);
+  const say = sayWith(tr);
+  const lever = d.lever;
+  const en = lever && Object.prototype.hasOwnProperty.call(BS_LEVER_HEADS, lever) ? BS_LEVER_HEADS[lever] : null;
+  if (en && (lever !== 'sleep' || bsSleepLeadOk(d))) {
+    // The same key Home's engineMove map and the splash read (home:lead.<lever>.head).
+    const head = say('home:lead.' + lever + '.head', en);
+    let reason = null;
+    try { reason = bsLeadReason(d, tr, { locale: o.locale, metric: o.metric === true }); } catch (e) { reason = d.reason; }
+    const why = typeof reason === 'string' && reason.trim() && reason.trim() !== '—' ? reason.trim() : '';
+    return why ? head + ' ' + why : head;
+  }
+  if (lever === 'none') return say('home:push.onPace', "You're on pace. Keep the routine going.");
+  return speakableDirective(d, o.tone);
 }
 function coachCopy(type, ctx) {
   const who = ctx.clientName || 'A client';
@@ -190,7 +273,8 @@ function coachCopy(type, ctx) {
 // drop the body (keep the neutral title) rather than send a guilt-trip.
 function sanitize(copy) {
   const out = { title: copy.title, body: copy.body };
-  if (containsShaming(out.title)) out.title = 'Update';
+  if (copy.titleCopy) out.titleCopy = copy.titleCopy;
+  if (containsShaming(out.title)) { out.title = 'Update'; delete out.titleCopy; }
   if (containsShaming(out.body)) out.body = '';
   return out;
 }
@@ -310,7 +394,12 @@ function releaseDedup(types, item, kept) {
 
 // CLIENT — from a directive + evaluateClient flags + check-in state + coach events.
 export function clientCandidates(input) {
-  const { directive, flags = [], checkinDueThisWeek, checkinOptedOut = false, coachEvents = [], goals = [], now = new Date(), tone } = input;
+  const { directive, flags = [], checkinDueThisWeek, checkinOptedOut = false, coachEvents = [], now = new Date(), tone, tr, locale, metric } = input;
+  // A flag's reason in the member's words (bsFlagReason), or the engine's when there is no translator.
+  const said = (f) => {
+    if (typeof tr !== 'function') return f.reason;
+    try { return bsFlagReason(f, tr, { locale, metric: metric === true }) || f.reason; } catch (e) { return f.reason; }
+  };
   const wk = weekKey(now);
   const out = [];
 
@@ -344,10 +433,11 @@ export function clientCandidates(input) {
   for (const f of flags) if (f && f.key) byKey[f.key] = f;
 
   if (byKey.streak_broken) out.push({ type: 'streak_broken', key: 'self', sig: `${byKey.streak_broken.reason || 'broken'}:${wk}`, priority: 'low', ctx: { habit: byKey.streak_broken.habit, reason: byKey.streak_broken.reason } });
-  if (byKey.score_drop)    out.push({ type: 'score_drop',    key: 'self', sig: `${byKey.score_drop.reason || 'drop'}:${wk}`, priority: 'med', ctx: { reason: byKey.score_drop.reason } });
+  if (byKey.score_drop)    out.push({ type: 'score_drop',    key: 'self', sig: `${byKey.score_drop.reason || 'drop'}:${wk}`, priority: 'med', ctx: { reason: said(byKey.score_drop) } });
+  // ⚠ THE SIGNATURES KEEP THE ENGINE'S ENGLISH REASON: a member who changes language is not sent
+  // the same slip again.
   if (byKey.goal_slip) {
-    const g = goals[0] || {};
-    out.push({ type: 'goal_slip', key: 'self', sig: `${byKey.goal_slip.reason || 'slip'}:${wk}`, priority: 'med', ctx: { goalLabel: g.label, reason: byKey.goal_slip.reason } });
+    out.push({ type: 'goal_slip', key: 'self', sig: `${byKey.goal_slip.reason || 'slip'}:${wk}`, priority: 'med', ctx: { reason: said(byKey.goal_slip) } });
   }
   // due weekly check-in (engine flag OR an explicit "due" signal)
   // ⚠ SPEC §3D — a member who turned Daily check-in OFF is never nudged about it, and
@@ -371,13 +461,13 @@ export function clientCandidates(input) {
   }
 
   // build copy + route + data, drop honest-empty
-  return out.map((c) => finalizeClient(c, tone)).filter(Boolean);
+  return out.map((c) => finalizeClient(c, tone, tr)).filter(Boolean);
 }
-function finalizeClient(c, tone) {
+function finalizeClient(c, tone, tr) {
   const meta = NOTIFY_TYPES[c.type];
-  const copy = sanitize(clientCopy(c.type, c.ctx, tone));
+  const copy = sanitize(clientCopy(c.type, c.ctx, tone, tr));
   if (!nonEmpty(copy.title)) return null;
-  return { type: c.type, key: c.key, sig: c.sig, priority: c.priority || meta.priority, route: meta.route, data: c.data || {}, title: copy.title, body: copy.body };
+  return { type: c.type, key: c.key, sig: c.sig, priority: c.priority || meta.priority, route: meta.route, data: c.data || {}, title: copy.title, body: copy.body, ...(copy.titleCopy ? { titleCopy: copy.titleCopy } : {}) };
 }
 
 // COACH — from getTriageFeed(role, clients) rows. Only OWNED red/amber rows
@@ -416,7 +506,7 @@ export function coachCandidates(input) {
 // per-channel gate + quiet hours + cap still apply downstream (so multiple habits
 // batch into the digest, never spam).
 export function habitReminderCandidates(input) {
-  const { reminders = [], doneToday = [], now = new Date(), tone } = input;
+  const { reminders = [], doneToday = [], now = new Date(), tone, tr } = input;
   const done = new Set((doneToday || []).map((x) => String(x)));
   const out = [];
   for (const r of reminders) {
@@ -430,8 +520,8 @@ export function habitReminderCandidates(input) {
     const hh = parseInt(parts[0], 10) || 0, mm = parseInt(parts[1], 10) || 0;
     const h = localHour(now, tz), m = localMinute(now, tz);
     if (!(h > hh || (h === hh && m >= mm))) continue;                // time not reached yet (never early)
-    const copy = clientCopy('habit_reminder', { label: r.label }, tone);
-    out.push({ type: 'habit_reminder', key: r.habitId, sig: `${r.habitId}:${ymd(now, tz)}`, priority: 'med', route: 'habits', data: { habitId: r.habitId }, title: copy.title, body: copy.body });
+    const copy = clientCopy('habit_reminder', { label: r.label }, tone, tr);
+    out.push({ type: 'habit_reminder', key: r.habitId, sig: `${r.habitId}:${ymd(now, tz)}`, priority: 'med', route: 'habits', data: { habitId: r.habitId }, title: copy.title, body: copy.body, ...(copy.titleCopy ? { titleCopy: copy.titleCopy } : {}) });
   }
   return out;
 }
@@ -476,7 +566,7 @@ function pruneStamps(types, now) {
   return out;
 }
 
-export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false }) {
+export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false, tr }) {
   const P = { ...DEFAULT_PREFS, ...prefs, matrix: { ...(prefs.matrix || {}) } };
   const today = ymd(now, P.tz);
   const state = {
@@ -554,7 +644,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     );
     if (delivered || queued) { suppressed.push({ type: c.type, reason: 'duplicate' }); continue; }
 
-    const item = { type: c.type, title: c.title, body: c.body, route: c.route, data: c.data || {}, priority: c.priority, channels: ch };
+    const item = { type: c.type, title: c.title, body: c.body, route: c.route, data: c.data || {}, priority: c.priority, channels: ch, ...(c.titleCopy ? { titleCopy: c.titleCopy } : {}) };
 
     const overCap = state.sentToday >= (P.maxPerDay || DEFAULT_PREFS.maxPerDay);
     const lowPri = c.priority === 'low';
@@ -582,10 +672,22 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
   if (!quiet && hadPending && state.pendingDigest.length > 0) {
     const items = state.pendingDigest;
     const n = items.length;
+    // The member's digest is in their language, as its items are; a coach's stays in English.
+    const say = sayWith(audience === 'client' ? tr : null);
+    // ⚠ A HELD NOTICE IS TITLED AGAIN IN THE MEMBER'S LANGUAGE NOW (Codex on #2418). Its title was
+    // said when it was queued, which may have been in another language or, for one held before
+    // notices were translated, in English. One that carries its key is said again from it; one
+    // held before titles carried a key is said again only where its type's title takes nothing.
+    const retitle = (i) => {
+      const tc = i && i.titleCopy;
+      if (tc && typeof tc.key === 'string') return say(tc.key, i.title, tc.vars || undefined);
+      const key = i && FIXED_TITLE_KEYS[i.type];
+      return key ? say(key, i.title) : i.title;
+    };
     digest = {
       type: 'digest',
-      title: n === 1 ? '1 update for you' : `${n} updates for you`,
-      body: items.slice(0, 3).map((i) => i.title).join(' · ') + (n > 3 ? ` +${n - 3} more` : ''),
+      title: say('home:push.digestTitle', n === 1 ? '1 update for you' : `${n} updates for you`, { count: n }),
+      body: items.slice(0, 3).map(retitle).join(' · ') + (n > 3 ? ' ' + say('home:push.digestMore', `+${n - 3} more`, { count: n - 3 }) : ''),
       route: audience === 'coach' ? 'clients' : 'home',
       data: { items: items.map((i) => ({ type: i.type, route: i.route, data: i.data })) },
       priority: 'low',

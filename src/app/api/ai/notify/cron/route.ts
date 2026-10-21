@@ -17,7 +17,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { dbError } from '@/lib/request-utils';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, Notify, type Snapshot } from '@/lib/ai/notify-core';
+import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, memberCopy, Notify, type Snapshot } from '@/lib/ai/notify-core';
 import { isCoachRole } from '@/lib/roles.mjs';
 
 export const runtime = 'nodejs';
@@ -67,9 +67,11 @@ async function run(request: Request) {
     if (prefs.muted) continue;                          // honor master mute
     // ⚠ Read alongside `notify_state` rather than in a second round trip: this loop
     // runs for up to BATCH users, so an extra sequential query per user is real cost.
-    const [last, settings] = await Promise.all([
+    const [last, settings, localeDoc] = await Promise.all([
       readUserGoal(admin, userId, 'notify_state'),
       readUserGoal(admin, userId, 'client_settings'),
+      // The member's language: their notices are in it, in their units (memberCopy).
+      readUserGoal(admin, userId, 'app_locale'),
     ]);
     // ⚠ SPEC §3D. Turning Daily check-in off stopped the Home bulletin and nothing
     // else: the stored snapshot keeps its check-in state, so this cron kept nudging a
@@ -81,9 +83,10 @@ async function run(request: Request) {
     // The coach's own office-settings tuning (R14), so the cron's alerts agree with
     // the roster the same thresholds produce on their dashboard.
     const thresholds = isCoach ? await loadCoachThresholds(admin, userId) : null;
+    const copy = isCoach ? null : memberCopy(localeDoc, settings);
 
-    const { audience, candidates } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds });
-    const { send, digest, nextState } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut });
+    const { audience, candidates } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy });
+    const { send, digest, nextState } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, tr: copy?.tr });
     const items = digest ? [...send, digest] : send;
     if (items.length) { await deliver(admin, userId, items); delivered += items.length; }
     await writeUserGoal(admin, userId, 'notify_state', nextState);

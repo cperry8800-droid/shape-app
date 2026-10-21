@@ -352,12 +352,13 @@ test('the splash line through the real bsCiLeadReason: the card\'s words in the 
   }
 });
 
-// ⚠ THE TWO NOTES ON WHO KEEPS THE ENGINE'S ENGLISH SAY THE SAME THING. The card's note on
-// bsCiLeadReason and the engine's on MEMBER_VITALS_WORDS each name what has no locale. The splash
-// says the card's words now (the test above), so neither may list it there, or the next editor
-// takes the splash's opts.reason for dead weight (review on this PR: the card's note still read
-// "the push, the bell, the splash").
-test('the card\'s and the engine\'s notes agree: the push and the bell row keep the English, the splash says the card\'s words', async () => {
+// ⚠ THE TWO NOTES ON WHO SAYS THE MEMBER'S REASON SAY THE SAME THING. The shared module's note on
+// bsLeadReason and the engine's on MEMBER_VITALS_WORDS each name who says the line from the catalog.
+// The splash says the card's words (the test above), and so do the push and the bell row since they
+// were translated (owner, 2026-10-21: "fix the push and bell row wording too"), so neither note may
+// say any of them keeps the engine's English, or the next editor takes the server's translator for
+// dead weight (an earlier review: the card's note still read "the push, the bell, the splash").
+test('the module\'s and the engine\'s notes agree: Home, the splash, the push and the bell row say the card\'s words', async () => {
   const fs = await import('node:fs');
   // The run of // lines right above the anchor, joined into one sentence.
   const noteAbove = (file, anchor) => {
@@ -369,20 +370,19 @@ test('the card\'s and the engine\'s notes agree: the push and the bell row keep 
     return lines.slice(from, at).map((l) => l.replace(/^\s*\/\/\s?/, '')).join(' ');
   };
   const notes = {
-    card: noteAbove('mobile-app/src/broadsheet/BSCheckinCard.jsx', 'export function bsCiLeadReason('),
+    module: noteAbove('mobile-app/src/services/leadReason.mjs', 'export function bsLeadReason('),
     engine: noteAbove('public/newdesign/dashSignals.js', 'var MEMBER_VITALS_WORDS = {'),
   };
   for (const [who, note] of Object.entries(notes)) {
-    const keeps = note.match(/has no locale:?\s*\(?([^.)]*)/);
-    assert.ok(keeps, `the ${who} note no longer says what has no locale`);
-    assert.match(keeps[1], /\bpush\b/, `${who}: ${keeps[1]}`);
-    assert.match(keeps[1], /\bbell\b/, `${who}: ${keeps[1]}`);
-    assert.doesNotMatch(keeps[1], /splash/i, `the ${who} note lists the splash as having no locale: ${keeps[1]}`);
+    assert.doesNotMatch(note, /has no locale/, `the ${who} note still says something keeps the engine's English: ${note}`);
     assert.match(note, /Shape Daily splash/, `the ${who} note no longer says the splash says the card's words`);
+    assert.match(note, /\bpush\b/, `the ${who} note no longer names the push`);
+    assert.match(note, /\bbell\b/, `the ${who} note no longer names the bell row`);
+    assert.match(note, /memberMoveLine/, `the ${who} note no longer names the server's call`);
   }
-  // The card's note names the way the splash gets its words, the call the BSSplash test pins.
-  assert.match(notes.card, /bsWireLines' opts\.reason in iosAppBroadsheetMain\.jsx/);
-  assert.match(notes.engine, /BSCheckinCard\.jsx bsCiLeadReason/);
+  // The module's note names the way the splash gets its words, the call the BSSplash test pins.
+  assert.match(notes.module, /bsWireLines' opts\.reason in iosAppBroadsheetMain\.jsx/);
+  assert.match(notes.engine, /leadReason\.mjs bsLeadReason/);
 });
 
 test('the card Main now imports reads no window while it is evaluated, and imports neither shell', async () => {

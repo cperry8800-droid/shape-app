@@ -1729,10 +1729,14 @@ test("the five words come from one list with every key written out, and the card
   for (const [k, dv] of seen) assert.equal(dv, en[k.slice('home:'.length)], `${k}'s fallback is not the catalog's`);
   // In the member's language: the real catalog through the card's translator.
   assert.equal(CARD.bsCiWords(trEn).R[3], 'Rested');
-  // One source: the card reads its words from the list, never from keys of its own.
+  // One source: the list lives in the shared module the server reads too (leadReason.mjs), the card
+  // re-exports it and reads its words from it, never from keys of its own.
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSCheckinCard.jsx'), 'utf8');
-  assert.doesNotMatch(src, /home:checkin\.[ehr]\$\{/, 'a word key is built from a template, which the i18n gates cannot check');
-  for (const [k] of seen) assert.equal(src.split(`'${k}'`).length - 1, 1, `${k} is asked for in more than one place`);
+  const shared = readFileSync(join(ROOT, 'mobile-app/src/services/leadReason.mjs'), 'utf8');
+  for (const s of [src, shared]) assert.doesNotMatch(s, /home:checkin\.[ehr]\$\{/, 'a word key is built from a template, which the i18n gates cannot check');
+  for (const [k] of seen) assert.equal(shared.split(`'${k}'`).length - 1, 1, `${k} is asked for in more than one place`);
+  for (const [k] of seen) assert.equal(src.split(`'${k}'`).length - 1, 0, `the card asks for ${k} itself`);
+  assert.match(src, /^import \{[^}]*\bbsCiWords\b[^}]*\} from '\.\.\/services\/leadReason\.mjs';$/m);
   assert.match(src, /const \{ E, H, R \} = bsCiWords\(tr\);/);
   // Readiness's bands, keyed as morningReadiness.mjs keys them.
   assert.deepEqual(CARD.bsCiBandWords(trEn), { ready: 'Ready', steady: 'Steady', easy: 'Take it easy', low: 'Run down' });

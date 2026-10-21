@@ -6,24 +6,32 @@
 // slip) recompute against `now`, so the cron surfaces genuinely-new, real events
 // from a stored snapshot without the app being open. No data is mutated.
 
-import { speakableDirective } from '@/lib/ai/tone.mjs';
 import * as NotifyLayer from '@/lib/ai/notifications.mjs';
+import { makeMemberCopy, memberLocaleCode } from '@/lib/ai/memberTranslator.mjs';
+import { MEMBER_HOME_CATALOGS } from '@/lib/ai/memberCatalogs';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { createNotification } from '@/lib/notify';
 import { sendEmail } from '@/lib/email';
 import type { SupabaseClient } from '@supabase/supabase-js';
 // The pure UMD engine (module.exports = api); imported directly (no window in Node).
 import DashSignals from '../../../public/newdesign/dashSignals.js';
+import { bsUnitsMetric } from '../../../mobile-app/src/services/leadReason.mjs';
 
 export type Candidate = { type: string; title: string; body: string; route: string; data: Record<string, unknown>; priority: string };
 export type DecideResult = { send: Candidate[]; digest: Candidate | null; nextState: Record<string, unknown>; suppressed: { type: string; reason: string }[] };
 export type Snapshot = { role?: string; tz?: string; record?: Record<string, unknown>; clients?: unknown[]; at?: number };
 
+export type Translate = (key: string, opts?: Record<string, unknown>) => string;
+// The member's notices in their language and units: `tr` their translator, `locale` the Intl locale,
+// `metric` their units preference (memberCopy, below).
+export type MemberCopy = { code: string; locale: string; metric: boolean; tr: Translate };
+
 export const Notify = NotifyLayer as unknown as {
+  memberMoveLine: (directive: unknown, opts: { tr?: Translate; locale?: string; metric?: boolean; tone?: string }) => string;
   clientCandidates: (input: Record<string, unknown>) => Candidate[];
   coachCandidates: (input: Record<string, unknown>) => Candidate[];
   habitReminderCandidates: (input: Record<string, unknown>) => Candidate[];
-  decideNotifications: (input: { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean }) => DecideResult;
+  decideNotifications: (input: { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; tr?: Translate }) => DecideResult;
   DEFAULT_PREFS: Record<string, unknown>;
   dailyCheckinOn: (v: unknown) => boolean;
 };
@@ -75,6 +83,15 @@ export async function loadHabitContext(client: SupabaseClient, userId: string, n
   return { reminders, doneToday };
 }
 
+// ⚠ A MEMBER'S NOTICES ARE IN THEIR LANGUAGE AND UNITS (owner, 2026-10-21: "fix the push and bell row
+// wording too"). The language is the one the app stores for the account (user_goals 'app_locale'), and
+// the units the Settings preference both routes already read (client_settings.units). One translator
+// per language, built once per server instance. A coach's notices stay in English.
+const copyFor = makeMemberCopy(MEMBER_HOME_CATALOGS) as (code: string, metric: boolean) => MemberCopy;
+export function memberCopy(localeDoc: Record<string, unknown>, settings: Record<string, unknown>): MemberCopy {
+  return copyFor(memberLocaleCode(localeDoc), bsUnitsMetric(settings && settings.units));
+}
+
 type Directive = { verdict: string; reason: string; action: { label: string; kind: string } | null; read: { summary30d: string; oneThingNow: string }; cited?: string[] };
 type Flag = { key: string; label: string; reason: string; owned?: boolean; discipline?: string };
 type TriageRow = { client: { userId?: string; id?: string; profile?: { name?: string } }; severity: string; flags: Flag[]; reasons: string[] };
@@ -106,6 +123,8 @@ export function candidatesFor(
     // process, and a global would let one coach's tuning decide another's alerts.
     // A caller that omits it gets house policy, which is the safe default.
     thresholds?: Record<string, number> | null;
+    // The member's language and units (memberCopy). A caller that omits it gets the English notices.
+    copy?: MemberCopy | null;
   },
 ): { audience: 'client' | 'coach'; candidates: Candidate[] } {
   const role = snapshot.role || '';
@@ -124,7 +143,9 @@ export function candidatesFor(
   const record = snapshot.record;
   if (record && typeof record === 'object') {
     const directive = engine.buildDirective(record, opts.now, 'client');
-    const line = speakableDirective(directive, opts.tone);
+    const copy = opts.copy || null;
+    // Home's lead, in the member's words (memberMoveLine); the engine's English line without a copy.
+    const line = Notify.memberMoveLine(directive, { tr: copy?.tr, locale: copy?.locale, metric: copy?.metric, tone: opts.tone });
     const { flags } = engine.evaluateClient(record, opts.now, 'client');
     candidates.push(...Notify.clientCandidates({
       directive: { ...directive, line },
@@ -137,11 +158,14 @@ export function candidatesFor(
       // instant rather than the wall clock this function would otherwise default to.
       now: opts.now,
       tone: opts.tone,
+      tr: copy?.tr,
+      locale: copy?.locale,
+      metric: copy?.metric,
     }));
   }
   // user-scheduled habit reminders (suppressed when done / snoozed inside the layer)
   if (opts.habitContext) {
-    candidates.push(...Notify.habitReminderCandidates({ reminders: opts.habitContext.reminders, doneToday: opts.habitContext.doneToday, now: opts.now, tone: opts.tone }));
+    candidates.push(...Notify.habitReminderCandidates({ reminders: opts.habitContext.reminders, doneToday: opts.habitContext.doneToday, now: opts.now, tone: opts.tone, tr: opts.copy?.tr }));
   }
   return { audience: 'client', candidates };
 }
