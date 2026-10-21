@@ -23,8 +23,11 @@ const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 const core = await loadRealModule(join(ROOT, 'src/lib/ai/notify-core.ts'), {
   typescript: true,
   registry: new Map([
-    ['@/lib/ai/tone.mjs', await import('../src/lib/ai/tone.mjs')],
     ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')],
+    // The member's language (#2418): loadPrefs and loadPushedToday don't use it.
+    ['@/lib/ai/memberTranslator.mjs', { makeMemberCopy: () => () => null, memberLocaleCode: () => 'en' }],
+    ['@/lib/ai/memberCatalogs', { MEMBER_HOME_CATALOGS: {} }],
+    ['../../../mobile-app/src/services/leadReason.mjs', await import('../mobile-app/src/services/leadReason.mjs')],
     ['@/lib/roles.mjs', await import('../src/lib/roles.mjs')],
     ['@/lib/notify', { createNotification: async () => true }],
     ['@/lib/email', { sendEmail: async () => ({ ok: true }) }],
@@ -94,9 +97,9 @@ test('both the live route and the cron read the day before deciding', () => {
   for (const rel of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) {
     const src = read(rel);
     // Codex on #2417: in the same batch as the other per-person reads, not a round trip of its own.
-    assert.match(src, /const \[last, settings, pushedToday\] = await Promise\.all\(\[[^\]]*loadPushedToday\(/, rel);
+    assert.match(src, /const \[last, settings, [^\]]*\bpushedToday\] = await Promise\.all\(\[[^\]]*loadPushedToday\(/, rel);
     assert.doesNotMatch(src, /await loadPushedToday\(/, `${rel}: no read of its own`);
-    assert.match(src, /Notify\.decideNotifications\(\{ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday \}\)/, rel);
+    assert.match(src, /Notify\.decideNotifications\(\{ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday[,} ]/, rel);
     assert.ok(src.indexOf('loadPushedToday(') < src.indexOf('Notify.decideNotifications('), `${rel}: the count is read first`);
   }
 });

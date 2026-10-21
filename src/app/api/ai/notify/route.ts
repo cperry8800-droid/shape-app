@@ -18,7 +18,7 @@ import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadPushedToday, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
+import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadPushedToday, memberCopy, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { requireMembership } from '@/lib/require-membership';
 
@@ -42,9 +42,11 @@ export async function POST(request: Request) {
   // The person's one daily limit counts every push of their day, not only this engine's; read
   // in the same batch rather than a round trip of its own.
   const now = new Date();
-  const [last, settings, pushedToday] = await Promise.all([
+  const [last, settings, localeDoc, pushedToday] = await Promise.all([
     readUserGoal(actor.supabase, actor.user.id, 'notify_state'),
     readUserGoal(actor.supabase, actor.user.id, 'client_settings'),
+    // The member's language: their notices are in it, in their units (memberCopy).
+    readUserGoal(actor.supabase, actor.user.id, 'app_locale'),
     loadPushedToday(actor.supabase, actor.user.id, now, prefs.capTz),
   ]);
   const checkinOptedOut = !Notify.dailyCheckinOn(settings.dailyCheckin);
@@ -82,8 +84,9 @@ export async function POST(request: Request) {
   // The coach's office-settings tuning drives the same engine these candidates come
   // from, so the alerts agree with the roster that produced them (R14).
   const thresholds = isCoach ? await loadCoachThresholds(actor.supabase, actor.user.id) : null;
-  const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds });
-  const { send, digest, nextState, suppressed } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday });
+  const copy = isCoach ? null : memberCopy(localeDoc, settings);
+  const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy });
+  const { send, digest, nextState, suppressed } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr });
 
   // Persist the dedup/cap state BEFORE delivering. Delivery + state aren't one
   // transaction, so we must choose a failure direction: writing state first means

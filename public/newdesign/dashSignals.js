@@ -484,10 +484,11 @@
   // Each returns a flag { key, reason } or null. `now` is a Date.
   // ⚠ A FLAG THE MEMBER CAN LEAD WITH ALSO CARRIES `figures`: the numbers (and the date or the
   // goal's own name) its reason was built from, never a formatted string. The reason stays English
-  // for every reader that has no locale; the member's own directive copies the figures into
-  // `evidence` (buildDirective), and the app says the same thing from them in the member's
-  // language and units (BSCheckinCard.jsx bsCiLeadReason). tagFlag never copies them, so no coach
-  // row or coach push sees them.
+  // for coaches and for a caller with no translator; the member's own directive copies the figures
+  // into `evidence` (buildDirective), and Home, the splash and the member's push say the same thing
+  // from them in the member's language and units (leadReason.mjs bsLeadReason, which the
+  // notification layer's goal-slip and Score-dip notices read off the flag too). tagFlag never
+  // copies them, so no coach row or coach push sees them.
 
   function ruleStreakBroken(c) {
     var s = c.streaks;
@@ -750,13 +751,14 @@
   // view (disciplineForRole 'general') says the word instead; a coach keeps the figure byte for
   // byte, because the roster, the case file, the coach Today read and the coach pushes (whose
   // signature holds the reason) all read it.
-  // An average becomes a word by the card's one rule (BSCheckinCard.jsx bsCiWordIndex: (2i, 2i+2]
+  // An average becomes a word by the card's one rule (leadReason.mjs bsCiWordIndex: (2i, 2i+2]
   // is word i), so the edges sit on ENERGY_LOW_AVG (4) and HUNGER_HIGH_AVG (8): a flagged week
   // reads Drained or Low, Hungry or Starving, never OK or Normal. Rounding to the nearest stored
   // value instead would call a 4.6 week Low with no flag behind it.
-  // These English words serve what has no locale: the push and the bell row it leaves. Home and
-  // the Shape Daily splash compose their own line from the app's catalog out of
-  // directive.evidence (BSCheckinCard.jsx bsCiLeadReason), so both say it in the app's language.
+  // These English words are the line for a caller with no translator. Home, the Shape Daily splash
+  // and the member's push and bell row compose their own line from the app's catalog out of
+  // directive.evidence (leadReason.mjs bsLeadReason; memberMoveLine on the server), so all of them
+  // say it in the member's language.
   var MEMBER_VITALS_WORDS = {
     energy_low: ["drained", "low", "OK", "good", "great"],
     hunger_high: ["not hungry", "a little", "normal", "hungry", "starving"],
@@ -795,7 +797,8 @@
     var avgR = Math.round(v.avgL * 10) / 10;
     var tgtR = Math.round(v.targetL * 10) / 10;
     // The raw litres, unrounded, and the days the average is over: the app says them in the
-    // member's units (BSCheckinCard.jsx bsCiLeadReason); the reason keeps its litres for the push.
+    // member's units (leadReason.mjs bsLeadReason, for Home, the splash and the push); the reason
+    // keeps its litres for a caller with no translator.
     return { key: "hydration_low", label: "Water low", reason: "Averaging " + avgR + "L of a " + tgtR + "L water target — a glass with each meal closes most of it", n: v.n, figures: { avgL: v.avgL, targetL: v.targetL } };
   }
 
@@ -1456,7 +1459,8 @@
   // The member's own directive also carries the figures its flag's reason was built from
   // (the rule's `figures`: a streak's longest run, the weeks since a check-in and the Monday it names,
   // a goal's name and its slip, water's litres and target), so Home and the Shape Daily splash can
-  // say the reason in the member's language and units (BSCheckinCard.jsx bsCiLeadReason). A coach
+  // say the reason in the member's language and units (leadReason.mjs bsLeadReason), and the push and
+  // the bell row on the server too (notifications.mjs memberMoveLine). A coach
   // role's directive keeps `{ key, avg, n }` byte for byte. No rule's figures are named key, avg or
   // n, so they never overwrite those (tests/member-engine-reasons.test.mjs).
   function memberFigures(evidence, figures) {
