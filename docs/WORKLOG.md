@@ -211,7 +211,9 @@ planned builds.
   it). Sharing is set from the Habits page only, and its sheet has no search. The daily cap
   counts every notice stamped as pushed on the member's day, so an unstamped
   `createNotification` row isn't counted. When the AI notify engine can't read the day's pushes,
-  it counts only its own sends.
+  it counts only its own sends. Two senders deciding in the same minute (every hourly cron starts
+  at :00) can each take the last push, so the cap can be passed by one; closing that needs a
+  reservation in the database.
 - A goal in the member's own words is set in the app (the Goal page's picker and the first-run
   step) and in the website's sign-up. The website's Goals page shows goals and adds none (coaches
   set them). Only the five weight goals have a weight read; any other goal reads in words until

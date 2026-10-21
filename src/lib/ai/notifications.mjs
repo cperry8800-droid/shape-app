@@ -591,11 +591,17 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
   // after its items were held, pushing whether or not the day's cap was spent, so past the cap
   // every hourly run with something held sent one more push. Past the cap it lands without one,
   // as a friend's habit notice does (#2413), and a digest that pushes counts against the cap.
+  // ⚠ A DIGEST LEFT WITH NO CHANNEL STAYS HELD (Codex on #2417). When every held item wants a
+  // push only, taking the push away left nothing to deliver on: the row was hidden from the bell
+  // (inapp off) and never pushed, yet the items were stamped and cleared, so they were lost. They
+  // wait now for the next run with a push to spare, tomorrow at the latest.
   let digest = null;
-  if (!quiet && hadPending && state.pendingDigest.length > 0) {
-    const items = state.pendingDigest;
+  const items = state.pendingDigest;
+  const wants = (k) => items.some((i) => i.channels && i.channels[k]);
+  const digestChannels = { inapp: wants('inapp'), push: wants('push') && usedToday < cap, email: wants('email') };
+  if (!quiet && hadPending && items.length > 0 && anyChannelOn(digestChannels)) {
     const n = items.length;
-    const pushes = items.some((i) => i.channels && i.channels.push) && usedToday < cap;
+    const pushes = digestChannels.push;
     digest = {
       type: 'digest',
       title: n === 1 ? '1 update for you' : `${n} updates for you`,
@@ -603,12 +609,8 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
       route: audience === 'coach' ? 'clients' : 'home',
       data: { items: items.map((i) => ({ type: i.type, route: i.route, data: i.data })) },
       priority: 'low',
-      // the digest goes out on the UNION of channels its held items wanted.
-      channels: {
-        inapp: items.some((i) => i.channels && i.channels.inapp),
-        push: pushes,
-        email: items.some((i) => i.channels && i.channels.email),
-      },
+      // the digest goes out on the UNION of channels its held items wanted, less a push past the cap.
+      channels: digestChannels,
     };
     if (pushes) { state.sentToday += 1; usedToday += 1; }
     // DELIVERY is what stamps: these items have now actually reached the member, so the

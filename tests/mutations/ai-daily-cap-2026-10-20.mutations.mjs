@@ -18,8 +18,9 @@ export default {
     { name: "this run's sends do not count", file: GATE, find: '    state.sentToday += 1;\n    usedToday += 1;', replace: '    state.sentToday += 1;' },
 
     // ── The digest (Codex on #2417) ──
-    { name: 'the digest pushes past the cap', file: GATE, find: "const pushes = items.some((i) => i.channels && i.channels.push) && usedToday < cap;", replace: "const pushes = items.some((i) => i.channels && i.channels.push);" },
-    { name: 'the digest pushes when nothing in it wants one', file: GATE, find: "const pushes = items.some((i) => i.channels && i.channels.push) && usedToday < cap;", replace: "const pushes = usedToday < cap;" },
+    { name: 'the digest pushes past the cap', file: GATE, find: "push: wants('push') && usedToday < cap,", replace: "push: wants('push')," },
+    { name: 'the digest pushes when nothing in it wants one', file: GATE, find: "push: wants('push') && usedToday < cap,", replace: "push: usedToday < cap," },
+    { name: 'a digest with no channel left is sent and its items lost', file: GATE, find: ' && anyChannelOn(digestChannels)) {', replace: ') {' },
     { name: 'a pushed digest is not counted', file: GATE, find: '    if (pushes) { state.sentToday += 1; usedToday += 1; }\n', replace: '' },
     { name: 'an unpushed digest is counted', file: GATE, find: '    if (pushes) { state.sentToday += 1; usedToday += 1; }', replace: '    { state.sentToday += 1; usedToday += 1; }' },
 

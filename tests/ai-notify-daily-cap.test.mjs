@@ -141,3 +141,18 @@ test('past the cap the digest lands without a push, and under it a pushed digest
   inAppOnly.pendingDigest[0].channels = { inapp: true, push: false, email: false };
   assert.equal(digestOf({ last: inAppOnly, pushedToday: 0 }).nextState.sentToday, 0, 'nothing to push, nothing counted');
 });
+
+// Codex on #2417: when every held item wants a push only, taking the push away left the digest
+// no channel to land on, yet its items were stamped and cleared, so they were lost.
+test('push-only items past the cap stay held, and go out with a push once there is room', () => {
+  const pushOnly = held();
+  pushOnly.pendingDigest[0].channels = { inapp: false, push: true, email: false };
+  const spent = digestOf({ last: pushOnly, pushedToday: 4 });
+  assert.equal(spent.digest, null, 'nothing to land on, so nothing is sent');
+  assert.equal(spent.nextState.pendingDigest.length, 1, 'the item is still held');
+  assert.equal(spent.nextState.types['score_drop:k1'], undefined, 'and not stamped as delivered');
+
+  const tomorrow = decideNotifications({ candidates: [], last: spent.nextState, prefs: { tz: TZ, maxPerDay: 4 }, now: new Date(+DAY + 86400e3), audience: 'client', pushedToday: 0 });
+  assert.equal(tomorrow.digest.channels.push, true);
+  assert.equal(tomorrow.nextState.pendingDigest.length, 0);
+});
