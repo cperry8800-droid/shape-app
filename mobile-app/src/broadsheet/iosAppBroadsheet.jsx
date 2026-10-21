@@ -475,10 +475,15 @@ function isInteractiveTarget(target) {
 // PRIMITIVES
 // ═══════════════════════════════════════════════════════════
 
-// The tab bar's rendered border-box height. The composer slot and every page's
-// scroll reserve position against this — it has drifted from the real height
-// twice (72 → 64 in #1603 left three stale literals), so it lives here once.
-const BS_TABBAR_H = 64;
+// The tab bar's rendered border-box height: the floating dock plus the clear
+// space around it. The composer slot and every page's scroll reserve position
+// against this — it has drifted from the real height twice (72 → 64 in #1603
+// left three stale literals), so it lives here once.
+const BS_TABBAR_H = 78;
+// The dock floats this far in from the phone's sides and bottom edge; the
+// space above it keeps a composer or banner from sitting flush on it.
+const BS_DOCK_INSET = 12;
+const BS_DOCK_TOP_GAP = 6;
 
 // A page tells its BSPage that its masthead row carries NO corner cluster.
 //
@@ -1331,21 +1336,31 @@ function BSTabBar({ tabs, active, onChange }) {
     setChatUnread(window.ShapeUnread?.total?.() || 0);
     return () => { try { off && off(); } catch (e) {} };
   }, []);
+  const DOCK_PAD = 8;
   return (
+    // Full-width footprint that passes taps through; only the dock itself is
+    // interactive, so page content showing around it stays tappable.
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
-      height: BS_TABBAR_H, padding: '5px 20px calc(8px + env(safe-area-inset-bottom, 0px))',
-      // Match the page's full background (PAPER_BG carries metallic/textured sheen
-      // on papers like Steel) so the bar reads as part of the same paper, with a
-      // faint theme-derived top fade for separation. Adapts to every paper.
-      background: `linear-gradient(180deg, rgba(${t.inkRGB},0.05), transparent 26%), ${t.PAPER_BG}`,
-      backgroundColor: t.PAPER,
+      height: BS_TABBAR_H,
+      padding: `${BS_DOCK_TOP_GAP}px ${BS_DOCK_INSET}px calc(${BS_DOCK_INSET}px + env(safe-area-inset-bottom, 0px))`,
+      pointerEvents: 'none',
+    }}>
+    <nav style={{
+      position: 'relative', height: '100%', pointerEvents: 'auto',
+      padding: `0 ${DOCK_PAD}px`,
+      borderRadius: t.RADIUS_LG,
+      // Frosted paper: the page scrolls on under the dock, so it is the paper
+      // at ~96% with a blur rather than a solid slab. Adapts to every paper.
+      background: `linear-gradient(180deg, rgba(${t.inkRGB},0.045), transparent 55%), ${t.PAPER}f5`,
       color: t.INK,
-      borderTop: `1px solid ${t.SURFACE_BORDER}`,
-      display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`, gap: 10,
-      backdropFilter: 'blur(18px)',
-      WebkitBackdropFilter: 'blur(18px)',
-      boxShadow: `0 -16px 40px ${t.isLight ? 'rgba(15,14,12,0.08)' : 'rgba(0,0,0,0.26)'}`,
+      border: `1px solid ${t.SURFACE_BORDER}`,
+      display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`,
+      backdropFilter: 'blur(20px) saturate(160%)',
+      WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+      boxShadow: t.isLight
+        ? '0 16px 36px rgba(15,14,12,0.20), 0 2px 8px rgba(15,14,12,0.10), inset 0 1px 0 rgba(255,255,255,0.55)'
+        : '0 14px 34px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)',
     }}>
       {/* Instrument dock rail — accent gradient hairline with a glowing tick
           that slides to sit above the active tab. */}
@@ -1354,8 +1369,8 @@ function BSTabBar({ tabs, active, onChange }) {
         const n = tabs.length;
         return (
           <React.Fragment>
-            <span aria-hidden style={{ position: 'absolute', top: -1, left: 0, right: 0, height: 1.5, background: `linear-gradient(90deg, transparent, ${t.ACCENT}44 28%, ${t.ACCENT}44 72%, transparent)` }} />
-            <span aria-hidden style={{ position: 'absolute', top: -1.5, height: 2.5, borderRadius: 2, width: `calc((100% - 40px) / ${n} * 0.44)`, left: `calc(20px + ((100% - 40px) / ${n}) * (${activeIdx} + 0.28))`, background: t.ACCENT, boxShadow: `0 0 9px ${t.ACCENT}`, transition: 'left .28s cubic-bezier(.4,0,.2,1)' }} />
+            <span aria-hidden style={{ position: 'absolute', top: 0, left: 22, right: 22, height: 1.5, background: `linear-gradient(90deg, transparent, ${t.ACCENT}44 28%, ${t.ACCENT}44 72%, transparent)` }} />
+            <span aria-hidden style={{ position: 'absolute', top: 0, height: 2.5, borderRadius: 2, width: `calc((100% - ${DOCK_PAD * 2}px) / ${n} * 0.44)`, left: `calc(${DOCK_PAD}px + ((100% - ${DOCK_PAD * 2}px) / ${n}) * (${activeIdx} + 0.28))`, background: t.ACCENT, boxShadow: `0 0 9px ${t.ACCENT}`, transition: 'left .28s cubic-bezier(.4,0,.2,1)' }} />
           </React.Fragment>
         );
       })()}
@@ -1369,8 +1384,8 @@ function BSTabBar({ tabs, active, onChange }) {
             color: on ? t.ACCENT : t.INK50, position: 'relative',
           }}>
             {/* Active tab rides a clipped instrument plate with an accent spine. */}
-            {on && <span aria-hidden style={{ position: 'absolute', inset: '1px 2px 3px', clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', background: `linear-gradient(165deg, ${t.ACCENT}2e, ${t.ACCENT}0a 72%)` }} />}
-            {on && <span aria-hidden style={{ position: 'absolute', left: 2, top: 1, bottom: 3, width: 2.5, background: t.ACCENT }} />}
+            {on && <span aria-hidden style={{ position: 'absolute', inset: '6px 3px', clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', background: `linear-gradient(165deg, ${t.ACCENT}2e, ${t.ACCENT}0a 72%)` }} />}
+            {on && <span aria-hidden style={{ position: 'absolute', left: 3, top: 6, bottom: 6, width: 2.5, background: t.ACCENT }} />}
             <span style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
               {BS_TAB_ICON_KEYS.has(tab.key)
                 ? <BSTabIcon name={tab.key} size={20} />
@@ -1382,11 +1397,12 @@ function BSTabBar({ tabs, active, onChange }) {
               )}
             </span>
             {tab.key === 'chat' && chatUnread > 0 && (
-              <span style={{ position: 'absolute', top: 0, left: '52%', minWidth: 15, height: 15, borderRadius: 4, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{chatUnread > 9 ? '9+' : chatUnread}</span>
+              <span style={{ position: 'absolute', top: 7, left: '52%', minWidth: 15, height: 15, borderRadius: 4, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{chatUnread > 9 ? '9+' : chatUnread}</span>
             )}
           </button>
         );
       })}
+    </nav>
     </div>
   );
 }
