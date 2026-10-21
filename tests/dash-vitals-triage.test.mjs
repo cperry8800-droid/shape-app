@@ -290,9 +290,11 @@ test("an engine directive carries what its reason was built from; a coach's own 
   const sleep = buildDirective({ profile: { name: 'Q' }, recovery: { sleepHours: { avg7: 5.5, lastNight: 5.5, target: 7.5, n: 7 } } }, NOW, 'client');
   assert.deepEqual(sleep.evidence, { key: 'sleep_low', avg: 5.5, n: 7 });
   assert.equal(sleep.reason, 'Averaging 5.5h sleep vs a 7.5h target — recovery is running down');
-  // A flag with no average says so.
+  // A flag with no average says so, and the member's own view carries the figure its reason was
+  // built from (a coach role's evidence stays { key, avg, n }: the member-reasons test file).
   const streak = buildDirective({ profile: { name: 'Q' }, streaks: { current: 0, best: 9 } }, NOW, 'client');
-  assert.deepEqual(streak.evidence, { key: 'streak_broken', avg: null, n: null });
+  assert.deepEqual(streak.evidence, { key: 'streak_broken', avg: null, n: null, best: 9 });
+  assert.deepEqual(buildDirective({ profile: { name: 'Q' }, streaks: { current: 0, best: 9 } }, NOW, 'trainer').evidence, { key: 'streak_broken', avg: null, n: null });
   // The coach's override wins and is passed through as they wrote it (ruling 13), low week or not.
   const low = { energy: { avg7: 3, n: 5 } };
   const coach = buildDirective({ ...rec(low), coachDirective: { lever: 'energy', reason: 'Energy has been 3/10, so we deload this week' } }, NOW, 'client');

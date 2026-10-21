@@ -237,6 +237,10 @@
   // history is reported as a state, never guessed.
 
   var MAX_GOALS = 3;
+  // The label a self-set weight goal gets when the member gave it no title. A reason that names
+  // the goal says it as written; the member's own view also says when it is this stand-in
+  // (ruleGoalSlip's `untitled`), so the app can name the goal in the member's language instead.
+  var UNTITLED_WEIGHT_GOAL = "Goal weight";
   function visibleGoals(goals) { return Array.isArray(goals) ? goals.slice(0, MAX_GOALS) : []; }
 
   // History points arrive in several live shapes ({on|date|d|logged_on} ×
@@ -452,7 +456,7 @@
       var o = src.overall;
       var oUnit = o.unit || "lb";
       out.push({
-        id: "overall", label: o.title || "Goal weight", metric: "weight",
+        id: "overall", label: o.title || UNTITLED_WEIGHT_GOAL, metric: "weight",
         unit: oUnit, target: Number(o.target),
         start: o.start != null && isFinite(Number(o.start)) ? Number(o.start) : null,
         startedOn: null, setBy: "you",
@@ -478,12 +482,18 @@
 
   // ── Rules ──────────────────────────────────────────────────────────────────
   // Each returns a flag { key, reason } or null. `now` is a Date.
+  // ⚠ A FLAG THE MEMBER CAN LEAD WITH ALSO CARRIES `figures`: the numbers (and the date or the
+  // goal's own name) its reason was built from, never a formatted string. The reason stays English
+  // for every reader that has no locale; the member's own directive copies the figures into
+  // `evidence` (buildDirective), and the app says the same thing from them in the member's
+  // language and units (BSCheckinCard.jsx bsCiLeadReason). tagFlag never copies them, so no coach
+  // row or coach push sees them.
 
   function ruleStreakBroken(c) {
     var s = c.streaks;
     if (!s || s.current == null || s.best == null) return null;
     if (s.current === 0 && s.best >= THRESHOLDS.STREAK_MIN_BEST) {
-      return { key: "streak_broken", label: "Streak broken", reason: "Streak broken — was " + s.best + " days" };
+      return { key: "streak_broken", label: "Streak broken", reason: "Streak broken — was " + s.best + " days", figures: { best: s.best } };
     }
     return null;
   }
@@ -529,7 +539,7 @@
     if (!r || r.delta == null) return null;
     var drop = -r.delta;
     if (drop >= THRESHOLDS.SCORE_DROP_PTS) {
-      return { key: "score_drop", label: "Score \u2193" + drop, reason: "Shape Score down " + drop + " pts week-over-week" };
+      return { key: "score_drop", label: "Score \u2193" + drop, reason: "Shape Score down " + drop + " pts week-over-week", figures: { drop: drop } };
     }
     return null;
   }
@@ -552,7 +562,7 @@
       if (bounded) gap = daysBetween(joinDay, now);
       else if (!joinDay && c.profile && c.profile.isNew) return null;
       if (gap >= THRESHOLDS.FOOD_GAP_DAYS) {
-        return { key: "food_gap", label: "No logs " + gap + "d", reason: bounded ? "No food logs in the " + gap + " days since they joined" : "No food logs in " + gap + " days" };
+        return { key: "food_gap", label: "No logs " + gap + "d", reason: bounded ? "No food logs in the " + gap + " days since they joined" : "No food logs in " + gap + " days", figures: { days: gap, sinceJoined: bounded } };
       }
       return null;
     }
@@ -571,7 +581,7 @@
       // date decides it; without one, the roster's 14-day "new" does.
       var days = clientDays(c, now);
       if (days != null ? days < 7 : !!(c.profile && c.profile.isNew)) return null;
-      return { key: "food_gap", label: "No logs 7d+", reason: "No food logs in the last week" };
+      return { key: "food_gap", label: "No logs 7d+", reason: "No food logs in the last week", figures: { lastWeek: true } };
     }
     return null;
   }
@@ -584,7 +594,7 @@
     var last = toDate(ci.lastWeekOf);
     if (!last) {
       if (c.profile && c.profile.isNew) return null; // new clients get a pass
-      return { key: "checkin_overdue", missedWeeks: 99, label: "No first check-in", reason: "Hasn't completed a first check-in" };
+      return { key: "checkin_overdue", missedWeeks: 99, label: "No first check-in", reason: "Hasn't completed a first check-in", figures: { first: true } };
     }
     var missedWeeks = Math.max(0, Math.round(daysBetween(mondayOf(last), thisMonday) / 7));
     if (missedWeeks === 0) return null;
@@ -595,7 +605,8 @@
     var label = missedWeeks === 1
       ? "Check-in due — last was week of " + iso(mondayOf(last))
       : "No check-in for " + missedWeeks + " weeks";
-    return { key: "checkin_overdue", missedWeeks: missedWeeks, label: missedWeeks === 1 ? "Check-in due" : "Check-in " + missedWeeks + "w late", reason: label };
+    // `lastWeekOf` is the Monday the reason names, as the reason prints it (YYYY-MM-DD, local).
+    return { key: "checkin_overdue", missedWeeks: missedWeeks, label: missedWeeks === 1 ? "Check-in due" : "Check-in " + missedWeeks + "w late", reason: label, figures: { missedWeeks: missedWeeks, lastWeekOf: iso(mondayOf(last)) } };
   }
 
   function ruleContactGap(c, now, role) {
@@ -672,10 +683,16 @@
       if (s != null && s > 0 && (worst == null || s > worst)) { worst = s; worstGoal = gs[i]; }
     }
     if (worst == null || worst < THRESHOLDS.GOAL_SLIP_DAYS) return null;
+    // The goal's own name, or none when it is the untitled weight goal's English stand-in. A lost
+    // date is `lost`, never an Infinity `days`, so the figures survive JSON.
+    // A title of only spaces is no name either (the Goals sheet saves it untrimmed): the app names it
+    // as the untitled weight goal. The reason text, which coaches read, is left as it was.
+    var untitled = worstGoal.id === "overall" && (worstGoal.label === UNTITLED_WEIGHT_GOAL || !String(worstGoal.label || "").trim());
+    var goalName = untitled ? null : worstGoal.label;
     if (!isFinite(worst)) {
-      return { key: "goal_slip", label: "Goal ETA lost", reason: "“" + worstGoal.label + "” lost its projected date — the pace flattened this week" };
+      return { key: "goal_slip", label: "Goal ETA lost", reason: "“" + worstGoal.label + "” lost its projected date — the pace flattened this week", figures: { goal: goalName, untitled: untitled, lost: true } };
     }
-    return { key: "goal_slip", label: "Goal ETA +" + worst + "d", reason: "“" + worstGoal.label + "” slipped — the projected finish moved " + worst + " days later this week" };
+    return { key: "goal_slip", label: "Goal ETA +" + worst + "d", reason: "“" + worstGoal.label + "” slipped — the projected finish moved " + worst + " days later this week", figures: { goal: goalName, untitled: untitled, days: worst } };
   }
 
   // Recovery rule: a 7-day average sleep MORE than SLEEP_DEFICIT_H hours under
@@ -777,7 +794,9 @@
     if (!(v.avgL < v.targetL * THRESHOLDS.HYDRATION_LOW_FRAC)) return null;
     var avgR = Math.round(v.avgL * 10) / 10;
     var tgtR = Math.round(v.targetL * 10) / 10;
-    return { key: "hydration_low", label: "Water low", reason: "Averaging " + avgR + "L of a " + tgtR + "L water target — a glass with each meal closes most of it" };
+    // The raw litres, unrounded, and the days the average is over: the app says them in the
+    // member's units (BSCheckinCard.jsx bsCiLeadReason); the reason keeps its litres for the push.
+    return { key: "hydration_low", label: "Water low", reason: "Averaging " + avgR + "L of a " + tgtR + "L water target — a glass with each meal closes most of it", n: v.n, figures: { avgL: v.avgL, targetL: v.targetL } };
   }
 
   // ── The health screening (client-onboarding review, fix 2c: M17) ──────────
@@ -1328,7 +1347,9 @@
   //
   //   { source:'coach'|'engine', lever, severity, verdict, reason,
   //     action:{label,kind}|null, read:{ summary30d, oneThingNow }, cited:[…],
-  //     evidence?:{ key, avg, n } }   // only when an engine flag leads; avg/n null without them
+  //     evidence?:{ key, avg, n, …figures } }   // only when an engine flag leads; avg/n null
+  //                                             // without them; the flag's `figures` on the
+  //                                             // member's own view only (memberFigures)
 
   var DIRECTIVE_MOVES = {
     sleep: { kind: "log_sleep", label: "Log last night's sleep" },
@@ -1432,6 +1453,16 @@
       oneThingNow: reason && reason !== "—" ? reason : "Nothing urgent — keep the routine.",
     };
   }
+  // The member's own directive also carries the figures its flag's reason was built from
+  // (the rule's `figures`: a streak's longest run, the weeks since a check-in and the Monday it names,
+  // a goal's name and its slip, water's litres and target), so Home and the Shape Daily splash can
+  // say the reason in the member's language and units (BSCheckinCard.jsx bsCiLeadReason). A coach
+  // role's directive keeps `{ key, avg, n }` byte for byte. No rule's figures are named key, avg or
+  // n, so they never overwrite those (tests/member-engine-reasons.test.mjs).
+  function memberFigures(evidence, figures) {
+    if (!evidence || !figures || typeof figures !== "object") return;
+    for (var k in figures) if (Object.prototype.hasOwnProperty.call(figures, k)) evidence[k] = figures[k];
+  }
   function onTrackReason(rec) {
     var bits = [];
     if (rec.streaks && rec.streaks.current >= 3) bits.push(rec.streaks.current + "-day streak");
@@ -1468,13 +1499,15 @@
       // flag's figure (memberVitalsReason). `evidence` is what the reason was built from, so
       // Home can say the same thing in the member's language.
       var topReason = (disciplineForRole(role) === "general" && memberVitalsReason(top)) || top.reason;
-      return {
+      var flagLead = {
         source: "engine", lever: lever2, severity: ev.severity,
         verdict: DIRECTIVE_VERDICTS[lever2] || "Your move",
         reason: topReason, action: DIRECTIVE_MOVES[lever2] || null,
         read: buildDirectiveRead(rec, topReason), cited: [top.key],
         evidence: { key: top.key, avg: top.avg != null ? top.avg : null, n: top.n != null ? top.n : null },
       };
+      if (disciplineForRole(role) === "general") memberFigures(flagLead.evidence, top.figures);
+      return flagLead;
     }
 
     // 3) Cross-domain secondary — sleep is the lever when recovery is low while

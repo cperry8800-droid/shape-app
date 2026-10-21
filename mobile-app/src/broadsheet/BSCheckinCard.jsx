@@ -352,21 +352,99 @@ export function bsCiBandWords(tr) {
   };
 }
 
-// ⚠ HOME'S LEAD SAYS THE ENGINE'S CHECK-IN FLAGS IN THE MEMBER'S WORDS (part 2; rulings 11 and 13).
-// The engine's own member reason is English, for what has no locale (the push and the bell row it
+// The engine's figures said in the member's language and units (bsCiLeadReason, below). Each line
+// says what the engine's English reason says, from the numbers that reason was built from
+// (directive.evidence, the flag's `figures`). A figure that is missing, or is not what its rule
+// makes (a count that is not a whole number, a date that is not a date), gives no line, and the
+// caller keeps the engine's reason: nothing is said that the figures do not hold. Window globals
+// are read here, at call time: the locale for a date or a number, and ShapeUnits for water, the
+// preference the water line reads through useBS (BSWaterLine.jsx), with its default, imperial.
+const BS_CI_L_TO_OZ = 33.814;
+function bsCiFigureReason(ev, tr) {
+  const key = ev && ev.key;
+  const whole = (v, min) => (Number.isInteger(v) && v >= min ? v : null);
+  const locale = window.ShapeI18n?.intlLocale?.() || undefined;
+  const num = (n, digits) => { try { return new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(n); } catch (e) { return String(n); } };
+  if (key === 'checkin_overdue') {
+    if (ev.first === true) return tr('home:lead.reason.checkinFirst', { defaultValue: "You haven't sent a first weekly check-in yet." });
+    const weeks = whole(ev.missedWeeks, 1);
+    if (weeks != null && weeks >= 2) return tr('home:lead.reason.checkinWeeks', { defaultValue: 'No weekly check-in for {weeks, plural, one {# week} other {# weeks}}.', weeks });
+    const m = weeks === 1 && typeof ev.lastWeekOf === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(ev.lastWeekOf) : null;
+    if (!m) return null;
+    // The engine's Monday is a local day, so it is read at local noon, as bsCiShift reads one.
+    const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
+    if (bsCiIso(day) !== ev.lastWeekOf) return null;
+    let date;
+    try { date = new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric' }).format(day); } catch (e) { return null; }
+    return tr('home:lead.reason.checkinDue', { defaultValue: 'Your weekly check-in is due. The last one was for the week of {date}.', date });
+  }
+  if (key === 'goal_slip') {
+    // The goal's own name is the member's or their coach's words, set in the locale's quotes. The
+    // untitled weight goal, whose name in the engine is its English stand-in, is named by the catalog.
+    const goal = typeof ev.goal === 'string' && ev.goal.trim() ? ev.goal.trim() : null;
+    if (!goal && ev.untitled !== true) return null;
+    if (ev.lost === true) {
+      return goal
+        ? tr('home:lead.reason.goalLost', { defaultValue: '“{goal}” lost its projected date. The pace flattened this week.', goal })
+        : tr('home:lead.reason.weightLost', { defaultValue: 'Your goal weight lost its projected date. The pace flattened this week.' });
+    }
+    const days = whole(ev.days, 1);
+    if (days == null) return null;
+    return goal
+      ? tr('home:lead.reason.goalSlip', { defaultValue: '“{goal}” slipped. Its projected finish moved {days, plural, one {# day} other {# days}} later this week.', goal, days })
+      : tr('home:lead.reason.weightSlip', { defaultValue: 'Your goal weight slipped. Its projected finish moved {days, plural, one {# day} other {# days}} later this week.', days });
+  }
+  if (key === 'streak_broken') {
+    // The engine's figure is the streak's longest run in what the record holds (the member's own: the
+    // longest run of logged days in the last 30), so the line calls it that, never the run that broke.
+    const days = whole(ev.best, 1);
+    // The window is the nutrition route's 30 days (src/app/api/client/nutrition/route.ts), so the line
+    // says it: a run that started before it is longer than the figure (review on this PR).
+    return days == null ? null : tr('home:lead.reason.streakBroken', { defaultValue: 'Your streak broke. Your longest run in the last 30 days was {days, plural, one {# day} other {# days}}.', days });
+  }
+  if (key === 'hydration_low') {
+    const avgL = typeof ev.avgL === 'number' && Number.isFinite(ev.avgL) && ev.avgL >= 0 ? ev.avgL : null;
+    const targetL = typeof ev.targetL === 'number' && Number.isFinite(ev.targetL) && ev.targetL > 0 ? ev.targetL : null;
+    if (avgL == null || targetL == null) return null;
+    let metric = false;
+    try { metric = window.ShapeUnits?.get?.() === 'metric'; } catch (e) { metric = false; }
+    // The target as the water line shows it (to the centilitre, or the whole ounce); the week's
+    // average to the decilitre, as the engine rounds it, or the whole ounce.
+    const say = (l, digits) => (metric ? `${num(Math.round(l * 10 ** digits) / 10 ** digits, digits)} L` : `${num(Math.round(l * BS_CI_L_TO_OZ), 0)} oz`);
+    return tr('home:lead.reason.water', { defaultValue: 'On days you logged water, you averaged {amount} of your {target} target. A glass with each meal closes most of it.', amount: say(avgL, 1), target: say(targetL, 2) });
+  }
+  if (key === 'food_gap') {
+    if (ev.lastWeek === true) return tr('home:lead.reason.foodWeek', { defaultValue: 'No food logged in the last week.' });
+    const days = whole(ev.days, 1);
+    if (days == null) return null;
+    return ev.sinceJoined === true
+      ? tr('home:lead.reason.foodJoined', { defaultValue: 'No food logged in the {days, plural, one {# day} other {# days}} since you joined.', days })
+      : tr('home:lead.reason.foodDays', { defaultValue: 'No food logged in {days, plural, one {# day} other {# days}}.', days });
+  }
+  if (key === 'score_drop') {
+    const drop = whole(ev.drop, 1);
+    return drop == null ? null : tr('home:lead.reason.scoreDrop', { defaultValue: 'Your Shape Score is {drop, number} lower than the week before.', drop });
+  }
+  return null;
+}
+
+// ⚠ HOME'S LEAD SAYS EVERY ENGINE REASON IN THE MEMBER'S WORDS (part 2; rulings 11 and 13). The
+// engine's own member reason is English, for what has no locale (the push and the bell row it
 // leaves), so Home, and the Shape Daily splash through bsWireLines' opts.reason in
-// iosAppBroadsheetMain.jsx, say it again from the app's catalog out of directive.evidence, the flag's
-// raw average: in the week line's own keys and the card's word rule, so the lead and the summary say
-// one thing. An average is said as one ("low on average"), never "mostly": Your mornings' "Most days"
-// is the word most days had, and an average of Drained and Great days is Low without one Low day
-// (review on this PR). Sleep is to the 5 minutes, as the week line has it. A coach's own reason
-// (source 'coach'), an engine lead that is not one of these three flags, and one without a finite
-// average are said as they came.
+// iosAppBroadsheetMain.jsx, say it again from the app's catalog out of directive.evidence. The
+// morning check-in's energy, hunger and sleep flags come from the flag's raw average: in the week
+// line's own keys and the card's word rule, so the lead and the summary say one thing. An average is said as one ("low on average"),
+// never "mostly": Your mornings' "Most days" is the word most days had, and an average of Drained
+// and Great days is Low without one Low day (review on this PR). Sleep is to the 5 minutes, as the
+// week line has it. Every other flag comes from its figures (bsCiFigureReason): the check-in's
+// weeks and the Monday it names, a goal's slip, the streak's longest run, water in the member's units,
+// a food gap, a Score drop. A coach's own reason (source 'coach'), an engine lead with no figures it
+// can say, and a key it does not know are said as they came.
 export function bsCiLeadReason(dir, tr) {
   if (!dir) return null;
   const ev = dir.source === 'engine' && dir.evidence ? dir.evidence : null;
   const avg = ev && typeof ev.avg === 'number' && Number.isFinite(ev.avg) ? ev.avg : null;
-  if (avg == null) return dir.reason;
+  if (avg == null) return (ev && bsCiFigureReason(ev, tr)) || dir.reason;
   const i = bsCiWordIndex(avg);
   if (ev.key === 'energy_low' && i != null) {
     return tr('home:checkin.weekEnergyLow', { defaultValue: 'Your energy has been {word} on average this week. A lighter session still counts.', word: bsCiLower(bsCiWords(tr).E[i]) });
