@@ -12,7 +12,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { loadRealModule } from './helpers/load-real-module.mjs';
-import { clientCandidates, coachCandidates } from '../src/lib/ai/notifications.mjs';
+import { clientCandidates, coachCandidates, memberMoveLine, decideNotifications, habitReminderCandidates } from '../src/lib/ai/notifications.mjs';
+import { makeMemberCopy, memberLocaleCode } from '../src/lib/ai/memberTranslator.mjs';
+import { bsUnitsMetric } from '../mobile-app/src/services/leadReason.mjs';
 import { speakableDirective } from '../src/lib/ai/tone.mjs';
 import { bsWireLines } from '../mobile-app/src/services/dailyWire.mjs';
 import { ACTIVE_LOCALES } from '../mobile-app/src/i18n/locales.mjs';
@@ -274,27 +276,207 @@ test("a coach's directive, row and alert are unchanged: the figures stay on the 
   assert.equal(alert.sig, 'red:No check-in for 3 weeks');
 });
 
+// The server's translator: the same catalogs through memberTranslator.mjs, the set-up notify-core runs.
+const copyFor = makeMemberCopy(Object.fromEntries(ACTIVE_LOCALES.map((l) => [l, { home: cat(l, 'home') }])));
+
 // The same steps as notify-core.candidatesFor (TypeScript, so not loadable here). The push is also
-// the bell row the app shows word for word, and it has no locale: it keeps the engine's English.
-test("the member's push and bell row keep the engine's English, and never read the evidence", () => {
-  const pushes = (rec, strip) => {
-    const directive = buildDirective(rec, NOW, 'client');
-    const d = strip ? { ...directive, evidence: undefined } : directive;
-    const line = speakableDirective(d, 'supportive');
-    const { flags } = evaluateClient(rec, NOW, 'client');
-    const fl = strip ? flags.map(({ figures, ...f }) => f) : flags;
-    return clientCandidates({ directive: { ...d, line }, flags: fl, goals: rec.goals || [], now: NOW, tone: 'supportive' });
-  };
+// the bell row the app shows word for word. `copy` is the member's language and units (memberCopy);
+// without one, the notices are the engine's English, as before.
+const pushes = (rec, copy, { strip = false, tone = 'supportive' } = {}) => {
+  const directive = buildDirective(rec, NOW, 'client');
+  const d = strip ? { ...directive, evidence: undefined } : directive;
+  const line = memberMoveLine(d, { tr: copy?.tr, locale: copy?.locale, metric: copy?.metric, tone });
+  const { flags } = evaluateClient(rec, NOW, 'client');
+  const fl = strip ? flags.map(({ figures, ...f }) => f) : flags;
+  return clientCandidates({ directive: { ...d, line }, flags: fl, goals: rec.goals || [], now: NOW, tone, tr: copy?.tr, locale: copy?.locale, metric: copy?.metric });
+};
+
+test("without the member's language the push is the engine's English, as before, and never reads the evidence", () => {
   for (const c of CASES) {
-    // The figures change nothing a push says or signs.
-    assert.deepEqual(pushes(c.rec, false), pushes(c.rec, true), c.name);
+    // The figures change nothing an English push says or signs.
+    assert.deepEqual(pushes(c.rec, null), pushes(c.rec, null, { strip: true }), c.name);
+    const d = dirOf(c);
+    assert.equal(memberMoveLine(d, { tone: 'direct' }), speakableDirective(d, 'direct'), c.name);
   }
-  const body = (c, type = 'directive') => pushes(c.rec, false).find((x) => x.type === type);
+  const body = (c, type = 'directive') => pushes(c.rec, null).find((x) => x.type === type);
   assert.equal(body(CASES[9]).body, "Water is behind. Averaging 1L of a 2.5L water target — a glass with each meal closes most of it. When you're ready, log a glass of water.");
   assert.equal(body(CASES[2]).body, "Check-in due. No check-in for 3 weeks. When you're ready, send your weekly check-in.");
   assert.equal(body(CASES[0]).body, "Train today. Streak broken — was 9 days. When you're ready, open today's session.");
   assert.match(body(CASES[0], 'streak_broken').sig, /^Streak broken — was 9 days:/);
   assert.equal(body(CASES[4], 'goal_slip').body, 'The pace dipped a little — a small adjust brings the date back. “Lean by summer” slipped — the projected finish moved 16 days later this week');
+});
+
+// ⚠ THE PUSH SAYS HOME'S LEAD (owner, 2026-10-21: "fix the push and bell row wording too"). The
+// expected line is built from the app's own translator and the card's real bsCiLeadReason, so the
+// server's translator, the shared module and Home are held to one sentence in every locale and both
+// units.
+test("the member's push and bell row say Home's lead, in every locale and both units", () => {
+  for (const loc of ACTIVE_LOCALES) {
+    for (const u of ['imperial', 'metric']) {
+      const copy = copyFor(loc, u === 'metric');
+      for (const c of CASES) {
+        const d = dirOf(c);
+        const push = pushes(c.rec, copy).find((x) => x.type === 'directive');
+        const home = `${trIn(loc)(`home:lead.${d.lever}.head`)} ${say(d, loc, u)}`;
+        assert.equal(push.body, home, `${loc} ${u} ${c.name}`);
+        assert.equal(push.title, trIn(loc)('home:push.moveTitle'), `${loc} ${c.name}`);
+        // Ruling 11 and the reasons this replaced: no scale, no ISO date, no engine English.
+        assert.doesNotMatch(push.body, /\/\s?10|\b\d{4}-\d{2}-\d{2}\b|week-over-week|since they joined|Streak broken —/, `${loc} ${c.name}: ${push.body}`);
+        if (c.lever === 'hydration') {
+          assert.match(push.body, u === 'metric' ? /\d L\b/ : /\d oz\b/, `${loc} ${u}: ${push.body}`);
+          assert.doesNotMatch(push.body, u === 'metric' ? /\boz\b/ : /\d L\b/, `${loc} ${u}: ${push.body}`);
+        }
+        // The language never changes what a notice signs: a member who switches is not sent it again.
+        assert.deepEqual(pushes(c.rec, copy).map((x) => [x.type, x.key, x.sig, x.data]), pushes(c.rec, null).map((x) => [x.type, x.key, x.sig, x.data]), `${loc} ${c.name}`);
+      }
+    }
+  }
+  // Two lines, said out: the water in ounces and in litres, the check-in's Monday as a date.
+  const en = pushes(CASES[9].rec, copyFor('en', false)).find((x) => x.type === 'directive');
+  assert.equal(en.body, 'Drink more water today. On days you logged water, you averaged 35 oz of your 85 oz target. A glass with each meal closes most of it.');
+  const de = pushes(CASES[1].rec, copyFor('de', true)).find((x) => x.type === 'directive');
+  assert.equal(de.body, 'Sende deinen wöchentlichen Check-in. Dein wöchentlicher Check-in ist fällig. Der letzte war für die Woche vom 12. Oktober.');
+  assert.equal(pushes(CASES[9].rec, copyFor('de', true)).find((x) => x.type === 'directive').body,
+    'Trink heute mehr Wasser. ' + say(dirOf(CASES[9]), 'de', 'metric'));
+});
+
+test('the goal-slip and Score-dip notices name their reason as Home does, in the member\'s language', () => {
+  for (const loc of ACTIVE_LOCALES) {
+    const copy = copyFor(loc, false);
+    for (const tone of ['supportive', 'direct']) {
+      const goal = pushes(CASES[4].rec, copy, { tone }).find((x) => x.type === 'goal_slip');
+      const reason = say(dirOf(CASES[4]), loc);
+      const frame = tone === 'direct' ? 'goalDirect' : 'goalSupportive';
+      assert.equal(goal.title, trIn(loc)('home:push.goalTitle'), loc);
+      assert.equal(goal.body, trIn(loc)(`home:push.${frame}`, { reason }).trim(), `${loc} ${tone}`);
+      const score = pushes(CASES[13].rec, copy, { tone }).find((x) => x.type === 'score_drop');
+      const why = say(dirOf(CASES[13]), loc);
+      assert.equal(score.title, trIn(loc)('home:push.scoreTitle'), loc);
+      assert.equal(score.body, tone === 'direct' ? why : trIn(loc)('home:push.scoreSupportive', { reason: why }).trim(), `${loc} ${tone}`);
+    }
+  }
+  // The title no longer names the member's first goal, which need not be the one that slipped.
+  const two = me({ goals: [goal('Run a 10K', [[21, 30], [14, 29], [7, 28], [0, 27]], 'g0'), goal('Lean by summer', SLIP)] });
+  const slip = pushes(two, copyFor('en', false)).find((x) => x.type === 'goal_slip');
+  assert.equal(slip.title, 'Your goal pace eased off');
+  assert.match(slip.body, /“Lean by summer” slipped\./);
+});
+
+// Every notice the layer writes for a member, in both tones: the English the code carries is the en
+// catalog's, word for word, so a member in English reads the same whichever path wrote it; and every
+// other language says it from its own catalog, as the app's translator does.
+test("every member notice is in the member's language, and its English is the catalog's", () => {
+  const input = (copy, tone) => ({
+    directive: { lever: 'checkin', verdict: 'Check-in due', reason: 'x', action: { kind: 'check_in', label: 'Send your weekly check-in' }, cited: ['checkin_overdue'], line: 'LINE' },
+    // Flags without figures, so the goal and Score reasons are the engine's words on both paths.
+    flags: [{ key: 'streak_broken', reason: 'Streak broken — was 9 days' }, { key: 'score_drop', reason: 'Down 12' }, { key: 'goal_slip', reason: 'Slipped' }],
+    checkinDueThisWeek: true,
+    coachEvents: [
+      { kind: 'message', id: 'm1', coach: 'Ana', preview: 'See you Friday' }, { kind: 'message', id: 'm2' },
+      { kind: 'cosign', id: 'c1', coach: 'Ana', activity: 'run' }, { kind: 'cosign', id: 'c2' },
+    ],
+    now: NOW, tone, tr: copy?.tr, locale: copy?.locale,
+  });
+  const named = { key: 'streak_broken', habit: 'Water', reason: 'Streak broken — was 9 days' };
+  const reminders = [{ habitId: 'h1', label: 'Take vitamins', at: '09:00', days: [0, 1, 2, 3, 4, 5, 6], tz: 'UTC' }, { habitId: 'h2', label: '', at: '09:00', days: [0, 1, 2, 3, 4, 5, 6], tz: 'UTC' }];
+  const all = (copy, tone) => [
+    ...clientCandidates(input(copy, tone)),
+    ...clientCandidates({ directive: null, flags: [named], now: NOW, tone, tr: copy?.tr }),
+    ...habitReminderCandidates({ reminders, doneToday: [], now: NOW, tone, tr: copy?.tr }),
+  ].map((x) => [x.type, x.title, x.body]);
+  const digest = (copy, n) => {
+    const pending = Array.from({ length: n }, (_, i) => ({ type: 'streak_broken', title: `T${i}`, body: '', route: 'habits', data: {}, channels: { push: true }, sig: `s${i}`, key: `k${i}`, at: +NOW - 3600000 }));
+    return decideNotifications({ candidates: [], last: { pendingDigest: pending }, prefs: { tz: 'UTC', quietStart: 23, quietEnd: 6 }, now: NOW, audience: 'client', tr: copy?.tr }).digest;
+  };
+  for (const tone of ['supportive', 'direct']) {
+    assert.deepEqual(all(copyFor('en', false), tone), all(null, tone), `${tone}: the code's English is not the en catalog's`);
+  }
+  for (const n of [1, 5]) assert.deepEqual(digest(copyFor('en', false), n), digest(null, n), `a digest of ${n}`);
+  const types = all(null, 'supportive').map(([t]) => t);
+  for (const t of ['directive', 'checkin_due', 'goal_slip', 'score_drop', 'streak_broken', 'coach_message', 'coach_cosign', 'habit_reminder']) assert.ok(types.includes(t), `${t} is not covered`);
+  for (const loc of ACTIVE_LOCALES) {
+    const tr = trIn(loc);
+    const es = all(copyFor(loc, false), 'supportive');
+    const keyed = new Map(es.map(([t, title, body], i) => [`${t}${i}`, { title, body }]));
+    assert.equal(keyed.size, es.length);
+    // Spot the frames against the app's translator, key by key.
+    const find = (type, nth = 0) => es.filter(([t]) => t === type)[nth];
+    assert.deepEqual(find('directive').slice(1), [tr('home:push.moveTitle'), 'LINE'], loc);
+    assert.deepEqual(find('checkin_due').slice(1), [tr('home:push.checkinTitle'), tr('home:push.checkinSupportive')], loc);
+    assert.deepEqual(find('coach_message', 0).slice(1), [tr('home:push.noteTitle', { coach: 'Ana' }), 'See you Friday'], loc);
+    assert.deepEqual(find('coach_message', 1).slice(1), [tr('home:push.noteTitleAnon'), tr('home:push.noteBody')], loc);
+    assert.deepEqual(find('coach_cosign', 0).slice(1), [tr('home:push.cosignTitle', { coach: 'Ana', activity: 'run' }), tr('home:push.cosignSupportive')], loc);
+    assert.deepEqual(find('coach_cosign', 1).slice(1), [tr('home:push.cosignTitleAnon', { activity: tr('home:push.cosignActivity') }), tr('home:push.cosignSupportive')], loc);
+    assert.deepEqual(find('streak_broken', 0).slice(1), [tr('home:push.streakTitle'), tr('home:push.streakSupportive')], loc);
+    assert.deepEqual(find('streak_broken', 1).slice(1), [tr('home:push.streakTitleHabit', { habit: 'Water' }), tr('home:push.streakSupportive')], loc);
+    assert.deepEqual(find('habit_reminder', 0).slice(1), [tr('home:push.habitTitle', { label: 'Take vitamins' }), tr('home:push.habitSupportive')], loc);
+    assert.deepEqual(find('habit_reminder', 1).slice(1), [tr('home:push.habitTitle', { label: tr('home:push.habitAnon') }), tr('home:push.habitSupportive')], loc);
+    const direct = all(copyFor(loc, false), 'direct');
+    assert.deepEqual(direct.filter(([t]) => t === 'checkin_due')[0].slice(1), [tr('home:push.checkinTitle'), tr('home:push.checkinDirect')], loc);
+    assert.equal(direct.filter(([t]) => t === 'score_drop')[0][2], 'Down 12', `${loc}: a direct Score dip says its reason alone`);
+    const d5 = digest(copyFor(loc, false), 5);
+    assert.equal(d5.title, tr('home:push.digestTitle', { count: 5 }), loc);
+    assert.equal(d5.body, `T0 · T1 · T2 ${tr('home:push.digestMore', { count: 2 })}`, loc);
+    // No placeholder or ICU left anywhere.
+    for (const [t, title, body] of [...es, ...direct, [d5.type, d5.title, d5.body]]) assert.doesNotMatch(`${title} ${body}`, /[{}]/, `${loc} ${t}`);
+  }
+  // A coach's digest stays in English, whatever translator is passed.
+  const pending = [1, 2].map((i) => ({ type: 'client_red', title: `T${i}`, body: '', route: 'client', data: {}, channels: { push: true }, sig: `s${i}`, key: `k${i}`, at: +NOW - 3600000 }));
+  const coach = decideNotifications({ candidates: [], last: { pendingDigest: pending }, prefs: { tz: 'UTC', quietStart: 23, quietEnd: 6 }, now: NOW, audience: 'coach', tr: copyFor('es', false).tr }).digest;
+  assert.equal(coach.title, '2 updates for you');
+});
+
+// ⚠ THE SHAMING GUARD READS ENGLISH (tone.mjs containsShaming), AND A PUSH IT TRIPS IS SENT BLANK.
+// Pidgin's "You never log food" is "you haven't", not a reproach, but the guard read "you never" and
+// emptied the body, so the catalog says it as the English does ("No food log…"). Every line a
+// member's notice can say, in every language, is held clear of it.
+test("no line a member's notice can say trips the shaming guard, in any language", async () => {
+  const { containsShaming } = await import('../src/lib/ai/tone.mjs');
+  for (const loc of ACTIVE_LOCALES) {
+    const home = cat(loc, 'home');
+    for (const [k, v] of Object.entries(home)) {
+      if (!/^(push\.|lead\.|checkin\.(week|e\d|h\d|hm$|hOnly$))/.test(k)) continue;
+      assert.equal(containsShaming(v), false, `${loc} ${k}: ${v}`);
+    }
+  }
+});
+
+test("the member's language and units, as the server reads them", () => {
+  assert.equal(memberLocaleCode({ locale: 'es' }), 'es');
+  assert.equal(memberLocaleCode({ locale: 'pt-BR' }), 'pt-BR');
+  assert.equal(memberLocaleCode({ locale: 'ar' }), 'en', 'a language the app does not ship yet reads as English');
+  for (const doc of [{}, null, undefined, { locale: 7 }, { locale: '' }]) assert.equal(memberLocaleCode(doc), 'en');
+  assert.equal(copyFor('xx', false).code, 'en');
+  // ⚠ TWIN: the app's ShapeUnits normalises the same stored value (iosAppBroadsheet.jsx bsNormalizeUnits).
+  const src = fs.readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), 'utf8');
+  const m = /function bsNormalizeUnits\(v\) \{\n\s*return (.+) \? 'metric' : 'imperial';\n\}/.exec(src);
+  assert.ok(m, 'bsNormalizeUnits moved');
+  const app = new Function('v', `return ${m[1]};`);
+  for (const v of ['Imperial · lb / mi', 'Metric · kg / km', 'metric', 'Metric', 'kg', 'km', 'imperial', 'lb', '', null, undefined, 0]) {
+    assert.equal(bsUnitsMetric(v), app(v), String(v));
+  }
+});
+
+test('the notify routes say a member\'s notices in their language and units, and a coach\'s in English', () => {
+  const core = fs.readFileSync(path.join(ROOT, 'src/lib/ai/notify-core.ts'), 'utf8');
+  assert.match(core, /const line = Notify\.memberMoveLine\(directive, \{ tr: copy\?\.tr, locale: copy\?\.locale, metric: copy\?\.metric, tone: opts\.tone \}\);/);
+  assert.match(core, /tr: copy\?\.tr,\n\s*locale: copy\?\.locale,\n\s*metric: copy\?\.metric,\n\s*\}\)\);/);
+  assert.match(core, /habitReminderCandidates\(\{[^}]*tr: opts\.copy\?\.tr \}\)/);
+  assert.match(core, /return copyFor\(memberLocaleCode\(localeDoc\), bsUnitsMetric\(settings && settings\.units\)\);/);
+  assert.doesNotMatch(core, /speakableDirective/, 'the member push is built from the engine English again');
+  for (const rel of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) {
+    const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    assert.match(src, /readUserGoal\([^)]*'app_locale'\)/, rel);
+    assert.match(src, /const copy = isCoach \? null : memberCopy\(localeDoc, settings\);/, rel);
+    assert.match(src, /candidatesFor\(snapshot, \{.*\bthresholds, copy \}\)/, rel);
+    assert.match(src, /decideNotifications\(\{[^}]*tr: copy\?\.tr \}\)/, rel);
+  }
+  // The server bundles a catalog for exactly the languages the app ships.
+  const cats = fs.readFileSync(path.join(ROOT, 'src/lib/ai/memberCatalogs.ts'), 'utf8');
+  const bundled = [...cats.matchAll(/catalogs\/([^/]+)\/home\.json'/g)].map((x) => x[1]);
+  assert.deepEqual([...bundled].sort(), [...ACTIVE_LOCALES].sort());
+  const keyed = [...cats.matchAll(/^  '([^']+)': \{ home: /gm)].map((x) => x[1]);
+  assert.deepEqual([...keyed].sort(), [...ACTIVE_LOCALES].sort());
 });
 
 // The splash passes Home's helper as bsWireLines' opts.reason (iosAppBroadsheetMain.jsx, pinned in

@@ -5,6 +5,8 @@
 // tests/mutations/morning-checkin-2026-10-19.mutations.mjs. Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/checkin-card-2026-10-18.mutations.mjs --fail-on-skipped
 const CARD = 'mobile-app/src/broadsheet/BSCheckinCard.jsx';
+// The word rule moved to the module the server reads too, so the push and the bell row say it as Home does.
+const LEAD = 'mobile-app/src/services/leadReason.mjs';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const CHECKIN = 'src/app/api/client/checkin/route.ts';
 const PROGRESS = 'src/app/api/client/progress/route.ts';
@@ -21,7 +23,7 @@ export default {
     // Not a no-op: a stored value is whole, but an average is not, and bsCiWeekLine, Your mornings'
     // headlines and Home's lead all turn an average into its word here. Math.round would call a 2.5
     // week Drained where the rule ((2i, 2i+2] is word i, ruling 11) and the engine say Low.
-    { name: 'an old 1-10 value reads as the wrong word', file: CARD,
+    { name: 'an old 1-10 value reads as the wrong word', file: LEAD,
       find: 'return Math.max(0, Math.min(4, Math.ceil(Math.min(10, n) / 2) - 1));',
       replace: 'return Math.max(0, Math.min(4, Math.round(Math.min(10, n) / 2) - 1));' },
     { name: 'the words are stored off the engine thresholds', file: CARD,

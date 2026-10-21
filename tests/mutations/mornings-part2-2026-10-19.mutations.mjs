@@ -7,6 +7,8 @@
 // mutation must be killed. Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/mornings-part2-2026-10-19.mutations.mjs --fail-on-skipped
 const READY = 'mobile-app/src/services/morningReadiness.mjs';
+// Home's lead reason moved to the module the server reads too, so the push and the bell row say it as Home does.
+const LEAD = 'mobile-app/src/services/leadReason.mjs';
 const PAGE = 'mobile-app/src/broadsheet/BSYourMornings.jsx';
 const CARD = 'mobile-app/src/broadsheet/BSCheckinCard.jsx';
 const WATER = 'mobile-app/src/broadsheet/BSWaterLine.jsx';
@@ -402,22 +404,22 @@ export default {
       find: "easy: tr('home:mornings.bandEasy', { defaultValue: 'Take it easy' }),",
       replace: "easy: tr('home:mornings.bandLow', { defaultValue: 'Run down' })," },
     // ── The card: Home's lead in the member's words (rulings 11 and 13) ──
-    { name: 'a coach reason is reworded', file: CARD,
+    { name: 'a coach reason is reworded', file: LEAD,
       find: "const ev = dir.source === 'engine' && dir.evidence ? dir.evidence : null;",
       replace: 'const ev = dir.evidence ? dir.evidence : null;' },
-    { name: 'a string average is read', file: CARD,
+    { name: 'a string average is read', file: LEAD,
       find: "typeof ev.avg === 'number' && Number.isFinite(ev.avg) ? ev.avg : null;",
       replace: 'Number.isFinite(Number(ev.avg)) && ev.avg != null ? Number(ev.avg) : null;' },
-    { name: 'the lead keeps the capital', file: CARD,
-      find: "word: bsCiLower(bsCiWords(tr).E[i]) });",
+    { name: 'the lead keeps the capital', file: LEAD,
+      find: "word: bsCiLowerIn(bsCiWords(tr).E[i], locale) });",
       replace: "word: bsCiWords(tr).E[i] });" },
-    { name: 'hunger says the energy word', file: CARD,
-      find: "word: bsCiLower(bsCiWords(tr).H[i]) });",
-      replace: "word: bsCiLower(bsCiWords(tr).E[i]) });" },
-    { name: "the lead's sleep is to the minute", file: CARD,
+    { name: 'hunger says the energy word', file: LEAD,
+      find: "word: bsCiLowerIn(bsCiWords(tr).H[i], locale) });",
+      replace: "word: bsCiLowerIn(bsCiWords(tr).E[i], locale) });" },
+    { name: "the lead's sleep is to the minute", file: LEAD,
       find: 'hours: bsCiHM(Math.round(avg * 12) / 12, say) });',
       replace: 'hours: bsCiHM(avg, say) });' },
-    { name: 'an unknown flag is worded as sleep', file: CARD,
+    { name: 'an unknown flag is worded as sleep', file: LEAD,
       find: "  if (ev.key === 'sleep_low' && avg > 0) {",
       replace: '  if (avg > 0) {' },
     // ── The hydration lead opens the water line (§3.7) ──
