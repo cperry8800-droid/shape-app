@@ -441,6 +441,51 @@ test("no line a member's notice can say trips the shaming guard, in any language
   }
 });
 
+// ⚠ A HELD NOTICE IS TITLED IN THE LANGUAGE ITS DIGEST GOES OUT IN (Codex on #2418). A notice held
+// for quiet hours or the cap was titled when it was queued; a member who changed language in between,
+// or one with English items held from before notices were translated, read a translated digest
+// heading over titles in the old language.
+test('a held notice is titled again in the language its digest goes out in', () => {
+  const de = copyFor('de', false);
+  const es = copyFor('es', false);
+  const QUIET = new Date('2026-10-22T23:30:00Z');
+  const LATER = new Date('2026-10-23T09:00:00Z');
+  const prefs = { tz: 'UTC', quietStart: 22, quietEnd: 7 };
+  const held = [
+    ...clientCandidates({ directive: { lever: 'checkin', verdict: 'Check-in due', reason: 'x', action: { kind: 'check_in', label: 'Send' }, cited: ['checkin_overdue'], line: 'L' }, flags: [{ key: 'streak_broken', reason: 'r' }, { key: 'score_drop', reason: 'Down 12' }], checkinDueThisWeek: true, coachEvents: [{ kind: 'message', id: 'm1', coach: 'Ana', preview: 'Hi' }], now: QUIET, tone: 'supportive', tr: de.tr }),
+    ...habitReminderCandidates({ reminders: [{ habitId: 'h1', label: 'Vitamine', at: '00:00', days: [0, 1, 2, 3, 4, 5, 6], tz: 'UTC' }], doneToday: [], now: QUIET, tone: 'supportive', tr: de.tr }),
+  ];
+  // Quiet hours: everything is held, titled in German.
+  const first = decideNotifications({ candidates: held, last: {}, prefs, now: QUIET, audience: 'client', tr: de.tr });
+  assert.equal(first.send.length, 0);
+  assert.ok(first.nextState.pendingDigest.length >= 5);
+  for (const i of first.nextState.pendingDigest) assert.ok(i.titleCopy && i.titleCopy.key.startsWith('home:push.'), `${i.type} holds no key`);
+  // The member switches to Spanish; the digest goes out in Spanish, every title with it.
+  const out = decideNotifications({ candidates: [], last: first.nextState, prefs, now: LATER, audience: 'client', tr: es.tr });
+  const tr = trIn('es');
+  const titles = first.nextState.pendingDigest.slice(0, 3).map((i) => tr(i.titleCopy.key, i.titleCopy.vars || undefined));
+  assert.equal(out.digest.title, tr('home:push.digestTitle', { count: first.nextState.pendingDigest.length }));
+  assert.equal(out.digest.body, `${titles.join(' · ')} ${tr('home:push.digestMore', { count: first.nextState.pendingDigest.length - 3 })}`);
+  for (const t of titles) assert.ok(!Object.values(cat('de', 'home')).includes(t) || Object.values(cat('es', 'home')).includes(t), `a German title rode into the Spanish digest: ${t}`);
+  // The member's own words stay theirs: the habit's name and the coach's.
+  const named = first.nextState.pendingDigest.filter((i) => i.type === 'habit_reminder' || i.type === 'coach_message');
+  assert.deepEqual(named.map((i) => i.titleCopy.vars), named.map((i) => (i.type === 'habit_reminder' ? { label: 'Vitamine' } : { coach: 'Ana' })));
+  // An English item held before titles carried a key: a fixed title is said again, any other kept.
+  const legacy = [
+    { type: 'checkin_due', title: 'Your weekly check-in is ready', body: '', route: 'checkin', data: {}, channels: { push: true }, sig: 'due:W', key: 'self', at: +QUIET },
+    { type: 'goal_slip', title: 'Your Lean by summer pace eased off', body: '', route: 'goal', data: {}, channels: { push: true }, sig: 'g', key: 'self', at: +QUIET },
+    { type: 'habit_reminder', title: 'Time for: Walk', body: '', route: 'habits', data: {}, channels: { push: true }, sig: 'h', key: 'h1', at: +QUIET },
+  ];
+  const old = decideNotifications({ candidates: [], last: { pendingDigest: legacy }, prefs, now: LATER, audience: 'client', tr: es.tr });
+  assert.equal(old.digest.body, `${tr('home:push.checkinTitle')} · ${tr('home:push.goalTitle')} · Time for: Walk`);
+  // Without a translator, the stored titles as they were.
+  const plain = decideNotifications({ candidates: [], last: { pendingDigest: legacy }, prefs, now: LATER, audience: 'client' });
+  assert.equal(plain.digest.body, 'Your weekly check-in is ready · Your Lean by summer pace eased off · Time for: Walk');
+  // A title that holds a translated default is not held to its key, and keeps its text.
+  const anon = habitReminderCandidates({ reminders: [{ habitId: 'h2', label: '', at: '00:00', days: [0, 1, 2, 3, 4, 5, 6], tz: 'UTC' }], doneToday: [], now: QUIET, tone: 'supportive', tr: de.tr });
+  assert.equal('titleCopy' in anon[0], false);
+});
+
 test("the member's language and units, as the server reads them", () => {
   assert.equal(memberLocaleCode({ locale: 'es' }), 'es');
   assert.equal(memberLocaleCode({ locale: 'pt-BR' }), 'pt-BR');
