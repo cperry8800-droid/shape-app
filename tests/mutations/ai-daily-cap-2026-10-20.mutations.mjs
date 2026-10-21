@@ -17,7 +17,9 @@ export default {
     { name: "the day's pushes replace the engine's own count", file: GATE, find: '  let usedToday = Math.max(state.sentToday, Number.isFinite(pushedToday) ? pushedToday : 0);', replace: '  let usedToday = Number.isFinite(pushedToday) ? pushedToday : state.sentToday;' },
     { name: "this run's sends do not count", file: GATE, find: 'if (ch.push) { state.sentToday += 1; usedToday += 1; }', replace: 'if (ch.push) { state.sentToday += 1; }' },
     { name: 'an in-app-only send takes a place', file: GATE, find: 'if (ch.push) { state.sentToday += 1; usedToday += 1; }', replace: '{ state.sentToday += 1; usedToday += 1; }' },
-    { name: 'an in-app-only alert waits for the cap', file: GATE, find: 'const overCap = !!ch.push && usedToday >= cap;', replace: 'const overCap = usedToday >= cap;' },
+    { name: 'a held digest keeps no place', file: GATE, find: 'const overCap = !!ch.push && usedToday + reserved >= cap;', replace: 'const overCap = !!ch.push && usedToday >= cap;' },
+    { name: 'a place is kept for a held digest that wants no push', file: GATE, find: ' && state.pendingDigest.some((i) => i.channels && i.channels.push) ? 1 : 0;', replace: ' ? 1 : 0;' },
+    { name: 'an in-app-only alert waits for the cap', file: GATE, find: 'const overCap = !!ch.push && usedToday + reserved >= cap;', replace: 'const overCap = usedToday + reserved >= cap;' },
 
     // ── The digest (Codex on #2417) ──
     { name: 'the digest pushes past the cap', file: GATE, find: "const pushes = pushRoom && wants('push');", replace: "const pushes = wants('push');" },

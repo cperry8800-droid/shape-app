@@ -205,3 +205,27 @@ test("the engine reads the member's day in the habit cron's zone: profile, then 
   // The habit cron resolves the same order, so both senders date the cap alike.
   assert.match(read('src/app/api/cron/habit-watch/route.ts'), /const tzOf = \(u: string\) => personZone\.get\(u\) \|\| zone\(\(quietOf\.get\(u\) \|\| \{\}\)\.tz\) \|\| 'UTC';/);
 });
+
+// Codex on #2417: new pushes were let in before the held digest, so a morning with a cap's worth of
+// them left a held push-only item no room, day after day.
+test("a held digest that wants a push keeps one place, and the day still pushes no more than the cap", () => {
+  const pushOnly = held();
+  pushOnly.date = '2026-10-18';
+  pushOnly.pendingDigest[0].channels = { inapp: false, push: true, email: false };
+  const run = decideNotifications({ candidates: cands(), last: pushOnly, prefs: { tz: TZ, maxPerDay: 3 }, now: DAY, audience: 'client', pushedToday: 0 });
+  assert.equal(run.send.length, 2, 'two of the three new pushes go now');
+  assert.equal(run.digest.channels.push, true, 'the held item goes out with a push');
+  assert.equal(run.digest.data.items.length, 2, 'with the push this run held past the reserved place');
+  assert.deepEqual(run.nextState.pendingDigest, []);
+  assert.equal(run.nextState.sentToday, 3, 'three pushes in all: the cap');
+
+  const nothingHeld = decideNotifications({ candidates: cands(), last: {}, prefs: { tz: TZ, maxPerDay: 3 }, now: DAY, audience: 'client', pushedToday: 0 });
+  assert.equal(nothingHeld.send.length, 3, 'with nothing held, no place is kept back');
+
+  const inAppHeld = held();
+  inAppHeld.date = '2026-10-18';
+  inAppHeld.pendingDigest[0].channels = { inapp: true, push: false, email: false };
+  const bell = decideNotifications({ candidates: cands(), last: inAppHeld, prefs: { tz: TZ, maxPerDay: 3 }, now: DAY, audience: 'client', pushedToday: 0 });
+  assert.equal(bell.send.length, 3, 'a held item that wants no push keeps no place');
+  assert.equal(bell.digest.channels.push, false);
+});

@@ -534,6 +534,11 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
   const suppressed = [];
   const cap = P.maxPerDay || DEFAULT_PREFS.maxPerDay;
   let usedToday = Math.max(state.sentToday, Number.isFinite(pushedToday) ? pushedToday : 0);
+  // ⚠ A HELD DIGEST THAT WANTS A PUSH KEEPS ONE PLACE (Codex on #2417). New pushes were let in
+  // first, so a morning with a cap's worth of them left the held items no room, day after day,
+  // until the queue's bound dropped them. One place waits for the digest; anything this run holds
+  // past it rides in that same digest, so the day still pushes no more than the cap.
+  const reserved = hadPending && usedToday < cap && state.pendingDigest.some((i) => i.channels && i.channels.push) ? 1 : 0;
 
   // newest-relevant first
   const ranked = candidates.slice().sort((a, b) => (PRIORITY_RANK[b.priority] || 0) - (PRIORITY_RANK[a.priority] || 0));
@@ -568,7 +573,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     // senders is their pushes, so counting this engine's in-app-only sends too let one of them
     // take the last place and hold back the push after it. An item with no push neither takes a
     // place nor waits for one.
-    const overCap = !!ch.push && usedToday >= cap;
+    const overCap = !!ch.push && usedToday + reserved >= cap;
     const lowPri = c.priority === 'low';
     // quiet hours OR over the daily cap OR low-priority → roll into the digest.
     if (quiet || overCap || lowPri) {
