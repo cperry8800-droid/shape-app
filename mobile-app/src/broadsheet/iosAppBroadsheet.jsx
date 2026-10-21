@@ -1350,14 +1350,15 @@ function BSTabBar({ tabs, active, onChange }) {
       position: 'relative', height: '100%', pointerEvents: 'auto',
       padding: `0 ${DOCK_PAD}px`,
       borderRadius: t.RADIUS_LG,
-      // Frosted paper: the page scrolls on under the dock, so it is the paper
-      // at ~96% with a blur rather than a solid slab. Adapts to every paper.
-      background: `linear-gradient(180deg, rgba(${t.inkRGB},0.045), transparent 55%), ${t.PAPER}f5`,
+      // Frosted glass: the page scrolls on under the dock and stays visible —
+      // half-strength paper over a light blur keeps its colours and shapes but
+      // softens text enough that it never competes with the icons.
+      background: `linear-gradient(180deg, rgba(${t.inkRGB},0.045), transparent 55%), ${t.PAPER}80`,
       color: t.INK,
       border: `1px solid ${t.SURFACE_BORDER}`,
       display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`,
-      backdropFilter: 'blur(20px) saturate(160%)',
-      WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+      backdropFilter: 'blur(6px) saturate(160%)',
+      WebkitBackdropFilter: 'blur(6px) saturate(160%)',
       boxShadow: t.isLight
         ? '0 16px 36px rgba(15,14,12,0.20), 0 2px 8px rgba(15,14,12,0.10), inset 0 1px 0 rgba(255,255,255,0.55)'
         : '0 14px 34px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)',
