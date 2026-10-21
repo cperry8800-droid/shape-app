@@ -591,17 +591,22 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
   // after its items were held, pushing whether or not the day's cap was spent, so past the cap
   // every hourly run with something held sent one more push. Past the cap it lands without one,
   // as a friend's habit notice does (#2413), and a digest that pushes counts against the cap.
-  // ⚠ A DIGEST LEFT WITH NO CHANNEL STAYS HELD (Codex on #2417). When every held item wants a
-  // push only, taking the push away left nothing to deliver on: the row was hidden from the bell
-  // (inapp off) and never pushed, yet the items were stamped and cleared, so they were lost. They
-  // wait now for the next run with a push to spare, tomorrow at the latest.
+  // ⚠ AN ITEM WITH NO CHANNEL OPEN STAYS HELD (Codex on #2417). A push-only item (its type's
+  // in-app and email off) has nowhere to land while the cap is spent. Sent anyway, it reached
+  // only the bell the member turned off, or nothing at all, and was stamped and cleared, so its
+  // push never came. Only the items with a channel open now go out; the rest wait for a run
+  // with a push to spare, tomorrow at the latest. An item held before channels rode along lands
+  // in the bell, as its digest always showed it.
   let digest = null;
-  const items = state.pendingDigest;
-  const wants = (k) => items.some((i) => i.channels && i.channels[k]);
-  const digestChannels = { inapp: wants('inapp'), push: wants('push') && usedToday < cap, email: wants('email') };
-  if (!quiet && hadPending && items.length > 0 && anyChannelOn(digestChannels)) {
+  const pushRoom = usedToday < cap;
+  const chOf = (i) => i.channels || { inapp: true, push: false, email: false };
+  const open = (i) => { const c = chOf(i); return !!(c.inapp || c.email || (c.push && pushRoom)); };
+  const items = state.pendingDigest.filter(open);
+  const stillHeld = state.pendingDigest.filter((i) => !open(i));
+  const wants = (k) => items.some((i) => !!chOf(i)[k]);
+  if (!quiet && hadPending && items.length > 0) {
     const n = items.length;
-    const pushes = digestChannels.push;
+    const pushes = pushRoom && wants('push');
     digest = {
       type: 'digest',
       title: n === 1 ? '1 update for you' : `${n} updates for you`,
@@ -609,8 +614,8 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
       route: audience === 'coach' ? 'clients' : 'home',
       data: { items: items.map((i) => ({ type: i.type, route: i.route, data: i.data })) },
       priority: 'low',
-      // the digest goes out on the UNION of channels its held items wanted, less a push past the cap.
-      channels: digestChannels,
+      // the digest goes out on the UNION of channels its items wanted, less a push past the cap.
+      channels: { inapp: wants('inapp'), push: pushes, email: wants('email') },
     };
     if (pushes) { state.sentToday += 1; usedToday += 1; }
     // DELIVERY is what stamps: these items have now actually reached the member, so the
@@ -619,7 +624,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     for (const i of items) {
       if (nonEmpty(i.sig) && nonEmpty(i.key)) rememberSig(state.types, `${i.type}:${i.key}`, i.sig, now);
     }
-    state.pendingDigest = [];
+    state.pendingDigest = stillHeld;
   }
 
   return { send, digest, nextState: state, suppressed };

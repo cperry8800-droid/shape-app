@@ -156,3 +156,23 @@ test('push-only items past the cap stay held, and go out with a push once there 
   assert.equal(tomorrow.digest.channels.push, true);
   assert.equal(tomorrow.nextState.pendingDigest.length, 0);
 });
+
+// Codex on #2417: in a mixed queue past the cap, the in-app item's digest carried the push-only
+// item too, stamped and cleared it, so it reached only the bell the member turned off.
+test('past the cap a mixed queue sends what has a channel open and holds the push-only item', () => {
+  const mixed = held();
+  mixed.pendingDigest = [
+    { ...mixed.pendingDigest[0], channels: { inapp: false, push: true, email: false }, sig: 's1', key: 'k1' },
+    { ...mixed.pendingDigest[0], title: 'Goal slipping', channels: { inapp: true, push: true, email: false }, sig: 's2', key: 'k2' },
+  ];
+  const spent = digestOf({ last: mixed, pushedToday: 4 });
+  assert.deepEqual(spent.digest.channels, { inapp: true, push: false, email: false });
+  assert.equal(spent.digest.data.items.length, 1, 'only the item with the bell open goes out');
+  assert.deepEqual(spent.nextState.pendingDigest.map((i) => i.key), ['k1'], 'the push-only item waits');
+  assert.ok(spent.nextState.types['score_drop:k2'], 'the delivered item is stamped');
+  assert.equal(spent.nextState.types['score_drop:k1'], undefined, 'the held one is not');
+
+  const tomorrow = decideNotifications({ candidates: [], last: spent.nextState, prefs: { tz: TZ, maxPerDay: 4 }, now: new Date(+DAY + 86400e3), audience: 'client', pushedToday: 0 });
+  assert.equal(tomorrow.digest.channels.push, true);
+  assert.deepEqual(tomorrow.nextState.pendingDigest, []);
+});

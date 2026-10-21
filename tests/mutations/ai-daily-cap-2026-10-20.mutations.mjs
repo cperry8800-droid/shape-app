@@ -18,9 +18,11 @@ export default {
     { name: "this run's sends do not count", file: GATE, find: '    state.sentToday += 1;\n    usedToday += 1;', replace: '    state.sentToday += 1;' },
 
     // ── The digest (Codex on #2417) ──
-    { name: 'the digest pushes past the cap', file: GATE, find: "push: wants('push') && usedToday < cap,", replace: "push: wants('push')," },
-    { name: 'the digest pushes when nothing in it wants one', file: GATE, find: "push: wants('push') && usedToday < cap,", replace: "push: usedToday < cap," },
-    { name: 'a digest with no channel left is sent and its items lost', file: GATE, find: ' && anyChannelOn(digestChannels)) {', replace: ') {' },
+    { name: 'the digest pushes past the cap', file: GATE, find: "const pushes = pushRoom && wants('push');", replace: "const pushes = wants('push');" },
+    { name: 'the digest pushes when nothing in it wants one', file: GATE, find: "const pushes = pushRoom && wants('push');", replace: 'const pushes = pushRoom;' },
+    { name: 'a push-only item goes out past the cap', file: GATE, find: 'return !!(c.inapp || c.email || (c.push && pushRoom));', replace: 'return !!(c.inapp || c.email || c.push);' },
+    { name: 'the held push-only item is dropped', file: GATE, find: '    state.pendingDigest = stillHeld;', replace: '    state.pendingDigest = [];' },
+    { name: 'the whole queue goes out with whichever item has a channel', file: GATE, find: '  const items = state.pendingDigest.filter(open);', replace: '  const items = state.pendingDigest.some(open) ? state.pendingDigest.slice() : [];' },
     { name: 'a pushed digest is not counted', file: GATE, find: '    if (pushes) { state.sentToday += 1; usedToday += 1; }\n', replace: '' },
     { name: 'an unpushed digest is counted', file: GATE, find: '    if (pushes) { state.sentToday += 1; usedToday += 1; }', replace: '    { state.sentToday += 1; usedToday += 1; }' },
 
