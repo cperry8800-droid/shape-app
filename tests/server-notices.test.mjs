@@ -224,7 +224,8 @@ test('each writer stores its copy beside the English it writes', () => {
   // notify.ts carries a writer's copy into the row's data.
   const notify = read('src/lib/notify.ts');
   assert.match(notify, /export async function createNotification\(client: SupabaseClient, n: NewNotification, copy\?: NoticeCopy \| null\)/);
-  assert.match(notify, /export async function createPreferredNotification\(\s*admin: SupabaseClient,\s*n: NewNotification & \{ type: string; quiet\?: boolean \},\s*copy\?: NoticeCopy \| null,\s*\)/);
+  assert.match(notify, /export async function createPreferredNotification\(\s*admin: SupabaseClient,\s*n: PreferredNotification,\s*copy\?: NoticeCopy \| null,\s*\)/);
+  assert.match(notify, /export type PreferredNotification = NewNotification & \{ type: string; quiet\?: boolean; claimPush\?: \(\) => Promise<boolean> \};/);
 });
 
 test('a writer\'s copy says, in English, what its English says', () => {

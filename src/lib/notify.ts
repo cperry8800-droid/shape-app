@@ -102,9 +102,13 @@ async function saidFor(admin: SupabaseClient, n: NewNotification): Promise<{ tit
 // if the app channel is off too nothing is written.
 // Resolves true when the notification row was stored, false when nothing was (muted, the type
 // off, preferences unreadable, the insert failed or was a duplicate).
+// `claimPush` is a sender's place under the person's daily push cap (push-cap.ts), asked for only
+// once the notice is known to push; false lands it as `quiet` does.
+export type PreferredNotification = NewNotification & { type: string; quiet?: boolean; claimPush?: () => Promise<boolean> };
+
 export async function createPreferredNotification(
   admin: SupabaseClient,
-  n: NewNotification & { type: string; quiet?: boolean },
+  n: PreferredNotification,
   copy?: NoticeCopy | null,
 ): Promise<boolean> {
   return (await preferredNotificationOutcome(admin, n, copy)) === 'stored';
@@ -115,7 +119,7 @@ export async function createPreferredNotification(
 // that did not work, which a caller that promised the notice can try again (capacity-reopen.ts).
 export async function preferredNotificationOutcome(
   admin: SupabaseClient,
-  given: NewNotification & { type: string; quiet?: boolean },
+  given: PreferredNotification,
   copy?: NoticeCopy | null,
 ): Promise<'stored' | 'skipped' | 'failed'> {
   const n = { ...withCopy(given, copy), type: given.type, quiet: given.quiet };
@@ -140,6 +144,10 @@ export async function preferredNotificationOutcome(
     }
     const channels = channelsForType({ matrix: { [n.type]: overrides } }, n.type);
     if (n.quiet) { channels.push = false; channels.email = false; }
+    // ⚠ THE CAP'S PLACE IS CLAIMED ONLY FOR A NOTICE THAT PUSHES (Codex on #2420). Claimed before
+    // the switches were read, a member with this type's push off held a place for nothing, and
+    // another sender asking at that moment was refused it. Refused, it lands as `quiet` does.
+    if (channels.push && given.claimPush && !(await given.claimPush())) { channels.push = false; channels.email = false; }
     if (!channels.inapp && !channels.push && !channels.email) return 'skipped';
     // Email cooldown: one email per (recipient, type) per hour, checked BEFORE
     // the insert below (which would otherwise count itself). Event loops (e.g.

@@ -33,7 +33,7 @@ export default {
     { name: 'an archived habit sends', file: RULES, find: ' || h.archived_at) continue;', replace: ') continue;' },
     { name: 'a weekly habit sends daily', file: RULES, find: "    if (h.cadence && h.cadence !== 'daily') continue;\n", replace: '' },
     { name: 'no zone on file is never anyone\'s evening', file: RULES, find: "const tz = zoneOf(h.user_id) || 'UTC';", replace: "const tz = zoneOf(h.user_id) || 'Pacific/Kiritimati';" },
-    { name: "a to-don't reads as not done", file: RULES, find: "  return type === 'avoid'", replace: "  return type === 'never'" },
+    { name: "a to-don't reads as not done", file: RULES, find: "  return type === 'avoid'\n    ? { title: `${first}", replace: "  return type === 'never'\n    ? { title: `${first}" },
     { name: 'one key for every evening', file: RULES, find: 'export const habitWatchDedupe = (habitId, day) => `habit:${habitId}:${day}`;', replace: 'export const habitWatchDedupe = (habitId) => `habit:${habitId}`;' },
 
     // ── The cron ──

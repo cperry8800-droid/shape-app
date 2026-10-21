@@ -6,6 +6,9 @@
 // their cap in habit pushes at 8 pm and another cap's worth from the engine after. It now reads
 // every notice stamped as pushed on the person's own date (loadPushedToday) and caps on the
 // larger of that and its own count.
+// The places are claimed in the database before anything is sent (owner, 2026-10-21: "yes build
+// the cap reservation"; 2026-10-21-push-cap-claims.sql, push-cap.ts, decideAndClaim), so two
+// senders deciding in the same minute can't both take the last one.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -15,12 +18,13 @@ import { createRequire } from 'node:module';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
 import { READER_COPY_EN } from './helpers/reader-copy-en.mjs';
-import { clientCandidates, decideNotifications } from '../src/lib/ai/notifications.mjs';
+import { clientCandidates, decideNotifications, dailyCap, pushCount } from '../src/lib/ai/notifications.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(import.meta.url);
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 
+const pushCap = await loadRealModule(join(ROOT, 'src/lib/push-cap.ts'), { typescript: true });
 const core = await loadRealModule(join(ROOT, 'src/lib/ai/notify-core.ts'), {
   typescript: true,
   registry: new Map([
@@ -33,6 +37,7 @@ const core = await loadRealModule(join(ROOT, 'src/lib/ai/notify-core.ts'), {
     ['@/lib/notify', { createNotification: async () => true }],
     ['@/lib/email', { sendEmail: async () => ({ ok: true }) }],
     ['@/lib/time', await loadRealModule(join(ROOT, 'src/lib/time.ts'), { typescript: true })],
+    ['@/lib/push-cap', pushCap],
     ['../../../public/newdesign/dashSignals.js', { default: require_('../public/newdesign/dashSignals.js') }],
   ]),
 });
@@ -100,8 +105,8 @@ test('both the live route and the cron read the day before deciding', () => {
     // Codex on #2417: in the same batch as the other per-person reads, not a round trip of its own.
     assert.match(src, /const \[last, settings, [^\]]*\bpushedToday\] = await Promise\.all\(\[[^\]]*loadPushedToday\(/, rel);
     assert.doesNotMatch(src, /await loadPushedToday\(/, `${rel}: no read of its own`);
-    assert.match(src, /Notify\.decideNotifications\(\{ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday[,} ]/, rel);
-    assert.ok(src.indexOf('loadPushedToday(') < src.indexOf('Notify.decideNotifications('), `${rel}: the count is read first`);
+    assert.match(src, /decideAndClaim\(admin, [a-zA-Z.]+, \{ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday[,} ][^;]*\}, prefs\.capTz\)/, rel);
+    assert.ok(src.indexOf('loadPushedToday(') < src.indexOf('decideAndClaim('), `${rel}: the count is read first`);
   }
 });
 
@@ -251,4 +256,196 @@ test("a held digest that wants a push keeps one place, and the day still pushes 
   const bell = decideNotifications({ candidates: cands(), last: inAppHeld, prefs: { tz: TZ, maxPerDay: 3 }, now: DAY, audience: 'client', pushedToday: 0 });
   assert.equal(bell.send.length, 3, 'a held item that wants no push keeps no place');
   assert.equal(bell.digest.channels.push, false);
+});
+
+// ── The places, claimed in the database (2026-10-21) ─────────────────────────
+const quietly = async (fn) => {
+  const warned = [];
+  const orig = console.warn;
+  console.warn = (...a) => warned.push(a.join(' '));
+  try { return { out: await fn(), warned }; } finally { console.warn = orig; }
+};
+// A database that grants `grant(args)` places and records what it was asked.
+const claimsDb = (grant) => {
+  const asked = [];
+  const tables = { push_cap_claims: [] };
+  const db = fakeSupabase({ tables, rpcs: { claim_push_slots: (args) => {
+    asked.push(args);
+    const granted = grant(args);
+    const id = granted > 0 ? `claim-${asked.length}` : null;
+    if (id) tables.push_cap_claims.push({ id, user_id: args.p_user, slots: granted });
+    return [{ claim_id: id, granted }];
+  } } });
+  return { db, asked, tables };
+};
+const input = (over = {}) => ({ candidates: cands(), last: {}, prefs: { tz: TZ, capTz: TZ, maxPerDay: 4 }, now: DAY, audience: 'client', checkinOptedOut: false, pushedToday: 0, ...over });
+
+test('the pushes decided are claimed under the cap, and a full grant keeps the decision', async () => {
+  const plain = decideNotifications(input());
+  const want = pushCount(plain);
+  assert.ok(want >= 2, 'the fixture pushes more than one');
+  const { db, asked } = claimsDb((a) => a.p_want);
+  const { decided, claim } = await core.decideAndClaim(db, 'ann', input(), TZ);
+  assert.deepEqual(asked, [{ p_user: 'ann', p_tz: TZ, p_cap: 4, p_want: want }], "what was decided, on the cap's own day");
+  assert.deepEqual(claim, { id: 'claim-1', granted: want });
+  assert.deepEqual(decided, plain);
+});
+
+test('granted fewer, the engine decides again with only those: the rest wait for the digest', async () => {
+  const want = pushCount(decideNotifications(input()));
+  const { db } = claimsDb(() => 1);
+  const { decided, claim } = await core.decideAndClaim(db, 'ann', input(), TZ);
+  assert.equal(claim.granted, 1);
+  assert.equal(pushCount(decided), 1, 'one push, the place it holds');
+  assert.equal(decided.suppressed.filter((x) => x.reason === 'capped').length, want - 1);
+  assert.equal(decided.nextState.pendingDigest.length, want - 1, 'nothing lost: held for the digest');
+  // The same decision as a day with every other place taken.
+  assert.deepEqual(decided, decideNotifications(input({ pushedToday: 3 })));
+});
+
+test('granted none, nothing pushes and every push waits', async () => {
+  const want = pushCount(decideNotifications(input()));
+  const { db, tables } = claimsDb(() => 0);
+  const { decided, claim } = await core.decideAndClaim(db, 'ann', input(), TZ);
+  assert.deepEqual(claim, { id: null, granted: 0 });
+  assert.equal(pushCount(decided), 0);
+  assert.equal(decided.nextState.pendingDigest.length, want);
+  assert.deepEqual(tables.push_cap_claims, [], 'nothing granted, nothing held in the database');
+});
+
+test('whatever the grant, the second decision pushes no more than it, held digest included', async () => {
+  // A held push-only item (one place reserved for the digest) and new pushes, on a day with one
+  // push already sent by this engine.
+  const last = held();
+  last.sentToday = 1;
+  last.pendingDigest[0].channels = { inapp: false, push: true, email: false };
+  const first = decideNotifications(input({ last, pushedToday: 1 }));
+  const want = pushCount(first);
+  assert.ok(want >= 2);
+  for (let g = 0; g <= want; g += 1) {
+    const { db } = claimsDb(() => g);
+    const { decided } = await core.decideAndClaim(db, 'ann', input({ last, pushedToday: 1 }), TZ);
+    assert.ok(pushCount(decided) <= g, `granted ${g}, pushed ${pushCount(decided)}`);
+    const before = first.nextState.pendingDigest.length + first.send.length + (first.digest ? first.digest.data.items.length : 0);
+    const after = decided.nextState.pendingDigest.length + decided.send.length + (decided.digest ? decided.digest.data.items.length : 0);
+    assert.equal(after, before, `granted ${g}: every item is sent or still held`);
+  }
+});
+
+test('nothing to push claims nothing', async () => {
+  const { db, asked } = claimsDb((a) => a.p_want);
+  const muted = await core.decideAndClaim(db, 'ann', input({ prefs: { tz: TZ, capTz: TZ, maxPerDay: 4, muted: true } }), TZ);
+  assert.equal(muted.claim, null);
+  const inAppOnly = { tz: TZ, capTz: TZ, maxPerDay: 4, matrix: { directive: { push: false }, score_drop: { push: false }, goal_slip: { push: false } } };
+  const quiet = await core.decideAndClaim(db, 'ann', input({ prefs: inAppOnly }), TZ);
+  assert.equal(quiet.claim, null);
+  assert.ok(quiet.decided.send.length > 0, 'the in-app alerts still go');
+  assert.equal(asked.length, 0);
+});
+
+test("a claim that can't be made keeps the first decision, on the count as read", async () => {
+  const db = fakeSupabase({ fail: ['rpc:claim_push_slots'] });
+  const { out, warned } = await quietly(() => core.decideAndClaim(db, 'ann', input(), TZ));
+  assert.equal(out.claim, null);
+  assert.deepEqual(out.decided, decideNotifications(input()));
+  assert.ok(warned.some((w) => /could not claim places/.test(w)));
+});
+
+test('the claim and the decision use the same cap: an unset or zero cap is the default four', async () => {
+  assert.equal(dailyCap({}), 4);
+  assert.equal(dailyCap({ maxPerDay: 0 }), 4);
+  assert.equal(dailyCap({ maxPerDay: 6 }), 6);
+  const { db, asked } = claimsDb((a) => a.p_want);
+  await core.decideAndClaim(db, 'ann', input({ prefs: { tz: TZ, capTz: TZ, maxPerDay: 0 } }), TZ);
+  assert.equal(asked[0].p_cap, 4);
+  await core.decideAndClaim(db, 'ann', input({ prefs: { tz: TZ, capTz: TZ, maxPerDay: 6 } }), TZ);
+  assert.equal(asked[1].p_cap, 6, "the person's own cap");
+});
+
+test('deciding again from the same state is the same decision, and the state is left as it was', () => {
+  const last = held();
+  last.types = { 'directive:self': { sig: 'old', sigs: [{ s: 'old', at: +DAY - 1000 }], at: +DAY - 1000 } };
+  const before = JSON.stringify(last);
+  const a = decideNotifications(input({ last, pushedToday: 2 }));
+  const b = decideNotifications(input({ last, pushedToday: 2 }));
+  assert.deepEqual(a, b);
+  assert.equal(JSON.stringify(last), before, "the first decision didn't touch the state the second reads");
+});
+
+test('pushCount counts pushed items and a digest that pushes', () => {
+  const item = (push) => ({ channels: { inapp: true, push, email: false } });
+  assert.equal(pushCount({ send: [item(true), item(false), {}], digest: item(true) }), 3, 'an item without channels pushes, as deliver() sends it');
+  assert.equal(pushCount({ send: [], digest: item(false) }), 0);
+  assert.equal(pushCount({ send: [item(true)], digest: null }), 1);
+});
+
+test('claimPushSlots reads the granted places, and never more than asked', async () => {
+  const db = fakeSupabase({ rpcs: { claim_push_slots: () => [{ claim_id: 'c1', granted: 5 }] } });
+  assert.deepEqual(await pushCap.claimPushSlots(db, 'ann', { tz: TZ, cap: 4, want: 2 }), { id: 'c1', granted: 2 });
+  assert.deepEqual(db._calls[0], { rpc: 'claim_push_slots', args: { p_user: 'ann', p_tz: TZ, p_cap: 4, p_want: 2 } });
+  const none = fakeSupabase({ rpcs: { claim_push_slots: () => [{ claim_id: null, granted: 0 }] } });
+  assert.deepEqual(await pushCap.claimPushSlots(none, 'ann', { tz: '', cap: 4, want: 1 }), { id: null, granted: 0 });
+  assert.equal(none._calls[0].args.p_tz, 'UTC', 'no zone is UTC');
+  const asksNothing = fakeSupabase({});
+  assert.deepEqual(await pushCap.claimPushSlots(asksNothing, 'ann', { tz: TZ, cap: 4, want: 0 }), { id: null, granted: 0 });
+  assert.equal(asksNothing._calls.length, 0, 'nothing wanted, nothing asked');
+});
+
+test('an answer that cannot be read is no claim, so the sender keeps the count as read', async () => {
+  for (const data of [null, [], [{}], [{ granted: -1 }], [{ granted: 1.5 }], [{ granted: 'lots' }]]) {
+    const db = fakeSupabase({ rpcs: { claim_push_slots: () => data } });
+    const { out, warned } = await quietly(() => pushCap.claimPushSlots(db, 'ann', { tz: TZ, cap: 4, want: 1 }));
+    assert.equal(out, null, JSON.stringify(data));
+    assert.ok(warned.length, 'and says so');
+  }
+  const throws = { rpc: async () => { throw new Error('network'); } };
+  assert.equal((await quietly(() => pushCap.claimPushSlots(throws, 'ann', { tz: TZ, cap: 4, want: 1 }))).out, null);
+});
+
+test('releasePushClaim deletes the claim, and a release that fails is only logged', async () => {
+  const tables = { push_cap_claims: [{ id: 'c1' }, { id: 'c2' }] };
+  const db = fakeSupabase({ tables });
+  await pushCap.releasePushClaim(db, { id: 'c1', granted: 1 });
+  assert.deepEqual(tables.push_cap_claims, [{ id: 'c2' }]);
+  await pushCap.releasePushClaim(db, null);
+  await pushCap.releasePushClaim(db, { id: null, granted: 0 });
+  assert.equal(db._calls.filter((c) => c.op === 'delete').length, 1, 'no claim, nothing to delete');
+  const broken = fakeSupabase({ tables, fail: ['push_cap_claims'] });
+  const { warned } = await quietly(() => pushCap.releasePushClaim(broken, { id: 'c2', granted: 1 }));
+  assert.ok(warned.some((w) => /lapses in five minutes/.test(w)));
+});
+
+test('both routes claim what they decided and release it once delivery is done, whatever happens', () => {
+  for (const rel of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) {
+    const src = read(rel);
+    assert.doesNotMatch(src, /Notify\.decideNotifications\(/, `${rel}: only through decideAndClaim`);
+    assert.match(src, /\} finally \{\n\s*\/\/ [^\n]*\n\s*await releasePushClaim\(admin, claim\);\n\s*\}/, rel);
+    assert.ok(src.indexOf('decideAndClaim(') < src.indexOf('deliver(admin'), `${rel}: claimed before sending`);
+    assert.ok(src.indexOf('deliver(admin') < src.indexOf('releasePushClaim('), `${rel}: released after`);
+  }
+  // The live route still writes its state before delivering (a failure skips a nudge, never resends).
+  const live = read('src/app/api/ai/notify/route.ts');
+  assert.ok(live.indexOf("'notify_state', nextState") < live.indexOf('deliver(admin'));
+});
+
+test('the migration: a lock per person around the count, live claims counted, closed to all but the service role', () => {
+  const sql = read('supabase-migrations/2026-10-21-push-cap-claims.sql');
+  const body = sql.slice(sql.indexOf('create or replace function public.claim_push_slots'));
+  assert.match(sql, /create table if not exists public\.push_cap_claims/);
+  assert.match(sql, /alter table public\.push_cap_claims enable row level security;/);
+  assert.doesNotMatch(sql, /create policy/, 'no policy: only the service role, which bypasses RLS');
+  assert.match(sql, /revoke all on public\.push_cap_claims from public, anon, authenticated;/);
+  assert.match(sql, /revoke all on function public\.claim_push_slots\(uuid, text, int, int\) from public, anon, authenticated;/);
+  assert.match(sql, /grant execute on function public\.claim_push_slots\(uuid, text, int, int\) to service_role;/);
+  assert.doesNotMatch(sql.replace(/--[^\n]*/g, ''), /\bgrant [^;]*\bto [^;]*\b(public|anon|authenticated)\b/, 'nothing granted to anyone but the service role');
+  assert.match(body, /language plpgsql security invoker set search_path = public, pg_temp as \$\$/);
+  const lock = body.indexOf('pg_advisory_xact_lock(');
+  assert.ok(lock > 0 && lock < body.indexOf('from public.notifications n'), 'the lock is taken before anything is counted');
+  assert.match(body, /n\.data -> 'channels' ->> 'push' = 'true'/, 'the pushes, as loadPushedToday counts them');
+  assert.match(body, /n\.created_at >= now\(\) - interval '30 hours'/);
+  assert.match(body, /\(n\.created_at at time zone v_tz\)::date = v_today/, "on the person's own day");
+  assert.match(body, /coalesce\(sum\(c\.slots\), 0\) into v_held/, "other senders' places count until they are released");
+  assert.match(body, /delete from public\.push_cap_claims c where c\.user_id = p_user and c\.expires_at <= now\(\);/, 'a lapsed claim holds nothing');
+  assert.match(body, /now\(\) \+ interval '5 minutes'/);
+  assert.match(body, /least\(p_want::bigint, p_cap::bigint - v_used - v_held\)/);
 });

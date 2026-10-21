@@ -17,7 +17,8 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { dbError } from '@/lib/request-utils';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadPushedToday, memberCopy, Notify, type Snapshot } from '@/lib/ai/notify-core';
+import { candidatesFor, decideAndClaim, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadPushedToday, memberCopy, Notify, type Snapshot } from '@/lib/ai/notify-core';
+import { releasePushClaim } from '@/lib/push-cap';
 import { isCoachRole } from '@/lib/roles.mjs';
 
 export const runtime = 'nodejs';
@@ -89,9 +90,16 @@ async function run(request: Request) {
     const copy = memberCopy(localeDoc, settings);
 
     const { audience, candidates } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy });
-    const { send, digest, nextState } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr });
+    // The pushes decided are claimed under the person's cap before anything is sent (decideAndClaim).
+    const { decided, claim } = await decideAndClaim(admin, userId, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr }, prefs.capTz);
+    const { send, digest, nextState } = decided;
     const items = digest ? [...send, digest] : send;
-    if (items.length) { await deliver(admin, userId, items); delivered += items.length; }
+    try {
+      if (items.length) { await deliver(admin, userId, items); delivered += items.length; }
+    } finally {
+      // The notices have landed and count themselves now.
+      await releasePushClaim(admin, claim);
+    }
     await writeUserGoal(admin, userId, 'notify_state', nextState);
     evaluated += 1;
   }

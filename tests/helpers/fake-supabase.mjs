@@ -2,7 +2,7 @@
 //
 // A table-driven stand-in for the supabase-js query builder, enough for the
 // read paths Nora's tools use: from().select().eq/in/is/gte/lte/lt/or()
-// .order().limit().maybeSingle(), awaited as { data, error }, plus rpc().
+// .order().limit().maybeSingle(), awaited as { data, error }, plus rpc() and delete().eq().
 //
 // It APPLIES the filters and orders to the rows it was given, so a test reads
 // what the query would actually return rather than whatever the stub was told
@@ -69,9 +69,11 @@ export function fakeSupabase({ tables = {}, rpcs = {}, fail = [], maxRows = null
     return v == null ? null : String(v);
   }
   function from(table) {
-    const state = { table, filters: [], orders: [], limit: null, range: null, single: false, select: null, count: false };
+    const state = { table, filters: [], orders: [], limit: null, range: null, single: false, select: null, count: false, del: false };
     const chain = {
       select(cols, opts) { state.select = cols; state.count = !!(opts && opts.count); return chain; },
+      // delete().eq(…): removes the matching rows from the table it was given.
+      delete() { state.del = true; return chain; },
       eq(col, v) { state.filters.push((r) => val(r, col) === v); return chain; },
       neq(col, v) { state.filters.push((r) => val(r, col) !== v); return chain; },
       // not(col, 'is', null): the one negation the readers use.
@@ -112,11 +114,15 @@ export function fakeSupabase({ tables = {}, rpcs = {}, fail = [], maxRows = null
       range(a, b) { state.range = [a, b]; return chain; },
       maybeSingle() { state.single = true; return chain; },
       then(res, rej) {
-        calls.push({ table, select: state.select, single: state.single, limit: state.limit, range: state.range });
+        calls.push({ table, select: state.select, single: state.single, limit: state.limit, range: state.range, ...(state.del ? { op: 'delete' } : {}) });
         const failed = fail.includes(table);
         let out;
         if (failed) out = { data: null, error: { message: `fake failure on ${table}` } };
-        else {
+        else if (state.del) {
+          const keep = (r) => !state.filters.every((f) => f(r));
+          if (tables[table]) tables[table] = tables[table].filter(keep);
+          out = { data: null, error: null };
+        } else {
           const { rows, count } = run(state);
           out = { data: state.single ? (rows[0] ?? null) : rows, error: null, ...(state.count ? { count } : {}) };
         }
