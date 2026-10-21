@@ -33,6 +33,10 @@ export default {
     { name: 'an in-app-only notice counts as a push', file: CORE, find: ".eq('data->channels->>push', 'true')", replace: ".not('data->channels->>push', 'is', null)" },
     { name: "yesterday's pushes count today", file: CORE, find: " && ymdInTz(new Date(at), tz) === today) n += 1;", replace: ') n += 1;' },
     { name: "another person's pushes count", file: CORE, find: ".eq('user_id', userId).eq('data->channels->>push', 'true')", replace: ".eq('data->channels->>push', 'true')" },
+    // ── The member's day (Codex on #2417: the habit cron's zone) ──
+    { name: 'the engine reads only the settings zone', file: CORE, find: "tz: profileTz || normalizeZone(s.tz) || 'UTC',", replace: "tz: normalizeZone(s.tz) || 'UTC'," },
+    { name: 'the settings zone beats the profile', file: CORE, find: "tz: profileTz || normalizeZone(s.tz) || 'UTC',", replace: "tz: normalizeZone(s.tz) || profileTz || 'UTC'," },
+    { name: "another person's profile zone is read", file: CORE, find: "client.from('client_profiles').select('timezone').eq('user_id', userId).maybeSingle()", replace: "client.from('client_profiles').select('timezone').maybeSingle()" },
     { name: 'a failed read counts as none', file: CORE, find: "counting this engine\\'s own', error.message); return null; }", replace: "counting this engine\\'s own', error.message); return 0; }" },
 
     // ── The routes ──

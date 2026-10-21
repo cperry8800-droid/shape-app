@@ -28,6 +28,7 @@ const core = await loadRealModule(join(ROOT, 'src/lib/ai/notify-core.ts'), {
     ['@/lib/roles.mjs', await import('../src/lib/roles.mjs')],
     ['@/lib/notify', { createNotification: async () => true }],
     ['@/lib/email', { sendEmail: async () => ({ ok: true }) }],
+    ['@/lib/time', await loadRealModule(join(ROOT, 'src/lib/time.ts'), { typescript: true })],
     ['../../../public/newdesign/dashSignals.js', { default: require_('../public/newdesign/dashSignals.js') }],
   ]),
 });
@@ -190,4 +191,17 @@ test('the cap counts and holds pushes only: an in-app-only alert neither takes a
   const spent = decideNotifications({ candidates: cands(), last: {}, prefs: inAppDirective, now: DAY, audience: 'client', pushedToday: 4 });
   assert.deepEqual(spent.send.map((i) => i.type), ['directive'], 'past the cap the in-app alert still goes now');
   assert.ok(spent.suppressed.filter((s) => s.reason === 'capped').length === 2, 'the pushes wait for the digest');
+});
+
+// Codex on #2417: the habit cron dates the shared cap in the profile's zone first, the engine read
+// only the notification settings' zone, so after travel the two senders counted different days.
+test("the engine reads the member's day in the habit cron's zone: profile, then settings, then UTC", async () => {
+  const prefsWith = (tables) => core.loadPrefs(fakeSupabase({ tables }), 'ann');
+  const settings = { notification_settings: [{ user_id: 'ann', tz: 'America/New_York' }] };
+  assert.equal((await prefsWith({ ...settings, client_profiles: [{ user_id: 'ann', timezone: 'Asia/Tokyo' }] })).tz, 'Asia/Tokyo');
+  assert.equal((await prefsWith({ ...settings })).tz, 'America/New_York', 'no profile zone falls back to the settings');
+  assert.equal((await prefsWith({ ...settings, client_profiles: [{ user_id: 'ann', timezone: 'Not/AZone' }] })).tz, 'America/New_York', 'an unusable profile zone is skipped');
+  assert.equal((await prefsWith({ client_profiles: [{ user_id: 'ben', timezone: 'Asia/Tokyo' }] })).tz, 'UTC', "another person's profile is not read");
+  // The habit cron resolves the same order, so both senders date the cap alike.
+  assert.match(read('src/app/api/cron/habit-watch/route.ts'), /const tzOf = \(u: string\) => personZone\.get\(u\) \|\| zone\(\(quietOf\.get\(u\) \|\| \{\}\)\.tz\) \|\| 'UTC';/);
 });

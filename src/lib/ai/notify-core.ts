@@ -11,6 +11,7 @@ import * as NotifyLayer from '@/lib/ai/notifications.mjs';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { createNotification } from '@/lib/notify';
 import { sendEmail } from '@/lib/email';
+import { normalizeZone } from '@/lib/time';
 import type { SupabaseClient } from '@supabase/supabase-js';
 // The pure UMD engine (module.exports = api); imported directly (no window in Node).
 import DashSignals from '../../../public/newdesign/dashSignals.js';
@@ -40,12 +41,19 @@ function ymdInTz(now: Date, tz: string): string {
 // per-channel matrix (notification_settings / notification_preferences), plus the
 // user's chosen tone (nora_voice). Absent rows fall back to defaults in the layer.
 export async function loadPrefs(client: SupabaseClient, userId: string): Promise<Prefs> {
-  const [settingsRes, prefsRes, voice] = await Promise.all([
+  const [settingsRes, prefsRes, voice, profileRes] = await Promise.all([
     client.from('notification_settings').select('muted, quiet_start, quiet_end, tz, daily_cap').eq('user_id', userId).maybeSingle(),
     client.from('notification_preferences').select('type, channel, enabled').eq('user_id', userId),
     readUserGoal(client, userId, 'nora_voice'),
+    client.from('client_profiles').select('timezone').eq('user_id', userId).maybeSingle(),
   ]);
   const s = (settingsRes.data || {}) as { muted?: boolean; quiet_start?: number; quiet_end?: number; tz?: string; daily_cap?: number };
+  // ⚠ THE MEMBER'S DAY IS READ IN THE ZONE THE HABIT CRON USES (Codex on #2417): the profile's
+  // zone, which the app refreshes on sign-in, then the notification settings' zone, which moves
+  // only when settings are saved, then UTC. The daily cap is shared with /api/cron/habit-watch,
+  // so after travel two zones would date the same pushes on different days around either
+  // midnight, and each sender would grant its own allowance.
+  const profileTz = normalizeZone((profileRes.data as { timezone?: string } | null)?.timezone);
   const matrix: Record<string, Record<string, boolean>> = {};
   for (const row of (prefsRes.data || []) as { type: string; channel: string; enabled: boolean }[]) {
     (matrix[row.type] ||= {})[row.channel] = !!row.enabled;
@@ -54,7 +62,7 @@ export async function loadPrefs(client: SupabaseClient, userId: string): Promise
     muted: s.muted === true,
     quietStart: Number.isFinite(s.quiet_start) ? (s.quiet_start as number) : 22,
     quietEnd: Number.isFinite(s.quiet_end) ? (s.quiet_end as number) : 7,
-    tz: s.tz || 'UTC',
+    tz: profileTz || normalizeZone(s.tz) || 'UTC',
     maxPerDay: Number.isFinite(s.daily_cap) ? (s.daily_cap as number) : 4,
     tone: (voice as { tone?: string }).tone === 'direct' ? 'direct' : 'supportive',
     matrix,
