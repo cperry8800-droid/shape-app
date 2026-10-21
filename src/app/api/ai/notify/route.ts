@@ -39,12 +39,15 @@ export async function POST(request: Request) {
   // ⚠ SPEC §3D — the same opt-out the cron honours. This route recomputes from the
   // same snapshot, so gating only the cron would have left the live path nudging a
   // member who had turned Daily check-in off. Absence of the setting reads as opted IN.
-  const [last, settings] = await Promise.all([
+  // The person's one daily limit counts every push of their day, not only this engine's; read
+  // in the same batch rather than a round trip of its own.
+  const now = new Date();
+  const [last, settings, pushedToday] = await Promise.all([
     readUserGoal(actor.supabase, actor.user.id, 'notify_state'),
     readUserGoal(actor.supabase, actor.user.id, 'client_settings'),
+    loadPushedToday(actor.supabase, actor.user.id, now, prefs.tz),
   ]);
   const checkinOptedOut = !Notify.dailyCheckinOn(settings.dailyCheckin);
-  const now = new Date();
   const tone = prefs.tone;
   const isCoach = isCoachRole(actor.role);
 
@@ -80,8 +83,6 @@ export async function POST(request: Request) {
   // from, so the alerts agree with the roster that produced them (R14).
   const thresholds = isCoach ? await loadCoachThresholds(actor.supabase, actor.user.id) : null;
   const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds });
-  // The person's one daily limit counts every push of their day, not only this engine's.
-  const pushedToday = await loadPushedToday(actor.supabase, actor.user.id, now, prefs.tz);
   const { send, digest, nextState, suppressed } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday });
 
   // Persist the dedup/cap state BEFORE delivering. Delivery + state aren't one

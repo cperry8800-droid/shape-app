@@ -37,6 +37,8 @@ export default {
 
     // ── The routes ──
     { name: 'the live route leaves the day out', file: LIVE, find: 'Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday })', replace: 'Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut })' },
+    { name: 'the cron reads the day on its own round trip', file: CRON, find: "      loadPushedToday(admin, userId, now, prefs.tz),\n    ]);", replace: "    ]);\n    const pushedToday = await loadPushedToday(admin, userId, now, prefs.tz);" },
+    { name: 'the live route reads the day on its own round trip', file: LIVE, find: "    loadPushedToday(actor.supabase, actor.user.id, now, prefs.tz),\n  ]);", replace: "  ]);\n  const pushedToday = await loadPushedToday(actor.supabase, actor.user.id, now, prefs.tz);" },
     { name: 'the cron leaves the day out', file: CRON, find: 'Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday })', replace: 'Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut })' },
   ],
 };

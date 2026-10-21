@@ -92,7 +92,9 @@ test("the engine's own count still holds when it is the larger, and a failed rea
 test('both the live route and the cron read the day before deciding', () => {
   for (const rel of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) {
     const src = read(rel);
-    assert.match(src, /const pushedToday = await loadPushedToday\(/, rel);
+    // Codex on #2417: in the same batch as the other per-person reads, not a round trip of its own.
+    assert.match(src, /const \[last, settings, pushedToday\] = await Promise\.all\(\[[^\]]*loadPushedToday\(/, rel);
+    assert.doesNotMatch(src, /await loadPushedToday\(/, `${rel}: no read of its own`);
     assert.match(src, /Notify\.decideNotifications\(\{ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday \}\)/, rel);
     assert.ok(src.indexOf('loadPushedToday(') < src.indexOf('Notify.decideNotifications('), `${rel}: the count is read first`);
   }
