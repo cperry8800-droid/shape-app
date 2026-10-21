@@ -566,9 +566,17 @@ function pruneStamps(types, now) {
   return out;
 }
 
-export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false, tr }) {
+// ⚠ THE DAILY CAP IS THE PERSON'S ONE LIMIT, NOT THIS ENGINE'S (owner, 2026-10-20: separate PR
+// after #2413). `sentToday` counts only what this engine pushed, so a day of coach messages or
+// friends' habit pushes never held back its own. `pushedToday` is every notice stamped as pushed
+// on the person's date today (loadPushedToday, notify-core.ts), this engine's included; the cap
+// reads the larger of the two, so nothing is counted twice. Null (the read failed) keeps the
+// engine's own count, as before. The digest is held to it too (below).
+export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false, pushedToday = null, tr }) {
   const P = { ...DEFAULT_PREFS, ...prefs, matrix: { ...(prefs.matrix || {}) } };
-  const today = ymd(now, P.tz);
+  // The engine's own count resets on the cap's day (P.capTz, the habit cron's zone), the day the
+  // other senders' pushes are counted on; quiet hours below stay on P.tz.
+  const today = ymd(now, P.capTz || P.tz);
   const state = {
     date: today,
     sentToday: last.date === today ? (last.sentToday || 0) : 0,
@@ -616,6 +624,13 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
   const hadPending = state.pendingDigest.length > 0;
   const send = [];
   const suppressed = [];
+  const cap = P.maxPerDay || DEFAULT_PREFS.maxPerDay;
+  let usedToday = Math.max(state.sentToday, Number.isFinite(pushedToday) ? pushedToday : 0);
+  // ⚠ A HELD DIGEST THAT WANTS A PUSH KEEPS ONE PLACE (Codex on #2417). New pushes were let in
+  // first, so a morning with a cap's worth of them left the held items no room, day after day,
+  // until the queue's bound dropped them. One place waits for the digest; anything this run holds
+  // past it rides in that same digest, so the day still pushes no more than the cap.
+  const reserved = hadPending && usedToday < cap && state.pendingDigest.some((i) => i.channels && i.channels.push) ? 1 : 0;
 
   // newest-relevant first
   const ranked = candidates.slice().sort((a, b) => (PRIORITY_RANK[b.priority] || 0) - (PRIORITY_RANK[a.priority] || 0));
@@ -646,7 +661,11 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
 
     const item = { type: c.type, title: c.title, body: c.body, route: c.route, data: c.data || {}, priority: c.priority, channels: ch, ...(c.titleCopy ? { titleCopy: c.titleCopy } : {}) };
 
-    const overCap = state.sentToday >= (P.maxPerDay || DEFAULT_PREFS.maxPerDay);
+    // ⚠ THE CAP COUNTS AND HOLDS PUSHES ONLY (Codex on #2417). The day's count from other
+    // senders is their pushes, so counting this engine's in-app-only sends too let one of them
+    // take the last place and hold back the push after it. An item with no push neither takes a
+    // place nor waits for one.
+    const overCap = !!ch.push && usedToday + reserved >= cap;
     const lowPri = c.priority === 'low';
     // quiet hours OR over the daily cap OR low-priority → roll into the digest.
     if (quiet || overCap || lowPri) {
@@ -659,7 +678,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     }
 
     send.push(item);
-    state.sentToday += 1;
+    if (ch.push) { state.sentToday += 1; usedToday += 1; }
     rememberSig(state.types, sigKey, c.sig, now);
     if (audience === 'coach' && c._severity) state.coachClients[c.key] = c._severity;
   }
@@ -668,10 +687,26 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
   // waiting from a previous evaluation — so this call's deferrals batch for later
   // rather than firing a second notification immediately. Collapses everything
   // held into ONE supportive summary.
+  // ⚠ THE DIGEST PUSHES ONLY UNDER THE CAP (Codex on #2417). It went out on the first evaluation
+  // after its items were held, pushing whether or not the day's cap was spent, so past the cap
+  // every hourly run with something held sent one more push. Past the cap it lands without one,
+  // as a friend's habit notice does (#2413), and a digest that pushes counts against the cap.
+  // ⚠ AN ITEM WITH NO CHANNEL OPEN STAYS HELD (Codex on #2417). A push-only item (its type's
+  // in-app and email off) has nowhere to land while the cap is spent. Sent anyway, it reached
+  // only the bell the member turned off, or nothing at all, and was stamped and cleared, so its
+  // push never came. Only the items with a channel open now go out; the rest wait for a run
+  // with a push to spare, tomorrow at the latest. An item held before channels rode along lands
+  // in the bell, as its digest always showed it.
   let digest = null;
-  if (!quiet && hadPending && state.pendingDigest.length > 0) {
-    const items = state.pendingDigest;
+  const pushRoom = usedToday < cap;
+  const chOf = (i) => i.channels || { inapp: true, push: false, email: false };
+  const open = (i) => { const c = chOf(i); return !!(c.inapp || c.email || (c.push && pushRoom)); };
+  const items = state.pendingDigest.filter(open);
+  const stillHeld = state.pendingDigest.filter((i) => !open(i));
+  const wants = (k) => items.some((i) => !!chOf(i)[k]);
+  if (!quiet && hadPending && items.length > 0) {
     const n = items.length;
+    const pushes = pushRoom && wants('push');
     // The member's digest is in their language, as its items are; a coach's stays in English.
     const say = sayWith(audience === 'client' ? tr : null);
     // ⚠ A HELD NOTICE IS TITLED AGAIN IN THE MEMBER'S LANGUAGE NOW (Codex on #2418). Its title was
@@ -691,20 +726,17 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
       route: audience === 'coach' ? 'clients' : 'home',
       data: { items: items.map((i) => ({ type: i.type, route: i.route, data: i.data })) },
       priority: 'low',
-      // the digest goes out on the UNION of channels its held items wanted.
-      channels: {
-        inapp: items.some((i) => i.channels && i.channels.inapp),
-        push: items.some((i) => i.channels && i.channels.push),
-        email: items.some((i) => i.channels && i.channels.email),
-      },
+      // the digest goes out on the UNION of channels its items wanted, less a push past the cap.
+      channels: { inapp: wants('inapp'), push: pushes, email: wants('email') },
     };
+    if (pushes) { state.sentToday += 1; usedToday += 1; }
     // DELIVERY is what stamps: these items have now actually reached the member, so the
     // same signature should not come round again. Legacy items carry no sig/key and are
     // skipped — they were stamped at queue time by the deploy that queued them.
     for (const i of items) {
       if (nonEmpty(i.sig) && nonEmpty(i.key)) rememberSig(state.types, `${i.type}:${i.key}`, i.sig, now);
     }
-    state.pendingDigest = [];
+    state.pendingDigest = stillHeld;
   }
 
   return { send, digest, nextState: state, suppressed };

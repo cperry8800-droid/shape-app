@@ -877,10 +877,13 @@ test('the signature list per entry is bounded by COUNT as well as by age', () =>
   // ⚠ DRAIN THE QUEUE BEFORE ASSERTING, or this measures nothing. The last loop iteration
   // leaves its item QUEUED, not delivered, so a re-offer is caught by the queued-item
   // duplicate check and never reaches the stamp — an inverted cap passed the earlier
-  // version of this assertion, and the message claimed a property it did not test.
+  // version of this assertion, and the message claimed a property it did not test. Which hour
+  // ends on a held item depends on when the day's cap was spent (a pushed digest counts against
+  // it since #2417); when the last hour's own digest already delivered it, there is nothing to drain.
   const drain = new Date(+base + 72 * 3600000);   // +3 days, 10:00 UTC — outside quiet, same week
-  const drained = decideNotifications({ candidates: [], last: state, prefs, now: drain, audience: 'client' });
-  assert.ok(drained.digest, 'fixture must deliver the held item, or the stamp is never written');
+  const held = state.pendingDigest.length > 0;
+  const drained = held ? decideNotifications({ candidates: [], last: state, prefs, now: drain, audience: 'client' }) : { digest: null, nextState: state };
+  if (held) assert.ok(drained.digest, 'fixture must deliver the held item, or the stamp is never written');
   assert.equal(drained.nextState.pendingDigest.length, 0, 'the queue must be empty so the next check reads the STAMP');
 
   // the signature just DELIVERED must still be remembered — a cap evicting the newest

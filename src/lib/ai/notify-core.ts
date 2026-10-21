@@ -12,6 +12,7 @@ import { MEMBER_HOME_CATALOGS } from '@/lib/ai/memberCatalogs';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { createNotification } from '@/lib/notify';
 import { sendEmail } from '@/lib/email';
+import { normalizeZone } from '@/lib/time';
 import type { SupabaseClient } from '@supabase/supabase-js';
 // The pure UMD engine (module.exports = api); imported directly (no window in Node).
 import DashSignals from '../../../public/newdesign/dashSignals.js';
@@ -31,12 +32,12 @@ export const Notify = NotifyLayer as unknown as {
   clientCandidates: (input: Record<string, unknown>) => Candidate[];
   coachCandidates: (input: Record<string, unknown>) => Candidate[];
   habitReminderCandidates: (input: Record<string, unknown>) => Candidate[];
-  decideNotifications: (input: { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; tr?: Translate }) => DecideResult;
+  decideNotifications: (input: { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; pushedToday?: number | null; tr?: Translate }) => DecideResult;
   DEFAULT_PREFS: Record<string, unknown>;
   dailyCheckinOn: (v: unknown) => boolean;
 };
 
-export type Prefs = { muted: boolean; quietStart: number; quietEnd: number; tz: string; maxPerDay: number; tone: string; matrix: Record<string, Record<string, boolean>> };
+export type Prefs = { muted: boolean; quietStart: number; quietEnd: number; tz: string; capTz: string; maxPerDay: number; tone: string; matrix: Record<string, Record<string, boolean>> };
 export type HabitContext = { reminders: unknown[]; doneToday: string[] };
 
 function ymdInTz(now: Date, tz: string): string {
@@ -48,12 +49,22 @@ function ymdInTz(now: Date, tz: string): string {
 // per-channel matrix (notification_settings / notification_preferences), plus the
 // user's chosen tone (nora_voice). Absent rows fall back to defaults in the layer.
 export async function loadPrefs(client: SupabaseClient, userId: string): Promise<Prefs> {
-  const [settingsRes, prefsRes, voice] = await Promise.all([
+  const [settingsRes, prefsRes, voice, profileRes] = await Promise.all([
     client.from('notification_settings').select('muted, quiet_start, quiet_end, tz, daily_cap').eq('user_id', userId).maybeSingle(),
     client.from('notification_preferences').select('type, channel, enabled').eq('user_id', userId),
     readUserGoal(client, userId, 'nora_voice'),
+    client.from('client_profiles').select('timezone').eq('user_id', userId).maybeSingle(),
   ]);
   const s = (settingsRes.data || {}) as { muted?: boolean; quiet_start?: number; quiet_end?: number; tz?: string; daily_cap?: number };
+  // ⚠ THE CAP'S DAY IS READ IN THE ZONE THE HABIT CRON USES (Codex on #2417): the profile's zone,
+  // which the app refreshes on sign-in, then the notification settings' zone, which moves only
+  // when settings are saved, then UTC. The daily cap is shared with /api/cron/habit-watch, so
+  // after travel two zones would date the same pushes on different days around either midnight,
+  // and each sender would grant its own allowance.
+  // ⚠ ONLY THE CAP'S DAY (Codex on #2417). Quiet hours stay on `tz`, the settings' zone, because
+  // push delivery checks them there (pushAllowed, push/dispatch/route.ts): read in another zone,
+  // the engine pushed what delivery then dropped as quiet, and never held it for the digest.
+  const profileTz = normalizeZone((profileRes.data as { timezone?: string } | null)?.timezone);
   const matrix: Record<string, Record<string, boolean>> = {};
   for (const row of (prefsRes.data || []) as { type: string; channel: string; enabled: boolean }[]) {
     (matrix[row.type] ||= {})[row.channel] = !!row.enabled;
@@ -63,10 +74,36 @@ export async function loadPrefs(client: SupabaseClient, userId: string): Promise
     quietStart: Number.isFinite(s.quiet_start) ? (s.quiet_start as number) : 22,
     quietEnd: Number.isFinite(s.quiet_end) ? (s.quiet_end as number) : 7,
     tz: s.tz || 'UTC',
+    capTz: profileTz || normalizeZone(s.tz) || 'UTC',
     maxPerDay: Number.isFinite(s.daily_cap) ? (s.daily_cap as number) : 4,
     tone: (voice as { tone?: string }).tone === 'direct' ? 'direct' : 'supportive',
     matrix,
   };
+}
+
+// How many notices pushed to the person on their own date today, from any sender: every
+// preference-aware send and this engine's deliver() stamp data.channels, and the cap is the
+// person's one daily limit (decideNotifications' pushedToday). A row written without the stamp
+// (createNotification) can't say whether it pushed and isn't counted. Null when the read fails:
+// the engine then counts only its own sends, as it always did.
+// ⚠ ONLY PUSHED ROWS ARE READ (Codex on #2417). Reading the newest rows of any kind let a day of
+// in-app notices push the morning's pushes out of the window, so the engine sent a fresh cap's
+// worth. Filtered in the database, the newest PUSH_SCAN_LIMIT are all pushes, today's first, and
+// the count stops only past any cap.
+const PUSH_SCAN_LIMIT = 50;
+export async function loadPushedToday(client: SupabaseClient, userId: string, now: Date, tz: string): Promise<number | null> {
+  const today = ymdInTz(now, tz);
+  const since = new Date(now.getTime() - 30 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await client.from('notifications').select('created_at')
+    .eq('user_id', userId).eq('data->channels->>push', 'true').gte('created_at', since)
+    .order('created_at', { ascending: false }).limit(PUSH_SCAN_LIMIT);
+  if (error) { console.warn('[shape-ai] could not read the day\'s pushes; counting this engine\'s own', error.message); return null; }
+  let n = 0;
+  for (const r of (data || []) as { created_at?: string }[]) {
+    const at = Date.parse(String(r.created_at || ''));
+    if (Number.isFinite(at) && ymdInTz(new Date(at), tz) === today) n += 1;
+  }
+  return n;
 }
 
 // A client's enabled habit reminders + the habits already done today (in their

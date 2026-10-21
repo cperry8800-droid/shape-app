@@ -213,9 +213,12 @@ planned builds.
 - Shared habits (`habit_watchers`, `/api/cron/habit-watch`): the friend's 8 pm notice is in
   English (above). A friend stops hearing only by turning
   Friends' habits off or unfollowing (no per-habit stop button yet, though the policy allows
-  it). Sharing is set from the Habits page only, and its sheet has no search. The cron counts
-  every push against the daily cap, but the AI notify engine counts only its own sends, so the
-  evening's friend pushes don't hold back its later ones.
+  it). Sharing is set from the Habits page only, and its sheet has no search. The daily cap
+  counts every notice stamped as pushed on the member's day, so an unstamped
+  `createNotification` row isn't counted. When the AI notify engine can't read the day's pushes,
+  it counts only its own sends. Two senders deciding in the same minute (every hourly cron starts
+  at :00) can each take the last push, so the cap can be passed by one; closing that needs a
+  reservation in the database.
 - A goal in the member's own words is set in the app (the Goal page's picker and the first-run
   step) and in the website's sign-up. The website's Goals page shows goals and adds none (coaches
   set them). Only the five weight goals have a weight read; any other goal reads in words until

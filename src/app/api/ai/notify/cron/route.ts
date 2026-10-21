@@ -17,7 +17,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { dbError } from '@/lib/request-utils';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, memberCopy, Notify, type Snapshot } from '@/lib/ai/notify-core';
+import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadPushedToday, memberCopy, Notify, type Snapshot } from '@/lib/ai/notify-core';
 import { isCoachRole } from '@/lib/roles.mjs';
 
 export const runtime = 'nodejs';
@@ -67,17 +67,19 @@ async function run(request: Request) {
     if (prefs.muted) continue;                          // honor master mute
     // ⚠ Read alongside `notify_state` rather than in a second round trip: this loop
     // runs for up to BATCH users, so an extra sequential query per user is real cost.
-    const [last, settings, localeDoc] = await Promise.all([
+    // The day's pushes (the person's one daily limit) ride in the same batch (Codex on #2417).
+    const now = new Date();
+    const [last, settings, localeDoc, pushedToday] = await Promise.all([
       readUserGoal(admin, userId, 'notify_state'),
       readUserGoal(admin, userId, 'client_settings'),
       // The member's language: their notices are in it, in their units (memberCopy).
       readUserGoal(admin, userId, 'app_locale'),
+      loadPushedToday(admin, userId, now, prefs.capTz),
     ]);
     // ⚠ SPEC §3D. Turning Daily check-in off stopped the Home bulletin and nothing
     // else: the stored snapshot keeps its check-in state, so this cron kept nudging a
     // member who had opted out and never reopened the app. Absence reads as opted IN.
     const checkinOptedOut = !Notify.dailyCheckinOn(settings.dailyCheckin);
-    const now = new Date();
     const isCoach = isCoachRole(snapshot.role);  // trainer | nutritionist | dietitian
     const habitContext = isCoach ? undefined : await loadHabitContext(admin, userId, now, prefs.tz);
     // The coach's own office-settings tuning (R14), so the cron's alerts agree with
@@ -86,7 +88,7 @@ async function run(request: Request) {
     const copy = isCoach ? null : memberCopy(localeDoc, settings);
 
     const { audience, candidates } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy });
-    const { send, digest, nextState } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, tr: copy?.tr });
+    const { send, digest, nextState } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr });
     const items = digest ? [...send, digest] : send;
     if (items.length) { await deliver(admin, userId, items); delivered += items.length; }
     await writeUserGoal(admin, userId, 'notify_state', nextState);
