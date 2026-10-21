@@ -278,21 +278,19 @@ async function handle(request: Request) {
       });
       const cap = typeof q.daily_cap === 'number' && Number.isFinite(q.daily_cap) ? q.daily_cap : DAILY_CAP;
       const used = pushed.get(n.watcherId) || 0;
-      let quiet = asleep || used >= cap;
-      if (!quiet) {
-        pushed.set(n.watcherId, used + 1);
-        reserved = true;
-        // ⚠ THE PLACE IS CLAIMED IN THE DATABASE TOO (owner, 2026-10-21: "yes build the cap
-        // reservation"). The count above is this run's; the AI notify engine can take the same
-        // place in the same minute. Refused, the notice lands in the app without a push, as past
-        // the cap. A claim that can't be made sends on the count as read (push-cap.ts).
+      const quiet = asleep || used >= cap;
+      if (!quiet) { pushed.set(n.watcherId, used + 1); reserved = true; }
+      // ⚠ THE PLACE IS CLAIMED IN THE DATABASE TOO (owner, 2026-10-21: "yes build the cap
+      // reservation"). The count above is this run's; the AI notify engine can take the same place
+      // in the same minute. Asked for once the person's switches say the notice pushes (Codex on
+      // #2420). Refused, the notice lands in the app without a push, as past the cap, and gives the
+      // run's place back. A claim that can't be made sends on the count as read (push-cap.ts).
+      const claimPush = async () => {
         claim = await claimPushSlots(admin, n.watcherId, { tz: tzOf(n.watcherId), cap, want: 1 });
-        if (claim && claim.granted < 1) {
-          quiet = true;
-          reserved = false;
-          pushed.set(n.watcherId, (pushed.get(n.watcherId) || 1) - 1);
-        }
-      }
+        if (!claim || claim.granted >= 1) return true;
+        if (reserved) { reserved = false; pushed.set(n.watcherId, (pushed.get(n.watcherId) || 1) - 1); }
+        return false;
+      };
       const text = habitWatchText({ ownerName: nameOf.get(n.ownerId), habitName: n.name, type: n.type });
       const copy = habitWatchCopy({ ownerName: nameOf.get(n.ownerId), habitName: n.name, type: n.type });
       const outcome = await preferredNotificationOutcome(admin, {
@@ -304,6 +302,7 @@ async function handle(request: Request) {
         // which the app opens on the reader's own profile (Codex on #2413).
         route: 'person',
         quiet,
+        claimPush,
         data: { actorId: n.ownerId, habitId: n.habitId, dedupe: habitWatchDedupe(n.habitId, n.day), copy },
       });
       if (outcome === 'stored') sent += 1;

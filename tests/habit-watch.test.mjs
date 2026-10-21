@@ -127,6 +127,9 @@ const TABLES = () => ({
 // place asked for, as it does for a person under their cap; a test that races another sender
 // passes its own.
 const GRANT_ALL = { claim_push_slots: ({ p_want }) => [{ claim_id: null, granted: p_want }] };
+// The notice as preferredNotificationOutcome lands it (notify.ts): one that would push asks for its
+// place (claimPush) and lands quiet when refused; a quiet one asks for nothing.
+const lands = async (n) => (!n.quiet && n.claimPush && !(await n.claimPush()) ? { ...n, quiet: true } : n);
 
 async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet = false, notify = null, now = NOW, maxRows = null, wrapDb = null, rpcs = GRANT_ALL } = {}) {
   t.mock.timers.enable({ apis: ['Date'], now });
@@ -154,7 +157,7 @@ async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/supabase/admin', { createAdminClient: () => db }],
-      ['@/lib/notify', { preferredNotificationOutcome: notify ? (admin, n) => notify(admin, n, sent) : async (_admin, n) => { sent.push(n); return 'stored'; } }],
+      ['@/lib/notify', { preferredNotificationOutcome: notify ? (admin, n) => notify(admin, n, sent) : async (_admin, n) => { sent.push(await lands(n)); return 'stored'; } }],
       ['@/lib/push-cap', pushCap],
       ['@/lib/time', time],
       ['@/lib/ai/notifications.mjs', notifyLayer],
@@ -418,9 +421,10 @@ test('a push that failed gives its place under the cap back to a later notice', 
   // before any of them finishes and the ninth starts.
   let first = true;
   const notify = async (_admin, n, sent) => {
-    if (n.quiet) await new Promise((r) => setTimeout(r, 5));
-    if (!n.quiet && first) { first = false; return 'failed'; }
-    sent.push(n);
+    const landed = await lands(n);
+    if (landed.quiet) await new Promise((r) => setTimeout(r, 5));
+    if (!landed.quiet && first) { first = false; return 'failed'; }
+    sent.push(landed);
     return 'stored';
   };
   const { body, sent } = await run(t, CAPPED({ n: 9, cap: 1 }), { notify });
@@ -431,7 +435,7 @@ test('a push that failed gives its place under the cap back to a later notice', 
 // ⚠ THE PLACE IS CLAIMED IN THE DATABASE (owner, 2026-10-21: "yes build the cap reservation").
 // The cron's count is its own; the AI notify engine, deciding in the same minute, could take the
 // same last place.
-test("each push is claimed under the person's cap first, and the claim released once it has landed", async (t) => {
+test("each push is claimed under the person's cap as it is sent, and the claim released once it has landed", async (t) => {
   const tables = CAPPED({ n: 3, cap: 2 });
   tables.push_cap_claims = [];
   const asked = [];
@@ -463,8 +467,9 @@ test('a refused place is not counted as used: a notice started later claims agai
   let asks = 0;
   const rpcs = { claim_push_slots: () => [{ claim_id: null, granted: asks++ === 0 ? 0 : 1 }] };
   const notify = async (_admin, n, sent) => {
-    if (n.quiet) await new Promise((r) => setTimeout(r, 5));
-    sent.push(n);
+    const landed = await lands(n);
+    if (landed.quiet) await new Promise((r) => setTimeout(r, 5));
+    sent.push(landed);
     return 'stored';
   };
   const { sent } = await run(t, CAPPED({ n: 9, cap: 1 }), { rpcs, notify });

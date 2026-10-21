@@ -102,6 +102,40 @@ test('a type email is not offered for never emails, whatever was saved for it (o
   assert.equal(stored.inserted[0].data.channels.email, false, 'the row claims an email went out');
 });
 
+// Codex on #2420: the habit cron claimed its place under the daily push cap before the person's
+// switches were read, so a friend with this type's push off held a place for nothing and another
+// sender asking at that moment was refused it. The place is asked for once the notice pushes.
+test("a sender's place under the push cap is asked for only once the notice is known to push", async () => {
+  const run = async (opts, n, granted = true) => {
+    let asked = 0;
+    const { client, inserted } = admin(opts);
+    const out = await notify.preferredNotificationOutcome(client, { ...PREP, ...n, claimPush: async () => { asked += 1; return granted; } });
+    return { out, asked, row: inserted[0] };
+  };
+  const pushes = await run({}, {});
+  assert.equal(pushes.asked, 1);
+  assert.equal(pushes.row.data.channels.push, true);
+  const off = await run({ prefs: { data: [{ channel: 'push', enabled: false }], error: null } }, {});
+  assert.equal(off.asked, 0, 'push off for the type: no place asked for');
+  assert.equal(off.row.data.channels.push, false);
+  assert.equal(off.row.data.channels.inapp, true, 'it still lands in the app');
+  assert.equal((await run({}, { quiet: true })).asked, 0, 'a quiet notice asks for nothing');
+  assert.equal((await run({ settings: { data: { muted: true }, error: null } }, {})).asked, 0, 'nor does a muted member');
+  // A type email is offered for, with email on: granted, it pushes and emails.
+  const INVITE = { type: 'waitlist_invite', title: 'Coach Q is taking new clients' };
+  emails.length = 0;
+  const granted = await run({ prefs: EMAIL_ON }, INVITE);
+  assert.deepEqual(granted.row.data.channels, { inapp: true, push: true, email: true });
+  assert.equal(emails.length, 1);
+  emails.length = 0;
+  const refused = await run({ prefs: EMAIL_ON }, INVITE, false);
+  assert.equal(refused.out, 'stored');
+  assert.deepEqual(refused.row.data.channels, { inapp: true, push: false, email: false }, 'refused, it lands as a quiet notice does');
+  assert.deepEqual(emails, [], 'and emails nothing');
+  assert.equal(refused.row.data.claimPush, undefined);
+  assert.ok(!('claimPush' in refused.row), 'the callback is not written to the row');
+});
+
 test('createNotification says whether the row was stored, and a rejected duplicate is not an error', async (t) => {
   const logs = quietLogs(t);
   assert.equal(await notify.createNotification(admin().client, PREP), true);

@@ -2,7 +2,8 @@
 // build the cap reservation"): the migration (supabase-migrations/2026-10-21-push-cap-claims.sql),
 // the claim and release (src/lib/push-cap.ts), the engine's claim and second decision
 // (decideAndClaim, src/lib/ai/notify-core.ts, with dailyCap and pushCount in notifications.mjs),
-// both engine routes, and the habit cron's claim per notice. Every mutation must be killed. The
+// both engine routes, and the habit cron's claim per notice, asked for in notify.ts only once the
+// notice is known to push. Every mutation must be killed. The
 // migration's mutations are read by its shape test only; its behaviour, the race above all, was
 // run against Postgres 16 (the PR records how). Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/push-cap-claims-2026-10-21.mutations.mjs --fail-on-skipped
@@ -13,9 +14,10 @@ const CORE = 'src/lib/ai/notify-core.ts';
 const LIVE = 'src/app/api/ai/notify/route.ts';
 const CRON = 'src/app/api/ai/notify/cron/route.ts';
 const HABIT = 'src/app/api/cron/habit-watch/route.ts';
+const NOTIFY = 'src/lib/notify.ts';
 
 export default {
-  test: 'node --test tests/ai-notify-daily-cap.test.mjs tests/habit-watch.test.mjs',
+  test: 'node --test tests/ai-notify-daily-cap.test.mjs tests/habit-watch.test.mjs tests/notify-preferred.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── The migration ──
@@ -58,13 +60,17 @@ export default {
     { name: "the cron claims on the settings' day", file: CRON, find: 'tr: copy?.tr }, prefs.capTz);', replace: 'tr: copy?.tr }, prefs.tz);' },
 
     // ── The habit cron ──
-    { name: 'the habit cron claims nothing', file: HABIT, find: "        claim = await claimPushSlots(admin, n.watcherId, { tz: tzOf(n.watcherId), cap, want: 1 });\n", replace: '' },
-    { name: 'a refused place still pushes', file: HABIT, find: '        if (claim && claim.granted < 1) {', replace: '        if (false) {' },
-    { name: 'a failed claim refuses the push', file: HABIT, find: '        if (claim && claim.granted < 1) {', replace: '        if (!claim || claim.granted < 1) {' },
-    { name: 'a refused place stays counted', file: HABIT, find: '          reserved = false;\n          pushed.set(n.watcherId, (pushed.get(n.watcherId) || 1) - 1);\n', replace: '          reserved = false;\n' },
+    { name: 'the habit cron claims nothing', file: HABIT, find: '        claimPush,\n', replace: '' },
+    { name: 'a refused place still pushes', file: HABIT, find: '        if (!claim || claim.granted >= 1) return true;', replace: '        return true;' },
+    { name: 'a failed claim refuses the push', file: HABIT, find: '        if (!claim || claim.granted >= 1) return true;', replace: '        if (claim && claim.granted >= 1) return true;' },
+    { name: 'a refused place stays counted', file: HABIT, find: "        if (reserved) { reserved = false; pushed.set(n.watcherId, (pushed.get(n.watcherId) || 1) - 1); }", replace: '        if (reserved) { reserved = false; }' },
     { name: 'the habit cron claims under the default cap', file: HABIT, find: '{ tz: tzOf(n.watcherId), cap, want: 1 }', replace: '{ tz: tzOf(n.watcherId), cap: DAILY_CAP, want: 1 }' },
     { name: "the habit cron claims on UTC's day", file: HABIT, find: '{ tz: tzOf(n.watcherId), cap, want: 1 }', replace: "{ tz: 'UTC', cap, want: 1 }" },
     { name: 'the habit cron never releases', file: HABIT, find: '      await releasePushClaim(admin, claim);\n', replace: '' },
-    { name: 'a notice in quiet hours claims too', file: HABIT, find: "      let quiet = asleep || used >= cap;\n      if (!quiet) {\n", replace: "      let quiet = asleep || used >= cap;\n      claim = await claimPushSlots(admin, n.watcherId, { tz: tzOf(n.watcherId), cap, want: 1 });\n      if (!quiet) {\n" },
+
+    // ── The place is asked for only for a notice that pushes (Codex on #2420) ──
+    { name: 'a place is asked for before the switches say it pushes', file: NOTIFY, find: '    if (channels.push && given.claimPush && !(await given.claimPush()))', replace: '    if (given.claimPush && !(await given.claimPush()))' },
+    { name: 'a refused place still pushes from notify', file: NOTIFY, find: "    if (channels.push && given.claimPush && !(await given.claimPush())) { channels.push = false; channels.email = false; }\n", replace: '' },
+    { name: 'a refused place still emails', file: NOTIFY, find: '    if (channels.push && given.claimPush && !(await given.claimPush())) { channels.push = false; channels.email = false; }', replace: '    if (channels.push && given.claimPush && !(await given.claimPush())) { channels.push = false; }' },
   ],
 };
