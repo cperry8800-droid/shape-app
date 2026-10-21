@@ -131,8 +131,6 @@ The War Room has the full list. This section covers what needs the owner, plus t
 planned builds.
 
 **Waiting on the owner**
-- Run `2026-10-21-push-cap-claims.sql`. Until then two senders deciding in the same minute can
-  each take a member's last push of the day.
 - Push keys (the app side is built, #2385; 0 push devices in production). For iPhone,
   set `APNS_KEY_ID`, `APNS_TEAM_ID` and `APNS_PRIVATE_KEY` in Vercel. For Android, add
   the app to Firebase `shape-84d22` and save its `google-services.json` as the repo
