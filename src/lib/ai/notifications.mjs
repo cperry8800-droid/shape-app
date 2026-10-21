@@ -576,6 +576,19 @@ function pruneStamps(types, now) {
   return out;
 }
 
+// The daily cap the engine decides on: the person's own, else the default. The server claims its
+// places under this same number (decideAndClaim, notify-core.ts).
+export function dailyCap(prefs = {}) {
+  return (prefs && prefs.maxPerDay) || DEFAULT_PREFS.maxPerDay;
+}
+
+// How many pushes a decision sends: its pushed items and a digest that pushes. An item without
+// channels pushes, as deliver() sends it.
+export function pushCount({ send = [], digest = null } = {}) {
+  const pushes = (i) => !!(i && (i.channels ? i.channels.push : true));
+  return send.filter(pushes).length + (digest && pushes(digest) ? 1 : 0);
+}
+
 // ⚠ THE DAILY CAP IS THE PERSON'S ONE LIMIT, NOT THIS ENGINE'S (owner, 2026-10-20: separate PR
 // after #2413). `sentToday` counts only what this engine pushed, so a day of coach messages or
 // friends' habit pushes never held back its own. `pushedToday` is every notice stamped as pushed
@@ -634,7 +647,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
   const hadPending = state.pendingDigest.length > 0;
   const send = [];
   const suppressed = [];
-  const cap = P.maxPerDay || DEFAULT_PREFS.maxPerDay;
+  const cap = dailyCap(P);
   let usedToday = Math.max(state.sentToday, Number.isFinite(pushedToday) ? pushedToday : 0);
   // ⚠ A HELD DIGEST THAT WANTS A PUSH KEEPS ONE PLACE (Codex on #2417). New pushes were let in
   // first, so a morning with a cap's worth of them left the held items no room, day after day,

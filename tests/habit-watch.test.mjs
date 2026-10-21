@@ -18,6 +18,7 @@ const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
 const notifyLayer = await import('../src/lib/ai/notifications.mjs');
 const time = await loadRealModule(join(ROOT, 'src/lib/time.ts'), { typescript: true });
+const pushCap = await loadRealModule(join(ROOT, 'src/lib/push-cap.ts'), { typescript: true });
 
 // 00:30 UTC on 20 October is 8:30 pm on the 19th in New York (EDT), 7:30 pm in Chicago, 1:30 am
 // in Lagos.
@@ -122,10 +123,15 @@ const TABLES = () => ({
   notification_settings: [{ user_id: 'zoe', tz: 'UTC', quiet_start: 22, quiet_end: 7 }],
 });
 
-async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet = false, notify = null, now = NOW, maxRows = null, wrapDb = null } = {}) {
+// The daily cap's claims (2026-10-21-push-cap-claims.sql): by default the database grants every
+// place asked for, as it does for a person under their cap; a test that races another sender
+// passes its own.
+const GRANT_ALL = { claim_push_slots: ({ p_want }) => [{ claim_id: null, granted: p_want }] };
+
+async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet = false, notify = null, now = NOW, maxRows = null, wrapDb = null, rpcs = GRANT_ALL } = {}) {
   t.mock.timers.enable({ apis: ['Date'], now });
   process.env.CRON_SECRET = SECRET;
-  const db = fakeSupabase({ tables, fail, maxRows });
+  const db = fakeSupabase({ tables, fail, maxRows, rpcs });
   if (wrapDb) wrapDb(db);
   if (failQuiet) {
     // Only the people's quiet-hours read fails: the owners' zones (the same table) answer.
@@ -149,6 +155,7 @@ async function run(t, tables = TABLES(), { fail = [], secret = SECRET, failQuiet
       ['next/server', nextServer],
       ['@/lib/supabase/admin', { createAdminClient: () => db }],
       ['@/lib/notify', { preferredNotificationOutcome: notify ? (admin, n) => notify(admin, n, sent) : async (_admin, n) => { sent.push(n); return 'stored'; } }],
+      ['@/lib/push-cap', pushCap],
       ['@/lib/time', time],
       ['@/lib/ai/notifications.mjs', notifyLayer],
       ['@/lib/habit-watch.mjs', await import('../src/lib/habit-watch.mjs')],
@@ -406,9 +413,12 @@ test("the cap is per day on the person's own clock: their midnight resets it (Co
 
 test('a push that failed gives its place under the cap back to a later notice', async (t) => {
   // Cap 1, nine notices: the first takes the place and fails; the eight that started with it are
-  // in the app only; the ninth, started after the failure, takes the place back and pushes.
+  // in the app only; the ninth, started after the failure, takes the place back and pushes. The
+  // quiet ones take a moment, so the first (which claims its place in the database too) has failed
+  // before any of them finishes and the ninth starts.
   let first = true;
   const notify = async (_admin, n, sent) => {
+    if (n.quiet) await new Promise((r) => setTimeout(r, 5));
     if (!n.quiet && first) { first = false; return 'failed'; }
     sent.push(n);
     return 'stored';
@@ -416,6 +426,67 @@ test('a push that failed gives its place under the cap back to a later notice', 
   const { body, sent } = await run(t, CAPPED({ n: 9, cap: 1 }), { notify });
   assert.equal(body.failed, 1);
   assert.equal(sent.filter((n) => !n.quiet).length, 1, 'the place came back and was used');
+});
+
+// ⚠ THE PLACE IS CLAIMED IN THE DATABASE (owner, 2026-10-21: "yes build the cap reservation").
+// The cron's count is its own; the AI notify engine, deciding in the same minute, could take the
+// same last place.
+test("each push is claimed under the person's cap first, and the claim released once it has landed", async (t) => {
+  const tables = CAPPED({ n: 3, cap: 2 });
+  tables.push_cap_claims = [];
+  const asked = [];
+  const rpcs = { claim_push_slots: (args) => {
+    asked.push(args);
+    const id = `claim-${asked.length}`;
+    tables.push_cap_claims.push({ id, user_id: args.p_user, slots: 1 });
+    return [{ claim_id: id, granted: 1 }];
+  } };
+  const { sent, calls } = await run(t, tables, { rpcs });
+  assert.equal(sent.filter((n) => !n.quiet).length, 2);
+  assert.equal(asked.length, 2, 'one claim per push; the third is past the cap and claims nothing');
+  assert.deepEqual(asked[0], { p_user: 'pia', p_tz: 'America/New_York', p_cap: 2, p_want: 1 }, "her place, on her own clock, under her own cap");
+  assert.equal(calls.filter((c) => c.table === 'push_cap_claims' && c.op === 'delete').length, 2);
+  assert.deepEqual(tables.push_cap_claims, [], 'both claims released');
+});
+
+test('a place another sender took in the same minute is refused: the notice lands in the app without a push', async (t) => {
+  const rpcs = { claim_push_slots: () => [{ claim_id: null, granted: 0 }] };
+  const { body, sent, calls } = await run(t, CAPPED({ n: 2, cap: 2 }), { rpcs });
+  assert.equal(body.sent, 2, 'both land');
+  assert.equal(sent.filter((n) => !n.quiet).length, 0, 'neither pushes');
+  assert.equal(calls.filter((c) => c.op === 'delete').length, 0, 'nothing granted, nothing to release');
+});
+
+test('a refused place is not counted as used: a notice started later claims again', async (t) => {
+  // Cap 1, nine notices. The first takes the run's place and the database refuses it; the eight
+  // started with it are in the app only; the ninth, started after, asks again and is granted.
+  let asks = 0;
+  const rpcs = { claim_push_slots: () => [{ claim_id: null, granted: asks++ === 0 ? 0 : 1 }] };
+  const notify = async (_admin, n, sent) => {
+    if (n.quiet) await new Promise((r) => setTimeout(r, 5));
+    sent.push(n);
+    return 'stored';
+  };
+  const { sent } = await run(t, CAPPED({ n: 9, cap: 1 }), { rpcs, notify });
+  assert.equal(asks, 2);
+  assert.equal(sent.filter((n) => !n.quiet).length, 1, 'the ninth pushed');
+});
+
+test("a claim that can't be made sends on the count as read, and a notice in quiet hours claims nothing", async (t) => {
+  const warned = [];
+  const orig = console.warn;
+  console.warn = (...a) => warned.push(a.join(' '));
+  let res;
+  try {
+    res = await run(t, CAPPED({ n: 3, cap: 2 }), { fail: ['rpc:claim_push_slots'] });
+  } finally { console.warn = orig; }
+  assert.equal(res.sent.filter((n) => !n.quiet).length, 2, 'the cap as counted, as before the migration');
+  assert.ok(warned.some((w) => /could not claim places/.test(w)));
+  t.mock.timers.reset();
+  // Zoe is asleep (TABLES): her notice lands quiet and asks for no place.
+  const { calls } = await run(t);
+  assert.ok(!calls.some((c) => c.rpc === 'claim_push_slots' && c.args.p_user === 'zoe'));
+  assert.ok(calls.some((c) => c.rpc === 'claim_push_slots' && c.args.p_user === 'yan'), 'Yan, awake, claims');
 });
 
 // ── The wiring ──────────────────────────────────────────────────────────────

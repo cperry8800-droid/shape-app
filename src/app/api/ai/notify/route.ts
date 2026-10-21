@@ -18,7 +18,8 @@ import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadPushedToday, memberCopy, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
+import { candidatesFor, decideAndClaim, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadPushedToday, memberCopy, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
+import { releasePushClaim } from '@/lib/push-cap';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { requireMembership } from '@/lib/require-membership';
 
@@ -87,17 +88,23 @@ export async function POST(request: Request) {
   // The reader's language: a member's notices, and a coach's alert titles and digest.
   const copy = memberCopy(localeDoc, settings);
   const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy });
-  const { send, digest, nextState, suppressed } = Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr });
+  // The pushes decided are claimed under the person's cap before anything is sent (decideAndClaim).
+  const admin = createAdminClient();
+  const { decided, claim } = await decideAndClaim(admin, actor.user.id, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr }, prefs.capTz);
+  const { send, digest, nextState, suppressed } = decided;
 
   // Persist the dedup/cap state BEFORE delivering. Delivery + state aren't one
   // transaction, so we must choose a failure direction: writing state first means
   // a delivery failure at worst SKIPS a nudge (safe), whereas delivering first and
   // then failing the state write would let a retry RESEND the same nudges (spam).
   // For proactive, never-shaming notifications, fail toward under-delivery.
-  await writeUserGoal(actor.supabase, actor.user.id, 'notify_state', nextState);
-
-  const admin = createAdminClient();
-  await deliver(admin, actor.user.id, digest ? [...send, digest] : send);
+  try {
+    await writeUserGoal(actor.supabase, actor.user.id, 'notify_state', nextState);
+    await deliver(admin, actor.user.id, digest ? [...send, digest] : send);
+  } finally {
+    // The notices have landed and count themselves now.
+    await releasePushClaim(admin, claim);
+  }
 
   // The snapshot is only read later by the cron to re-evaluate — order-independent.
   await writeUserGoal(actor.supabase, actor.user.id, 'notify_snapshot', snapshot);

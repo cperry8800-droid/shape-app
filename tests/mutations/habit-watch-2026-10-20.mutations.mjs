@@ -33,7 +33,7 @@ export default {
     { name: 'an archived habit sends', file: RULES, find: ' || h.archived_at) continue;', replace: ') continue;' },
     { name: 'a weekly habit sends daily', file: RULES, find: "    if (h.cadence && h.cadence !== 'daily') continue;\n", replace: '' },
     { name: 'no zone on file is never anyone\'s evening', file: RULES, find: "const tz = zoneOf(h.user_id) || 'UTC';", replace: "const tz = zoneOf(h.user_id) || 'Pacific/Kiritimati';" },
-    { name: "a to-don't reads as not done", file: RULES, find: "  return type === 'avoid'", replace: "  return type === 'never'" },
+    { name: "a to-don't reads as not done", file: RULES, find: "  return type === 'avoid'\n    ? { title: `${first}", replace: "  return type === 'never'\n    ? { title: `${first}" },
     { name: 'one key for every evening', file: RULES, find: 'export const habitWatchDedupe = (habitId, day) => `habit:${habitId}:${day}`;', replace: 'export const habitWatchDedupe = (habitId) => `habit:${habitId}`;' },
 
     // ── The cron ──
@@ -52,9 +52,9 @@ export default {
     { name: "someone else's check-off silences the notice", file: CRON, find: 'completions.filter((r) => str(r.user_id) === ownerOf.get(str(r.habit_id))).map(', replace: 'completions.map(' },
     { name: 'a notice that landed is sent again', file: CRON, find: '  const owed = notices.filter((n) => !stored.has(`${n.watcherId}|${habitWatchDedupe(n.habitId, n.day)}`));', replace: '  const owed = notices;' },
     { name: 'an unreadable list of landed notices still sends, its cap uncounted', file: CRON, find: "  if (!landed) {\n    console.error(\"[shape] habit watch: could not read the evening's notices\");\n    return NextResponse.json({ error: \"Could not read the evening's notices.\" }, { status: 500 });\n  }\n  const stored = new Set<string>();\n  const pushed = new Map<string, number>();\n  for (const r of landed) {", replace: "  const stored = new Set<string>();\n  const pushed = new Map<string, number>();\n  for (const r of landed || []) {" },
-    { name: 'the daily cap is ignored', file: CRON, find: '      const quiet = asleep || used >= cap;', replace: '      const quiet = asleep;' },
+    { name: 'the daily cap is ignored', file: CRON, find: '      let quiet = asleep || used >= cap;', replace: '      let quiet = asleep;' },
     { name: "the person's own cap is ignored", file: CRON, find: "      const cap = typeof q.daily_cap === 'number' && Number.isFinite(q.daily_cap) ? q.daily_cap : DAILY_CAP;", replace: '      const cap = DAILY_CAP;' },
-    { name: 'no place under the cap is reserved', file: CRON, find: '      if (!quiet) { pushed.set(n.watcherId, used + 1); reserved = true; }', replace: '      if (!quiet) { reserved = true; }' },
+    { name: 'no place under the cap is reserved', file: CRON, find: '        pushed.set(n.watcherId, used + 1);\n        reserved = true;\n', replace: '        reserved = true;\n' },
     { name: 'a push that did not happen keeps its place', file: CRON, find: "      if (reserved && outcome !== 'stored') pushed.set(n.watcherId, (pushed.get(n.watcherId) || 1) - 1);\n", replace: '' },
     { name: 'pushes older than a day count against the cap', file: CRON, find: ' && bsYmdIn(at, tzOf(u)) === bsYmdIn(now, tzOf(u))', replace: '' },
     { name: 'the cap runs a rolling day, not the person\'s date', file: CRON, find: ' && bsYmdIn(at, tzOf(u)) === bsYmdIn(now, tzOf(u))', replace: ' && at >= now - 24 * 60 * 60 * 1000' },

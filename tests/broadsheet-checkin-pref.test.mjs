@@ -501,7 +501,8 @@ test('both notify routes derive the check-in opt-out and pass it to BOTH consume
     // BOTH consumers. candidatesFor stops the nudge being rebuilt; decideNotifications
     // purges one already HELD by quiet hours or the cap. Either alone leaves a door open.
     assert.match(src, /candidatesFor\([^;]*checkinOptedOut/, `${rel}: candidatesFor receives it`);
-    assert.match(src, /decideNotifications\(\{[^;]*checkinOptedOut/, `${rel}: decideNotifications receives it`);
+    // decideAndClaim hands its input to decideNotifications whole, both times (ai-notify-daily-cap).
+    assert.match(src, /decideAndClaim\([^;]*\{[^;]*checkinOptedOut/, `${rel}: decideNotifications receives it`);
   }
 });
 

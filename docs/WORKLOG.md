@@ -131,6 +131,8 @@ The War Room has the full list. This section covers what needs the owner, plus t
 planned builds.
 
 **Waiting on the owner**
+- Run `2026-10-21-push-cap-claims.sql`. Until then two senders deciding in the same minute can
+  each take a member's last push of the day.
 - Push keys (the app side is built, #2385; 0 push devices in production). For iPhone,
   set `APNS_KEY_ID`, `APNS_TEAM_ID` and `APNS_PRIVATE_KEY` in Vercel. For Android, add
   the app to Firebase `shape-84d22` and save its `google-services.json` as the repo
@@ -217,9 +219,8 @@ planned builds.
   it). Sharing is set from the Habits page only, and its sheet has no search. The daily cap
   counts every notice stamped as pushed on the member's day, so an unstamped
   `createNotification` row isn't counted. When the AI notify engine can't read the day's pushes,
-  it counts only its own sends. Two senders deciding in the same minute (every hourly cron starts
-  at :00) can each take the last push, so the cap can be passed by one; closing that needs a
-  reservation in the database.
+  it counts only its own sends. The engine and the habit cron claim their pushes in the database
+  first (`claim_push_slots`); a claim that can't be made sends on the count as read.
 - A goal in the member's own words is set in the app (the Goal page's picker and the first-run
   step) and in the website's sign-up. The website's Goals page shows goals and adds none (coaches
   set them). Only the five weight goals have a weight read; any other goal reads in words until

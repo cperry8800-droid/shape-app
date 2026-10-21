@@ -21,6 +21,7 @@ import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { preferredNotificationOutcome } from '@/lib/notify';
+import { claimPushSlots, releasePushClaim, type PushClaim } from '@/lib/push-cap';
 import { normalizeZone } from '@/lib/time';
 import * as NotifyLayer from '@/lib/ai/notifications.mjs';
 import { habitWatchDue, habitWatchCopy, habitWatchText, habitWatchDedupe, HABIT_WATCH_HOUR, HABIT_WATCH_CATCHUP } from '@/lib/habit-watch.mjs';
@@ -267,6 +268,7 @@ async function handle(request: Request) {
   let failed = 0;
   const send = async (n: (typeof notices)[number]) => {
     let reserved = false;
+    let claim: PushClaim | null = null;
     try {
       const q = quietOf.get(n.watcherId) || {};
       const asleep = inQuietHours(new Date(now), {
@@ -276,8 +278,21 @@ async function handle(request: Request) {
       });
       const cap = typeof q.daily_cap === 'number' && Number.isFinite(q.daily_cap) ? q.daily_cap : DAILY_CAP;
       const used = pushed.get(n.watcherId) || 0;
-      const quiet = asleep || used >= cap;
-      if (!quiet) { pushed.set(n.watcherId, used + 1); reserved = true; }
+      let quiet = asleep || used >= cap;
+      if (!quiet) {
+        pushed.set(n.watcherId, used + 1);
+        reserved = true;
+        // ⚠ THE PLACE IS CLAIMED IN THE DATABASE TOO (owner, 2026-10-21: "yes build the cap
+        // reservation"). The count above is this run's; the AI notify engine can take the same
+        // place in the same minute. Refused, the notice lands in the app without a push, as past
+        // the cap. A claim that can't be made sends on the count as read (push-cap.ts).
+        claim = await claimPushSlots(admin, n.watcherId, { tz: tzOf(n.watcherId), cap, want: 1 });
+        if (claim && claim.granted < 1) {
+          quiet = true;
+          reserved = false;
+          pushed.set(n.watcherId, (pushed.get(n.watcherId) || 1) - 1);
+        }
+      }
       const text = habitWatchText({ ownerName: nameOf.get(n.ownerId), habitName: n.name, type: n.type });
       const copy = habitWatchCopy({ ownerName: nameOf.get(n.ownerId), habitName: n.name, type: n.type });
       const outcome = await preferredNotificationOutcome(admin, {
@@ -299,6 +314,9 @@ async function handle(request: Request) {
       failed += 1;
       if (reserved) pushed.set(n.watcherId, (pushed.get(n.watcherId) || 1) - 1);
       console.error('[shape] habit watch notice failed:', n.habitId, err);
+    } finally {
+      // The notice has landed (and counts itself) or never will.
+      await releasePushClaim(admin, claim);
     }
   };
   let next = 0;

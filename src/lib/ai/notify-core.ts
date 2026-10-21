@@ -13,6 +13,7 @@ import { isCoachRole } from '@/lib/roles.mjs';
 import { createNotification } from '@/lib/notify';
 import { sendEmail } from '@/lib/email';
 import { normalizeZone } from '@/lib/time';
+import { claimPushSlots, type PushClaim } from '@/lib/push-cap';
 import type { SupabaseClient } from '@supabase/supabase-js';
 // The pure UMD engine (module.exports = api); imported directly (no window in Node).
 import DashSignals from '../../../public/newdesign/dashSignals.js';
@@ -20,6 +21,7 @@ import { bsUnitsMetric } from '../../../mobile-app/src/services/leadReason.mjs';
 
 export type Candidate = { type: string; title: string; body: string; route: string; data: Record<string, unknown>; priority: string };
 export type DecideResult = { send: Candidate[]; digest: Candidate | null; nextState: Record<string, unknown>; suppressed: { type: string; reason: string }[] };
+export type DecideInput = { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; pushedToday?: number | null; tr?: Translate };
 export type Snapshot = { role?: string; tz?: string; record?: Record<string, unknown>; clients?: unknown[]; at?: number };
 
 export type Translate = ReaderTranslate;
@@ -32,7 +34,9 @@ export const Notify = NotifyLayer as unknown as {
   clientCandidates: (input: Record<string, unknown>) => Candidate[];
   coachCandidates: (input: Record<string, unknown>) => Candidate[];
   habitReminderCandidates: (input: Record<string, unknown>) => Candidate[];
-  decideNotifications: (input: { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; pushedToday?: number | null; tr?: Translate }) => DecideResult;
+  decideNotifications: (input: DecideInput) => DecideResult;
+  dailyCap: (prefs: Record<string, unknown>) => number;
+  pushCount: (decided: { send: Candidate[]; digest: Candidate | null }) => number;
   DEFAULT_PREFS: Record<string, unknown>;
   dailyCheckinOn: (v: unknown) => boolean;
 };
@@ -104,6 +108,30 @@ export async function loadPushedToday(client: SupabaseClient, userId: string, no
     if (Number.isFinite(at) && ymdInTz(new Date(at), tz) === today) n += 1;
   }
   return n;
+}
+
+// ⚠ THE PUSHES ARE CLAIMED BEFORE THEY ARE SENT (owner, 2026-10-21: "yes build the cap
+// reservation"). The day's count is read before deciding, so another sender (the habit cron, or
+// this engine's other route) could take a place between the read and the send, and the cap passed
+// by one. The pushes decided are claimed in the database (claim_push_slots, push-cap.ts), which
+// grants only the places still free. Granted fewer, the engine decides again with only those
+// left: what no longer fits waits for the digest, as anything over the cap does, so no notice is
+// lost. The caller releases the claim once delivery is done (releasePushClaim). A claim that can't
+// be made keeps the first decision, on the count as read.
+export async function decideAndClaim(
+  admin: SupabaseClient,
+  userId: string,
+  input: DecideInput,
+  capTz: string,
+): Promise<{ decided: DecideResult; claim: PushClaim | null }> {
+  const decided = Notify.decideNotifications(input);
+  const want = Notify.pushCount(decided);
+  if (want < 1) return { decided, claim: null };
+  const cap = Notify.dailyCap(input.prefs);
+  const claim = await claimPushSlots(admin, userId, { tz: capTz, cap, want });
+  if (!claim || claim.granted >= want) return { decided, claim };
+  // The day as the database counts it: everything but the granted places is taken.
+  return { decided: Notify.decideNotifications({ ...input, pushedToday: cap - claim.granted }), claim };
 }
 
 // A client's enabled habit reminders + the habits already done today (in their

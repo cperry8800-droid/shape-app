@@ -46,9 +46,9 @@ export default {
     { name: 'a failed read counts as none', file: CORE, find: "counting this engine\\'s own', error.message); return null; }", replace: "counting this engine\\'s own', error.message); return 0; }" },
 
     // ── The routes ──
-    { name: 'the live route leaves the day out', file: LIVE, find: 'Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr })', replace: 'Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, tr: copy?.tr })' },
+    { name: 'the live route leaves the day out', file: LIVE, find: '{ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr }, prefs.capTz)', replace: '{ candidates, last, prefs, now, audience, checkinOptedOut, tr: copy?.tr }, prefs.capTz)' },
     { name: 'the cron reads the day on its own round trip', file: CRON, find: "      loadPushedToday(admin, userId, now, prefs.capTz),\n    ]);", replace: "    ]);\n    const pushedToday = await loadPushedToday(admin, userId, now, prefs.capTz);" },
     { name: 'the live route reads the day on its own round trip', file: LIVE, find: "    loadPushedToday(actor.supabase, actor.user.id, now, prefs.capTz),\n  ]);", replace: "  ]);\n  const pushedToday = await loadPushedToday(actor.supabase, actor.user.id, now, prefs.capTz);" },
-    { name: 'the cron leaves the day out', file: CRON, find: 'Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr })', replace: 'Notify.decideNotifications({ candidates, last, prefs, now, audience, checkinOptedOut, tr: copy?.tr })' },
+    { name: 'the cron leaves the day out', file: CRON, find: '{ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr }, prefs.capTz)', replace: '{ candidates, last, prefs, now, audience, checkinOptedOut, tr: copy?.tr }, prefs.capTz)' },
   ],
 };
