@@ -26,6 +26,7 @@ import { bsMaterializeOutline } from './planOutline.mjs';
 import { bsPrunePrep } from './mealPrep.mjs';
 import { bsNormalizeListingMedia } from './listingMedia.mjs';
 import { isShapeWelcome } from './shapeWelcome.mjs';
+import { bsHwWeekWindow, bsHwLocalDayOf } from './homeWeek.mjs';
 // The SHARED nora_memory doc normalizer (pure ESM, cross-root import — the
 // dashSignals.js precedent): one implementation of the {rev, notes} semantics
 // for the server tools AND this Settings mirror, so they can't drift.
@@ -7421,20 +7422,25 @@ async function getCommitment() {
 async function getCommitmentProgress(weekOf) {
   if (!supabase || !state.user?.id) return { workouts: 0, checkin: false, habits: 0, ok: false };
   try {
-    const mon = typeof weekOf === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(weekOf) ? new Date(`${weekOf}T00:00:00Z`) : _commitWeekMonday();
+    // A local week (weekOf) bounds the activities' timestamps by its own midnights and dates each
+    // one on its local day; the days of the date columns are local already.
+    const local = bsHwWeekWindow(weekOf);
+    const mon = local ? new Date(`${weekOf}T00:00:00Z`) : _commitWeekMonday();
     const wk = mon.toISOString().slice(0, 10);
     const end = new Date(mon); end.setUTCDate(end.getUTCDate() + 6);
     const wkEnd = end.toISOString().slice(0, 10);
     const uid = state.user.id;
     const [snaps, acts, chk, habs] = await Promise.all([
       supabase.from('daily_health_snapshot').select('snapshot_date, workout_minutes').eq('user_id', uid).gte('snapshot_date', wk).lte('snapshot_date', wkEnd),
-      supabase.from('activities').select('started_at').eq('user_id', uid).gte('started_at', wk).lte('started_at', wkEnd + 'T23:59:59Z'),
+      local
+        ? supabase.from('activities').select('started_at').eq('user_id', uid).gte('started_at', local.from).lt('started_at', local.to)
+        : supabase.from('activities').select('started_at').eq('user_id', uid).gte('started_at', wk).lte('started_at', wkEnd + 'T23:59:59Z'),
       supabase.from('client_checkins').select('week_of').eq('user_id', uid).eq('week_of', wk).maybeSingle(),
       supabase.from('user_habit_completions').select('done_on').eq('user_id', uid).gte('done_on', wk).lte('done_on', wkEnd),
     ]);
     const days = new Set();
     (snaps.data || []).forEach((s) => { if ((s.workout_minutes || 0) > 0) days.add(s.snapshot_date); });
-    (acts.data || []).forEach((a) => { days.add(String(a.started_at).slice(0, 10)); });
+    (acts.data || []).forEach((a) => { const day = local ? bsHwLocalDayOf(a.started_at) : String(a.started_at).slice(0, 10); if (day) days.add(day); });
     const ok = !snaps.error && !acts.error && !(chk && chk.error) && !habs.error;
     return { workouts: days.size, checkin: !!(chk && chk.data), habits: (habs.data || []).length, ok };
   } catch (e) { return { workouts: 0, checkin: false, habits: 0, ok: false }; }

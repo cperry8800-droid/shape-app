@@ -1,7 +1,7 @@
 import React from 'react';
 import { BSFocusTitle, BSFocusLeader, BSFocusLink } from './BSFocus.jsx';
 import { bsCiDay, bsCiAnswered, bsCiIso, BS_CI_SAVED } from './BSCheckinCard.jsx';
-import { bsHomeWeekSoFar, bsHwPct, bsHomeGoalRead, bsHwRedate, bsHomeNextSession, bsHwDaysBetween, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf } from '../services/homeWeek.mjs';
+import { bsHomeWeekSoFar, bsHwPct, bsHomeGoalRead, bsHwRedate, bsHomeNextSession, bsHwDaysBetween, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf, bsHwGoalWeighIns, bsHwSeriesOf } from '../services/homeWeek.mjs';
 // ─── HOME, PART 2: YOUR GOAL · WEEK SO FAR · FROM YOUR COACHES ─────────────────────────────────────
 // Owner, 2026-10-22: "The home page is repetitive of the train and eat pages." Off the mockup the owner
 // approved, Home says what only Home can, under Today's call:
@@ -103,10 +103,11 @@ function useBSHomeGoalData(demo) {
       try { ident = window.shapeDb?.getUserGoals ? await window.shapeDb.getUserGoals('client_identity') : null; } catch (e) { /* no mirror read */ }
       try { weigh = window.ShapeWeighIns?.list ? await window.ShapeWeighIns.list() : null; } catch (e) { /* no weigh-ins */ }
       if (!on) return;
+      const overall = (doc && doc.overall && typeof doc.overall === 'object') ? doc.overall : {};
       setData({
         primary: (doc && doc.primaryGoal) || (ident && ident.goal) || '',
-        overall: (doc && doc.overall && typeof doc.overall === 'object') ? doc.overall : {},
-        weighIns: Array.isArray(weigh) ? weigh : [],
+        overall,
+        weighIns: bsHwGoalWeighIns(weigh, overall),
       });
     })();
     return () => { on = false; };
@@ -235,7 +236,7 @@ export function BSHomeWeekSoFar({ sessionsPlanned = null, proteinTarget = null, 
     if (!signedIn) return undefined;
     let on = true;
     if (window.ShapeProgress?.progress) {
-      window.ShapeProgress.progress().then((p) => { if (on) setSeries((p && p.series) || {}); }).catch(() => {});
+      window.ShapeProgress.progress().then((p) => { if (on) setSeries(bsHwSeriesOf(p)); }).catch(() => {});
     }
     if (window.ShapeCommit?.progress) {
       // This member's own Monday, not UTC's (see getCommitmentProgress).

@@ -97,6 +97,33 @@ export function bsHwTrainedOf(p) {
   return p && p.ok === true && typeof p.workouts === 'number' && Number.isFinite(p.workouts) ? p.workouts : null;
 }
 
+// The member's local week as instants, for a timestamp column ([from, to): local Monday midnight to
+// the next Monday's), and the local day a timestamp falls on. A logged activity is a timestamp, so
+// bounding it by UTC days put a Tokyo Monday-morning activity in last week (Codex P2 on #2424).
+export function bsHwWeekWindow(weekOf) {
+  const [y, m, d] = String(weekOf || '').split('-').map(Number);
+  const from = new Date(y, (m || 1) - 1, d || 1);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(weekOf || '')) || Number.isNaN(from.getTime())) return null;
+  return { from: from.toISOString(), to: new Date(y, m - 1, d + 7).toISOString() };
+}
+export function bsHwLocalDayOf(ts) {
+  const dt = new Date(ts);
+  return Number.isNaN(dt.getTime()) ? null : bsHwIso(dt);
+}
+
+// The goal's weigh-ins: the weigh-in table's when it has any, else the series an older goal
+// document keeps in `overall.weighIns` (kilograms, as the Goals page reads it; Codex P2 on #2424).
+export function bsHwGoalWeighIns(listed, overall) {
+  if (Array.isArray(listed) && listed.length) return listed;
+  return overall && Array.isArray(overall.weighIns) ? overall.weighIns : [];
+}
+
+// A progress read's series, or null when the read did not answer: ShapeProgress.progress resolves
+// null on a failed request, and a failure must say "—", not "0" (Codex P2 on #2424).
+export function bsHwSeriesOf(p) {
+  return p && p.series && typeof p.series === 'object' ? p.series : null;
+}
+
 // The share a figure is of its target, 0-100, or undefined when there is no target.
 export function bsHwPct(value, target) {
   return value != null && target ? Math.max(0, Math.min(100, Math.round((value / target) * 100))) : undefined;

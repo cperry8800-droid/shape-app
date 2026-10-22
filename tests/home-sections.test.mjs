@@ -146,6 +146,41 @@ test('days trained is a number only from a read that answered (Codex P2 on #2424
   assert.equal(H.bsHwTrainedOf(null), null);
 });
 
+test('a logged activity is bounded and dated by the member\'s own week, not UTC\'s (Codex P2 on #2424)', () => {
+  const tz = process.env.TZ;
+  try {
+    process.env.TZ = 'Asia/Tokyo';
+    assert.deepEqual(H.bsHwWeekWindow('2026-10-19'), { from: '2026-10-18T15:00:00.000Z', to: '2026-10-25T15:00:00.000Z' });
+    assert.equal(H.bsHwLocalDayOf('2026-10-18T23:00:00Z'), '2026-10-19', 'Monday 08:00 in Tokyo is Monday');
+    process.env.TZ = 'America/Los_Angeles';
+    assert.deepEqual(H.bsHwWeekWindow('2026-10-19'), { from: '2026-10-19T07:00:00.000Z', to: '2026-10-26T07:00:00.000Z' });
+    assert.equal(H.bsHwLocalDayOf('2026-10-19T03:00:00Z'), '2026-10-18', 'Sunday 20:00 in Los Angeles is last week');
+  } finally {
+    if (tz === undefined) delete process.env.TZ; else process.env.TZ = tz;
+  }
+  assert.equal(H.bsHwWeekWindow('not a day'), null, 'no week: the UTC read as before');
+  assert.equal(H.bsHwWeekWindow(undefined), null);
+  assert.equal(H.bsHwLocalDayOf('nonsense'), null);
+});
+
+test('the goal keeps an older document\'s weigh-ins when the table has none (Codex P2 on #2424)', () => {
+  const doc = { weighIns: [{ d: '2026-10-01', kg: 80 }] };
+  const listed = [{ d: '2026-10-20', kg: 79 }];
+  assert.equal(H.bsHwGoalWeighIns(listed, doc), listed, 'the table wins when it has rows');
+  assert.equal(H.bsHwGoalWeighIns([], doc), doc.weighIns);
+  assert.equal(H.bsHwGoalWeighIns(null, doc), doc.weighIns, 'a failed table read too');
+  assert.deepEqual(H.bsHwGoalWeighIns(null, {}), []);
+  assert.deepEqual(H.bsHwGoalWeighIns(undefined, null), []);
+});
+
+test('a progress read that did not answer is no series, so the week says "—" (Codex P2 on #2424)', () => {
+  const series = { calories: [] };
+  assert.equal(H.bsHwSeriesOf({ series }), series);
+  assert.equal(H.bsHwSeriesOf(null), null, 'ShapeProgress.progress resolves null on a failed request');
+  assert.equal(H.bsHwSeriesOf({ error: 'x' }), null);
+  assert.equal(H.bsHomeWeekSoFar({ todayIso: '2026-10-22', series: H.bsHwSeriesOf(null) }).daysLogged, null);
+});
+
 test('the next session is the soonest confirmed one still ahead, as the client', () => {
   const now = Date.parse('2026-10-22T12:00:00Z');
   const list = [
