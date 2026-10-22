@@ -450,5 +450,7 @@
   "coaches.title": "Від ваших тренерів",
   "coaches.message": "Написати: {name}",
   "coaches.unread": "нових: {n}",
-  "coaches.nextSession": "Наступна сесія"
+  "coaches.nextSession": "Наступна сесія",
+  "coaches.messageTrainer": "Написати тренеру",
+  "coaches.messageNutritionist": "Написати нутриціологу"
 }

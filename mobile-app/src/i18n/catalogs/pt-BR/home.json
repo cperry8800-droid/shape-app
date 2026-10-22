@@ -450,5 +450,7 @@
   "coaches.title": "Dos seus coaches",
   "coaches.message": "Mensagem para {name}",
   "coaches.unread": "{n} novas",
-  "coaches.nextSession": "Próxima sessão"
+  "coaches.nextSession": "Próxima sessão",
+  "coaches.messageTrainer": "Mensagem para seu treinador",
+  "coaches.messageNutritionist": "Mensagem para seu nutricionista"
 }

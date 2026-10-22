@@ -450,5 +450,7 @@
   "coaches.title": "De vos coachs",
   "coaches.message": "Écrire à {name}",
   "coaches.unread": "{n} nouveaux",
-  "coaches.nextSession": "Prochaine séance"
+  "coaches.nextSession": "Prochaine séance",
+  "coaches.messageTrainer": "Écrire à votre coach sportif",
+  "coaches.messageNutritionist": "Écrire à votre nutritionniste"
 }

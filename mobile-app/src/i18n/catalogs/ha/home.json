@@ -450,5 +450,7 @@
   "coaches.title": "Daga kocinka",
   "coaches.message": "Aika saƙo ga {name}",
   "coaches.unread": "sababbi {n}",
-  "coaches.nextSession": "Zama na gaba"
+  "coaches.nextSession": "Zama na gaba",
+  "coaches.messageTrainer": "Aika saƙo ga mai horar da kai",
+  "coaches.messageNutritionist": "Aika saƙo ga masanin abincinka"
 }

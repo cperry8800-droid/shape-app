@@ -450,5 +450,7 @@
   "coaches.title": "Dai tuoi coach",
   "coaches.message": "Scrivi a {name}",
   "coaches.unread": "{n} nuovi",
-  "coaches.nextSession": "Prossima sessione"
+  "coaches.nextSession": "Prossima sessione",
+  "coaches.messageTrainer": "Scrivi al tuo trainer",
+  "coaches.messageNutritionist": "Scrivi al tuo nutrizionista"
 }

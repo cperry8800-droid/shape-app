@@ -450,5 +450,7 @@
   "coaches.title": "Koçlarından",
   "coaches.message": "{name} ile mesajlaş",
   "coaches.unread": "{n} yeni",
-  "coaches.nextSession": "Sonraki seans"
+  "coaches.nextSession": "Sonraki seans",
+  "coaches.messageTrainer": "Antrenörünle mesajlaş",
+  "coaches.messageNutritionist": "Diyetisyeninle mesajlaş"
 }

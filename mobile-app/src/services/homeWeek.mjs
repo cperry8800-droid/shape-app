@@ -242,16 +242,24 @@ export function bsHomeNextSession(sessions, coaches, nowMs = Date.now()) {
   return rows[0] || null;
 }
 
+// A read Week so far holds ({ monday, v }), for the week it was read for only: Home left open across
+// Sunday into Monday reads the new week, and until that read lands last week's figures are unknown
+// here, never this week's zeros (Codex P2 on #2424).
+export function bsHwOfWeek(held, monday) {
+  return held && held.monday === monday && held.v !== undefined ? held.v : null;
+}
+
 // The member's coaches, off the plan read: each one they pay, trainers first, with the thread a
 // message opens and the id their sessions are booked under. A read that failed (no `coaching`
-// key) or no coach reads as none.
+// key) or no coach reads as none. A coach whose name couldn't be read is still paid, so stays with
+// a null name (Home says the role instead, Codex P2 on #2424); an entry with neither is dropped.
 export function bsHomeCoachesOf(plan) {
   const out = [];
   const add = (part, role) => {
     const c = plan && plan[part] && plan[part].coaching;
     const list = c && Array.isArray(c.coaches) ? c.coaches : [];
     for (const k of list) {
-      if (k && k.name) out.push({ role, name: String(k.name), conversationId: k.conversationId || null, providerId: k.providerId ?? null });
+      if (k && (k.name || k.providerId != null)) out.push({ role, name: k.name ? String(k.name) : null, conversationId: k.conversationId || null, providerId: k.providerId ?? null });
     }
   };
   add('training', 'trainer');

@@ -450,5 +450,7 @@
   "coaches.title": "Von deinen Coaches",
   "coaches.message": "Nachricht an {name}",
   "coaches.unread": "{n} neu",
-  "coaches.nextSession": "Nächste Einheit"
+  "coaches.nextSession": "Nächste Einheit",
+  "coaches.messageTrainer": "Nachricht an deinen Trainer",
+  "coaches.messageNutritionist": "Nachricht an deine Ernährungsberatung"
 }

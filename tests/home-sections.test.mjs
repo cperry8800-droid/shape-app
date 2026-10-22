@@ -251,10 +251,12 @@ test('the weekly notes are the paid coaches\' alone', () => {
 test('the coaches are the ones the plan read says the member pays, trainers first', () => {
   const plan = {
     meals: { coaching: { coaches: [{ name: 'Dr. Maya Patel', conversationId: 'c-m', providerId: 3 }] } },
-    training: { coaching: { coaches: [{ name: 'Jordan Chen', conversationId: 'c-j', providerId: 7 }, { name: null }] } },
+    training: { coaching: { coaches: [{ name: 'Jordan Chen', conversationId: 'c-j', providerId: 7 }, { name: null, conversationId: 'c-x', providerId: 9 }, { name: null }] } },
   };
   assert.deepEqual(H.bsHomeCoachesOf(plan), [
     { role: 'trainer', name: 'Jordan Chen', conversationId: 'c-j', providerId: 7 },
+    // Paid, but the listing's name couldn't be read: still a coach (Codex P2 on #2424).
+    { role: 'trainer', name: null, conversationId: 'c-x', providerId: 9 },
     { role: 'nutritionist', name: 'Dr. Maya Patel', conversationId: 'c-m', providerId: 3 },
   ]);
   assert.deepEqual(H.bsHomeCoachesOf({ training: { coaching: null }, meals: {} }), [], 'no coach, or a read that failed');
@@ -392,4 +394,39 @@ test('a coach whose thread is not set up yet opens the coaches\' threads, never 
   assert.equal(coachesOpened, 1);
   assert.deepEqual(sent, [], 'no event with no thread to open');
   globalThis.removeEventListener?.('shape:openConversation', listen);
+});
+
+test('a paid coach whose name could not be read is offered by role (Codex P2 on #2424)', () => {
+  const sent = [];
+  const listen = (e) => sent.push(e.detail);
+  globalThis.addEventListener?.('shape:openConversation', listen);
+  const d = drive(S.BSHomeCoachesView, { coaches: [
+    { role: 'trainer', name: null, conversationId: 'c-x', providerId: 9 },
+    { role: 'nutritionist', name: null, conversationId: null, providerId: 3 },
+    { role: 'trainer', name: null, conversationId: 'c-y', providerId: 10 },
+  ], onCoaches: () => {} });
+  const links = d.nodes().filter(fn('BSFocusLink'));
+  assert.deepEqual(links.map((l) => l.props.label), ['Message your trainer', 'Message your nutritionist', 'Message your trainer']);
+  assert.equal(new Set(links.map((l) => l.key)).size, 3, 'two nameless trainers keep their own rows');
+  links[0].props.onOpen();
+  if (globalThis.addEventListener) {
+    assert.deepEqual(sent, [{ conversationId: 'c-x', name: undefined }], 'their thread opens, with no name to show');
+    globalThis.removeEventListener('shape:openConversation', listen);
+  }
+});
+
+test('Week so far uses a read only in the week it was read for (Codex P2s on #2424)', () => {
+  const series = { kcal: [] };
+  assert.equal(H.bsHwOfWeek({ monday: '2026-10-19', v: series }, '2026-10-19'), series);
+  assert.equal(H.bsHwOfWeek({ monday: '2026-10-19', v: 3 }, '2026-10-19'), 3);
+  assert.equal(H.bsHwOfWeek({ monday: '2026-10-19', v: 0 }, '2026-10-19'), 0, 'a real zero stays');
+  assert.equal(H.bsHwOfWeek({ monday: '2026-10-19', v: series }, '2026-10-26'), null, 'last week\'s read on a new Monday is unknown');
+  assert.equal(H.bsHwOfWeek(null, '2026-10-26'), null, 'nothing read yet');
+  // Both of the section's reads go through it.
+  const src = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSHomeSections.jsx'), 'utf8');
+  assert.match(src, /setSeries\(\{ monday, v: bsHwSeriesOf\(p\) \}\)/);
+  assert.match(src, /setTrained\(\{ monday, v: bsHwTrainedOf\(p\) \}\)/);
+  assert.match(src, /const weekSeries = bsHwOfWeek\(series, monday\);/);
+  assert.match(src, /series: weekSeries, workoutsDone: bsHwOfWeek\(trained, monday\),/);
+  assert.match(src, /answered: \(iso\) => bsCiAnswered\(bsCiDay\(weekSeries, iso\)\)/);
 });

@@ -450,5 +450,7 @@
   "coaches.title": "Từ huấn luyện viên",
   "coaches.message": "Nhắn {name}",
   "coaches.unread": "{n} mới",
-  "coaches.nextSession": "Buổi tiếp theo"
+  "coaches.nextSession": "Buổi tiếp theo",
+  "coaches.messageTrainer": "Nhắn huấn luyện viên",
+  "coaches.messageNutritionist": "Nhắn chuyên gia dinh dưỡng"
 }

@@ -1,7 +1,7 @@
 import React from 'react';
 import { BSFocusTitle, BSFocusLeader, BSFocusLink } from './BSFocus.jsx';
 import { bsCiDay, bsCiAnswered, bsCiIso, BS_CI_SAVED } from './BSCheckinCard.jsx';
-import { bsHomeWeekSoFar, bsHwPct, bsHomeGoalRead, bsHwRedate, bsHomeNextSession, bsHwDaysBetween, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf, bsHwSeriesOf, bsHwGoalData } from '../services/homeWeek.mjs';
+import { bsHomeWeekSoFar, bsHwPct, bsHomeGoalRead, bsHwRedate, bsHomeNextSession, bsHwDaysBetween, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf, bsHwSeriesOf, bsHwGoalData, bsHwOfWeek } from '../services/homeWeek.mjs';
 // ─── HOME, PART 2: YOUR GOAL · WEEK SO FAR · FROM YOUR COACHES ─────────────────────────────────────
 // Owner, 2026-10-22: "The home page is repetitive of the train and eat pages." Off the mockup the owner
 // approved, Home says what only Home can, under Today's call:
@@ -220,12 +220,13 @@ function bsHsDemoWeek(days) {
 
 export function BSHomeWeekSoFar({ sessionsPlanned = null, proteinTarget = null, stepGoal = null, ...view }) {
   const signedIn = bsHsSignedIn();
-  // The week the reads are for, so Home left open across Sunday into Monday reads the new week, and
-  // last week's count never sits against this week's plan (Codex P2 on #2424).
+  // The week the reads are for: Home left open across Sunday into Monday reads the new week, and each
+  // read is kept with its Monday and used only in that week (bsHwOfWeek), so last week's figures
+  // never sit against this week's plan or read as its zeros (Codex P2s on #2424).
   const todayIso = bsCiIso(new Date());
   const monday = bsHomeWeekSoFarDays(todayIso)[0];
-  const [series, setSeries] = useState(null);
-  const [trained, setTrained] = useState(null); // { monday, n }
+  const [series, setSeries] = useState(null); // { monday, v }
+  const [trained, setTrained] = useState(null); // { monday, v }
   const [reads, setReads] = useState(0);
   useEffect(() => {
     const again = () => setReads((n) => n + 1);
@@ -237,17 +238,18 @@ export function BSHomeWeekSoFar({ sessionsPlanned = null, proteinTarget = null, 
     if (!signedIn) return undefined;
     let on = true;
     if (window.ShapeProgress?.progress) {
-      window.ShapeProgress.progress().then((p) => { if (on) setSeries(bsHwSeriesOf(p)); }).catch(() => {});
+      window.ShapeProgress.progress().then((p) => { if (on) setSeries({ monday, v: bsHwSeriesOf(p) }); }).catch(() => {});
     }
     if (window.ShapeCommit?.progress) {
       // This member's own Monday, not UTC's (see getCommitmentProgress).
-      window.ShapeCommit.progress(monday).then((p) => { if (on) setTrained({ monday, n: bsHwTrainedOf(p) }); }).catch(() => {});
+      window.ShapeCommit.progress(monday).then((p) => { if (on) setTrained({ monday, v: bsHwTrainedOf(p) }); }).catch(() => {});
     }
     return () => { on = false; };
   }, [signedIn, reads, monday]);
 
+  const weekSeries = bsHwOfWeek(series, monday);
   const w = signedIn
-    ? bsHomeWeekSoFar({ todayIso, series, workoutsDone: trained && trained.monday === monday ? trained.n : null, workoutsPlanned: sessionsPlanned, proteinTarget, stepGoal, answered: (iso) => bsCiAnswered(bsCiDay(series, iso)) })
+    ? bsHomeWeekSoFar({ todayIso, series: weekSeries, workoutsDone: bsHwOfWeek(trained, monday), workoutsPlanned: sessionsPlanned, proteinTarget, stepGoal, answered: (iso) => bsCiAnswered(bsCiDay(weekSeries, iso)) })
     : bsHsDemoWeek(bsHomeWeekSoFar({ todayIso }).days);
   return <BSHomeWeekView w={w} {...view} />;
 }
@@ -301,7 +303,7 @@ function useBSHomeUnread(ids) {
 }
 
 // `notes` are the coaches' weekly notes ({ role, text, who }), `coaches` the ones the member pays
-// ({ role, name, conversationId, providerId }), both Home's. Nothing to say → nothing drawn.
+// ({ role, name, conversationId, providerId }; a name that couldn't be read is null), both Home's. Nothing to say → nothing drawn.
 export function BSHomeCoaches({ notes = [], coaches = [], onCalendar, onCoaches }) {
   const signedIn = bsHsSignedIn();
   const [sessions, setSessions] = useState(null);
@@ -331,7 +333,7 @@ export function BSHomeCoachesView({ notes = [], coaches = [], next = null, unrea
   const roleWord = (role) => (role === 'nutritionist' ? tr('home:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('home:role.trainer', { defaultValue: 'Trainer' }));
   const openThread = (c) => {
     if (!c.conversationId) { if (typeof onCoaches === 'function') onCoaches(); return; }
-    try { window.dispatchEvent(new window.CustomEvent('shape:openConversation', { detail: { conversationId: c.conversationId, name: c.name } })); } catch (e) { /* the chat tab is still a tap away */ }
+    try { window.dispatchEvent(new window.CustomEvent('shape:openConversation', { detail: { conversationId: c.conversationId, name: c.name || undefined } })); } catch (e) { /* the chat tab is still a tap away */ }
   };
   const when = next ? (() => {
     try { return new Date(next.at).toLocaleString(bsHsLocale(), { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return new Date(next.at).toString(); }
@@ -355,8 +357,10 @@ export function BSHomeCoachesView({ notes = [], coaches = [], next = null, unrea
         {coaches.map((c) => {
           const n = (c.conversationId && unread && unread[`dm:${c.conversationId}`]) || 0;
           return (
-            <BSFocusLink key={`${c.role}:${c.name}`} color={gold} glyph="✎"
-              label={tr('home:coaches.message', { defaultValue: 'Message {name}', name: c.name })}
+            <BSFocusLink key={`${c.role}:${c.providerId ?? c.name}`} color={gold} glyph="✎"
+              label={c.name ? tr('home:coaches.message', { defaultValue: 'Message {name}', name: c.name })
+                : c.role === 'nutritionist' ? tr('home:coaches.messageNutritionist', { defaultValue: 'Message your nutritionist' })
+                  : tr('home:coaches.messageTrainer', { defaultValue: 'Message your trainer' })}
               tag={n > 0 ? tr('home:coaches.unread', { defaultValue: '{n} new', n }) : roleWord(c.role)}
               onOpen={() => openThread(c)} />
           );

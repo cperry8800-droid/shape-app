@@ -450,5 +450,7 @@
   "coaches.title": "Dari pelatihmu",
   "coaches.message": "Kirim pesan ke {name}",
   "coaches.unread": "{n} baru",
-  "coaches.nextSession": "Sesi berikutnya"
+  "coaches.nextSession": "Sesi berikutnya",
+  "coaches.messageTrainer": "Kirim pesan ke pelatihmu",
+  "coaches.messageNutritionist": "Kirim pesan ke ahli gizimu"
 }
