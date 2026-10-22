@@ -615,6 +615,14 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'The Water line on Home, slimmer — #2422. No migration',
+      items: [
+        { label: 'Owner, 2026-10-21: "also make the water line smaller". One row as tall as + Glass\'s pill (28 px), whose button still reaches 34 px into the line\'s padding for the tap; a target\'s progress is the line\'s bottom edge instead of a row of its own; Apple Health\'s share and Set a daily target stay as small lines, shown only when they apply. On a 375 px phone about 58 px to 40 px, and 63 px with Set a daily target', status: 'done' },
+        { label: 'Review: Codex\'s first run on e15ecbd stalled (running 50 minutes); re-requested once, it came back clean (no findings). Copilot declined on its quota. npm test 8,111/8,111 on e15ecbd; CI green on all four jobs. Screenshots of the built app: 40 px at 375 and 320 px, 40 px with a target\'s bar, 63 px with Set a daily target', status: 'done' },
+        { label: 'Device pass: + Glass on a phone (the 28 px pill with its 34 px tap), a target\'s bar on the line\'s bottom edge, and Set a daily target under it for a member with none', status: 'manual' },
+      ],
+    },
+    {
       section: 'The Morning check-in card on Home, compact — #2421. No migration',
       items: [
         { label: 'Owner, 2026-10-21: "condense the size of this. taking up way to much space on home page". Before the check-in the card is its title row and one row of buttons, Start beside Same as yesterday (Same as yesterday drops under on a phone narrower than about 340 px); once a step is in, a watch\'s night or a skipped one too, the steps ride in the title row in place of "2 checks · 15 sec". The headline, "Saved as you go." and the row of step bars are gone, and their two strings left all 13 catalogs. Checked in, Edit sits in the title row and the streak, readiness and Your mornings share one line. On a 375 px phone: about 255 px to 89 px before the check-in, 133 px checked in', status: 'done' },
