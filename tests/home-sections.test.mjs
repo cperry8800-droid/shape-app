@@ -173,6 +173,17 @@ test('the goal keeps an older document\'s weigh-ins when the table has none (Cod
   assert.deepEqual(H.bsHwGoalWeighIns(undefined, null), []);
 });
 
+test('a goal read that failed leaves the goal section unresolved, never "Set a goal" (Codex P2 on #2424)', () => {
+  assert.equal(H.bsHwGoalData(null, null, null), null, 'both reads failed');
+  assert.equal(H.bsHwGoalData(null, { goal: 'Lose fat' }, LOSING), null, 'the document is the only source of the title and target');
+  assert.deepEqual(H.bsHwGoalData({}, {}, []), { primary: '', overall: {}, weighIns: [] }, 'nothing stored is a real "no goal"');
+  const d = H.bsHwGoalData({ overall: { title: 'Lean', target: 75, weighIns: [{ d: '2026-10-01', kg: 80 }] } }, { goal: 'Lose fat' }, null);
+  assert.equal(d.primary, 'Lose fat', 'the identity mirror fills in the goal\'s words');
+  assert.equal(d.overall.title, 'Lean');
+  assert.deepEqual(d.weighIns, [{ d: '2026-10-01', kg: 80 }], 'a failed table read falls back to the document');
+  assert.equal(H.bsHwGoalData({ primaryGoal: 'race' }, { goal: 'Lose fat' }, LOSING).primary, 'race', 'the document\'s own goal first');
+});
+
 test('a progress read that did not answer is no series, so the week says "—" (Codex P2 on #2424)', () => {
   const series = { calories: [] };
   assert.equal(H.bsHwSeriesOf({ series }), series);

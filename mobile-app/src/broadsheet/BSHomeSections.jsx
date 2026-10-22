@@ -1,7 +1,7 @@
 import React from 'react';
 import { BSFocusTitle, BSFocusLeader, BSFocusLink } from './BSFocus.jsx';
 import { bsCiDay, bsCiAnswered, bsCiIso, BS_CI_SAVED } from './BSCheckinCard.jsx';
-import { bsHomeWeekSoFar, bsHwPct, bsHomeGoalRead, bsHwRedate, bsHomeNextSession, bsHwDaysBetween, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf, bsHwGoalWeighIns, bsHwSeriesOf } from '../services/homeWeek.mjs';
+import { bsHomeWeekSoFar, bsHwPct, bsHomeGoalRead, bsHwRedate, bsHomeNextSession, bsHwDaysBetween, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf, bsHwSeriesOf, bsHwGoalData } from '../services/homeWeek.mjs';
 // ─── HOME, PART 2: YOUR GOAL · WEEK SO FAR · FROM YOUR COACHES ─────────────────────────────────────
 // Owner, 2026-10-22: "The home page is repetitive of the train and eat pages." Off the mockup the owner
 // approved, Home says what only Home can, under Today's call:
@@ -86,7 +86,8 @@ function BSHsTrend({ points, color, label }) {
 }
 
 // The goal document, its words and the weigh-ins: read signed in, or the preview's sample (`demo`,
-// the client module's BS_GOALS_DEFAULT) moved to end today. null while it reads.
+// the client module's BS_GOALS_DEFAULT) moved to end today. null while it reads, and after a goal
+// read that failed.
 function useBSHomeGoalData(demo) {
   const signedIn = bsHsSignedIn();
   const [data, setData] = useState(() => (signedIn ? null : {
@@ -103,12 +104,8 @@ function useBSHomeGoalData(demo) {
       try { ident = window.shapeDb?.getUserGoals ? await window.shapeDb.getUserGoals('client_identity') : null; } catch (e) { /* no mirror read */ }
       try { weigh = window.ShapeWeighIns?.list ? await window.ShapeWeighIns.list() : null; } catch (e) { /* no weigh-ins */ }
       if (!on) return;
-      const overall = (doc && doc.overall && typeof doc.overall === 'object') ? doc.overall : {};
-      setData({
-        primary: (doc && doc.primaryGoal) || (ident && ident.goal) || '',
-        overall,
-        weighIns: bsHwGoalWeighIns(weigh, overall),
-      });
+      // A goal read that failed leaves the section unresolved (null): nothing is drawn.
+      setData(bsHwGoalData(doc, ident, weigh));
     })();
     return () => { on = false; };
   }, [signedIn]);

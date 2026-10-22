@@ -118,6 +118,20 @@ export function bsHwGoalWeighIns(listed, overall) {
   return overall && Array.isArray(overall.weighIns) ? overall.weighIns : [];
 }
 
+// The goal section's data off its reads, or null to leave the section unresolved. getUserGoals
+// answers null when a read failed and {} when nothing is stored, and the goal document is the only
+// source of the title, start and target: a failed read must not say "Set a goal" to a member who
+// has one (Codex P2 on #2424). The identity mirror is a fallback for the goal's words only.
+export function bsHwGoalData(doc, ident, weigh) {
+  if (doc == null || typeof doc !== 'object') return null;
+  const overall = doc.overall && typeof doc.overall === 'object' ? doc.overall : {};
+  return {
+    primary: doc.primaryGoal || (ident && ident.goal) || '',
+    overall,
+    weighIns: bsHwGoalWeighIns(weigh, overall),
+  };
+}
+
 // A progress read's series, or null when the read did not answer: ShapeProgress.progress resolves
 // null on a failed request, and a failure must say "—", not "0" (Codex P2 on #2424).
 export function bsHwSeriesOf(p) {
