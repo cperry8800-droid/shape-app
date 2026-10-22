@@ -7,6 +7,8 @@
 //
 // Days are local calendar days, 'YYYY-MM-DD', the same keys the progress series carry.
 
+import { bsSlotWeek } from './trainingBuilder.mjs';
+
 export function bsHwIso(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -76,6 +78,23 @@ export function bsHomeWeekSoFar({ todayIso, series = null, workoutsDone = null, 
     steps: { avg: read ? avg(st) : null, goal: num(stepGoal) },
     mornings: read && typeof answered === 'function' ? days.filter((d) => answered(d)).length : null,
   };
+}
+
+// The sessions this week's plan holds, laid on the week exactly as Train lays them (bsSlotWeek: a
+// row dated in another week is left off, a weekly repeat counts each of its days). null = no
+// training plan read (Codex P2 on #2424: Home's own seven-slot week moved next week's rows in).
+export function bsHomeSessionsPlanned(plan, now = new Date()) {
+  const training = plan && plan.training;
+  if (!training || !training.hasPlan) return null;
+  const monday = new Date(now); monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  return bsSlotWeek(training.workouts || [], monday).filter(Boolean).length;
+}
+
+// Days trained this week off ShapeCommit.progress, or null when the read did not succeed: its
+// fallback is { workouts: 0 }, and a failed read must say "—", not "0" (Codex P2 on #2424).
+export function bsHwTrainedOf(p) {
+  return p && p.ok === true && typeof p.workouts === 'number' && Number.isFinite(p.workouts) ? p.workouts : null;
 }
 
 // The share a figure is of its target, 0-100, or undefined when there is no target.

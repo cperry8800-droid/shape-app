@@ -124,6 +124,28 @@ test('the preview\'s sample weigh-ins are moved to end today', () => {
   assert.deepEqual(H.bsHwRedate([], '2026-10-22'), []);
 });
 
+test('the sessions planned this week are the ones Train lays on this week (Codex P2 on #2424)', () => {
+  const now = new Date(2026, 9, 22, 9); // Thursday 22 October 2026
+  const plan = (workouts) => ({ training: { hasPlan: true, workouts } });
+  assert.equal(H.bsHomeSessionsPlanned(plan([
+    { title: 'A', scheduledDate: '2026-10-19' },
+    { title: 'Next week', scheduledDate: '2026-10-27' },
+    { title: 'Last week', scheduledDate: '2026-10-12' },
+  ]), now), 1, 'a row dated in another week is not this week\'s');
+  assert.equal(H.bsHomeSessionsPlanned(plan([{ title: 'Repeat', repeatDow: [0, 2, 4] }]), now), 3, 'a weekly repeat counts each of its days');
+  assert.equal(H.bsHomeSessionsPlanned(plan([{ title: 'Undated' }, { title: 'Undated 2' }]), now), 2);
+  assert.equal(H.bsHomeSessionsPlanned({ training: { hasPlan: false, workouts: [] } }, now), null, 'no training plan');
+  assert.equal(H.bsHomeSessionsPlanned(null, now), null);
+});
+
+test('days trained is a number only from a read that answered (Codex P2 on #2424)', () => {
+  assert.equal(H.bsHwTrainedOf({ workouts: 2, ok: true }), 2);
+  assert.equal(H.bsHwTrainedOf({ workouts: 0, ok: true }), 0, 'a real zero');
+  assert.equal(H.bsHwTrainedOf({ workouts: 0, checkin: false, habits: 0, ok: false }), null, 'the fallback of a failed read');
+  assert.equal(H.bsHwTrainedOf({ workouts: 0 }), null, 'no word on success is no number');
+  assert.equal(H.bsHwTrainedOf(null), null);
+});
+
 test('the next session is the soonest confirmed one still ahead, as the client', () => {
   const now = Date.parse('2026-10-22T12:00:00Z');
   const list = [
@@ -269,4 +291,18 @@ test('From your coaches: their notes, a message door to each with what is unread
     assert.deepEqual(sent, [{ conversationId: 'c-m', name: 'Dr. Maya Patel' }], 'the message door opens that coach\'s thread');
     globalThis.removeEventListener('shape:openConversation', listen);
   }
+});
+
+test('a coach whose thread is not set up yet opens the coaches\' threads, never another coach\'s (Codex P2 on #2424)', () => {
+  const sent = [];
+  const listen = (e) => sent.push(e.detail);
+  globalThis.addEventListener?.('shape:openConversation', listen);
+  let coachesOpened = 0;
+  const d = drive(S.BSHomeCoachesView, { coaches: [{ role: 'trainer', name: 'Jordan Chen', conversationId: null }], onCoaches: () => { coachesOpened += 1; } });
+  const row = d.nodes().find(fn('BSFocusLink'));
+  assert.equal(row.props.label, 'Message Jordan Chen');
+  row.props.onOpen();
+  assert.equal(coachesOpened, 1);
+  assert.deepEqual(sent, [], 'no event with no thread to open');
+  globalThis.removeEventListener?.('shape:openConversation', listen);
 });

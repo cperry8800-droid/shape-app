@@ -62,7 +62,7 @@ import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSCheckinCard, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
-import { bsHomeCoachesOf } from '../services/homeWeek.mjs';
+import { bsHomeCoachesOf, bsHomeSessionsPlanned } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
@@ -5262,7 +5262,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       <BSHomeGoal tour="hero-goal" demo={bsHomeSignedIn ? null : BS_GOALS_DEFAULT} docKg={bsGoalDocKg} isWeightGoal={bsPrimaryGoalIsWeight}
         goalWords={(id) => bsPrimaryGoalLabel(id, tr)} onOpen={() => setGoalsPage(true)} />
       <BSHomeWeekSoFar
-        sessionsPlanned={liveWeek ? liveWeek.workoutByIdx.filter(Boolean).length : null}
+        sessionsPlanned={bsHomeSessionsPlanned(livePlan)}
         proteinTarget={ticker && typeof ticker.protein_target === 'number' ? ticker.protein_target : null}
         stepGoal={stepsToday.goal} checkinsOn={checkinPrefOn}
         onTrain={() => goTrain?.()} onEat={() => goEat()} onProgress={() => setHomeProgressPage(true)}
@@ -5275,7 +5275,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {/* The coaches' weekly notes, trainers first: a member may pay two coaches of one role (owner,
           2026-10-16), and each keeps one note (coach_focus_banners is one row per coach), signed with
           its coach's name or the role alone. Real notes only, no sample even signed out (owner). */}
-      <BSHomeCoaches coaches={planCoaches} onCalendar={goCalendar}
+      <BSHomeCoaches coaches={planCoaches} onCalendar={goCalendar} onCoaches={() => goChat()}
         notes={(() => {
           const banners = coachFeed.banners || [];
           const notes = [];

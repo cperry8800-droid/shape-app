@@ -1,7 +1,7 @@
 import React from 'react';
 import { BSFocusTitle, BSFocusLeader, BSFocusLink } from './BSFocus.jsx';
 import { bsCiDay, bsCiAnswered, bsCiIso, BS_CI_SAVED } from './BSCheckinCard.jsx';
-import { bsHomeWeekSoFar, bsHwPct, bsHomeGoalRead, bsHwRedate, bsHomeNextSession, bsHwDaysBetween, bsHwWeekDays as bsHomeWeekSoFarDays } from '../services/homeWeek.mjs';
+import { bsHomeWeekSoFar, bsHwPct, bsHomeGoalRead, bsHwRedate, bsHomeNextSession, bsHwDaysBetween, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf } from '../services/homeWeek.mjs';
 // ─── HOME, PART 2: YOUR GOAL · WEEK SO FAR · FROM YOUR COACHES ─────────────────────────────────────
 // Owner, 2026-10-22: "The home page is repetitive of the train and eat pages." Off the mockup the owner
 // approved, Home says what only Home can, under Today's call:
@@ -240,7 +240,7 @@ export function BSHomeWeekSoFar({ sessionsPlanned = null, proteinTarget = null, 
     if (window.ShapeCommit?.progress) {
       // This member's own Monday, not UTC's (see getCommitmentProgress).
       const monday = bsHomeWeekSoFarDays(bsCiIso(new Date()))[0];
-      window.ShapeCommit.progress(monday).then((p) => { if (on && p && typeof p.workouts === 'number') setTrained(p.workouts); }).catch(() => {});
+      window.ShapeCommit.progress(monday).then((p) => { if (on) setTrained(bsHwTrainedOf(p)); }).catch(() => {});
     }
     return () => { on = false; };
   }, [signedIn, reads]);
@@ -302,7 +302,7 @@ function useBSHomeUnread(ids) {
 
 // `notes` are the coaches' weekly notes ({ role, text, who }), `coaches` the ones the member pays
 // ({ role, name, conversationId }), both Home's. Nothing to say → nothing drawn.
-export function BSHomeCoaches({ notes = [], coaches = [], onCalendar }) {
+export function BSHomeCoaches({ notes = [], coaches = [], onCalendar, onCoaches }) {
   const signedIn = bsHsSignedIn();
   const [next, setNext] = useState(null);
   // Sessions are booked with a coach, so a member with none is not asked.
@@ -314,19 +314,22 @@ export function BSHomeCoaches({ notes = [], coaches = [], onCalendar }) {
     return () => { on = false; };
   }, [signedIn, coached]);
   const unread = useBSHomeUnread(coaches.map((c) => c.conversationId).filter(Boolean));
-  return <BSHomeCoachesView notes={notes} coaches={coaches} next={next} unread={unread} onCalendar={onCalendar} />;
+  return <BSHomeCoachesView notes={notes} coaches={coaches} next={next} unread={unread} onCalendar={onCalendar} onCoaches={onCoaches} />;
 }
 
 // The section itself: the notes, the coaches, the next session (bsHomeNextSession's) and the unread
-// counts by thread ('dm:<id>'). The tests draw it directly.
-export function BSHomeCoachesView({ notes = [], coaches = [], next = null, unread = {}, onCalendar }) {
+// counts by thread ('dm:<id>'). The tests draw it directly. `onCoaches` opens Chat on the coaches'
+// threads: a coach whose thread is not set up yet (the plan read's conversationId is null) has none
+// to open, and opening by name would land on another coach's (Codex P2 on #2424).
+export function BSHomeCoachesView({ notes = [], coaches = [], next = null, unread = {}, onCalendar, onCoaches }) {
   const t = window.useBS();
   const tr = useShapeTr();
   if (!notes.length && !coaches.length && !next) return null;
   const gold = bsHsGold(t);
   const roleWord = (role) => (role === 'nutritionist' ? tr('home:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('home:role.trainer', { defaultValue: 'Trainer' }));
   const openThread = (c) => {
-    try { window.dispatchEvent(new window.CustomEvent('shape:openConversation', { detail: { conversationId: c.conversationId || null, name: c.name } })); } catch (e) { /* the chat tab is still a tap away */ }
+    if (!c.conversationId) { if (typeof onCoaches === 'function') onCoaches(); return; }
+    try { window.dispatchEvent(new window.CustomEvent('shape:openConversation', { detail: { conversationId: c.conversationId, name: c.name } })); } catch (e) { /* the chat tab is still a tap away */ }
   };
   const when = next ? (() => {
     try { return new Date(next.at).toLocaleString(bsHsLocale(), { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return new Date(next.at).toString(); }
