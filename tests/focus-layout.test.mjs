@@ -259,28 +259,50 @@ test('shop by meal groups the same ticks by meal, and a skip takes a meal\'s ite
 });
 
 // Owner, 2026-10-22: "move this above lunch on eat page and condense a little more". The day's
-// budget reads first, then the next meal, then the menu; the three macros share one row.
-test('Eat reads fuel left today above the next meal, with the macros side by side', () => {
+// budget reads first, then the next meal, then the menu; the three macros share one row. The block
+// lives in its own module (BSEatFuel.jsx), so Eat is checked for the order and the module for the row.
+test('Eat reads fuel left today above the next meal', () => {
   delete globalThis.ShapeAuth;
   const d = drive(BSClientEat, { onProfile() {} });
   const order = d.nodes();
   const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
   const at = (pred) => order.findIndex(pred);
-  const fuel = at((n) => fn('BSFocusHead')(n) && n.props.label === 'Fuel left today');
+  const fuel = at(fn('BSEatFuel'));
   const lead = at(fn('BSFocusLead'));
   const menu = at(fn('BSTrackHeader'));
   assert.ok(fuel >= 0 && menu > fuel, 'fuel left today sits above the menu');
   if (lead >= 0) assert.ok(fuel < lead && lead < menu, 'and above the next meal');
+  const p = order[fuel].props;
+  assert.deepEqual(p.macros.map((m) => m.k), ['p', 'c', 'f'], 'protein, carbs and fat, in that order');
+  assert.equal(typeof p.onOpen, 'function', 'a macro opens the day\'s breakdown');
+  assert.equal(p.calLeft, Math.max(0, p.calTarget - p.calNow));
+  assert.equal(at((n) => fn('BSShelfDoor')(n) && /left/.test(String(n.props.figure || ''))), -1, 'no tall row per macro');
+});
+
+const EATFUEL = await loadRealModule(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSEatFuel.jsx'), {
+  registry: new Map([['react', { ...SHIM, useContext: (c) => c._currentValue }], ['react-dom', { createPortal: (n) => n }]]),
+});
+
+test('Fuel left today puts the three macros side by side, each a door with what is left', () => {
+  let opened = 0;
+  const macros = [
+    { k: 'p', l: 'PROTEIN', v: 178, g: 180, c: '#e06547' },
+    { k: 'c', l: 'CARBS', v: 218, g: 220, c: '#e3a544' },
+    { k: 'f', l: 'FAT', v: 70, g: 65, c: '#5b8df9' },
+  ];
+  const d = drive(EATFUEL.BSEatFuel, { calLeft: 52, calTarget: 2100, calNow: 2048, calPct: 98, macros, onOpen: () => { opened += 1; } });
+  const order = d.nodes();
+  const head = order.find((n) => typeof n.type === 'function' && n.type.name === 'BSFocusHead');
+  assert.equal(head.props.label, 'Fuel left today');
+  assert.equal(head.props.meta, '2,100 kcal plan');
+  assert.match(d.text, /52/);
   const strip = order.find((n) => n.props && n.props['data-eat-macros'] != null);
   assert.ok(strip, 'the macros are one row');
   assert.match(String(strip.props.style.gridTemplateColumns), /repeat\(3,/);
-  const macros = order.filter((n) => n.type === 'button' && /^(PROTEIN|CARBS|FAT) /.test(String(n.props['aria-label'] || '')));
-  assert.equal(macros.length, 3, 'one door per macro');
-  for (const b of macros) {
-    assert.match(b.props['aria-label'], /\d+g left \d+ \/ \d+$/, 'each says what is left and the day so far');
-    assert.equal(typeof b.props.onClick, 'function');
-  }
-  assert.equal(at((n) => fn('BSShelfDoor')(n) && /left/.test(String(n.props.figure || ''))), -1, 'no tall row per macro');
+  const doors = order.filter((n) => n.type === 'button');
+  assert.deepEqual(doors.map((b) => b.props['aria-label']), ['PROTEIN 2g left 178 / 180', 'CARBS 2g left 218 / 220', 'FAT 0g left 70 / 65'], 'over the target reads 0 left, never negative');
+  doors.forEach((b) => b.props.onClick());
+  assert.equal(opened, 3);
 });
 
 test('Train reads in the Focus order: the week, the session, the links', () => {

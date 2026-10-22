@@ -62,6 +62,7 @@ import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSCheckinCard, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
+import { BSEatFuel } from './BSEatFuel.jsx';
 import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
@@ -14191,40 +14192,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
 
       {bsEatSignedIn && eatPlanRead && !liveMealDays && eatCoaching && <BSCoachPreparing role="nutritionist" coaching={eatCoaching} />}
 
-      {/* Fuel left today — what is left of the day's target, then the three macros
-          side by side, each with its own bar; a macro opens the day's breakdown.
-          Coach-set targets (Adjust plan → Apply) win. It sits above the next meal
-          (owner, 2026-10-22: "move this above lunch on eat page and condense a
-          little more"), so the day's budget reads before what to eat next. */}
-      <BSFocusHead glyph="◐" label={tr('nutrition:eat.fuelLeft', { defaultValue: 'Fuel left today' })}
-        meta={tr('nutrition:eat.kcalPlan', { defaultValue: '{kcal} kcal plan', kcal: bsEatCalTgt.toLocaleString() })} />
-      <div style={{ padding: `6px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 40, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{bsEatCalLeft.toLocaleString()}</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:eat.kcalLeftWord', { defaultValue: 'kcal left' })}</span>
-          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, whiteSpace: 'nowrap' }}>{tr('nutrition:eat.eatenPct', { defaultValue: '{eaten} eaten · {pct}%', eaten: bsEatCalNow.toLocaleString(), pct: bsEatCalPct })}</span>
-        </div>
-        <div aria-hidden style={{ marginTop: 8, height: 3, background: t.HAIR }}>
-          <div style={{ width: `${bsEatCalPct}%`, height: '100%', background: t.ACCENT }} />
-        </div>
-        <div data-eat-macros="" style={{ marginTop: 4, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', columnGap: 14 }}>
-          {bsEatMacros.map((m) => {
-            const left = tr('nutrition:eat.gramsLeft', { defaultValue: '{g}g left', g: Math.max(0, m.g - m.v) });
-            const pct = m.g > 0 ? Math.max(0, Math.min(100, Math.round((m.v / m.g) * 100))) : 0;
-            return (
-              <button key={m.k} type="button" onClick={() => setPreviewDayBrief(true)} aria-label={`${m.l} ${left} ${m.v} / ${m.g}`}
-                style={{ minWidth: 0, minHeight: 44, border: 0, background: 'transparent', padding: '6px 0 4px', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit' }}>
-                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.l}</span>
-                <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, lineHeight: 1.1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{left}</span>
-                <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{m.v} / {m.g}</span>
-                <span aria-hidden style={{ display: 'block', marginTop: 5, height: 2, background: t.HAIR }}>
-                  <span style={{ display: 'block', width: `${pct}%`, height: '100%', background: m.c }} />
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/* Fuel left today (BSEatFuel.jsx), above the next meal (owner, 2026-10-22). Coach-set
+          targets (Adjust plan → Apply) win; a macro opens the day's breakdown. */}
+      <BSEatFuel calLeft={bsEatCalLeft} calTarget={bsEatCalTgt} calNow={bsEatCalNow} calPct={bsEatCalPct}
+        macros={bsEatMacros} onOpen={() => setPreviewDayBrief(true)} />
 
       {/* The next meal — on its own, today only. Log it opens the meal, where it
           is logged; Swap opens the swap sheet on this meal. */}
