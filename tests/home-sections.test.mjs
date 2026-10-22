@@ -228,6 +228,26 @@ test('the next session is the soonest confirmed one still ahead, as the client, 
   assert.match(plan, /const coaches = subs\.map\(\(sub\) => \(\{\n\s+providerId: sub\.provider_id,/);
 });
 
+test('the weekly notes are the paid coaches\' alone', () => {
+  const coaches = [{ role: 'trainer', name: 'Jordan Chen', providerId: 7 }, { role: 'nutritionist', name: 'Dr. Maya Patel', providerId: 3 }];
+  const banners = [
+    { id: 'a', provider_role: 'trainer', provider_id: 7, text: 'Push the tempo.' },
+    { id: 'b', provider_role: 'trainer', provider_id: 99, text: 'A former coach\'s note.' },
+    { id: 'c', provider_role: 'nutritionist', provider_id: 3, text: 'Protein first.' },
+    { id: 'd', provider_role: 'nutritionist', provider_id: 7, text: 'Another role\'s 7.' },
+    null,
+  ];
+  assert.deepEqual(H.bsHomePaidBanners(banners, coaches).map((b) => b.id), ['a', 'c']);
+  assert.deepEqual(H.bsHomePaidBanners(banners, []), [], 'no coach paid, no note');
+  assert.deepEqual(H.bsHomePaidBanners(null, coaches), []);
+  // Home draws its notes through it, and a timed coach item carries its minutes onto the line, so
+  // Today's call can count down to it.
+  const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(client, /const banners = bsHomePaidBanners\(coachFeed\.banners, planCoaches\);/);
+  assert.match(client, /key: `coach-\$\{it\.id\}`,\n\s+time: p\.time \|\| '',\n(\s+\/\/.*\n)*\s+_min: bsHomeTimeMinutes\(p\.time\),/);
+  assert.match(client, /const nextStop = todayDirective\.engine \? lineRows\.find\(\(r\) => typeof r\._min === 'number' && r\._min > bsNowMin && !r\.done\) : null;/);
+});
+
 test('the coaches are the ones the plan read says the member pays, trainers first', () => {
   const plan = {
     meals: { coaching: { coaches: [{ name: 'Dr. Maya Patel', conversationId: 'c-m', providerId: 3 }] } },

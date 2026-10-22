@@ -12,7 +12,7 @@ import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMo
 import { BS_WORKOUT_VIEWS, bsWorkoutView, bsReadWorkoutView, bsSaveWorkoutView, bsHrFresh, bsCollectHr, bsCloseHr, bsRestoreHr, bsHrSummary, bsHrSensorSamples } from '../services/workoutExperience.mjs';
 import { bsSdSplitUnit, bsSdNeedle, bsSdPaceTraceIn, bsSdElevTraceIn, bsSdUnitizeStat } from '../services/sessionLedger.mjs';
 import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
-import { bsHomeSlateSort } from '../services/homeSlate.mjs';
+import { bsHomeSlateSort, bsHomeTimeMinutes } from '../services/homeSlate.mjs';
 import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsValidLivePayload } from '../services/liveProgress.mjs';
@@ -62,7 +62,7 @@ import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSCheckinCard, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
-import { bsHomeCoachesOf, bsHomeSessionsPlanned } from '../services/homeWeek.mjs';
+import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
@@ -5014,6 +5014,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       rows.push({
         key: `coach-${it.id}`,
         time: p.time || '',
+        // Its minutes, as the meal and training rows carry theirs, so a timed coach item can be Today's
+        // call's next stop (Codex P2 on #2424). An untimed one has none.
+        _min: bsHomeTimeMinutes(p.time),
         tag: tr('home:tag.coach', { defaultValue: 'Coach' }), tagColor: isMeal ? _focusTeal : t.RUST,
         title: p.name || (isMeal ? tr('home:coach.mealFrom', { defaultValue: 'Meal from your coach' }) : tr('home:coach.workoutFrom', { defaultValue: 'Workout from your coach' })),
         status: [meta, p.cue || p.note].filter(Boolean).join(' · '),
@@ -5274,10 +5277,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {stepsHistory && <BSStepsHistory onClose={() => setStepsHistory(false)} />}
       {/* The coaches' weekly notes, trainers first: a member may pay two coaches of one role (owner,
           2026-10-16), and each keeps one note (coach_focus_banners is one row per coach), signed with
-          its coach's name or the role alone. Real notes only, no sample even signed out (owner). */}
+          its coach's name or the role alone. Real notes only, no sample even signed out (owner), and
+          only from a coach the member pays now, as the rest of the section. */}
       <BSHomeCoaches coaches={planCoaches} onCalendar={goCalendar} onCoaches={() => goChat()}
         notes={(() => {
-          const banners = coachFeed.banners || [];
+          const banners = bsHomePaidBanners(coachFeed.banners, planCoaches);
           const notes = [];
           for (const b of banners) if (b.provider_role !== 'nutritionist') notes.push({ role: 'trainer', text: b.text, who: b.provider_name || null });
           for (const b of banners) if (b.provider_role === 'nutritionist') notes.push({ role: 'nutritionist', text: b.text, who: b.provider_name || null });

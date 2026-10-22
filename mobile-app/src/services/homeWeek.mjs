@@ -213,12 +213,27 @@ export function bsHwRedate(weighIns, todayIso) {
   return pts.map((w) => ({ ...w, d: bsHwShift(String(w.d).slice(0, 10), gap) }));
 }
 
+// The coaches the member pays (bsHomeCoachesOf's) as 'role:id' keys, to match what a coach wrote or
+// booked. A coach without an id matches nothing.
+function bsHomePaidKeys(coaches) {
+  return new Set((Array.isArray(coaches) ? coaches : [])
+    .filter((c) => c && c.providerId != null).map((c) => `${c.role}:${c.providerId}`));
+}
+
+// The coaches' weekly notes (coach_focus_banners rows) from the coaches the member pays: a former
+// coach's note stays readable after the subscription ends, and isn't this section's (Codex P2 on
+// #2424). A row's role other than 'nutritionist' is a trainer's, as Home signs it.
+export function bsHomePaidBanners(banners, coaches) {
+  const paid = bsHomePaidKeys(coaches);
+  return (Array.isArray(banners) ? banners : []).filter((b) => b
+    && paid.has(`${b.provider_role === 'nutritionist' ? 'nutritionist' : 'trainer'}:${b.provider_id}`));
+}
+
 // The member's next session with a coach they pay (`coaches`, bsHomeCoachesOf's): the soonest
 // confirmed one still ahead, as a client. A session still booked with a former coach, or with an
 // intro coach they don't pay, is not this section's (Codex P2 on #2424).
 export function bsHomeNextSession(sessions, coaches, nowMs = Date.now()) {
-  const paid = new Set((Array.isArray(coaches) ? coaches : [])
-    .filter((c) => c && c.providerId != null).map((c) => `${c.role}:${c.providerId}`));
+  const paid = bsHomePaidKeys(coaches);
   const rows = (Array.isArray(sessions) ? sessions : [])
     .filter((s) => s && s.role === 'client' && s.status === 'confirmed' && paid.has(`${s.providerRole}:${s.providerId}`))
     .map((s) => ({ ...s, at: new Date(s.scheduledAt).getTime() }))
