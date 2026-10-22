@@ -133,9 +133,12 @@ export function bsHwGoalData(doc, ident, weigh) {
 }
 
 // A progress read's series, or null when the read did not answer: ShapeProgress.progress resolves
-// null on a failed request, and a failure must say "—", not "0" (Codex P2 on #2424).
+// null on a failed request, and the route says snapshotsRead: false when its daily history read
+// failed (its series are then empty, not nothing logged). Either must say "—", not "0" (Codex P2s
+// on #2424).
 export function bsHwSeriesOf(p) {
-  return p && p.series && typeof p.series === 'object' ? p.series : null;
+  if (!p || p.snapshotsRead === false) return null;
+  return p.series && typeof p.series === 'object' ? p.series : null;
 }
 
 // The share a figure is of its target, 0-100, or undefined when there is no target.

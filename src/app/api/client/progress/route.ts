@@ -60,7 +60,7 @@ export async function GET(request: Request) {
   // Everything downstream reads these ascending (the sparklines, the 8-weeks-ago
   // comparison, `latestVal`'s backwards walk), so the page is re-sorted here rather than
   // at each consumer.
-  const { data: snapRows } = await supabase
+  const { data: snapRows, error: snapError } = await supabase
     .from('daily_health_snapshot')
     .select('*')
     .eq('user_id', user.id)
@@ -357,6 +357,10 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
+    // False when the daily history read failed: every series built from it is then empty for a
+    // reason other than nothing logged, and a reader that counts days (Home's Week so far) must say
+    // it does not know rather than "0" (Codex P2 on #2424). Additive; the page ignores it.
+    snapshotsRead: !snapError,
     // True when EITHER history read came back full, so the client's "ALL" window names
     // itself honestly. Deliberately not per-metric: a conservative label on an uncapped
     // series costs a few words, and a confident "since start" on a capped one is a lie.

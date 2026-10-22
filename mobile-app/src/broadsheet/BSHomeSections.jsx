@@ -220,8 +220,12 @@ function bsHsDemoWeek(days) {
 
 export function BSHomeWeekSoFar({ sessionsPlanned = null, proteinTarget = null, stepGoal = null, ...view }) {
   const signedIn = bsHsSignedIn();
+  // The week the reads are for, so Home left open across Sunday into Monday reads the new week, and
+  // last week's count never sits against this week's plan (Codex P2 on #2424).
+  const todayIso = bsCiIso(new Date());
+  const monday = bsHomeWeekSoFarDays(todayIso)[0];
   const [series, setSeries] = useState(null);
-  const [trained, setTrained] = useState(null);
+  const [trained, setTrained] = useState(null); // { monday, n }
   const [reads, setReads] = useState(0);
   useEffect(() => {
     const again = () => setReads((n) => n + 1);
@@ -237,15 +241,13 @@ export function BSHomeWeekSoFar({ sessionsPlanned = null, proteinTarget = null, 
     }
     if (window.ShapeCommit?.progress) {
       // This member's own Monday, not UTC's (see getCommitmentProgress).
-      const monday = bsHomeWeekSoFarDays(bsCiIso(new Date()))[0];
-      window.ShapeCommit.progress(monday).then((p) => { if (on) setTrained(bsHwTrainedOf(p)); }).catch(() => {});
+      window.ShapeCommit.progress(monday).then((p) => { if (on) setTrained({ monday, n: bsHwTrainedOf(p) }); }).catch(() => {});
     }
     return () => { on = false; };
-  }, [signedIn, reads]);
+  }, [signedIn, reads, monday]);
 
-  const todayIso = bsCiIso(new Date());
   const w = signedIn
-    ? bsHomeWeekSoFar({ todayIso, series, workoutsDone: trained, workoutsPlanned: sessionsPlanned, proteinTarget, stepGoal, answered: (iso) => bsCiAnswered(bsCiDay(series, iso)) })
+    ? bsHomeWeekSoFar({ todayIso, series, workoutsDone: trained && trained.monday === monday ? trained.n : null, workoutsPlanned: sessionsPlanned, proteinTarget, stepGoal, answered: (iso) => bsCiAnswered(bsCiDay(series, iso)) })
     : bsHsDemoWeek(bsHomeWeekSoFar({ todayIso }).days);
   return <BSHomeWeekView w={w} {...view} />;
 }

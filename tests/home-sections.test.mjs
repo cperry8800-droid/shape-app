@@ -8,6 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { drive, SHIM, ROOT, THEME } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { IntlMessageFormat } from 'intl-messageformat';
@@ -189,6 +190,12 @@ test('a progress read that did not answer is no series, so the week says "—" (
   assert.equal(H.bsHwSeriesOf({ series }), series);
   assert.equal(H.bsHwSeriesOf(null), null, 'ShapeProgress.progress resolves null on a failed request');
   assert.equal(H.bsHwSeriesOf({ error: 'x' }), null);
+  assert.equal(H.bsHwSeriesOf({ ok: true, snapshotsRead: false, series }), null, 'the route\'s history read failed: its empty series are not "nothing logged"');
+  assert.equal(H.bsHwSeriesOf({ ok: true, snapshotsRead: true, series }), series);
+  // The route says so: the snapshot read's error is kept and answered as snapshotsRead.
+  const route = readFileSync(join(ROOT, 'src', 'app', 'api', 'client', 'progress', 'route.ts'), 'utf8');
+  assert.match(route, /const \{ data: snapRows, error: snapError \} = await supabase\n\s+\.from\('daily_health_snapshot'\)/);
+  assert.match(route, /snapshotsRead: !snapError,/);
   assert.equal(H.bsHomeWeekSoFar({ todayIso: '2026-10-22', series: H.bsHwSeriesOf(null) }).daysLogged, null);
 });
 
