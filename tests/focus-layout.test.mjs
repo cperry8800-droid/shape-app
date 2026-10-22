@@ -220,7 +220,7 @@ globalThis.window.addEventListener = () => {};
 globalThis.window.removeEventListener = () => {};
 const sent = [];
 globalThis.ShapeIntegrations = { sendGroceryToInstacart: async (x) => { sent.push(x); } };
-const { BSGrocery, BSClientTrain, BSClientHome, bsBuildPlanGrocery, BSYourMornings, BSCycleTodayChip } = await loadBroadsheet(['BSGrocery', 'BSClientTrain', 'BSClientHome', 'bsBuildPlanGrocery', 'BSYourMornings', 'BSCycleTodayChip'], SHIM);
+const { BSGrocery, BSClientTrain, BSClientHome, BSClientEat, bsBuildPlanGrocery, BSYourMornings, BSCycleTodayChip } = await loadBroadsheet(['BSGrocery', 'BSClientTrain', 'BSClientHome', 'BSClientEat', 'bsBuildPlanGrocery', 'BSYourMornings', 'BSCycleTodayChip'], SHIM);
 const byType = (d, name) => d.nodes().filter((n) => typeof n.type === 'function' && n.type.name === name);
 
 test('the Grocery page opens by aisle, on the first aisle with anything left', () => {
@@ -256,6 +256,31 @@ test('shop by meal groups the same ticks by meal, and a skip takes a meal\'s ite
   assert.deepEqual(sent[0].items.map((x) => x.name), ['Lemon', 'Kale', 'Ice'], 'a skipped item is not ordered');
   d.click('Undo');
   assert.match(d.text, /4 items/);
+});
+
+// Owner, 2026-10-22: "move this above lunch on eat page and condense a little more". The day's
+// budget reads first, then the next meal, then the menu; the three macros share one row.
+test('Eat reads fuel left today above the next meal, with the macros side by side', () => {
+  delete globalThis.ShapeAuth;
+  const d = drive(BSClientEat, { onProfile() {} });
+  const order = d.nodes();
+  const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
+  const at = (pred) => order.findIndex(pred);
+  const fuel = at((n) => fn('BSFocusHead')(n) && n.props.label === 'Fuel left today');
+  const lead = at(fn('BSFocusLead'));
+  const menu = at(fn('BSTrackHeader'));
+  assert.ok(fuel >= 0 && menu > fuel, 'fuel left today sits above the menu');
+  if (lead >= 0) assert.ok(fuel < lead && lead < menu, 'and above the next meal');
+  const strip = order.find((n) => n.props && n.props['data-eat-macros'] != null);
+  assert.ok(strip, 'the macros are one row');
+  assert.match(String(strip.props.style.gridTemplateColumns), /repeat\(3,/);
+  const macros = order.filter((n) => n.type === 'button' && /^(PROTEIN|CARBS|FAT) /.test(String(n.props['aria-label'] || '')));
+  assert.equal(macros.length, 3, 'one door per macro');
+  for (const b of macros) {
+    assert.match(b.props['aria-label'], /\d+g left \d+ \/ \d+$/, 'each says what is left and the day so far');
+    assert.equal(typeof b.props.onClick, 'function');
+  }
+  assert.equal(at((n) => fn('BSShelfDoor')(n) && /left/.test(String(n.props.figure || ''))), -1, 'no tall row per macro');
 });
 
 test('Train reads in the Focus order: the week, the session, the links', () => {
