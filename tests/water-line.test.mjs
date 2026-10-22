@@ -106,6 +106,24 @@ test('the target picker starts at the member\'s target or a sensible one, and sa
 
 // ── The line ─────────────────────────────────────────────────────────────────
 
+// Owner, 2026-10-21: "also make the water line smaller". One row, as tall as + Glass's pill; the
+// button around the pill keeps the 34 px tap. A target's progress is the line's bottom edge.
+test('the line is one slim row: the target bar rides the bottom edge, and + Glass keeps its tap', async () => {
+  env({ water: { ok: true, hydrationL: 0.5, targetL: 2.5, targetStoredL: 2.5 } });
+  const m = await mount();
+  try {
+    const line = document.querySelector('[data-bs-water]');
+    const bar = line.querySelector('[data-bs-water-bar]');
+    assert.ok(bar, 'a member with a target sees no progress');
+    assert.equal(bar.style.position, 'absolute', 'the bar takes a row of its own again');
+    assert.equal(bar.style.bottom, '0px');
+    const add = line.querySelector('[data-bs-water-add]');
+    assert.equal(add.style.minHeight, '34px', "+ Glass's tap shrank with its pill");
+    assert.equal(add.firstElementChild.style.height, '28px');
+    assert.equal(line.style.padding, '5px 6px 5px 12px');
+  } finally { m.unmount(); }
+});
+
 test('the line shows the day and + Glass, and progress only against a target the member set', async () => {
   let calls = env();
   let m = await mount();
