@@ -303,7 +303,8 @@ function useBSHomeUnread(ids) {
 }
 
 // `notes` are the coaches' weekly notes ({ role, text, who }), `coaches` the ones the member pays
-// ({ role, name, conversationId, providerId }; a name that couldn't be read is null), both Home's. Nothing to say → nothing drawn.
+// ({ role, name, conversationId, providerId }; a name that couldn't be read is null), both Home's.
+// Nothing to say → nothing drawn.
 export function BSHomeCoaches({ notes = [], coaches = [], onCalendar, onCoaches }) {
   const signedIn = bsHsSignedIn();
   const [sessions, setSessions] = useState(null);
