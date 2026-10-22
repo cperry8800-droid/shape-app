@@ -7415,10 +7415,12 @@ async function getCommitment() {
     return error ? null : (data || null);
   } catch (e) { return null; }
 }
-async function getCommitmentProgress() {
+// `weekOf` ('YYYY-MM-DD', a Monday) reads that week instead: Home's Week so far passes the member's
+// local Monday, so a member ahead of UTC is not shown last week's sessions on a Monday morning.
+async function getCommitmentProgress(weekOf) {
   if (!supabase || !state.user?.id) return { workouts: 0, checkin: false, habits: 0 };
   try {
-    const mon = _commitWeekMonday();
+    const mon = typeof weekOf === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(weekOf) ? new Date(`${weekOf}T00:00:00Z`) : _commitWeekMonday();
     const wk = mon.toISOString().slice(0, 10);
     const end = new Date(mon); end.setUTCDate(end.getUTCDate() + 6);
     const wkEnd = end.toISOString().slice(0, 10);

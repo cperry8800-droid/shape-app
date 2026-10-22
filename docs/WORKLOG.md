@@ -163,10 +163,6 @@ planned builds.
 - Get a native speaker to read the PAR-Q translations.
 
 **Planned next**
-- Home, part 2 (the owner's 2026-10-22 mockup): the next stop led by the engine's reason
-  (Today's call), a Your goal card with the weight trend, a Week so far scorecard in place of
-  At a glance, and From your coaches (notes, new messages, the next session). Part 1 took Your
-  line and At a glance's Day view off Home; a day tapped in Home's week opens the calendar.
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
   estimate. Part A is #2401 and part B (checkout on the coach's account, codes, records in
   `coach_checkouts`) is #2403.
@@ -207,6 +203,10 @@ planned builds.
   inside it. The dashboard routes' session reads and their coach-row read drop their
   errors. Renewals and the origin feed show "—" for both an unread name and none on
   file.
+- Home (the owner's 2026-10-22 redesign, `BSHomeSections.jsx`): Week so far counts days trained
+  (workout minutes or a logged activity) against the plan's sessions, and days with food logged,
+  not meals. The weekly notes, message doors and next session show only for a paid coach (no
+  sample signed out). At a glance's Month view went with it; Progress keeps the history.
 - Shape Wire (the launch telegram) shows the coach's latest note however old it is, and
   in the morning its protein line is usually absent (it reads only today's row).
 - Server notices are said in the reader's stored language (`app_locale`): the app's bell, the push

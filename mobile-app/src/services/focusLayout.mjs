@@ -65,47 +65,6 @@ export function bsFocusSlot(tag, min) {
   return h < 11 ? 'breakfast' : h < 15 ? 'lunch' : h < 17 ? 'snack' : 'dinner';
 }
 
-// ── At a glance: Week · Month ─────────────────────────────────────────────
-// (owner, 2026-10-11: kcal and protein "should also have their own section on
-// home page, that you can track daily, weekly, monthly"). The Day view left on
-// 2026-10-22: today's numbers are Eat's Fuel left today. A remembered 'day'
-// reads as Week.
-
-export const BS_GLANCE_PERIODS = ['week', 'month'];
-export const BS_GLANCE_DAYS = { week: 7, month: 30 };
-
-// The average of a daily series over the `days` days ending on `todayYmd`
-// ("YYYY-MM-DD", today included). Only days that carry a value above zero
-// count: a day with nothing logged is not a day of zero calories, so it
-// neither drags the average down nor counts as logged. `avg` is null when no
-// day in the window has a value.
-export function bsPeriodAverage(series, todayYmd, days) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(todayYmd || ''));
-  if (!m || !(days > 0)) return { avg: null, logged: 0, days: days > 0 ? days : 0 };
-  const end = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  const start = new Date(end - (days - 1) * 86400000).toISOString().slice(0, 10);
-  const byDay = new Map();
-  for (const s of series || []) {
-    const d = s && typeof s.date === 'string' ? s.date.slice(0, 10) : '';
-    const v = Number(s && s.value);
-    if (!d || d < start || d > todayYmd || !Number.isFinite(v) || v <= 0) continue;
-    byDay.set(d, v);
-  }
-  const vals = [...byDay.values()];
-  if (!vals.length) return { avg: null, logged: 0, days };
-  return { avg: Math.round(vals.reduce((a, b) => a + b, 0) / vals.length), logged: vals.length, days };
-}
-
-const GLANCE_KEY = 'shape.home.glancePeriod';
-
-export function bsReadGlancePeriod(storage) {
-  try { const v = storage ? storage.getItem(GLANCE_KEY) : null; return BS_GLANCE_PERIODS.includes(v) ? v : 'week'; } catch (e) { return 'week'; }
-}
-
-export function bsSaveGlancePeriod(storage, value) {
-  try { if (storage && BS_GLANCE_PERIODS.includes(value)) storage.setItem(GLANCE_KEY, value); } catch (e) { /* not remembered */ }
-}
-
 // ── Grocery ────────────────────────────────────────────────────────────────
 
 // The meals an item is for, from its `meals` line: "A · B +2" → ['A', 'B'].

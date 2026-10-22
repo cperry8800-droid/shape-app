@@ -61,12 +61,14 @@ import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSCheckinCard, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
+import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
+import { bsHomeCoachesOf } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
-import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusLeader, BSFocusPeriod, BSFocusMealShop } from './BSFocus.jsx';
-import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsPeriodAverage, bsReadGlancePeriod, bsSaveGlancePeriod, BS_GLANCE_DAYS, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot } from '../services/focusLayout.mjs';
+import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
+import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot } from '../services/focusLayout.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -4447,11 +4449,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // When any plan exists the day log / dots / up-next cards build from it;
   // the shared demo week remains the signed-out / no-plan fallback.
   const [livePlan, setLivePlan] = useStateBSC(null);
+  // The coaches the member pays, off the same read, plan or no plan (From your coaches).
+  const [planCoaches, setPlanCoaches] = useStateBSC([]);
   React.useEffect(() => {
     let on = true;
     if (window.ShapePlan?.get) {
       window.ShapePlan.get().then((p) => {
         if (on && p && ((p.training && p.training.hasPlan) || (p.meals && p.meals.hasPlan))) setLivePlan(p);
+        if (on && p) setPlanCoaches(bsHomeCoachesOf(p));
       }).catch(() => {});
     }
     return () => { on = false; };
@@ -4484,11 +4489,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // unconditionally at the top level, never inside JSX below the early-return
   // overlays. Step 3's shelf JSX reads this const directly.
   const stepsToday = useBSStepsToday();
-  // AT A GLANCE · DAY / WEEK / MONTH — the daily series behind the week and month
-  // averages, and the remembered choice (owner, 2026-10-11).
-  const glanceHistory = useBSGlanceHistory();
-  const [glancePeriod, setGlancePeriodState] = useStateBSC(() => bsReadGlancePeriod((() => { try { return window.localStorage; } catch (e) { return null; } })()));
-  const setGlancePeriod = (v) => { setGlancePeriodState(v); try { bsSaveGlancePeriod(window.localStorage, v); } catch (e) {} };
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
   const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(false);
   const [showLogMeal, setShowLogMeal] = useStateBSC(false);
@@ -4885,6 +4885,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       head: lead.engine ? lead.head : lead.label, cta: lead.cta, c: lead.c,
       sub: lead.engine ? lead.sub : (todo.length > 1 ? tr('home:lead.moreOnPlan', { defaultValue: '{count, plural, one {# more on today’s plan} other {# more on today’s plan}}', count: todo.length - 1 }) : null),
       heroMealId: lead.mealId || null,
+      // Today's call: the engine's own move leads, so the day's next stop rides under it.
+      engine: !!lead.engine,
       // Lead-identity flags (Task 4 reads these to suppress the slate's echo row's
       // second interactive surface — the double-feature fix).
       leadIsWorkout: !!lead.workout,
@@ -5054,11 +5056,16 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         action: [`${tr('common:nav.train', { defaultValue: 'Train' })} →`, () => goTrain?.()],
       };
     }
+    // TODAY'S CALL (owner, 2026-10-22): the engine's move leads with its reason, and the day's next
+    // timed stop still ahead (a meal not logged, or the session) rides under it as the countdown and
+    // the arrival bar, so the reason and the clock read together.
+    const nextStop = todayDirective.engine ? lineRows.find((r) => typeof r._min === 'number' && r._min > bsNowMin && !r.done) : null;
     return {
-      at: null, color: todayDirective.c,
+      at: nextStop ? nextStop._min : null, color: todayDirective.c,
       kicker: todayDirective.done ? tr('home:lead.headerDone', { defaultValue: 'Today · done' }) : tr('home:lead.header', { defaultValue: 'Today · your move' }),
       title: todayDirective.head,
       sub: todayDirective.sub,
+      to: nextStop ? `${fmtAt(nextStop._min)} · ${nextStop.stop || nextStop.title}` : undefined,
     };
   })();
   const focusUntil = focusLead ? bsFocusUntil(focusLead.at, bsNowMin) : null;
@@ -5223,13 +5230,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         <BSMemberSetupStation onGoal={() => setGoalsPage(true)} onTrain={() => goTrain?.()} onCheckin={() => setCheckinPage(true)} onFindCoach={goMarket ? () => goMarket() : null} />
       )}
 
-      {/* ── FOCUS · THE NEXT STOP — the one next thing, on its own (today only;
-          another day is a plan view, read on the line below). Timed leads carry
-          the countdown in the head and an arrival bar from the stop before. The
+      {/* ── FOCUS · TODAY'S CALL — the one next thing, on its own (owner, 2026-10-22: was
+          Next stop). Timed leads carry the countdown in the head and an arrival bar
+          from the stop before; the engine's move carries the day's next stop. The
           hero-home tour anchor rides the lead. */}
       {focusLead && (
         <>
-          <BSFocusHead glyph="▤" label={tr('home:focus.nextStop', { defaultValue: 'Next stop' })} meta={focusMeta}
+          <BSFocusHead glyph="▤" label={tr('home:focus.todaysCall', { defaultValue: 'Today’s call' })} meta={focusMeta}
             actionLabel={focusLead.action ? focusLead.action[0] : null} onAction={focusLead.action ? focusLead.action[1] : null} color={focusLead.color} />
           <BSFocusLead tour="hero-home" color={focusLead.color} kicker={focusLead.kicker} kickerRight={`${_dowShort(_now)} ${_now.getDate()}`} title={focusLead.title} sub={focusLead.sub}>
             {focusPrev && (
@@ -5247,93 +5254,38 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       )}
 
       {/* Your line left Home (owner, 2026-10-22): the day's meals are Eat's menu and its session is
-          Train's, and every stop on it only opened one of the two. */}
-      {/* COACH WEEKLY NOTES — both notes as italic op-ed lines WITH bylines, under
-          the next stop. Real coach notes only — no sample-note fallback (owner call:
-          the demo quotes are gone even in signed-out preview). */}
-      {(() => {
-        const banners = coachFeed.banners || [];
-        // Every coach's note, trainers first: a member may pay two coaches of one role (owner,
-        // 2026-10-16), and each keeps one note (coach_focus_banners is one row per coach).
-        const notes = [];
-        // Each signed with its coach's name (fetchCoachConsoleFeed reads it), or the role alone: never
-        // a demo byline on a real note.
-        for (const b of banners) if (b.provider_role !== 'nutritionist') notes.push({ role: 'trainer', text: b.text, who: b.provider_name || null });
-        for (const b of banners) if (b.provider_role === 'nutritionist') notes.push({ role: 'nutritionist', text: b.text, who: b.provider_name || null });
-        if (!notes.length) return null;
-        return (
-          <div style={{ padding: `12px ${t.padX}px 4px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {notes.map((n, i) => (
-              <div key={i} style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, fontWeight: 500, color: t.INK70, lineHeight: 1.45, letterSpacing: '-0.01em' }}>
-                &ldquo;{n.text}&rdquo;
-                <span style={{ display: 'block', marginTop: 4, fontStyle: 'normal', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-                  — {n.who ? n.who + ' · ' : ''}{n.role === 'nutritionist' ? tr('home:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('home:role.trainer', { defaultValue: 'Trainer' })}
-                </span>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
+          Train's, and every stop on it only opened one of the two. At a glance left with it: the week
+          reads in Week so far, and today's numbers are Eat's Fuel left today. */}
 
-      {/* ── FOCUS · AT A GLANCE — three numbers, as the design board's dotted
-          leader rows: kcal, protein and steps, for the last 7 days or the last 30,
-          each the daily average over the days that have something logged. The Day
-          view left (owner, 2026-10-22): today's kcal and protein left are Eat's
-          Fuel left today, and the ticker says them too. */}
-      {(() => {
-        const openStepsDoor = () => {
+      {/* ── HOME, PART 2 (owner, 2026-10-22, the Home mockup): what only Home says. Your goal, the
+          week so far against the plan, and the member's coaches (BSHomeSections.jsx). */}
+      <BSHomeGoal tour="hero-goal" demo={bsHomeSignedIn ? null : BS_GOALS_DEFAULT} docKg={bsGoalDocKg} isWeightGoal={bsPrimaryGoalIsWeight}
+        goalWords={(id) => bsPrimaryGoalLabel(id, tr)} onOpen={() => setGoalsPage(true)} />
+      <BSHomeWeekSoFar
+        sessionsPlanned={liveWeek ? liveWeek.workoutByIdx.filter(Boolean).length : null}
+        proteinTarget={ticker && typeof ticker.protein_target === 'number' ? ticker.protein_target : null}
+        stepGoal={stepsToday.goal} checkinsOn={checkinPrefOn}
+        onTrain={() => goTrain?.()} onEat={() => goEat()} onProgress={() => setHomeProgressPage(true)}
+        onSteps={() => {
           if (stepsToday.hasData) { setStepsHistory(true); return; }
           try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {}
-        };
-        const tk = ticker || {};
-        const kcalTgt = typeof tk.cal_target === 'number' && tk.cal_target > 0 ? tk.cal_target : (bsHomeSignedIn ? null : 2100);
-        const proTgt = typeof tk.protein_target === 'number' && tk.protein_target > 0 ? tk.protein_target : (bsHomeSignedIn ? null : 140);
-        const pctOf = (a, b) => (a != null && b ? Math.max(0, Math.min(100, Math.round((a / b) * 100))) : undefined);
-        const num = (n) => Number(n).toLocaleString(_dateLoc);
-        const period = glancePeriod;
-        const periods = [
-          { key: 'week', label: tr('home:focus.period.week', { defaultValue: 'Week' }) },
-          { key: 'month', label: tr('home:focus.period.month', { defaultValue: 'Month' }) },
-        ];
-        // A week or a month: the daily average over the days with something
-        // logged, from the progress read's daily series. Signed out, the
-        // preview's demo figures.
-        const days = BS_GLANCE_DAYS[period];
-        const todayIso = bsLocalDay(Date.now());
-        const demo = period === 'week' ? { kcal: 1890, protein: 121, steps: 6980, logged: 6 } : { kcal: 1935, protein: 117, steps: 7310, logged: 26 };
-        const avgOf = (k) => (bsHomeSignedIn ? bsPeriodAverage(glanceHistory ? glanceHistory[k] : [], todayIso, days) : { avg: demo[k === 'calories' ? 'kcal' : k], logged: demo.logged, days });
-        const kc = avgOf('calories');
-        const pr = avgOf('protein');
-        const st = avgOf('steps');
-        // Each row averages its own logged days, so the head names the window
-        // only — one count over three series would misreport two of them.
-        const kicker = tr('home:focus.lastDaysOnly', { defaultValue: 'Last {days} days', days });
-        const none = tr('home:focus.noneLogged', { defaultValue: 'Nothing logged' });
-        const rows = [
-          { key: 'kcal', label: tr('home:focus.avgKcal', { defaultValue: 'Avg kcal' }), value: kc.avg != null ? num(kc.avg) : '—',
-            note: kc.avg == null ? none : kcalTgt ? tr('home:focus.ofTarget', { defaultValue: 'of {target, number}', target: kcalTgt }) : '',
-            pct: pctOf(kc.avg, kcalTgt), color: _focusTeal, onOpen: () => setHomeProgressPage(true) },
-          { key: 'protein', label: tr('home:focus.avgProtein', { defaultValue: 'Avg protein' }), value: pr.avg != null ? num(pr.avg) : '—', unit: pr.avg != null ? 'g' : null,
-            note: pr.avg == null ? none : proTgt ? tr('home:focus.ofTargetG', { defaultValue: 'of {target, number} g', target: proTgt }) : '',
-            pct: pctOf(pr.avg, proTgt), color: t.RUST, onOpen: () => setHomeProgressPage(true) },
-          { key: 'steps', label: tr('home:focus.avgSteps', { defaultValue: 'Avg steps' }), value: st.avg != null ? num(st.avg) : '—',
-            note: st.avg == null ? none : tr('home:focus.ofTarget', { defaultValue: 'of {target, number}', target: stepsToday.goal }),
-            pct: pctOf(st.avg, stepsToday.goal), color: _focusTeal, onOpen: openStepsDoor },
-        ];
-        return (
-          <>
-            <BSFocusTitle kicker={kicker} title={tr('home:focus.glance', { defaultValue: 'At a glance' })} color={_focusTeal}
-              right={<BSFocusPeriod value={period} onChange={setGlancePeriod} options={periods} color={_focusTeal} ariaLabel={tr('home:focus.periodAria', { defaultValue: 'Show' })} />} />
-            <div style={{ marginTop: 4, ...(bsSdReduced() ? null : { animation: 'bsHomeIndexIn 220ms ease-out both' }) }}>
-              {rows.map((r, i) => <BSFocusLeader key={`${period}-${r.key}`} first={i === 0} label={r.label} value={r.value} unit={r.unit} note={r.note} pct={r.pct} color={r.color} onOpen={r.onOpen} />)}
-            </div>
-            {stepsHistory && <BSStepsHistory onClose={() => setStepsHistory(false)} />}
-          </>
-        );
-      })()}
+        }}
+        onMornings={() => setMorningsPage(true)} />
+      {stepsHistory && <BSStepsHistory onClose={() => setStepsHistory(false)} />}
+      {/* The coaches' weekly notes, trainers first: a member may pay two coaches of one role (owner,
+          2026-10-16), and each keeps one note (coach_focus_banners is one row per coach), signed with
+          its coach's name or the role alone. Real notes only, no sample even signed out (owner). */}
+      <BSHomeCoaches coaches={planCoaches} onCalendar={goCalendar}
+        notes={(() => {
+          const banners = coachFeed.banners || [];
+          const notes = [];
+          for (const b of banners) if (b.provider_role !== 'nutritionist') notes.push({ role: 'trainer', text: b.text, who: b.provider_name || null });
+          for (const b of banners) if (b.provider_role === 'nutritionist') notes.push({ role: 'nutritionist', text: b.text, who: b.provider_name || null });
+          return notes;
+        })()} />
 
-      {/* ── FOCUS · LINKS — the rest of the page, one row each: daily habits, the
-          goal and progress (the check-ins sit up under the week). */}
+      {/* ── FOCUS · LINKS — the rest of the page, one row each: daily habits and
+          progress (the goal is its own section above, the check-ins sit up under the week). */}
       <div style={{ marginTop: t.sectGap + 8 }}>
         {(() => {
           const done = selDayHabits.filter((h) => h.done).length;
@@ -5343,7 +5295,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               onOpen={() => setHabitsPage(true)} />
           );
         })()}
-        <BSFocusLink color={t.isLight ? '#a07a2e' : '#c9a14a'} glyph="◎" tour="hero-goal" label={tr('home:door.goal', { defaultValue: 'Goal' })} onOpen={() => setGoalsPage(true)} />
         <BSFocusLink color="#a78bfa" glyph="◆" tour="hero-progress" label={tr('home:door.progress', { defaultValue: 'Progress' })} onOpen={() => setHomeProgressPage(true)} />
       </div>
 
@@ -29738,27 +29689,6 @@ function useBSOnlineRailPref() {
 // useBSStepsToday — the steps-today data effect + derived render flags, extracted
 // VERBATIM from BSStepsCard (goal via the existing useBSStepGoal() hook, signed-out
 // preview sample, todayKnown honesty gate, Shape Steps→points conversion).
-// The daily kcal / protein / steps series for At a glance's week and month
-// averages — the progress read the steps door already makes (cached), now with
-// its calorie series. null until it answers; signed out it stays null (the
-// preview shows demo figures).
-function useBSGlanceHistory() {
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const [hist, setHist] = useStateBSC(null);
-  React.useEffect(() => {
-    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
-    let on = true;
-    window.ShapeProgress.progress().then((p) => {
-      if (!on) return;
-      const sr = (p && p.series) || {};
-      const arr = (k) => (Array.isArray(sr[k]) ? sr[k] : []);
-      setHist({ calories: arr('calories'), protein: arr('protein'), steps: arr('steps') });
-    }).catch(() => {});
-    return () => { on = false; };
-  }, [signedIn]);
-  return hist;
-}
-
 function useBSStepsToday() {
   const TARGET = useBSStepGoal();
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
