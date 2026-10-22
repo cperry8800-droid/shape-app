@@ -96,8 +96,8 @@ export default {
 
     // ── Saving ──
     { name: 'two taps write at once', file: CARD,
-      find: "function bsCiSave(patch, uid) { return bsCiEnqueue('checkin', uid, () => window.ShapeCheckin.log(patch)); }",
-      replace: 'function bsCiSave(patch) { return window.ShapeCheckin.log(patch); }' },
+      find: "  return bsCiEnqueue('checkin', uid, () => window.ShapeCheckin.log(patch)).then((d) => {",
+      replace: '  return window.ShapeCheckin.log(patch).then((d) => {' },
     { name: 'one failed save wedges every later one', file: CARD,
       find: 'bsCiLines[line] = run.catch(() => {});',
       replace: 'bsCiLines[line] = run;' },

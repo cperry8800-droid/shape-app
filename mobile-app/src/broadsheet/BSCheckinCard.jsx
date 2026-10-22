@@ -334,7 +334,14 @@ export function bsCiEnqueue(line, uid, send) {
   bsCiLines[line] = run.catch(() => {});
   return run;
 }
-function bsCiSave(patch, uid) { return bsCiEnqueue('checkin', uid, () => window.ShapeCheckin.log(patch)); }
+// A saved answer says so on the window, so Home's Week so far counts the morning with the card.
+export const BS_CI_SAVED = 'shape:checkin-saved';
+function bsCiSave(patch, uid) {
+  return bsCiEnqueue('checkin', uid, () => window.ShapeCheckin.log(patch)).then((d) => {
+    try { window.dispatchEvent(new window.Event(BS_CI_SAVED)); } catch (e) { /* the week reads again on its next mount */ }
+    return d;
+  });
+}
 // A line's saves have settled, or `ms` has passed: a read waits for saves on their way, but a
 // request the network holds does not keep the card off Home for good.
 const BS_CI_READ_WAIT_MS = 3000;

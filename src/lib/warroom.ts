@@ -615,6 +615,23 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Home, part 2: Today\'s call, Your goal, Week so far and From your coaches — #2424. No migration',
+      items: [
+        { label: 'Owner, 2026-10-22, off the Home mockup they approved ("looks good but keep the week calendar at the top, and the SHAPE logo that is there now"): Home says what only Home can, and Train and Eat keep what to do now. Next stop is Today\'s call, and when the engine\'s move leads, the day\'s next timed stop rides under it as the countdown and arrival bar', status: 'done' },
+        { label: 'Your goal (BSHomeSections.jsx): the goal in the member\'s words and, for a weight goal or target, the latest weigh-in, the target, the last 8 weeks\' line, the pace over 28 days and when it lands at that pace (toward the target, within two years). The tour\'s goal step anchors here; the Goal link is gone. Week so far replaces At a glance: sessions against the plan, days with food logged, average protein and steps, mornings checked in (re-read when a check-in saves). From your coaches, only from the coaches the member pays now: their weekly notes, a message door per coach with its unread count (by role when a name can\'t be read), and the next confirmed session with one of them', status: 'done' },
+        { label: 'Week so far counts days trained, not sessions finished against the plan, and days with food logged, not meals (WORKLOG Known gaps). At a glance\'s Month view went with it; Progress keeps the history', status: 'manual' },
+        { label: 'Review: Codex, seven rounds, 14 P2s, all fixed: the planned count from Train\'s week placement; a failed progress, history, goal or snapshot read shows a dash, not a zero or "Set a goal" (ShapeCommit.progress ok, /api/client/progress snapshotsRead); activities by the member\'s local week; the goal document\'s weigh-ins kept; Home left open into a new Monday reads the new week; a coach with no thread opens Chat; the next session, notes and doors only for paid coaches (/api/sessions/manage returns providerId), a nameless paid coach kept; a timed coach item can be the next stop. Clean on c98466d. npm test 8,132/8,132; CI green on all four jobs', status: 'done' },
+        { label: 'Device pass, signed in with a coach: the goal card with weigh-ins (and a goal in the member\'s own words), Week so far after a check-in, a message door with an unread count, the next session opening the calendar', status: 'manual' },
+      ],
+    },
+    {
+      section: 'Home: Your line and At a glance\'s Day view come off; a day in the week opens the calendar — #2423. No migration',
+      items: [
+        { label: 'Owner, 2026-10-22: "The home page is repetitive of the train and eat pages. I think we should remove the check-in and your line". Your line was Eat\'s menu plus Train\'s session, every stop only opened one of the two; At a glance\'s Day view was Eat\'s Fuel left today. Both left Home (the check-in stayed, compacted in #2421). Home stays on today, and a day tapped in the week strip opens the calendar on that day (BSCalendarScreen initialDate). 14 Home strings left all 13 catalogs', status: 'done' },
+        { label: 'Review: Codex clean on 5805ce4 (no findings); Copilot declined on its quota. npm test 8,112/8,112; CI green on all four jobs. The built /m/ app in Chromium: Home in the new order, and Saturday opening the calendar', status: 'done' },
+      ],
+    },
+    {
       section: 'The Water line on Home, slimmer — #2422. No migration',
       items: [
         { label: 'Owner, 2026-10-21: "also make the water line smaller". One row as tall as + Glass\'s pill (28 px), whose button still reaches 34 px into the line\'s padding for the tap; a target\'s progress is the line\'s bottom edge instead of a row of its own; Apple Health\'s share and Set a daily target stay as small lines, shown only when they apply. On a 375 px phone about 58 px to 40 px, and 63 px with Set a daily target', status: 'done' },
