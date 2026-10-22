@@ -606,6 +606,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const [showSettings, setShowSettings] = useStateBSC(false);
   const [settingsStart, setSettingsStart] = useStateBSC('');
   const [showCalendar, setShowCalendar] = useStateBSC(false);
+  // The day the calendar opens on: a day tapped in Home's week, else null (today).
+  const [calendarDate, setCalendarDate] = useStateBSC(null);
   const [pendingTrainStart, setPendingTrainStart] = useStateBSC(false); // one-shot: auto-launch the live session, then cleared so it doesn't re-fire on remount
   const [storeView, setStoreView] = useStateBSC('store');
   const [marketRole, setMarketRole] = useStateBSC(null); // 'trainer' | 'nutritionist' | null
@@ -666,6 +668,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const goTrain    = (options) => { navPush(); if (options?.workout) setPendingTrainStart({ workout: options.workout }); setTab('train'); };
   const goMarket   = (role) => { navPush(); setMarketRole(typeof role === 'string' ? role : null); setMarketCoach(null); setTab('market'); };
   const goScore    = () => { navPush(); setStoreView('score'); setTab('store'); };
+  // Train's and Eat's links pass a click event, never a day, so they open on today.
+  const goCalendar = (date) => { navPush(); setCalendarDate(date instanceof Date ? date : null); setShowCalendar(true); };
   // Open the chat tab on a specific coach's DM (Team → Coaches).
   const [chatRequest, setChatRequest] = useStateBSC(null);
   const goChat = (coach, role) => { navPush(); setChatRequest({ coach: coach || null, role: role || null, nonce: Date.now() }); setTab('chat'); };
@@ -1202,7 +1206,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   if (showCalendar) {
     return (
       <div style={{ position: 'absolute', inset: 0 }}>
-        <BSCalendarScreen role="client" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />
+        <BSCalendarScreen role="client" onProfile={goSettings} initialDate={calendarDate} onBack={() => { if (!navBack()) setShowCalendar(false); }} />
         <BSRadioFx />
         {settingsOverlay}
         {noraSheet}
@@ -1226,9 +1230,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     );
   }
   const screens = {
-    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goTrain={goTrain} goEat={() => { navPush(); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} checkinOpen={checkinOpen} onCheckinOpenConsumed={() => setCheckinOpen(null)} />,
-    train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
-    eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} cookWith={cookWith} onCookWithConsumed={() => setCookWith(null)} prepTonight={prepTonight} onPrepTonightConsumed={() => setPrepTonight(null)} />,
+    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goTrain={goTrain} goEat={() => { navPush(); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} checkinOpen={checkinOpen} onCheckinOpenConsumed={() => setCheckinOpen(null)} />,
+    train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
+    eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} cookWith={cookWith} onCookWithConsumed={() => setCookWith(null)} prepTonight={prepTonight} onPrepTonightConsumed={() => setPrepTonight(null)} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
     radio:   <BSRadioScreen    onBack={() => { if (!navBack()) setTab('home'); }} />,
     market:  <BSMarketplaceScreen initialRole={marketRole} initialCoach={marketCoach} onCoachConsumed={() => setMarketCoach(null)} onBack={() => { if (!navBack()) setTab('home'); }} onProfile={goSettings} goChat={goChat} />,
@@ -4462,8 +4466,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     return null;
   }, [livePlan, bsHomeSignedIn, t, tr]);
 
-  const [selIdx, setSelIdx] = useStateBSC(todayIdx); // selected weekday 0..6 (today by default)
-  // "Up next" follows the day you tap in the week strip (not just today).
+  // Home reads today. A day tapped in the week strip opens on the calendar, where the day's plan is
+  // (owner, 2026-10-22: Your line left Home, so a day picked here had nothing left to show).
+  const selIdx = todayIdx;
   // Once ANY live plan exists every card follows it — a demo workout next to a
   // live day log would claim a session that isn't assigned.
   const selWorkout = liveWeek ? liveWeek.workoutByIdx[selIdx] : bsClientWorkoutForDay(selIdx);
@@ -4921,7 +4926,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           : tr('home:slot.dinner', { defaultValue: 'Dinner' });
   };
   const _nextWord = tr('home:focus.next', { defaultValue: 'Next' });
-  // THE LINE — the day's timed run-sheet: meals, training, coach pushes. Ordering
+  // THE LINE — the day's timed run-sheet: meals, training, coach pushes. Home no longer
+  // draws it (2026-10-22); the next stop's arrival bar reads its stops. Ordering
   // is bsHomeSlateSort's alone (timed rows ascending by their displayed time,
   // untimed after, source order kept). Habits are not stops on the line; they
   // have their own link below.
@@ -5018,18 +5024,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     });
     return bsHomeSlateSort(rows);
   })();
-  // ── NOW tick (today only): between the last passed timed row and the first
-  // upcoming one. Untimed rows (coach pushes, rest day) never anchor it.
-  const _isTodayView = selIdx === todayIdx;
-  let lineNowIdx = -1;
-  if (_isTodayView) {
-    lineNowIdx = lineRows.findIndex((r) => typeof r._min === 'number' && r._min > bsNowMin);
-    if (lineNowIdx === -1) {
-      let lastTimed = -1;
-      lineRows.forEach((r, i) => { if (typeof r._min === 'number') lastTimed = i; });
-      lineNowIdx = lastTimed === -1 ? -1 : lastTimed + 1;
-    }
-  }
   // THE NEXT STOP — todayDirective, presented: a meal reads as its slot ("Lunch")
   // with the dish beneath; the workout as itself; an engine, habits or done lead
   // keeps its own head. Timed leads carry a countdown and an arrival bar.
@@ -5191,8 +5185,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             const today = idx === todayIdx;
             const dots  = (liveWeek ? liveWeek.dots[idx] : WEEK_DOTS_BY_IDX[idx]) || [];
             return (
-              <button type="button" key={idx} onClick={() => setSelIdx(idx)}
-                aria-label={`${date.toLocaleDateString(_dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })}${on ? `, ${tr('home:aria.selected', { defaultValue: 'selected' })}` : ''}${today ? `, ${tr('home:aria.today', { defaultValue: 'today' })}` : ''}`}
+              <button type="button" key={idx} onClick={() => goCalendar(date)}
+                aria-label={`${date.toLocaleDateString(_dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })}${today ? `, ${tr('home:aria.today', { defaultValue: 'today' })}` : ''}`}
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: 44, padding: '4px 0', background: 'transparent', border: 0, cursor: 'pointer' }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{date.toLocaleDateString(_dateLoc, { weekday: 'narrow' }).toUpperCase()}</span>
                 <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 16, letterSpacing: '-0.04em', lineHeight: 1.15, fontVariantNumeric: 'tabular-nums', color: on || today ? t.INK : t.INK50 }}>{date.getDate()}</span>
@@ -5252,19 +5246,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </>
       )}
 
-      {/* ── FOCUS · YOUR LINE — the day as a line, in the design board's grammar:
-          time · a stop on the rail · what · its kcal or kind, with NOW where you
-          are. Admission test: "is this scheduled to happen on this day?" */}
-      <BSFocusTitle kicker={upNextLabel} title={tr('home:focus.line', { defaultValue: 'Your line' })} color={_focusTeal}
-        meta={lineRows.length ? tr('home:focus.stopsDone', { defaultValue: '{stops, plural, one {# stop} other {# stops}} · {done} done', stops: lineRows.length, done: lineRows.filter((r) => r.state === 'done').length }) : null} />
-      {lineRows.length === 0 ? (
-        <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{tr('home:slate.empty', { defaultValue: 'Nothing scheduled for today.' })}</div>
-      ) : (
-        <BSFocusLine rows={lineRows} nowIndex={lineNowIdx} color={_focusTeal}
-          nowTime={fmtAt(bsNowMin)} nowLabel={tr('home:focus.youAreHere', { defaultValue: 'Now · you are here' })} />
-      )}
+      {/* Your line left Home (owner, 2026-10-22): the day's meals are Eat's menu and its session is
+          Train's, and every stop on it only opened one of the two. */}
       {/* COACH WEEKLY NOTES — both notes as italic op-ed lines WITH bylines, under
-          the line. Real coach notes only — no sample-note fallback (owner call:
+          the next stop. Real coach notes only — no sample-note fallback (owner call:
           the demo quotes are gone even in signed-out preview). */}
       {(() => {
         const banners = coachFeed.banners || [];
@@ -5291,10 +5276,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       })()}
 
       {/* ── FOCUS · AT A GLANCE — three numbers, as the design board's dotted
-          leader rows: kcal, protein and steps, for today, the last 7 days or the
-          last 30 (owner, 2026-10-11: "track daily, weekly, monthly"). Today reads
-          what is left; a week or a month reads the daily average over the days
-          that have something logged. */}
+          leader rows: kcal, protein and steps, for the last 7 days or the last 30,
+          each the daily average over the days that have something logged. The Day
+          view left (owner, 2026-10-22): today's kcal and protein left are Eat's
+          Fuel left today, and the ticker says them too. */}
       {(() => {
         const openStepsDoor = () => {
           if (stepsToday.hasData) { setStepsHistory(true); return; }
@@ -5307,64 +5292,34 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         const num = (n) => Number(n).toLocaleString(_dateLoc);
         const period = glancePeriod;
         const periods = [
-          { key: 'day', label: tr('home:focus.period.day', { defaultValue: 'Day' }) },
           { key: 'week', label: tr('home:focus.period.week', { defaultValue: 'Week' }) },
           { key: 'month', label: tr('home:focus.period.month', { defaultValue: 'Month' }) },
         ];
-        let rows;
-        let kicker;
-        if (period === 'day') {
-          // Kcal and protein are today's, from the analytics snapshot the ticker
-          // reads. The signed-out preview shows the ticker's own demo figures; a
-          // signed-in account with nothing logged sees the honest empty state.
-          const kcalNow = typeof tk.cal === 'number' ? tk.cal : (bsHomeSignedIn ? null : 1568);
-          const proNow = typeof tk.protein_g === 'number' ? tk.protein_g : (bsHomeSignedIn ? null : 118);
-          const kcalKnown = kcalNow != null && kcalTgt != null;
-          const proKnown = proNow != null && proTgt != null;
-          const stepsStatus = !stepsToday.hasData
-            ? tr('home:steps.connectWatch', { defaultValue: 'Connect a watch' })
-            : !stepsToday.todayKnown
-              ? tr('home:steps.noneToday', { defaultValue: 'No steps yet today' })
-              : stepsToday.hit
-                ? tr('home:steps.goalHit', { defaultValue: 'Goal hit ✓' })
-                : tr('home:steps.toGo', { defaultValue: '{count, number} to go', count: Math.max(0, stepsToday.goal - stepsToday.val) });
-          kicker = upNextLabel;
-          rows = [
-            { key: 'kcal', label: tr('home:focus.kcalLeft', { defaultValue: 'Kcal left' }), value: kcalKnown ? num(Math.max(0, kcalTgt - kcalNow)) : '—',
-              note: kcalKnown ? tr('home:focus.eatenOf', { defaultValue: '{eaten, number} of {target, number}', eaten: kcalNow, target: kcalTgt }) : tr('home:focus.logToSee', { defaultValue: 'Log a meal to see' }),
-              pct: kcalKnown ? pctOf(kcalNow, kcalTgt) : undefined, color: _focusTeal, onOpen: () => goEat() },
-            { key: 'protein', label: tr('home:focus.proteinToGo', { defaultValue: 'Protein to go' }), value: proKnown ? num(Math.max(0, proTgt - proNow)) : '—', unit: proKnown ? 'g' : null,
-              note: proKnown ? `${num(proNow)} / ${num(proTgt)} g` : '', pct: proKnown ? pctOf(proNow, proTgt) : undefined, color: t.RUST, onOpen: () => goEat() },
-            { key: 'steps', label: tr('home:door.steps', { defaultValue: 'Steps' }), value: stepsToday.todayKnown ? num(stepsToday.val) : '—',
-              note: stepsStatus, pct: stepsToday.hasData && stepsToday.todayKnown ? stepsToday.pct : undefined, color: _focusTeal, onOpen: openStepsDoor },
-          ];
-        } else {
-          // A week or a month: the daily average over the days with something
-          // logged, from the progress read's daily series. Signed out, the
-          // preview's demo figures.
-          const days = BS_GLANCE_DAYS[period];
-          const todayIso = bsLocalDay(Date.now());
-          const demo = period === 'week' ? { kcal: 1890, protein: 121, steps: 6980, logged: 6 } : { kcal: 1935, protein: 117, steps: 7310, logged: 26 };
-          const avgOf = (k) => (bsHomeSignedIn ? bsPeriodAverage(glanceHistory ? glanceHistory[k] : [], todayIso, days) : { avg: demo[k === 'calories' ? 'kcal' : k], logged: demo.logged, days });
-          const kc = avgOf('calories');
-          const pr = avgOf('protein');
-          const st = avgOf('steps');
-          // Each row averages its own logged days, so the head names the window
-          // only — one count over three series would misreport two of them.
-          kicker = tr('home:focus.lastDaysOnly', { defaultValue: 'Last {days} days', days });
-          const none = tr('home:focus.noneLogged', { defaultValue: 'Nothing logged' });
-          rows = [
-            { key: 'kcal', label: tr('home:focus.avgKcal', { defaultValue: 'Avg kcal' }), value: kc.avg != null ? num(kc.avg) : '—',
-              note: kc.avg == null ? none : kcalTgt ? tr('home:focus.ofTarget', { defaultValue: 'of {target, number}', target: kcalTgt }) : '',
-              pct: pctOf(kc.avg, kcalTgt), color: _focusTeal, onOpen: () => setHomeProgressPage(true) },
-            { key: 'protein', label: tr('home:focus.avgProtein', { defaultValue: 'Avg protein' }), value: pr.avg != null ? num(pr.avg) : '—', unit: pr.avg != null ? 'g' : null,
-              note: pr.avg == null ? none : proTgt ? tr('home:focus.ofTargetG', { defaultValue: 'of {target, number} g', target: proTgt }) : '',
-              pct: pctOf(pr.avg, proTgt), color: t.RUST, onOpen: () => setHomeProgressPage(true) },
-            { key: 'steps', label: tr('home:focus.avgSteps', { defaultValue: 'Avg steps' }), value: st.avg != null ? num(st.avg) : '—',
-              note: st.avg == null ? none : tr('home:focus.ofTarget', { defaultValue: 'of {target, number}', target: stepsToday.goal }),
-              pct: pctOf(st.avg, stepsToday.goal), color: _focusTeal, onOpen: openStepsDoor },
-          ];
-        }
+        // A week or a month: the daily average over the days with something
+        // logged, from the progress read's daily series. Signed out, the
+        // preview's demo figures.
+        const days = BS_GLANCE_DAYS[period];
+        const todayIso = bsLocalDay(Date.now());
+        const demo = period === 'week' ? { kcal: 1890, protein: 121, steps: 6980, logged: 6 } : { kcal: 1935, protein: 117, steps: 7310, logged: 26 };
+        const avgOf = (k) => (bsHomeSignedIn ? bsPeriodAverage(glanceHistory ? glanceHistory[k] : [], todayIso, days) : { avg: demo[k === 'calories' ? 'kcal' : k], logged: demo.logged, days });
+        const kc = avgOf('calories');
+        const pr = avgOf('protein');
+        const st = avgOf('steps');
+        // Each row averages its own logged days, so the head names the window
+        // only — one count over three series would misreport two of them.
+        const kicker = tr('home:focus.lastDaysOnly', { defaultValue: 'Last {days} days', days });
+        const none = tr('home:focus.noneLogged', { defaultValue: 'Nothing logged' });
+        const rows = [
+          { key: 'kcal', label: tr('home:focus.avgKcal', { defaultValue: 'Avg kcal' }), value: kc.avg != null ? num(kc.avg) : '—',
+            note: kc.avg == null ? none : kcalTgt ? tr('home:focus.ofTarget', { defaultValue: 'of {target, number}', target: kcalTgt }) : '',
+            pct: pctOf(kc.avg, kcalTgt), color: _focusTeal, onOpen: () => setHomeProgressPage(true) },
+          { key: 'protein', label: tr('home:focus.avgProtein', { defaultValue: 'Avg protein' }), value: pr.avg != null ? num(pr.avg) : '—', unit: pr.avg != null ? 'g' : null,
+            note: pr.avg == null ? none : proTgt ? tr('home:focus.ofTargetG', { defaultValue: 'of {target, number} g', target: proTgt }) : '',
+            pct: pctOf(pr.avg, proTgt), color: t.RUST, onOpen: () => setHomeProgressPage(true) },
+          { key: 'steps', label: tr('home:focus.avgSteps', { defaultValue: 'Avg steps' }), value: st.avg != null ? num(st.avg) : '—',
+            note: st.avg == null ? none : tr('home:focus.ofTarget', { defaultValue: 'of {target, number}', target: stepsToday.goal }),
+            pct: pctOf(st.avg, stepsToday.goal), color: _focusTeal, onOpen: openStepsDoor },
+        ];
         return (
           <>
             <BSFocusTitle kicker={kicker} title={tr('home:focus.glance', { defaultValue: 'At a glance' })} color={_focusTeal}
