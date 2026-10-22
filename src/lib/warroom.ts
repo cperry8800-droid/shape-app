@@ -615,6 +615,14 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Eat: Fuel left today above the next meal, the macros in one row — #2425. No migration',
+      items: [
+        { label: 'Owner, 2026-10-22, on a screenshot of Eat\'s three macro rows: "move this above lunch on eat page and condense a little more". Eat reads the tabs, the week, Fuel left today, the next meal, then the menu. Protein, carbs and fat share one row: each column is the label, the grams left, the day so far and its own bar, a 44 px door to the day\'s breakdown. The block is its own module, BSEatFuel.jsx', status: 'done' },
+        { label: 'Review: Codex\'s first run stalled (56 min, retried once); on bc58df8 one P1, a screen a PR touches moves to its own module: fixed in ccf7c49 for the block this PR changes. The rest of Eat (about 1,980 lines on client-module helpers) stays, as Home did in #2424. Codex clean on ccf7c49; Copilot declined on its quota. npm test 8,134/8,134; CI green on all four jobs. The built /m/ app in Chromium: Fuel left, the macro row, then Lunch', status: 'done' },
+        { label: 'Owner\'s call: whether to move the rest of the Eat screen out of iosAppBroadsheetClient.jsx as a refactor PR of its own', status: 'manual' },
+      ],
+    },
+    {
       section: 'Home, part 2: Today\'s call, Your goal, Week so far and From your coaches — #2424. No migration',
       items: [
         { label: 'Owner, 2026-10-22, off the Home mockup they approved ("looks good but keep the week calendar at the top, and the SHAPE logo that is there now"): Home says what only Home can, and Train and Eat keep what to do now. Next stop is Today\'s call, and when the engine\'s move leads, the day\'s next timed stop rides under it as the countdown and arrival bar', status: 'done' },
