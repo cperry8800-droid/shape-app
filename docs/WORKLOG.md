@@ -163,6 +163,10 @@ planned builds.
 - Get a native speaker to read the PAR-Q translations.
 
 **Planned next**
+- Home, part 2 (the owner's 2026-10-22 mockup): the next stop led by the engine's reason
+  (Today's call), a Your goal card with the weight trend, a Week so far scorecard in place of
+  At a glance, and From your coaches (notes, new messages, the next session). Part 1 took Your
+  line and At a glance's Day view off Home; a day tapped in Home's week opens the calendar.
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
   estimate. Part A is #2401 and part B (checkout on the coach's account, codes, records in
   `coach_checkouts`) is #2403.

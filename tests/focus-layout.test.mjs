@@ -271,9 +271,9 @@ test('Train reads in the Focus order: the week, the session, the links', () => {
   assert.ok(String(order[lead].props.title || '').length > 0, 'the session has a title');
 });
 
-// Owner, 2026-10-11, on the first build: "your line should be above at a glance"
-// and "check-in should be towards the top".
-test('Home reads in the Focus order: check-in, next stop, your line, at a glance, then the links', () => {
+// Owner, 2026-10-11, on the first build: "check-in should be towards the top". Owner, 2026-10-22:
+// Your line left Home (Eat and Train already carry the day), and At a glance reads a week or a month.
+test('Home reads in the Focus order: check-in, next stop, at a glance, then the links', () => {
   delete globalThis.ShapeAuth;
   const d = drive(BSClientHome, { onProfile() {}, goCalendar() {}, goRadio() {}, goTrain() {}, goEat() {}, goMarket() {}, goScore() {}, goChat() {}, goIntegrations() {}, tweaks: {}, setTweak() {} });
   const order = d.nodes();
@@ -281,17 +281,65 @@ test('Home reads in the Focus order: check-in, next stop, your line, at a glance
   const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
   const checkin = at((n) => fn('BSTodayNudge')(n) && n.props.variant === 'bulletin');
   const lead = at((n) => n.props && n.props.tour === 'hero-home');
-  const line = at((n) => fn('BSFocusTitle')(n) && n.props.title === 'Your line');
   const glance = at((n) => fn('BSFocusTitle')(n) && n.props.title === 'At a glance');
-  const steps = at((n) => fn('BSFocusLeader')(n) && n.props.label === 'Steps');
+  const steps = at((n) => fn('BSFocusLeader')(n) && n.props.label === 'Avg steps');
   const habits = at((n) => n.props && n.props.tour === 'hero-habits');
   assert.ok(lead >= 0, 'no next-stop lead (today always has one, the done state included)');
   assert.ok(checkin >= 0 && checkin < lead, 'the check-in sits at the top, above the next stop');
-  assert.ok(line > lead, 'the line sits under the next stop');
-  assert.ok(glance > line && steps > glance, 'at a glance comes after the line and holds the steps row');
+  assert.ok(glance > lead && steps > glance, 'at a glance comes after the next stop and holds the steps row');
   assert.ok(habits > steps, 'daily habits is a link at the foot');
   assert.equal(typeof order[habits].props.onOpen, 'function');
+  assert.equal(at(fn('BSFocusLine')), -1, 'Your line is gone from Home');
+  assert.equal(at((n) => fn('BSFocusTitle')(n) && n.props.title === 'Your line'), -1);
+  assert.doesNotMatch(d.text, /Kcal left|Protein to go/, 'the Day view, Eat\'s Fuel left today, is gone');
+  const period = order[glance].props.right;
+  assert.deepEqual(period.props.options.map((o) => o.key), ['week', 'month'], 'the period switch has no Day');
   assert.doesNotMatch(d.text, /Today's slate/, 'the old slate head is gone');
+});
+
+// A day in Home's week opens the calendar on that day, where its plan is; Home itself stays on today.
+test("a day tapped in Home's week opens the calendar on that day", () => {
+  delete globalThis.ShapeAuth;
+  const opened = [];
+  const d = drive(BSClientHome, { onProfile() {}, goCalendar(day) { opened.push(day); }, goRadio() {}, goTrain() {}, goEat() {}, goMarket() {}, goScore() {}, goChat() {}, goIntegrations() {}, tweaks: {}, setTweak() {} });
+  const days = d.nodes().filter((n) => n.type === 'button' && /, (today|\w+ \d+)/.test(String(n.props['aria-label'] || '')) && n.props.style && n.props.style.minHeight === 44 && n.props.style.flexDirection === 'column');
+  assert.equal(days.length, 7, 'the week has seven days');
+  const lead = () => d.nodes().find((n) => n.props && n.props.tour === 'hero-home');
+  assert.ok(lead(), 'today has a lead');
+  const today = new Date();
+  const other = days.find((b) => !/today/.test(b.props['aria-label']));
+  other.props.onClick();
+  d.render();
+  assert.equal(opened.length, 1);
+  assert.ok(opened[0] instanceof Date, 'the calendar is handed the day');
+  assert.notEqual(opened[0].toDateString(), today.toDateString(), 'the tapped day, not today');
+  assert.ok(lead(), 'Home stays on today: the lead is still there');
+});
+
+// The calendar the tap lands on, mounted for real: signed in, it opens on the day it is handed; with no
+// day (Month view, Train's and Eat's links pass a click event) it opens on today; signed out it keeps
+// its demo month.
+test('the calendar opens on the day Home hands it, else today, and signed out on its demo month', async () => {
+  const CAL = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetCalendar.jsx'), {
+    registry: new Map([['react', { ...SHIM, useContext: (c) => (c._currentValue == null ? { open() {}, close() {} } : c._currentValue) }], ['react-dom', { createPortal: (n) => n }]]),
+    appendExports: 'export { BSCalendarScreen };',
+  });
+  const opensOn = (props) => {
+    const d = drive(CAL.BSCalendarScreen, { role: 'client', onBack() {}, ...props });
+    const m = d.nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSCalendarMonth');
+    return [m.props.viewYear, m.props.viewMonth, m.props.selDay];
+  };
+  const now = new Date();
+  try {
+    globalThis.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    assert.deepEqual(opensOn({ initialDate: new Date(2026, 10, 3) }), [2026, 10, 3], 'the tapped day');
+    assert.deepEqual(opensOn({}), [now.getFullYear(), now.getMonth(), now.getDate()], 'no day: today');
+    assert.deepEqual(opensOn({ initialDate: new Date('not a day') }), [now.getFullYear(), now.getMonth(), now.getDate()], 'a bad date: today');
+    delete globalThis.ShapeAuth;
+    assert.deepEqual(opensOn({ initialDate: new Date(2026, 10, 3) }), [2026, 4, 14], 'signed out: the demo month');
+  } finally {
+    delete globalThis.ShapeAuth;
+  }
 });
 
 // Part 2: the morning card's door (its done line and summary) and, with Check-ins off, the quiet row
@@ -325,7 +373,7 @@ test('the plan\'s list keeps every meal an ingredient is for, though its line na
   assert.deepEqual(lemon.mealList, ['A', 'B', 'C'], 'Shop by meal needs the third meal too');
 });
 
-// ── At a glance · Day / Week / Month, and the shop list on each meal ─────────
+// ── At a glance · Week / Month, and the shop list on each meal ──────────────
 
 test('a week or month average counts only days with something logged, in its own window', () => {
   const s = [
@@ -340,15 +388,19 @@ test('a week or month average counts only days with something logged, in its own
   assert.equal(F.bsPeriodAverage(s, 'not a day', 7).avg, null);
 });
 
-test('the glance period is remembered, and anything unknown reads as Day', () => {
+test('the glance period is remembered, and anything unknown, the old Day included, reads as Week', () => {
   const box2 = new Map();
   const st = { getItem: (k) => (box2.has(k) ? box2.get(k) : null), setItem: (k, v) => box2.set(k, String(v)) };
-  assert.equal(F.bsReadGlancePeriod(st), 'day');
+  assert.equal(F.bsReadGlancePeriod(st), 'week');
   F.bsSaveGlancePeriod(st, 'month');
   assert.equal(F.bsReadGlancePeriod(st), 'month');
   F.bsSaveGlancePeriod(st, 'year');
   assert.equal(F.bsReadGlancePeriod(st), 'month', 'an unknown period is not saved');
-  assert.equal(F.bsReadGlancePeriod({ getItem() { throw new Error('private mode'); } }), 'day');
+  F.bsSaveGlancePeriod(st, 'day');
+  assert.equal(F.bsReadGlancePeriod(st), 'month', 'Day is no longer a period');
+  box2.set('shape.home.glancePeriod', 'day');
+  assert.equal(F.bsReadGlancePeriod(st), 'week', 'a Day remembered from before reads as Week');
+  assert.equal(F.bsReadGlancePeriod({ getItem() { throw new Error('private mode'); } }), 'week');
 });
 
 test('a meal\'s shop list names the other meals a shared item is for, and one tick is one tick', () => {

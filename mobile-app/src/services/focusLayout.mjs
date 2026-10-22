@@ -65,11 +65,13 @@ export function bsFocusSlot(tag, min) {
   return h < 11 ? 'breakfast' : h < 15 ? 'lunch' : h < 17 ? 'snack' : 'dinner';
 }
 
-// ── At a glance: Day · Week · Month ───────────────────────────────────────
+// ── At a glance: Week · Month ─────────────────────────────────────────────
 // (owner, 2026-10-11: kcal and protein "should also have their own section on
-// home page, that you can track daily, weekly, monthly").
+// home page, that you can track daily, weekly, monthly"). The Day view left on
+// 2026-10-22: today's numbers are Eat's Fuel left today. A remembered 'day'
+// reads as Week.
 
-export const BS_GLANCE_PERIODS = ['day', 'week', 'month'];
+export const BS_GLANCE_PERIODS = ['week', 'month'];
 export const BS_GLANCE_DAYS = { week: 7, month: 30 };
 
 // The average of a daily series over the `days` days ending on `todayYmd`
@@ -97,7 +99,7 @@ export function bsPeriodAverage(series, todayYmd, days) {
 const GLANCE_KEY = 'shape.home.glancePeriod';
 
 export function bsReadGlancePeriod(storage) {
-  try { const v = storage ? storage.getItem(GLANCE_KEY) : null; return BS_GLANCE_PERIODS.includes(v) ? v : 'day'; } catch (e) { return 'day'; }
+  try { const v = storage ? storage.getItem(GLANCE_KEY) : null; return BS_GLANCE_PERIODS.includes(v) ? v : 'week'; } catch (e) { return 'week'; }
 }
 
 export function bsSaveGlancePeriod(storage, value) {

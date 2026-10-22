@@ -267,16 +267,18 @@ function _bsMapServerCalEvent(ev, t, zone = null) {
   };
 }
 
-function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', onBack, clientId = null }) {
+function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', onBack, clientId = null, initialDate = null }) {
   const t = useBSCal();
   const tr = useShapeTr();
   const isLoggedInNow = () => !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
   const [loggedIn, setLoggedIn] = useStateBSCal(isLoggedInNow);
-  const _today = new Date();
+  // The day to open on: a day tapped in Home's week (initialDate), else today.
+  const _openOn = () => (initialDate instanceof Date && !Number.isNaN(initialDate.getTime()) ? initialDate : new Date());
+  const _start = _openOn();
   // Default to the real current month (live), or the May 2026 demo when logged out.
-  const [viewYear, setViewYear] = useStateBSCal(loggedIn ? _today.getFullYear() : 2026);
-  const [viewMonth, setViewMonth] = useStateBSCal(loggedIn ? _today.getMonth() : 4);
-  const [selDay, setSelDay] = useStateBSCal(loggedIn ? _today.getDate() : 14);
+  const [viewYear, setViewYear] = useStateBSCal(loggedIn ? _start.getFullYear() : 2026);
+  const [viewMonth, setViewMonth] = useStateBSCal(loggedIn ? _start.getMonth() : 4);
+  const [selDay, setSelDay] = useStateBSCal(loggedIn ? _start.getDate() : 14);
   const [serverEvents, setServerEvents] = useStateBSCal(null);
   // The zone /api/calendar placed this month's bookings in (its response names it).
   const [serverZone, setServerZone] = useStateBSCal(null);
@@ -289,7 +291,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
     if (loggedIn) return undefined;
     const recheck = () => {
       if (!isLoggedInNow()) return;
-      const now = new Date();
+      const now = _openOn();
       setLoggedIn(true);
       setViewYear(now.getFullYear()); setViewMonth(now.getMonth()); setSelDay(now.getDate());
     };
