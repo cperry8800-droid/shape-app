@@ -199,29 +199,43 @@ test('a progress read that did not answer is no series, so the week says "—" (
   assert.equal(H.bsHomeWeekSoFar({ todayIso: '2026-10-22', series: H.bsHwSeriesOf(null) }).daysLogged, null);
 });
 
-test('the next session is the soonest confirmed one still ahead, as the client', () => {
+test('the next session is the soonest confirmed one still ahead, as the client, with a coach they pay', () => {
   const now = Date.parse('2026-10-22T12:00:00Z');
+  const coaches = [{ role: 'trainer', name: 'Jordan Chen', providerId: 7 }, { role: 'nutritionist', name: 'Dr. Maya Patel', providerId: 3 }];
+  const paid = { providerRole: 'trainer', providerId: 7 };
   const list = [
-    { id: 1, role: 'client', status: 'confirmed', scheduledAt: '2026-10-21T09:00:00Z' },
-    { id: 2, role: 'client', status: 'cancelled', scheduledAt: '2026-10-23T09:00:00Z' },
-    { id: 3, role: 'coach', status: 'confirmed', scheduledAt: '2026-10-23T10:00:00Z' },
-    { id: 4, role: 'client', status: 'confirmed', scheduledAt: '2026-10-25T09:00:00Z' },
-    { id: 5, role: 'client', status: 'confirmed', scheduledAt: '2026-10-24T09:00:00Z' },
-    { id: 6, role: 'client', status: 'requested', scheduledAt: '2026-10-23T08:00:00Z' },
+    { id: 1, role: 'client', status: 'confirmed', scheduledAt: '2026-10-21T09:00:00Z', ...paid },
+    { id: 2, role: 'client', status: 'cancelled', scheduledAt: '2026-10-23T09:00:00Z', ...paid },
+    { id: 3, role: 'coach', status: 'confirmed', scheduledAt: '2026-10-23T10:00:00Z', ...paid },
+    { id: 4, role: 'client', status: 'confirmed', scheduledAt: '2026-10-25T09:00:00Z', providerRole: 'nutritionist', providerId: 3 },
+    { id: 5, role: 'client', status: 'confirmed', scheduledAt: '2026-10-24T09:00:00Z', ...paid },
+    { id: 6, role: 'client', status: 'requested', scheduledAt: '2026-10-23T08:00:00Z', ...paid },
+    // A former coach's, or an intro coach's the member doesn't pay; and a paid coach's id under the
+    // other role (the two roles number their coaches separately).
+    { id: 7, role: 'client', status: 'confirmed', scheduledAt: '2026-10-22T15:00:00Z', providerRole: 'trainer', providerId: 99 },
+    { id: 8, role: 'client', status: 'confirmed', scheduledAt: '2026-10-22T16:00:00Z', providerRole: 'nutritionist', providerId: 7 },
   ];
-  assert.equal(H.bsHomeNextSession(list, now).id, 5);
-  assert.equal(H.bsHomeNextSession([], now), null);
-  assert.equal(H.bsHomeNextSession(null, now), null);
+  assert.equal(H.bsHomeNextSession(list, coaches, now).id, 5);
+  assert.equal(H.bsHomeNextSession(list, coaches.slice(1), now).id, 4, 'only the nutritionist paid');
+  assert.equal(H.bsHomeNextSession(list, [], now), null, 'no coach paid, no session');
+  assert.equal(H.bsHomeNextSession(list, [{ role: 'trainer', name: 'No id' }], now), null, 'a coach without an id matches nothing');
+  assert.equal(H.bsHomeNextSession([], coaches, now), null);
+  assert.equal(H.bsHomeNextSession(null, coaches, now), null);
+  // The sessions read names each session's coach by role and id, as the plan read names the paid ones.
+  const route = readFileSync(join(ROOT, 'src', 'app', 'api', 'sessions', 'manage', 'route.ts'), 'utf8');
+  assert.match(route, /providerRole: r\.provider_role,\n\s+providerId: r\.provider_id,/);
+  const plan = readFileSync(join(ROOT, 'src', 'app', 'api', 'client', 'plan', 'route.ts'), 'utf8');
+  assert.match(plan, /const coaches = subs\.map\(\(sub\) => \(\{\n\s+providerId: sub\.provider_id,/);
 });
 
 test('the coaches are the ones the plan read says the member pays, trainers first', () => {
   const plan = {
-    meals: { coaching: { coaches: [{ name: 'Dr. Maya Patel', conversationId: 'c-m' }] } },
-    training: { coaching: { coaches: [{ name: 'Jordan Chen', conversationId: 'c-j' }, { name: null }] } },
+    meals: { coaching: { coaches: [{ name: 'Dr. Maya Patel', conversationId: 'c-m', providerId: 3 }] } },
+    training: { coaching: { coaches: [{ name: 'Jordan Chen', conversationId: 'c-j', providerId: 7 }, { name: null }] } },
   };
   assert.deepEqual(H.bsHomeCoachesOf(plan), [
-    { role: 'trainer', name: 'Jordan Chen', conversationId: 'c-j' },
-    { role: 'nutritionist', name: 'Dr. Maya Patel', conversationId: 'c-m' },
+    { role: 'trainer', name: 'Jordan Chen', conversationId: 'c-j', providerId: 7 },
+    { role: 'nutritionist', name: 'Dr. Maya Patel', conversationId: 'c-m', providerId: 3 },
   ]);
   assert.deepEqual(H.bsHomeCoachesOf({ training: { coaching: null }, meals: {} }), [], 'no coach, or a read that failed');
   assert.deepEqual(H.bsHomeCoachesOf(null), []);

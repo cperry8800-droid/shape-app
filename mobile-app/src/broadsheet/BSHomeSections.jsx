@@ -301,18 +301,20 @@ function useBSHomeUnread(ids) {
 }
 
 // `notes` are the coaches' weekly notes ({ role, text, who }), `coaches` the ones the member pays
-// ({ role, name, conversationId }), both Home's. Nothing to say → nothing drawn.
+// ({ role, name, conversationId, providerId }), both Home's. Nothing to say → nothing drawn.
 export function BSHomeCoaches({ notes = [], coaches = [], onCalendar, onCoaches }) {
   const signedIn = bsHsSignedIn();
-  const [next, setNext] = useState(null);
+  const [sessions, setSessions] = useState(null);
   // Sessions are booked with a coach, so a member with none is not asked.
   const coached = coaches.length > 0;
   useEffect(() => {
     if (!signedIn || !coached || !window.ShapeSessions?.getSessions) return undefined;
     let on = true;
-    window.ShapeSessions.getSessions().then((list) => { if (on) setNext(bsHomeNextSession(list)); }).catch(() => {});
+    window.ShapeSessions.getSessions().then((list) => { if (on) setSessions(list); }).catch(() => {});
     return () => { on = false; };
   }, [signedIn, coached]);
+  // Matched against the coaches on each draw, so a change of coach needs no second read.
+  const next = coached ? bsHomeNextSession(sessions, coaches) : null;
   const unread = useBSHomeUnread(coaches.map((c) => c.conversationId).filter(Boolean));
   return <BSHomeCoachesView notes={notes} coaches={coaches} next={next} unread={unread} onCalendar={onCalendar} onCoaches={onCoaches} />;
 }

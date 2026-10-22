@@ -213,10 +213,14 @@ export function bsHwRedate(weighIns, todayIso) {
   return pts.map((w) => ({ ...w, d: bsHwShift(String(w.d).slice(0, 10), gap) }));
 }
 
-// The member's next session with a coach: the soonest confirmed one still ahead, as a client.
-export function bsHomeNextSession(sessions, nowMs = Date.now()) {
+// The member's next session with a coach they pay (`coaches`, bsHomeCoachesOf's): the soonest
+// confirmed one still ahead, as a client. A session still booked with a former coach, or with an
+// intro coach they don't pay, is not this section's (Codex P2 on #2424).
+export function bsHomeNextSession(sessions, coaches, nowMs = Date.now()) {
+  const paid = new Set((Array.isArray(coaches) ? coaches : [])
+    .filter((c) => c && c.providerId != null).map((c) => `${c.role}:${c.providerId}`));
   const rows = (Array.isArray(sessions) ? sessions : [])
-    .filter((s) => s && s.role === 'client' && s.status === 'confirmed')
+    .filter((s) => s && s.role === 'client' && s.status === 'confirmed' && paid.has(`${s.providerRole}:${s.providerId}`))
     .map((s) => ({ ...s, at: new Date(s.scheduledAt).getTime() }))
     .filter((s) => Number.isFinite(s.at) && s.at > nowMs)
     .sort((a, b) => a.at - b.at);
@@ -224,14 +228,15 @@ export function bsHomeNextSession(sessions, nowMs = Date.now()) {
 }
 
 // The member's coaches, off the plan read: each one they pay, trainers first, with the thread a
-// message opens. A read that failed (no `coaching` key) or no coach reads as none.
+// message opens and the id their sessions are booked under. A read that failed (no `coaching`
+// key) or no coach reads as none.
 export function bsHomeCoachesOf(plan) {
   const out = [];
   const add = (part, role) => {
     const c = plan && plan[part] && plan[part].coaching;
     const list = c && Array.isArray(c.coaches) ? c.coaches : [];
     for (const k of list) {
-      if (k && k.name) out.push({ role, name: String(k.name), conversationId: k.conversationId || null });
+      if (k && k.name) out.push({ role, name: String(k.name), conversationId: k.conversationId || null, providerId: k.providerId ?? null });
     }
   };
   add('training', 'trainer');

@@ -116,6 +116,7 @@ export async function GET(request: Request) {
       clientName: r.client_name ?? 'Client',
       providerName: nameOf.get(`${r.provider_role}:${r.provider_id}`) ?? 'Coach',
       providerRole: r.provider_role,
+      providerId: r.provider_id,
     };
   });
   return NextResponse.json({ sessions });
