@@ -303,5 +303,12 @@
   "thread.yourClient": "Abokin cinikinka",
   "thread.fromShape": "Daga Shape",
   "thread.shapeWelcome": "{client} da {coach} yanzu suna aiki tare a Shape. A wannan zaren kuke magana: tambayoyi, duba-lafiya da canje-canjen tsari duk suna zuwa nan.",
-  "thread.shapeWelcomeNoClient": "Horarwarka tare da {coach} ta fara nan. A wannan zaren kuke magana: tambayoyi, duba-lafiya da canje-canjen tsari duk suna zuwa nan."
+  "thread.shapeWelcomeNoClient": "Horarwarka tare da {coach} ta fara nan. A wannan zaren kuke magana: tambayoyi, duba-lafiya da canje-canjen tsari duk suna zuwa nan.",
+  "wallLive.title": "Ana motsa jiki yanzu",
+  "wallLive.isTraining": "{name} na motsa jiki",
+  "wallLive.live": "Kai tsaye",
+  "wallLive.minIn": "minti {n, number} ciki",
+  "wallLive.inSession": "Cikin zama",
+  "wallLive.resting": "Hutawa",
+  "wallLive.boost": "Ƙarfafa →"
 }

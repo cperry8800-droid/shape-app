@@ -303,5 +303,12 @@
   "thread.yourClient": "Ваш клієнт",
   "thread.fromShape": "Від Shape",
   "thread.shapeWelcome": "{client} і {coach} тепер працюють разом у Shape. У цій гілці ви спілкуєтеся: питання, відмітки та зміни плану надходять сюди.",
-  "thread.shapeWelcomeNoClient": "Ваші заняття з {coach} починаються тут. У цій гілці ви спілкуєтеся: питання, відмітки та зміни плану надходять сюди."
+  "thread.shapeWelcomeNoClient": "Ваші заняття з {coach} починаються тут. У цій гілці ви спілкуєтеся: питання, відмітки та зміни плану надходять сюди.",
+  "wallLive.title": "Тренуються зараз",
+  "wallLive.isTraining": "{name} тренується",
+  "wallLive.live": "Наживо",
+  "wallLive.minIn": "{n, number} хв",
+  "wallLive.inSession": "На тренуванні",
+  "wallLive.resting": "Відпочинок",
+  "wallLive.boost": "Підтримати →"
 }

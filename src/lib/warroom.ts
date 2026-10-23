@@ -615,6 +615,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'The Wall: photos on its cards, and who is training now at the top — #2427. No migration',
+      items: [
+        { label: 'Owner, 2026-10-22, off the Wall mockup: "do photos and training now first". Photos: bsActivityFromPost now carries a post\'s photo, video and link (the card drew them, the mapper dropped them), and a post that is only a photo or a video is a card of its own (bsWallMediaCard), under All only; notes, links and reposts stay off', status: 'done' },
+        { label: 'Training now (BSWallLive.jsx): the Wall opens on up to three people in a workout, each with "N min in", their live set when its row is readable under RLS, and a Boost pill to the live boost sheet. Under All in Universal only, hidden with the rail by "Online members"; signed out, the first card carries one sample set. The boost sheet now reads its live row and minutes through the same hooks (useBSLiveRow, useBSLiveMinutes), its TOCTOU and expiry guards unchanged. Seven strings in all 13 locales', status: 'done' },
+        { label: 'Review: Codex on 5429768, one P2 ("N min in" was worked out once and froze while the card stayed up): fixed in 43537f2, the minutes move every 30 seconds, with a mocked-timer test that fails on the old hook. Codex clean on 43537f2. npm test 8,146/8,146; CI green on all four jobs. The built /m/ app in Chromium on the light and dark papers', status: 'done' },
+        { label: 'Device pass, signed in with someone mid-workout: the live set line against a real row, the minutes counting, and Boost from the card', status: 'manual' },
+      ],
+    },
+    {
       section: 'Home: one morning panel for the check-in and water; Eat\'s macros in tiles — #2426. No migration',
       items: [
         { label: 'Owner, 2026-10-22: the Morning check-in card and the Water row "look analog and outdated"; off the mockup the owner picked Option A, one morning panel. The card and water share one rounded panel (BSMorningPanel): Same as yesterday is the one filled button with yesterday\'s answers on it, Start a link under it; checked in, one row with the readiness ring and Edit. Water: a drop tile, the total, a pip a glass against a target (wrapping under the total), + Glass a filled pill with a 44 px tap. With Check-ins off the panel holds water alone', status: 'done' },

@@ -303,5 +303,12 @@
   "thread.yourClient": "Klienmu",
   "thread.fromShape": "Dari Shape",
   "thread.shapeWelcome": "{client} dan {coach} sekarang bekerja sama di Shape. Di utas ini kalian berbicara: pertanyaan, check-in, dan perubahan rencana semuanya masuk ke sini.",
-  "thread.shapeWelcomeNoClient": "Pelatihanmu dengan {coach} dimulai di sini. Di utas ini kalian berbicara: pertanyaan, check-in, dan perubahan rencana semuanya masuk ke sini."
+  "thread.shapeWelcomeNoClient": "Pelatihanmu dengan {coach} dimulai di sini. Di utas ini kalian berbicara: pertanyaan, check-in, dan perubahan rencana semuanya masuk ke sini.",
+  "wallLive.title": "Sedang latihan",
+  "wallLive.isTraining": "{name} sedang latihan",
+  "wallLive.live": "Live",
+  "wallLive.minIn": "{n, number} mnt berjalan",
+  "wallLive.inSession": "Dalam sesi",
+  "wallLive.resting": "Istirahat",
+  "wallLive.boost": "Semangati →"
 }

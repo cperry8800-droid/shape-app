@@ -244,8 +244,8 @@ planned builds.
 - The website's Kitchen (`recipesPage.jsx`) still runs its filter toggles and jump row
   off the right edge of a phone; the app's moved to a dropdown and in-place time tabs.
 - No signed-in pass has been done in a browser or on a phone for client onboarding,
-  the dashboard frame, `/admin`, Business (website and app) or the coach application
-  uploads.
+  the dashboard frame, `/admin`, Business (website and app), the coach application
+  uploads or the Wall's Training now cards against a real live set.
 - Native mic and camera plugins (including iOS barcode scanning) and on-device macro
   reads from a meal photo aren't built yet.
 - The daily check-in (#2398): its saves have no timeout, so a request the network holds
