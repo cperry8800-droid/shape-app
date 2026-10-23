@@ -27,7 +27,7 @@ const clone = (v) => JSON.parse(JSON.stringify(v));
 const ids = (lists) => lists.map((l) => l.id);
 const STORE_KEY = 'shape.grocery.lists.v1';
 
-async function mountPage({ row, stored, onWrite }) {
+async function mountPage({ row, stored, onWrite, before }) {
   const dom = new JSDOM('<!doctype html><div id="root"></div>', { runScripts: 'outside-only', url: 'https://theshapecommunity.com/newdesign/ClientGrocery.html' });
   const w = dom.window;
   const cloud = { row, writes: [], conflicts: 0 };
@@ -57,6 +57,7 @@ async function mountPage({ row, stored, onWrite }) {
     },
   };
   if (stored) w.localStorage.setItem(STORE_KEY, JSON.stringify(stored));
+  if (before) before(w);
   w.eval(CODE);
   const saved = { window: globalThis.window, document: globalThis.document };
   globalThis.window = w; globalThis.document = w.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -161,7 +162,7 @@ test('another device\'s list taken in while a sync is queued is never read as de
     page.cloud.gate = new Promise((r) => { release = r; });
     await newList('First');
     // A second edit while that write is in flight: its sync queues behind it.
-    await newList('Second');
+    try { await newList('Second'); } catch (e) { page.cloud.gate = null; release(); throw e; }
     // The write lands. The first sync takes the phone's list in, and the queued sync runs straight after,
     // before React has rendered it.
     page.cloud.gate = null;
@@ -196,5 +197,69 @@ test('an edit from the phone keeps the items ticked off on the page (Codex P2 on
     const mine = page.local().find((l) => l.id === 'default');
     assert.equal(mine.name, 'Saturday shop', "the phone's edit came in");
     assert.deepEqual(mine.items.map((it) => [it.item, it.checked]), [['Avocados', true], ['Limes', false]], 'the tick kept, by item');
+  } finally { await page.done(); }
+});
+
+test('a tick while a write is in flight doesn\'t turn another device\'s edit back (Codex P1 on #2433, second round)', async () => {
+  const page = await mountPage({ row: { v: 1, rev: 1, lists: [WEB_STORED] }, stored: [WEB] });
+  try {
+    // The phone renames the list.
+    page.cloud.row = { v: 1, rev: 2, lists: [{ ...WEB_STORED, name: 'Saturday shop' }] };
+    // A new list here: its sync reads the rename (this page hasn't touched that list) and its write is held.
+    let release = () => {};
+    page.cloud.gate = new Promise((r) => { release = r; });
+    try {
+      page.w.prompt = () => 'First';
+      const add = [...page.w.document.querySelectorAll('button')].find((b) => b.textContent === '+ NEW LIST');
+      await React.act(async () => { add.click(); });
+      // While it is in flight, back on the renamed list, an item is ticked off here.
+      const buttons = () => [...page.w.document.querySelectorAll('button')];
+      await React.act(async () => { buttons().find((b) => b.textContent.endsWith('▼')).click(); });
+      await React.act(async () => { buttons().find((b) => b.textContent.startsWith('My groceries')).click(); });
+      const box = page.w.document.querySelector('button[aria-label="Check"]');
+      assert.ok(box, 'an item to tick');
+      await React.act(async () => { box.click(); });
+    } finally {
+      page.cloud.gate = null;
+      await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
+    }
+    await page.settle();
+    for (const w of page.cloud.writes) {
+      const mine = w.lists.find((l) => l.id === 'default');
+      assert.equal(mine.name, 'Saturday shop', `no write turns the phone's rename back (rev ${w.rev})`);
+    }
+    const mine = page.local().find((l) => l.id === 'default');
+    assert.equal(mine.name, 'Saturday shop', 'the page took the rename');
+    assert.equal(mine.items[0].checked, true, 'and kept the tick');
+  } finally { await page.done(); }
+});
+
+test('with storage denied the page still takes the cloud\'s lists, and a list deleted here stays deleted (Codex P2 on #2433)', async () => {
+  // Deny storage in the page's own window: every read and write throws.
+  const page = await mountPage({
+    row: { v: 1, rev: 1, lists: [RECEIVED] },
+    before: (w) => {
+      w.Storage.prototype.getItem = () => { throw new Error('SecurityError'); };
+      w.Storage.prototype.setItem = () => { throw new Error('SecurityError'); };
+    },
+  });
+  try {
+    // On load: the demo list here and the received list from the cloud, in one write.
+    assert.deepEqual(page.cloud.writes.map((w) => ids(w.lists)), [['default', 'received-m1']]);
+    // The page took the received list: two lists, so the first can be deleted.
+    page.w.confirm = () => true;
+    page.w.alert = (m) => { throw new Error(`alerted: ${m}`); };
+    const del = [...page.w.document.querySelectorAll('button')].find((b) => b.textContent === 'DELETE LIST');
+    assert.ok(del, 'a list to delete');
+    await React.act(async () => { del.click(); });
+    await page.settle();
+    assert.deepEqual(ids(page.cloud.row.lists), ['received-m1'], 'deleted from the cloud, not brought back');
+    // And it stays deleted at the next sync.
+    page.w.prompt = () => 'Another';
+    const add = [...page.w.document.querySelectorAll('button')].find((b) => b.textContent === '+ NEW LIST');
+    await React.act(async () => { add.click(); });
+    await page.settle();
+    assert.ok(!ids(page.cloud.row.lists).includes('default'));
+    assert.equal(page.cloud.row.lists.length, 2);
   } finally { await page.done(); }
 });

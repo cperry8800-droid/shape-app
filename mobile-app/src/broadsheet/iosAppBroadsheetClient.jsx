@@ -66,7 +66,7 @@ import { BSEatFuel } from './BSEatFuel.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead } from './BSWallStory.jsx';
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
-import { bsGroceryListsApply } from '../services/groceryLists.mjs';
+import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
 import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
@@ -13714,6 +13714,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   const grocLocalRef = React.useRef(recipeLists);
   const grocGoneRef = React.useRef(deletedGroceryIds);
   const grocMountedRef = React.useRef(true);
+  // This page's base: in memory for as long as its lists are, over the stored one (storage may be denied).
+  const grocBaseRef = React.useRef(null);
+  if (!grocBaseRef.current) grocBaseRef.current = bsGroceryListsPageBase(bsGroceryListsAppStore().base);
   React.useEffect(() => () => { grocMountedRef.current = false; }, []);
   React.useEffect(() => {
     grocLocalRef.current = recipeLists;
@@ -13723,13 +13726,17 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     bsGroceryListsAppStore().sync({
       getLocal: () => grocLocalRef.current,
       getGone: () => grocGoneRef.current,
-      // Another device's changes: kept where the next load reads them, then on screen. When this page has
-      // closed they did not reach the lists the next sync reads, so the store leaves them unsynced.
+      base: grocBaseRef.current,
+      // Another device's changes: kept where the next load reads them where storage allows, then on screen.
+      // When this page has closed they did not reach the lists the next sync reads, so the store leaves
+      // them unsynced. Storage denied, the lists on screen still take them (Codex P2 on #2433).
       apply: (delta, used) => {
-        const raw = window.localStorage.getItem('shape.recipeGroceryLists');
-        const stored = raw ? JSON.parse(raw) : [];
-        const next = bsGroceryListsApply(Array.isArray(stored) ? stored : [], used, delta);
-        if (next !== stored) window.localStorage.setItem('shape.recipeGroceryLists', JSON.stringify(next));
+        try {
+          const raw = window.localStorage.getItem('shape.recipeGroceryLists');
+          const stored = raw ? JSON.parse(raw) : [];
+          const next = bsGroceryListsApply(Array.isArray(stored) ? stored : [], used, delta);
+          if (next !== stored) window.localStorage.setItem('shape.recipeGroceryLists', JSON.stringify(next));
+        } catch (e) { /* storage off, full or unreadable */ }
         if (!grocMountedRef.current) return false;
         // The lists the next sync reads, now: a sync queued behind this one runs before React renders, and
         // without these it would take them for lists deleted here (Codex P1 on #2433).

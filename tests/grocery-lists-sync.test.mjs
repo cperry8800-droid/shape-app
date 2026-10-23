@@ -12,7 +12,7 @@ import { ROOT } from './helpers/broadsheet-mount.mjs';
 import {
   BS_GROCERY_LISTS_KIND, BS_GROCERY_LISTS_CAS_TRIES,
   bsGroceryListsOf, bsGroceryListsRevised, bsGroceryListsRev, bsGroceryListsRevToken, bsGrocerySame,
-  bsGroceryListsMerge, bsGroceryListsApply, bsGroceryListsStore, bsGroceryListsBaseIn,
+  bsGroceryListsMerge, bsGroceryListsApply, bsGroceryListsStore, bsGroceryListsBaseIn, bsGroceryListsPageBase,
 } from '../mobile-app/src/services/groceryLists.mjs';
 
 const L = (id, extra = {}) => ({ id, name: id.toUpperCase(), items: [{ id: `${id}-1`, n: 'Milk', q: '1' }], ...extra });
@@ -151,6 +151,12 @@ test('applying another device\'s changes leaves a list changed here since alone'
   const seen = [];
   bsGroceryListsApply(prev, used, delta, { fromStored: (r, p) => { seen.push([r.id, p ? p.id : null]); return r; } });
   assert.deepEqual(seen, [['a', 'a'], ['x', null]]);
+  // `same` says what counts as changed here: what the document doesn't carry (a tick) doesn't.
+  const ticked = [{ ...L('a'), ticked: true }];
+  const put = { put: [L('a', { name: 'Theirs' })], drop: [] };
+  assert.equal(bsGroceryListsApply(ticked, [L('a')], put), ticked, 'by default a tick is a change, and the edit waits');
+  const took = bsGroceryListsApply(ticked, [L('a')], put, { same: (p, u) => bsGrocerySame({ ...p, ticked: undefined }, { ...u, ticked: undefined }) });
+  assert.equal(took[0].name, 'Theirs');
   assert.equal(bsGroceryListsApply(prev, used, { put: [L('b', { name: 'Theirs' })], drop: [] }), prev, 'nor when every change was skipped');
 });
 
@@ -308,6 +314,29 @@ test('adding a received list merges into the document as read, and is a no-op wh
   assert.equal(cloud.writes.length, 1);
 });
 
+test('a page\'s base lives in memory as long as the page, over the stored one', async () => {
+  const stored = memBase();
+  stored.set('u1', [L('old')]);
+  const pb = bsGroceryListsPageBase(stored);
+  assert.deepEqual(ids(pb.get('u1')), ['old'], 'the stored base until this page syncs');
+  pb.set('u1', [L('new')]);
+  assert.deepEqual(ids(pb.get('u1')), ['new']);
+  assert.deepEqual(ids(stored.get('u1')), ['new'], 'and kept in storage too');
+  assert.equal(pb.get('u2'), null);
+  // Storage denied: the page still has its base, so a list deleted here stays deleted.
+  const denied = bsGroceryListsPageBase(bsGroceryListsBaseIn(() => { throw new Error('SecurityError'); }, 'k'));
+  const cloud = cloudDb({ v: 1, rev: 1, lists: [L('a'), L('b')] });
+  const store = bsGroceryListsStore({ db: cloud.db, baseStore: memBase() });
+  let local = [L('a'), L('b')];
+  await store.sync({ getLocal: () => local, base: denied, apply: () => true });
+  local = [L('b')];
+  await store.sync({ getLocal: () => local, base: denied, apply: () => true });
+  assert.deepEqual(ids(cloud.row.lists), ['b'], 'deleted here, not brought back');
+  // A new page starts with no base of its own: with storage denied, its first sync keeps every list.
+  const fresh = bsGroceryListsPageBase(bsGroceryListsBaseIn(() => { throw new Error('SecurityError'); }, 'k'));
+  assert.equal(fresh.get('u1'), null);
+});
+
 test('the base is kept per account: one account\'s base is never used for another', () => {
   const mem = new Map();
   const storage = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)) };
@@ -366,6 +395,13 @@ test('every writer goes through the store: no whole-document write of the lists 
   // next render: a sync queued behind runs first and would read the lists without it (Codex P1 on #2433).
   assert.match(CLIENT, /if \(!grocMountedRef\.current\) return false;[\s\S]{0,300}grocLocalRef\.current = bsGroceryListsApply\(grocLocalRef\.current, used, delta\);[\s\S]{0,300}setRecipeLists\(\(prev\) => bsGroceryListsApply\(prev, used, delta\)\);\s*if \(putIds\.size\) setDeletedGroceryIds[\s\S]{0,120}return true;/);
   assert.match(HTML, /if \(!mountedRef\.current\) return false;[\s\S]{0,300}listsRef\.current = GL\.bsGroceryListsApply\(listsRef\.current, used, delta, opts\);\s*setLists\(/);
+  // Each page keeps its own base (as long-lived as its lists), and storage in apply is best-effort: denied,
+  // the lists on screen still take the changes (Codex P2 on #2433).
+  assert.match(CLIENT, /grocBaseRef\.current = bsGroceryListsPageBase\(bsGroceryListsAppStore\(\)\.base\)/);
+  assert.match(CLIENT, /getGone: \(\) => grocGoneRef\.current,\s*base: grocBaseRef\.current,/);
+  assert.match(CLIENT, /apply: \(delta, used\) => \{\s*try \{\s*const raw = window\.localStorage\.getItem\('shape\.recipeGroceryLists'\);[\s\S]{0,400}\} catch \(e\) \{[^}]*\}\s*if \(!grocMountedRef\.current\) return false;/);
+  assert.match(HTML, /baseRef\.current = window\.ShapeGroceryListsLib\.bsGroceryListsPageBase\(store\.base\)/);
+  assert.match(HTML, /same: \(p, u\) => GL\.bsGrocerySame\(stripTicks\(p\), stripTicks\(u\)\)/, 'the website\'s apply ignores ticks');
   assert.match(SHARE, /bsGroceryListsAppStore\(\)\.add\(list\)/);
   assert.match(HTML, /<script type="module">import \* as GL from "\/newdesign\/groceryLists\.mjs\?v=\d+"; window\.ShapeGroceryListsLib = GL;<\/script>\n<script type="text\/babel">/, 'the website loads the module before its page script');
   assert.match(HTML, /store\.sync\(\{\s*getLocal: \(\) => listsRef\.current,\s*same: webSame,/);

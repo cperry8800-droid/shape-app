@@ -175,25 +175,33 @@ function ClientGroceryPage() {
   // latest lists.
   const listsRef = React.useRef(lists);
   const mountedRef = React.useRef(true);
+  // This page's base: in memory for as long as its lists are, over the stored one (storage may be denied).
+  const baseRef = React.useRef(null);
   React.useEffect(() => () => { mountedRef.current = false; }, []);
   React.useEffect(() => {
     listsRef.current = lists;
     saveLists(lists);
     const store = groceryStore();
     if (!store) return;
+    if (!baseRef.current) baseRef.current = window.ShapeGroceryListsLib.bsGroceryListsPageBase(store.base);
     store.sync({
       getLocal: () => listsRef.current,
       same: webSame,
       toStored: (l) => webToSynced([l])[0],
-      // Another device's changes: kept where the next load reads them, then on screen. When the page has
-      // closed they did not reach the lists the next sync reads, so the store leaves them unsynced.
+      base: baseRef.current,
+      // Another device's changes: kept where the next load reads them where storage allows, then on screen.
+      // When the page has closed they did not reach the lists the next sync reads, so the store leaves them
+      // unsynced. Storage denied, the lists on screen still take them (Codex P2 on #2433). A list ticked
+      // since the merge read it still takes them: ticks aren't synced (Codex P1 on #2433).
       apply: (delta, used) => {
         const GL = window.ShapeGroceryListsLib;
-        const opts = { fromStored: webFromStored, at: "end" };
-        const raw = window.localStorage.getItem(STORE_KEY);
-        const stored = raw ? JSON.parse(raw) : [];
-        const next = GL.bsGroceryListsApply(Array.isArray(stored) ? stored : [], used, delta, opts);
-        if (next !== stored) window.localStorage.setItem(STORE_KEY, JSON.stringify(next));
+        const opts = { fromStored: webFromStored, at: "end", same: (p, u) => GL.bsGrocerySame(stripTicks(p), stripTicks(u)) };
+        try {
+          const raw = window.localStorage.getItem(STORE_KEY);
+          const stored = raw ? JSON.parse(raw) : [];
+          const next = GL.bsGroceryListsApply(Array.isArray(stored) ? stored : [], used, delta, opts);
+          if (next !== stored) window.localStorage.setItem(STORE_KEY, JSON.stringify(next));
+        } catch (e) { /* storage off, full or unreadable */ }
         if (!mountedRef.current) return false;
         // The lists the next sync reads, now: a sync queued behind this one runs before React renders, and
         // without these it would take them for lists deleted here (Codex P1 on #2433).

@@ -150,7 +150,11 @@ export function bsGroceryListsMerge({ base = null, local = [], remote, gone = []
 //   fromStored (storedList, prevList) => the list in the writer's shape; `prevList` is this device's copy
 //              it replaces (null for a new one), so state the document doesn't carry can be kept
 //   at         'start' | 'end' for a new list
-export function bsGroceryListsApply(prev, used, delta, { fromStored = (l) => l, at = 'start' } = {}) {
+//   same       (prevList, usedList) => whether a list is unchanged here since the merge read it. ⚠ It must
+//              ignore what the document doesn't carry (the website's ticks): a tick in that window would
+//              otherwise skip another device's edit while the store records it as synced, and the next
+//              sync would take the stale copy for an edit made here (Codex P1 on #2433).
+export function bsGroceryListsApply(prev, used, delta, { fromStored = (l) => l, at = 'start', same = bsGrocerySame } = {}) {
   const put = (delta && delta.put) || [];
   const drop = (delta && delta.drop) || [];
   if (!put.length && !drop.length) return prev;
@@ -159,7 +163,7 @@ export function bsGroceryListsApply(prev, used, delta, { fromStored = (l) => l, 
   const untouched = (id) => {
     const p = P.get(id);
     const u = U.get(id);
-    return (!p && !u) || (!!p && !!u && (p === u || bsGrocerySame(p, u)));
+    return (!p && !u) || (!!p && !!u && (p === u || same(p, u)));
   };
   let next = Array.isArray(prev) ? prev.slice() : [];
   let moved = false;
@@ -204,6 +208,25 @@ export function bsGroceryListsBaseIn(storage, key) {
     },
     set(uid, lists) {
       try { const s = st(); if (s) s.setItem(key, JSON.stringify({ uid, lists })); } catch (e) { /* storage off or full */ }
+    },
+  };
+}
+
+// A page's own base: kept in memory for as long as the page's lists are, over the stored one. Where
+// storage is denied the stored base never holds, and without this every sync would be a first sync, so a
+// list deleted here would come back from the cloud. Made with the page and dropped with it, because a base
+// that outlived the lists it describes (a page opened again with storage denied starts empty) would read
+// every list as deleted here.
+export function bsGroceryListsPageBase(stored) {
+  const mem = { uid: null, lists: null };
+  return {
+    get(uid) {
+      if (mem.uid != null && String(mem.uid) === String(uid)) return mem.lists;
+      return stored ? stored.get(uid) : null;
+    },
+    set(uid, lists) {
+      mem.uid = uid; mem.lists = lists;
+      if (stored) stored.set(uid, lists);
     },
   };
 }
@@ -286,9 +309,10 @@ export function bsGroceryListsStore({ db, baseStore = null } = {}) {
   // Sync a writer's lists with the cloud. A sync already queued and not yet started is shared, and runs
   // with the callbacks of the latest call: `getLocal` and `getGone` when it reads the lists, `apply` when
   // it is done. So a page that closed and opened again while a sync was queued gets that sync's changes.
+  // `base` (optional) is the page's own (bsGroceryListsPageBase); the store's stored base otherwise.
   // `apply(delta, used)` takes another device's changes into the writer's lists, keeping them where the
-  // next load reads them, and returns false when they did not reach the lists the next sync will read
-  // (the page had closed). ⚠ "Reached" means `getLocal` returns them before `apply` returns, not only a
+  // next load reads them where it can (storage may be denied: the lists on screen still take them), and
+  // returns false when they did not reach the lists the next sync will read (the page had closed). ⚠ "Reached" means `getLocal` returns them before `apply` returns, not only a
   // state update queued for the next render: a sync queued behind this one runs straight after it, and
   // reading the lists without them it would take them for lists deleted here (Codex P1 on #2433).
   // ⚠ THE BASE NEVER RUNS AHEAD OF THE LISTS. It becomes the merged lists only once `apply` has taken the
@@ -305,7 +329,7 @@ export function bsGroceryListsStore({ db, baseStore = null } = {}) {
       const { getLocal, getGone, same, toStored } = latest;
       const local = (getLocal && getLocal()) || [];
       const gone = getGone ? getGone() : [];
-      const m = bsGroceryListsMerge({ base: base.get(uid), local, remote: raw, gone, same, toStored });
+      const m = bsGroceryListsMerge({ base: (latest.base || base).get(uid), local, remote: raw, gone, same, toStored });
       return { lists: m.lists, write: m.changed, delta: m.delta, used: local };
     }, (res) => {
       const pending = !!(res.delta && (res.delta.put.length || res.delta.drop.length));
@@ -316,7 +340,7 @@ export function bsGroceryListsStore({ db, baseStore = null } = {}) {
         try { took = apply(res.delta, res.used); } catch (e) { return; }
         if (took === false) return;
       }
-      base.set(res.uid, res.lists);
+      (latest.base || base).set(res.uid, res.lists);
     }).then((res) => {
       if (queued === run) queued = null;
       return res;
