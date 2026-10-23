@@ -303,5 +303,12 @@
   "thread.yourClient": "Danışanın",
   "thread.fromShape": "Shape'ten",
   "thread.shapeWelcome": "{client} ve {coach} artık Shape'te birlikte çalışıyor. Bu konuda konuşursunuz: sorular, check-in'ler ve plan değişiklikleri buraya gelir.",
-  "thread.shapeWelcomeNoClient": "{coach} ile koçluğun burada başlıyor. Bu konuda konuşursunuz: sorular, check-in'ler ve plan değişiklikleri buraya gelir."
+  "thread.shapeWelcomeNoClient": "{coach} ile koçluğun burada başlıyor. Bu konuda konuşursunuz: sorular, check-in'ler ve plan değişiklikleri buraya gelir.",
+  "wallLive.title": "Şu an antrenmanda",
+  "wallLive.isTraining": "{name} antrenmanda",
+  "wallLive.live": "Canlı",
+  "wallLive.minIn": "{n, number} dk oldu",
+  "wallLive.inSession": "Seansta",
+  "wallLive.resting": "Dinleniyor",
+  "wallLive.boost": "Destek →"
 }

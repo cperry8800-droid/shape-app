@@ -303,5 +303,12 @@
   "thread.yourClient": "Dein Klient",
   "thread.fromShape": "Von Shape",
   "thread.shapeWelcome": "{client} und {coach} arbeiten jetzt auf Shape zusammen. In diesem Thread sprecht ihr miteinander: Fragen, Check-ins und Planänderungen landen alle hier.",
-  "thread.shapeWelcomeNoClient": "Dein Coaching mit {coach} beginnt hier. In diesem Thread sprecht ihr miteinander: Fragen, Check-ins und Planänderungen landen alle hier."
+  "thread.shapeWelcomeNoClient": "Dein Coaching mit {coach} beginnt hier. In diesem Thread sprecht ihr miteinander: Fragen, Check-ins und Planänderungen landen alle hier.",
+  "wallLive.title": "Gerade im Training",
+  "wallLive.isTraining": "{name} trainiert",
+  "wallLive.live": "Live",
+  "wallLive.minIn": "seit {n, number} Min.",
+  "wallLive.inSession": "In einer Einheit",
+  "wallLive.resting": "Pause",
+  "wallLive.boost": "Anfeuern →"
 }

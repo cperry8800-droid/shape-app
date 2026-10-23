@@ -63,6 +63,7 @@ import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } fro
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
 import { BSEatFuel } from './BSEatFuel.jsx';
+import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
@@ -14758,50 +14759,16 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
   const [custom, setCustom] = useStateBSC('');
   const [busy, setBusy] = useStateBSC(false);
   const [sent, setSent] = useStateBSC(false);
-  const [mins, setMins] = useStateBSC(null);   // "N min in" — honest: only when started_at is readable
+  // "N min in" — honest: only when started_at is readable (BSWallLive.jsx, shared with the Wall's card).
+  const mins = useBSLiveMinutes(person.userId || null);
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  React.useEffect(() => {
-    if (!person.userId || !window.ShapePresence?.activityDetail) return undefined;
-    let on = true;
-    window.ShapePresence.activityDetail(person.userId).then((d) => {
-      if (!on || !d || !d.startedAt) return;
-      const m = Math.round((Date.now() - new Date(d.startedAt).getTime()) / 60000);
-      if (Number.isFinite(m) && m >= 0 && m < 6 * 60) setMins(Math.max(1, m));
-    }).catch(() => {});
-    return () => { on = false; };
-  }, [person.userId]);
   // Live set-by-set line (spec 2026-07-18) — renders ONLY when a row is
   // readable under RLS. No row → today's sheet, byte-identical; absence is
   // deliberately unremarkable (never "they hid this" — that would leak the
   // existence of a setting choice). Demo people (no userId) never fetch.
-  const [live, setLive] = useStateBSC(null);
-  React.useEffect(() => {
-    // Both kinds now (spec 2026-07-19) — the ROW's own payload.kind decides what
-    // renders, so the sheet no longer gates the subscription on the activity.
-    if (!person.userId || !window.ShapeLiveProgress) return undefined;
-    let on = true; let expTimer = null; let evented = false;
-    // TOCTOU guard (review: CodeRabbit): the initial get() can resolve AFTER a
-    // newer realtime event (incl. a DELETE on session end) and restore a stale
-    // row. Once any subscription event has landed, the initial fetch is ignored.
-    const take = (row, fromEvent) => {
-      if (!on) return;
-      if (fromEvent) evented = true; else if (evented) return;
-      // Expiry gates the ROW ITSELF, not just the timer (CWE-359): the shipped
-      // version set state for every incoming row and only scheduled a timer when
-      // expiry was in the future, so an ALREADY-EXPIRED realtime row rendered
-      // until unmount. Titles raise the stakes, so reject it outright.
-      const expMs = row && row.expires_at ? new Date(row.expires_at).getTime() - Date.now() : 0;
-      if (row && !(expMs > 0)) row = null;   // expired OR invalid/NaN expiry = absence (NaN fails > 0)
-      setLive(row);
-      // Subscription-side expiry (spec review): the SQL filter protects get()
-      // only — an already-open sheet must drop a row when its expires_at passes.
-      if (expTimer) { clearTimeout(expTimer); expTimer = null; }
-      if (row && expMs > 0) expTimer = setTimeout(() => { if (on) setLive(null); }, expMs);
-    };
-    window.ShapeLiveProgress.get(person.userId).then((r) => take(r, false)).catch(() => {});
-    const off = window.ShapeLiveProgress.subscribe(person.userId, (r) => take(r, true));
-    return () => { on = false; if (expTimer) clearTimeout(expTimer); off(); };
-  }, [person.userId, kind]);
+  // The row's own payload.kind decides what renders (spec 2026-07-19). The read, its TOCTOU guard and
+  // its expiry live in useBSLiveRow (BSWallLive.jsx), shared with the Wall's Training now cards.
+  const live = useBSLiveRow(person.userId || null);
   const lp = live ? bsValidLivePayload(live.payload) : null;   // malformed/unknown wire shape → render nothing
   // lp is a DISCRIMINATED UNION (workout | cooking). Split it here so neither
   // branch can touch the other's fields: lpWork carries exercises/sets, lpCook
@@ -16611,6 +16578,12 @@ function bsActivityFromPost(p) {
     } : null,
     title,
     body: p.note || '',
+    // ⚠ THE POST'S OWN PHOTO, VIDEO OR LINK (owner, 2026-10-22: the Wall "look[s]" like it is missing
+    // photos). The card has drawn them since the Log Activity composer, but this mapper never carried
+    // them, so a run or a meal posted with a picture showed on the Wall as a stat sheet.
+    photo: p.photo || null,
+    video: p.video || null,
+    link: p.link || null,
     created_at: p.created_at || null,
     // Dated by the WORKOUT, not by the sync that posted it (see activity_at).
     ago: bsAgoShort(p.activity_at || p.created_at) || p.time || '',
@@ -16655,6 +16628,9 @@ function bsActivityFromPost(p) {
 function bsFeedTypeMatch(a, t) {
   if (!a) return false;
   if (t === 'all') return true;
+  // A photo or a video on its own (bsWallMediaCard) is not a workout, a run, a PR, a meal or a
+  // milestone: it shows under All only.
+  if (a.wallMedia) return false;
   const isMeal = a.kind === 'meal' || a.typeLabel === 'Meal';
   if (t === 'nutrition') return isMeal;
   // Work milestones (spec 2026-07-13) file under MILESTONES only — never
@@ -16667,6 +16643,23 @@ function bsFeedTypeMatch(a, t) {
   const isRun = a.kind === 'run' || a.typeLabel === 'Run';
   if (t === 'runs') return isRun;
   return !isRun && !isMeal && !isMilestone; // 'workouts' = every non-endurance, non-meal, non-milestone activity
+}
+
+// The Wall's card for a post that is a photo or a video and nothing else (owner, 2026-10-22: "do
+// photos ... first"): the profile's slim card, named for its media. A note or a link stays in chat, and
+// a repost stays off (its original is already here). Null for anything else.
+function bsWallMediaCard(p) {
+  if (!p || !(p.photo || p.video) || p.repostOf) return null;
+  const card = bsProfileCardFromPost(p, null);
+  if (!card) return null;
+  const media = p.photo ? 'Photo' : 'Video';
+  const rawTitle = String(p.status || '').trim();
+  return {
+    ...card,
+    wallMedia: true,
+    typeLabel: media,
+    title: (rawTitle && !/^(workout|photo|video|link|note|article)$/i.test(rawTitle)) ? rawTitle : media,
+  };
 }
 
 // Profile "Personal activities" → the rich BSActivityCard `a` shape. Workout/
@@ -24060,7 +24053,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         // the demo sample presented as your follows' activity.
         if (active && (rows.length || (feedMode === 'following' && res?.stored === 'supabase'))) {
           const mapped = rows.map(mapPost).filter(p => p.body);
-          const acts = rows.map(bsActivityFromPost).filter(Boolean);
+          const acts = rows.map((p) => bsActivityFromPost(p) || bsWallMediaCard(p)).filter(Boolean);
           setPosts(mapped); setPostsLive(true); setActivityFeed(acts);
           // Batch the authors' all-time points → real tier per user for the bubbles.
           const ids = [...new Set([myUserId, ...mapped.map(p => p.userId), ...acts.map(a => a.userId)].filter(Boolean))];
@@ -24456,6 +24449,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // preview → only the demo cast (realActive is never surfaced in preview, even if
   // activeNow populated it on mount).
   const railPeople = loggedIn ? realActive : TRAINING_NOW;
+  const railPhotoOf = (p) => p.photoUrl || bsDemoPhoto(p.photo);
+  const railProfileOf = (p) => ({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, userId: p.userId || null, photo: railPhotoOf(p) || bsDemoFace(p.name) });
+  const railTierColor = (p) => (p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier));
   const liftingNow = online > 0 ? online : (loggedIn ? railPeople.length : 2104);
 
   return (
@@ -24524,9 +24520,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <div className="bs-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', overflowY: 'visible', padding: '14px 12px 6px' }}>
             {railPeople.map((p, i) => {
               // Coaches wear their own ladder color (Icon=teal, …); members the client ramp.
-              const tc = p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier);
-              const pPhoto = p.photoUrl || bsDemoPhoto(p.photo);
-              const railProfile = { who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, userId: p.userId || null, photo: pPhoto || bsDemoFace(p.name) };
+              const tc = railTierColor(p);
+              const pPhoto = railPhotoOf(p);
+              const railProfile = railProfileOf(p);
               // Mid-activity (workout/cooking dot) → the LIVE BOOST sheet, so you can
               // cheer them on while they're at it; otherwise straight to the profile.
               // Demo rail people open the sheet too (it's how the feature is
@@ -24843,6 +24839,16 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: '4px 0 84px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {/* TRAINING NOW (owner, 2026-10-22): who is training right now opens the Wall, with their
+                  live set and a boost. The rail's people (real ones signed in, the preview's signed out),
+                  under All in Universal only (presence is not filtered by follows), and hidden with the
+                  rail by the member's "Online members" choice. */}
+              {railOn && feedType === 'all' && feedMode === 'universal' ? (
+                <BSWallTrainingNow people={railPeople} demo={!loggedIn}
+                  avatar={(p) => <BSFacetAvatar size={40} c={railTierColor(p)} initial={bsInitials(p.name)} photo={railPhotoOf(p)} showRank={false} live activity={p.activity} BG={t.PAPER} INK={'#fff'} />}
+                  onBoost={(p) => setBoostFor({ ...p, photoUrl: railPhotoOf(p), _profile: railProfileOf(p) })}
+                  onOpenProfile={(p) => setOpenProfile(railProfileOf(p))} />
+              ) : null}
               {/* The type filter lives in the ALL ▾ select on the role-chip
                   row now (owner pick 2026-07-14 evening) — no chip row in the body. */}
               {/* Community feed is a Strava-style activity stream of real logged
