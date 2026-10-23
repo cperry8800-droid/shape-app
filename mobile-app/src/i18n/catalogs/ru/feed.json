@@ -304,11 +304,11 @@
   "thread.fromShape": "От Shape",
   "thread.shapeWelcome": "{client} и {coach} теперь работают вместе в Shape. В этом треде вы общаетесь: вопросы, отметки и изменения плана приходят сюда.",
   "thread.shapeWelcomeNoClient": "Ваши занятия с {coach} начинаются здесь. В этом треде вы общаетесь: вопросы, отметки и изменения плана приходят сюда.",
-  "wallLive.title": "Тренируются сейчас",
   "wallLive.isTraining": "{name} тренируется",
-  "wallLive.live": "В эфире",
+  "wallLive.liveNow": "Сейчас в эфире",
+  "wallLive.onSet": "{name}: подход {n, number} из {total, number}",
   "wallLive.minIn": "{n, number} мин",
-  "wallLive.inSession": "На тренировке",
   "wallLive.resting": "Отдых",
-  "wallLive.boost": "Поддержать →"
+  "wallLive.sendBoost": "Поддержать →",
+  "wallLive.alsoTraining": "Ещё тренируются:"
 }
