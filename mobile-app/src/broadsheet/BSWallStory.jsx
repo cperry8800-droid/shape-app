@@ -20,9 +20,11 @@ function BSWsKicker({ children, color }) {
   return <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{children}</span>;
 }
 
+// Headlines a step down (owner, 2026-10-23: "dont make the font so tall … on the headers"): Oswald at
+// 22–23 px and 600 rather than 28–29 and 700, opened a touch, so a capital reads less tall and thin.
 function BSWsHeadline({ children, color, size }) {
   const t = window.useBS();
-  return <h3 style={{ margin: 0, fontFamily: bsWsHead(t), fontWeight: 700, fontSize: size, lineHeight: 0.98, letterSpacing: '0.005em', textTransform: 'uppercase', color, textWrap: 'balance', overflowWrap: 'anywhere' }}>{children}</h3>;
+  return <h3 style={{ margin: 0, fontFamily: bsWsHead(t), fontWeight: 600, fontSize: size, lineHeight: 1.04, letterSpacing: '0.012em', textTransform: 'uppercase', color, textWrap: 'balance', overflowWrap: 'anywhere' }}>{children}</h3>;
 }
 
 // The route as the picture: the stored line (0..100 on both axes) across the top of a dark ground, so
@@ -63,7 +65,7 @@ export function BSWallStoryHead({ kicker, title, photo = null, route = null, ava
           {photo ? <img src={photo} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} /> : <BSWsRoute points={route.points} />}
           <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: `56px ${bleed + 6}px 14px`, background: 'linear-gradient(rgba(10,9,8,0), rgba(10,9,8,0.86) 62%)', display: 'flex', flexDirection: 'column', gap: 5 }}>
             {kicker ? <BSWsKicker color={BS_WS_OVER_KICKER}>{kicker}</BSWsKicker> : null}
-            <BSWsHeadline color="#fff" size={29}>{title}</BSWsHeadline>
+            <BSWsHeadline color="#fff" size={23}>{title}</BSWsHeadline>
           </div>
         </div>
       ) : (
@@ -71,7 +73,7 @@ export function BSWallStoryHead({ kicker, title, photo = null, route = null, ava
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }}
           style={{ display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer', paddingTop: 4 }}>
           {kicker ? <BSWsKicker color={bsWsRed(t)}>{kicker}</BSWsKicker> : null}
-          <BSWsHeadline color={t.INK} size={28}>{title}</BSWsHeadline>
+          <BSWsHeadline color={t.INK} size={22}>{title}</BSWsHeadline>
         </div>
       )}
       <button type="button" onClick={onAuthor} style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, margin: '-8px 0', padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: 'inherit', font: 'inherit', maxWidth: '100%' }}>
@@ -140,7 +142,7 @@ export function BSWallMasthead({ title, dateline, trainingLine = null, types = [
   const mono = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' };
   return (
     <header data-bs-wall-masthead="" style={{ margin: '0 12px' }}>
-      <h2 style={{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid ${t.INK}`, fontFamily: bsWsHead(t), fontSize: 40, fontWeight: 700, lineHeight: 0.9, letterSpacing: '0.005em', textTransform: 'uppercase', color: t.INK }}>{title}</h2>
+      <h2 style={{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid ${t.INK}`, fontFamily: bsWsHead(t), fontSize: 30, fontWeight: 600, lineHeight: 0.95, letterSpacing: '0.012em', textTransform: 'uppercase', color: t.INK }}>{title}</h2>
       <div style={{ ...mono, fontWeight: 700, display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderBottom: `1px solid ${t.HAIR}`, color: t.INK50 }}>
         <span>{dateline}</span>
         {trainingLine ? <span style={{ color: red, textAlign: 'right' }}>{trainingLine}</span> : null}
