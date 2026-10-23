@@ -94,7 +94,7 @@ const SHARE = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSGroce
   registry: new Map([['react', React]]),
 });
 
-function env({ lists = [], deleted = [], cloud = null } = {}) {
+function env({ lists = [], deleted = [], cloud = null, uid = 'u1', saveResult = { ok: true } } = {}) {
   const w = dom.window;
   w.localStorage.clear();
   w.localStorage.setItem('shape.recipeGroceryLists', JSON.stringify(lists));
@@ -104,7 +104,10 @@ function env({ lists = [], deleted = [], cloud = null } = {}) {
   const toasts = [];
   w.__bsToast = (msg, kind) => toasts.push([msg, kind]);
   const writes = [];
-  w.shapeDb = cloud ? { getUserGoals: async () => cloud, saveUserGoals: async (k, v) => { writes.push([k, v]); } } : undefined;
+  // `cloud` is what getUserGoals answers: an array, {} for no document, or null for a failed read.
+  w.shapeDb = cloud !== undefined && cloud !== false
+    ? { getUser: async () => (uid ? { id: uid } : null), getUserGoals: async () => cloud, saveUserGoals: async (k, v, o) => { writes.push([k, v, o]); return saveResult; } }
+    : undefined;
   return { toasts, writes };
 }
 async function render(el) {
@@ -170,6 +173,7 @@ test('Save with the Eat page closed: written where it reads on mount, merged int
     assert.equal(writes.length, 1);
     assert.equal(writes[0][0], 'client_grocery_lists');
     assert.deepEqual(writes[0][1].map((l) => l.id), ['received-m3', 'custom-1', 'other-device'], 'read, merged, written back');
+    assert.deepEqual(writes[0][2], { expectedUserId: 'u1' }, 'bound to the account the read was made for');
   } finally { await r.done(); }
   // Opened again later, the card knows it is saved; saving again adds nothing.
   const again = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, messageId: 'm3', from: 'Sam Reyes' }));
@@ -179,6 +183,34 @@ test('Save with the Eat page closed: written where it reads on mount, merged int
     await React.act(async () => { btn.click(); });
     assert.equal(JSON.parse(dom.window.localStorage.getItem('shape.recipeGroceryLists')).length, 2);
   } finally { await again.done(); }
+});
+
+test('the cloud write is skipped, never guessed: a failed read writes nothing; no document yet writes the one list (Codex P1s on #2432)', async () => {
+  const save = async (messageId) => {
+    const r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, messageId, from: 'Sam Reyes' }));
+    try {
+      await React.act(async () => { r.host.querySelector('[data-bs-grocery-save]').click(); });
+      await React.act(async () => { await new Promise((res) => setTimeout(res, 0)); });
+    } finally { await r.done(); }
+  };
+  // getUserGoals answers null when the read fails: taken as "no lists", one list would overwrite them all.
+  let w = env({ cloud: null });
+  await save('m4');
+  assert.deepEqual(w.writes, [], 'a failed read writes nothing to the cloud');
+  assert.deepEqual(JSON.parse(dom.window.localStorage.getItem('shape.recipeGroceryLists')).map((l) => l.id), ['received-m4'], 'the copy is kept on this device');
+  // An absent document reads as {}: the first list starts it.
+  w = env({ cloud: {} });
+  await save('m5');
+  assert.deepEqual(w.writes.map(([k, v]) => [k, v.map((l) => l.id)]), [['client_grocery_lists', ['received-m5']]]);
+  // Signed out between the tap and the read: nothing to bind the write to.
+  w = env({ cloud: [], uid: null });
+  await save('m6');
+  assert.deepEqual(w.writes, []);
+  // The write refused (the account changed under it): the card still reads as saved, the copy is local.
+  w = env({ cloud: [], saveResult: { accountChanged: true, error: { message: 'Account changed' } } });
+  await save('m7');
+  assert.equal(w.writes.length, 1);
+  assert.deepEqual(w.writes[0][2], { expectedUserId: 'u1' });
 });
 
 // ── The wiring ────────────────────────────────────────────────────────────────
@@ -195,6 +227,9 @@ test('the grocery page sends what it shows; the send sheet sends it as the list 
 
 test('every way a message reaches a thread reads the list strictly, and the thread draws its card', () => {
   assert.equal((BACKEND.match(/grocery: bsGroceryFromMetadata\(message\.metadata\),/g) || []).length, 2, 'both thread readers');
+  // ...and both keep the row's id, which names the saved copy (Codex P2 on #2432: the member thread reader
+  // dropped it, so a reopened thread saved a fresh copy each time).
+  assert.equal((BACKEND.match(/\n\s+id: message\.id \|\| null,\n/g) || []).length, 2, 'both thread readers keep the message id');
   assert.match(CLIENT, /grocery: bsGroceryFromMetadata\(row\.metadata\) \}\]\);/, 'and a message arriving live');
   assert.match(CLIENT, /coachInvite: m\.coachInvite \|\| null, grocery: m\.grocery \|\| null \}\)\),/, 'and the thread keeps it');
   assert.match(CLIENT, /\{m\.grocery && <BSGroceryShareCard shared=\{m\.grocery\} me=\{!!me\} canSave=\{canSaveGrocery\} messageId=\{m\.id\} from=\{me \? '' : senderName\} \/>\}/);

@@ -2276,6 +2276,9 @@ function memberThreadFromRow(row, messages = []) {
     unread: 0,
     bucket: 'DM',
     messages: ordered.map(message => ({
+      // The row's id, as conversationToThread keeps it: a grocery list's saved copy is named after it, so
+      // without it a reopened thread could not tell the list was saved (Codex P2 on #2432).
+      id: message.id || null,
       who: message.sender_id === state.user?.id ? 'You' : other,
       t: message.body,
       time: message.created_at ? new Date(message.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'now',

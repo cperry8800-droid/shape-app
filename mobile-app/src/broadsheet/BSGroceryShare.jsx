@@ -46,6 +46,15 @@ export function bsHasGroceryList(id) {
 // takes the list into its own state and marks the event handled. Only when nothing took it (Eat is not
 // on screen) is it written where the Eat page reads on its next mount: local storage, and the cloud
 // document read, merged and written back, so another device has it too.
+// ⚠ THE CLOUD WRITE IS SKIPPED, NEVER GUESSED (Codex P1s on #2432). getUserGoals answers null for a read
+// that failed (an absent document is {}), and a failed read taken as "no lists" would write this one
+// list over every list the member has synced. And the write is bound to the account the read was made
+// for (`expectedUserId`), so an account switch in between cannot put one member's lists in another's
+// row. Skipped, the copy is still in local storage, and Eat sends it up with its next change.
+// ⚠ NOT A COMPARE-AND-SET. The document is a bare array, with no revision to compare, and the Eat page
+// writes its whole state unconditionally; a write from another device landing between this read and
+// write can drop this list from the cloud (not from this device). Moving client_grocery_lists to a
+// revisioned document is the registered fix for both writers.
 export async function bsSaveReceivedGroceryList(list) {
   if (!list || !list.id) throw new Error('no_list');
   const detail = { list, handled: false };
@@ -61,12 +70,17 @@ export async function bsSaveReceivedGroceryList(list) {
     if (Array.isArray(gone) && gone.includes(list.id)) window.localStorage?.setItem(DELETED_KEY, JSON.stringify(gone.filter((x) => x !== list.id)));
   } catch (e) { /* storage off */ }
   const db = window.shapeDb;
-  if (!(db && db.getUserGoals && db.saveUserGoals)) return 'local';
+  if (!(db && db.getUser && db.getUserGoals && db.saveUserGoals)) return 'local';
   try {
+    const me = await db.getUser();
+    const uid = me && me.id;
+    if (!uid) return 'local';
     const saved = await db.getUserGoals(CLOUD_KIND);
-    const arr = Array.isArray(saved) ? saved : [];
-    if (!arr.some((l) => l && l.id === list.id)) await db.saveUserGoals(CLOUD_KIND, [list, ...arr]);
-    return 'stored';
+    if (saved == null) return 'local'; // the read failed: write nothing over the member's synced lists
+    const arr = Array.isArray(saved) ? saved : []; // {}: no document yet
+    if (arr.some((l) => l && l.id === list.id)) return 'stored';
+    const res = await db.saveUserGoals(CLOUD_KIND, [list, ...arr], { expectedUserId: uid });
+    return res && res.ok ? 'stored' : 'local';
   } catch (e) { return 'local'; }
 }
 
