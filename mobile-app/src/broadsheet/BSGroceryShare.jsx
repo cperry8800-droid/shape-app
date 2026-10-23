@@ -55,33 +55,49 @@ export function bsHasGroceryList(id) {
 // writes its whole state unconditionally; a write from another device landing between this read and
 // write can drop this list from the cloud (not from this device). Moving client_grocery_lists to a
 // revisioned document is the registered fix for both writers.
+// ⚠ IT REPORTS A SAVE ONLY WHEN THE LIST LANDED SOMEWHERE (Codex P2 on #2432). Local storage can refuse
+// (off, or full) and the cloud can be unreachable, fail its read or refuse its write; with both failed
+// it throws, so the card says so and stays tappable rather than reading "Saved" over a list kept nowhere.
 export async function bsSaveReceivedGroceryList(list) {
   if (!list || !list.id) throw new Error('no_list');
   const detail = { list, handled: false };
   try { window.dispatchEvent(new CustomEvent('shape:groceryReceived', { detail })); } catch (e) { /* no listener */ }
   if (detail.handled) return 'eat';
-  const local = readLocalLists();
-  if (!local.some((l) => l && l.id === list.id)) {
-    try { window.localStorage?.setItem(LISTS_KEY, JSON.stringify([list, ...local])); } catch (e) { /* storage off */ }
+  const store = window.localStorage;
+  let local = false;
+  if (store) {
+    try {
+      const lists = readLocalLists();
+      if (!lists.some((l) => l && l.id === list.id)) store.setItem(LISTS_KEY, JSON.stringify([list, ...lists]));
+      local = true;
+    } catch (e) { /* storage off or full */ }
+    // Saving it again after deleting an earlier copy brings it back: the Eat page hides deleted ids.
+    try {
+      const gone = JSON.parse(store.getItem(DELETED_KEY) || '[]');
+      if (Array.isArray(gone) && gone.includes(list.id)) store.setItem(DELETED_KEY, JSON.stringify(gone.filter((x) => x !== list.id)));
+    } catch (e) { /* storage off */ }
   }
-  // Saving it again after deleting an earlier copy brings it back: the Eat page hides deleted ids.
-  try {
-    const gone = JSON.parse(window.localStorage?.getItem(DELETED_KEY) || '[]');
-    if (Array.isArray(gone) && gone.includes(list.id)) window.localStorage?.setItem(DELETED_KEY, JSON.stringify(gone.filter((x) => x !== list.id)));
-  } catch (e) { /* storage off */ }
+  const cloud = await saveToCloud(list);
+  if (cloud) return 'stored';
+  if (local) return 'local';
+  throw new Error('not_saved');
+}
+
+// The cloud half of the save: true only when the list is in the member's own document.
+async function saveToCloud(list) {
   const db = window.shapeDb;
-  if (!(db && db.getUser && db.getUserGoals && db.saveUserGoals)) return 'local';
+  if (!(db && db.getUser && db.getUserGoals && db.saveUserGoals)) return false;
   try {
     const me = await db.getUser();
     const uid = me && me.id;
-    if (!uid) return 'local';
+    if (!uid) return false;
     const saved = await db.getUserGoals(CLOUD_KIND);
-    if (saved == null) return 'local'; // the read failed: write nothing over the member's synced lists
+    if (saved == null) return false; // the read failed: write nothing over the member's synced lists
     const arr = Array.isArray(saved) ? saved : []; // {}: no document yet
-    if (arr.some((l) => l && l.id === list.id)) return 'stored';
+    if (arr.some((l) => l && l.id === list.id)) return true;
     const res = await db.saveUserGoals(CLOUD_KIND, [list, ...arr], { expectedUserId: uid });
-    return res && res.ok ? 'stored' : 'local';
-  } catch (e) { return 'local'; }
+    return !!(res && res.ok);
+  } catch (e) { return false; }
 }
 
 // The card under a grocery list's message. `shared` is the strictly parsed { name, items }

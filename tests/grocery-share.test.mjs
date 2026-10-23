@@ -231,6 +231,28 @@ test('the cloud write is skipped, never guessed: a failed read writes nothing; n
   assert.deepEqual(w.writes[0][2], { expectedUserId: 'u1' });
 });
 
+test('a save that landed nowhere says so and stays tappable (Codex P2 on #2432)', async () => {
+  const { toasts } = env({ cloud: false }); // no cloud at all
+  const proto = dom.window.Storage.prototype;
+  const realSet = proto.setItem;
+  proto.setItem = function setItem() { throw new Error('QuotaExceededError'); };
+  const r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, messageId: 'm8', from: 'Sam Reyes' }));
+  try {
+    const btn = () => r.host.querySelector('[data-bs-grocery-save]');
+    await React.act(async () => { btn().click(); });
+    await React.act(async () => { await new Promise((res) => setTimeout(res, 0)); });
+    assert.deepEqual(toasts, [['Could not save the list. Try again.', 'error']]);
+    assert.equal(btn().getAttribute('aria-pressed'), 'false', 'not saved, so still tappable');
+    assert.equal(btn().disabled, false);
+    // Storage back: the same tap saves.
+    proto.setItem = realSet;
+    await React.act(async () => { btn().click(); });
+    await React.act(async () => { await new Promise((res) => setTimeout(res, 0)); });
+    assert.equal(btn().getAttribute('aria-pressed'), 'true');
+    assert.deepEqual(JSON.parse(dom.window.localStorage.getItem('shape.recipeGroceryLists')).map((l) => l.id), ['received-m8']);
+  } finally { proto.setItem = realSet; await r.done(); }
+});
+
 // ── The wiring ────────────────────────────────────────────────────────────────
 const CLIENT = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
 const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
