@@ -615,6 +615,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Home: the water row\'s round + and its glasses beside the total — #2430. No migration',
+      items: [
+        { label: 'Owner, 2026-10-23, of the board\'s water row: "add the updated water to home page". The drop tile (36 px), Water and the day\'s total stay; the glasses against a target sit beside the total (7 × 14 px, filled in the line\'s blue), and + Glass is a round 44 px button with a drawn plus, its spoken label still "+ Glass"', status: 'done' },
+        { label: 'The total and the glasses share one wrapping row, so a long total, a target past eight glasses, large text or a narrow phone drops the glasses under the total rather than squeezing Water or the button (the Codex P2 on #2426 still holds)', status: 'done' },
+        { label: 'Review: Codex clean on 22bf21c (one retry after it stalled); Copilot declined on its quota. 518 water and morning-panel tests pass; CI green on all four jobs. The built /m/ app in Chromium on the dark and light papers', status: 'done' },
+        { label: 'Device pass with a real daily target on an iPhone and an Android build', status: 'manual' },
+      ],
+    },
+    {
       section: 'The Wall: Oswald, and the live story drawn as the magazine\'s — #2429. No migration',
       items: [
         { label: 'Owner, 2026-10-23, off the six headline faces: "use oswald" for the dark magazine Wall. Oswald ships with the app (five variable woff2 files, 200–700: latin, latin-ext, Cyrillic, Vietnamese) and the theme names it t.HEADLINE, falling back to Saira', status: 'done' },
