@@ -346,3 +346,18 @@ test('every list deleted on the phone stays an empty set: the sample list is nev
     assert.deepEqual(next.cloud.row.lists, []);
   } finally { await next.done(); }
 });
+
+test('a list arriving on an empty page opens, and an edit goes to it (Codex P2 on #2433)', async () => {
+  const page = await mountPage({ row: { v: 1, rev: 1, lists: [WEB_STORED] }, stored: [] });
+  try {
+    assert.deepEqual(ids(page.local()), ['default'], 'the cloud list arrived');
+    assert.equal(page.w.localStorage.getItem('shape.grocery.activeListId.v1'), 'default', 'and is open');
+    const input = page.w.document.querySelector('input[placeholder="e.g. Almond butter"]');
+    const setValue = Object.getOwnPropertyDescriptor(page.w.HTMLInputElement.prototype, 'value').set;
+    await React.act(async () => { setValue.call(input, 'Limes'); input.dispatchEvent(new page.w.Event('input', { bubbles: true })); });
+    const add = [...page.w.document.querySelectorAll('button')].find((b) => b.textContent.trim() === '+ Add');
+    await React.act(async () => { add.click(); });
+    await page.settle();
+    assert.deepEqual(page.local().find((l) => l.id === 'default').items.map((it) => it.item), ['Limes', 'Avocados']);
+  } finally { await page.done(); }
+});

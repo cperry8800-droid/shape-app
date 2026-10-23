@@ -211,10 +211,12 @@ function ClientGroceryPage() {
         const before = listsRef.current;
         listsRef.current = GL.bsGroceryListsApply(before, used, delta, opts);
         setLists(prev => GL.bsGroceryListsApply(prev, used, delta, opts));
-        // The open list deleted elsewhere: open the first that's left, or every edit would go to a list
-        // that isn't there while the page draws another (Codex P2 on #2433).
+        // The open list deleted elsewhere, or none open when lists arrive on an empty page: open the first
+        // list, or every edit would go to a list that isn't there while the page draws another (Codex P2s on
+        // #2433).
         const gone = new Set(before.filter(l => !listsRef.current.some(n => n.id === l.id)).map(l => l.id));
-        if (gone.size) setActiveListId(cur => (cur && gone.has(cur) ? (listsRef.current[0] ? listsRef.current[0].id : null) : cur));
+        const first = listsRef.current[0] ? listsRef.current[0].id : null;
+        if (gone.size || (!before.length && first)) setActiveListId(cur => ((!cur || gone.has(cur)) ? first : cur));
         return true;
       },
     });
