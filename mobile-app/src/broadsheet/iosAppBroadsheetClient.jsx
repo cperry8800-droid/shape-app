@@ -22218,10 +22218,13 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     const likeFacepile = followedLikers.slice(0, 4);
     // The co-signing coach's own comment, when they left one: the magazine pulls it out as the quote.
     // When I am that coach, a comment I just sent counts too: sendActComment keeps it locally as
-    // { who: 'You' }, with neither my id nor my name (Codex P2 on #2431).
+    // { who: 'You' }, with neither my id nor my name (Codex P2 on #2431). A co-sign that carries the
+    // coach's id is matched by id alone: names are not unique, so another member called Dana Lewis
+    // must not be quoted as the coach (Codex P2 on #2431). The name is for a co-sign with no id.
     const coSignQuote = isMag && coSign ? (() => {
       const nm = String(coSignIsMine ? bsMyName() : (coSign.name || '')).trim().toLowerCase();
-      const c = [...allComments, ...localComments].find((x) => x && ((coSign.byId && x.userId && x.userId === coSign.byId) || (nm && String(x.who || '').trim().toLowerCase() === nm)))
+      const byId = coSign.byId || null;
+      const c = [...allComments, ...localComments].find((x) => x && (byId ? x.userId === byId : (nm && String(x.who || '').trim().toLowerCase() === nm)))
         || (coSignIsMine ? localComments[localComments.length - 1] : null);
       return c ? String(c.text || c.body || '').trim() : '';
     })() : '';

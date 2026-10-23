@@ -94,6 +94,16 @@ test('a coach who co-signs and comments in the same session sees their words as 
   assert.match(quote.props.cite, /^You · co-signed/);
 });
 
+test('a co-sign with the coach\'s id quotes only that coach, never a namesake (Codex P2 on #2431)', () => {
+  const post = (comments) => ({ real: true, kind: 'workout', typeLabel: 'Strength', who: 'Ana Lee', role: 'Client', ago: '1h', title: 'Squat day', postId: 'p7', kudos: 0,
+    statsRow: [['Top set', '100 kg']], cosign: { name: 'Dana Lewis', role: 'trainer', byId: 'coach-1' }, postComments: comments });
+  const quoteOf = (a) => drive(Card, { a, ctx: ctx(), isLast: true, pagePad: 0, variant: 'magazine' }).nodes().find(named('BSWallStoryQuote'));
+  const namesake = { who: 'Dana Lewis', userId: 'member-9', text: 'Not the coach.' };
+  const coach = { who: 'Dana Lewis', userId: 'coach-1', text: 'Depth was clean.' };
+  assert.equal(quoteOf(post([namesake, coach])).props.text, 'Depth was clean.', 'the coach\'s own line, not the earlier namesake\'s');
+  assert.ok(!quoteOf(post([namesake])), 'a namesake alone is not the coach');
+});
+
 test('a post\'s photo is the story\'s picture, drawn once', () => {
   const a = { real: true, kind: 'workout', who: 'Maya Patel', role: 'Nutritionist', ago: '5h', typeLabel: 'Meal', title: 'Sunday prep', photo: 'https://cdn.test/prep.jpg', statsRow: [['Kcal', '620']], postId: 'p1', kudos: 3 };
   const nodes = drive(Card, { a, ctx: ctx(), isLast: true, pagePad: 0, variant: 'magazine' }).nodes();
