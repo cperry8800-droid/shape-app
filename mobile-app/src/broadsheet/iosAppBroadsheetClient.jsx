@@ -22217,9 +22217,12 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       : allComments.filter((c) => c.follows);
     const likeFacepile = followedLikers.slice(0, 4);
     // The co-signing coach's own comment, when they left one: the magazine pulls it out as the quote.
+    // When I am that coach, a comment I just sent counts too: sendActComment keeps it locally as
+    // { who: 'You' }, with neither my id nor my name (Codex P2 on #2431).
     const coSignQuote = isMag && coSign ? (() => {
       const nm = String(coSignIsMine ? bsMyName() : (coSign.name || '')).trim().toLowerCase();
-      const c = [...allComments, ...localComments].find((x) => x && ((coSign.byId && x.userId && x.userId === coSign.byId) || (nm && String(x.who || '').trim().toLowerCase() === nm)));
+      const c = [...allComments, ...localComments].find((x) => x && ((coSign.byId && x.userId && x.userId === coSign.byId) || (nm && String(x.who || '').trim().toLowerCase() === nm)))
+        || (coSignIsMine ? localComments[localComments.length - 1] : null);
       return c ? String(c.text || c.body || '').trim() : '';
     })() : '';
     // Full stat set for the detail page (every stat, not the card's 3-up).
@@ -22259,9 +22262,10 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               const kicker = [isPR ? tr('feed:card.newPR', { defaultValue: 'New PR' }) : typeLabel, a.city].filter(Boolean).join(' · ');
               const meta = [tierDisplay, a.ago ? tr('feed:card.ago', { defaultValue: '{time} ago', time: a.ago }) : null].filter(Boolean).join(' · ');
               // The hero figure, then the session-details ranking's lead (pace, time, heart rate), so a
-              // run with a dozen stats says distance, pace and time rather than its first three.
+              // run with a dozen stats says distance, pace and time rather than its first three. It ranks
+              // the full list: a real post's `stats` is the card's first three (Codex P2 on #2431).
               const magFigures = (() => {
-                const ranked = bsSdRankStats(stats.filter((st) => st !== heroStat));
+                const ranked = bsSdRankStats(detailStats.filter((st) => !(heroStat && Array.isArray(st) && st[0] === heroStat[0])));
                 return [heroStat, ...ranked.primary, ...ranked.secondary].filter(Boolean).slice(0, 3);
               })();
               return (

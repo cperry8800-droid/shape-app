@@ -15,7 +15,7 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 
 globalThis.BSPlate = ({ children }) => SHIM.createElement('div', null, children);
 globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
-const { BSActivityCard: Card, COMMUNITY_ACTIVITIES } = await loadBroadsheet(['BSActivityCard', 'COMMUNITY_ACTIVITIES']);
+const { BSActivityCard: Card, COMMUNITY_ACTIVITIES, bsActivityKey } = await loadBroadsheet(['BSActivityCard', 'COMMUNITY_ACTIVITIES', 'bsActivityKey']);
 
 const ctx = () => ({
   t: THEME, cardInk: '#111', muted: '#777', hair: '#ddd', card: {},
@@ -71,6 +71,27 @@ test('a run reads as a story: the route is its picture, three figures under it, 
   assert.deepEqual(figs.props.items.map((r) => r[0]), ['Distance', 'Avg pace', 'Time']);
   assert.doesNotMatch(d.text, /GPS · Not recorded/);
   assert.ok(!nodes.find((n) => n.props && n.props['data-bs-wall-story-rule'] != null), 'the last story ends without a rule');
+});
+
+test('a real post\'s figures rank its full stats, not the card\'s first three (Codex P2 on #2431)', () => {
+  const a = { real: true, kind: 'workout', typeLabel: 'Run', who: 'Ana Lee', role: 'Client', ago: '1h', title: 'Tempo', postId: 'p9', kudos: 0,
+    statsRow: [['Distance', '10 km'], ['Calories', '600'], ['Elevation', '80 m']],
+    fullStats: [['Distance', '10 km'], ['Calories', '600'], ['Elevation', '80 m'], ['Avg pace', '5:00/km'], ['Time', '50:00'], ['Avg HR', '150 bpm']] };
+  const figs = drive(Card, { a, ctx: ctx(), isLast: true, pagePad: 0, variant: 'magazine' }).nodes().find(named('BSWallStoryFigures'));
+  assert.deepEqual(figs.props.items.map((r) => r[0]), ['Distance', 'Avg pace', 'Time']);
+});
+
+test('a coach who co-signs and comments in the same session sees their words as the quote at once (Codex P2 on #2431)', () => {
+  const a = { ...demo('Priya Shah'), cosign: null, comments: [] };
+  const c = ctx();
+  const k = bsActivityKey(a);
+  c.actCoSign = { [k]: { name: 'Coach Me', role: 'trainer' } };
+  // sendActComment keeps it as { who: 'You', body }: neither the coach's id nor their name.
+  c.actComments = { [k]: [{ who: 'You', body: 'Depth was clean.' }] };
+  const quote = drive(Card, { a, ctx: c, isLast: true, pagePad: 0, variant: 'magazine' }).nodes().find(named('BSWallStoryQuote'));
+  assert.ok(quote, 'the coach\'s own line was not pulled out');
+  assert.equal(quote.props.text, 'Depth was clean.');
+  assert.match(quote.props.cite, /^You · co-signed/);
 });
 
 test('a post\'s photo is the story\'s picture, drawn once', () => {
