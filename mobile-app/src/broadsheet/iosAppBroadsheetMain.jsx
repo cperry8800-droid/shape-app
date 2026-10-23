@@ -11,6 +11,7 @@ import { bsCiLeadReason } from './BSCheckinCard.jsx';
 import { bsMemberGate, bsMembershipAfter, bsMembershipSeed, bsPollMembership } from '../services/memberGate.mjs';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
+import { bumpSignOutGen } from '../services/signOutGen.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -1419,6 +1420,9 @@ function BSAppShell({ tweaks, setTweak }) {
   // ⚠ broadcast:false — re-stamping here would echo the event back to the tab
   // that signed out and the two would scrub each other in a loop.
   React.useEffect(() => shapeInstallSignOutListener(async () => {
+    // Work in flight from the signed-in session (a grocery lists sync, the push token, habit reminders)
+    // keeps nothing after this: the same counter signOut() bumps before its own sweep.
+    bumpSignOutGen();
     // ⚠ RETIRE THIS TAB'S OWN SESSION FIRST. The scrub leaves the Supabase
     // token alone by design, and a sign-out started in the Next dashboard
     // never calls the SDK — so without this the reload below would restore

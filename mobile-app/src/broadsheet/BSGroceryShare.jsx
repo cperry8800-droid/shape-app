@@ -1,6 +1,7 @@
 import React from 'react';
 import { bsReceivedGroceryList, bsReceivedGroceryId } from '../services/groceryShare.mjs';
 import { bsGroceryListsStore, bsGroceryListsBaseIn } from '../services/groceryLists.mjs';
+import { signOutGen } from '../services/signOutGen.mjs';
 
 // A grocery list sent to another member (owner, 2026-10-23: "I want to also create ability to send grocery
 // lists to other shape members"). The message and the strict reading of what arrives are in
@@ -38,6 +39,8 @@ export function bsGroceryListsAppStore() {
     appStore = bsGroceryListsStore({
       db: () => window.shapeDb,
       baseStore: bsGroceryListsBaseIn(() => { try { return window.localStorage; } catch (e) { return null; } }, BS_GROCERY_BASE_KEY),
+      // Nothing is written or kept once a sign-out has begun (signOut bumps this before its scrub).
+      session: signOutGen,
     });
   }
   return appStore;

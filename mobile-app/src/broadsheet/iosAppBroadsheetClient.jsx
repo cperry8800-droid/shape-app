@@ -13740,7 +13740,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         if (!grocMountedRef.current) return false;
         // The lists the next sync reads, now: a sync queued behind this one runs before React renders, and
         // without these it would take them for lists deleted here (Codex P1 on #2433).
-        grocLocalRef.current = bsGroceryListsApply(grocLocalRef.current, used, delta);
+        const before = grocLocalRef.current;
+        grocLocalRef.current = bsGroceryListsApply(before, used, delta);
+        // The open list deleted elsewhere closes, rather than staying on screen to be edited and so brought
+        // back without the member knowing it was deleted (Codex P1 on #2433).
+        const gone = new Set(before.filter((l) => l && !grocLocalRef.current.some((n) => n && n.id === l.id)).map((l) => l.id));
+        if (gone.size) setSelectedGroceryList((sel) => (sel && gone.has(sel.id) ? null : sel));
         const putIds = new Set(delta.put.map((l) => l.id));
         if (putIds.size) grocGoneRef.current = grocGoneRef.current.filter((id) => !putIds.has(id));
         setRecipeLists((prev) => bsGroceryListsApply(prev, used, delta));

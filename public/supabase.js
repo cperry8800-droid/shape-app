@@ -244,7 +244,14 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       return { user: user, profile: profile };
     },
 
+    // The sign-out generation: bumped as the first step of signOut, before any teardown, so work started
+    // while the member was signed in (a grocery lists sync) can tell, on resuming after an await, that the
+    // sweep has begun and must not re-create what it removes. The app's twin is mobile-app/src/services/
+    // signOutGen.mjs.
+    signOutGen: 0,
+
     async signOut() {
+      shapeDb.signOutGen += 1;
       // GUARDED, and the scope:'local' retry is LOAD-BEARING here — not the
       // belt-and-braces it is on mobile. The website pins auth-js 2.108.2
       // (public/vendor/supabase-js-2.108.2.umd.js, SRI-locked, loaded by every
@@ -1302,6 +1309,8 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     window.__shapeSignOutListener = true;
     window.addEventListener('storage', function (e) {
       if (!e || e.key !== 'shape.signedOutAt' || !e.newValue) return;
+      // Work in flight from the signed-in session (a grocery lists sync) keeps nothing after this.
+      shapeDb.signOutGen += 1;
       // ⚠ RETIRE THIS TAB'S OWN SESSION FIRST. The scrub deliberately leaves
       // `shape.auth` (this client's storageKey) alone, because the sign-out
       // paths call auth.signOut() themselves — but the Next dashboard's does

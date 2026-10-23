@@ -318,6 +318,28 @@ test('the read is bound to the account: an A → B → A switch while it is in f
   for (const w of writes) assert.ok(!ids(w.data.lists).includes('b-secret'), "B's list never reaches A's document");
 });
 
+test('once a sign-out has begun, a sync writes and keeps nothing (Codex P1 on #2433)', async () => {
+  // Begun while the write was in flight: the write lands (the member's own lists, to their own row), but
+  // nothing is taken into this device or recorded as synced, since the scrub may already have run.
+  let gen = 0;
+  const cloud = cloudDb({ v: 1, rev: 1, lists: [L('theirs')] }, { onWrite: () => { gen += 1; } });
+  const base = memBase();
+  base.set('u1', []);
+  const applied = [];
+  const res = await bsGroceryListsStore({ db: cloud.db, baseStore: base, session: () => gen })
+    .sync({ getLocal: () => [L('mine')], apply: (d) => { applied.push(d); return true; } });
+  assert.deepEqual([res.ok, res.reason], [false, 'signed-out']);
+  assert.deepEqual(applied, [], 'nothing taken into this device');
+  assert.deepEqual(base.get('u1'), [], 'nor recorded as synced');
+  // Begun before the write: nothing is written either.
+  let gen2 = 0;
+  const c2 = cloudDb({ v: 1, rev: 1, lists: [] });
+  const db2 = { ...c2.db, getUserGoals: async (k, o) => { gen2 += 1; return c2.db.getUserGoals(k, o); } };
+  const r2 = await bsGroceryListsStore({ db: db2, session: () => gen2 }).sync({ getLocal: () => [L('mine')], apply: () => true });
+  assert.deepEqual([r2.ok, r2.reason], [false, 'signed-out']);
+  assert.equal(c2.writes.length, 0);
+});
+
 test('a write that keeps losing gives up honestly after a bounded number of tries', async () => {
   const cloud = cloudDb({ v: 1, rev: 1, lists: [] }, { onWrite: (c) => { c.row = { ...c.row, rev: c.row.rev + 1 }; } });
   const base = memBase();
@@ -418,7 +440,7 @@ test('every writer goes through the store: no whole-document write of the lists 
   assert.match(CLIENT, /apply: \(delta, used\) => \{[\s\S]{0,700}window\.localStorage\.setItem\('shape\.recipeGroceryLists', JSON\.stringify\(next\)\)/, 'the Eat page keeps another device\'s changes in storage, not only on screen');
   // ⚠ apply makes the delta visible to getLocal BEFORE it returns, not only through a state update for the
   // next render: a sync queued behind runs first and would read the lists without it (Codex P1 on #2433).
-  assert.match(CLIENT, /if \(!grocMountedRef\.current\) return false;[\s\S]{0,300}grocLocalRef\.current = bsGroceryListsApply\(grocLocalRef\.current, used, delta\);[\s\S]{0,300}setRecipeLists\(\(prev\) => bsGroceryListsApply\(prev, used, delta\)\);\s*if \(putIds\.size\) setDeletedGroceryIds[\s\S]{0,120}return true;/);
+  assert.match(CLIENT, /if \(!grocMountedRef\.current\) return false;[\s\S]{0,300}const before = grocLocalRef\.current;\s*grocLocalRef\.current = bsGroceryListsApply\(before, used, delta\);[\s\S]{0,600}setRecipeLists\(\(prev\) => bsGroceryListsApply\(prev, used, delta\)\);\s*if \(putIds\.size\) setDeletedGroceryIds[\s\S]{0,120}return true;/);
   assert.match(HTML, /if \(!mountedRef\.current\) return false;[\s\S]{0,300}const before = listsRef\.current;\s*listsRef\.current = GL\.bsGroceryListsApply\(before, used, delta, opts\);\s*setLists\(/);
   // Each page keeps its own base (as long-lived as its lists), and storage in apply is best-effort: denied,
   // the lists on screen still take the changes (Codex P2 on #2433).
@@ -431,6 +453,19 @@ test('every writer goes through the store: no whole-document write of the lists 
   // The open list on the Eat page is drawn from its record, so another device's edit reaches the screen
   // before the next edit is made on it (Codex P1 on #2433).
   assert.match(CLIENT, /const openGroceryRecord = selectedGroceryList && selectedGroceryList\.id\s*\? recipeLists\.find\(\(l\) => l && l\.id === selectedGroceryList\.id\) : null;\s*const activeGroceryList = openGroceryRecord\s*\? \{ \.\.\.bsNormalizeGroceryList\(openGroceryRecord\),/);
+  // The open list deleted elsewhere closes on the Eat page (Codex P1 on #2433).
+  assert.match(CLIENT, /const gone = new Set\(before\.filter\(\(l\) => l && !grocLocalRef\.current\.some\(\(n\) => n && n\.id === l\.id\)\)\.map\(\(l\) => l\.id\)\);\s*if \(gone\.size\) setSelectedGroceryList\(\(sel\) => \(sel && gone\.has\(sel\.id\) \? null : sel\)\);/);
+  // The sign-out generation guards both stores, and every sign-out bumps it before its scrub (Codex P1 on
+  // #2433): the app's signOut() already does; the cross-tab listeners and the website's signOut now do.
+  assert.match(SHARE, /session: signOutGen,/);
+  assert.match(HTML, /session: \(\) => \(window\.shapeDb \? window\.shapeDb\.signOutGen : 0\)/);
+  const MAIN = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx'), 'utf8');
+  assert.match(MAIN, /shapeInstallSignOutListener\(async \(\) => \{[\s\S]{0,300}bumpSignOutGen\(\);\s*\/\/ ⚠ RETIRE THIS TAB'S OWN SESSION FIRST/);
+  const SBJS = readFileSync(join(ROOT, 'public/supabase.js'), 'utf8');
+  assert.match(SBJS, /async signOut\(\) \{\s*shapeDb\.signOutGen \+= 1;/, 'the website bumps it first thing');
+  assert.match(SBJS, /e\.key !== 'shape\.signedOutAt'[\s\S]{0,200}shapeDb\.signOutGen \+= 1;/);
+  const SHELL = readFileSync(join(ROOT, 'public/newdesign/pageShell.jsx'), 'utf8');
+  assert.match(SHELL, /e\.key !== "shape\.signedOutAt"[\s\S]{0,200}window\.shapeDb\.signOutGen = \(window\.shapeDb\.signOutGen \|\| 0\) \+ 1;/);
   // Both shapeDbs bind getUserGoals to the expected account (Codex P1 on #2433).
   const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
   const SB = readFileSync(join(ROOT, 'public/supabase.js'), 'utf8');

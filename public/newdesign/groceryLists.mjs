@@ -231,7 +231,12 @@ export function bsGroceryListsPageBase(stored) {
   };
 }
 
-export function bsGroceryListsStore({ db, baseStore = null } = {}) {
+// `session` (optional) returns the sign-out generation (the app's signOutGen(), the website's
+// shapeDb.signOutGen). It is read when a commit starts and again before its write and before it settles:
+// once a sign-out has begun, nothing is written or kept, since a sync that resumes after the sign-out's
+// storage scrub would put the departing member's lists back for the next person on the device (Codex P1
+// on #2433).
+export function bsGroceryListsStore({ db, baseStore = null, session = null } = {}) {
   const getDb = () => (typeof db === 'function' ? db() : db);
   // An in-memory base for when there is no storage to keep one in.
   const mem = { uid: null, lists: null };
@@ -278,7 +283,7 @@ export function bsGroceryListsStore({ db, baseStore = null } = {}) {
   // Read, change, compare-and-set, bound to the account that started it; a lost race re-reads and runs
   // `change` again on the newer document. `change(raw, uid)` returns { lists, write } plus anything to hand
   // back.
-  const attempt = async (change) => {
+  const attempt = async (change, live) => {
     const uid0 = await uidNow();
     if (!uid0) return { ok: false, reason: 'signed-out' };
     for (let tries = 0; tries < BS_GROCERY_LISTS_CAS_TRIES; tries += 1) {
@@ -290,6 +295,7 @@ export function bsGroceryListsStore({ db, baseStore = null } = {}) {
       const out = change(raw, uid0) || {};
       if (!out.write) return { ...out, ok: true, wrote: false, uid: uid0 };
       const next = { v: BS_GROCERY_LISTS_V, rev: bsGroceryListsRev(raw) + 1, lists: out.lists };
+      if (!live()) return { ok: false, reason: 'signed-out' };
       let res = null;
       try { res = await writeDoc(next, bsGroceryListsRevToken(raw), uid0); } catch (e) { return { ok: false, reason: 'write-failed' }; }
       if (res && res.conflict) continue; // another device wrote in between: read it and merge again
@@ -304,8 +310,11 @@ export function bsGroceryListsStore({ db, baseStore = null } = {}) {
   // `settle(result)` runs on success inside the lane, so nothing else reads or writes before it is done.
   // Resolves, never rejects: a sync runs from a page's effect, with nothing there to catch it.
   const commit = (change, settle) => bsGroceryListsSerial(async () => {
+    const gen = session ? session() : null;
+    const live = () => !session || session() === gen;
     let res;
-    try { res = await attempt(change); } catch (e) { return { ok: false, reason: 'failed' }; }
+    try { res = await attempt(change, live); } catch (e) { return { ok: false, reason: 'failed' }; }
+    if (res.ok && !live()) return { ok: false, reason: 'signed-out' }; // settle nothing after a sign-out began
     if (res.ok && settle) { try { settle(res); } catch (e) { /* the base stays as it was */ } }
     return res;
   });

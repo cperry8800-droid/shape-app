@@ -298,3 +298,30 @@ test('the open list deleted on the phone: the page opens one that\'s left, and a
     assert.deepEqual(page.cloud.row.lists.find((l) => l.id === 'w2').items.map((it) => it.n), ['Limes'], 'and to the cloud');
   } finally { await page.done(); }
 });
+
+test('a sync that lands after a sign-out began puts nothing back on the device (Codex P1 on #2433)', async () => {
+  const page = await mountPage({ row: { v: 1, rev: 1, lists: [WEB_STORED] }, stored: [WEB] });
+  try {
+    page.w.shapeDb.signOutGen = 0;
+    const baseBefore = page.w.localStorage.getItem('shape.grocery.listsBase.v1');
+    // The phone adds a list; a change here syncs, and its write is held in flight.
+    page.cloud.row = { v: 1, rev: 2, lists: [{ id: 'phone', name: 'Phone list', items: [] }, WEB_STORED] };
+    let release = () => {};
+    page.cloud.gate = new Promise((r) => { release = r; });
+    try {
+      page.w.prompt = () => 'First';
+      const add = [...page.w.document.querySelectorAll('button')].find((b) => b.textContent === '+ NEW LIST');
+      await React.act(async () => { add.click(); });
+      // The member signs out: the generation moves and the scrub clears the lists.
+      page.w.shapeDb.signOutGen += 1;
+      page.w.localStorage.removeItem(STORE_KEY);
+      page.w.localStorage.removeItem('shape.grocery.listsBase.v1');
+    } finally {
+      page.cloud.gate = null;
+      await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
+    }
+    assert.equal(page.w.localStorage.getItem(STORE_KEY), null, "the departing member's lists stay off the device");
+    assert.equal(page.w.localStorage.getItem('shape.grocery.listsBase.v1'), null, 'and so does their base');
+    assert.ok(baseBefore, 'there was one before');
+  } finally { await page.done(); }
+});
