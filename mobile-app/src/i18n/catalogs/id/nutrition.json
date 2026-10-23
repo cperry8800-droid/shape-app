@@ -412,5 +412,13 @@
   "eat.shop.skippedNote": "Bahannya keluar dari daftar, kecuali dibutuhkan makanan lain.",
   "eat.shop.openList": "Buka di Belanja per makanan →",
   "eat.shop.tagAria": "Belanja untuk {meal}: {status}",
-  "eat.shop.alsoMany": "{count, plural, other {juga # makanan lain}}"
+  "eat.shop.alsoMany": "{count, plural, other {juga # makanan lain}}",
+  "grocery.shop.sendMember": "Kirim ke anggota →",
+  "grocery.share.meta": "Daftar belanja · {count, plural, other {# item}}",
+  "grocery.share.save": "Simpan ke daftar saya",
+  "grocery.share.saved": "✓ Disimpan ke daftarmu",
+  "grocery.share.savedToast": "Disimpan ke daftar belanjamu",
+  "grocery.share.saveFail": "Daftar tidak bisa disimpan. Coba lagi.",
+  "eat.libReceivedToday": "Dibagikan · Diterima hari ini",
+  "eat.libReceivedOn": "Dibagikan · Diterima {date}"
 }

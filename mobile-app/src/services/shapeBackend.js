@@ -27,6 +27,7 @@ import { bsPrunePrep } from './mealPrep.mjs';
 import { bsNormalizeListingMedia } from './listingMedia.mjs';
 import { isShapeWelcome } from './shapeWelcome.mjs';
 import { bsHwWeekWindow, bsHwLocalDayOf } from './homeWeek.mjs';
+import { bsGroceryFromMetadata } from './groceryShare.mjs';
 // The SHARED nora_memory doc normalizer (pure ESM, cross-root import — the
 // dashSignals.js precedent): one implementation of the {rev, notes} semantics
 // for the server tools AND this Settings mirror, so they can't drift.
@@ -2244,6 +2245,8 @@ function conversationToThread(conversation, messages = [], names = {}) {
       coachInvite: (message.metadata && message.metadata.kind === 'coach_invite' && message.metadata.providerId != null)
         ? { role: message.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(message.metadata.providerId), name: String(message.metadata.name || 'Your coach') }
         : null,
+      // A grocery list sent by a member, read strictly (another member's input): null unless it parses.
+      grocery: bsGroceryFromMetadata(message.metadata),
     })),
     updatedAt: conversation.updated_at || conversation.last_message_at || conversation.created_at,
   };
@@ -2273,6 +2276,9 @@ function memberThreadFromRow(row, messages = []) {
     unread: 0,
     bucket: 'DM',
     messages: ordered.map(message => ({
+      // The row's id, as conversationToThread keeps it: a grocery list's saved copy is named after it, so
+      // without it a reopened thread could not tell the list was saved (Codex P2 on #2432).
+      id: message.id || null,
       who: message.sender_id === state.user?.id ? 'You' : other,
       t: message.body,
       time: message.created_at ? new Date(message.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'now',
@@ -2284,6 +2290,8 @@ function memberThreadFromRow(row, messages = []) {
       coachInvite: (message.metadata && message.metadata.kind === 'coach_invite' && message.metadata.providerId != null)
         ? { role: message.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(message.metadata.providerId), name: String(message.metadata.name || 'Your coach') }
         : null,
+      // A grocery list sent by a member, read strictly (another member's input): null unless it parses.
+      grocery: bsGroceryFromMetadata(message.metadata),
     })),
     updatedAt: row.last_message_at,
   };

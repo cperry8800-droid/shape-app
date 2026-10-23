@@ -412,5 +412,13 @@
   "eat.shop.skippedNote": "Die Zutaten sind von der Liste, außer eine andere Mahlzeit braucht sie.",
   "eat.shop.openList": "Nach Mahlzeit einkaufen →",
   "eat.shop.tagAria": "Einkauf für {meal}: {status}",
-  "eat.shop.alsoMany": "{count, plural, one {auch # andere Mahlzeit} other {auch # andere Mahlzeiten}}"
+  "eat.shop.alsoMany": "{count, plural, one {auch # andere Mahlzeit} other {auch # andere Mahlzeiten}}",
+  "grocery.shop.sendMember": "An ein Mitglied senden →",
+  "grocery.share.meta": "Einkaufsliste · {count, plural, one {# Artikel} other {# Artikel}}",
+  "grocery.share.save": "In meinen Listen speichern",
+  "grocery.share.saved": "✓ In deinen Listen gespeichert",
+  "grocery.share.savedToast": "In deinen Einkaufslisten gespeichert",
+  "grocery.share.saveFail": "Die Liste konnte nicht gespeichert werden. Versuch es noch einmal.",
+  "eat.libReceivedToday": "Geteilt · Heute erhalten",
+  "eat.libReceivedOn": "Geteilt · Erhalten am {date}"
 }

@@ -412,5 +412,13 @@
   "eat.shop.skippedNote": "Its items are off the list, unless another meal needs them.",
   "eat.shop.openList": "Open in Shop by meal →",
   "eat.shop.tagAria": "Shopping for {meal}: {status}",
-  "eat.shop.alsoMany": "{count, plural, one {also # other meal} other {also # other meals}}"
+  "eat.shop.alsoMany": "{count, plural, one {also # other meal} other {also # other meals}}",
+  "grocery.shop.sendMember": "Send to a member →",
+  "grocery.share.meta": "Grocery list · {count, plural, one {# item} other {# items}}",
+  "grocery.share.save": "Save to my lists",
+  "grocery.share.saved": "✓ Saved to your lists",
+  "grocery.share.savedToast": "Saved to your grocery lists",
+  "grocery.share.saveFail": "Could not save the list. Try again.",
+  "eat.libReceivedToday": "Shared · Received today",
+  "eat.libReceivedOn": "Shared · Received {date}"
 }

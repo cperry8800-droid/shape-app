@@ -102,14 +102,31 @@ function saveChecks(map) { try { window.localStorage.setItem(CHECK_KEY, JSON.str
 
 // Cross-device sync with the mobile app via user_goals('client_grocery_lists').
 const SYNC_KEY = "client_grocery_lists";
+// A synced list keeps what this page does not show — its kind, provenance and date, who it is from, its
+// note, and each item's aisle — and writes them back as they were, so opening this page does not relabel a
+// list "Custom · Synced", take the sender's name off a list another member sent, or fold its aisles into one
+// (Codex P2 on #2432). A list made here has none of it and reads as before.
+const SYNC_META = ["kind", "provenance", "createdAt", "author", "authorSelf", "note", "eyebrow"];
 function syncedToWeb(list) {
-  const items = (list.items && list.items.length) ? list.items : ((list.aisles || []).flatMap(a => a.items || []));
-  return { id: list.id, name: list.name || "Saved list", items: (items || []).map((it, i) => ({ id: it.id || `s${list.id}-${i}`, item: it.n || it.item || "", qty: it.q || it.qty || "", category: guessCategory(it.n || it.item || ""), checked: false })) };
+  const items = (list.items && list.items.length) ? list.items : ((list.aisles || []).flatMap(a => (a.items || []).map(it => (it.a ? it : { ...it, a: a.aisle }))));
+  const meta = {};
+  for (const k of SYNC_META) if (list[k] !== undefined && list[k] !== null) meta[k] = list[k];
+  return { id: list.id, name: list.name || "Saved list", meta, items: (items || []).map((it, i) => ({ id: it.id || `s${list.id}-${i}`, item: it.n || it.item || "", qty: it.q || it.qty || "", category: guessCategory(it.n || it.item || ""), checked: false, ...(it.a ? { aisle: it.a } : {}) })) };
 }
 function webToSynced(lists) {
   return lists.map(l => {
-    const flat = (l.items || []).map(it => ({ id: it.id, n: it.item, q: it.qty || "1", meals: l.name }));
-    return { id: l.id, name: l.name, kind: "custom", editable: true, eyebrow: "Custom · Synced", usedCount: 0, count: flat.length, preview: flat.slice(0, 3).map(i => i.n).join(" · "), items: flat, aisles: [{ aisle: "Items", items: flat }] };
+    const m = l.meta || {};
+    const flat = (l.items || []).map(it => ({ id: it.id, n: it.item, q: it.qty || "1", meals: l.name, ...(it.aisle ? { a: it.aisle } : {}) }));
+    const aisles = [];
+    for (const it of flat) {
+      const label = it.a || "Items";
+      let g = aisles.find(x => x.aisle === label);
+      if (!g) { g = { aisle: label, items: [] }; aisles.push(g); }
+      g.items.push(it);
+    }
+    const kept = {};
+    for (const k of SYNC_META) if (k !== "kind" && k !== "eyebrow" && m[k] !== undefined) kept[k] = m[k];
+    return { id: l.id, name: l.name, kind: m.kind || "custom", editable: true, eyebrow: m.eyebrow || "Custom · Synced", ...kept, usedCount: 0, count: flat.length, preview: flat.slice(0, 3).map(i => i.n).join(" · "), items: flat, aisles: aisles.length ? aisles : [{ aisle: "Items", items: flat }] };
   });
 }
 

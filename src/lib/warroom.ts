@@ -615,6 +615,30 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Eat: send a grocery list to another member, who saves it to their own lists — #2432. No migration',
+      items: [
+        { label: 'Owner, 2026-10-23: "I want to also create ability to send grocery lists to other shape members". A grocery list has Send to a member →, which opens the member picker posts and playlists already use. The list rides in the direct message\'s metadata (services/groceryShare.mjs): its name, and each item\'s name, quantity and aisle, leaving off a skipped meal\'s items as Share does', status: 'done' },
+        { label: 'The thread draws it as a card (BSGroceryShare.jsx): the name, the count, the first three items and Save to my lists, which copies it into the member\'s own lists as an editable custom list credited to the sender, "Shared · Received today", one copy per message. The sender\'s copy and the coach apps show the card without Save. What arrives is read strictly (strings only, clipped, at most 150 items), or draws no card. Eight strings in all 13 languages', status: 'done' },
+        { label: 'One writer at a time: while Eat is on screen it takes the list into its own state; otherwise the copy goes to local storage and the cloud document (user_goals client_grocery_lists), read, merged and written back for the account that read it. A failed read writes nothing, and Save says "Saved" only when the list landed somewhere', status: 'done' },
+        { label: 'Aisles survive an edit (every custom list, in the app), and the website\'s grocery page hands a synced list back with its label, sender credit and aisles instead of stamping it "Custom · Synced"', status: 'done' },
+        { label: 'Review: Codex read every head. Two P1s on 0e5bd23 (a failed cloud read taken as no lists; the write not bound to the reader\'s account) and five P2s (member threads dropped the message id; an edit flattened aisles; "Saved" over a list kept nowhere; the website page rewrote synced lists; denied storage skipped the cloud), fixed in 6012e80, 0413eed, 272ab62, 10fccc8 and d067241, each with a test that fails on the old code. A sixth P2 (the compare-and-set race) is left open below. Codex clean on d067241; Copilot declined on its quota. 8,175 tests pass; CI green on all four jobs', status: 'done' },
+        { label: 'The cloud save is not a compare-and-set: client_grocery_lists is a bare array with no revision, so another device\'s write between the read and the write can drop the list from the cloud (not from the device). The Eat page writes the same way. Fix: a revisioned client_grocery_lists document for both writers (a migration)', status: 'pending' },
+        { label: 'A coach can read a sent list but not save it to their own lists (coach_grocery_lists)', status: 'pending' },
+        { label: 'Device pass with two signed-in members: send, receive the push, save, see it on Eat and on a second device', status: 'manual' },
+      ],
+    },
+    {
+      section: 'The Wall and the profiles: each post a magazine story, and the Wall\'s masthead — #2431. No migration',
+      items: [
+        { label: 'Owner, 2026-10-23 (the dark magazine look, "keep the same likes and comments"): the Wall\'s cards ask for variant "magazine" (BSWallStory.jsx). A story head (the photo, or the route on a dark grid, with the kicker and the headline in Oswald over its foot), the byline, three figures from the session-details ranking or a record\'s one 48 px number, and the co-signing coach\'s own comment pulled out as the quote. The plate, reactions, faces and comments under it are unchanged', status: 'done' },
+        { label: 'Owner: "make sure this updates account profile feeds as well". The member and coach profile feeds draw the same story; on a profile the byline is the time alone, with the owner\'s ✎ edit beside it', status: 'done' },
+        { label: 'The masthead: "The Wall" over a heavy rule, the day and "N training now", and the activity types as tabs (the ALL ▾ select is gone). Masthead, live story and posts share the cards\' 12 px gutter. Headlines a step shorter (owner: "dont make the font so tall"): 30 / 23 / 22–23 px at 600. Three strings in all 13 languages', status: 'done' },
+        { label: 'Review: Codex on 937c09d, two P2s (the figures ranked only the card\'s first three stats; a coach\'s same-session comment was not the quote): fixed in 6a92d21. Codex on bd79c7b, one P2 (a co-sign with the coach\'s id still matched a namesake\'s comment): fixed in d3ee053. Each with a test that fails on the old code. Codex clean on d3ee053; CI green on all four jobs. The built /m/ app in Chromium on both papers, and Drew\'s profile', status: 'done' },
+        { label: 'The `wall` variant (record pill, dot-matrix figure, stat grid, zones, trace) is drawn nowhere in the app now; remove its code. The website chat bubble\'s Wall tab still draws its copy of that card', status: 'pending' },
+        { label: 'Device pass with real posts: photos, routes, a co-signed PR, a profile you own (edit), the masthead\'s tabs and count', status: 'manual' },
+      ],
+    },
+    {
       section: 'Home: the water row\'s round + and its glasses beside the total — #2430. No migration',
       items: [
         { label: 'Owner, 2026-10-23, of the board\'s water row: "add the updated water to home page". The drop tile (36 px), Water and the day\'s total stay; the glasses against a target sit beside the total (7 × 14 px, filled in the line\'s blue), and + Glass is a round 44 px button with a drawn plus, its spoken label still "+ Glass"', status: 'done' },

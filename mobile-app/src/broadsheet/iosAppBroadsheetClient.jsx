@@ -65,6 +65,8 @@ import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx
 import { BSEatFuel } from './BSEatFuel.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead } from './BSWallStory.jsx';
+import { BSGroceryShareCard } from './BSGroceryShare.jsx';
+import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
 import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
@@ -12369,6 +12371,7 @@ const BS_GROCERY_PROV = {
   created:    { key: 'nutrition:eat.libCreatedToday', en: 'Custom · Created today', datedKey: 'nutrition:eat.libCreatedOn', datedEn: 'Custom · Created {date}' },
   saved:      { key: 'nutrition:eat.libSavedToday',   en: 'Custom · Saved today',   datedKey: 'nutrition:eat.libSavedOn',   datedEn: 'Custom · Saved {date}' },
   duplicated: { key: 'nutrition:eat.libDuplicated',   en: 'Custom · Duplicated' },
+  received:   { key: 'nutrition:eat.libReceivedToday', en: 'Shared · Received today', datedKey: 'nutrition:eat.libReceivedOn', datedEn: 'Shared · Received {date}' },
 };
 function bsGroceryIsToday(ms) {
   const d = new Date(ms);
@@ -13733,6 +13736,21 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     } catch {}
   }, [deletedGroceryIds]);
 
+  // A list another member sent, saved from the chat (BSGroceryShare.jsx). While this page is mounted it
+  // owns the lists, so it takes the list into its own state (and its effects above write it on) rather
+  // than letting the chat write past it; marking the event handled tells the chat not to write.
+  React.useEffect(() => {
+    const onReceived = (e) => {
+      const list = e && e.detail && e.detail.list;
+      if (!list || !list.id) return;
+      e.detail.handled = true;
+      setRecipeLists((prev) => (prev.some((l) => l && l.id === list.id) ? prev : [list, ...prev]));
+      setDeletedGroceryIds((prev) => (prev.includes(list.id) ? prev.filter((x) => x !== list.id) : prev));
+    };
+    window.addEventListener('shape:groceryReceived', onReceived);
+    return () => window.removeEventListener('shape:groceryReceived', onReceived);
+  }, []);
+
   const cur = PROGRAM[day] || PROGRAM[0];
   const days = PROGRAM.map(p => p.d);
   const meals = cur.meals;
@@ -13849,7 +13867,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // (which is what BSGroceryLibrary renders + what gets saved to localStorage).
   const persistGroceryList = (normalized) => {
     setSelectedGroceryList(normalized);
-    const items = (normalized.aisles || []).flatMap(a => a.items || []);
+    // Each item keeps the aisle it sat in, so reopening the list draws the same aisles (Codex P2 on #2432:
+    // a received list's Produce / Protein grouping was lost on its first edit).
+    const items = (normalized.aisles || []).flatMap(a => (a.items || []).map(it => ({ ...it, a: it.a || a.aisle })));
     const flat = {
       id: normalized.id,
       name: normalized.name,
@@ -13873,7 +13893,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       usedCount: normalized.usedCount || 0,
       preview: items.slice(0, 3).map(it => it.n).join(' · '),
       count: items.length,
-      items: items.map((it, idx) => ({ id: it.id || `${normalized.id}-${idx}`, n: it.n, q: it.q, meals: it.meals || normalized.name })),
+      items: items.map((it, idx) => ({ id: it.id || `${normalized.id}-${idx}`, n: it.n, q: it.q, meals: it.meals || normalized.name, ...(it.a ? { a: it.a } : null) })),
     };
     setRecipeLists(prev => prev.some(l => l.id === flat.id)
       ? prev.map(l => l.id === flat.id ? flat : l)
@@ -16222,7 +16242,13 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
       const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: m.id });
       const cid = conv && conv.data;
       if (!cid) throw new Error('no_conversation');
-      if (post.channel && post.channel.id != null) {
+      if (post.grocery) {
+        // Sharing a GROCERY LIST (owner, 2026-10-23): the list rides in the message's metadata, so the
+        // recipient's thread draws it as a card they can save to their own lists (BSGroceryShare.jsx).
+        const msg = bsGroceryShareMessage(post.grocery, post.keep);
+        if (!msg) throw new Error('empty_list');
+        await window.ShapeMessages.sendMessage({ conversationId: cid, body: msg.body, metadata: msg.metadata });
+      } else if (post.channel && post.channel.id != null) {
         // Sharing a CHANNEL: the message carries the channel in metadata so the
         // recipient's thread renders a tappable open-the-channel card.
         await window.ShapeMessages.sendMessage({ conversationId: cid, body: `Join me in #${post.channel.name} on Shape — ${post.channel.memberCount || 0} member${post.channel.memberCount === 1 ? '' : 's'}.`, metadata: { kind: 'shared_channel', channel: { id: post.channel.id, name: post.channel.name, memberCount: post.channel.memberCount || 0 } } });
@@ -16239,7 +16265,7 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
     setBusy('');
   };
   return (
-    <BSPostSheetShell title={post.channel ? tr('feed:send.titleChannel', { defaultValue: 'Send #{name} to', name: post.channel.name }) : post.playlist ? tr('feed:send.titlePlaylist', { defaultValue: 'Send “{name}” to', name: post.playlist.name }) : tr('feed:send.title', { defaultValue: 'Send to' })} onClose={onClose} INK={ink} BG={BG}>
+    <BSPostSheetShell title={post.channel ? tr('feed:send.titleChannel', { defaultValue: 'Send #{name} to', name: post.channel.name }) : post.playlist ? tr('feed:send.titlePlaylist', { defaultValue: 'Send “{name}” to', name: post.playlist.name }) : post.grocery ? tr('feed:send.titlePlaylist', { defaultValue: 'Send “{name}” to', name: post.grocery.name }) : tr('feed:send.title', { defaultValue: 'Send to' })} onClose={onClose} INK={ink} BG={BG}>
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('feed:common.searchMembers', { defaultValue: 'Search members…' })} autoFocus
         style={{ width: '100%', boxSizing: 'border-box', padding: '10px 2px', border: 0, borderBottom: `1px solid ${bsTHexA(ink, 0.2)}`, borderRadius: 0, background: 'transparent', color: ink, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
       <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 80, overflowY: 'auto', marginTop: 4 }}>
@@ -23752,7 +23778,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ id: m.id || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null })),
+    messages: (th.messages || []).map(m => ({ id: m.id || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null, grocery: m.grocery || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land
@@ -24474,6 +24500,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           onBack={() => setOpenChat(null)}
           onOpenProfile={(person) => setOpenProfile(person)}
           onSendChannel={openChat.channelId && !String(openChat.channelId).startsWith('sample') ? () => setSendPostFor({ channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount || 0 } }) : null}
+          canSaveGrocery={myRole === 'client'}
         />
         {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
       </>
@@ -26247,7 +26274,7 @@ function bsLongPress(onTrigger) {
   };
 }
 
-function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSendChannel = null }) {
+function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSendChannel = null, canSaveGrocery = true }) {
   const t = useBS();
   const tr = useShapeTr();
   useBSPresence(); // refresh message-avatar dots as people start/stop a workout or cooking
@@ -26351,7 +26378,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         // Carry the live-boost stamp on realtime appends too — a boost landing
         // while this thread is OPEN (the time-sensitive case) must render with
         // its eyebrow immediately, not only after a reload re-maps metadata.
-        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null }]);
+        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null, grocery: bsGroceryFromMetadata(row.metadata) }]);
         window.ShapeUnread?.markConversationRead?.(thread.conversationId);
       });
     }
@@ -26494,6 +26521,8 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                       <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal }}>View listing →</span>
                     </button>
                   )}
+                  {/* A grocery list a member sent: its name, count and first items, and Save to my lists. */}
+                  {m.grocery && <BSGroceryShareCard shared={m.grocery} me={!!me} canSave={canSaveGrocery} messageId={m.id} from={me ? '' : senderName} />}
                 </div>
                 {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
                 {myR && <BSReactionPill t={t} emoji={myR} anchorRight={me} onClick={() => rx.toggle(rKey, myR)} />}
@@ -34518,6 +34547,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   _bsScrollTopOnMount();
   const list = bsNormalizeGroceryList(activeList || BS_GROCERY_DEFAULT);
   const [pickerOpen, setPickerOpen] = useStateBSC(false);
+  const [sendOpen, setSendOpen] = useStateBSC(false); // Send to a member (owner, 2026-10-23)
   const [newName, setNewName] = useStateBSC('');
   const [newQty, setNewQty] = useStateBSC('');
   const addItem = () => {
@@ -34992,8 +35022,12 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
               <button onClick={saveToLib} style={{ flex: 1, borderRadius: 8, border: `1px solid ${accent}`, background: grocerySaved ? `${accent}14` : 'transparent', color: accent, padding: '9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{grocerySaved ? TG('nutrition:grocery.shop.saved', '✓ Saved') : TG('nutrition:grocery.shop.saveToLib', '+ Save to library')}</button>
               <button onClick={shareList} style={{ flex: 1, borderRadius: 8, border: `1px solid ${accent}`, background: 'transparent', color: accent, padding: '9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{TG('nutrition:grocery.shop.share', 'Share')}</button>
             </div>
+            {/* Send to a member (owner, 2026-10-23): the list goes to them in a message, as a card they can
+                save to their own lists. What is sent is what this list shows (skipped meals' items left off). */}
+            <button type="button" data-bs-grocery-send="" onClick={() => setSendOpen(true)} style={{ marginTop: 4, width: '100%', minHeight: 44, border: 0, background: 'transparent', color: accent, padding: '9px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{TG('nutrition:grocery.shop.sendMember', 'Send to a member →')}</button>
           </div>
         )}
+        {sendOpen && <BSPostSendSheet post={{ grocery: list, keep: (it) => !bsGrocerySkipped(it, skipped) }} onClose={() => setSendOpen(false)} />}
       </div>
       <BSFooter right={TG('nutrition:grocery.shop.footerCount', `${done}/${total} item${total === 1 ? '' : 's'}`, { done, count: total })} />
     </BSPage>
@@ -35046,14 +35080,17 @@ function bsNormalizeGroceryList(list) {
   if (!list) return BS_GROCERY_DEFAULT;
   if (list.aisles) return list;
   const items = list.items || bsLibraryPreviewItems(list);
+  const one = {
+    aisle: list.kind === 'recipe' ? 'Recipe ingredients' : 'Library items',
+    items,
+  };
   return {
     ...list,
     author: list.author || 'Shape nutrition',
     note: list.note || `"${list.name}" loaded from your grocery library.`,
-    aisles: [{
-      aisle: list.kind === 'recipe' ? 'Recipe ingredients' : 'Library items',
-      items,
-    }],
+    // Items that carry their aisle are grouped back by it: a list another member sent, or any list reopened
+    // after an edit, which stores its items flat with each one's aisle kept (Codex P2 on #2432).
+    aisles: items.some((it) => it && it.a) ? bsGroceryGroupByAisle(items, one.aisle) : [one],
   };
 }
 

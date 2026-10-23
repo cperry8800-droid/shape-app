@@ -412,5 +412,13 @@
   "eat.shop.skippedNote": "Ses ingrédients quittent la liste, sauf si un autre repas en a besoin.",
   "eat.shop.openList": "Ouvrir en Courses par repas →",
   "eat.shop.tagAria": "Courses pour {meal} : {status}",
-  "eat.shop.alsoMany": "{count, plural, one {aussi # autre repas} other {aussi # autres repas}}"
+  "eat.shop.alsoMany": "{count, plural, one {aussi # autre repas} other {aussi # autres repas}}",
+  "grocery.shop.sendMember": "Envoyer à un membre →",
+  "grocery.share.meta": "Liste de courses · {count, plural, one {# article} other {# articles}}",
+  "grocery.share.save": "Enregistrer dans mes listes",
+  "grocery.share.saved": "✓ Enregistrée dans tes listes",
+  "grocery.share.savedToast": "Enregistrée dans tes listes de courses",
+  "grocery.share.saveFail": "Impossible d’enregistrer la liste. Réessaie.",
+  "eat.libReceivedToday": "Partagée · Reçue aujourd’hui",
+  "eat.libReceivedOn": "Partagée · Reçue le {date}"
 }
