@@ -13796,7 +13796,15 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     ),
     [PROGRAM, liveProgram, liveMealCoach, liveMealTitle, bsEatSignedIn, tr],
   );
-  const activeGroceryList = selectedGroceryList || planGrocery;
+  // The open list. One that lives in recipeLists is drawn from there, as reopening it would, not from the
+  // copy taken when it opened: another device's edit, taken in by the sync, must reach the screen, or the
+  // next edit here, made on the stale copy, would write it back over theirs (Codex P1 on #2433). The
+  // copy is still what a list from outside recipeLists (the plan's, a built-in) is drawn from.
+  const openGroceryRecord = selectedGroceryList && selectedGroceryList.id
+    ? recipeLists.find((l) => l && l.id === selectedGroceryList.id) : null;
+  const activeGroceryList = openGroceryRecord
+    ? { ...bsNormalizeGroceryList(openGroceryRecord), editable: !!(openGroceryRecord.editable || selectedGroceryList.editable) }
+    : (selectedGroceryList || planGrocery);
   // Shop by meal files each ingredient under the meal it is for, in the order the
   // meals come: the week from today, earliest first, each labelled with its day
   // and slot. A meal the week does not hold keeps the list's own order.

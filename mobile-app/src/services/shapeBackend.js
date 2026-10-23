@@ -4798,11 +4798,16 @@ window.shapeDb = window.shapeDb || {
     try { const { data } = await supabase.auth.getUser(); return data && data.user ? data.user : null; }
     catch (e) { return null; }
   },
-  async getUserGoals(kind) {
+  // `options.expectedUserId` binds the read to that account: null (can't know) when another is signed in,
+  // and only that account's row asked for, so a switch while the read is in flight gets no row under the
+  // read policy, never another member's (Codex P1 on #2433, the grocery lists store).
+  async getUserGoals(kind, options) {
     if (!supabase) return null;
     const u = await window.shapeDb.getUser();
     if (!u) return null;
-    const res = await supabase.from('user_goals').select('data').eq('user_id', u.id).eq('kind', kind).maybeSingle();
+    const want = options && options.expectedUserId;
+    if (want != null && String(u.id) !== String(want)) return null;
+    const res = await supabase.from('user_goals').select('data').eq('user_id', want != null ? want : u.id).eq('kind', kind).maybeSingle();
     if (res.error) { console.warn('[shape] getUserGoals error', res.error); return null; }
     return (res.data && res.data.data) || {};
   },

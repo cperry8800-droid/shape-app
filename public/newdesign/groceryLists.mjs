@@ -251,11 +251,15 @@ export function bsGroceryListsStore({ db, baseStore = null } = {}) {
 
   // The stored document, or null when it can't be known. getUserGoals answers null for no backend, no user
   // and a failed read, and {} for an absent document: a null declines the write, a {} is merged into.
-  const readCloud = async () => {
+  // ⚠ THE READ IS BOUND TO THE ACCOUNT (Codex P1 on #2433). A check of the account after the read can't
+  // tell an A → B → A switch while it was in flight, which would merge B's lists into A's. So the read asks
+  // for `uid`'s row only (`expectedUserId`): under another account's session the read policy returns no
+  // row, never theirs. An older shapeDb ignores the option and reads as before.
+  const readCloud = async (uid) => {
     try {
       const d = getDb();
       if (!d || !d.getUserGoals) return null;
-      const v = await d.getUserGoals(BS_GROCERY_LISTS_KIND);
+      const v = await d.getUserGoals(BS_GROCERY_LISTS_KIND, { expectedUserId: uid });
       return v && typeof v === 'object' ? v : null;
     } catch (e) { return null; }
   };
@@ -278,7 +282,7 @@ export function bsGroceryListsStore({ db, baseStore = null } = {}) {
     const uid0 = await uidNow();
     if (!uid0) return { ok: false, reason: 'signed-out' };
     for (let tries = 0; tries < BS_GROCERY_LISTS_CAS_TRIES; tries += 1) {
-      const raw = await readCloud();
+      const raw = await readCloud(uid0);
       if (raw === null) return { ok: false, reason: 'unreadable' };
       // getUserGoals resolves the user itself, so the document belongs to whoever was signed in then.
       const uid1 = await uidNow();

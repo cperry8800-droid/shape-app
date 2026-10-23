@@ -608,10 +608,15 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
 
     // Load the user's goal page state for a given dashboard kind
     // ('trainer' | 'nutritionist'). Returns {} if nothing saved yet.
-    async getUserGoals(kind) {
+    // `options.expectedUserId` binds the read to that account: null (can't know) when another is signed
+    // in, and only that account's row asked for, so a switch while the read is in flight gets no row under
+    // the read policy, never another member's (the grocery lists store; the app's twin carries the same).
+    async getUserGoals(kind, options) {
       var u = await shapeDb.getUser();
       if (!u) return null;
-      var res = await client.from('user_goals').select('data').eq('user_id', u.id).eq('kind', kind).maybeSingle();
+      var want = options && options.expectedUserId;
+      if (want != null && String(u.id) !== String(want)) return null;
+      var res = await client.from('user_goals').select('data').eq('user_id', want != null ? want : u.id).eq('kind', kind).maybeSingle();
       if (res.error) {
         console.warn('[shape] getUserGoals error', res.error);
         return null;

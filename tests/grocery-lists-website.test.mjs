@@ -9,7 +9,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { JSDOM } from 'jsdom';
 import React from 'react';
-import * as ReactDOMClient from 'react-dom/client';
 import { transformSync } from '@babel/core';
 import { ROOT } from './helpers/broadsheet-mount.mjs';
 import * as GL from '../public/newdesign/groceryLists.mjs';
@@ -22,6 +21,14 @@ assert.ok(start > OPEN.length && end > start, 'the page script moved: re-point t
 const CODE = transformSync(`${HTML.slice(start, end)}\nwindow.__GroceryPage = ClientGroceryPage;\n`, {
   presets: [['@babel/preset-react', { runtime: 'classic' }]], babelrc: false, configFile: false,
 }).code;
+
+// ⚠ react-dom is loaded AFTER a window exists: it decides at load whether it runs in a DOM, and loaded
+// first it never attaches its input handling, so typing into a field reaches nothing (broadsheet-builder-
+// render.test.mjs records the same trap).
+const BOOT = new JSDOM('<!doctype html>');
+globalThis.window = BOOT.window;
+globalThis.document = BOOT.window.document;
+const ReactDOMClient = await import('react-dom/client');
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const ids = (lists) => lists.map((l) => l.id);
@@ -261,5 +268,33 @@ test('with storage denied the page still takes the cloud\'s lists, and a list de
     await page.settle();
     assert.ok(!ids(page.cloud.row.lists).includes('default'));
     assert.equal(page.cloud.row.lists.length, 2);
+  } finally { await page.done(); }
+});
+
+test('the open list deleted on the phone: the page opens one that\'s left, and an edit goes there (Codex P2 on #2433)', async () => {
+  const SECOND = { id: 'w2', name: 'Second', items: [] };
+  const SECOND_STORED = { id: 'w2', name: 'Second', kind: 'custom', editable: true, eyebrow: 'Custom · Synced', usedCount: 0, count: 0, preview: '', items: [], aisles: [{ aisle: 'Items', items: [] }] };
+  const page = await mountPage({ row: { v: 1, rev: 1, lists: [WEB_STORED, SECOND_STORED] }, stored: [WEB, SECOND] });
+  try {
+    assert.equal(page.cloud.writes.length, 0, 'in step on load');
+    // The phone deletes the open list (the page opens its first, My groceries).
+    page.cloud.row = { v: 1, rev: 2, lists: [SECOND_STORED] };
+    // A tick here syncs, and takes the delete in.
+    const box = page.w.document.querySelector('button[aria-label="Check"]');
+    await React.act(async () => { box.click(); });
+    await page.settle();
+    assert.deepEqual(ids(page.local()), ['w2'], 'gone from the page');
+    assert.equal(page.w.localStorage.getItem('shape.grocery.activeListId.v1'), 'w2', 'the list that is left is open');
+    // An item added now goes to it.
+    const input = page.w.document.querySelector('input[placeholder="e.g. Almond butter"]');
+    assert.ok(input, 'the add-item field');
+    const setValue = Object.getOwnPropertyDescriptor(page.w.HTMLInputElement.prototype, 'value').set;
+    await React.act(async () => { setValue.call(input, 'Limes'); input.dispatchEvent(new page.w.Event('input', { bubbles: true })); });
+    const add = [...page.w.document.querySelectorAll('button')].find((b) => b.textContent.trim() === '+ Add');
+    assert.equal(add.disabled, false, 'the field took the name');
+    await React.act(async () => { add.click(); });
+    await page.settle();
+    assert.deepEqual(page.local().find((l) => l.id === 'w2').items.map((it) => it.item), ['Limes']);
+    assert.deepEqual(page.cloud.row.lists.find((l) => l.id === 'w2').items.map((it) => it.n), ['Limes'], 'and to the cloud');
   } finally { await page.done(); }
 });

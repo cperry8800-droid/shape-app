@@ -293,6 +293,31 @@ test('an account switch between the read and the write writes nothing', async ()
   assert.deepEqual([r2.ok, r2.reason], [false, 'account-changed']);
 });
 
+test('the read is bound to the account: an A → B → A switch while it is in flight never brings B\'s lists (Codex P1 on #2433)', async () => {
+  // The backend's read policy: a row is returned only for the session's own account. The session is B while
+  // the request is in flight and A again by the time the store checks.
+  const rows = { u1: { v: 1, rev: 1, lists: [L('a-list')] }, u2: { v: 1, rev: 1, lists: [L('b-secret')] } };
+  const seen = [];
+  const writes = [];
+  let session = 'u1';
+  const db = {
+    getUser: async () => ({ id: session }),
+    getUserGoals: async (kind, options) => {
+      seen.push(options);
+      session = 'u2';
+      const asked = options && options.expectedUserId != null ? options.expectedUserId : session;
+      const row = asked === session ? rows[session] : null; // read policy: own rows only
+      session = 'u1';
+      return row ? clone(row) : {};
+    },
+    saveUserGoalsIfRev: async (k, data, rev, uid) => { writes.push({ data, rev, uid }); return { conflict: true }; },
+  };
+  await bsGroceryListsStore({ db, baseStore: memBase() }).sync({ getLocal: () => [L('mine')], apply: () => true });
+  assert.deepEqual(seen[0], { expectedUserId: 'u1' }, 'the read asks for the account that started the sync');
+  assert.ok(writes.length > 0, 'it tried to write');
+  for (const w of writes) assert.ok(!ids(w.data.lists).includes('b-secret'), "B's list never reaches A's document");
+});
+
 test('a write that keeps losing gives up honestly after a bounded number of tries', async () => {
   const cloud = cloudDb({ v: 1, rev: 1, lists: [] }, { onWrite: (c) => { c.row = { ...c.row, rev: c.row.rev + 1 }; } });
   const base = memBase();
@@ -394,7 +419,7 @@ test('every writer goes through the store: no whole-document write of the lists 
   // ⚠ apply makes the delta visible to getLocal BEFORE it returns, not only through a state update for the
   // next render: a sync queued behind runs first and would read the lists without it (Codex P1 on #2433).
   assert.match(CLIENT, /if \(!grocMountedRef\.current\) return false;[\s\S]{0,300}grocLocalRef\.current = bsGroceryListsApply\(grocLocalRef\.current, used, delta\);[\s\S]{0,300}setRecipeLists\(\(prev\) => bsGroceryListsApply\(prev, used, delta\)\);\s*if \(putIds\.size\) setDeletedGroceryIds[\s\S]{0,120}return true;/);
-  assert.match(HTML, /if \(!mountedRef\.current\) return false;[\s\S]{0,300}listsRef\.current = GL\.bsGroceryListsApply\(listsRef\.current, used, delta, opts\);\s*setLists\(/);
+  assert.match(HTML, /if \(!mountedRef\.current\) return false;[\s\S]{0,300}const before = listsRef\.current;\s*listsRef\.current = GL\.bsGroceryListsApply\(before, used, delta, opts\);\s*setLists\(/);
   // Each page keeps its own base (as long-lived as its lists), and storage in apply is best-effort: denied,
   // the lists on screen still take the changes (Codex P2 on #2433).
   assert.match(CLIENT, /grocBaseRef\.current = bsGroceryListsPageBase\(bsGroceryListsAppStore\(\)\.base\)/);
@@ -403,6 +428,15 @@ test('every writer goes through the store: no whole-document write of the lists 
   assert.match(HTML, /baseRef\.current = window\.ShapeGroceryListsLib\.bsGroceryListsPageBase\(store\.base\)/);
   assert.match(HTML, /same: \(p, u\) => GL\.bsGrocerySame\(stripTicks\(p\), stripTicks\(u\)\)/, 'the website\'s apply ignores ticks');
   assert.match(SHARE, /bsGroceryListsAppStore\(\)\.add\(list\)/);
+  // The open list on the Eat page is drawn from its record, so another device's edit reaches the screen
+  // before the next edit is made on it (Codex P1 on #2433).
+  assert.match(CLIENT, /const openGroceryRecord = selectedGroceryList && selectedGroceryList\.id\s*\? recipeLists\.find\(\(l\) => l && l\.id === selectedGroceryList\.id\) : null;\s*const activeGroceryList = openGroceryRecord\s*\? \{ \.\.\.bsNormalizeGroceryList\(openGroceryRecord\),/);
+  // Both shapeDbs bind getUserGoals to the expected account (Codex P1 on #2433).
+  const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const SB = readFileSync(join(ROOT, 'public/supabase.js'), 'utf8');
+  for (const [name, src] of [['app', BACKEND], ['website', SB]]) {
+    assert.match(src, /async getUserGoals\(kind, options\) \{[\s\S]{0,200}want = options && options\.expectedUserId;\s*if \(want != null && String\(u\.id\) !== String\(want\)\) return null;\s*(var|const) res = await (supabase|client)\.from\('user_goals'\)\.select\('data'\)\.eq\('user_id', want != null \? want : u\.id\)/, name);
+  }
   assert.match(HTML, /<script type="module">import \* as GL from "\/newdesign\/groceryLists\.mjs\?v=\d+"; window\.ShapeGroceryListsLib = GL;<\/script>\n<script type="text\/babel">/, 'the website loads the module before its page script');
   assert.match(HTML, /store\.sync\(\{\s*getLocal: \(\) => listsRef\.current,\s*same: webSame,/);
   assert.match(HTML, /apply: \(delta, used\) => \{[\s\S]{0,700}window\.localStorage\.setItem\(STORE_KEY, JSON\.stringify\(next\)\)/);

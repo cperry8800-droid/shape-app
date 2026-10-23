@@ -205,8 +205,13 @@ function ClientGroceryPage() {
         if (!mountedRef.current) return false;
         // The lists the next sync reads, now: a sync queued behind this one runs before React renders, and
         // without these it would take them for lists deleted here (Codex P1 on #2433).
-        listsRef.current = GL.bsGroceryListsApply(listsRef.current, used, delta, opts);
+        const before = listsRef.current;
+        listsRef.current = GL.bsGroceryListsApply(before, used, delta, opts);
         setLists(prev => GL.bsGroceryListsApply(prev, used, delta, opts));
+        // The open list deleted elsewhere: open the first that's left, or every edit would go to a list
+        // that isn't there while the page draws another (Codex P2 on #2433).
+        const gone = new Set(before.filter(l => !listsRef.current.some(n => n.id === l.id)).map(l => l.id));
+        if (gone.size) setActiveListId(cur => (cur && gone.has(cur) ? (listsRef.current[0] ? listsRef.current[0].id : null) : cur));
         return true;
       },
     });
