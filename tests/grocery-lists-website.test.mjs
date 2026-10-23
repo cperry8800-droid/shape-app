@@ -325,3 +325,24 @@ test('a sync that lands after a sign-out began puts nothing back on the device (
     assert.ok(baseBefore, 'there was one before');
   } finally { await page.done(); }
 });
+
+test('every list deleted on the phone stays an empty set: the sample list is never synced up (Codex P2 on #2433)', async () => {
+  const page = await mountPage({ row: { v: 1, rev: 1, lists: [WEB_STORED] }, stored: [WEB] });
+  let base;
+  try {
+    // The phone deletes the only list; a tick here syncs and takes the delete in.
+    page.cloud.row = { v: 1, rev: 2, lists: [] };
+    const box = page.w.document.querySelector('button[aria-label="Check"]');
+    await React.act(async () => { box.click(); });
+    await page.settle();
+    assert.deepEqual(page.local(), [], 'no lists left');
+    base = page.w.localStorage.getItem('shape.grocery.listsBase.v1');
+  } finally { await page.done(); }
+  // The next visit: the page opens on that empty set, not on the sample list, and writes nothing.
+  const next = await mountPage({ row: { v: 1, rev: 2, lists: [] }, stored: [], before: (w) => w.localStorage.setItem('shape.grocery.listsBase.v1', base) });
+  try {
+    assert.deepEqual(next.local(), []);
+    assert.equal(next.cloud.writes.length, 0, 'the sample list is not uploaded');
+    assert.deepEqual(next.cloud.row.lists, []);
+  } finally { await next.done(); }
+});

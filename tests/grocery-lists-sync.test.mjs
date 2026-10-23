@@ -340,6 +340,24 @@ test('once a sign-out has begun, a sync writes and keeps nothing (Codex P1 on #2
   assert.equal(c2.writes.length, 0);
 });
 
+test('a sync asked for before a sign-out and still queued when it begins writes nothing (Codex P1 on #2433)', async () => {
+  let gen = 0;
+  const cloud = cloudDb({ v: 1, rev: 1, lists: [] });
+  // Hold the lane so the sync waits behind another grocery operation.
+  let release;
+  const gate = new Promise((r) => { release = () => r({ id: 'u1' }); });
+  let started = false;
+  const hold = bsGroceryListsStore({ db: { ...cloud.db, getUser: () => { started = true; return gate; } } }).add(L('held'));
+  const queued = bsGroceryListsStore({ db: cloud.db, session: () => gen }).sync({ getLocal: () => [L('mine')], apply: () => true });
+  while (!started) await new Promise((r) => setTimeout(r, 0));
+  gen += 1; // the sign-out begins while it waits
+  release();
+  await hold;
+  const res = await queued;
+  assert.deepEqual([res.ok, res.reason], [false, 'signed-out']);
+  assert.ok(!cloud.writes.some((w) => ids(w.data.lists).includes('mine')), 'nothing of the departing session written');
+});
+
 test('a write that keeps losing gives up honestly after a bounded number of tries', async () => {
   const cloud = cloudDb({ v: 1, rev: 1, lists: [] }, { onWrite: (c) => { c.row = { ...c.row, rev: c.row.rev + 1 }; } });
   const base = memBase();

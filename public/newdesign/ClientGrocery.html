@@ -70,7 +70,9 @@ function loadLists() {
     const raw = window.localStorage.getItem(STORE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      // An empty set is the member's (every list deleted, here or on another device), not a page that never
+      // stored any: seeding the sample list over it would sync it up as a list they made (Codex P2 on #2433).
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {}
   // Migrate from old single-list storage if present

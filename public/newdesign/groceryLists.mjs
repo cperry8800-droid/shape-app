@@ -309,15 +309,20 @@ export function bsGroceryListsStore({ db, baseStore = null, session = null } = {
 
   // `settle(result)` runs on success inside the lane, so nothing else reads or writes before it is done.
   // Resolves, never rejects: a sync runs from a page's effect, with nothing there to catch it.
-  const commit = (change, settle) => bsGroceryListsSerial(async () => {
+  // ⚠ The sign-out generation is read when the commit is asked for, not when its turn in the lane comes: a
+  // sync queued behind another before a sign-out would otherwise read the bumped value and run as live
+  // (Codex P1 on #2433).
+  const commit = (change, settle) => {
     const gen = session ? session() : null;
     const live = () => !session || session() === gen;
-    let res;
-    try { res = await attempt(change, live); } catch (e) { return { ok: false, reason: 'failed' }; }
-    if (res.ok && !live()) return { ok: false, reason: 'signed-out' }; // settle nothing after a sign-out began
-    if (res.ok && settle) { try { settle(res); } catch (e) { /* the base stays as it was */ } }
-    return res;
-  });
+    return bsGroceryListsSerial(async () => {
+      let res;
+      try { res = await attempt(change, live); } catch (e) { return { ok: false, reason: 'failed' }; }
+      if (res.ok && !live()) return { ok: false, reason: 'signed-out' }; // settle nothing after a sign-out began
+      if (res.ok && settle) { try { settle(res); } catch (e) { /* the base stays as it was */ } }
+      return res;
+    });
+  };
 
   // Sync a writer's lists with the cloud. A sync already queued and not yet started is shared, and runs
   // with the callbacks of the latest call: `getLocal` and `getGone` when it reads the lists, `apply` when
