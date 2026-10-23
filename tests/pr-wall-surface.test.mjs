@@ -212,11 +212,16 @@ test('every profile activity feed renders the wall design too', () => {
   // The corpus is derived: every BSActivityCard render that hands it the profile
   // ctx is a profile feed by construction, so a third one added later is covered
   // without anyone remembering this test exists.
+  // Since 2026-10-23 that design is the magazine story (owner: "make sure this updates account
+  // profile feeds as well"), so each profile asks for whatever variant the Wall itself asks for.
+  const wallCard = bare.split('\n').find((l) => l.includes('cards.map((a, i)') && l.includes('BSActivityCard'));
+  const wallVariant = (wallCard.match(/variant="(\w+)"/) || [])[1];
+  assert.equal(wallVariant, 'magazine');
   const sites = bare.split('\n').filter((l) => l.includes('<BSActivityCard') && l.includes('ctx={profileCtx}'));
   assert.ok(sites.length >= 2, `expected the member and coach profile feeds, found ${sites.length}`);
   for (const line of sites) {
-    assert.match(line, /variant="wall"/,
-      'a profile activity feed is still rendering the old feed card: ' + line.trim().slice(0, 90));
+    assert.match(line, new RegExp(`variant="${wallVariant}"`),
+      'a profile activity feed is not drawing the Wall\'s design: ' + line.trim().slice(0, 90));
   }
 });
 
@@ -228,7 +233,7 @@ test('the activity sub-tab is labelled Wall and renders the magazine design', ()
   // ⚠ THE DESIGN IS THE VARIANT, NOT A SECOND COMPONENT. The Wall's own cards
   // ask for variant="magazine" (owner, 2026-10-23: the dark magazine look, its
   // headlines in Oswald): a story head, three figures or a record's one number,
-  // the coach's line pulled out. The profiles keep variant="wall" (above).
+  // the coach's line pulled out. The profiles ask for the same (above).
   const card = bare.split('\n').find((l) => l.includes('cards.map((a, i)') && l.includes('BSActivityCard'));
   assert.ok(card, 'the activity card render was not found');
   assert.match(card, /variant="magazine"/, 'the Wall must render the magazine design');

@@ -101,9 +101,31 @@ test('a post\'s photo is the story\'s picture, drawn once', () => {
   assert.ok(!nodes.find((n) => n.type === 'img'), 'the photo was drawn again under the story');
 });
 
-test('the profiles keep the record card: the magazine is the Wall\'s alone', () => {
+test('the `wall` variant draws no story head', () => {
   const nodes = drive(Card, { a: demo('Priya Shah'), ctx: ctx(), isLast: true, pagePad: 0, variant: 'wall' }).nodes();
-  assert.ok(!nodes.find(named('BSWallStoryHead')), 'a profile card became a story');
+  assert.ok(!nodes.find(named('BSWallStoryHead')), 'the record card became a story');
+});
+
+test('on a profile the story drops the byline\'s name and tier, and the owner keeps their edit', () => {
+  // The profile is already theirs (hideAuthor), so the byline is the time alone.
+  const post = { real: true, kind: 'workout', typeLabel: 'Run', who: 'Ana Lee', role: 'Client', ago: '1h', title: 'Tempo', postId: 'p9', kudos: 0, statsRow: [['Distance', '10 km']] };
+  const edited = [];
+  const own = { ...ctx(), onEdit: (a) => edited.push(a.postId) };
+  const nodes = drive(Card, { a: post, ctx: own, hideAuthor: true, isLast: true, pagePad: 0, variant: 'magazine' }).nodes();
+  const head = nodes.find(named('BSWallStoryHead'));
+  assert.equal(head.props.name, null, 'no name on their own page');
+  assert.equal(head.props.avatar, null);
+  // The harness's tr leaves {time} unfilled; what matters is the time alone, with no tier before it.
+  assert.equal(head.props.meta, '{time} ago', 'the time, without the tier');
+  assert.ok(head.props.action, 'the owner\'s edit is in the byline');
+  assert.equal(head.props.action.props['aria-label'], 'Edit activity');
+  head.props.action.props.onClick();
+  assert.deepEqual(edited, ['p9']);
+  // Someone else's profile, or a post with no id: no edit.
+  const other = drive(Card, { a: post, ctx: ctx(), hideAuthor: true, isLast: true, pagePad: 0, variant: 'magazine' }).nodes().find(named('BSWallStoryHead'));
+  assert.equal(other.props.action, null);
+  const demoPost = drive(Card, { a: demo('Drew Oyelaran'), ctx: own, hideAuthor: true, isLast: true, pagePad: 0, variant: 'magazine' }).nodes().find(named('BSWallStoryHead'));
+  assert.equal(demoPost.props.action, null, 'a sample card has no post to edit');
 });
 
 // ── The story's own pieces, drawn with real React ─────────────────────────────
@@ -146,6 +168,19 @@ test('the head: a picture carries the headline in Oswald capitals; with none the
   try {
     assert.ok(!r.host.querySelector('[data-bs-wall-story-pic]'), 'a picture with nothing to show');
     assert.equal(r.host.querySelector('h3').textContent, 'Lower body');
+  } finally { await r.done(); }
+  // On a profile: no name, so the byline is the time alone (not a door to the page you are on), and
+  // the action sits at its right end.
+  const tapped = [];
+  r = await render(React.createElement(STORY.BSWallStoryHead, { kicker: 'Run', title: 'Tempo', meta: '1h ago', onAuthor: () => tapped.push('author'),
+    action: React.createElement('button', { 'aria-label': 'Edit activity', onClick: () => tapped.push('edit') }, '✎') }));
+  try {
+    const byline = r.host.querySelector('[data-bs-wall-story-byline]');
+    assert.equal(byline.textContent, '1h ago✎');
+    const buttons = [...byline.querySelectorAll('button')];
+    assert.deepEqual(buttons.map((b) => b.getAttribute('aria-label')), ['Edit activity'], 'the time is not a button');
+    await React.act(async () => { buttons[0].click(); });
+    assert.deepEqual(tapped, ['edit']);
   } finally { await r.done(); }
 });
 

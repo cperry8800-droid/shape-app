@@ -18931,7 +18931,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                      carries the timing; author header hidden (the profile owns
                      the identity). */
                   <div key={a.key || i} style={{ margin: '0 -8px' }}>
-                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} variant="wall" />
+                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} variant="magazine" />
                   </div>
                 ))}
               </div>
@@ -19823,7 +19823,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                    padding to span the whole screen (side borders + radius
                    dropped at the edges). The card's own age chip carries the timing. */
                 <div key={a.key || i} style={{ margin: '0 -22px' }}>
-                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} pagePad={0} variant="wall" />
+                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} pagePad={0} variant="magazine" />
                 </div>
               ))}
             </div>
@@ -22260,7 +22260,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               // Any post with a stored line draws it as the picture (a sample one too, in the preview).
               const magRoute = a.routeObj && Array.isArray(a.routeObj.points) && a.routeObj.points.length >= 2 ? a.routeObj : null;
               const kicker = [isPR ? tr('feed:card.newPR', { defaultValue: 'New PR' }) : typeLabel, a.city].filter(Boolean).join(' · ');
-              const meta = [tierDisplay, a.ago ? tr('feed:card.ago', { defaultValue: '{time} ago', time: a.ago }) : null].filter(Boolean).join(' · ');
+              // On a profile (hideAuthor) the page is already theirs: the byline is the time alone, with the
+              // owner's edit beside it.
+              const meta = [hideAuthor ? null : tierDisplay, a.ago ? tr('feed:card.ago', { defaultValue: '{time} ago', time: a.ago }) : null].filter(Boolean).join(' · ');
               // The hero figure, then the session-details ranking's lead (pace, time, heart rate), so a
               // run with a dozen stats says distance, pace and time rather than its first three. It ranks
               // the full list: a real post's `stats` is the card's first three (Codex P2 on #2431).
@@ -22271,8 +22273,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               return (
                 <>
                   <BSWallStoryHead kicker={kicker} title={title} photo={a.photo || null} route={magRoute}
-                    avatar={<BSFacetAvatar size={24} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} />}
-                    name={a.who} meta={meta} bleed={12 + pagePad} onOpen={() => openDetail('stats')} onAuthor={openCardProfile} />
+                    avatar={hideAuthor ? null : <BSFacetAvatar size={24} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} />}
+                    name={hideAuthor ? null : a.who} meta={meta} bleed={12 + pagePad} onOpen={() => openDetail('stats')} onAuthor={openCardProfile}
+                    action={onEdit && a.postId ? <button aria-label={tr('feed:card.editActivity', { defaultValue: 'Edit activity' })} onClick={() => onEdit(a)} style={{ flexShrink: 0, background: 'transparent', border: 0, width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}><span aria-hidden style={{ width: 22, height: 22, border: `1px solid ${hair}`, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, boxSizing: 'border-box' }}>✎</span></button> : null} />
                   <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {isPR && heroStat
                       ? <BSWallStoryRecord value={heroStat[1]} best={prDelta ? `↑ PR ${prDelta}` : null} />
@@ -24943,10 +24946,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     </div>
                   );
                 }
-                // ⚠ `variant="wall"` IS THE WALL DESIGN — the hero figure in the
-                // dot-matrix face, the wall facts beside it, the stat grid, HR zones
-                // and the trace. This tab IS the Wall now, so it renders it here
-                // rather than in a parallel component.
+                // ⚠ `variant="magazine"` IS THE WALL DESIGN (owner, 2026-10-23): each post a
+                // story, its likes and comments as they were. The member and coach profile
+                // feeds ask for the same. This tab IS the Wall, so it renders it here rather
+                // than in a parallel component.
                 return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={0} variant="magazine" /></React.Fragment>);
               })()}
               {/* ⚠ THE MEMBER'S OWN RECORDS AND THE TWO WAYS TO ADD ONE BY HAND.
