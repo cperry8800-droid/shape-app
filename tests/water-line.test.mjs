@@ -107,9 +107,10 @@ test('the target picker starts at the member\'s target or a sensible one, and sa
 // ── The line ─────────────────────────────────────────────────────────────────
 
 // Owner, 2026-10-21: "also make the water line smaller"; owner, 2026-10-22, Option A: the card and the
-// water row "look analog and outdated". One row in the morning panel, no box of its own: a target's
-// progress is a pip a glass, and + Glass is a filled pill with a 44 px tap.
-test('the line is one row in the morning panel: a pip a glass against a target, and + Glass keeps a 44 px tap', async () => {
+// water row "look analog and outdated"; owner, 2026-10-23, of the board's water row: "add the updated
+// water to home page". One row in the morning panel, no box of its own: a target's progress is a pip a
+// glass beside the total, and + Glass is a round button with a 44 px tap.
+test('the line is one row in the morning panel: a pip a glass beside the total, and a round + Glass with a 44 px tap', async () => {
   env({ water: { ok: true, hydrationL: 0.5, targetL: 2.5, targetStoredL: 2.5 } });
   const m = await mount();
   try {
@@ -121,14 +122,18 @@ test('the line is one row in the morning panel: a pip a glass against a target, 
     assert.equal(pips.children.length, 11);
     const on = [...pips.children].filter((p) => p.style.background && p.style.background !== 'transparent').length;
     assert.equal(on, 2);
-    // Under the total, in the text's own column, wrapping: never squeezing Water and + Glass on a
-    // narrow phone, with large text or a long language (Codex P2 on #2426).
-    assert.match(pips.parentElement.textContent, /^Water17 oz of 85 oz/);
+    // Beside the total in one wrapping row, so on a narrow phone, with large text or a long language
+    // the glasses drop under the total rather than squeezing Water and + Glass (Codex P2 on #2426).
+    const row = pips.parentElement;
+    assert.match(row.textContent, /^Water17 oz of 85 oz/);
+    assert.equal(row.style.flexWrap, 'wrap');
     assert.equal(pips.style.flexWrap, 'wrap');
-    assert.ok(!pips.parentElement.contains(line.querySelector('[data-bs-water-add]')), '+ Glass sits beside the column, not in it');
+    assert.ok(!row.contains(line.querySelector('[data-bs-water-add]')), '+ Glass sits beside the row, not in it');
     const add = line.querySelector('[data-bs-water-add]');
     assert.equal(add.style.minHeight, '44px', "+ Glass's tap shrank");
-    assert.equal(add.textContent, '+ Glass');
+    assert.equal(add.style.width, '44px');
+    assert.equal(add.style.borderRadius, '999px', '+ Glass is round');
+    assert.equal(add.getAttribute('aria-label'), '+ Glass', 'the round button still says what it does');
   } finally { m.unmount(); }
   // No target: no pips, a total only.
   env();
@@ -142,7 +147,8 @@ test('the line shows the day and + Glass, and progress only against a target the
   let calls = env();
   let m = await mount();
   try {
-    assert.match(m.text(), /Water17 oz\+ Glass/);
+    assert.match(m.text(), /Water17 oz/);
+    assert.ok(m.button(/\+ Glass/), '+ Glass is on the line');
     assert.doesNotMatch(m.text(), / of /, 'progress was shown against a target the member never chose');
     assert.match(m.text(), /Set a daily target/);
     await m.click(/\+ Glass/);
@@ -286,7 +292,7 @@ test('a failed water read still lets a glass be logged, and the first save bring
   };
   const m = await mount();
   try {
-    assert.match(m.text(), /Water— ?\+ Glass/, 'a failed read shows a total it does not have');
+    assert.match(m.text(), /Water— ?$/, 'a failed read shows a total it does not have');
     assert.doesNotMatch(m.text(), /Set a daily target/, 'a failed read was taken for no target');
     assert.equal(m.button(/\+ Glass/).disabled, false, 'a failed read left + Glass disabled');
     await m.click(/\+ Glass/);
