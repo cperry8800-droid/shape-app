@@ -214,6 +214,15 @@ export function bsToggleGot(aisles, got, item) {
   return next;
 }
 
+// The ticked rows as `${ai}-${ii}` keys, worked out from the got names on every
+// render: a list that changes under the screen (another device's edit, merged in)
+// keeps each tick on its item, not on the row it used to be in.
+export function bsGroceryCheckedKeys(aisles, got) {
+  const out = new Set();
+  (aisles || []).forEach((a, ai) => ((a && a.items) || []).forEach((it, ii) => { if (bsGroceryIsGot(it, got)) out.add(`${ai}-${ii}`); }));
+  return out;
+}
+
 export function bsSaveSkippedMeals(storage, listKey, skipped) {
   try {
     if (!storage) return;

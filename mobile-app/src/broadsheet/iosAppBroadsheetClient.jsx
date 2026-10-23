@@ -74,7 +74,7 @@ import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx'
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
-import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot } from '../services/focusLayout.mjs';
+import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot, bsGroceryCheckedKeys } from '../services/focusLayout.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -34606,26 +34606,25 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   // meal): the Eat page ticks the same items, by name, so one tick is one tick
   // on both pages and survives leaving this one. Nothing remembered yet → the
   // list's own defaults (a pantry staple starts got).
+  // The state holds the got NAMES; the ticked rows are worked out from them on
+  // every render, so when another device's edit lands while this list is open
+  // (an item added in front, one removed, the order changed) each tick stays on
+  // its item instead of on the row it used to be in.
   const _gStore = (typeof window !== 'undefined' && window.localStorage) || null;
   const _gListKey = String(list.id || list.name || 'list');
-  const readChecked = () => {
-    const got = bsReadGotItems(_gStore, _gListKey);
-    const set = new Set();
-    list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => { if (bsGroceryIsGot(it, got)) set.add(`${ai}-${ii}`); }));
-    return set;
-  };
-  const [checked, setChecked] = useStateBSC(readChecked);
+  const [gotNames, setGotNames] = useStateBSC(() => bsReadGotItems(_gStore, _gListKey));
   React.useEffect(() => {
-    setChecked(readChecked());
-  }, [list.id || list.name]);
+    setGotNames(bsReadGotItems(_gStore, _gListKey));
+  }, [_gListKey]);
+  const checked = bsGroceryCheckedKeys(list.aisles, gotNames);
 
   const toggle = (k) => {
-    const next = new Set(checked);
-    if (next.has(k)) next.delete(k); else next.add(k);
-    setChecked(next);
-    const names = new Set();
-    list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => { if (next.has(`${ai}-${ii}`)) names.add(bsGroceryItemKey(it)); }));
-    bsSaveGotItems(_gStore, _gListKey, names);
+    const [ai, ii] = String(k).split('-').map(Number);
+    const item = list.aisles[ai] && list.aisles[ai].items[ii];
+    if (!item) return;
+    const next = bsToggleGot(list.aisles, gotNames, item);
+    setGotNames(next);
+    bsSaveGotItems(_gStore, _gListKey, next);
   };
   // ── SHOP BY (owner, 2026-10-11): the same list two ways — by aisle for the
   // store (one aisle at a time), or by meal for the week (each ingredient under

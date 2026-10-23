@@ -467,6 +467,20 @@ test('a meal\'s shop list names the other meals a shared item is for, and one ti
   assert.deepEqual([...F.bsReadGotItems(st, 'L')], [], 'an empty set is remembered: every default was unticked');
 });
 
+test('the ticked rows follow their items when the open list changes under the screen', () => {
+  const was = [{ aisle: 'Produce', items: [{ n: 'Lemon' }, { n: 'Kale' }] }, { aisle: 'Pantry', items: [{ n: 'Salt', have: true }] }];
+  assert.deepEqual([...F.bsGroceryCheckedKeys(was, null)], ['1-0'], 'nothing remembered: the defaults hold');
+  const got = F.bsToggleGot(was, null, was[0].items[1]);   // Kale ticked
+  assert.deepEqual([...F.bsGroceryCheckedKeys(was, got)].sort(), ['0-1', '1-0']);
+  // Another device puts Basil in front and drops Lemon (Codex P2 on #2433): Kale is still the ticked one
+  // and Basil isn't, though Basil now sits in Kale's old row.
+  const now = [{ aisle: 'Produce', items: [{ n: 'Basil' }, { n: 'Kale' }] }, { aisle: 'Pantry', items: [{ n: 'Salt', have: true }] }];
+  const moved = [{ aisle: 'Pantry', items: [{ n: 'Salt' }] }, { aisle: 'Produce', items: [{ n: 'Kale' }, { n: 'Basil' }, { n: 'Lemon' }] }];
+  assert.deepEqual([...F.bsGroceryCheckedKeys(now, got)].sort(), ['0-1', '1-0']);
+  assert.deepEqual([...F.bsGroceryCheckedKeys(moved, got)].sort(), ['0-0', '1-0'], 'a reorder moves the ticks with their items');
+  assert.equal(F.bsGroceryCheckedKeys(undefined, got).size, 0);
+});
+
 test('the week and month kcal averages read calories eaten, never a device\'s calories burned', () => {
   const route = readFileSync(join(ROOT, 'src', 'app', 'api', 'client', 'progress', 'route.ts'), 'utf8');
   assert.match(route, /Math\.round\(4 \* g\('protein_g'\) \+ 4 \* g\('carbs_g'\) \+ 9 \* g\('fat_g'\)\)/);

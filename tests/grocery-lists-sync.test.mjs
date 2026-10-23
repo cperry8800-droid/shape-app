@@ -497,6 +497,11 @@ test('every writer goes through the store: no whole-document write of the lists 
   // The open list on the Eat page is drawn from its record, so another device's edit reaches the screen
   // before the next edit is made on it (Codex P1 on #2433).
   assert.match(CLIENT, /const openGroceryRecord = selectedGroceryList && selectedGroceryList\.id\s*\? recipeLists\.find\(\(l\) => l && l\.id === selectedGroceryList\.id\) : null;\s*const activeGroceryList = openGroceryRecord\s*\? \{ \.\.\.bsNormalizeGroceryList\(openGroceryRecord\),/);
+  // The grocery screen holds its ticks by item name and works out the ticked rows on every render, so
+  // another device's edit to the open list keeps each tick on its item (Codex P2 on #2433).
+  assert.match(CLIENT, /const \[gotNames, setGotNames\] = useStateBSC\(\(\) => bsReadGotItems\(_gStore, _gListKey\)\);[\s\S]{0,200}const checked = bsGroceryCheckedKeys\(list\.aisles, gotNames\);/);
+  assert.match(CLIENT, /const next = bsToggleGot\(list\.aisles, gotNames, item\);\s*setGotNames\(next\);\s*bsSaveGotItems\(_gStore, _gListKey, next\);/);
+  assert.doesNotMatch(CLIENT, /useStateBSC\(readChecked\)/, 'no tick state keyed by row');
   // The open list deleted elsewhere closes on the Eat page (Codex P1 on #2433).
   assert.match(CLIENT, /const gone = new Set\(before\.filter\(\(l\) => l && !grocLocalRef\.current\.some\(\(n\) => n && n\.id === l\.id\)\)\.map\(\(l\) => l\.id\)\);\s*if \(gone\.size\) setSelectedGroceryList\(\(sel\) => \(sel && gone\.has\(sel\.id\) \? null : sel\)\);/);
   // The sign-out generation guards both stores, and every sign-out bumps it before its scrub (Codex P1 on
