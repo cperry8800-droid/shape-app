@@ -121,6 +121,11 @@ test('the line is one row in the morning panel: a pip a glass against a target, 
     assert.equal(pips.children.length, 11);
     const on = [...pips.children].filter((p) => p.style.background && p.style.background !== 'transparent').length;
     assert.equal(on, 2);
+    // Under the total, in the text's own column, wrapping: never squeezing Water and + Glass on a
+    // narrow phone, with large text or a long language (Codex P2 on #2426).
+    assert.match(pips.parentElement.textContent, /^Water17 oz of 85 oz/);
+    assert.equal(pips.style.flexWrap, 'wrap');
+    assert.ok(!pips.parentElement.contains(line.querySelector('[data-bs-water-add]')), '+ Glass sits beside the column, not in it');
     const add = line.querySelector('[data-bs-water-add]');
     assert.equal(add.style.minHeight, '44px', "+ Glass's tap shrank");
     assert.equal(add.textContent, '+ Glass');

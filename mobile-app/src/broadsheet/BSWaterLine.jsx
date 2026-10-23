@@ -266,14 +266,16 @@ function BSWaterDay({ dayIso }) {
               {known ? litres(water.l) : '—'}
               {known && target ? ` ${tr('home:checkin.ofTarget', { defaultValue: 'of {target}', target: litres(target) })}` : null}
             </span>
+            {/* Under the total, in the text's own column, so a narrow phone, large text or a long
+                language wraps the glasses rather than squeezing Water and + Glass (Codex P2 on #2426). */}
+            {pips ? (
+              <span aria-hidden data-bs-water-bar="" style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 5 }}>
+                {Array.from({ length: pips.n }, (_, i) => (
+                  <span key={i} style={{ width: 6, height: 10, borderRadius: 2.5, background: i < pips.on ? sky : 'transparent', boxShadow: `inset 0 0 0 1.3px ${i < pips.on ? sky : `${sky}59`}` }} />
+                ))}
+              </span>
+            ) : null}
           </span>
-          {pips ? (
-            <span aria-hidden data-bs-water-bar="" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flex: 'none' }}>
-              {Array.from({ length: pips.n }, (_, i) => (
-                <span key={i} style={{ width: pips.n > 8 ? 5 : 7, height: 16, borderRadius: 3, background: i < pips.on ? sky : 'transparent', boxShadow: `inset 0 0 0 1.4px ${i < pips.on ? sky : `${sky}59`}` }} />
-              ))}
-            </span>
-          ) : null}
           <button type="button" data-bs-water-add="" onClick={addWater} disabled={!water} style={{ flex: 'none', minHeight: 44, padding: '0 14px', border: 0, borderRadius: 999, background: onSky, color: t.isLight ? '#fff' : t.PAPER, cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap' }}>
             {tr('home:checkin.addGlass', { defaultValue: '+ Glass' })}
           </button>
