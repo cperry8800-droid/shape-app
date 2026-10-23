@@ -615,6 +615,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'The Wall: Oswald, and the live story drawn as the magazine\'s — #2429. No migration',
+      items: [
+        { label: 'Owner, 2026-10-23, off the six headline faces: "use oswald" for the dark magazine Wall. Oswald ships with the app (five variable woff2 files, 200–700: latin, latin-ext, Cyrillic, Vietnamese) and the theme names it t.HEADLINE, falling back to Saira', status: 'done' },
+        { label: 'The Wall\'s Training now cards become one live story: "Live now · 31 min in", "Priya is on set 4 of 5" in Oswald capitals, the byline with the move, a bar segment per set (twelve at most, the set under way always keeping its segment), the sets so far and Resting, Send a boost full width in ink, and "Also training: Casey, Maya, Leo" (each name opens their boost). Four strings in all 13 languages; the cards\' four removed', status: 'done' },
+        { label: 'Review: Codex on 8ef0c38, one P2 (past twelve sets, 24 of 25 rounded the bar full): fixed in 3c02310. Codex clean on 3c02310; CI green on all four jobs. The built /m/ app in Chromium on the dark and light papers', status: 'done' },
+        { label: 'Device pass: Oswald on an iPhone and an Android build, and the live story against a real live set', status: 'manual' },
+      ],
+    },
+    {
       section: 'Home: Your goal a step smaller; Eat: Fuel left closer under the week — #2428. No migration',
       items: [
         { label: 'Owner, 2026-10-23, on Home\'s Your goal: "make this a little smaller". The figure 52 → 42, the target 22 → 19, the weigh-in line 48 → 36 px tall, the three figures under it 21 → 18, the quote 17 → 15.5, the gaps a little closer', status: 'done' },
