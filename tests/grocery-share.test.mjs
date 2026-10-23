@@ -283,6 +283,19 @@ test('the website\'s grocery page hands a synced list back as it found it (Codex
   assert.deepEqual(appBack.aisles.map((g) => g.aisle), ['Dairy']);
 });
 
+test('storage the browser denies outright still lets the cloud keep the list (Codex P2 on #2432)', async () => {
+  const { writes } = env({ cloud: [] });
+  const desc = Object.getOwnPropertyDescriptor(dom.window, 'localStorage');
+  Object.defineProperty(dom.window, 'localStorage', { configurable: true, get() { throw new Error('SecurityError'); } });
+  const r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, messageId: 'm10', from: 'Sam Reyes' }));
+  try {
+    await React.act(async () => { r.host.querySelector('[data-bs-grocery-save]').click(); });
+    await React.act(async () => { await new Promise((res) => setTimeout(res, 0)); });
+    assert.deepEqual(writes.map(([k, v]) => [k, v.map((l) => l.id)]), [['client_grocery_lists', ['received-m10']]], 'the cloud kept it');
+    assert.equal(r.host.querySelector('[data-bs-grocery-save]').getAttribute('aria-pressed'), 'true');
+  } finally { Object.defineProperty(dom.window, 'localStorage', desc); await r.done(); }
+});
+
 // ── The wiring ────────────────────────────────────────────────────────────────
 const CLIENT = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
 const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');

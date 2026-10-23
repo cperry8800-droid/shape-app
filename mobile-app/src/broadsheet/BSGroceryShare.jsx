@@ -63,7 +63,10 @@ export async function bsSaveReceivedGroceryList(list) {
   const detail = { list, handled: false };
   try { window.dispatchEvent(new CustomEvent('shape:groceryReceived', { detail })); } catch (e) { /* no listener */ }
   if (detail.handled) return 'eat';
-  const store = window.localStorage;
+  // Reading window.localStorage itself throws (SecurityError) where the browser denies storage; that is
+  // "no local copy", and the cloud is still tried (Codex P2 on #2432).
+  let store = null;
+  try { store = window.localStorage; } catch (e) { store = null; }
   let local = false;
   if (store) {
     try {
