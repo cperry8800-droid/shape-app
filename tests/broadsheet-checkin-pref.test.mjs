@@ -699,7 +699,7 @@ test("Home's doors open Your mornings, the water lead brings Home's water line, 
 
 test("Home's lead says the engine's reason in the member's words, and a coach's as written", async () => {
   const { src, home } = homeSource();
-  assert.match(src, /^import \{ BSCheckinCard, bsCiLeadReason, bsCiIso, bsCiShift \} from '\.\/BSCheckinCard\.jsx';$/m);
+  assert.match(src, /^import \{ BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift \} from '\.\/BSCheckinCard\.jsx';$/m);
   // Worked out above the engine's push, so the push stays one short line (the fall-through test reads
   // the 2000 characters after it).
   const sub = home.indexOf('const engineSub = engineFlag ? bsCiLeadReason(engineFlag, tr) : null;');

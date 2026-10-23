@@ -243,31 +243,46 @@ function BSWaterDay({ dayIso }) {
   );
   const host = typeof document !== 'undefined' ? (document.getElementById('bs-phone-surface') || document.body) : null;
 
-  // ⚠ ONE SLIM LINE (owner, 2026-10-21: "also make the water line smaller"). The row is as tall as
-  // + Glass's pill (28 px); the button around it reaches 34 px into the line's padding, so the tap
-  // stays as large as it was. A target's progress is the line's bottom edge, not a row of its own;
-  // Apple Health's share and Set a daily target are small lines under it, shown only when they apply.
+  // ⚠ IN THE MORNING PANEL (owner, 2026-10-22, Option A: the card and the water row "look analog and
+  // outdated"). The line draws no box of its own: BSMorningPanel (BSCheckinCard.jsx) holds it with the
+  // check-in card, or alone when Check-ins is off. A drop tile, Water and the day's total, the day as
+  // glasses against a target (one pip a glass of + Glass's size, at most 12), and + Glass as a filled
+  // pill that keeps a 44 px tap. Apple Health's share and Set a daily target are small lines under it.
+  const pips = known && target ? (() => {
+    const n = Math.max(1, Math.min(12, Math.round(target / glassL)));
+    return { n, on: Math.min(n, Math.floor((water.l / target) * n + 1e-6)) };
+  })() : null;
+  const onSky = t.isLight ? '#1a6f9c' : sky;
   return (
     <>
-      <div data-bs-water="" style={{ position: 'relative', margin: `6px ${t.padX}px 4px`, padding: '5px 6px 5px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER2 || t.PAPER, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 28 }}>
-          <span style={{ ...mono, fontSize: 8.5, color: sky }}>{tr('home:checkin.water', { defaultValue: 'Water' })}</span>
-          <span style={{ flex: 1, minWidth: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>
-            {known ? litres(water.l) : '—'}
-            {known && target ? <span style={{ color: t.INK50 }}> {tr('home:checkin.ofTarget', { defaultValue: 'of {target}', target: litres(target) })}</span> : null}
+      <div data-bs-water="" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span aria-hidden style={{ width: 36, height: 36, borderRadius: 11, background: `${sky}1f`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={sky} strokeWidth="1.9" strokeLinejoin="round"><path d="M12 3c3.6 4.3 6 7.7 6 10.6A6 6 0 0 1 6 13.6C6 10.7 8.4 7.3 12 3z" /></svg>
           </span>
-          <button type="button" data-bs-water-add="" onClick={addWater} disabled={!water} style={{ minHeight: 34, margin: '-3px 0', padding: '3px 0', border: 0, background: 'transparent', cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', height: 28, padding: '0 11px', borderRadius: 4, border: `1px solid ${sky}80`, background: `${sky}14`, color: sky, ...mono, fontSize: 8.5, letterSpacing: '0.1em', boxSizing: 'border-box' }}>{tr('home:checkin.addGlass', { defaultValue: '+ Glass' })}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, letterSpacing: '-0.01em', color: t.INK }}>{tr('home:checkin.water', { defaultValue: 'Water' })}</span>
+            <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 12, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>
+              {known ? litres(water.l) : '—'}
+              {known && target ? ` ${tr('home:checkin.ofTarget', { defaultValue: 'of {target}', target: litres(target) })}` : null}
+            </span>
+            {/* Under the total, in the text's own column, so a narrow phone, large text or a long
+                language wraps the glasses rather than squeezing Water and + Glass (Codex P2 on #2426). */}
+            {pips ? (
+              <span aria-hidden data-bs-water-bar="" style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 5 }}>
+                {Array.from({ length: pips.n }, (_, i) => (
+                  <span key={i} style={{ width: 6, height: 10, borderRadius: 2.5, background: i < pips.on ? sky : 'transparent', boxShadow: `inset 0 0 0 1.3px ${i < pips.on ? sky : `${sky}59`}` }} />
+                ))}
+              </span>
+            ) : null}
+          </span>
+          <button type="button" data-bs-water-add="" onClick={addWater} disabled={!water} style={{ flex: 'none', minHeight: 44, padding: '0 14px', border: 0, borderRadius: 999, background: onSky, color: t.isLight ? '#fff' : t.PAPER, cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap' }}>
+            {tr('home:checkin.addGlass', { defaultValue: '+ Glass' })}
           </button>
         </div>
-        {known && target ? (
-          <span aria-hidden data-bs-water-bar="" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: t.HAIR }}>
-            <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${Math.round(Math.min(1, water.l / target) * 100)}%`, background: sky }} />
-          </span>
-        ) : null}
-        {share ? <div style={{ fontFamily: t.BODY, fontSize: 11.5, color: t.INK50, paddingBottom: 2 }}>{tr('home:checkin.waterFromHealth', { defaultValue: 'Includes {amount} from Apple Health', amount: litres(share) })}</div> : null}
+        {share ? <div style={{ fontFamily: t.BODY, fontSize: 11.5, color: t.INK50, paddingLeft: 46 }}>{tr('home:checkin.waterFromHealth', { defaultValue: 'Includes {amount} from Apple Health', amount: litres(share) })}</div> : null}
         {signedIn && known && !target ? (
-          <button type="button" onClick={openPick} style={{ alignSelf: 'flex-start', minHeight: 30, margin: '-4px 0 -5px', padding: '4px 0', border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', ...mono, fontSize: 8.5, letterSpacing: '0.12em' }}>{tr('home:water.setTarget', { defaultValue: 'Set a daily target' })}<span aria-hidden> ›</span></button>
+          <button type="button" onClick={openPick} style={{ alignSelf: 'flex-start', minHeight: 32, margin: '-2px 0 -6px 46px', padding: '4px 0', border: 0, background: 'transparent', color: sky, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>{tr('home:water.setTarget', { defaultValue: 'Set a daily target' })}<span aria-hidden> ›</span></button>
         ) : null}
         {errLine('water')}
       </div>

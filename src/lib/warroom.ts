@@ -615,6 +615,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Home: one morning panel for the check-in and water; Eat\'s macros in tiles — #2426. No migration',
+      items: [
+        { label: 'Owner, 2026-10-22: the Morning check-in card and the Water row "look analog and outdated"; off the mockup the owner picked Option A, one morning panel. The card and water share one rounded panel (BSMorningPanel): Same as yesterday is the one filled button with yesterday\'s answers on it, Start a link under it; checked in, one row with the readiness ring and Edit. Water: a drop tile, the total, a pip a glass against a target (wrapping under the total), + Glass a filled pill with a 44 px tap. With Check-ins off the panel holds water alone', status: 'done' },
+        { label: 'Owner, on Eat\'s macro rows: "change the look of this". Fuel left today is the same rounded panel: a rounded kcal bar, and protein, carbs and fat as tiles tinted in their colours (BSEatFuel.jsx)', status: 'done' },
+        { label: 'Review: Codex on 5d16f6d, one P2 (9 to 12 pips beside the tile and + Glass squeezed the total on a narrow phone): fixed in 8984e71, the pips wrap under the total. Codex clean on 8984e71; Copilot declined on its quota. npm test 8,136/8,136; CI green on all four jobs; three mutations re-anchored and killed. The built /m/ app in Chromium on the light and dark papers', status: 'done' },
+        { label: 'Device pass, signed in with a water target: the pips, a glass added, and the panel after a check-in', status: 'manual' },
+      ],
+    },
+    {
       section: 'Eat: Fuel left today above the next meal, the macros in one row — #2425. No migration',
       items: [
         { label: 'Owner, 2026-10-22, on a screenshot of Eat\'s three macro rows: "move this above lunch on eat page and condense a little more". Eat reads the tabs, the week, Fuel left today, the next meal, then the menu. Protein, carbs and fat share one row: each column is the label, the grams left, the day so far and its own bar, a 44 px door to the day\'s breakdown. The block is its own module, BSEatFuel.jsx', status: 'done' },

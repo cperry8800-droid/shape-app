@@ -322,6 +322,8 @@ test('water is its own Home line, right under the morning card, whatever the Che
   const at = client.indexOf(bulletin);
   assert.ok(at > 0);
   const after = client.slice(at + bulletin.length, at + bulletin.length + 300);
-  assert.match(after, /^\n\s+\{\/\*[^*]*\*\/\}\n\s+<BSWaterLine \/>\n/, 'the water line is not right under the morning card');
+  // Owner, 2026-10-22, Option A: the two share one morning panel, the card first, outside any setting.
+  assert.match(after, /^\n\s+<BSWaterLine \/>\n\s+<\/BSMorningPanel>\n/, 'the water line is not right under the morning card, in its panel');
+  assert.match(client.slice(at - 200, at), /<BSMorningPanel>\n\s+$/, 'the morning card is not first in the panel');
   assert.doesNotMatch(after.split('<BSWaterLine />')[0], /checkinPrefOn/, 'the water line hides with the Check-ins setting');
 });

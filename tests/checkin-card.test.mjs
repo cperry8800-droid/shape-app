@@ -395,18 +395,61 @@ test('Same as yesterday on the card logs the morning in one tap, never the hunge
   } finally { m.unmount(); }
 });
 
-// Owner, 2026-10-21: "condense the size of this. taking up way to much space on home page". No
-// headline and no row of step bars: the title row, then Start and Same as yesterday in one row.
-test('the card on Home is compact: a title row and one row of buttons, the steps in the title once one is in', async () => {
+// Owner, 2026-10-22, Option A: one morning panel. The card and the water line share one rounded surface,
+// the card on top and a hairline before water; with Check-ins off the panel holds water alone.
+test('the morning panel holds the card over water, with a hairline between them', async () => {
+  env({ days: { [YDAY]: { energy: 7, sleep: 6.5, sleepQuality: 9 } } });
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = ReactDOMClient.createRoot(host);
+  try {
+    await React.act(async () => {
+      root.render(React.createElement(CARD.BSMorningPanel, null,
+        React.createElement(CARD.BSCheckinCard, {}),
+        React.createElement('div', { 'data-bs-water': '' }, 'Water')));
+    });
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    const panel = host.querySelector('[data-bs-morning]');
+    assert.ok(panel, 'no morning panel');
+    assert.equal(panel.tagName, 'SECTION');
+    assert.equal(panel.style.borderRadius, '16px', 'the panel lost its rounded corners');
+    assert.equal(panel.style.clipPath, '', 'the notched corner came back');
+    const card = panel.querySelector('[data-bs-checkin-card]');
+    const water = panel.querySelector('[data-bs-water]');
+    assert.ok(card && water && card.nextElementSibling === water, 'the card sits right above water');
+    assert.match(panel.querySelector('style').textContent, /\[data-bs-morning\] \[data-bs-checkin-card\] \+ \[data-bs-water\]\{[^}]*border-top:1px solid/, 'no hairline between the card and water');
+    assert.equal(dom.window.getComputedStyle(water).borderTopStyle, 'solid', 'the hairline does not reach water');
+  } finally {
+    await React.act(async () => { root.unmount(); });
+    host.remove();
+  }
+});
+
+// Owner, 2026-10-21: "condense the size of this. taking up way to much space on home page"; owner,
+// 2026-10-22, Option A: it "look[s] analog and outdated". No headline and no row of step bars: the
+// title row, then Same as yesterday as the one filled button with Start as a link under it.
+test('the card on Home is compact: a title row, Same as yesterday as the one big button, the steps in the title once one is in', async () => {
   env({ days: { [YDAY]: { energy: 7, sleep: 6.5, sleepQuality: 9 } } });
   let m = await mount();
   try {
     const card = document.querySelector('[data-bs-checkin-card]');
     assert.equal(card.children.length, 2, 'the card grew a row: a headline or the step bars came back');
     assert.ok(!card.querySelector('h2'), 'the card has a headline again');
+    assert.equal(card.style.border, '', 'the card draws its own box again: the morning panel holds it');
+    assert.equal(card.style.clipPath, '', 'the notched corner came back');
     const row = card.querySelector('[data-bs-checkin-actions]');
-    assert.deepEqual([...row.querySelectorAll('button')].map((b) => b.textContent), ['Start check-in →', 'Same as yesterday ✓Good · 6h 30 · Fresh'], 'Start and Same as yesterday share the row');
-    assert.equal(m.text(), 'Morning check-in2 checks · 15 secStart check-in →Same as yesterday ✓Good · 6h 30 · Fresh');
+    assert.deepEqual([...row.querySelectorAll('button')].map((b) => b.textContent), ['Same as yesterdayGood · 6h 30 · Fresh', 'Start check-in →'], 'Same as yesterday leads, Start under it');
+    assert.equal(row.querySelector('button').style.minHeight, '52px', 'the one big button');
+    assert.equal(m.text(), 'Morning check-in2 checks · 15 secSame as yesterdayGood · 6h 30 · FreshStart check-in →');
+  } finally { m.unmount(); }
+  // Nothing to repeat: Start is the big button.
+  env();
+  m = await mount();
+  try {
+    const row = document.querySelector('[data-bs-checkin-actions]');
+    const only = [...row.querySelectorAll('button')];
+    assert.deepEqual(only.map((b) => b.textContent), ['Start check-in →']);
+    assert.equal(only[0].style.minHeight, '52px');
   } finally { m.unmount(); }
   // Energy in: the steps take the title row's place for "2 checks · 15 sec", and Continue opens the night.
   env({ days: { [TODAY]: { energy: 8 } } });
@@ -430,7 +473,7 @@ test('the Same as yesterday line names only what the tap writes (review on this 
   const calls = env({ days: { [YDAY]: { energy: 7, sleep: 6.5, sleepQuality: 9 }, [TODAY]: { sleep: 7.5, sleepQuality: 4 } } });
   const m = await mount();
   try {
-    assert.match(m.text(), /Same as yesterday ✓Good(?! ·)/, 'the line offers a night and a Rested the tap will not write');
+    assert.match(m.text(), /Same as yesterdayGood(?! ·)/, 'the line offers a night and a Rested the tap will not write');
     await m.click(/Same as yesterday/);
     assert.deepEqual(calls.log, [{ energy: 7 }]);
   } finally { m.unmount(); }
@@ -596,7 +639,7 @@ test('Same as yesterday after a skip copies the morning only, never the skipped 
     await m.click(/Start check-in/);
     await m.click(/^Skip$/);
     await m.click(/^Close$/);
-    assert.match(m.text(), /Same as yesterday ✓Good/);
+    assert.match(m.text(), /Same as yesterdayGood/);
     assert.doesNotMatch(m.text(), /6h 30|Fresh/, 'the card offers to fill the skipped night');
     await m.click(/Same as yesterday/);
     assert.deepEqual(calls.log, [{ sleepSkipped: true }, { energy: 7 }], "Same as yesterday typed over the night the member skipped");
