@@ -5584,8 +5584,9 @@ function BSWeekStrip({ activeIdx, onSelect, restFlags = [], onMonth }) {
   const mon = new Date(_now); mon.setHours(0, 0, 0, 0); mon.setDate(_now.getDate() - todayIdx);
   const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d.getDate(); });
   const names = Array.from({ length: 7 }, (_, i) => bsWeekdayName(i));
+  // Tight to the tabs above and the section below (owner, 2026-10-23, on Eat: "reduce the spacing here").
   return (
-    <div style={{ padding: `12px ${t.padX}px 4px` }}>
+    <div style={{ padding: `6px ${t.padX}px 2px` }}>
       {/* MONTH VIEW — the same door Home's week carries (owner, 2026-10-11: "also
           have month view option available here on train and eat pages"). */}
       {onMonth ? (

@@ -295,6 +295,7 @@ test('Fuel left today puts the three macros side by side, each a door with what 
   const head = order.find((n) => typeof n.type === 'function' && n.type.name === 'BSFocusHead');
   assert.equal(head.props.label, 'Fuel left today');
   assert.equal(head.props.meta, '2,100 kcal plan');
+  assert.equal(head.props.top, 10, 'Fuel left sits close under the week strip (owner, 2026-10-23: "reduce the spacing here")');
   assert.match(d.text, /52/);
   const strip = order.find((n) => n.props && n.props['data-eat-macros'] != null);
   assert.ok(strip, 'the macros are one row');

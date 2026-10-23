@@ -33,7 +33,9 @@ export function BSEatFuel({ calLeft, calTarget, calNow, calPct, macros = [], onO
   const tr = useShapeTr();
   return (
     <>
-      <BSFocusHead glyph="◐" label={tr('nutrition:eat.fuelLeft', { defaultValue: 'Fuel left today' })}
+      {/* Right under the week strip, so a tighter gap than a section's (owner, 2026-10-23: "reduce the
+          spacing here"). */}
+      <BSFocusHead glyph="◐" top={10} label={tr('nutrition:eat.fuelLeft', { defaultValue: 'Fuel left today' })}
         meta={tr('nutrition:eat.kcalPlan', { defaultValue: '{kcal} kcal plan', kcal: calTarget.toLocaleString() })} />
       <section data-eat-fuel="" style={{ margin: `8px ${t.padX}px 0`, padding: '14px 14px 12px', borderRadius: 16, background: t.PAPER2 || t.PAPER, border: t.isLight ? 0 : `1px solid ${t.HAIR}`, boxShadow: t.isLight ? '0 10px 24px -18px rgba(15,14,12,0.45)' : 'none' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>

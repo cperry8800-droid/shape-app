@@ -20,13 +20,14 @@ const hexA = (hex, a) => {
 };
 
 // A section head in the Home grammar: glyph + caps label, a quiet meta, one
-// action on the right, then the 2px ink→accent rule.
-export function BSFocusHead({ glyph, label, meta, actionLabel, onAction, color, tour }) {
+// action on the right, then the 2px ink→accent rule. `top` is the gap above it
+// (a section's, unless the head sits right under something, as Eat's Fuel left does).
+export function BSFocusHead({ glyph, label, meta, actionLabel, onAction, color, tour, top }) {
   const t = window.useBS();
   const c = color || t.ACCENT;
   return (
     <div data-tour={tour || undefined}>
-      <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+      <div style={{ padding: `${top ?? t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
           <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>{glyph ? `${glyph} ` : ''}{label}</span>
           {meta ? <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>{meta}</span> : null}
