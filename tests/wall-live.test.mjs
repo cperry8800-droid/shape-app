@@ -5,7 +5,7 @@
 // row is readable, and a boost. The cards are mounted on jsdom with the real English catalog behind
 // the real ICU translator, and the live row is read as the live boost sheet reads it (useBSLiveRow):
 // a realtime event wins over a first read that lands after it, and an expired row is absence.
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -94,6 +94,22 @@ test('a readable live row shows the move, the set and the sets so far; the card 
     assert.deepEqual(boosted, [devon]);
     assert.deepEqual(opened, [devon]);
   } finally { await m.unmount(); }
+});
+
+test('"N min in" keeps counting while the card stays on the Wall', async () => {
+  // The card stays mounted through the rail's refreshes, so the minutes must move on their own (review: Codex).
+  mock.timers.enable({ apis: ['setInterval', 'Date'], now: Date.parse('2026-10-23T08:00:00Z') });
+  try {
+    env({ started: { u1: new Date(Date.now() - 12 * 60000).toISOString() } });
+    const m = await mount({ people: [{ name: 'Devon Wells', activity: 'workout', userId: 'u1' }] });
+    try {
+      assert.match(m.text(), /12 min in/);
+      await React.act(async () => { mock.timers.tick(3 * 60000); });
+      assert.match(m.text(), /15 min in/);
+      await React.act(async () => { mock.timers.tick(6 * 60 * 60000); });
+      assert.doesNotMatch(m.text(), /min in/, 'past six hours the line goes, as on arrival');
+    } finally { await m.unmount(); }
+  } finally { mock.timers.reset(); }
 });
 
 test('an expired row, a cooking row or no row says nothing about a set', async () => {

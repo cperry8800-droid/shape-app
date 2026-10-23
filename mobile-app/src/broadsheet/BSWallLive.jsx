@@ -45,20 +45,31 @@ export function useBSLiveRow(userId) {
   return live;
 }
 
-// Minutes since they started, only when started_at is readable (and under six hours).
+// Minutes since they started, only when started_at is readable (and under six hours). The start is read
+// once and the clock keeps moving: a Wall card stays mounted through the rail's refreshes, so "12 min
+// in" has to become 13 on its own (review: Codex).
 export function useBSLiveMinutes(userId) {
-  const [mins, setMins] = useState(null);
+  const [startMs, setStartMs] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
+    setStartMs(null);
     if (!userId || !window.ShapePresence?.activityDetail) return undefined;
     let on = true;
     window.ShapePresence.activityDetail(userId).then((d) => {
       if (!on || !d || !d.startedAt) return;
-      const m = Math.round((Date.now() - new Date(d.startedAt).getTime()) / 60000);
-      if (Number.isFinite(m) && m >= 0 && m < 6 * 60) setMins(Math.max(1, m));
+      const s = new Date(d.startedAt).getTime();
+      if (Number.isFinite(s)) { setNow(Date.now()); setStartMs(s); }
     }).catch(() => {});
     return () => { on = false; };
   }, [userId]);
-  return mins;
+  useEffect(() => {
+    if (startMs == null) return undefined;
+    const tick = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(tick);
+  }, [startMs]);
+  if (startMs == null) return null;
+  const m = Math.round((now - startMs) / 60000);
+  return m >= 0 && m < 6 * 60 ? Math.max(1, m) : null;
 }
 
 // The workout half of a live payload, or null: a cooking row or a malformed one says nothing here.
