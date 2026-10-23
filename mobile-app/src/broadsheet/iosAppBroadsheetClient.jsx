@@ -13731,7 +13731,11 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         const next = bsGroceryListsApply(Array.isArray(stored) ? stored : [], used, delta);
         if (next !== stored) window.localStorage.setItem('shape.recipeGroceryLists', JSON.stringify(next));
         if (!grocMountedRef.current) return false;
+        // The lists the next sync reads, now: a sync queued behind this one runs before React renders, and
+        // without these it would take them for lists deleted here (Codex P1 on #2433).
+        grocLocalRef.current = bsGroceryListsApply(grocLocalRef.current, used, delta);
         const putIds = new Set(delta.put.map((l) => l.id));
+        if (putIds.size) grocGoneRef.current = grocGoneRef.current.filter((id) => !putIds.has(id));
         setRecipeLists((prev) => bsGroceryListsApply(prev, used, delta));
         if (putIds.size) setDeletedGroceryIds((prev) => (prev.some((id) => putIds.has(id)) ? prev.filter((id) => !putIds.has(id)) : prev));
         return true;

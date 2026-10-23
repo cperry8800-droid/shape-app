@@ -147,7 +147,9 @@ export function bsGroceryListsMerge({ base = null, local = [], remote, gone = []
 // Take another device's changes into this device's lists. `used` is the local snapshot the merge read and
 // `prev` the lists now; a list changed here since the merge read it is left alone, and the next sync
 // carries that change. Returns `prev` itself when nothing changed, so a state setter sees no update.
-//   fromStored (storedList) => the list in the writer's shape;  at 'start' | 'end' for a new list
+//   fromStored (storedList, prevList) => the list in the writer's shape; `prevList` is this device's copy
+//              it replaces (null for a new one), so state the document doesn't carry can be kept
+//   at         'start' | 'end' for a new list
 export function bsGroceryListsApply(prev, used, delta, { fromStored = (l) => l, at = 'start' } = {}) {
   const put = (delta && delta.put) || [];
   const drop = (delta && delta.drop) || [];
@@ -165,7 +167,7 @@ export function bsGroceryListsApply(prev, used, delta, { fromStored = (l) => l, 
   for (const r of put) {
     if (!untouched(r.id)) continue;
     const i = next.findIndex((l) => l && l.id === r.id);
-    const v = fromStored(r);
+    const v = fromStored(r, i >= 0 ? next[i] : null);
     if (i >= 0) next[i] = v; else fresh.push(v);
     moved = true;
   }
@@ -286,7 +288,9 @@ export function bsGroceryListsStore({ db, baseStore = null } = {}) {
   // it is done. So a page that closed and opened again while a sync was queued gets that sync's changes.
   // `apply(delta, used)` takes another device's changes into the writer's lists, keeping them where the
   // next load reads them, and returns false when they did not reach the lists the next sync will read
-  // (the page had closed).
+  // (the page had closed). ⚠ "Reached" means `getLocal` returns them before `apply` returns, not only a
+  // state update queued for the next render: a sync queued behind this one runs straight after it, and
+  // reading the lists without them it would take them for lists deleted here (Codex P1 on #2433).
   // ⚠ THE BASE NEVER RUNS AHEAD OF THE LISTS. It becomes the merged lists only once `apply` has taken the
   // delta in: a base holding a list this device's lists don't have reads it, at the next sync, as deleted
   // here, and deletes it from the cloud. With no `apply`, one that returns false, or one that throws, a

@@ -146,6 +146,14 @@ function webToSynced(lists) {
 // stored through webToSynced, which this page's own fields (a category, an empty quantity) don't survive
 // the other way.
 const stripTicks = (l) => ({ ...l, items: (l.items || []).map(({ checked, ...it }) => it) });
+// Another device's copy of a list, keeping the items this page has ticked off: the document carries no
+// ticks, so a rename or an edited item on the phone must not clear the member's shop (Codex P2 on #2433).
+function webFromStored(stored, prev) {
+  const view = syncedToWeb(stored);
+  if (!prev) return view;
+  const ticked = new Set((prev.items || []).filter(it => it.checked).map(it => it.id));
+  return { ...view, items: view.items.map(it => (ticked.has(it.id) ? { ...it, checked: true } : it)) };
+}
 function webSame(stored, local) {
   const GL = window.ShapeGroceryListsLib;
   return GL.bsGrocerySame(stripTicks(syncedToWeb(stored)), stripTicks(local)) || GL.bsGrocerySame(webToSynced([local])[0], stored);
@@ -181,12 +189,15 @@ function ClientGroceryPage() {
       // closed they did not reach the lists the next sync reads, so the store leaves them unsynced.
       apply: (delta, used) => {
         const GL = window.ShapeGroceryListsLib;
-        const opts = { fromStored: syncedToWeb, at: "end" };
+        const opts = { fromStored: webFromStored, at: "end" };
         const raw = window.localStorage.getItem(STORE_KEY);
         const stored = raw ? JSON.parse(raw) : [];
         const next = GL.bsGroceryListsApply(Array.isArray(stored) ? stored : [], used, delta, opts);
         if (next !== stored) window.localStorage.setItem(STORE_KEY, JSON.stringify(next));
         if (!mountedRef.current) return false;
+        // The lists the next sync reads, now: a sync queued behind this one runs before React renders, and
+        // without these it would take them for lists deleted here (Codex P1 on #2433).
+        listsRef.current = GL.bsGroceryListsApply(listsRef.current, used, delta, opts);
         setLists(prev => GL.bsGroceryListsApply(prev, used, delta, opts));
         return true;
       },

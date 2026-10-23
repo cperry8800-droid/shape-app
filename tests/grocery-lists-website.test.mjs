@@ -47,6 +47,7 @@ async function mountPage({ row, stored, onWrite }) {
     saveUserGoalsIfRev: async (kind, data, expectedRev, expectedUid) => {
       assert.equal(kind, 'client_grocery_lists');
       assert.equal(expectedUid, 'u1');
+      if (cloud.gate) await cloud.gate; // a write held in flight
       if (onWrite) onWrite(cloud);
       const rev = cloud.row && !Array.isArray(cloud.row) && cloud.row.rev != null ? String(cloud.row.rev) : null;
       if (rev !== (expectedRev == null ? null : String(expectedRev))) { cloud.conflicts += 1; return { conflict: true }; }
@@ -141,5 +142,59 @@ test('ticking items off writes nothing; a list deleted on the phone leaves the p
     await page.settle();
     assert.deepEqual(ids(page.cloud.row.lists).filter((id) => !id.startsWith('list-')), ['default']);
     assert.ok(!page.local().some((l) => l.id === 'received-m1'), 'gone from the page too');
+  } finally { await page.done(); }
+});
+
+test('another device\'s list taken in while a sync is queued is never read as deleted here (Codex P1 on #2433)', async () => {
+  const page = await mountPage({ row: { v: 1, rev: 1, lists: [WEB_STORED] }, stored: [WEB] });
+  try {
+    assert.equal(page.cloud.writes.length, 0);
+    // The phone adds a list.
+    page.cloud.row = { v: 1, rev: 2, lists: [{ id: 'phone', name: 'Phone list', items: [] }, WEB_STORED] };
+    const newList = async (name) => {
+      page.w.prompt = () => name;
+      const btn = [...page.w.document.querySelectorAll('button')].find((b) => b.textContent === '+ NEW LIST');
+      await React.act(async () => { btn.click(); });
+    };
+    // A new list here: its sync reads the phone's list, merges, and its write is held in flight.
+    let release;
+    page.cloud.gate = new Promise((r) => { release = r; });
+    await newList('First');
+    // A second edit while that write is in flight: its sync queues behind it.
+    await newList('Second');
+    // The write lands. The first sync takes the phone's list in, and the queued sync runs straight after,
+    // before React has rendered it.
+    page.cloud.gate = null;
+    await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
+    await page.settle();
+    // ⚠ EVERY write, not only the last: the page's next sync would put a dropped list back, but in between
+    // the cloud says it was deleted, and another device syncing then deletes its own copy.
+    for (const w of page.cloud.writes) {
+      const names = w.lists.map((l) => l.name);
+      assert.ok(names.includes('Phone list'), `no write leaves the phone's list out: rev ${w.rev} has ${names.join(', ')}`);
+    }
+    const names = page.cloud.row.lists.map((l) => l.name);
+    assert.ok(names.includes('First') && names.includes('Second'));
+    assert.ok(page.local().some((l) => l.id === 'phone'), 'and on the page');
+  } finally { await page.done(); }
+});
+
+test('an edit from the phone keeps the items ticked off on the page (Codex P2 on #2433)', async () => {
+  const page = await mountPage({ row: { v: 1, rev: 1, lists: [WEB_STORED] }, stored: [WEB] });
+  try {
+    const box = page.w.document.querySelector('button[aria-label="Check"]');
+    await React.act(async () => { box.click(); });
+    await page.settle();
+    // The phone renames the list and adds an item.
+    const edited = { ...WEB_STORED, name: 'Saturday shop', items: [...WEB_STORED.items, { id: 'g2', n: 'Limes', q: '6' }] };
+    page.cloud.row = { v: 1, rev: 2, lists: [edited] };
+    // Any change here syncs.
+    page.w.prompt = () => 'Another';
+    const btn = [...page.w.document.querySelectorAll('button')].find((b) => b.textContent === '+ NEW LIST');
+    await React.act(async () => { btn.click(); });
+    await page.settle();
+    const mine = page.local().find((l) => l.id === 'default');
+    assert.equal(mine.name, 'Saturday shop', "the phone's edit came in");
+    assert.deepEqual(mine.items.map((it) => [it.item, it.checked]), [['Avocados', true], ['Limes', false]], 'the tick kept, by item');
   } finally { await page.done(); }
 });

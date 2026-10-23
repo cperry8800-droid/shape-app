@@ -147,6 +147,10 @@ test('applying another device\'s changes leaves a list changed here since alone'
   assert.equal(next[2].name, 'Edited since', 'b was edited after the merge read it: left for the next sync');
   assert.deepEqual(ids(bsGroceryListsApply(prev, used, delta, { at: 'end', fromStored: (l) => ({ ...l, web: true }) })), ['a', 'b', 'new-here', 'x']);
   assert.equal(bsGroceryListsApply(prev, used, { put: [], drop: [] }), prev, 'no change returns the same array, so a setter sees none');
+  // fromStored is handed this device's copy it replaces, so state the document doesn't carry can be kept.
+  const seen = [];
+  bsGroceryListsApply(prev, used, delta, { fromStored: (r, p) => { seen.push([r.id, p ? p.id : null]); return r; } });
+  assert.deepEqual(seen, [['a', 'a'], ['x', null]]);
   assert.equal(bsGroceryListsApply(prev, used, { put: [L('b', { name: 'Theirs' })], drop: [] }), prev, 'nor when every change was skipped');
 });
 
@@ -358,6 +362,10 @@ test('every writer goes through the store: no whole-document write of the lists 
   }
   assert.match(CLIENT, /bsGroceryListsAppStore\(\)\.sync\(\{\s*getLocal: \(\) => grocLocalRef\.current,\s*getGone: \(\) => grocGoneRef\.current,/);
   assert.match(CLIENT, /apply: \(delta, used\) => \{[\s\S]{0,700}window\.localStorage\.setItem\('shape\.recipeGroceryLists', JSON\.stringify\(next\)\)/, 'the Eat page keeps another device\'s changes in storage, not only on screen');
+  // ⚠ apply makes the delta visible to getLocal BEFORE it returns, not only through a state update for the
+  // next render: a sync queued behind runs first and would read the lists without it (Codex P1 on #2433).
+  assert.match(CLIENT, /if \(!grocMountedRef\.current\) return false;[\s\S]{0,300}grocLocalRef\.current = bsGroceryListsApply\(grocLocalRef\.current, used, delta\);[\s\S]{0,300}setRecipeLists\(\(prev\) => bsGroceryListsApply\(prev, used, delta\)\);\s*if \(putIds\.size\) setDeletedGroceryIds[\s\S]{0,120}return true;/);
+  assert.match(HTML, /if \(!mountedRef\.current\) return false;[\s\S]{0,300}listsRef\.current = GL\.bsGroceryListsApply\(listsRef\.current, used, delta, opts\);\s*setLists\(/);
   assert.match(SHARE, /bsGroceryListsAppStore\(\)\.add\(list\)/);
   assert.match(HTML, /<script type="module">import \* as GL from "\/newdesign\/groceryLists\.mjs\?v=\d+"; window\.ShapeGroceryListsLib = GL;<\/script>\n<script type="text\/babel">/, 'the website loads the module before its page script');
   assert.match(HTML, /store\.sync\(\{\s*getLocal: \(\) => listsRef\.current,\s*same: webSame,/);
