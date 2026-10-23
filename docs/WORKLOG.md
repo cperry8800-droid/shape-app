@@ -247,7 +247,8 @@ planned builds.
   the dashboard frame, `/admin`, Business (website and app), the coach application
   uploads or the Wall's live story with a real set.
 - The Wall's old card (`variant="wall"`) is unused in the app; the website chat bubble
-  still draws its copy. Coaches can read a sent grocery list, not save it.
+  still draws its copy. Coaches can read a sent grocery list, not save it; a
+  member's save isn't a compare-and-set.
 - Native mic and camera plugins (including iOS barcode scanning) and on-device macro
   reads from a meal photo aren't built yet.
 - The daily check-in (#2398): its saves have no timeout, so a request the network holds
@@ -288,10 +289,9 @@ planned builds.
   - [`-2026-08`](WORKLOG-ARCHIVE-2026-08.md)
   - [`-2026-06-07`](WORKLOG-ARCHIVE-2026-06-07.md)
   - [`-2026-06-cycles-2-5`](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md)
-- The old version of this file, with every reviewer ruling and the reasoning behind
-  each rule: [`WORKLOG-ARCHIVE-conventions-2026-10-16.md`](WORKLOG-ARCHIVE-conventions-2026-10-16.md).
-- Session handoffs (`docs/HANDOFF-*.md`) are no longer written; the old ones are
-  history too.
-- These files are 0.2–1.1 MB each. To find something, run
+- The old version of this file, with every reviewer ruling and why:
+  [`WORKLOG-ARCHIVE-conventions-2026-10-16.md`](WORKLOG-ARCHIVE-conventions-2026-10-16.md).
+- Old session handoffs (`docs/HANDOFF-*.md`) are history; none are written now.
+- To find something in these files (0.2–1.1 MB each), run
   `grep -n "<term>" docs/WORKLOG-ARCHIVE-*.md`, then read only that entry with
   `sed -n '<start>,<end>p'`. Never `cat` or `@`-import an archive.
