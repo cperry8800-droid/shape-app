@@ -106,22 +106,31 @@ test('the target picker starts at the member\'s target or a sensible one, and sa
 
 // ── The line ─────────────────────────────────────────────────────────────────
 
-// Owner, 2026-10-21: "also make the water line smaller". One row, as tall as + Glass's pill; the
-// button around the pill keeps the 34 px tap. A target's progress is the line's bottom edge.
-test('the line is one slim row: the target bar rides the bottom edge, and + Glass keeps its tap', async () => {
+// Owner, 2026-10-21: "also make the water line smaller"; owner, 2026-10-22, Option A: the card and the
+// water row "look analog and outdated". One row in the morning panel, no box of its own: a target's
+// progress is a pip a glass, and + Glass is a filled pill with a 44 px tap.
+test('the line is one row in the morning panel: a pip a glass against a target, and + Glass keeps a 44 px tap', async () => {
   env({ water: { ok: true, hydrationL: 0.5, targetL: 2.5, targetStoredL: 2.5 } });
   const m = await mount();
   try {
     const line = document.querySelector('[data-bs-water]');
-    const bar = line.querySelector('[data-bs-water-bar]');
-    assert.ok(bar, 'a member with a target sees no progress');
-    assert.equal(bar.style.position, 'absolute', 'the bar takes a row of its own again');
-    assert.equal(bar.style.bottom, '0px');
+    assert.equal(line.style.border, '', 'the line draws its own box again: the morning panel holds it');
+    const pips = line.querySelector('[data-bs-water-bar]');
+    assert.ok(pips, 'a member with a target sees no progress');
+    // 2.5 L is about eleven 8 oz glasses; 0.5 L is two of them.
+    assert.equal(pips.children.length, 11);
+    const on = [...pips.children].filter((p) => p.style.background && p.style.background !== 'transparent').length;
+    assert.equal(on, 2);
     const add = line.querySelector('[data-bs-water-add]');
-    assert.equal(add.style.minHeight, '34px', "+ Glass's tap shrank with its pill");
-    assert.equal(add.firstElementChild.style.height, '28px');
-    assert.equal(line.style.padding, '5px 6px 5px 12px');
+    assert.equal(add.style.minHeight, '44px', "+ Glass's tap shrank");
+    assert.equal(add.textContent, '+ Glass');
   } finally { m.unmount(); }
+  // No target: no pips, a total only.
+  env();
+  const n = await mount();
+  try {
+    assert.ok(!document.querySelector('[data-bs-water] [data-bs-water-bar]'), 'pips with no target to count against');
+  } finally { n.unmount(); }
 });
 
 test('the line shows the day and + Glass, and progress only against a target the member set', async () => {

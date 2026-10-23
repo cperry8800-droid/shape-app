@@ -965,84 +965,141 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   const host = typeof document !== 'undefined' ? (document.getElementById('bs-phone-surface') || document.body) : null;
 
   // ── the card on Home ──
+  // ⚠ IN THE MORNING PANEL (owner, 2026-10-22, Option A: the card "look[s] analog and outdated"). The
+  // card draws no box of its own: BSMorningPanel holds it over the water line. Before the check-in: a
+  // sun tile and the title, then Same as yesterday as the one filled button, with yesterday's answers
+  // on it, and Start (or Continue) as a quiet link under it; with no yesterday to repeat, Start is the
+  // filled button. Once a step is in (a watch's night or a skipped one too), the steps take the place
+  // of "2 checks · 15 sec". Checked in: one row, with the morning's readiness as a ring when there is one.
   const done = status === 'done';
+  const fill = t.isLight ? '#08776f' : teal;
+  const onFill = t.isLight ? '#fff' : t.PAPER;
+  const tile = (bg, child) => (
+    <span aria-hidden style={{ width: 36, height: 36, borderRadius: 11, background: bg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{child}</span>
+  );
+  const sun = (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={teal} strokeWidth="1.9" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" /></svg>
+  );
+  const tick = (color, size) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12.5l4.2 4.2L19 7" /></svg>
+  );
+  const streakChip = signedIn && streak >= 2 ? (
+    <span style={{ ...mono, fontSize: 8.5, letterSpacing: '0.1em', color: amber, whiteSpace: 'nowrap' }}>{tr('home:checkin.streak', { defaultValue: '{n, plural, one {# day running} other {# days running}}', n: streak })}</span>
+  ) : null;
+  const title = { fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.15, color: t.INK };
+  const sub = { fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: t.INK50 };
+  const startLabel = manual ? tr('home:checkin.continue', { defaultValue: 'Continue →' }) : tr('home:checkin.start', { defaultValue: 'Start check-in →' });
+  const bigButton = { width: '100%', minHeight: 52, border: 0, borderRadius: 13, background: fill, color: onFill, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '6px 16px', textAlign: 'left', boxShadow: t.isLight ? `0 6px 16px -9px ${fill}` : 'none' };
+  const ring = (score) => {
+    const r = 18;
+    const c = 2 * Math.PI * r;
+    return (
+      <span style={{ position: 'relative', width: 44, height: 44, flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden style={{ position: 'absolute', inset: 0, transform: 'rotate(-90deg)' }}>
+          <circle cx="22" cy="22" r={r} fill="none" stroke={t.HAIR} strokeWidth="4" />
+          <circle cx="22" cy="22" r={r} fill="none" stroke={teal} strokeWidth="4" strokeLinecap="round" strokeDasharray={`${(c * Math.max(0, Math.min(100, score))) / 100} ${c}`} />
+        </svg>
+        <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{score}</span>
+      </span>
+    );
+  };
   const eveningRow = eveningOpen ? (
     <div data-bs-checkin-evening="" style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: `1px solid ${t.HAIR}`, paddingTop: 10 }}>
       <span style={{ ...mono, fontSize: 8.5, color: amber }}>{tr('home:checkin.tonight', { defaultValue: 'Tonight' })}</span>
       <span style={{ flex: 1, minWidth: 0, fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>{tr('home:checkin.eveningRow', { defaultValue: 'How hungry did you get today?' })}</span>
-      <button type="button" onClick={() => open('evening')} style={{ minHeight: 34, padding: '5px 11px', borderRadius: 4, border: `1px solid ${amber}80`, background: `${amber}14`, color: amber, cursor: 'pointer', ...mono, fontSize: 8.5, letterSpacing: '0.1em' }}>{tr('home:checkin.answer', { defaultValue: 'Answer →' })}</button>
+      <button type="button" onClick={() => open('evening')} style={{ minHeight: 36, padding: '6px 13px', borderRadius: 999, border: 0, background: `${amber}1f`, color: amber, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>{tr('home:checkin.answer', { defaultValue: 'Answer →' })}</button>
     </div>
   ) : null;
   return (
     <>
-      {/* ⚠ COMPACT ON HOME (owner, 2026-10-21: "condense the size of this. taking up way to much space
-          on home page"). Before the check-in: the title row and one row of buttons, Start beside Same as
-          yesterday; once a step is in (a watch's night or a skipped one too), the steps ride in the title
-          row in place of "2 checks · 15 sec". Checked in: the same lines, smaller. */}
-      <div ref={cardRef} data-bs-checkin-card="" style={{ margin: `8px ${t.padX}px 4px`, padding: '11px 12px', border: `1px solid ${done ? t.RULE : `${teal}66`}`, background: t.PAPER2 || t.PAPER, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', display: 'flex', flexDirection: 'column', gap: 9 }}>
-        {/* A narrow phone puts the right side under the title, each kept whole. */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '4px 10px' }}>
-          <span style={{ ...mono, color: teal, whiteSpace: 'nowrap' }}>{tr('home:checkin.title', { defaultValue: 'Morning check-in' })}</span>
-          {/* Checked in, Edit sits here: its 34 px reach overlaps the card's padding, so the row stays one line tall. */}
-          {done ? (
-            <button type="button" onClick={() => open(0)} style={{ flex: 'none', minHeight: 34, margin: '-9px 0', padding: '5px 11px', borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', ...mono, fontSize: 8.5 }}>{tr('home:action.edit', { defaultValue: 'Edit' })}</button>
-          ) : BS_CI_STEPS.some((k) => answered[k]) ? (
-            <span data-bs-checkin-steps="" style={{ display: 'flex', gap: 8, minWidth: 0 }}>
-              {BS_CI_STEPS.map((k) => (
-                <span key={k} style={{ ...mono, fontSize: 8, letterSpacing: '0.12em', color: answered[k] ? COLOR[k] : t.INK50, whiteSpace: 'nowrap' }}>{answered[k] ? '✓ ' : ''}{NAME[k]}</span>
-              ))}
-            </span>
-          ) : <span style={{ ...mono, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, whiteSpace: 'nowrap' }}>{tr('home:checkin.cardMeta', { defaultValue: '2 checks · 15 sec' })}</span>}
-        </div>
+      <div ref={cardRef} data-bs-checkin-card="" style={{ display: 'flex', flexDirection: 'column', gap: done ? 8 : 12 }}>
+        {done ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {readiness ? ring(readiness.score) : tile(`${teal}24`, tick(teal, 16))}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={signedIn ? title : { ...title, fontSize: 15 }}>
+                {signedIn ? <>{tr('home:checkin.done', { defaultValue: 'Checked in' })} <span style={{ color: teal }}>✓</span></> : tr('home:today.joinToSave', { defaultValue: 'Join Shape to save your check-in' })}
+              </div>
+              <div style={{ ...sub, color: t.INK70 }}>
+                {[
+                  today.sleep != null ? `${NAME.sleep} ${hm(today.sleep)}` : null,
+                  today.rested != null ? word(R, today.rested) : null,
+                  today.energy != null ? `${NAME.energy} ${word(E, today.energy)}` : null,
+                  today.hunger != null ? `${NAME.hunger} ${word(H, today.hunger)}` : null,
+                ].filter(Boolean).join(' · ')}
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flex: 'none' }}>
+              {streakChip}
+              <button type="button" onClick={() => open(0)} style={{ minHeight: 32, padding: '4px 12px', borderRadius: 999, border: 0, background: t.HAIR, color: t.INK, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600 }}>{tr('home:action.edit', { defaultValue: 'Edit' })}</button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+            {tile(`${teal}1f`, sun)}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={title}>{tr('home:checkin.title', { defaultValue: 'Morning check-in' })}</div>
+              {BS_CI_STEPS.some((k) => answered[k]) ? (
+                <span data-bs-checkin-steps="" style={{ display: 'flex', gap: 8, minWidth: 0, marginTop: 2 }}>
+                  {BS_CI_STEPS.map((k) => (
+                    <span key={k} style={{ ...mono, fontSize: 8, letterSpacing: '0.12em', color: answered[k] ? COLOR[k] : t.INK50, whiteSpace: 'nowrap' }}>{answered[k] ? '✓ ' : ''}{NAME[k]}</span>
+                  ))}
+                </span>
+              ) : <div style={sub}>{tr('home:checkin.cardMeta', { defaultValue: '2 checks · 15 sec' })}</div>}
+            </div>
+            {streakChip}
+          </div>
+        )}
 
         {done ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: signedIn ? 17 : 15, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>
-              {signedIn ? <>{tr('home:checkin.done', { defaultValue: 'Checked in' })} <span style={{ color: teal }}>✓</span></> : tr('home:today.joinToSave', { defaultValue: 'Join Shape to save your check-in' })}
-            </div>
-            <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>
-              {[
-                today.sleep != null ? `${NAME.sleep} ${hm(today.sleep)}` : null,
-                today.rested != null ? word(R, today.rested) : null,
-                today.energy != null ? `${NAME.energy} ${word(E, today.energy)}` : null,
-                today.hunger != null ? `${NAME.hunger} ${word(H, today.hunger)}` : null,
-              ].filter(Boolean).join(' · ')}
-            </div>
+          <>
             {readText ? <div data-bs-checkin-read="" style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK, lineHeight: 1.4 }}>{readText}</div> : null}
-            {/* The streak, readiness and the door to Your mornings share one line. */}
-            {(signedIn && streak >= 2) || readinessText || onMornings ? (
+            {readinessText || onMornings ? (
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0 12px' }}>
-                {signedIn && streak >= 2 ? (
-                  <span style={{ ...mono, fontSize: 8.5, color: amber }}>{tr('home:checkin.streak', { defaultValue: '{n, plural, one {# day running} other {# days running}}', n: streak })}</span>
-                ) : null}
                 {readinessText ? <span data-bs-checkin-readiness="" style={{ ...mono, fontSize: 8.5, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{readinessText}</span> : null}
                 {morningsLink(false)}
               </div>
             ) : null}
-          </div>
+            {errLine}
+          </>
         ) : (
           <>
             {errLine}
-            {/* Side by side while both fit; a narrow phone or a long language puts Same as yesterday under. */}
-            <div data-bs-checkin-actions="" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              <button type="button" onClick={() => open(firstOpen())} style={{ ...btnPrimary, flex: '1 1 112px', minHeight: 44, padding: '6px 8px', fontSize: 9.5, letterSpacing: '0.1em' }}>
-                {manual ? tr('home:checkin.continue', { defaultValue: 'Continue →' }) : tr('home:checkin.start', { defaultValue: 'Start check-in →' })}
-              </button>
+            <div data-bs-checkin-actions="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
               {same ? (
-                <button type="button" onClick={() => answer(same)} style={{ flex: '1.25 1 120px', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, minHeight: 44, padding: '5px 8px', borderRadius: 5, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>
-                  <span style={{ ...mono, fontSize: 8, letterSpacing: '0.1em', color: teal }}>{tr('home:checkin.same', { defaultValue: 'Same as yesterday' })} ✓</span>
-                  <span style={{ maxWidth: '100%', fontFamily: t.BODY, fontSize: 11.5, color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sameLine}</span>
+                <button type="button" onClick={() => answer(same)} style={bigButton}>
+                  <span aria-hidden style={{ width: 22, height: 22, borderRadius: 999, background: t.isLight ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.18)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{tick(onFill, 13)}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600 }}>{tr('home:checkin.same', { defaultValue: 'Same as yesterday' })}</span>
+                    <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 12, opacity: 0.88, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sameLine}</span>
+                  </span>
                 </button>
               ) : null}
+              <button type="button" onClick={() => open(firstOpen())} style={same
+                ? { alignSelf: 'flex-start', minHeight: 40, padding: '0 2px', border: 0, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600 }
+                : { ...bigButton, justifyContent: 'center', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600 }}>
+                {startLabel}
+              </button>
             </div>
           </>
         )}
-
-        {done ? errLine : null}
         {eveningRow}
       </div>
       {sheet && host ? createPortal(sheet, host) : sheet}
     </>
+  );
+}
+
+// ⚠ THE MORNING PANEL (owner, 2026-10-22, Option A). Home's check-in card and water line share one
+// rounded surface: the card on top, a hairline, then water. With Check-ins off the card renders
+// nothing and the panel holds water alone. The two draw no box of their own.
+export function BSMorningPanel({ children }) {
+  const t = window.useBS();
+  return (
+    <section data-bs-morning="" style={{ margin: `8px ${t.padX}px 4px`, padding: '14px 14px 13px', borderRadius: 16, background: t.PAPER2 || t.PAPER, border: t.isLight ? 0 : `1px solid ${t.HAIR}`, boxShadow: t.isLight ? '0 10px 24px -18px rgba(15,14,12,0.45)' : 'none' }}>
+      {children}
+      <style>{`[data-bs-morning] [data-bs-checkin-card] + [data-bs-water]{margin-top:12px;padding-top:12px;border-top:1px solid ${t.HAIR}}`}</style>
+    </section>
   );
 }
 

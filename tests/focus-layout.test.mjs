@@ -303,6 +303,13 @@ test('Fuel left today puts the three macros side by side, each a door with what 
   assert.deepEqual(doors.map((b) => b.props['aria-label']), ['PROTEIN 2g left 178 / 180', 'CARBS 2g left 218 / 220', 'FAT 0g left 70 / 65'], 'over the target reads 0 left, never negative');
   doors.forEach((b) => b.props.onClick());
   assert.equal(opened, 3);
+  // The look follows the morning panel (owner, 2026-10-22: "change the look of this"): one rounded
+  // panel, and each macro a tile tinted in its own colour.
+  const panel = order.find((n) => n.props && n.props['data-eat-fuel'] != null);
+  assert.ok(panel, 'the fuel block lost its panel');
+  assert.equal(panel.props.style.borderRadius, 16);
+  assert.deepEqual(doors.map((b) => b.props.style.background), ['#e0654714', '#e3a54414', '#5b8df914'], 'each macro tile is tinted in its colour');
+  assert.ok(doors.every((b) => b.props.style.borderRadius === 12));
 });
 
 test('Train reads in the Focus order: the week, the session, the links', () => {
@@ -321,6 +328,17 @@ test('Train reads in the Focus order: the week, the session, the links', () => {
 // Owner, 2026-10-11, on the first build: "check-in should be towards the top". Owner, 2026-10-22, off
 // the Home mockup: Your line and At a glance left Home (Eat and Train carry the day), and Home says
 // what only it can: Today's call, Your goal, Week so far and From your coaches, then the links.
+// Owner, 2026-10-22, Option A: the check-in card and water share one morning panel on Home.
+test('Home holds the check-in card and water in one morning panel', () => {
+  delete globalThis.ShapeAuth;
+  const d = drive(BSClientHome, { onProfile() {}, goCalendar() {}, goRadio() {}, goTrain() {}, goEat() {}, goMarket() {}, goScore() {}, goChat() {}, goIntegrations() {}, tweaks: {}, setTweak() {} });
+  const panels = d.nodes().filter((n) => typeof n.type === 'function' && n.type.name === 'BSMorningPanel');
+  assert.equal(panels.length, 1, 'one panel');
+  const kids = [].concat(panels[0].props.children).filter(Boolean);
+  assert.deepEqual(kids.map((k) => k.type.name), ['BSTodayNudge', 'BSWaterLine'], 'the card, then water');
+  assert.equal(kids[0].props.variant, 'bulletin');
+});
+
 test('Home reads in the Focus order: check-in, today\'s call, your goal, week so far, coaches, then the links', () => {
   delete globalThis.ShapeAuth;
   const d = drive(BSClientHome, { onProfile() {}, goCalendar() {}, goRadio() {}, goTrain() {}, goEat() {}, goMarket() {}, goScore() {}, goChat() {}, goIntegrations() {}, tweaks: {}, setTweak() {} });
