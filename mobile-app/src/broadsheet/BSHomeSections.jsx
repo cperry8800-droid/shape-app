@@ -71,13 +71,13 @@ function BSHsTrend({ points, color, label }) {
   const ys = points.map((p) => p.kg);
   const x0 = Math.min(...xs), x1 = Math.max(...xs);
   const lo = Math.min(...ys), hi = Math.max(...ys);
-  const W = 300, H = 48, pad = 4;
+  const W = 300, H = 36, pad = 4;
   const sx = (x) => (x1 === x0 ? W / 2 : pad + ((x - x0) / (x1 - x0)) * (W - pad * 2));
   const sy = (y) => (hi === lo ? H / 2 : pad + ((hi - y) / (hi - lo)) * (H - pad * 2));
   const pts = points.map((p, i) => `${sx(xs[i]).toFixed(1)},${sy(ys[i]).toFixed(1)}`).join(' ');
   const last = points.length - 1;
   return (
-    <svg role="img" aria-label={label} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" width="100%" height={H} style={{ display: 'block', marginTop: 14 }}>
+    <svg role="img" aria-label={label} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" width="100%" height={H} style={{ display: 'block', marginTop: 10 }}>
       <line x1="0" y1={H - 0.5} x2={W} y2={H - 0.5} stroke={t.HAIR} strokeWidth="1" vectorEffect="non-scaling-stroke" />
       <polyline points={pts} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       <circle cx={sx(xs[last])} cy={sy(ys[last])} r="3.5" fill={color} />
@@ -118,6 +118,8 @@ export function BSHomeGoal({ demo = null, ...view }) {
 }
 
 // The section itself, off `data` ({ primary, overall, weighIns }): the tests draw it directly.
+// Sized down a step (owner, 2026-10-23: "make this a little smaller"): the figure 42, the line 36 px
+// tall, the three figures under it 18.
 export function BSHomeGoalView({ data, docKg, isWeightGoal, goalWords, onOpen, tour, todayIso = bsCiIso(new Date()) }) {
   const t = window.useBS();
   const tr = useShapeTr();
@@ -145,45 +147,45 @@ export function BSHomeGoalView({ data, docKg, isWeightGoal, goalWords, onOpen, t
     <section data-bs-home-goal="" data-tour={tour || undefined}>
       <BSFocusTitle kicker={since} title={tr('home:goal.title', { defaultValue: 'Your goal' })} color={gold}
         right={<BSHsAction label={tr('home:goal.edit', { defaultValue: 'Edit →' })} onClick={onOpen} />} />
-      <div style={{ padding: `14px ${t.padX}px 0` }}>
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
         {words ? (
-          <p style={{ margin: 0, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 17, lineHeight: 1.35, color: t.INK85 || t.INK }}>&ldquo;{words}&rdquo;</p>
+          <p style={{ margin: 0, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.35, color: t.INK85 || t.INK }}>&ldquo;{words}&rdquo;</p>
         ) : null}
         {!words && !hasRead ? (
           <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>{tr('home:goal.empty', { defaultValue: 'Set a goal to follow it here.' })}</p>
         ) : null}
         {hasRead ? (
           <>
-            <div style={{ marginTop: 16, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 52, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{fmt(read.nowKg)}</span>
-                <span style={{ ...mono, fontSize: 10 }}>{tr('home:goal.now', { defaultValue: '{unit} now', unit })}</span>
+                <span style={{ fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 42, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{fmt(read.nowKg)}</span>
+                <span style={{ ...mono, fontSize: 9.5 }}>{tr('home:goal.now', { defaultValue: '{unit} now', unit })}</span>
               </div>
               {read.targetKg != null ? (
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ ...mono, fontWeight: 800, letterSpacing: '0.16em' }}>{tr('home:goal.target', { defaultValue: 'Goal' })}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 22, color: gold, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(read.targetKg)} {unit}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 19, color: gold, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(read.targetKg)} {unit}</div>
                 </div>
               ) : null}
             </div>
             <BSHsTrend points={read.trend} color={gold}
               label={tr('home:goal.trendAria', { defaultValue: 'Weigh-ins from {from} to {to} {unit}', from: fmt(read.trend[0] ? read.trend[0].kg : read.nowKg), to: fmt(read.nowKg), unit })} />
             {read.pct != null ? (
-              <div aria-hidden style={{ marginTop: 12, height: 3, background: t.HAIR }}>
+              <div aria-hidden style={{ marginTop: 10, height: 3, background: t.HAIR }}>
                 <div style={{ width: `${read.pct}%`, height: 3, background: gold }} />
               </div>
             ) : null}
-            <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+            <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
               <div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 21, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{signed(read.changeKg)}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{signed(read.changeKg)}</div>
                 <div style={{ ...mono, marginTop: 2 }}>{tr('home:goal.inWeeks', { defaultValue: '{unit} in {n, plural, one {# week} other {# weeks}}', unit, n: weeks })}</div>
               </div>
               <div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 21, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{read.paceKgWk != null ? signed(read.paceKgWk) : '—'}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{read.paceKgWk != null ? signed(read.paceKgWk) : '—'}</div>
                 <div style={{ ...mono, marginTop: 2 }}>{tr('home:goal.aWeek', { defaultValue: '{unit} a week lately', unit })}</div>
               </div>
               <div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 21, color: read.reached ? gold : t.INK, fontVariantNumeric: 'tabular-nums' }}>{read.reached ? '✓' : read.toGoKg != null ? fmt(read.toGoKg) : '—'}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: read.reached ? gold : t.INK, fontVariantNumeric: 'tabular-nums' }}>{read.reached ? '✓' : read.toGoKg != null ? fmt(read.toGoKg) : '—'}</div>
                 <div style={{ ...mono, marginTop: 2 }}>{read.reached ? tr('home:goal.reached', { defaultValue: 'Goal reached' }) : tr('home:goal.left', { defaultValue: '{unit} to go', unit })}</div>
               </div>
             </div>

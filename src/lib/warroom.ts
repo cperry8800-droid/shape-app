@@ -615,6 +615,14 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Home: Your goal a step smaller; Eat: Fuel left closer under the week — #2428. No migration',
+      items: [
+        { label: 'Owner, 2026-10-23, on Home\'s Your goal: "make this a little smaller". The figure 52 → 42, the target 22 → 19, the weigh-in line 48 → 36 px tall, the three figures under it 21 → 18, the quote 17 → 15.5, the gaps a little closer', status: 'done' },
+        { label: 'Owner, on Eat\'s top: "reduce the spacing here". The week strip sits closer to the tabs (12 → 6 px above, 4 → 2 below; Train\'s strip is the same one), and Fuel left today\'s heading opens 10 px under it (BSFocusHead takes a `top`)', status: 'done' },
+        { label: 'Review: Codex clean on 62a767f. Tests pin the goal figure at 42 and Fuel left\'s heading at top 10; 1,636 tests across the edited modules pass; CI green on all four jobs. The built /m/ app in Chromium', status: 'done' },
+      ],
+    },
+    {
       section: 'The Wall: photos on its cards, and who is training now at the top — #2427. No migration',
       items: [
         { label: 'Owner, 2026-10-22, off the Wall mockup: "do photos and training now first". Photos: bsActivityFromPost now carries a post\'s photo, video and link (the card drew them, the mapper dropped them), and a post that is only a photo or a video is a card of its own (bsWallMediaCard), under All only; notes, links and reposts stay off', status: 'done' },

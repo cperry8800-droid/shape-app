@@ -292,6 +292,11 @@ test('Your goal: the words, where the weigh-ins stand in the member\'s units, th
   assert.equal(line.props.points.length, 6, 'the line is the last 56 days of weigh-ins');
   assert.match(line.props.label, /^Weigh-ins from 176\.4 to 171\.1 lb$/, 'and is labelled');
   assert.equal(d.nodes()[0].props['data-tour'], 'hero-goal', 'the tour\'s goal step anchors here');
+  // A step smaller (owner, 2026-10-23: "make this a little smaller"): the figure 42, the three under it 18.
+  const now = d.nodes().find((n) => n.type === 'span' && n.props.children === '171.1');
+  assert.equal(now.props.style.fontSize, 42);
+  const figs = d.nodes().filter((n) => n.type === 'div' && n.props.style && n.props.style.fontVariantNumeric === 'tabular-nums' && n.props.style.fontSize === 18);
+  assert.equal(figs.length, 3);
   const weighIn = d.nodes().find((n) => fn('BSHsAction')(n) && n.props.label === 'Weigh in →');
   weighIn.props.onClick();
   assert.equal(opened.length, 1, 'Weigh in opens the goal page');
