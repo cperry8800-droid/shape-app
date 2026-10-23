@@ -232,10 +232,10 @@ export function bsGroceryListsPageBase(stored) {
 }
 
 // `session` (optional) returns the sign-out generation (the app's signOutGen(), the website's
-// shapeDb.signOutGen). It is read when a commit starts and again before its write and before it settles:
-// once a sign-out has begun, nothing is written or kept, since a sync that resumes after the sign-out's
-// storage scrub would put the departing member's lists back for the next person on the device (Codex P1
-// on #2433).
+// shapeDb.signOutGen), or null while a sign-out is under way. It is read when a commit is asked for and
+// again before its write and before it settles: once a sign-out has begun, nothing is written or kept,
+// since a sync that resumes after the sign-out's storage scrub would put the departing member's lists back
+// for the next person on the device; and a commit asked for during one never starts (Codex P1s on #2433).
 export function bsGroceryListsStore({ db, baseStore = null, session = null } = {}) {
   const getDb = () => (typeof db === 'function' ? db() : db);
   // An in-memory base for when there is no storage to keep one in.
@@ -314,6 +314,7 @@ export function bsGroceryListsStore({ db, baseStore = null, session = null } = {
   // (Codex P1 on #2433).
   const commit = (change, settle) => {
     const gen = session ? session() : null;
+    if (session && gen == null) return Promise.resolve({ ok: false, reason: 'signed-out' });
     const live = () => !session || session() === gen;
     return bsGroceryListsSerial(async () => {
       let res;

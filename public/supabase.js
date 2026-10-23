@@ -177,6 +177,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     async signIn(email, password) {
       var res = await client.auth.signInWithPassword({ email: email, password: password });
       if (res.error) return { error: res.error };
+      shapeDb.signingOut = false;
       var user = res.data.user;
       // Push the session into Next.js auth cookies so server-rendered
       // /dashboard/* routes recognize the user. Non-blocking — if this fails
@@ -249,9 +250,13 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     // sweep has begun and must not re-create what it removes. The app's twin is mobile-app/src/services/
     // signOutGen.mjs.
     signOutGen: 0,
+    // Whether a sign-out is under way: set with the bump, cleared by the next sign-in. Work asked for in
+    // between (a grocery lists sync) refuses to start, rather than capture the bumped generation as live.
+    signingOut: false,
 
     async signOut() {
       shapeDb.signOutGen += 1;
+      shapeDb.signingOut = true;
       // GUARDED, and the scope:'local' retry is LOAD-BEARING here — not the
       // belt-and-braces it is on mobile. The website pins auth-js 2.108.2
       // (public/vendor/supabase-js-2.108.2.umd.js, SRI-locked, loaded by every
@@ -1311,6 +1316,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       if (!e || e.key !== 'shape.signedOutAt' || !e.newValue) return;
       // Work in flight from the signed-in session (a grocery lists sync) keeps nothing after this.
       shapeDb.signOutGen += 1;
+      shapeDb.signingOut = true;
       // ⚠ RETIRE THIS TAB'S OWN SESSION FIRST. The scrub deliberately leaves
       // `shape.auth` (this client's storageKey) alone, because the sign-out
       // paths call auth.signOut() themselves — but the Next dashboard's does

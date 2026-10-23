@@ -3038,7 +3038,7 @@ window.shapeClearLocalUserContent = function (opts) {
   window.addEventListener("storage", function (e) {
     if (!e || e.key !== "shape.signedOutAt" || !e.newValue) return;
     // Work in flight from the signed-in session (a grocery lists sync) keeps nothing after this.
-    try { if (window.shapeDb) window.shapeDb.signOutGen = (window.shapeDb.signOutGen || 0) + 1; } catch (err) {}
+    try { if (window.shapeDb) { window.shapeDb.signOutGen = (window.shapeDb.signOutGen || 0) + 1; window.shapeDb.signingOut = true; } } catch (err) {}
     // ⚠ RETIRE THIS TAB'S OWN SESSION FIRST — and on EVERY page, not only the
     // ones that happen to load the SDK. The scrub leaves the Supabase token
     // (`shape.auth`) alone by design, and a sign-out started in the Next

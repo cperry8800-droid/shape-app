@@ -113,8 +113,10 @@ let grocStore = null;
 function groceryStore() {
   const GL = window.ShapeGroceryListsLib;
   if (!GL) return null;
-  // Nothing is written or kept once a sign-out has begun (shapeDb.signOut bumps signOutGen before its scrub).
-  if (!grocStore) grocStore = GL.bsGroceryListsStore({ db: () => window.shapeDb, baseStore: GL.bsGroceryListsBaseIn(() => { try { return window.localStorage; } catch (e) { return null; } }, GROC_BASE_KEY), session: () => (window.shapeDb ? window.shapeDb.signOutGen : 0) });
+  // Nothing is written or kept once a sign-out has begun (shapeDb.signOut bumps signOutGen before its scrub),
+  // and no sync starts while one is under way (signingOut). An older supabase.js without the counter reads
+  // as 0, so it still syncs.
+  if (!grocStore) grocStore = GL.bsGroceryListsStore({ db: () => window.shapeDb, baseStore: GL.bsGroceryListsBaseIn(() => { try { return window.localStorage; } catch (e) { return null; } }, GROC_BASE_KEY), session: () => (window.shapeDb ? (window.shapeDb.signingOut ? null : (window.shapeDb.signOutGen || 0)) : 0) });
   return grocStore;
 }
 // A synced list keeps what this page does not show — its kind, provenance and date, who it is from, its

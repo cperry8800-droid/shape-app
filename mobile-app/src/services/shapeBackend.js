@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmReading, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush, teardownPush, pushPermission, askForPush } from './push.js';
-import { signOutGen, bumpSignOutGen } from './signOutGen.mjs';
+import { signOutGen, bumpSignOutGen, signOutEnded } from './signOutGen.mjs';
 import { makePlaybackGate } from './playbackGate.mjs';
 import { bsSetSentryUser } from '../sentry.mjs';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
@@ -180,6 +180,8 @@ function setCached(next = {}) {
   const prevName = (state.profile && state.profile.full_name) || null;
   Object.assign(state, next);
   const uid = (state.user && state.user.id) || null;
+  // An account signing in ends any sign-out under way (signOutGen.mjs).
+  if (uid && uid !== prevUid) signOutEnded();
   const name = (state.profile && state.profile.full_name) || null;
   // PII-free Sentry user context — id, roles, is_coach ONLY (src/lib/sentry-context.mjs
   // owns that rule; the profile is passed through unreshaped so the module stays the one

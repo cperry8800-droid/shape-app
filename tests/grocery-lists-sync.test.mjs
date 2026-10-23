@@ -358,6 +358,32 @@ test('a sync asked for before a sign-out and still queued when it begins writes 
   assert.ok(!cloud.writes.some((w) => ids(w.data.lists).includes('mine')), 'nothing of the departing session written');
 });
 
+test('a sync asked for while a sign-out is under way never starts (Codex P1 on #2433)', async () => {
+  // The bump starts the sign-out; its teardown is still awaiting when an edit asks for a sync. That sync
+  // would capture the bumped generation and pass for live, so the store refuses it outright.
+  const cloud = cloudDb({ v: 1, rev: 1, lists: [L('theirs')] });
+  let reads = 0;
+  const db = { ...cloud.db, getUserGoals: async (k, o) => { reads += 1; return cloud.db.getUserGoals(k, o); } };
+  const applied = [];
+  const res = await bsGroceryListsStore({ db, session: () => null }).sync({ getLocal: () => [L('mine')], apply: (d) => { applied.push(d); return true; } });
+  assert.deepEqual([res.ok, res.reason], [false, 'signed-out']);
+  assert.deepEqual([reads, cloud.writes.length, applied.length], [0, 0, 0], 'nothing read, written or taken in');
+  const added = await bsGroceryListsStore({ db, session: () => null }).add(L('received'));
+  assert.deepEqual([added.ok, added.reason], [false, 'signed-out']);
+});
+
+test('the app\'s sign-out counter marks a sign-out under way until an account signs in', async () => {
+  const gen = await import('../mobile-app/src/services/signOutGen.mjs');
+  const before = gen.signOutGen();
+  gen.signOutEnded();
+  assert.equal(gen.signOutInProgress(), false);
+  gen.bumpSignOutGen();
+  assert.equal(gen.signOutGen(), before + 1);
+  assert.equal(gen.signOutInProgress(), true, 'the bump starts it');
+  gen.signOutEnded();
+  assert.equal(gen.signOutInProgress(), false, 'a sign-in ends it');
+});
+
 test('a write that keeps losing gives up honestly after a bounded number of tries', async () => {
   const cloud = cloudDb({ v: 1, rev: 1, lists: [] }, { onWrite: (c) => { c.row = { ...c.row, rev: c.row.rev + 1 }; } });
   const base = memBase();
@@ -475,15 +501,18 @@ test('every writer goes through the store: no whole-document write of the lists 
   assert.match(CLIENT, /const gone = new Set\(before\.filter\(\(l\) => l && !grocLocalRef\.current\.some\(\(n\) => n && n\.id === l\.id\)\)\.map\(\(l\) => l\.id\)\);\s*if \(gone\.size\) setSelectedGroceryList\(\(sel\) => \(sel && gone\.has\(sel\.id\) \? null : sel\)\);/);
   // The sign-out generation guards both stores, and every sign-out bumps it before its scrub (Codex P1 on
   // #2433): the app's signOut() already does; the cross-tab listeners and the website's signOut now do.
-  assert.match(SHARE, /session: signOutGen,/);
-  assert.match(HTML, /session: \(\) => \(window\.shapeDb \? window\.shapeDb\.signOutGen : 0\)/);
+  assert.match(SHARE, /session: \(\) => \(signOutInProgress\(\) \? null : signOutGen\(\)\),/);
+  assert.match(HTML, /session: \(\) => \(window\.shapeDb \? \(window\.shapeDb\.signingOut \? null : \(window\.shapeDb\.signOutGen \|\| 0\)\) : 0\)/, 'an older shapeDb without the counter still syncs');
+  const BACKEND2 = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  assert.match(BACKEND2, /const uid = \(state\.user && state\.user\.id\) \|\| null;\s*\/\/ An account signing in ends any sign-out under way \(signOutGen\.mjs\)\.\s*if \(uid && uid !== prevUid\) signOutEnded\(\);/, 'a sign-in ends it, at the identity chokepoint');
   const MAIN = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx'), 'utf8');
   assert.match(MAIN, /shapeInstallSignOutListener\(async \(\) => \{[\s\S]{0,300}bumpSignOutGen\(\);\s*\/\/ ⚠ RETIRE THIS TAB'S OWN SESSION FIRST/);
   const SBJS = readFileSync(join(ROOT, 'public/supabase.js'), 'utf8');
-  assert.match(SBJS, /async signOut\(\) \{\s*shapeDb\.signOutGen \+= 1;/, 'the website bumps it first thing');
-  assert.match(SBJS, /e\.key !== 'shape\.signedOutAt'[\s\S]{0,200}shapeDb\.signOutGen \+= 1;/);
+  assert.match(SBJS, /async signOut\(\) \{\s*shapeDb\.signOutGen \+= 1;\s*shapeDb\.signingOut = true;/, 'the website bumps it first thing, and marks the sign-out under way');
+  assert.match(SBJS, /e\.key !== 'shape\.signedOutAt'[\s\S]{0,200}shapeDb\.signOutGen \+= 1;\s*shapeDb\.signingOut = true;/);
+  assert.match(SBJS, /auth\.signInWithPassword\(\{ email: email, password: password \}\);\s*if \(res\.error\) return \{ error: res\.error \};\s*shapeDb\.signingOut = false;/, 'a sign-in ends it');
   const SHELL = readFileSync(join(ROOT, 'public/newdesign/pageShell.jsx'), 'utf8');
-  assert.match(SHELL, /e\.key !== "shape\.signedOutAt"[\s\S]{0,200}window\.shapeDb\.signOutGen = \(window\.shapeDb\.signOutGen \|\| 0\) \+ 1;/);
+  assert.match(SHELL, /e\.key !== "shape\.signedOutAt"[\s\S]{0,200}window\.shapeDb\.signOutGen = \(window\.shapeDb\.signOutGen \|\| 0\) \+ 1; window\.shapeDb\.signingOut = true;/);
   // Both shapeDbs bind getUserGoals to the expected account (Codex P1 on #2433).
   const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
   const SB = readFileSync(join(ROOT, 'public/supabase.js'), 'utf8');

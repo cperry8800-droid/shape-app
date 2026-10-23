@@ -361,3 +361,19 @@ test('a list arriving on an empty page opens, and an edit goes to it (Codex P2 o
     assert.deepEqual(page.local().find((l) => l.id === 'default').items.map((it) => it.item), ['Limes', 'Avocados']);
   } finally { await page.done(); }
 });
+
+test('a sync asked for while the website is signing out never starts (Codex P1 on #2433)', async () => {
+  const page = await mountPage({ row: { v: 1, rev: 1, lists: [WEB_STORED] }, stored: [WEB] });
+  try {
+    // shapeDb.signOut has begun: bumped and marked, its teardown still awaiting.
+    page.w.shapeDb.signOutGen = 1;
+    page.w.shapeDb.signingOut = true;
+    page.cloud.row = { v: 1, rev: 2, lists: [{ id: 'phone', name: 'Phone list', items: [] }, WEB_STORED] };
+    page.w.prompt = () => 'During sign-out';
+    const add = [...page.w.document.querySelectorAll('button')].find((b) => b.textContent === '+ NEW LIST');
+    await React.act(async () => { add.click(); });
+    await page.settle();
+    assert.equal(page.cloud.writes.length, 0, 'nothing written');
+    assert.ok(!page.local().some((l) => l.id === 'phone'), 'nothing taken in');
+  } finally { await page.done(); }
+});
