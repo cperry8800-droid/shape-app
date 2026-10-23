@@ -62,6 +62,7 @@ import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSCheckinCard, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
+import { BSEatFuel } from './BSEatFuel.jsx';
 import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
@@ -14143,8 +14144,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   const bsEatNextMeal = day === bsWeekdayIdx() ? (effMeals.find(m => m.state === 'next') || effMeals.find(m => m.state !== 'done') || null) : null;
 
   // ── FOCUS (owner, 2026-10-11, off the C · Focus board) — Eat in the Focus
-  // order: the tabs and the week, the next meal on its own (today), the fuel
-  // left today, the menu as a line, then links. Same data, new places.
+  // order: the tabs and the week, the fuel left today (above the next meal since
+  // 2026-10-22), the next meal on its own (today), the menu as a line, then links.
   const _eatNowD = new Date();
   const _eatNowMin = _eatNowD.getHours() * 60 + _eatNowD.getMinutes();
   const _eatIsToday = day === bsWeekdayIdx();
@@ -14191,6 +14192,11 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
 
       {bsEatSignedIn && eatPlanRead && !liveMealDays && eatCoaching && <BSCoachPreparing role="nutritionist" coaching={eatCoaching} />}
 
+      {/* Fuel left today (BSEatFuel.jsx), above the next meal (owner, 2026-10-22). Coach-set
+          targets (Adjust plan → Apply) win; a macro opens the day's breakdown. */}
+      <BSEatFuel calLeft={bsEatCalLeft} calTarget={bsEatCalTgt} calNow={bsEatCalNow} calPct={bsEatCalPct}
+        macros={bsEatMacros} onOpen={() => setPreviewDayBrief(true)} />
+
       {/* The next meal — on its own, today only. Log it opens the meal, where it
           is logged; Swap opens the swap sheet on this meal. */}
       {_eatNext && (
@@ -14213,31 +14219,6 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
             secondary={{ label: `${tr('nutrition:eat.swapTitle', { defaultValue: 'Swap' })} →`, onClick: () => setSwapMealId(_eatNext.id) }} />
         </BSFocusLead>
       )}
-
-      {/* Fuel left today — what is left of the day's target, then each macro as a
-          dot-leader row (the Home "At a glance" grammar); a row opens the day's
-          breakdown. Coach-set targets (Adjust plan → Apply) win. */}
-      <BSFocusHead glyph="◐" label={tr('nutrition:eat.fuelLeft', { defaultValue: 'Fuel left today' })}
-        meta={tr('nutrition:eat.kcalPlan', { defaultValue: '{kcal} kcal plan', kcal: bsEatCalTgt.toLocaleString() })} />
-      <div style={{ padding: `6px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 40, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{bsEatCalLeft.toLocaleString()}</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:eat.kcalLeftWord', { defaultValue: 'kcal left' })}</span>
-          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, whiteSpace: 'nowrap' }}>{tr('nutrition:eat.eatenPct', { defaultValue: '{eaten} eaten · {pct}%', eaten: bsEatCalNow.toLocaleString(), pct: bsEatCalPct })}</span>
-        </div>
-        <div aria-hidden style={{ marginTop: 8, height: 3, background: t.HAIR }}>
-          <div style={{ width: `${bsEatCalPct}%`, height: '100%', background: t.ACCENT }} />
-        </div>
-        <div style={{ marginTop: 6 }}>
-          {bsEatMacros.map((m) => (
-            <BSShelfDoor key={m.k} c={m.c} eyebrow={m.l}
-              figure={tr('nutrition:eat.gramsLeft', { defaultValue: '{g}g left', g: Math.max(0, m.g - m.v) })}
-              status={`${m.v} / ${m.g}`}
-              pct={m.g > 0 ? Math.max(0, Math.min(100, Math.round((m.v / m.g) * 100))) : undefined}
-              onOpen={() => setPreviewDayBrief(true)} />
-          ))}
-        </div>
-      </div>
 
       {/* The menu — the day as a line: each meal at its time, on the rail, with the
           NOW tick today; the next one is marked and carries the kcal still left.
