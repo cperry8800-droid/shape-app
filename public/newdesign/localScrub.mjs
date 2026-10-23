@@ -70,6 +70,10 @@ export const SHAPE_SCRUB_KEYS = [
   'shape.library',              // cloud copy is authoritative
   'shape.recipeGroceryLists',   // cloud-synced via user_goals
   'shape.deletedGroceryIds',    // account-scoped sync tombstones
+  'shape.recipeGroceryListsBase', // the lists as the app last synced them (groceryLists.mjs)
+  'shape.grocery.listsBase.v1',   // the same for the website's grocery page
+  'shape.grocery.lists.v1',       // the website's grocery lists, cloud-synced like the app's: left behind,
+                                  // the next member's first sync would merge them into their own lists
   'shape.cookResume',
   'shape.cookBatchResume',
   'shape.radio.musicLibraries',

@@ -2928,6 +2928,7 @@ window.shapeClearLocalUserContent = function (opts) {
       // Mobile /m/ families (same origin — see the union note above):
       "shape.clientCoachThreads", "shape.recentSearch", "shape.errorLog",
       "shape.library", "shape.recipeGroceryLists", "shape.deletedGroceryIds",
+      "shape.recipeGroceryListsBase", "shape.grocery.listsBase.v1", "shape.grocery.lists.v1",
       "shape.cookResume", "shape.cookBatchResume", "shape.radio.musicLibraries",
       "shape.stepGoal", "shape.notify.last",
       "bs_coach_soundtracks", "bs_coach_soundtrack_assign",

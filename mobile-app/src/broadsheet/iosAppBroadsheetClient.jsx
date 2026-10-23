@@ -65,7 +65,8 @@ import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx
 import { BSEatFuel } from './BSEatFuel.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead } from './BSWallStory.jsx';
-import { BSGroceryShareCard } from './BSGroceryShare.jsx';
+import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
+import { bsGroceryListsApply } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
 import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
@@ -13705,32 +13706,41 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     if (list) loadGroceryList(list);
   };
 
-  // Cross-device sync: saved grocery lists ride in user_goals('client_grocery_lists').
-  // Load once on mount + merge any server-only lists; only push to the server after
-  // that initial merge so we don't clobber it with the local-only copy.
-  const grocSyncedRef = React.useRef(false);
+  // Cross-device sync: saved grocery lists ride in user_goals('client_grocery_lists'), through the app's
+  // grocery lists store (services/groceryLists.mjs via BSGroceryShare.jsx). Each sync reads the cloud,
+  // merges what this device changed since it last synced with what other devices changed, and writes
+  // compare-and-set, so a list another device added in between is kept rather than overwritten. It runs
+  // on mount and after every change; a sync queued behind another reads the latest lists.
+  const grocLocalRef = React.useRef(recipeLists);
+  const grocGoneRef = React.useRef(deletedGroceryIds);
+  const grocMountedRef = React.useRef(true);
+  React.useEffect(() => () => { grocMountedRef.current = false; }, []);
   React.useEffect(() => {
-    if (!(window.shapeDb && window.shapeDb.getUserGoals)) { grocSyncedRef.current = true; return undefined; }
-    let cancelled = false;
-    window.shapeDb.getUserGoals('client_grocery_lists').then(saved => {
-      if (cancelled || !Array.isArray(saved)) return;
-      setRecipeLists(prev => {
-        const have = new Set(prev.map(l => l.id));
-        const extra = saved.filter(l => l && l.id && !have.has(l.id) && !deletedGroceryIds.includes(l.id));
-        return extra.length ? [...extra, ...prev] : prev;
-      });
-    }).catch(() => {}).finally(() => { grocSyncedRef.current = true; });
-    return () => { cancelled = true; };
-  }, []);
-
-  React.useEffect(() => {
+    grocLocalRef.current = recipeLists;
     try {
       window.localStorage && window.localStorage.setItem('shape.recipeGroceryLists', JSON.stringify(recipeLists));
     } catch {}
-    if (grocSyncedRef.current && window.shapeDb?.saveUserGoals) { try { window.shapeDb.saveUserGoals('client_grocery_lists', recipeLists); } catch (e) {} }
+    bsGroceryListsAppStore().sync({
+      getLocal: () => grocLocalRef.current,
+      getGone: () => grocGoneRef.current,
+      // Another device's changes: kept where the next load reads them, then on screen. When this page has
+      // closed they did not reach the lists the next sync reads, so the store leaves them unsynced.
+      apply: (delta, used) => {
+        const raw = window.localStorage.getItem('shape.recipeGroceryLists');
+        const stored = raw ? JSON.parse(raw) : [];
+        const next = bsGroceryListsApply(Array.isArray(stored) ? stored : [], used, delta);
+        if (next !== stored) window.localStorage.setItem('shape.recipeGroceryLists', JSON.stringify(next));
+        if (!grocMountedRef.current) return false;
+        const putIds = new Set(delta.put.map((l) => l.id));
+        setRecipeLists((prev) => bsGroceryListsApply(prev, used, delta));
+        if (putIds.size) setDeletedGroceryIds((prev) => (prev.some((id) => putIds.has(id)) ? prev.filter((id) => !putIds.has(id)) : prev));
+        return true;
+      },
+    });
   }, [recipeLists]);
 
   React.useEffect(() => {
+    grocGoneRef.current = deletedGroceryIds;
     try {
       window.localStorage && window.localStorage.setItem('shape.deletedGroceryIds', JSON.stringify(deletedGroceryIds));
     } catch {}
