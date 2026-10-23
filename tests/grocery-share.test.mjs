@@ -8,10 +8,10 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { ROOT } from './helpers/broadsheet-mount.mjs';
+import { ROOT, loadBroadsheet, SHIM } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import {
-  bsGroceryShareItems, bsGroceryShareMessage, bsGroceryFromMetadata, bsReceivedGroceryList, bsReceivedGroceryId,
+  bsGroceryShareItems, bsGroceryShareMessage, bsGroceryFromMetadata, bsReceivedGroceryList, bsReceivedGroceryId, bsGroceryGroupByAisle,
   BS_GROCERY_SHARE_KIND, BS_GROCERY_SHARE_MAX_ITEMS,
 } from '../mobile-app/src/services/groceryShare.mjs';
 
@@ -83,6 +83,24 @@ test('a saved copy is one of the recipient\'s own lists: custom, editable, credi
   assert.ok(list.items.every((it, i) => it.id === `received-abc-123-${i}` && it.n && it.q));
   assert.equal(bsReceivedGroceryList(null, {}), null);
 });
+
+test('a list keeps its aisles through an edit: the edit stores each item\'s aisle, and opening regroups by it (Codex P2 on #2432)', async () => {
+  assert.deepEqual(bsGroceryGroupByAisle([{ n: 'a', a: 'Produce' }, { n: 'b' }, { n: 'c', a: 'Produce' }, null], 'Library items').map((g) => [g.aisle, g.items.map((i) => i.n)]),
+    [['Produce', ['a', 'c']], ['Library items', ['b']]]);
+  const { bsNormalizeGroceryList } = await loadBroadsheet(['bsNormalizeGroceryList'], SHIM);
+  // A received list after its first edit: items flat, each with its aisle.
+  const edited = { id: 'received-m1', name: 'Week 3 shop', kind: 'custom', items: [{ n: 'Spinach', a: 'Produce' }, { n: 'Eggs', a: 'Protein' }, { n: 'Lemons', a: 'Produce' }] };
+  assert.deepEqual(bsNormalizeGroceryList(edited).aisles.map((g) => [g.aisle, g.items.map((i) => i.n)]), [['Produce', ['Spinach', 'Lemons']], ['Protein', ['Eggs']]]);
+  // Lists with no aisle on their items read as before.
+  assert.deepEqual(bsNormalizeGroceryList({ name: 'Old', kind: 'custom', items: [{ n: 'Milk' }] }).aisles.map((g) => g.aisle), ['Library items']);
+  assert.deepEqual(bsNormalizeGroceryList({ name: 'Soup', kind: 'recipe', items: [{ n: 'Leek' }] }).aisles.map((g) => g.aisle), ['Recipe ingredients']);
+  // The edit path keeps each item's aisle on the flat record.
+  const persist = CLIENT_SRC.slice(CLIENT_SRC.indexOf('const persistGroceryList = (normalized) =>'));
+  const body = persist.slice(0, persist.indexOf('\n  };'));
+  assert.match(body, /flatMap\(a => \(a\.items \|\| \[\]\)\.map\(it => \(\{ \.\.\.it, a: it\.a \|\| a\.aisle \}\)\)\)/);
+  assert.match(body, /meals: it\.meals \|\| normalized\.name, \.\.\.\(it\.a \? \{ a: it\.a \} : null\) \}/);
+});
+const CLIENT_SRC = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
 
 // ── The card and the save, drawn with real React ─────────────────────────────
 const require_ = createRequire(import.meta.url);

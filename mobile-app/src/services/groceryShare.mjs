@@ -80,6 +80,21 @@ export function bsGroceryFromMetadata(metadata) {
   return { name, items };
 }
 
+// Flat items that carry their aisle (`a`) → [{ aisle, items }] in first-seen order; an item with none goes
+// under `fallback`. A received list is drawn this way, and so is any list reopened after an edit, which
+// stores its items flat (persistGroceryList) with each one's aisle kept on it.
+export function bsGroceryGroupByAisle(items, fallback = 'Items') {
+  const groups = [];
+  for (const it of Array.isArray(items) ? items : []) {
+    if (!it) continue;
+    const label = (typeof it.a === 'string' && it.a) || fallback;
+    let g = groups.find((x) => x.aisle === label);
+    if (!g) { g = { aisle: label, items: [] }; groups.push(g); }
+    g.items.push(it);
+  }
+  return groups;
+}
+
 // The id a saved copy carries: one per message, so saving the same message twice keeps one list.
 export function bsReceivedGroceryId(messageId) {
   const s = String(messageId || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
@@ -92,13 +107,7 @@ export function bsReceivedGroceryList(shared, { messageId, from, now = Date.now(
   if (!shared || !Array.isArray(shared.items) || !shared.items.length) return null;
   const id = bsReceivedGroceryId(messageId) || `received-${Math.random().toString(36).slice(2, 9)}`;
   const items = shared.items.map((it, i) => ({ id: `${id}-${i}`, n: it.n, q: it.q || '1', ...(it.a ? { a: it.a } : {}) }));
-  const groups = [];
-  for (const it of items) {
-    const label = it.a || 'Items';
-    let g = groups.find((x) => x.aisle === label);
-    if (!g) { g = { aisle: label, items: [] }; groups.push(g); }
-    g.items.push(it);
-  }
+  const groups = bsGroceryGroupByAisle(items, 'Items');
   const author = clip(from, MAX_NAME) || 'A Shape member';
   return {
     id, name: shared.name, kind: 'custom', editable: true,

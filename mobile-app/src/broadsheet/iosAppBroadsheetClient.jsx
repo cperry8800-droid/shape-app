@@ -66,7 +66,7 @@ import { BSEatFuel } from './BSEatFuel.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead } from './BSWallStory.jsx';
 import { BSGroceryShareCard } from './BSGroceryShare.jsx';
-import { bsGroceryFromMetadata, bsGroceryShareMessage } from '../services/groceryShare.mjs';
+import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
 import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
@@ -13867,7 +13867,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // (which is what BSGroceryLibrary renders + what gets saved to localStorage).
   const persistGroceryList = (normalized) => {
     setSelectedGroceryList(normalized);
-    const items = (normalized.aisles || []).flatMap(a => a.items || []);
+    // Each item keeps the aisle it sat in, so reopening the list draws the same aisles (Codex P2 on #2432:
+    // a received list's Produce / Protein grouping was lost on its first edit).
+    const items = (normalized.aisles || []).flatMap(a => (a.items || []).map(it => ({ ...it, a: it.a || a.aisle })));
     const flat = {
       id: normalized.id,
       name: normalized.name,
@@ -13891,7 +13893,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       usedCount: normalized.usedCount || 0,
       preview: items.slice(0, 3).map(it => it.n).join(' · '),
       count: items.length,
-      items: items.map((it, idx) => ({ id: it.id || `${normalized.id}-${idx}`, n: it.n, q: it.q, meals: it.meals || normalized.name })),
+      items: items.map((it, idx) => ({ id: it.id || `${normalized.id}-${idx}`, n: it.n, q: it.q, meals: it.meals || normalized.name, ...(it.a ? { a: it.a } : null) })),
     };
     setRecipeLists(prev => prev.some(l => l.id === flat.id)
       ? prev.map(l => l.id === flat.id ? flat : l)
@@ -35078,14 +35080,17 @@ function bsNormalizeGroceryList(list) {
   if (!list) return BS_GROCERY_DEFAULT;
   if (list.aisles) return list;
   const items = list.items || bsLibraryPreviewItems(list);
+  const one = {
+    aisle: list.kind === 'recipe' ? 'Recipe ingredients' : 'Library items',
+    items,
+  };
   return {
     ...list,
     author: list.author || 'Shape nutrition',
     note: list.note || `"${list.name}" loaded from your grocery library.`,
-    aisles: [{
-      aisle: list.kind === 'recipe' ? 'Recipe ingredients' : 'Library items',
-      items,
-    }],
+    // Items that carry their aisle are grouped back by it: a list another member sent, or any list reopened
+    // after an edit, which stores its items flat with each one's aisle kept (Codex P2 on #2432).
+    aisles: items.some((it) => it && it.a) ? bsGroceryGroupByAisle(items, one.aisle) : [one],
   };
 }
 
