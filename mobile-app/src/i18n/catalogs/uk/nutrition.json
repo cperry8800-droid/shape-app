@@ -412,5 +412,13 @@
   "eat.shop.skippedNote": "Його продукти прибрано зі списку, якщо вони не потрібні іншій страві.",
   "eat.shop.openList": "Відкрити покупки за стравами →",
   "eat.shop.tagAria": "Покупки для «{meal}»: {status}",
-  "eat.shop.alsoMany": "{count, plural, one {ще # страва} few {ще # страви} many {ще # страв} other {ще # страви}}"
+  "eat.shop.alsoMany": "{count, plural, one {ще # страва} few {ще # страви} many {ще # страв} other {ще # страви}}",
+  "grocery.shop.sendMember": "Надіслати учаснику →",
+  "grocery.share.meta": "Список покупок · {count, plural, one {# позиція} few {# позиції} many {# позицій} other {# позиції}}",
+  "grocery.share.save": "Зберегти до моїх списків",
+  "grocery.share.saved": "✓ Збережено до ваших списків",
+  "grocery.share.savedToast": "Збережено до ваших списків покупок",
+  "grocery.share.saveFail": "Не вдалося зберегти список. Спробуйте ще раз.",
+  "eat.libReceivedToday": "Спільний · Отримано сьогодні",
+  "eat.libReceivedOn": "Спільний · Отримано {date}"
 }

@@ -412,5 +412,13 @@
   "eat.shop.skippedNote": "Im items comot for the list, unless another meal need am.",
   "eat.shop.openList": "Open for Shop by meal →",
   "eat.shop.tagAria": "Shopping for {meal}: {status}",
-  "eat.shop.alsoMany": "{count, plural, one {also # other meal} other {also # other meals}}"
+  "eat.shop.alsoMany": "{count, plural, one {also # other meal} other {also # other meals}}",
+  "grocery.shop.sendMember": "Send am give member →",
+  "grocery.share.meta": "Market list · {count, plural, one {# thing} other {# things}}",
+  "grocery.share.save": "Save am for my lists",
+  "grocery.share.saved": "✓ E don enter your lists",
+  "grocery.share.savedToast": "E don enter your market lists",
+  "grocery.share.saveFail": "We no fit save the list. Try again.",
+  "eat.libReceivedToday": "Shared · You get am today",
+  "eat.libReceivedOn": "Shared · You get am {date}"
 }

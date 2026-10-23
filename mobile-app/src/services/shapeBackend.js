@@ -27,6 +27,7 @@ import { bsPrunePrep } from './mealPrep.mjs';
 import { bsNormalizeListingMedia } from './listingMedia.mjs';
 import { isShapeWelcome } from './shapeWelcome.mjs';
 import { bsHwWeekWindow, bsHwLocalDayOf } from './homeWeek.mjs';
+import { bsGroceryFromMetadata } from './groceryShare.mjs';
 // The SHARED nora_memory doc normalizer (pure ESM, cross-root import — the
 // dashSignals.js precedent): one implementation of the {rev, notes} semantics
 // for the server tools AND this Settings mirror, so they can't drift.
@@ -2244,6 +2245,8 @@ function conversationToThread(conversation, messages = [], names = {}) {
       coachInvite: (message.metadata && message.metadata.kind === 'coach_invite' && message.metadata.providerId != null)
         ? { role: message.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(message.metadata.providerId), name: String(message.metadata.name || 'Your coach') }
         : null,
+      // A grocery list sent by a member, read strictly (another member's input): null unless it parses.
+      grocery: bsGroceryFromMetadata(message.metadata),
     })),
     updatedAt: conversation.updated_at || conversation.last_message_at || conversation.created_at,
   };
@@ -2284,6 +2287,8 @@ function memberThreadFromRow(row, messages = []) {
       coachInvite: (message.metadata && message.metadata.kind === 'coach_invite' && message.metadata.providerId != null)
         ? { role: message.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(message.metadata.providerId), name: String(message.metadata.name || 'Your coach') }
         : null,
+      // A grocery list sent by a member, read strictly (another member's input): null unless it parses.
+      grocery: bsGroceryFromMetadata(message.metadata),
     })),
     updatedAt: row.last_message_at,
   };

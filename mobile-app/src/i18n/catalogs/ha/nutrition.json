@@ -412,5 +412,13 @@
   "eat.shop.skippedNote": "An cire kayansa daga jerin, sai dai idan wani abinci yana bukatar su.",
   "eat.shop.openList": "Buɗe a Siyayya ta abinci →",
   "eat.shop.tagAria": "Siyayya don {meal}: {status}",
-  "eat.shop.alsoMany": "{count, plural, other {har da wasu abinci #}}"
+  "eat.shop.alsoMany": "{count, plural, other {har da wasu abinci #}}",
+  "grocery.shop.sendMember": "Aika wa memba →",
+  "grocery.share.meta": "Jerin sayayya · {count, plural, one {kaya #} other {kayayyaki #}}",
+  "grocery.share.save": "Ajiye a jerina",
+  "grocery.share.saved": "✓ An ajiye a jerinka",
+  "grocery.share.savedToast": "An ajiye a jerin sayayyarka",
+  "grocery.share.saveFail": "Ba a iya ajiye jerin ba. Sake gwadawa.",
+  "eat.libReceivedToday": "An raba · An karɓa yau",
+  "eat.libReceivedOn": "An raba · An karɓa {date}"
 }

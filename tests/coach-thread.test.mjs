@@ -14,6 +14,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { READER_COPY_EN } from './helpers/reader-copy-en.mjs';
+import { bsGroceryFromMetadata } from '../mobile-app/src/services/groceryShare.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
@@ -391,7 +392,9 @@ test('app backend: the coach side names the client, the welcome is from neither 
     return src.slice(at, i + 1);
   };
   const state = { user: { id: 'coach-1' } };
-  const conversationToThread = new Function('state', 'isShapeWelcome', `${fnSrc('conversationToThread')}; return conversationToThread;`)(state, W.isShapeWelcome);
+  // The mapper's imports, handed in: the welcome test, and the grocery list's strict reader (a list another
+  // member sent; null on these messages).
+  const conversationToThread = new Function('state', 'isShapeWelcome', 'bsGroceryFromMetadata', `${fnSrc('conversationToThread')}; return conversationToThread;`)(state, W.isShapeWelcome, bsGroceryFromMetadata);
   const conv = { id: 'c1', provider_role: 'trainer', provider_id: 7, client_id: 'client-1', title: 'Tom Trainer', last_message: 'x' };
   const msgs = [
     { id: 'w', sender_id: null, body: 'Welcome', metadata: { shape: 'welcome', coach: 'Tom Trainer' }, created_at: '2026-10-15T00:00:00Z' },

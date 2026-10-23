@@ -412,5 +412,13 @@
   "eat.shop.skippedNote": "Его продукты убраны из списка, если они не нужны другому блюду.",
   "eat.shop.openList": "Открыть покупки по блюдам →",
   "eat.shop.tagAria": "Покупки для «{meal}»: {status}",
-  "eat.shop.alsoMany": "{count, plural, one {ещё # блюдо} few {ещё # блюда} many {ещё # блюд} other {ещё # блюда}}"
+  "eat.shop.alsoMany": "{count, plural, one {ещё # блюдо} few {ещё # блюда} many {ещё # блюд} other {ещё # блюда}}",
+  "grocery.shop.sendMember": "Отправить участнику →",
+  "grocery.share.meta": "Список покупок · {count, plural, one {# позиция} few {# позиции} many {# позиций} other {# позиции}}",
+  "grocery.share.save": "Сохранить в мои списки",
+  "grocery.share.saved": "✓ Сохранено в ваши списки",
+  "grocery.share.savedToast": "Сохранено в ваши списки покупок",
+  "grocery.share.saveFail": "Не удалось сохранить список. Попробуйте ещё раз.",
+  "eat.libReceivedToday": "Общий · Получен сегодня",
+  "eat.libReceivedOn": "Общий · Получен {date}"
 }

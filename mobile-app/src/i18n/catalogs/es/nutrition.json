@@ -412,5 +412,13 @@
   "eat.shop.skippedNote": "Sus ingredientes salen de la lista, salvo que otra comida los necesite.",
   "eat.shop.openList": "Abrir en Comprar por comida →",
   "eat.shop.tagAria": "Compra para {meal}: {status}",
-  "eat.shop.alsoMany": "{count, plural, one {también # comida más} other {también # comidas más}}"
+  "eat.shop.alsoMany": "{count, plural, one {también # comida más} other {también # comidas más}}",
+  "grocery.shop.sendMember": "Enviar a un miembro →",
+  "grocery.share.meta": "Lista de compras · {count, plural, one {# artículo} other {# artículos}}",
+  "grocery.share.save": "Guardar en mis listas",
+  "grocery.share.saved": "✓ Guardada en tus listas",
+  "grocery.share.savedToast": "Guardada en tus listas de compras",
+  "grocery.share.saveFail": "No se pudo guardar la lista. Inténtalo de nuevo.",
+  "eat.libReceivedToday": "Compartida · Recibida hoy",
+  "eat.libReceivedOn": "Compartida · Recibida el {date}"
 }

@@ -412,5 +412,13 @@
   "eat.shop.skippedNote": "Nguyên liệu đã rời danh sách, trừ khi bữa khác cần.",
   "eat.shop.openList": "Mở Mua theo bữa →",
   "eat.shop.tagAria": "Mua cho {meal}: {status}",
-  "eat.shop.alsoMany": "{count, plural, other {cả # bữa khác}}"
+  "eat.shop.alsoMany": "{count, plural, other {cả # bữa khác}}",
+  "grocery.shop.sendMember": "Gửi cho thành viên →",
+  "grocery.share.meta": "Danh sách đi chợ · {count, plural, other {# món}}",
+  "grocery.share.save": "Lưu vào danh sách của tôi",
+  "grocery.share.saved": "✓ Đã lưu vào danh sách của bạn",
+  "grocery.share.savedToast": "Đã lưu vào danh sách đi chợ của bạn",
+  "grocery.share.saveFail": "Không lưu được danh sách. Hãy thử lại.",
+  "eat.libReceivedToday": "Được chia sẻ · Nhận hôm nay",
+  "eat.libReceivedOn": "Được chia sẻ · Nhận ngày {date}"
 }
