@@ -245,9 +245,9 @@ planned builds.
   off the right edge of a phone.
 - No signed-in pass has been done in a browser or on a phone for client onboarding,
   the dashboard frame, `/admin`, Business (website and app), the coach application
-  uploads or the Wall's live story against a real set.
-- The Wall's old record card (`variant="wall"`) is drawn nowhere in the app now; its code
-  stays. The website chat bubble's Wall tab still draws its copy.
+  uploads or the Wall's live story with a real set.
+- The Wall's old card (`variant="wall"`) is unused in the app; the website chat bubble
+  still draws its copy. Coaches can read a sent grocery list, not save it.
 - Native mic and camera plugins (including iOS barcode scanning) and on-device macro
   reads from a meal photo aren't built yet.
 - The daily check-in (#2398): its saves have no timeout, so a request the network holds

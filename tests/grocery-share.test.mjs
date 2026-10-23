@@ -128,6 +128,12 @@ test('the card: the list\'s name, count and first three items; the sender\'s own
   } finally { await r.done(); }
   r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, me: true, messageId: 'm1' }));
   try { assert.ok(!r.host.querySelector('[data-bs-grocery-save]'), 'no save on my own message'); } finally { await r.done(); }
+  // A coach reads the list but has no Eat lists to save it to.
+  r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, canSave: false, messageId: 'm1', from: 'Sam Reyes' }));
+  try {
+    assert.match(r.host.textContent, /^Week 3 shop/);
+    assert.ok(!r.host.querySelector('[data-bs-grocery-save]'), 'no save in the coach apps');
+  } finally { await r.done(); }
   r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: { name: 'x', items: [] }, messageId: 'm1' }));
   try { assert.equal(r.host.innerHTML, '', 'an empty list draws nothing'); } finally { await r.done(); }
 });
@@ -191,7 +197,9 @@ test('every way a message reaches a thread reads the list strictly, and the thre
   assert.equal((BACKEND.match(/grocery: bsGroceryFromMetadata\(message\.metadata\),/g) || []).length, 2, 'both thread readers');
   assert.match(CLIENT, /grocery: bsGroceryFromMetadata\(row\.metadata\) \}\]\);/, 'and a message arriving live');
   assert.match(CLIENT, /coachInvite: m\.coachInvite \|\| null, grocery: m\.grocery \|\| null \}\)\),/, 'and the thread keeps it');
-  assert.match(CLIENT, /\{m\.grocery && <BSGroceryShareCard shared=\{m\.grocery\} me=\{!!me\} messageId=\{m\.id\} from=\{me \? '' : senderName\} \/>\}/);
+  assert.match(CLIENT, /\{m\.grocery && <BSGroceryShareCard shared=\{m\.grocery\} me=\{!!me\} canSave=\{canSaveGrocery\} messageId=\{m\.id\} from=\{me \? '' : senderName\} \/>\}/);
+  // The coach apps mount the same chat (BSClientChat → BSClientFeed): only a member's thread offers Save.
+  assert.match(CLIENT, /canSaveGrocery=\{myRole === 'client'\}/);
 });
 
 test('the Eat page takes a received list while it is on screen, and labels it received', () => {

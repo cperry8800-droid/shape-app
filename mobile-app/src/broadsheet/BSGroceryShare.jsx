@@ -72,7 +72,9 @@ export async function bsSaveReceivedGroceryList(list) {
 
 // The card under a grocery list's message. `shared` is the strictly parsed { name, items }
 // (bsGroceryFromMetadata); `me` is the sender's own copy of the message, which has nothing to save.
-export function BSGroceryShareCard({ shared, me = false, messageId = null, from = '' }) {
+// `canSave` is false in the coach apps: a coach's lists live in coach_grocery_lists, not the member's
+// Eat lists this saves to, so a copy saved there would land where their app never shows it.
+export function BSGroceryShareCard({ shared, me = false, canSave = true, messageId = null, from = '' }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const id = bsReceivedGroceryId(messageId);
@@ -113,7 +115,7 @@ export function BSGroceryShareCard({ shared, me = false, messageId = null, from 
       <div style={{ marginTop: 7, fontFamily: t.BODY, fontSize: 12, lineHeight: 1.35, color: t.INK50, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
         {preview}{count > 3 ? ' …' : ''}
       </div>
-      {me ? null : (
+      {me || !canSave ? null : (
         <button type="button" data-bs-grocery-save="" onClick={save} disabled={busy} aria-pressed={saved}
           style={{ marginTop: 9, width: '100%', minHeight: 44, borderRadius: 8, border: `1px solid ${teal}`, background: saved ? `${teal}14` : teal, color: saved ? teal : (t.isLight ? '#fff' : t.PAPER), cursor: saved ? 'default' : 'pointer', opacity: busy ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
           {saved

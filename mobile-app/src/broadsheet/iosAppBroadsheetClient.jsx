@@ -24498,6 +24498,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           onBack={() => setOpenChat(null)}
           onOpenProfile={(person) => setOpenProfile(person)}
           onSendChannel={openChat.channelId && !String(openChat.channelId).startsWith('sample') ? () => setSendPostFor({ channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount || 0 } }) : null}
+          canSaveGrocery={myRole === 'client'}
         />
         {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
       </>
@@ -26271,7 +26272,7 @@ function bsLongPress(onTrigger) {
   };
 }
 
-function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSendChannel = null }) {
+function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSendChannel = null, canSaveGrocery = true }) {
   const t = useBS();
   const tr = useShapeTr();
   useBSPresence(); // refresh message-avatar dots as people start/stop a workout or cooking
@@ -26519,7 +26520,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                     </button>
                   )}
                   {/* A grocery list a member sent: its name, count and first items, and Save to my lists. */}
-                  {m.grocery && <BSGroceryShareCard shared={m.grocery} me={!!me} messageId={m.id} from={me ? '' : senderName} />}
+                  {m.grocery && <BSGroceryShareCard shared={m.grocery} me={!!me} canSave={canSaveGrocery} messageId={m.id} from={me ? '' : senderName} />}
                 </div>
                 {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
                 {myR && <BSReactionPill t={t} emoji={myR} anchorRight={me} onClick={() => rx.toggle(rKey, myR)} />}
