@@ -136,7 +136,10 @@ test('the figures, the record and the quote', async () => {
     assert.equal(grid.textContent, '18.2 miDistance8:42/miPace2:38Time');
   } finally { await r.done(); }
   r = await render(React.createElement(STORY.BSWallStoryRecord, { value: '245 lb', best: '↑ PR +10 lb' }));
-  try { assert.equal(r.host.textContent, '245lb↑ PR +10 lb'); } finally { await r.done(); }
+  try {
+    assert.equal(r.host.textContent, '245lb↑ PR +10 lb');
+    assert.equal(r.host.querySelector('[data-bs-wall-story-record] span').style.fontSize, '48px', 'the record is a big number, not a poster');
+  } finally { await r.done(); }
   r = await render(React.createElement(STORY.BSWallStoryQuote, { text: '', cite: 'x' }));
   try { assert.equal(r.host.textContent, '', 'no words, no quote'); } finally { await r.done(); }
   r = await render(React.createElement(STORY.BSWallStoryQuote, { text: 'Depth was clean.', cite: 'Coach Jordan · co-signed · Coach' }));

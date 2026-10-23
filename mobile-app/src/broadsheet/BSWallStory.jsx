@@ -104,15 +104,16 @@ export function BSWallStoryFigures({ items = [] }) {
 }
 
 // A record's one number: the figure in Oswald, its unit beside it, then how far past the old best.
+// 48 px, not the board's 84 (owner, 2026-10-23: "this doesnt need to be so big").
 export function BSWallStoryRecord({ value, best = null }) {
   const t = window.useBS();
   const u = bsSdSplitUnit(value);
   if (!u.num) return null;
   return (
     <div data-bs-wall-story-record="" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontFamily: bsWsHead(t), fontWeight: 700, lineHeight: 0.82, color: t.INK }}>
-        <span style={{ fontSize: 84, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>{u.num}</span>
-        {u.unit ? <span style={{ fontSize: 22, marginTop: 6, color: t.INK50, textTransform: 'uppercase' }}>{u.unit}</span> : null}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, fontFamily: bsWsHead(t), fontWeight: 600, lineHeight: 0.9, color: t.INK }}>
+        <span style={{ fontSize: 48, letterSpacing: '0.005em', fontVariantNumeric: 'tabular-nums' }}>{u.num}</span>
+        {u.unit ? <span style={{ fontSize: 16, color: t.INK50, textTransform: 'uppercase' }}>{u.unit}</span> : null}
       </div>
       {best ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#2d6a3e' : '#7fd18f' }}>{best}</span> : null}
     </div>
