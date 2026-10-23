@@ -253,6 +253,36 @@ test('a save that landed nowhere says so and stays tappable (Codex P2 on #2432)'
   } finally { proto.setItem = realSet; await r.done(); }
 });
 
+test('the website\'s grocery page hands a synced list back as it found it (Codex P2 on #2432)', () => {
+  // public/newdesign/ClientGrocery.html reads client_grocery_lists into its own shape and writes its whole
+  // state back. Lift its two converters and round-trip a received list through them.
+  const html = readFileSync(join(ROOT, 'public/newdesign/ClientGrocery.html'), 'utf8');
+  const start = html.indexOf('const SYNC_META');
+  const end = html.indexOf('\nfunction ClientGroceryPage');
+  assert.ok(start > 0 && end > start, 'the converters moved: re-point this test');
+  const lib = new Function('guessCategory', `${html.slice(start, end)}; return { syncedToWeb, webToSynced };`)(() => 'other');
+  const received = bsReceivedGroceryList(bsGroceryFromMetadata(bsGroceryShareMessage(LIST).metadata), { messageId: 'm9', from: 'Sam Reyes', now: 1700000000000 });
+  const back = lib.webToSynced([lib.syncedToWeb(received)])[0];
+  assert.equal(back.provenance, 'received', 'still labelled received');
+  assert.equal(back.createdAt, 1700000000000);
+  assert.equal(back.author, 'Sam Reyes', 'still credited to the sender');
+  assert.equal(back.authorSelf, false);
+  assert.equal(back.kind, 'custom');
+  assert.deepEqual(back.aisles.map((g) => [g.aisle, g.items.map((i) => i.n)]), [['Produce', ['Spinach', 'Lemons']], ['Protein', ['Chicken thighs', 'Eggs']]], 'its aisles kept');
+  assert.ok(back.items.every((it) => it.a), 'each item keeps its aisle');
+  // A list made on the website has none of it and reads as it did.
+  const webMade = lib.webToSynced([{ id: 'w1', name: 'Mine', items: [{ id: 'i1', item: 'Milk', qty: '2' }] }])[0];
+  assert.equal(webMade.eyebrow, 'Custom · Synced');
+  assert.equal(webMade.kind, 'custom');
+  assert.equal(webMade.provenance, undefined);
+  assert.deepEqual(webMade.aisles.map((g) => g.aisle), ['Items']);
+  // A list the app built with aisles (no `a` on its items yet) keeps them too.
+  const appMade = { id: 'c1', name: 'Built', kind: 'custom', provenance: 'created', createdAt: 5, author: 'You', authorSelf: true, aisles: [{ aisle: 'Dairy', items: [{ id: 'x', n: 'Milk', q: '1' }] }] };
+  const appBack = lib.webToSynced([lib.syncedToWeb(appMade)])[0];
+  assert.equal(appBack.provenance, 'created');
+  assert.deepEqual(appBack.aisles.map((g) => g.aisle), ['Dairy']);
+});
+
 // ── The wiring ────────────────────────────────────────────────────────────────
 const CLIENT = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
 const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
