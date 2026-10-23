@@ -310,5 +310,7 @@
   "wallLive.minIn": "depuis {n, number} min",
   "wallLive.resting": "Récup",
   "wallLive.sendBoost": "Encourager →",
-  "wallLive.alsoTraining": "S’entraînent aussi :"
+  "wallLive.alsoTraining": "S’entraînent aussi :",
+  "wallMast.title": "Le Mur",
+  "wallMast.trainingNow": "{count, number} en plein entraînement"
 }

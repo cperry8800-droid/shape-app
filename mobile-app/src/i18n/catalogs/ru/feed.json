@@ -310,5 +310,7 @@
   "wallLive.minIn": "{n, number} мин",
   "wallLive.resting": "Отдых",
   "wallLive.sendBoost": "Поддержать →",
-  "wallLive.alsoTraining": "Ещё тренируются:"
+  "wallLive.alsoTraining": "Ещё тренируются:",
+  "wallMast.title": "Стена",
+  "wallMast.trainingNow": "{count, number} тренируются сейчас"
 }

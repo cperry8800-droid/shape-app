@@ -64,7 +64,7 @@ import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
 import { BSEatFuel } from './BSEatFuel.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
-import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote } from './BSWallStory.jsx';
+import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead } from './BSWallStory.jsx';
 import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
@@ -24860,29 +24860,30 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <>
           {/* Role filter chips — auto-hide on scroll-down (bsSubStyle) */}
           <div inert={subHidden} style={bsSubStyle(0)}>
-          {/* One control strip (owner pick 2026-07-14 evening, option A off the board):
-              role chips left, and on COMMUNITY the type filter is a compact
-              ALL ▾ select on the row's right end — the six-chip row is gone. */}
-          <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: filter === 'COMMUNITY' ? 'space-between' : 'center', alignItems: 'center', gap: 10, padding: `7px ${t.padX}px 5px` }}>
-            <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 10 }}>
-              {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, color: ROLE[k].color, onClick: () => setFilter(k), label: chipLabel(k) }))}
-            </div>
-            {filter === 'COMMUNITY' && (
-              <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-                <select value={feedType} onChange={(e) => setFeedType(e.target.value)} aria-label={tr('feed:type.filterAria', { defaultValue: 'Filter by activity type' })}
-                  style={{ appearance: 'none', WebkitAppearance: 'none', background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, padding: '7px 24px 7px 10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, cursor: 'pointer' }}>
-                  {[['all', tr('feed:type.all', { defaultValue: 'All' })], ['workouts', tr('feed:type.workouts', { defaultValue: 'Workouts' })], ['runs', tr('feed:type.runs', { defaultValue: 'Runs' })], ['prs', tr('feed:type.prs', { defaultValue: 'PRs' })], ['nutrition', tr('feed:type.nutrition', { defaultValue: 'Nutrition' })], ['milestones', tr('feed:type.milestones', { defaultValue: 'Milestones' })]].map(([k, label]) => (
-                    <option key={k} value={k}>{label}</option>
-                  ))}
-                </select>
-                <span aria-hidden style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: TEALB, pointerEvents: 'none' }}>▾</span>
-              </span>
-            )}
+          {/* The role chips. The Wall's type filter is its masthead's tabs (owner, 2026-10-23, the
+              magazine design); it was an ALL ▾ select at this row's right end. */}
+          <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', alignItems: 'center', gap: 10, padding: `7px ${t.padX}px 5px` }}>
+            {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, color: ROLE[k].color, onClick: () => setFilter(k), label: chipLabel(k) }))}
           </div>
           </div>
 
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: '4px 0 84px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {/* The Wall's masthead (owner, 2026-10-23, the magazine design): its name over a heavy rule,
+                  the day and how many are in a workout (the live story's people, so Universal only), then
+                  the activity types as tabs. */}
+              {(() => {
+                const trainingNow = railOn && feedMode === 'universal' ? railPeople.filter((p) => p && p.activity === 'workout').length : 0;
+                let dateline = '';
+                try { dateline = new Date().toLocaleDateString(bsDateLocale(), { weekday: 'long', month: 'short', day: 'numeric' }); } catch (e) { dateline = ''; }
+                return (
+                  <BSWallMasthead title={tr('feed:wallMast.title', { defaultValue: 'The Wall' })} dateline={dateline}
+                    trainingLine={trainingNow ? tr('feed:wallMast.trainingNow', { defaultValue: '{count, number} training now', count: trainingNow }) : null}
+                    types={[['all', tr('feed:type.all', { defaultValue: 'All' })], ['workouts', tr('feed:type.workouts', { defaultValue: 'Workouts' })], ['runs', tr('feed:type.runs', { defaultValue: 'Runs' })], ['prs', tr('feed:type.prs', { defaultValue: 'PRs' })], ['nutrition', tr('feed:type.nutrition', { defaultValue: 'Nutrition' })], ['milestones', tr('feed:type.milestones', { defaultValue: 'Milestones' })]]}
+                    typesLabel={tr('feed:type.filterAria', { defaultValue: 'Filter by activity type' })}
+                    type={feedType} onType={setFeedType} />
+                );
+              })()}
               {/* LIVE NOW (owner, 2026-10-22; the magazine's live story since 2026-10-23): who is training
                   right now opens the Wall, with their live set and a boost. The rail's people (real ones
                   signed in, the preview's signed out), under All in Universal only (presence is not
@@ -24893,8 +24894,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   onBoost={(p) => setBoostFor({ ...p, photoUrl: railPhotoOf(p), _profile: railProfileOf(p) })}
                   onOpenProfile={(p) => setOpenProfile(railProfileOf(p))} />
               ) : null}
-              {/* The type filter lives in the ALL ▾ select on the role-chip
-                  row now (owner pick 2026-07-14 evening) — no chip row in the body. */}
               {/* Community feed is a Strava-style activity stream of real logged
                   workouts/runs (bsActivityFromPost over the live community posts).
                   Signed-out / no-activity-yet falls back to the demo cards so the

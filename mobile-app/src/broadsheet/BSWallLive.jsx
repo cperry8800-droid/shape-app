@@ -167,7 +167,8 @@ export function BSWallTrainingNow({ people = [], demo = false, avatar, onBoost, 
   const lead = training[0];
   const also = training.slice(1, 4);
   return (
-    <section data-bs-wall-live="" style={{ margin: `0 ${t.padX}px`, padding: '16px 0 14px', borderBottom: `1px solid ${t.INK}` }}>
+    // On the cards' 12px gutter, so the masthead, this story and the posts share one column edge.
+    <section data-bs-wall-live="" style={{ margin: '0 12px', padding: '16px 0 14px', borderBottom: `1px solid ${t.INK}` }}>
       <BSWallLiveStory key={lead.userId || lead.name} person={lead} sample={demo ? BS_WALL_LIVE_SAMPLE : null}
         avatar={typeof avatar === 'function' ? avatar(lead) : null}
         onBoost={() => onBoost && onBoost(lead)} onOpenProfile={() => onOpenProfile && onOpenProfile(lead)} />

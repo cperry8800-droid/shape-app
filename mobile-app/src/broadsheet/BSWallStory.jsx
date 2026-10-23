@@ -129,3 +129,33 @@ export function BSWallStoryQuote({ text, cite, onOpen }) {
     </button>
   );
 }
+
+// The Wall's masthead: "The Wall" in Oswald over a heavy rule, the dateline (the day, and how many are
+// training when anyone is), then the activity types as text tabs with a red underline, spread across
+// the column and scrolling sideways when a language's words run longer. `types` are [key, label] pairs;
+// `type` is the one shown. It sits on the cards' 12px gutter, as the live story does.
+export function BSWallMasthead({ title, dateline, trainingLine = null, types = [], typesLabel, type, onType }) {
+  const t = window.useBS();
+  const red = bsWsRed(t);
+  const mono = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' };
+  return (
+    <header data-bs-wall-masthead="" style={{ margin: '0 12px' }}>
+      <h2 style={{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid ${t.INK}`, fontFamily: bsWsHead(t), fontSize: 40, fontWeight: 700, lineHeight: 0.9, letterSpacing: '0.005em', textTransform: 'uppercase', color: t.INK }}>{title}</h2>
+      <div style={{ ...mono, fontWeight: 700, display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderBottom: `1px solid ${t.HAIR}`, color: t.INK50 }}>
+        <span>{dateline}</span>
+        {trainingLine ? <span style={{ color: red, textAlign: 'right' }}>{trainingLine}</span> : null}
+      </div>
+      <nav className="bs-hide-scroll" aria-label={typesLabel || title} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, overflowX: 'auto', borderBottom: `1px solid ${t.HAIR}` }}>
+        {types.map(([k, label]) => {
+          const on = k === type;
+          return (
+            <button key={k} type="button" aria-pressed={on} onClick={() => onType && onType(k)}
+              style={{ ...mono, flex: 'none', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', color: on ? t.INK : t.INK50, boxShadow: on ? `inset 0 -2px 0 ${red}` : 'none' }}>
+              {label}
+            </button>
+          );
+        })}
+      </nav>
+    </header>
+  );
+}

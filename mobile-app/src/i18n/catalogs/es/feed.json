@@ -310,5 +310,7 @@
   "wallLive.minIn": "{n, number} min dentro",
   "wallLive.resting": "Descansando",
   "wallLive.sendBoost": "Mandar ánimo →",
-  "wallLive.alsoTraining": "También entrenan:"
+  "wallLive.alsoTraining": "También entrenan:",
+  "wallMast.title": "El Muro",
+  "wallMast.trainingNow": "{count, number} entrenando ahora"
 }

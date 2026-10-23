@@ -163,7 +163,6 @@ planned builds.
 - Get a native speaker to read the PAR-Q translations.
 
 **Planned next**
-- The Wall's magazine masthead (part 3): "THE WALL", the dateline, the tabs.
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
   estimate. Part A is #2401 and part B (checkout on the coach's account, codes, records in
   `coach_checkouts`) is #2403.
@@ -207,7 +206,7 @@ planned builds.
 - Home (the owner's 2026-10-22 redesign, `BSHomeSections.jsx`): Week so far counts days trained
   (workout minutes or a logged activity) against the plan's sessions, and days with food logged,
   not meals. The weekly notes, message doors and next session show only for a paid coach (no
-  sample signed out).
+  sample signed out). At a glance's Month view went with it; Progress keeps the history.
 - Shape Wire (the launch telegram) shows the coach's latest note however old it is, and
   in the morning its protein line is usually absent (it reads only today's row).
 - Server notices are said in the reader's stored language (`app_locale`): the app's bell, the push

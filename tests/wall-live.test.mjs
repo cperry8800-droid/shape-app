@@ -77,6 +77,7 @@ test('nobody training: nothing drawn; cooking is not training; one leads and thr
   m = await mount({ people, onBoost: (p) => boosted.push(p.name) });
   try {
     assert.equal(m.host.querySelectorAll('[data-bs-wall-live-card]').length, 1, 'one story');
+    assert.equal(m.host.querySelector('[data-bs-wall-live]').style.margin, '0px 12px', 'on the cards\' gutter, not the page\'s');
     assert.match(m.text(), /^Live now/);
     assert.match(m.text(), /Ana is training/);
     const also = m.host.querySelector('[data-bs-wall-live-also]');

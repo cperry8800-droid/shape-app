@@ -310,5 +310,7 @@
   "wallLive.minIn": "seit {n, number} Min.",
   "wallLive.resting": "Pause",
   "wallLive.sendBoost": "Anfeuern →",
-  "wallLive.alsoTraining": "Trainiert auch:"
+  "wallLive.alsoTraining": "Trainiert auch:",
+  "wallMast.title": "Die Wand",
+  "wallMast.trainingNow": "{count, number} gerade im Training"
 }

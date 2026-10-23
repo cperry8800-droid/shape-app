@@ -9,6 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { loadBroadsheet, drive, SHIM, THEME, ROOT } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 
@@ -140,4 +141,41 @@ test('the figures, the record and the quote', async () => {
   try { assert.equal(r.host.textContent, '', 'no words, no quote'); } finally { await r.done(); }
   r = await render(React.createElement(STORY.BSWallStoryQuote, { text: 'Depth was clean.', cite: 'Coach Jordan · co-signed · Coach' }));
   try { assert.equal(r.host.textContent, '“Depth was clean.Coach Jordan · co-signed · Coach'); } finally { await r.done(); }
+});
+
+test('the masthead: the Wall\'s name in Oswald capitals, the day and who is training, and the types as tabs', async () => {
+  const picked = [];
+  const types = [['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs']];
+  let r = await render(React.createElement(STORY.BSWallMasthead, { title: 'The Wall', dateline: 'Thursday, Oct 23', trainingLine: '3 training now', types, typesLabel: 'Filter by activity type', type: 'runs', onType: (k) => picked.push(k) }));
+  try {
+    assert.equal(r.host.querySelector('[data-bs-wall-masthead]').style.margin, '0px 12px', 'on the cards\' gutter, as the live story is');
+    const h = r.host.querySelector('[data-bs-wall-masthead] h2');
+    assert.equal(h.textContent, 'The Wall');
+    assert.equal(h.style.fontFamily, 'oswald');
+    assert.equal(h.style.textTransform, 'uppercase');
+    assert.match(r.host.textContent, /Thursday, Oct 233 training now/);
+    const nav = r.host.querySelector('nav');
+    assert.equal(nav.getAttribute('aria-label'), 'Filter by activity type');
+    const tabs = [...nav.querySelectorAll('button')];
+    assert.deepEqual(tabs.map((b) => b.textContent), ['All', 'Workouts', 'Runs', 'PRs']);
+    assert.deepEqual(tabs.map((b) => b.getAttribute('aria-pressed')), ['false', 'false', 'true', 'false'], 'the type shown is the pressed tab');
+    assert.ok(tabs.every((b) => b.style.minHeight === '44px'), 'every tab is a full touch target');
+    await React.act(async () => { tabs[3].click(); });
+    assert.deepEqual(picked, ['prs']);
+  } finally { await r.done(); }
+  r = await render(React.createElement(STORY.BSWallMasthead, { title: 'The Wall', dateline: 'Thursday, Oct 23', types, type: 'all' }));
+  try { assert.doesNotMatch(r.host.textContent, /training now/, 'nobody training, no count'); } finally { await r.done(); }
+});
+
+test('the Wall opens on its masthead, whose tabs are the type filter the ALL ▾ select was', () => {
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.doesNotMatch(src, /<select value=\{feedType\}/, 'the select is gone');
+  const at = src.indexOf('<BSWallMasthead ');
+  assert.ok(at > 0, 'the Wall draws its masthead');
+  const call = src.slice(at, src.indexOf('/>', at));
+  assert.match(call, /type=\{feedType\} onType=\{setFeedType\}/, 'its tabs filter the Wall');
+  for (const k of ['all', 'workouts', 'runs', 'prs', 'nutrition', 'milestones']) assert.match(call, new RegExp(`\\['${k}', tr\\('feed:type\\.${k}'`), k);
+  // The count is the live story's people: in a workout, under Universal, with the rail on.
+  assert.match(src, /const trainingNow = railOn && feedMode === 'universal' \? railPeople\.filter\(\(p\) => p && p\.activity === 'workout'\)\.length : 0;/);
+  assert.ok(at < src.indexOf('<BSWallTrainingNow '), 'the masthead heads the live story');
 });
