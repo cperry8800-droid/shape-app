@@ -312,5 +312,6 @@
   "wallLive.sendBoost": "Send a boost →",
   "wallLive.alsoTraining": "Also training:",
   "wallMast.title": "The Wall",
-  "wallMast.trainingNow": "{count, number} training now"
+  "wallMast.trainingNow": "{count, number} training now",
+  "card.you": "You"
 }

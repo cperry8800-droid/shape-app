@@ -22568,7 +22568,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
           {isMag && coSignQuote ? (
             <div style={{ marginTop: 11 }}>
               <BSWallStoryQuote text={coSignQuote} onOpen={() => openDetail('comments')}
-                cite={`${coSignIsMine ? 'You' : coSign.name} · ${tr('feed:card.cosigned', { defaultValue: 'co-signed · {role}', role: String(coSign.role).toLowerCase() === 'nutritionist' ? tr('feed:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('feed:role.coach', { defaultValue: 'Coach' }) })}`} />
+                cite={`${coSignIsMine ? tr('feed:card.you', { defaultValue: 'You' }) : coSign.name} · ${tr('feed:card.cosigned', { defaultValue: 'co-signed · {role}', role: String(coSign.role).toLowerCase() === 'nutritionist' ? tr('feed:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('feed:role.coach', { defaultValue: 'Coach' }) })}`} />
             </div>
           ) : coSign && (
             <div style={{ marginTop: 11, ...(sdReduced ? null : railSeen ? { animation: 'bsSdStamp 480ms cubic-bezier(.2,1.1,.3,1) 180ms both' } : { opacity: 0 }) }}>

@@ -312,5 +312,6 @@
   "wallLive.sendBoost": "Kirim semangat →",
   "wallLive.alsoTraining": "Juga latihan:",
   "wallMast.title": "Dinding",
-  "wallMast.trainingNow": "{count, number} sedang latihan"
+  "wallMast.trainingNow": "{count, number} sedang latihan",
+  "card.you": "Kamu"
 }

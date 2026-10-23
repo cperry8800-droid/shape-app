@@ -312,5 +312,6 @@
   "wallLive.sendBoost": "Send ginger →",
   "wallLive.alsoTraining": "Dem dey train too:",
   "wallMast.title": "The Wall",
-  "wallMast.trainingNow": "{count, number} dey train now"
+  "wallMast.trainingNow": "{count, number} dey train now",
+  "card.you": "You"
 }

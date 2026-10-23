@@ -312,5 +312,6 @@
   "wallLive.sendBoost": "Mandar força →",
   "wallLive.alsoTraining": "Também treinando:",
   "wallMast.title": "O Mural",
-  "wallMast.trainingNow": "{count, number} treinando agora"
+  "wallMast.trainingNow": "{count, number} treinando agora",
+  "card.you": "Você"
 }

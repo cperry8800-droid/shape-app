@@ -312,5 +312,6 @@
   "wallLive.sendBoost": "Aika ƙarfafa →",
   "wallLive.alsoTraining": "Su ma suna motsa jiki:",
   "wallMast.title": "Bango",
-  "wallMast.trainingNow": "{count, number} na motsa jiki yanzu"
+  "wallMast.trainingNow": "{count, number} na motsa jiki yanzu",
+  "card.you": "Kai"
 }

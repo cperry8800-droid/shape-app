@@ -312,5 +312,6 @@
   "wallLive.sendBoost": "Anfeuern →",
   "wallLive.alsoTraining": "Trainiert auch:",
   "wallMast.title": "Die Wand",
-  "wallMast.trainingNow": "{count, number} gerade im Training"
+  "wallMast.trainingNow": "{count, number} gerade im Training",
+  "card.you": "Du"
 }
