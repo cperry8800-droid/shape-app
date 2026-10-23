@@ -89,7 +89,10 @@ const BS_WALL_LIVE_SAMPLE = { work: { v: 1, exercises: [{ n: 'Bench press', done
 export function bsWallSetSegments(done, total) {
   const n = Math.max(0, Math.min(12, Math.round(Number(total) || 0)));
   if (!n) return [];
-  const d = Math.max(0, Math.min(n, Math.round(((Number(done) || 0) / Math.max(1, Number(total))) * n)));
+  let d = Math.max(0, Math.min(n, Math.round(((Number(done) || 0) / Math.max(1, Number(total))) * n)));
+  // A set still under way always keeps its segment: 24 of 25 rounds to all twelve, so it caps at
+  // eleven until the last set is done (review: Codex).
+  if ((Number(done) || 0) < (Number(total) || 0)) d = Math.min(d, n - 1);
   return Array.from({ length: n }, (_, i) => (i < d ? 'done' : i === d ? 'now' : 'left'));
 }
 

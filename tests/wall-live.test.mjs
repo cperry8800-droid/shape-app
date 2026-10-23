@@ -119,6 +119,11 @@ test('the set bar: a segment per set, the one under way, and no more than twelve
   assert.equal(long.length, 12);
   assert.equal(long.filter((k) => k === 'done').length, 6, 'filled in proportion');
   assert.equal(long[6], 'now');
+  // 24 of 25 rounds to twelve: the set still under way keeps its segment (review: Codex).
+  const last = LIVE.bsWallSetSegments(24, 25);
+  assert.equal(last.filter((k) => k === 'done').length, 11);
+  assert.equal(last[11], 'now');
+  assert.deepEqual(LIVE.bsWallSetSegments(25, 25), Array(12).fill('done'), 'the last set done fills the bar');
 });
 
 test('"N min in" keeps counting while the card stays on the Wall', async () => {
