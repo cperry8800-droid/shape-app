@@ -310,5 +310,8 @@
   "wallLive.minIn": "{n, number} mnt berjalan",
   "wallLive.resting": "Istirahat",
   "wallLive.sendBoost": "Kirim semangat →",
-  "wallLive.alsoTraining": "Juga latihan:"
+  "wallLive.alsoTraining": "Juga latihan:",
+  "wallMast.title": "Dinding",
+  "wallMast.trainingNow": "{count, number} sedang latihan",
+  "card.you": "Kamu"
 }

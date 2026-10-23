@@ -121,7 +121,7 @@ function BSWallLiveStory({ person, sample, avatar, onBoost, onOpenProfile }) {
         {tr('feed:wallLive.liveNow', { defaultValue: 'Live now' })}
         {mins != null ? <span>· {tr('feed:wallLive.minIn', { defaultValue: '{n, number} min in', n: mins })}</span> : null}
       </span>
-      <h3 style={{ margin: 0, fontFamily: HEAD, fontWeight: 700, fontSize: 30, lineHeight: 0.98, letterSpacing: '0.005em', textTransform: 'uppercase', color: t.INK, textWrap: 'balance' }}>
+      <h3 style={{ margin: 0, fontFamily: HEAD, fontWeight: 600, fontSize: 23, lineHeight: 1.04, letterSpacing: '0.012em', textTransform: 'uppercase', color: t.INK, textWrap: 'balance' }}>
         {cur
           ? tr('feed:wallLive.onSet', { defaultValue: '{name} is on set {n, number} of {total, number}', name: first, n: setNow, total: cur.total })
           : tr('feed:wallLive.isTraining', { defaultValue: '{name} is training', name: first })}
@@ -167,7 +167,8 @@ export function BSWallTrainingNow({ people = [], demo = false, avatar, onBoost, 
   const lead = training[0];
   const also = training.slice(1, 4);
   return (
-    <section data-bs-wall-live="" style={{ margin: `0 ${t.padX}px`, padding: '16px 0 14px', borderBottom: `1px solid ${t.INK}` }}>
+    // On the cards' 12px gutter, so the masthead, this story and the posts share one column edge.
+    <section data-bs-wall-live="" style={{ margin: '0 12px', padding: '16px 0 14px', borderBottom: `1px solid ${t.INK}` }}>
       <BSWallLiveStory key={lead.userId || lead.name} person={lead} sample={demo ? BS_WALL_LIVE_SAMPLE : null}
         avatar={typeof avatar === 'function' ? avatar(lead) : null}
         onBoost={() => onBoost && onBoost(lead)} onOpenProfile={() => onOpenProfile && onOpenProfile(lead)} />

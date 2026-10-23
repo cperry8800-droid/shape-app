@@ -310,5 +310,8 @@
   "wallLive.minIn": "{n, number} min in",
   "wallLive.resting": "Resting",
   "wallLive.sendBoost": "Send a boost →",
-  "wallLive.alsoTraining": "Also training:"
+  "wallLive.alsoTraining": "Also training:",
+  "wallMast.title": "The Wall",
+  "wallMast.trainingNow": "{count, number} training now",
+  "card.you": "You"
 }

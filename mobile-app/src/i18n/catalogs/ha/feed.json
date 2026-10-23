@@ -310,5 +310,8 @@
   "wallLive.minIn": "minti {n, number} ciki",
   "wallLive.resting": "Hutawa",
   "wallLive.sendBoost": "Aika ƙarfafa →",
-  "wallLive.alsoTraining": "Su ma suna motsa jiki:"
+  "wallLive.alsoTraining": "Su ma suna motsa jiki:",
+  "wallMast.title": "Bango",
+  "wallMast.trainingNow": "{count, number} na motsa jiki yanzu",
+  "card.you": "Kai"
 }

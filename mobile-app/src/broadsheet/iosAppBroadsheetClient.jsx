@@ -10,7 +10,7 @@ import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/r
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
 import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsMoveBlocks, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey, bsPerSetLabels, bsHasLadder, bsSetPrefill, bsLadderRemoveSet, bsMoveTotalReps, bsApplyMoveSwap, bsIsTimedReps } from '../services/workoutSession.mjs';
 import { BS_WORKOUT_VIEWS, bsWorkoutView, bsReadWorkoutView, bsSaveWorkoutView, bsHrFresh, bsCollectHr, bsCloseHr, bsRestoreHr, bsHrSummary, bsHrSensorSamples } from '../services/workoutExperience.mjs';
-import { bsSdSplitUnit, bsSdNeedle, bsSdPaceTraceIn, bsSdElevTraceIn, bsSdUnitizeStat } from '../services/sessionLedger.mjs';
+import { bsSdSplitUnit, bsSdNeedle, bsSdPaceTraceIn, bsSdElevTraceIn, bsSdUnitizeStat, bsSdRankStats } from '../services/sessionLedger.mjs';
 import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
 import { bsHomeSlateSort, bsHomeTimeMinutes } from '../services/homeSlate.mjs';
 import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs';
@@ -64,6 +64,7 @@ import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
 import { BSEatFuel } from './BSEatFuel.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
+import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead } from './BSWallStory.jsx';
 import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
@@ -18930,7 +18931,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                      carries the timing; author header hidden (the profile owns
                      the identity). */
                   <div key={a.key || i} style={{ margin: '0 -8px' }}>
-                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} variant="wall" />
+                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} variant="magazine" />
                   </div>
                 ))}
               </div>
@@ -19822,7 +19823,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                    padding to span the whole screen (side borders + radius
                    dropped at the edges). The card's own age chip carries the timing. */
                 <div key={a.key || i} style={{ margin: '0 -22px' }}>
-                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} pagePad={0} variant="wall" />
+                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} pagePad={0} variant="magazine" />
                 </div>
               ))}
             </div>
@@ -22125,6 +22126,10 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     // '-0:06/mi'), so it reads in the reader's units like everything else here.
     const prDelta = a.real ? (a.delta ? t.uText(String(a.delta), uCtx) : null) : null;
     const isWall = variant === 'wall';
+    // The Wall's magazine story (owner, 2026-10-23: the dark magazine look, "use oswald", and "keep the
+    // same likes and comments"): BSWallStory.jsx draws the head, the figures and the coach's line; the
+    // plate, the appointments, the reactions, the faces and the comments below stay as they were.
+    const isMag = variant === 'magazine';
     // ── What the wall's plate says ABOUT the record ────────────────────────
     // The pill names the measure and the figure. A stamped PR says so outright;
     // anything else names the metric it is a record of, so a ride's peak power
@@ -22211,6 +22216,18 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       ? allComments.filter((c) => c.userId && followingSet && followingSet.has(c.userId))
       : allComments.filter((c) => c.follows);
     const likeFacepile = followedLikers.slice(0, 4);
+    // The co-signing coach's own comment, when they left one: the magazine pulls it out as the quote.
+    // When I am that coach, a comment I just sent counts too: sendActComment keeps it locally as
+    // { who: 'You' }, with neither my id nor my name (Codex P2 on #2431). A co-sign that carries the
+    // coach's id is matched by id alone: names are not unique, so another member called Dana Lewis
+    // must not be quoted as the coach (Codex P2 on #2431). The name is for a co-sign with no id.
+    const coSignQuote = isMag && coSign ? (() => {
+      const nm = String(coSignIsMine ? bsMyName() : (coSign.name || '')).trim().toLowerCase();
+      const byId = coSign.byId || null;
+      const c = [...allComments, ...localComments].find((x) => x && (byId ? x.userId === byId : (nm && String(x.who || '').trim().toLowerCase() === nm)))
+        || (coSignIsMine ? localComments[localComments.length - 1] : null);
+      return c ? String(c.text || c.body || '').trim() : '';
+    })() : '';
     // Full stat set for the detail page (every stat, not the card's 3-up).
     const detailStats = uStats(a.real ? (a.fullStats || statsRaw) : (a.stats || statsRaw));
     // Open the full-screen activity page (stats focus or comments focus).
@@ -22241,7 +22258,37 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                 them; the type tag reads as plain mono ink text with a heat
                 underline (graft); name is always t.INK (no tier tint on running
                 text — heat/tier are line-only per the Global Constraints). */}
-            {hideAuthor ? (
+            {isMag && (() => {
+              const isPR = !!prDelta || a.pr === true || (!a.real && a.kind === 'pr');
+              // Any post with a stored line draws it as the picture (a sample one too, in the preview).
+              const magRoute = a.routeObj && Array.isArray(a.routeObj.points) && a.routeObj.points.length >= 2 ? a.routeObj : null;
+              const kicker = [isPR ? tr('feed:card.newPR', { defaultValue: 'New PR' }) : typeLabel, a.city].filter(Boolean).join(' · ');
+              // On a profile (hideAuthor) the page is already theirs: the byline is the time alone, with the
+              // owner's edit beside it.
+              const meta = [hideAuthor ? null : tierDisplay, a.ago ? tr('feed:card.ago', { defaultValue: '{time} ago', time: a.ago }) : null].filter(Boolean).join(' · ');
+              // The hero figure, then the session-details ranking's lead (pace, time, heart rate), so a
+              // run with a dozen stats says distance, pace and time rather than its first three. It ranks
+              // the full list: a real post's `stats` is the card's first three (Codex P2 on #2431).
+              const magFigures = (() => {
+                const ranked = bsSdRankStats(detailStats.filter((st) => !(heroStat && Array.isArray(st) && st[0] === heroStat[0])));
+                return [heroStat, ...ranked.primary, ...ranked.secondary].filter(Boolean).slice(0, 3);
+              })();
+              return (
+                <>
+                  <BSWallStoryHead kicker={kicker} title={title} photo={a.photo || null} route={magRoute}
+                    avatar={hideAuthor ? null : <BSFacetAvatar size={24} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} />}
+                    name={hideAuthor ? null : a.who} meta={meta} bleed={12 + pagePad} onOpen={() => openDetail('stats')} onAuthor={openCardProfile}
+                    action={onEdit && a.postId ? <button aria-label={tr('feed:card.editActivity', { defaultValue: 'Edit activity' })} onClick={() => onEdit(a)} style={{ flexShrink: 0, background: 'transparent', border: 0, width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}><span aria-hidden style={{ width: 22, height: 22, border: `1px solid ${hair}`, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, boxSizing: 'border-box' }}>✎</span></button> : null} />
+                  <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {isPR && heroStat
+                      ? <BSWallStoryRecord value={heroStat[1]} best={prDelta ? `↑ PR ${prDelta}` : null} />
+                      : <BSWallStoryFigures items={magFigures} />}
+                    {a.body ? <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: bsTHexA(t.INK, 0.75) }}>{a.body}</p> : null}
+                  </div>
+                </>
+              );
+            })()}
+            {isMag ? null : hideAuthor ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 8, color: muted, letterSpacing: '0.04em' }}>{a.ago}</span>
                 {/* owner edit — only when the host supplies onEdit (profile) AND the
@@ -22268,7 +22315,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
           {/* HERO — activity name + the promoted primary metric. Tapping the
               title/metric/caption (or the route below) opens the full session-
               details page. */}
-          <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label={tr('feed:card.openSessionDetails', { defaultValue: 'Open session details' })} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail('stats'); } }} style={{ cursor: 'pointer' }}>
+          {!isMag && <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label={tr('feed:card.openSessionDetails', { defaultValue: 'Open session details' })} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail('stats'); } }} style={{ cursor: 'pointer' }}>
             {/* THE RECORD PILL (wall only) — what this plate is a record OF,
                 stated before the title. It names the measure and the figure it
                 was set at, so a ride's peak power and a lift's new best read as
@@ -22343,12 +22390,12 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
             })()}
             {/* caption — the human line, unchanged */}
             {a.body && <p style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: bsTHexA(t.INK, 0.75), margin: '7px 0 0' }}>{a.body}</p>}
-          </div>
+          </div>}
           {/* Log-Activity media — photo · inline video / video-link card · link card.
               GUARDED by a.photo/a.video/a.link, so it's a zero-render no-op on the
               community workout cards (which carry none of these). Markup lifted from
               the old BSActivityBody; theme-token styled. */}
-          {a.photo && <img src={a.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12, marginTop: 10 }} />}
+          {a.photo && !isMag && <img src={a.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12, marginTop: 10 }} />}
           {a.video && (bsIsDirectVideoUrl(a.video)
             ? <video src={a.video} controls playsInline style={{ display: 'block', width: '100%', maxHeight: 320, borderRadius: 12, marginTop: 10, background: '#000' }} />
             : <a href={a.video} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', border: `1px solid ${hair}`, borderRadius: 11, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, color: muted, display: 'grid', placeItems: 'center', fontSize: 12, boxSizing: 'border-box' }}>▷</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('feed:card.watchVideo', { defaultValue: 'Watch video' })}</span><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsLinkHost(a.video)} ↗</span></span></a>)}
@@ -22444,7 +22491,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               halftone tile; honest data gate (`showRoute`) is unchanged —
               still renders nothing at all when the post carries no route
               signal whatsoever. */}
-          {routeObj ? (
+          {isMag ? null : routeObj ? (
             <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, marginTop: 12, marginLeft: -(12 + pagePad), marginRight: -(12 + pagePad), cursor: 'pointer' }}>
               <div style={{ margin: '-13px -1px -1px' }}>
                 <BSActivityRoutePreview route={routeObj} />
@@ -22528,7 +22575,12 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               (my own, or one stamped on the post); honest-absent otherwise.
               Handler + eligibility (coSignIsMine / coSign.byId / setOpenProfile
               payload shape) carried verbatim from the prior pill. */}
-          {coSign && (
+          {isMag && coSignQuote ? (
+            <div style={{ marginTop: 11 }}>
+              <BSWallStoryQuote text={coSignQuote} onOpen={() => openDetail('comments')}
+                cite={`${coSignIsMine ? tr('feed:card.you', { defaultValue: 'You' }) : coSign.name} · ${tr('feed:card.cosigned', { defaultValue: 'co-signed · {role}', role: String(coSign.role).toLowerCase() === 'nutritionist' ? tr('feed:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('feed:role.coach', { defaultValue: 'Coach' }) })}`} />
+            </div>
+          ) : coSign && (
             <div style={{ marginTop: 11, ...(sdReduced ? null : railSeen ? { animation: 'bsSdStamp 480ms cubic-bezier(.2,1.1,.3,1) 180ms both' } : { opacity: 0 }) }}>
               <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: '100%', minHeight: 44, background: 'transparent', color: t.INK, border: 0, borderRadius: 0, padding: '2px 0', boxSizing: 'border-box', cursor: 'pointer', textAlign: 'left' }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900, lineHeight: 1, flexShrink: 0, color: heat }}>✓</span>
@@ -22666,7 +22718,8 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
             via bsSdDrawX, gated on the card's one railSeen flag (pre-seen it
             holds scaleX(0) — never animates at mount while offscreen); reduced
             motion renders it finished. */}
-        {!isLast && (
+        {!isLast && isMag && <div aria-hidden data-bs-wall-story-rule="" style={{ height: 1, margin: '20px 12px 22px', background: bsTHexA(t.INK, 0.16) }} />}
+        {!isLast && !isMag && (
           <div aria-hidden style={{ height: 2, margin: '26px 0 24px', background: `linear-gradient(90deg, ${t.INK}, ${heat} 70%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : railSeen ? { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
         )}
         {shareChoice && (
@@ -22687,7 +22740,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
 // the actual stats — PRs, runs with splits, logged sessions.
 const COMMUNITY_ACTIVITIES = [
   { kind: 'pr', who: 'Priya Shah', role: 'Client', city: 'Gold St. Barbell · NYC', tier: 'PEAK', ago: '6m', body: 'Block 3 paying off. Felt like there was a 4th in the tank.', lift: 'Deadlift', topset: '1×3', load: '245 lb', e1rm: '268 lb', kudos: 41, replies: 6, cosign: { name: 'Dana Lewis', role: 'trainer' }, likers: [{ name: 'Jordan Ellis', role: 'Client' }, { name: 'Sam Reyes', role: 'Client' }, { name: 'Maya Okafor', role: 'Trainer' }], comments: [{ who: 'Jordan Ellis', text: 'That bar speed was unreal — congrats!', follows: true }, { who: 'Sam Reyes', text: 'Eight months of work right there.', follows: true }, { who: 'Avery Lin', text: 'Huge.', follows: false }, { who: 'Noah Kim', text: 'Form looked dialed the whole set.', follows: false }, { who: 'Mara Diaz', text: 'Inspiring. Tackling my own DL block next week.', follows: false }, { who: 'Dana Lewis', text: 'Exactly what we trained for. Proud of you.', follows: false }], stats: [['Top set', '245 lb'], ['Reps', '3'], ['Avg HR', '138 bpm'], ['Max HR', '162 bpm'], ['Calories', '420'], ['Volume', '8,150 lb']], zones: [['Z1', 28], ['Z2', 34], ['Z3', 24], ['Z4', 11], ['Z5', 3]], trace: [96, 112, 138, 122, 104, 118, 152, 134, 110, 124, 158, 140, 116, 128, 161, 142, 118, 132, 162, 144, 120, 134, 159, 138, 114, 130, 156, 136, 112, 108], breakdown: { label: 'Working sets', rows: [['Set 1', '225 lb × 3', 'RPE 7'], ['Set 2', '235 lb × 3', 'RPE 8'], ['Set 3', '245 lb × 3', 'RPE 9 · PR']] } },
-  { kind: 'run', who: 'Drew Oyelaran', role: 'Client', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, kudos: 28, replies: 4, likers: [{ name: 'Sam Reyes', role: 'Client' }, { name: 'Priya Shah', role: 'Client' }], comments: [{ who: 'Sam Reyes', text: 'Negative split on a long run is elite.', follows: true }], stats: [['Distance', '18.2 mi'], ['Avg pace', '8:42/mi'], ['Best pace', '8:24/mi'], ['Time', '2:38:14'], ['Avg HR', '154 bpm'], ['Max HR', '176 bpm'], ['Cadence', '178 spm'], ['Elevation', '540 ft'], ['Calories', '2,140'], ['Stride', '1.18 m'], ['Ground', '242 ms'], ['Training', '4.2 · HI']], zones: [['Z1', 6], ['Z2', 34], ['Z3', 41], ['Z4', 17], ['Z5', 2]], trace: [121, 134, 142, 138, 146, 151, 148, 156, 152, 149, 158, 162, 157, 153, 160, 166, 161, 155, 164, 169, 163, 159, 167, 172, 165, 161, 170, 174, 176, 158], cadenceTrace: [168, 172, 174, 176, 175, 178, 177, 179, 178, 176, 180, 181, 179, 177, 180, 182, 181, 178, 181, 183, 182, 180, 183, 184, 182, 181, 184, 186, 185, 179], elevTrace: [42, 48, 61, 78, 70, 64, 82, 96, 88, 75, 90, 112, 104, 92, 86, 100, 124, 116, 98, 108, 132, 120, 110, 128, 146, 134, 118, 102, 88, 70], paceTrace: [548, 532, 540, 525, 538, 520, 528, 515, 524, 533, 512, 521, 530, 510, 519, 508, 517, 526, 506, 515, 524, 504, 513, 522, 502, 511, 519, 500, 509, 517], breakdown: { label: 'Mile splits', rows: [['Mile 1', '8:57/mi', '141 bpm'], ['Mile 2', '8:53/mi', '144 bpm'], ['Mile 3', '8:52/mi', '146 bpm'], ['Mile 4', '8:50/mi', '148 bpm'], ['Mile 5', '8:51/mi', '150 bpm'], ['Mile 6', '8:48/mi', '151 bpm'], ['Mile 7', '8:46/mi', '152 bpm'], ['Mile 8', '8:44/mi', '153 bpm'], ['Mile 9', '8:45/mi', '154 bpm'], ['Mile 10', '8:43/mi', '155 bpm'], ['Mile 11', '8:41/mi', '156 bpm'], ['Mile 12', '8:42/mi', '157 bpm'], ['Mile 13', '8:36/mi', '158 bpm'], ['Mile 14', '8:34/mi', '160 bpm'], ['Mile 15', '8:32/mi', '161 bpm'], ['Mile 16', '8:29/mi', '163 bpm'], ['Mile 17', '8:26/mi', '166 bpm'], ['Mile 18', '8:24/mi', '169 bpm'], ['Last 0.2', '8:26/mi', '175 bpm']] } },
+  { kind: 'run', who: 'Drew Oyelaran', role: 'Client', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, routeObj: { points: [[4, 88], [16, 86], [26, 62], [38, 40], [50, 34], [61, 50], [70, 74], [80, 70], [89, 42], [96, 16]], kind: 'Run', area: 'East River Loop', privacy: 'Public' }, kudos: 28, replies: 4, likers: [{ name: 'Sam Reyes', role: 'Client' }, { name: 'Priya Shah', role: 'Client' }], comments: [{ who: 'Sam Reyes', text: 'Negative split on a long run is elite.', follows: true }], stats: [['Distance', '18.2 mi'], ['Avg pace', '8:42/mi'], ['Best pace', '8:24/mi'], ['Time', '2:38:14'], ['Avg HR', '154 bpm'], ['Max HR', '176 bpm'], ['Cadence', '178 spm'], ['Elevation', '540 ft'], ['Calories', '2,140'], ['Stride', '1.18 m'], ['Ground', '242 ms'], ['Training', '4.2 · HI']], zones: [['Z1', 6], ['Z2', 34], ['Z3', 41], ['Z4', 17], ['Z5', 2]], trace: [121, 134, 142, 138, 146, 151, 148, 156, 152, 149, 158, 162, 157, 153, 160, 166, 161, 155, 164, 169, 163, 159, 167, 172, 165, 161, 170, 174, 176, 158], cadenceTrace: [168, 172, 174, 176, 175, 178, 177, 179, 178, 176, 180, 181, 179, 177, 180, 182, 181, 178, 181, 183, 182, 180, 183, 184, 182, 181, 184, 186, 185, 179], elevTrace: [42, 48, 61, 78, 70, 64, 82, 96, 88, 75, 90, 112, 104, 92, 86, 100, 124, 116, 98, 108, 132, 120, 110, 128, 146, 134, 118, 102, 88, 70], paceTrace: [548, 532, 540, 525, 538, 520, 528, 515, 524, 533, 512, 521, 530, 510, 519, 508, 517, 526, 506, 515, 524, 504, 513, 522, 502, 511, 519, 500, 509, 517], breakdown: { label: 'Mile splits', rows: [['Mile 1', '8:57/mi', '141 bpm'], ['Mile 2', '8:53/mi', '144 bpm'], ['Mile 3', '8:52/mi', '146 bpm'], ['Mile 4', '8:50/mi', '148 bpm'], ['Mile 5', '8:51/mi', '150 bpm'], ['Mile 6', '8:48/mi', '151 bpm'], ['Mile 7', '8:46/mi', '152 bpm'], ['Mile 8', '8:44/mi', '153 bpm'], ['Mile 9', '8:45/mi', '154 bpm'], ['Mile 10', '8:43/mi', '155 bpm'], ['Mile 11', '8:41/mi', '156 bpm'], ['Mile 12', '8:42/mi', '157 bpm'], ['Mile 13', '8:36/mi', '158 bpm'], ['Mile 14', '8:34/mi', '160 bpm'], ['Mile 15', '8:32/mi', '161 bpm'], ['Mile 16', '8:29/mi', '163 bpm'], ['Mile 17', '8:26/mi', '166 bpm'], ['Mile 18', '8:24/mi', '169 bpm'], ['Last 0.2', '8:26/mi', '175 bpm']] } },
   { kind: 'workout', typeLabel: 'Swim', activityType: 'swim', who: 'Lena Fischer', role: 'Client', city: 'Metropolitan Pool · NYC', tier: 'FORM', ago: '52m', body: 'Long-course meters. Stroke felt smooth the whole set.', title: 'Masters swim · 2 km', stats: [['Distance', '2,000 m'], ['Avg pace', '1:42/100m'], ['Best pace', '1:33/100m'], ['Time', '34:10'], ['Avg HR', '139 bpm'], ['Max HR', '158 bpm'], ['Calories', '410'], ['SWOLF', '38']], zones: [['Z1', 14], ['Z2', 48], ['Z3', 28], ['Z4', 9], ['Z5', 1]], trace: [118, 124, 131, 136, 134, 140, 138, 143, 141, 137, 144, 148, 145, 140, 146, 151, 148, 143, 149, 154, 150, 145, 151, 156, 152, 147, 153, 158, 155, 142], paceTrace: [108, 104, 106, 102, 105, 101, 103, 100, 102, 106, 99, 101, 104, 98, 100, 97, 99, 103, 96, 99, 102, 95, 98, 101, 94, 97, 100, 93, 96, 100], breakdown: { label: '500m splits', rows: [['Split 1', '1:46/100m', 'Build'], ['Split 2', '1:42/100m', 'Steady'], ['Split 3', '1:39/100m', 'Push'], ['Split 4', '1:34/100m', 'Sprint']] }, kudos: 19, replies: 2 },
   { kind: 'workout', typeLabel: 'Rest', activityType: 'recovery', who: 'Theo Nakamura', role: 'Client', city: 'Recovery day · home', tier: 'TEMPO', ago: '1h', body: 'Full rest. Legs needed it after the week of volume.', title: 'Rest & recover', stats: [['Sleep', '8h 10m'], ['HRV', '74 ms'], ['Readiness', '91%']], kudos: 12, replies: 1 },
   { kind: 'milestone', typeLabel: 'Milestone', activityType: 'milestone', who: 'Jordan Ellis', role: 'Client', city: 'Brooklyn · NYC', tier: 'FORM', ago: '5h', body: '', title: 'Promoted to Staff Engineer', stats: [], milestone: { stamp: 'promoted', detail: 'Eighteen months of showing up — the gym discipline bled into the work.' }, kudos: 31, replies: 5 },
@@ -24817,29 +24870,30 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <>
           {/* Role filter chips — auto-hide on scroll-down (bsSubStyle) */}
           <div inert={subHidden} style={bsSubStyle(0)}>
-          {/* One control strip (owner pick 2026-07-14 evening, option A off the board):
-              role chips left, and on COMMUNITY the type filter is a compact
-              ALL ▾ select on the row's right end — the six-chip row is gone. */}
-          <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: filter === 'COMMUNITY' ? 'space-between' : 'center', alignItems: 'center', gap: 10, padding: `7px ${t.padX}px 5px` }}>
-            <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 10 }}>
-              {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, color: ROLE[k].color, onClick: () => setFilter(k), label: chipLabel(k) }))}
-            </div>
-            {filter === 'COMMUNITY' && (
-              <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-                <select value={feedType} onChange={(e) => setFeedType(e.target.value)} aria-label={tr('feed:type.filterAria', { defaultValue: 'Filter by activity type' })}
-                  style={{ appearance: 'none', WebkitAppearance: 'none', background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, padding: '7px 24px 7px 10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, cursor: 'pointer' }}>
-                  {[['all', tr('feed:type.all', { defaultValue: 'All' })], ['workouts', tr('feed:type.workouts', { defaultValue: 'Workouts' })], ['runs', tr('feed:type.runs', { defaultValue: 'Runs' })], ['prs', tr('feed:type.prs', { defaultValue: 'PRs' })], ['nutrition', tr('feed:type.nutrition', { defaultValue: 'Nutrition' })], ['milestones', tr('feed:type.milestones', { defaultValue: 'Milestones' })]].map(([k, label]) => (
-                    <option key={k} value={k}>{label}</option>
-                  ))}
-                </select>
-                <span aria-hidden style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: TEALB, pointerEvents: 'none' }}>▾</span>
-              </span>
-            )}
+          {/* The role chips. The Wall's type filter is its masthead's tabs (owner, 2026-10-23, the
+              magazine design); it was an ALL ▾ select at this row's right end. */}
+          <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', alignItems: 'center', gap: 10, padding: `7px ${t.padX}px 5px` }}>
+            {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, color: ROLE[k].color, onClick: () => setFilter(k), label: chipLabel(k) }))}
           </div>
           </div>
 
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: '4px 0 84px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {/* The Wall's masthead (owner, 2026-10-23, the magazine design): its name over a heavy rule,
+                  the day and how many are in a workout (the live story's people, so Universal only), then
+                  the activity types as tabs. */}
+              {(() => {
+                const trainingNow = railOn && feedMode === 'universal' ? railPeople.filter((p) => p && p.activity === 'workout').length : 0;
+                let dateline = '';
+                try { dateline = new Date().toLocaleDateString(bsDateLocale(), { weekday: 'long', month: 'short', day: 'numeric' }); } catch (e) { dateline = ''; }
+                return (
+                  <BSWallMasthead title={tr('feed:wallMast.title', { defaultValue: 'The Wall' })} dateline={dateline}
+                    trainingLine={trainingNow ? tr('feed:wallMast.trainingNow', { defaultValue: '{count, number} training now', count: trainingNow }) : null}
+                    types={[['all', tr('feed:type.all', { defaultValue: 'All' })], ['workouts', tr('feed:type.workouts', { defaultValue: 'Workouts' })], ['runs', tr('feed:type.runs', { defaultValue: 'Runs' })], ['prs', tr('feed:type.prs', { defaultValue: 'PRs' })], ['nutrition', tr('feed:type.nutrition', { defaultValue: 'Nutrition' })], ['milestones', tr('feed:type.milestones', { defaultValue: 'Milestones' })]]}
+                    typesLabel={tr('feed:type.filterAria', { defaultValue: 'Filter by activity type' })}
+                    type={feedType} onType={setFeedType} />
+                );
+              })()}
               {/* LIVE NOW (owner, 2026-10-22; the magazine's live story since 2026-10-23): who is training
                   right now opens the Wall, with their live set and a boost. The rail's people (real ones
                   signed in, the preview's signed out), under All in Universal only (presence is not
@@ -24850,8 +24904,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   onBoost={(p) => setBoostFor({ ...p, photoUrl: railPhotoOf(p), _profile: railProfileOf(p) })}
                   onOpenProfile={(p) => setOpenProfile(railProfileOf(p))} />
               ) : null}
-              {/* The type filter lives in the ALL ▾ select on the role-chip
-                  row now (owner pick 2026-07-14 evening) — no chip row in the body. */}
               {/* Community feed is a Strava-style activity stream of real logged
                   workouts/runs (bsActivityFromPost over the live community posts).
                   Signed-out / no-activity-yet falls back to the demo cards so the
@@ -24897,11 +24949,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     </div>
                   );
                 }
-                // ⚠ `variant="wall"` IS THE WALL DESIGN — the hero figure in the
-                // dot-matrix face, the wall facts beside it, the stat grid, HR zones
-                // and the trace. This tab IS the Wall now, so it renders it here
-                // rather than in a parallel component.
-                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={0} variant="wall" /></React.Fragment>);
+                // ⚠ `variant="magazine"` IS THE WALL DESIGN (owner, 2026-10-23): each post a
+                // story, its likes and comments as they were. The member and coach profile
+                // feeds ask for the same. This tab IS the Wall, so it renders it here rather
+                // than in a parallel component.
+                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={0} variant="magazine" /></React.Fragment>);
               })()}
               {/* ⚠ THE MEMBER'S OWN RECORDS AND THE TWO WAYS TO ADD ONE BY HAND.
                   This is the only mount — #2036 retired the Wall segment and the

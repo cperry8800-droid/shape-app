@@ -310,5 +310,8 @@
   "wallLive.minIn": "da {n, number} min",
   "wallLive.resting": "Recupero",
   "wallLive.sendBoost": "Fai il tifo →",
-  "wallLive.alsoTraining": "Si allenano anche:"
+  "wallLive.alsoTraining": "Si allenano anche:",
+  "wallMast.title": "La Bacheca",
+  "wallMast.trainingNow": "{count, number} in allenamento ora",
+  "card.you": "Tu"
 }

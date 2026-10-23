@@ -206,7 +206,7 @@ planned builds.
 - Home (the owner's 2026-10-22 redesign, `BSHomeSections.jsx`): Week so far counts days trained
   (workout minutes or a logged activity) against the plan's sessions, and days with food logged,
   not meals. The weekly notes, message doors and next session show only for a paid coach (no
-  sample signed out). At a glance's Month view went with it; Progress keeps the history.
+  sample signed out).
 - Shape Wire (the launch telegram) shows the coach's latest note however old it is, and
   in the morning its protein line is usually absent (it reads only today's row).
 - Server notices are said in the reader's stored language (`app_locale`): the app's bell, the push
@@ -242,10 +242,12 @@ planned builds.
 - Nothing opens the chat panel from a URL. `TrainerNewProgram.html` and
   `get-started.html` aren't linked from anywhere.
 - The website's Kitchen (`recipesPage.jsx`) still runs its filter toggles and jump row
-  off the right edge of a phone; the app's moved to a dropdown and in-place time tabs.
+  off the right edge of a phone.
 - No signed-in pass has been done in a browser or on a phone for client onboarding,
   the dashboard frame, `/admin`, Business (website and app), the coach application
-  uploads or the Wall's Training now cards against a real live set.
+  uploads or the Wall's live story against a real set.
+- The Wall's old record card (`variant="wall"`) is drawn nowhere in the app now; its code
+  stays. The website chat bubble's Wall tab still draws its copy.
 - Native mic and camera plugins (including iOS barcode scanning) and on-device macro
   reads from a meal photo aren't built yet.
 - The daily check-in (#2398): its saves have no timeout, so a request the network holds
