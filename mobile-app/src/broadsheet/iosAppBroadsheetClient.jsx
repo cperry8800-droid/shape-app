@@ -24840,13 +24840,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: '4px 0 84px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {/* TRAINING NOW (owner, 2026-10-22): who is training right now opens the Wall, with their
-                  live set and a boost. The rail's people (real ones signed in, the preview's signed out),
-                  under All in Universal only (presence is not filtered by follows), and hidden with the
-                  rail by the member's "Online members" choice. */}
+              {/* LIVE NOW (owner, 2026-10-22; the magazine's live story since 2026-10-23): who is training
+                  right now opens the Wall, with their live set and a boost. The rail's people (real ones
+                  signed in, the preview's signed out), under All in Universal only (presence is not
+                  filtered by follows), and hidden with the rail by the member's "Online members" choice. */}
               {railOn && feedType === 'all' && feedMode === 'universal' ? (
                 <BSWallTrainingNow people={railPeople} demo={!loggedIn}
-                  avatar={(p) => <BSFacetAvatar size={40} c={railTierColor(p)} initial={bsInitials(p.name)} photo={railPhotoOf(p)} showRank={false} live activity={p.activity} BG={t.PAPER} INK={'#fff'} />}
+                  avatar={(p) => <BSFacetAvatar size={24} c={railTierColor(p)} initial={bsInitials(p.name)} photo={railPhotoOf(p)} showRank={false} BG={t.PAPER} INK={'#fff'} />}
                   onBoost={(p) => setBoostFor({ ...p, photoUrl: railPhotoOf(p), _profile: railProfileOf(p) })}
                   onOpenProfile={(p) => setOpenProfile(railProfileOf(p))} />
               ) : null}

@@ -304,11 +304,11 @@
   "thread.fromShape": "Từ Shape",
   "thread.shapeWelcome": "{client} và {coach} giờ đã cùng làm việc trên Shape. Đây là nơi hai bên trao đổi: câu hỏi, check-in và thay đổi kế hoạch đều đến đây.",
   "thread.shapeWelcomeNoClient": "Buổi huấn luyện của bạn với {coach} bắt đầu từ đây. Đây là nơi hai bên trao đổi: câu hỏi, check-in và thay đổi kế hoạch đều đến đây.",
-  "wallLive.title": "Đang tập",
   "wallLive.isTraining": "{name} đang tập",
-  "wallLive.live": "Trực tiếp",
+  "wallLive.liveNow": "Đang trực tiếp",
+  "wallLive.onSet": "{name} đang ở hiệp {n, number}/{total, number}",
   "wallLive.minIn": "đã {n, number} phút",
-  "wallLive.inSession": "Đang trong buổi tập",
   "wallLive.resting": "Đang nghỉ",
-  "wallLive.boost": "Cổ vũ →"
+  "wallLive.sendBoost": "Gửi cổ vũ →",
+  "wallLive.alsoTraining": "Cũng đang tập:"
 }

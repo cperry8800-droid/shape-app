@@ -304,11 +304,11 @@
   "thread.fromShape": "Da Shape",
   "thread.shapeWelcome": "{client} e {coach} agora trabalham juntos na Shape. É nesta conversa que vocês falam: perguntas, check-ins e mudanças no plano chegam aqui.",
   "thread.shapeWelcomeNoClient": "Seu acompanhamento com {coach} começa aqui. É nesta conversa que vocês falam: perguntas, check-ins e mudanças no plano chegam aqui.",
-  "wallLive.title": "Treinando agora",
   "wallLive.isTraining": "{name} está treinando",
-  "wallLive.live": "Ao vivo",
+  "wallLive.liveNow": "Ao vivo agora",
+  "wallLive.onSet": "{name} está na série {n, number} de {total, number}",
   "wallLive.minIn": "há {n, number} min",
-  "wallLive.inSession": "Em uma sessão",
   "wallLive.resting": "Descansando",
-  "wallLive.boost": "Força →"
+  "wallLive.sendBoost": "Mandar força →",
+  "wallLive.alsoTraining": "Também treinando:"
 }

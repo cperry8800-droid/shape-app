@@ -304,11 +304,11 @@
   "thread.fromShape": "From Shape",
   "thread.shapeWelcome": "{client} and {coach} don dey work together for Shape now. Na this thread una go dey talk: questions, check-ins and plan changes go all land here.",
   "thread.shapeWelcomeNoClient": "Your coaching with {coach} start here. Na this thread una go dey talk: questions, check-ins and plan changes go all land here.",
-  "wallLive.title": "Dey train now",
   "wallLive.isTraining": "{name} dey train",
-  "wallLive.live": "Live",
+  "wallLive.liveNow": "Live now",
+  "wallLive.onSet": "{name} dey for set {n, number} of {total, number}",
   "wallLive.minIn": "{n, number} min don pass",
-  "wallLive.inSession": "For session",
   "wallLive.resting": "Dey rest",
-  "wallLive.boost": "Ginger →"
+  "wallLive.sendBoost": "Send ginger →",
+  "wallLive.alsoTraining": "Dem dey train too:"
 }
