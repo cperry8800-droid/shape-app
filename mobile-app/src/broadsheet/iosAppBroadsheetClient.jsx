@@ -20679,6 +20679,9 @@ function useBSSdInView() {
 // In the Wall's magazine palette (owner, 2026-10-24): warm grey through sand to the magazine's red, so
 // an easy zone reads quiet and a hard one reads hot on either paper.
 const BS_SD_ZONES = ['#8c877e', '#b9a189', '#df8d6a', '#e6623c', '#c8321a'];
+// A session headline keeps its " · " with the word before it, so a wrap never starts a line on the dot
+// ("LOWER STRENGTH / · BLOCK 3").
+const bsSdHeadline = (title) => String(title || '').replace(/ · /g, '\u00a0· ');
 // The LIVING TRACE — the metric-over-distance chart, alive: the line draws
 // itself in when scrolled into view, the fill fades up after it, the trace's
 // END carries a live dot (HTML, so it never distorts under the stretched
@@ -20834,7 +20837,10 @@ function BSSdZoneCells({ zones, t, muted }) {
 // row = fixed label column · a bar drawing rightward (longer = faster/bigger)
 // · the figure on the right edge. The best/PR row lands in the session's heat
 // with a burst ring + a soft breathing halo. "RPE n" subs render as mini dials.
-function BSSdBars({ rows, perf, bestIdx, heat, t, muted, still = false }) {
+function BSSdBars({ rows, perf, bestIdx, heat, t, muted, still = false, mag = false }) {
+  // `mag` draws the rows as the Wall prints them (session details, owner 2026-10-24: "make the cadence
+  // numbers match too"): the figures in its headline face, square bars, no halo or burst on the best.
+  // The profile's records keep theirs.
   // `still` suppresses the best-row breathing halo (the one infinite loop) — used
   // on surfaces that spend their loop budget elsewhere (the Terrain profile keeps
   // its single loop on the ascent avatar), so the best bar still bursts once but
@@ -20857,25 +20863,25 @@ function BSSdBars({ rows, perf, bestIdx, heat, t, muted, still = false }) {
               <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: best ? bsTHexA(t.INK, 0.75) : muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[0]}</div>
               {rest ? <div style={{ fontFamily: t.MONO, fontSize: 6.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: bsTHexA(t.INK, best ? 0.55 : 0.4), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{rest}</div> : null}
             </div>
-            <div aria-hidden style={{ flex: 1, position: 'relative', height: 10, minWidth: 0 }}>
+            <div aria-hidden style={{ flex: 1, position: 'relative', height: mag ? 8 : 10, minWidth: 0 }}>
               <div style={{
-                position: 'absolute', left: 0, top: 0, bottom: 0, width: `${len}%`, borderRadius: '0 2px 2px 0',
+                position: 'absolute', left: 0, top: 0, bottom: 0, width: `${len}%`, borderRadius: mag ? 0 : '0 2px 2px 0',
                 background: best ? heat : bsTHexA(t.INK, 0.16),
                 transformOrigin: 'left', transform: (seen || reduced) ? undefined : 'scaleX(0)',
                 '--sd-glow': bsTHexA(heat, 0.5),
                 animation: (seen && !reduced)
-                  ? (best && !still
+                  ? (best && !still && !mag
                     ? `bsSdDrawX 560ms cubic-bezier(.4,0,.2,1) ${i * 110}ms both, bsSdPrBreath 2.8s ease-in-out ${lastDelay + 700}ms infinite`
                     : `bsSdDrawX 560ms cubic-bezier(.4,0,.2,1) ${i * 110}ms both`)
                   : 'none',
               }} />
-              {best && seen && !reduced && (
+              {best && seen && !reduced && !mag && (
                 <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${len}%`, borderRadius: '0 2px 2px 0', '--sd-burst': bsTHexA(heat, 0.55), animation: `bsSdBurst 750ms ease-out ${lastDelay}ms both` }} />
               )}
             </div>
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, minWidth: 58, justifyContent: 'flex-end' }}>
               {bsIbRpeDial(rpe, t, 14)}
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', opacity: seen ? 1 : 0, transition: `opacity 400ms ease ${i * 110 + 220}ms` }}>{r[1]}</span>
+              <span style={{ fontFamily: mag ? bsWsHead(t) : t.DISPLAY, fontSize: mag ? 17 : 13.5, fontWeight: mag ? 600 : 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', opacity: seen ? 1 : 0, transition: `opacity 400ms ease ${i * 110 + 220}ms` }}>{r[1]}</span>
             </div>
           </div>
         );
@@ -20902,7 +20908,6 @@ function BSSdRoute({ route, heat, t }) {
   return (
     <div ref={ref}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), margin: '20px 0 8px' }}>
-        <span aria-hidden style={{ width: 6, height: 1.5, background: heat, marginLeft: -15 }} />
         <span>{tr('session:chart.routeGps', { defaultValue: 'Route · GPS' })}</span>
       </div>
       <div style={{ position: 'relative' }}>
@@ -20911,7 +20916,7 @@ function BSSdRoute({ route, heat, t }) {
             pathLength={1} strokeDasharray={reduced ? 'none' : 1} strokeDashoffset={reduced ? 0 : (seen ? 0 : 1)} style={{ transition: 'stroke-dashoffset 1100ms cubic-bezier(.4,0,.2,1) 120ms' }} />
         </svg>
         <span aria-hidden style={{ position: 'absolute', left: `min(max(calc(${sx}% - 2px), 0px), calc(100% - 5px))`, top: `min(max(calc(${sy}% - 2px), 0px), calc(100% - 5px))`, width: 5, height: 5, border: `1.2px solid ${t.INK}`, background: 'transparent' }} />
-        {(seen || reduced) && <span aria-hidden style={{ position: 'absolute', left: `min(max(calc(${ex}% - 3px), 0px), calc(100% - 6px))`, top: `min(max(calc(${ey}% - 3px), 0px), calc(100% - 6px))`, width: 6, height: 6, borderRadius: 999, background: heat, boxShadow: `0 0 0 3px ${bsTHexA(heat, 0.18)}`, ...(reduced ? null : { animation: 'bsSdPop 340ms ease 1240ms both' }) }} />}
+        {(seen || reduced) && <span aria-hidden style={{ position: 'absolute', left: `min(max(calc(${ex}% - 3px), 0px), calc(100% - 6px))`, top: `min(max(calc(${ey}% - 3px), 0px), calc(100% - 6px))`, width: 6, height: 6, borderRadius: 999, background: heat }} />}
         <span style={{ ...lbl, left: `min(max(calc(${sx}% - 16px), 0px), calc(100% - 36px))`, top: `min(calc(${sy}% + 5px), calc(100% - 11px))`, ...(reduced ? null : { opacity: seen ? 1 : 0, transition: 'opacity 380ms ease 900ms' }) }}>{tr('session:chart.start', { defaultValue: 'START' })}</span>
         <span style={{ ...lbl, left: `min(max(calc(${ex}% - 12px), 0px), calc(100% - 28px))`, top: `min(calc(${ey}% + 6px), calc(100% - 11px))`, ...(reduced ? null : { opacity: seen ? 1 : 0, transition: 'opacity 380ms ease 1000ms' }) }}>{tr('session:chart.end', { defaultValue: 'END' })}</span>
       </div>
@@ -21590,7 +21595,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         <div aria-hidden style={{ height: 1, background: bsTHexA(t.INK, 0.08), margin: '14px 0 0' }} />
         {/* ── THE STORY — headline → figure → summary, as the Wall prints it (the heat rail is retired) ── */}
         <div style={{ position: 'relative' }}>
-          <h2 style={{ margin: '18px 0 0', paddingBottom: 9, borderBottom: `3px solid ${t.INK}`, fontFamily: bsWsHead(t), fontSize: 30, fontWeight: 600, lineHeight: 1, letterSpacing: '0.012em', textTransform: 'uppercase', color: t.INK, textWrap: 'balance', overflowWrap: 'anywhere' }}>{d.title}</h2>
+          <h2 style={{ margin: '18px 0 0', paddingBottom: 9, borderBottom: `3px solid ${t.INK}`, fontFamily: bsWsHead(t), fontSize: 30, fontWeight: 600, lineHeight: 1, letterSpacing: '0.012em', textTransform: 'uppercase', color: t.INK, textWrap: 'balance', overflowWrap: 'anywhere' }}>{bsSdHeadline(d.title)}</h2>
           {d.heroStat && (() => {
             const u = bsSdSplitUnit(d.heroStat[1]);
             return (
@@ -21611,6 +21616,13 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             );
           })()}
           {d.body && <p style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK, margin: '14px 0 0' }}>{d.body}</p>}
+          {/* A milestone has no figures: its stamp and its own line are the story, as on its card. */}
+          {a && a.milestone && (
+            <div data-bs-sd-milestone="" style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat }}>{bsMilestoneStampLabel(a.milestone.stamp)}</span>
+              {a.milestone.detail ? <p style={{ margin: 0, fontFamily: bsWsHead(t), fontSize: 21, fontWeight: 500, lineHeight: 1.15, color: t.INK }}>{a.milestone.detail}</p> : null}
+            </div>
+          )}
           {d.coSign && (
             <div style={{ marginTop: 12, ...(sdReduced ? null : { animation: 'bsSdStamp 480ms cubic-bezier(.2,1.1,.3,1) 560ms both' }) }}>
               <button type="button" onClick={() => onProfile && onProfile({ who: d.coSign.name, kind: String(d.coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: d.coSign.byId || undefined, init: bsInitials(d.coSign.name), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36, background: 'transparent', color: t.INK, border: `1px solid ${bsTHexA(t.INK, 0.25)}`, borderRadius: 0, padding: '7px 12px', cursor: 'pointer' }}>
@@ -21723,7 +21735,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && Array.isArray(d.powerTrace) && d.powerTrace.length > 1 && (
           <>
             {secHead(tr('session:chart.power', { defaultValue: 'Power' }))}
-            <BSSdTrace vals={d.powerTrace} color="#d8b25a" fmt={(v) => `${Math.round(v)}`} idKey="pwr" height={96} t={t} muted={muted} distance={distance} distUnit={distUnit} unit="w" />
+            <BSSdTrace vals={d.powerTrace} color={bsTHexA(t.INK, 0.75)} fmt={(v) => `${Math.round(v)}`} idKey="pwr" height={96} t={t} muted={muted} distance={distance} distUnit={distUnit} unit="w" />
           </>
         )}
         {/* HEART RATE — a bpm-over-distance area chart (y-axis bpm + x-axis miles),
@@ -21793,7 +21805,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           return (
             <>
               {secHead(tr('session:chart.cadence', { defaultValue: 'Cadence' }), cadStat ? headChip(tr('session:chart.avgValue', { defaultValue: 'avg {value}', value: cadStat[1] })) : null)}
-              <BSSdBars rows={cRows} perf={cPerf} bestIdx={cBest} heat={heat} t={t} muted={muted} />
+              <BSSdBars rows={cRows} perf={cPerf} bestIdx={cBest} heat={heat} t={t} muted={muted} mag />
             </>
           );
         })()}
@@ -21802,7 +21814,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && hasElevGraph && (
           <>
             {secHead(tr('session:chart.elevation', { defaultValue: 'Elevation' }), elevStat ? headChip(tr('session:chart.gainValue', { defaultValue: '+{value} gain', value: elevStat[1] })) : null)}
-            <BSSdTrace vals={elevIn.trace} color="#8a93a0" fmt={(v) => `${Math.round(v)}`} idKey="elev" height={96} t={t} muted={muted} distance={distance} distUnit={distUnit} unit={elevIn.unit} />
+            <BSSdTrace vals={elevIn.trace} color={bsTHexA(t.INK, 0.5)} fmt={(v) => `${Math.round(v)}`} idKey="elev" height={96} t={t} muted={muted} distance={distance} distUnit={distUnit} unit={elevIn.unit} />
           </>
         )}
         {/* COMMENTS PAGE — reactions summary (likes open their own sheet) + the
@@ -22271,7 +22283,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     const openDetail = (focus) => setActivityDetail({
       a, key, tc, tierDisplay, role: a.role, who: a.who, ago: a.ago, city: a.city, avatarPhoto, roleKind, realTier,
       title, typeLabel, heroStat, detailStats, prDelta, coachLine, coachProgram, coSign, coSignColor, body: a.body,
-      routeObj, showRoute,
+      // The line the card draws (a sample's stored line too, in the preview), so the page never reads
+      // "GPS not recorded" under a card that shows the route.
+      routeObj: routeObj || (a.routeObj && Array.isArray(a.routeObj.points) && a.routeObj.points.length >= 2 ? a.routeObj : null), showRoute,
       // The breakdown's rows are set-by-set text ('245 lb × 3'), so they carry
       // units too — converted here rather than on the detail page, so the page
       // and the card it opened from quote the same figures.
