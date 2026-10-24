@@ -118,8 +118,8 @@ test('the wall, the shelf and the prompts in the Wall\'s look: square shots to t
   assert.ok(figs.length >= 2, 'the demo wall has its shots');
   for (const f of figs) {
     const [pic, caption] = f.props.children;
-    assert.equal(pic.props.style.borderRadius, undefined, 'a shot is square');
-    assert.equal(pic.props.style.border, undefined, 'a shot is unframed');
+    assert.ok(!pic.props.style.borderRadius, 'a shot is square');
+    assert.ok(!pic.props.style.border, 'a shot is unframed');
     if (caption) assert.match(caption.props.style.fontFamily, /^'Saira'/, 'captions are in the headline face');
   }
   // The strip runs to the screen's edge, so the last shot is cut by the screen, not the gutter.
@@ -130,6 +130,35 @@ test('the wall, the shelf and the prompts in the Wall\'s look: square shots to t
   const answers = custom.prompts.filter((p) => p && p.q && p.a).map((p) => p.a);
   assert.ok(answers.length, 'the demo has prompts');
   assert.deepEqual(nodes.filter(named('BSTPullQuote')).map((q) => q.props.text), answers, 'each answer is pulled out');
+});
+
+// Owner, 2026-10-24: "should be able to click on these pictures and make bigger". Each shot is a door to
+// the viewer, at its own place on the wall; the viewer steps round the wall and closes back to the strip.
+test('a Wall shot opens full size, at its place, and steps round the wall', () => {
+  const d = drive(mod.BSProfileExtras, { custom: mod.bsDemoMemberCustom(), c: '#c0533b', INK, BG: '#fff', isSelf: false, ledger: true, demo: true, bleed: 20 });
+  const viewer = () => d.nodes().find(named('BSPhotoViewer'));
+  const shots = d.nodes().filter((n) => n.type === 'button' && n.props['data-bs-wall-shot'] != null);
+  assert.ok(shots.length >= 2, 'the demo wall has its shots');
+  assert.equal(viewer(), undefined, 'the viewer is open before a tap');
+  // Each shot names itself for a screen reader by its place (the harness's tr leaves {n} as it is).
+  assert.ok(shots.every((b) => /^Open photo /.test(b.props['aria-label'])));
+  assert.match(stripComments(readFileSync(SRC, 'utf8')), /tr\('profile:wall\.openShot', \{ defaultValue: 'Open photo \{n\} of \{count\}', n: i \+ 1, count: wall\.length \}\)/);
+  shots[1].props.onClick();
+  d.render();
+  const v = viewer();
+  assert.ok(v, 'a tap on a shot opens nothing');
+  assert.equal(v.props.at, 1, 'the viewer opens on the shot tapped');
+  assert.equal(v.props.shots.length, shots.length);
+  assert.ok(v.props.shots.every((w) => typeof w.url === 'string' && w.url), 'the viewer gets the wall\'s own photos');
+  assert.equal(v.props.labels.close, 'Close');
+  v.props.onStep(1); d.render();
+  assert.equal(viewer().props.at, 2 % shots.length);
+  viewer().props.onStep(-1); d.render(); viewer().props.onStep(-1); d.render();
+  assert.equal(viewer().props.at, 0);
+  viewer().props.onStep(-1); d.render();
+  assert.equal(viewer().props.at, shots.length - 1, 'back from the first shot is the last');
+  viewer().props.onClose(); d.render();
+  assert.equal(viewer(), undefined, 'the viewer would not close');
 });
 
 // The Boost sheet portals into the phone surface; with no document the sheet renders nothing, so every
@@ -326,7 +355,7 @@ const require_ = createRequire(import.meta.url);
 const { JSDOM } = require_('jsdom');
 const React = require_('react');
 const ReactDOMClient = require_('react-dom/client');
-const { BSProfileDock } = await loadBroadsheet(['BSProfileDock'], React);
+const { BSProfileDock, BSPhotoViewer } = await loadBroadsheet(['BSProfileDock', 'BSPhotoViewer'], React);
 
 test('the coach dock slides away while the page scrolls down and comes back up, at the top and at the end', async () => {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'https://shape.test/m/' });
@@ -422,4 +451,78 @@ test('a member\'s dock is Message alone, square, in the outline, and hides on sc
     sc.remove();
     Object.assign(globalThis, saved);
   }
+});
+
+test('the photo viewer: the shot whole, its caption, where it sits on the wall, and keys, arrows, × and Escape', async () => {
+  const dom = new JSDOM('<!doctype html><html><body><button id="opener">shot</button><div id="bs-phone-surface"></div></body></html>', { url: 'https://shape.test/m/' });
+  const saved = { window: globalThis.window, document: globalThis.document };
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const shots = [{ url: 'https://x.test/a.jpg', caption: 'Dawn miles before work.' }, { url: 'https://x.test/b.jpg', caption: 'Chalk on, doubts off.' }, { url: 'https://x.test/c.jpg', caption: '' }];
+  const host = dom.window.document.createElement('div');
+  dom.window.document.body.appendChild(host);
+  const opener = dom.window.document.getElementById('opener');
+  opener.focus();
+  let open = true;
+  function Harness({ list }) {
+    const [at, setAt] = React.useState(0);
+    const [on, setOn] = React.useState(true);
+    open = on;
+    return on ? React.createElement(BSPhotoViewer, { shots: list, at, onClose: () => setOn(false), onStep: (d) => setAt((i) => (i + d + list.length) % list.length), labels: { close: 'Close', prev: 'Previous photo', next: 'Next photo' } }) : null;
+  }
+  const root = ReactDOMClient.createRoot(host);
+  // The harness hands every module a react-dom whose createPortal renders in place, so the viewer is looked
+  // for in the page; that it portals into the phone's surface is read from the source below.
+  const q = (sel) => dom.window.document.querySelector(sel);
+  const key = async (k) => { await React.act(async () => { dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: k })); }); };
+  try {
+    await React.act(async () => { root.render(React.createElement(Harness, { list: shots })); });
+    const dlg = q('[data-bs-photo-viewer]');
+    assert.ok(dlg, 'the viewer did not open');
+    assert.equal(dlg.getAttribute('role'), 'dialog');
+    assert.equal(dlg.getAttribute('aria-modal'), 'true');
+    assert.equal(dlg.style.zIndex, '300', 'the viewer sits under the tab bar');
+    assert.equal(q('img').getAttribute('src'), shots[0].url);
+    assert.equal(q('img').style.objectFit, 'contain', 'the shot is cropped, not shown whole');
+    assert.equal(q('img').getAttribute('alt'), 'Dawn miles before work.');
+    assert.match(dlg.textContent, /1 \/ 3/);
+    assert.equal(dom.window.document.activeElement, q('[data-bs-photo-close]'), 'focus did not move into the viewer');
+    for (const sel of ['[data-bs-photo-close]', '[data-bs-photo-prev]', '[data-bs-photo-next]']) {
+      assert.equal(q(sel).style.minHeight, '44px', `${sel} is under 44 px`);
+      assert.equal(parseFloat(q(sel).style.borderRadius), 0, `${sel} is round`);
+    }
+    await key('ArrowRight');
+    assert.match(q('[data-bs-photo-viewer]').textContent, /2 \/ 3/);
+    assert.match(q('[data-bs-photo-viewer]').textContent, /Chalk on, doubts off\./);
+    await React.act(async () => { q('[data-bs-photo-next]').click(); });
+    assert.equal(q('img').getAttribute('src'), shots[2].url);
+    await React.act(async () => { q('[data-bs-photo-next]').click(); });
+    assert.match(q('[data-bs-photo-viewer]').textContent, /1 \/ 3/, 'next from the last shot is the first');
+    await React.act(async () => { q('[data-bs-photo-prev]').click(); });
+    assert.match(q('[data-bs-photo-viewer]').textContent, /3 \/ 3/);
+    await key('Escape');
+    assert.equal(open, false, 'Escape did not close the viewer');
+    assert.equal(q('[data-bs-photo-viewer]'), null);
+    assert.equal(dom.window.document.activeElement, opener, 'focus did not go back to the shot that opened it');
+    // One shot: no arrows. A tap on the dark ground closes it, as × does.
+    await React.act(async () => { root.render(null); });
+    await React.act(async () => { root.render(React.createElement(Harness, { list: shots.slice(0, 1) })); });
+    assert.equal(q('[data-bs-photo-prev]'), null);
+    assert.equal(q('[data-bs-photo-next]'), null);
+    await React.act(async () => { q('[data-bs-photo-viewer]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
+    assert.equal(q('[data-bs-photo-viewer]'), null, 'a tap on the ground did not close it');
+    await React.act(async () => { root.render(null); });
+    await React.act(async () => { root.render(React.createElement(Harness, { list: shots })); });
+    await React.act(async () => { q('[data-bs-photo-close]').click(); });
+    assert.equal(q('[data-bs-photo-viewer]'), null, '× did not close it');
+  } finally {
+    await React.act(async () => { root.unmount(); });
+    Object.assign(globalThis, saved);
+  }
+});
+
+test('the viewer portals into the phone\'s surface, over the tab bar, as every sheet does', () => {
+  const src = stripComments(readFileSync(SRC.replace(/iosAppBroadsheetClient\.jsx$/, 'BSProfileMagazine.jsx'), 'utf8'));
+  const body = src.slice(src.indexOf('export function BSPhotoViewer('));
+  assert.match(body, /document\.getElementById\('bs-phone-surface'\)/);
+  assert.match(body, /return host \? createPortal\(view, host\) : view;/);
 });

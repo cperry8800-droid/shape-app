@@ -68,7 +68,7 @@ import { BSEatFuel, BSEatMacroPage } from './BSEatFuel.jsx';
 import { BSTrainBurn } from './BSTrainBurn.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead, bsWsRed, bsWsHead } from './BSWallStory.jsx';
-import { BSTPullQuote, BSProfileDock } from './BSProfileMagazine.jsx';
+import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
@@ -15956,6 +15956,9 @@ function BSProfileFilmCard({ film, INK, c, label }) {
 // Render block — the song, prompts, and social links a member added.
 function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false, userId = null, coach = false, demo = false }) {
   const tr = useShapeTr();
+  // The Wall shot open full size, by its place on the wall (owner, 2026-10-24: "click on these pictures and
+  // make bigger"); null when none is.
+  const [shot, setShot] = useStateBSC(null);
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   // bleed = the host body's side padding: boxed pieces break out of it to run
   // full-bleed (side borders + radius dropped at the screen edges); typographic
@@ -16012,11 +16015,24 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
             <div className="bs-hide-scroll" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 2, scrollSnapType: 'x proximity', ...(bleed ? { marginRight: -bleed, paddingRight: bleed, scrollPaddingLeft: 0 } : null) }}>
               {wall.map((w, i) => (
                 <figure key={i} style={{ flex: 'none', width: 148, margin: 0, scrollSnapAlign: 'start' }}>
-                  <div style={{ width: 148, height: 108, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: bsTHexA(INK, 0.05) }} aria-hidden="true" />
+                  {/* The shot opens full size (BSPhotoViewer). */}
+                  <button type="button" data-bs-wall-shot="" onClick={() => setShot(i)}
+                    aria-label={tr('profile:wall.openShot', { defaultValue: 'Open photo {n} of {count}', n: i + 1, count: wall.length })}
+                    style={{ display: 'block', width: 148, height: 108, padding: 0, border: 0, borderRadius: 0, cursor: 'zoom-in', background: `center/cover no-repeat url("${w.url}")`, backgroundColor: bsTHexA(INK, 0.05) }} />
                   {w.caption ? <figcaption style={{ marginTop: 6, fontFamily: SERIF, fontSize: 12.5, fontWeight: 500, color: bsTHexA(INK, 0.7), lineHeight: 1.25 }}>{w.caption}</figcaption> : null}
                 </figure>
               ))}
             </div>
+            {shot != null && wall[shot] ? (
+              <BSPhotoViewer shots={wall} at={shot} onClose={() => setShot(null)}
+                onStep={(d) => setShot((i) => (i == null ? null : (i + d + wall.length) % wall.length))}
+                labels={{
+                  close: tr('cycle:close', { defaultValue: 'Close' }),
+                  prev: tr('profile:wall.prevShot', { defaultValue: 'Previous photo' }),
+                  next: tr('profile:wall.nextShot', { defaultValue: 'Next photo' }),
+                  title: tr('profile:wall.head', { defaultValue: 'The wall' }),
+                }} />
+            ) : null}
           </div>
         )}
         {shelf.length > 0 && (
