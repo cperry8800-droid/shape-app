@@ -1,7 +1,7 @@
 // tests/wall-live.test.mjs
 //
 // The Wall's live story (owner, 2026-10-22, off the Wall mockup: "do photos and training now first";
-// drawn as the magazine's live story since 2026-10-23, "use oswald"). Who is training right now opens
+// drawn as the magazine's live story since 2026-10-23). Who is training right now opens
 // the Wall: the first as a headline with their live set when its row is readable and a boost, the
 // next three named on one line, each a door to their own boost. The cards are mounted on jsdom with the real English catalog behind
 // the real ICU translator, and the live row is read as the live boost sheet reads it (useBSLiveRow):
@@ -37,7 +37,7 @@ await i18n.use(ICU.default || ICU).init({
   resources: { en: { feed: JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/en/feed.json'), 'utf8')) } },
 });
 dom.window.ShapeI18n = { t: (key, opts) => i18n.t(key, opts) };
-dom.window.useBS = () => ({ MONO: 'mono', DISPLAY: 'display', HEADLINE: 'oswald', BODY: 'body', PAPER: '#fff', PAPER2: '#eee', INK: '#111', INK50: '#777', INK70: '#555', RULE: '#ccc', HAIR: '#ddd', RUST: '#9a3b1b', padX: 18, isLight: true });
+dom.window.useBS = () => ({ MONO: 'mono', DISPLAY: 'display', BODY: 'body', PAPER: '#fff', PAPER2: '#eee', INK: '#111', INK50: '#777', INK70: '#555', RULE: '#ccc', HAIR: '#ddd', RUST: '#9a3b1b', padX: 18, isLight: true });
 
 const PAYLOAD = { v: 1, exercises: [{ n: 'Back squat', done: 2, total: 5 }, { n: 'RDL', done: 0, total: 3 }], curIdx: 0, resting: false, setsDone: 2, setsTotal: 8 };
 const soon = () => new Date(Date.now() + 10 * 60000).toISOString();
@@ -96,7 +96,7 @@ test('a readable live row is the headline: the set under way, a segment per set,
   try {
     const h = m.host.querySelector('h3');
     assert.equal(h.textContent, 'Devon is on set 3 of 5', 'two of five done: the third is under way');
-    assert.equal(h.style.fontFamily, 'oswald', 'the headline is the theme\'s headline face');
+    assert.equal(h.style.fontFamily, 'display', 'the headline is the app\'s own face');
     assert.equal(h.style.textTransform, 'uppercase');
     assert.match(m.text(), /Live now· 12 min in/);
     assert.match(m.text(), /Devon Wells · Back squat/);

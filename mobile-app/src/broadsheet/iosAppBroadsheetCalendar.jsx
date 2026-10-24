@@ -6,7 +6,7 @@ const _BS_CAL_KIND_ICON = { WORKOUT: '🏋', MEAL: '🍽', CHECKIN: '✅', CONSU
 // Newspaper-styled. Role-aware events (client / trainer / nutritionist).
 
 const { useState: useStateBSCal, useEffect: useEffectBSCal, useContext: useContextBSCal, createContext: createContextBSCal, useRef: useRefBSCal } = React;
-const { useBS: useBSCal, BSPage: BSPageCal, BSPageHeader: BSPageHeaderCal, BSAvatar: BSAvatarCal, BSEyebrow: BSEyebrowCal, BSSection: BSSectionCal, BSTag: BSTagCal, BSFooter: BSFooterCal } = window;
+const { useBS: useBSCal, BSPage: BSPageCal, BSPageHeader: BSPageHeaderCal, BSEyebrow: BSEyebrowCal, BSSection: BSSectionCal, BSTag: BSTagCal, BSFooter: BSFooterCal } = window;
 
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
 // self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
@@ -347,24 +347,11 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
       {(typeof window !== 'undefined' && window.BSSearchCorner)
         ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 })
         : null}
-      {(() => {
-        // The real self avatar — initials · photo · tier color · live dot —
-        // rendered exactly like every other page header. The self helpers already
-        // resolve signed-in (the real account) vs signed-out (the demo persona +
-        // its headshot), so there's no page-local demo fallback to drift: the old
-        // `signedIn ? … : roleInit` gate showed a stale hardcoded "A" in preview
-        // instead of the demo persona's photo/initials/tier.
-        const W = typeof window !== 'undefined' ? window : {};
-        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        const init = (W.bsMyInitials && W.bsMyInitials()) || 'S';
-        const color = (W.bsMyTierColor && W.bsMyTierColor()) || teal;
-        const photo = (W.bsMyPhoto && W.bsMyPhoto()) || undefined;
-        const live = !!(W.bsAmLive && W.bsAmLive());
-        const FA = W.BSFacetAvatar;
-        // The magazine's flat cut, an ink frame, as on every page's corner (owner, 2026-10-24).
-        if (FA) return React.createElement(FA, { flat: true, size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, c: t.INK, initial: init, photo, live, showRank: false, onClick: onProfile });
-        return <BSAvatarCal init={init} size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} fill={color} ink={role !== 'client' ? t.PAPER : null} onClick={onProfile} />;
-      })()}
+      {/* The settings gear, as on every page's corner (owner: "make the settings avatar something
+          different in top right"). Without an onProfile it opens Settings by the shared event. */}
+      {(typeof window !== 'undefined' && window.BSSettingsCorner)
+        ? React.createElement(window.BSSettingsCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, onClick: onProfile || null })
+        : null}
     </div>
   );
 

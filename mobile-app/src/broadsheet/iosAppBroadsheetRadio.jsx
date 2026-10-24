@@ -1417,19 +1417,13 @@ function bsRadioTimeAgo(iso, tr) {
 }
 
 // THE MASTHEAD TRAILING CLUSTER (owner ruling 2026-08-01 — one row, one inset,
-// every page). The search circle + the member's own facet avatar, both sized by
+// every page). The search circle + the settings gear, both sized by
 // BS_HEADER_AVATAR and spaced by BS_CORNER_GAP, in ONE place so the radio screen
 // and the Shape Sets page cannot drift. Both constants are READ, never re-typed:
 // the chrome owns the values and the `|| 34` / `|| 9` fallbacks only cover load
-// order. `ink` is the search circle's colour — both radio pages are fixed-dark on
+// order. `ink` is the corner's colour — both radio pages are fixed-dark on
 // their portrait ground, so they pass CREAM rather than the theme ink.
-// `bg` is the SURFACE the corner sits on, and it is only passed by a screen whose
-// ground is fixed regardless of the paper theme. BSFacetAvatar falls back to
-// `t.PAPER`, which is right on a theme-adaptive screen (BSRadioScreen derives its
-// whole palette from `t.isLight`) and WRONG on a fixed-dark one: the presence-dot
-// surround and the rank shadow would paint light paper onto an unchanging dark
-// venue. Pass it only where the ground is a literal, never as a blanket constant.
-function bsRadioCorner(ink, bg) {
+function bsRadioCorner(ink) {
   const size = (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34;
   const gap = (typeof window !== 'undefined' && window.BS_CORNER_GAP) || 9;
   return (
@@ -1437,20 +1431,8 @@ function bsRadioCorner(ink, bg) {
       {(typeof window !== 'undefined' && window.BSSearchCorner)
         ? React.createElement(window.BSSearchCorner, { size, ink, nora: false })
         : null}
-      {(typeof window !== 'undefined' && window.BSFacetAvatar)
-        ? React.createElement(window.BSFacetAvatar, {
-          // The magazine's flat cut, framed in the page's ink (owner, 2026-10-24).
-          flat: true,
-          size,
-          c: ink,
-          initial: (window.bsMyInitials && window.bsMyInitials()) || 'A',
-          name: (window.bsMyName && window.bsMyName()) || undefined,
-          photo: (window.bsMyPhoto && window.bsMyPhoto()) || undefined,
-          live: !!(window.bsAmLive && window.bsAmLive()),
-          showRank: false,
-          ...(bg ? { BG: bg, INK: ink } : null),
-          onClick: () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} },
-        })
+      {(typeof window !== 'undefined' && window.BSSettingsCorner)
+        ? React.createElement(window.BSSettingsCorner, { size, ink })
         : null}
     </div>
   );

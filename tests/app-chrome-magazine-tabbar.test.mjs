@@ -24,6 +24,8 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true, writable: true });
 globalThis.localStorage = dom.window.localStorage;
+// The component builds its events with the bare global, which must be the DOM's own to dispatch on its window.
+globalThis.CustomEvent = dom.window.CustomEvent;
 globalThis.__VITE_ENV__ = { BASE_URL: '/m/', MODE: 'test' };
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
@@ -199,6 +201,47 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
       assert.equal(document.body.querySelectorAll('div[style*="visibility: hidden"]').length, 0, 'the probe is left behind');
     } finally {
       window.Element.prototype.getBoundingClientRect = realRect;
+    }
+  });
+
+  test(`the corner's settings gear: a bare ⚙ in the ink on the corner's square that opens Settings (${paperMode})`, async () => {
+    // Owner: "make the settings avatar something different in top right". Every page's corner ends in this.
+    let theme = null;
+    const Probe = () => { theme = window.useBS(); return null; };
+    const opened = [];
+    const onOpen = () => opened.push('event');
+    window.addEventListener('shape:openProfile', onOpen);
+    try {
+      const { host, unmount } = await mount(React.createElement(React.Fragment, null,
+        React.createElement(Probe),
+        React.createElement(window.BSSettingsCorner, { size: 34 })), paperMode);
+      const gear = host.querySelector('button[data-bs-settings-corner]');
+      assert.ok(gear, 'no gear');
+      assert.equal(gear.getAttribute('aria-label'), 'Settings');
+      assert.equal(gear.style.width, '34px');
+      assert.equal(gear.style.height, '34px');
+      assert.equal(gear.style.borderRadius, '0px');
+      assert.equal(gear.style.background, 'transparent');
+      assert.ok(sameColor(gear.style.color, theme.INK), 'the gear is in the ink');
+      const svg = gear.querySelector('svg');
+      assert.equal(svg.getAttribute('width'), '17');
+      assert.equal(svg.getAttribute('aria-hidden'), 'true');
+      assert.ok(!gear.querySelector('img'), 'a face in the corner');
+      // With no handler of its own it opens Settings by the shared event, as the face did.
+      await act(async () => { gear.click(); });
+      assert.deepEqual(opened, ['event']);
+      await unmount();
+      // A surface's own ink, and its own handler (a sheet that must close first), win.
+      const calls = [];
+      const own = await mount(React.createElement(window.BSSettingsCorner, { size: 34, ink: '#f2ede4', onClick: () => calls.push('own') }), paperMode);
+      const g2 = own.host.querySelector('button[data-bs-settings-corner]');
+      assert.ok(sameColor(g2.style.color, '#f2ede4'));
+      await act(async () => { g2.click(); });
+      assert.deepEqual(calls, ['own']);
+      assert.deepEqual(opened, ['event'], 'the shared event fired as well as the surface\'s own handler');
+      await own.unmount();
+    } finally {
+      window.removeEventListener('shape:openProfile', onOpen);
     }
   });
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { bsSdSplitUnit } from '../services/sessionLedger.mjs';
 import { bsWsRed, bsWsHead } from './bsMagazine.mjs';
 // ─── THE WALL · A STORY ──────────────────────────────────────────────────────────────────────────
-// Owner, 2026-10-23: the dark magazine look for the Wall, its headlines in Oswald ("use oswald"), and
+// Owner, 2026-10-23: the dark magazine look for the Wall, its headlines in the headline face, and
 // "keep the same likes and comments". A post on the Wall reads as a story: a picture or its route with
 // the headline over it (or the headline alone), the byline, then what the post is about: three
 // figures, or a record's one big number, and the coach's line pulled out when a coach co-signed it.
@@ -23,8 +23,8 @@ function BSWsKicker({ children, color }) {
   return <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{children}</span>;
 }
 
-// Headlines a step down (owner, 2026-10-23: "dont make the font so tall … on the headers"): Oswald at
-// 22–23 px and 600 rather than 28–29 and 700, opened a touch, so a capital reads less tall and thin.
+// Headlines a step down (owner, 2026-10-23: "dont make the font so tall … on the headers"): 22–23 px and
+// 600 rather than 28–29 and 700, opened a touch. The face is the app's own, Saira (bsMagazine.mjs).
 function BSWsHeadline({ children, color, size }) {
   const t = window.useBS();
   return <h3 style={{ margin: 0, fontFamily: bsWsHead(t), fontWeight: 600, fontSize: size, lineHeight: 1.04, letterSpacing: '0.012em', textTransform: 'uppercase', color, textWrap: 'balance', overflowWrap: 'anywhere' }}>{children}</h3>;
@@ -114,7 +114,7 @@ export function BSWallStoryFigures({ items = [] }) {
   );
 }
 
-// A record's one number: the figure in Oswald, its unit beside it, then how far past the old best.
+// A record's one number: the figure in the headline face, its unit beside it, then how far past the old best.
 // 48 px, not the board's 84 (owner, 2026-10-23: "this doesnt need to be so big").
 export function BSWallStoryRecord({ value, best = null }) {
   const t = window.useBS();
@@ -144,7 +144,7 @@ export function BSWallStoryQuote({ text, cite, onOpen }) {
   );
 }
 
-// The Wall's masthead: "The Wall" in Oswald over a heavy rule, the dateline (the day, and how many are
+// The Wall's masthead: "The Wall" in the headline face over a heavy rule, the dateline (the day, and how many are
 // training when anyone is), then the activity types as text tabs with a red underline, spread across
 // the column and scrolling sideways when a language's words run longer. `types` are [key, label] pairs;
 // `type` is the one shown. It sits on the cards' 12px gutter, as the live story does.

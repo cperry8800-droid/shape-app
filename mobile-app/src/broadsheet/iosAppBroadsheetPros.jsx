@@ -78,7 +78,7 @@ const {
   BSSheetProvider, useBSSheet, BSCalendarScreen,
   BSRadioPrompt, BSRadioScreen, BSNowPlaying,
   BSClientChat, BSSettings, BSShapeScorePage, BSShapeStorePage, BSContactPage, BSTermsPage, SHAPE_SCORE_PROFILES, _bsUseLiveScore,
-  BSPublicProfile, BSFacetAvatar, bsAmLive,
+  BSPublicProfile, BSFacetAvatar,
 } = window;
 
 // These identity/tier helpers are set on `window` by the CLIENT bundle, which
@@ -1398,7 +1398,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const navJumpRef = React.useRef({});
   const goRadio = () => { navPush(); setTab('radio'); };
   // ⚠ No nav entry when Settings is ALREADY open — see the client shell's note:
-  // the corner avatar fires this from inside Settings, whose drill-in pane is
+  // the corner gear fires this from inside Settings, whose drill-in pane is
   // local state, so an unconditional push recorded a duplicate location and ate
   // the next back. BSSettings answers the same event by closing its pane.
   const goSettings = () => { if (!showSettings) navPush(); setShowSettings(true); };
@@ -1521,7 +1521,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     : null;
   // ⚠ Settings is an OVERLAY, not an early return — see the long note in the
   // client shell. Returning <BSSettings/> unmounted the coach tab tree, so the
-  // corner avatar discarded unpublished plan drafts, the inline grocery form and
+  // corner control discarded unpublished plan drafts, the inline grocery form and
   // pending notification toggles. zIndex 210: above the tab bar (55) and pinned
   // masthead (60), below the customizer (220) and search (230), and its own
   // stacking context so Settings' sheets stack inside it.
@@ -1856,7 +1856,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         noTopRule
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         showDoubleRule={false}
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSFacetAvatar flat size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} c={t.INK} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}{typeof window !== 'undefined' && window.BSSettingsCorner ? React.createElement(window.BSSettingsCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, onClick: onProfile }) : null}</span>}
         showDotTexture={false}
       />
 
@@ -2372,22 +2372,13 @@ function useBSProRoster(role) {
 }
 // Card-based coach roster — header, search, scrollable filter pills (scrollbar
 // hidden via .bs-hide-scroll), an Active/Past toggle, and tappable client cards.
-function bsProMeInit() {
-  const p = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().profile) || {};
-  const nm = (p.full_name || '').trim();
-  const custom = (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.initials) ? String(window.ShapeIdentity.initials).toUpperCase().slice(0, 2) : '';
-  return custom || (nm ? nm.split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() : 'S') || 'S';
-}
-// The coach's own avatar — opens Settings (the shells listen for the event).
-function BSProAvatarButton({ size = 38 }) {
-  // Match the Today/Me headers: the coach's real photo (custom or signed-in),
-  // falling back to initials, in the magazine's flat cut of the facet (an ink
-  // frame, owner 2026-10-24), as on every page's corner.
-  const t = useBS();
-  const photo = (typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined;
-  const live = (typeof window !== 'undefined' && typeof bsAmLive === 'function') ? bsAmLive() : false;
+// The coach's corner settings gear — opens Settings (the shells listen for the
+// event). The chrome's BSSettingsCorner, as on every page's corner (owner: "make
+// the settings avatar something different in top right").
+function BSProSettingsButton({ size = 38 }) {
   const open = () => { try { window.dispatchEvent(new CustomEvent('shape:openProSettings')); } catch (e) {} };
-  return <BSFacetAvatar flat size={size} c={t.INK} initial={bsProMeInit()} photo={photo} live={live} showRank={false} onClick={open} />;
+  const Gear = typeof window !== 'undefined' ? window.BSSettingsCorner : null;
+  return Gear ? <Gear size={size} onClick={open} /> : null;
 }
 // The Client Index — the roster serialized into the Open Ledger / Wire
 // Dispatch grammar (spec §B). Zero-box: a search underline, a typographic
@@ -3209,7 +3200,7 @@ function bsProEnrolledRow(t, flash, e, i) {
   );
 }
 // The standing masthead row (logo + Vol·No) for pros pages with fully custom
-// headers — withCorners adds the coach corner cluster (search + self avatar).
+// headers — withCorners adds the coach corner cluster (search + the settings gear).
 // The canonical corner cluster for pages whose header is BSMasthead/BSPageHeader
 // (those embed their own logo + Vol·No row and take the corner as ).
 function bsProCorner() {
@@ -3217,7 +3208,7 @@ function bsProCorner() {
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
       {typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size }) : null}
-      <BSProAvatarButton size={size} />
+      <BSProSettingsButton size={size} />
     </span>
   );
 }
@@ -3227,15 +3218,15 @@ function bsProCorner() {
 // the cluster by accident.
 //
 // ⚠ The two corner controls fail in DIFFERENT ways, so "search is safe" says
-// nothing about the avatar — an earlier revision of this comment claimed exactly
+// nothing about the gear — an earlier revision of this comment claimed exactly
 // that and the draft editors shipped a data-loss path because of it:
 //   ⌕  opens a SIBLING overlay — the page under it stays mounted. (Every shell
 //      takeover renders that overlay too, so this holds on every page, not just
 //      the ones reached through the main return.)
-//   ◉  dispatches shape:openProSettings, and the shell answers by EARLY-RETURNING
+//   ⚙  dispatches shape:openProSettings, and the shell answers by EARLY-RETURNING
 //      <BSSettings>. The whole tab tree unmounts, so any local React state is
 //      gone and back only restores {tab}.
-// Pass `corners: false` where the page holds unsaved input the avatar would
+// Pass `corners: false` where the page holds unsaved input the gear would
 // discard, or where an early return above `showSettings` makes both controls
 // unreachable (see BSStShell).
 function bsProMastRow({ corners = true } = {}) {
@@ -3244,9 +3235,9 @@ function bsProMastRow({ corners = true } = {}) {
   // The corner cluster is bsProCorner()'s, so every page that goes through this
   // helper shares one definition. ⚠ Not the whole file: BSProToday's masthead
   // keeps its own inline cluster because it is genuinely different — it binds
-  // onClick={onProfile} rather than BSProAvatarButton's shape:openProSettings
-  // dispatch, and resolves tier/initials from different sources. Unifying it is
-  // a handler change, not a duplication cleanup, so it needs its own decision.
+  // onClick={onProfile} rather than BSProSettingsButton's shape:openProSettings
+  // dispatch. Unifying it is a handler change, not a duplication cleanup, so it
+  // needs its own decision.
   return <MastRow trailing={corners ? bsProCorner() : null} />;
 }
 // Action-page heat = the CLIENT's member tier (spec §2) — same resolution the
@@ -3270,7 +3261,7 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
   return (
     <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
       {/* corners: false — all three consumers (Adjust · Schedule · Assign) are
-          forms that commit on an explicit action, so the self avatar would
+          forms that commit on an explicit action, so the settings gear would
           unmount an un-applied one. ← BACK is the way out. */}
       {bsProMastRow({ corners: false })}
       {/* Universal back row — ← BACK left, eyebrow right (owner call 2026-07-14). */}
@@ -6224,7 +6215,7 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   return (
     <BSPage>
       {/* corners: false — this editor holds the coach's unsaved draft in local
-          state, and the self avatar early-returns the shell into Settings, which
+          state, and the settings gear early-returns the shell into Settings, which
           unmounts it. CANCEL is the way out of an editor. */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
       <div style={{ padding: `12px ${t.padX}px 28px` }}>
@@ -6797,7 +6788,7 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } =
       <BSPage>
         {/* Masthead row at the standard inset — the AI-draft eyebrow + CANCEL
             sit BELOW it (every page opens on the same row). corners: false —
-            this view holds an unsaved draft the self avatar would discard. */}
+            this view holds an unsaved draft the settings gear would discard. */}
         <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
         <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -7466,7 +7457,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const navJumpRef = React.useRef({});
   const goRadio = () => { navPush(); setTab('radio'); };
   // ⚠ No nav entry when Settings is ALREADY open — see the client shell's note:
-  // the corner avatar fires this from inside Settings, whose drill-in pane is
+  // the corner gear fires this from inside Settings, whose drill-in pane is
   // local state, so an unconditional push recorded a duplicate location and ate
   // the next back. BSSettings answers the same event by closing its pane.
   const goSettings = () => { if (!showSettings) navPush(); setShowSettings(true); };
@@ -7560,7 +7551,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     : null;
   // ⚠ Settings is an OVERLAY, not an early return — see the long note in the
   // client shell. Returning <BSSettings/> unmounted the coach tab tree, so the
-  // corner avatar discarded unpublished plan drafts, the inline grocery form and
+  // corner control discarded unpublished plan drafts, the inline grocery form and
   // pending notification toggles. zIndex 210: above the tab bar (55) and pinned
   // masthead (60), below the customizer (220) and search (230), and its own
   // stacking context so Settings' sheets stack inside it.
@@ -7896,7 +7887,7 @@ function BSNutriPlans() {
       <BSPage>
         {/* Masthead row at the standard inset — the AI-draft eyebrow + CANCEL
             sit BELOW it (every page opens on the same row). corners: false —
-            this view holds an unsaved draft the self avatar would discard. */}
+            this view holds an unsaved draft the settings gear would discard. */}
         <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
         <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

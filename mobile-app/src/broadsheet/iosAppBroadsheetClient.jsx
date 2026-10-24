@@ -89,7 +89,7 @@ const { useState: useStateBSC } = React;
 const {
   useBS, BSBackButton, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection,
   BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSTicker, BSHalftone,
-  BSTabBar, BSFooter, BSLogo, BSPlate,
+  BSTabBar, BSFooter, BSLogo, BSPlate, BSSettingsCorner,
   BSSheetProvider, useBSSheet, BSCalendarScreen, BSEventSheet,
   BSRadioProvider, useBSRadio, BSRadioPrompt, BSRadioScreen, BSNowPlaying,
   BSMarketplaceScreen,
@@ -342,7 +342,7 @@ function bsCornerBtn(size, ink) {
 
 // Monochrome ⌕ — opens the universal search screen via a window event
 // (handled in BSClientAppInner / the coach shells), so any header can drop it
-// in without prop-threading. Always sits to the LEFT of the profile avatar.
+// in without prop-threading. Always sits to the LEFT of the settings gear.
 function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null, nora = true }) {
   const t = useBS();
   // `ink` is the surface's ink where a masthead sets its own (the profile
@@ -369,7 +369,7 @@ function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null, nora = true }) {
   );
 }
 
-// Header tool cluster — universal search + the profile avatar. Used as the
+// Header tool cluster — universal search + the settings gear. Used as the
 // `trailing` of every main page header.
 // Re-render whenever identity changes (profile save / sign-in resolve), so a
 // "self" avatar always reflects the latest name/initials/photo even if a parent
@@ -383,41 +383,35 @@ function useBSIdentityTick() {
   }, []);
 }
 function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
-  const t = useBS();
-  const tr = useShapeTr();
-  useBSIdentityTick();
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
       <BSSearchCorner size={size} />
-      <BSFacetAvatar flat size={size} c={t.INK} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={onProfile} />
+      <BSSettingsCorner size={size} onClick={onProfile} />
     </span>
   );
 }
 
-// Top-right tools for sub-pages — search + the profile avatar (taps through to
-// Settings/profile via a window event, handled in BSClientAppInner), so a page
+// Top-right tools for sub-pages — search + the settings gear (taps through to
+// Settings via a window event, handled in BSClientAppInner), so a page
 // needn't thread props. Drop it into a page's back-button row, right-aligned.
 // ⚠ Pass `close` on any surface that PORTALS above the app's overlays — search
 // roots at zIndex 230, the Settings overlay at 210. Such a surface floats over
 // BOTH, so firing the event alone leaves the corner half-dead: the ⌕ takeover
 // opens beneath the portal (invisible, while still pushing a nav entry the next
-// back silently eats) and the avatar opens Settings underneath, surfacing only
+// back silently eats) and the gear opens Settings underneath, surfacing only
 // once something later closes the portal. One prop settles both, because it is
 // one fact about the surface: `close` drops the ⌕ — this surface has no way to
-// show it — and makes the avatar dismiss the portal FIRST, then hand off.
+// show it — and makes the gear dismiss the portal FIRST, then hand off.
 // Dismiss and hand-off are split across a tick so the portal's own nav
 // bookkeeping settles before Settings pushes its entry (BSActivityDetail has
 // done it in that order since it shipped). A page in normal flow passes nothing
 // and keeps both controls.
 function BSMeCorner({ size = BS_HEADER_AVATAR, close = null }) {
-  const t = useBS();
-  const tr = useShapeTr();
-  useBSIdentityTick();
   const goProfile = () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} };
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
       {close ? null : <BSSearchCorner size={size} />}
-      <BSFacetAvatar flat size={size} c={t.INK} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={close ? () => { close(); setTimeout(goProfile, 0); } : goProfile} />
+      <BSSettingsCorner size={size} onClick={close ? () => { close(); setTimeout(goProfile, 0); } : goProfile} />
     </span>
   );
 }
@@ -674,7 +668,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     if (loc.tab) setTab(loc.tab);
   };
   const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
-  // ⚠ No nav entry when Settings is ALREADY open. The corner avatar fires
+  // ⚠ No nav entry when Settings is ALREADY open. The corner gear fires
   // shape:openProfile from inside Settings too, and BSSettings keeps its own
   // drill-in pane in local state — so an unconditional navPush() there recorded
   // a duplicate location, changed nothing on screen, and had the next back
@@ -751,7 +745,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:openCycle', open);
   }, []);
 
-  // Tapping the top-right profile avatar on any screen opens Settings/profile
+  // Tapping the top-right settings gear on any screen opens Settings
   // — fired as an event so sub-pages don't need an onProfile prop threaded in.
   React.useEffect(() => {
     const open = () => navJumpRef.current.goSettings();
@@ -1174,7 +1168,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   }
   // ⚠ Settings is an OVERLAY, not an early return, and that is load-bearing.
   // Returning <BSSettings/> in its place unmounted the whole tab tree beneath it,
-  // and the nav descriptor only records {tab} — so the corner avatar (which fires
+  // and the nav descriptor only records {tab} — so the corner control (which fires
   // shape:openProfile from every masthead this PR touched) destroyed whatever the
   // page underneath was holding: an unpublished plan, a half-typed grocery list,
   // the meal-log Undo, a drill-in that lives in local state. Seven review rounds
@@ -15175,9 +15169,8 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
             padded scroller let them bleed through on device). */}
         <div style={{ flexShrink: 0, background: BG, padding: `0 ${gutter}px 12px` }}>
           {/* Masthead — matches the app's other pages: logo + Vol·No line on the
-              left, MY signed-in avatar on the right (no top hairline). The
-              corner is always ME, never the person whose list this is — the
-              profile owner's face moved down to the title row, where it labels
+              left, the settings gear on the right (no top hairline). The
+              profile owner's face sits in the title row, where it labels
               WHOSE followers/following these are.
 
               ⚠ Neither corner control can fire the plain event here, and the
@@ -15186,11 +15179,11 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
               both BSUniversalSearch (230) and the Settings overlay (210) — so a
               ⌕ would open the search takeover UNDERNEATH the sheet (invisible,
               while still pushing a nav entry the next back would silently eat),
-              and a bare avatar tap would open Settings underneath it, surfacing
+              and a bare gear tap would open Settings underneath it, surfacing
               only once something later closed the sheet. So: no ⌕ (the surface
               already carries its own "Search people" field a few lines down,
               which is the in-context search this page actually wants), and the
-              avatar closes the sheet BEFORE handing off. Same contract as
+              gear closes the sheet BEFORE handing off. Same contract as
               BSMeCorner's `close` — this row is hand-rolled only because it
               needs the sheet's own BG/INK, not the page theme. */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -15199,13 +15192,12 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
-              <BSFacetAvatar flat size={BS_HEADER_AVATAR} c={INK} initial={bsMyInitials() || '?'} name={bsMyName()} photo={bsMyPhoto() || undefined} showRank={false} BG={BG} INK={INK}
-                label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
+              <BSSettingsCorner size={BS_HEADER_AVATAR} ink={INK} onClick={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
             </div>
           </div>
           {/* Title row — the owner's face sits beside the label, and × close sits
-              on this line, right-aligned. On my OWN list the face is redundant
-              with the corner, so it's dropped. ⚠ The visible label is just
+              on this line, right-aligned. On my OWN list it is my face: the
+              corner is the settings gear, not me. ⚠ The visible label is just
               "Followers"/"Following"; the face is what says WHOSE. That works
               visually but is silent to a screen reader — BSFacetAvatar takes
               `name` only to derive initials, and its img is alt="" — so the
@@ -15219,10 +15211,10 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
               "Follow requests" on the requests sheet. */}
           <div style={{ marginTop: 12, paddingBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-              {!self && <BSFacetAvatar size={22} c={c} initial={bsInitials(name) || '?'} name={name} photo={ownerPhoto || undefined} showRank={false} BG={BG} INK={INK} />}
+              <BSFacetAvatar size={22} c={c} initial={(self && bsMyInitials()) || bsInitials(name) || '?'} name={name} photo={ownerPhoto || undefined} showRank={false} BG={BG} INK={INK} />
               <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{!self && name ? <span style={BS_SR_ONLY}>{name} — </span> : null}{kind === 'requests' ? 'Follow requests' : kind === 'following' ? 'Following' : 'Followers'}</span>
             </div>
-            <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
+            <button onClick={onClose} aria-label={tr('feed:sheet.close', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
           </div>
           {kind !== 'requests' && (
             <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 999, padding: 4 }}>
@@ -18614,9 +18606,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               </button>
-              <button onClick={onOpenSettings} aria-label={tr('profile:terrain.settingsAria', { defaultValue: 'Settings' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
-              </button>
+              <BSSettingsCorner size={BS_HEADER_AVATAR} ink={INK} onClick={onOpenSettings} />
             </div>
           </div>
         </div>
@@ -18635,7 +18625,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
-                  <BSFacetAvatar flat size={BS_HEADER_AVATAR} c={INK} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                  <BSSettingsCorner size={BS_HEADER_AVATAR} ink={INK} />
                 </div>
               : <BSMeCorner />}
           </div>
@@ -19580,9 +19570,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                 <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:coach.editProfileAria', { defaultValue: 'Edit profile' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
-                <button onClick={onOpenSettings} aria-label={tr('profile:terrain.settingsAria', { defaultValue: 'Settings' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
-                </button>
+                <BSSettingsCorner size={BS_HEADER_AVATAR} ink={INK} onClick={onOpenSettings} />
               </div>
             </div>
           </>
@@ -19601,7 +19589,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                   <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
-                  <BSFacetAvatar flat size={BS_HEADER_AVATAR} c={INK} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                  <BSSettingsCorner size={BS_HEADER_AVATAR} ink={INK} />
                 </div>
               : <BSMeCorner />}
           </div>
@@ -35116,7 +35104,7 @@ function bsNormalizeGroceryList(list) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// SETTINGS — full settings page from avatar tap
+// SETTINGS — full settings page from the corner gear
 // ═══════════════════════════════════════════════════════════
 // Full IANA time-zone list for the Settings dropdown (falls back to a curated
 // set on engines without Intl.supportedValuesOf).
@@ -35389,7 +35377,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // null = not read (or the read failed): neither option shows as chosen, and picking one writes
   // that explicit choice, never a flip of a value nobody read.
   const [lbPrivacy, setLbPrivacy] = useStateBSC(null);
-  // The corner avatar fires shape:openProfile from every masthead — including the
+  // The corner gear fires shape:openProfile from every masthead — including the
   // ones on Settings' own takeovers. The shell answers by opening Settings, which
   // is already open, so without this the tap is a no-op that still burns a back.
   // Routing to the Settings ROOT is what "take me to my profile" means from

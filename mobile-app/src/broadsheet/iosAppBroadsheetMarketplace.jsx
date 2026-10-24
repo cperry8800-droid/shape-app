@@ -371,31 +371,18 @@ function mktShortLoc(loc) {
 }
 
 // THE MASTHEAD TRAILING CLUSTER (owner ruling 2026-08-01 — "same format, same
-// size, no deviation"). The search circle + the member's own facet avatar, both
+// size, no deviation"). The search circle + the settings gear, both
 // sized by BS_HEADER_AVATAR and spaced by BS_CORNER_GAP, in ONE place so the
 // three marketplace pages — the directory, THE LISTING, and the availability
 // calendar — cannot drift. Both constants are READ, never re-typed: the chrome
 // owns the values and the `|| 34` / `|| 9` fallbacks only cover load order.
 // Every window global is guarded the way the rest of this file guards them.
-// `ink` is the page's ink: the face is the magazine's flat cut, framed in it.
+// `ink` is the page's ink, which the gear is drawn in.
 function bsMktCorner(ink) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: (window.BS_CORNER_GAP || 9) }}>
       {window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (window.BS_HEADER_AVATAR || 34) }) : null}
-      {window.BSFacetAvatar ? (
-        <window.BSFacetAvatar
-          flat
-          size={(window.BS_HEADER_AVATAR || 34)}
-          c={ink}
-          initial={(window.bsMyInitials && window.bsMyInitials()) || 'A'}
-          name={(window.bsMyName && window.bsMyName()) || undefined}
-          photo={(window.bsMyPhoto && window.bsMyPhoto()) || undefined}
-          live={!!(window.bsAmLive && window.bsAmLive())}
-          activity={window.bsMyActivity && window.bsMyActivity()}
-          showRank={false}
-          onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }}
-        />
-      ) : null}
+      {window.BSSettingsCorner ? React.createElement(window.BSSettingsCorner, { size: (window.BS_HEADER_AVATAR || 34), ink }) : null}
     </div>
   );
 }
@@ -1875,7 +1862,7 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, note = null
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         {/* trailing: null — a DRILL-IN. The selected coach and the calendar live in
                 this component's local state, while the nav descriptor stores only
-                marketRole and navResolve clears marketCoach; the self avatar
+                marketRole and navResolve clears marketCoach; the settings gear
                 early-returns the shell into Settings and unmounts this page, so
                 back would land on a fresh directory rather than the listing the
                 member left. Passed literally, not behind a flag — a flag on this
@@ -2510,7 +2497,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
             {/* trailing: null — a DRILL-IN. The selected coach and the calendar live in
                 this component's local state, while the nav descriptor stores only
-                marketRole and navResolve clears marketCoach; the self avatar
+                marketRole and navResolve clears marketCoach; the settings gear
                 early-returns the shell into Settings and unmounts this page, so
                 back would land on a fresh directory rather than the listing the
                 member left. Passed literally, not behind a flag — a flag on this

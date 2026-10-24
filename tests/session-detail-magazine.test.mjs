@@ -88,7 +88,7 @@ test('a summary figure is flat: the number in the headline face under a hairline
   assert.equal(styled(tile, (s) => !!s.clipPath).length, 0, 'the notched plate is back');
   assert.equal(styled(tile, (s) => s.width === 2 && s.position === 'absolute').length, 0, 'the spine is back');
   const num = styled(tile, (s) => s.fontSize === 24)[0];
-  assert.equal(num.props.style.fontFamily, THEME.HEADLINE || THEME.DISPLAY, 'the Wall\'s headline face (bsWsHead)');
+  assert.equal(num.props.style.fontFamily, THEME.DISPLAY, 'the headline face (bsWsHead), the app\'s own');
   // The figure counts up (BSSdCountUp) and the harness doesn't run its effect; its unit is set apart.
   assert.match(tile.text, /bpm/);
 });
@@ -110,7 +110,7 @@ test('the cadence figures are in the Wall\'s headline face on the session page o
     const api = drive(mod.BSSdBars, { rows: [['Seg 1', '173 spm', ''], ['Seg 2', '181 spm', '']], perf: [1, 2], bestIdx: 1, heat: RED, t: THEME, muted: '#777', ...props });
     return api.nodes().find((n) => n.type === 'span' && n.props.children === '173 spm').props.style;
   };
-  assert.equal(fig({ mag: true }).fontFamily, THEME.HEADLINE || THEME.DISPLAY);
+  assert.equal(fig({ mag: true }).fontFamily, THEME.DISPLAY);
   assert.equal(fig({ mag: true }).fontSize, 17);
   assert.equal(fig({}).fontFamily, THEME.DISPLAY, 'the profile records keep their face');
   // No breathing halo or burst on the best bar on the session page, and square ends.
