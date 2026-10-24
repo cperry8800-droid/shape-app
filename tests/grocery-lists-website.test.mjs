@@ -37,7 +37,9 @@ const STORE_KEY = 'shape.grocery.lists.v1';
 async function mountPage({ row, stored, onWrite, before }) {
   const dom = new JSDOM('<!doctype html><div id="root"></div>', { runScripts: 'outside-only', url: 'https://theshapecommunity.com/newdesign/ClientGrocery.html' });
   const w = dom.window;
-  const cloud = { row, writes: [], conflicts: 0 };
+  // `row` is the member's (u1). Another tab can sign straight into u2 (`cloud.uid`); `others` holds that
+  // account's row, and `otherWrites` every write that landed there.
+  const cloud = { row, writes: [], conflicts: 0, uid: 'u1', others: {}, otherWrites: [] };
   w.React = React;
   for (const name of ['DashPage', 'Card', 'SectionTitle', 'PickRow', 'InstacartSendCard']) {
     w[name] = ({ children }) => React.createElement('div', null, children);
@@ -49,13 +51,24 @@ async function mountPage({ row, stored, onWrite, before }) {
   w.fetch = async () => ({ ok: false });
   w.ShapeGroceryListsLib = GL;
   w.shapeDb = {
-    getUser: async () => ({ id: 'u1' }),
-    getUserGoals: async () => (cloud.row == null ? {} : clone(cloud.row)),
+    getUser: async () => ({ id: cloud.uid }),
+    // The backend's binding: a read returns only the session's own row, and a write for another account is
+    // refused.
+    getUserGoals: async (kind, o) => {
+      if (o && o.expectedUserId != null && o.expectedUserId !== cloud.uid) return null;
+      const r = cloud.uid === 'u1' ? cloud.row : cloud.others[cloud.uid];
+      return r == null ? {} : clone(r);
+    },
     saveUserGoalsIfRev: async (kind, data, expectedRev, expectedUid) => {
       assert.equal(kind, 'client_grocery_lists');
-      assert.equal(expectedUid, 'u1');
       if (cloud.gate) await cloud.gate; // a write held in flight
       if (onWrite) onWrite(cloud);
+      if (expectedUid !== cloud.uid) return { accountChanged: true, error: { message: 'Account changed' } };
+      if (cloud.uid !== 'u1') {
+        cloud.otherWrites.push({ uid: cloud.uid, data: clone(data) });
+        cloud.others[cloud.uid] = clone(data);
+        return { ok: true };
+      }
       const rev = cloud.row && !Array.isArray(cloud.row) && cloud.row.rev != null ? String(cloud.row.rev) : null;
       if (rev !== (expectedRev == null ? null : String(expectedRev))) { cloud.conflicts += 1; return { conflict: true }; }
       cloud.writes.push(clone(data));
@@ -375,5 +388,34 @@ test('a sync asked for while the website is signing out never starts (Codex P1 o
     await page.settle();
     assert.equal(page.cloud.writes.length, 0, 'nothing written');
     assert.ok(!page.local().some((l) => l.id === 'phone'), 'nothing taken in');
+  } finally { await page.done(); }
+});
+
+test('another tab signing straight into another account: this page\'s lists never reach it (Codex P1 on #2433)', async () => {
+  const page = await mountPage({ row: { v: 1, rev: 1, lists: [WEB_STORED] }, stored: [WEB] });
+  try {
+    page.cloud.others.u2 = { v: 1, rev: 7, lists: [{ id: 'b-list', name: 'B list', items: [] }] };
+    const newList = () => [...page.w.document.querySelectorAll('button')].find((b) => b.textContent === '+ NEW LIST');
+    // A new list's write is held in flight, and a second new list's sync queues behind it.
+    let release = () => {};
+    page.cloud.gate = new Promise((r) => { release = r; });
+    try {
+      page.w.prompt = () => 'First';
+      await React.act(async () => { newList().click(); });
+      page.w.prompt = () => 'Second';
+      await React.act(async () => { newList().click(); });
+      page.cloud.uid = 'u2'; // another tab signs straight into B: no sign-out
+    } finally {
+      page.cloud.gate = null;
+      await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
+    }
+    await page.settle();
+    // And an edit made on this page after the switch.
+    page.w.prompt = () => 'Third';
+    await React.act(async () => { newList().click(); });
+    await page.settle();
+    assert.deepEqual(page.cloud.otherWrites, [], "this page's lists never reach B's document");
+    assert.deepEqual(page.cloud.others.u2.lists.map((l) => l.id), ['b-list']);
+    assert.ok(!page.local().some((l) => l.id === 'b-list'), "and B's lists never reach this page");
   } finally { await page.done(); }
 });

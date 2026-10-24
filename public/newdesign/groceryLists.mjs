@@ -183,8 +183,8 @@ export function bsGroceryListsApply(prev, used, delta, { fromStored = (l) => l, 
 
 // ---------------------------------------------------------------------------
 // The store. `db` is shapeDb (or a function returning it, read at call time); `baseStore` keeps the base
-// per account ({ get(uid), set(uid, lists) }, null for none). One lane per JavaScript runtime, shared by
-// every store, so the chat's save and the Eat page never interleave a read and a write.
+// per account ({ get(uid), set(uid, lists), owner() }, null for none). One lane per JavaScript runtime,
+// shared by every store, so the chat's save and the Eat page never interleave a read and a write.
 
 const LANE = { chain: Promise.resolve() };
 export function bsGroceryListsSerial(step) {
@@ -209,6 +209,15 @@ export function bsGroceryListsBaseIn(storage, key) {
     set(uid, lists) {
       try { const s = st(); if (s) s.setItem(key, JSON.stringify({ uid, lists })); } catch (e) { /* storage off or full */ }
     },
+    // The account this device last synced as, or null.
+    owner() {
+      try {
+        const s = st();
+        const raw = s && s.getItem(key);
+        const v = raw ? JSON.parse(raw) : null;
+        return v && v.uid != null ? v.uid : null;
+      } catch (e) { return null; }
+    },
   };
 }
 
@@ -228,6 +237,11 @@ export function bsGroceryListsPageBase(stored) {
       mem.uid = uid; mem.lists = lists;
       if (stored) stored.set(uid, lists);
     },
+    // The account the page's lists belong to: the one it synced as, else the one this device last synced as.
+    owner() {
+      if (mem.uid != null) return mem.uid;
+      return stored && stored.owner ? stored.owner() : null;
+    },
   };
 }
 
@@ -243,6 +257,7 @@ export function bsGroceryListsStore({ db, baseStore = null, session = null } = {
   const base = baseStore || {
     get: (uid) => (mem.uid != null && String(mem.uid) === String(uid) ? mem.lists : null),
     set: (uid, lists) => { mem.uid = uid; mem.lists = lists; },
+    owner: () => mem.uid,
   };
 
   const uidNow = async () => {
@@ -282,9 +297,9 @@ export function bsGroceryListsStore({ db, baseStore = null, session = null } = {
 
   // Read, change, compare-and-set, bound to the account that started it; a lost race re-reads and runs
   // `change` again on the newer document. `change(raw, uid)` returns { lists, write } plus anything to hand
-  // back.
-  const attempt = async (change, live) => {
-    const uid0 = await uidNow();
+  // back, or { refuse: reason } to write nothing.
+  const attempt = async (change, live, asked) => {
+    const uid0 = await asked;
     if (!uid0) return { ok: false, reason: 'signed-out' };
     for (let tries = 0; tries < BS_GROCERY_LISTS_CAS_TRIES; tries += 1) {
       const raw = await readCloud(uid0);
@@ -293,6 +308,7 @@ export function bsGroceryListsStore({ db, baseStore = null, session = null } = {
       const uid1 = await uidNow();
       if (!uid1 || String(uid1) !== String(uid0)) return { ok: false, reason: 'account-changed' };
       const out = change(raw, uid0) || {};
+      if (out.refuse) return { ok: false, reason: out.refuse };
       if (!out.write) return { ...out, ok: true, wrote: false, uid: uid0 };
       const next = { v: BS_GROCERY_LISTS_V, rev: bsGroceryListsRev(raw) + 1, lists: out.lists };
       if (!live()) return { ok: false, reason: 'signed-out' };
@@ -309,16 +325,18 @@ export function bsGroceryListsStore({ db, baseStore = null, session = null } = {
 
   // `settle(result)` runs on success inside the lane, so nothing else reads or writes before it is done.
   // Resolves, never rejects: a sync runs from a page's effect, with nothing there to catch it.
-  // ⚠ The sign-out generation is read when the commit is asked for, not when its turn in the lane comes: a
-  // sync queued behind another before a sign-out would otherwise read the bumped value and run as live
-  // (Codex P1 on #2433).
+  // ⚠ The sign-out generation and the account are read when the commit is asked for, not when its turn in
+  // the lane comes: a sync queued behind another would otherwise read a bumped generation and run as live,
+  // or read the account another tab switched to and write this page's lists into it (Codex P1s on #2433).
+  // The read and the write are bound to that account, so under another one nothing is read or written.
   const commit = (change, settle) => {
     const gen = session ? session() : null;
     if (session && gen == null) return Promise.resolve({ ok: false, reason: 'signed-out' });
     const live = () => !session || session() === gen;
+    const asked = uidNow();
     return bsGroceryListsSerial(async () => {
       let res;
-      try { res = await attempt(change, live); } catch (e) { return { ok: false, reason: 'failed' }; }
+      try { res = await attempt(change, live, asked); } catch (e) { return { ok: false, reason: 'failed' }; }
       if (res.ok && !live()) return { ok: false, reason: 'signed-out' }; // settle nothing after a sign-out began
       if (res.ok && settle) { try { settle(res); } catch (e) { /* the base stays as it was */ } }
       return res;
@@ -329,6 +347,10 @@ export function bsGroceryListsStore({ db, baseStore = null, session = null } = {
   // with the callbacks of the latest call: `getLocal` and `getGone` when it reads the lists, `apply` when
   // it is done. So a page that closed and opened again while a sync was queued gets that sync's changes.
   // `base` (optional) is the page's own (bsGroceryListsPageBase); the store's stored base otherwise.
+  // ⚠ A PAGE'S LISTS BELONG TO ONE ACCOUNT. Once the base says whose they are (the account the page synced
+  // as, else the one this device last synced as), a sync under any other account refuses: another tab can
+  // sign straight into another account with no sign-out, and this page still holds the first account's
+  // lists (Codex P1 on #2433).
   // `apply(delta, used)` takes another device's changes into the writer's lists, keeping them where the
   // next load reads them where it can (storage may be denied: the lists on screen still take them), and
   // returns false when they did not reach the lists the next sync will read (the page had closed). ⚠ "Reached" means `getLocal` returns them before `apply` returns, not only a
@@ -345,10 +367,13 @@ export function bsGroceryListsStore({ db, baseStore = null, session = null } = {
     if (queued) return queued;
     const run = commit((raw, uid) => {
       if (queued === run) queued = null; // from here a change needs a sync of its own
+      const b = latest.base || base;
+      const owner = b.owner ? b.owner() : null;
+      if (owner != null && String(owner) !== String(uid)) return { refuse: 'account-changed' };
       const { getLocal, getGone, same, toStored } = latest;
       const local = (getLocal && getLocal()) || [];
       const gone = getGone ? getGone() : [];
-      const m = bsGroceryListsMerge({ base: (latest.base || base).get(uid), local, remote: raw, gone, same, toStored });
+      const m = bsGroceryListsMerge({ base: b.get(uid), local, remote: raw, gone, same, toStored });
       return { lists: m.lists, write: m.changed, delta: m.delta, used: local };
     }, (res) => {
       const pending = !!(res.delta && (res.delta.put.length || res.delta.drop.length));

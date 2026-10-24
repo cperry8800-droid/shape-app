@@ -13,6 +13,7 @@ import {
   BS_GROCERY_LISTS_KIND, BS_GROCERY_LISTS_CAS_TRIES,
   bsGroceryListsOf, bsGroceryListsRevised, bsGroceryListsRev, bsGroceryListsRevToken, bsGrocerySame,
   bsGroceryListsMerge, bsGroceryListsApply, bsGroceryListsStore, bsGroceryListsBaseIn, bsGroceryListsPageBase,
+  bsGroceryListsSerial,
 } from '../mobile-app/src/services/groceryLists.mjs';
 
 const L = (id, extra = {}) => ({ id, name: id.toUpperCase(), items: [{ id: `${id}-1`, n: 'Milk', q: '1' }], ...extra });
@@ -316,6 +317,74 @@ test('the read is bound to the account: an A → B → A switch while it is in f
   assert.deepEqual(seen[0], { expectedUserId: 'u1' }, 'the read asks for the account that started the sync');
   assert.ok(writes.length > 0, 'it tried to write');
   for (const w of writes) assert.ok(!ids(w.data.lists).includes('b-secret'), "B's list never reaches A's document");
+});
+
+// Two accounts' rows and one session another tab can switch, with the backend's binding: a read returns
+// only the session's own row, and a write for any other account is refused.
+function twoAccounts() {
+  const t = { session: 'u1', rows: { u1: { v: 1, rev: 1, lists: [L('a-list')] }, u2: { v: 1, rev: 7, lists: [L('b-list')] } }, writes: [] };
+  t.db = {
+    getUser: async () => ({ id: t.session }),
+    getUserGoals: async (kind, o) => {
+      const asked = o && o.expectedUserId != null ? o.expectedUserId : t.session;
+      return asked === t.session ? clone(t.rows[t.session]) : null;
+    },
+    saveUserGoalsIfRev: async (kind, data, rev, uid) => {
+      if (uid !== t.session) return { accountChanged: true, error: { message: 'Account changed' } };
+      if (String(t.rows[uid].rev) !== String(rev)) return { conflict: true };
+      t.writes.push({ uid, lists: ids(data.lists) });
+      t.rows[uid] = clone(data);
+      return { ok: true };
+    },
+  };
+  return t;
+}
+
+test('a sync asked for under one account and still queued when another tab signs into another writes nothing (Codex P1 on #2433)', async () => {
+  const t = twoAccounts();
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  let started = false;
+  const hold = bsGroceryListsSerial(async () => { started = true; await gate; });
+  const queued = bsGroceryListsStore({ db: t.db, baseStore: memBase() })
+    .sync({ getLocal: () => [L('a-list'), L('a-new')], apply: () => true });
+  try {
+    while (!started) await new Promise((r) => setTimeout(r, 0));
+    t.session = 'u2'; // another tab signs straight into B: no sign-out, no generation bump
+  } finally { release(); }
+  await hold;
+  const res = await queued;
+  assert.equal(res.ok, false);
+  assert.deepEqual(t.writes, [], 'nothing written to either account');
+  assert.deepEqual(ids(t.rows.u2.lists), ['b-list'], "A's lists never reach B's document");
+});
+
+test('a page\'s lists belong to the account it synced as: another account\'s session never takes them (Codex P1 on #2433)', async () => {
+  const t = twoAccounts();
+  const mem = new Map();
+  const storage = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)) };
+  const stored = bsGroceryListsBaseIn(storage, 'shape.test.base');
+  const store = bsGroceryListsStore({ db: t.db, baseStore: stored });
+  const page = bsGroceryListsPageBase(stored);
+  let local = [L('a-list'), L('a-new')];
+  assert.equal((await store.sync({ getLocal: () => local, base: page, apply: () => true })).ok, true);
+  assert.deepEqual(t.writes, [{ uid: 'u1', lists: ['a-new', 'a-list'] }]);
+  // Another tab signs straight into B, and an edit is made on this page.
+  t.session = 'u2';
+  local = [L('a-list'), L('a-new'), L('a-more')];
+  const res = await store.sync({ getLocal: () => local, base: page, apply: () => true });
+  assert.deepEqual([res.ok, res.reason], [false, 'account-changed']);
+  // A page opened again on this device under B: the device's lists are still A's.
+  const again = await store.sync({ getLocal: () => local, base: bsGroceryListsPageBase(stored), apply: () => true });
+  assert.deepEqual([again.ok, again.reason], [false, 'account-changed']);
+  assert.equal(t.writes.length, 1, 'nothing more written');
+  assert.deepEqual(ids(t.rows.u2.lists), ['b-list'], "A's lists never reach B's document");
+  // After a sign-out's scrub the device belongs to no one, and B's lists come in.
+  mem.clear();
+  const puts = [];
+  const fresh = await store.sync({ getLocal: () => [], base: bsGroceryListsPageBase(stored), apply: (d) => { puts.push(...ids(d.put)); return true; } });
+  assert.equal(fresh.ok, true);
+  assert.deepEqual(puts, ['b-list']);
 });
 
 test('once a sign-out has begun, a sync writes and keeps nothing (Codex P1 on #2433)', async () => {
