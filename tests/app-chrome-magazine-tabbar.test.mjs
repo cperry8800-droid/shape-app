@@ -91,14 +91,16 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     assert.equal(mark.style.borderRadius, '999px');
     assert.equal(mark.style.boxShadow, '');
     assert.match(mark.getAttribute('style'), /left: calc\(4\.5px \+ 3 \* /, 'the capsule sits behind the chat tab');
-    // Icons only: each tab is named for a screen reader and prints no label. The selected one is ink and
+    // Icons only: each tab is named for a screen reader and prints no label; the chat tab's name carries
+    // its unread count, and only the selected tab is the current page. The selected one is ink and
     // filled; the others are grey line icons with nothing filled.
     const btns = [...bar.querySelectorAll('button[data-tour]')];
     assert.equal(btns.length, 5);
     for (const b of btns) {
       const tab = TABS.find((x) => 'tab-' + x.key === b.getAttribute('data-tour'));
       const on = tab.key === 'chat';
-      assert.equal(b.getAttribute('aria-label'), tab.label);
+      assert.equal(b.getAttribute('aria-label'), tab.key === 'chat' ? 'Chat 3' : tab.label);
+      assert.equal(b.getAttribute('aria-current'), on ? 'page' : null, `${tab.label} aria-current`);
       assert.ok(!b.textContent.includes(tab.label), `${tab.label} prints a label`);
       assert.ok(sameColor(b.style.color, on ? theme.INK : `rgba(${theme.inkRGB},0.62)`), `${tab.label} colour`);
       const filled = b.querySelectorAll('svg [fill="currentColor"]').length;

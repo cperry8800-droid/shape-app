@@ -1431,8 +1431,11 @@ function BSTabBar({ tabs, active, onChange }) {
         {tabs.map((tab, i) => {
           const on = tab.key === active;
           const face = tab.key === 'me' && FA;
+          // The icon prints no name, so aria-label names the tab for a screen reader and carries the unread
+          // count, as the printed label and pill did. aria-current marks the screen showing.
+          const unread = tab.key === 'chat' && chatUnread > 0 ? (chatUnread > 9 ? '9+' : String(chatUnread)) : '';
           return (
-            <button key={tab.key} type="button" data-tour={'tab-' + tab.key} aria-label={tab.label} onClick={() => onChange(tab.key)} style={{
+            <button key={tab.key} type="button" data-tour={'tab-' + tab.key} aria-label={unread ? `${tab.label} ${unread}` : tab.label} aria-current={on ? 'page' : undefined} onClick={() => onChange(tab.key)} style={{
               border: 0, background: 'transparent',
               cursor: 'pointer', padding: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1450,8 +1453,8 @@ function BSTabBar({ tabs, active, onChange }) {
                   ? <BSTabIcon name={tab.key} size={25} weight={1.8} filled={on} cut={t.PAPER} />
                   : <span style={{ position: 'relative', fontFamily: t.MONO, fontWeight: on ? 800 : 700, fontSize: 11, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{String(i + 1).padStart(2, '0')}</span>}
               {/* The unread count: a red pill on the icon's shoulder, ringed in the paper. */}
-              {tab.key === 'chat' && chatUnread > 0 && (
-                <span style={{ position: 'absolute', top: 8, left: '55%', minWidth: 17, height: 17, borderRadius: 999, background: red, color: t.PAPER, boxShadow: `0 0 0 2px ${t.PAPER}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', lineHeight: 1 }}>{chatUnread > 9 ? '9+' : chatUnread}</span>
+              {unread && (
+                <span style={{ position: 'absolute', top: 8, left: '55%', minWidth: 17, height: 17, borderRadius: 999, background: red, color: t.PAPER, boxShadow: `0 0 0 2px ${t.PAPER}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', lineHeight: 1 }}>{unread}</span>
               )}
             </button>
           );
