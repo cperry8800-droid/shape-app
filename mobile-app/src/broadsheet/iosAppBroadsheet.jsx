@@ -1391,16 +1391,19 @@ function BSTabBar({ tabs, active, onChange }) {
   }, []);
   // The floating nav (owner: "design the nav bar on the shape app to be floating … hovering at the
   // bottom of page", then "make sure it doesnt block whats behind it too much", then, 2026-10-24, "It
-  // should look like instagram" and a screenshot of Instagram's: "Use as reference"): a frosted capsule
-  // floating off the screen's edges, the page softened through it, icons only. The selected tab's icon
-  // is filled, in ink, on a darker capsule that slides to the tab tapped; the others are line icons.
-  // The Me tab is the member's face. The unread count is a red pill.
+  // should look like instagram" and a screenshot of Instagram's: "Use as reference", then "let's make
+  // our nav unique to shape, but same floating look" and, of three directions, "Go with B"): a frosted
+  // capsule floating off the screen's edges, the page softened through it, icons only. The selected
+  // tab sits in an ink gem, the facet's rotated, rounded square, that slides to the tab tapped; its
+  // icon is filled in the paper. The others are grey line icons. The Me tab is the member's face. The
+  // unread count is a red pill.
   // ⚠ The dock is BS_TABBAR_CSS tall: the capsule keeps its height on every phone and the gap under
   // it grows to clear a home indicator. The composer slot and every page's scroll reserve clear it.
   const red = bsWsRed(t);
   const activeIdx = Math.max(0, tabs.findIndex((tb) => tb.key === active));
   const n = tabs.length;
   const PAD = 9;
+  const GEM = 36;
   const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
   return (
     <div data-bs-tabbar-dock="" style={{
@@ -1425,9 +1428,9 @@ function BSTabBar({ tabs, active, onChange }) {
           : '0 8px 26px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)',
         display: 'grid', gridTemplateColumns: `repeat(${n}, 1fr)`, padding: `0 ${PAD}px`,
       }}>
-        {/* The selected tab's capsule, a shade darker than the glass, a little wider than its tab.
-            It slides to the tab tapped. */}
-        <span aria-hidden data-bs-tab-mark="" style={{ position: 'absolute', top: 5, bottom: 5, borderRadius: 999, width: `calc((100% - ${PAD * 2}px) / ${n} + ${PAD}px)`, left: `calc(${PAD / 2}px + ((100% - ${PAD * 2}px) / ${n}) * ${activeIdx})`, background: `rgba(${t.inkRGB},${t.isLight ? 0.075 : 0.14})`, transition: 'left .28s cubic-bezier(.4,0,.2,1)' }} />
+        {/* The selected tab's gem: an ink square turned 45°, its corners rounded as the facet's are,
+            centred on the tab. It slides to the tab tapped. */}
+        <span aria-hidden data-bs-tab-mark="" style={{ position: 'absolute', top: '50%', width: GEM, height: GEM, marginTop: -GEM / 2, borderRadius: '27%', transform: 'rotate(45deg)', left: `calc(${PAD}px + ((100% - ${PAD * 2}px) / ${n}) * ${activeIdx + 0.5} - ${GEM / 2}px)`, background: t.INK, transition: 'left .28s cubic-bezier(.4,0,.2,1)' }} />
         {tabs.map((tab, i) => {
           const on = tab.key === active;
           const face = tab.key === 'me' && FA;
@@ -1439,18 +1442,18 @@ function BSTabBar({ tabs, active, onChange }) {
               border: 0, background: 'transparent',
               cursor: 'pointer', padding: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: on ? t.INK : `rgba(${t.inkRGB},0.62)`, position: 'relative',
+              color: on ? t.PAPER : `rgba(${t.inkRGB},0.62)`, position: 'relative',
             }}>
               {face
                 ? <span data-bs-tab-face="" style={{ display: 'grid', placeItems: 'center' }}>{React.createElement(FA, {
-                    flat: true, size: 28, showRank: false, BG: t.PAPER,
-                    c: on ? t.INK : `rgba(${t.inkRGB},0.32)`,
+                    flat: true, size: on ? 24 : 28, showRank: false, BG: t.PAPER,
+                    c: on ? t.PAPER : `rgba(${t.inkRGB},0.32)`,
                     initial: (window.bsMyInitials && window.bsMyInitials()) || undefined,
                     name: (window.bsMyName && window.bsMyName()) || '',
                     photo: (window.bsMyPhoto && window.bsMyPhoto()) || undefined,
                   })}</span>
                 : BS_TAB_ICON_KEYS.has(tab.key)
-                  ? <BSTabIcon name={tab.key} size={25} weight={1.8} filled={on} cut={t.PAPER} />
+                  ? <BSTabIcon name={tab.key} size={24} weight={1.8} filled={on} cut={on ? t.INK : t.PAPER} />
                   : <span style={{ position: 'relative', fontFamily: t.MONO, fontWeight: on ? 800 : 700, fontSize: 11, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{String(i + 1).padStart(2, '0')}</span>}
               {/* The unread count: a red pill on the icon's shoulder, ringed in the paper. */}
               {unread && (

@@ -4,9 +4,9 @@
 //
 // The tab bar floats (owner: "design the nav bar on the shape app to be floating … hovering at the bottom
 // of page", "make sure it doesnt block whats behind it too much", then "It should look like instagram" and a
-// screenshot of Instagram's: "Use as reference"): a frosted capsule off the screen's edges, icons only. The
-// selected tab's icon is filled, in ink, on a darker capsule; the others are line icons in grey. The Me tab
-// is the member's face. The unread count is a red pill. The capsule keeps its height on a phone with a home
+// screenshot of Instagram's: "Use as reference", then "make our nav unique to shape, but same floating look"
+// and "Go with B"): a frosted capsule off the screen's edges, icons only. The selected tab sits in an ink gem,
+// its icon filled in the paper; the others are line icons in grey. The Me tab is the member's face. The unread count is a red pill. The capsule keeps its height on a phone with a home
 // indicator: the gap under it grows instead. The pinned masthead is flat paper over a rule.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -57,7 +57,7 @@ const sameColor = (a, b) => {
 };
 
 for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
-  test(`the tab bar floats: a frosted capsule, icons only, the selected one filled in ink (${paperMode})`, async () => {
+  test(`the tab bar floats: a frosted capsule, icons only, the selected one on an ink gem (${paperMode})`, async () => {
     let theme = null;
     const Probe = () => { theme = window.useBS(); return null; };
     const { host, unmount } = await mount(React.createElement(React.Fragment, null,
@@ -86,14 +86,20 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     assert.ok(sameColor(bar.style.background, `${theme.PAPER}c2`), 'paper at about three-quarters');
     assert.doesNotMatch(bar.style.background, /gradient/);
     assert.match(bar.style.boxShadow, isLight ? /rgba\(15, ?14, ?12, ?0\.12\)/ : /rgba\(0, ?0, ?0, ?0\.5\)/, 'a neutral shadow, not a glow');
-    // The selected tab's capsule sits behind the chat tab (the fourth of five), rounded, with no glow.
+    // The selected tab's gem: an ink square turned 45° with the facet's rounded corners, centred on the
+    // chat tab (the fourth of five, so three and a half slots in), with no glow.
     const mark = bar.querySelector('[data-bs-tab-mark]');
-    assert.equal(mark.style.borderRadius, '999px');
+    assert.equal(mark.style.width, '36px');
+    assert.equal(mark.style.height, '36px');
+    assert.equal(mark.style.borderRadius, '27%');
+    assert.equal(mark.style.transform, 'rotate(45deg)');
+    assert.ok(sameColor(mark.style.background, theme.INK), 'the gem is ink');
     assert.equal(mark.style.boxShadow, '');
-    assert.match(mark.getAttribute('style'), /left: calc\(4\.5px \+ 3 \* /, 'the capsule sits behind the chat tab');
+    // (jsdom folds the 9px of padding and the gem's half-width into one term: 9px - 18px.)
+    assert.match(mark.getAttribute('style'), /left: calc\(-9px \+ 3\.5 \* /, 'the gem sits on the chat tab');
     // Icons only: each tab is named for a screen reader and prints no label; the chat tab's name carries
-    // its unread count, and only the selected tab is the current page. The selected one is ink and
-    // filled; the others are grey line icons with nothing filled.
+    // its unread count, and only the selected tab is the current page. The selected one is filled in the
+    // paper on its gem; the others are grey line icons with nothing filled.
     const btns = [...bar.querySelectorAll('button[data-tour]')];
     assert.equal(btns.length, 5);
     for (const b of btns) {
@@ -102,7 +108,7 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
       assert.equal(b.getAttribute('aria-label'), tab.key === 'chat' ? 'Chat 3' : tab.label);
       assert.equal(b.getAttribute('aria-current'), on ? 'page' : null, `${tab.label} aria-current`);
       assert.ok(!b.textContent.includes(tab.label), `${tab.label} prints a label`);
-      assert.ok(sameColor(b.style.color, on ? theme.INK : `rgba(${theme.inkRGB},0.62)`), `${tab.label} colour`);
+      assert.ok(sameColor(b.style.color, on ? theme.PAPER : `rgba(${theme.inkRGB},0.62)`), `${tab.label} colour`);
       const filled = b.querySelectorAll('svg [fill="currentColor"]').length;
       if (on) assert.ok(filled > 0, `${tab.label} is not filled`);
       else assert.equal(filled, 0, `${tab.label} is filled`);
@@ -119,7 +125,7 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     await unmount();
   });
 
-  test(`the Me tab is the member's face, as Instagram's is: the flat facet, framed in ink when selected (${paperMode})`, async () => {
+  test(`the Me tab is the member's face, as Instagram's is: the flat facet, on the gem when selected (${paperMode})`, async () => {
     const seen = [];
     window.BSFacetAvatar = (props) => { seen.push(props); return React.createElement('i', { 'data-face': '' }); };
     window.bsMyPhoto = () => 'https://shape.test/me.jpg';
@@ -141,7 +147,9 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
         assert.equal(p.flat, true);
         assert.equal(p.photo, 'https://shape.test/me.jpg');
         assert.equal(p.initial, 'QH');
-        assert.equal(p.c, active === 'me' ? theme.INK : `rgba(${theme.inkRGB},0.32)`);
+        // On the gem it is framed in the paper and a little smaller, so it sits inside the gem.
+        assert.equal(p.c, active === 'me' ? theme.PAPER : `rgba(${theme.inkRGB},0.32)`);
+        assert.equal(p.size, active === 'me' ? 24 : 28);
         assert.equal(p.onClick, undefined, 'the tab is the button, not the face');
         await unmount();
       }
@@ -159,6 +167,8 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     assert.match(bar, /WebkitBackdropFilter: 'blur\(10px\) saturate\(170%\)'/);
     assert.match(bar, /height: BS_TABBAR_CSS,/);
     assert.match(bar, /paddingBottom: BS_DOCK_BOTTOM_CSS,/);
+    // A filled icon's inner marks (the coach's Today and Plans) are cut in the gem's ink when selected.
+    assert.match(bar, /filled=\{on\} cut=\{on \? t\.INK : t\.PAPER\}/);
     // 60px of capsule, 6px above it, and under it 12px or the home indicator's inset less 10px.
     assert.equal(window.BS_TABBAR_H, 78);
     assert.equal(window.BS_TABBAR_CSS, 'calc(66px + max(12px, calc(env(safe-area-inset-bottom, 0px) - 10px)))');
