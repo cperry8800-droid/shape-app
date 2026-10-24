@@ -294,15 +294,31 @@ test('the coach\'s own Me tab draws in the same look', () => {
   const log = d.nodes().find(named('BSActivityLogCta'));
   assert.equal(log.props.ledger, true);
   assert.equal(log.props.INK, THEME.INK);
-  assert.ok(!d.nodes().find(named('BSCoachProfileDock')), 'no Message / Work-with on one\'s own profile');
+  assert.ok(!d.nodes().find(named('BSProfileDock')), 'no Message / Work-with on one\'s own profile');
   assert.deepEqual(oldLook(d.nodes()).map((n) => n.type), []);
+});
+
+test('the member profile\'s Message is the same dock with Message alone, not a sticky fade over the wall', () => {
+  // Owner, 2026-10-24, of "Message Priya" over a member's wall: "fix this message box thats appearing".
+  const src = stripComments(readFileSync(SRC, 'utf8'));
+  const at = src.indexOf('function BSTerrainProfile(');
+  const fn = src.slice(at, src.indexOf('\nfunction ', at + 10));
+  assert.match(fn, /<BSProfileDock INK=\{INK\} BG=\{BG\} PAPER=\{tTheme\.PAPER\} onMessage=\{\(\) => onMsg\(person\)\}\s+messageLabel=\{tr\('profile:terrain\.messageName'/);
+  assert.doesNotMatch(fn.slice(fn.indexOf('<BSProfileDock')), /onWorkWith/, 'a member has no Work with');
+  assert.doesNotMatch(fn, /position: 'sticky', bottom: 0/, 'the old fade that sat over the wall is back');
+  globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
+  const d = drive(mod.BSTerrainProfile, { person: { who: 'Priya Shah', kind: 'CLIENT', tier: 'PEAK', init: 'PS', userId: 'u-priya' }, onBack() {}, onMessage() {} });
+  const dock = d.nodes().find(named('BSProfileDock'));
+  assert.ok(dock, 'another member\'s profile has no Message dock');
+  assert.equal(dock.props.onWorkWith, undefined);
+  assert.match(dock.props.messageLabel, /^Message /);
 });
 
 test('the coach profile renders its dock as the component that hides on scroll, and no other sticky footer', () => {
   const src = stripComments(readFileSync(SRC, 'utf8'));
   const at = src.indexOf('function BSSignalCoachProfile(');
   const fn = src.slice(at, src.indexOf('\nfunction ', at + 10));
-  assert.match(fn, /<BSCoachProfileDock [^>]*onMessage=\{\(\) => onMsg\(person\)\}[^>]*onWorkWith=\{\(\) => setTab\('coaching'\)\}/);
+  assert.match(fn, /<BSProfileDock [^>]*onMessage=\{\(\) => onMsg\(person\)\}[^>]*onWorkWith=\{\(\) => setTab\('coaching'\)\}/);
   assert.doesNotMatch(fn, /position: 'sticky', bottom: 0/, 'the old dock that never moved is back');
 });
 
@@ -311,7 +327,7 @@ const require_ = createRequire(import.meta.url);
 const { JSDOM } = require_('jsdom');
 const React = require_('react');
 const ReactDOMClient = require_('react-dom/client');
-const { BSCoachProfileDock } = await loadBroadsheet(['BSCoachProfileDock'], React);
+const { BSProfileDock } = await loadBroadsheet(['BSProfileDock'], React);
 
 test('the coach dock slides away while the page scrolls down and comes back up, at the top and at the end', async () => {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'https://shape.test/m/' });
@@ -333,9 +349,9 @@ test('the coach dock slides away while the page scrolls down and comes back up, 
   const root = ReactDOMClient.createRoot(host);
   try {
     await React.act(async () => {
-      root.render(React.createElement(BSCoachProfileDock, { INK: '#f1ece1', BG: 'linear-gradient(180deg, #1a1612, #100d0a)', PAPER: '#100d0a', onMessage: () => calls.push('message'), onWorkWith: () => calls.push('work'), messageLabel: 'Message', workLabel: 'Work with Maya' }));
+      root.render(React.createElement(BSProfileDock, { INK: '#f1ece1', BG: 'linear-gradient(180deg, #1a1612, #100d0a)', PAPER: '#100d0a', onMessage: () => calls.push('message'), onWorkWith: () => calls.push('work'), messageLabel: 'Message', workLabel: 'Work with Maya' }));
     });
-    const dock = host.querySelector('[data-coach-dock]');
+    const dock = host.querySelector('[data-profile-dock]');
     const isHidden = () => {
       const h = dock.style.opacity === '0';
       assert.equal(dock.hasAttribute('inert'), h, 'the dock is inert exactly while it is hidden');
@@ -369,4 +385,42 @@ test('the coach dock slides away while the page scrolls down and comes back up, 
     Object.assign(globalThis, saved);
   }
   assert.deepEqual(removed, ['scroll'], 'the scroll listener outlives the dock');
+});
+
+test('a member\'s dock is Message alone, square, in the outline, and hides on scroll as the coach\'s does', async () => {
+  const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'https://shape.test/m/' });
+  const saved = { window: globalThis.window, document: globalThis.document };
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const sc = dom.window.document.createElement('div');
+  sc.className = 'bs-scroll';
+  let y = 0;
+  Object.defineProperty(sc, 'scrollTop', { get: () => y, configurable: true });
+  Object.defineProperty(sc, 'clientHeight', { value: 800, configurable: true });
+  Object.defineProperty(sc, 'scrollHeight', { value: 3000, configurable: true });
+  const host = dom.window.document.createElement('div');
+  sc.appendChild(host);
+  dom.window.document.body.appendChild(sc);
+  const calls = [];
+  const root = ReactDOMClient.createRoot(host);
+  try {
+    await React.act(async () => { root.render(React.createElement(BSProfileDock, { INK: '#111111', BG: '#f4efe6', PAPER: '#f4efe6', onMessage: () => calls.push('message'), messageLabel: 'Message Priya' })); });
+    const dock = host.querySelector('[data-profile-dock]');
+    const buttons = dock.querySelectorAll('button');
+    assert.equal(buttons.length, 1);
+    assert.equal(buttons[0].textContent, 'Message Priya →');
+    assert.equal(parseFloat(buttons[0].style.borderRadius), 0);
+    assert.equal(buttons[0].style.background, 'transparent');
+    assert.match(buttons[0].style.border, /1px solid/);
+    y = 600; await React.act(async () => { sc.dispatchEvent(new dom.window.Event('scroll')); });
+    assert.equal(dock.style.opacity, '0', 'scrolling down hides it');
+    assert.ok(dock.hasAttribute('inert'));
+    y = 560; await React.act(async () => { sc.dispatchEvent(new dom.window.Event('scroll')); });
+    assert.equal(dock.style.opacity, '1', 'scrolling up brings it back');
+    await React.act(async () => { buttons[0].click(); });
+    assert.deepEqual(calls, ['message']);
+  } finally {
+    await React.act(async () => { root.unmount(); });
+    sc.remove();
+    Object.assign(globalThis, saved);
+  }
 });

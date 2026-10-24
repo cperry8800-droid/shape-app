@@ -2799,8 +2799,10 @@ function BSRadioScreen({ onBack }) {
             return (
               <>
                 <div style={{ marginTop: 14, display: 'flex', alignItems: 'stretch', gap: 8 }}>
-                  <button disabled={!act} onClick={() => { if (act) act(); }} style={{ borderRadius: 12,
-                    flex: 1, padding: '10px', background: act ? TEAL : 'transparent', color: act ? '#050707' : CREAM50,
+                  {/* The deck in the Wall's look (owner, 2026-10-24: "also fix the look of this"): square keys,
+                      the one to take in ink with the paper's text, the rest an outline. */}
+                  <button disabled={!act} onClick={() => { if (act) act(); }} style={{ borderRadius: 0,
+                    flex: 1, minHeight: 44, padding: '10px', background: act ? CREAM : 'transparent', color: act ? (isLight ? t.PAPER : '#050707') : CREAM50,
                     border: act ? 0 : `1px solid ${CREAM25}`, cursor: act ? 'pointer' : 'default',
                     fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -2840,8 +2842,8 @@ function BSRadioScreen({ onBack }) {
                     return (
                       <button key={item.key} aria-label={item.label} disabled={!canReact}
                         onClick={() => r.voteSong(screenTrack, item.key)}
-                        style={{ flex: 1, minHeight: 40, borderRadius: 12, cursor: canReact ? 'pointer' : 'default',
-                          border: `1px solid ${active ? TEAL : CREAM25}`, background: active ? `${TEAL}1f` : 'transparent',
+                        style={{ flex: 1, minHeight: 44, borderRadius: 0, cursor: canReact ? 'pointer' : 'default',
+                          border: `1px solid ${active ? CREAM : CREAM25}`, background: 'transparent', boxShadow: active ? `inset 0 -2px 0 ${TEAL}` : 'none',
                           color: active ? CREAM : CREAM70, fontFamily: t.MONO, fontWeight: 800,
                           display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                         <span style={{ fontSize: 17 }}>{item.glyph}</span>
@@ -2850,7 +2852,7 @@ function BSRadioScreen({ onBack }) {
                     );
                   })}
                   <button onClick={() => setCommentsOpen(true)} aria-label={tr('radio:social.openComments', { defaultValue: 'Comments' })}
-                    style={{ flex: 1, minHeight: 40, borderRadius: 12, cursor: 'pointer',
+                    style={{ flex: 1, minHeight: 44, borderRadius: 0, cursor: 'pointer',
                       border: `1px solid ${CREAM25}`, background: 'transparent', color: CREAM70,
                       fontFamily: t.MONO, fontWeight: 800, fontSize: 11, letterSpacing: '0.08em',
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
@@ -2880,7 +2882,7 @@ function BSRadioScreen({ onBack }) {
               single control it always was. Its three surfaces (this key, the lock
               word and the gap) say three different things, which is the rule
               `tests/radio-hr-sync-labels.test.mjs` exists to keep. */}
-          <button onClick={toggleMatch} style={{ borderRadius: 12, marginTop: 12, width: '100%',
+          <button onClick={toggleMatch} style={{ borderRadius: 0, minHeight: 44, marginTop: 12, width: '100%',
             border: `1px solid ${hrStage === 'synced' ? TEAL : matching ? '#e3a544' : CREAM25}`,
             background: hrStage === 'synced' ? TEAL : matching ? '#e3a544' : 'transparent',
             color: hrStage === 'synced' || matching ? '#050707' : CREAM,
@@ -2899,16 +2901,15 @@ function BSRadioScreen({ onBack }) {
 
           {/* THE STRIP — a CHANNEL row, never a track list. Channels may be
               chosen; tracks never (prohibition 4 in this module's own header). */}
-          <div style={{ marginTop: 16, display: 'flex', gap: 22, borderTop: `1px solid ${CREAM12}`, paddingTop: 12 }}>
+          <div style={{ marginTop: 16, display: 'flex', gap: 22, borderTop: `2px solid ${CREAM}`, paddingTop: 4 }}>
             {[
               { key: 'live', on: true, label: tr('radio:strip.live', { defaultValue: 'Live' }), go: () => r.setChannel('live') },
               { key: 'sets', on: false, label: tr('radio:strip.sets', { defaultValue: 'Shape Sets' }), go: () => setShowSets(true) },
               { key: 'nora', on: noraOn, label: tr('radio:strip.nora', { defaultValue: 'Nora' }), go: toggleNora },
             ].map(s => (
-              <button key={s.key} onClick={s.go} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '0 0 7px',
-                borderBottom: `2px solid ${s.on ? TEAL : 'transparent'}`, color: s.on ? TEAL : CREAM50,
-                fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>
-                {s.label}
+              <button key={s.key} aria-pressed={s.on} onClick={s.go} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, display: 'flex', alignItems: 'stretch' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', boxShadow: s.on ? `inset 0 -2px 0 ${TEAL}` : 'none', color: s.on ? CREAM : CREAM50,
+                  fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.label}</span>
               </button>
             ))}
           </div>

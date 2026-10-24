@@ -160,6 +160,32 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     }
   });
 
+  test(`a screen that is no tab selects none: no gem behind Home on Radio (${paperMode})`, async () => {
+    // Owner, 2026-10-24: "when on shape radio page the home emoji blacks out on nav bar". Radio is the
+    // client's tab 'radio', which the bar doesn't carry; the gem fell back to the first slot and sat,
+    // in ink, behind Home's grey line icon.
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = ReactDOMClient.createRoot(host);
+    const draw = (active) => act(async () => { root.render(React.createElement(window.BSProvider, { paperMode }, React.createElement(window.BSTabBar, { tabs: TABS, active, onChange() {} }))); });
+    try {
+      await draw('chat');
+      await draw('radio');
+      const mark = host.querySelector('[data-bs-tab-mark]');
+      assert.equal(mark.style.opacity, '0', 'the gem shows with no tab selected');
+      assert.match(mark.getAttribute('style'), /left: calc\(-9px \+ 3\.5 \* /, 'the gem jumped to Home as it faded');
+      assert.equal(host.querySelectorAll('button[aria-current="page"]').length, 0);
+      assert.equal(host.querySelectorAll('svg [fill="currentColor"]').length, 0, 'an icon is filled with no tab selected');
+      await draw('home');
+      assert.equal(mark.style.opacity, '1');
+      assert.match(mark.getAttribute('style'), /left: calc\(-9px \+ 0\.5 \* /, 'the gem is not on Home');
+      assert.equal(host.querySelector('button[data-tour="tab-home"]').getAttribute('aria-current'), 'page');
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
+
   test(`the capsule is frosted and keeps its height over a home indicator (${paperMode})`, () => {
     // jsdom drops backdrop-filter and env(), so these are read from the component's source.
     const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), 'utf8');

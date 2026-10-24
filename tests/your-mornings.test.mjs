@@ -1164,3 +1164,38 @@ test("bsNoraOpen's close is called when the page unmounts, and a close that is n
   m = await mount();
   try { assert.ok(m.q('[data-bs-mornings-hero]')); } finally { m.unmount(); delete dom.window.bsNoraOpen; }
 });
+
+test('the page in the Wall\'s look: word tabs for the range, ruled heads, square boxes, the title upright', async () => {
+  // Owner, 2026-10-24: "also update design and layout here".
+  const d = run('hunger', 6, [8, 8, 8, 8, 8, 8, 8], run('hunger', 13, [4, 4, 4, 4, 4, 4, 4]));
+  d[TODAY] = { ...d[TODAY], energy: 8, sleep: 8, sleepQuality: 4 };
+  env({ days: d, plan: NUTRITIONIST });
+  const m = await mount();
+  try {
+    // 7 days | 30 days: the strip the Wall and the profiles open on, the one shown underlined in red.
+    const sw = m.q('[data-bs-mornings-range]');
+    assert.match(sw.style.borderTop, /^3px solid/);
+    const btns = [...sw.querySelectorAll('button')];
+    assert.deepEqual(btns.map((b) => b.getAttribute('aria-pressed')), ['true', 'false']);
+    assert.ok(btns.every((b) => !b.style.borderRadius || parseFloat(b.style.borderRadius) === 0), 'a range key is a pill again');
+    assert.ok(btns.every((b) => parseFloat(b.style.minHeight) >= 44), 'a range key is under 44px');
+    assert.match(btns[0].firstElementChild.style.boxShadow, /inset 0(px)? -2px 0(px)? (#b23a1f|rgb\(178, 58, 31\))/);
+    assert.equal(btns[1].firstElementChild.style.boxShadow, 'none');
+    await m.click(/^30 days$/);
+    assert.deepEqual([...m.q('[data-bs-mornings-range]').querySelectorAll('button')].map((b) => b.getAttribute('aria-pressed')), ['false', 'true']);
+    await m.click(/^7 days$/);
+    // Each station opens on its name over a 2px ink rule, its colour kept as the key.
+    for (const kind of ['readiness', 'sleep', 'energy', 'rested', 'hunger']) {
+      const h2 = m.section(kind).querySelector('h2');
+      assert.ok(h2, `${kind} has no head`);
+      assert.match(h2.parentElement.style.borderBottom, /^2px solid/, `${kind}'s head has no ink rule`);
+      assert.equal(h2.style.textTransform, 'uppercase');
+    }
+    // Square: the direction box and today's cell.
+    assert.equal(parseFloat(m.dir('hunger').firstElementChild.style.borderRadius), 0);
+    const today = m.cells('readiness').find((c) => c.getAttribute('data-bs-mornings-day') === TODAY);
+    assert.equal(parseFloat(today.style.borderRadius), 0);
+    // The title is upright: no italic word in it.
+    assert.ok(![...m.host.querySelectorAll('span')].some((s) => s.style.fontStyle === 'italic'), 'the italic title is back');
+  } finally { m.unmount(); }
+});

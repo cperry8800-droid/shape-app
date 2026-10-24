@@ -53,22 +53,31 @@ export function useBSHideOnScrollDown(ref, { slack = 8, top = 64 } = {}) {
   return hidden;
 }
 
-// A coach profile's Message / Work-with dock gets out of the way (owner, 2026-10-24: "why isnt this going away
-// when i scroll down, the message and work with maya"): it slides off while the page scrolls down and back on
-// as it scrolls up, so it never sits over the text being read. It fades as it slides, since the floating tab
-// bar below it would show it through its frost. On solid paper over a hairline, so nothing shows through it;
-// hidden, it is inert, so a keyboard can't reach the buttons it hides. Its actions are square, as the page's:
-// an ink outline for Message, ink for Work with. BG is the page's background (PAPER_BG: a gradient on the Steel
-// paper); text on the ink fill takes PAPER, the solid colour (Codex, P1 on #2441).
-export function BSCoachProfileDock({ INK, BG, PAPER, onMessage, onWorkWith, messageLabel, workLabel }) {
+// A profile's dock gets out of the way (owner, 2026-10-24: "why isnt this going away when i scroll down, the
+// message and work with maya", then of a member's "Message Priya": "fix this message box thats appearing"): it
+// slides off while the page scrolls down and back on as it scrolls up, so it never sits over the text being
+// read. It fades as it slides, since the floating tab bar below it would show it through its frost. On the
+// page's own paper over a hairline, so nothing shows through it; hidden, it is inert, so a keyboard can't reach
+// the buttons it hides. Its actions are square, as the page's. A coach's dock has two: an ink outline for
+// Message, ink for Work with. A member's has Message alone, in the outline, since messaging is no purchase.
+// BG is the page's background (PAPER_BG: a gradient on the Steel paper); text on the ink fill takes PAPER, the
+// solid colour (Codex, P1 on #2441).
+export function BSProfileDock({ INK, BG, PAPER, onMessage, messageLabel, onWorkWith = null, workLabel = '' }) {
   const ref = React.useRef(null);
   const hidden = useBSHideOnScrollDown(ref);
   const label = { cursor: 'pointer', fontFamily: MONO, fontSize: 11, textTransform: 'uppercase', fontWeight: 800 };
+  const line = { ...label, flex: 1, minHeight: 48, borderRadius: 0, background: 'transparent', color: INK, border: `1px solid ${INK}`, letterSpacing: '0.14em' };
   return (
-    <div ref={ref} data-coach-dock="" inert={hidden} style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '12px 18px calc(14px + env(safe-area-inset-bottom, 0px))', background: BG, borderTop: `1px solid ${inkA(INK, 0.12)}`, transform: hidden ? 'translateY(40%)' : 'none', opacity: hidden ? 0 : 1, transition: reducedMotion() ? 'none' : 'transform 220ms cubic-bezier(.4,0,.2,1), opacity 180ms ease' }}>
+    <div ref={ref} data-profile-dock="" inert={hidden} style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '12px 18px calc(14px + env(safe-area-inset-bottom, 0px))', background: BG, borderTop: `1px solid ${inkA(INK, 0.12)}`, transform: hidden ? 'translateY(40%)' : 'none', opacity: hidden ? 0 : 1, transition: reducedMotion() ? 'none' : 'transform 220ms cubic-bezier(.4,0,.2,1), opacity 180ms ease' }}>
       <div style={{ display: 'flex', gap: 10 }}>
-        <button onClick={onMessage} style={{ ...label, flex: 1, minHeight: 48, borderRadius: 0, background: 'transparent', color: INK, border: `1px solid ${INK}`, letterSpacing: '0.14em' }}>{messageLabel}</button>
-        <button onClick={onWorkWith} style={{ ...label, flex: 1.4, minHeight: 48, borderRadius: 0, background: INK, color: PAPER, border: 0, letterSpacing: '0.12em' }}>{workLabel} →</button>
+        {onWorkWith ? (
+          <>
+            <button onClick={onMessage} style={line}>{messageLabel}</button>
+            <button onClick={onWorkWith} style={{ ...label, flex: 1.4, minHeight: 48, borderRadius: 0, background: INK, color: PAPER, border: 0, letterSpacing: '0.12em' }}>{workLabel} →</button>
+          </>
+        ) : (
+          <button onClick={onMessage} style={line}>{messageLabel} →</button>
+        )}
       </div>
     </div>
   );
