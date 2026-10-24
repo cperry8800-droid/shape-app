@@ -14814,12 +14814,15 @@ const BS_BOOST_PHRASES = {
   workout: ["Let's go!", 'Nice!', 'Love it!', 'One more rep.', 'Finish strong →', 'Strong — keep going.', 'Respect the work.'],
   cooking: ['What are you making?', 'Send a pic →', 'Looks good already.', 'Chef mode — respect.', 'Fuel the work.', 'Plate it clean.'],
 };
+// Drawn as the Wall prints (owner, 2026-10-24: "update design of this as well to match"): the flat facet in an
+// ink frame, the live line as the magazine's kicker (red mid-workout, amber at the stove, as the face's dot),
+// "Boost Priya" in the headline face over a heavy ink rule, and square phrase boxes, field and Send in ink.
 function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
   const t = useBS();
   const tr = useShapeTr();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const kind = person.activity === 'cooking' ? 'cooking' : 'workout';
-  const accent = kind === 'cooking' ? t.AMBER : teal;
+  const accent = kind === 'cooking' ? t.AMBER : bsWsRed(t);
+  const box = bsTHexA(t.INK, 0.28);
   const first = String(person.name || person.who || 'Member').split(' ')[0];
   const [custom, setCustom] = useStateBSC('');
   const [busy, setBusy] = useStateBSC(false);
@@ -14873,10 +14876,10 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
     <div onClick={onClose} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose && onClose(); } }} style={{ position: 'absolute', inset: 0, zIndex: 240, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Send ${first} a live boost`} onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)', outline: 'none', ...(reduced ? null : { animation: 'bsSdFadeUp 340ms cubic-bezier(.2,.8,.3,1) both' }) }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <BSFacetAvatar size={44} c={bsTierColor(person.tier)} initial={bsInitials(person.name || person.who) || '?'} photo={person.photoUrl || person.photo || undefined} live activity={kind} showRank={false} BG={t.PAPER} INK={t.INK} />
+          <BSFacetAvatar flat size={44} c={t.INK} initial={bsInitials(person.name || person.who) || '?'} photo={person.photoUrl || person.photo || undefined} live activity={kind} showRank={false} BG={t.PAPER} INK={t.INK} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: accent, boxShadow: `0 0 0 3px ${accent}33`, ...(reduced ? null : { '--sd-glow': bsTHexA(accent, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} />
+              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: accent }} />
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>{kind === 'cooking' ? 'Cooking now' : 'In a workout now'}{mins != null ? ` · ${mins} min in` : ''}</span>
             </div>
             {/* Cooking: the PLANNED meal's title only — never macros, portions
@@ -14902,21 +14905,21 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
                 </div>
               </div>
             )}
-            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Boost {first}<span style={{ color: accent }}>.</span></div>
+            <div style={{ marginTop: 5, fontFamily: bsWsHead(t), fontSize: 24, fontWeight: 600, lineHeight: 1, color: t.INK, letterSpacing: '0.012em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Boost {first}</div>
           </div>
           {onOpenProfile && <button onClick={() => { onClose && onClose(); onOpenProfile(); }} style={{ flexShrink: 0, background: 'transparent', border: 0, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 4 }}>Profile →</button>}
         </div>
-        {/* pulse rule — draws in under the header, in the activity's accent */}
-        <div aria-hidden style={{ height: 2, marginTop: 12, background: `linear-gradient(90deg, ${accent}, ${bsTHexA(accent, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) 120ms both' }) }} />
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>{person.userId ? <>Lands in their chat right now — mid-{kind === 'cooking' ? 'cook' : 'set'}, not after the post.</> : <>Preview · demo member — boosts land in a real member's chat while they train.</>}</div>
+        {/* The heavy rule under the head, as the Wall's masthead */}
+        <div aria-hidden style={{ height: 3, marginTop: 12, background: t.INK }} />
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>{person.userId ? <>Lands in their chat right now — mid-{kind === 'cooking' ? 'cook' : 'set'}, not after the post.</> : <>Preview · demo member — boosts land in a real member's chat while they train.</>}</div>
         <div className="bs-fa-wrap" style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
           {(BS_BOOST_PHRASES[kind] || BS_BOOST_PHRASES.workout).map((ph, i) => (
-            <button key={ph} disabled={busy || sent} onClick={() => sendBoost(ph)} style={{ padding: '9px 13px', borderRadius: 3, clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)', border: `1px solid ${accent}55`, borderLeft: `3px solid ${accent}`, background: `${accent}12`, color: t.INK, cursor: busy || sent ? 'default' : 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, transition: 'transform 140ms ease', ...(reduced ? null : { animation: `bsSdFadeUp 380ms ease ${160 + i * 70}ms both` }) }}>{ph}</button>
+            <button key={ph} disabled={busy || sent} onClick={() => sendBoost(ph)} style={{ minHeight: 40, padding: '9px 12px', borderRadius: 0, border: `1px solid ${box}`, background: 'transparent', color: t.INK, cursor: busy || sent ? 'default' : 'pointer', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, transition: 'transform 140ms ease', ...(reduced ? null : { animation: `bsSdFadeUp 380ms ease ${160 + i * 70}ms both` }) }}>{ph}</button>
           ))}
         </div>
         <div style={{ marginTop: 11, display: 'flex', gap: 8, ...(reduced ? null : { animation: 'bsSdFadeUp 380ms ease 440ms both' }) }}>
-          <input value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendBoost(custom); }} placeholder={`Say it your way — cheer ${first} on…`} style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 13px', fontFamily: t.DISPLAY, fontSize: 13.5, outline: 'none' }} />
-          <button disabled={busy || sent || !custom.trim()} onClick={() => sendBoost(custom)} style={{ flexShrink: 0, minWidth: 74, borderRadius: 3, clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)', border: 0, background: custom.trim() && !busy && !sent ? accent : `${accent}44`, color: '#0c0a08', cursor: custom.trim() && !busy && !sent ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{sent ? '✓ Sent' : busy ? '…' : 'Send'}</button>
+          <input value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendBoost(custom); }} placeholder={`Say it your way — cheer ${first} on…`} style={{ flex: 1, minWidth: 0, minHeight: 44, boxSizing: 'border-box', borderRadius: 0, border: `1px solid ${box}`, background: 'transparent', color: t.INK, padding: '11px 12px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
+          <button disabled={busy || sent || !custom.trim()} onClick={() => sendBoost(custom)} style={{ flexShrink: 0, minWidth: 74, minHeight: 44, borderRadius: 0, border: 0, background: custom.trim() && !busy && !sent ? t.INK : bsTHexA(t.INK, 0.12), color: custom.trim() && !busy && !sent ? t.PAPER : t.INK50, cursor: custom.trim() && !busy && !sent ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{sent ? '✓ Sent' : busy ? '…' : 'Send'}</button>
         </div>
       </div>
     </div>,
@@ -15560,7 +15563,7 @@ function useBSMemberAge(userId) {
   return entry.uid === userId ? entry.age : null;
 }
 
-function BSProfileIdentityHead({ name, handle, sub, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts, onMessage = null }) {
+function BSProfileIdentityHead({ name, handle, sub, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts, onMessage = null, mag = false }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
   const reduced = bsSdReduced();
   // Route Card identity head — the rail's origin. Eyebrow demotes to ink-alphas
@@ -15573,12 +15576,17 @@ function BSProfileIdentityHead({ name, handle, sub, goal, tierName, c, streak, p
         <span>{tierName} Tier</span>
         {streak ? <><span style={{ color: bsTHexA(INK, 0.3) }}>·</span><span>{streak} week streak</span></> : null}
       </div>
-      <h1 style={{ fontFamily: SERIF, fontSize: 27, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1.04, margin: '7px 0 5px' }}>{name}<span style={{ color: c }}>.</span></h1>
-      {(handle || sub) && <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{[handle, sub].filter(Boolean).join(' · ')}</div>}
+      {/* `mag` (the member profile, owner 2026-10-24: the Me page "cleaned up" to the Wall's look): the name in
+          the headline face over a heavy ink rule, as the Wall's masthead prints its title, and no heat rule under
+          the block, since the tab strip below opens on its own heavy rule. */}
+      <h1 style={mag
+        ? { fontFamily: SERIF, fontSize: 30, fontWeight: 600, color: INK, letterSpacing: '-0.01em', lineHeight: 1, margin: '8px 0 0', paddingBottom: 8, borderBottom: `3px solid ${INK}` }
+        : { fontFamily: SERIF, fontSize: 27, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1.04, margin: '7px 0 5px' }}>{name}<span style={{ color: c }}>.</span></h1>
+      {(handle || sub) && <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55), ...(mag ? { padding: '7px 0', borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` } : null) }}>{[handle, sub].filter(Boolean).join(' · ')}</div>}
       <div style={{ marginTop: 12 }}>
         <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} variant="ledger" ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} onMessage={onMessage} />
       </div>
-      <div aria-hidden style={{ height: 2, marginTop: 12, background: `linear-gradient(90deg, ${c}, ${bsTHexA(c, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) 300ms both' }) }} />
+      {!mag && <div aria-hidden style={{ height: 2, marginTop: 12, background: `linear-gradient(90deg, ${c}, ${bsTHexA(c, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) 300ms both' }) }} />}
     </div>
   );
 }
@@ -15957,7 +15965,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
   if (ledger) {
     if (empty) return null;
     return (
-      <div style={{ marginBottom: 22 }}>
+      <div style={{ marginTop: 14, marginBottom: 22 }}>
         {heroStats.length > 0 && (
           <div style={{ display: 'flex', gap: 18, paddingBottom: 14, marginBottom: 16, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
             {heroStats.map((s) => <div key={s.k} style={{ flex: 1, minWidth: 0 }}><BSTLedgerStat INK={INK} label={s.label} value={String(s.value)} seen={seen} figSize={22} /></div>)}
@@ -15973,12 +15981,15 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
         )}
         {wall.length > 0 && (
           <div style={{ marginBottom: 18 }}>
-            <BSTStationHead heat={c} INK={INK} label={tr('profile:wall.head', { defaultValue: 'The wall' })} meta={tr('profile:wall.count', { defaultValue: '{count, plural, one {# shot} other {# shots}}', count: wall.length })} />
-            <div className="bs-hide-scroll" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 2 }}>
+            <BSTStationHead mag heat={c} INK={INK} label={tr('profile:wall.head', { defaultValue: 'The wall' })} meta={tr('profile:wall.count', { defaultValue: '{count, plural, one {# shot} other {# shots}}', count: wall.length })} />
+            {/* The photos as the Wall prints them (owner, 2026-10-24, the Me page "cleaned up"): square, unframed,
+                the captions in the headline face; the strip runs to the screen's edge (`bleed`) instead of
+                stopping short of it, so the last shot is cut by the screen, not by the gutter. */}
+            <div className="bs-hide-scroll" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 2, scrollSnapType: 'x proximity', ...(bleed ? { marginRight: -bleed, paddingRight: bleed, scrollPaddingLeft: 0 } : null) }}>
               {wall.map((w, i) => (
-                <figure key={i} style={{ flex: 'none', width: 132, margin: 0 }}>
-                  <div style={{ width: 132, height: 96, borderRadius: 8, border: `1px solid ${bsTHexA(INK, 0.12)}`, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: bsTHexA(INK, 0.05) }} aria-hidden="true" />
-                  {w.caption ? <figcaption style={{ marginTop: 6, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.02em', color: bsTHexA(INK, 0.55), lineHeight: 1.3 }}>{w.caption}</figcaption> : null}
+                <figure key={i} style={{ flex: 'none', width: 148, margin: 0, scrollSnapAlign: 'start' }}>
+                  <div style={{ width: 148, height: 108, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: bsTHexA(INK, 0.05) }} aria-hidden="true" />
+                  {w.caption ? <figcaption style={{ marginTop: 6, fontFamily: SERIF, fontSize: 12.5, fontWeight: 500, color: bsTHexA(INK, 0.7), lineHeight: 1.25 }}>{w.caption}</figcaption> : null}
                 </figure>
               ))}
             </div>
@@ -15986,9 +15997,9 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
         )}
         {shelf.length > 0 && (
           <div style={{ marginBottom: 18 }}>
-            <BSTStationHead heat={c} INK={INK} label={tr('profile:shelf.head', { defaultValue: 'The shelf · Proudest' })} />
+            <BSTStationHead mag heat={c} INK={INK} label={tr('profile:shelf.head', { defaultValue: 'The shelf · Proudest' })} />
             {shelf.map((s, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 9, padding: '9px 0', borderTop: i ? `1px solid ${bsTHexA(INK, 0.08)}` : 'none' }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 9, padding: '9px 0', borderTop: i ? `1px solid ${bsTHexA(INK, 0.12)}` : 'none' }}>
                 <span style={{ flex: 'none', fontFamily: MONO, fontSize: 8.5, fontWeight: 700, color: bsTHexA(INK, 0.4) }}>{String(i + 1).padStart(2, '0')}</span>
                 <span style={{ fontFamily: SERIF, fontSize: 15, letterSpacing: '-0.01em', color: INK }}>{s.title}</span>
                 <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(INK, 0.28)}`, transform: 'translateY(-3px)', minWidth: 12 }} />
@@ -16007,10 +16018,12 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
         )}
         {prompts.length > 0 && (
           <div style={{ marginBottom: links.length ? 18 : 0 }}>
+            {/* Each answer pulled out as the Wall pulls out a coach's line: the question as its kicker, then the
+                red quote mark and the words in the headline face (owner, 2026-10-24, the Me page "cleaned up"). */}
             {prompts.map((p, i) => (
-              <div key={i} style={{ padding: '12px 0', borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
-                <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{bsPromptLabel(p.q, tr)}</div>
-                <div style={{ fontFamily: SERIF, fontSize: 16, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.25, marginTop: 6, color: bsTHexA(INK, 0.9) }}>{p.a}</div>
+              <div key={i} style={{ padding: '12px 0 14px', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+                <div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginBottom: 8 }}>{bsPromptLabel(p.q, tr)}</div>
+                <BSTPullQuote INK={INK} text={p.a} size={18} />
               </div>
             ))}
           </div>
@@ -17912,7 +17925,15 @@ const BST_SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-seri
 // A rail "station" head — a 6×1.5px heat tick + a mono uppercase eyebrow, with
 // an optional right-aligned meta note. Draws no box.
 // `size` is the label's px; the session pages keep 7.5, Progress reads at 10.
-function BSTStationHead({ heat, INK, label, meta, size = 7.5 }) {
+// `mag` is the member profile's head in the Wall's look (owner, 2026-10-24, the Me page "cleaned up"): the
+// name in the headline face over a 2px ink rule, its count in mono at the right.
+function BSTStationHead({ heat, INK, label, meta, size = 7.5, mag = false }) {
+  if (mag) return (
+    <div data-bst-head="mag" style={{ display: 'flex', alignItems: 'baseline', gap: 10, paddingBottom: 6, marginBottom: 12, borderBottom: `2px solid ${INK}` }}>
+      <span style={{ fontFamily: BST_SERIF, fontSize: 17, fontWeight: 600, lineHeight: 1, letterSpacing: '0.02em', textTransform: 'uppercase', color: INK }}>{label}</span>
+      {meta ? <span style={{ marginLeft: 'auto', fontFamily: BST_MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), whiteSpace: 'nowrap' }}>{meta}</span> : null}
+    </div>
+  );
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 13 }}>
       <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: heat }} />
@@ -17949,21 +17970,37 @@ function BSTLedgerStat({ INK, label, value, seen, figSize = 30, delay = 0, align
     </div>
   );
 }
-// Typographic tab index (Terrain only — Signal keeps BSLivingTabs). Sticky on a
-// solid paper fill with a 1px ink hairline; the active label carries a 2px heat
-// underline that draws in. Real ≥44px buttons.
+// Typographic tab index (Terrain only — Signal keeps BSLivingTabs), as the chat page's section strip (owner,
+// 2026-10-24, the Me page "cleaned up" to the Wall's look): the names in the headline face, ink when active
+// over the magazine's red, between a heavy rule and a hairline. Spread across the column, and scrolling
+// sideways when a language's names run longer (ru "Восхождение"), as the Wall masthead's tabs do. Sticky on
+// solid paper; real ≥44px buttons.
 function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20, top = 0 }) {
+  const red = bsWsRed(useBS());
   return (
-    <div style={{ position: 'sticky', top, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: `0 ${pad}px`, background: BG, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
-      <div style={{ display: 'flex' }}>
+    <div style={{ position: 'sticky', top, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: `0 ${pad}px`, background: BG, borderTop: `3px solid ${INK}`, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+      <div className="bs-hide-scroll" style={{ display: 'flex', justifyContent: 'space-between', gap: 14, overflowX: 'auto' }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
-          <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, minHeight: 44, position: 'relative', background: 'transparent', border: 0, cursor: 'pointer', padding: '15px 0 13px', fontFamily: BST_MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? INK : bsTHexA(INK, 0.45) }}>
-            {tb.label}
-            {on && <span aria-hidden style={{ position: 'absolute', left: '22%', right: '22%', bottom: -1, height: 2, background: heat, transformOrigin: 'left', ...(bsSdReduced() ? null : { animation: 'bsSdDrawX 300ms cubic-bezier(.4,0,.2,1) both' }) }} />}
+          <button key={tb.key} aria-pressed={on} onClick={() => onPick(tb.key)} style={{ flex: 'none', minHeight: 44, display: 'flex', alignItems: 'stretch', background: 'transparent', border: 0, cursor: 'pointer', padding: 0 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0 2px', boxShadow: on ? `inset 0 -2px 0 ${red}` : 'none', color: on ? INK : bsTHexA(INK, 0.5), fontFamily: BST_SERIF, fontSize: 13.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{tb.label}</span>
           </button>
         ); })}
       </div>
     </div>
+  );
+}
+
+// A member's own words pulled out, as the Wall pulls out a coach's line: the magazine's red quote mark, the
+// words in the headline face, and who said it in mono under them. Not a button (BSWallStoryQuote opens a post).
+function BSTPullQuote({ INK, text, cite, size = 19 }) {
+  const t = useBS();
+  if (!text) return null;
+  return (
+    <figure data-bst-quote="" style={{ display: 'grid', gridTemplateColumns: '20px minmax(0, 1fr)', columnGap: 6, margin: 0 }}>
+      <span aria-hidden style={{ fontFamily: BST_SERIF, fontSize: 40, fontWeight: 700, lineHeight: 0.7, color: bsWsRed(t) }}>“</span>
+      <blockquote style={{ margin: 0, fontFamily: BST_SERIF, fontSize: size, fontWeight: 500, lineHeight: 1.2, letterSpacing: '-0.005em', color: INK }}>{text}</blockquote>
+      {cite ? <figcaption style={{ gridColumn: 2, marginTop: 6, fontFamily: BST_MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{cite}</figcaption> : null}
+    </figure>
   );
 }
 
@@ -18642,7 +18679,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           <BSProfileIdentityHead name={name} handle={handle} sub={[pronouns, memberAge == null ? '' : `${memberAge}`, city].filter(Boolean).join(' · ')} goal={goal} tierName={tierName} c={c} streak={streakEff}
             photo={avPhoto || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
             userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
-            onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
+            onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} mag />
         </div>
         {/* M2 · the Start line + M4 · the Line — hero character, under the identity
             head. Absent/past/invalid date → the start line doesn't render. */}
@@ -18658,13 +18695,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             <div style={{ padding: '8px 8px 0' }}>
               {heroStartState && (
                 <div style={{ fontFamily: BST_MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), lineHeight: 1.5 }}>
-                  <span style={{ color: c }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>{heroStart.title ? ` · ${heroStart.title}` : ''}{dateLabel ? ` · ${dateLabel}` : ''} · <span style={{ color: c }}>{heroStartState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: heroStartState.days })}</span>
+                  <span style={{ color: c }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>{heroStart.title ? ` · ${heroStart.title}` : ''}{dateLabel ? ` · ${dateLabel}` : ''} · <span style={{ color: c, whiteSpace: 'nowrap' }}>{heroStartState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: heroStartState.days })}</span>
                 </div>
               )}
               {heroLine && (
-                <div style={{ marginTop: heroStartState ? 8 : 0 }}>
-                  <span style={{ fontFamily: BST_SERIF, fontSize: 17, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.3, color: INK }}>{heroLine}</span>
-                  <div style={{ marginTop: 4, fontFamily: BST_MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>— {firstName} {tr('profile:line.attribution', { defaultValue: 'line' })}</div>
+                <div style={{ marginTop: heroStartState ? 12 : 4 }}>
+                  <BSTPullQuote INK={INK} text={heroLine} cite={`${firstName} ${tr('profile:line.attribution', { defaultValue: 'line' })}`} />
                 </div>
               )}
             </div>
@@ -18807,15 +18843,18 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             const compPerf = cats.map(([, v]) => (v == null ? 0 : Number(v)));
             const bestIdx = compPerf.some((v) => v > 0) ? compPerf.indexOf(Math.max(...compPerf)) : -1;
             return (
-              <div data-tour="hero-score" role="button" tabIndex={0} onClick={onOpenScore} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenScore && onOpenScore(); } }} style={{ padding: '4px 0 16px', cursor: 'pointer' }}>
+              <div data-tour="hero-score" role="button" tabIndex={0} onClick={onOpenScore} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenScore && onOpenScore(); } }} style={{ padding: '4px 0 6px', cursor: 'pointer' }}>
                 <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Shape Score</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 3 }}>
-                  <span style={{ fontFamily: SERIF, fontSize: 40, fontWeight: 700, color: INK, letterSpacing: '-0.04em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}><BSSdCountUp text={String(pts)} duration={780} delay={180} /></span>
+                  <span style={{ fontFamily: SERIF, fontSize: 44, fontWeight: 600, color: INK, letterSpacing: '-0.02em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}><BSSdCountUp text={String(pts)} duration={780} delay={180} /></span>
                   <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>pts</span>
                   <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, borderBottom: `1px solid ${c}`, paddingBottom: 2, whiteSpace: 'nowrap' }}>{nextT ? tr('profile:ladder.toNext', { pts: toNextPts, tier: nextT[0], defaultValue: '{pts, number} to {tier}' }) : tr('profile:ladder.top', { defaultValue: 'Top of the ladder' })} <span style={{ color: c }}>›</span></span>
                 </div>
-                <div aria-hidden style={{ height: 2, margin: '11px 0 12px', background: `linear-gradient(90deg, ${c}, ${bsTHexA(c, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(bsSdReduced() ? null : { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) 350ms both' }) }} />
-                <BSSdBars rows={compRows} perf={compPerf} bestIdx={bestIdx} heat={c} t={tTheme} muted={bsTHexA(INK, 0.55)} still />
+                {/* As the Wall prints its figures (owner, 2026-10-24, the Me page "cleaned up"): a 2px ink rule
+                    under the score, square bars, the figures in the headline face, and no halo or burst on the best
+                    pillar (its burst left a box drawn around the bar). */}
+                <div aria-hidden style={{ height: 2, margin: '11px 0 8px', background: INK }} />
+                <BSSdBars rows={compRows} perf={compPerf} bestIdx={bestIdx} heat={c} t={tTheme} muted={bsTHexA(INK, 0.55)} still mag />
               </div>
             );
           })()}
@@ -18853,7 +18892,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             {/* THE CLIMB — the ascent inked straight on the paper (no box, no
                 wash). Heat route draws start → now; target stays a hollow circle. */}
             <div style={{ marginBottom: 28 }}>
-              <BSTStationHead heat={c} INK={INK} label={tr('profile:terrain.theClimb', { defaultValue: 'The climb' })} meta={tr('profile:terrain.memberSince', { date: since, defaultValue: 'Member since {date}' })} />
+              <BSTStationHead mag heat={c} INK={INK} label={tr('profile:terrain.theClimb', { defaultValue: 'The climb' })} meta={tr('profile:terrain.memberSince', { date: since, defaultValue: 'Member since {date}' })} />
               {climbTabs.length > 1 && (
                 <div className="bs-hide-scroll" style={{ display: 'flex', gap: 16, marginBottom: 14, overflowX: 'auto', alignItems: 'center' }}>
                   {climbTabs.map((s) => { const on = activeClimb === s.key; return (
@@ -18931,7 +18970,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               return (<>
               {/* LIVING SIGNALS — day streak + weekly momentum, then trajectory */}
               <div style={{ marginBottom: 26 }}>
-                <BSTStationHead heat={c} INK={INK} label={tr('profile:terrain.livingSignals', { defaultValue: 'Living signals' })} meta={hasWeek ? tr('profile:terrain.todayUp', { defaultValue: 'today ↑' }) : null} />
+                <BSTStationHead mag heat={c} INK={INK} label={tr('profile:terrain.livingSignals', { defaultValue: 'Living signals' })} meta={hasWeek ? tr('profile:terrain.todayUp', { defaultValue: 'today ↑' }) : null} />
                 <div style={{ display: 'flex', gap: 22, alignItems: 'flex-start' }}>
                   <div style={{ flex: 'none' }}>
                     <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:stat.dayStreak', { defaultValue: 'Day streak' })}</div>
@@ -18966,12 +19005,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               </div>
 
               <div style={{ marginBottom: 26 }}>
-                <BSTStationHead heat={c} INK={INK} label={tr('profile:terrain.disciplinesStrata', { defaultValue: 'Disciplines · strata' })} />
-                {hasDisc ? <BSSdBars rows={discRows} perf={discPerf} bestIdx={discBest} heat={c} t={tTheme} muted={bsTHexA(INK, 0.55)} still /> : <BSTRedact INK={INK} label={tr('profile:terrain.notEnoughLogged', { defaultValue: 'Not enough logged yet' })} />}
+                <BSTStationHead mag heat={c} INK={INK} label={tr('profile:terrain.disciplinesStrata', { defaultValue: 'Disciplines · strata' })} />
+                {hasDisc ? <BSSdBars rows={discRows} perf={discPerf} bestIdx={discBest} heat={c} t={tTheme} muted={bsTHexA(INK, 0.55)} still mag /> : <BSTRedact INK={INK} label={tr('profile:terrain.notEnoughLogged', { defaultValue: 'Not enough logged yet' })} />}
               </div>
 
               <div style={{ marginBottom: 28 }}>
-                <BSTStationHead heat={c} INK={INK} label={tr('profile:terrain.keyLifts', { defaultValue: 'Key lifts' })} />
+                <BSTStationHead mag heat={c} INK={INK} label={tr('profile:terrain.keyLifts', { defaultValue: 'Key lifts' })} />
                 {hasLifts ? liftsEff.map(([label, val]) => { const u = bsSdSplitUnit(tTheme.uText(String(val))); return (
                   <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '9px 0' }}>
                     <span style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), flex: 'none' }}>{label}</span>
@@ -19144,6 +19183,44 @@ function bsDemoCoachActivity(name, isNutri, tier) {
     },
   ];
 }
+// The page's own scroller (BSPage's .bs-scroll) read for its direction: true while the reader scrolls down,
+// false the moment they scroll back up, near the top, or at the very end. A small dead band keeps a resting
+// thumb from flickering it.
+function useBSHideOnScrollDown(ref, { slack = 8, top = 64 } = {}) {
+  const [hidden, setHidden] = useStateBSC(false);
+  React.useEffect(() => {
+    const sc = ref.current && ref.current.closest ? ref.current.closest('.bs-scroll') : null;
+    if (!sc) return undefined;
+    let last = sc.scrollTop;
+    const onScroll = () => {
+      const y = sc.scrollTop;
+      if (y <= top || y + sc.clientHeight >= sc.scrollHeight - 4) { setHidden(false); last = y; return; }
+      if (y - last > slack) { setHidden(true); last = y; } else if (last - y > slack) { setHidden(false); last = y; }
+    };
+    sc.addEventListener('scroll', onScroll, { passive: true });
+    return () => sc.removeEventListener('scroll', onScroll);
+  }, [ref, slack, top]);
+  return hidden;
+}
+
+// A coach profile's Message / Work-with dock gets out of the way (owner, 2026-10-24: "why isnt this going away
+// when i scroll down, the message and work with maya"): it slides off while the page scrolls down and back on
+// as it scrolls up, so it never sits over the text being read. It fades as it slides, since the floating tab
+// bar below it would show it through its frost. On solid paper over a hairline, so nothing shows through it;
+// hidden, it is inert, so a keyboard can't reach the buttons it hides.
+function BSCoachProfileDock({ INK, BG, c, onMessage, onWorkWith, messageLabel, workLabel }) {
+  const ref = React.useRef(null);
+  const hidden = useBSHideOnScrollDown(ref);
+  return (
+    <div ref={ref} data-coach-dock="" inert={hidden} style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '12px 18px calc(14px + env(safe-area-inset-bottom, 0px))', background: BG, borderTop: `1px solid ${bsTHexA(INK, 0.12)}`, transform: hidden ? 'translateY(40%)' : 'none', opacity: hidden ? 0 : 1, transition: bsSdReduced() ? 'none' : 'transform 220ms cubic-bezier(.4,0,.2,1), opacity 180ms ease' }}>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button onClick={onMessage} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{messageLabel}</button>
+        <button onClick={onWorkWith} style={{ flex: 1.4, minHeight: 48, borderRadius: 999, background: c, color: '#0c0a08', border: 0, cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800 }}>{workLabel} →</button>
+      </div>
+    </div>
+  );
+}
+
 function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
@@ -19906,12 +19983,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
 
       {/* dock — Message / Work-with others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
-        <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => onMsg(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{tr('profile:action.message', { defaultValue: 'Message' })}</button>
-            <button onClick={() => setTab('coaching')} style={{ flex: 1.4, minHeight: 48, borderRadius: 999, background: c, color: '#0c0a08', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800 }}>{tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })} →</button>
-          </div>
-        </div>
+        <BSCoachProfileDock INK={INK} BG={BG} c={c} onMessage={() => onMsg(person)} onWorkWith={() => setTab('coaching')}
+          messageLabel={tr('profile:action.message', { defaultValue: 'Message' })} workLabel={tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })} />
       )}
     </div></BSPage>
   );
