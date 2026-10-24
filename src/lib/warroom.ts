@@ -625,6 +625,20 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'The Me page, the Boost sheet and the coach profile in the Wall\'s look; the coach dock hides on scroll — #2441. No migration',
+      items: [
+        { label: 'Owner, 2026-10-24: "This needs to get cleaned up" (the Me tab). The member profile reads as the Wall prints: the name over a heavy ink rule, the score\'s square bars with no box on the best one, the chat page\'s section strip for the tabs (red underline, aria-pressed), every station head over a 2px ink rule, square wall shots to the screen\'s edge, and the member\'s line and prompt answers pulled out under the red quote mark (BSTPullQuote)', status: 'done' },
+        { label: 'Owner: "update design of this as well to match" (Boost Priya). The live Boost sheet has the flat face, a red kicker (amber at the stove), the headline over a heavy rule, square phrase boxes and an ink Send', status: 'done' },
+        { label: 'Owner: "why isnt this going away when i scroll down, the message and work with maya". The coach profile\'s Message / Work-with dock slides off and fades while the page scrolls down and returns on scroll up, near the top and at the end; inert while hidden, on solid paper when shown (BSCoachProfileDock, useBSHideOnScrollDown)', status: 'done' },
+        { label: 'Owner: "Design" (the rest of the coach profile to match). The line pulled out, the Me page\'s counts and tab strip (five names set tighter to fit 375 px; BSLivingTabs removed), About\'s heads, focus bars to /100 and the Wall\'s figures, square ink actions in every Coaching state, plan types as red-underlined words, and reviews pulled out under the writer\'s flat face', status: 'done' },
+        { label: 'BSProfileMagazine.jsx holds the quote, the dock and its hook, carved out of the client module (theme read at call time, no import back); the two profile screens stay in the client module, as Eat did in #2425', status: 'done' },
+        { label: 'Review: Codex on b50f699 (P1: move the touched pieces into a module, done in bb42816), on bb42816 (P2: the coach\'s own Log activity kept the pill, fixed in 7300b7c), on 7300b7c (P1: text on ink took PAPER_BG, a gradient on Steel, fixed in 66d2684 with the solid PAPER), and clean on 66d2684 ("Didn\'t find any major issues"). Copilot declined on its quota', status: 'done' },
+        { label: 'Verified: npm test 8,351/8,351; CI green on all four jobs on the final head; tests/me-page-magazine and tests/profile-magazine-module, whose checks fail on the code before them; Chromium renders of the Me page, the Boost sheet and the coach profile on light, dark and Steel, and the dock hiding and returning', status: 'done' },
+        { label: 'Moving BSTerrainProfile and BSSignalCoachProfile out of the client module is a refactor of its own: the owner\'s call', status: 'pending' },
+        { label: 'Device pass: the Me page, the Boost sheet, the coach profile and the dock under a thumb, on light, dark and Steel', status: 'manual' },
+      ],
+    },
+    {
       section: 'The coach app opens on a cold start — #2440. No migration',
       items: [
         { label: 'Owner, 2026-10-24: "Fix the coach app crashing on a cold start". A trainer, nutritionist or dietitian opening the app fresh saw "Something went wrong" on Today (React #130): iosAppBroadsheetPros.jsx reads the client module\'s globals at load, and loadProsBundle loaded only the feature modules. It now loads the whole client bundle first. The client module loads once whichever role asks, and a client module that fails to load fails the coach bundle, so a retry loads both', status: 'done' },
