@@ -77,16 +77,15 @@ function loadClientBundle() {
 
 function loadProsBundle() {
   if (_prosBundlePromise) return _prosBundlePromise;
-  // Same as the client bundle: feature modules first (they define the window
-  // globals pros destructures at load — BSSheetProvider, BSCalendarScreen, …),
-  // then the pros module last.
-  _prosBundlePromise = Promise.all([
-    import('./iosAppBroadsheetCalendar.jsx'),
-    import('./iosAppBroadsheetProviderApply.jsx'),
-    import('./iosAppBroadsheetMarketplace.jsx'),
-    import('./iosAppBroadsheetWidgets.jsx'),
-    import('./iosAppBroadsheetHabits.jsx'),
-  ]).then(() => import('./iosAppBroadsheetPros.jsx')).then(() => true)
+  // The whole client bundle first (its feature modules, then the client module),
+  // then the pros module last. ⚠ Pros destructures the CLIENT module's globals at
+  // load too — BSFacetAvatar, BSClientChat, BSSettings, the Score and Store pages,
+  // BSPublicProfile — and leans on its identity helpers and sign-out sweep. A cold
+  // start as a coach used to load only the feature modules, so Today rendered an
+  // undefined component and the app showed "Something went wrong" (React #130);
+  // it only worked after the member preview had loaded the client module first.
+  _prosBundlePromise = loadClientBundle()
+    .then(() => import('./iosAppBroadsheetPros.jsx')).then(() => true)
     .catch((err) => { _prosBundlePromise = null; return _bsChunkRecover(err); });
   return _prosBundlePromise;
 }
