@@ -41,3 +41,21 @@ test('replaying uncheck on an absent completion remains unchecked',async()=>{
   assert.equal((await (await route.POST(request({action:'set',id:'h',date:'2026-09-19',done:false}))).json()).done,false);
   assert.equal(calls.some(c=>c[0]==='upsert'),false);
 });
+// Codex P2 on #2437: deleting keeps past check-offs, so GET sends the habits deleted inside its 90
+// days as `archived`, with their check-offs, for the Progress charts; today's list stays live only.
+test('GET sends the habits deleted inside the window, with their check-offs, apart from the live ones',async()=>{
+  const get=()=>new Request('https://shape.test/api/client/habits',{headers:{Authorization:'Bearer native-token'}});
+  const {route,calls}=await api([
+    {data:[{id:'h',name:'Read',type:'do',created_at:'2026-09-01T00:00:00Z',archived_at:null}]},
+    {data:[{habit_id:'h',done_on:'2026-10-20'},{habit_id:'g',done_on:'2026-10-19'},{habit_id:'g',done_on:'2026-10-18'}]},
+    {data:[{id:'g',name:'Water',type:'do',created_at:'2026-09-01T00:00:00Z',archived_at:'2026-10-21T15:00:00Z'}]},
+  ]);
+  const body=await (await route.GET(get())).json();
+  assert.deepEqual(body.habits.map(h=>[h.id,h.history]),[['h',['2026-10-20']]]);
+  assert.deepEqual(body.archived.map(h=>[h.id,h.archived_at,h.history]),[['g','2026-10-21T15:00:00Z',['2026-10-18','2026-10-19']]]);
+  assert.ok(calls.some(c=>c[0]==='is'&&c[1]==='archived_at'&&c[2]===null),'the live list still leaves deleted habits out');
+  const bound=calls.find(c=>c[0]==='gte'&&c[1]==='archived_at');
+  assert.ok(bound&&Date.now()-Date.parse(bound[2])>=89*864e5,'only habits deleted inside the 90 days');
+  const failed=await api([{data:[]},{data:[]},{error:{message:'offline'}}]);
+  assert.equal((await failed.route.GET(get())).status,500,'a failed read of them fails the read, as the others do');
+});

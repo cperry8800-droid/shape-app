@@ -134,20 +134,42 @@ test('a refused save keeps the sheet open and says it did not save', async () =>
   await m.close();
 });
 
-test('the row shows the share button only once sharing has read, with the count when shared', async () => {
+// The row's ⋯ opens the habit's options (owner, 2026-10-24): sharing is one of them, offered only
+// once the watchers have read, and it says who already hears.
+test('the options offer sharing only once sharing has read, with the count when shared', async () => {
   api();
   const row = (watchers) => React.createElement(H.BSHabitRow, { habit: HABIT, accent: '#0a8f87', onToggle() {}, onRemove() {}, watchers });
   let m = await mount(row(null));
-  assert.equal(m.btn(/Share this habit|Shared with/), undefined, 'no share button before the watchers have read');
+  await m.click(/^Options for Walk 10k steps$/);
+  assert.match(m.text(), /Habit options/);
+  assert.ok(!m.btn(/Who hears if you miss it/), 'no sharing before the watchers have read');
   await m.close();
   m = await mount(row([]));
-  assert.ok(m.btn(/^Share this habit$/));
+  await m.click(/^Options for Walk 10k steps$/);
+  assert.match(m.btn(/Who hears if you miss it/).textContent, /Not shared/);
   await m.close();
   m = await mount(row(['u-ben', 'u-cat']));
-  const b = m.btn(/Shared with 2 people/);
-  assert.ok(b && b.textContent.includes('2'));
-  await m.click(/Shared with 2 people/);
-  assert.match(m.text(), /Who hears if you miss it/, 'the button opens the sheet');
+  await m.click(/^Options for Walk 10k steps$/);
+  assert.match(m.btn(/Who hears if you miss it/).textContent, /Shared with 2 people/);
+  await m.click(/Who hears if you miss it/);
+  assert.match(m.text(), /Follow someone|Ben Ode|Loading/, 'the option opens the share sheet');
+  assert.ok(!m.btn(/Delete habit/), 'the options sheet closed behind it');
+  await m.close();
+});
+
+test('the row ticks the habit and shows it kept', async () => {
+  api();
+  const toggled = [];
+  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  let m = await mount(React.createElement(H.BSHabitRow, { habit: HABIT, accent: '#0a8f87', onToggle: (id) => toggled.push(id), onRemove() {} }));
+  const tick = [...m.host.querySelectorAll('button')].find((b) => b.getAttribute('aria-pressed') === 'false');
+  assert.ok(tick && /Walk 10k steps/.test(tick.textContent), 'the whole row is the tick button');
+  await React.act(async () => { tick.click(); });
+  assert.deepEqual(toggled, ['h1']);
+  await m.close();
+  m = await mount(React.createElement(H.BSHabitRow, { habit: { ...HABIT, history: [today] }, accent: '#0a8f87', onToggle() {}, onRemove() {} }));
+  const kept = [...m.host.querySelectorAll('button')].find((b) => b.getAttribute('aria-pressed') === 'true');
+  assert.ok(kept && /Kept/.test(kept.textContent), 'a habit ticked today reads as kept');
   await m.close();
 });
 

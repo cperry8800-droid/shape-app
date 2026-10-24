@@ -91,3 +91,22 @@ test('midnight stays hour zero and reminder database failures propagate',async()
   await assert.rejects(context.setHabitReminder({habitId:'h',time:'09:00',days:[1]}),/Save failed/);
   assert.equal(scheduled,null);
 });
+// Codex P2 on #2437: the charts go on counting a deleted habit's check-offs. A load maps the
+// route's `archived` with the day each went; a delete moves the habit across, history and all.
+test('deleted habits stay for the charts: from the route, and the moment one is deleted',async()=>{
+  window.ShapeAuth={getCachedState:()=>({user:{id:'a'}})};
+  const today=mod._bsHabitsToday();
+  window.ShapeHabitsData={
+    listStrict:async()=>({habits:[{id:'h',name:'Read',history:[today]}],archived:[{id:'g',name:'Water',type:'do',created_at:'2026-09-01T12:00:00Z',archived_at:'2026-10-21T12:00:00',history:['2026-10-20']}]}),
+    action:async()=>({ok:true}),
+  };
+  const root=createRoot(document.getElementById('root'));
+  try {
+    await React.act(async()=>root.render(React.createElement(Harness)));
+    assert.deepEqual(actions.habits.map(h=>h.id),['h'],'today lists only live habits');
+    assert.deepEqual(actions.archived.map(h=>[h.id,h.archivedOn,h.history]),[['g','2026-10-21',['2026-10-20']]]);
+    await React.act(async()=>actions.remove('h'));
+    assert.deepEqual(actions.habits,[]);
+    assert.deepEqual(actions.archived.map(h=>[h.id,h.archivedOn,h.history]),[['g','2026-10-21',['2026-10-20']],['h',today,[today]]]);
+  } finally { await React.act(async()=>root.unmount()); }
+});

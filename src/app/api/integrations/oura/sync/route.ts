@@ -142,15 +142,24 @@ async function importOuraWorkouts(
 ) {
   let imported = 0;
   const errors: string[] = [];
+  // The refused activities rows, apart: the app's sync fails on them (Codex P2 on #2437).
+  const rowErrors: string[] = [];
   // The member's own share level — resolved once per sync run (fail-closed to
   // 'private' on any settings read error).
   const sharePrivacy = await resolveWorkoutSharePrivacy(client, userId);
 
   for (const workout of workouts) {
     if (!workout.id) continue;
-    await client
+    // ⚠ A REFUSED ACTIVITY ROW IS REPORTED. The table's source check refused 'oura' until
+    // 2026-10-24-activities-source.sql, and nothing said so. The post below still goes ahead.
+    const { error: activityError } = await client
       .from('activities')
       .upsert(ouraActivityRow(workout, userId), { onConflict: 'user_id,source,external_id' });
+    if (activityError) {
+      console.error('[shape-api] oura activity row failed:', activityError.message);
+      errors.push('Could not save an activity.');
+      rowErrors.push('Could not save an activity.');
+    }
 
     const payload = workoutPostPayload(workout, userId, profile, fallbackName, sharePrivacy);
     const { data: existing, error: lookupError } = await client
@@ -191,7 +200,7 @@ async function importOuraWorkouts(
     }
   }
 
-  return { imported, errors };
+  return { imported, errors, rowErrors };
 }
 
 export async function GET(request: Request) {
@@ -248,6 +257,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       oura: { personalInfo, readiness, sleep, dailySleep, dailyActivity, workouts },
       import: importResult,
+      activities: { errors: importResult?.rowErrors ?? [] },
       snapshot,
     });
   } catch (error) {

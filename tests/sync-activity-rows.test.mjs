@@ -1,0 +1,258 @@
+// The WHOOP and Strava syncs write their typed activities rows on every sync, not only on Import
+// (Codex P2 on #2437). Train's Burned this week and Home's Week so far read those rows, and the
+// routine sync (the check-in card, the Sync button) never asks for ?import=1. Only the feed posts
+// stay behind Import, and a refused row is reported.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import { loadRealModule } from './helpers/load-real-module.mjs';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
+
+function db({ refuse = false, existing = [], readFails = false } = {}) {
+  const writes = { activities: [], posts: [] };
+  const client = {
+    writes,
+    from(table) {
+      const chain = {
+        select: () => chain, eq: () => chain,
+        in: async () => (readFails ? { data: null, error: { message: 'offline' } } : { data: table === 'activities' ? existing : [], error: null }),
+        maybeSingle: async () => ({ data: null, error: null }),
+        upsert: async (row) => {
+          if (table === 'activities') {
+            writes.activities.push(row);
+            return refuse ? { error: { message: 'violates check constraint' } } : { error: null };
+          }
+          return { error: null };
+        },
+        insert: async (row) => { if (table === 'community_posts') writes.posts.push(row); return { error: null }; },
+        update: () => ({ eq: async () => ({ error: null }) }),
+      };
+      return chain;
+    },
+  };
+  return client;
+}
+
+async function load(file, client, extra) {
+  return loadRealModule(join(ROOT, file), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', nextServer],
+      ['@supabase/supabase-js', {}],
+      ['@/lib/request-auth', { currentUser: async () => ({ id: 'u1', email: 'ann@shape.test' }), clientForRequest: async () => client }],
+      ['@/lib/request-utils', { dbError: (_e, _tag, code, msg) => nextServer.NextResponse.json({ error: msg }, { status: code }) }],
+      ['@/lib/integrations/tokens', { getFreshAccessToken: async () => 'tok' }],
+      ['@/lib/workout-share', { resolveWorkoutSharePrivacy: async () => 'private', findCrossSourceDuplicate: async () => null, maybeSendFirstShareNotice: async () => {}, activityStartISO: (x) => x }],
+      ...extra,
+    ]),
+  });
+}
+
+async function withFetch(answer, fn) {
+  const was = globalThis.fetch;
+  const quiet = console.error;
+  const logged = [];
+  console.error = (...a) => logged.push(a.join(' '));
+  globalThis.fetch = async (url) => ({ ok: true, status: 200, json: async () => answer(String(url)), text: async () => '' });
+  try { return { out: await fn(), logged }; } finally { globalThis.fetch = was; console.error = quiet; }
+}
+
+const WHOOP_WORKOUT = { id: 'wk-1', sport_name: 'Running', start: '2026-10-24T07:00:00Z', end: '2026-10-24T07:45:00Z', score: { kilojoule: 2092, strain: 11.2 } };
+const whoopAnswer = (url) => (url.includes('/activity/workout') ? { records: [WHOOP_WORKOUT] } : url.includes('/user/') ? {} : { records: [] });
+
+test('a routine WHOOP sync saves the workout rows and posts nothing', async () => {
+  const client = db();
+  const route = await load('src/app/api/integrations/whoop/sync/route.ts', client, [['@/lib/health-snapshot', { writeWhoopSnapshots: async () => ({ days: 0 }) }]]);
+  const { out } = await withFetch(whoopAnswer, async () => route.GET(new Request('https://shape.test/api/integrations/whoop/sync')));
+  const body = await out.json();
+  assert.equal(out.status, 200);
+  assert.equal(client.writes.activities.length, 1);
+  assert.equal(client.writes.activities[0].source, 'whoop');
+  assert.equal(client.writes.activities[0].calories, 500, '2,092 kJ is 500 kcal');
+  assert.deepEqual(body.activities, { written: 1, errors: [] });
+  assert.equal(body.import, null);
+  assert.equal(client.writes.posts.length, 0, 'the feed post waits for Import');
+});
+
+test('WHOOP Import still posts, and writes each row once', async () => {
+  const client = db();
+  const route = await load('src/app/api/integrations/whoop/sync/route.ts', client, [['@/lib/health-snapshot', { writeWhoopSnapshots: async () => ({ days: 0 }) }]]);
+  const { out } = await withFetch(whoopAnswer, async () => route.GET(new Request('https://shape.test/api/integrations/whoop/sync?import=1')));
+  const body = await out.json();
+  assert.equal(client.writes.activities.length, 1, 'the import no longer writes the row a second time');
+  assert.equal(client.writes.posts.length, 1);
+  assert.equal(body.import.imported, 1);
+});
+
+// Codex P2 on #2437: the latest 10 left a busy week's earlier workouts without a row. The sync now
+// pages through the last eight days as well, following next_token.
+test('a WHOOP sync saves every workout of the week, page by page', async () => {
+  const client = db();
+  const route = await load('src/app/api/integrations/whoop/sync/route.ts', client, [['@/lib/health-snapshot', { writeWhoopSnapshots: async () => ({ days: 0 }) }]]);
+  const w = (id, day) => ({ ...WHOOP_WORKOUT, id, start: `2026-10-${day}T07:00:00Z`, end: `2026-10-${day}T07:45:00Z` });
+  const asked = [];
+  const answer = (url) => {
+    if (!url.includes('/activity/workout')) return url.includes('/user/') ? {} : { records: [] };
+    const q = new URL(url).searchParams;
+    asked.push(Object.fromEntries(q));
+    if (!q.get('start')) return { records: [w('a', 24)] };
+    return q.get('nextToken') === 'p2' ? { records: [w('c', 19)] } : { records: [w('a', 24), w('b', 21)], next_token: 'p2' };
+  };
+  const { out } = await withFetch(answer, async () => route.GET(new Request('https://shape.test/api/integrations/whoop/sync')));
+  const body = await out.json();
+  assert.deepEqual(client.writes.activities.map((r) => r.external_id).sort(), ['a', 'b', 'c'], 'each workout once, the second page included');
+  assert.deepEqual(body.activities, { written: 3, errors: [] });
+  const paged = asked.filter((q) => q.start);
+  assert.equal(paged.length, 2);
+  assert.equal(paged[0].limit, '25');
+  assert.equal(paged[1].nextToken, 'p2');
+  assert.ok(Date.now() - Date.parse(paged[0].start) >= 8 * 86_400_000 - 60_000, 'eight days back');
+});
+
+test('a refused WHOOP row is reported', async () => {
+  const client = db({ refuse: true });
+  const route = await load('src/app/api/integrations/whoop/sync/route.ts', client, [['@/lib/health-snapshot', { writeWhoopSnapshots: async () => ({ days: 0 }) }]]);
+  const { out, logged } = await withFetch(whoopAnswer, async () => route.GET(new Request('https://shape.test/api/integrations/whoop/sync')));
+  const body = await out.json();
+  assert.deepEqual(body.activities, { written: 0, errors: ['Could not save an activity.'] });
+  assert.ok(logged.some((l) => /whoop activity row failed/.test(l)));
+});
+
+test('a routine Strava sync saves the activity rows and posts nothing', async () => {
+  const client = db();
+  const route = await load('src/app/api/integrations/strava/sync/route.ts', client, [['@/lib/health-snapshot', { writeStravaSnapshots: async () => ({ days: 0 }) }]]);
+  const run = { id: 42, name: 'Morning run', sport_type: 'Run', start_date: '2026-10-24T07:00:00Z', moving_time: 1800, distance: 5000 };
+  const { out } = await withFetch((url) => (url.includes('/athlete/activities') ? [run] : { id: 7 }), async () => route.GET(new Request('https://shape.test/api/integrations/strava/sync')));
+  const body = await out.json();
+  assert.equal(out.status, 200);
+  assert.equal(client.writes.activities.length, 1);
+  assert.equal(client.writes.activities[0].source, 'strava');
+  assert.equal(client.writes.activities[0].external_id, '42');
+  assert.deepEqual(body.activities, { written: 1, errors: [] });
+  assert.equal(client.writes.posts.length, 0);
+});
+
+// Codex P2 on #2437: Strava's activity list carries no calories, so the sync reads an activity's
+// detail for them: once each, only for the last eight days, at most 3 a sync, none after a failure.
+test('Strava reads a recent activity’s calories from its detail, once', async () => {
+  const ago = (d) => new Date(Date.now() - d * 86_400_000).toISOString();
+  const run = (id, d) => ({ id, name: `Run ${id}`, sport_type: 'Run', start_date: ago(d), moving_time: 1800, distance: 5000 });
+  const client = db({ existing: [
+    { external_id: '2', calories: 300, metrics: {} },
+    { external_id: '3', calories: null, metrics: { caloriesChecked: true } },
+  ] });
+  const route = await load('src/app/api/integrations/strava/sync/route.ts', client, [['@/lib/health-snapshot', { writeStravaSnapshots: async () => ({ days: 0 }) }]]);
+  const details = [];
+  const answer = (url) => {
+    if (url.includes('/athlete/activities')) return [run(1, 1), run(2, 2), run(3, 3), run(4, 20)];
+    const m = /\/activities\/(\d+)$/.exec(url);
+    if (m) { details.push(m[1]); return { id: Number(m[1]), calories: 512.4 }; }
+    return { id: 7 };
+  };
+  await withFetch(answer, async () => route.GET(new Request('https://shape.test/api/integrations/strava/sync')));
+  assert.deepEqual(details, ['1'], 'only the recent activity with no calories on file is read');
+  const row = Object.fromEntries(client.writes.activities.map((r) => [r.external_id, r]));
+  assert.equal(row['1'].calories, 512);
+  assert.equal(row['1'].metrics.caloriesChecked, true);
+  assert.equal(row['2'].calories, 300, 'calories already on file are kept, not overwritten with the list’s none');
+  assert.equal(row['3'].calories, null);
+  assert.equal(row['3'].metrics.caloriesChecked, true, 'read before and had none: not read again');
+  assert.equal(row['4'].calories, null, 'older than the week: not read');
+
+  const many = db();
+  const route2 = await load('src/app/api/integrations/strava/sync/route.ts', many, [['@/lib/health-snapshot', { writeStravaSnapshots: async () => ({ days: 0 }) }]]);
+  const read2 = [];
+  const answer2 = (url) => {
+    if (url.includes('/athlete/activities')) return [1, 2, 3, 4, 5].map((id) => run(id, 1));
+    const m = /\/activities\/(\d+)$/.exec(url);
+    if (m) { read2.push(m[1]); return { calories: 400 }; }
+    return { id: 7 };
+  };
+  await withFetch(answer2, async () => route2.GET(new Request('https://shape.test/api/integrations/strava/sync')));
+  assert.deepEqual(read2, ['1', '2', '3'], 'at most 3 details a sync');
+
+  const failing = db();
+  const route3 = await load('src/app/api/integrations/strava/sync/route.ts', failing, [['@/lib/health-snapshot', { writeStravaSnapshots: async () => ({ days: 0 }) }]]);
+  let tries = 0;
+  const was = globalThis.fetch;
+  const warn = console.warn;
+  console.warn = () => {};
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (/\/activities\/\d+$/.test(u)) { tries += 1; return { ok: false, status: 429, statusText: 'Too Many Requests', text: async () => '' }; }
+    return { ok: true, status: 200, json: async () => (u.includes('/athlete/activities') ? [1, 2, 3].map((id) => run(id, 1)) : { id: 7 }), text: async () => '' };
+  };
+  try {
+    const res = await route3.GET(new Request('https://shape.test/api/integrations/strava/sync'));
+    assert.equal(res.status, 200, 'a failed detail never fails the sync');
+  } finally { globalThis.fetch = was; console.warn = warn; }
+  assert.equal(tries, 1, 'no more details after a failed one');
+  assert.ok(failing.writes.activities.every((r) => !r.metrics.caloriesChecked), 'a failed read is tried again next sync');
+});
+
+// Codex P2 on #2437: with the rows on file unread, writing would put the list's no-calories over
+// the calories stored, so the sync writes no row and says so (the app then tries again).
+test('Strava writes no row when it cannot read the calories on file', async () => {
+  const client = db({ readFails: true });
+  const route = await load('src/app/api/integrations/strava/sync/route.ts', client, [['@/lib/health-snapshot', { writeStravaSnapshots: async () => ({ days: 0 }) }]]);
+  const run = { id: 42, name: 'Morning run', sport_type: 'Run', start_date: new Date().toISOString(), moving_time: 1800, distance: 5000 };
+  const { out, logged } = await withFetch((url) => (url.includes('/athlete/activities') ? [run] : { id: 7 }), async () => route.GET(new Request('https://shape.test/api/integrations/strava/sync')));
+  const body = await out.json();
+  assert.equal(client.writes.activities.length, 0, 'nothing overwritten');
+  assert.deepEqual(body.activities, { written: 0, errors: ['Could not save an activity.'] });
+  assert.ok(logged.some((l) => /strava calories read failed/.test(l)));
+});
+
+// Codex P2 on #2437: the app's callers read only response.ok, so a reply carrying refused rows
+// read as a sync that worked (the Integrations page's "synced" toast, the check-in card's 30-minute
+// wait). The app's syncWhoop and syncStrava, cut from shapeBackend.js and run, now fail on them.
+const { readFileSync } = await import('node:fs');
+const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+const from = BACKEND.indexOf('async function syncWhoop(');
+const to = BACKEND.indexOf('async function syncOura(');
+assert.ok(from > 0 && to > from, 'the sync functions moved: re-point this cut');
+const appSync = (reply) => new Function('fetch', 'apiBaseUrl', 'state', `${BACKEND.slice(from, to)}\nreturn { syncWhoop, syncStrava };`)(
+  async () => ({ ok: true, json: async () => reply }), 'https://shape.test', { session: { access_token: 'tok' } },
+);
+
+test('the app’s WHOOP and Strava syncs fail when the server could not save the workout rows', async () => {
+  const refused = appSync({ activities: { written: 0, errors: ['Could not save an activity.'] } });
+  await assert.rejects(refused.syncWhoop(), /WHOOP synced, but its workouts weren’t saved/);
+  await assert.rejects(refused.syncStrava({ importActivities: true }), /Strava synced, but its workouts weren’t saved/);
+  const fired = [];
+  globalThis.window = { dispatchEvent: (e) => fired.push(e.type) };
+  await assert.rejects(refused.syncWhoop());
+  assert.deepEqual(fired, [], 'a sync that saved no rows tells nothing to read again');
+  const saved = appSync({ activities: { written: 2, errors: [] }, snapshot: { days: 1 } });
+  assert.deepEqual((await saved.syncWhoop()).activities, { written: 2, errors: [] });
+  assert.deepEqual(fired, ['shape:activitiesChanged'], 'Train’s Burned this week is told to read again');
+  delete globalThis.window;
+  assert.equal((await appSync({ snapshot: { days: 0 } }).syncStrava()).snapshot.days, 0, 'a reply with no rows field is a sync that worked');
+});
+
+// Codex P2 on #2437: Oura's Import and the Apple Health sync said "synced" over refused rows too.
+// Their routes now report them as WHOOP's and Strava's do, and the app's syncs fail on them.
+test('the app’s Oura and Apple Health syncs fail when the server could not save the workout rows', async () => {
+  const fns = (start, end, params, ret) => {
+    const a = BACKEND.indexOf(start);
+    const b = BACKEND.indexOf(end, a + start.length);
+    assert.ok(a > 0 && b > a, `${start} moved: re-point this cut`);
+    const helpers = BACKEND.slice(BACKEND.indexOf('function bsSyncRowsSaved('), BACKEND.indexOf('async function syncOura('));
+    return (...args) => new Function(...params, `${helpers}\n${BACKEND.slice(a, b)}\nreturn ${ret};`)(...args);
+  };
+  const oura = fns('async function syncOura(', 'async function ', ['fetch', 'apiBaseUrl', 'state'], 'syncOura');
+  const apple = fns('async function syncAppleHealth(', '\n// The installed app connects', ['fetch', 'apiBaseUrl', 'state', 'isHealthKitPlatform', 'requestHealthKitAuth', 'collectHealthKitSnapshots', 'hkWaterAsked', 'markHkWaterAsked'], 'syncAppleHealth');
+  const reply = (body) => async () => ({ ok: true, json: async () => body });
+  const st = { session: { access_token: 'tok' } };
+  const hk = [() => true, async () => {}, async () => ({ days: [{ date: '2026-10-24' }], workouts: [{ externalId: 'w' }], waterSamples: 1 }), () => true, () => {}];
+  const refused = { import: { imported: 1, errors: ['Could not save an activity.'] }, activities: { errors: ['Could not save an activity.'] } };
+  await assert.rejects(oura(reply(refused), 'https://shape.test', st)({ importWorkouts: true }), /Oura synced, but its workouts weren’t saved/);
+  await assert.rejects(apple(reply(refused), 'https://shape.test', st, ...hk)(), /Apple Health synced, but its workouts weren’t saved/);
+  const fine = { import: { imported: 1, errors: [] }, activities: { errors: [] }, snapshot: { days: 1 } };
+  assert.equal((await oura(reply(fine), 'https://shape.test', st)({ importWorkouts: true })).snapshot.days, 1);
+  assert.equal((await apple(reply(fine), 'https://shape.test', st, ...hk)()).snapshot.days, 1);
+});

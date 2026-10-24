@@ -133,9 +133,9 @@ planned builds.
 - Push keys (the app side is built, #2385; 0 push devices in production). For iPhone,
   set `APNS_KEY_ID`, `APNS_TEAM_ID` and `APNS_PRIVATE_KEY` in Vercel. For Android, add
   the app to Firebase `shape-84d22` and save its `google-services.json` as the repo
-  secret `GOOGLE_SERVICES_JSON`. DEPLOY.md §10 has the steps. Then do a device pass of a
-  native build, including MusicKit sign-in inside SFSafariViewController and Chrome
-  Custom Tabs.
+  secret `GOOGLE_SERVICES_JSON`. See DEPLOY.md §10. Then do a native build's
+  device pass, with MusicKit sign-in in SFSafariViewController and Chrome Custom Tabs.
+- Reconnect WHOOP on the account that connected it on 2 May (#2437): no refresh token.
 - Decide what happens when a buyer pays an open checkout from another tab
   (closing it means refunds).
 - In-app purchase outside the US (Phase 2) is on hold.
@@ -215,13 +215,13 @@ planned builds.
   shape there too. Still English: the owners' payment notice, a coach alert's reason (the engine's,
   as the roster says it), and the standalone emails (session emails with their .ics, the hire,
   welcome and intro emails). A reader whose app never stored a language reads English.
-- Shared habits (`habit_watchers`, `/api/cron/habit-watch`): a friend stops hearing only by turning
-  Friends' habits off or unfollowing (no per-habit stop button yet, though the policy allows
-  it). Sharing is set from the Habits page only, and its sheet has no search. The daily cap
-  counts every notice stamped as pushed on the member's day, so an unstamped
-  `createNotification` row isn't counted. When the AI notify engine can't read the day's pushes,
-  it counts only its own sends. The engine and the habit cron claim their pushes in the database
-  first (`claim_push_slots`); a claim that can't be made sends on the count as read.
+- Habits: the charts read only the route's 90 days and can't tick a past day. Shared habits
+  (`habit_watchers`): a friend stops hearing only by turning Friends' habits off or unfollowing.
+  Sharing is set only in a habit's ⋯ options (no search). The daily cap counts only notices
+  stamped as pushed on the member's day (an unstamped `createNotification` row isn't). When the
+  AI notify engine can't read the day's pushes, it counts only its own sends. It and the habit
+  cron claim pushes first (`claim_push_slots`); a claim that can't be made sends on the count as
+  read.
 - A goal in the member's own words is set in the app (the Goal page's picker and the first-run
   step) and in the website's sign-up. The website's Goals page shows goals and adds none (coaches
   set them). Only the five weight goals have a weight read; any other goal reads in words until

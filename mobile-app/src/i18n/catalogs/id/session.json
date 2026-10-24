@@ -350,5 +350,16 @@
   "train.music": "Musik",
   "train.forToday": "Untuk hari ini",
   "train.fullPlan": "Rencana lengkap",
-  "train.playlistBy": "{who} · Pelatihmu"
+  "train.playlistBy": "{who} · Pelatihmu",
+  "burn.title": "Terbakar minggu ini",
+  "burn.sample": "Contoh minggu",
+  "burn.kcalWord": "kkal",
+  "burn.avg": "{avg}/hari",
+  "burn.chartAria": "Kalori terbakar tiap hari minggu ini",
+  "burn.reading": "Membaca minggumu…",
+  "burn.failed": "Aktivitasmu tidak bisa dibaca",
+  "burn.retry": "Coba lagi",
+  "burn.none": "Belum ada yang tercatat minggu ini.",
+  "burn.connect": "Hubungkan",
+  "burn.manual": "catatanmu"
 }

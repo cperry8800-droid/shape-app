@@ -1,6 +1,7 @@
 // Live habits store for the signed-in client.
 //
-// GET: returns the user's habits with their completion history (last 90 days)
+// GET: returns the user's habits with their completion history (last 90 days), and the habits
+//      deleted within those days as `archived`, for the Progress charts only
 // POST: { action: 'create', name, type?, cadence?, visibility? } → creates a habit
 //       { action: 'update', id, name?, type?, cadence?, visibility? } → updates fields
 //       { action: 'toggle', id, date } → toggles completion on a given date
@@ -49,6 +50,17 @@ export async function GET(request: Request) {
 
   if (compErr) return dbError(compErr, 'habit completions read', 500);
 
+  // Deleting a habit keeps its past check-offs ("Past check-offs are kept"), so the habits deleted
+  // inside the window come back for the Progress charts, with the day they went (Codex P2 on
+  // #2437). The app never lists them for today.
+  const { data: archived, error: archivedErr } = await supabase
+    .from('user_habits')
+    .select('id, name, type, cadence, created_at, archived_at')
+    .eq('user_id', user.id)
+    .gte('archived_at', since.toISOString());
+
+  if (archivedErr) return dbError(archivedErr, 'archived habits read', 500);
+
   const byHabit = new Map<string, string[]>();
   for (const c of (completions || []) as CompletionRow[]) {
     const list = byHabit.get(c.habit_id) || [];
@@ -61,7 +73,12 @@ export async function GET(request: Request) {
     history: (byHabit.get(h.id) || []).sort(),
   }));
 
-  return NextResponse.json({ habits: out });
+  const gone = (archived || []).map((h) => ({
+    ...h,
+    history: (byHabit.get(h.id) || []).sort(),
+  }));
+
+  return NextResponse.json({ habits: out, archived: gone });
 }
 
 export async function POST(req: Request) {
