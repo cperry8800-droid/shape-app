@@ -350,5 +350,17 @@
   "train.music": "Música",
   "train.forToday": "Para hoy",
   "train.fullPlan": "Plan completo",
-  "train.playlistBy": "{who} · Tu entrenador"
+  "train.playlistBy": "{who} · Tu entrenador",
+  "burn.title": "Quemadas esta semana",
+  "burn.sample": "Semana de ejemplo",
+  "burn.kcalWord": "kcal quemadas",
+  "burn.avg": "{avg}/día · {count, plural, one {# día} other {# días}}",
+  "burn.chartAria": "Calorías quemadas cada día de esta semana",
+  "burn.reading": "Leyendo tu semana…",
+  "burn.failed": "No se pudo leer tu actividad",
+  "burn.retry": "Reintentar",
+  "burn.none": "Aún no hay nada registrado esta semana. Conecta Apple Health, Strava o un reloj para contar lo que quemas.",
+  "burn.connect": "Conectar",
+  "burn.from": "De {sources}",
+  "burn.manual": "tu registro"
 }

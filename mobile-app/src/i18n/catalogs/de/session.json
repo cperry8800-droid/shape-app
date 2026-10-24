@@ -350,5 +350,17 @@
   "train.music": "Musik",
   "train.forToday": "Für heute",
   "train.fullPlan": "Ganzer Plan",
-  "train.playlistBy": "{who} · Dein Trainer"
+  "train.playlistBy": "{who} · Dein Trainer",
+  "burn.title": "Diese Woche verbrannt",
+  "burn.sample": "Beispielwoche",
+  "burn.kcalWord": "kcal verbrannt",
+  "burn.avg": "{avg}/Tag · {count, plural, one {# Tag} other {# Tage}}",
+  "burn.chartAria": "Verbrannte Kalorien pro Tag diese Woche",
+  "burn.reading": "Deine Woche wird gelesen…",
+  "burn.failed": "Deine Aktivität konnte nicht gelesen werden",
+  "burn.retry": "Erneut",
+  "burn.none": "Diese Woche noch nichts erfasst. Verbinde Apple Health, Strava oder eine Uhr, um deinen Verbrauch zu zählen.",
+  "burn.connect": "Verbinden",
+  "burn.from": "Aus {sources}",
+  "burn.manual": "deinem Log"
 }

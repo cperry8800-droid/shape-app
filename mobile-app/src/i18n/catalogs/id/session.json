@@ -350,5 +350,17 @@
   "train.music": "Musik",
   "train.forToday": "Untuk hari ini",
   "train.fullPlan": "Rencana lengkap",
-  "train.playlistBy": "{who} · Pelatihmu"
+  "train.playlistBy": "{who} · Pelatihmu",
+  "burn.title": "Terbakar minggu ini",
+  "burn.sample": "Contoh minggu",
+  "burn.kcalWord": "kkal terbakar",
+  "burn.avg": "{avg}/hari · {count, plural, other {# hari}}",
+  "burn.chartAria": "Kalori terbakar tiap hari minggu ini",
+  "burn.reading": "Membaca minggumu…",
+  "burn.failed": "Aktivitasmu tidak bisa dibaca",
+  "burn.retry": "Coba lagi",
+  "burn.none": "Belum ada yang tercatat minggu ini. Hubungkan Apple Health, Strava, atau jam tangan untuk menghitung yang kamu bakar.",
+  "burn.connect": "Hubungkan",
+  "burn.from": "Dari {sources}",
+  "burn.manual": "catatanmu"
 }

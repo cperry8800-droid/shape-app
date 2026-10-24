@@ -7460,6 +7460,27 @@ async function getCommitmentProgress(weekOf) {
     return { workouts: days.size, checkin: !!(chk && chk.data), habits: (habs.data || []).length, ok };
   } catch (e) { return { workouts: 0, checkin: false, habits: 0, ok: false }; }
 }
+// Train's Burned this week (BSTrainBurn.jsx; services/weekBurn.mjs adds the figures up): the week's
+// daily snapshots and the activities that started in it, bounded by the member's own midnights as
+// getCommitmentProgress does. `ok` is false when either read failed, so the panel says so instead of
+// showing a week with nothing in it.
+async function getWeekBurnRows(weekOf) {
+  if (!supabase || !state.user?.id) return { ok: false };
+  const local = bsHwWeekWindow(weekOf);
+  if (!local) return { ok: false };
+  try {
+    const uid = state.user.id;
+    const [y, m, d] = weekOf.split('-').map(Number);
+    const end = new Date(y, m - 1, d + 6);
+    const wkEnd = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+    const [snaps, acts] = await Promise.all([
+      supabase.from('daily_health_snapshot').select('snapshot_date, calories, sources').eq('user_id', uid).gte('snapshot_date', weekOf).lte('snapshot_date', wkEnd),
+      supabase.from('activities').select('started_at, calories, source').eq('user_id', uid).gte('started_at', local.from).lt('started_at', local.to),
+    ]);
+    if (snaps.error || acts.error || state.user?.id !== uid) return { ok: false };
+    return { ok: true, snaps: snaps.data || [], acts: acts.data || [] };
+  } catch (e) { return { ok: false }; }
+}
 async function setCommitment(targets, stake) {
   if (!supabase || !state.user?.id) return { ok: false };
   try {
@@ -7475,6 +7496,7 @@ async function acceptCommitment(id) {
   } catch (e) { return { accepted: false }; }
 }
 window.ShapeCommit = { get: getCommitment, progress: getCommitmentProgress, set: setCommitment, accept: acceptCommitment };
+window.ShapeBurn = { week: getWeekBurnRows };
 
 // ── The check-in kit ─────────────────────────────────────────
 // Weekly check-ins, girth measurements, structured progress photos, and the

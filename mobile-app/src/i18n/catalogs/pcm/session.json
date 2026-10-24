@@ -350,5 +350,17 @@
   "train.music": "Music",
   "train.forToday": "For today",
   "train.fullPlan": "Full plan",
-  "train.playlistBy": "{who} · Your trainer"
+  "train.playlistBy": "{who} · Your trainer",
+  "burn.title": "Wetin you burn this week",
+  "burn.sample": "Sample week",
+  "burn.kcalWord": "kcal you burn",
+  "burn.avg": "{avg}/day · {count, plural, one {# day} other {# days}}",
+  "burn.chartAria": "Calories wey you burn every day this week",
+  "burn.reading": "We dey read your week…",
+  "burn.failed": "We no fit read your activity",
+  "burn.retry": "Try again",
+  "burn.none": "Nothing dey tracked this week yet. Connect Apple Health, Strava or one watch make we count wetin you burn.",
+  "burn.connect": "Connect",
+  "burn.from": "From {sources}",
+  "burn.manual": "your own log"
 }

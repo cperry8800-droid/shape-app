@@ -63,6 +63,7 @@ import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } fro
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
 import { BSEatFuel } from './BSEatFuel.jsx';
+import { BSTrainBurn } from './BSTrainBurn.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead } from './BSWallStory.jsx';
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
@@ -6455,6 +6456,9 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} onMonth={goCalendar} />
 
       <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
+
+      {/* Burned this week (BSTrainBurn.jsx), under the week as Eat's Fuel left is (owner, 2026-10-24). */}
+      <BSTrainBurn />
 
       {/* The session — on its own, on the move line's rust spine. */}
       <BSFocusLead tour="hero-train" color={t.RUST}

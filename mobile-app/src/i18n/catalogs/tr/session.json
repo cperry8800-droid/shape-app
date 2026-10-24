@@ -350,5 +350,17 @@
   "train.music": "Müzik",
   "train.forToday": "Bugün için",
   "train.fullPlan": "Tüm plan",
-  "train.playlistBy": "{who} · Antrenörün"
+  "train.playlistBy": "{who} · Antrenörün",
+  "burn.title": "Bu hafta yakılan",
+  "burn.sample": "Örnek hafta",
+  "burn.kcalWord": "kcal yakıldı",
+  "burn.avg": "{avg}/gün · {count, plural, one {# gün} other {# gün}}",
+  "burn.chartAria": "Bu hafta her gün yakılan kalori",
+  "burn.reading": "Haftan okunuyor…",
+  "burn.failed": "Etkinliğin okunamadı",
+  "burn.retry": "Tekrar dene",
+  "burn.none": "Bu hafta henüz bir şey kaydedilmedi. Yaktığını saymak için Apple Health, Strava ya da bir saat bağla.",
+  "burn.connect": "Bağla",
+  "burn.from": "Kaynak: {sources}",
+  "burn.manual": "kendi kaydın"
 }
