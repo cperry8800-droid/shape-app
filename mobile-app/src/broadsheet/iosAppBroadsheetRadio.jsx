@@ -2931,26 +2931,21 @@ function BSRadioScreen({ onBack }) {
       <div style={{ background: isLight ? t.PAPER : 'rgba(5,7,7,0.92)', paddingBottom: 80 + 28 }}>
 
         {/* ── NORA WATCH (preview) ──────────────────────────────────────────── */}
-        <div style={{ padding: `14px ${t.padX}px 18px`, borderBottom: `1px solid ${RULE_DK}` }}>
-          {/* Section eyebrow */}
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700, marginBottom: 12 }}>
-            Nora · {tr('radio:nora.djPreview', { defaultValue: 'DJ preview' })}
-          </div>
+        <DarkSection title="Nora" meta={tr('radio:nora.djPreview', { defaultValue: 'DJ preview' })} cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
+        <div style={{ padding: `12px ${t.padX}px 0` }}>
           <BSNoraBooth on={noraOn} prospect={previewSim} stationConfigured={stationConfigured} stationPlaying={stationPlaying}
             guestDj={guestDj} noraNow={noraNow} TEAL={TEAL} CREAM={CREAM} CREAM50={CREAM50} CREAM25={CREAM25} />
-          {/* Toggle button — instrument-plate style with accent spine */}
-          <button onClick={toggleNora} style={{
-            display: 'flex', alignItems: 'center', gap: 9,
-            width: '100%', boxSizing: 'border-box',
-            padding: '12px 14px', cursor: 'pointer', textAlign: 'left',
-            background: noraOn ? `${TEAL}1a` : 'transparent',
-            color: noraOn ? TEAL : CREAM,
-            border: `1px solid ${noraOn ? TEAL : CREAM25}`,
-            borderLeft: `3px solid ${TEAL}`,
-            borderRadius: 10,
-            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800,
+          {/* A square key like the deck's: the ink outline, and when Nora is up, the station's teal under it
+              (the strip's mark for the one that's on), never a teal wash or a spine. */}
+          <button onClick={toggleNora} aria-pressed={noraOn} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+            width: '100%', boxSizing: 'border-box', minHeight: 44,
+            padding: '12px 14px', cursor: 'pointer', borderRadius: 0,
+            background: 'transparent', color: CREAM, border: `1px solid ${CREAM}`,
+            boxShadow: noraOn ? `inset 0 -2px 0 ${TEAL}` : 'none',
+            fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
           }}>
-            <span style={{ fontSize: 13 }}>{noraOn ? '◉' : '○'}</span>
+            <span style={{ fontSize: 11, color: noraOn ? TEAL : CREAM }}>{noraOn ? '◉' : '○'}</span>
             {noraOn ? tr('radio:nora.hide', { defaultValue: 'Hide Nora' }) : tr('radio:nora.watch', { defaultValue: 'Watch Nora (preview)' })}
           </button>
         </div>
@@ -2983,11 +2978,11 @@ function BSRadioScreen({ onBack }) {
         {/* SHAPE SETS — its own section (header like CHANNEL) + a full-width row that
             matches the Shape Radio Station row width. Links to the about page. */}
         <DarkSection title="Shape Sets" meta="Club Shape" cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
-        <button onClick={() => setShowSets(true)} style={{
+        <button data-radio-sets-row onClick={() => setShowSets(true)} style={{
           width: '100%', boxSizing: 'border-box', textAlign: 'left', cursor: 'pointer',
-          background: 'transparent', color: CREAM, border: 0, borderBottom: `1px solid ${RULE_DK}`, borderLeft: `3px solid ${TEAL}`,
-          display: 'flex', alignItems: 'center', gap: 12, padding: `14px ${t.padX}px`,
+          background: 'transparent', color: CREAM, border: 0, borderRadius: 0, padding: `0 ${t.padX}px`,
         }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 44, padding: '14px 0', borderBottom: `1px solid ${RULE_DK}` }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             {/* ⚠ GATED ON A REAL SCHEDULE. This said "Live from Club Shape"
                 unconditionally, over a series whose own page reads COMING SOON.
@@ -2996,10 +2991,11 @@ function BSRadioScreen({ onBack }) {
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: TEAL }}>
               {r.sets && r.sets.real ? `${tr('radio:sets.liveFrom', { defaultValue: 'Live from' })} Club Shape` : 'Club Shape'}
             </div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: CREAM, marginTop: 4, lineHeight: 1.1 }}>Shape <span style={{ fontStyle: 'italic', color: TEAL }}>Sets.</span></div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, letterSpacing: '-0.01em', color: CREAM, marginTop: 4, lineHeight: 1.1 }}>Shape Sets</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: CREAM50, marginTop: 4, fontWeight: 600 }}>{tr('radio:screen.setsSubtitle', { defaultValue: 'What Shape Radio is · concert series · coach playlists' })}</div>
           </div>
-          <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>{tr('radio:screen.about', { defaultValue: 'About →' })}</span>
+          <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: CREAM, fontWeight: 800, boxShadow: `inset 0 -1px 0 ${CREAM}`, paddingBottom: 2 }}>{tr('radio:screen.about', { defaultValue: 'About →' })}</span>
+          </div>
         </button>
 
 
@@ -3022,19 +3018,20 @@ function BSRadioScreen({ onBack }) {
 // Dark variants of section/row used only inside BSRadioScreen so the paper portrait
 // background can sit underneath without being washed out by paper-colored cards.
 function DarkSection({ title, meta, cream, cream50, rule, t }) {
+  // The magazine's section head: the title in Saira capitals over a 2px rule in the page's ink, the meta
+  // on the right (the Wall's and the profiles' BSTStationHead mag, in the station's own ink).
   return (
-    <div style={{
-      padding: `${t.sectGap}px ${t.padX}px 8px`,
-      display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
+    <div data-radio-head="mag" style={{
+      margin: `${t.sectGap}px ${t.padX}px 0`, paddingBottom: 6, borderBottom: `2px solid ${cream}`,
+      display: 'flex', alignItems: 'baseline', gap: 10,
     }}>
       <span style={{
-        fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.24em',
-        textTransform: 'uppercase', color: cream, fontWeight: 800,
-        borderBottom: `2px solid ${cream}`, paddingBottom: 4,
+        fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, lineHeight: 1,
+        letterSpacing: '0.02em', textTransform: 'uppercase', color: cream,
       }}>{title}</span>
       {meta && <span style={{
-        fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em',
-        textTransform: 'uppercase', color: cream50, fontWeight: 600,
+        marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', whiteSpace: 'nowrap',
+        textTransform: 'uppercase', color: cream50, fontWeight: 800,
       }}>{meta}</span>}
     </div>
   );
@@ -3042,20 +3039,21 @@ function DarkSection({ title, meta, cream, cream50, rule, t }) {
 
 function DarkChannelRow({ active, onClick, eyebrow, eyebrowColor, title, meta, right, t, cream, cream50, rule, accent }) {
   const ink = t.isLight ? t.INK : cream, ink50 = t.isLight ? t.INK50 : cream50;
+  // A row of the page, not a card: a hairline under it inside the gutter, no wash and no spine. The channel
+  // that's playing says so with the strip's mark, the station's colour under its name.
   return (
-    <button onClick={onClick} style={{ borderRadius: 0, boxSizing: 'border-box',
-      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-      padding: `14px ${t.padX}px`, cursor: 'pointer', textAlign: 'left',
-      background: active ? `${accent}10` : 'transparent',
-      color: ink, border: 0, borderBottom: `1px solid ${rule}`,
-      borderLeft: active ? `3px solid ${accent}` : '3px solid transparent',
+    <button onClick={onClick} aria-pressed={!!active} style={{ borderRadius: 0, boxSizing: 'border-box',
+      width: '100%', display: 'block', padding: `0 ${t.padX}px`, cursor: 'pointer', textAlign: 'left',
+      background: 'transparent', color: ink, border: 0,
     }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: eyebrowColor }}>{eyebrow}</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: ink, marginTop: 4, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink50, marginTop: 4, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 44, padding: '14px 0', borderBottom: `1px solid ${rule}` }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: eyebrowColor }}>{eyebrow}</div>
+          <div style={{ display: 'inline-block', maxWidth: '100%', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, letterSpacing: '-0.01em', color: ink, marginTop: 4, paddingBottom: 2, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', boxShadow: active ? `inset 0 -2px 0 ${accent}` : 'none' }}>{title}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink50, marginTop: 4, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</div>
+        </div>
+        <div style={{ flexShrink: 0 }}>{right}</div>
       </div>
-      <div style={{ flexShrink: 0 }}>{right}</div>
     </button>
   );
 }
@@ -3122,7 +3120,6 @@ function BSShapeSetsScreen({ onBack }) {
   const t = useBS();
   const tr = useShapeTr();
   const TEAL = t.ACCENT;
-  const RUST = t.RUST || '#c0533b';
   const CREAM = '#f4ede0', CREAM70 = 'rgba(244,237,224,0.74)', CREAM50 = 'rgba(244,237,224,0.5)';
   const CARD = 'rgba(11,14,12,0.62)', RULE_DK = 'rgba(244,237,224,0.16)';
   const BG = `${import.meta.env.BASE_URL || '/'}club-shape-bg.jpg`;
@@ -3140,8 +3137,7 @@ function BSShapeSetsScreen({ onBack }) {
     [sched.live, sched.upcoming],
   );
   const Glass = ({ children, style }) => (
-    <div style={{ position: 'relative', overflow: 'hidden', background: CARD, backdropFilter: 'blur(14px) saturate(1.1)', WebkitBackdropFilter: 'blur(14px) saturate(1.1)', border: `1px solid ${RULE_DK}`, borderRadius: 14, padding: 20, ...style }}>
-      <div aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
+    <div data-sets-block style={{ position: 'relative', overflow: 'hidden', background: CARD, backdropFilter: 'blur(14px) saturate(1.1)', WebkitBackdropFilter: 'blur(14px) saturate(1.1)', border: 0, borderTop: `2px solid ${CREAM}`, borderRadius: 0, padding: '14px 16px 16px', ...style }}>
       {children}
     </div>
   );
@@ -3183,7 +3179,7 @@ function BSShapeSetsScreen({ onBack }) {
               </button>
             </div>
             <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>{tr('radio:screen.sectionMusic', { defaultValue: 'Section · Music' })}</div>
-            <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>Shape <span style={{ fontStyle: 'italic', color: TEAL }}>Sets.</span></h1>
+            <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>Shape <span style={{ color: TEAL }}>Sets.</span></h1>
           </div>
 
           {/* HERO — centered in the remaining space; no box, just the content over
@@ -3193,7 +3189,7 @@ function BSShapeSetsScreen({ onBack }) {
             <div style={{ textAlign: 'center', width: '100%' }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, marginBottom: 18 }}>
                 <span style={{ width: 7, height: 7, borderRadius: 999, background: TEAL, animation: 'bs-blink 1.6s ease-in-out infinite' }} />
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', color: CREAM }}>{tr('radio:sets.liveFrom', { defaultValue: 'Live from' })} <span style={{ fontStyle: 'italic', color: TEAL }}>Club Shape</span></span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', color: CREAM }}>{tr('radio:sets.liveFrom', { defaultValue: 'Live from' })} <span style={{ color: TEAL }}>Club Shape</span></span>
               </div>
               <p style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: 'rgba(244,237,224,0.92)', margin: '0 auto', maxWidth: 360, lineHeight: 1.55 }}>{tr('radio:sets.introA', { defaultValue: 'A virtual concert series broadcast straight from' })} <strong style={{ color: CREAM, fontWeight: 700 }}>Club Shape</strong>{tr('radio:sets.introB', { defaultValue: ', our flagship venue. DJs and live acts, captured on the floor and streamed through Shape Radio.' })}</p>
               <div style={{ marginTop: 24, fontFamily: t.MONO, fontSize: 14, letterSpacing: '0.26em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>{tr('radio:sets.comingSoon', { defaultValue: 'Coming soon' })}</div>
@@ -3206,7 +3202,7 @@ function BSShapeSetsScreen({ onBack }) {
               plainly rather than staging an empty grid. */}
           <div style={{ padding: `0 ${t.padX}px 12px` }}>
             <Glass>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>{tr('radio:sets.comingUp', { defaultValue: 'Coming up' })}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, lineHeight: 1, letterSpacing: '0.02em', textTransform: 'uppercase', color: CREAM }}>{tr('radio:sets.comingUp', { defaultValue: 'Coming up' })}</div>
               {schedRows.length === 0 ? (
                 <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: CREAM50 }}>{tr('radio:sets.empty', { defaultValue: 'Schedule lands with the first broadcast.' })}</div>
               ) : schedRows.map((s, i) => (
