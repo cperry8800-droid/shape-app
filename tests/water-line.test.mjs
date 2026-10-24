@@ -140,11 +140,23 @@ test('the line is one row in the morning panel: a pip a glass beside the total, 
     assert.equal(dot.style.borderRadius, '999px');
     assert.equal(add.style.margin, '-3px', 'the row lays the button out at the round\'s size');
   } finally { m.unmount(); }
-  // No target: no pips, a total only.
+  // No target: the pips count the day's glasses, the next one empty, and fill one a tap (owner,
+  // 2026-10-24: "the water here is supposed to show little bars that fill up each time you add a
+  // glass"), never progress against a target the member did not set.
   env();
   const n = await mount();
   try {
-    assert.ok(!document.querySelector('[data-bs-water] [data-bs-water-bar]'), 'pips with no target to count against');
+    const bar = () => document.querySelector('[data-bs-water] [data-bs-water-bar]');
+    const filled = () => [...bar().children].filter((p) => p.style.background && p.style.background !== 'transparent').length;
+    assert.ok(bar(), 'no glasses to fill without a target');
+    assert.equal(bar().getAttribute('data-bs-water-mode'), 'count');
+    // 0.5 L is two 8 oz glasses: two filled and the next one empty.
+    assert.equal(bar().children.length, 3);
+    assert.equal(filled(), 2);
+    await n.click(/\+ Glass/);
+    assert.equal(bar().children.length, 4, 'a glass added no bar');
+    assert.equal(filled(), 3, 'a glass filled no bar');
+    assert.doesNotMatch(n.text(), / of /, 'the count reads as a target');
   } finally { n.unmount(); }
 });
 
