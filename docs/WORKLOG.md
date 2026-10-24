@@ -206,6 +206,7 @@ planned builds.
   (workout minutes or a logged activity) against the plan's sessions, and days with food logged,
   not meals. The weekly notes, message doors and next session show only for a paid coach (no
   sample signed out).
+- Signed in, others' profiles show the demo signals and climb (owner: leave it).
 - Shape Wire (the launch telegram) shows the coach's latest note however old it is, and
   in the morning its protein line is usually absent (it reads only today's row).
 - Server notices are said in the reader's stored language (`app_locale`): the app's bell, the push
@@ -282,14 +283,12 @@ planned builds.
 
 ## History
 
-- Changelog entries up to 2026-10-16:
-  - [`WORKLOG-ARCHIVE-2026-10.md`](WORKLOG-ARCHIVE-2026-10.md)
-  - [`-2026-09`](WORKLOG-ARCHIVE-2026-09.md)
-  - [`-2026-08`](WORKLOG-ARCHIVE-2026-08.md)
-  - [`-2026-06-07`](WORKLOG-ARCHIVE-2026-06-07.md)
-  - [`-2026-06-cycles-2-5`](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md)
+- Changelog entries up to 2026-10-16: [`WORKLOG-ARCHIVE-2026-10.md`](WORKLOG-ARCHIVE-2026-10.md),
+  [`-2026-09`](WORKLOG-ARCHIVE-2026-09.md), [`-2026-08`](WORKLOG-ARCHIVE-2026-08.md),
+  [`-2026-06-07`](WORKLOG-ARCHIVE-2026-06-07.md),
+  [`-2026-06-cycles-2-5`](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 - The old version of this file, with every reviewer ruling and why:
-  [`WORKLOG-ARCHIVE-conventions-2026-10-16.md`](WORKLOG-ARCHIVE-conventions-2026-10-16.md).
+  [`-conventions-2026-10-16`](WORKLOG-ARCHIVE-conventions-2026-10-16.md).
 - Old session handoffs (`docs/HANDOFF-*.md`) are history; none are written now.
-- Search them (0.2–1.1 MB each) with `grep -n "<term>" docs/WORKLOG-ARCHIVE-*.md`,
-  then read one entry with `sed -n`. Never `cat` or `@`-import an archive.
+- Search them with `grep -n "<term>" docs/WORKLOG-ARCHIVE-*.md`, then read one entry
+  with `sed -n` (AGENTS.md: never `cat` one).

@@ -27,6 +27,7 @@ import { BS_SESSION_MINUTES_CEILING, BS_SESSION_MINUTES_MAX } from '../../../pub
 // maps the locale to the transcription hint.
 import { speechLangFor } from '../../../src/lib/ai/voiceLang.mjs';
 import { bsGoalVerdict, bsGoalPct, bsGoalRemaining } from '../services/goalContract.mjs';
+import { bsProfileStreak, bsProfileWeek, bsProfileTrajectory, bsProfileLifts, bsProfileDisciplines } from '../services/profileSignals.mjs';
 import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionDisplay, bsPrefOptionToken, bsGoalKind } from '../services/prefOptions.mjs';
 import { bsFirstRunStage, bsFirstRunNeedsSeed } from '../services/firstRun.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
@@ -18134,34 +18135,21 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // Illustrative living-identity data (wire to real logs later).
   const streak = 14;
   const disciplines = [['Strength', 0.82], ['Endurance', 0.64], ['Consistency', 0.91], ['Recovery', 0.73]];
-  // On your own profile, the discipline strata derive from your real rollups:
-  // Strength = strength-trend gain, Endurance = recent training volume,
-  // Consistency = workout adherence, Recovery = sleep. Per-field demo fallback.
+  // On your own profile, the discipline strata and key lifts are /api/client/profile-stats's,
+  // the website profile's read: only the disciplines with a signal, and your most-logged lifts of
+  // the last 90 days. Demo values otherwise.
   const [realDisc, setRealDisc] = useStateBSC(null);
+  const [realLifts, setRealLifts] = useStateBSC(null);
   React.useEffect(() => {
-    if (!isSelf || !window.ShapeProgress) return;
+    if (!isSelf || !window.ShapeProgress?.profileStats) return;
     let on = true;
-    const vals = (s) => (Array.isArray(s) ? s : []).map((x) => (x && typeof x === 'object' ? x.value : x)).filter((v) => Number.isFinite(Number(v))).map(Number);
-    const clamp = (v) => Math.max(0.05, Math.min(1, v));
-    Promise.all([
-      window.ShapeProgress.progress ? window.ShapeProgress.progress().catch(() => null) : null,
-      window.ShapeProgress.analytics ? window.ShapeProgress.analytics().catch(() => null) : null,
-      window.ShapeProgress.train ? window.ShapeProgress.train().catch(() => null) : null,
-    ]).then(([prog, ana, train]) => {
+    window.ShapeProgress.profileStats().then((d) => {
       if (!on) return;
-      const m = {};
-      const ss = vals(prog && prog.series && prog.series.strength);
-      if (ss.length >= 2) m.Strength = clamp(0.55 + ((ss[ss.length - 1] - ss[0]) / Math.max(1, ss[0])) * 1.5);
-      const vm = vals(prog && prog.series && prog.series.volume);
-      if (vm.length) m.Endurance = clamp(vm[vm.length - 1] / 300);
-      const adh = ana && ana.kpis && Number(ana.kpis.workout_adherence_pct);
-      if (Number.isFinite(adh)) m.Consistency = clamp(adh / 100);
-      else if (train && train.stats && train.stats.thisWeekCount != null) m.Consistency = clamp(Number(train.stats.thisWeekCount) / 5);
-      const sleep = prog && prog.kpis && Number(prog.kpis.sleepAvg);
-      if (Number.isFinite(sleep)) m.Recovery = clamp(sleep / 8.2);
-      if (Object.keys(m).length >= 2) {
-        setRealDisc([['Strength', m.Strength], ['Endurance', m.Endurance], ['Consistency', m.Consistency], ['Recovery', m.Recovery]].map(([k, v], i) => [k, v != null ? v : disciplines[i][1]]));
-      }
+      setRealDisc(bsProfileDisciplines(d));
+      // A lift arrives as "245 lb" and converts at RENDER — this effect is keyed on
+      // [isSelf], so converting here would freeze the unit at mount and a Settings
+      // flip would not reach the row until a remount.
+      setRealLifts(bsProfileLifts(d));
     }).catch(() => {});
     return () => { on = false; };
   }, [isSelf]);
@@ -18169,42 +18157,28 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // (a fresh account shows empty bars, not the demo persona's). Demo only signed out.
   const disciplinesEff = (isSelf && realDisc) ? realDisc : (signedInSelf ? disciplines.map(([k]) => [k, 0]) : disciplines);
   const lifts = [['Squat', '245'], ['Deadlift', '285'], ['Bench', '135']];
-  // On your own profile, the "signature numbers" come from your real logged PRs
-  // (/api/client/train rollup); demo values otherwise.
-  const [realLifts, setRealLifts] = useStateBSC(null);
-  React.useEffect(() => {
-    if (!isSelf || !window.ShapeProgress?.train) return;
-    let on = true;
-    window.ShapeProgress.train().then((d) => {
-      const prs = (d && Array.isArray(d.prs)) ? d.prs : [];
-      // Stored in the unit the record was set in and converted at RENDER — this
-      // effect is keyed on [isSelf], so converting here would freeze the unit at
-      // mount and a Settings flip would not reach the row until a remount.
-      const top = prs.slice(0, 3).map((p) => [String(p.lift || 'Lift'), `${p.value}${p.unit ? ' ' + p.unit : ''}`]);
-      if (on && top.length) setRealLifts(top);
-    }).catch(() => {});
-    return () => { on = false; };
-  }, [isSelf]);
   const liftsEff = (isSelf && realLifts && realLifts.length) ? realLifts : (signedInSelf ? lifts.map(([k]) => [k, '—']) : lifts);
   const traj = [176, 175, 174, 173, 172, 171, 171];
   const week = [40, 72, 55, 88, 33, 90, 18];
-  // Live "Living signals" — day streak, bodyweight trajectory, weekly momentum —
-  // from the same ShapeProgress rollups as the progress page (demo otherwise).
+  // Live "Living signals": the day streak from /api/client/dashboard, and weekly
+  // momentum (workout minutes on each of the last seven days) and the bodyweight
+  // trajectory from /api/client/progress (profileSignals.mjs). Demo otherwise.
   const [realSig, setRealSig] = useStateBSC(null);
   React.useEffect(() => {
     if (!isSelf || !window.ShapeProgress) return;
     let on = true;
     Promise.all([
-      window.ShapeProgress.train ? window.ShapeProgress.train().catch(() => null) : null,
+      window.ShapeProgress.dashboard ? window.ShapeProgress.dashboard().catch(() => null) : null,
       window.ShapeProgress.progress ? window.ShapeProgress.progress().catch(() => null) : null,
-    ]).then(([train, prog]) => {
+    ]).then(([dash, prog]) => {
       if (!on) return;
       const m = {};
-      if (train && train.stats && Number.isFinite(Number(train.stats.currentStreak))) m.streak = Number(train.stats.currentStreak);
-      const w = (prog && prog.series && Array.isArray(prog.series.weight)) ? prog.series.weight.slice(-7).map(Number).filter(Number.isFinite) : null;
-      if (w && w.length >= 2) m.traj = w;
-      const vbd = (train && Array.isArray(train.volumeByDay)) ? train.volumeByDay.slice(-7).map(Number).filter(Number.isFinite) : null;
-      if (vbd && vbd.length) m.week = vbd;
+      const s = bsProfileStreak(dash);
+      if (s != null) m.streak = s;
+      const tj = bsProfileTrajectory(prog);
+      if (tj) m.traj = tj;
+      const wk = bsProfileWeek(prog);
+      if (wk) { m.week = wk.minutes; m.weekDays = wk.days; }
       if (Object.keys(m).length) setRealSig(m);
     }).catch(() => {});
     return () => { on = false; };
@@ -18325,7 +18299,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     (async () => {
       const [ad, td] = await Promise.all([
         window.ShapeActivities?.list ? window.ShapeActivities.list().catch(() => null) : null,
-        window.ShapeProgress?.train ? window.ShapeProgress.train().catch(() => null) : null,
+        window.ShapeProgress?.progress ? window.ShapeProgress.progress().catch(() => null) : null,
       ]);
       if (!alive) return;
       const acts = (ad && Array.isArray(ad.activities)) ? ad.activities : [];
@@ -18345,7 +18319,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         else if (Number.isFinite(kcal) && kcal > 0) metric = ['Burn', `${Math.round(kcal)} kcal`];
         return { k: type, t: a.title || `${type} session`, b: bits.length ? bits.join(' · ') : 'Logged.', metric, distKm, time: ago(a.started_at), hot: false, _at: a.started_at || '' };
       });
-      // Real PRs (ShapeProgress.train) surfaced as feed items.
+      // Real PRs surfaced as feed items. /api/client/progress serves them
+      // ({ move, best, bestReps, unit, bestAt }); /api/client/train sends none.
       const prs = (td && Array.isArray(td.prs)) ? td.prs : [];
       const prItems = prs.slice(0, 4).map((p) => {
         const val = `${p.best != null ? p.best : (p.value != null ? p.value : '')}${p.unit ? ' ' + p.unit : ''}`.trim();
@@ -18928,6 +18903,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               // A REAL present week renders (even an all-zero week — honest zeros
               // are data, matching the streak); only a genuinely absent week redacts.
               const hasWeek = !signedInSelf || !!(realSig && Array.isArray(realSig.week) && realSig.week.length);
+              // Live bars are the seven days ending today, so each carries its own
+              // weekday; the demo keeps its Monday-to-Sunday row.
+              const liveWeek = weekEff === (realSig && realSig.week) && Array.isArray(realSig.weekDays);
+              const weekLabels = liveWeek
+                ? realSig.weekDays.map((d) => { try { return new Intl.DateTimeFormat(bsDateLocale(), { weekday: 'narrow', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`)).toUpperCase(); } catch (e) { return ''; } })
+                : ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
               const discRows = disciplinesEff.map(([label, val]) => [tr('profile:terrain.disc.' + String(label).toLowerCase(), { defaultValue: label }), String(Math.round(val * 100)), '']);
               const discPerf = disciplinesEff.map(([, val]) => Math.round(val * 100));
               const hasDisc = !signedInSelf || discPerf.some((v) => v > 0);
@@ -18949,7 +18930,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                     <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginBottom: 8 }}>{tr('profile:terrain.weeklyMomentum', { defaultValue: 'Weekly momentum' })}</div>
                     {hasWeek ? (<>
                       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 34 }}>{weekEff.map((v, i) => { const today = i === weekEff.length - 1; return <div key={i} aria-hidden style={{ flex: 1, height: `${Math.max(6, (v / (maxWk || 1)) * 100)}%`, background: today ? c : bsTHexA(INK, 0.18), transformOrigin: 'bottom', ...(play ? { animation: `bsSdRise 480ms cubic-bezier(.4,0,.2,1) ${480 + i * 60}ms both` } : null) }} />; })}</div>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i} style={{ flex: 1, textAlign: 'center', fontFamily: MONO, fontSize: 6.5, fontWeight: 700, color: bsTHexA(INK, 0.4) }}>{d}</div>)}</div>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>{weekLabels.map((d, i) => <div key={i} style={{ flex: 1, textAlign: 'center', fontFamily: MONO, fontSize: 6.5, fontWeight: 700, color: bsTHexA(INK, 0.4) }}>{d}</div>)}</div>
                     </>) : <BSTRedact INK={INK} label={tr('profile:terrain.noSessionsWeek', { defaultValue: 'No sessions this week' })} />}
                   </div>
                 </div>
