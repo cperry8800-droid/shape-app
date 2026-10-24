@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { loadBroadsheet, drive, flatten, textOf, THEME, SRC } from './helpers/broadsheet-mount.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
-const mod = await loadBroadsheet(['BSTerrainProfile', 'BSTerrainTabs', 'BSTStationHead', 'BSTPullQuote', 'BSProfileExtras', 'BSLiveBoostSheet', 'bsDemoMemberCustom', 'BSSignalCoachProfile']);
+const mod = await loadBroadsheet(['BSTerrainProfile', 'BSTerrainTabs', 'BSTStationHead', 'BSTPullQuote', 'BSProfileExtras', 'BSLiveBoostSheet', 'bsDemoMemberCustom', 'BSSignalCoachProfile', 'BSProfileCustomizer']);
 const named = (name) => (n) => n && typeof n.type === 'function' && n.type.name === name;
 const RED = '#b23a1f';   // bsWsRed on a light paper (the harness THEME is light)
 const INK = '#111';
@@ -130,6 +130,50 @@ test('the wall, the shelf and the prompts in the Wall\'s look: square shots to t
   const answers = custom.prompts.filter((p) => p && p.q && p.a).map((p) => p.a);
   assert.ok(answers.length, 'the demo has prompts');
   assert.deepEqual(nodes.filter(named('BSTPullQuote')).map((q) => q.props.text), answers, 'each answer is pulled out');
+});
+
+// Owner, 2026-10-24, of the profile editor: "also update design and look of this page". The Wall's look:
+// the red kicker over an upright title and a heavy rule, each part under a Saira head on a 2px ink rule
+// (its hint at the right), square fields 44 px tall, square actions in the ink outline, the chosen chips
+// in ink, and Save in ink with the paper's text. Nothing rounded, tinted, dashed or gold.
+test('the profile editor in the Wall\'s look, for a member and for a coach', () => {
+  for (const coach of [false, true]) {
+    const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { prompts: [{ q: 'why', a: 'x' }, { q: 'fuel', a: 'y' }] }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {}, coach }));
+    const nodes = d.nodes();
+    const styled = nodes.filter((n) => n.props && n.props.style);
+    const who = coach ? 'coach' : 'member';
+    assert.match(d.text, /Your profile · Editor/);
+    assert.equal(styled.filter((n) => n.props.style.fontStyle === 'italic').length, 0, `${who}: an italic is back`);
+    const round = styled.filter((n) => n.props.style.borderRadius && !(n.props.style.width === 8 && n.props.style.height === 8));
+    assert.deepEqual(round.map((n) => n.type), [], `${who}: a rounded piece (only the rings' legend dots are round)`);
+    assert.equal(styled.filter((n) => /dashed/.test(String(n.props.style.border || ''))).length, 0, `${who}: a dashed gold Add is back`);
+    assert.equal(styled.filter((n) => /gradient/.test(String(n.props.style.background || ''))).length, 0, `${who}: a gradient rule or wash is back`);
+    // The tier's colour stays only where it is the thing shown: the "tier default" swatch and a ring's dot.
+    const swatchOrDot = (n) => n.props.style.width === 36 || n.props.style.width === 8;
+    assert.equal(styled.filter((n) => !swatchOrDot(n) && (n.props.style.color === '#c9a227' || n.props.style.background === '#c9a227')).length, 0, `${who}: the tier's gold is back`);
+    const heads = nodes.filter((n) => n.props && n.props['data-cust-head'] != null);
+    assert.ok(heads.length >= (coach ? 8 : 12), `${who}: the parts lost their heads (${heads.length})`);
+    assert.ok(heads.every((h) => h.props.style.borderBottom === `2px solid ${INK}`));
+    const line = heads.find((h) => /Your line/.test(textOf(h)));
+    assert.deepEqual(line.props.children.map((ch) => ch && textOf({ props: { children: ch.props.children } })), ['Your line', 'one motto'], 'the hint after " · " sits at the right');
+    const fields = nodes.filter((n) => n.type === 'input' || n.type === 'textarea');
+    assert.ok(fields.length > 4);
+    for (const f of fields.filter((n) => n.props.type !== 'file')) {
+      assert.equal(f.props.style.borderRadius, 0, `${who}: a rounded field`);
+      assert.ok(f.props.style.minHeight >= 44, `${who}: a field under 44 px`);
+      assert.equal(f.props.style.background, 'transparent', `${who}: a filled field`);
+    }
+    const close = nodes.find((n) => n.props && n.props['data-cust-close'] != null);
+    assert.equal(close.props.style.width, 44);
+    assert.equal(close.props.style.height, 44);
+    const save = nodes.find((n) => n.props && n.props['data-cust-save'] != null);
+    assert.equal(save.props.style.background, INK, 'Save is the ink action');
+    assert.equal(save.props.style.color, THEME.PAPER, 'Save\'s text is the paper, not BG');
+    assert.equal(save.props.style.clipPath, undefined, 'the notched corner is back');
+    const chips = nodes.filter((n) => n.type === 'button' && n.props['aria-pressed'] !== undefined && n.props.style && n.props.style.minHeight === 44);
+    assert.ok(chips.length >= 4, `${who}: the stat and pin chips say whether they are chosen`);
+    for (const ch of chips) assert.equal(ch.props.style.background, ch.props['aria-pressed'] ? INK : 'transparent');
+  }
 });
 
 // Owner, 2026-10-24: "should be able to click on these pictures and make bigger". Each shot is a door to
