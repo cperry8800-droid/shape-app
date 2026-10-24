@@ -35129,6 +35129,14 @@ function bsNormalizeGroceryList(list) {
   };
 }
 
+// How many items a saved list holds: its items when it carries them, else its stored count. The built-in
+// lists carry items and no count, so the card read "NaN items".
+function bsGroceryLibCount(l) {
+  if (l && Array.isArray(l.items)) return l.items.length;
+  const n = Number(l && l.count);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreate = () => {}, onEdit = () => {}, onDuplicate = () => {}, onDelete = () => {}, deletedIds = [], onChangeView = null }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -35138,6 +35146,8 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
   const [filter, setFilter] = useStateBSC('all'); // all | custom | template | mealplan | recipe
   const [query, setQuery] = useStateBSC('');
   const [openList, setOpenList] = useStateBSC(null);
+  // Send to a member from the Library, without loading the list first (owner, 2026-10-24).
+  const [sendFor, setSendFor] = useStateBSC(null);
   const allLists = [...recipeLists, ...BS_GROCERY_LIBRARY].filter(l => !deletedIds.includes(l.id));
   // ⚠ toLowerCase() IS LOCALE-INSENSITIVE, and the eyebrow below is translated
   // now — the Turkish dotted/dotless-i class. Both sides of the comparison have
@@ -35216,6 +35226,7 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
           const color = l.kind === 'mealplan' ? gold : l.kind === 'custom' ? '#8a5cf6' : (l.kind === 'recipe' || l.kind === 'template') ? t.AMBER : teal;
           const open = openList === l.id;
           const previewItems = l.items || bsLibraryPreviewItems(l);
+          const itemCount = bsGroceryLibCount(l);
           const textAction = (c) => ({ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: c, borderBottom: `2px solid ${c}66` });
           return (
             <div key={l.id} style={{ position: 'relative', borderTop: idx ? `1px solid ${t.HAIR}` : 0, paddingTop: idx ? 16 : 8, paddingBottom: 16, paddingLeft: 13 }}>
@@ -35233,7 +35244,7 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
                     makes it visible to the inventory walk for the first time — a
                     string written into a saved list is a string the measurement
                     cannot see, which is the BSWeekStrip blind spot in reverse. */}
-                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em' }}>{tr('nutrition:grocery.itemCount', { defaultValue: `${l.count} item${l.count === 1 ? '' : 's'}`, count: l.count })} · {l.preview || tr('nutrition:grocery.lib.emptyList', { defaultValue: 'Empty list' })}</div>
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em' }}>{tr('nutrition:grocery.itemCount', { defaultValue: `${itemCount} item${itemCount === 1 ? '' : 's'}`, count: itemCount })} · {l.preview || tr('nutrition:grocery.lib.emptyList', { defaultValue: 'Empty list' })}</div>
               </div>
               {open && previewItems && previewItems.length > 0 && (
                 <div style={{ margin: '12px 0 2px' }}>
@@ -35261,12 +35272,19 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
                   <button onClick={() => onDelete(l)} style={{ ...textAction(t.RUST), marginLeft: 'auto' }}>{tr('nutrition:grocery.lib.delete', { defaultValue: 'Delete' })}</button>
                 )}
               </div>
+              {/* An open list goes to a member as it stands, as from the grocery page, without loading it. */}
+              {open && previewItems && previewItems.length > 0 && (
+                <button type="button" data-bs-grocery-send="" onClick={() => setSendFor(l)} style={{ marginTop: 6, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                  <span style={textAction(teal)}>{tr('nutrition:grocery.shop.sendMember', { defaultValue: 'Send to a member →' })}</span>
+                </button>
+              )}
             </div>
           );
         })}
       </div>
 
       <BSFooter right={tr('nutrition:grocery.lib.footer', { defaultValue: 'Library' })} />
+      {sendFor && <BSPostSendSheet post={{ grocery: sendFor }} onClose={() => setSendFor(null)} />}
     </BSPage>
   );
 }
