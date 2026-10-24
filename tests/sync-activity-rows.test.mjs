@@ -233,3 +233,26 @@ test('the app’s WHOOP and Strava syncs fail when the server could not save the
   delete globalThis.window;
   assert.equal((await appSync({ snapshot: { days: 0 } }).syncStrava()).snapshot.days, 0, 'a reply with no rows field is a sync that worked');
 });
+
+// Codex P2 on #2437: Oura's Import and the Apple Health sync said "synced" over refused rows too.
+// Their routes now report them as WHOOP's and Strava's do, and the app's syncs fail on them.
+test('the app’s Oura and Apple Health syncs fail when the server could not save the workout rows', async () => {
+  const fns = (start, end, params, ret) => {
+    const a = BACKEND.indexOf(start);
+    const b = BACKEND.indexOf(end, a + start.length);
+    assert.ok(a > 0 && b > a, `${start} moved: re-point this cut`);
+    const helpers = BACKEND.slice(BACKEND.indexOf('function bsSyncRowsSaved('), BACKEND.indexOf('async function syncOura('));
+    return (...args) => new Function(...params, `${helpers}\n${BACKEND.slice(a, b)}\nreturn ${ret};`)(...args);
+  };
+  const oura = fns('async function syncOura(', 'async function ', ['fetch', 'apiBaseUrl', 'state'], 'syncOura');
+  const apple = fns('async function syncAppleHealth(', '\n// The installed app connects', ['fetch', 'apiBaseUrl', 'state', 'isHealthKitPlatform', 'requestHealthKitAuth', 'collectHealthKitSnapshots', 'hkWaterAsked', 'markHkWaterAsked'], 'syncAppleHealth');
+  const reply = (body) => async () => ({ ok: true, json: async () => body });
+  const st = { session: { access_token: 'tok' } };
+  const hk = [() => true, async () => {}, async () => ({ days: [{ date: '2026-10-24' }], workouts: [{ externalId: 'w' }], waterSamples: 1 }), () => true, () => {}];
+  const refused = { import: { imported: 1, errors: ['Could not save an activity.'] }, activities: { errors: ['Could not save an activity.'] } };
+  await assert.rejects(oura(reply(refused), 'https://shape.test', st)({ importWorkouts: true }), /Oura synced, but its workouts weren’t saved/);
+  await assert.rejects(apple(reply(refused), 'https://shape.test', st, ...hk)(), /Apple Health synced, but its workouts weren’t saved/);
+  const fine = { import: { imported: 1, errors: [] }, activities: { errors: [] }, snapshot: { days: 1 } };
+  assert.equal((await oura(reply(fine), 'https://shape.test', st)({ importWorkouts: true })).snapshot.days, 1);
+  assert.equal((await apple(reply(fine), 'https://shape.test', st, ...hk)()).snapshot.days, 1);
+});

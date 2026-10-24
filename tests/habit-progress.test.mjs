@@ -78,6 +78,18 @@ test('a deleted habit keeps the days it was kept, and is no miss once it went', 
   assert.deepEqual([m.kept, m.of], [4, 5], 'the month it went in: the 1st to the 5th');
 });
 
+// Codex P2 on #2437: a habit on another cadence (the API takes any) is not counted, as the score
+// and the friends' notice leave it out; its weekend would read as misses.
+test('the charts count daily habits only', () => {
+  const weekdays = { id: 'k', name: 'Commute', type: 'do', cadence: 'weekdays', createdOn: '2026-10-01', history: [] };
+  const w = hpWeek([...HABITS, weekdays], { ...opts, anchor: TODAY });
+  assert.deepEqual([w.kept, w.slots], [16, 21], 'the same as without it');
+  assert.ok(!w.perHabit.some((r) => r.habit.id === 'k'));
+  const m = hpMonth([...HABITS, { ...water, id: 'd', cadence: 'daily' }, weekdays], { ...opts, anchor: TODAY });
+  assert.ok(m.perHabit.some((r) => r.habit.id === 'd'), 'cadence "daily" counts');
+  assert.ok(!m.perHabit.some((r) => r.habit.id === 'k'));
+});
+
 test('a habit added mid-week does not open the week down, and last week needs live days', () => {
   const fresh = { id: 'n', name: 'New', type: 'do', createdOn: '2026-10-22', history: ['2026-10-22'] };
   const w = hpWeek([fresh], { ...opts, anchor: TODAY });

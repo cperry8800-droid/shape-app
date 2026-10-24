@@ -124,6 +124,8 @@ async function importWorkouts(
 ) {
   let imported = 0;
   const errors: string[] = [];
+  // The refused activities rows, apart: the app's sync fails on them (Codex P2 on #2437).
+  const rowErrors: string[] = [];
   // The member's own share level — resolved once per sync run (fail-closed to
   // 'private' on any settings read error).
   const sharePrivacy = await resolveWorkoutSharePrivacy(client, userId);
@@ -136,6 +138,7 @@ async function importWorkouts(
     if (activityError) {
       console.error('[shape-api] apple-health activity row failed:', activityError.message);
       errors.push('Could not save an activity.');
+      rowErrors.push('Could not save an activity.');
     }
     const payload = workoutPostPayload(w, userId, profile, fallbackName, sharePrivacy);
     const { data: existing, error: lookupError } = await client
@@ -172,7 +175,7 @@ async function importWorkouts(
       if (!existing?.id) await maybeSendFirstShareNotice(client, userId, sharePrivacy);
     }
   }
-  return { imported, errors };
+  return { imported, errors, rowErrors };
 }
 
 export async function POST(request: Request) {
@@ -238,6 +241,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     snapshot: { days: written },
     import: importResult,
+    activities: { errors: importResult?.rowErrors ?? [] },
     errors: errors.length ? errors : undefined,
   });
 }

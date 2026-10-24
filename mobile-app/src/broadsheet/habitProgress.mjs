@@ -50,6 +50,11 @@ export function hpLevel(kept, active) {
   return kept / active <= 0.5 ? 1 : 2;
 }
 
+// The charts count daily habits only, as the score (score-accountability) and the friends' 8 pm
+// notice (habit-watch.mjs) do: a habit on another cadence has days that are not its to miss
+// (Codex P2 on #2437). The app makes daily habits only; another cadence comes from the API.
+const onlyDaily = (list) => list.filter((h) => !h.cadence || h.cadence === 'daily');
+
 const byType = (list) => [...list.filter((h) => h.type !== 'avoid'), ...list.filter((h) => h.type === 'avoid')];
 
 function dayOf(habits, day, opts) {
@@ -81,7 +86,8 @@ function perHabit(habits, days, opts) {
 }
 
 // The week holding `anchor`, against the week before it.
-export function hpWeek(habits, { anchor, today, firstDay = 0, windowStart = null }) {
+export function hpWeek(all, { anchor, today, firstDay = 0, windowStart = null }) {
+  const habits = onlyDaily(all);
   const opts = { today, windowStart };
   const start = hpWeekStart(anchor, firstDay);
   const days = Array.from({ length: 7 }, (_, i) => hpAddDays(start, i));
@@ -103,7 +109,8 @@ export function hpWeek(habits, { anchor, today, firstDay = 0, windowStart = null
 }
 
 // The calendar month holding `anchor`. `lead` is the blank cells before the 1st.
-export function hpMonth(habits, { anchor, today, firstDay = 0, windowStart = null }) {
+export function hpMonth(all, { anchor, today, firstDay = 0, windowStart = null }) {
+  const habits = onlyDaily(all);
   const opts = { today, windowStart };
   const start = hpMonthStart(anchor);
   const days = Array.from({ length: hpDaysInMonth(start) }, (_, i) => hpAddDays(start, i));

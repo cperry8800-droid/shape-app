@@ -80,6 +80,7 @@ test('the Apple Health sync reports a refused activity row and still posts the w
     }));
     const body = await res.json();
     assert.deepEqual(body.import.errors, ['Could not save an activity.'], 'the refused row was dropped in silence');
+    assert.deepEqual(body.activities, { errors: ['Could not save an activity.'] }, 'reported apart, so the app’s sync fails on it');
     assert.equal(body.import.imported, 1, 'the workout is still posted');
     assert.equal(posts.length, 1);
     assert.ok(logged.some((l) => /apple-health activity row failed: .*activities_source_check/.test(l)));

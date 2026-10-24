@@ -4224,6 +4224,7 @@ async function syncOura({ importWorkouts = false } = {}) {
   if (!response.ok) {
     throw new Error(payload.error || 'Oura sync failed.');
   }
+  bsSyncRowsSaved(payload, 'Oura');
   bsActivitiesChanged();
   return payload;
 }
@@ -4280,6 +4281,7 @@ async function syncAppleHealth({ importWorkouts = true, prompt = true, days } = 
   if (!response.ok) {
     throw new Error(payload.error || 'Apple Health sync failed.');
   }
+  bsSyncRowsSaved(payload, 'Apple Health');
   bsActivitiesChanged();
   return payload;
 }
