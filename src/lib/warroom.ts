@@ -615,6 +615,24 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Home\'s cards a step smaller, Train in its rust, and the launch screens in Saira — #2442. No migration',
+      items: [
+        { label: 'Owner, 2026-10-24, of Home\'s Today\'s call, Your goal, the Morning check-in and Water: "make these smaller". The focus lead\'s title steps from 40/32/26 to 30/26/22 (Home\'s call, Train\'s session, and Eat\'s next meal, which shares it) and its button from 48 to 44 px; section titles from 26 to 22; Your goal\'s weight from 42 to 34 and its figures to 16; the check-in\'s title, tiles and Same as yesterday (52 to 44 px) and the panel\'s padding; the water tile, and a 38 px round + on the same 44 px tap', status: 'done' },
+        { label: 'Owner, 2026-10-24, of Train\'s Burned this week and today\'s session: "improve look of tis". Both take Train\'s rust, the colour of the session spine, where they took the app\'s teal, and the week\'s total is set light (Saira 300)', status: 'done' },
+        { label: 'Owner, 2026-10-24, of the splash: "Update font and look of this splash page". The paywall, sign-in and join, the email check, the notifications ask, the age check, the language pick and the coach application set their headlines in Saira, where they took a serif with an italic accent; the age check\'s reading text is the system face. Their teal buttons, the splash\'s Step inside among them, lose the clipped corner for a 4 px radius. The Wall\'s official posts, the last serif italic in the app, are Saira upright', status: 'done' },
+        { label: 'Review: Codex clean on a6d7f7f. npm test 8,340/8,340 on the design head; CI green on all four jobs. Four tests in checkin-card, home-sections and water-line pin the new sizes, the + keeping its 44 px tap. The built app checked in Chromium: Home and Train on both papers, Eat\'s next meal, the paywall, sign-in and the language pick', status: 'done' },
+        { label: 'Device pass: Home\'s smaller cards, Train\'s rust and the launch screens\' Saira headlines in the installed app, light and dark', status: 'manual' },
+      ],
+    },
+    {
+      section: 'The coach app opens on a cold start — #2440. No migration',
+      items: [
+        { label: 'Owner, 2026-10-24: "Fix the coach app crashing on a cold start". A trainer, nutritionist or dietitian opening the app fresh saw "Something went wrong" on Today (React #130): iosAppBroadsheetPros.jsx reads the client module\'s globals at load, and loadProsBundle loaded only the feature modules. It now loads the whole client bundle first. The client module loads once whichever role asks, and a client module that fails to load fails the coach bundle, so a retry loads both', status: 'done' },
+        { label: 'Review: Codex clean on dabc5cc (the run started when the PR opened hung for 45 minutes and was requested again once). npm test 8,340/8,340; CI green on all four jobs. tests/coach-cold-start runs the real loaders with their imports recorded; its four load-order tests fail on main. In Chromium, a cold start as trainer, nutritionist and dietitian opens every tab', status: 'done' },
+        { label: 'Device pass: a coach\'s cold start in the installed app, signed in, on iPhone and Android', status: 'manual' },
+      ],
+    },
+    {
       section: 'The top-right corner is a settings gear, and one font across the app — #2439. No migration',
       items: [
         { label: 'Owner, 2026-10-24, on the member\'s face in both the corner and the Me tab: "make the settings avatar something different in top right". BSSettingsCorner (the chrome module, so the coach apps share it) is a bare ⚙ in the page\'s ink on the corner\'s 34 px square, named Settings, opening Settings as the face did (shape:openProfile); the face lives on the tab bar\'s Me tab', status: 'done' },
@@ -636,7 +654,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Owner: "make sure the top masthead [is] the same on [the] whole app". Every masthead row (BSMasthead, BSMastRow, BSPageHeader and the 19 drawn by hand) shows the logo and the issue line with the shared corner; the exceptions are deliberate (pre-app screens, editors and search with ✕, the drill-ins with no corner, the own profile\'s ✎ and ⚙)', status: 'done' },
         { label: 'One red: bsWsRed and bsWsHead live in bsMagazine.mjs, which the chrome module imports and BSWallStory re-exports', status: 'done' },
         { label: 'Review: Codex on every head (473edbd, af8d33a, e9005b4, 0cd4801, 8b37b08, 740dfcc, 2c068d7), two P2s, both fixed: Radio\'s lights drew inside the capsule over an iPhone\'s inset (useBSTabbarH, 8b37b08), and a screen reader couldn\'t tell the selected tab or hear the unread count once the names moved into aria-label (aria-current and the count in the name, 740dfcc). Copilot declined on its quota. npm test 8,284/8,284 on 2c068d7; CI green on all four jobs. tests/app-chrome-magazine-tabbar and tests/app-chrome-magazine-corner, whose tests fail on the code before them', status: 'done' },
-        { label: 'Found on main, not fixed here: the coach apps crash on a cold start (React #130 on Today). The coach bundle loads without the client module, and iosAppBroadsheetPros.jsx reads BSFacetAvatar, which only the client defines, from window at load. Offered to the owner as its own task', status: 'pending' },
+        { label: 'Found on main, not fixed here: the coach apps crash on a cold start (React #130 on Today). The coach bundle loaded without the client module, and iosAppBroadsheetPros.jsx reads BSFacetAvatar, which only the client defines, from window at load. Fixed in #2440: the coach bundle loads the client bundle first', status: 'done' },
         { label: 'The page titles under the top row (Train, Eat, Me) were in the app\'s face while the magazine pieces were in Oswald. Owner: "Font needs to be same on whole app"; #2439 puts every heading in Saira', status: 'done' },
         { label: 'The member\'s face was both in the top corner and on the Me tab (Instagram has it only in the tab bar). Owner: "make the settings avatar something different in top right"; #2439 puts a settings gear there', status: 'done' },
         { label: 'claude/great-ride-eh4ab6 (the Oct 21 preview) is superseded and can be deleted', status: 'pending' },
