@@ -64,7 +64,7 @@ import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx'
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
-import { BSEatFuel } from './BSEatFuel.jsx';
+import { BSEatFuel, BSEatMacroPage } from './BSEatFuel.jsx';
 import { BSTrainBurn } from './BSTrainBurn.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead, bsWsRed, bsWsHead } from './BSWallStory.jsx';
@@ -12641,6 +12641,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   const [previewRecipe, setPreviewRecipe] = useStateBSC(false);
   const [previewRecipeReturnView, setPreviewRecipeReturnView] = useStateBSC('eat');
   const [previewDayBrief, setPreviewDayBrief] = useStateBSC(false);
+  // The macro whose page is open ('p', 'c' or 'f'), from a Fuel left tile (owner, 2026-10-24).
+  const [macroPage, setMacroPage] = useStateBSC(null);
   const [recipeLists, setRecipeLists] = useStateBSC(() => {
     try {
       const raw = window.localStorage && window.localStorage.getItem('shape.recipeGroceryLists');
@@ -14007,7 +14009,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   React.useLayoutEffect(() => {
     const el = document.querySelector('.bs-scroll');
     if (el) el.scrollTop = 0;
-  }, [day, previewMealId, previewRecipe, previewDayBrief, view, skRecipe]);
+  }, [day, previewMealId, previewRecipe, previewDayBrief, macroPage, view, skRecipe]);
 
   // Deep-link from the Home "Shop list" card: Home sets a pending flag then
   // switches to the Eat tab; on mount we jump straight to the grocery list.
@@ -14212,6 +14214,26 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     { k: 'c', l: tr('coach:adjust.carbs', { defaultValue: 'CARBS' }), v: bsEatNum(cur.totals.c), g: (bsEatCoachN && bsEatCoachN.carbs != null) ? bsEatNum(bsEatCoachN.carbs) : bsEatNum(cur.totals.target.c), c: t.AMBER },
     { k: 'f', l: tr('coach:adjust.fat', { defaultValue: 'FAT' }), v: bsEatNum(cur.totals.f), g: (bsEatCoachN && bsEatCoachN.fat != null) ? bsEatNum(bsEatCoachN.fat) : bsEatNum(cur.totals.target.f), c: t.BLUE },
   ];
+  // A macro tile's own page (owner, 2026-10-24: "the 3 of these are links to the same page"): the
+  // macro's figures as the tile reads them, the day's meals by it, and the week against the target
+  // (a coach's Adjust target is the current one, so it is every day's).
+  const _macroOpen = macroPage ? bsEatMacros.find((m) => m.k === macroPage) : null;
+  if (_macroOpen) {
+    const _mk = _macroOpen.k;
+    const _coachKey = { p: 'protein', c: 'carbs', f: 'fat' }[_mk];
+    const _coachG = bsEatCoachN && bsEatCoachN[_coachKey] != null ? bsEatNum(bsEatCoachN[_coachKey]) : null;
+    const _names = {
+      p: tr('coach:case.macroProtein', { defaultValue: 'Protein' }),
+      c: tr('coach:case.macroCarbs', { defaultValue: 'Carbs' }),
+      f: tr('coach:case.macroFat', { defaultValue: 'Fat' }),
+    };
+    return <BSEatMacroPage k={_mk} name={_names[_mk]} color={_macroOpen.c} v={_macroOpen.v} g={_macroOpen.g}
+      meals={effMeals} dayIdx={day} todayIdx={bsWeekdayIdx()}
+      week={PROGRAM.map((dd) => ({ d: dd.d, v: bsEatNum(dd.totals[_mk]), g: _coachG != null ? _coachG : bsEatNum(dd.totals.target[_mk]) }))}
+      onBack={() => setMacroPage(null)}
+      onMealClick={(id) => { setMacroPage(null); setPreviewMealId(id); }}
+      onDay={() => { setMacroPage(null); setPreviewDayBrief(true); }} />;
+  }
   // "Next" = explicit state, else the first un-done meal — today only.
   const bsEatNextMeal = day === bsWeekdayIdx() ? (effMeals.find(m => m.state === 'next') || effMeals.find(m => m.state !== 'done') || null) : null;
 
@@ -14265,9 +14287,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       {bsEatSignedIn && eatPlanRead && !liveMealDays && eatCoaching && <BSCoachPreparing role="nutritionist" coaching={eatCoaching} />}
 
       {/* Fuel left today (BSEatFuel.jsx), above the next meal (owner, 2026-10-22). Coach-set
-          targets (Adjust plan → Apply) win; a macro opens the day's breakdown. */}
+          targets (Adjust plan → Apply) win; each macro opens its own page. */}
       <BSEatFuel calLeft={bsEatCalLeft} calTarget={bsEatCalTgt} calNow={bsEatCalNow} calPct={bsEatCalPct}
-        macros={bsEatMacros} onOpen={() => setPreviewDayBrief(true)} />
+        macros={bsEatMacros} onOpen={(k) => setMacroPage(k)} />
 
       {/* The next meal — on its own, today only. Log it opens the meal, where it
           is logged; Swap opens the swap sheet on this meal. */}

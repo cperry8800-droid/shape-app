@@ -14,7 +14,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-import { loadBroadsheet, drive, SHIM, ROOT } from './helpers/broadsheet-mount.mjs';
+import { loadBroadsheet, drive, textOf, SHIM, ROOT } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import * as F from '../mobile-app/src/services/focusLayout.mjs';
 
@@ -274,7 +274,7 @@ test('Eat reads fuel left today above the next meal', () => {
   if (lead >= 0) assert.ok(fuel < lead && lead < menu, 'and above the next meal');
   const p = order[fuel].props;
   assert.deepEqual(p.macros.map((m) => m.k), ['p', 'c', 'f'], 'protein, carbs and fat, in that order');
-  assert.equal(typeof p.onOpen, 'function', 'a macro opens the day\'s breakdown');
+  assert.equal(typeof p.onOpen, 'function', 'a macro opens its own page');
   assert.equal(p.calLeft, Math.max(0, p.calTarget - p.calNow));
   assert.equal(at((n) => fn('BSShelfDoor')(n) && /left/.test(String(n.props.figure || ''))), -1, 'no tall row per macro');
 });
@@ -284,13 +284,13 @@ const EATFUEL = await loadRealModule(join(ROOT, 'mobile-app', 'src', 'broadsheet
 });
 
 test('Fuel left today puts the three macros side by side, each a door with what is left', () => {
-  let opened = 0;
+  const opened = [];
   const macros = [
     { k: 'p', l: 'PROTEIN', v: 178, g: 180, c: '#e06547' },
     { k: 'c', l: 'CARBS', v: 218, g: 220, c: '#e3a544' },
     { k: 'f', l: 'FAT', v: 70, g: 65, c: '#5b8df9' },
   ];
-  const d = drive(EATFUEL.BSEatFuel, { calLeft: 52, calTarget: 2100, calNow: 2048, calPct: 98, macros, onOpen: () => { opened += 1; } });
+  const d = drive(EATFUEL.BSEatFuel, { calLeft: 52, calTarget: 2100, calNow: 2048, calPct: 98, macros, onOpen: (k) => { opened.push(k); } });
   const order = d.nodes();
   const head = order.find((n) => typeof n.type === 'function' && n.type.name === 'BSFocusHead');
   assert.equal(head.props.label, 'Fuel left today');
@@ -303,7 +303,8 @@ test('Fuel left today puts the three macros side by side, each a door with what 
   const doors = order.filter((n) => n.type === 'button');
   assert.deepEqual(doors.map((b) => b.props['aria-label']), ['PROTEIN 2g left 178 / 180', 'CARBS 2g left 218 / 220', 'FAT 0g left 70 / 65'], 'over the target reads 0 left, never negative');
   doors.forEach((b) => b.props.onClick());
-  assert.equal(opened, 3);
+  // Each tile opens its own macro (owner, 2026-10-24: "the 3 of these are links to the same page").
+  assert.deepEqual(opened, ['p', 'c', 'f']);
   // The look follows the morning panel (owner, 2026-10-22: "change the look of this"): one rounded
   // panel, and each macro a tile tinted in its own colour.
   const panel = order.find((n) => n.props && n.props['data-eat-fuel'] != null);
@@ -311,6 +312,96 @@ test('Fuel left today puts the three macros side by side, each a door with what 
   assert.equal(panel.props.style.borderRadius, 16);
   assert.deepEqual(doors.map((b) => b.props.style.background), ['#e0654714', '#e3a54414', '#5b8df914'], 'each macro tile is tinted in its colour');
   assert.ok(doors.every((b) => b.props.style.borderRadius === 12));
+});
+
+// Owner, 2026-10-24: "the 3 of these are links to the same page, need to change that". Each tile opens
+// its own macro's page, in the tile's figures and colour, and Back returns to Eat.
+test('Eat opens a macro tile on its own page, a different one for each', () => {
+  delete globalThis.ShapeAuth;
+  const d = drive(BSClientEat, { onProfile() {} });
+  const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
+  const fuel = () => d.nodes().find(fn('BSEatFuel'));
+  const page = () => d.nodes().find(fn('BSEatMacroPage'));
+  const tiles = fuel().props.macros;
+  const seen = [];
+  for (const m of tiles) {
+    fuel().props.onOpen(m.k);
+    d.render();
+    const p = page();
+    assert.ok(p, `the ${m.k} tile opens no page`);
+    assert.equal(fuel(), undefined, 'the page stands in for Eat');
+    assert.equal(p.props.k, m.k);
+    assert.equal(p.props.color, m.c, 'the page is drawn in the tile\'s colour');
+    assert.equal(p.props.v, m.v);
+    assert.equal(p.props.g, m.g, 'the page reads the target the tile reads');
+    assert.equal(p.props.week.length, 7, 'the week is Monday to Sunday');
+    assert.ok(Array.isArray(p.props.meals));
+    seen.push(p.props.name);
+    p.props.onBack();
+    d.render();
+    assert.ok(fuel(), 'Back returns to Eat');
+  }
+  assert.deepEqual(seen, ['Protein', 'Carbs', 'Fat']);
+  // The day's breakdown is still a tap away, from the page.
+  fuel().props.onOpen('p');
+  d.render();
+  page().props.onDay();
+  d.render();
+  assert.equal(page(), undefined);
+  assert.ok(d.nodes().find(fn('BSDayBriefPreview')), 'The whole day opens the day brief');
+});
+
+test('a macro\'s page: what is left, the day\'s meals by it, the week against the target, in the magazine look', () => {
+  const saved = {};
+  for (const name of ['BSPage', 'BSDetailHeader', 'BSFooter']) { saved[name] = globalThis[name]; }
+  globalThis.BSPage = function BSPage({ children }) { return children; };
+  globalThis.BSDetailHeader = function BSDetailHeader() { return null; };
+  globalThis.BSFooter = function BSFooter() { return null; };
+  try {
+    const opened = []; let day = 0;
+    const meals = [
+      { id: 'm1', tag: 'BFAST', title: 'Oats and whey', state: 'done', p: 38, c: 60, f: 9 },
+      { id: 'm2', tag: 'LUNCH', title: 'Chicken bowl', state: 'next', p: '46', c: 70, f: 14 },
+    ];
+    const week = ['M 19', 'T 20', 'W 21', 'T 22', 'F 23', 'S 24', 'S 25'].map((dd, i) => ({ d: dd, v: i < 3 ? 120 + i : 0, g: 130 }));
+    const props = { k: 'p', name: 'Protein', color: '#c0533b', v: 128, g: 130, meals, week, dayIdx: 2, todayIdx: 2,
+      onBack() {}, onMealClick: (id) => opened.push(id), onDay: () => { day += 1; } };
+    const d = drive(EATFUEL.BSEatMacroPage, props);
+    const order = d.nodes();
+    const head = order.find((n) => typeof n.type === 'function' && n.type.name === 'BSDetailHeader');
+    assert.equal(head.props.title, 'Protein');
+    assert.equal(head.props.eyebrow, 'Fuel left today', 'today\'s page says so');
+    assert.match(d.text, /2g left/);
+    assert.match(d.text, /128 of 130 g · 98%/);
+    // The meals, each with its grams of this macro, and a door to the meal.
+    const rows = order.filter((n) => n.props && n.props['data-eat-macro-meal'] != null);
+    assert.equal(rows.length, 2);
+    assert.match(textOf(rows[0]), /BFAST · ✓ Logged.*Oats and whey.*38g/);
+    assert.match(textOf(rows[1]), /LUNCH · To come.*Chicken bowl.*46g/);
+    rows[1].props.onClick();
+    assert.deepEqual(opened, ['m2']);
+    // The week: seven days, each named for a screen reader with its figure and target.
+    const wk = order.find((n) => n.props && n.props['data-eat-macro-week'] != null);
+    assert.match(String(wk.props.style.gridTemplateColumns), /repeat\(7,/);
+    const days = order.filter((n) => n.props && n.props.role === 'img');
+    assert.deepEqual(days.map((n) => n.props['aria-label']).slice(0, 4), ['M 19: 120 of 130 g', 'T 20: 121 of 130 g', 'W 21: 122 of 130 g', 'T 22: 0 of 130 g']);
+    // The magazine look: two Saira heads over a 2px ink rule, square bars, no rounded card.
+    const heads = order.filter((n) => typeof n.type === 'function' && n.type.name === 'BSEfHead').map((n) => n.type(n.props));
+    assert.equal(heads.length, 2);
+    assert.ok(heads.every((h) => h.props['data-eat-macro-head'] != null));
+    assert.ok(heads.every((h) => /^2px solid /.test(h.props.style.borderBottom)));
+    assert.ok(!order.some((n) => n.props && n.props.style && n.props.style.borderRadius && n.props.style.borderRadius !== 0), 'a rounded piece on the page');
+    d.click('The whole day');
+    assert.equal(day, 1);
+    // Over the target reads "over", never a negative "left"; another day names its day.
+    const over = drive(EATFUEL.BSEatMacroPage, { ...props, v: 141, dayIdx: 1 });
+    assert.match(over.text, /11g over/);
+    assert.doesNotMatch(over.text, /-\d+g left/);
+    const overHead = over.nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSDetailHeader');
+    assert.equal(overHead.props.eyebrow, 'T 20');
+  } finally {
+    for (const [name, v] of Object.entries(saved)) { if (v === undefined) delete globalThis[name]; else globalThis[name] = v; }
+  }
 });
 
 test('Train reads in the Focus order: the week, the session, the links', () => {
