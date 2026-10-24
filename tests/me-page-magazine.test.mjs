@@ -31,10 +31,10 @@ test('the Me page asks for the Wall\'s heads on every tab: the name, the score, 
   // The score's bars: square, and no burst on the best one (it left a box drawn round the bar).
   const scoreBars = nodes.filter(named('BSSdBars'));
   assert.ok(scoreBars.length && scoreBars.every((b) => b.props.mag && b.props.still), 'the score bars are the old animated ones');
-  // The member's line is pulled out, not set in italics.
-  const quote = nodes.find(named('BSTPullQuote'));
-  assert.ok(quote && quote.props.text, 'the line is no longer pulled out');
-  assert.match(quote.props.cite, /^quinn line$/i);
+  // No quote at the top (owner, 2026-10-24: "remove the quote at the top on profiles"): the demo
+  // member has a line, and it is not pulled out; the Training for line under the name stays.
+  assert.equal(nodes.filter(named('BSTPullQuote')).length, 0, 'the member\'s line is pulled out at the top again');
+  assert.match(d.text, /Training for/, 'the start line under the name went with the quote');
   const tabsOf = () => d.nodes().find(named('BSTerrainTabs'));
   const seen = {};
   for (const tb of tabsOf().props.tabs) {
@@ -194,13 +194,12 @@ const MAYA = { who: 'Maya Okafor', kind: 'TRAINER', tier: 'ELITE', init: 'MO' };
 const oldLook = (nodes) => nodes.filter((n) => n.props && n.props.style && (n.props.style.borderRadius === 999 || n.props.style.fontStyle === 'italic'));
 const roundButtons = (nodes) => nodes.filter((n) => n.type === 'button' && n.props.style && n.props.style.borderRadius);
 
-test('the coach profile: the line pulled out, the Me page\'s counts and tab strip, and no pill or italics on any tab', () => {
+test('the coach profile: no quote at the top, the Me page\'s counts and tab strip, and no pill or italics on any tab', () => {
   globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
   const d = drive(mod.BSSignalCoachProfile, { person: MAYA, onBack() {}, onMessage() {} });
   const nodes = d.nodes();
-  const line = nodes.find(named('BSTPullQuote'));
-  assert.ok(line && line.props.text, 'the coach\'s line is no longer pulled out');
-  assert.match(line.props.cite, /^maya line$/i);
+  // No quote at the top, as on the member's profile (owner, 2026-10-24).
+  assert.equal(nodes.filter(named('BSTPullQuote')).length, 0, 'the coach\'s line is pulled out at the top again');
   assert.equal(nodes.find(named('BSFollowBlock')).props.variant, 'ledger', 'the counts are the old centred pills');
   const tabsOf = () => d.nodes().find(named('BSTerrainTabs'));
   assert.deepEqual(tabsOf().props.tabs.map((tb) => tb.key), ['activity', 'about', 'coaching', 'playlists', 'reviews']);
@@ -232,7 +231,7 @@ test('the coach\'s About: the philosophy pulled out, the focus on square bars to
   d.render();
   const nodes = d.nodes();
   const quotes = nodes.filter(named('BSTPullQuote'));
-  assert.equal(quotes[1].props.text, 'Get strong, stay strong.', 'the philosophy, without the literal quote marks the old italic line carried');
+  assert.equal(quotes[0].props.text, 'Get strong, stay strong.', 'the philosophy, without the literal quote marks the old italic line carried');
   const focus = nodes.find((n) => n.props && n.props['data-coach-focus'] != null);
   const rows = focus.props.children;
   assert.ok(rows.length >= 2);

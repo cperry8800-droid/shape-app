@@ -48,7 +48,7 @@ import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from
 import { bsMakeAheadIndex, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepRecordsFor, bsYmdAdd, bsYmdIn } from '../services/prepAhead.mjs';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
-import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
+import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsTrackLanes, bsTrackLaneStatus, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
 import { bsCkModalSync, bsCkFocusOwner, bsCkGiveBack } from '../services/cookFocus.mjs';
@@ -18557,9 +18557,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // the chord steepens with them (rise/run 102/296 → 166/296). Raising the band by
   // growing the block would have re-cropped the photo instead of moving the line.
   // On paper there is no photo to climb into and no padding to spend, so the
-  // compact chart keeps its own height and is pixel-identical.
-  const BS_HERO_BLOCK = 278;
-  const heroAscentH = heroCover ? 214 : 150;
+  // compact chart keeps its own height and is pixel-identical. The block was 278
+  // with a 214 band until the owner asked for "the picture part a little smaller,
+  // more condenced" (2026-10-24): 224 with a 196 band keeps the climb's steepness.
+  const BS_HERO_BLOCK = 224;
+  const heroAscentH = heroCover ? 196 : 150;
   if (followProfile) return <BSPublicProfile person={followProfile} onBack={() => setFollowProfile(null)} onMessage={onMessage} />;
   return (
     // A page like every other: BSPage's own scroller, so BSPage's condensed
@@ -18622,28 +18624,21 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
             onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} mag />
         </div>
-        {/* M2 · the Start line + M4 · the Line — hero character, under the identity
-            head. Absent/past/invalid date → the start line doesn't render. */}
+        {/* M2 · the Start line — hero character, under the identity head.
+            Absent/past/invalid date → it doesn't render. The member's line (M4)
+            is no longer pulled out up here (owner, 2026-10-24: "remove the quote
+            at the top on profiles"); the website's desktop profile still shows it. */}
         {(() => {
-          const heroLine = bsProfileLine(customEff && customEff.line);
           const heroStart = bsProfileStartLine(customEff && customEff.startLine);
           const heroStartState = heroStart ? bsStartLineState(heroStart.date, new Date()) : null;
-          if (!heroLine && !heroStartState) return null;
-          const firstName = (String(name || '').trim().split(/\s+/)[0] || '').toUpperCase();
+          if (!heroStartState) return null;
           let dateLabel = '';
-          if (heroStartState) { const v = bsValidStartDate(heroStart.date); try { dateLabel = new Date(v.y, v.m - 1, v.d, 12).toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' }).toUpperCase(); } catch (e) {} }
+          const v = bsValidStartDate(heroStart.date); try { dateLabel = new Date(v.y, v.m - 1, v.d, 12).toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' }).toUpperCase(); } catch (e) {}
           return (
             <div style={{ padding: '8px 8px 0' }}>
-              {heroStartState && (
-                <div style={{ fontFamily: BST_MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), lineHeight: 1.5 }}>
-                  <span style={{ color: c }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>{heroStart.title ? ` · ${heroStart.title}` : ''}{dateLabel ? ` · ${dateLabel}` : ''} · <span style={{ color: c, whiteSpace: 'nowrap' }}>{heroStartState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: heroStartState.days })}</span>
-                </div>
-              )}
-              {heroLine && (
-                <div style={{ marginTop: heroStartState ? 12 : 4 }}>
-                  <BSTPullQuote INK={INK} text={heroLine} cite={`${firstName} ${tr('profile:line.attribution', { defaultValue: 'line' })}`} />
-                </div>
-              )}
+              <div style={{ fontFamily: BST_MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), lineHeight: 1.5 }}>
+                <span style={{ color: c }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>{heroStart.title ? ` · ${heroStart.title}` : ''}{dateLabel ? ` · ${dateLabel}` : ''} · <span style={{ color: c, whiteSpace: 'nowrap' }}>{heroStartState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: heroStartState.days })}</span>
+              </div>
             </div>
           );
         })()}
@@ -19328,7 +19323,6 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // reviews by id AND ownerId — a hand-written id / another coach's review never
   // resolves. Declared AFTER liveReviews: winsWall reads it, and its .map fires the
   // moment a coach has a pinned review — a TDZ here would crash the whole profile.
-  const coachLine = bsProfileLine(customEff && customEff.line);
   const coachFilm = bsProfileFilm(customEff && customEff.film, person.userId, 'coach-media');
   const bizCard = bsProfileBizCard(customEff && customEff.bizCard);
   // P5 wins wall — resolve pinned ids DIRECTLY by id (not from the 200-row slug
@@ -19617,14 +19611,9 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           </div>
           <div style={{ marginTop: 9 }}><span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: c }}>{roleLabel}</span></div>
         </div>
-        {/* Under the hero the page reads as the Wall prints: a heavy ink rule, then the coach's line pulled
-            out under the magazine's red quote mark (P2 · The Line), as the Me page pulls out a member's. */}
+        {/* Under the hero the page reads as the Wall prints: a heavy ink rule. The coach's line is no
+            longer pulled out under it (owner, 2026-10-24: "remove the quote at the top on profiles"). */}
         <div aria-hidden style={{ height: 3, marginTop: 16, background: INK }} />
-        {coachLine ? (
-          <div style={{ marginTop: 14 }}>
-            <BSTPullQuote INK={INK} text={coachLine} cite={`${first} ${tr('profile:line.attribution', { defaultValue: 'line' })}`} />
-          </div>
-        ) : null}
 
         {/* Followers / following / posts, then Follow and Message: the Me page's one line of counts. */}
         <div style={{ marginTop: 6 }}>
