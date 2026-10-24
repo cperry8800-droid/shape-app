@@ -21,6 +21,8 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
 const src = fs.readFileSync(SRC, 'utf8');
+// The Library (Eat → Library) is its own module since 2026-10-24 (BSGroceryLibrary.jsx).
+const libSrc = fs.readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/BSGroceryLibrary.jsx'), 'utf8');
 
 // ── Extract the helpers by brace-matching the SHIPPED source ────────────────
 // ⚠ The marker is the FULL declaration head. A bare name would match a call site
@@ -158,7 +160,7 @@ test('the byline gate is wired at the real call site', () => {
   );
   assert.match(src, /nutrition:eat\.fromYourList/, 'the self case needs its own copy, not a credit');
   assert.match(
-    src,
+    libSrc,
     /<BSEyebrow color=\{color\}>\{bsGroceryListEyebrow\(l, tr\)\}<\/BSEyebrow>/,
     'the library row must derive its eyebrow, not print the stored string',
   );
@@ -171,11 +173,11 @@ test('the byline gate is wired at the real call site', () => {
   // one `fold()`. The rule the assertion protects is unchanged — search the
   // RENDERED eyebrow, never the stored string.
   assert.match(
-    src,
+    libSrc,
     /fold\(bsGroceryListEyebrow\(l, tr\)\)\.includes\(q\)/,
     'the library search must match the RENDERED eyebrow',
   );
-  const matcher = src.slice(src.indexOf('const matchesQuery = (l) =>'));
+  const matcher = libSrc.slice(libSrc.indexOf('const matchesQuery = (l) =>'));
   // ⚠ STRIP COMMENTS FIRST — the rationale ABOVE that line names the very thing
   // it bans, so a raw scan fires on its own explanation. This file has recorded
   // that trap before; it re-appeared the moment the assertion was written.
@@ -288,7 +290,7 @@ test('the library search folds case in the LOCALE, not with a bare toLowerCase',
   // word they can see and match nothing. The fold is extracted from the shipped
   // file and evaluated under a stubbed locale — a revert to `.toLowerCase()`
   // returns `'i'` and fails here.
-  const line = src.split('\n').find((l) => l.includes('const fold = '));
+  const line = libSrc.split('\n').find((l) => l.includes('const fold = '));
   assert.ok(line, 'the library search fold vanished — re-point this guard');
   const make = (locale) =>
     // eslint-disable-next-line no-new-func

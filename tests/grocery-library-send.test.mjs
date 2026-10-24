@@ -5,6 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadBroadsheet, drive, flatten, textOf } from './helpers/broadsheet-mount.mjs';
+import { bsGroceryShareMessage } from '../mobile-app/src/services/groceryShare.mjs';
 
 const { BSGroceryLibrary, BSPostSendSheet } = await loadBroadsheet(['BSGroceryLibrary', 'BSPostSendSheet']);
 
@@ -31,7 +32,7 @@ test('an open Library list has Send to a member, which opens the send sheet with
   d.click('Send to a member');
   const s = sheet(d);
   assert.ok(s, 'the send sheet opens');
-  assert.equal(s.props.post.grocery, MINE, 'with the list as it stands, nothing loaded');
+  assert.deepEqual(s.props.post.grocery, MINE, 'with the list as it stands, nothing loaded');
   s.props.onClose();
   d.render();
   assert.ok(!sheet(d), 'and closes');
@@ -45,4 +46,30 @@ test('a built-in list counts its items, never "NaN items"', () => {
   openCard(d, 'Sunday staples');
   d.click('Send to a member');
   assert.equal(sheet(d).props.post.grocery.name, 'Sunday staples');
+});
+
+// Codex P2 on #2435: a list saved without items (its card reads them off the stored preview) showed Send,
+// but the bare record has neither items nor aisles, so the message could not be built and the send failed.
+// It sends the items its open card shows.
+test('a list saved without items sends the items its card shows', () => {
+  const BARE = { id: 'legacy-1', name: 'Old cart', kind: 'custom', count: 2, preview: 'Limes · Rice' };
+  const d = drive(BSGroceryLibrary, { recipeLists: [BARE] });
+  openCard(d, 'Old cart');
+  d.click('Send to a member');
+  const sent = sheet(d).props.post.grocery;
+  assert.deepEqual(sent.items.map((it) => it.n), ['Limes', 'Rice']);
+  const msg = bsGroceryShareMessage(sent);
+  assert.ok(msg, 'the message builds');
+  assert.deepEqual(msg.metadata.items.map((it) => it.n), ['Limes', 'Rice']);
+  assert.ok(!('items' in BARE), 'the saved record itself is left alone');
+});
+
+// A list that keeps its aisles sends by them, never by the preview's items.
+test('a list with aisles sends its aisles', () => {
+  const AISLED = { id: 'aisled-1', name: 'Taco night', kind: 'recipe', preview: 'Tortillas', aisles: [{ aisle: 'Bakery', items: [{ n: 'Tortillas', q: '12' }, { n: 'Limes', q: '3' }] }] };
+  const d = drive(BSGroceryLibrary, { recipeLists: [AISLED] });
+  openCard(d, 'Taco night');
+  d.click('Send to a member');
+  const msg = bsGroceryShareMessage(sheet(d).props.post.grocery);
+  assert.deepEqual(msg.metadata.items, [{ n: 'Tortillas', q: '12', a: 'Bakery' }, { n: 'Limes', q: '3', a: 'Bakery' }]);
 });
