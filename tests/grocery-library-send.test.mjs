@@ -14,9 +14,9 @@ const MINE = {
   items: [{ id: 'a', n: 'Limes', q: '4', a: 'Produce' }, { id: 'b', n: 'Rice', q: '1 bag', a: 'Grains' }],
 };
 
-// The card's header (name, count, preview) is the tap target that opens it.
+// The row (the count tile, the name and the preview) is the button that opens it.
 const openCard = (d, name) => {
-  const head = d.nodes().find((n) => n.type === 'div' && typeof n.props.onClick === 'function' && textOf(n).includes(name));
+  const head = d.nodes().find((n) => n.type === 'button' && 'aria-expanded' in n.props && textOf(n).includes(name));
   assert.ok(head, `no card header for ${name}`);
   head.props.onClick({ stopPropagation() {} });
   d.render();
@@ -41,7 +41,8 @@ test('an open Library list has Send to a member, which opens the send sheet with
 test('a built-in list counts its items, never "NaN items"', () => {
   const d = drive(BSGroceryLibrary, { recipeLists: [] });
   assert.doesNotMatch(d.text, /NaN/);
-  assert.match(d.text, /11 items · Bananas · Eggs · Oats/);
+  // The count is the row's tile: the figure, then its unit, before the name and what the list holds.
+  assert.match(d.text, /11itemsSunday staplesBananas · Eggs · Oats/);
   // A built-in list sends too.
   openCard(d, 'Sunday staples');
   d.click('Send to a member');

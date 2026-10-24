@@ -7868,16 +7868,10 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
     return tr('nutrition:kitchen.fromSource', { defaultValue: 'From {name}', name: a.name });
   };
 
-  // One reading: a small label, then the figure in MONO with tabular figures so
-  // two rows' numbers line up. A called helper, not a component — see the note
-  // on BSKmToggle above for why that distinction is load bearing here.
-  const reading = (k, label, value) => (
-    <span key={k} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, whiteSpace: 'nowrap' }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{label}</span>
-      <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-    </span>
-  );
-
+  // A quiet row (owner, 2026-10-24, of the menu: "same with this, looks really busy", then option A
+  // of three): the name, one line of the diet and the credit, one line of numbers, the allergen note
+  // where a recipe carries one, and ＋ (to the grocery list) and ♡ (to the library) at the end.
+  const sideKey = { position: 'relative', width: 44, height: 44, flex: 'none', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, border: `1px solid ${t.RULE}`, background: 'transparent', cursor: 'pointer', fontSize: 19, lineHeight: 1 };
   const row = (recipe) => {
     const dc = BS_SK_DIET_COLOR[recipe.diet] || teal;
     const a = bsRecipeAttribution(recipe);
@@ -7887,68 +7881,63 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
     // not `[]` — so the array is coalesced before it is read, twice.
     const notes = recipe.allergenNotes || [];
     return (
-      <div key={id} style={{ padding: '13px 0', borderBottom: `1px solid ${t.HAIR}` }}>
-        <button type="button" onClick={() => onOpenRecipe(recipe)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
-          <span style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap' }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: t.W.display, letterSpacing: '-0.015em', lineHeight: 1.15, color: t.INK }}>{recipe.title}</span>
-            {recipe.diet ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 6px', borderRadius: 3, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70, lineHeight: 1.4 }}>
-                <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: dc, display: 'inline-block' }} />
-                {recipe.diet}
+      <div key={id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '15px 0', borderBottom: `1px solid ${t.HAIR}` }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <button type="button" onClick={() => onOpenRecipe(recipe)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
+            <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: t.W.display, letterSpacing: '-0.015em', lineHeight: 1.2, color: t.INK }}>{recipe.title}</span>
+            {/* Two honest ways to be credited: a person with their role, or the
+                public-domain source. Every byline goes through
+                bsRecipeAttribution — a sourced recipe carries `by: null`, and
+                three surfaces once crashed on `.by.toUpperCase()`. */}
+            {/* One run of text, so a long credit wraps between its words, never leaving a stray dot. */}
+            {(recipe.diet || a) ? (
+              <span style={{ display: 'block', marginTop: 4, fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.4, color: t.INK50 }}>
+                {recipe.diet ? <span aria-hidden style={{ display: 'inline-block', width: 6, height: 6, borderRadius: 999, background: dc, marginRight: 6, verticalAlign: 'middle', position: 'relative', top: -1 }} /> : null}
+                {recipe.diet || ''}{recipe.diet && a ? ' · ' : ''}{a ? creditOf(recipe) : ''}
               </span>
             ) : null}
-          </span>
-          {/* Two honest ways to be credited: a person with their role, or the
-              public-domain source. Every byline goes through
-              bsRecipeAttribution — a sourced recipe carries `by: null`, and
-              three surfaces once crashed on `.by.toUpperCase()`. */}
-          {a ? (
-            <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50 }}>
-              {a.kind === 'authored' && a.role ? <b style={{ color: t.ACCENT, fontWeight: 800 }}>{a.role}{' · '}</b> : null}
-              {a.kind === 'authored' ? a.name : tr('nutrition:kitchen.fromSource', { defaultValue: 'From {name}', name: a.name })}
+            <span style={{ display: 'block', marginTop: 6, fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+              {recipe.time} · {recipe.kcal} <span style={{ textTransform: 'lowercase' }}>{tr('nutrition:kitchen.rdKcal', { defaultValue: 'Kcal' })}</span>
+              {' · '}{tr('nutrition:kitchen.rdProtein', { defaultValue: 'P' })} {recipe.macros.p}
+              {' · '}{tr('nutrition:kitchen.rdCarbs', { defaultValue: 'C' })} {recipe.macros.c}
+              {' · '}{tr('nutrition:kitchen.rdFat', { defaultValue: 'F' })} {recipe.macros.f}
             </span>
+          </button>
+          {/* Allergen claim note, on the RESULT ROW. This list is what the FREE
+              FROM toggles return, and the row carries `Send to grocery` — so a
+              member can put generic oats / soy sauce / broth / margarine on a
+              shopping list without ever opening the card that qualifies the
+              claim. The certification is the safety-bearing half, so it renders
+              ABOVE the grocery action, never after it. Certification clause only;
+              the brand examples stay on the detail card. Unattributed — the
+              catalog's own voice, never behind the recipe's byline.
+              ⚠ THE EYEBROW IS A JS TEMPLATE, NOT AN ICU PLACEHOLDER. The word is
+              keyed and the allergen is interpolated in JavaScript, because the
+              mount harness's `tr` returns `defaultValue` WITHOUT interpolating —
+              an ICU `{allergen}` would render literally and every assertion on
+              `ALLERGEN · GLUTEN` would read a brace instead of the allergen. */}
+          {notes.length > 0 ? (
+            <div style={{ marginTop: 6 }}>
+              {notes.map((n, ni) => (
+                <div key={ni} style={{ marginTop: ni ? 4 : 0, fontFamily: t.BODY, fontSize: 12, lineHeight: 1.4, color: t.INK70 }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: t.AMBER || t.INK50 }}>{`${tr('nutrition:kitchen.allergen', { defaultValue: 'ALLERGEN' })} · ${String(n.allergen || '').toUpperCase()} `}</span>
+                  {n.certification}
+                </div>
+              ))}
+            </div>
           ) : null}
-        </button>
-        {/* Allergen claim note, on the RESULT ROW. This list is what the FREE
-            FROM toggles return, and the row carries `Send to grocery` — so a
-            member can put generic oats / soy sauce / broth / margarine on a
-            shopping list without ever opening the card that qualifies the
-            claim. The certification is the safety-bearing half, so it renders
-            ABOVE the grocery action, never after it. Certification clause only;
-            the brand examples stay on the detail card. Unattributed — the
-            catalog's own voice, never behind the recipe's byline.
-            ⚠ THE EYEBROW IS A JS TEMPLATE, NOT AN ICU PLACEHOLDER. The word is
-            keyed and the allergen is interpolated in JavaScript, because the
-            mount harness's `tr` returns `defaultValue` WITHOUT interpolating —
-            an ICU `{allergen}` would render literally and every assertion on
-            `ALLERGEN · GLUTEN` would read a brace instead of the allergen. */}
-        {notes.length > 0 ? (
-          <div style={{ marginTop: 6, paddingLeft: 8, borderLeft: `2px solid ${bsTHexA(t.ACCENT, 0.45)}` }}>
-            {notes.map((n, ni) => (
-              <div key={ni} style={{ marginTop: ni ? 4 : 0, fontFamily: t.MONO, fontSize: 8.5, lineHeight: 1.45, color: t.INK70 }}>
-                <span style={{ fontWeight: 800, letterSpacing: '0.16em', color: t.INK50 }}>{`${tr('nutrition:kitchen.allergen', { defaultValue: 'ALLERGEN' })} · ${String(n.allergen || '').toUpperCase()} `}</span>
-                {n.certification}
-              </div>
-            ))}
-          </div>
-        ) : null}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 7, flexWrap: 'wrap' }}>
-          {reading('rdTime', tr('nutrition:kitchen.rdTime', { defaultValue: 'Time' }), recipe.time)}
-          {reading('rdKcal', tr('nutrition:kitchen.rdKcal', { defaultValue: 'Kcal' }), recipe.kcal)}
-          {reading('rdP', tr('nutrition:kitchen.rdProtein', { defaultValue: 'P' }), recipe.macros.p)}
-          {reading('rdC', tr('nutrition:kitchen.rdCarbs', { defaultValue: 'C' }), recipe.macros.c)}
-          {reading('rdF', tr('nutrition:kitchen.rdFat', { defaultValue: 'F' }), recipe.macros.f)}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 2 }}>
-          <button type="button" onClick={() => onSendToGrocery(recipe)} style={{ minHeight: 44, display: 'flex', flex: 1, alignItems: 'center', gap: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', textAlign: 'left' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>{tr('nutrition:kitchen.sendToGrocery', { defaultValue: 'Send to grocery' })}</span>
-            <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
-            <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 12 }}>→</span>
+        {/* ＋ and ♡, square 44 px keys. The ＋ carries its words for a screen reader (and they are the
+            row marker the allergen suite reads), after the note in the row's order. */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 'none' }}>
+          <button type="button" onClick={() => onSendToGrocery(recipe)} style={{ ...sideKey, color: t.ACCENT }}>
+            <span aria-hidden>＋</span>
+            <span style={BS_SR_ONLY}>{tr('nutrition:kitchen.sendToGrocery', { defaultValue: 'Send to grocery' })}</span>
           </button>
           <button type="button" onClick={() => bsLibToggle(bsRecipeLibItem(recipe))} aria-pressed={saved}
             aria-label={saved ? tr('nutrition:kitchen.unsaveAria', { defaultValue: 'Remove from your library' }) : tr('nutrition:kitchen.saveAria', { defaultValue: 'Save to your library' })}
-            style={{ minHeight: 44, minWidth: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: saved ? teal : t.INK50, whiteSpace: 'nowrap' }}>
-            {saved ? `♥ ${tr('nutrition:kitchen.saved', { defaultValue: 'Saved' })}` : `♡ ${tr('nutrition:kitchen.save', { defaultValue: 'Save' })}`}
+            style={{ ...sideKey, color: saved ? teal : t.INK, borderColor: saved ? teal : t.RULE }}>
+            <span aria-hidden>{saved ? '♥' : '♡'}</span>
           </button>
         </div>
       </div>

@@ -159,11 +159,14 @@ test('the byline gate is wired at the real call site', () => {
     'a self-authored list must be emptied BEFORE the first-name extractor runs',
   );
   assert.match(src, /nutrition:eat\.fromYourList/, 'the self case needs its own copy, not a credit');
+  // The open list's kind line (owner, 2026-10-24: the Library as a compact index) prints the derived
+  // eyebrow in the kind's colour, and never the stored string.
   assert.match(
     libSrc,
-    /<BSEyebrow color=\{color\}>\{bsGroceryListEyebrow\(l, tr\)\}<\/BSEyebrow>/,
+    /<span style=\{\{ color \}\}>\{bsGroceryListEyebrow\(l, tr\)\}<\/span>/,
     'the library row must derive its eyebrow, not print the stored string',
   );
+  assert.doesNotMatch(libSrc, /\{l\.eyebrow\}/, 'the library row prints the stored eyebrow');
   // ⚠ AND SO MUST THE SEARCH. A record now stores a token, so `l.eyebrow` is the
   // back-compat string and can differ from what is on screen — searching the
   // stored copy matches text the member cannot see and misses text they can.

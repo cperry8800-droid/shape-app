@@ -73,7 +73,7 @@ function bsGroceryLibCount(l) {
 }
 
 export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreate = () => {}, onEdit = () => {}, onDuplicate = () => {}, onDelete = () => {}, deletedIds = [], onChangeView = null }) {
-  const { useBS, BSPage, BSDetailHeader, BSNutritionTopTabs, BSEyebrow, BSFooter, BSPostSendSheet, _bsScrollTopOnMount, bsGroceryHues, bsDateLocale, bsGroceryListEyebrow } = window;
+  const { useBS, BSPage, BSDetailHeader, BSNutritionTopTabs, BSFooter, BSPostSendSheet, _bsScrollTopOnMount, bsGroceryHues, bsDateLocale, bsGroceryListEyebrow } = window;
   const t = useBS();
   const tr = useShapeTr();
   _bsScrollTopOnMount();
@@ -117,8 +117,8 @@ export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], 
 
       {/* New list */}
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <button onClick={onCreate} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)',
-          padding: '14px 14px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
+        <button onClick={onCreate} style={{ width: '100%', minHeight: 46, borderRadius: 10,
+          padding: '12px 14px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
           fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase',
         }}>{tr('nutrition:grocery.lib.newList', { defaultValue: '＋ New grocery list' })}</button>
       </div>
@@ -158,63 +158,83 @@ export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], 
             <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${t.RULE}` }} />
           </div>
         )}
-        {filtered.map((l, idx) => {
-          const color = l.kind === 'mealplan' ? gold : l.kind === 'custom' ? '#8a5cf6' : (l.kind === 'recipe' || l.kind === 'template') ? t.AMBER : teal;
+        {/* A compact index (owner, 2026-10-24, of the Library: "improve design and look of this library
+            page", then option C of three): the item count in a tile, the name and what it holds, and a
+            chevron. A tap opens the list: its kind and uses, its items, and its actions. */}
+        {filtered.map((l) => {
+          const color = l.kind === 'mealplan' ? gold : l.kind === 'custom' ? t.INK70 : (l.kind === 'recipe' || l.kind === 'template') ? t.AMBER : teal;
+          // The tile's figure takes the list's kind colour where the kind has one; a member's own list is ink.
+          const figure = l.kind === 'custom' ? t.INK : color;
           const open = openList === l.id;
           const previewItems = l.items || bsLibraryPreviewItems(l);
           const itemCount = bsGroceryLibCount(l);
-          const textAction = (c) => ({ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: c, borderBottom: `2px solid ${c}66` });
+          // The tile sets the figure large and its word small, both read off the one translated count
+          // ("11 items", "kayayyaki 11"): the word is whatever surrounds the number, in the locale's order.
+          const countLabel = tr('nutrition:grocery.itemCount', { defaultValue: `${itemCount} item${itemCount === 1 ? '' : 's'}`, count: itemCount });
+          const countParts = String(countLabel).match(/^(.*?)(\d+)(.*)$/);
+          const countWord = countParts ? `${countParts[1]} ${countParts[3]}`.trim() : '';
+          const key = (primary) => ({
+            minHeight: 40, padding: '0 14px', borderRadius: 9, cursor: 'pointer',
+            fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+            background: primary ? t.INK : 'transparent', color: primary ? t.PAPER : t.INK,
+            border: primary ? 0 : `1px solid ${t.RULE}`,
+          });
           return (
-            <div key={l.id} style={{ position: 'relative', borderTop: idx ? `1px solid ${t.HAIR}` : 0, paddingTop: idx ? 16 : 8, paddingBottom: 16, paddingLeft: 13 }}>
-              <span aria-hidden style={{ position: 'absolute', left: 0, top: idx ? 16 : 8, bottom: 16, width: 3, background: color }} />
-              <div onClick={() => setOpenList(open ? null : l.id)} style={{ cursor: 'pointer' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5, gap: 10 }}>
-                  <BSEyebrow color={color}>{bsGroceryListEyebrow(l, tr)}</BSEyebrow>
-                  <BSEyebrow>{tr('nutrition:grocery.lib.uses', { defaultValue: `${l.usedCount} use${l.usedCount === 1 ? '' : 's'}`, count: l.usedCount })}</BSEyebrow>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{l.name}</div>
-                  <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 13, color: t.INK50, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
-                </div>
-                {/* ⚠ THE EMPTY STATE LIVES HERE NOW, not in the record. Moving it
-                    makes it visible to the inventory walk for the first time — a
-                    string written into a saved list is a string the measurement
-                    cannot see, which is the BSWeekStrip blind spot in reverse. */}
-                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em' }}>{tr('nutrition:grocery.itemCount', { defaultValue: `${itemCount} item${itemCount === 1 ? '' : 's'}`, count: itemCount })} · {l.preview || tr('nutrition:grocery.lib.emptyList', { defaultValue: 'Empty list' })}</div>
-              </div>
-              {open && previewItems && previewItems.length > 0 && (
-                <div style={{ margin: '12px 0 2px' }}>
-                  {previewItems.map((it, i2) => (
-                    <div key={it.id || i2} style={{
-                      display: 'grid', gridTemplateColumns: '54px 1fr', gap: 10, padding: '9px 0',
-                      borderTop: i2 ? `1px solid ${t.HAIR}` : 0,
-                    }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, fontWeight: 700, letterSpacing: '0.06em' }}>{it.q}</span>
-                      <span>
-                        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 700, letterSpacing: '-0.01em' }}>{it.n}</span>
-                        {it.meals && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.08em', marginTop: 2, textTransform: 'uppercase' }}>{it.meals}</span>}
-                      </span>
+            <div key={l.id} style={{ borderBottom: `1px solid ${t.HAIR}` }}>
+              <button type="button" aria-expanded={open} onClick={() => setOpenList(open ? null : l.id)} style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0',
+                background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: t.INK,
+              }}>
+                <span style={{ width: 52, height: 52, flex: 'none', borderRadius: 12, background: t.PAPER2 || t.PAPER, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 500, lineHeight: 1, color: figure, fontVariantNumeric: 'tabular-nums' }}>{itemCount}</span>
+                  {countWord ? <span style={{ marginTop: 3, maxWidth: 48, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{countWord}</span> : null}
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1.2, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
+                  {/* ⚠ THE EMPTY STATE LIVES HERE NOW, not in the record. Moving it
+                      makes it visible to the inventory walk for the first time — a
+                      string written into a saved list is a string the measurement
+                      cannot see, which is the BSWeekStrip blind spot in reverse. */}
+                  <span style={{ display: 'block', marginTop: 2, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.preview || tr('nutrition:grocery.lib.emptyList', { defaultValue: 'Empty list' })}</span>
+                </span>
+                <span aria-hidden style={{ flex: 'none', width: 20, textAlign: 'center', fontSize: 20, lineHeight: 1, color: t.INK50, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
+              </button>
+              {open && (
+                <div style={{ padding: '0 0 14px 64px' }}>
+                  {/* What kind of list and how often it is used, one line that wraps as words. */}
+                  <div style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.4, color: t.INK50 }}>
+                    <span style={{ color }}>{bsGroceryListEyebrow(l, tr)}</span>
+                    {' · '}{tr('nutrition:grocery.lib.uses', { defaultValue: `${l.usedCount} use${l.usedCount === 1 ? '' : 's'}`, count: l.usedCount })}
+                  </div>
+                  {previewItems && previewItems.length > 0 && (
+                    <div style={{ margin: '8px 0 2px' }}>
+                      {previewItems.map((it, i2) => (
+                        <div key={it.id || i2} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '7px 0', borderTop: i2 ? `1px solid ${t.HAIR}` : 0 }}>
+                          <span style={{ flex: 1, minWidth: 0, fontFamily: t.BODY, fontSize: 14, color: t.INK }}>{it.n}</span>
+                          <span style={{ flex: 'none', fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.04em' }}>{it.q}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                    <button onClick={() => onLoad(l)} style={key(true)}>{tr('nutrition:grocery.lib.load', { defaultValue: 'Load →' })}</button>
+                    <button onClick={() => onEdit(l)} style={key(false)}>{tr('nutrition:grocery.lib.edit', { defaultValue: 'Edit' })}</button>
+                    {l.kind === 'mealplan' && (
+                      <button onClick={() => onDuplicate(l)} style={key(false)}>{tr('nutrition:grocery.lib.duplicate', { defaultValue: 'Duplicate' })}</button>
+                    )}
+                    {l.kind === 'custom' && (
+                      <button onClick={() => onDelete(l)} style={{ ...key(false), marginLeft: 'auto', border: 0, padding: '0 4px', color: t.RUST }}>{tr('nutrition:grocery.lib.delete', { defaultValue: 'Delete' })}</button>
+                    )}
+                  </div>
+                  {/* An open list goes to a member as it stands, as from the grocery page, without loading it. A
+                      list saved without items sends the items its card shows (Codex P2 on #2435): the message is
+                      built from items or aisles, so the bare record would fail to send. */}
+                  {previewItems && previewItems.length > 0 && (
+                    <button type="button" data-bs-grocery-send="" onClick={() => setSendFor({ ...l, items: previewItems })} style={{ marginTop: 4, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal }}>
+                      {tr('nutrition:grocery.shop.sendMember', { defaultValue: 'Send to a member →' })}
+                    </button>
+                  )}
                 </div>
-              )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', rowGap: 10, marginTop: 12 }}>
-                <button onClick={() => onLoad(l)} style={{ borderRadius: 5, padding: '9px 14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', background: t.INK, color: t.PAPER, border: 0, clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}>{tr('nutrition:grocery.lib.load', { defaultValue: 'Load →' })}</button>
-                <button onClick={() => onEdit(l)} style={textAction(t.INK)}>{tr('nutrition:grocery.lib.edit', { defaultValue: 'Edit' })}</button>
-                {l.kind === 'mealplan' && (
-                  <button onClick={() => onDuplicate(l)} style={textAction(t.INK)}>{tr('nutrition:grocery.lib.duplicate', { defaultValue: 'Duplicate' })}</button>
-                )}
-                {l.kind === 'custom' && (
-                  <button onClick={() => onDelete(l)} style={{ ...textAction(t.RUST), marginLeft: 'auto' }}>{tr('nutrition:grocery.lib.delete', { defaultValue: 'Delete' })}</button>
-                )}
-              </div>
-              {/* An open list goes to a member as it stands, as from the grocery page, without loading it. A
-                  list saved without items sends the items its card shows (Codex P2 on #2435): the message is
-                  built from items or aisles, so the bare record would fail to send. */}
-              {open && previewItems && previewItems.length > 0 && (
-                <button type="button" data-bs-grocery-send="" onClick={() => setSendFor({ ...l, items: previewItems })} style={{ marginTop: 6, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
-                  <span style={textAction(teal)}>{tr('nutrition:grocery.shop.sendMember', { defaultValue: 'Send to a member →' })}</span>
-                </button>
               )}
             </div>
           );
