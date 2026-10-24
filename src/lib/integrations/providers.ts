@@ -28,6 +28,9 @@ export interface ProviderConfig {
   // For Strava: token response uses `expires_at` (unix seconds) instead
   // of `expires_in`. Set this to handle provider quirks in callback.
   tokenResponseMode?: 'expires_in' | 'expires_at_unix';
+  // A scope the refresh request must name. WHOOP issues a refresh token only to a sign-in that
+  // asked for `offline`, and its refresh request names `offline` again.
+  refreshScope?: string;
 }
 
 export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
@@ -64,7 +67,11 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     description: 'Share recovery, strain, and sleep data with your coach.',
     authorizeUrl: 'https://api.prod.whoop.com/oauth/oauth2/auth',
     tokenUrl: 'https://api.prod.whoop.com/oauth/oauth2/token',
-    scope: 'read:recovery read:cycles read:workout read:sleep read:profile read:body_measurement',
+    // ⚠ `offline` OR THE CONNECTION DIES IN AN HOUR (2026-10-24). Without it WHOOP sends no refresh
+    // token, and its access token lasts an hour: the one WHOOP connection on file (2 May) expired
+    // that day and never synced anything.
+    scope: 'offline read:recovery read:cycles read:workout read:sleep read:profile read:body_measurement',
+    refreshScope: 'offline',
     clientIdEnv: 'WHOOP_CLIENT_ID',
     clientSecretEnv: 'WHOOP_CLIENT_SECRET',
   },

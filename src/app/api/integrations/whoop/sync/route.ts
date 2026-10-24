@@ -49,7 +49,7 @@ async function whoopGet<T>(accessToken: string, path: string): Promise<T> {
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`WHOOP ${path} failed (${res.status}): ${text || res.statusText}`);
+    throw Object.assign(new Error(`WHOOP ${path} failed (${res.status}): ${text || res.statusText}`), { status: res.status });
   }
 
   return (await res.json()) as T;
@@ -280,6 +280,12 @@ export async function GET(request: Request) {
       snapshot,
     });
   } catch (error) {
+    // WHOOP refusing the token means the connection has lapsed (a refresh that failed, or one made
+    // before the `offline` scope, which has no refresh token): say to connect again, not "failed".
+    if ((error as { status?: number })?.status === 401) {
+      console.warn('[shape-api] whoop sync: WHOOP refused the access token');
+      return NextResponse.json({ error: 'WHOOP needs reconnecting. Connect it again in Integrations.', reconnect: true }, { status: 409 });
+    }
     return dbError(error, 'whoop sync', 502, 'WHOOP sync failed.');
   }
 }
