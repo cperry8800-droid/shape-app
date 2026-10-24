@@ -242,3 +242,83 @@ test('a coach sends any list to a member, through the members\' send sheet', asy
     }
   } finally { delete W.BSPostSendSheet; }
 });
+
+// The send sheet lives in the CLIENT bundle, which a cold pros-only session hasn't loaded (Codex P1 on
+// #2434). The loader can't compile a dynamic import, so bsProOpenSend runs from its shipped source with
+// the import stubbed, as notification-routes.test.mjs does for bsProOpenPerson.
+function coachSend(windowObj) {
+  const PROS_SRC = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), 'utf8');
+  const grab = (head) => {
+    const at = PROS_SRC.indexOf(head);
+    assert.ok(at >= 0, head);
+    let depth = 0;
+    for (let i = PROS_SRC.indexOf('{', at); i < PROS_SRC.length; i++) {
+      if (PROS_SRC[i] === '{') depth++;
+      else if (PROS_SRC[i] === '}' && --depth === 0) return PROS_SRC.slice(at, i + 1);
+    }
+    throw new Error('unbalanced ' + head);
+  };
+  const gen = PROS_SRC.match(/^let _bsProSendGen = 0;$/m);
+  assert.ok(gen, 'the generation counter is gone');
+  const loads = [];
+  const body = [gen[0], grab('function bsProOpenSend(list, setSendFor, onFail) {'), grab('function bsProCloseSend(setSendFor) {'), 'return { bsProOpenSend, bsProCloseSend };']
+    .join('\n').replace("import('./iosAppBroadsheetClient.jsx')", '__load()');
+  assert.ok(!body.includes('import('), 'the import was stubbed');
+  // eslint-disable-next-line no-new-func
+  const api = new Function('window', '__load', body)(windowObj, () => new Promise((resolve, reject) => loads.push({ resolve, reject })));
+  return { ...api, loads };
+}
+
+test('a cold coach session loads the send sheet on demand, and a failed load says so (Codex P1 on #2434)', async () => {
+  const settle = () => new Promise((r) => setImmediate(r));
+  const sheet = () => null;
+  // Loaded already: it opens at once.
+  const warm = coachSend({ BSPostSendSheet: sheet });
+  let open = 'unset';
+  warm.bsProOpenSend('list-1', (v) => { open = v; });
+  assert.equal(open, 'list-1');
+  assert.equal(warm.loads.length, 0, 'no load when the sheet is there');
+  // Not loaded: the client bundle loads first, then the sheet opens.
+  const w = {};
+  const cold = coachSend(w);
+  open = 'unset';
+  cold.bsProOpenSend('list-2', (v) => { open = v; });
+  assert.equal(cold.loads.length, 1, 'the client bundle is loaded');
+  assert.equal(open, 'unset');
+  w.BSPostSendSheet = sheet;
+  cold.loads[0].resolve();
+  await settle();
+  assert.equal(open, 'list-2');
+  // A failed load tells the coach and opens nothing.
+  const failed = coachSend({});
+  const fails = [];
+  const seen = [];
+  failed.bsProOpenSend('list-3', (v) => seen.push(v), () => fails.push('failed'));
+  failed.loads[0].reject(new Error('chunk failed'));
+  await settle();
+  assert.deepEqual([seen, fails], [[], ['failed']]);
+  // A load that lands without the sheet is a failure too, not a silent tap.
+  const empty = coachSend({});
+  empty.bsProOpenSend('list-4', (v) => seen.push(v), () => fails.push('no sheet'));
+  empty.loads[0].resolve();
+  await settle();
+  assert.deepEqual([seen, fails], [[], ['failed', 'no sheet']]);
+  // Closed, or another list tapped, before the load lands: only the latest request opens.
+  const w2 = {};
+  const late = coachSend(w2);
+  const got = [];
+  late.bsProOpenSend('list-5', (v) => got.push(v));
+  late.bsProCloseSend((v) => got.push(v));
+  late.bsProOpenSend('list-6', (v) => got.push(v));
+  late.bsProOpenSend('list-7', (v) => got.push(v));
+  w2.BSPostSendSheet = sheet;
+  late.loads.forEach((l) => l.resolve());
+  await settle();
+  assert.deepEqual(got, [null, 'list-7']);
+});
+
+test('Send to a member goes through the on-demand opener, and its failure is a toast', () => {
+  const PROS_SRC = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), 'utf8');
+  assert.match(PROS_SRC, /data-bs-grocery-send="" onClick=\{\(\) => bsProOpenSend\(g, setSendFor, \(\) => window\.__bsToast\?\.\(tr\('coach:grocery\.toastCouldNotSend'/);
+  assert.match(PROS_SRC, /onClose: \(\) => bsProCloseSend\(setSendFor\)/);
+});

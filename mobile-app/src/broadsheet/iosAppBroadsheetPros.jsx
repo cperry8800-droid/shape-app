@@ -696,6 +696,25 @@ const _BS_GRO_AISLES = [
   [/(rice|pasta|bread|bagel|oat|quinoa|tortilla|noodle|grain|cereal|flour)/, 'Grains'],
   [/(oil|salt|pepper|spice|sauce|stock|broth|honey|sugar|vinegar|pantry|canned|nut|seed|peanut|almond)/, 'Pantry'],
 ];
+// Send to a member opens the members' send sheet (BSPostSendSheet), which lives in the CLIENT bundle: a
+// cold pros-only session hasn't loaded it (Codex on #2434), so it is pulled in on demand, as
+// bsProOpenPerson does, and a failed load says so rather than opening nothing. A load still pending when
+// another list's Send is tapped, or after the sheet was closed, opens nothing: only the latest request.
+let _bsProSendGen = 0;
+function bsProOpenSend(list, setSendFor, onFail) {
+  const gen = ++_bsProSendGen;
+  if (typeof window !== 'undefined' && window.BSPostSendSheet) { setSendFor(list); return; }
+  import('./iosAppBroadsheetClient.jsx')
+    .then(() => {
+      if (gen !== _bsProSendGen) return;
+      if (window.BSPostSendSheet) setSendFor(list); else if (onFail) onFail();
+    })
+    .catch(() => { if (gen === _bsProSendGen && onFail) onFail(); });
+}
+function bsProCloseSend(setSendFor) {
+  _bsProSendGen += 1;
+  setSendFor(null);
+}
 function bsGroAisle(name) {
   const n = String(name || '').toLowerCase();
   for (const [re, a] of _BS_GRO_AISLES) if (re.test(n)) return a;
@@ -909,7 +928,7 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
               {preview.length > 0 && <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>{preview.join(' · ')}{more > 0 ? tr('coach:grocery.andMore', { defaultValue: ' +{count} more', count: more }) : ''}</div>}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 13 }}>
                 {canSend && <button type="button" onClick={() => send(g)} style={{ ...tealCta, padding: '10px 16px', minHeight: 40 }}>{tr('coach:grocery.sendToClient', { defaultValue: 'Send to {name} →', name: first || tr('coach:grocery.clientWord', { defaultValue: 'client' }) })}</button>}
-                {n > 0 && <button type="button" data-bs-grocery-send="" onClick={() => setSendFor(g)} style={{ ...textAction(teal), minHeight: 32 }}>{tr('coach:grocery.sendMember', { defaultValue: 'Send to a member →' })}</button>}
+                {n > 0 && <button type="button" data-bs-grocery-send="" onClick={() => bsProOpenSend(g, setSendFor, () => window.__bsToast?.(tr('coach:grocery.toastCouldNotSend', { defaultValue: 'Could not send' }), 'err'))} style={{ ...textAction(teal), minHeight: 32 }}>{tr('coach:grocery.sendMember', { defaultValue: 'Send to a member →' })}</button>}
                 <button type="button" onClick={() => del(g)} aria-label={tr('coach:grocery.deleteConfirm', { defaultValue: 'Delete list' })} style={{ ...textAction(rust), marginLeft: 'auto', minHeight: 32 }}>{tr('coach:common.delete', { defaultValue: 'Delete' })}</button>
               </div>
             </div>
@@ -917,9 +936,10 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
         })}
       </div>
       <BSFooter left={isNutri ? tr('coach:grocery.footerNutri', { defaultValue: 'Nutrition Queue' }) : tr('coach:grocery.footerTrainer', { defaultValue: 'Coach Queue' })} right={tr('coach:grocery.footerRight', { defaultValue: 'Grocery delivery' })} />
-      {/* The member picker and the message are the ones members send with (BSPostSendSheet, read at call
-          time from the client module): the list arrives as the card a member's list does. */}
-      {sendFor && window.BSPostSendSheet && React.createElement(window.BSPostSendSheet, { post: { grocery: bsGroceryFromCoachList(sendFor) }, onClose: () => setSendFor(null) })}
+      {/* The member picker and the message are the ones members send with (BSPostSendSheet, read at render
+          time from the client module, loaded on demand by bsProOpenSend): the list arrives as the card a
+          member's list does. */}
+      {sendFor && window.BSPostSendSheet && React.createElement(window.BSPostSendSheet, { post: { grocery: bsGroceryFromCoachList(sendFor) }, onClose: () => bsProCloseSend(setSendFor) })}
     </BSPage>
   );
 }
