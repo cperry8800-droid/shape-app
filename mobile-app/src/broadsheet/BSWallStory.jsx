@@ -12,8 +12,11 @@ import { bsSdSplitUnit } from '../services/sessionLedger.mjs';
 
 // The kicker over a picture: a warm tint that reads on any photo or the route's dark ground.
 const BS_WS_OVER_KICKER = '#ffb39f';
-const bsWsRed = (t) => (t.isLight ? '#b23a1f' : '#ff7a5c');
-const bsWsHead = (t) => t.HEADLINE || t.DISPLAY;
+// The magazine's red and its headline face, shared with the chat page's header (owner, 2026-10-24: the
+// header above the Wall "to match the new feed wall look").
+export const bsWsRed = (t) => (t.isLight ? '#b23a1f' : '#ff7a5c');
+export const bsWsHead = (t) => t.HEADLINE || t.DISPLAY;
+
 
 function BSWsKicker({ children, color }) {
   const t = window.useBS();

@@ -77,7 +77,8 @@ test('a reply that lands after the sheet closes is kept: the thread and the in-f
 
 test('Chat\'s segment row is three columns now that Support has left', () => {
   const feed = between(APP, 'function BSClientFeed(', 'function BSNoraSheet(');
-  assert.match(feed, /gridTemplateColumns: 'repeat\(3, 1fr\)', gap: 3/);
+  // The row is the magazine's section strip since 2026-10-24 (data-bs-chat-sections).
+  assert.match(feed, /data-bs-chat-sections="" style=\{\{ display: 'grid', gridTemplateColumns: 'repeat\(3, 1fr\)'/);
 });
 
 test('each takeover renders the sheet once', () => {

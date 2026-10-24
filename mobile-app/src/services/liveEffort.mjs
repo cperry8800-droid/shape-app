@@ -1,5 +1,6 @@
-// "The Meter" — live effort → a 5-zone read on the SAME heat ramp Session
-// Details replays with (bsSdHeatColor stops; Z1/Z2 share the cool stop).
+// "The Meter" — live effort → a 5-zone read on the logger's heat ramp (Z1/Z2
+// share the cool stop). Session Details used this ramp until 2026-10-24; it now
+// reads its zones in the Wall's grey-to-red (BS_SD_ZONES).
 // HRmax is a documented conservative default — we never fabricate a per-user max.
 export const BS_EFFORT_HRMAX = 190;
 export const BS_EFFORT_RAMP = { 1: '#34d6c5', 2: '#34d6c5', 3: '#d8b25a', 4: '#e8843c', 5: '#e0463c' };
