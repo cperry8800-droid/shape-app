@@ -2,16 +2,18 @@
 // header's ✦, the corner avatar and the tab bar), MOUNTED: the real BSTabBar and BSPage's pinned masthead
 // from mobile-app/src/broadsheet/iosAppBroadsheet.jsx, in the real BSProvider, on both papers.
 //
-// The tab bar floats ("the floating nav bar"): a square sheet of the page's paper ruled in ink, held off the
-// screen's edges inside the 64px footprint the pages and the composer reserve, under a soft neutral shadow,
-// with no fade, blur, glow or clipped plate. The active tab is ink, marked by the magazine's red on the
-// sheet's top rule (as the chat page's section strip marks its word), and the chat tab's unread count is a
-// square of that red. The pinned masthead is flat paper over a rule.
+// The tab bar floats (owner: "design the nav bar on the shape app to be floating … hovering at the bottom
+// of page", "make sure it doesnt block whats behind it too much", then "It should look like instagram"): a
+// glass capsule held off the screen's edges inside the footprint the pages and the composer reserve,
+// half-strength paper over a light blur, icons only. The selected tab is in full ink, drawn heavier, on a
+// lighter capsule; the others are grey. The chat tab's unread count is a red pill. The pinned masthead is
+// flat paper over a rule.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 
 const require_ = createRequire(import.meta.url);
@@ -55,7 +57,7 @@ const sameColor = (a, b) => {
 };
 
 for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
-  test(`the tab bar floats: an ink-ruled sheet of paper, the active tab ink under the magazine's red (${paperMode})`, async () => {
+  test(`the tab bar floats: a glass capsule, icons only, the selected tab heavier in ink (${paperMode})`, async () => {
     let theme = null;
     const Probe = () => { theme = window.useBS(); return null; };
     const { host, unmount } = await mount(React.createElement(React.Fragment, null,
@@ -63,52 +65,63 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
       React.createElement(window.BSTabBar, { tabs: TABS, active: 'chat', onChange() {} })), paperMode);
     assert.equal(theme.isLight, isLight);
     const red = bsWsRed(theme);
-    // The dock keeps the 64px footprint every page reserves, holds the sheet off the edges, and lets taps
-    // in its margins through to the page.
+    // The dock is the footprint every page reserves (BS_TABBAR_H), holds the capsule 12px off the sides
+    // and lets taps in its margins through to the page.
     const dock = host.querySelector('[data-bs-tabbar-dock]');
     assert.ok(dock, 'no dock');
-    assert.equal(dock.style.height, '64px', 'the footprint the pages and the composer position against');
+    assert.equal(dock.style.height, `${window.BS_TABBAR_H}px`, 'the footprint the pages and the composer position against');
+    assert.equal(window.BS_TABBAR_H, 78);
     assert.equal(dock.style.position, 'absolute');
     assert.equal(dock.style.bottom, '0px');
     assert.equal(dock.style.pointerEvents, 'none');
     assert.equal(dock.style.paddingLeft, '12px');
     assert.equal(dock.style.paddingRight, '12px');
-    assert.equal(dock.style.background || '', '', 'the dock around the sheet is clear');
+    assert.equal(dock.style.paddingTop, '6px');
+    assert.equal(dock.style.background || '', '', 'the dock around the capsule is clear');
     const bar = dock.querySelector('[data-bs-tabbar]');
     assert.ok(bar, 'no tab bar');
+    assert.equal(bar.tagName, 'NAV');
     assert.equal(bar.style.pointerEvents, 'auto');
-    // A square sheet ruled in ink on every side, with a soft neutral shadow and no blur, fade or tint.
-    for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
-      assert.equal(bar.style[`border${side}Width`], '1px');
-      assert.ok(sameColor(bar.style[`border${side}Color`], theme.INK), `the ${side.toLowerCase()} rule is ink`);
-    }
-    assert.equal(bar.style.borderRadius || '', '', 'a rounded pill');
-    assert.match(bar.style.boxShadow, isLight ? /rgba\(15, ?14, ?12, ?0\.16\)/ : /rgba\(0, ?0, ?0, ?0\.5\)/, 'a neutral shadow, not a glow');
-    assert.equal(bar.style.backdropFilter || '', '', 'the blur is back');
-    assert.doesNotMatch(bar.style.background, /gradient/, 'the fade is back');
-    // The red mark sits over the active tab (the fourth of five) on the sheet's top rule, with no glow.
+    // A capsule of half-strength paper (the page shows through), with a soft neutral shadow.
+    assert.equal(bar.style.borderRadius, '999px');
+    assert.ok(sameColor(bar.style.background, `${theme.PAPER}80`), 'half-strength paper');
+    assert.doesNotMatch(bar.style.background, /gradient/);
+    assert.match(bar.style.boxShadow, isLight ? /rgba\(15, ?14, ?12, ?0\.18\)/ : /rgba\(0, ?0, ?0, ?0\.55\)/, 'a neutral shadow, not a glow');
+    // The selected tab's capsule sits behind the chat tab (the fourth of five), rounded, with no glow.
     const mark = bar.querySelector('[data-bs-tab-mark]');
-    assert.ok(sameColor(mark.style.background, red));
-    assert.equal(mark.style.top, '-1px', 'on the top rule');
+    assert.equal(mark.style.borderRadius, '999px');
     assert.equal(mark.style.boxShadow, '');
-    assert.equal(mark.style.borderRadius, '');
-    assert.match(mark.getAttribute('style'), /\(3 \+ 0\.28\)/, 'the mark sits over the chat tab');
-    // The tabs: the active one ink, the others grey, and no clipped plate or spine behind the active one.
+    // jsdom simplifies the calc: the 6px padding plus 4px inset, then three tab widths across.
+    assert.match(mark.getAttribute('style'), /left: calc\(10px \+ 3 \* /, 'the capsule sits behind the chat tab');
+    // Icons only: each tab is named for a screen reader, none prints its label. The selected one is ink
+    // and drawn heavier; the others are grey and light.
     const btns = [...bar.querySelectorAll('button[data-tour]')];
     assert.equal(btns.length, 5);
     for (const b of btns) {
-      const on = b.getAttribute('data-tour') === 'tab-chat';
-      assert.ok(sameColor(b.style.color, on ? theme.INK : theme.INK50), `${b.getAttribute('data-tour')} colour`);
+      const tab = TABS.find((x) => 'tab-' + x.key === b.getAttribute('data-tour'));
+      const on = tab.key === 'chat';
+      assert.equal(b.getAttribute('aria-label'), tab.label);
+      assert.ok(!b.textContent.includes(tab.label), `${tab.label} prints a label`);
+      assert.ok(sameColor(b.style.color, on ? theme.INK : `rgba(${theme.inkRGB},0.55)`), `${tab.label} colour`);
+      assert.equal(b.querySelector('svg').getAttribute('stroke-width'), on ? '2.3' : '1.7', `${tab.label} weight`);
     }
-    assert.equal([...bar.querySelectorAll('span')].filter((s) => s.style.clipPath).length, 0, 'the clipped plate is back');
-    assert.equal(bar.querySelector('button[data-tour="tab-chat"]').textContent.includes('Chat'), true, 'the active tab is named');
-    // The unread count: a square of the red, in paper.
-    const badge = [...bar.querySelectorAll('button[data-tour="tab-chat"] span')].find((s) => s.textContent === '3');
+    assert.equal([...bar.querySelectorAll('span')].filter((x) => x.style.clipPath).length, 0, 'the clipped plate is back');
+    // The unread count: a red pill ringed in the paper.
+    const badge = [...bar.querySelectorAll('button[data-tour="tab-chat"] span')].find((x) => x.textContent === '3');
     assert.ok(badge, 'no unread count');
     assert.ok(sameColor(badge.style.background, red));
     assert.ok(sameColor(badge.style.color, theme.PAPER));
-    assert.equal(badge.style.borderRadius, '0px');
+    assert.equal(badge.style.borderRadius, '999px');
     await unmount();
+  });
+
+  test(`the capsule is frosted, so what scrolls under it shows through softened (${paperMode})`, () => {
+    // jsdom drops backdrop-filter, so the declaration is read from the component's source.
+    const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), 'utf8');
+    const bar = src.slice(src.indexOf('function BSTabBar('), src.indexOf('// Footer masthead'));
+    assert.match(bar, /background: `\$\{t\.PAPER\}80`/);
+    assert.match(bar, /backdropFilter: 'blur\(6px\) saturate\(160%\)'/);
+    assert.match(bar, /WebkitBackdropFilter: 'blur\(6px\) saturate\(160%\)'/);
   });
 
   test(`the pinned masthead is the same paper, flipped: a rule under it and no fade, blur or shadow (${paperMode})`, async () => {
