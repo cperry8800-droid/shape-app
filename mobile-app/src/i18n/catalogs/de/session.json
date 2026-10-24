@@ -361,5 +361,12 @@
   "burn.retry": "Erneut",
   "burn.none": "Diese Woche noch nichts erfasst.",
   "burn.connect": "Verbinden",
-  "burn.manual": "deinem Log"
+  "burn.manual": "deinem Log",
+  "burn.page.daysTracked": "{n} von 7 Tagen erfasst",
+  "burn.page.from": "Aus {sources}",
+  "burn.page.byDay": "Tag für Tag",
+  "burn.page.toCome": "Kommt noch",
+  "burn.page.notTracked": "Nicht erfasst",
+  "burn.page.today": "Heute",
+  "burn.page.rule": "Ein Tag zählt einmal: der Wert einer Uhr für den ganzen Tag, sonst die an dem Tag erfassten Workouts."
 }

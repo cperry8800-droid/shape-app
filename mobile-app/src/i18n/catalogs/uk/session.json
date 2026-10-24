@@ -361,5 +361,12 @@
   "burn.retry": "Повторити",
   "burn.none": "Цього тижня ще нічого не записано.",
   "burn.connect": "Підключити",
-  "burn.manual": "твій журнал"
+  "burn.manual": "твій журнал",
+  "burn.page.daysTracked": "Записано днів: {n} з 7",
+  "burn.page.from": "Джерело: {sources}",
+  "burn.page.byDay": "По днях",
+  "burn.page.toCome": "Попереду",
+  "burn.page.notTracked": "Не записано",
+  "burn.page.today": "Сьогодні",
+  "burn.page.rule": "День рахується один раз: показник годинника за весь день або, якщо його немає, тренування, записані того дня."
 }

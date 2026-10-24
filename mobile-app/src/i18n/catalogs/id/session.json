@@ -361,5 +361,12 @@
   "burn.retry": "Coba lagi",
   "burn.none": "Belum ada yang tercatat minggu ini.",
   "burn.connect": "Hubungkan",
-  "burn.manual": "catatanmu"
+  "burn.manual": "catatanmu",
+  "burn.page.daysTracked": "{n} dari 7 hari tercatat",
+  "burn.page.from": "Dari {sources}",
+  "burn.page.byDay": "Hari demi hari",
+  "burn.page.toCome": "Belum",
+  "burn.page.notTracked": "Tidak tercatat",
+  "burn.page.today": "Hari ini",
+  "burn.page.rule": "Satu hari dihitung sekali: bacaan jam untuk seharian, atau latihan yang dicatat hari itu."
 }

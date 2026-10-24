@@ -65,7 +65,7 @@ import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } fro
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
 import { BSEatFuel, BSEatMacroPage } from './BSEatFuel.jsx';
-import { BSTrainBurn } from './BSTrainBurn.jsx';
+import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead, bsWsRed, bsWsHead } from './BSWallStory.jsx';
 import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
@@ -6302,6 +6302,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     {drafts.map(d => <button key={d.sessionId} onClick={() => { setResumeDraft(d); setSession(true); }} style={{ display: 'block', minHeight: 44, width: '100%', textAlign: 'left', background: 'transparent', border: 0, color: t.ACCENT, cursor: 'pointer', padding: '10px 0' }}>{tr('session:player.resume')} · {d.title || tr('session:player.liveSession')}</button>)}
   </div> : null;
   const [previewing, setPreviewing] = useStateBSC(false);
+  // Burned this week, day by day (BSTrainBurnPage), opened from the row under the week (owner, 2026-10-24).
+  const [burnOpen, setBurnOpen] = useStateBSC(false);
   // Auto-launch the live session ONLY when arriving from the calendar's "Start
   // session" (a one-shot pending flag), then clear it so returning to Train from
   // the calendar overlay — which remounts this screen — never re-launches.
@@ -6406,6 +6408,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   if (session && launchWorkout && !resumeDraft) return <BSSession {...bsPreviewSession(launchWorkout, value => t.uText(value))} onBack={leaveSession} />;
   if (session) return <BSSession draft={resumeDraft} clientWorkoutId={openSession ? null : cur.workoutId} prescriptionMeta={{ template: cur.template, program: cur.program, adjustGen: cur.adjustGen }} title={openSession || (effMoves.length === 0 && isRestDay) ? tr('session:train.openSession', { defaultValue: 'Open session' }) : cur.title} moves={openSession ? [] : bsSessionMoves(effMoves)} onBack={leaveSession} />;
   if (previewing) return <BSWorkoutPreview program={{ ...cur, moves: effMoves }} coach={coachDayName} onBack={() => setPreviewing(false)} onStart={() => { setPreviewing(false); setSession(true); }} />;
+  if (burnOpen) return <BSTrainBurnPage onBack={() => setBurnOpen(false)} />;
 
   // Signed-in member with NO plan (assigned or self) → the Build-your-week door
   // instead of the empty rest-week. Signed-out preview keeps the demo deck.
@@ -6464,8 +6467,9 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
       <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
 
-      {/* Burned this week (BSTrainBurn.jsx), under the week as Eat's Fuel left is (owner, 2026-10-24). */}
-      <BSTrainBurn />
+      {/* Burned this week (BSTrainBurn.jsx), under the week as Eat's Fuel left is (owner, 2026-10-24); it
+          opens the week day by day. */}
+      <BSTrainBurn onOpen={() => setBurnOpen(true)} />
 
       {/* The session — on its own, on the move line's rust spine. */}
       <BSFocusLead tour="hero-train" color={t.RUST}

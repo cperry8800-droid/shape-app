@@ -361,5 +361,12 @@
   "burn.retry": "Réessayer",
   "burn.none": "Rien d’enregistré cette semaine.",
   "burn.connect": "Connecter",
-  "burn.manual": "votre journal"
+  "burn.manual": "votre journal",
+  "burn.page.daysTracked": "{n} jours sur 7 enregistrés",
+  "burn.page.from": "Depuis {sources}",
+  "burn.page.byDay": "Jour par jour",
+  "burn.page.toCome": "À venir",
+  "burn.page.notTracked": "Non enregistré",
+  "burn.page.today": "Aujourd’hui",
+  "burn.page.rule": "Un jour compte une fois : la mesure d’une montre pour toute la journée, sinon les séances enregistrées ce jour-là."
 }

@@ -404,6 +404,24 @@ test('a macro\'s page: what is left, the day\'s meals by it, the week against th
   }
 });
 
+// Owner, 2026-10-24: "i should be able to click on this". Burned this week opens the week day by day, and
+// Back returns to Train.
+test('Train opens Burned this week on its own page', () => {
+  delete globalThis.ShapeAuth;
+  const d = drive(BSClientTrain, { onProfile() {}, goRadio() {}, goMarket() {}, goCalendar() {} });
+  const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
+  const row = d.nodes().find(fn('BSTrainBurn'));
+  assert.equal(typeof row.props.onOpen, 'function', 'the row opens nothing');
+  row.props.onOpen();
+  d.render();
+  const page = d.nodes().find(fn('BSTrainBurnPage'));
+  assert.ok(page, 'the week page did not open');
+  assert.equal(d.nodes().find(fn('BSTrainBurn')), undefined, 'the page stands in for Train');
+  page.props.onBack();
+  d.render();
+  assert.ok(d.nodes().find(fn('BSTrainBurn')), 'Back returns to Train');
+});
+
 test('Train reads in the Focus order: the week, the session, the links', () => {
   delete globalThis.ShapeAuth;
   const d = drive(BSClientTrain, { onProfile() {}, goRadio() {}, goMarket() {}, goCalendar() {} });

@@ -361,5 +361,12 @@
   "burn.retry": "Try again",
   "burn.none": "Nothing dey tracked this week yet.",
   "burn.connect": "Connect",
-  "burn.manual": "your own log"
+  "burn.manual": "your own log",
+  "burn.page.daysTracked": "{n} out of 7 days don track",
+  "burn.page.from": "From {sources}",
+  "burn.page.byDay": "Day by day",
+  "burn.page.toCome": "Still dey come",
+  "burn.page.notTracked": "No track",
+  "burn.page.today": "Today",
+  "burn.page.rule": "One day count once: di watch reading for di whole day, or di workouts wey you log dat day."
 }
