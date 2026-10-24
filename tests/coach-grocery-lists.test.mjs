@@ -133,7 +133,7 @@ test('a trainer has personal lists only: no Clients tab, no client option, no Se
   assert.match(m.text(), /2 lists/);
   assert.equal(m.button(/^Clients/), undefined, 'a trainer has no Clients tab');
   assert.match(m.text(), /Old client list/, "a trainer's older client list stays visible");
-  assert.equal(m.button(/^Send to/), undefined, 'a trainer has no Send');
+  assert.equal(m.button(/^Send to (?!a member)/), undefined, 'a trainer has no Send to a client');
   await m.click(/New grocery list/);
   assert.equal(m.button(/For a client/), undefined, 'a trainer cannot make a client list');
   await m.close();
@@ -208,4 +208,117 @@ test('the masthead keeps one hairline, not the heavy rule and double rule', asyn
   assert.equal(mastProps.thinRule, true);
   assert.equal(mastProps.showDoubleRule, false);
   await m.close();
+});
+
+// Owner, 2026-10-24 ("every member / yes coaches as well"): any coach list goes to any member in a
+// message, through the same picker and message members send with (BSPostSendSheet, from the client module).
+test('a coach sends any list to a member, through the members\' send sheet', async () => {
+  const opened = [];
+  W.BSPostSendSheet = ({ post, onClose }) => { opened.push(post); return React.createElement('div', { 'data-send-sheet': '' }, React.createElement('button', { onClick: onClose }, 'Close sheet')); };
+  try {
+    for (const isNutri of [false, true]) {
+      opened.length = 0;
+      services({ lists: [real({ items: [{ name: 'Oats', aisle: 'Grains' }, { name: 'Kale', aisle: 'Produce' }] }), real({ id: 'e2', name: 'Nothing yet', items: [] }), real({ id: 'c3', name: 'Ana week', client_id: 'u-ana', client_name: 'Ana Reyes' })] });
+      const m = await mount(isNutri);
+      if (isNutri) await m.click(/^Mine/);
+      const sends = () => [...m.host.querySelectorAll('[data-bs-grocery-send]')];
+      // Every list with items has one: a trainer sees all their lists (an older client list too), a
+      // nutritionist's Mine tab the personal ones. The empty list has none.
+      assert.equal(sends().length, isNutri ? 1 : 2);
+      assert.equal(sends()[0].textContent, 'Send to a member →');
+      await React.act(async () => { sends()[0].click(); });
+      await flush();
+      assert.deepEqual(opened, [{ grocery: { name: 'Sunday shop', items: [{ n: 'Oats', a: 'Grains' }, { n: 'Kale', a: 'Produce' }] } }]);
+      assert.ok(m.host.querySelector('[data-send-sheet]'));
+      await m.click(/^Close sheet$/);
+      assert.ok(!m.host.querySelector('[data-send-sheet]'), 'closing the sheet closes it');
+      if (isNutri) {
+        // A client list keeps Send to that client, and goes to any member too.
+        await m.click(/^Clients/);
+        assert.ok(m.button(/^Send to Ana/));
+        assert.equal(sends().length, 1);
+      }
+      await m.close();
+    }
+  } finally { delete W.BSPostSendSheet; }
+});
+
+// The send sheet lives in the CLIENT bundle, which a cold pros-only session hasn't loaded (Codex P1 on
+// #2434). The loader can't compile a dynamic import, so bsProOpenSend runs from its shipped source with
+// the import stubbed, as notification-routes.test.mjs does for bsProOpenPerson.
+function coachSend(windowObj) {
+  const PROS_SRC = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), 'utf8');
+  const grab = (head) => {
+    const at = PROS_SRC.indexOf(head);
+    assert.ok(at >= 0, head);
+    let depth = 0;
+    for (let i = PROS_SRC.indexOf('{', at); i < PROS_SRC.length; i++) {
+      if (PROS_SRC[i] === '{') depth++;
+      else if (PROS_SRC[i] === '}' && --depth === 0) return PROS_SRC.slice(at, i + 1);
+    }
+    throw new Error('unbalanced ' + head);
+  };
+  const gen = PROS_SRC.match(/^let _bsProSendGen = 0;$/m);
+  assert.ok(gen, 'the generation counter is gone');
+  const loads = [];
+  const body = [gen[0], grab('function bsProOpenSend(list, setSendFor, onFail) {'), grab('function bsProCloseSend(setSendFor) {'), 'return { bsProOpenSend, bsProCloseSend };']
+    .join('\n').replace("import('./iosAppBroadsheetClient.jsx')", '__load()');
+  assert.ok(!body.includes('import('), 'the import was stubbed');
+  // eslint-disable-next-line no-new-func
+  const api = new Function('window', '__load', body)(windowObj, () => new Promise((resolve, reject) => loads.push({ resolve, reject })));
+  return { ...api, loads };
+}
+
+test('a cold coach session loads the send sheet on demand, and a failed load says so (Codex P1 on #2434)', async () => {
+  const settle = () => new Promise((r) => setImmediate(r));
+  const sheet = () => null;
+  // Loaded already: it opens at once.
+  const warm = coachSend({ BSPostSendSheet: sheet });
+  let open = 'unset';
+  warm.bsProOpenSend('list-1', (v) => { open = v; });
+  assert.equal(open, 'list-1');
+  assert.equal(warm.loads.length, 0, 'no load when the sheet is there');
+  // Not loaded: the client bundle loads first, then the sheet opens.
+  const w = {};
+  const cold = coachSend(w);
+  open = 'unset';
+  cold.bsProOpenSend('list-2', (v) => { open = v; });
+  assert.equal(cold.loads.length, 1, 'the client bundle is loaded');
+  assert.equal(open, 'unset');
+  w.BSPostSendSheet = sheet;
+  cold.loads[0].resolve();
+  await settle();
+  assert.equal(open, 'list-2');
+  // A failed load tells the coach and opens nothing.
+  const failed = coachSend({});
+  const fails = [];
+  const seen = [];
+  failed.bsProOpenSend('list-3', (v) => seen.push(v), () => fails.push('failed'));
+  failed.loads[0].reject(new Error('chunk failed'));
+  await settle();
+  assert.deepEqual([seen, fails], [[], ['failed']]);
+  // A load that lands without the sheet is a failure too, not a silent tap.
+  const empty = coachSend({});
+  empty.bsProOpenSend('list-4', (v) => seen.push(v), () => fails.push('no sheet'));
+  empty.loads[0].resolve();
+  await settle();
+  assert.deepEqual([seen, fails], [[], ['failed', 'no sheet']]);
+  // Closed, or another list tapped, before the load lands: only the latest request opens.
+  const w2 = {};
+  const late = coachSend(w2);
+  const got = [];
+  late.bsProOpenSend('list-5', (v) => got.push(v));
+  late.bsProCloseSend((v) => got.push(v));
+  late.bsProOpenSend('list-6', (v) => got.push(v));
+  late.bsProOpenSend('list-7', (v) => got.push(v));
+  w2.BSPostSendSheet = sheet;
+  late.loads.forEach((l) => l.resolve());
+  await settle();
+  assert.deepEqual(got, [null, 'list-7']);
+});
+
+test('Send to a member goes through the on-demand opener, and its failure is a toast', () => {
+  const PROS_SRC = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), 'utf8');
+  assert.match(PROS_SRC, /data-bs-grocery-send="" onClick=\{\(\) => bsProOpenSend\(g, setSendFor, \(\) => window\.__bsToast\?\.\(tr\('coach:grocery\.toastCouldNotSend'/);
+  assert.match(PROS_SRC, /onClose: \(\) => bsProCloseSend\(setSendFor\)/);
 });

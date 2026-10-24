@@ -359,7 +359,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
           // tests/local-scrub-sync.test.mjs gates this copy against it
           'shape.clientCoachThreads', 'shape.recentSearch', 'shape.errorLog',
           'shape.library', 'shape.recipeGroceryLists', 'shape.deletedGroceryIds',
-          'shape.recipeGroceryListsBase', 'shape.grocery.listsBase.v1', 'shape.grocery.lists.v1',
+          'shape.recipeGroceryListsBase', 'shape.grocery.listsBase.v1', 'shape.grocery.lists.v1', 'shape.coachGroceryReceived',
           'shape.cookResume', 'shape.cookBatchResume', 'shape.radio.musicLibraries',
           'shape.stepGoal', 'shape.notify.last',
           'bs_coach_soundtracks', 'bs_coach_soundtrack_assign',

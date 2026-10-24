@@ -1,5 +1,5 @@
 import React from 'react';
-import { bsReceivedGroceryList, bsReceivedGroceryId } from '../services/groceryShare.mjs';
+import { bsReceivedGroceryList, bsReceivedGroceryId, bsCoachListFromShared } from '../services/groceryShare.mjs';
 import { bsGroceryListsStore, bsGroceryListsBaseIn } from '../services/groceryLists.mjs';
 import { signOutGen, signOutInProgress } from '../services/signOutGen.mjs';
 
@@ -110,15 +110,47 @@ async function saveToCloud(list, wrote) {
   } catch (e) { return false; }
 }
 
+// ── A coach saves a list they were sent (owner, 2026-10-24: "yes coaches as well") ──────────────────────
+// A coach's lists live in coach_grocery_lists, which their Grocery Lists page shows, not in the member's
+// Eat lists. The copy goes there as a personal list. That table keeps no record of which message a list
+// came from, so this device remembers the messages already saved (one copy per message, as for members);
+// the key is in the sign-out scrub.
+export const BS_COACH_GROCERY_SAVED_KEY = 'shape.coachGroceryReceived';
+const COACH_SAVED_MAX = 200;
+function readCoachSaved() {
+  try {
+    const v = JSON.parse(window.localStorage?.getItem(BS_COACH_GROCERY_SAVED_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
+  } catch (e) { return []; }
+}
+export function bsCoachHasGroceryList(id) {
+  return !!id && readCoachSaved().includes(id);
+}
+export async function bsSaveReceivedGroceryListCoach(shared, { messageId = null } = {}) {
+  const body = bsCoachListFromShared(shared);
+  if (!body) throw new Error('no_list');
+  const api = window.ShapeGroceryLists;
+  if (!api || !api.create) throw new Error('no_backend');
+  await api.create(body); // throws when the server refused it
+  const id = bsReceivedGroceryId(messageId);
+  if (id) {
+    try {
+      const next = [id, ...readCoachSaved().filter((x) => x !== id)].slice(0, COACH_SAVED_MAX);
+      window.localStorage?.setItem(BS_COACH_GROCERY_SAVED_KEY, JSON.stringify(next));
+    } catch (e) { /* saved; this device just won't remember it */ }
+  }
+  return 'stored';
+}
+
 // The card under a grocery list's message. `shared` is the strictly parsed { name, items }
 // (bsGroceryFromMetadata); `me` is the sender's own copy of the message, which has nothing to save.
-// `canSave` is false in the coach apps: a coach's lists live in coach_grocery_lists, not the member's
-// Eat lists this saves to, so a copy saved there would land where their app never shows it.
-export function BSGroceryShareCard({ shared, me = false, canSave = true, messageId = null, from = '' }) {
+// `saveTo` is where Save files the copy: 'member' (the Eat lists), 'coach' (the coach's own lists), or null
+// for no Save.
+export function BSGroceryShareCard({ shared, me = false, saveTo = 'member', messageId = null, from = '' }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const id = bsReceivedGroceryId(messageId);
-  const [saved, setSaved] = useState(() => bsHasGroceryList(id));
+  const [saved, setSaved] = useState(() => (saveTo === 'coach' ? bsCoachHasGroceryList(id) : bsHasGroceryList(id)));
   const [busy, setBusy] = useState(false);
   if (!shared || !Array.isArray(shared.items) || !shared.items.length) return null;
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -127,11 +159,12 @@ export function BSGroceryShareCard({ shared, me = false, canSave = true, message
   const save = async (e) => {
     if (e && e.stopPropagation) e.stopPropagation();
     if (saved || busy) return;
-    const list = bsReceivedGroceryList(shared, { messageId, from });
+    const list = saveTo === 'coach' ? shared : bsReceivedGroceryList(shared, { messageId, from });
     if (!list) return;
     setBusy(true);
     try {
-      await bsSaveReceivedGroceryList(list);
+      if (saveTo === 'coach') await bsSaveReceivedGroceryListCoach(shared, { messageId });
+      else await bsSaveReceivedGroceryList(list);
       setSaved(true);
       window.__bsToast?.(tr('nutrition:grocery.share.savedToast', { defaultValue: 'Saved to your grocery lists' }), 'ok');
     } catch (err) {
@@ -155,7 +188,7 @@ export function BSGroceryShareCard({ shared, me = false, canSave = true, message
       <div style={{ marginTop: 7, fontFamily: t.BODY, fontSize: 12, lineHeight: 1.35, color: t.INK50, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
         {preview}{count > 3 ? ' …' : ''}
       </div>
-      {me || !canSave ? null : (
+      {me || !saveTo ? null : (
         <button type="button" data-bs-grocery-save="" onClick={save} disabled={busy} aria-pressed={saved}
           style={{ marginTop: 9, width: '100%', minHeight: 44, borderRadius: 8, border: `1px solid ${teal}`, background: saved ? `${teal}14` : teal, color: saved ? teal : (t.isLight ? '#fff' : t.PAPER), cursor: saved ? 'default' : 'pointer', opacity: busy ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
           {saved

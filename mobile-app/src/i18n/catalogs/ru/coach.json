@@ -502,6 +502,7 @@
   "grocery.newList": "＋ Новый список покупок",
   "grocery.personal": "Личные",
   "grocery.sendToClient": "Отправить {name} →",
+  "grocery.sendMember": "Отправить участнику →",
   "grocery.statusApproval": "Ожидает одобрения",
   "grocery.statusReady": "Готово к отправке",
   "grocery.statusReview": "На проверке",

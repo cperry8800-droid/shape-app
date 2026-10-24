@@ -12,6 +12,7 @@ import { ROOT, loadBroadsheet, SHIM } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import {
   bsGroceryShareItems, bsGroceryShareMessage, bsGroceryFromMetadata, bsReceivedGroceryList, bsReceivedGroceryId, bsGroceryGroupByAisle,
+  bsGroceryFromCoachList, bsCoachListFromShared,
   BS_GROCERY_SHARE_KIND, BS_GROCERY_SHARE_MAX_ITEMS,
 } from '../mobile-app/src/services/groceryShare.mjs';
 
@@ -157,11 +158,11 @@ test('the card: the list\'s name, count and first three items; the sender\'s own
   } finally { await r.done(); }
   r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, me: true, messageId: 'm1' }));
   try { assert.ok(!r.host.querySelector('[data-bs-grocery-save]'), 'no save on my own message'); } finally { await r.done(); }
-  // A coach reads the list but has no Eat lists to save it to.
-  r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, canSave: false, messageId: 'm1', from: 'Sam Reyes' }));
+  // A role with nowhere to file the list reads it without Save.
+  r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, saveTo: null, messageId: 'm1', from: 'Sam Reyes' }));
   try {
     assert.match(r.host.textContent, /^Week 3 shop/);
-    assert.ok(!r.host.querySelector('[data-bs-grocery-save]'), 'no save in the coach apps');
+    assert.ok(!r.host.querySelector('[data-bs-grocery-save]'), 'no save');
   } finally { await r.done(); }
   r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: { name: 'x', items: [] }, messageId: 'm1' }));
   try { assert.equal(r.host.innerHTML, '', 'an empty list draws nothing'); } finally { await r.done(); }
@@ -235,6 +236,68 @@ test('a list saved with the Eat page closed is recorded in the sync base, but on
     assert.equal(await SHARE.bsSaveReceivedGroceryList({ id: 'received-m8', name: 'From the chat', items: [] }), 'stored');
   } finally { Object.assign(globalThis, saved); }
   assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(BASE)).lists.map((l) => l.id), ['custom-1']);
+});
+
+test('a coach saves a list they were sent to their own coach lists, once per message (owner, 2026-10-24)', async () => {
+  const BASE = 'shape.recipeGroceryListsBase';
+  const created = [];
+  let refuse = false;
+  const { writes } = env({ cloud: { v: 1, rev: 1, lists: [] } });
+  dom.window.ShapeGroceryLists = { create: async (b) => { if (refuse) throw new Error('Could not save grocery list.'); created.push(b); return { id: 'srv-1', ...b }; } };
+  try {
+    // The server refused: the card says so and stays tappable, and nothing is remembered.
+    refuse = true;
+    let r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, saveTo: 'coach', messageId: 'm9', from: 'Sam Reyes' }));
+    try {
+      const btn = r.host.querySelector('[data-bs-grocery-save]');
+      await React.act(async () => { btn.click(); });
+      await React.act(async () => { await new Promise((res) => setTimeout(res, 0)); });
+      assert.equal(btn.getAttribute('aria-pressed'), 'false');
+      assert.equal(dom.window.localStorage.getItem(SHARE.BS_COACH_GROCERY_SAVED_KEY), null);
+    } finally { await r.done(); }
+    refuse = false;
+    r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, saveTo: 'coach', messageId: 'm9', from: 'Sam Reyes' }));
+    try {
+      const btn = r.host.querySelector('[data-bs-grocery-save]');
+      await React.act(async () => { btn.click(); });
+      await React.act(async () => { await new Promise((res) => setTimeout(res, 0)); });
+      assert.equal(btn.getAttribute('aria-pressed'), 'true');
+      assert.match(btn.textContent, /Saved/);
+    } finally { await r.done(); }
+    assert.deepEqual(created, [bsCoachListFromShared(SHARED)]);
+    assert.equal(created[0].status, 'ready');
+    assert.deepEqual(created[0].items.map((it) => it.name), ['Spinach (2 bags)', 'Lemons', 'Eggs', 'Oats'], 'a quantity rides in the name');
+    // Nothing went to the member's Eat lists or their cloud document.
+    assert.deepEqual(JSON.parse(dom.window.localStorage.getItem('shape.recipeGroceryLists')), []);
+    assert.equal(writes.length, 0);
+    assert.equal(dom.window.localStorage.getItem(BASE), null);
+    // Opened again, the card knows; a second tap saves nothing more.
+    r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, saveTo: 'coach', messageId: 'm9', from: 'Sam Reyes' }));
+    try {
+      const btn = r.host.querySelector('[data-bs-grocery-save]');
+      assert.equal(btn.getAttribute('aria-pressed'), 'true');
+      await React.act(async () => { btn.click(); });
+      assert.equal(created.length, 1);
+    } finally { await r.done(); }
+  } finally { delete dom.window.ShapeGroceryLists; }
+});
+
+test('a coach\'s list travels as a member\'s does, and a received list fits a coach\'s', () => {
+  const coachList = { id: 'c1', name: 'My weekly prep', items: [{ name: 'Chicken breast', aisle: 'Protein' }, { name: 'Jasmine rice', aisle: 'Grains' }, { name: 'Salt' }, null] };
+  const msg = bsGroceryShareMessage(bsGroceryFromCoachList(coachList));
+  assert.equal(msg.body, 'Grocery list: “My weekly prep” · 3 items');
+  assert.deepEqual(msg.metadata.items, [{ n: 'Chicken breast', a: 'Protein' }, { n: 'Jasmine rice', a: 'Grains' }, { n: 'Salt' }]);
+  assert.deepEqual(bsGroceryFromMetadata(msg.metadata).items.map((it) => it.n), ['Chicken breast', 'Jasmine rice', 'Salt'], 'and reads back as any list');
+  assert.equal(bsGroceryFromCoachList(null), null);
+  assert.equal(bsGroceryShareMessage(bsGroceryFromCoachList({ name: 'Empty', items: [] })), null, 'an empty list sends nothing');
+  // A received list → a coach list: names (with any quantity but "1"), aisles (Other when none), capped.
+  const shared = { name: 'Week 3 shop', items: [{ n: 'Spinach', q: '2 bags', a: 'Produce' }, { n: 'Eggs', q: '1' }, { n: 'x'.repeat(200), q: 'y'.repeat(60) }] };
+  const coach = bsCoachListFromShared(shared);
+  assert.equal(coach.name, 'Week 3 shop');
+  assert.deepEqual(coach.items.slice(0, 2), [{ name: 'Spinach (2 bags)', aisle: 'Produce' }, { name: 'Eggs', aisle: 'Other' }]);
+  assert.ok(coach.items[2].name.length <= 120, 'within the coach route\'s 120-character item name');
+  assert.equal(bsCoachListFromShared({ name: 'x', items: [] }), null);
+  assert.equal(bsCoachListFromShared(null), null);
 });
 
 test('the cloud write is skipped, never guessed: a failed read writes nothing; no document yet writes the one list (Codex P1s on #2432)', async () => {
@@ -353,9 +416,10 @@ test('every way a message reaches a thread reads the list strictly, and the thre
   assert.equal((BACKEND.match(/\n\s+id: message\.id \|\| null,\n/g) || []).length, 2, 'both thread readers keep the message id');
   assert.match(CLIENT, /grocery: bsGroceryFromMetadata\(row\.metadata\) \}\]\);/, 'and a message arriving live');
   assert.match(CLIENT, /coachInvite: m\.coachInvite \|\| null, grocery: m\.grocery \|\| null \}\)\),/, 'and the thread keeps it');
-  assert.match(CLIENT, /\{m\.grocery && <BSGroceryShareCard shared=\{m\.grocery\} me=\{!!me\} canSave=\{canSaveGrocery\} messageId=\{m\.id\} from=\{me \? '' : senderName\} \/>\}/);
-  // The coach apps mount the same chat (BSClientChat → BSClientFeed): only a member's thread offers Save.
-  assert.match(CLIENT, /canSaveGrocery=\{myRole === 'client'\}/);
+  assert.match(CLIENT, /\{m\.grocery && <BSGroceryShareCard shared=\{m\.grocery\} me=\{!!me\} saveTo=\{grocerySaveTo\} messageId=\{m\.id\} from=\{me \? '' : senderName\} \/>\}/);
+  // The coach apps mount the same chat (BSClientChat → BSClientFeed): a member saves to the Eat lists, a
+  // coach to their own coach lists (owner, 2026-10-24: "yes coaches as well").
+  assert.match(CLIENT, /grocerySaveTo=\{myRole === 'client' \? 'member' : bsIsCoachRole\(myRole\) \? 'coach' : null\}/);
 });
 
 test('the Eat page takes a received list while it is on screen, and labels it received', () => {

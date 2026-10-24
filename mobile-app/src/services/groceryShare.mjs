@@ -120,3 +120,35 @@ export function bsReceivedGroceryList(shared, { messageId, from, now = Date.now(
     aisles: groups,
   };
 }
+
+// ── Coaches (owner, 2026-10-24: "every member / yes coaches as well") ──────────────────────────────────
+// A coach's lists are coach_grocery_lists rows ({ name, items: [{ name, aisle }] }), kept apart from a
+// member's Eat lists. These two carry a list between that shape and the message, so a coach sends one to
+// any member and saves one they were sent, as members do.
+
+// A coach's list → the list bsGroceryShareMessage takes.
+export function bsGroceryFromCoachList(g) {
+  if (!g || typeof g !== 'object') return null;
+  const items = (Array.isArray(g.items) ? g.items : [])
+    .filter((it) => it && typeof it === 'object')
+    .map((it) => ({ n: it.name, ...(it.aisle ? { a: it.aisle } : {}) }));
+  return { name: g.name, items };
+}
+
+// A received list ({ name, items: [{ n, q, a }] }, read strictly) → a coach's own list as
+// /api/coach/grocery-lists takes it. A coach's items keep a name and an aisle, so a quantity rides in the
+// name ("Spinach (2 bags)"); an item with no aisle is filed under Other, as that route files it.
+export function bsCoachListFromShared(shared) {
+  if (!shared || !Array.isArray(shared.items) || !shared.items.length) return null;
+  const name = clip(shared.name, MAX_NAME);
+  const items = shared.items
+    .map((it) => {
+      const n = clip(it && it.n, MAX_ITEM);
+      if (!n) return null;
+      const q = clip(it.q, MAX_QTY);
+      return { name: q && q !== '1' ? `${n} (${q})` : n, aisle: clip(it.a, MAX_AISLE) || 'Other' };
+    })
+    .filter(Boolean);
+  if (!name || !items.length) return null;
+  return { name, items, status: 'ready' };
+}

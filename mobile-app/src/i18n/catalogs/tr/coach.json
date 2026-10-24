@@ -502,6 +502,7 @@
   "grocery.newList": "＋ Yeni alışveriş listesi",
   "grocery.personal": "Kişisel",
   "grocery.sendToClient": "{name} kişisine gönder →",
+  "grocery.sendMember": "Bir üyeye gönder →",
   "grocery.statusApproval": "Onay bekliyor",
   "grocery.statusReady": "Göndermeye hazır",
   "grocery.statusReview": "İncelemede",

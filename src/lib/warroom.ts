@@ -615,6 +615,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Grocery lists: coaches send theirs to any member and save the ones they are sent — #2434. No migration',
+      items: [
+        { label: 'Owner, 2026-10-24: "every member / yes coaches as well". Each coach list with items has Send to a member →, for trainers and nutritionists, personal and client lists alike: the sheet members send with (BSPostSendSheet), whose picker searches every member, and the same card arrives. A nutritionist\'s client list keeps Send to {client} →. One string in all 13 languages', status: 'done' },
+        { label: 'In the coach apps the card\'s Save to my lists files the copy as a personal coach list (ShapeGroceryLists.create): a quantity rides in the item\'s name, an item with no aisle goes under Other. The device remembers the messages saved (shape.coachGroceryReceived, in the sign-out scrub), one copy per message; a refused save stays tappable', status: 'done' },
+        { label: 'Review: Codex on 264129d, one P1 (a cold coach session never loads the client bundle, so Send opened nothing): fixed in 40f2587, the sheet loads on demand (bsProOpenSend), only the latest request opens, a failed load says "Could not send". Codex clean on 40f2587. npm test 8,229/8,229; CI green on all four jobs', status: 'done' },
+        { label: 'Grocery lists are sent and saved in the app only: the website\'s chat draws no grocery card, for members or coaches. A coach\'s saved messages are remembered per device, so the same message saved on two devices makes two lists', status: 'pending' },
+        { label: 'Device pass: a coach sends a list to a member; a member sends one to a coach, who saves it and finds it on their Grocery Lists page', status: 'manual' },
+      ],
+    },
+    {
       section: 'Grocery lists: every writer merges and writes compare-and-set — #2433. No migration',
       items: [
         { label: 'Owner, 2026-10-23: "build the grocery list fix next", the gap #2432 left open. user_goals client_grocery_lists becomes a revisioned document { v: 1, rev, lists }, and every writer (the app\'s Eat page, the chat\'s Save to my lists and the website\'s grocery page) goes through one store, public/newdesign/groceryLists.mjs: read, a three-way merge against the lists as this device last synced them (the base, per account), compare-and-set on rev, and on a lost race a re-read and merge (4 tries). The website\'s shapeDb gains saveUserGoalsIfRev, and getUserGoals reads the asking account\'s row only', status: 'done' },
@@ -635,7 +645,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Aisles survive an edit (every custom list, in the app), and the website\'s grocery page hands a synced list back with its label, sender credit and aisles instead of stamping it "Custom · Synced"', status: 'done' },
         { label: 'Review: Codex read every head. Two P1s on 0e5bd23 (a failed cloud read taken as no lists; the write not bound to the reader\'s account) and five P2s (member threads dropped the message id; an edit flattened aisles; "Saved" over a list kept nowhere; the website page rewrote synced lists; denied storage skipped the cloud), fixed in 6012e80, 0413eed, 272ab62, 10fccc8 and d067241, each with a test that fails on the old code. A sixth P2 (the compare-and-set race) is left open below. Codex clean on d067241; Copilot declined on its quota. 8,175 tests pass; CI green on all four jobs', status: 'done' },
         { label: 'The cloud save is not a compare-and-set: client_grocery_lists is a bare array with no revision, so another device\'s write between the read and the write can drop the list from the cloud (not from the device). The Eat page writes the same way. Fixed in #2433, with no migration: the revision lives in the document, and every writer merges and writes compare-and-set', status: 'done' },
-        { label: 'A coach can read a sent list but not save it to their own lists (coach_grocery_lists)', status: 'pending' },
+        { label: 'A coach can read a sent list but not save it to their own lists (coach_grocery_lists). Fixed in #2434: Save files it as a personal coach list', status: 'done' },
         { label: 'Device pass with two signed-in members: send, receive the push, save, see it on Eat and on a second device', status: 'manual' },
       ],
     },

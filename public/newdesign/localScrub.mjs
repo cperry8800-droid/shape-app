@@ -74,6 +74,7 @@ export const SHAPE_SCRUB_KEYS = [
   'shape.grocery.listsBase.v1',   // the same for the website's grocery page
   'shape.grocery.lists.v1',       // the website's grocery lists, cloud-synced like the app's: left behind,
                                   // the next member's first sync would merge them into their own lists
+  'shape.coachGroceryReceived',   // the grocery-list messages a coach saved (BSGroceryShare.jsx)
   'shape.cookResume',
   'shape.cookBatchResume',
   'shape.radio.musicLibraries',

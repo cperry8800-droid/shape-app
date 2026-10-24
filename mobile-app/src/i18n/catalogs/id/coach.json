@@ -502,6 +502,7 @@
   "grocery.newList": "＋ Daftar belanja baru",
   "grocery.personal": "Pribadi",
   "grocery.sendToClient": "Kirim ke {name} →",
+  "grocery.sendMember": "Kirim ke anggota →",
   "grocery.statusApproval": "Menunggu persetujuan",
   "grocery.statusReady": "Siap dikirim",
   "grocery.statusReview": "Dalam tinjauan",
