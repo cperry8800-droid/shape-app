@@ -10,8 +10,8 @@ dated entry or past 20 KB.
 
 - ⛔️ **Check for a stale base before any edit.** The web container sometimes resets
   to an older commit. Run `git fetch origin main && git rev-parse HEAD origin/main`;
-  if the two differ, `git reset --hard origin/main` first. Don't add `--short` to
-  that command, because with two refs it fails.
+  if the two differ, `git reset --hard origin/main` first. Don't add `--short`:
+  with two refs it fails.
 - **Branch and merge.** Work on the session's `claude/*` branch. For each change:
   commit, push, open a PR, wait for CI to go green on the final head, squash-merge,
   then reset the branch to `main`. All four `ci.yml` jobs must pass: Web (typecheck +
@@ -113,8 +113,8 @@ dated entry or past 20 KB.
   row inside a `BSPage` sticks at `top: useBSPinnedMastTop()`, below that masthead.
 - **Theme:** `useBS()` → `t`. The teal accent is
   `t.isLight ? '#0a8f87' : '#34d6c5'`; nutritionists are gold `#a07a2e` and trainers
-  rust `#c0533b`. The Wall, chat and the chrome take the magazine's red and Oswald
-  from `bsMagazine.mjs`.
+  rust `#c0533b`. The Wall, chat and the chrome take the magazine's red from
+  `bsMagazine.mjs`; every heading is Saira.
 - **App copy** goes through `useShapeTr()` in all 13 locales.
   `tests/i18n-surface-inventory.test.mjs` counts the strings that aren't translated
   yet.

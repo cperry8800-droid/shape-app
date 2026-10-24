@@ -103,7 +103,7 @@ function BSWallLiveStory({ person, sample, avatar, onBoost, onOpenProfile }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const red = bsWlRed(t);
-  const HEAD = t.HEADLINE || t.DISPLAY;
+  const HEAD = t.DISPLAY;
   const row = useBSLiveRow(person.userId || null);
   const realMins = useBSLiveMinutes(person.userId || null);
   const work = sample ? sample.work : bsWallLiveWork(row && row.payload);

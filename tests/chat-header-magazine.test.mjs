@@ -22,7 +22,8 @@ const WALL_STORY = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSWallStor
 test('the magazine red is the Wall\'s, on both papers', () => {
   assert.equal(STORY.bsWsRed({ isLight: true }), '#b23a1f');
   assert.equal(STORY.bsWsRed({ isLight: false }), '#ff7a5c');
-  assert.equal(STORY.bsWsHead({ HEADLINE: 'Oswald', DISPLAY: 'Saira' }), 'Oswald');
+  // The headline face is the app's own, as on every other page (owner: "Font needs to be same on whole app").
+  assert.equal(STORY.bsWsHead({ HEADLINE: 'Oswald', DISPLAY: 'Saira' }), 'Saira');
 });
 
 test('the rail and the Wall\'s faces keep the faceted shape in the magazine\'s flat cut', () => {

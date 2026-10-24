@@ -1,36 +1,49 @@
-// The Wall's magazine headlines are Oswald (owner, 2026-10-23, picking among six faces: "use
-// oswald"). The app bundles the files, so the proof that the headlines get the weights they set
-// is each file's own `fvar` table, as cook-font-axes.test.mjs does for the cooking faces.
+// One headline face across the app (owner, 2026-10-24: "Font needs to be same on whole app" and "The
+// font on Chat page needs to not be so tall"). The Wall, the chat page and the session page set their
+// headlines in Oswald from 2026-10-23 ("use oswald"); they take the app's own face now, Saira, as every
+// other page does. The proof that the headlines still get the weights they set is each Saira file's
+// own `fvar` table, as cook-font-axes.test.mjs does for the cooking faces.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { woff2Table, fvarAxes } from './helpers/woff2-fvar.mjs';
 
-const CSS = readFileSync(new URL('../mobile-app/src/fonts.css', import.meta.url), 'utf8');
-const file = (n) => readFileSync(new URL(`../mobile-app/src/assets/fonts/font-${n}.woff2`, import.meta.url));
+const SRC = new URL('../mobile-app/src/', import.meta.url);
+const CSS = readFileSync(new URL('fonts.css', SRC), 'utf8');
+const file = (n) => readFileSync(new URL(`assets/fonts/font-${n}.woff2`, SRC));
 const faces = (family) => CSS.split('@font-face').slice(1)
   .map((b) => b.slice(0, b.indexOf('}')))
   .filter((b) => b.includes(`font-family: '${family}'`))
   .map((b) => ({ block: b, n: (b.match(/font-(\d+)\.woff2/) || [])[1] }));
 
-test('Oswald ships for every script the app is read in, each file carrying its weights', () => {
-  const found = faces('Oswald');
-  // Latin and latin-ext for the Latin locales, Cyrillic for ru and uk, Vietnamese for vi.
-  assert.equal(found.length, 5, 'expected cyrillic-ext, cyrillic, vietnamese, latin-ext and latin Oswald faces');
+test('no Oswald ships: every headline is in the app\'s own face', () => {
+  assert.equal(faces('Oswald').length, 0, 'an Oswald face is back in fonts.css');
+  // Nothing in the app names it as a font any more.
+  const dir = new URL('broadsheet/', SRC);
+  for (const f of readdirSync(dir).filter((x) => /\.(jsx|mjs|js)$/.test(x))) {
+    assert.doesNotMatch(readFileSync(new URL(f, dir), 'utf8'), /'Oswald'/, `${f} names Oswald as a font`);
+  }
+  const theme = readFileSync(new URL('broadsheet/iosAppBroadsheet.jsx', SRC), 'utf8');
+  assert.doesNotMatch(theme, /HEADLINE_BS|HEADLINE:/, 'a second headline token in the theme');
+});
+
+test('the magazine\'s headline face is the theme\'s display face, Saira', async () => {
+  const { bsWsHead } = await import(new URL('broadsheet/bsMagazine.mjs', SRC).href);
+  assert.equal(bsWsHead({ DISPLAY: "'Saira', sans-serif", HEADLINE: "'Oswald'" }), "'Saira', sans-serif");
+  const theme = readFileSync(new URL('broadsheet/iosAppBroadsheet.jsx', SRC), 'utf8');
+  assert.match(theme, /const DISPLAY_BS = "'Saira', /);
+  assert.doesNotMatch(readFileSync(new URL('broadsheet/BSWallLive.jsx', SRC), 'utf8'), /t\.HEADLINE/);
+});
+
+test('Saira ships with its whole weight range, so the headlines\' 500 and 600 are real weights', () => {
+  const found = faces('Saira');
+  assert.ok(found.length >= 3, 'expected Saira faces for latin, latin-ext and vietnamese');
   for (const { n, block } of found) {
     const wght = new Map(fvarAxes(woff2Table(file(n), 'fvar')).map((a) => [a.tag, a])).get('wght');
     assert.ok(wght, `font-${n} has no wght axis`);
     assert.ok(wght.min <= 400 && wght.max >= 700, `font-${n}: wght ${wght.min}..${wght.max}`);
     // A single declared weight clamps a variable face and the axis goes inert.
-    assert.match(block, /font-weight:\s*200\s+700/, `font-${n}: the face does not declare the weight range`);
-    const maxp = woff2Table(file(n), 'maxp');
-    assert.ok(maxp && maxp.readUInt16BE(4) >= 50, `font-${n}: only ${maxp && maxp.readUInt16BE(4)} glyphs`);
+    assert.match(block, /font-weight:\s*100\s+900/, `font-${n}: the face does not declare the weight range`);
   }
-});
-
-test('the theme names Oswald as the headline face, falling back to the app\'s own', () => {
-  const src = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheet.jsx', import.meta.url), 'utf8');
-  assert.match(src, /const HEADLINE_BS = "'Oswald', 'Saira', /);
-  assert.match(src, /HEADLINE: HEADLINE_BS,/);
 });

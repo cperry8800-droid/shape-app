@@ -12,7 +12,6 @@ import { bsWsRed } from './bsMagazine.mjs';
 //   DISPLAY_BS = Saira (headers, mastheads, section labels — the wordmark face; Space Grotesk fallback)
 //   BODY_BS    = native system stack (body copy, controls, rows)
 //   MONO_BS    = JetBrains Mono (eyebrows, times, tags)
-//   HEADLINE_BS = Oswald (the Wall's magazine headlines and figures; owner, 2026-10-23: "use oswald")
 //   No serifs. No script. This is the contract.
 
 const {
@@ -27,7 +26,6 @@ const {
 const DISPLAY_BS = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
 const BODY_BS    = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 const MONO_BS    = "'JetBrains Mono', ui-monospace, monospace";
-const HEADLINE_BS = "'Oswald', 'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
 
 
 // ─── Theme palette generator ───────────────────────────────
@@ -434,7 +432,7 @@ function BSProvider({ children, paperMode, accentKey, densityKey, borderKey, wei
   const [unitSystem, setUnitSystem] = useStateBS(bsUnitSystem);
   useEffectBS(() => ShapeUnits.subscribe(setUnitSystem), []);
   const value = { ...P, ...D, B, W, TEXTURE, textureKey, textureColor,
-    DISPLAY: DISPLAY_BS, BODY: BODY_BS, MONO: MONO_BS, HEADLINE: HEADLINE_BS,
+    DISPLAY: DISPLAY_BS, BODY: BODY_BS, MONO: MONO_BS,
     densityKey, borderKey, weightKey,
     textScaleKey: textScaleKey || 'medium', TEXT_SCALE: bsTextScale(textScaleKey),
     ...bsUnitFormatters(unitSystem),

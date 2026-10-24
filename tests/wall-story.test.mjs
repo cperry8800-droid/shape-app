@@ -1,7 +1,8 @@
 // tests/wall-story.test.mjs
 //
-// The Wall in the magazine look (owner, 2026-10-23: the dark magazine design, its headlines in Oswald,
-// "use oswald", and "keep the same likes and comments"). The Wall's cards ask for variant "magazine":
+// The Wall in the magazine look (owner, 2026-10-23: the dark magazine design and "keep the same likes
+// and comments"; its headlines in the app's own face since 2026-10-24, "Font needs to be same on whole
+// app"). The Wall's cards ask for variant "magazine":
 // a story head (a picture or the route with the headline over it, or the headline alone), the byline,
 // three figures or a record's one number, and the co-signing coach's own line pulled out. Everything
 // under that (the reactions, the faces, the comments) is the card it always was.
@@ -149,7 +150,7 @@ const STORY = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSWallS
 async function render(el) {
   const saved = { window: globalThis.window, document: globalThis.document };
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  dom.window.useBS = () => ({ ...THEME, HEADLINE: 'oswald', DISPLAY: 'display', MONO: 'mono', BODY: 'body', isLight: false, INK: '#f1ece1', INK50: '#999', HAIR: '#333' });
+  dom.window.useBS = () => ({ ...THEME, DISPLAY: 'display', MONO: 'mono', BODY: 'body', isLight: false, INK: '#f1ece1', INK50: '#999', HAIR: '#333' });
   const host = dom.window.document.createElement('div');
   dom.window.document.body.appendChild(host);
   const root = ReactDOMClient.createRoot(host);
@@ -157,7 +158,7 @@ async function render(el) {
   return { host, done: async () => { await React.act(async () => { root.unmount(); }); host.remove(); Object.assign(globalThis, saved); } };
 }
 
-test('the head: a picture carries the headline in Oswald capitals; with none the headline stands alone', async () => {
+test('the head: a picture carries the headline in capitals; with none the headline stands alone', async () => {
   const calls = [];
   let r = await render(React.createElement(STORY.BSWallStoryHead, { kicker: 'Run · East River Loop', title: 'Long run', route: { points: [[0, 90], [50, 20], [100, 60]] }, name: 'Drew Oyelaran', meta: 'LEGEND · 34m ago', onOpen: () => calls.push('open'), onAuthor: () => calls.push('author') }));
   try {
@@ -166,7 +167,7 @@ test('the head: a picture carries the headline in Oswald capitals; with none the
     assert.ok(!pic.querySelector('svg circle'), 'the marks are drawn apart from the stretched line, so they stay round');
     const h = r.host.querySelector('h3');
     assert.equal(h.textContent, 'Long run');
-    assert.equal(h.style.fontFamily, 'oswald');
+    assert.equal(h.style.fontFamily, 'display');
     assert.equal(h.style.textTransform, 'uppercase');
     assert.match(r.host.textContent, /Run · East River Loop/);
     assert.match(r.host.textContent, /Drew Oyelaran · LEGEND · 34m ago/);
@@ -212,7 +213,7 @@ test('the figures, the record and the quote', async () => {
   try { assert.equal(r.host.textContent, '“Depth was clean.Coach Jordan · co-signed · Coach'); } finally { await r.done(); }
 });
 
-test('the masthead: the Wall\'s name in Oswald capitals, the day and who is training, and the types as tabs', async () => {
+test('the masthead: the Wall\'s name in capitals, the day and who is training, and the types as tabs', async () => {
   const picked = [];
   const types = [['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs']];
   let r = await render(React.createElement(STORY.BSWallMasthead, { title: 'The Wall', dateline: 'Thursday, Oct 23', trainingLine: '3 training now', types, typesLabel: 'Filter by activity type', type: 'runs', onType: (k) => picked.push(k) }));
@@ -220,7 +221,7 @@ test('the masthead: the Wall\'s name in Oswald capitals, the day and who is trai
     assert.equal(r.host.querySelector('[data-bs-wall-masthead]').style.margin, '0px 12px', 'on the cards\' gutter, as the live story is');
     const h = r.host.querySelector('[data-bs-wall-masthead] h2');
     assert.equal(h.textContent, 'The Wall');
-    assert.equal(h.style.fontFamily, 'oswald');
+    assert.equal(h.style.fontFamily, 'display');
     assert.equal(h.style.textTransform, 'uppercase');
     assert.match(r.host.textContent, /Thursday, Oct 233 training now/);
     const nav = r.host.querySelector('nav');
