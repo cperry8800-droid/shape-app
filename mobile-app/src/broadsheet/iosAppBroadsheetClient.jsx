@@ -18319,9 +18319,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         else if (Number.isFinite(kcal) && kcal > 0) metric = ['Burn', `${Math.round(kcal)} kcal`];
         return { k: type, t: a.title || `${type} session`, b: bits.length ? bits.join(' · ') : 'Logged.', metric, distKm, time: ago(a.started_at), hot: false, _at: a.started_at || '' };
       });
-      // Real PRs surfaced as feed items. /api/client/progress serves them
-      // ({ move, best, bestReps, unit, bestAt }); /api/client/train sends none.
-      const prs = (td && Array.isArray(td.prs)) ? td.prs : [];
+      // Real PRs surfaced as feed items: /api/client/progress's most recently set
+      // bests across every move ({ move, best, bestReps, unit, bestAt }), not its
+      // heaviest few, so a new lighter record is never crowded out by an old heavy
+      // one. /api/client/train sends none.
+      const prs = (td && Array.isArray(td.recentPrs)) ? td.recentPrs : [];
       const prItems = prs.slice(0, 4).map((p) => {
         const val = `${p.best != null ? p.best : (p.value != null ? p.value : '')}${p.unit ? ' ' + p.unit : ''}`.trim();
         return { k: 'PR', t: `New PR — ${p.move || p.lift || 'Lift'}`, b: (p.best != null && p.bestReps) ? `Best: ${val} × ${p.bestReps}` : (val ? `Best: ${val}` : ''), metric: val ? ['▲', val] : null, time: ago(p.bestAt || p.date), hot: true, _at: p.bestAt || p.date || '' };

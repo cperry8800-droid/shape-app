@@ -103,10 +103,10 @@ const openTab = (d, key) => {
 };
 async function profile(prefs, { prs = [], activities = [] } = {}) {
   signIn();
-  // The progress route serves the PRs (/api/client/train sends none), so the
-  // ridge and the feed both read them from it.
+  // The progress route serves the PRs (/api/client/train sends none): the ridge
+  // reads its heaviest (`prs`), the feed its most recently set (`recentPrs`).
   globalThis.window.ShapeProgress = {
-    progress: feed({ ok: true, prs }),
+    progress: feed({ ok: true, prs, recentPrs: prs }),
   };
   globalThis.window.ShapeActivities = { list: feed({ activities }) };
   CURRENT = themeFor(prefs);

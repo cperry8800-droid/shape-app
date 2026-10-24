@@ -80,7 +80,7 @@ test('each route still sends the field the profile reads from it', () => {
   assert.match(prog, /\n\s+weight: weightSeries,/, 'progress sends series.weight');
   assert.match(prog, /\n\s+volume: volumeSeries,/, 'progress sends series.volume');
   assert.match(prog, /const volumeSeries = seriesFor\('workout_minutes'\);/, 'series.volume is workout minutes per day');
-  assert.match(prog, /\n\s+prs,\n/, 'progress sends prs');
+  assert.match(prog, /\n\s+prs,\n\s+recentPrs,\n/, 'progress sends prs and recentPrs');
   const stats = read('src', 'app', 'api', 'client', 'profile-stats', 'route.ts');
   assert.match(stats, /\n\s+lifts,\n\s+disciplines,\n/, 'profile-stats sends lifts and disciplines');
   const backend = read('mobile-app', 'src', 'services', 'shapeBackend.js');
@@ -98,6 +98,7 @@ test('the profile reads its live figures from those routes, and none from the tr
   assert.match(body, /bsProfileStreak\(dash\)/);
   assert.match(body, /bsProfileTrajectory\(prog\)/);
   assert.match(body, /bsProfileWeek\(prog\)/);
+  assert.match(body, /Array\.isArray\(td\.recentPrs\)\) \? td\.recentPrs/, 'the feed reads the most recently set PRs, not the heaviest few');
   assert.doesNotMatch(body, /ShapeProgress\??\.train/, 'the train route sends no streak, daily volume or PRs');
   assert.doesNotMatch(body, /currentStreak|volumeByDay/);
 });
