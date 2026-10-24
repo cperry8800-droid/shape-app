@@ -626,10 +626,10 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
     </div>
   );
 
-  // Pinned condensed masthead — the tab bar's paper, flipped: flat paper over a
-  // rule, with no fade, blur or shadow (the Wall's magazine look, owner
-  // 2026-10-24), so top + bottom chrome read as one. Slides in only once
-  // scrolled past the page's own masthead.
+  // Pinned condensed masthead — flat paper over a rule, with no fade, blur or
+  // shadow (the Wall's magazine look, owner 2026-10-24); the tab bar floats on
+  // the same paper below. Slides in only once scrolled past the page's own
+  // masthead.
   const MastCorner = (typeof window !== 'undefined' && window.BSMastCorner) || null;
   const mastReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const pinnedMast = mast ? (
@@ -1333,52 +1333,63 @@ function BSTabBar({ tabs, active, onChange }) {
     setChatUnread(window.ShapeUnread?.total?.() || 0);
     return () => { try { off && off(); } catch (e) {} };
   }, []);
-  // The Wall's magazine look (owner, 2026-10-24: the tab bar "in new design"): flat paper over a rule,
-  // the tabs in ink against grey, and the active one marked by the magazine's red on the rule, as the
-  // chat page's section strip marks its word. No fade, blur, shadow, glow or plate.
+  // The Wall's magazine look (owner, 2026-10-24: the tab bar "in new design", then "the floating nav
+  // bar"): a sheet of the page's paper ruled in ink, floating off the screen's edges, the tabs in ink
+  // against grey, and the active one marked by the magazine's red on the sheet's top rule, as the chat
+  // page's section strip marks its word. No fade, blur, glow or plate.
+  // ⚠ It floats INSIDE the 64px footprint (BS_TABBAR_H) that every page's scroll reserve and the
+  // composer slot already position against, so nothing above it moves. The dock around the sheet is
+  // clear and lets taps through to the page under its margins.
   const red = bsWsRed(t);
   const activeIdx = Math.max(0, tabs.findIndex((tb) => tb.key === active));
   const n = tabs.length;
   return (
-    <div data-bs-tabbar="" style={{
+    <div data-bs-tabbar-dock="" style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
-      height: BS_TABBAR_H, padding: '5px 20px calc(8px + env(safe-area-inset-bottom, 0px))',
-      // The page's own paper (PAPER_BG carries the sheen on papers like Steel), so the bar is the
-      // same sheet as the page.
-      background: t.PAPER_BG,
-      backgroundColor: t.PAPER,
-      color: t.INK,
-      borderTop: `1px solid ${t.RULE}`,
-      display: 'grid', gridTemplateColumns: `repeat(${n}, 1fr)`, gap: 10,
+      height: BS_TABBAR_H,
+      paddingTop: 2, paddingLeft: 12, paddingRight: 12, paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))',
+      display: 'flex', pointerEvents: 'none',
     }}>
-      {/* The red rule over the active tab, on the bar's own rule. It slides to the tab tapped. */}
-      <span aria-hidden data-bs-tab-mark="" style={{ position: 'absolute', top: -1, height: 2, width: `calc((100% - 40px) / ${n} * 0.44)`, left: `calc(20px + ((100% - 40px) / ${n}) * (${activeIdx} + 0.28))`, background: red, transition: 'left .28s cubic-bezier(.4,0,.2,1)' }} />
-      {tabs.map((tab, i) => {
-        const on = tab.key === active;
-        return (
-          <button key={tab.key} type="button" data-tour={'tab-' + tab.key} onClick={() => onChange(tab.key)} style={{
-            border: 0, background: 'transparent',
-            cursor: 'pointer', padding: '3px 0',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
-            color: on ? t.INK : t.INK50, position: 'relative',
-          }}>
-            <span style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-              {BS_TAB_ICON_KEYS.has(tab.key)
-                ? <BSTabIcon name={tab.key} size={20} />
-                : <span style={{ fontFamily: t.MONO, fontWeight: 700, fontSize: 10.5, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{String(i + 1).padStart(2, '0')}</span>}
-              {on && (
-                <span style={{
-                  fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800,
-                }}>{tab.label}</span>
+      <div data-bs-tabbar="" style={{
+        position: 'relative', flex: 1, pointerEvents: 'auto',
+        // The page's own paper (PAPER_BG carries the sheen on papers like Steel), so the sheet is the
+        // page's paper lifted off it: ruled in ink, square, with a soft shadow under it and no tint.
+        background: t.PAPER_BG,
+        backgroundColor: t.PAPER,
+        color: t.INK,
+        border: `1px solid ${t.INK}`,
+        boxShadow: `0 10px 24px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.5)'}`,
+        display: 'grid', gridTemplateColumns: `repeat(${n}, 1fr)`, padding: '0 6px',
+      }}>
+        {/* The red rule over the active tab, on the sheet's top rule. It slides to the tab tapped. */}
+        <span aria-hidden data-bs-tab-mark="" style={{ position: 'absolute', top: -1, height: 3, width: `calc((100% - 12px) / ${n} * 0.44)`, left: `calc(6px + ((100% - 12px) / ${n}) * (${activeIdx} + 0.28))`, background: red, transition: 'left .28s cubic-bezier(.4,0,.2,1)' }} />
+        {tabs.map((tab, i) => {
+          const on = tab.key === active;
+          return (
+            <button key={tab.key} type="button" data-tour={'tab-' + tab.key} onClick={() => onChange(tab.key)} style={{
+              border: 0, background: 'transparent',
+              cursor: 'pointer', padding: '3px 0',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+              color: on ? t.INK : t.INK50, position: 'relative',
+            }}>
+              <span style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                {BS_TAB_ICON_KEYS.has(tab.key)
+                  ? <BSTabIcon name={tab.key} size={20} />
+                  : <span style={{ fontFamily: t.MONO, fontWeight: 700, fontSize: 10.5, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{String(i + 1).padStart(2, '0')}</span>}
+                {on && (
+                  <span style={{
+                    fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800,
+                  }}>{tab.label}</span>
+                )}
+              </span>
+              {/* The unread count: a square of the magazine's red. */}
+              {tab.key === 'chat' && chatUnread > 0 && (
+                <span style={{ position: 'absolute', top: 4, left: '52%', minWidth: 15, height: 15, borderRadius: 0, background: red, color: t.PAPER, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{chatUnread > 9 ? '9+' : chatUnread}</span>
               )}
-            </span>
-            {/* The unread count: a square of the magazine's red. */}
-            {tab.key === 'chat' && chatUnread > 0 && (
-              <span style={{ position: 'absolute', top: 0, left: '52%', minWidth: 15, height: 15, borderRadius: 0, background: red, color: t.PAPER, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{chatUnread > 9 ? '9+' : chatUnread}</span>
-            )}
-          </button>
-        );
-      })}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

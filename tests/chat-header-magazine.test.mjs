@@ -42,7 +42,8 @@ test('the rail and the Wall\'s faces keep the faceted shape in the magazine\'s f
   assert.match(facet, /transform: 'rotate\(45deg\)', borderRadius: '27%', background: flat \? c : `linear-gradient/);
   assert.match(facet, /boxShadow: flat \? 'none' : `0 5px 16px/);
   assert.match(facet, /\{!flat && <div style=\{\{ position: 'absolute', inset: 0, borderRadius: '27%', background: 'linear-gradient\(135deg, rgba\(255,255,255,0\.28\)/);
-  assert.match(facet, /const dotColor = dotC \|\| \(activity === 'cooking' \? COOK : '#34d6c5'\);/);
+  // The flat cut's dot defaults to the magazine's red (amber at the stove); the gem keeps its teal.
+  assert.match(facet, /const dotColor = dotC \|\| \(activity === 'cooking' \? COOK : flat \? bsWsRed\(t\) : '#34d6c5'\);/);
   // The online line's dot is still and red.
   assert.match(CLIENT, /<span aria-hidden style=\{\{ width: 6, height: 6, borderRadius: 3, background: magRed \}\} \/>/);
 });

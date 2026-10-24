@@ -2,9 +2,11 @@
 // header's ✦, the corner avatar and the tab bar), MOUNTED: the real BSTabBar and BSPage's pinned masthead
 // from mobile-app/src/broadsheet/iosAppBroadsheet.jsx, in the real BSProvider, on both papers.
 //
-// The tab bar is flat paper over a rule: no fade, blur, shadow, glow or clipped plate. The active tab is
-// ink, marked by the magazine's red on the rule over it (as the chat page's section strip marks its word),
-// and the chat tab's unread count is a square of that red. The pinned masthead is the same paper, flipped.
+// The tab bar floats ("the floating nav bar"): a square sheet of the page's paper ruled in ink, held off the
+// screen's edges inside the 64px footprint the pages and the composer reserve, under a soft neutral shadow,
+// with no fade, blur, glow or clipped plate. The active tab is ink, marked by the magazine's red on the
+// sheet's top rule (as the chat page's section strip marks its word), and the chat tab's unread count is a
+// square of that red. The pinned masthead is flat paper over a rule.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -53,7 +55,7 @@ const sameColor = (a, b) => {
 };
 
 for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
-  test(`the tab bar is flat paper over a rule, the active tab ink under the magazine's red (${paperMode})`, async () => {
+  test(`the tab bar floats: an ink-ruled sheet of paper, the active tab ink under the magazine's red (${paperMode})`, async () => {
     let theme = null;
     const Probe = () => { theme = window.useBS(); return null; };
     const { host, unmount } = await mount(React.createElement(React.Fragment, null,
@@ -61,15 +63,33 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
       React.createElement(window.BSTabBar, { tabs: TABS, active: 'chat', onChange() {} })), paperMode);
     assert.equal(theme.isLight, isLight);
     const red = bsWsRed(theme);
-    const bar = host.querySelector('[data-bs-tabbar]');
+    // The dock keeps the 64px footprint every page reserves, holds the sheet off the edges, and lets taps
+    // in its margins through to the page.
+    const dock = host.querySelector('[data-bs-tabbar-dock]');
+    assert.ok(dock, 'no dock');
+    assert.equal(dock.style.height, '64px', 'the footprint the pages and the composer position against');
+    assert.equal(dock.style.position, 'absolute');
+    assert.equal(dock.style.bottom, '0px');
+    assert.equal(dock.style.pointerEvents, 'none');
+    assert.equal(dock.style.paddingLeft, '12px');
+    assert.equal(dock.style.paddingRight, '12px');
+    assert.equal(dock.style.background || '', '', 'the dock around the sheet is clear');
+    const bar = dock.querySelector('[data-bs-tabbar]');
     assert.ok(bar, 'no tab bar');
-    assert.equal(bar.style.boxShadow, '', 'the floating shadow is back');
+    assert.equal(bar.style.pointerEvents, 'auto');
+    // A square sheet ruled in ink on every side, with a soft neutral shadow and no blur, fade or tint.
+    for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
+      assert.equal(bar.style[`border${side}Width`], '1px');
+      assert.ok(sameColor(bar.style[`border${side}Color`], theme.INK), `the ${side.toLowerCase()} rule is ink`);
+    }
+    assert.equal(bar.style.borderRadius || '', '', 'a rounded pill');
+    assert.match(bar.style.boxShadow, isLight ? /rgba\(15, ?14, ?12, ?0\.16\)/ : /rgba\(0, ?0, ?0, ?0\.5\)/, 'a neutral shadow, not a glow');
     assert.equal(bar.style.backdropFilter || '', '', 'the blur is back');
     assert.doesNotMatch(bar.style.background, /gradient/, 'the fade is back');
-    assert.ok(sameColor(bar.style.borderTopColor, theme.RULE), 'the bar sits on a rule');
-    // The red mark sits over the active tab (the fourth of five) on the bar's rule, with no glow.
+    // The red mark sits over the active tab (the fourth of five) on the sheet's top rule, with no glow.
     const mark = bar.querySelector('[data-bs-tab-mark]');
     assert.ok(sameColor(mark.style.background, red));
+    assert.equal(mark.style.top, '-1px', 'on the top rule');
     assert.equal(mark.style.boxShadow, '');
     assert.equal(mark.style.borderRadius, '');
     assert.match(mark.getAttribute('style'), /\(3 \+ 0\.28\)/, 'the mark sits over the chat tab');
