@@ -143,3 +143,17 @@ test('the card follows today into the new week, and a week paged back to stays p
   assert.ok(btn(/Next week/).disabled);
   await React.act(async () => { root.unmount(); host.remove(); });
 });
+
+// Codex P2 on #2437: a habit deleted today still counts what it kept, and has its row this week.
+test('a deleted habit still counts on the card', async () => {
+  const live = { id: 'r', name: 'Read', type: 'do', createdOn: back(10), history: [TODAY] };
+  const gone = { id: 'g', name: 'Water', type: 'do', createdOn: back(10), archivedOn: TODAY, history: [TODAY] };
+  const without = await mount(React.createElement(H.BSHabitProgress, { habits: [live] }));
+  assert.doesNotMatch(without.text(), /Water/);
+  await without.close();
+  const m = await mount(React.createElement(H.BSHabitProgress, { habits: [live], archived: [gone] }));
+  assert.match(m.text(), /By habit.*Water/);
+  const label = new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
+  assert.ok(m.btn(new RegExp(`^${label}: 2 of 2 kept$`)), 'today counts both');
+  await m.close();
+});

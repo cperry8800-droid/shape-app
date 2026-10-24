@@ -51,6 +51,27 @@ test('the week counts kept against every live slot, today’s open ones included
   assert.deepEqual([byId.s.kept, byId.s.of], [6, 7]);
 });
 
+// Codex P2 on #2437: deleting a habit keeps its past check-offs ("Past check-offs are kept"), so
+// the charts go on counting the days it was kept, and nothing after it went is a miss.
+test('a deleted habit keeps the days it was kept, and is no miss once it went', () => {
+  const gone = { ...water, archivedOn: '2026-10-20' };
+  assert.equal(hpStatus(gone, '2026-10-19', opts), 'kept');
+  assert.equal(hpStatus(gone, '2026-10-20', opts), 'none', 'not kept the day it went: not a miss');
+  assert.equal(hpStatus({ ...gone, history: [...gone.history, '2026-10-20'] }, '2026-10-20', opts), 'kept', 'kept before it went that day');
+  assert.equal(hpStatus(gone, '2026-10-22', opts), 'none');
+  const w = hpWeek([smoke, gone, vit], { ...opts, anchor: TODAY });
+  assert.deepEqual([w.kept, w.slots], [12, 16], 'Water counts Sun and Mon, and nothing after');
+  assert.deepEqual([w.prev.kept, w.prev.slots], [13, 21], 'the week before is unchanged');
+  assert.ok(!w.days[6].open.some((h) => h.id === 'w'), 'not open today');
+  const row = w.perHabit.find((r) => r.habit.id === 'w');
+  assert.deepEqual([row.kept, row.of], [2, 2]);
+  const early = { ...water, archivedOn: '2026-10-05' };
+  assert.ok(!hpWeek([smoke, early], { ...opts, anchor: TODAY }).perHabit.some((r) => r.habit.id === 'w'), 'no row in a week it was gone for');
+  assert.equal(hpWeek([early], { ...opts, anchor: TODAY }).scale, 1);
+  const m = hpMonth([smoke, early], { ...opts, anchor: TODAY }).perHabit.find((r) => r.habit.id === 'w');
+  assert.deepEqual([m.kept, m.of], [4, 5], 'the month it went in: the 1st to the 5th');
+});
+
 test('a habit added mid-week does not open the week down, and last week needs live days', () => {
   const fresh = { id: 'n', name: 'New', type: 'do', createdOn: '2026-10-22', history: ['2026-10-22'] };
   const w = hpWeek([fresh], { ...opts, anchor: TODAY });

@@ -87,6 +87,31 @@ test('WHOOP Import still posts, and writes each row once', async () => {
   assert.equal(body.import.imported, 1);
 });
 
+// Codex P2 on #2437: the latest 10 left a busy week's earlier workouts without a row. The sync now
+// pages through the last eight days as well, following next_token.
+test('a WHOOP sync saves every workout of the week, page by page', async () => {
+  const client = db();
+  const route = await load('src/app/api/integrations/whoop/sync/route.ts', client, [['@/lib/health-snapshot', { writeWhoopSnapshots: async () => ({ days: 0 }) }]]);
+  const w = (id, day) => ({ ...WHOOP_WORKOUT, id, start: `2026-10-${day}T07:00:00Z`, end: `2026-10-${day}T07:45:00Z` });
+  const asked = [];
+  const answer = (url) => {
+    if (!url.includes('/activity/workout')) return url.includes('/user/') ? {} : { records: [] };
+    const q = new URL(url).searchParams;
+    asked.push(Object.fromEntries(q));
+    if (!q.get('start')) return { records: [w('a', 24)] };
+    return q.get('nextToken') === 'p2' ? { records: [w('c', 19)] } : { records: [w('a', 24), w('b', 21)], next_token: 'p2' };
+  };
+  const { out } = await withFetch(answer, async () => route.GET(new Request('https://shape.test/api/integrations/whoop/sync')));
+  const body = await out.json();
+  assert.deepEqual(client.writes.activities.map((r) => r.external_id).sort(), ['a', 'b', 'c'], 'each workout once, the second page included');
+  assert.deepEqual(body.activities, { written: 3, errors: [] });
+  const paged = asked.filter((q) => q.start);
+  assert.equal(paged.length, 2);
+  assert.equal(paged[0].limit, '25');
+  assert.equal(paged[1].nextToken, 'p2');
+  assert.ok(Date.now() - Date.parse(paged[0].start) >= 8 * 86_400_000 - 60_000, 'eight days back');
+});
+
 test('a refused WHOOP row is reported', async () => {
   const client = db({ refuse: true });
   const route = await load('src/app/api/integrations/whoop/sync/route.ts', client, [['@/lib/health-snapshot', { writeWhoopSnapshots: async () => ({ days: 0 }) }]]);

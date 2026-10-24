@@ -577,7 +577,7 @@ function BSHabitCalendar({ month, firstDay, selected, onSelect }) {
   );
 }
 
-function BSHabitProgress({ habits }) {
+function BSHabitProgress({ habits, archived = [] }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -587,7 +587,8 @@ function BSHabitProgress({ habits }) {
   const firstDay = 1;
   // A habit kept on this device alone (signed out) has no day it was made: it counts from its
   // first tick, so the days before it existed are not misses.
-  const known = React.useMemo(() => habits.map(h => (h.createdOn ? h : { ...h, createdOn: (h.history && h.history[0]) || today })), [habits, today]);
+  // Deleted habits come too: they count up to the day they went.
+  const known = React.useMemo(() => [...habits, ...archived].map(h => (h.createdOn ? h : { ...h, createdOn: (h.history && h.history[0]) || today })), [habits, archived, today]);
   const [mode, setMode] = React.useState('week');
   // null follows the current week or month, so a page left open past Sunday night or the month's
   // end moves on with today (Codex P2 on #2437); a period paged back to stays where it was.
@@ -787,6 +788,8 @@ function _bsMapServerHabits(rows) {
     domain: h.domain === 'work' ? 'work' : undefined,
     // The local day the habit was made: the Progress card counts nothing before it.
     createdOn: h.created_at && Number.isFinite(Date.parse(h.created_at)) ? hpLocalYmd(new Date(h.created_at)) : undefined,
+    // A deleted habit (the route's `archived`): the local day it went. The charts count it up to then.
+    archivedOn: h.archived_at && Number.isFinite(Date.parse(h.archived_at)) ? hpLocalYmd(new Date(h.archived_at)) : undefined,
     history: Array.isArray(h.history) ? h.history : [],
   }));
 }
@@ -801,7 +804,8 @@ function _bsMapServerHabits(rows) {
 function _bsUseServerHabits(tweaks, setTweak) {
   const tr = useShapeTr();
   const uid = window.ShapeAuth?.getCachedState?.().user?.id || null;
-  const [snapshot, setSnapshot] = React.useState({ uid: null, habits: [], status: 'loading' });
+  // `archived`: the habits deleted inside the route's 90 days, for the Progress charts only.
+  const [snapshot, setSnapshot] = React.useState({ uid: null, habits: [], archived: [], status: 'loading' });
   const [revision, refresh] = React.useReducer(n => n + 1, 0);
   const busy = React.useRef(false);
   const current = React.useRef(snapshot); current.current = snapshot;
@@ -809,13 +813,14 @@ function _bsUseServerHabits(tweaks, setTweak) {
   React.useEffect(() => {
     let alive = true;
     if (!uid) return;
-    setSnapshot({ uid, habits: [], status: 'loading' });
+    setSnapshot({ uid, habits: [], archived: [], status: 'loading' });
     window.ShapeHabitsData.listStrict().then(d => {
       if (!alive || liveUid() !== uid) return;
       const habits = _bsMapServerHabits(d.habits);
-      setSnapshot({ uid, habits, status: 'ready' });
+      const archived = _bsMapServerHabits(d.archived).filter(h => h.archivedOn);
+      setSnapshot({ uid, habits, archived, status: 'ready' });
       setTweak('habits', _bsEncodeHabits(habits));
-    }).catch(() => { if (alive && liveUid() === uid) setSnapshot({ uid, habits: [], status: 'error' }); });
+    }).catch(() => { if (alive && liveUid() === uid) setSnapshot({ uid, habits: [], archived: [], status: 'error' }); });
     return () => { alive = false; };
   }, [uid, revision]);
   // Refresh at the local midnight boundary, including after a suspended tab wakes.
@@ -829,6 +834,7 @@ function _bsUseServerHabits(tweaks, setTweak) {
   const local = _bsDecodeHabits(tweaks.habits);
   const status = uid ? (snapshot.uid === uid ? snapshot.status : 'loading') : 'ready';
   const habits = uid ? (snapshot.uid === uid ? snapshot.habits : []) : local;
+  const archived = uid && snapshot.uid === uid ? snapshot.archived : [];
   const mutate = async (body, apply) => {
     if (busy.current || (uid && status !== 'ready')) return false;
     busy.current = true;
@@ -836,7 +842,7 @@ function _bsUseServerHabits(tweaks, setTweak) {
       const data = uid ? await window.ShapeHabitsData.action(body) : {};
       if (liveUid() !== uid) return false;
       const next = apply(uid ? current.current.habits : local, data);
-      if (uid) { const value = { uid, habits: next, status: 'ready' }; current.current = value; setSnapshot(value); }
+      if (uid) { const value = { ...current.current, uid, habits: next, status: 'ready' }; current.current = value; setSnapshot(value); }
       setTweak('habits', _bsEncodeHabits(next));
       return true;
     } catch (e) {
@@ -851,7 +857,13 @@ function _bsUseServerHabits(tweaks, setTweak) {
     return mutate(body, (list, data) => [...list, ..._bsMapServerHabits([{ ...(data.habit || { ...body, id: 'h_' + Math.random().toString(36).slice(2, 9) }), history: [] }])]);
   };
   const remove = async id => {
+    const gone = (uid ? current.current.habits : []).find(h => h.id === id);
     const saved = await mutate({ action: 'delete', id }, list => list.filter(h => h.id !== id));
+    // Its past check-offs are kept (the delete sheet says so): the charts go on counting them.
+    if (saved && gone && liveUid() === uid) {
+      const value = { ...current.current, archived: [...current.current.archived.filter(h => h.id !== id), { ...gone, archivedOn: _bsHabitsToday() }] };
+      current.current = value; setSnapshot(value);
+    }
     if (saved) {
       window.__bsToast?.(tr('habits:toast.removed', { defaultValue: 'Habit removed' }), 'ok');
       // An archived habit must not keep nudging this device.
@@ -871,7 +883,7 @@ function _bsUseServerHabits(tweaks, setTweak) {
       return { ...h, history: [...history].sort() };
     }));
   };
-  return { loggedIn: !!uid, useServer: !!uid, habits, status, retry: refresh, create, remove, setVisibility, toggle };
+  return { loggedIn: !!uid, useServer: !!uid, habits, archived, status, retry: refresh, create, remove, setVisibility, toggle };
 }
 
 function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
@@ -882,7 +894,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
 
   // Live (Supabase) when signed in, ephemeral tweaks otherwise — shared with
   // the home tracker so completions and edits stay in sync across surfaces.
-  const { habits, status, retry, create, remove: removeHabit, toggle } = _bsUseServerHabits(tweaks, setTweak);
+  const { habits, archived, status, retry, create, remove: removeHabit, toggle } = _bsUseServerHabits(tweaks, setTweak);
   const [adding, setAdding] = useStateBSH(null); // 'do' | 'avoid' | null
   // Per-habit reminders (opt-in). Map habit_id → row; refreshed after each edit.
   const [reminders, setReminders] = React.useState({});
@@ -909,7 +921,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
       />
       {status !== 'ready' && <div role="status" style={{ padding: `16px ${t.padX}px 0`, color: t.INK }}><button onClick={retry} style={{ minHeight: 44 }}>{status === 'loading' ? tr('habits:page.loading', { defaultValue: 'Loading…' }) : tr('habits:toast.updateError', { defaultValue: 'Could not update habit' }) + ' ↻'}</button></div>}
       {status === 'ready' && <BSHabitToday habits={habits} onToggle={toggle} onRemove={removeHabit} onAdd={setAdding} reminders={reminders} onReminderChange={loadReminders} watch={watch} onShareChange={loadWatch} />}
-      {status === 'ready' && habits.length > 0 && <BSHabitProgress habits={habits} />}
+      {status === 'ready' && (habits.length > 0 || archived.length > 0) && <BSHabitProgress habits={habits} archived={archived} />}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         <button onClick={onOpenScore} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '9px 0 0' }}>
           <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK70 }}>{tr('habits:score.shapeScore', { defaultValue: 'The Shape Score' })}</span>

@@ -29,10 +29,14 @@ export const HP_HISTORY_DAYS = 90;
 export function hpWindowStart(today) { return hpAddDays(today, -(HP_HISTORY_DAYS - 1)); }
 
 // One habit on one day: 'kept' (a to-don't: ticked as stayed clean), 'open' (today, not ticked
-// yet), 'missed', 'future', or 'none' (before the habit existed or before the history held).
+// yet), 'missed', 'future', or 'none' (before the habit existed, after it was deleted, or before
+// the history held). A deleted habit (`archivedOn`, its local day) keeps the days it was kept,
+// the day it went included, and counts no miss from that day on.
 export function hpStatus(habit, day, { today, windowStart }) {
   if (day > today) return 'future';
+  if (habit.archivedOn && day > habit.archivedOn) return 'none';
   if ((habit.history || []).includes(day)) return 'kept';
+  if (habit.archivedOn && day === habit.archivedOn) return 'none';
   if (day === today) return 'open';
   if ((habit.createdOn && day < habit.createdOn) || (windowStart && day < windowStart)) return 'none';
   return 'missed';
@@ -64,6 +68,7 @@ function tally(cols) {
   return { kept, slots, pct: slots ? Math.round((kept / slots) * 100) : null };
 }
 
+// Each habit's row for the period. A deleted habit has one only for a period it was part of.
 function perHabit(habits, days, opts) {
   return habits.map((h) => {
     const cells = days.map((d) => hpStatus(h, d, opts));
@@ -72,7 +77,7 @@ function perHabit(habits, days, opts) {
       if (s === 'kept') { kept++; of++; run++; best = Math.max(best, run); } else { if (s === 'missed' || s === 'open') of++; if (s !== 'open') run = 0; }
     }
     return { habit: h, cells, kept, of, pct: of ? Math.round((kept / of) * 100) : null, best };
-  });
+  }).filter((r) => !r.habit.archivedOn || r.of > 0);
 }
 
 // The week holding `anchor`, against the week before it.
@@ -88,7 +93,7 @@ export function hpWeek(habits, { anchor, today, firstDay = 0, windowStart = null
   return {
     start, end: days[6], days: cols, ...tally(cols),
     prev: prev.slots ? { ...prev, avgPerDay: prev.kept / prevDays } : null,
-    scale: Math.max(1, most || habits.length),
+    scale: Math.max(1, most || habits.filter((h) => !h.archivedOn).length),
     perHabit: perHabit(habits, days, opts),
     isCurrent: days.includes(today),
   };

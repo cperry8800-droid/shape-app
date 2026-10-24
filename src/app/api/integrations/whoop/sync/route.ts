@@ -55,6 +55,23 @@ async function whoopGet<T>(accessToken: string, path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+// Every workout since `start`, newest first, following WHOOP's next_token (25 a page, at most 4
+// pages). The routine read asks for the latest 10, which leaves a busy week's earlier workouts
+// without a row for Train's Burned this week (Codex P2 on #2437).
+async function whoopWorkoutsSince(accessToken: string, start: Date): Promise<WhoopWorkout[]> {
+  const records: WhoopWorkout[] = [];
+  let next: string | undefined;
+  for (let page = 0; page < 4; page += 1) {
+    const query = new URLSearchParams({ limit: '25', start: start.toISOString() });
+    if (next) query.set('nextToken', next);
+    const res = await whoopGet<WhoopCollection<WhoopWorkout>>(accessToken, `/v2/activity/workout?${query}`);
+    records.push(...(res.records ?? []));
+    next = res.next_token || undefined;
+    if (!next) break;
+  }
+  return records;
+}
+
 function durationMinutes(start?: string, end?: string): number | null {
   if (!start || !end) return null;
   const startMs = new Date(start).getTime();
@@ -252,16 +269,22 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   try {
-    const [basicProfile, bodyMeasurement, recoveries, cycles, sleeps, workouts] = await Promise.all([
+    // Eight days back holds the member's whole week, Monday on, in any time zone.
+    const weekStart = new Date(Date.now() - 8 * 86_400_000);
+    const [basicProfile, bodyMeasurement, recoveries, cycles, sleeps, workouts, weekWorkouts] = await Promise.all([
       whoopGet(accessToken, '/v2/user/profile/basic'),
       whoopGet(accessToken, '/v2/user/measurement/body'),
       whoopGet<WhoopCollection<unknown>>(accessToken, '/v2/recovery?limit=5'),
       whoopGet<WhoopCollection<unknown>>(accessToken, '/v2/cycle?limit=5'),
       whoopGet<WhoopCollection<unknown>>(accessToken, '/v2/activity/sleep?limit=5'),
       whoopGet<WhoopCollection<WhoopWorkout>>(accessToken, '/v2/activity/workout?limit=10'),
+      whoopWorkoutsSince(accessToken, weekStart),
     ]);
 
-    const activityRows = await writeWhoopActivityRows(client, user.id, workouts.records ?? []);
+    // One row a workout: the week's, and the latest 10 however old (as before).
+    const byId = new Map<string, WhoopWorkout>();
+    for (const w of [...weekWorkouts, ...(workouts.records ?? [])]) if (w.id) byId.set(w.id, w);
+    const activityRows = await writeWhoopActivityRows(client, user.id, [...byId.values()]);
     const url = new URL(request.url);
     const shouldImport = url.searchParams.get('import') === '1';
     const importResult = shouldImport
