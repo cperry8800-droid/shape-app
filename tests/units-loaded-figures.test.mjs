@@ -101,11 +101,12 @@ const openTab = (d, key) => {
   tabs.props.onPick(key);
   d.render();
 };
-async function profile(prefs, { prs = [], trainPrs = [], activities = [] } = {}) {
+async function profile(prefs, { prs = [], activities = [] } = {}) {
   signIn();
+  // The progress route serves the PRs (/api/client/train sends none), so the
+  // ridge and the feed both read them from it.
   globalThis.window.ShapeProgress = {
     progress: feed({ ok: true, prs }),
-    train: feed({ prs: trainPrs }),
   };
   globalThis.window.ShapeActivities = { list: feed({ activities }) };
   CURRENT = themeFor(prefs);
@@ -166,14 +167,14 @@ test('a workout on the member\'s own profile feed reads its distance in the memb
 });
 
 test('a PR on the member\'s own profile feed states its best in the member\'s unit', async () => {
-  const trainPrs = [{ move: 'Squat', best: 100, bestReps: 3, unit: 'kg', bestAt: new Date().toISOString() }];
+  const prs = [{ move: 'Squat', best: 100, bestReps: 3, unit: 'kg', bestAt: new Date().toISOString() }];
   const bodies = (d) => d.nodes().filter((n) => n.type && n.type.name === 'BSActivityCard').map((n) => n.props.a && n.props.a.body);
-  const mi = await profile(LB, { trainPrs });
+  const mi = await profile(LB, { prs });
   openTab(mi, 'activity');
   // The text converter writes pounds whole, the same rule the card applies to the
   // stat beside it ("100 kg" → "220 lb"), so the line and the stat agree.
   assert.ok(bodies(mi).includes('Best: 220 lb × 3'), `imperial: ${JSON.stringify(bodies(mi))}`);
-  const km = await profile(KG, { trainPrs });
+  const km = await profile(KG, { prs });
   openTab(km, 'activity');
   assert.ok(bodies(km).includes('Best: 100 kg × 3'), `metric: ${JSON.stringify(bodies(km))}`);
   CURRENT = THEME;
