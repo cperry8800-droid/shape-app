@@ -105,8 +105,8 @@ dated entry or past 20 KB.
 - **Window globals.** Modules expose components with `Object.assign(window, {...})`.
   A role module that reads a global before the feature module defines it causes React
   error #130. `iosAppBroadsheetMain.jsx` loads feature modules before role modules.
-  ⚠ Coach Today crashes cold: `iosAppBroadsheetPros.jsx` reads the client's
-  `BSFacetAvatar` at load, and a coach never loads the client module.
+  ⚠ `iosAppBroadsheetPros.jsx` reads the client module's globals at load, so
+  `loadProsBundle` loads the whole client bundle first.
 - **Sheets** use `createPortal` into `#bs-phone-surface`.
 - **Pages** render inside `BSPage`, which pins a condensed masthead once the page's own
   masthead scrolls away; a page that is its own scroller gets none. A `position: sticky`

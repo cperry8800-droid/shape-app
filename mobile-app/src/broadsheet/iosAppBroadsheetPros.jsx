@@ -81,10 +81,11 @@ const {
   BSPublicProfile, BSFacetAvatar,
 } = window;
 
-// These identity/tier helpers are set on `window` by the CLIENT bundle, which
-// may evaluate AFTER this module. Read them lazily at call time (with safe
-// fallbacks) instead of capturing `undefined` at module load — otherwise a
-// coach session that loads this bundle first crashes with "… is not a function".
+// The components above from BSClientChat on, and these identity/tier helpers,
+// are set on `window` by the CLIENT module, which loadProsBundle (the shell)
+// loads before this one. The helpers are still read lazily at call time (with
+// safe fallbacks), so a module that ever evaluates first degrades instead of
+// crashing with "… is not a function".
 const bsTierColor   = (...a) => { try { return (window.bsTierColor && window.bsTierColor(...a)) || '#8a8f98'; } catch (e) { return '#8a8f98'; } };
 const bsMyInitials  = () => { try { return (window.bsMyInitials && window.bsMyInitials()) || 'A'; } catch (e) { return 'A'; } };
 // Coach tier ladder (scheme J) translator — set on window by the client bundle.
