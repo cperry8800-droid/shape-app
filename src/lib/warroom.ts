@@ -615,6 +615,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'The top-right corner is a settings gear, and one font across the app — #2439. No migration',
+      items: [
+        { label: 'Owner, 2026-10-24, on the member\'s face in both the corner and the Me tab: "make the settings avatar something different in top right". BSSettingsCorner (the chrome module, so the coach apps share it) is a bare ⚙ in the page\'s ink on the corner\'s 34 px square, named Settings, opening Settings as the face did (shape:openProfile); the face lives on the tab bar\'s Me tab', status: 'done' },
+        { label: 'It replaces the face in every corner: the member app (BSHeaderTools, BSMeCorner and the pinned strip), the follow list, a profile opened as oneself, the Me masthead\'s own ⚙, the coach apps (Today, and every page through bsProCorner via BSProSettingsButton), the calendar, the marketplace and Radio. A chat thread\'s own avatar beside the member\'s messages is unchanged', status: 'done' },
+        { label: 'The follow list: its × Close is keyed (feed:sheet.close) now that the face\'s label is gone, and on one\'s own list the title row shows one\'s own face', status: 'done' },
+        { label: 'Owner, 2026-10-24: "Font needs to be same on whole app", "The font on Chat page needs to not be so tall". The magazine pieces that took Oswald on 2026-10-23 (the Wall, the chat page, the session page\'s figures, the Morning check-in) read the face through bsWsHead, which is the theme\'s display face now: Saira, as on every other page. The theme\'s HEADLINE token, the Oswald faces in fonts.css and their five font files are gone', status: 'done' },
+        { label: 'Review: Codex clean on b41a56a (the gear) and 4234b49 (the font). npm test 8,333/8,333 on 4234b49; CI green on all four jobs. tests/app-chrome-magazine-corner, the gear\'s mounted test in tests/app-chrome-magazine-tabbar and tests/wall-font, whose new tests fail on the code before them', status: 'done' },
+        { label: 'The member\'s own online and in-a-workout dot rode on the corner face; the Me tab\'s face doesn\'t carry it (a red dot on a tab reads as unread). The owner\'s call whether the chrome should show it', status: 'pending' },
+        { label: 'Device pass: the gear on both papers, in the member and coach apps, and the Saira headings on the chat page, the Wall, the session page and the Morning check-in (sized for Oswald, now in a wider face)', status: 'manual' },
+      ],
+    },
+    {
       section: 'The app\'s chrome in the Wall\'s magazine look, and a floating tab bar with Shape\'s own mark — #2438. No migration',
       items: [
         { label: 'Owner, 2026-10-24: "Yes I want that in new design", on the header\'s ✦, the corner avatar and the tab bar. ✦ and ⌕ are bare glyphs in ink with no ring (✦ Nora in the magazine\'s red), on the avatar\'s 34 px square; the profile mastheads\' ✎ and ⚙ share the one style (bsCornerBtn)', status: 'done' },
@@ -625,8 +637,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'One red: bsWsRed and bsWsHead live in bsMagazine.mjs, which the chrome module imports and BSWallStory re-exports', status: 'done' },
         { label: 'Review: Codex on every head (473edbd, af8d33a, e9005b4, 0cd4801, 8b37b08, 740dfcc, 2c068d7), two P2s, both fixed: Radio\'s lights drew inside the capsule over an iPhone\'s inset (useBSTabbarH, 8b37b08), and a screen reader couldn\'t tell the selected tab or hear the unread count once the names moved into aria-label (aria-current and the count in the name, 740dfcc). Copilot declined on its quota. npm test 8,284/8,284 on 2c068d7; CI green on all four jobs. tests/app-chrome-magazine-tabbar and tests/app-chrome-magazine-corner, whose tests fail on the code before them', status: 'done' },
         { label: 'Found on main, not fixed here: the coach apps crash on a cold start (React #130 on Today). The coach bundle loads without the client module, and iosAppBroadsheetPros.jsx reads BSFacetAvatar, which only the client defines, from window at load. Offered to the owner as its own task', status: 'pending' },
-        { label: 'The page titles under the top row (Train, Eat, Me) still in the old face and teal kicker; the magazine\'s face if the owner wants it', status: 'pending' },
-        { label: 'The member\'s face is both in the top corner and on the Me tab (Instagram has it only in the tab bar). The owner\'s call whether the corner keeps it', status: 'pending' },
+        { label: 'The page titles under the top row (Train, Eat, Me) were in the app\'s face while the magazine pieces were in Oswald. Owner: "Font needs to be same on whole app"; #2439 puts every heading in Saira', status: 'done' },
+        { label: 'The member\'s face was both in the top corner and on the Me tab (Instagram has it only in the tab bar). Owner: "make the settings avatar something different in top right"; #2439 puts a settings gear there', status: 'done' },
         { label: 'claude/great-ride-eh4ab6 (the Oct 21 preview) is superseded and can be deleted', status: 'pending' },
         { label: 'Device pass: the corner and the floating capsule on both papers, in the member and coach apps, including the capsule over the home indicator, how see-through it reads on a real screen, and the gem sliding between tabs under a thumb', status: 'manual' },
       ],
