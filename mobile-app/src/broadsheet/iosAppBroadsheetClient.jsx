@@ -67,6 +67,7 @@ import { BSEatFuel } from './BSEatFuel.jsx';
 import { BSTrainBurn } from './BSTrainBurn.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead, bsWsRed, bsWsHead } from './BSWallStory.jsx';
+import { BSTPullQuote, BSCoachProfileDock } from './BSProfileMagazine.jsx';
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
@@ -17968,20 +17969,6 @@ function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20, top = 0 
   );
 }
 
-// A member's own words pulled out, as the Wall pulls out a coach's line: the magazine's red quote mark, the
-// words in the headline face, and who said it in mono under them. Not a button (BSWallStoryQuote opens a post).
-function BSTPullQuote({ INK, text, cite, size = 19 }) {
-  const t = useBS();
-  if (!text) return null;
-  return (
-    <figure data-bst-quote="" style={{ display: 'grid', gridTemplateColumns: '20px minmax(0, 1fr)', columnGap: 6, margin: 0 }}>
-      <span aria-hidden style={{ fontFamily: BST_SERIF, fontSize: 40, fontWeight: 700, lineHeight: 0.7, color: bsWsRed(t) }}>“</span>
-      <blockquote style={{ margin: 0, fontFamily: BST_SERIF, fontSize: size, fontWeight: 500, lineHeight: 1.2, letterSpacing: '-0.005em', color: INK }}>{text}</blockquote>
-      {cite ? <figcaption style={{ gridColumn: 2, marginTop: 6, fontFamily: BST_MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{cite}</figcaption> : null}
-    </figure>
-  );
-}
-
 // Signed-out PREVIEW ONLY — a fully-filled demo of the profile customizations
 // (M1 wall · M2 start line · M3 shelf · M4 line · cover · prompts · bio), so a
 // prospect can see what a live profile looks like once someone fills it in.
@@ -19161,44 +19148,6 @@ function bsDemoCoachActivity(name, isNutri, tier) {
     },
   ];
 }
-// The page's own scroller (BSPage's .bs-scroll) read for its direction: true while the reader scrolls down,
-// false the moment they scroll back up, near the top, or at the very end. A small dead band keeps a resting
-// thumb from flickering it.
-function useBSHideOnScrollDown(ref, { slack = 8, top = 64 } = {}) {
-  const [hidden, setHidden] = useStateBSC(false);
-  React.useEffect(() => {
-    const sc = ref.current && ref.current.closest ? ref.current.closest('.bs-scroll') : null;
-    if (!sc) return undefined;
-    let last = sc.scrollTop;
-    const onScroll = () => {
-      const y = sc.scrollTop;
-      if (y <= top || y + sc.clientHeight >= sc.scrollHeight - 4) { setHidden(false); last = y; return; }
-      if (y - last > slack) { setHidden(true); last = y; } else if (last - y > slack) { setHidden(false); last = y; }
-    };
-    sc.addEventListener('scroll', onScroll, { passive: true });
-    return () => sc.removeEventListener('scroll', onScroll);
-  }, [ref, slack, top]);
-  return hidden;
-}
-
-// A coach profile's Message / Work-with dock gets out of the way (owner, 2026-10-24: "why isnt this going away
-// when i scroll down, the message and work with maya"): it slides off while the page scrolls down and back on
-// as it scrolls up, so it never sits over the text being read. It fades as it slides, since the floating tab
-// bar below it would show it through its frost. On solid paper over a hairline, so nothing shows through it;
-// hidden, it is inert, so a keyboard can't reach the buttons it hides.
-function BSCoachProfileDock({ INK, BG, c, onMessage, onWorkWith, messageLabel, workLabel }) {
-  const ref = React.useRef(null);
-  const hidden = useBSHideOnScrollDown(ref);
-  return (
-    <div ref={ref} data-coach-dock="" inert={hidden} style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '12px 18px calc(14px + env(safe-area-inset-bottom, 0px))', background: BG, borderTop: `1px solid ${bsTHexA(INK, 0.12)}`, transform: hidden ? 'translateY(40%)' : 'none', opacity: hidden ? 0 : 1, transition: bsSdReduced() ? 'none' : 'transform 220ms cubic-bezier(.4,0,.2,1), opacity 180ms ease' }}>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button onClick={onMessage} style={{ flex: 1, minHeight: 48, borderRadius: 0, background: 'transparent', color: INK, border: `1px solid ${INK}`, cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{messageLabel}</button>
-        <button onClick={onWorkWith} style={{ flex: 1.4, minHeight: 48, borderRadius: 0, background: INK, color: BG, border: 0, cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800 }}>{workLabel} →</button>
-      </div>
-    </div>
-  );
-}
-
 function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
@@ -19981,7 +19930,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
 
       {/* dock — Message / Work-with others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
-        <BSCoachProfileDock INK={INK} BG={BG} c={c} onMessage={() => onMsg(person)} onWorkWith={() => setTab('coaching')}
+        <BSCoachProfileDock INK={INK} BG={BG} onMessage={() => onMsg(person)} onWorkWith={() => setTab('coaching')}
           messageLabel={tr('profile:action.message', { defaultValue: 'Message' })} workLabel={tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })} />
       )}
     </div></BSPage>
