@@ -15974,7 +15974,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
         {pinned && (
           <div style={{ marginBottom: 16, borderLeft: `3px solid ${c}`, paddingLeft: 12 }}>
             <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:extras.pinned', { defaultValue: 'Pinned' })} · {bsPinKindLabel(pinned.kind, tr) || tr('profile:extras.highlight', { defaultValue: 'Highlight' })}</div>
-            <div style={{ fontFamily: SERIF, fontSize: 18, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 6, color: INK }}>{pinned.title}</div>
+            <div style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 600, lineHeight: 1.2, marginTop: 6, color: INK }}>{pinned.title}</div>
             {pinned.note && <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.7), margin: '6px 0 0' }}>{pinned.note}</p>}
             {pinned.metric && <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginTop: 8 }}>{pinned.metric}</div>}
           </div>
@@ -17609,30 +17609,6 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   );
 }
 
-// Shared segmented tab bar for the living-identity profiles (Terrain + Signal).
-// Sticky under the hero; the accent follows the profile's tier color. Personal
-// activities is always the first tab so a profile opens on what someone's doing.
-function BSLivingTabs({ tabs, active, onPick, c, INK, BG, pad = 0, top = 0 }) {
-  const MONO = "'JetBrains Mono', monospace";
-  // pad = the host body's side padding: the bar breaks out of it to run
-  // FULL-BLEED (side borders + radius dropped at the screen edges), and the
-  // sticky background then covers the whole width while scrolling.
-  return (
-    <div style={{ position: 'sticky', top, zIndex: 3, margin: `0 ${-pad}px 9px`, padding: '5px 0', background: BG }}>
-      <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 7, padding: 3, ...(pad ? { borderRadius: 0, borderLeft: 0, borderRight: 0 } : null) }}>
-        {tabs.map((tb) => { const on = active === tb.key; return (
-          <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, padding: '6px 2px', borderRadius: 5, border: 0, cursor: 'pointer',
-            position: 'relative', overflow: 'hidden',
-            background: on ? bsTHexA(c, 0.16) : 'transparent', color: on ? c : bsTHexA(INK, 0.55),
-            fontFamily: MONO, fontSize: 8.5, fontWeight: on ? 800 : 600, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-            {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: c }} />}
-            {tb.label}
-          </button>
-        ); })}
-      </div>
-    </div>
-  );
-}
 
 // ── Profile playlists tab — the member's Spotify/Apple library ───────────────
 // Add a playlist (paste a Spotify/Apple Music link), toggle public/private,
@@ -17970,19 +17946,21 @@ function BSTLedgerStat({ INK, label, value, seen, figSize = 30, delay = 0, align
     </div>
   );
 }
-// Typographic tab index (Terrain only — Signal keeps BSLivingTabs), as the chat page's section strip (owner,
-// 2026-10-24, the Me page "cleaned up" to the Wall's look): the names in the headline face, ink when active
-// over the magazine's red, between a heavy rule and a hairline. Spread across the column, and scrolling
-// sideways when a language's names run longer (ru "Восхождение"), as the Wall masthead's tabs do. Sticky on
-// solid paper; real ≥44px buttons.
+// Typographic tab index for both profiles, as the chat page's section strip (owner, 2026-10-24, the Me page
+// "cleaned up" to the Wall's look, then the coach profile to match): the names in the headline face, ink when
+// active over the magazine's red, between a heavy rule and a hairline. Spread across the column, and scrolling
+// sideways when a language's names run longer (ru "Восхождение"), as the Wall masthead's tabs do. Five names
+// (the coach's) set tighter, so English fits a 375px phone: measured, they need 334px of a 390px phone's 314
+// at the four-name setting and 290 at this one. Sticky on solid paper; real ≥44px buttons.
 function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20, top = 0 }) {
   const red = bsWsRed(useBS());
+  const five = tabs.length > 4;
   return (
     <div style={{ position: 'sticky', top, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: `0 ${pad}px`, background: BG, borderTop: `3px solid ${INK}`, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` }}>
-      <div className="bs-hide-scroll" style={{ display: 'flex', justifyContent: 'space-between', gap: 14, overflowX: 'auto' }}>
+      <div className="bs-hide-scroll" style={{ display: 'flex', justifyContent: 'space-between', gap: five ? 10 : 14, overflowX: 'auto' }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
           <button key={tb.key} aria-pressed={on} onClick={() => onPick(tb.key)} style={{ flex: 'none', minHeight: 44, display: 'flex', alignItems: 'stretch', background: 'transparent', border: 0, cursor: 'pointer', padding: 0 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0 2px', boxShadow: on ? `inset 0 -2px 0 ${red}` : 'none', color: on ? INK : bsTHexA(INK, 0.5), fontFamily: BST_SERIF, fontSize: 13.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{tb.label}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', padding: five ? 0 : '0 2px', boxShadow: on ? `inset 0 -2px 0 ${red}` : 'none', color: on ? INK : bsTHexA(INK, 0.5), fontFamily: BST_SERIF, fontSize: five ? 12 : 13.5, fontWeight: 600, letterSpacing: five ? '0.02em' : '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{tb.label}</span>
           </button>
         ); })}
       </div>
@@ -19214,8 +19192,8 @@ function BSCoachProfileDock({ INK, BG, c, onMessage, onWorkWith, messageLabel, w
   return (
     <div ref={ref} data-coach-dock="" inert={hidden} style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '12px 18px calc(14px + env(safe-area-inset-bottom, 0px))', background: BG, borderTop: `1px solid ${bsTHexA(INK, 0.12)}`, transform: hidden ? 'translateY(40%)' : 'none', opacity: hidden ? 0 : 1, transition: bsSdReduced() ? 'none' : 'transform 220ms cubic-bezier(.4,0,.2,1), opacity 180ms ease' }}>
       <div style={{ display: 'flex', gap: 10 }}>
-        <button onClick={onMessage} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{messageLabel}</button>
-        <button onClick={onWorkWith} style={{ flex: 1.4, minHeight: 48, borderRadius: 999, background: c, color: '#0c0a08', border: 0, cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800 }}>{workLabel} →</button>
+        <button onClick={onMessage} style={{ flex: 1, minHeight: 48, borderRadius: 0, background: 'transparent', color: INK, border: `1px solid ${INK}`, cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{messageLabel}</button>
+        <button onClick={onWorkWith} style={{ flex: 1.4, minHeight: 48, borderRadius: 0, background: INK, color: BG, border: 0, cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800 }}>{workLabel} →</button>
       </div>
     </div>
   );
@@ -19549,7 +19527,15 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
     : [['Priya S.', 'PS', 168, '+60 lb on my deadlift in 14 weeks without a single bad-back day.'], ['Marcus L.', 'ML', 220, 'World-class programming. She books up fast — plan ahead, it’s worth it.']];
   const relation = isNutri ? ['Recent win', 'Sofia M.', 'SM', 300, 'Found her low ferritin before any doctor did — training volume up 50%.'] : ['Recent win', 'Jonah W.', 'JW', 200, 'Pulled 2× bodyweight after 8 months — never touched a barbell before me.'];
   const Kick = ({ children, col }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: col || bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
-  const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
+  // The Wall's look (owner, 2026-10-24, "Design": this page to match the Me page and the Wall): square
+  // actions (ink for the one to take, an ink outline for the other), blocks that open on a heavy ink rule,
+  // and hairlines instead of filled cards.
+  const hair = bsTHexA(INK, 0.12);
+  const cta = { minHeight: 44, borderRadius: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' };
+  const ctaInk = { ...cta, border: 0, background: INK, color: BG };
+  const ctaLine = { ...cta, border: `1px solid ${INK}`, background: 'transparent', color: INK };
+  const ctaBlock = { marginTop: 24, paddingTop: 12, borderTop: `3px solid ${INK}` };
+  const quiet = { padding: '13px 0', borderTop: `1px solid ${hair}`, fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) };
   // Render this coach's personal-activities feed as the SAME rich BSActivityCard
   // the community feed uses (author header hidden — the profile owns identity).
   const ownerRole = isNutri ? 'Nutritionist' : 'Trainer';
@@ -19690,39 +19676,39 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{_sigTop ? tr('profile:ladder.top', { defaultValue: 'Top of the ladder' }) : <>{tr('profile:coach.pctToNext', { pct: Math.round(sigilToNext * 100), defaultValue: '{pct}% to' })} <span style={{ color: TEAL, fontWeight: 800 }}>{sigilNextTier}</span></>}</div>
         </div>
 
-        {/* name block */}
+        {/* name block — centred under the sigil, the name in the headline face */}
         <div style={{ textAlign: 'center', marginTop: 14 }}>
-          <h1 style={{ fontFamily: SERIF, fontSize: 38, fontWeight: tTheme.W.display, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.98 }}>{name}</h1>
+          <h1 style={{ fontFamily: SERIF, fontSize: 36, fontWeight: 600, letterSpacing: '-0.01em', margin: 0, lineHeight: 1 }}>{name}</h1>
           <div style={{ marginTop: 10, display: 'flex', justifyContent: 'center' }}>
-            <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: c }}>{tierName}</span>
+            <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: c }}>{tierName}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontFamily: MONO, fontSize: 11, color: bsTHexA(INK, 0.55), flexWrap: 'wrap' }}>
             <span>{handle}</span>{pronouns ? <><span style={{ opacity: 0.4 }}>·</span><span>{pronouns}</span></> : null}<span style={{ opacity: 0.4 }}>·</span><span>{city}</span>
           </div>
           <div style={{ marginTop: 9 }}><span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: c }}>{roleLabel}</span></div>
-          {/* P2 · The Line — the coach's motto, role-heat attribution. */}
-          {coachLine ? (
-            <div style={{ marginTop: 14, padding: '0 8px' }}>
-              <span style={{ fontFamily: SERIF, fontSize: 20, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.3, color: bsTHexA(INK, 0.92) }}>{coachLine}</span>
-              <div style={{ marginTop: 5, fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: c }}>— {first.toUpperCase()} {tr('profile:line.attribution', { defaultValue: 'line' })}</div>
-            </div>
-          ) : null}
         </div>
+        {/* Under the hero the page reads as the Wall prints: a heavy ink rule, then the coach's line pulled
+            out under the magazine's red quote mark (P2 · The Line), as the Me page pulls out a member's. */}
+        <div aria-hidden style={{ height: 3, marginTop: 16, background: INK }} />
+        {coachLine ? (
+          <div style={{ marginTop: 14 }}>
+            <BSTPullQuote INK={INK} text={coachLine} cite={`${first} ${tr('profile:line.attribution', { defaultValue: 'line' })}`} />
+          </div>
+        ) : null}
 
-        {/* Followers / following / follow — centered row riding with the name block
-            (moved from above the sigil so the instrument opens the page). */}
-        <div style={{ marginTop: 14 }}>
-          <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach center
+        {/* Followers / following / posts, then Follow and Message: the Me page's one line of counts. */}
+        <div style={{ marginTop: 6 }}>
+          <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach variant="ledger"
             ownerPhoto={photo || (live && live.avatar) || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
             onOpenProfile={setReviewerProfile} onOpenPosts={openPosts}
             onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
         </div>
 
-        {/* hero stat — FULL-BLEED: spans the whole screen width */}
-        <div data-tour="hero-me" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '14px 20px' }}>
-          <div onClick={isSelf ? onOpenScore : undefined} style={{ flex: 'none', cursor: isSelf ? 'pointer' : 'default' }}><div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9 }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 4 }}>Shape Score{isSelf ? ' ›' : ''}</div></div>
-          <div style={{ width: 1, height: 34, background: bsTHexA(INK, 0.12) }} />
-          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>{ratingLabel} · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{tr('profile:coach.reviewCount', { count: liveCoach ? reviewCount : (liveReviews && liveReviews.length ? liveReviews.length : reviewCount), defaultValue: '{count, plural, one {# review} other {# reviews}}' })}</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>{tr('profile:coach.respondsWithinHours', { defaultValue: 'Responds within hours' })}</div></div>
+        {/* hero stat — the score and the rating between a 2px ink rule and a hairline, as the Wall prints figures */}
+        <div data-tour="hero-me" style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, padding: '12px 0', borderTop: `2px solid ${INK}`, borderBottom: `1px solid ${hair}` }}>
+          <div onClick={isSelf ? onOpenScore : undefined} style={{ flex: 'none', cursor: isSelf ? 'pointer' : 'default' }}><div style={{ fontFamily: SERIF, fontSize: 34, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 0.9, fontVariantNumeric: 'tabular-nums' }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>Shape Score{isSelf ? ' ›' : ''}</div></div>
+          <div style={{ width: 1, alignSelf: 'stretch', background: hair }} />
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: INK }}>{ratingLabel} · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: bsWsRed(tTheme), textUnderlineOffset: 3 }}>{tr('profile:coach.reviewCount', { count: liveCoach ? reviewCount : (liveReviews && liveReviews.length ? liveReviews.length : reviewCount), defaultValue: '{count, plural, one {# review} other {# reviews}}' })}</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>{tr('profile:coach.respondsWithinHours', { defaultValue: 'Responds within hours' })}</div></div>
         </div>
 
         {/* Business: the coach's own net a month, clients and payouts, opening the full page
@@ -19734,7 +19720,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
         )}
 
         {isPrivate ? (
-          <div style={{ ...card, padding: '18px 20px', margin: '18px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, display: 'flex', gap: 12, alignItems: 'flex-start' }}><span aria-hidden style={{ fontSize: 16 }}>🔒</span><div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{live && live.visibility === 'friends' ? tr('profile:coach.privateFriends', { name: first, defaultValue: '{name} shares their profile with friends — connect to see more.' }) : tr('profile:coach.privateOnly', { name: first, defaultValue: '{name} keeps their profile private — only name and tier are shown.' })}</div></div>
+          <div style={{ padding: '14px 0', marginTop: 18, borderBottom: `1px solid ${hair}`, display: 'flex', gap: 12, alignItems: 'flex-start' }}><span aria-hidden style={{ fontSize: 16 }}>🔒</span><div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{live && live.visibility === 'friends' ? tr('profile:coach.privateFriends', { name: first, defaultValue: '{name} shares their profile with friends — connect to see more.' }) : tr('profile:coach.privateOnly', { name: first, defaultValue: '{name} keeps their profile private — only name and tier are shown.' })}</div></div>
         ) : (
         <>
           {/* P1 · The intro film — a short pinned video on the hero. */}
@@ -19744,7 +19730,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
             </div>
           ) : null}
           <div ref={activityRef} style={{ marginTop: 22, scrollMarginTop: pinnedTop }}>
-            <BSLivingTabs c={c} INK={INK} BG={BG} pad={22} top={pinnedTop} active={tab} onPick={setTab} tabs={[
+            <BSTerrainTabs top={pinnedTop} heat={c} INK={INK} BG={BG} pad={22} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: tr('profile:tab.activity', { defaultValue: 'Activity' }) },
               { key: 'about', label: tr('profile:tab.about', { defaultValue: 'About' }) },
               { key: 'coaching', label: tr('profile:tab.coaching', { defaultValue: 'Coaching' }) },
@@ -19759,19 +19745,21 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           )}
           {tab === 'about' && (<>
           {/* philosophy — hidden on your own signed-in profile until you write one */}
+          {/* Each About station opens on the Me page's head (the name over a 2px ink rule), and words are pulled
+              out under the red quote mark instead of set in italics (owner, 2026-10-24, "Design"). */}
           {philosophy ? (
-          <div style={{ textAlign: 'center', marginTop: 24, padding: '0 6px' }}>
-            <Kick>{isNutri ? tr('profile:coach.practicePhilosophy', { defaultValue: 'Practice philosophy' }) : tr('profile:coach.coachingPhilosophy', { defaultValue: 'Coaching philosophy' })}</Kick>
-            <div style={{ fontFamily: SERIF, fontSize: 23, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.18, color: bsTHexA(INK, 0.92), marginTop: 8 }}>“{philosophy}”</div>
+          <div style={{ marginTop: 24 }}>
+            <BSTStationHead mag heat={c} INK={INK} label={isNutri ? tr('profile:coach.practicePhilosophy', { defaultValue: 'Practice philosophy' }) : tr('profile:coach.coachingPhilosophy', { defaultValue: 'Coaching philosophy' })} />
+            <BSTPullQuote INK={INK} text={philosophy} size={21} />
           </div>
           ) : null}
 
           {/* P4 · The Business card — a grounded contact station (name over dot-leader rows). */}
           {bizCard ? (
           <div style={{ marginTop: 28 }}>
-            <Kick>{tr('profile:biz.head', { defaultValue: 'The practice' })}</Kick>
-            <div style={{ ...card, padding: '16px 18px', margin: '12px -22px 0', borderRadius: 0, borderLeft: `3px solid ${c}`, borderRight: 0 }}>
-              <div style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{bizCard.name}</div>
+            <BSTStationHead mag heat={c} INK={INK} label={tr('profile:biz.head', { defaultValue: 'The practice' })} />
+            <div style={{ paddingBottom: 12, borderBottom: `1px solid ${hair}` }}>
+              <div style={{ fontFamily: SERIF, fontSize: 21, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{bizCard.name}</div>
               {[[tr('profile:biz.where', { defaultValue: 'Where' }), bizCard.where], [tr('profile:biz.hours', { defaultValue: 'Hours' }), bizCard.hours], [tr('profile:biz.find', { defaultValue: 'Find' }), bizCard.handle]].filter(([, v]) => v).map(([lbl, v]) => (
                 <div key={lbl} style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 11 }}>
                   <span style={{ flex: 'none', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{lbl}</span>
@@ -19786,13 +19774,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           {/* P5 · The Wins wall — up to 3 pinned REAL reviews (resolved by id + owner). */}
           {winsWall.length ? (
           <div style={{ marginTop: 28 }}>
-            <Kick>{tr('profile:wins.head', { defaultValue: 'Wins wall' })}</Kick>
-            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {winsWall.map((r) => (
-                <div key={r.id} style={{ ...card, padding: '14px 16px', borderLeft: `3px solid ${c}` }}>
-                  <div style={{ fontFamily: SERIF, fontSize: 16, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.4, color: bsTHexA(INK, 0.9) }}>“{r.text}”</div>
-                  <div style={{ marginTop: 9, fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c }}>★ {Math.round(r.rating || 0)}/10 · {tr('profile:wins.pinned', { defaultValue: 'Real review · Pinned' })}</div>
-                  <div style={{ marginTop: 4, fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.5) }}>— {r.author || 'Member'}</div>
+            <BSTStationHead mag heat={c} INK={INK} label={tr('profile:wins.head', { defaultValue: 'Wins wall' })} />
+            <div>
+              {winsWall.map((r, i) => (
+                <div key={r.id} style={{ padding: i ? '14px 0 4px' : '2px 0 4px', borderTop: i ? `1px solid ${hair}` : 'none' }}>
+                  <BSTPullQuote INK={INK} text={r.text} size={17} cite={`${r.author || tr('profile:role.member', { defaultValue: 'Member' })} · ★ ${Math.round(r.rating || 0)}/10 · ${tr('profile:wins.pinned', { defaultValue: 'Real review · Pinned' })}`} />
                 </div>
               ))}
             </div>
@@ -19801,43 +19787,45 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
 
           {/* discipline legend */}
           <div style={{ marginTop: 28 }}>
-            <Kick>{disLabel}</Kick>
+            <BSTStationHead mag heat={c} INK={INK} label={disLabel} />
             {disciplines.length ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, margin: '12px -22px 0' }}>
-              {disciplines.map(([label, val], i) => { const col = i === 0 ? c : i === disciplines.length - 1 ? TEAL : bsTHexA(c, 0.8); return (
-                <div key={label} style={{ ...card, padding: '12px 13px' }}><div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: col }} /><span style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.82) }}>{label}</span></div><div style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em', marginTop: 6 }}>{Math.round(val * 100)}<span style={{ fontSize: 12, color: bsTHexA(INK, 0.4) }}>/100</span></div><div style={{ height: 3, borderRadius: 2, background: bsTHexA(INK, 0.1), marginTop: 8, overflow: 'hidden' }}><div style={{ height: '100%', width: `${val * 100}%`, background: col, borderRadius: 2 }} /></div></div>
-              ); })}
+            <div data-coach-focus="">
+              {disciplines.map(([label, val], i) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
+                  <span style={{ width: 104, flex: 'none', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, i === 0 ? 0.8 : 0.6), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+                  <span aria-hidden style={{ flex: 1, minWidth: 0, height: 8, background: bsTHexA(INK, 0.08) }}><span style={{ display: 'block', height: '100%', width: `${Math.max(0, Math.min(1, val)) * 100}%`, background: i === 0 ? c : bsTHexA(INK, 0.3) }} /></span>
+                  <span style={{ flex: 'none', minWidth: 52, textAlign: 'right', fontFamily: SERIF, fontSize: 17, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{Math.round(val * 100)}<span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, color: bsTHexA(INK, 0.4) }}>/100</span></span>
+                </div>
+              ))}
             </div>
             ) : (
-            <div style={{ ...card, padding: '14px 20px', margin: '12px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:coach.setFocusInCustomize', { defaultValue: 'Set your focus in Customize' })}</div>
+            <div style={quiet}>{tr('profile:coach.setFocusInCustomize', { defaultValue: 'Set your focus in Customize' })}</div>
             )}
           </div>
 
           {/* track record — hidden on your own signed-in profile until there's data */}
           {liftsEff.length ? (
           <div style={{ marginTop: 24 }}>
-            <Kick>{tr('profile:coach.trackRecord', { defaultValue: 'Track record' })}</Kick>
-            <div style={{ display: 'flex', gap: 9, margin: '12px -22px 0' }}>
-              {liftsEff.map(([label, val]) => <div key={label} style={{ flex: 1, textAlign: 'center', background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.2)}`, borderRadius: 13, padding: '14px 6px' }}><div style={{ fontFamily: SERIF, fontSize: 25, letterSpacing: '-0.02em' }}>{val}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>{label}</div></div>)}
-            </div>
+            <BSTStationHead mag heat={c} INK={INK} label={tr('profile:coach.trackRecord', { defaultValue: 'Track record' })} />
+            <BSWallStoryFigures items={liftsEff} />
           </div>
           ) : null}
 
           {/* certifications */}
           <div style={{ marginTop: 28 }}>
-            <Kick>{tr('profile:coach.certifications', { defaultValue: 'Certifications' })}</Kick>
+            <BSTStationHead mag heat={c} INK={INK} label={tr('profile:coach.certifications', { defaultValue: 'Certifications' })} />
             {certs.length ? (
-            <div style={{ ...card, padding: 4, margin: '12px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
+            <div>
               {certs.map(([abbr, body, year], i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderTop: i ? `1px solid ${bsTHexA(INK, 0.07)}` : 'none' }}>
-                  <span style={{ fontFamily: MONO, fontSize: 12, color: c, minWidth: 78 }}>{abbr}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: SANS, fontSize: 13, color: bsTHexA(INK, 0.85) }}>{body}</div><div style={{ fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.45), marginTop: 2 }}>{year}</div></div>
-                  <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: TEAL }}>{tr('profile:coach.verified', { defaultValue: '✓ Verified' })}</span>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderTop: i ? `1px solid ${hair}` : 'none' }}>
+                  <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', color: INK, minWidth: 78 }}>{abbr}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: SANS, fontSize: 13.5, color: bsTHexA(INK, 0.85) }}>{body}</div><div style={{ fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.45), marginTop: 2 }}>{year}</div></div>
+                  <span style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), whiteSpace: 'nowrap' }}>{tr('profile:coach.verified', { defaultValue: '✓ Verified' })}</span>
                 </div>
               ))}
             </div>
             ) : (
-            <div style={{ ...card, padding: '14px 20px', margin: '12px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:coach.noCerts', { defaultValue: 'No certifications added yet' })}</div>
+            <div style={quiet}>{tr('profile:coach.noCerts', { defaultValue: 'No certifications added yet' })}</div>
             )}
           </div>
 
@@ -19846,79 +19834,81 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           {tab === 'coaching' && (<>
           {/* Work with {first} — the storefront CTA (subscribe + book), or —
               when {first} is effectively at capacity — the waiting-list CTA.
-              INVITED is the live/actionable state (a BSPlate instrument);
-              join/waiting are quiet rounded cards, matching the surrounding chrome. */}
+              Each opens on a heavy ink rule under its state's kicker (green for invited or already a client,
+              rust for waiting or full), with square actions. */}
           {!isSelf && atCapacity && wl?.status === 'invited' && (
-            <BSPlate c={tTheme.GREEN} tick style={{ margin: '24px -22px 0' }}>
+            <div style={ctaBlock}>
               <Kick col={tTheme.GREEN}>{tr('profile:coach.youreInvited', { defaultValue: "You're invited" })}</Kick>
-              <div style={{ fontFamily: tTheme.DISPLAY, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.3, margin: '7px 0 11px' }}>{tr('profile:coach.hasRoom', { name: first, defaultValue: '{name} has room for you.' })}</div>
+              <div style={{ fontFamily: SERIF, fontSize: 20, fontWeight: 600, lineHeight: 1.2, margin: '7px 0 12px' }}>{tr('profile:coach.hasRoom', { name: first, defaultValue: '{name} has room for you.' })}</div>
               {/* Book now = the one-time purchase; the normal Work-with block is hidden
                   at capacity, so the invited state must also carry the subscription
                   path (mirrors the website invited CTA trio, #1498). */}
-              <button onClick={doBookOneTime} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: tTheme.GREEN, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookNow', { defaultValue: 'Book now' })}</button>
+              <button onClick={doBookOneTime} style={{ ...ctaInk, width: '100%' }}>{tr('profile:coach.bookNow', { defaultValue: 'Book now' })}</button>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-                <button onClick={doSubscribe} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.subscribeMo', { defaultValue: 'Subscribe /mo' })}</button>
-                <button onClick={wlWithdraw} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.decline', { defaultValue: 'Decline' })}</button>
+                <button onClick={doSubscribe} style={ctaLine}>{tr('profile:coach.subscribeMo', { defaultValue: 'Subscribe /mo' })}</button>
+                <button onClick={wlWithdraw} style={ctaLine}>{tr('profile:coach.decline', { defaultValue: 'Decline' })}</button>
               </div>
-              <button onClick={doBookIntro} data-intro-at-capacity="" style={{ width: '100%', minHeight: 44, marginTop: 8, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
-            </BSPlate>
+              <button onClick={doBookIntro} data-intro-at-capacity="" style={{ ...ctaLine, width: '100%', marginTop: 8 }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
+            </div>
           )}
           {!isSelf && atCapacity && wl && wl.status !== 'invited' && (
-            <div style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
+            <div style={ctaBlock}>
               <Kick col={tTheme.RUST}>{tr('profile:coach.onWaitingList', { defaultValue: 'On the waiting list' })}</Kick>
               <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.inLine', { pos: wl.position, name: first, defaultValue: "You're #{pos} in line. {name} will invite you when a spot opens." })}</div>
-              <button onClick={wlWithdraw} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.leaveList', { defaultValue: 'Leave the list' })}</button>
-              {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ width: '100%', minHeight: 44, marginTop: 8, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
+              <button onClick={wlWithdraw} style={{ ...ctaLine, width: '100%' }}>{tr('profile:coach.leaveList', { defaultValue: 'Leave the list' })}</button>
+              {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ ...ctaLine, width: '100%', marginTop: 8 }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
             </div>
           )}
           {!isSelf && atCapacity && !wl && clientOf === true && (
-            <div data-client-at-capacity="" style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
+            <div data-client-at-capacity="" style={ctaBlock}>
               <Kick col={tTheme.GREEN}>{tr('profile:coach.yourClientTitle', { name: first, defaultValue: "You're {name}'s client" })}</Kick>
               <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.yourClientBody', { name: first, defaultValue: "{name} isn't taking new clients, and you're already one. You can still book and buy as before." })}</div>
-              <button onClick={doBookOneTime} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: tTheme.GREEN, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookNow', { defaultValue: 'Book now' })}</button>
+              <button onClick={doBookOneTime} style={{ ...ctaInk, width: '100%' }}>{tr('profile:coach.bookNow', { defaultValue: 'Book now' })}</button>
             </div>
           )}
           {!isSelf && atCapacity && !wl && clientOf !== true && (
-            <div style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
+            <div style={ctaBlock}>
               <Kick col={tTheme.RUST}>{tr('profile:coach.atCapacity', { defaultValue: 'At capacity' })}</Kick>
               <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.atCapacityBody', { name: first, defaultValue: "{name} isn't taking new clients right now. Join the waiting list to be first in line." })}</div>
-              {clientOf === undefined ? null : <button onClick={wlJoin} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>}
-              {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ width: '100%', minHeight: 44, marginTop: 8, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
+              {clientOf === undefined ? null : <button onClick={wlJoin} style={{ ...ctaInk, width: '100%' }}>{tr('profile:coach.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>}
+              {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ ...ctaLine, width: '100%', marginTop: 8 }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
             </div>
           )}
           {!isSelf && !atCapacity && (
-            <div style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
-              <Kick col={c}>{tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })}</Kick>
-              <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.25, marginTop: 8 }}>{monthlyPkg.name} · <span style={{ color: c }}>{monthlyPkg.price}{monthlyPkg.unit === '/ month' ? '/mo' : ''}</span></div>
+            <div style={ctaBlock}>
+              <Kick col={bsWsRed(tTheme)}>{tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })}</Kick>
+              <div style={{ fontFamily: SERIF, fontSize: 21, fontWeight: 600, lineHeight: 1.2, marginTop: 8 }}>{monthlyPkg.name} · <span style={{ color: bsWsRed(tTheme) }}>{monthlyPkg.price}{monthlyPkg.unit === '/ month' ? '/mo' : ''}</span></div>
               {Array.isArray(monthlyPkg.perks) && <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.6), marginTop: 5 }}>{monthlyPkg.perks.slice(0, 3).join(' · ')}</div>}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 13 }}>
-                <button onClick={doSubscribe} style={{ minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.subscribe', { defaultValue: 'Subscribe' })}</button>
-                <button onClick={doBookIntro} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
+                <button onClick={doSubscribe} style={ctaInk}>{tr('profile:coach.subscribe', { defaultValue: 'Subscribe' })}</button>
+                <button onClick={doBookIntro} style={ctaLine}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
               </div>
             </div>
           )}
           {/* services & prices — sub-tabbed by type (like the website catalogue) */}
           <div style={{ marginTop: 28 }}>
-            <Kick>{isNutri ? tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' }) : tr('profile:coach.trainWith', { name: first, defaultValue: 'Train with {name}' })}</Kick>
-            {/* category sub-tabs */}
-            <div style={{ display: 'flex', gap: 6, marginTop: 12, overflowX: 'auto' }} className="bs-hide-scroll">
+            <BSTStationHead mag heat={c} INK={INK} label={isNutri ? tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' }) : tr('profile:coach.trainWith', { name: first, defaultValue: 'Train with {name}' })} />
+            {/* category sub-tabs, as the Wall's own row under its masthead: mono words, the chosen one in ink over red */}
+            <div style={{ display: 'flex', gap: 18, overflowX: 'auto' }} className="bs-hide-scroll">
               {offerCats.map((ct) => { const on = offerTab === ct; return (
-                <button key={ct} onClick={() => setOfferTab(ct)} style={{ flex: 'none', padding: '7px 13px', borderRadius: 999, border: `1px solid ${on ? c : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(c, 0.14) : 'transparent', color: on ? c : bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('profile:coach.cat.' + String(ct).toLowerCase(), { defaultValue: ct })}</button>
+                <button key={ct} aria-pressed={on} onClick={() => setOfferTab(ct)} style={{ flex: 'none', minHeight: 36, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
+                  <span style={{ display: 'inline-block', padding: '6px 0', boxShadow: on ? `inset 0 -2px 0 ${bsWsRed(tTheme)}` : 'none', color: on ? INK : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{tr('profile:coach.cat.' + String(ct).toLowerCase(), { defaultValue: ct })}</span>
+                </button>
               ); })}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px -22px 0' }}>
+            <div style={{ marginTop: 6 }}>
               {visibleOfferings.length ? visibleOfferings.map(([cat, kind, nm, sub, price, pl], i) => {
                 const buyable = !isSelf && pl && pl.id && pl.providerId && price !== 'Free' && price !== 'Listed';
                 return (
-                <div key={i} style={{ ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '13px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, marginBottom: 4 }}>{kind}</div><div style={{ fontFamily: SERIF, fontSize: 16, letterSpacing: '-0.01em' }}>{nm}</div><div style={{ fontFamily: SANS, fontSize: 12, color: bsTHexA(INK, 0.55), marginTop: 3 }}>{sub}</div></div>
+                <div key={i} style={{ borderTop: `1px solid ${hair}`, padding: '13px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginBottom: 4 }}>{kind}</div><div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 600 }}>{nm}</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.55), marginTop: 3 }}>{sub}</div></div>
                   {buyable
-                    ? <button onClick={() => buyPlan(pl)} style={{ flex: 'none', borderRadius: 999, border: 0, background: c, color: '#0c0a08', padding: '9px 14px', fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('profile:coach.buy', { defaultValue: 'Buy' })} · {price}</button>
-                    : <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.02em', color: price === 'Free' ? TEAL : INK, flex: 'none' }}>{price}</div>}
+                    ? <button onClick={() => buyPlan(pl)} style={{ ...ctaInk, flex: 'none', padding: '0 14px', fontSize: 9.5, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{tr('profile:coach.buy', { defaultValue: 'Buy' })} · {price}</button>
+                    : <div style={{ fontFamily: SERIF, fontSize: 19, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: INK, flex: 'none' }}>{price}</div>}
                 </div>
                 );
               }) : (
-                <div style={{ ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '14px 20px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:coach.publishFirst', { defaultValue: 'Publish your first plan to list it here' })}</div>
+                <div style={quiet}>{tr('profile:coach.publishFirst', { defaultValue: 'Publish your first plan to list it here' })}</div>
               )}
             </div>
           </div>
@@ -19933,17 +19923,25 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               : reviews.map((r) => [...r, 10, null]);
             return (
             <div style={{ marginTop: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>{tr('profile:tab.reviews', { defaultValue: 'Reviews' })}</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{liveAvg != null ? liveAvg : (rating != null ? rating : '—')}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>/10 · ★ {liveCoach ? reviewCount : (liveReviews && liveReviews.length ? liveReviews.length : reviewCount)}</span></div></div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px -22px 0' }}>
+              {/* The Me page's head with the average at its right, then each review pulled out as the Wall pulls
+                  out a coach's line, its writer's flat face and name above it (owner, 2026-10-24, "Design"). */}
+              <BSTStationHead mag heat={c} INK={INK} label={tr('profile:tab.reviews', { defaultValue: 'Reviews' })} meta={`${liveAvg != null ? liveAvg : (rating != null ? rating : '—')}/10 · ★ ${liveCoach ? reviewCount : (liveReviews && liveReviews.length ? liveReviews.length : reviewCount)}`} />
+              <div>
                 {!liveList.length && (
-                  <div style={{ padding: '13px 20px', fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('marketplace:listing.noReviews', { defaultValue: 'No reviews yet' })}</div>
+                  <div style={quiet}>{tr('marketplace:listing.noReviews', { defaultValue: 'No reviews yet' })}</div>
                 )}
                 {liveList.map(([nm, ini, hue, body, stars, authorId], i) => {
                   const open = authorId ? () => setReviewerProfile({ who: nm, kind: 'CLIENT', userId: authorId, public: true }) : null;
+                  const who = <><BSFacetAvatar flat size={30} c={INK} initial={ini} showRank={false} BG={BG} INK={INK} /><span style={{ fontFamily: SANS, fontSize: 13.5, fontWeight: 500, color: INK, textDecoration: open ? 'underline' : 'none', textDecorationColor: bsTHexA(INK, 0.35), textUnderlineOffset: 3 }}>{nm}</span></>;
                   return (
-                  <div key={i} style={{ ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '13px 20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><div onClick={open || undefined} style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: `linear-gradient(150deg, hsl(${hue} 40% 34%), hsl(${hue} 36% 20%))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 12, cursor: open ? 'pointer' : 'default' }}>{ini}</div><span onClick={open || undefined} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 500, cursor: open ? 'pointer' : 'default', textDecoration: open ? 'underline' : 'none', textUnderlineOffset: 2 }}>{nm}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: c }}>{stars}/10</span></div>
-                    <p style={{ fontFamily: SERIF, fontSize: 14, fontStyle: 'italic', lineHeight: 1.45, color: bsTHexA(INK, 0.82), margin: '10px 0 0' }}>“{body}”</p>
+                  <div key={i} data-coach-review="" style={{ padding: '12px 0 14px', borderTop: i ? `1px solid ${hair}` : 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      {open
+                        ? <button type="button" onClick={open} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minHeight: 44, margin: '-7px 0', padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>{who}</button>
+                        : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>{who}</span>}
+                      <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', color: bsTHexA(INK, 0.7) }}>★ {stars}/10</span>
+                    </div>
+                    <BSTPullQuote INK={INK} text={body} size={16} />
                   </div>
                   );
                 })}
@@ -19955,11 +19953,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           {tab === 'activity' && (
           /* field notes */
           <div style={{ marginTop: 8 }}>
-            <BSProfileExtras custom={customEff} demo={demoFill} c={c} INK={INK} BG={BG} isSelf={isSelf} coach bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, rating: { label: tr('profile:stat.rating', { defaultValue: 'Rating' }), value: rating != null ? rating : tr('marketplace:rating.new', { defaultValue: 'New' }) }, reviews: { label: tr('profile:tab.reviews', { defaultValue: 'Reviews' }), value: reviewCount } }} />
+            <BSProfileExtras custom={customEff} demo={demoFill} c={c} INK={INK} BG={BG} isSelf={isSelf} coach ledger bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, rating: { label: tr('profile:stat.rating', { defaultValue: 'Rating' }), value: rating != null ? rating : tr('marketplace:rating.new', { defaultValue: 'New' }) }, reviews: { label: tr('profile:tab.reviews', { defaultValue: 'Reviews' }), value: reviewCount } }} />
             <BSActivityLogCta isSelf={isSelf} accent={c} onClick={() => setShowLog(true)} />
             <div style={{ marginTop: isSelf ? 12 : 0 }}>
               {coachFeedEff.length === 0 && (
-                <div style={{ ...card, padding: '15px 20px', margin: '0 -22px', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? tr('profile:coach.nothingLogged', { defaultValue: 'Nothing logged yet — tap ＋ Log activity to post your first update.' }) : tr('profile:coach.noActivity', { defaultValue: 'No activity yet.' })}</div>
+                <div style={{ ...quiet, letterSpacing: '0.04em', textTransform: 'none' }}>{isSelf ? tr('profile:coach.nothingLogged', { defaultValue: 'Nothing logged yet — tap ＋ Log activity to post your first update.' }) : tr('profile:coach.noActivity', { defaultValue: 'No activity yet.' })}</div>
               )}
               {coachFeedEff.map((a, i) => (
                 /* Full-BLEED card — breaks out of the coach body's 22px side

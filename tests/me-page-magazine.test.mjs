@@ -1,9 +1,10 @@
 // tests/me-page-magazine.test.mjs
 //
-// The Me page, the live Boost sheet and the coach profile's dock, after three asks on 2026-10-24:
+// The Me page, the live Boost sheet and the coach profile, after four asks on 2026-10-24:
 //   "This needs to get cleaned up" (the Me tab: the score bars, the tabs, THE WALL, THE SHELF),
-//   "update design of this as well to match" (the "Boost Priya" sheet), and
-//   "also why isnt this going away when i scroll down, the message and work with maya" (the dock).
+//   "update design of this as well to match" (the "Boost Priya" sheet),
+//   "also why isnt this going away when i scroll down, the message and work with maya" (the dock), and
+//   "Design", on the offer to bring the rest of the coach profile into the same look.
 //
 // The first two now print as the Wall does (#2436, #2438, #2439): heads in the headline face over ink
 // rules, the active tab underlined in the magazine's red, square bars and boxes, and a member's own words
@@ -13,10 +14,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
-import { loadBroadsheet, drive, THEME, SRC } from './helpers/broadsheet-mount.mjs';
+import { loadBroadsheet, drive, flatten, textOf, THEME, SRC } from './helpers/broadsheet-mount.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
-const mod = await loadBroadsheet(['BSTerrainProfile', 'BSTerrainTabs', 'BSTStationHead', 'BSTPullQuote', 'BSProfileExtras', 'BSLiveBoostSheet', 'bsDemoMemberCustom']);
+const mod = await loadBroadsheet(['BSTerrainProfile', 'BSTerrainTabs', 'BSTStationHead', 'BSTPullQuote', 'BSProfileExtras', 'BSLiveBoostSheet', 'bsDemoMemberCustom', 'BSSignalCoachProfile']);
 const named = (name) => (n) => n && typeof n.type === 'function' && n.type.name === name;
 const RED = '#b23a1f';   // bsWsRed on a light paper (the harness THEME is light)
 const INK = '#111';
@@ -187,6 +188,109 @@ test('at the stove the kicker is amber, as the face\'s dot', () => {
   assert.equal(kicker.props.style.color, THEME.AMBER);
 });
 
+// ── The coach profile (Signal) in the same look ───────────────────────────────
+const MAYA = { who: 'Maya Okafor', kind: 'TRAINER', tier: 'ELITE', init: 'MO' };
+// The old page drew every action as a pill (borderRadius 999) and its quotes in italics.
+const oldLook = (nodes) => nodes.filter((n) => n.props && n.props.style && (n.props.style.borderRadius === 999 || n.props.style.fontStyle === 'italic'));
+const roundButtons = (nodes) => nodes.filter((n) => n.type === 'button' && n.props.style && n.props.style.borderRadius);
+
+test('the coach profile: the line pulled out, the Me page\'s counts and tab strip, and no pill or italics on any tab', () => {
+  globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
+  const d = drive(mod.BSSignalCoachProfile, { person: MAYA, onBack() {}, onMessage() {} });
+  const nodes = d.nodes();
+  const line = nodes.find(named('BSTPullQuote'));
+  assert.ok(line && line.props.text, 'the coach\'s line is no longer pulled out');
+  assert.match(line.props.cite, /^maya line$/i);
+  assert.equal(nodes.find(named('BSFollowBlock')).props.variant, 'ledger', 'the counts are the old centred pills');
+  const tabsOf = () => d.nodes().find(named('BSTerrainTabs'));
+  assert.deepEqual(tabsOf().props.tabs.map((tb) => tb.key), ['activity', 'about', 'coaching', 'playlists', 'reviews']);
+  const heads = {};
+  for (const tb of tabsOf().props.tabs) {
+    tabsOf().props.onPick(tb.key);
+    d.render();
+    const all = d.nodes();
+    assert.deepEqual(oldLook(all).map((n) => n.type), [], `${tb.key} still has a pill or italics`);
+    assert.deepEqual(roundButtons(all).map((n) => textOf(n)), [], `${tb.key} has a rounded button`);
+    const h = all.filter(named('BSTStationHead'));
+    for (const x of h) assert.equal(x.props.mag, true, `"${x.props.label}" is the old kicker`);
+    heads[tb.key] = h.map((x) => x.props.label);
+  }
+  assert.deepEqual(heads.about, ['Coaching philosophy', 'The practice', 'Coaching focus', 'Track record', 'Certifications']);
+  assert.equal(heads.coaching.length, 1);
+  assert.match(heads.coaching[0], /^Train with /, 'the harness\'s tr leaves {name} unfilled');
+  assert.deepEqual(heads.reviews, ['Reviews']);
+  // The activity tab's extras are the Me page's ledger: answers pulled out, not boxed in italics.
+  tabsOf().props.onPick('activity');
+  d.render();
+  assert.equal(d.nodes().find(named('BSProfileExtras')).props.ledger, true);
+});
+
+test('the coach\'s About: the philosophy pulled out, the focus on square bars to its own /100, the record as the Wall\'s figures', () => {
+  globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
+  const d = drive(mod.BSSignalCoachProfile, { person: MAYA, onBack() {}, onMessage() {} });
+  d.nodes().find(named('BSTerrainTabs')).props.onPick('about');
+  d.render();
+  const nodes = d.nodes();
+  const quotes = nodes.filter(named('BSTPullQuote'));
+  assert.equal(quotes[1].props.text, 'Get strong, stay strong.', 'the philosophy, without the literal quote marks the old italic line carried');
+  const focus = nodes.find((n) => n.props && n.props['data-coach-focus'] != null);
+  const rows = focus.props.children;
+  assert.ok(rows.length >= 2);
+  for (const row of rows) {
+    const [label, track, fig] = row.props.children;
+    const fill = track.props.children;
+    const value = Number(fig.props.children[0]);
+    assert.equal(fill.props.style.width, `${value}%`, `${label.props.children}: a bar is its own share of 100, not of the best`);
+  }
+  const figs = nodes.find(named('BSWallStoryFigures'));
+  assert.deepEqual(figs.props.items.map((r) => r[0]), ['Clients', 'Rating', 'Years']);
+});
+
+test('the coach\'s Coaching tab: square actions, ink for the one to take, and the plan types as the Wall\'s word tabs', () => {
+  globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
+  const d = drive(mod.BSSignalCoachProfile, { person: MAYA, onBack() {}, onMessage() {} });
+  d.nodes().find(named('BSTerrainTabs')).props.onPick('coaching');
+  d.render();
+  const btn = (re) => d.nodes().find((n) => n.type === 'button' && re.test(textOf(n)));
+  const subscribe = btn(/^Subscribe$/);
+  assert.equal(subscribe.props.style.background, THEME.INK);
+  assert.equal(subscribe.props.style.borderRadius, 0);
+  const intro = btn(/^Book intro · Free$/);
+  assert.equal(intro.props.style.background, 'transparent');
+  assert.equal(intro.props.style.border, `1px solid ${THEME.INK}`);
+  const cats = d.nodes().filter((n) => n.type === 'button' && n.props['aria-pressed'] !== undefined && /^(All|Workouts|Programs|Coaching)$/i.test(textOf(n)));
+  assert.ok(cats.length >= 2, 'the plan types');
+  assert.equal(cats.filter((n) => n.props['aria-pressed']).length, 1);
+  const on = cats.find((n) => n.props['aria-pressed']).props.children;
+  assert.equal(on.props.style.boxShadow, `inset 0 -2px 0 ${RED}`);
+});
+
+test('the coach\'s Reviews: the average at the head, each review its writer\'s flat face and words pulled out', () => {
+  globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
+  const d = drive(mod.BSSignalCoachProfile, { person: MAYA, onBack() {}, onMessage() {} });
+  d.nodes().find(named('BSTerrainTabs')).props.onPick('reviews');
+  d.render();
+  const nodes = d.nodes();
+  assert.match(nodes.find(named('BSTStationHead')).props.meta, /^[\d.—]+\/10 · ★ \d+$/);
+  const reviews = nodes.filter((n) => n.props && n.props['data-coach-review'] != null);
+  assert.ok(reviews.length >= 2);
+  for (const r of reviews) {
+    const inner = flatten(r);
+    const face = inner.find(named('BSFacetAvatar'));
+    assert.equal(face.props.flat, true);
+    assert.equal(face.props.c, THEME.INK);
+    assert.ok(inner.find(named('BSTPullQuote')).props.text, 'the words are pulled out');
+  }
+});
+
+test('the coach\'s own Me tab draws in the same look', () => {
+  globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
+  const d = drive(mod.BSSignalCoachProfile, { person: MAYA, isSelf: true, meMode: true, onBack() {}, onMessage() {} });
+  assert.ok(d.nodes().find(named('BSTerrainTabs')));
+  assert.ok(!d.nodes().find(named('BSCoachProfileDock')), 'no Message / Work-with on one\'s own profile');
+  assert.deepEqual(oldLook(d.nodes()).map((n) => n.type), []);
+});
+
 test('the coach profile renders its dock as the component that hides on scroll, and no other sticky footer', () => {
   const src = stripComments(readFileSync(SRC, 'utf8'));
   const at = src.indexOf('function BSSignalCoachProfile(');
@@ -246,6 +350,9 @@ test('the coach dock slides away while the page scrolls down and comes back up, 
     const [msg, work] = dock.querySelectorAll('button');
     assert.equal(msg.textContent, 'Message');
     assert.equal(work.textContent, 'Work with Maya →');
+    assert.equal(parseFloat(msg.style.borderRadius), 0, 'the dock\'s actions are square, as the page\'s');
+    assert.equal(parseFloat(work.style.borderRadius), 0);
+    assert.equal(work.style.background, 'rgb(241, 236, 225)', 'Work with is the ink action');
     await React.act(async () => { msg.click(); work.click(); });
     assert.deepEqual(calls, ['message', 'work']);
   } finally {

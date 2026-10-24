@@ -51,10 +51,9 @@ test('both profiles are pages, and neither keeps its own scroller or tab-bar spa
 
 test('the sticky tab rows stick below the pinned masthead, not under it', () => {
   assert.match(body('function BSTerrainProfile('), /<BSTerrainTabs [^>]*top=\{pinnedTop\}/, 'the member tab row sticks at 0, under the pinned masthead');
-  assert.match(body('function BSSignalCoachProfile('), /<BSLivingTabs [^>]*top=\{pinnedTop\}/, 'the coach tab row sticks at 0, under the pinned masthead');
-  for (const marker of ['function BSTerrainTabs(', 'function BSLivingTabs(']) {
-    assert.match(body(marker), /position: 'sticky', top,/, `${marker} ignores the offset it is given`);
-  }
+  // Both profiles share the one strip since the coach profile took the Wall's look (2026-10-24).
+  assert.match(body('function BSSignalCoachProfile('), /<BSTerrainTabs [^>]*top=\{pinnedTop\}/, 'the coach tab row sticks at 0, under the pinned masthead');
+  assert.match(body('function BSTerrainTabs('), /position: 'sticky', top,/, 'the tab strip ignores the offset it is given');
   // One measurement for every sticky row in a BSPage, read off the bar itself.
   const hook = body('function useBSPinnedMastTop(');
   assert.match(hook, /querySelector\('\[data-bs-pinned-mast\]'\)/, 'the offset is no longer measured off the bar');

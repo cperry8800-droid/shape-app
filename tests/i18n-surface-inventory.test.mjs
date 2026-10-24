@@ -791,7 +791,10 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // something different in top right"). BSFollowListSheet's corner face carried its one tr();
   // the gear names itself, so the sheet's × Close is keyed instead (feed:sheet.close, in all 13
   // locales) to keep it PARTIAL rather than drop to none: partStrings 185 -> 184.
-  assert.equal(partStrings, 184, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The coach profile in the Wall's look (owner, 2026-10-24, "Design"): a pinned review's writer
+  // falls back to the keyed profile:role.member (in all 13 locales), not a bare 'Member' literal:
+  // partStrings 184 -> 183; part.length, noneStrings and none.length unchanged.
+  assert.equal(partStrings, 183, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
