@@ -416,12 +416,13 @@ const PARTIAL = new Set([
   // Room. The count above is this walk's FLOOR, not the surface's truth.
   'Client::BSSettings',
   // ⚠ BSChatThread AND BSFollowListSheet ARE PARTIAL OVER ONE aria-label EACH, NOT
-  // OVER A LOCALIZATION EFFORT. Both render the member's OWN avatar in a corner, and
-  // that avatar opens Settings — so each passes the accessible name saying so
-  // (settings:avatar.mine), which is their first and only tr(). Every other string
-  // in them is exactly as hardcoded as it was; they changed BUCKET, not behaviour,
-  // and the string counts above reconcile to prove it. Localizing either one is its
-  // own cut, and finishing it moves them from here to fully covered.
+  // OVER A LOCALIZATION EFFORT. BSChatThread renders the member's OWN avatar beside
+  // their messages, and that avatar opens Settings, so it passes the accessible name
+  // saying so (settings:avatar.mine). BSFollowListSheet's corner is the chrome's
+  // settings gear now, which names itself, so its one tr() is the × Close button's
+  // name (feed:sheet.close). Every other string in them is exactly as hardcoded as it
+  // was. Localizing either one is its own cut, and finishing it moves them from here
+  // to fully covered.
   'Client::BSChatThread',
   'Client::BSFollowListSheet',
   // ⚠ BSProfileCustomizer IS PARTIAL OVER A LITERAL ADDRESS, NOT OVER COPY — 99
@@ -786,7 +787,11 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // tools moved to Settings → Your practice, keyed, and the Business card took the coach's Me
   // tab (BSCoachBusiness.jsx, keyed in all 13 locales). Its 25 hardcoded strings go with it:
   // partStrings 210 -> 185, part.length 34 -> 33.
-  assert.equal(partStrings, 185, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The top-right corner is the settings gear (owner, 2026-10-24: "make the settings avatar
+  // something different in top right"). BSFollowListSheet's corner face carried its one tr();
+  // the gear names itself, so the sheet's × Close is keyed instead (feed:sheet.close, in all 13
+  // locales) to keep it PARTIAL rather than drop to none: partStrings 185 -> 184.
+  assert.equal(partStrings, 184, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had

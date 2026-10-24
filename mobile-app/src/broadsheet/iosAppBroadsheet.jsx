@@ -796,11 +796,11 @@ function BSWordmark({ size = 18, color, full = false, vertical = false, align = 
 // Masthead — newspaper-style header with vol/no, optional title block
 // THE MASTHEAD CONTRACT (owner ruling 2026-08-01): every page opens with the SAME
 // row — BSLogo size 16 + "Vol. 1 · No. 1" (mono 9 / 0.12em / INK70) left, the
-// search circle (34) + self avatar (34) right — at the SAME top inset. BS_MAST_TOP
+// search circle (34) + settings gear (34) right — at the SAME top inset. BS_MAST_TOP
 // is that inset; page wrappers use it instead of a per-page literal (the old
 // 42/44/46/48/50/54/60/62/64 drift). Window-exported for the role modules.
 const BS_MAST_TOP = 44;
-// The corner gap — the space between the search circle and the self avatar in
+// The corner gap — the space between the search circle and the settings gear in
 // the masthead's trailing cluster. Part of the same contract as BS_MAST_TOP and
 // BS_MAST_TOP_CSS: the chrome owns it, the role modules read it off `window`.
 // The chrome is the only module guaranteed to evaluate before every consumer
@@ -1812,6 +1812,28 @@ function useShapeTr() {
   };
 }
 
+// The masthead's settings corner (owner: "make the settings avatar something different in top right"):
+// a bare ⚙ in the page's ink on the corner's square, where the member's own face was. The face now
+// lives on the tab bar's Me tab. It opens Settings as the face did: shape:openProfile, which the member
+// and coach apps both answer, unless the caller passes its own onClick (a sheet that must close first).
+// One button for every corner — the member and coach apps, the profile mastheads, the follow list, the
+// calendar, the marketplace and Radio — so they can't drift apart. The chrome module owns it because
+// the coach bundle loads without the client module.
+function BSSettingsCorner({ size = 34, ink = null, onClick = null }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const open = onClick || (() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} });
+  const g = Math.max(15, Math.round(size * 0.5));
+  return (
+    <button type="button" data-bs-settings-corner="" onClick={open} aria-label={tr('profile:terrain.settingsAria', { defaultValue: 'Settings' })} style={{
+      width: size, height: size, flexShrink: 0, borderRadius: 0, border: 0, background: 'transparent',
+      color: ink || t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0,
+    }}>
+      <svg width={g} height={g} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
+    </button>
+  );
+}
+
 function BSBackButton({ onClick, label = null, style }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -1957,7 +1979,7 @@ function BSNavGestures() {
 }
 
 Object.assign(window, {
-  BSContext, BSProvider, useBS, BSBackButton, BSNavGestures, BSToastHost, BSConfirmHost,
+  BSContext, BSProvider, useBS, BSBackButton, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
   BSPage, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_CORNER_GAP,
