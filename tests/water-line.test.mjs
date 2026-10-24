@@ -134,6 +134,11 @@ test('the line is one row in the morning panel: a pip a glass beside the total, 
     assert.equal(add.style.width, '44px');
     assert.equal(add.style.borderRadius, '999px', '+ Glass is round');
     assert.equal(add.getAttribute('aria-label'), '+ Glass', 'the round button still says what it does');
+    // The round you see is a step smaller than the tap (owner, 2026-10-24: "make these smaller").
+    const dot = add.querySelector('[data-bs-water-add-dot]');
+    assert.equal(dot.style.width, '38px');
+    assert.equal(dot.style.borderRadius, '999px');
+    assert.equal(add.style.margin, '-3px', 'the row lays the button out at the round\'s size');
   } finally { m.unmount(); }
   // No target: no pips, a total only.
   env();

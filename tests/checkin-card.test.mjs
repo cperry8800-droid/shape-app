@@ -412,7 +412,7 @@ test('the morning panel holds the card over water, with a hairline between them'
     const panel = host.querySelector('[data-bs-morning]');
     assert.ok(panel, 'no morning panel');
     assert.equal(panel.tagName, 'SECTION');
-    assert.equal(panel.style.borderRadius, '16px', 'the panel lost its rounded corners');
+    assert.equal(panel.style.borderRadius, '14px', 'the panel lost its rounded corners');
     assert.equal(panel.style.clipPath, '', 'the notched corner came back');
     const card = panel.querySelector('[data-bs-checkin-card]');
     const water = panel.querySelector('[data-bs-water]');
@@ -439,7 +439,7 @@ test('the card on Home is compact: a title row, Same as yesterday as the one big
     assert.equal(card.style.clipPath, '', 'the notched corner came back');
     const row = card.querySelector('[data-bs-checkin-actions]');
     assert.deepEqual([...row.querySelectorAll('button')].map((b) => b.textContent), ['Same as yesterdayGood · 6h 30 · Fresh', 'Start check-in →'], 'Same as yesterday leads, Start under it');
-    assert.equal(row.querySelector('button').style.minHeight, '52px', 'the one big button');
+    assert.equal(row.querySelector('button').style.minHeight, '44px', 'the one big button (a step down, owner 2026-10-24: "make these smaller")');
     assert.equal(m.text(), 'Morning check-in2 checks · 15 secSame as yesterdayGood · 6h 30 · FreshStart check-in →');
   } finally { m.unmount(); }
   // Nothing to repeat: Start is the big button.
@@ -449,7 +449,7 @@ test('the card on Home is compact: a title row, Same as yesterday as the one big
     const row = document.querySelector('[data-bs-checkin-actions]');
     const only = [...row.querySelectorAll('button')];
     assert.deepEqual(only.map((b) => b.textContent), ['Start check-in →']);
-    assert.equal(only[0].style.minHeight, '52px');
+    assert.equal(only[0].style.minHeight, '44px');
   } finally { m.unmount(); }
   // Energy in: the steps take the title row's place for "2 checks · 15 sec", and Continue opens the night.
   env({ days: { [TODAY]: { energy: 8 } } });

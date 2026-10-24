@@ -88,8 +88,11 @@ export function BSTrainBurn() {
   const days = week ? week.days : Array.from({ length: 7 }, (_, i) => ({ day: bsHwShift(monday, i), kcal: null, future: bsHwShift(monday, i) > todayIso, isToday: bsHwShift(monday, i) === todayIso }));
   const max = week && week.max ? week.max : 1;
   const sources = week ? week.sources.map((s) => (s === 'manual' ? tr('session:burn.manual', { defaultValue: 'your log' }) : s)).join(' · ') : '';
+  // Train's own colour, the rust of its session spine just below (owner, 2026-10-24, of this card and
+  // the session: "improve look of tis"), where the card took the app's teal.
+  const c = t.RUST || t.ACCENT;
   const muted = { fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 };
-  const link = { flexShrink: 0, minHeight: 44, marginBlock: -14, background: 'transparent', border: 0, padding: '0 2px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, whiteSpace: 'nowrap' };
+  const link = { flexShrink: 0, minHeight: 44, marginBlock: -14, background: 'transparent', border: 0, padding: '0 2px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: c, whiteSpace: 'nowrap' };
   // The line: a point a day with a reading, joined only across neighbouring days.
   const W = 104, H = 40, PAD = 5;
   const x = (i) => PAD + (i * (W - 2 * PAD)) / 6;
@@ -102,10 +105,10 @@ export function BSTrainBurn() {
       style={{ margin: `12px ${t.padX}px 0`, padding: '10px 12px 10px 14px', borderRadius: 12, background: t.PAPER2 || t.PAPER, border: t.isLight ? 0 : `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: `minmax(0, 1fr) ${W}px`, alignItems: 'center', gap: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ ...muted, fontWeight: 800, letterSpacing: '0.16em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          <span aria-hidden style={{ color: t.ACCENT, marginRight: 6 }}>▲</span>{tr('session:burn.title', { defaultValue: 'Burned this week' })}
+          <span aria-hidden style={{ color: c, marginRight: 6 }}>▲</span>{tr('session:burn.title', { defaultValue: 'Burned this week' })}
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 3 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 22, lineHeight: 1.05, letterSpacing: '-0.02em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hasTotal ? num(week.total) : '—'}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 24, lineHeight: 1.05, letterSpacing: '-0.03em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hasTotal ? num(week.total) : '—'}</span>
           <span style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70 }}>{tr('session:burn.kcalWord', { defaultValue: 'kcal' })}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, minHeight: 14 }}>
@@ -132,14 +135,14 @@ export function BSTrainBurn() {
       </div>
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={tr('session:burn.chartAria', { defaultValue: 'Calories burned each day this week' })} style={{ display: 'block', overflow: 'visible' }}>
         <line x1={PAD} x2={W - PAD} y1={H - PAD} y2={H - PAD} stroke={t.RULE} strokeWidth="1" />
-        {days.map((d, i) => <circle key={d.day} cx={x(i)} cy={H - PAD} r="1.2" fill={d.isToday ? t.ACCENT : t.RULE} />)}
+        {days.map((d, i) => <circle key={d.day} cx={x(i)} cy={H - PAD} r="1.2" fill={d.isToday ? c : t.RULE} />)}
         {runs.map((r, k) => (
           <g key={k}>
-            {r.length > 1 && <path d={`M${r[0].x},${H - PAD} ${r.map((p) => `L${p.x},${p.y}`).join(' ')} L${r[r.length - 1].x},${H - PAD} Z`} fill={t.ACCENT} fillOpacity="0.14" />}
-            {r.length > 1 && <path d={r.map((p, j) => `${j ? 'L' : 'M'}${p.x},${p.y}`).join(' ')} fill="none" stroke={t.ACCENT} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
+            {r.length > 1 && <path d={`M${r[0].x},${H - PAD} ${r.map((p) => `L${p.x},${p.y}`).join(' ')} L${r[r.length - 1].x},${H - PAD} Z`} fill={c} fillOpacity="0.14" />}
+            {r.length > 1 && <path d={r.map((p, j) => `${j ? 'L' : 'M'}${p.x},${p.y}`).join(' ')} fill="none" stroke={c} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
           </g>
         ))}
-        {pts.filter(Boolean).map((p) => <circle key={p.i} cx={p.x} cy={p.y} r={p.today ? 3.5 : 2} fill={t.ACCENT} stroke={p.today ? (t.PAPER2 || t.PAPER) : 'none'} strokeWidth={p.today ? 1.5 : 0} />)}
+        {pts.filter(Boolean).map((p) => <circle key={p.i} cx={p.x} cy={p.y} r={p.today ? 3.5 : 2} fill={c} stroke={p.today ? (t.PAPER2 || t.PAPER) : 'none'} strokeWidth={p.today ? 1.5 : 0} />)}
       </svg>
     </section>
   );

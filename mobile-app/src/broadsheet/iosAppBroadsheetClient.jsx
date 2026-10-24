@@ -6501,7 +6501,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{coachDayName} · <span style={{ color: t.INK50 }}>{tr('session:train.coachRole', { defaultValue: 'Coach · Trainer' })}</span></div>
         ) : null}
         {!isRestDay ? (
-          <BSFocusActions
+          <BSFocusActions color={t.RUST}
             primary={{ label: `${tr('session:train.startAria', { defaultValue: 'Start session' })} →`, onClick: () => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); } }}
             secondary={effMoves.length > 0 ? { label: `${tr('session:train.swap', { defaultValue: 'Swap' })} →`, onClick: () => setSwapIdx('pick') } : null} />
         ) : (

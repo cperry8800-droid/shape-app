@@ -158,13 +158,13 @@ export function BSHomeGoalView({ data, docKg, isWeightGoal, goalWords, onOpen, t
           <>
             <div style={{ marginTop: 12, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 42, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{fmt(read.nowKg)}</span>
+                <span style={{ fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 34, lineHeight: 0.9, letterSpacing: '-0.04em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{fmt(read.nowKg)}</span>
                 <span style={{ ...mono, fontSize: 9.5 }}>{tr('home:goal.now', { defaultValue: '{unit} now', unit })}</span>
               </div>
               {read.targetKg != null ? (
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ ...mono, fontWeight: 800, letterSpacing: '0.16em' }}>{tr('home:goal.target', { defaultValue: 'Goal' })}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 19, color: gold, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(read.targetKg)} {unit}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 16, color: gold, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(read.targetKg)} {unit}</div>
                 </div>
               ) : null}
             </div>
@@ -177,15 +177,15 @@ export function BSHomeGoalView({ data, docKg, isWeightGoal, goalWords, onOpen, t
             ) : null}
             <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
               <div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{signed(read.changeKg)}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{signed(read.changeKg)}</div>
                 <div style={{ ...mono, marginTop: 2 }}>{tr('home:goal.inWeeks', { defaultValue: '{unit} in {n, plural, one {# week} other {# weeks}}', unit, n: weeks })}</div>
               </div>
               <div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{read.paceKgWk != null ? signed(read.paceKgWk) : '—'}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{read.paceKgWk != null ? signed(read.paceKgWk) : '—'}</div>
                 <div style={{ ...mono, marginTop: 2 }}>{tr('home:goal.aWeek', { defaultValue: '{unit} a week lately', unit })}</div>
               </div>
               <div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: read.reached ? gold : t.INK, fontVariantNumeric: 'tabular-nums' }}>{read.reached ? '✓' : read.toGoKg != null ? fmt(read.toGoKg) : '—'}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, color: read.reached ? gold : t.INK, fontVariantNumeric: 'tabular-nums' }}>{read.reached ? '✓' : read.toGoKg != null ? fmt(read.toGoKg) : '—'}</div>
                 <div style={{ ...mono, marginTop: 2 }}>{read.reached ? tr('home:goal.reached', { defaultValue: 'Goal reached' }) : tr('home:goal.left', { defaultValue: '{unit} to go', unit })}</div>
               </div>
             </div>
