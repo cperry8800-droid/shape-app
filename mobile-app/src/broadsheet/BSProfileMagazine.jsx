@@ -58,8 +58,9 @@ export function useBSHideOnScrollDown(ref, { slack = 8, top = 64 } = {}) {
 // as it scrolls up, so it never sits over the text being read. It fades as it slides, since the floating tab
 // bar below it would show it through its frost. On solid paper over a hairline, so nothing shows through it;
 // hidden, it is inert, so a keyboard can't reach the buttons it hides. Its actions are square, as the page's:
-// an ink outline for Message, ink for Work with.
-export function BSCoachProfileDock({ INK, BG, onMessage, onWorkWith, messageLabel, workLabel }) {
+// an ink outline for Message, ink for Work with. BG is the page's background (PAPER_BG: a gradient on the Steel
+// paper); text on the ink fill takes PAPER, the solid colour (Codex, P1 on #2441).
+export function BSCoachProfileDock({ INK, BG, PAPER, onMessage, onWorkWith, messageLabel, workLabel }) {
   const ref = React.useRef(null);
   const hidden = useBSHideOnScrollDown(ref);
   const label = { cursor: 'pointer', fontFamily: MONO, fontSize: 11, textTransform: 'uppercase', fontWeight: 800 };
@@ -67,7 +68,7 @@ export function BSCoachProfileDock({ INK, BG, onMessage, onWorkWith, messageLabe
     <div ref={ref} data-coach-dock="" inert={hidden} style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '12px 18px calc(14px + env(safe-area-inset-bottom, 0px))', background: BG, borderTop: `1px solid ${inkA(INK, 0.12)}`, transform: hidden ? 'translateY(40%)' : 'none', opacity: hidden ? 0 : 1, transition: reducedMotion() ? 'none' : 'transform 220ms cubic-bezier(.4,0,.2,1), opacity 180ms ease' }}>
       <div style={{ display: 'flex', gap: 10 }}>
         <button onClick={onMessage} style={{ ...label, flex: 1, minHeight: 48, borderRadius: 0, background: 'transparent', color: INK, border: `1px solid ${INK}`, letterSpacing: '0.14em' }}>{messageLabel}</button>
-        <button onClick={onWorkWith} style={{ ...label, flex: 1.4, minHeight: 48, borderRadius: 0, background: INK, color: BG, border: 0, letterSpacing: '0.12em' }}>{workLabel} →</button>
+        <button onClick={onWorkWith} style={{ ...label, flex: 1.4, minHeight: 48, borderRadius: 0, background: INK, color: PAPER, border: 0, letterSpacing: '0.12em' }}>{workLabel} →</button>
       </div>
     </div>
   );

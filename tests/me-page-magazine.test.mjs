@@ -254,6 +254,8 @@ test('the coach\'s Coaching tab: square actions, ink for the one to take, and th
   const btn = (re) => d.nodes().find((n) => n.type === 'button' && re.test(textOf(n)));
   const subscribe = btn(/^Subscribe$/);
   assert.equal(subscribe.props.style.background, THEME.INK);
+  // The solid paper, never PAPER_BG: on the Steel paper that is a gradient, which is no colour (Codex P1 on #2441).
+  assert.equal(subscribe.props.style.color, THEME.PAPER);
   assert.equal(subscribe.props.style.borderRadius, 0);
   const intro = btn(/^Book intro · Free$/);
   assert.equal(intro.props.style.background, 'transparent');
@@ -331,7 +333,7 @@ test('the coach dock slides away while the page scrolls down and comes back up, 
   const root = ReactDOMClient.createRoot(host);
   try {
     await React.act(async () => {
-      root.render(React.createElement(BSCoachProfileDock, { INK: '#f1ece1', BG: '#100d0a', c: '#a07a2e', onMessage: () => calls.push('message'), onWorkWith: () => calls.push('work'), messageLabel: 'Message', workLabel: 'Work with Maya' }));
+      root.render(React.createElement(BSCoachProfileDock, { INK: '#f1ece1', BG: 'linear-gradient(180deg, #1a1612, #100d0a)', PAPER: '#100d0a', onMessage: () => calls.push('message'), onWorkWith: () => calls.push('work'), messageLabel: 'Message', workLabel: 'Work with Maya' }));
     });
     const dock = host.querySelector('[data-coach-dock]');
     const isHidden = () => {
@@ -342,7 +344,7 @@ test('the coach dock slides away while the page scrolls down and comes back up, 
     };
     const scrollTo = async (to) => { y = to; await React.act(async () => { sc.dispatchEvent(new dom.window.Event('scroll')); }); return isHidden(); };
     assert.equal(isHidden(), false, 'the dock starts on screen');
-    assert.equal(dock.style.background, 'rgb(16, 13, 10)', 'the dock sits on solid paper, so no text shows through it');
+    assert.match(dock.style.background, /linear-gradient/, 'the dock sits on the page\'s own paper, so no text shows through it');
     assert.equal(await scrollTo(300), true, 'scrolling down hides the dock');
     assert.equal(await scrollTo(305), true, 'a resting thumb\'s few pixels don\'t bring it back');
     assert.equal(await scrollTo(280), false, 'scrolling up brings it back');
@@ -358,6 +360,7 @@ test('the coach dock slides away while the page scrolls down and comes back up, 
     assert.equal(parseFloat(msg.style.borderRadius), 0, 'the dock\'s actions are square, as the page\'s');
     assert.equal(parseFloat(work.style.borderRadius), 0);
     assert.equal(work.style.background, 'rgb(241, 236, 225)', 'Work with is the ink action');
+    assert.equal(work.style.color, 'rgb(16, 13, 10)', 'its text is the solid paper, not the page\'s gradient background');
     await React.act(async () => { msg.click(); work.click(); });
     assert.deepEqual(calls, ['message', 'work']);
   } finally {

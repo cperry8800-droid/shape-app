@@ -19482,7 +19482,9 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // and hairlines instead of filled cards.
   const hair = bsTHexA(INK, 0.12);
   const cta = { minHeight: 44, borderRadius: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' };
-  const ctaInk = { ...cta, border: 0, background: INK, color: BG };
+  // Text on the ink fill is the solid paper: BG is PAPER_BG, which the Steel paper makes a gradient, and a
+  // gradient is no colour (Codex, P1 on #2441).
+  const ctaInk = { ...cta, border: 0, background: INK, color: tTheme.PAPER };
   const ctaLine = { ...cta, border: `1px solid ${INK}`, background: 'transparent', color: INK };
   const ctaBlock = { marginTop: 24, paddingTop: 12, borderTop: `3px solid ${INK}` };
   const quiet = { padding: '13px 0', borderTop: `1px solid ${hair}`, fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) };
@@ -19931,7 +19933,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
 
       {/* dock — Message / Work-with others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
-        <BSCoachProfileDock INK={INK} BG={BG} onMessage={() => onMsg(person)} onWorkWith={() => setTab('coaching')}
+        <BSCoachProfileDock INK={INK} BG={BG} PAPER={tTheme.PAPER} onMessage={() => onMsg(person)} onWorkWith={() => setTab('coaching')}
           messageLabel={tr('profile:action.message', { defaultValue: 'Message' })} workLabel={tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })} />
       )}
     </div></BSPage>
