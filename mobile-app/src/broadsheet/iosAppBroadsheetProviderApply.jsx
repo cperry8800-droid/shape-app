@@ -411,7 +411,8 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   }
 
   const Ground = window.BSWireGround;
-  const serifHead = { fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 37, lineHeight: 0.94, letterSpacing: '-0.045em', color: AP_CREAM, marginTop: 4 };
+  // The app's own face, Saira, where this took a serif (owner, 2026-10-24: one font across the app).
+  const headStyle = { fontFamily: "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", fontWeight: 300, fontSize: 34, lineHeight: 1.04, letterSpacing: '-0.03em', color: AP_CREAM, marginTop: 4 };
   const eyebrow = { fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.28em', textTransform: 'uppercase', color: AP_TEAL2, fontWeight: 700 };
   const backBtn = { position: 'absolute', zIndex: 3, top: 'max(16px, calc(env(safe-area-inset-top, 0px) + 10px))', left: 18, background: 'transparent', border: 0, color: AP_C70, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '6px 4px' };
   const scroller = { position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(52px, calc(env(safe-area-inset-top, 0px) + 40px)) 22px calc(24px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 12 };
@@ -570,7 +571,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
         <button onClick={onBack} style={backBtn}>← Back</button>
         <div className="bs-hide-scroll" style={{ ...scroller, justifyContent: 'center', gap: 16 }}>
           <div style={eyebrow}>Application</div>
-          <div style={serifHead}>Submitted<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', color: AP_TEAL2 }}>for review.</span></div>
+          <div style={headStyle}>Submitted<br/><span style={{ fontWeight: 400, color: AP_TEAL2 }}>for review.</span></div>
           <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: AP_TEAL }}>
             {result.duplicate ? 'Already on file ✓' : 'Filed ✓ · Submitted'}
           </div>
@@ -580,7 +581,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: AP_C50, lineHeight: 1.7 }}>
             Review target: 2-3 business days. {result.duplicate ? 'This application was already with us, so nothing new was sent.' : 'Uploaded resume and credential files are attached to the application review record.'}
           </div>
-          <button onClick={onBack} className="bs-wire-enter" style={{ width: '100%', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', padding: '13px 14px', background: AP_TEAL, color: '#05080c', border: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
+          <button onClick={onBack} className="bs-wire-enter" style={{ width: '100%', borderRadius: 4, padding: '13px 14px', background: AP_TEAL, color: '#05080c', border: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
             Back to marketplace →
           </button>
         </div>
@@ -596,7 +597,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
         {/* Head — the wire dispatch header */}
         <div>
           <div style={eyebrow}>Provider Desk</div>
-          <div style={serifHead}>Apply to<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', color: AP_TEAL2 }}>Shape.</span></div>
+          <div style={headStyle}>Apply to<br/><span style={{ fontWeight: 400, color: AP_TEAL2 }}>Shape.</span></div>
         </div>
 
         {/* Role tag — the one role-heat placement */}
@@ -635,7 +636,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
           </div>
         )}
 
-        {/* Actions — quiet ghost back · clipped teal TRANSMIT */}
+        {/* Actions — quiet ghost back · flat teal TRANSMIT */}
         <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: 8, marginTop: 4 }}>
           <button disabled={step === 0 || submitting} onClick={() => setStep(Math.max(0, step - 1))} style={{
             minHeight: 48,
@@ -650,7 +651,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
             cursor: step === 0 ? 'default' : 'pointer',
           }}>Back</button>
           <button disabled={submitting} onClick={() => step === APPLY_STEPS.length - 1 ? submit() : setStep(step + 1)} className="bs-wire-enter" style={{
-            clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)',
+            borderRadius: 4,
             border: 0,
             background: AP_TEAL,
             color: '#05080c',

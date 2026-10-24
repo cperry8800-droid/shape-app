@@ -54,7 +54,7 @@ export function BSFocusTitle({ title, kicker, meta, color, right }) {
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
           {kicker ? <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: c }}>{kicker}</span> : null}
-          <h2 style={{ margin: kicker ? '3px 0 0' : 0, fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 26, lineHeight: '32px', letterSpacing: '-0.02em', color: t.INK, whiteSpace: 'nowrap' }}>
+          <h2 style={{ margin: kicker ? '3px 0 0' : 0, fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 22, lineHeight: '28px', letterSpacing: '-0.02em', color: t.INK, whiteSpace: 'nowrap' }}>
             {title}<span style={{ color: c }}>.</span>
           </h2>
         </div>
@@ -117,7 +117,9 @@ export function BSFocusLead({ color, kicker, kickerRight, title, sub, tour, chil
   const raw = String(title == null ? '' : title).trim();
   const ends = /[?!…]$/.test(raw);
   const head = raw.replace(/\.\s*$/, '');
-  const size = head.length <= 14 ? 40 : head.length <= 24 ? 32 : 26;
+  // A step down (owner, 2026-10-24, of Home's and Train's leads: "make these smaller"). Eat's next
+  // meal shares this lead, so it steps down with them.
+  const size = head.length <= 14 ? 30 : head.length <= 24 ? 26 : 22;
   return (
     <section data-tour={tour || undefined} style={{ position: 'relative', margin: `10px ${t.padX}px 0`, padding: '2px 0 16px 15px' }}>
       <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c }} />
@@ -177,7 +179,7 @@ export function BSFocusActions({ primary, secondary, color }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 20px', marginTop: 16 }}>
       {primary ? (
-        <button type="button" onClick={primary.onClick} aria-label={primary.ariaLabel || undefined} style={{ minHeight: 48, padding: '10px 16px', borderRadius: 5, border: 0, background: c, color: t.isLight ? '#ffffff' : '#031f1c', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>{primary.label}</button>
+        <button type="button" onClick={primary.onClick} aria-label={primary.ariaLabel || undefined} style={{ minHeight: 44, padding: '8px 14px', borderRadius: 4, border: 0, background: c, color: t.isLight ? '#ffffff' : '#031f1c', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800 }}>{primary.label}</button>
       ) : null}
       {secondary ? (
         <button type="button" onClick={secondary.onClick} style={{ minHeight: 44, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>{secondary.label}</button>

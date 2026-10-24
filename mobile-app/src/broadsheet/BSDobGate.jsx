@@ -73,7 +73,10 @@ export default function BSDobGate({ blocked, onSaved, onLogout }) {
   // never take the paper theme, so this one matches them rather than useBS().
   const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', ACCF = '#34d6c5';
   const mono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
-  const serif = `'Newsreader', Georgia, serif`;
+  // The app's own faces (owner, 2026-10-24, of the launch screens: one font across the app): Saira for
+  // the heads, the system face for the reading text, where both were a serif.
+  const head = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const body = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
   const shell = { position: 'absolute', inset: 0, background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF, display: 'flex', flexDirection: 'column', padding: '52px 20px 24px', zIndex: 40 };
   const topbar = { fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 };
   const signOutBtn = { marginTop: 14, padding: '10px', border: 0, background: 'transparent', color: INKF50, fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' };
@@ -115,7 +118,7 @@ export default function BSDobGate({ blocked, onSaved, onLogout }) {
           <span style={{ color: INKF }}>{tr('dob.eyebrow', { defaultValue: 'Account' })}</span>
         </div>
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '100%', maxWidth: 360, margin: '0 auto' }}>
-          <h1 style={{ fontFamily: serif, fontSize: 27, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.1, margin: '14px 0 0' }}>{tr('dob.errUnder18', { defaultValue: 'Shape is for adults 18 and over.' })}</h1>
+          <h1 style={{ fontFamily: head, fontSize: 26, fontWeight: 400, letterSpacing: '-0.02em', lineHeight: 1.12, margin: '14px 0 0' }}>{tr('dob.errUnder18', { defaultValue: 'Shape is for adults 18 and over.' })}</h1>
           <button onClick={onLogout} style={signOutBtn}>{tr('dob.signout', { defaultValue: 'Sign out' })}</button>
         </div>
       </div>
@@ -130,8 +133,8 @@ export default function BSDobGate({ blocked, onSaved, onLogout }) {
           <span style={{ color: INKF }}>{tr('dob.eyebrow', { defaultValue: 'Account' })}</span>
         </div>
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '100%', maxWidth: 360, margin: '0 auto' }}>
-          <h1 style={{ fontFamily: serif, fontSize: 27, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.1, margin: '14px 0 0' }}>{tr('dob.blockedTitle', { defaultValue: 'We can’t finish this here.' })}</h1>
-          <div style={{ fontFamily: serif, fontSize: 15, lineHeight: 1.55, color: INKF70, marginTop: 12 }}>{tr('dob.blockedBody', { defaultValue: 'Your account setup didn’t complete, so there’s nothing to save this to yet. Contact support and we’ll put it right.' })}</div>
+          <h1 style={{ fontFamily: head, fontSize: 26, fontWeight: 400, letterSpacing: '-0.02em', lineHeight: 1.12, margin: '14px 0 0' }}>{tr('dob.blockedTitle', { defaultValue: 'We can’t finish this here.' })}</h1>
+          <div style={{ fontFamily: body, fontSize: 15, lineHeight: 1.55, color: INKF70, marginTop: 12 }}>{tr('dob.blockedBody', { defaultValue: 'Your account setup didn’t complete, so there’s nothing to save this to yet. Contact support and we’ll put it right.' })}</div>
           <button onClick={onLogout} style={signOutBtn}>{tr('dob.signout', { defaultValue: 'Sign out' })}</button>
         </div>
       </div>
@@ -145,9 +148,9 @@ export default function BSDobGate({ blocked, onSaved, onLogout }) {
         <span style={{ color: INKF }}>{tr('dob.required', { defaultValue: 'Required' })}</span>
       </div>
       <form onSubmit={submit} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '100%', maxWidth: 360, margin: '0 auto' }}>
-        <h1 style={{ fontFamily: serif, fontSize: 27, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.1, margin: '14px 0 0' }}>{tr('dob.title', { defaultValue: 'Confirm your date of birth.' })}</h1>
+        <h1 style={{ fontFamily: head, fontSize: 26, fontWeight: 400, letterSpacing: '-0.02em', lineHeight: 1.12, margin: '14px 0 0' }}>{tr('dob.title', { defaultValue: 'Confirm your date of birth.' })}</h1>
         <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: INKF50, marginTop: 8 }}>{tr('dob.subtitle', { defaultValue: 'Adults 18 and over' })}</div>
-        <div style={{ fontFamily: serif, fontSize: 15, lineHeight: 1.55, color: INKF70, marginTop: 14 }}>{tr('dob.body', { defaultValue: 'Shape is for adults 18 and over, and every account needs a date of birth on file. You’ll only be asked once — the date can’t be changed afterwards, so check it before you save.' })}</div>
+        <div style={{ fontFamily: body, fontSize: 15, lineHeight: 1.55, color: INKF70, marginTop: 14 }}>{tr('dob.body', { defaultValue: 'Shape is for adults 18 and over, and every account needs a date of birth on file. You’ll only be asked once — the date can’t be changed afterwards, so check it before you save.' })}</div>
 
         <label htmlFor="bs-dob" style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: INKF50, marginTop: 20, display: 'block' }}>{tr('dob.label', { defaultValue: 'Date of birth' })}</label>
         <input
@@ -162,14 +165,14 @@ export default function BSDobGate({ blocked, onSaved, onLogout }) {
         {/* role="alert" so the refusal is announced, not just recoloured — this
             is the only feedback a member gets when the server rejects a date. */}
         {err ? (
-          <div role="alert" style={{ marginTop: 12, padding: '10px 12px', borderLeft: '3px solid #ff6b5e', background: 'rgba(255,107,94,0.09)', fontFamily: serif, fontSize: 13.5, lineHeight: 1.45, color: INKF }}>{err}</div>
+          <div role="alert" style={{ marginTop: 12, padding: '10px 12px', borderLeft: '3px solid #ff6b5e', background: 'rgba(255,107,94,0.09)', fontFamily: body, fontSize: 13.5, lineHeight: 1.45, color: INKF }}>{err}</div>
         ) : null}
 
         <button
           type="submit"
           disabled={busy || !dob}
           className="bs-wire-enter"
-          style={{ marginTop: 18, clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', padding: '14px', border: 0, background: (busy || !dob) ? 'rgba(52,214,197,0.35)' : ACCF, color: '#05080c', fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: (busy || !dob) ? 'default' : 'pointer' }}
+          style={{ marginTop: 18, borderRadius: 4, padding: '14px', border: 0, background: (busy || !dob) ? 'rgba(52,214,197,0.35)' : ACCF, color: '#05080c', fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: (busy || !dob) ? 'default' : 'pointer' }}
         >
           {busy ? tr('dob.saving', { defaultValue: 'Saving…' }) : tr('dob.cta', { defaultValue: 'Save and continue' })}
         </button>

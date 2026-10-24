@@ -33,6 +33,11 @@ const {
 // a converted figure ('5 €') into a locale string: Shape charges USD.
 const BS_PRICE = '$5';
 
+// The launch screens' headline face: the app's own, Saira, as every page inside sets its headings
+// (owner, 2026-10-24: "Update font and look of this splash page", after "Font needs to be same on
+// whole app"). The paywall, sign-in and join, the email check, the notifications ask, the age check,
+// the language pick and the coach application took a serif (Newsreader) with an italic accent.
+const BS_LAUNCH_HEAD = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
 let _clientBundlePromise = null;
 let _prosBundlePromise = null;
 
@@ -643,8 +648,8 @@ function BSSplash({ onDone, style = 'wire-beat' }) {
         )}
 
         {/* CTA — tap to enter the app (the whole screen is also tappable).
-            Clipped solid teal: the page's one action, matching the wall's JOIN. */}
-        <button onClick={onDone} className="bs-wire-enter" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', margin: '4px auto 0', width: 'fit-content', padding: '12px 30px', background: ACCF, color: '#05080c', border: 0, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
+            Flat solid teal: the page's one action, matching the wall's JOIN. */}
+        <button onClick={onDone} className="bs-wire-enter" style={{ borderRadius: 4, margin: '4px auto 0', width: 'fit-content', padding: '12px 30px', background: ACCF, color: '#05080c', border: 0, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
           <span>{tr('launch.stepInside')}</span>
           <span style={{ letterSpacing: 0 }}>→</span>
         </button>
@@ -988,7 +993,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
         <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(40px, calc(env(safe-area-inset-top, 0px) + 24px)) 24px calc(28px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16 }}>
           <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 110, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -12 }} />
           <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>{tr('login.verifyEyebrow')}</div>
-          <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 38, lineHeight: 0.95, letterSpacing: '-0.05em', color: CREAM }}>{tr('login.verifyTitlePre')}<br/><span style={{ fontStyle: 'italic', color: '#2ee0c4' }}>{tr('login.verifyTitleAccent')}</span></div>
+          <div style={{ fontFamily: BS_LAUNCH_HEAD, fontWeight: 300, fontSize: 34, lineHeight: 1.04, letterSpacing: '-0.03em', color: CREAM }}>{tr('login.verifyTitlePre')}<br/><span style={{ fontWeight: 400, color: '#2ee0c4' }}>{tr('login.verifyTitleAccent')}</span></div>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.5, color: 'rgba(244,239,230,0.8)' }}>
             {/* One key, email interpolated — the house rule: never split prose
                 AROUND a mid-sentence bold span, because word order moves. */}
@@ -1021,11 +1026,11 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           <div style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>
             {tr(isCreate ? 'login.eyebrowJoin' : 'login.eyebrowSignIn')}
           </div>
-          <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 37, lineHeight: 0.94, letterSpacing: '-0.045em', color: CREAM, marginTop: 4 }}>
+          <div style={{ fontFamily: BS_LAUNCH_HEAD, fontWeight: 300, fontSize: 34, lineHeight: 1.04, letterSpacing: '-0.03em', color: CREAM, marginTop: 4 }}>
             {isCreate ? (
-              <>{tr('login.titleJoinPre')}<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', color: '#2ee0c4' }}>{tr('login.titleJoinAccent')}</span></>
+              <>{tr('login.titleJoinPre')}<br/><span style={{ fontWeight: 400, color: '#2ee0c4' }}>{tr('login.titleJoinAccent')}</span></>
             ) : (
-              <>{tr('login.titleBackPre')}<br/><span style={{ fontWeight: 400, fontStyle: 'italic', letterSpacing: '-0.065em', color: '#2ee0c4' }}>{tr('login.titleBackAccent')}</span></>
+              <>{tr('login.titleBackPre')}<br/><span style={{ fontWeight: 400, color: '#2ee0c4' }}>{tr('login.titleBackAccent')}</span></>
             )}
           </div>
         </div>
@@ -1143,12 +1148,12 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           <div ref={captchaRef} style={{ display: 'flex', justifyContent: 'center' }} />
         )}
 
-        {/* Primary action — TRANSMIT, the launch's clipped solid-teal CTA */}
+        {/* Primary action — TRANSMIT, the launch's flat solid-teal CTA */}
         <button
           onClick={isPhone ? (otpSent ? verifyPhoneCode : sendPhoneCode) : (stepped && createStep === 1 ? advanceIdentity : submitAuth)}
           disabled={busy}
           className="bs-wire-enter"
-          style={{ width: '100%', marginTop: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', padding: '13px 14px', background: '#34d6c5', color: '#05080c', border: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
+          style={{ width: '100%', marginTop: 6, borderRadius: 4, padding: '13px 14px', background: '#34d6c5', color: '#05080c', border: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
           {busy
             ? tr(isCreate ? 'login.transmitting' : 'login.signingIn')
             : isPhone
@@ -1258,7 +1263,7 @@ function BSWireHold() {
 // Preview / Sign in / Sign out + the paywall_viewed analytics), re-set in the
 // launch's wire grammar: the drifting ticker behind it (the wire is live, you're
 // just not on it yet), the feature list as one dot-separated wire line, and a
-// clipped solid-teal JOIN as the one commerce action. Fixed-dark (a launch
+// flat solid-teal JOIN as the one commerce action, in the app's own face (Saira). Fixed-dark (a launch
 // surface), so it does NOT follow the paper theme — matching the beat/telegram.
 // The Terms of Service and the Privacy Policy, opened on the website (the system browser in the
 // installed app). Client-onboarding review, M4: the app's sign-up and paywall named neither. The
@@ -1290,8 +1295,8 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
   // needs a different order or a longer word doesn't have to re-punctuate one
   // baked-in sentence.
   const feat = ['training', 'nutrition', 'coaches', 'radio', 'score', 'byo'].map((k) => tr('paywall.feat.' + k));
-  const cta = { width: '100%', padding: '13px', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#05080c', fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' };
-  const ghost = { width: '100%', minHeight: 44, padding: '11px', border: `1px solid ${RULEF}`, background: 'transparent', color: INKF70, fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
+  const cta = { width: '100%', minHeight: 48, padding: '13px', borderRadius: 4, border: 0, background: teal, color: '#05080c', fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' };
+  const ghost = { width: '100%', minHeight: 44, padding: '11px', borderRadius: 4, border: `1px solid ${RULEF}`, background: 'transparent', color: INKF70, fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
   const textAction = { minHeight: 44, padding: '9px 24px', border: 0, background: 'transparent', color: teal, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
   return (
     <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF }}>
@@ -1299,7 +1304,7 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '52px 26px 34px' }}>
         <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 124, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -2, marginTop: 10, filter: 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 8 }}>
-          <h1 style={{ fontFamily: `'Newsreader', Georgia, serif`, fontSize: 40, fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 0.98, margin: '4px 0 0' }}>{tr('paywall.titlePre')} <span style={{ fontStyle: 'italic', color: teal }}>{tr('paywall.titleAccent')}</span></h1>
+          <h1 style={{ fontFamily: BS_LAUNCH_HEAD, fontSize: 36, fontWeight: 300, letterSpacing: '-0.03em', lineHeight: 1.04, margin: '4px 0 0' }}>{tr('paywall.titlePre')} <span style={{ fontWeight: 400, color: teal }}>{tr('paywall.titleAccent')}</span></h1>
           <div style={{ margin: '18px 0 0', fontFamily: mono, fontSize: 9.5, fontWeight: 500, lineHeight: 2.15, letterSpacing: '0.1em', textTransform: 'uppercase', color: INKF }}>
             {feat.join(' · ')}
           </div>
@@ -1361,7 +1366,7 @@ function BSPushAsk({ coach = false }) {
   const sheet = (
     <div role="dialog" aria-modal="true" aria-label={coach ? tr('settings:push.askTitleCoach') : tr('settings:push.askTitle')} style={{ position: 'absolute', inset: 0, zIndex: 60, display: 'flex', alignItems: 'flex-end', background: 'rgba(3,5,11,0.6)' }} onClick={later}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', padding: '22px 22px max(22px, calc(14px + env(safe-area-inset-bottom, 0px)))', background: '#0b161c', borderTop: '1px solid rgba(242,237,228,0.2)', color: '#f2ede4' }}>
-        <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{coach ? tr('settings:push.askTitleCoach') : tr('settings:push.askTitle')}</div>
+        <div style={{ fontFamily: BS_LAUNCH_HEAD, fontSize: 22, fontWeight: 400, letterSpacing: '-0.02em', lineHeight: 1.15 }}>{coach ? tr('settings:push.askTitleCoach') : tr('settings:push.askTitle')}</div>
         <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.5, color: 'rgba(242,237,228,0.75)' }}>{coach ? tr('settings:push.askBodyCoach') : tr('settings:push.askBody')}</div>
         <button type="button" onClick={turnOn} style={{ width: '100%', marginTop: 18, padding: 13, border: 0, background: '#34d6c5', color: '#05080c', fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('settings:push.askYes')}</button>
         <button type="button" onClick={later} style={{ width: '100%', minHeight: 44, marginTop: 8, border: '1px solid rgba(242,237,228,0.2)', background: 'transparent', color: 'rgba(242,237,228,0.7)', fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('settings:push.notNow')}</button>

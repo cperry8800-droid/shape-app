@@ -258,7 +258,7 @@ function BSWaterDay({ dayIso }) {
     <>
       <div data-bs-water="" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span aria-hidden style={{ width: 36, height: 36, borderRadius: 11, background: `${sky}1f`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+          <span aria-hidden style={{ width: 30, height: 30, borderRadius: 9, background: `${sky}1f`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={sky} strokeWidth="1.9" strokeLinejoin="round"><path d="M12 3c3.6 4.3 6 7.7 6 10.6A6 6 0 0 1 6 13.6C6 10.7 8.4 7.3 12 3z" /></svg>
           </span>
           {/* The total and the glasses share one wrapping row: the glasses sit beside the total and
@@ -266,8 +266,8 @@ function BSWaterDay({ dayIso }) {
               never squeeze Water or + Glass (Codex P2 on #2426). */}
           <span style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 6 }}>
             <span style={{ flex: '1 1 auto', minWidth: 0 }}>
-              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: t.INK }}>{tr('home:checkin.water', { defaultValue: 'Water' })}</span>
-              <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', color: t.INK }}>{tr('home:checkin.water', { defaultValue: 'Water' })}</span>
+              <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 12, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>
                 {known ? litres(water.l) : '—'}
                 {known && target ? ` ${tr('home:checkin.ofTarget', { defaultValue: 'of {target}', target: litres(target) })}` : null}
               </span>
@@ -280,14 +280,18 @@ function BSWaterDay({ dayIso }) {
               </span>
             ) : null}
           </span>
+          {/* The round you see is 38 px (owner, 2026-10-24: "make these smaller"); the tap stays 44,
+              its margin giving the row back the 6 px. */}
           <button type="button" data-bs-water-add="" aria-label={tr('home:checkin.addGlass', { defaultValue: '+ Glass' })} onClick={addWater} disabled={!water}
-            style={{ flex: 'none', width: 44, height: 44, minHeight: 44, padding: 0, border: 0, borderRadius: 999, background: onSky, color: t.isLight ? '#fff' : t.PAPER, cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: t.isLight ? '0 8px 16px -10px rgba(26,111,156,0.9)' : 'none' }}>
-            <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+            style={{ flex: 'none', width: 44, height: 44, minHeight: 44, margin: -3, padding: 0, border: 0, borderRadius: 999, background: 'transparent', color: t.isLight ? '#fff' : t.PAPER, cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span aria-hidden data-bs-water-add-dot="" style={{ width: 38, height: 38, borderRadius: 999, background: onSky, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: t.isLight ? '0 8px 16px -10px rgba(26,111,156,0.9)' : 'none' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+            </span>
           </button>
         </div>
-        {share ? <div style={{ fontFamily: t.BODY, fontSize: 11.5, color: t.INK50, paddingLeft: 46 }}>{tr('home:checkin.waterFromHealth', { defaultValue: 'Includes {amount} from Apple Health', amount: litres(share) })}</div> : null}
+        {share ? <div style={{ fontFamily: t.BODY, fontSize: 11.5, color: t.INK50, paddingLeft: 40 }}>{tr('home:checkin.waterFromHealth', { defaultValue: 'Includes {amount} from Apple Health', amount: litres(share) })}</div> : null}
         {signedIn && known && !target ? (
-          <button type="button" onClick={openPick} style={{ alignSelf: 'flex-start', minHeight: 32, margin: '-2px 0 -6px 46px', padding: '4px 0', border: 0, background: 'transparent', color: sky, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>{tr('home:water.setTarget', { defaultValue: 'Set a daily target' })}<span aria-hidden> ›</span></button>
+          <button type="button" onClick={openPick} style={{ alignSelf: 'flex-start', minHeight: 32, margin: '-2px 0 -6px 40px', padding: '4px 0', border: 0, background: 'transparent', color: sky, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>{tr('home:water.setTarget', { defaultValue: 'Set a daily target' })}<span aria-hidden> ›</span></button>
         ) : null}
         {errLine('water')}
       </div>

@@ -975,10 +975,10 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   const fill = t.isLight ? '#08776f' : teal;
   const onFill = t.isLight ? '#fff' : t.PAPER;
   const tile = (bg, child) => (
-    <span aria-hidden style={{ width: 36, height: 36, borderRadius: 11, background: bg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{child}</span>
+    <span aria-hidden style={{ width: 30, height: 30, borderRadius: 9, background: bg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{child}</span>
   );
   const sun = (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={teal} strokeWidth="1.9" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" /></svg>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={teal} strokeWidth="1.9" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" /></svg>
   );
   const tick = (color, size) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12.5l4.2 4.2L19 7" /></svg>
@@ -986,10 +986,11 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   const streakChip = signedIn && streak >= 2 ? (
     <span style={{ ...mono, fontSize: 8.5, letterSpacing: '0.1em', color: amber, whiteSpace: 'nowrap' }}>{tr('home:checkin.streak', { defaultValue: '{n, plural, one {# day running} other {# days running}}', n: streak })}</span>
   ) : null;
-  const title = { fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.15, color: t.INK };
-  const sub = { fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: t.INK50 };
+  // A step down (owner, 2026-10-24: "make these smaller").
+  const title = { fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.15, color: t.INK };
+  const sub = { fontFamily: t.BODY, fontSize: 12, lineHeight: 1.35, color: t.INK50 };
   const startLabel = manual ? tr('home:checkin.continue', { defaultValue: 'Continue →' }) : tr('home:checkin.start', { defaultValue: 'Start check-in →' });
-  const bigButton = { width: '100%', minHeight: 52, border: 0, borderRadius: 13, background: fill, color: onFill, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '6px 16px', textAlign: 'left', boxShadow: t.isLight ? `0 6px 16px -9px ${fill}` : 'none' };
+  const bigButton = { width: '100%', minHeight: 44, border: 0, borderRadius: 10, background: fill, color: onFill, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '5px 14px', textAlign: 'left', boxShadow: t.isLight ? `0 6px 16px -9px ${fill}` : 'none' };
   const ring = (score) => {
     const r = 18;
     const c = 2 * Math.PI * r;
@@ -1068,16 +1069,16 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
             <div data-bs-checkin-actions="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
               {same ? (
                 <button type="button" onClick={() => answer(same)} style={bigButton}>
-                  <span aria-hidden style={{ width: 22, height: 22, borderRadius: 999, background: t.isLight ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.18)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{tick(onFill, 13)}</span>
+                  <span aria-hidden style={{ width: 20, height: 20, borderRadius: 999, background: t.isLight ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.18)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{tick(onFill, 12)}</span>
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600 }}>{tr('home:checkin.same', { defaultValue: 'Same as yesterday' })}</span>
-                    <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 12, opacity: 0.88, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sameLine}</span>
+                    <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600 }}>{tr('home:checkin.same', { defaultValue: 'Same as yesterday' })}</span>
+                    <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 11.5, opacity: 0.88, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sameLine}</span>
                   </span>
                 </button>
               ) : null}
               <button type="button" onClick={() => open(firstOpen())} style={same
-                ? { alignSelf: 'flex-start', minHeight: 40, padding: '0 2px', border: 0, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600 }
-                : { ...bigButton, justifyContent: 'center', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600 }}>
+                ? { alignSelf: 'flex-start', minHeight: 40, padding: '0 2px', border: 0, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600 }
+                : { ...bigButton, justifyContent: 'center', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600 }}>
                 {startLabel}
               </button>
             </div>
@@ -1096,7 +1097,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
 export function BSMorningPanel({ children }) {
   const t = window.useBS();
   return (
-    <section data-bs-morning="" style={{ margin: `8px ${t.padX}px 4px`, padding: '14px 14px 13px', borderRadius: 16, background: t.PAPER2 || t.PAPER, border: t.isLight ? 0 : `1px solid ${t.HAIR}`, boxShadow: t.isLight ? '0 10px 24px -18px rgba(15,14,12,0.45)' : 'none' }}>
+    <section data-bs-morning="" style={{ margin: `8px ${t.padX}px 4px`, padding: '12px 12px 11px', borderRadius: 14, background: t.PAPER2 || t.PAPER, border: t.isLight ? 0 : `1px solid ${t.HAIR}`, boxShadow: t.isLight ? '0 10px 24px -18px rgba(15,14,12,0.45)' : 'none' }}>
       {children}
       <style>{`[data-bs-morning] [data-bs-checkin-card] + [data-bs-water]{margin-top:12px;padding-top:12px;border-top:1px solid ${t.HAIR}}`}</style>
     </section>

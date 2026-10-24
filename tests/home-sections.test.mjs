@@ -292,10 +292,11 @@ test('Your goal: the words, where the weigh-ins stand in the member\'s units, th
   assert.equal(line.props.points.length, 6, 'the line is the last 56 days of weigh-ins');
   assert.match(line.props.label, /^Weigh-ins from 176\.4 to 171\.1 lb$/, 'and is labelled');
   assert.equal(d.nodes()[0].props['data-tour'], 'hero-goal', 'the tour\'s goal step anchors here');
-  // A step smaller (owner, 2026-10-23: "make this a little smaller"): the figure 42, the three under it 18.
+  // Another step smaller (owner, 2026-10-24: "make these smaller"): the figure 34, the three under it 16.
   const now = d.nodes().find((n) => n.type === 'span' && n.props.children === '171.1');
-  assert.equal(now.props.style.fontSize, 42);
-  const figs = d.nodes().filter((n) => n.type === 'div' && n.props.style && n.props.style.fontVariantNumeric === 'tabular-nums' && n.props.style.fontSize === 18);
+  assert.equal(now.props.style.fontSize, 34);
+  // The goal beside the figure is 16 too; it reads as a number and its unit, the three as one string.
+  const figs = d.nodes().filter((n) => n.type === 'div' && n.props.style && n.props.style.fontVariantNumeric === 'tabular-nums' && n.props.style.fontSize === 16 && typeof n.props.children === 'string');
   assert.equal(figs.length, 3);
   const weighIn = d.nodes().find((n) => fn('BSHsAction')(n) && n.props.label === 'Weigh in →');
   weighIn.props.onClick();

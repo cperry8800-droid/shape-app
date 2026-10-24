@@ -6502,7 +6502,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{coachDayName} · <span style={{ color: t.INK50 }}>{tr('session:train.coachRole', { defaultValue: 'Coach · Trainer' })}</span></div>
         ) : null}
         {!isRestDay ? (
-          <BSFocusActions
+          <BSFocusActions color={t.RUST}
             primary={{ label: `${tr('session:train.startAria', { defaultValue: 'Start session' })} →`, onClick: () => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); } }}
             secondary={effMoves.length > 0 ? { label: `${tr('session:train.swap', { defaultValue: 'Swap' })} →`, onClick: () => setSwapIdx('pick') } : null} />
         ) : (
@@ -24414,7 +24414,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: akind === 'TRAINER' || akind === 'NUTRI' ? magRed : muted }}>{roleMeta.label}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
             </div>
-            <div style={{ borderRadius: 0, padding: p.photo && !p.body ? 4 : '11px 14px', background: p.official ? bubbleBg : (right ? bsTHexA(t.INK, 0.05) : 'transparent'), color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${bsTHexA(t.INK, 0.18)}`, fontFamily: p.official ? `'Newsreader', Georgia, serif` : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4, overflow: 'hidden' }}>
+            <div style={{ borderRadius: 0, padding: p.photo && !p.body ? 4 : '11px 14px', background: p.official ? bubbleBg : (right ? bsTHexA(t.INK, 0.05) : 'transparent'), color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${bsTHexA(t.INK, 0.18)}`, fontFamily: t.DISPLAY, fontStyle: 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4, overflow: 'hidden' }}>
               {p.body && <div style={{ padding: p.photo ? '7px 10px 9px' : 0 }}>{p.body}</div>}
               {p.photo && <img src={p.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover' }} />}
               {Array.isArray(p.mentions) && p.mentions.length > 0 && (
