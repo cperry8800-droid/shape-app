@@ -118,3 +118,22 @@ test('the card moves to the new week past Sunday midnight with nothing else redr
   assert.deepEqual(asked, ['2026-10-19', '2026-10-26'], 'a minute later it reads the new week');
   await m.close();
 });
+
+// Codex P2 on #2437: Connect opens Integrations over Train, so the card is still mounted when a
+// sync lands; the backend's shape:activitiesChanged reads the week again.
+test('a sync or a logged workout reads the week again, keeping the last read meanwhile', async () => {
+  signIn();
+  let calls = 0;
+  let release;
+  W.ShapeBurn = { week: async () => { calls += 1; if (calls === 1) return { ok: true, snaps: [], acts: [] }; await new Promise((r) => { release = r; }); return { ok: true, snaps: [], acts: [{ started_at: new Date().toISOString(), calories: 450, source: 'whoop' }] }; } };
+  const m = await mount();
+  assert.match(m.text(), /Nothing tracked yet this week\./);
+  await React.act(async () => { W.dispatchEvent(new W.CustomEvent('shape:activitiesChanged')); });
+  assert.equal(calls, 2);
+  assert.match(m.text(), /Nothing tracked yet this week\./, 'no flash to loading while it reads');
+  await React.act(async () => { release(); });
+  await flush();
+  assert.match(m.text(), /450kcal/);
+  assert.match(m.text(), /· WHOOP/);
+  await m.close();
+});

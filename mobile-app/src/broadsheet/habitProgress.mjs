@@ -90,10 +90,13 @@ export function hpWeek(habits, { anchor, today, firstDay = 0, windowStart = null
   const prev = tally(prevCols);
   const prevDays = prevCols.filter((c) => c.active > 0).length;
   const most = Math.max(0, ...cols.map((c) => c.active));
+  const prevAvg = prev.slots ? prev.kept / prevDays : null;
   return {
     start, end: days[6], days: cols, ...tally(cols),
-    prev: prev.slots ? { ...prev, avgPerDay: prev.kept / prevDays } : null,
-    scale: Math.max(1, most || habits.filter((h) => !h.archivedOn).length),
+    prev: prevAvg != null ? { ...prev, avgPerDay: prevAvg } : null,
+    // Last week's average line stays on the chart when habits it counted have since been deleted
+    // (Codex P2 on #2437).
+    scale: Math.max(1, most || habits.filter((h) => !h.archivedOn).length, Math.ceil(prevAvg || 0)),
     perHabit: perHabit(habits, days, opts),
     isCurrent: days.includes(today),
   };

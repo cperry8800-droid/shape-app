@@ -12,14 +12,14 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
 
-function db({ refuse = false, existing = [] } = {}) {
+function db({ refuse = false, existing = [], readFails = false } = {}) {
   const writes = { activities: [], posts: [] };
   const client = {
     writes,
     from(table) {
       const chain = {
         select: () => chain, eq: () => chain,
-        in: async () => ({ data: table === 'activities' ? existing : [], error: null }),
+        in: async () => (readFails ? { data: null, error: { message: 'offline' } } : { data: table === 'activities' ? existing : [], error: null }),
         maybeSingle: async () => ({ data: null, error: null }),
         upsert: async (row) => {
           if (table === 'activities') {
@@ -194,6 +194,19 @@ test('Strava reads a recent activity’s calories from its detail, once', async 
   assert.ok(failing.writes.activities.every((r) => !r.metrics.caloriesChecked), 'a failed read is tried again next sync');
 });
 
+// Codex P2 on #2437: with the rows on file unread, writing would put the list's no-calories over
+// the calories stored, so the sync writes no row and says so (the app then tries again).
+test('Strava writes no row when it cannot read the calories on file', async () => {
+  const client = db({ readFails: true });
+  const route = await load('src/app/api/integrations/strava/sync/route.ts', client, [['@/lib/health-snapshot', { writeStravaSnapshots: async () => ({ days: 0 }) }]]);
+  const run = { id: 42, name: 'Morning run', sport_type: 'Run', start_date: new Date().toISOString(), moving_time: 1800, distance: 5000 };
+  const { out, logged } = await withFetch((url) => (url.includes('/athlete/activities') ? [run] : { id: 7 }), async () => route.GET(new Request('https://shape.test/api/integrations/strava/sync')));
+  const body = await out.json();
+  assert.equal(client.writes.activities.length, 0, 'nothing overwritten');
+  assert.deepEqual(body.activities, { written: 0, errors: ['Could not save an activity.'] });
+  assert.ok(logged.some((l) => /strava calories read failed/.test(l)));
+});
+
 // Codex P2 on #2437: the app's callers read only response.ok, so a reply carrying refused rows
 // read as a sync that worked (the Integrations page's "synced" toast, the check-in card's 30-minute
 // wait). The app's syncWhoop and syncStrava, cut from shapeBackend.js and run, now fail on them.
@@ -210,7 +223,13 @@ test('the app’s WHOOP and Strava syncs fail when the server could not save the
   const refused = appSync({ activities: { written: 0, errors: ['Could not save an activity.'] } });
   await assert.rejects(refused.syncWhoop(), /WHOOP synced, but its workouts weren’t saved/);
   await assert.rejects(refused.syncStrava({ importActivities: true }), /Strava synced, but its workouts weren’t saved/);
+  const fired = [];
+  globalThis.window = { dispatchEvent: (e) => fired.push(e.type) };
+  await assert.rejects(refused.syncWhoop());
+  assert.deepEqual(fired, [], 'a sync that saved no rows tells nothing to read again');
   const saved = appSync({ activities: { written: 2, errors: [] }, snapshot: { days: 1 } });
   assert.deepEqual((await saved.syncWhoop()).activities, { written: 2, errors: [] });
+  assert.deepEqual(fired, ['shape:activitiesChanged'], 'Train’s Burned this week is told to read again');
+  delete globalThis.window;
   assert.equal((await appSync({ snapshot: { days: 0 } }).syncStrava()).snapshot.days, 0, 'a reply with no rows field is a sync that worked');
 });

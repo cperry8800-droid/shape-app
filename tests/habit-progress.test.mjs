@@ -68,6 +68,12 @@ test('a deleted habit keeps the days it was kept, and is no miss once it went', 
   const early = { ...water, archivedOn: '2026-10-05' };
   assert.ok(!hpWeek([smoke, early], { ...opts, anchor: TODAY }).perHabit.some((r) => r.habit.id === 'w'), 'no row in a week it was gone for');
   assert.equal(hpWeek([early], { ...opts, anchor: TODAY }).scale, 1);
+  // Last week counted three habits, two deleted since: its average line still fits the chart.
+  const lastWeek = days('2026-10-11', '2026-10-17');
+  const kept3 = (id, type) => ({ id, name: id, type, createdOn: '2026-10-01', history: lastWeek });
+  const shrunk = hpWeek([{ ...kept3('a', 'do'), archivedOn: '2026-10-17' }, { ...kept3('b', 'do'), archivedOn: '2026-10-17' }, { ...kept3('c', 'do'), history: [...lastWeek, '2026-10-18'] }], { ...opts, anchor: TODAY });
+  assert.equal(shrunk.prev.avgPerDay, 3);
+  assert.ok(shrunk.scale >= 3, `scale ${shrunk.scale} cuts last week’s average of 3 off the chart`);
   const m = hpMonth([smoke, early], { ...opts, anchor: TODAY }).perHabit.find((r) => r.habit.id === 'w');
   assert.deepEqual([m.kept, m.of], [4, 5], 'the month it went in: the 1st to the 5th');
 });

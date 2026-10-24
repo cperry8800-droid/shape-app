@@ -4162,6 +4162,7 @@ async function syncWhoop({ importWorkouts = false } = {}) {
     throw new Error(payload.error || 'WHOOP sync failed.');
   }
   bsSyncRowsSaved(payload, 'WHOOP');
+  bsActivitiesChanged();
   return payload;
 }
 
@@ -4185,6 +4186,7 @@ async function syncStrava({ importActivities = false } = {}) {
     throw new Error(payload.error || 'Strava sync failed.');
   }
   bsSyncRowsSaved(payload, 'Strava');
+  bsActivitiesChanged();
   return payload;
 }
 
@@ -4195,6 +4197,12 @@ function bsSyncRowsSaved(payload, name) {
   if (payload?.activities?.errors?.length) {
     throw new Error(`${name} synced, but its workouts weren’t saved. Try again.`);
   }
+}
+
+// A sync or a logged workout tells Train's Burned this week to read again (Codex P2 on #2437): the
+// card stays mounted under Settings → Integrations, where its Connect link sends the member.
+function bsActivitiesChanged() {
+  try { window.dispatchEvent(new CustomEvent('shape:activitiesChanged')); } catch (e) { /* no window */ }
 }
 
 async function syncOura({ importWorkouts = false } = {}) {
@@ -4216,6 +4224,7 @@ async function syncOura({ importWorkouts = false } = {}) {
   if (!response.ok) {
     throw new Error(payload.error || 'Oura sync failed.');
   }
+  bsActivitiesChanged();
   return payload;
 }
 
@@ -4271,6 +4280,7 @@ async function syncAppleHealth({ importWorkouts = true, prompt = true, days } = 
   if (!response.ok) {
     throw new Error(payload.error || 'Apple Health sync failed.');
   }
+  bsActivitiesChanged();
   return payload;
 }
 
@@ -5655,6 +5665,7 @@ async function logActivity({ activityType, durationMin, distanceKm, calories, st
   });
   const d = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(d.error || 'Could not log activity.');
+  bsActivitiesChanged();
   return d;
 }
 

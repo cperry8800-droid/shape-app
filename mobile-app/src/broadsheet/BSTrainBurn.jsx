@@ -67,6 +67,13 @@ export function BSTrainBurn() {
       .catch(() => { if (on) setRead({ ok: false, uid, monday }); });
     return () => { on = false; };
   }, [uid, monday, tries]);
+  // A sync or a logged workout reads the week again (Codex P2 on #2437): the card stays mounted
+  // under Settings → Integrations, where Connect sends the member. The last read shows meanwhile.
+  useEffect(() => {
+    const again = () => setTries((n) => n + 1);
+    window.addEventListener('shape:activitiesChanged', again);
+    return () => window.removeEventListener('shape:activitiesChanged', again);
+  }, []);
   // A read is used only for its own account and week: the tab left open across Sunday night reads
   // the new week, and another account never sees the last one's.
   const held = read && read.uid === uid && read.monday === monday ? read : null;

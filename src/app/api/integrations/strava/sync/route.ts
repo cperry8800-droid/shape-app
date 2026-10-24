@@ -438,8 +438,9 @@ type StravaCalories = { calories: number | null; checked: boolean };
 // this week needs them, so an activity of the last eight days is read once for its calories: a row
 // that already holds them, or was read and had none (metrics.caloriesChecked), keeps what it has.
 // At most 3 details a sync, newest first, and none after a failed read, because Strava's rate limit
-// is shared by every member.
-async function stravaCalories(client: SupabaseClient, userId: string, accessToken: string, activities: StravaActivity[]) {
+// is shared by every member. null when the rows on file can't be read: writing then would put the
+// list's no-calories over the ones stored (Codex P2 on #2437).
+async function stravaCalories(client: SupabaseClient, userId: string, accessToken: string, activities: StravaActivity[]): Promise<Map<string, StravaCalories> | null> {
   const known = new Map<string, StravaCalories>();
   const ids = activities.filter((a) => a.id).map((a) => String(a.id));
   if (!ids.length) return known;
@@ -449,7 +450,10 @@ async function stravaCalories(client: SupabaseClient, userId: string, accessToke
     .eq('user_id', userId)
     .eq('source', 'strava')
     .in('external_id', ids);
-  if (error) console.warn('[shape-api] strava calories read failed:', error.message);
+  if (error) {
+    console.error('[shape-api] strava calories read failed:', error.message);
+    return null;
+  }
   for (const row of (data || []) as { external_id: string; calories: number | null; metrics: { caloriesChecked?: boolean } | null }[]) {
     const has = typeof row.calories === 'number' && row.calories > 0;
     if (has || row.metrics?.caloriesChecked) known.set(String(row.external_id), { calories: has ? row.calories : null, checked: true });
@@ -481,6 +485,7 @@ async function writeStravaActivityRows(client: SupabaseClient, userId: string, a
   let written = 0;
   const errors: string[] = [];
   const known = await stravaCalories(client, userId, accessToken, activities);
+  if (!known) return { written, errors: ['Could not save an activity.'] };
   for (const activity of activities) {
     if (!activity.id) continue;
     const { error } = await client
