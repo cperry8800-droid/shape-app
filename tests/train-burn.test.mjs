@@ -1,5 +1,6 @@
-// Train's Burned this week (owner, 2026-10-24), MOUNTED in jsdom with the shipping module: the
-// week's total and daily average from the member's rows, "—" and a way to connect when nothing is
+// Train's Burned this week (owner, 2026-10-24; made a compact card with a line, "smaller, different
+// chart type"), MOUNTED in jsdom with the shipping module: the week's total and daily average from
+// the member's rows, "—" and a way to connect when nothing is
 // tracked, a failed read that can be tried again, and the preview's sample week marked as one.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -55,10 +56,12 @@ test('signed in: the week’s total, its daily average, and where it came from',
   const m = await mount();
   assert.deepEqual(asked, [monday], 'reads the strip’s own week, Monday first');
   assert.match(m.text(), /Burned this week/);
-  assert.match(m.text(), /1,200kcal burned/);
-  assert.match(m.text(), /1,200\/day · 1 day/);
-  assert.match(m.text(), /From Apple Health/);
-  assert.equal(m.host.querySelectorAll('[role="img"] > div').length, 7, 'a bar a day');
+  assert.match(m.text(), /1,200kcal/);
+  assert.match(m.text(), /1,200\/day · Apple Health/);
+  // The line's points: one per day with a reading (the seven baseline ticks are r 1.2).
+  const points = [...m.host.querySelectorAll('svg circle')].filter((c) => c.getAttribute('r') !== '1.2');
+  assert.equal(points.length, 1, 'a point a day with a reading');
+  assert.equal(m.host.querySelectorAll('svg circle').length, 8, 'and a tick for each of the seven days');
   await m.close();
 });
 
@@ -68,9 +71,10 @@ test('nothing tracked reads "—" and offers to connect, never 0', async () => {
   let opened = 0;
   W.addEventListener('shape:openIntegrations', () => { opened += 1; });
   const m = await mount();
-  assert.match(m.text(), /—kcal burned/);
+  assert.match(m.text(), /—kcal/);
   assert.doesNotMatch(m.text(), /\b0 ?kcal/);
-  assert.match(m.text(), /Connect Apple Health, Strava or a watch/);
+  assert.match(m.text(), /Nothing tracked yet this week\./);
+  assert.equal(m.host.querySelectorAll('svg path').length, 0, 'no line through days with nothing tracked');
   await React.act(async () => { m.btn(/Connect/).click(); });
   assert.equal(opened, 1, 'Connect opens the integrations');
   await m.close();
@@ -85,8 +89,8 @@ test('a failed read says so and can be tried again', async () => {
   await React.act(async () => { m.btn(/Retry/).click(); });
   await flush();
   assert.equal(calls, 2);
-  assert.match(m.text(), /450kcal burned/);
-  assert.match(m.text(), /From Strava/);
+  assert.match(m.text(), /450kcal/);
+  assert.match(m.text(), /· Strava/);
   await m.close();
 });
 
@@ -94,7 +98,9 @@ test('signed out shows the preview’s sample week, marked as one', async () => 
   W.ShapeAuth = { getCachedState: () => ({ user: null }) };
   W.ShapeBurn = { week: async () => { throw new Error('signed-out preview must not read'); } };
   const m = await mount();
-  assert.match(m.text(), /Sample week/);
+  assert.match(m.text(), /\/day · Sample week/);
+  assert.doesNotMatch(m.text(), /Apple Health/, 'the sample names no source it did not come from');
   assert.doesNotMatch(m.text(), /—kcal/);
+  assert.ok(m.host.querySelectorAll('svg path').length >= 2, 'the sample week draws its line');
   await m.close();
 });

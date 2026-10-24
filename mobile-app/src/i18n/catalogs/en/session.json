@@ -353,14 +353,13 @@
   "train.playlistBy": "{who} · Your trainer",
   "burn.title": "Burned this week",
   "burn.sample": "Sample week",
-  "burn.kcalWord": "kcal burned",
-  "burn.avg": "{avg}/day · {count, plural, one {# day} other {# days}}",
+  "burn.kcalWord": "kcal",
+  "burn.avg": "{avg}/day",
   "burn.chartAria": "Calories burned each day this week",
   "burn.reading": "Reading your week…",
   "burn.failed": "Couldn’t read your activity",
   "burn.retry": "Retry",
-  "burn.none": "Nothing tracked this week yet. Connect Apple Health, Strava or a watch to count what you burn.",
+  "burn.none": "Nothing tracked yet this week.",
   "burn.connect": "Connect",
-  "burn.from": "From {sources}",
   "burn.manual": "your log"
 }

@@ -353,14 +353,13 @@
   "train.playlistBy": "{who} · Mai horar da kai",
   "burn.title": "An ƙone a wannan makon",
   "burn.sample": "Misalin mako",
-  "burn.kcalWord": "kcal da aka ƙone",
-  "burn.avg": "{avg}/rana · {count, plural, one {rana #} other {kwanaki #}}",
+  "burn.kcalWord": "kcal",
+  "burn.avg": "{avg}/rana",
   "burn.chartAria": "Kalorin da aka ƙone kowace rana a wannan makon",
   "burn.reading": "Ana karanta makonka…",
   "burn.failed": "Ba a iya karanta ayyukanka ba",
   "burn.retry": "Sake gwadawa",
-  "burn.none": "Ba a rubuta komai a wannan makon ba tukuna. Haɗa Apple Health, Strava ko agogo don ƙirga abin da kake ƙonewa.",
+  "burn.none": "Ba a rubuta komai a wannan makon ba tukuna.",
   "burn.connect": "Haɗa",
-  "burn.from": "Daga {sources}",
   "burn.manual": "rubutunka"
 }

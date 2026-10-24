@@ -353,14 +353,13 @@
   "train.playlistBy": "{who} · Seu treinador",
   "burn.title": "Queimadas nesta semana",
   "burn.sample": "Semana de exemplo",
-  "burn.kcalWord": "kcal queimadas",
-  "burn.avg": "{avg}/dia · {count, plural, one {# dia} other {# dias}}",
+  "burn.kcalWord": "kcal",
+  "burn.avg": "{avg}/dia",
   "burn.chartAria": "Calorias queimadas a cada dia nesta semana",
   "burn.reading": "Lendo sua semana…",
   "burn.failed": "Não foi possível ler sua atividade",
   "burn.retry": "Tentar de novo",
-  "burn.none": "Nada registrado nesta semana ainda. Conecte Apple Health, Strava ou um relógio para contar o que você queima.",
+  "burn.none": "Nada registrado nesta semana ainda.",
   "burn.connect": "Conectar",
-  "burn.from": "De {sources}",
   "burn.manual": "seu registro"
 }

@@ -353,14 +353,13 @@
   "train.playlistBy": "{who} · Ваш тренер",
   "burn.title": "Сожжено за неделю",
   "burn.sample": "Пример недели",
-  "burn.kcalWord": "ккал сожжено",
-  "burn.avg": "{avg}/день · {count, plural, one {# день} few {# дня} many {# дней} other {# дня}}",
+  "burn.kcalWord": "ккал",
+  "burn.avg": "{avg}/день",
   "burn.chartAria": "Сожжённые калории по дням этой недели",
   "burn.reading": "Читаем твою неделю…",
   "burn.failed": "Не удалось прочитать активность",
   "burn.retry": "Повторить",
-  "burn.none": "На этой неделе пока ничего не записано. Подключи Apple Health, Strava или часы, чтобы считать сожжённое.",
+  "burn.none": "На этой неделе пока ничего не записано.",
   "burn.connect": "Подключить",
-  "burn.from": "Из: {sources}",
   "burn.manual": "твой журнал"
 }
