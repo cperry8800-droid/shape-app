@@ -2,6 +2,7 @@ import React from 'react';
 import { bsCiIso, bsCiShift, bsCiDay, bsCiWindow, bsCiWordIndex, bsCiMostly, bsCiHM, bsCiShortNight, bsCiUsualNight, bsCiWornNight, bsCiCoachingOf, bsCiWhoSees, bsCiSettled, bsCiLanded, bsCiWords, bsCiBandWords, bsCiTodayRead, bsCiTodayReadText, BS_CI_HYDRATION_SYNCED, BS_CI_SHORT_NIGHT_H } from './BSCheckinCard.jsx';
 import { morningReadinessForDay } from '../services/morningReadiness.mjs';
 import { morningPatternsFor } from '../services/morningPatterns.mjs';
+import { bsWsRed } from './bsMagazine.mjs';
 // ─── YOUR MORNINGS: THE MORNING CHECK-IN OVER TIME ───────────────────────────────────────────────
 // docs/REVIEW-2026-10-19-morning-checkin.md §3.5 and §3.8 (part 2), §3.6 (part 3). One read-only page,
 // from the same /api/client/progress read the morning card makes, so a page opened from the card costs
@@ -400,10 +401,12 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
   const mono = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
   const dot = { position: 'absolute', left: '50%', top: -7, width: 4, height: 4, marginLeft: -2, borderRadius: 99, background: t.INK70 };
   const stub = { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: t.INK50 };
+  // Each station opens on the Me page's head, in the Wall's look (owner, 2026-10-24: "update design and
+  // layout here"): its name in the headline face over a 2px ink rule, its colour kept as the key before it.
   const head = (label, color) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-      <span aria-hidden style={{ flex: 'none', width: 10, height: 2, background: color }} />
-      <h2 style={{ margin: 0, ...mono, fontSize: 9.5, letterSpacing: '0.2em', color: t.INK }}>{label}</h2>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 6, marginBottom: 12, borderBottom: `2px solid ${t.INK}` }}>
+      <span aria-hidden style={{ flex: 'none', width: 8, height: 8, background: color }} />
+      <h2 style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, lineHeight: 1, letterSpacing: '0.02em', textTransform: 'uppercase', color: t.INK }}>{label}</h2>
     </div>
   );
 
@@ -439,7 +442,7 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
           const day = `${weekday} ${Number(c.iso.slice(8))}`;
           return (
             <div key={c.iso} role="img" data-bs-mornings-day={c.iso} data-bs-mornings-mark={c.mark || undefined} aria-label={tr('home:mornings.dayAria', { defaultValue: '{day}: {value}', day, value: c.value || noAnswer })}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 0 7px', borderRadius: 5, border: `1px solid ${c.iso === todayIso ? t.RULE : 'transparent'}`, minWidth: 0 }}>
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 0 7px', borderRadius: 0, border: `1px solid ${c.iso === todayIso ? t.INK30 : 'transparent'}`, minWidth: 0 }}>
               <span style={{ ...mono, fontSize: 8, letterSpacing: '0.1em', color: t.INK50 }}>{weekday}</span>
               <span style={{ position: 'relative', width: 14, height: 44, background: t.HAIR }}>{bar(c)}</span>
               <span style={{ fontFamily: t.MONO, fontWeight: 800, textTransform: 'uppercase', color: c.label ? t.INK : t.INK50, textAlign: 'center', lineHeight: 1.15, minHeight: 18, maxWidth: '100%', ...bsMorningsFit(c.label || '—', 7.5) }}>{c.label || '—'}</span>
@@ -496,7 +499,7 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
         {r ? (
           <>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 6 }}>
-              <span data-bs-mornings-score="" style={{ fontFamily: t.DISPLAY, fontSize: 56, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1, color, fontVariantNumeric: 'tabular-nums' }}>{r.score}</span>
+              <span data-bs-mornings-score="" style={{ fontFamily: t.DISPLAY, fontSize: 56, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1, color, fontVariantNumeric: 'tabular-nums' }}>{r.score}</span>
               <span data-bs-mornings-band={r.band} style={{ ...mono, fontSize: 10.5, letterSpacing: '0.12em', color: r.band === 'easy' ? amberText : color }}>{BAND[r.band]}</span>
             </div>
             <div aria-hidden style={{ marginTop: 10, height: 4, background: t.HAIR }}>
@@ -564,15 +567,19 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
     );
   };
 
-  // 7 days | 30 days, stuck below the condensed masthead.
+  // 7 days | 30 days, stuck below the condensed masthead: the strip the Wall and the profiles open on, the
+  // words in the headline face between a heavy rule and a hairline, the one shown underlined in red.
+  const red = bsWsRed(t);
   const rangeSwitch = (
-    <div data-bs-mornings-range="" style={{ position: 'sticky', top: pinnedTop, zIndex: 3, margin: '18px 0 0', padding: `8px ${t.padX}px`, background: t.PAPER, borderBottom: `1px solid ${t.HAIR}` }}>
-      <div role="group" aria-label={tr('home:mornings.rangeAria', { defaultValue: 'Show' })} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 3, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: 3 }}>
+    <div data-bs-mornings-range="" style={{ position: 'sticky', top: pinnedTop, zIndex: 3, margin: '18px 0 0', padding: `0 ${t.padX}px`, background: t.PAPER, borderTop: `3px solid ${t.INK}`, borderBottom: `1px solid ${t.HAIR}` }}>
+      <div role="group" aria-label={tr('home:mornings.rangeAria', { defaultValue: 'Show' })} style={{ display: 'flex', gap: 22 }}>
         {[7, 30].map((n) => {
           const on = range === n;
           return (
-            <button key={n} type="button" aria-pressed={on} onClick={() => setRange(n)} style={{ minHeight: 32, padding: '0 6px', borderRadius: 999, border: 0, cursor: 'pointer', background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, ...mono, fontSize: 9.5, letterSpacing: '0.1em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {n === 7 ? tr('home:mornings.range7', { defaultValue: '7 days' }) : tr('home:mornings.range30', { defaultValue: '30 days' })}
+            <button key={n} type="button" aria-pressed={on} onClick={() => setRange(n)} style={{ minHeight: 44, padding: 0, border: 0, cursor: 'pointer', background: 'transparent', display: 'flex', alignItems: 'stretch' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', boxShadow: on ? `inset 0 -2px 0 ${red}` : 'none', color: on ? t.INK : t.INK50, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                {n === 7 ? tr('home:mornings.range7', { defaultValue: '7 days' }) : tr('home:mornings.range30', { defaultValue: '30 days' })}
+              </span>
             </button>
           );
         })}
@@ -605,7 +612,7 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
         <p data-bs-mornings-headline="" style={{ margin: '0 0 8px', fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.25, color: t.INK }}>{headline(kind, h)}</p>
         {dir ? (
           <div data-bs-mornings-dir={dir} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 8px', margin: '0 0 12px' }}>
-            <span style={{ padding: '4px 9px', borderRadius: 999, border: `1px solid ${COLOR[kind]}66`, color: kind === 'hunger' ? amberText : COLOR[kind], ...mono, fontSize: 8.5, letterSpacing: '0.12em' }}>{dir === 'same' ? same : DIR[kind][dir]}</span>
+            <span style={{ padding: '3px 7px', borderRadius: 0, border: `1px solid ${COLOR[kind]}66`, color: kind === 'hunger' ? amberText : COLOR[kind], ...mono, fontSize: 8.5, letterSpacing: '0.12em' }}>{dir === 'same' ? same : DIR[kind][dir]}</span>
             {/* "About the same" stands alone: the window before is what every direction is against. */}
             {dir === 'same' ? null : <span style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>{vs}</span>}
           </div>
@@ -667,7 +674,7 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
   return (
     <BSPage>
       <BSDetailHeader onBack={onBack} eyebrow={tr('home:mornings.eyebrow', { defaultValue: 'Morning check-in · history' })}
-        title={<>{tr('home:mornings.titlePre', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('home:mornings.titleWord', { defaultValue: 'mornings.' })}</span></>} />
+        title={<>{tr('home:mornings.titlePre', { defaultValue: 'Your' })} <span>{tr('home:mornings.titleWord', { defaultValue: 'mornings.' })}</span></>} />
       <div data-bs-mornings="" style={{ paddingTop: 4 }}>
         {/* The example is said in the note's ink, marked by an amber rule beside it (amber is no text colour). */}
         {!uid ? <p data-bs-mornings-sample="" style={note}><span style={{ display: 'block', paddingLeft: 10, borderLeft: `2px solid ${amber}` }}>{tr('home:mornings.sample', { defaultValue: 'Example mornings. Join Shape to see your own.' })}</span></p> : null}

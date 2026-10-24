@@ -67,7 +67,7 @@ import { BSEatFuel } from './BSEatFuel.jsx';
 import { BSTrainBurn } from './BSTrainBurn.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead, bsWsRed, bsWsHead } from './BSWallStory.jsx';
-import { BSTPullQuote, BSCoachProfileDock } from './BSProfileMagazine.jsx';
+import { BSTPullQuote, BSProfileDock } from './BSProfileMagazine.jsx';
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
@@ -19019,14 +19019,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setFeedReloadNonce(n => n + 1); }} />}
       {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setFollowProfile(p), actLikes, actExpr })}
 
-      {/* dock — Message others (the record's closing line: ink + heat underline,
-          no solid fill; edit + privacy live in the header / settings now) */}
+      {/* dock — Message others: the coach profile's dock with Message alone, so it hides while the page
+          scrolls down and never sits over the wall (owner, 2026-10-24: "fix this message box thats appearing") */}
       {!isSelf && hasMessage && (
-        <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, padding: '14px 20px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 28%)` }}>
-          <button onClick={() => onMsg(person)} style={{ width: '100%', minHeight: 48, background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, color: INK, borderBottom: `1px solid ${c}`, paddingBottom: 3 }}>{tr('profile:terrain.messageName', { name: first, defaultValue: 'Message {name}' })} <span style={{ color: c }}>→</span></span>
-          </button>
-        </div>
+        <BSProfileDock INK={INK} BG={BG} PAPER={tTheme.PAPER} onMessage={() => onMsg(person)}
+          messageLabel={tr('profile:terrain.messageName', { name: first, defaultValue: 'Message {name}' })} />
       )}
     </div></BSPage>
   );
@@ -19933,7 +19930,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
 
       {/* dock — Message / Work-with others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
-        <BSCoachProfileDock INK={INK} BG={BG} PAPER={tTheme.PAPER} onMessage={() => onMsg(person)} onWorkWith={() => setTab('coaching')}
+        <BSProfileDock INK={INK} BG={BG} PAPER={tTheme.PAPER} onMessage={() => onMsg(person)} onWorkWith={() => setTab('coaching')}
           messageLabel={tr('profile:action.message', { defaultValue: 'Message' })} workLabel={tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })} />
       )}
     </div></BSPage>
@@ -25689,7 +25686,10 @@ function BSNoraSheet({ onClose }) {
                 {/* role="button" (not <button>) — the Voice-chat chip is a real
                     <button> nested inside this tappable head, and button-in-button
                     is invalid HTML. */}
-                <div role="button" tabIndex={0} onClick={() => setShowNora(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowNora(true); } }} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer' }}>
+                {/* The row stops short of the sheet's × (34px, 10px in from the edge), which sat over Talk to
+                    Nora (owner, 2026-10-24: "the x is overlapping nora box"): measured off the page's gutter,
+                    so every density keeps it clear. */}
+                <div role="button" tabIndex={0} onClick={() => setShowNora(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowNora(true); } }} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', boxSizing: 'border-box', background: 'transparent', border: 0, padding: `0 ${Math.max(0, 48 - t.padX)}px 0 0`, textAlign: 'left', cursor: 'pointer' }}>
                   {/* Text-only head — Nora's portrait rides her message bubbles below
                       (each reply should feel like HER), so the masthead carrying it
                       too read as a double avatar. */}
@@ -25726,19 +25726,23 @@ function BSNoraSheet({ onClose }) {
                     <button type="button" onClick={clearThread} style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 0', whiteSpace: 'nowrap' }}>{tr('feed:support.thread.clearShort', { defaultValue: 'Clear' })}</button>
                   )}
                   {personOk && !personForm && (
-                    <button type="button" data-nora-person onClick={openPersonForm} style={{ marginLeft: supportMsgs.length > 1 ? 0 : 'auto', border: `1px solid ${noraTint}`, background: 'transparent', color: noraTint, borderRadius: 999, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 9px', whiteSpace: 'nowrap' }}>{tr('feed:support.person.button', { defaultValue: 'Talk to a person' })}</button>
+                    <button type="button" data-nora-person onClick={openPersonForm} style={{ marginLeft: supportMsgs.length > 1 ? 0 : 'auto', minHeight: 36, border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 0', whiteSpace: 'nowrap' }}><span style={{ borderBottom: `1px solid ${noraTint}`, paddingBottom: 2 }}>{tr('feed:support.person.button', { defaultValue: 'Talk to a person' })}</span> <span aria-hidden style={{ color: noraTint }}>→</span></button>
                   )}
                 </div>
                 )}
+                {/* Talk to a person, in the Wall's look (owner, 2026-10-24: "update look of this box"): no tinted
+                    card, a 2px ink rule over it and a hairline under, a square field, square actions (ink for
+                    Send). Its kicker is the button it replaces while it is open. */}
                 {personForm && (
-                  <div data-nora-person-form style={{ margin: '-4px 0 16px', padding: '11px 12px', borderRadius: 12, border: `1px solid ${noraTint}`, background: `${noraTint}12`, display: 'grid', gap: 8 }}>
-                    <div style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.45, color: t.INK }}>{tr('feed:support.person.intro', { defaultValue: 'Your question goes to the Shape team with this conversation. A person replies here and by email.' })}</div>
+                  <div data-nora-person-form style={{ margin: '-4px 0 16px', padding: '10px 0 14px', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${hair}`, display: 'grid', gap: 10 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>{tr('feed:support.person.button', { defaultValue: 'Talk to a person' })}</div>
+                    <div style={{ fontFamily: t.BODY, fontSize: 13, lineHeight: 1.45, color: t.INK70 }}>{tr('feed:support.person.intro', { defaultValue: 'Your question goes to the Shape team with this conversation. A person replies here and by email.' })}</div>
                     <textarea value={personForm.text} onChange={(e) => setPersonForm({ ...personForm, text: e.target.value, err: '' })} rows={3} maxLength={2000} aria-label={tr('feed:support.person.label', { defaultValue: 'Your question for the Shape team' })}
-                      style={{ resize: 'vertical', background: 'transparent', color: t.INK, border: `1px solid ${hair}`, borderRadius: 10, padding: '9px 10px', fontFamily: t.BODY, fontSize: 14, lineHeight: 1.4, outline: 'none' }} />
-                    {personForm.err && <div role="alert" style={{ fontFamily: t.BODY, fontSize: 12, color: t.RUST || muted }}>{personForm.err}</div>}
+                      style={{ resize: 'vertical', minHeight: 88, boxSizing: 'border-box', width: '100%', background: 'transparent', color: t.INK, border: `1px solid ${t.INK30}`, borderRadius: 0, padding: '10px 12px', fontFamily: t.BODY, fontSize: 15, lineHeight: 1.4, outline: 'none' }} />
+                    {personForm.err && <div role="alert" style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.RUST || muted }}>{personForm.err}</div>}
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                      <button type="button" onClick={() => setPersonForm(null)} disabled={personForm.busy} style={{ border: `1px solid ${hair}`, background: 'transparent', color: muted, borderRadius: 999, padding: '7px 12px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:support.person.cancel', { defaultValue: 'Cancel' })}</button>
-                      <button type="button" data-nora-person-send onClick={sendPerson} disabled={personForm.busy} style={{ border: 0, background: noraTint, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: personForm.busy ? 'progress' : 'pointer' }}>{personForm.busy ? tr('feed:support.person.sending', { defaultValue: 'Sending…' }) : tr('feed:support.person.send', { defaultValue: 'Send to the team' })}</button>
+                      <button type="button" onClick={() => setPersonForm(null)} disabled={personForm.busy} style={{ minHeight: 44, padding: '0 16px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, borderRadius: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:support.person.cancel', { defaultValue: 'Cancel' })}</button>
+                      <button type="button" data-nora-person-send onClick={sendPerson} disabled={personForm.busy} style={{ minHeight: 44, padding: '0 16px', border: 0, background: t.INK, color: t.PAPER, borderRadius: 0, opacity: personForm.busy ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: personForm.busy ? 'progress' : 'pointer' }}>{personForm.busy ? tr('feed:support.person.sending', { defaultValue: 'Sending…' }) : tr('feed:support.person.send', { defaultValue: 'Send to the team' })} <span aria-hidden>→</span></button>
                     </div>
                   </div>
                 )}

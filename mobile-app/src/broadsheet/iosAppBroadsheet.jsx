@@ -1398,7 +1398,13 @@ function BSTabBar({ tabs, active, onChange }) {
   // ⚠ The dock is BS_TABBAR_CSS tall: the capsule keeps its height on every phone and the gap under
   // it grows to clear a home indicator. The composer slot and every page's scroll reserve clear it.
   const red = bsWsRed(t);
-  const activeIdx = Math.max(0, tabs.findIndex((tb) => tb.key === active));
+  // A screen that is no tab (Radio, the score, a drill-in) selects none: the gem fades where it last
+  // was. It used to fall back to the first slot, so on Radio it sat behind Home's grey icon and read as
+  // a black diamond (owner, 2026-10-24: "the home emoji blacks out on nav bar").
+  const tabIdx = tabs.findIndex((tb) => tb.key === active);
+  const lastIdx = React.useRef(tabIdx >= 0 ? tabIdx : 0);
+  if (tabIdx >= 0) lastIdx.current = tabIdx;
+  const activeIdx = lastIdx.current;
   const n = tabs.length;
   const PAD = 9;
   const GEM = 36;
@@ -1428,7 +1434,7 @@ function BSTabBar({ tabs, active, onChange }) {
       }}>
         {/* The selected tab's gem: an ink square turned 45°, its corners rounded as the facet's are,
             centred on the tab. It slides to the tab tapped. */}
-        <span aria-hidden data-bs-tab-mark="" style={{ position: 'absolute', top: '50%', width: GEM, height: GEM, marginTop: -GEM / 2, borderRadius: '27%', transform: 'rotate(45deg)', left: `calc(${PAD}px + ((100% - ${PAD * 2}px) / ${n}) * ${activeIdx + 0.5} - ${GEM / 2}px)`, background: t.INK, transition: 'left .28s cubic-bezier(.4,0,.2,1)' }} />
+        <span aria-hidden data-bs-tab-mark="" style={{ position: 'absolute', top: '50%', width: GEM, height: GEM, marginTop: -GEM / 2, borderRadius: '27%', transform: 'rotate(45deg)', left: `calc(${PAD}px + ((100% - ${PAD * 2}px) / ${n}) * ${activeIdx + 0.5} - ${GEM / 2}px)`, background: t.INK, opacity: tabIdx >= 0 ? 1 : 0, transition: 'left .28s cubic-bezier(.4,0,.2,1), opacity .2s ease' }} />
         {tabs.map((tab, i) => {
           const on = tab.key === active;
           const face = tab.key === 'me' && FA;

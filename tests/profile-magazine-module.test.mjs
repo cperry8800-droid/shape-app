@@ -17,7 +17,7 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 const MOD = 'mobile-app/src/broadsheet/BSProfileMagazine.jsx';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const src = stripComments(fs.readFileSync(MOD, 'utf8'));
-const EXPORTED = ['BSTPullQuote', 'BSCoachProfileDock', 'useBSHideOnScrollDown'];
+const EXPORTED = ['BSTPullQuote', 'BSProfileDock', 'useBSHideOnScrollDown'];
 
 test('evaluating the module by itself reads NO window global, and it exports what the client imports', async () => {
   const reads = [];
@@ -52,10 +52,11 @@ test('the module imports react and the magazine\'s colours only, and never the c
 
 test('the client imports both pieces, declares neither again, and renders them on both profiles', () => {
   const client = stripComments(fs.readFileSync(CLIENT, 'utf8'));
-  assert.match(client, /^import \{ BSTPullQuote, BSCoachProfileDock \} from '\.\/BSProfileMagazine\.jsx';/m);
-  assert.doesNotMatch(client, /^(?:export )?function (BSTPullQuote|BSCoachProfileDock|useBSHideOnScrollDown)\(/m, 'a piece is declared in the client module again');
+  assert.match(client, /^import \{ BSTPullQuote, BSProfileDock \} from '\.\/BSProfileMagazine\.jsx';/m);
+  assert.doesNotMatch(client, /^(?:export )?function (BSTPullQuote|BSProfileDock|useBSHideOnScrollDown)\(/m, 'a piece is declared in the client module again');
   const body = (marker) => { const at = client.indexOf(marker); return client.slice(at, client.indexOf('\nfunction ', at + marker.length)); };
   assert.match(body('function BSTerrainProfile('), /<BSTPullQuote /);
   assert.match(body('function BSSignalCoachProfile('), /<BSTPullQuote /);
-  assert.match(body('function BSSignalCoachProfile('), /<BSCoachProfileDock /);
+  assert.match(body('function BSSignalCoachProfile('), /<BSProfileDock /);
+  assert.match(body('function BSTerrainProfile('), /<BSProfileDock /);
 });

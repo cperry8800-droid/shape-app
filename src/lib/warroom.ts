@@ -615,6 +615,20 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Nora\'s ×, Talk to a person, a member\'s Message dock, the Radio deck, the tab gem on Radio, and Your mornings — #2443. No migration',
+      items: [
+        { label: 'Owner, 2026-10-24: "the x is overlapping nora box". The Nora sheet\'s head row stops short of its × (34 px, 10 px in), measured off the gutter, so Talk to Nora clears it at every density', status: 'done' },
+        { label: 'Owner: "update look of this box and make sure its wired correctly". Talk to a person is a ruled block with a square field and square actions, Send in ink; its opener is an underlined word. Wiring checked live: support_requests and its RLS (read own, send own open) and daily-limit trigger, the console\'s reply into the Nora thread and by email, the app pulling it in on the next open', status: 'done' },
+        { label: 'Owner: "fix this message box thats appearing" (Message Priya over her wall). A member\'s profile has the coach\'s dock with Message alone: hidden while the page scrolls down, square, on solid paper (BSProfileDock, Work with optional)', status: 'done' },
+        { label: 'Owner: "also fix the look of this" (the Radio deck). Square 44 px keys, Tune in in ink once it can play, a vote ruled in teal, Live / Shape Sets / Nora as words underlined in the station\'s teal', status: 'done' },
+        { label: 'Owner: "when on shape radio page the home emoji blacks out on nav bar". A screen that is no tab (Radio is \'radio\') put the gem behind Home\'s grey icon; now no tab is selected and the gem fades where it was', status: 'done' },
+        { label: 'Owner: "also update design and layout here" (Your mornings). The title upright, 7 / 30 days as words underlined in red, each station on its name over a 2 px ink rule with its colour key, square badges and today\'s cell', status: 'done' },
+        { label: 'Review: Codex clean on 1db7b99. Copilot declined on its quota. Verified: CI green on all four jobs; tests/nora-radio-magazine, the tab gem test in app-chrome-magazine-tabbar, the look test in your-mornings and the member dock in me-page-magazine, each failing on the code before them; Chromium renders on light and dark', status: 'done' },
+        { label: 'OWNER — Talk to a person has had no request yet: send one from the app and answer it in /dashboard/support. This session could not read Vercel\'s settings to confirm RESEND_API_KEY; without it requests are saved and listed but the team inbox and the reply email are not sent', status: 'manual' },
+        { label: 'Radio below the deck (Watch Nora, the channel cards) keeps its old look', status: 'pending' },
+      ],
+    },
+    {
       section: 'Home\'s cards a step smaller, Train in its rust, and the launch screens in Saira — #2442. No migration',
       items: [
         { label: 'Owner, 2026-10-24, of Home\'s Today\'s call, Your goal, the Morning check-in and Water: "make these smaller". The focus lead\'s title steps from 40/32/26 to 30/26/22 (Home\'s call, Train\'s session, and Eat\'s next meal, which shares it) and its button from 48 to 44 px; section titles from 26 to 22; Your goal\'s weight from 42 to 34 and its figures to 16; the check-in\'s title, tiles and Same as yesterday (52 to 44 px) and the panel\'s padding; the water tile, and a 38 px round + on the same 44 px tap', status: 'done' },
