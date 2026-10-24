@@ -1309,8 +1309,16 @@ function BSHalftone({ height = 180, accent, pattern = 'dots' }) {
 // for the selected tab (Instagram's way); `cut` is the colour a filled icon's
 // inner marks are drawn in (the surface it sits on).
 const BS_TAB_ICON_KEYS = new Set(['home', 'train', 'eat', 'chat', 'store', 'me', 'today', 'clients', 'programs', 'plans']);
+// Each filled icon's optical nudge in the selected tab's gem, in px at 24 (owner, 2026-10-24: "make sure
+// the emojis are centered in the black shape"). A glyph's painted weight sits off its box's centre: the
+// house's walls under its roof, the bubble above its tail, the apple left of its leaf, the second person
+// beside the first. Measured as the centroid of each icon's pixels in the gem on the built app; the
+// nudge puts that centroid on the gem's centre. Programs and Plans measure centred.
+const BS_TAB_ICON_NUDGE = { home: [0, -1.25], train: [0.5, 0], eat: [1, 0.5], chat: [-0.5, 1.75], today: [0, -1], clients: [1.75, -1.25] };
 function BSTabIcon({ name, size = 22, weight = 1.7, filled = false, cut = 'transparent' }) {
-  const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: weight, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
+  const nudge = filled ? BS_TAB_ICON_NUDGE[name] : null;
+  const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: weight, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
+    style: nudge ? { transform: `translate(${(nudge[0] * size) / 24}px, ${(nudge[1] * size) / 24}px)` } : undefined };
   const F = { fill: 'currentColor' };
   if (filled) {
     switch (name) {
@@ -1420,9 +1428,10 @@ function BSTabBar({ tabs, active, onChange }) {
       <nav data-bs-tabbar="" style={{
         position: 'relative', flex: '0 0 auto', width: '100%', height: BS_DOCK_H, pointerEvents: 'auto',
         borderRadius: 999,
-        // Frosted glass: paper at about three-quarters over a blur, so what scrolls under it still
-        // shows, softened, without competing with the icons.
-        background: `${t.PAPER}c2`,
+        // Frosted glass: paper at about 60% over a blur, so what scrolls under it shows through,
+        // softened, without competing with the icons (owner, 2026-10-24: "make nav bar a little
+        // transparent"; it was about three-quarters).
+        background: `${t.PAPER}99`,
         color: t.INK,
         border: `1px solid rgba(${t.inkRGB},${t.isLight ? 0.1 : 0.16})`,
         backdropFilter: 'blur(10px) saturate(170%)',

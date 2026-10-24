@@ -82,10 +82,11 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     assert.ok(bar, 'no tab bar');
     assert.equal(bar.tagName, 'NAV');
     assert.equal(bar.style.pointerEvents, 'auto');
-    // A 60px capsule of paper at about three-quarters (the page shows through), with a soft neutral shadow.
+    // A 60px capsule of paper at about 60% (the page shows through; owner, 2026-10-24: "make nav bar a
+    // little transparent"), with a soft neutral shadow.
     assert.equal(bar.style.height, '60px');
     assert.equal(bar.style.borderRadius, '999px');
-    assert.ok(sameColor(bar.style.background, `${theme.PAPER}c2`), 'paper at about three-quarters');
+    assert.ok(sameColor(bar.style.background, `${theme.PAPER}99`), 'paper at about 60%');
     assert.doesNotMatch(bar.style.background, /gradient/);
     assert.match(bar.style.boxShadow, isLight ? /rgba\(15, ?14, ?12, ?0\.12\)/ : /rgba\(0, ?0, ?0, ?0\.5\)/, 'a neutral shadow, not a glow');
     // The selected tab's gem: an ink square turned 45° with the facet's rounded corners, centred on the
@@ -190,7 +191,7 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     // jsdom drops backdrop-filter and env(), so these are read from the component's source.
     const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), 'utf8');
     const bar = src.slice(src.indexOf('function BSTabBar('), src.indexOf('// Footer masthead'));
-    assert.match(bar, /background: `\$\{t\.PAPER\}c2`/);
+    assert.match(bar, /background: `\$\{t\.PAPER\}99`/);
     assert.match(bar, /backdropFilter: 'blur\(10px\) saturate\(170%\)'/);
     assert.match(bar, /WebkitBackdropFilter: 'blur\(10px\) saturate\(170%\)'/);
     assert.match(bar, /height: BS_TABBAR_CSS,/);
@@ -284,3 +285,28 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     await unmount();
   });
 }
+
+// Owner, 2026-10-24: "make sure the emojis are centered in the black shape". Each filled icon is nudged so
+// its painted weight (the centroid of its pixels, measured in the gem on the built app) sits on the gem's
+// centre; an unselected line icon is never moved.
+test('the selected icon is optically centred in the gem, and only the selected one moves', async () => {
+  const NUDGE = { home: '0px, -1.25px', train: '0.5px, 0px', eat: '1px, 0.5px', chat: '-0.5px, 1.75px', today: '0px, -1px', clients: '1.75px, -1.25px' };
+  const COACH = [
+    { key: 'today', label: 'Today' }, { key: 'clients', label: 'Clients' }, { key: 'programs', label: 'Programs' },
+    { key: 'chat', label: 'Chat' }, { key: 'me', label: 'Me' },
+  ];
+  for (const tabs of [TABS, COACH]) {
+    for (const tab of tabs) {
+      if (tab.key === 'me') continue;   // the member's face, not an icon
+      const { host, unmount } = await mount(React.createElement(window.BSTabBar, { tabs, active: tab.key, onChange() {} }), 'light');
+      const btns = [...host.querySelectorAll('[data-bs-tabbar] button')];
+      for (const [i, b] of btns.entries()) {
+        const svg = b.querySelector('svg');
+        if (!svg || tabs[i].key === 'me') continue;
+        const want = tabs[i].key === tab.key && NUDGE[tab.key] ? `translate(${NUDGE[tab.key]})` : '';
+        assert.equal(svg.style.transform || '', want, `${tabs[i].key} with ${tab.key} selected`);
+      }
+      await unmount();
+    }
+  }
+});
