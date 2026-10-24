@@ -185,8 +185,10 @@ test('the live overlay stands on the tab bar where there is one, and on the edge
   assert.match(CLIENT, /function BSRadioFx\(\{ floor = 0 \}\)/);
   assert.match(CLIENT, /<RadioEffects mode=\{r\.fxMode\} label=\{label\} tint=\{bsFxTint\(r\.fxColor, t\)\} isLight=\{!!t\.isLight\} floor=\{floor\} live \/>/);
   const mounts = [...CLIENT.matchAll(/<BSRadioFx([^/]*)\/>/g)].map((m) => m[1].trim());
-  // calendar and cycle (no tab bar) + the tabbed main screen
-  assert.deepEqual(mounts.sort(), ['', '', 'floor={window.BS_TABBAR_H || 64}']);
+  // calendar and cycle (no tab bar) + the tabbed main screen, which stands on the tab bar's height
+  // as measured on this phone (it grows over a home indicator)
+  assert.deepEqual(mounts.sort(), ['', '', 'floor={bsTabbarH}']);
+  assert.match(CLIENT, /const bsTabbarH = \(window\.useBSTabbarH \|\| \(\(\) => window\.BS_TABBAR_H \|\| 64\)\)\(\);/);
 });
 
 test('the Settings preview is the only mount that asks for the preview treatment', () => {

@@ -333,31 +333,37 @@ function bsBuildLabel() {
   return sha ? `${version} · ${String(sha).slice(0, 7)}` : version;
 }
 
+// One control in the masthead's corner (⌕, ✦, and the profile masthead's ✎ and ⚙), in the Wall's
+// magazine look (owner, 2026-10-24: the header's corner "in new design"): a bare glyph in ink on the
+// paper, with no ring, on the full square the avatar takes, so the target stays 34px.
+function bsCornerBtn(size, ink) {
+  return { width: size, height: size, flexShrink: 0, borderRadius: 0, border: 0, background: 'transparent', color: ink, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 };
+}
+
 // Monochrome ⌕ — opens the universal search screen via a window event
 // (handled in BSClientAppInner / the coach shells), so any header can drop it
 // in without prop-threading. Always sits to the LEFT of the profile avatar.
 function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null, nora = true }) {
   const t = useBS();
-  // `ink` matches the profile mastheads' pencil/gear chrome (0.3-alpha border +
-  // 14px glyph) so the corner buttons read as one set. Fill stays transparent —
-  // paper ground, same as every other page's corners (owner call 2026-07-14).
-  const g = ink ? 14 : Math.max(13, Math.round(size * 0.44));
+  // `ink` is the surface's ink where a masthead sets its own (the profile
+  // mastheads, Radio), so the corner reads as one set with their ✎ and ⚙.
+  const g = Math.max(15, Math.round(size * 0.5));
   // ✦ NORA SITS LEFT OF ⌕ (owner, 2026-10-07: option D). Every header places this
   // corner, so one change puts her on every screen; it covers nothing. A surface
-  // with its own Nora controls (the full-screen Radio) passes nora={false}.
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const corner = { width: size, height: size, flexShrink: 0, borderRadius: 999, border: `1px solid ${ink ? bsTHexA(ink, 0.3) : t.RULE}`, background: 'transparent', color: ink || t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 };
+  // with its own Nora controls (the full-screen Radio) passes nora={false}. She is
+  // the magazine's red, the one colour in the corner.
+  const corner = bsCornerBtn(size, ink || t.INK);
   return (
     <>
       {nora && (
         <button data-nora-corner onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openNora')); } catch (e) {} }} aria-label="Ask Nora"
-          style={{ ...corner, color: teal, fontSize: Math.max(13, Math.round(size * 0.46)), lineHeight: 1 }}>
+          style={{ ...corner, color: bsWsRed(t), fontSize: Math.max(15, Math.round(size * 0.5)), lineHeight: 1 }}>
           <span aria-hidden>✦</span>
         </button>
       )}
       <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openSearch')); } catch (e) {} }} aria-label="Search Shape"
         style={corner}>
-        <svg width={g} height={g} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={ink ? 2.2 : 2.4} strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.3 15.3 5.2 5.2" /></svg>
+        <svg width={g} height={g} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.3 15.3 5.2 5.2" /></svg>
       </button>
     </>
   );
@@ -377,12 +383,13 @@ function useBSIdentityTick() {
   }, []);
 }
 function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
+  const t = useBS();
   const tr = useShapeTr();
   useBSIdentityTick();
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
       <BSSearchCorner size={size} />
-      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={onProfile} />
+      <BSFacetAvatar flat size={size} c={t.INK} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={onProfile} />
     </span>
   );
 }
@@ -403,13 +410,14 @@ function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
 // done it in that order since it shipped). A page in normal flow passes nothing
 // and keeps both controls.
 function BSMeCorner({ size = BS_HEADER_AVATAR, close = null }) {
+  const t = useBS();
   const tr = useShapeTr();
   useBSIdentityTick();
   const goProfile = () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} };
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
       {close ? null : <BSSearchCorner size={size} />}
-      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={close ? () => { close(); setTimeout(goProfile, 0); } : goProfile} />
+      <BSFacetAvatar flat size={size} c={t.INK} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={close ? () => { close(); setTimeout(goProfile, 0); } : goProfile} />
     </span>
   );
 }
@@ -607,6 +615,8 @@ function BSScoreIntro({ onClose, onOpenScore }) {
 
 function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const sheet = useBSSheet();
+  // The tab bar's height on this phone (it grows over a home indicator): Radio's lights stand on it.
+  const bsTabbarH = (window.useBSTabbarH || (() => window.BS_TABBAR_H || 64))();
   const tr = useShapeTr(); // i18n — re-renders the shell (tab bar labels) on locale change
   const [tab, setTab] = useStateBSC(initialTab);
   // Nora is told the tab they asked from (the Ask Nora plan, step 4).
@@ -1258,14 +1268,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       <div key={tab} className={navSlideCls} style={{ position: 'absolute', inset: 0 }}>
         {screens[tab]}
       </div>
-      <BSRadioFx floor={window.BS_TABBAR_H || 64} />
+      <BSRadioFx floor={bsTabbarH} />
       {/* Pinned message composers (chat feed + DM threads) portal into this
           slot so they're positioned against the phone-frame container — not
           the browser viewport. A viewport-fixed composer overhangs the frame
           in the desktop preview where the frame is narrower than the window. */}
       <div id="bs-composer-slot" style={{
         position: 'absolute', left: 0, right: 0,
-        bottom: (window.BS_TABBAR_H || 64),
+        bottom: (window.BS_TABBAR_CSS || window.BS_TABBAR_H || 64),
         zIndex: 60, pointerEvents: 'none',
       }} />
       <BSTabBar
@@ -15189,7 +15199,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
-              <BSFacetAvatar size={BS_HEADER_AVATAR} c={bsMyTierColor()} initial={bsMyInitials() || '?'} name={bsMyName()} photo={bsMyPhoto() || undefined} showRank={false} BG={BG} INK={INK}
+              <BSFacetAvatar flat size={BS_HEADER_AVATAR} c={INK} initial={bsMyInitials() || '?'} name={bsMyName()} photo={bsMyPhoto() || undefined} showRank={false} BG={BG} INK={INK}
                 label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
             </div>
           </div>
@@ -15681,8 +15691,8 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
   const COOK = '#d8a23a';
   // `flat` is the magazine's cut of the same gem (owner, 2026-10-24: "keep the same facet shape but … go with
   // the new design"): the frame in the flat colour `c` with no gradient, sheen, glow or pulse, a paper window,
-  // ink initials, and the corner dot in `dotC`.
-  const dotColor = dotC || (activity === 'cooking' ? COOK : '#34d6c5');
+  // ink initials, and the corner dot in `dotC` (by default the magazine's red, amber at the stove).
+  const dotColor = dotC || (activity === 'cooking' ? COOK : flat ? bsWsRed(t) : '#34d6c5');
   const showDot = activity ? true : (online === undefined ? live : online);
   const SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
   const inset = Math.max(2, Math.round(size * 0.055));
@@ -15696,7 +15706,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
   // independent of the caller's INK (which is for the surrounding surface, not the
   // gem). Using INKv here made the initials vanish whenever a caller's INK was
   // dark (e.g. on a dark profile/settings surface). A faint shadow keeps them crisp.
-  const initInk = flat ? t.INK70 : '#fbf7ef';
+  const initInk = flat ? (INK ? bsTHexA(INK, 0.7) : t.INK70) : '#fbf7ef';
   // The set rule: an avatar is ALWAYS a photo or initials — never blank. Prefer the
   // explicit `initial`, else derive 2-letter initials from `name`, else a neutral dot.
   const shownInitials = (initial != null && String(initial).trim()) || (name ? bsInitials(name) : '') || '•';
@@ -18601,11 +18611,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
               <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-              <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               </button>
-              <button onClick={onOpenSettings} aria-label={tr('profile:terrain.settingsAria', { defaultValue: 'Settings' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
+              <button onClick={onOpenSettings} aria-label={tr('profile:terrain.settingsAria', { defaultValue: 'Settings' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
               </button>
             </div>
           </div>
@@ -18622,10 +18632,10 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             {isSelf
               ? <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                   <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-                  <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                  <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
-                  <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                  <BSFacetAvatar flat size={BS_HEADER_AVATAR} c={INK} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 </div>
               : <BSMeCorner />}
           </div>
@@ -19567,11 +19577,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                 <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-                <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:coach.editProfileAria', { defaultValue: 'Edit profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:coach.editProfileAria', { defaultValue: 'Edit profile' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
-                <button onClick={onOpenSettings} aria-label={tr('profile:terrain.settingsAria', { defaultValue: 'Settings' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
+                <button onClick={onOpenSettings} aria-label={tr('profile:terrain.settingsAria', { defaultValue: 'Settings' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
                 </button>
               </div>
             </div>
@@ -19588,10 +19598,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
             {isSelf
               ? <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                   <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-                  <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                  <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
-                  <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                  <BSFacetAvatar flat size={BS_HEADER_AVATAR} c={INK} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 </div>
               : <BSMeCorner />}
           </div>
@@ -34260,7 +34270,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
 
       </details>
 
-      {(() => { const action = (<div style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_H || 64), zIndex: 55, padding: `10px ${t.padX}px`, background: t.PAPER, borderTop: `1px solid ${t.RULE}` }}>
+      {(() => { const action = (<div style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_CSS || window.BS_TABBAR_H || 64), zIndex: 55, padding: `10px ${t.padX}px`, background: t.PAPER, borderTop: `1px solid ${t.RULE}` }}>
         {activeIdx != null ? (
           <button onClick={primarySetAction} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
             {restLeft > 0 ? tr('session:player.skipRest') : guidePrepare ? tr('session:player.view.begin') : !timedMode || activeRunning

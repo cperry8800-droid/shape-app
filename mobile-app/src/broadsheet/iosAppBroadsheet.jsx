@@ -1,6 +1,7 @@
 import React from 'react';
 import { bsSwipeIntent } from '../services/swipeIntent.mjs';
 import { bsSdUnitizeText, bsSdUnitizeStat, bsSdUnitizeLabel, bsSdMeasure } from '../services/sessionLedger.mjs';
+import { bsWsRed } from './bsMagazine.mjs';
 // iosAppBroadsheet.jsx — Shared tokens, primitives, theme context for the
 // Broadsheet redesign of the Shape iOS app.
 //
@@ -477,10 +478,40 @@ function isInteractiveTarget(target) {
 // PRIMITIVES
 // ═══════════════════════════════════════════════════════════
 
-// The tab bar's rendered border-box height. The composer slot and every page's
-// scroll reserve position against this — it has drifted from the real height
-// twice (72 → 64 in #1603 left three stale literals), so it lives here once.
-const BS_TABBAR_H = 64;
+// The floating tab bar (Instagram's, owner 2026-10-24: "Use as reference"): a
+// capsule BS_DOCK_H tall, BS_DOCK_SIDE in from the phone's sides, BS_DOCK_TOP_GAP
+// clear above it so a composer or banner never sits flush on it, and under it
+// either BS_DOCK_BOTTOM or, on a phone with a home indicator, enough to clear it.
+const BS_DOCK_H = 60;
+const BS_DOCK_SIDE = 16;
+const BS_DOCK_TOP_GAP = 6;
+const BS_DOCK_BOTTOM = 12;
+const BS_DOCK_BOTTOM_CSS = `max(${BS_DOCK_BOTTOM}px, calc(env(safe-area-inset-bottom, 0px) - 10px))`;
+// What the tab bar covers from the bottom of the screen, as a number (on a screen
+// without a home indicator) and as CSS (on every screen). The composer slot and
+// the bars that stand on the tab bar position against the CSS; every page's
+// scroll reserve against the number plus the inset. It has drifted from the real
+// height twice (72 → 64 in #1603 left three stale literals), so it lives here once.
+const BS_TABBAR_H = BS_DOCK_TOP_GAP + BS_DOCK_H + BS_DOCK_BOTTOM;
+const BS_TABBAR_CSS = `calc(${BS_DOCK_TOP_GAP + BS_DOCK_H}px + ${BS_DOCK_BOTTOM_CSS})`;
+// BS_TABBAR_CSS resolved to a number on this phone, for what does arithmetic with
+// it rather than CSS (Radio's lights and hologram stand on the tab bar). Measured
+// on mount and on a resize; BS_TABBAR_H until then, or where nothing can measure.
+function useBSTabbarH() {
+  const [h, setH] = React.useState(BS_TABBAR_H);
+  React.useEffect(() => {
+    if (typeof document === 'undefined' || !document.body) return undefined;
+    const probe = document.createElement('div');
+    probe.setAttribute('aria-hidden', 'true');
+    probe.style.cssText = `position:absolute;left:0;bottom:0;width:0;visibility:hidden;pointer-events:none;height:${BS_TABBAR_CSS}`;
+    document.body.appendChild(probe);
+    const measure = () => { const v = probe.getBoundingClientRect().height; if (v > 0) setH(Math.round(v)); };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => { window.removeEventListener('resize', measure); probe.remove(); };
+  }, []);
+  return h;
+}
 
 // A page tells its BSPage that its masthead row carries NO corner cluster.
 //
@@ -625,9 +656,9 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
     </div>
   );
 
-  // Pinned condensed masthead — mirrors the tab bar's paper treatment (same
-  // gradient/blur/hairline/shadow, flipped) so top + bottom chrome read as one
-  // instrument. Slides in only once scrolled past the page's own masthead.
+  // Pinned condensed masthead — flat paper over a rule, with no fade, blur or
+  // shadow (the Wall's magazine look, owner 2026-10-24). Slides in only once
+  // scrolled past the page's own masthead.
   const MastCorner = (typeof window !== 'undefined' && window.BSMastCorner) || null;
   const mastReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const pinnedMast = mast ? (
@@ -643,12 +674,10 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
       // full-size corner (34) with room to breathe, so scrolling doesn't shrink
       // the bar; only its vertical padding is trimmed vs the hero.
       padding: `max(calc(12px + env(safe-area-inset-top, 0px)), var(--bs-notch-floor, 0px)) ${t.padX}px 11px`,
-      background: `linear-gradient(0deg, rgba(${t.inkRGB},0.05), transparent 26%), ${t.PAPER_BG}`,
+      background: t.PAPER_BG,
       backgroundColor: t.PAPER,
       color: t.INK,
-      borderBottom: `1px solid ${t.SURFACE_BORDER}`,
-      backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
-      boxShadow: `0 16px 40px ${t.isLight ? 'rgba(15,14,12,0.08)' : 'rgba(0,0,0,0.26)'}`,
+      borderBottom: `1px solid ${t.RULE}`,
       transform: mastCondensed ? 'translateY(0)' : 'translateY(-110%)',
       opacity: mastCondensed ? 1 : 0,
       pointerEvents: mastCondensed ? 'auto' : 'none',
@@ -1277,11 +1306,29 @@ function BSHalftone({ height = 180, accent, pattern = 'dots' }) {
   );
 }
 
-// Tab bar — Broadsheet style: thick top rule, mono labels, accent active
-// Line-art tab icons — monochrome, inherit color via currentColor.
+// Tab bar — a floating glass capsule, icons only; the selected tab's icon filled
+// Tab icons — monochrome, inherit color via currentColor. Line art, or `filled`
+// for the selected tab (Instagram's way); `cut` is the colour a filled icon's
+// inner marks are drawn in (the surface it sits on).
 const BS_TAB_ICON_KEYS = new Set(['home', 'train', 'eat', 'chat', 'store', 'me', 'today', 'clients', 'programs', 'plans']);
-function BSTabIcon({ name, size = 22 }) {
-  const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
+function BSTabIcon({ name, size = 22, weight = 1.7, filled = false, cut = 'transparent' }) {
+  const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: weight, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
+  const F = { fill: 'currentColor' };
+  if (filled) {
+    switch (name) {
+      case 'home': return <svg {...p}><path {...F} d="M12 3 3.5 10.1V20.2c0 .4.4.8.8.8H9.6v-5.4h4.8V21h5.3c.4 0 .8-.4.8-.8V10.1z" /></svg>;
+      case 'train': return <svg {...p} stroke="none"><g {...F}><rect x="2.8" y="8.4" width="2.6" height="7.2" rx="1" /><rect x="5.9" y="6.4" width="2.8" height="11.2" rx="1" /><rect x="15.3" y="6.4" width="2.8" height="11.2" rx="1" /><rect x="18.6" y="8.4" width="2.6" height="7.2" rx="1" /><rect x="8.4" y="10.8" width="7.2" height="2.4" rx=".6" /></g></svg>;
+      case 'eat': return <svg {...p}><path {...F} d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></svg>;
+      case 'chat': return <svg {...p}><path {...F} d="M4.5 5.5h15v10h-10l-4 3.5v-3.5h-1z" /></svg>;
+      case 'store': return <svg {...p}><path {...F} d="M5.5 8h13l-1 11.5h-11z" /><path d="M9 8V6.5a3 3 0 0 1 6 0V8" /></svg>;
+      case 'me': return <svg {...p}><circle {...F} cx="12" cy="8.2" r="3.4" /><path {...F} d="M5.6 20c0-3.5 3-5.5 6.4-5.5S18.4 16.5 18.4 20z" /></svg>;
+      case 'today': return <svg {...p}><path {...F} d="M4.5 6.5h15v13h-15z" /><path stroke={cut} d="M5.5 10.5h13" /><path d="M8.5 4v4M15.5 4v4" /><circle cx="12" cy="15" r="1.5" fill={cut} stroke="none" /></svg>;
+      case 'clients': return <svg {...p}><circle {...F} cx="9" cy="8.4" r="2.9" /><path {...F} d="M3.6 19c0-3 2.4-4.7 5.4-4.7s5.4 1.7 5.4 4.7z" /><path d="M16 6.1a2.8 2.8 0 0 1 0 5.4" /><path d="M17.2 14.5c2.2.5 3.5 2 3.5 4.4" /></svg>;
+      case 'programs':
+      case 'plans': return <svg {...p}><path {...F} d="M6.5 5.5h11v14h-11z" /><path d="M9.2 5.5V4.2h5.6v1.3" /><path stroke={cut} d="M9 10h6M9 13.5h6M9 17h4" /></svg>;
+      default: return null;
+    }
+  }
   switch (name) {
     case 'home': return <svg {...p}><path d="M3 10.5 12 3l9 7.5" /><path d="M5.5 9.5V20h13V9.5" /></svg>;
     case 'train': return <svg {...p}><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>;
@@ -1333,62 +1380,89 @@ function BSTabBar({ tabs, active, onChange }) {
     setChatUnread(window.ShapeUnread?.total?.() || 0);
     return () => { try { off && off(); } catch (e) {} };
   }, []);
+  // The member's own face on the Me tab, as Instagram puts it there. The face lives in the client
+  // module, so it is read from window at render time, and the tab re-renders when the identity
+  // changes (a new photo, a sign-in); without it (a coach bundle on its own) the Me tab is its icon.
+  const [, setIdentityTick] = React.useState(0);
+  React.useEffect(() => {
+    const bump = () => setIdentityTick((n) => n + 1);
+    window.addEventListener('shape:identity', bump);
+    return () => window.removeEventListener('shape:identity', bump);
+  }, []);
+  // The floating nav (owner: "design the nav bar on the shape app to be floating … hovering at the
+  // bottom of page", then "make sure it doesnt block whats behind it too much", then, 2026-10-24, "It
+  // should look like instagram" and a screenshot of Instagram's: "Use as reference", then "let's make
+  // our nav unique to shape, but same floating look" and, of three directions, "Go with B"): a frosted
+  // capsule floating off the screen's edges, the page softened through it, icons only. The selected
+  // tab sits in an ink gem, the facet's rotated, rounded square, that slides to the tab tapped; its
+  // icon is filled in the paper. The others are grey line icons. The Me tab is the member's face. The
+  // unread count is a red pill.
+  // ⚠ The dock is BS_TABBAR_CSS tall: the capsule keeps its height on every phone and the gap under
+  // it grows to clear a home indicator. The composer slot and every page's scroll reserve clear it.
+  const red = bsWsRed(t);
+  const activeIdx = Math.max(0, tabs.findIndex((tb) => tb.key === active));
+  const n = tabs.length;
+  const PAD = 9;
+  const GEM = 36;
+  const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
   return (
-    <div style={{
+    <div data-bs-tabbar-dock="" style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
-      height: BS_TABBAR_H, padding: '5px 20px calc(8px + env(safe-area-inset-bottom, 0px))',
-      // Match the page's full background (PAPER_BG carries metallic/textured sheen
-      // on papers like Steel) so the bar reads as part of the same paper, with a
-      // faint theme-derived top fade for separation. Adapts to every paper.
-      background: `linear-gradient(180deg, rgba(${t.inkRGB},0.05), transparent 26%), ${t.PAPER_BG}`,
-      backgroundColor: t.PAPER,
-      color: t.INK,
-      borderTop: `1px solid ${t.SURFACE_BORDER}`,
-      display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`, gap: 10,
-      backdropFilter: 'blur(18px)',
-      WebkitBackdropFilter: 'blur(18px)',
-      boxShadow: `0 -16px 40px ${t.isLight ? 'rgba(15,14,12,0.08)' : 'rgba(0,0,0,0.26)'}`,
+      height: BS_TABBAR_CSS,
+      paddingTop: BS_DOCK_TOP_GAP, paddingLeft: BS_DOCK_SIDE, paddingRight: BS_DOCK_SIDE,
+      paddingBottom: BS_DOCK_BOTTOM_CSS,
+      display: 'flex', pointerEvents: 'none',
     }}>
-      {/* Instrument dock rail — accent gradient hairline with a glowing tick
-          that slides to sit above the active tab. */}
-      {(() => {
-        const activeIdx = Math.max(0, tabs.findIndex((tb) => tb.key === active));
-        const n = tabs.length;
-        return (
-          <React.Fragment>
-            <span aria-hidden style={{ position: 'absolute', top: -1, left: 0, right: 0, height: 1.5, background: `linear-gradient(90deg, transparent, ${t.ACCENT}44 28%, ${t.ACCENT}44 72%, transparent)` }} />
-            <span aria-hidden style={{ position: 'absolute', top: -1.5, height: 2.5, borderRadius: 2, width: `calc((100% - 40px) / ${n} * 0.44)`, left: `calc(20px + ((100% - 40px) / ${n}) * (${activeIdx} + 0.28))`, background: t.ACCENT, boxShadow: `0 0 9px ${t.ACCENT}`, transition: 'left .28s cubic-bezier(.4,0,.2,1)' }} />
-          </React.Fragment>
-        );
-      })()}
-      {tabs.map((tab, i) => {
-        const on = tab.key === active;
-        return (
-          <button key={tab.key} type="button" data-tour={'tab-' + tab.key} onClick={() => onChange(tab.key)} style={{
-            border: 0, background: 'transparent',
-            cursor: 'pointer', padding: '3px 0',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
-            color: on ? t.ACCENT : t.INK50, position: 'relative',
-          }}>
-            {/* Active tab rides a clipped instrument plate with an accent spine. */}
-            {on && <span aria-hidden style={{ position: 'absolute', inset: '1px 2px 3px', clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', background: `linear-gradient(165deg, ${t.ACCENT}2e, ${t.ACCENT}0a 72%)` }} />}
-            {on && <span aria-hidden style={{ position: 'absolute', left: 2, top: 1, bottom: 3, width: 2.5, background: t.ACCENT }} />}
-            <span style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-              {BS_TAB_ICON_KEYS.has(tab.key)
-                ? <BSTabIcon name={tab.key} size={20} />
-                : <span style={{ fontFamily: t.MONO, fontWeight: 700, fontSize: 10.5, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{String(i + 1).padStart(2, '0')}</span>}
-              {on && (
-                <span style={{
-                  fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800,
-                }}>{tab.label}</span>
+      <nav data-bs-tabbar="" style={{
+        position: 'relative', flex: '0 0 auto', width: '100%', height: BS_DOCK_H, pointerEvents: 'auto',
+        borderRadius: 999,
+        // Frosted glass: paper at about three-quarters over a blur, so what scrolls under it still
+        // shows, softened, without competing with the icons.
+        background: `${t.PAPER}c2`,
+        color: t.INK,
+        border: `1px solid rgba(${t.inkRGB},${t.isLight ? 0.1 : 0.16})`,
+        backdropFilter: 'blur(10px) saturate(170%)',
+        WebkitBackdropFilter: 'blur(10px) saturate(170%)',
+        boxShadow: t.isLight
+          ? '0 6px 22px rgba(15,14,12,0.12), 0 1px 3px rgba(15,14,12,0.06)'
+          : '0 8px 26px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)',
+        display: 'grid', gridTemplateColumns: `repeat(${n}, 1fr)`, padding: `0 ${PAD}px`,
+      }}>
+        {/* The selected tab's gem: an ink square turned 45°, its corners rounded as the facet's are,
+            centred on the tab. It slides to the tab tapped. */}
+        <span aria-hidden data-bs-tab-mark="" style={{ position: 'absolute', top: '50%', width: GEM, height: GEM, marginTop: -GEM / 2, borderRadius: '27%', transform: 'rotate(45deg)', left: `calc(${PAD}px + ((100% - ${PAD * 2}px) / ${n}) * ${activeIdx + 0.5} - ${GEM / 2}px)`, background: t.INK, transition: 'left .28s cubic-bezier(.4,0,.2,1)' }} />
+        {tabs.map((tab, i) => {
+          const on = tab.key === active;
+          const face = tab.key === 'me' && FA;
+          // The icon prints no name, so aria-label names the tab for a screen reader and carries the unread
+          // count, as the printed label and pill did. aria-current marks the screen showing.
+          const unread = tab.key === 'chat' && chatUnread > 0 ? (chatUnread > 9 ? '9+' : String(chatUnread)) : '';
+          return (
+            <button key={tab.key} type="button" data-tour={'tab-' + tab.key} aria-label={unread ? `${tab.label} ${unread}` : tab.label} aria-current={on ? 'page' : undefined} onClick={() => onChange(tab.key)} style={{
+              border: 0, background: 'transparent',
+              cursor: 'pointer', padding: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: on ? t.PAPER : `rgba(${t.inkRGB},0.62)`, position: 'relative',
+            }}>
+              {face
+                ? <span data-bs-tab-face="" style={{ display: 'grid', placeItems: 'center' }}>{React.createElement(FA, {
+                    flat: true, size: on ? 24 : 28, showRank: false, BG: t.PAPER,
+                    c: on ? t.PAPER : `rgba(${t.inkRGB},0.32)`,
+                    initial: (window.bsMyInitials && window.bsMyInitials()) || undefined,
+                    name: (window.bsMyName && window.bsMyName()) || '',
+                    photo: (window.bsMyPhoto && window.bsMyPhoto()) || undefined,
+                  })}</span>
+                : BS_TAB_ICON_KEYS.has(tab.key)
+                  ? <BSTabIcon name={tab.key} size={24} weight={1.8} filled={on} cut={on ? t.INK : t.PAPER} />
+                  : <span style={{ position: 'relative', fontFamily: t.MONO, fontWeight: on ? 800 : 700, fontSize: 11, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{String(i + 1).padStart(2, '0')}</span>}
+              {/* The unread count: a red pill on the icon's shoulder, ringed in the paper. */}
+              {unread && (
+                <span style={{ position: 'absolute', top: 8, left: '55%', minWidth: 17, height: 17, borderRadius: 999, background: red, color: t.PAPER, boxShadow: `0 0 0 2px ${t.PAPER}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', lineHeight: 1 }}>{unread}</span>
               )}
-            </span>
-            {tab.key === 'chat' && chatUnread > 0 && (
-              <span style={{ position: 'absolute', top: 0, left: '52%', minWidth: 15, height: 15, borderRadius: 4, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{chatUnread > 9 ? '9+' : chatUnread}</span>
-            )}
-          </button>
-        );
-      })}
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }
@@ -1886,7 +1960,7 @@ Object.assign(window, {
   BSContext, BSProvider, useBS, BSBackButton, BSNavGestures, BSToastHost, BSConfirmHost,
   BSPage, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
-  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_CORNER_GAP,
+  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_CORNER_GAP,
   // The settings texture picker paints live pattern-preview tiles with this.
   bsMakeTexture: makeTexture,
 });

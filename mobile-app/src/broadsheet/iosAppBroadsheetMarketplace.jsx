@@ -377,14 +377,16 @@ function mktShortLoc(loc) {
 // calendar — cannot drift. Both constants are READ, never re-typed: the chrome
 // owns the values and the `|| 34` / `|| 9` fallbacks only cover load order.
 // Every window global is guarded the way the rest of this file guards them.
-function bsMktCorner() {
+// `ink` is the page's ink: the face is the magazine's flat cut, framed in it.
+function bsMktCorner(ink) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: (window.BS_CORNER_GAP || 9) }}>
       {window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (window.BS_HEADER_AVATAR || 34) }) : null}
       {window.BSFacetAvatar ? (
         <window.BSFacetAvatar
+          flat
           size={(window.BS_HEADER_AVATAR || 34)}
-          c={(window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98'}
+          c={ink}
           initial={(window.bsMyInitials && window.bsMyInitials()) || 'A'}
           name={(window.bsMyName && window.bsMyName()) || undefined}
           photo={(window.bsMyPhoto && window.bsMyPhoto()) || undefined}
@@ -971,7 +973,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
             {window.BSLogo ? <window.BSLogo size={16} color={t.INK} /> : null}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>{tr('marketplace:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}</div>
           </div>
-          {bsMktCorner()}
+          {bsMktCorner(t.INK)}
         </div>
         {/* Universal back row — own row, flush left, under the mast (2026-07-14). */}
         <div style={{ marginTop: 12 }}>

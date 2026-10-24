@@ -87,7 +87,6 @@ const {
 // coach session that loads this bundle first crashes with "… is not a function".
 const bsTierColor   = (...a) => { try { return (window.bsTierColor && window.bsTierColor(...a)) || '#8a8f98'; } catch (e) { return '#8a8f98'; } };
 const bsMyInitials  = () => { try { return (window.bsMyInitials && window.bsMyInitials()) || 'A'; } catch (e) { return 'A'; } };
-const bsMyTierColor = () => { try { return (window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98'; } catch (e) { return '#8a8f98'; } };
 // Coach tier ladder (scheme J) translator — set on window by the client bundle.
 const bsCoachTier   = (x) => { try { return (window.bsCoachTier && window.bsCoachTier(x)) || x; } catch (e) { return x; } };
 // Signed-in (live account) check for coach surfaces — demo data is preview-only,
@@ -1564,7 +1563,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         {screens[tab]}
       </div>
       {/* Feed composer portals into this slot (see BSClientFeed). */}
-      <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_H || 64), zIndex: 60, pointerEvents: 'none' }} />
+      <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_CSS || window.BS_TABBAR_H || 64), zIndex: 60, pointerEvents: 'none' }} />
       <BSTabBar active={tab} onChange={setTab} tabs={[
         { key: 'today',    label: tr('coach:nav.today', { defaultValue: 'Today' }) },
         { key: 'clients',  label: tr('coach:nav.clients', { defaultValue: 'Clients' }) },
@@ -1857,7 +1856,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         noTopRule
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         showDoubleRule={false}
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSFacetAvatar size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSFacetAvatar flat size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} c={t.INK} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
         showDotTexture={false}
       />
 
@@ -2382,12 +2381,13 @@ function bsProMeInit() {
 // The coach's own avatar — opens Settings (the shells listen for the event).
 function BSProAvatarButton({ size = 38 }) {
   // Match the Today/Me headers: the coach's real photo (custom or signed-in),
-  // tier-colored ring, falling back to initials — not a flat initial badge.
-  const tier = (typeof window !== 'undefined' && window.ShapeScore && window.ShapeScore.tier) || 'Base';
+  // falling back to initials, in the magazine's flat cut of the facet (an ink
+  // frame, owner 2026-10-24), as on every page's corner.
+  const t = useBS();
   const photo = (typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined;
   const live = (typeof window !== 'undefined' && typeof bsAmLive === 'function') ? bsAmLive() : false;
   const open = () => { try { window.dispatchEvent(new CustomEvent('shape:openProSettings')); } catch (e) {} };
-  return <BSFacetAvatar size={size} c={bsTierColor(tier)} initial={bsProMeInit()} photo={photo} live={live} showRank={false} onClick={open} />;
+  return <BSFacetAvatar flat size={size} c={t.INK} initial={bsProMeInit()} photo={photo} live={live} showRank={false} onClick={open} />;
 }
 // The Client Index — the roster serialized into the Open Ledger / Wire
 // Dispatch grammar (spec §B). Zero-box: a search underline, a typographic
@@ -7601,7 +7601,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         {screens[tab]}
       </div>
       {/* Feed composer portals into this slot (see BSClientFeed). */}
-      <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_H || 64), zIndex: 60, pointerEvents: 'none' }} />
+      <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_CSS || window.BS_TABBAR_H || 64), zIndex: 60, pointerEvents: 'none' }} />
       <BSTabBar active={tab} onChange={setTab} tabs={[
         { key: 'today',    label: tr('coach:nav.today', { defaultValue: 'Today' }) },
         { key: 'clients',  label: tr('coach:nav.clients', { defaultValue: 'Clients' }) },
