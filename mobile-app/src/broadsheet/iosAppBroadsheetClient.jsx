@@ -65,7 +65,7 @@ import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
 import { BSEatFuel } from './BSEatFuel.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
-import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead } from './BSWallStory.jsx';
+import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead, bsWsRed, bsWsHead } from './BSWallStory.jsx';
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
@@ -15664,7 +15664,7 @@ function bsChannelColor(name) {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return BS_CHANNEL_PALETTE[h % BS_CHANNEL_PALETTE.length];
 }
-function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', photo, rank = 'I', tierLabel = '', tierPos = 'bottom', editable = false, onEdit, showRank = true, live = false, online, activity, onClick, label, BG, INK }) {
+function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', photo, rank = 'I', tierLabel = '', tierPos = 'bottom', editable = false, onEdit, showRank = true, live = false, online, activity, onClick, label, BG, INK, flat = false, dotC = null }) {
   const tr = useShapeTr();
   // The pulsing ring = online now (`live`). The corner DOT is a SEPARATE "active
   // right now" flag: `activity` 'workout' → teal dot, 'cooking' → amber dot. When
@@ -15675,7 +15675,10 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
   // don't), so the dot ring + rank shadow sit on the right surface on any paper.
   const BGv = BG || t.PAPER, INKv = INK || t.INK;
   const COOK = '#d8a23a';
-  const dotColor = activity === 'cooking' ? COOK : '#34d6c5';
+  // `flat` is the magazine's cut of the same gem (owner, 2026-10-24: "keep the same facet shape but … go with
+  // the new design"): the frame in the flat colour `c` with no gradient, sheen, glow or pulse, a paper window,
+  // ink initials, and the corner dot in `dotC`.
+  const dotColor = dotC || (activity === 'cooking' ? COOK : '#34d6c5');
   const showDot = activity ? true : (online === undefined ? live : online);
   const SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
   const inset = Math.max(2, Math.round(size * 0.055));
@@ -15683,13 +15686,13 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
   // on a LIGHT paper a black gem reads as a blob and dark initials vanish — so on
   // light papers the window fills with a darkened tier tint + light initials, so
   // the avatar always reads as a tier-coloured jewel with legible initials.
-  const innerBg = t.isLight ? bsShade(c, 0.6) : '#0f0c0a';
+  const innerBg = flat ? BGv : t.isLight ? bsShade(c, 0.6) : '#0f0c0a';
   // Initials ALWAYS sit on the gem's dark inner window (near-black on dark papers,
   // a darkened tier tint on light papers) — so they must always be a light color,
   // independent of the caller's INK (which is for the surrounding surface, not the
   // gem). Using INKv here made the initials vanish whenever a caller's INK was
   // dark (e.g. on a dark profile/settings surface). A faint shadow keeps them crisp.
-  const initInk = '#fbf7ef';
+  const initInk = flat ? t.INK70 : '#fbf7ef';
   // The set rule: an avatar is ALWAYS a photo or initials — never blank. Prefer the
   // explicit `initial`, else derive 2-letter initials from `name`, else a neutral dot.
   const shownInitials = (initial != null && String(initial).trim()) || (name ? bsInitials(name) : '') || '•';
@@ -15732,15 +15735,15 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
       : { onClick, onKeyDown: onKey, role: 'button', tabIndex: 0, 'aria-label': a11yName, className: 'bs-av-btn', style: box };
   return (
     <Wrap {...wrapProps}>
-      {live && <div className="bs-av-pulse" style={{ position: 'absolute', inset: -Math.round(size * 0.1), transform: 'rotate(45deg)', borderRadius: '30%', border: `2px solid ${FTEAL}`, boxShadow: `0 0 12px ${bsTHexA(FTEAL, 0.55)}`, pointerEvents: 'none', animation: 'bsAvPulse 2.4s ease-in-out infinite' }} />}
+      {live && !flat && <div className="bs-av-pulse" style={{ position: 'absolute', inset: -Math.round(size * 0.1), transform: 'rotate(45deg)', borderRadius: '30%', border: `2px solid ${FTEAL}`, boxShadow: `0 0 12px ${bsTHexA(FTEAL, 0.55)}`, pointerEvents: 'none', animation: 'bsAvPulse 2.4s ease-in-out infinite' }} />}
       {/* gem frame */}
-      <div style={{ position: 'absolute', inset: 0, transform: 'rotate(45deg)', borderRadius: '27%', background: `linear-gradient(135deg, ${c}, ${bsShade(c, 0.5)})`, boxShadow: `0 5px 16px ${bsTHexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
-        <div style={{ position: 'absolute', inset: 0, borderRadius: '27%', background: 'linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', inset: 0, transform: 'rotate(45deg)', borderRadius: '27%', background: flat ? c : `linear-gradient(135deg, ${c}, ${bsShade(c, 0.5)})`, boxShadow: flat ? 'none' : `0 5px 16px ${bsTHexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
+        {!flat && <div style={{ position: 'absolute', inset: 0, borderRadius: '27%', background: 'linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)', pointerEvents: 'none' }} />}
         {/* portrait window (rotated square clip → rounded diamond). Initials sit
             underneath the photo so a missing/broken image falls back to them —
             it's always a real photo or 2 initials, never a blank/placeholder gem. */}
         <div style={{ position: 'absolute', inset, borderRadius: '23%', overflow: 'hidden', background: innerBg, display: 'grid', placeItems: 'center' }}>
-          <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 600, fontSize: size * 0.42, color: initInk, lineHeight: 1, textShadow: '0 1px 2px rgba(0,0,0,0.55)' }}>{shownInitials}</span>
+          <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 600, fontSize: size * 0.42, color: initInk, lineHeight: 1, textShadow: flat ? 'none' : '0 1px 2px rgba(0,0,0,0.55)' }}>{shownInitials}</span>
           {photoSrc && <img src={photoSrc} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', width: '152%', height: '152%', left: '50%', top: '50%', transform: 'translate(-50%,-50%) rotate(-45deg)', objectFit: 'cover' }} />}
         </div>
       </div>
@@ -20557,7 +20560,8 @@ function bsFeedIcon(name, size = 12, solid = false) {
 // One modern comment row — facet avatar + a name/text column so every comment
 // lines up evenly (fixed avatar gutter), shared by the card preview and the
 // full-screen detail page. `who === 'You'` reads in the accent.
-function BSFeedComment({ c, t, cardInk, muted, feedAvatars = {}, real = false, size = 26 }) {
+// `flat`: the Wall's magazine cut of the face (owner, 2026-10-24), an ink frame with no glow.
+function BSFeedComment({ c, t, cardInk, muted, feedAvatars = {}, real = false, size = 26, flat = false }) {
   const nm = c.who || 'Member';
   const isMe = nm === 'You';
   const photo = isMe ? (bsMyPhoto() || undefined) : (c.userId ? feedAvatars[c.userId] : (real ? undefined : bsDemoFace(nm)));
@@ -20566,7 +20570,7 @@ function BSFeedComment({ c, t, cardInk, muted, feedAvatars = {}, real = false, s
   const meC = t.isLight ? '#0a8f87' : '#34d6c5';
   return (
     <div style={{ display: 'flex', gap: 9, marginBottom: 12, alignItems: 'flex-start' }}>
-      <BSFacetAvatar size={size} c={col} initial={init} name={nm} photo={photo} showRank={false} />
+      <BSFacetAvatar flat={flat} size={size} c={flat ? t.INK : col} initial={init} name={nm} photo={photo} showRank={false} />
       <div style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
         <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: isMe ? meC : muted }}>{String(nm).split(' ')[0]}</div>
         <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: cardInk, lineHeight: 1.42, marginTop: 3 }}>{c.text || c.body}</div>
@@ -20672,22 +20676,9 @@ function useBSSdInView() {
   }, [seen]);
   return [ref, seen];
 }
-const BS_SD_ZONES = ['#5b8def', '#34d6c5', '#d8b25a', '#e8843c', '#e0463c'];
-// Session intensity (0..4-ish) from the time-in-zone split — drives the page's
-// accent temperature. null when there's no zone data (neutral page).
-function bsSdIntensity(zones) {
-  if (!Array.isArray(zones) || !zones.length) return null;
-  let sum = 0, tot = 0;
-  zones.forEach(([, pct], i) => { const p = Number(pct) || 0; sum += i * p; tot += p; });
-  return tot > 0 ? sum / tot : null;
-}
-function bsSdHeatColor(intensity, fallback) {
-  if (intensity == null) return fallback;
-  if (intensity < 1.1) return '#34d6c5';
-  if (intensity < 1.9) return '#d8b25a';
-  if (intensity < 2.7) return '#e8843c';
-  return '#e0463c';
-}
+// In the Wall's magazine palette (owner, 2026-10-24): warm grey through sand to the magazine's red, so
+// an easy zone reads quiet and a hard one reads hot on either paper.
+const BS_SD_ZONES = ['#8c877e', '#b9a189', '#df8d6a', '#e6623c', '#c8321a'];
 // The LIVING TRACE — the metric-over-distance chart, alive: the line draws
 // itself in when scrolled into view, the fill fades up after it, the trace's
 // END carries a live dot (HTML, so it never distorts under the stretched
@@ -20748,7 +20739,7 @@ function BSSdTrace({ vals, color, invert = false, fmt, idKey, height = 104, t, m
         </svg>
         {/* live end-point — an HTML dot (never distorted by the stretched viewBox) */}
         {seen && !scrub && (
-          <span aria-hidden style={{ position: 'absolute', left: 'calc(100% - 3px)', top: `calc(${endY}% - 3px)`, width: 6, height: 6, borderRadius: 999, background: zoneGrad ? bsSdHeatColor(3.2, color) : color, boxShadow: `0 0 0 3px ${bsTHexA(zoneGrad ? '#e0463c' : color, 0.18)}`, opacity: 0.9 }} />
+          <span aria-hidden style={{ position: 'absolute', left: 'calc(100% - 3px)', top: `calc(${endY}% - 3px)`, width: 6, height: 6, borderRadius: 999, background: zoneGrad ? BS_SD_ZONES[4] : color, opacity: 0.9 }} />
         )}
         {markMax && seen && !scrub && (
           <span aria-hidden style={{ position: 'absolute', left: `min(max(${peakX}% - 24px, 0px), calc(100% - 58px))`, top: `max(calc(${peakY}% - 16px), 0px)`, fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.08em', color: t.INK, background: bsTHexA(t.INK, 0.1), padding: '1px 5px', borderRadius: 3, whiteSpace: 'nowrap' }}>▲ {fmtv(peakVal)}{unit ? ` ${unit}` : ''}</span>
@@ -20794,7 +20785,7 @@ function BSSdPaceBars({ data, t, muted, heat, big = false, onOpen }) {
           <div key={i} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', height: '100%' }}>
             <div aria-hidden style={{
               width: '100%', height: seen ? `${s.hFrac * 100}%` : '0%',
-              background: BS_SD_ZONES[(s.zone - 1) % 5], borderRadius: 2,
+              background: BS_SD_ZONES[(s.zone - 1) % 5],
               transition: reduced ? 'none' : `height 620ms cubic-bezier(.3,.6,.2,1) ${40 * i}ms`,
               outline: i === bestIdx ? `1px solid ${bsTHexA(t.INK, 0.45)}` : 0,
             }} />
@@ -20825,14 +20816,11 @@ function BSSdZoneCells({ zones, t, muted }) {
     <div ref={ref} style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
       {zones.map(([zl, pct], i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ width: 8, height: 8, borderRadius: 2, background: BS_SD_ZONES[i % 5], flexShrink: 0 }} />
+          <span style={{ width: 8, height: 8, background: BS_SD_ZONES[i % 5], flexShrink: 0 }} />
           <span style={{ width: 18, flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.04em', color: t.INK }}>{zl}</span>
-          <div style={{ flex: 1, height: 10, borderRadius: 2, background: bsTHexA(t.INK, 0.07), overflow: 'hidden', position: 'relative' }}>
+          <div style={{ flex: 1, height: 6, background: bsTHexA(t.INK, 0.07), overflow: 'hidden', position: 'relative' }}>
             <div style={{ width: seen ? `${Math.max(pct, 1.5)}%` : '0%', height: '100%', background: BS_SD_ZONES[i % 5], transition: `width 750ms cubic-bezier(.3,.6,.2,1) ${140 * i}ms`, position: 'relative', overflow: 'hidden' }}>
-              {seen && !bsSdReduced() && <span aria-hidden style={{ position: 'absolute', top: 0, bottom: 0, width: '45%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)', animation: `bsSdShimmer 850ms ease-out ${140 * i + 350}ms both` }} />}
             </div>
-            {/* segment cuts — the fill reads as charge cells, not a spreadsheet bar */}
-            <div aria-hidden style={{ position: 'absolute', inset: 0, background: `repeating-linear-gradient(90deg, transparent 0 9px, ${t.PAPER} 9px 11px)` }} />
           </div>
           <span style={{ width: 30, flexShrink: 0, textAlign: 'right', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: pct >= 30 ? t.INK : muted }}>
             <BSSdCountUp text={`${pct}%`} run={seen} duration={650} delay={140 * i} />
@@ -20962,33 +20950,29 @@ function BSIbTile({ label, value, kind, ghostPath, needle, heat, t, onOpen, open
       onClick={onOpen}
       aria-haspopup="dialog"
       aria-label={openLabel}
-      style={{ position: 'relative', minHeight: 66, display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
-      {/* the two clipped layers + spine of a BSPlate, at tile scale — the notch
-          is 9px here against the plate's 12 so six of them do not read as a row
-          of dog-ears. */}
-      <div aria-hidden style={{ position: 'absolute', inset: 0, background: ink(0.22), clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)' }} />
-      <div aria-hidden style={{ position: 'absolute', inset: 1, background: `linear-gradient(165deg, ${ink(0.06)}, ${t.PAPER2} 70%), ${t.PAPER}`, clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }} />
-      <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2, background: kind === 'plain' ? ink(0.3) : heat }} />
-      <div style={{ position: 'relative', padding: '9px 8px 8px 10px' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 6.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink(0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', lineHeight: 1 }}>
+      style={{ position: 'relative', minHeight: 58, display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${ink(0.16)}`, padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+      {/* A figure as the Wall prints one (owner, 2026-10-24, the session page "to match the new wall feed
+          design"): the number in the headline face over its mono label, under a hairline. No plate, no spine. */}
+      <div style={{ position: 'relative', padding: '9px 14px 8px 0' }}>
+        <div style={{ fontFamily: bsWsHead(t), fontSize: 24, fontWeight: 600, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', lineHeight: 1 }}>
           <BSSdCountUp text={u.num} duration={700} delay={140} />
-          {u.unit ? <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, color: ink(0.55), marginLeft: 3, letterSpacing: 0 }}>{u.unit}</span> : null}
+          {u.unit ? <span style={{ fontSize: 12, color: ink(0.5), marginLeft: 3, textTransform: 'uppercase' }}>{u.unit}</span> : null}
         </div>
+        <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink(0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
         {kind === 'ghost' && ghostPath && (
-          <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', right: 5, bottom: 5, width: 40, height: 18, opacity: 0.2 }}>
+          <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', right: 14, bottom: 9, width: 34, height: 9, opacity: 0.35 }}>
             <path d={ghostPath} fill="none" stroke={heat} strokeWidth="2" vectorEffect="non-scaling-stroke" />
           </svg>
         )}
         {kind === 'needle' && needle && (
-          <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', right: 5, bottom: 5, width: 40, height: 18, opacity: 0.45 }}>
+          <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', right: 14, bottom: 8, width: 34, height: 12, opacity: 0.6 }}>
             <line x1="0" y1="50" x2="100" y2="50" stroke={ink(0.5)} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
             <line x1={needle.frac * 100} y1="16" x2={needle.frac * 100} y2="84" stroke={heat} strokeWidth="3" vectorEffect="non-scaling-stroke" />
           </svg>
         )}
         {/* the affordance — a corner chevron at the notch, so a tile reads as
             something that opens without spending any of its 105px on a word. */}
-        <span aria-hidden style={{ position: 'absolute', right: 6, top: 7, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, color: ink(0.32), lineHeight: 1 }}>›</span>
+        <span aria-hidden style={{ position: 'absolute', right: 2, top: 10, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: ink(0.32), lineHeight: 1 }}>›</span>
       </div>
     </button>
   );
@@ -21170,7 +21154,7 @@ function BSIbTiles({ tiles, rest, heat, t, ghostFor, paceTrace, isRide, detailCt
   const restUnitCh = (rest || []).reduce((m, r) => Math.max(m, bsSdSplitUnit(r[1]).unit.length), 0);
   return (
     <div ref={ref}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginTop: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', columnGap: 14, rowGap: 4, marginTop: 6 }}>
         {tiles.map(([k, v], i) => {
           const needle = /pace|speed/i.test(String(k)) ? bsSdNeedle(v, paceTrace, isRide ? 'speed' : 'pace') : null;
           const ghostPath = ghostFor(k);
@@ -21197,7 +21181,7 @@ function BSIbTiles({ tiles, rest, heat, t, ghostFor, paceTrace, isRide, detailCt
               <div key={`${k}-${i}`} style={{ display: 'flex', alignItems: 'baseline', padding: '6px 0', ...(reduced ? null : { animation: `bsSdFadeUp 440ms ease ${260 + Math.min(i, 9) * 55}ms both` }) }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink(0.45), whiteSpace: 'nowrap' }}>{k}</span>
                 <span aria-hidden style={{ flex: 1, margin: '0 8px', borderBottom: `1.5px dotted ${ink(0.22)}`, transform: 'translateY(-3px)' }} />
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                <span style={{ fontFamily: bsWsHead(t), fontSize: 17, fontWeight: 600, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                   <BSSdCountUp text={u.num} run={seen} duration={650} delay={300 + Math.min(i, 9) * 55} />
                   {restUnitCh ? <span style={{ display: 'inline-block', width: `${restUnitCh}ch`, textAlign: 'left', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: ink(0.55), marginLeft: 4 }}>{u.unit}</span> : null}
                 </span>
@@ -21241,7 +21225,7 @@ function BSIbZoneBar({ zones, heat, t }) {
   return (
     <div ref={ref} style={{ marginTop: 14 }}>
       <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>{tr('feed:card.hrZones', { defaultValue: 'HR zones' })}</div>
-      <div style={{ display: 'flex', gap: 2, height: 9, borderRadius: 2, overflow: 'hidden', marginTop: 6 }}>
+      <div style={{ display: 'flex', gap: 2, height: 6, overflow: 'hidden', marginTop: 6 }}>
         {segs.map((s) => (
           <span key={s.i} aria-hidden style={{ display: 'block', flex: s.flex, background: BS_SD_ZONES[s.i % 5], transformOrigin: 'left', transform: seen ? 'none' : 'scaleX(0)', transition: `transform 640ms cubic-bezier(.3,.6,.2,1) ${90 * s.i}ms` }} />
         ))}
@@ -21293,7 +21277,6 @@ function BSIbTable({ head, rows, heat, t }) {
               position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 2,
               width: `${(seen || reduced) ? r.width : 0}%`,
               background: r.best ? heat : ink(0.2),
-              ...(r.best ? { boxShadow: `0 0 8px 1px ${bsTHexA(heat, 0.4)}` } : null),
               transition: reduced ? 'none' : `width 520ms cubic-bezier(.4,0,.2,1) ${i * 90}ms`,
             }} />
           </div>
@@ -21307,7 +21290,8 @@ function BSIbTable({ head, rows, heat, t }) {
 // two ways on one page.
 function bsIbRpeDial(rpe, t, size = 13) {
   if (rpe == null) return null;
-  const color = rpe >= 9 ? '#e0463c' : rpe >= 8 ? '#d8b25a' : '#34d6c5';
+  // The zones' magazine ramp (owner, 2026-10-24): an easy set reads quiet, a hard one the magazine's red.
+  const color = rpe >= 9 ? BS_SD_ZONES[4] : rpe >= 8 ? BS_SD_ZONES[3] : BS_SD_ZONES[1];
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" role="img" aria-label={`RPE ${rpe}`}>
       <circle cx="10" cy="10" r="7.5" fill="none" stroke={bsTHexA(t.INK, 0.14)} strokeWidth="3" />
@@ -21397,24 +21381,22 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const facepile = (d.followedLikers && d.followedLikers.length ? d.followedLikers : d.allLikers).slice(0, 5);
   const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.62), margin: '22px 0 11px', display: 'flex', alignItems: 'center', gap: 8 };
   const tick = <span style={{ width: 14, height: 1.5, background: bsTHexA(t.INK, 0.55), borderRadius: 2 }} />;
-  // Off-tier accent for the activity views (hero readout + reaction pill): the
-  // app's teal, the same for everyone (tier color stays on avatars/badge only).
-  const accent = t.ACCENT;
-  // v2 "living instrument": the page's TEMPERATURE follows the session's
-  // time-in-zone intensity — a recovery session reads cool teal, a max effort
-  // reads ember/red. Falls back to the neutral accent when no zone data.
+  // The page in the Wall's magazine look (owner, 2026-10-24: "the session details page now needs to match
+  // the new wall feed design"): its one accent is the magazine's red, on every session. The "living
+  // instrument" temperature (cool teal for a recovery session, ember for a max effort) is retired with
+  // the teal; the zones still say how hard it was.
+  const accent = bsWsRed(t);
   // Inject before paint (not during render) so an abandoned render can't
   // mutate the document; insertion effects exist for exactly this.
   React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
   const sdReduced = bsSdReduced();
-  const heat = bsSdHeatColor(bsSdIntensity(d.zones), accent);
+  const heat = accent;
   // ── Instrument-plate helpers (stats view) ──────────────────────────────────
   // Section head — a hairline rule ABOVE the label (matching the comments page's
   // sectioning) + the mono eyebrow with an accent tick, so each block reads as
   // its own clearly-divided section.
   const secHead = (label, trailing) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.62), marginTop: 24, paddingTop: 17, marginBottom: 13, borderTop: `1px solid ${hair}` }}>
-      <span aria-hidden style={{ width: 14, height: 1.5, background: heat, borderRadius: 2 }} />
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontFamily: bsWsHead(t), fontSize: 17, fontWeight: 600, letterSpacing: '0.03em', lineHeight: 1.1, textTransform: 'uppercase', color: t.INK, marginTop: 26, paddingTop: 12, marginBottom: 12, borderTop: `1px solid ${hair}` }}>
       <span>{label}</span>{trailing}
     </div>
   );
@@ -21455,7 +21437,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
     return series.map((v, i) => `${i ? 'L' : 'M'}${((i / (series.length - 1)) * 100).toFixed(1)} ${(88 - ((v - lo) / rng) * 76).toFixed(1)}`).join(' ');
   };
   // Reusable section chip (right-aligned stat on a chart head).
-  const headChip = (label, accent) => <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.05em', color: muted, background: bsTHexA(t.INK, 0.06), border: accent ? `1px solid ${bsTHexA(t.INK, 0.18)}` : 0, borderRadius: 999, padding: '2px 8px' }}>{label}</span>;
+  const headChip = (label, accent) => <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent ? heat : muted }}>{label}</span>;
   // Categorize the device stats so the page reads as a few clear SECTIONS, not
   // one packed grid. Hero stat (the headline number) is excluded from the rest.
   const heroKey = d.heroStat ? String(d.heroStat[0]).toLowerCase() : null;
@@ -21579,7 +21561,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           {!isComments && canShareCard && (
             <button onClick={() => setShareOpen(true)} aria-label={tr('session:action.share', { defaultValue: 'Share' })} style={{ marginLeft: 'auto', width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
           )}
-          <span style={{ marginLeft: (!isComments && canShareCard) ? 0 : 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 7px', borderRadius: 4 }}>{d.typeLabel}</span>
+          <span style={{ marginLeft: (!isComments && canShareCard) ? 0 : 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: heat }}>{d.typeLabel}</span>
         </div>
       </div>
       {shareOpen && (
@@ -21593,11 +21575,11 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
       <div ref={bodyRef} className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 20px' }}>
         {/* author */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-          <BSFacetAvatar size={44} c={tc} initial={bsInitials(d.who)} name={d.who} photo={d.avatarPhoto} showRank={false} onClick={() => onProfile && onProfile({ who: d.who, kind: d.roleKind, tier: d.realTier, init: bsInitials(d.who), city: d.city, userId: a.real ? a.userId : undefined, public: true, photo: d.avatarPhoto })} />
+          <BSFacetAvatar flat size={44} c={t.INK} initial={bsInitials(d.who)} name={d.who} photo={d.avatarPhoto} showRank={false} onClick={() => onProfile && onProfile({ who: d.who, kind: d.roleKind, tier: d.realTier, init: bsInitials(d.who), city: d.city, userId: a.real ? a.userId : undefined, public: true, photo: d.avatarPhoto })} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, color: t.INK }}>{d.who}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '1px 4px', borderRadius: 3 }}>{d.tierDisplay}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{d.tierDisplay}</span>
             </div>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, marginTop: 3, letterSpacing: '0.04em' }}>{tr('session:detail.ago', { defaultValue: '{time} ago', time: d.ago })}{d.city ? ` · ${d.city}` : ''}{d.role ? ` · ${d.role}` : ''}</div>
           </div>
@@ -21606,39 +21588,33 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             hero zone (the heat-wash that used to bleed over the author row is
             deleted; the rail below carries the page temperature instead). */}
         <div aria-hidden style={{ height: 1, background: bsTHexA(t.INK, 0.08), margin: '14px 0 0' }} />
-        {/* ── OPEN LEDGER — hero → route → summary threaded on the heat rail ── */}
-        {/* marginLeft pulls the rail into the page gutter so the ledger fills
-            more of the width — internal rail geometry (paddingLeft 15, the
-            -15 station ticks) is untouched by design. */}
-        <div style={{ position: 'relative', paddingLeft: 15, marginLeft: -10 }}>
-          <div aria-hidden style={{ position: 'absolute', left: 0, top: 6, bottom: 0, width: 2, borderRadius: 1, background: `linear-gradient(180deg, ${heat}, ${bsTHexA(heat, 0.35)} 38%, ${bsTHexA(t.INK, 0.12)} 72%, transparent)`, ...(sdReduced ? null : { transformOrigin: 'top', animation: 'bsSdGrowY 1100ms cubic-bezier(.4,0,.2,1) 200ms both' }) }} />
-          <span aria-hidden style={{ position: 'absolute', left: -0.5, top: 96, width: 3, height: 10, borderRadius: 2, background: heat, ...(sdReduced ? null : { '--sd-glow': bsTHexA(heat, 0.4), animation: 'bsSdPrBreath 3.2s ease-in-out 1500ms infinite' }) }} />
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 800, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.08, marginTop: 18 }}>{d.title}{/[.!?]$/.test(String(d.title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
+        {/* ── THE STORY — headline → figure → summary, as the Wall prints it (the heat rail is retired) ── */}
+        <div style={{ position: 'relative' }}>
+          <h2 style={{ margin: '18px 0 0', paddingBottom: 9, borderBottom: `3px solid ${t.INK}`, fontFamily: bsWsHead(t), fontSize: 30, fontWeight: 600, lineHeight: 1, letterSpacing: '0.012em', textTransform: 'uppercase', color: t.INK, textWrap: 'balance', overflowWrap: 'anywhere' }}>{d.title}</h2>
           {d.heroStat && (() => {
             const u = bsSdSplitUnit(d.heroStat[1]);
             return (
               <div>
-                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginTop: 14 }}>{d.heroStat[0]}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginTop: 14 }}>{d.heroStat[0]}</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 'min(50px, 12.5vw)', fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontFamily: bsWsHead(t), fontSize: 'min(56px, 14vw)', fontWeight: 600, color: t.INK, letterSpacing: '0.005em', lineHeight: 0.9, fontVariantNumeric: 'tabular-nums' }}>
                     <BSSdCountUp text={u.num} duration={780} delay={120} />
                   </span>
-                  {u.unit ? <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(t.INK, 0.55) }}>{u.unit}</span> : null}
+                  {u.unit ? <span style={{ fontFamily: bsWsHead(t), fontSize: 18, fontWeight: 600, color: t.INK50, textTransform: 'uppercase' }}>{u.unit}</span> : null}
                   {d.prDelta && (
                     <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK, borderBottom: `1px solid ${heat}`, paddingBottom: 2, whiteSpace: 'nowrap', ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 720ms both' }) }}>
                       <span style={{ color: heat }}>↑</span> {tr('session:detail.pr', { defaultValue: 'PR' })} {d.prDelta}
                     </span>
                   )}
                 </div>
-                <div aria-hidden style={{ height: 2, marginTop: 11, background: `linear-gradient(90deg, ${heat}, ${bsTHexA(heat, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) 80ms both' }) }} />
               </div>
             );
           })()}
           {d.body && <p style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK, margin: '14px 0 0' }}>{d.body}</p>}
           {d.coSign && (
             <div style={{ marginTop: 12, ...(sdReduced ? null : { animation: 'bsSdStamp 480ms cubic-bezier(.2,1.1,.3,1) 560ms both' }) }}>
-              <button type="button" onClick={() => onProfile && onProfile({ who: d.coSign.name, kind: String(d.coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: d.coSign.byId || undefined, init: bsInitials(d.coSign.name), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: d.coSignColor, color: '#fff', border: 0, borderRadius: 999, padding: '5px 12px', cursor: 'pointer' }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900 }}>✓</span>
+              <button type="button" onClick={() => onProfile && onProfile({ who: d.coSign.name, kind: String(d.coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: d.coSign.byId || undefined, init: bsInitials(d.coSign.name), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36, background: 'transparent', color: t.INK, border: `1px solid ${bsTHexA(t.INK, 0.25)}`, borderRadius: 0, padding: '7px 12px', cursor: 'pointer' }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900, color: heat }}>✓</span>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 800 }}>{d.coSign.name}</span>
                 <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>{tr('session:detail.cosigned', { defaultValue: 'co-signed · {role}', role: String(d.coSign.role).toLowerCase() === 'nutritionist' ? tr('session:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('session:role.coach', { defaultValue: 'Coach' }) })}</span>
               </button>
@@ -21835,12 +21811,12 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           <>
             <div style={{ ...eyebrow, marginTop: 22, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: heat, borderRadius: 2 }} /><span>{tr('session:detail.reactions', { defaultValue: 'Reactions' })} · <BSSdCountUp text={String(count)} duration={620} delay={140} /></span></div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 16px', borderRadius: 999, cursor: 'pointer', background: liked ? accent : `${accent}14`, color: liked ? '#fff' : accent, border: `1px solid ${accent}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', ...(sdReduced || liked ? null : { '--sd-glow': bsTHexA(accent, 0.38), animation: 'bsSdPrBreath 2600ms ease-in-out 900ms infinite' }) }}>{bsFeedIcon('react', 13)}<span>{myExpr || d.verb} · <span key={count} style={{ display: 'inline-block', ...(sdReduced ? null : { animation: 'bsSdPop 340ms cubic-bezier(.2,1.4,.4,1)' }) }}>{count}</span></span></button>
+              <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 16px', borderRadius: 0, cursor: 'pointer', background: liked ? accent : `${accent}14`, color: liked ? '#fff' : accent, border: `1px solid ${accent}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', ...(sdReduced || liked ? null : { '--sd-glow': bsTHexA(accent, 0.38), animation: 'bsSdPrBreath 2600ms ease-in-out 900ms infinite' }) }}>{bsFeedIcon('react', 13)}<span>{myExpr || d.verb} · <span key={count} style={{ display: 'inline-block', ...(sdReduced ? null : { animation: 'bsSdPop 340ms cubic-bezier(.2,1.4,.4,1)' }) }}>{count}</span></span></button>
               {facepile.length > 0 && (
                 <button onClick={onOpenLikers} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
                   <span style={{ display: 'inline-flex', gap: 5 }}>{facepile.map((l, i) => (
                     <span key={l.userId || l.name || i} style={sdReduced ? null : { display: 'inline-flex', animation: `bsSdFadeUp 380ms ease ${240 + i * 70}ms both` }}>
-                      <BSFacetAvatar size={24} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
+                      <BSFacetAvatar flat size={24} c={t.INK} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
                     </span>
                   ))}</span>
                   <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, ...(sdReduced ? null : { animation: `bsSdFadeUp 380ms ease ${240 + facepile.length * 70}ms both` }) }}>{tr('session:detail.whoReacted', { defaultValue: 'Who reacted ›' })}</span>
@@ -21851,7 +21827,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             {comments.length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: muted, paddingBottom: 6, ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 180ms both' }) }}>{tr('session:detail.noComments', { defaultValue: 'No comments yet — be the first.' })}</div>}
             {comments.map((c, i) => (
               <div key={c.id ?? c.ts ?? `${c.who || 'c'}·${i}`} style={(sdReduced || i >= commentsAtOpen.current) ? null : { animation: `bsSdFadeUp 420ms ease ${180 + Math.min(i, 9) * 80}ms both` }}>
-                <BSFeedComment c={c} t={t} cardInk={t.INK} muted={muted} feedAvatars={feedAvatars} real={a.real} size={28} />
+                <BSFeedComment c={c} t={t} cardInk={t.INK} muted={muted} feedAvatars={feedAvatars} real={a.real} size={28} flat />
               </div>
             ))}
           </>
@@ -21870,20 +21846,20 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             <button onClick={onOpenLikers} aria-label={tr('session:detail.whoReacted', { defaultValue: 'Who reacted ›' })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, padding: '4px 0', cursor: 'pointer', flexShrink: 0 }}>
               {facepile.slice(0, 3).map((l, i) => (
                 <span key={l.userId || l.name || i} style={{ marginLeft: i ? -6 : 0, borderRadius: 999, border: `1.5px solid ${t.PAPER}`, display: 'inline-flex' }}>
-                  <BSFacetAvatar size={20} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
+                  <BSFacetAvatar flat size={20} c={t.INK} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
                 </span>
               ))}
             </button>
           )}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-            <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 30, padding: '0 10px', borderRadius: 999, cursor: 'pointer', background: liked ? accent : 'transparent', color: liked ? '#fff' : t.INK, border: `1px solid ${liked ? accent : bsTHexA(t.INK, 0.16)}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+            <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 30, padding: '0 10px', borderRadius: 0, cursor: 'pointer', background: liked ? accent : 'transparent', color: liked ? '#fff' : t.INK, border: `1px solid ${liked ? accent : bsTHexA(t.INK, 0.16)}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
               {bsFeedIcon('react', 11)}<span>{myExpr || d.verb} · {count}</span>
             </button>
-            <button onClick={() => { setFocusTab('comments'); if (bodyRef.current) bodyRef.current.scrollTop = 0; }} aria-label={`${tr('session:detail.comments', { defaultValue: 'Comments' })} ${comments.length}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 30, padding: '0 10px', borderRadius: 999, cursor: 'pointer', background: 'transparent', color: t.INK, border: `1px solid ${bsTHexA(t.INK, 0.16)}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+            <button onClick={() => { setFocusTab('comments'); if (bodyRef.current) bodyRef.current.scrollTop = 0; }} aria-label={`${tr('session:detail.comments', { defaultValue: 'Comments' })} ${comments.length}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 30, padding: '0 10px', borderRadius: 0, cursor: 'pointer', background: 'transparent', color: t.INK, border: `1px solid ${bsTHexA(t.INK, 0.16)}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
               {bsFeedIcon('comment', 11)}<span>{comments.length} ›</span>
             </button>
             {canShareCard && (
-              <button onClick={() => setShareOpen(true)} aria-label={tr('session:action.share', { defaultValue: 'Share' })} style={{ width: 30, height: 30, borderRadius: 999, border: `1px solid ${bsTHexA(t.INK, 0.16)}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0, flexShrink: 0 }}>{bsFeedIcon('share', 12)}</button>
+              <button onClick={() => setShareOpen(true)} aria-label={tr('session:action.share', { defaultValue: 'Share' })} style={{ width: 30, height: 30, borderRadius: 0, border: `1px solid ${bsTHexA(t.INK, 0.16)}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0, flexShrink: 0 }}>{bsFeedIcon('share', 12)}</button>
             )}
           </div>
         </div>
@@ -22337,7 +22313,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               return (
                 <>
                   <BSWallStoryHead kicker={kicker} title={title} photo={a.photo || null} route={magRoute}
-                    avatar={hideAuthor ? null : <BSFacetAvatar size={24} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} />}
+                    avatar={hideAuthor ? null : <BSFacetAvatar flat size={24} c={t.INK} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} />}
                     name={hideAuthor ? null : a.who} meta={meta} bleed={12 + pagePad} onOpen={() => openDetail('stats')} onAuthor={openCardProfile}
                     action={onEdit && a.postId ? <button aria-label={tr('feed:card.editActivity', { defaultValue: 'Edit activity' })} onClick={() => onEdit(a)} style={{ flexShrink: 0, background: 'transparent', border: 0, width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}><span aria-hidden style={{ width: 22, height: 22, border: `1px solid ${hair}`, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, boxSizing: 'border-box' }}>✎</span></button> : null} />
                   <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -22677,7 +22653,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               <button onClick={() => setLikerSheetFor({ who: a.who, likers: allLikers })} style={{ display: 'flex', alignItems: 'center', gap: 9, minHeight: 44, width: '100%', marginTop: 12, padding: '4px 0', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                   {likeFacepile.map((l, i) => (
-                    <BSFacetAvatar key={i} size={22} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
+                    <BSFacetAvatar key={i} flat={isMag} size={22} c={isMag ? t.INK : bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
                   ))}
                 </span>
                 <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>{fpLabel} ›</span>
@@ -22766,7 +22742,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                 <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>{tr('feed:card.comments', { defaultValue: 'Comments' })} · {commentCount} ›</span>
               </button>
               {followedComments.length > 0 && followedComments.slice(0, 2).map((c, i) => (
-                <BSFeedComment key={i} c={c} t={t} cardInk={cardInk} muted={muted} feedAvatars={feedAvatars} real={a.real} size={24} />
+                <BSFeedComment key={i} c={c} t={t} cardInk={cardInk} muted={muted} feedAvatars={feedAvatars} real={a.real} size={24} flat={isMag} />
               ))}
             </div>
           )}
@@ -24029,13 +24005,17 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // doesn't remount the chips on the parent's frequent re-renders. Shared by the
   // Feed role chips and the Team Coaches/Friends selector so both match.
   // Typographic underline index — one tab grammar across the whole chat (the feed
-  // role chips + the Team Coaches/Friends selector). Active = the tab's own color +
-  // a drawn underline; unread badge is a bare colored count (no pink pill).
-  const bsSubTab = ({ key, on, color, onClick, label, badge }) => (
-    <button key={key} onClick={onClick} aria-pressed={!!on} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 40, padding: '9px 6px 10px', boxSizing: 'border-box', background: 'transparent', border: 0, color: on ? color : muted, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-      {label}
-      {badge > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>{badge > 9 ? '9+' : badge}</span>}
-      {on && <span aria-hidden style={{ position: 'absolute', left: 6, right: 6, bottom: 0, height: 2, background: color }} />}
+  // role chips + the Team Coaches/Friends selector), in the Wall's magazine look (owner,
+  // 2026-10-24): ink when active over the magazine's red underline, a bare red count for
+  // unread, as the Wall masthead's own tabs read.
+  const magRed = bsWsRed(t);
+  const bsSubTab = ({ key, on, onClick, label, badge }) => (
+    <button key={key} onClick={onClick} aria-pressed={!!on} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+      {/* The underline hugs the word (owner, 2026-10-24: "clean it up"), not the foot of the 44px target. */}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: on ? t.INK : bsTHexA(t.INK, 0.38), fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+        {label}
+        {badge > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: magRed, fontVariantNumeric: 'tabular-nums' }}>{badge > 9 ? '9+' : badge}</span>}
+      </span>
     </button>
   );
   const ROLE = {
@@ -24450,10 +24430,17 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     setOpenProfile, setActivityDetail, setLikerSheetFor, setSendPostFor, feedApplyReaction,
   };
 
-  const Pill = ({ on, onClick, children, badge = 0 }) => (
-    <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '6px 4px', minHeight: 26, borderRadius: 5, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-      {children}
-      {badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 3, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{badge > 9 ? '9+' : badge}</span>}
+  // Feed / Team / Channels as a newspaper's section strip (owner, 2026-10-24: the header "to
+  // match the new feed wall look"): the sections in the Wall's headline face, ink when active
+  // over the magazine's red, between a heavy rule and a hairline; an unread count is a bare
+  // red number, as on the sub-tabs.
+  const SectionTab = ({ on, onClick, children, badge = 0 }) => (
+    <button onClick={onClick} aria-pressed={!!on} style={{ display: 'flex', alignItems: 'stretch', justifyContent: 'center', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+      {/* The red sits under the word, on the hairline, as the Wall masthead's tabs do. */}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 2px', boxShadow: on ? `inset 0 -2px 0 ${magRed}` : 'none', color: on ? t.INK : t.INK50, fontFamily: bsWsHead(t), fontSize: 15, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+        {children}
+        {badge > 0 && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: 0, color: magRed, fontVariantNumeric: 'tabular-nums' }}>{badge > 9 ? '9+' : badge}</span>}
+      </span>
     </button>
   );
 
@@ -24567,7 +24554,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const railPeople = loggedIn ? realActive : TRAINING_NOW;
   const railPhotoOf = (p) => p.photoUrl || bsDemoPhoto(p.photo);
   const railProfileOf = (p) => ({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, userId: p.userId || null, photo: railPhotoOf(p) || bsDemoFace(p.name) });
-  const railTierColor = (p) => (p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier));
   const liftingNow = online > 0 ? online : (loggedIn ? railPeople.length : 2104);
 
   return (
@@ -24602,9 +24588,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 const on = feedMode === k;
                 return (
                   <button key={k} onClick={() => switchFeedMode(k)} aria-pressed={on}
-                    style={{ position: 'relative', display: 'inline-flex', alignItems: 'flex-end', minHeight: 38, padding: '8px 2px 4px', background: 'transparent', border: 0, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: on ? TEALB : t.INK70, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    style={{ position: 'relative', display: 'inline-flex', alignItems: 'flex-end', minHeight: 38, padding: '8px 0 6px', background: 'transparent', border: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: on ? t.INK : t.INK50, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                     {label}
-                    {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: TEALB }} />}
+                    {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: magRed }} />}
                   </button>
                 );
               })}
@@ -24621,7 +24607,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       {railOn && railPeople.length > 0 && (
       <div style={{ padding: `4px ${t.padX}px 0` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
-            <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
+            <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: magRed }} />
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tr('feed:rail.onlineNow', { defaultValue: '{count, number} online now', count: liftingNow })}</span>
             {/* Signed-in AND signed-out (owner call, 2026-08-27): the preview is
                 where this is reachable at all — a signed-in member sees no rail
@@ -24635,8 +24621,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           </div>
           <div className="bs-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', overflowY: 'visible', padding: '14px 12px 6px' }}>
             {railPeople.map((p, i) => {
-              // Coaches wear their own ladder color (Icon=teal, …); members the client ramp.
-              const tc = railTierColor(p);
               const pPhoto = railPhotoOf(p);
               const railProfile = railProfileOf(p);
               // Mid-activity (workout/cooking dot) → the LIVE BOOST sheet, so you can
@@ -24648,9 +24632,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               return (
                 <button key={p.userId || i} onClick={() => (p.activity ? setBoostFor({ ...p, photoUrl: pPhoto, _profile: railProfile }) : setOpenProfile(railProfile))} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <BSFacetAvatar size={40} c={tc} initial={bsInitials(p.name)} photo={pPhoto} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} INK={'#fff'} />
+                    {/* The faceted shape stays, in the magazine's flat cut (owner, 2026-10-24: "keep the same facet
+                        shape but … go with the new design"): an ink frame, no glow, and a still dot, red in a
+                        workout and amber at the stove. */}
+                    <BSFacetAvatar flat size={40} c={t.INK} dotC={p.activity === 'cooking' ? (t.AMBER || '#d8a23a') : magRed} initial={bsInitials(p.name)} photo={pPhoto} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} />
                   </div>
-                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 10.5, marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 11, marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: t.INK70 }}>{p.name.split(' ')[0]}</span>
                 </button>
               );
             })}
@@ -24682,9 +24669,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       )}
 
       {/* Feed / Team / Channels — Friends lives INSIDE Team as a sub-tab; Nora is the ✦ sheet */}
-      <div ref={bsSubAnchorRef} style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
-          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
+      {/* The strip and the role tabs under it keep the Wall's 12px measure (owner, 2026-10-24: "clean
+          it up"), so their rules start and end with the masthead's below. */}
+      <div ref={bsSubAnchorRef} style={{ padding: '14px 12px 0' }}>
+        <div data-bs-chat-sections="" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderBottom: `1px solid ${t.HAIR}` }}>
+          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread]].map(([k, l, b]) => <SectionTab key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</SectionTab>)}
         </div>
       </div>
 
@@ -24909,8 +24898,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           return (
             <div style={{ padding: `7px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div inert={subHidden} style={bsSubStyle(16)}>
-              <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10 }}>
-                {selectors.map(sec => bsSubTab({ key: sec.key, on: active.key === sec.key, color: sec.color, onClick: () => setTeamsSel(sec.key), label: sec.label, badge: sec.badge }))}
+              {/* Centred on the page under the strip (owner, 2026-10-24: "center these on page"). */}
+              <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 22 }}>
+                {selectors.map(sec => bsSubTab({ key: sec.key, on: active.key === sec.key, onClick: () => setTeamsSel(sec.key), label: sec.label, badge: sec.badge }))}
               </div>
               </div>
               {active.key === 'friends' ? (
@@ -24934,8 +24924,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <div inert={subHidden} style={bsSubStyle(0)}>
           {/* The role chips. The Wall's type filter is its masthead's tabs (owner, 2026-10-23, the
               magazine design); it was an ALL ▾ select at this row's right end. */}
-          <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', alignItems: 'center', gap: 10, padding: `7px ${t.padX}px 5px` }}>
-            {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, color: ROLE[k].color, onClick: () => setFilter(k), label: chipLabel(k) }))}
+          <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', alignItems: 'center', gap: 22, padding: '2px 12px' }}>
+            {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, onClick: () => setFilter(k), label: chipLabel(k) }))}
           </div>
           </div>
 
@@ -24962,7 +24952,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   filtered by follows), and hidden with the rail by the member's "Online members" choice. */}
               {railOn && feedType === 'all' && feedMode === 'universal' ? (
                 <BSWallTrainingNow people={railPeople} demo={!loggedIn}
-                  avatar={(p) => <BSFacetAvatar size={24} c={railTierColor(p)} initial={bsInitials(p.name)} photo={railPhotoOf(p)} showRank={false} BG={t.PAPER} INK={'#fff'} />}
+                  avatar={(p) => <BSFacetAvatar flat size={24} c={t.INK} initial={bsInitials(p.name)} photo={railPhotoOf(p)} showRank={false} BG={t.PAPER} />}
                   onBoost={(p) => setBoostFor({ ...p, photoUrl: railPhotoOf(p), _profile: railProfileOf(p) })}
                   onOpenProfile={(p) => setOpenProfile(railProfileOf(p))} />
               ) : null}
