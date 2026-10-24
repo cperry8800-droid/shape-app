@@ -12,13 +12,14 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
 
-function db({ refuse = false } = {}) {
+function db({ refuse = false, existing = [] } = {}) {
   const writes = { activities: [], posts: [] };
   const client = {
     writes,
     from(table) {
       const chain = {
         select: () => chain, eq: () => chain,
+        in: async () => ({ data: table === 'activities' ? existing : [], error: null }),
         maybeSingle: async () => ({ data: null, error: null }),
         upsert: async (row) => {
           if (table === 'activities') {
@@ -133,6 +134,64 @@ test('a routine Strava sync saves the activity rows and posts nothing', async ()
   assert.equal(client.writes.activities[0].external_id, '42');
   assert.deepEqual(body.activities, { written: 1, errors: [] });
   assert.equal(client.writes.posts.length, 0);
+});
+
+// Codex P2 on #2437: Strava's activity list carries no calories, so the sync reads an activity's
+// detail for them: once each, only for the last eight days, at most 3 a sync, none after a failure.
+test('Strava reads a recent activity’s calories from its detail, once', async () => {
+  const ago = (d) => new Date(Date.now() - d * 86_400_000).toISOString();
+  const run = (id, d) => ({ id, name: `Run ${id}`, sport_type: 'Run', start_date: ago(d), moving_time: 1800, distance: 5000 });
+  const client = db({ existing: [
+    { external_id: '2', calories: 300, metrics: {} },
+    { external_id: '3', calories: null, metrics: { caloriesChecked: true } },
+  ] });
+  const route = await load('src/app/api/integrations/strava/sync/route.ts', client, [['@/lib/health-snapshot', { writeStravaSnapshots: async () => ({ days: 0 }) }]]);
+  const details = [];
+  const answer = (url) => {
+    if (url.includes('/athlete/activities')) return [run(1, 1), run(2, 2), run(3, 3), run(4, 20)];
+    const m = /\/activities\/(\d+)$/.exec(url);
+    if (m) { details.push(m[1]); return { id: Number(m[1]), calories: 512.4 }; }
+    return { id: 7 };
+  };
+  await withFetch(answer, async () => route.GET(new Request('https://shape.test/api/integrations/strava/sync')));
+  assert.deepEqual(details, ['1'], 'only the recent activity with no calories on file is read');
+  const row = Object.fromEntries(client.writes.activities.map((r) => [r.external_id, r]));
+  assert.equal(row['1'].calories, 512);
+  assert.equal(row['1'].metrics.caloriesChecked, true);
+  assert.equal(row['2'].calories, 300, 'calories already on file are kept, not overwritten with the list’s none');
+  assert.equal(row['3'].calories, null);
+  assert.equal(row['3'].metrics.caloriesChecked, true, 'read before and had none: not read again');
+  assert.equal(row['4'].calories, null, 'older than the week: not read');
+
+  const many = db();
+  const route2 = await load('src/app/api/integrations/strava/sync/route.ts', many, [['@/lib/health-snapshot', { writeStravaSnapshots: async () => ({ days: 0 }) }]]);
+  const read2 = [];
+  const answer2 = (url) => {
+    if (url.includes('/athlete/activities')) return [1, 2, 3, 4, 5].map((id) => run(id, 1));
+    const m = /\/activities\/(\d+)$/.exec(url);
+    if (m) { read2.push(m[1]); return { calories: 400 }; }
+    return { id: 7 };
+  };
+  await withFetch(answer2, async () => route2.GET(new Request('https://shape.test/api/integrations/strava/sync')));
+  assert.deepEqual(read2, ['1', '2', '3'], 'at most 3 details a sync');
+
+  const failing = db();
+  const route3 = await load('src/app/api/integrations/strava/sync/route.ts', failing, [['@/lib/health-snapshot', { writeStravaSnapshots: async () => ({ days: 0 }) }]]);
+  let tries = 0;
+  const was = globalThis.fetch;
+  const warn = console.warn;
+  console.warn = () => {};
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (/\/activities\/\d+$/.test(u)) { tries += 1; return { ok: false, status: 429, statusText: 'Too Many Requests', text: async () => '' }; }
+    return { ok: true, status: 200, json: async () => (u.includes('/athlete/activities') ? [1, 2, 3].map((id) => run(id, 1)) : { id: 7 }), text: async () => '' };
+  };
+  try {
+    const res = await route3.GET(new Request('https://shape.test/api/integrations/strava/sync'));
+    assert.equal(res.status, 200, 'a failed detail never fails the sync');
+  } finally { globalThis.fetch = was; console.warn = warn; }
+  assert.equal(tries, 1, 'no more details after a failed one');
+  assert.ok(failing.writes.activities.every((r) => !r.metrics.caloriesChecked), 'a failed read is tried again next sync');
 });
 
 // Codex P2 on #2437: the app's callers read only response.ok, so a reply carrying refused rows

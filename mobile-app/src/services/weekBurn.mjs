@@ -11,6 +11,11 @@
 // (activities.calories: Strava, WHOOP, a workout logged by hand). Adding both would count a run the
 // watch tracked twice.
 //
+// ⚠ ONE WORKOUT, TWO PROVIDERS, COUNTED ONCE (Codex P2 on #2437). A WHOOP strap and Strava on the
+// same run each keep their row (the feed's cross-source guard drops only the second post), so
+// activities from different sources that start within 20 minutes of each other, the guard's window,
+// are one workout at the larger reading. Two workouts from one source are always two.
+//
 // ⚠ NOTHING TRACKED IS NOT ZERO. A day with no reading is null, and a week with none has no total,
 // so the panel says "—" and offers to connect a source instead of claiming 0 kcal.
 
@@ -19,6 +24,8 @@ import { bsHwShift, bsHwLocalDayOf } from './homeWeek.mjs';
 // The provider keys the snapshot's `sources.calories` and an activity's `source` carry, as the
 // panel names them. Brand names stay as they are in every language; 'manual' is the member's own log.
 export const BS_BURN_SOURCES = { apple_health: 'Apple Health', apple: 'Apple Health', garmin: 'Garmin', oura: 'Oura', strava: 'Strava', whoop: 'WHOOP', manual: 'manual' };
+
+const TWIN_MS = 20 * 60 * 1000;
 
 const kcalOf = (v) => {
   if (v == null || v === '') return null;
@@ -35,15 +42,25 @@ export function bsBurnWeek({ monday, todayIso, snaps = [], acts = [] }) {
     const v = kcalOf(s && s.calories);
     if (inWeek.has(day) && v != null) snapBy.set(day, { kcal: v, source: (s.sources && s.sources.calories) || null });
   }
-  const actBy = new Map();
-  for (const a of Array.isArray(acts) ? acts : []) {
-    const day = a && a.started_at ? bsHwLocalDayOf(a.started_at) : null;
-    const v = kcalOf(a && a.calories);
+  const workouts = [];
+  const timed = (Array.isArray(acts) ? acts : [])
+    .map((a) => ({ a, t: Date.parse((a && a.started_at) || '') }))
+    .filter((x) => Number.isFinite(x.t))
+    .sort((x, y) => x.t - y.t);
+  for (const { a, t } of timed) {
+    const day = bsHwLocalDayOf(a.started_at);
+    const v = kcalOf(a.calories);
     if (!day || !inWeek.has(day) || v == null) continue;
-    const cur = actBy.get(day) || { kcal: 0, sources: new Set() };
-    cur.kcal += v;
-    if (a.source) cur.sources.add(a.source);
-    actBy.set(day, cur);
+    const twin = a.source && workouts.find((w) => !w.sources.has(a.source) && Math.abs(w.t - t) <= TWIN_MS);
+    if (twin) { twin.kcal = Math.max(twin.kcal, v); twin.sources.add(a.source); continue; }
+    workouts.push({ t, day, kcal: v, sources: new Set(a.source ? [a.source] : []) });
+  }
+  const actBy = new Map();
+  for (const w of workouts) {
+    const cur = actBy.get(w.day) || { kcal: 0, sources: new Set() };
+    cur.kcal += w.kcal;
+    w.sources.forEach((x) => cur.sources.add(x));
+    actBy.set(w.day, cur);
   }
   const used = new Set();
   const out = days.map((day) => {

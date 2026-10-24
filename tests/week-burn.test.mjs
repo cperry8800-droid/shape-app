@@ -53,3 +53,23 @@ test('nothing tracked is null, days ahead are never counted, and other weeks sta
   assert.deepEqual(w.days.map((d) => d.future), [false, false, false, false, false, true, true].map((_, i) => i === 6));
   assert.ok(w.days[5].isToday);
 });
+
+// Codex P2 on #2437: a WHOOP strap and Strava on the same run each keep their row; the week counts
+// that run once, at the larger reading. Two workouts from one source are still two.
+test('one workout two providers recorded counts once; one provider’s two workouts count twice', () => {
+  const t = (day, hh, mm) => new Date(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)), hh, mm).toISOString();
+  const w = bsBurnWeek({
+    monday: MON, todayIso: TODAY,
+    acts: [
+      { started_at: t('2026-10-20', 7, 0), calories: 480, source: 'whoop' },
+      { started_at: t('2026-10-20', 7, 12), calories: 530, source: 'strava' },
+      { started_at: t('2026-10-20', 7, 25), calories: 200, source: 'whoop' },
+      { started_at: t('2026-10-21', 18, 0), calories: 300, source: 'strava' },
+      { started_at: t('2026-10-21', 18, 45), calories: 310, source: 'whoop' },
+    ],
+  });
+  assert.equal(w.days[1].kcal, 730, 'the 7:00 run once at 530, and the 7:25 WHOOP workout on its own');
+  assert.equal(w.days[2].kcal, 610, '45 minutes apart: two workouts');
+  assert.equal(w.total, 1340);
+  assert.deepEqual(w.sources.sort(), ['Strava', 'WHOOP']);
+});
