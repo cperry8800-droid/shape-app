@@ -1272,7 +1272,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
           in the desktop preview where the frame is narrower than the window. */}
       <div id="bs-composer-slot" style={{
         position: 'absolute', left: 0, right: 0,
-        bottom: (window.BS_TABBAR_H || 64),
+        bottom: (window.BS_TABBAR_CSS || window.BS_TABBAR_H || 64),
         zIndex: 60, pointerEvents: 'none',
       }} />
       <BSTabBar
@@ -34264,7 +34264,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
 
       </details>
 
-      {(() => { const action = (<div style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_H || 64), zIndex: 55, padding: `10px ${t.padX}px`, background: t.PAPER, borderTop: `1px solid ${t.RULE}` }}>
+      {(() => { const action = (<div style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_CSS || window.BS_TABBAR_H || 64), zIndex: 55, padding: `10px ${t.padX}px`, background: t.PAPER, borderTop: `1px solid ${t.RULE}` }}>
         {activeIdx != null ? (
           <button onClick={primarySetAction} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
             {restLeft > 0 ? tr('session:player.skipRest') : guidePrepare ? tr('session:player.view.begin') : !timedMode || activeRunning
