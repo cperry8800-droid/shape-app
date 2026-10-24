@@ -350,5 +350,16 @@
   "train.music": "Nhạc",
   "train.forToday": "Cho hôm nay",
   "train.fullPlan": "Toàn bộ kế hoạch",
-  "train.playlistBy": "{who} · Huấn luyện viên của bạn"
+  "train.playlistBy": "{who} · Huấn luyện viên của bạn",
+  "burn.title": "Đã đốt tuần này",
+  "burn.sample": "Tuần mẫu",
+  "burn.kcalWord": "kcal",
+  "burn.avg": "{avg}/ngày",
+  "burn.chartAria": "Calo đã đốt mỗi ngày trong tuần này",
+  "burn.reading": "Đang đọc tuần của bạn…",
+  "burn.failed": "Không đọc được hoạt động của bạn",
+  "burn.retry": "Thử lại",
+  "burn.none": "Tuần này chưa ghi nhận gì.",
+  "burn.connect": "Kết nối",
+  "burn.manual": "nhật ký của bạn"
 }

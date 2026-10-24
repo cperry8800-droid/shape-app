@@ -350,5 +350,16 @@
   "train.music": "Music",
   "train.forToday": "For today",
   "train.fullPlan": "Full plan",
-  "train.playlistBy": "{who} · Your trainer"
+  "train.playlistBy": "{who} · Your trainer",
+  "burn.title": "Burned this week",
+  "burn.sample": "Sample week",
+  "burn.kcalWord": "kcal",
+  "burn.avg": "{avg}/day",
+  "burn.chartAria": "Calories burned each day this week",
+  "burn.reading": "Reading your week…",
+  "burn.failed": "Couldn’t read your activity",
+  "burn.retry": "Retry",
+  "burn.none": "Nothing tracked yet this week.",
+  "burn.connect": "Connect",
+  "burn.manual": "your log"
 }
