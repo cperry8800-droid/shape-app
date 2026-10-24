@@ -614,6 +614,8 @@ function BSScoreIntro({ onClose, onOpenScore }) {
 
 function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const sheet = useBSSheet();
+  // The tab bar's height on this phone (it grows over a home indicator): Radio's lights stand on it.
+  const bsTabbarH = (window.useBSTabbarH || (() => window.BS_TABBAR_H || 64))();
   const tr = useShapeTr(); // i18n — re-renders the shell (tab bar labels) on locale change
   const [tab, setTab] = useStateBSC(initialTab);
   // Nora is told the tab they asked from (the Ask Nora plan, step 4).
@@ -1265,7 +1267,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       <div key={tab} className={navSlideCls} style={{ position: 'absolute', inset: 0 }}>
         {screens[tab]}
       </div>
-      <BSRadioFx floor={window.BS_TABBAR_H || 64} />
+      <BSRadioFx floor={bsTabbarH} />
       {/* Pinned message composers (chat feed + DM threads) portal into this
           slot so they're positioned against the phone-frame container — not
           the browser viewport. A viewport-fixed composer overhangs the frame

@@ -133,7 +133,7 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
           React.createElement(window.BSTabBar, { tabs: TABS, active, onChange() {} })), paperMode);
         const me = host.querySelector('button[data-tour="tab-me"]');
         assert.ok(me.querySelector('[data-bs-tab-face] [data-face]'), 'no face on the Me tab');
-        assert.equal(me.querySelector('svg'), null, 'the Me icon is drawn as well');
+        assert.ok(!me.querySelector('svg'), 'the Me icon is drawn as well');
         assert.equal(me.getAttribute('aria-label'), 'Me');
         const p = seen[seen.length - 1];
         assert.equal(p.flat, true);
@@ -165,6 +165,28 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
       const s = readFileSync(join(ROOT, 'mobile-app/src/broadsheet', f), 'utf8');
       assert.doesNotMatch(s, /bottom: \(window\.BS_TABBAR_H \|\| 64\)/, `${f}: a composer slot on the old height`);
       assert.equal((s.match(/bottom: \(window\.BS_TABBAR_CSS \|\| window\.BS_TABBAR_H \|\| 64\)/g) || []).length, 2, f);
+    }
+  });
+
+  test(`Radio's lights stand on the tab bar's height as this phone draws it (${paperMode})`, async () => {
+    // jsdom lays nothing out, so the probe's measurement is stubbed: 90px is the dock over a 34px inset.
+    const realRect = window.Element.prototype.getBoundingClientRect;
+    let measured = 0;
+    const seen = [];
+    const Probe = () => { seen.push(window.useBSTabbarH()); return null; };
+    try {
+      window.Element.prototype.getBoundingClientRect = function () { return { height: measured, width: 0, top: 0, left: 0, right: 0, bottom: 0 }; };
+      measured = 0;
+      const a = await mount(React.createElement(Probe), paperMode);
+      assert.equal(seen[seen.length - 1], 78, 'nothing measured: the height without an inset');
+      await a.unmount();
+      measured = 90;
+      const b = await mount(React.createElement(Probe), paperMode);
+      assert.equal(seen[seen.length - 1], 90, 'the measured height');
+      await b.unmount();
+      assert.equal(document.body.querySelectorAll('div[style*="visibility: hidden"]').length, 0, 'the probe is left behind');
+    } finally {
+      window.Element.prototype.getBoundingClientRect = realRect;
     }
   });
 

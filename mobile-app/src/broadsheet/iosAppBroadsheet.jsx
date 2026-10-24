@@ -494,6 +494,24 @@ const BS_DOCK_BOTTOM_CSS = `max(${BS_DOCK_BOTTOM}px, calc(env(safe-area-inset-bo
 // height twice (72 → 64 in #1603 left three stale literals), so it lives here once.
 const BS_TABBAR_H = BS_DOCK_TOP_GAP + BS_DOCK_H + BS_DOCK_BOTTOM;
 const BS_TABBAR_CSS = `calc(${BS_DOCK_TOP_GAP + BS_DOCK_H}px + ${BS_DOCK_BOTTOM_CSS})`;
+// BS_TABBAR_CSS resolved to a number on this phone, for what does arithmetic with
+// it rather than CSS (Radio's lights and hologram stand on the tab bar). Measured
+// on mount and on a resize; BS_TABBAR_H until then, or where nothing can measure.
+function useBSTabbarH() {
+  const [h, setH] = React.useState(BS_TABBAR_H);
+  React.useEffect(() => {
+    if (typeof document === 'undefined' || !document.body) return undefined;
+    const probe = document.createElement('div');
+    probe.setAttribute('aria-hidden', 'true');
+    probe.style.cssText = `position:absolute;left:0;bottom:0;width:0;visibility:hidden;pointer-events:none;height:${BS_TABBAR_CSS}`;
+    document.body.appendChild(probe);
+    const measure = () => { const v = probe.getBoundingClientRect().height; if (v > 0) setH(Math.round(v)); };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => { window.removeEventListener('resize', measure); probe.remove(); };
+  }, []);
+  return h;
+}
 
 // A page tells its BSPage that its masthead row carries NO corner cluster.
 //
@@ -1936,7 +1954,7 @@ Object.assign(window, {
   BSContext, BSProvider, useBS, BSBackButton, BSNavGestures, BSToastHost, BSConfirmHost,
   BSPage, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
-  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_CORNER_GAP,
+  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_CORNER_GAP,
   // The settings texture picker paints live pattern-preview tiles with this.
   bsMakeTexture: makeTexture,
 });
