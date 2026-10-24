@@ -24,6 +24,7 @@
 <script type="text/babel" src="clientChatThreads.jsx?v=20260609"></script>
 <script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
 <script type="text/babel" src="clientNav.jsx?v=20260614"></script>
+<script type="module">import * as GL from "/newdesign/groceryLists.mjs?v=20261023"; window.ShapeGroceryListsLib = GL;</script>
 <script type="text/babel">
 const CATEGORIES = [
   { key: "protein", label: "Protein",  color: "#e07856" },
@@ -69,7 +70,9 @@ function loadLists() {
     const raw = window.localStorage.getItem(STORE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      // An empty set is the member's (every list deleted, here or on another device), not a page that never
+      // stored any: seeding the sample list over it would sync it up as a list they made (Codex P2 on #2433).
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {}
   // Migrate from old single-list storage if present
@@ -100,8 +103,22 @@ function saveHidden(set) { try { window.localStorage.setItem(HIDE_KEY, JSON.stri
 function loadChecks() { try { return JSON.parse(window.localStorage.getItem(CHECK_KEY) || "{}"); } catch (e) { return {}; } }
 function saveChecks(map) { try { window.localStorage.setItem(CHECK_KEY, JSON.stringify(map)); } catch (e) {} }
 
-// Cross-device sync with the mobile app via user_goals('client_grocery_lists').
-const SYNC_KEY = "client_grocery_lists";
+// Cross-device sync with the mobile app via user_goals('client_grocery_lists'), through the shared store
+// in groceryLists.mjs (window.ShapeGroceryListsLib): each sync reads the cloud, merges what this page
+// changed since it last synced with what other devices changed, and writes compare-and-set, so a list the
+// app added in between is kept rather than overwritten. Its base (the lists as this browser last synced
+// them) is kept per account under GROC_BASE_KEY, which the sign-out scrub clears.
+const GROC_BASE_KEY = "shape.grocery.listsBase.v1";
+let grocStore = null;
+function groceryStore() {
+  const GL = window.ShapeGroceryListsLib;
+  if (!GL) return null;
+  // Nothing is written or kept once a sign-out has begun (shapeDb.signOut bumps signOutGen before its scrub),
+  // and no sync starts while one is under way (signingOut). An older supabase.js without the counter reads
+  // as 0, so it still syncs.
+  if (!grocStore) grocStore = GL.bsGroceryListsStore({ db: () => window.shapeDb, baseStore: GL.bsGroceryListsBaseIn(() => { try { return window.localStorage; } catch (e) { return null; } }, GROC_BASE_KEY), session: () => (window.shapeDb ? (window.shapeDb.signingOut ? null : (window.shapeDb.signOutGen || 0)) : 0) });
+  return grocStore;
+}
 // A synced list keeps what this page does not show — its kind, provenance and date, who it is from, its
 // note, and each item's aisle — and writes them back as they were, so opening this page does not relabel a
 // list "Custom · Synced", take the sender's name off a list another member sent, or fold its aisles into one
@@ -129,6 +146,23 @@ function webToSynced(lists) {
     return { id: l.id, name: l.name, kind: m.kind || "custom", editable: true, eyebrow: m.eyebrow || "Custom · Synced", ...kept, usedCount: 0, count: flat.length, preview: flat.slice(0, 3).map(i => i.n).join(" · "), items: flat, aisles: aisles.length ? aisles : [{ aisle: "Items", items: flat }] };
   });
 }
+// Whether this page's copy of a list is unchanged from the stored one. Ticking items off isn't a change
+// (the stored list has no ticks). A list the app made reads back through syncedToWeb; one made here was
+// stored through webToSynced, which this page's own fields (a category, an empty quantity) don't survive
+// the other way.
+const stripTicks = (l) => ({ ...l, items: (l.items || []).map(({ checked, ...it }) => it) });
+// Another device's copy of a list, keeping the items this page has ticked off: the document carries no
+// ticks, so a rename or an edited item on the phone must not clear the member's shop (Codex P2 on #2433).
+function webFromStored(stored, prev) {
+  const view = syncedToWeb(stored);
+  if (!prev) return view;
+  const ticked = new Set((prev.items || []).filter(it => it.checked).map(it => it.id));
+  return { ...view, items: view.items.map(it => (ticked.has(it.id) ? { ...it, checked: true } : it)) };
+}
+function webSame(stored, local) {
+  const GL = window.ShapeGroceryListsLib;
+  return GL.bsGrocerySame(stripTicks(syncedToWeb(stored)), stripTicks(local)) || GL.bsGrocerySame(webToSynced([local])[0], stored);
+}
 
 function ClientGroceryPage() {
   const [lists, setLists] = React.useState(loadLists);
@@ -142,21 +176,52 @@ function ClientGroceryPage() {
   const [hidden, setHidden] = React.useState(loadHidden);
   const [planChecks, setPlanChecks] = React.useState(loadChecks);
 
-  const grocSynced = React.useRef(false);
-  // Pull saved lists from the shared store (lists created on the mobile app).
+  // Sync with the shared store on load and after every change; a sync queued behind another reads the
+  // latest lists.
+  const listsRef = React.useRef(lists);
+  const mountedRef = React.useRef(true);
+  // This page's base: in memory for as long as its lists are, over the stored one (storage may be denied).
+  const baseRef = React.useRef(null);
+  React.useEffect(() => () => { mountedRef.current = false; }, []);
   React.useEffect(() => {
-    if (!(window.shapeDb && window.shapeDb.getUserGoals)) { grocSynced.current = true; return; }
-    let cancelled = false;
-    window.shapeDb.getUserGoals(SYNC_KEY).then(saved => {
-      if (!cancelled && Array.isArray(saved) && saved.length) {
-        setLists(prev => { const have = new Set(prev.map(l => l.id)); const extra = saved.filter(l => l && l.id && !have.has(l.id)).map(syncedToWeb); return extra.length ? [...prev, ...extra] : prev; });
-      }
-    }).catch(() => {}).finally(() => { grocSynced.current = true; });
-    return () => { cancelled = true; };
-  }, []);
-  React.useEffect(() => {
+    listsRef.current = lists;
     saveLists(lists);
-    if (grocSynced.current && window.shapeDb && window.shapeDb.saveUserGoals) { try { window.shapeDb.saveUserGoals(SYNC_KEY, webToSynced(lists)); } catch (e) {} }
+    const store = groceryStore();
+    if (!store) return;
+    if (!baseRef.current) baseRef.current = window.ShapeGroceryListsLib.bsGroceryListsPageBase(store.base);
+    store.sync({
+      getLocal: () => listsRef.current,
+      same: webSame,
+      toStored: (l) => webToSynced([l])[0],
+      base: baseRef.current,
+      // Another device's changes: kept where the next load reads them where storage allows, then on screen.
+      // When the page has closed they did not reach the lists the next sync reads, so the store leaves them
+      // unsynced. Storage denied, the lists on screen still take them (Codex P2 on #2433). A list ticked
+      // since the merge read it still takes them: ticks aren't synced (Codex P1 on #2433).
+      apply: (delta, used) => {
+        const GL = window.ShapeGroceryListsLib;
+        const opts = { fromStored: webFromStored, at: "end", same: (p, u) => GL.bsGrocerySame(stripTicks(p), stripTicks(u)) };
+        try {
+          const raw = window.localStorage.getItem(STORE_KEY);
+          const stored = raw ? JSON.parse(raw) : [];
+          const next = GL.bsGroceryListsApply(Array.isArray(stored) ? stored : [], used, delta, opts);
+          if (next !== stored) window.localStorage.setItem(STORE_KEY, JSON.stringify(next));
+        } catch (e) { /* storage off, full or unreadable */ }
+        if (!mountedRef.current) return false;
+        // The lists the next sync reads, now: a sync queued behind this one runs before React renders, and
+        // without these it would take them for lists deleted here (Codex P1 on #2433).
+        const before = listsRef.current;
+        listsRef.current = GL.bsGroceryListsApply(before, used, delta, opts);
+        setLists(prev => GL.bsGroceryListsApply(prev, used, delta, opts));
+        // The open list deleted elsewhere, or none open when lists arrive on an empty page: open the first
+        // list, or every edit would go to a list that isn't there while the page draws another (Codex P2s on
+        // #2433).
+        const gone = new Set(before.filter(l => !listsRef.current.some(n => n.id === l.id)).map(l => l.id));
+        const first = listsRef.current[0] ? listsRef.current[0].id : null;
+        if (gone.size || (!before.length && first)) setActiveListId(cur => ((!cur || gone.has(cur)) ? first : cur));
+        return true;
+      },
+    });
   }, [lists]);
   React.useEffect(() => { if (activeListId) saveActiveId(activeListId); }, [activeListId]);
   React.useEffect(() => { saveHidden(hidden); }, [hidden]);

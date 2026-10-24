@@ -177,6 +177,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     async signIn(email, password) {
       var res = await client.auth.signInWithPassword({ email: email, password: password });
       if (res.error) return { error: res.error };
+      shapeDb.signingOut = false;
       var user = res.data.user;
       // Push the session into Next.js auth cookies so server-rendered
       // /dashboard/* routes recognize the user. Non-blocking — if this fails
@@ -244,7 +245,18 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       return { user: user, profile: profile };
     },
 
+    // The sign-out generation: bumped as the first step of signOut, before any teardown, so work started
+    // while the member was signed in (a grocery lists sync) can tell, on resuming after an await, that the
+    // sweep has begun and must not re-create what it removes. The app's twin is mobile-app/src/services/
+    // signOutGen.mjs.
+    signOutGen: 0,
+    // Whether a sign-out is under way: set with the bump, cleared by the next sign-in. Work asked for in
+    // between (a grocery lists sync) refuses to start, rather than capture the bumped generation as live.
+    signingOut: false,
+
     async signOut() {
+      shapeDb.signOutGen += 1;
+      shapeDb.signingOut = true;
       // GUARDED, and the scope:'local' retry is LOAD-BEARING here — not the
       // belt-and-braces it is on mobile. The website pins auth-js 2.108.2
       // (public/vendor/supabase-js-2.108.2.umd.js, SRI-locked, loaded by every
@@ -347,6 +359,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
           // tests/local-scrub-sync.test.mjs gates this copy against it
           'shape.clientCoachThreads', 'shape.recentSearch', 'shape.errorLog',
           'shape.library', 'shape.recipeGroceryLists', 'shape.deletedGroceryIds',
+          'shape.recipeGroceryListsBase', 'shape.grocery.listsBase.v1', 'shape.grocery.lists.v1',
           'shape.cookResume', 'shape.cookBatchResume', 'shape.radio.musicLibraries',
           'shape.stepGoal', 'shape.notify.last',
           'bs_coach_soundtracks', 'bs_coach_soundtrack_assign',
@@ -607,10 +620,15 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
 
     // Load the user's goal page state for a given dashboard kind
     // ('trainer' | 'nutritionist'). Returns {} if nothing saved yet.
-    async getUserGoals(kind) {
+    // `options.expectedUserId` binds the read to that account: null (can't know) when another is signed
+    // in, and only that account's row asked for, so a switch while the read is in flight gets no row under
+    // the read policy, never another member's (the grocery lists store; the app's twin carries the same).
+    async getUserGoals(kind, options) {
       var u = await shapeDb.getUser();
       if (!u) return null;
-      var res = await client.from('user_goals').select('data').eq('user_id', u.id).eq('kind', kind).maybeSingle();
+      var want = options && options.expectedUserId;
+      if (want != null && String(u.id) !== String(want)) return null;
+      var res = await client.from('user_goals').select('data').eq('user_id', want != null ? want : u.id).eq('kind', kind).maybeSingle();
       if (res.error) {
         console.warn('[shape] getUserGoals error', res.error);
         return null;
@@ -633,6 +651,41 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         return { error: res.error };
       }
       return { ok: true };
+    },
+
+    // COMPARE-AND-SET write for a whole-document kind, the website's twin of the app's
+    // (mobile-app/src/services/shapeBackend.js, which carries the full reasoning). Resolves
+    // { ok } | { conflict: true } | { error }; the caller re-reads and merges again on a conflict.
+    // - No migration: the revision lives inside the jsonb document. `expectedRev` is the RAW
+    //   data->>'rev' string as read (null when absent), never a re-derived number.
+    // - The .select() is load-bearing: PostgREST reports an UPDATE that matched no row as success.
+    // - Update first, insert as the fallback: getUserGoals answers {} for an absent row AND for a
+    //   row with no rev, so inserting first would conflict forever on the second.
+    // - Bound to the caller's account, required: this resolves the user itself, so without it an
+    //   account switch could write one member's document into another's row.
+    async saveUserGoalsIfRev(kind, data, expectedRev, expectedUid) {
+      var u = await shapeDb.getUser();
+      if (!u) return { error: { message: 'Not logged in' } };
+      if (expectedUid == null) {
+        console.error('[shape] saveUserGoalsIfRev called without expectedUid — refusing the write', kind);
+        return { error: { message: 'saveUserGoalsIfRev requires expectedUid', code: 'missing_expected_uid' } };
+      }
+      if (String(u.id) !== String(expectedUid)) {
+        return { accountChanged: true, error: { message: 'Account changed', code: 'account_changed' } };
+      }
+      var row = { user_id: u.id, kind: kind, data: data || {} };
+      var q = function () { return client.from('user_goals').update({ data: row.data }).eq('user_id', u.id).eq('kind', kind); };
+      var res = expectedRev == null
+        ? await q().is('data->>rev', null).select('kind')
+        : await q().eq('data->>rev', String(expectedRev)).select('kind');
+      if (res.error) { console.warn('[shape] saveUserGoalsIfRev error', res.error); return { error: res.error }; }
+      if (res.data && res.data.length) return { ok: true };
+      if (expectedRev != null) return { conflict: true };
+      var ins = await client.from('user_goals').insert(row);
+      if (!ins.error) return { ok: true };
+      if (ins.error.code === '23505') return { conflict: true };
+      console.warn('[shape] saveUserGoalsIfRev insert error', ins.error);
+      return { error: ins.error };
     },
 
     // Guard a dashboard page.
@@ -1261,6 +1314,9 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     window.__shapeSignOutListener = true;
     window.addEventListener('storage', function (e) {
       if (!e || e.key !== 'shape.signedOutAt' || !e.newValue) return;
+      // Work in flight from the signed-in session (a grocery lists sync) keeps nothing after this.
+      shapeDb.signOutGen += 1;
+      shapeDb.signingOut = true;
       // ⚠ RETIRE THIS TAB'S OWN SESSION FIRST. The scrub deliberately leaves
       // `shape.auth` (this client's storageKey) alone, because the sign-out
       // paths call auth.signOut() themselves — but the Next dashboard's does

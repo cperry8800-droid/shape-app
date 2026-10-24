@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmReading, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush, teardownPush, pushPermission, askForPush } from './push.js';
-import { signOutGen, bumpSignOutGen } from './signOutGen.mjs';
+import { signOutGen, bumpSignOutGen, signOutEnded } from './signOutGen.mjs';
 import { makePlaybackGate } from './playbackGate.mjs';
 import { bsSetSentryUser } from '../sentry.mjs';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
@@ -180,6 +180,8 @@ function setCached(next = {}) {
   const prevName = (state.profile && state.profile.full_name) || null;
   Object.assign(state, next);
   const uid = (state.user && state.user.id) || null;
+  // An account signing in ends any sign-out under way (signOutGen.mjs).
+  if (uid && uid !== prevUid) signOutEnded();
   const name = (state.profile && state.profile.full_name) || null;
   // PII-free Sentry user context — id, roles, is_coach ONLY (src/lib/sentry-context.mjs
   // owns that rule; the profile is passed through unreshaped so the module stays the one
@@ -4798,11 +4800,16 @@ window.shapeDb = window.shapeDb || {
     try { const { data } = await supabase.auth.getUser(); return data && data.user ? data.user : null; }
     catch (e) { return null; }
   },
-  async getUserGoals(kind) {
+  // `options.expectedUserId` binds the read to that account: null (can't know) when another is signed in,
+  // and only that account's row asked for, so a switch while the read is in flight gets no row under the
+  // read policy, never another member's (Codex P1 on #2433, the grocery lists store).
+  async getUserGoals(kind, options) {
     if (!supabase) return null;
     const u = await window.shapeDb.getUser();
     if (!u) return null;
-    const res = await supabase.from('user_goals').select('data').eq('user_id', u.id).eq('kind', kind).maybeSingle();
+    const want = options && options.expectedUserId;
+    if (want != null && String(u.id) !== String(want)) return null;
+    const res = await supabase.from('user_goals').select('data').eq('user_id', want != null ? want : u.id).eq('kind', kind).maybeSingle();
     if (res.error) { console.warn('[shape] getUserGoals error', res.error); return null; }
     return (res.data && res.data.data) || {};
   },

@@ -112,7 +112,7 @@ const SHARE = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSGroce
   registry: new Map([['react', React]]),
 });
 
-function env({ lists = [], deleted = [], cloud = null, uid = 'u1', saveResult = { ok: true } } = {}) {
+function env({ lists = [], deleted = [], cloud = null, uid = 'u1', saveResult = { ok: true }, cas = true } = {}) {
   const w = dom.window;
   w.localStorage.clear();
   w.localStorage.setItem('shape.recipeGroceryLists', JSON.stringify(lists));
@@ -122,9 +122,17 @@ function env({ lists = [], deleted = [], cloud = null, uid = 'u1', saveResult = 
   const toasts = [];
   w.__bsToast = (msg, kind) => toasts.push([msg, kind]);
   const writes = [];
-  // `cloud` is what getUserGoals answers: an array, {} for no document, or null for a failed read.
+  // `cloud` is what getUserGoals answers: a document, a bare array an older build wrote, {} for no
+  // document, or null for a failed read. Writes go through saveUserGoalsIfRev, as on the real backend,
+  // recorded as [kind, document, { expectedRev, expectedUid }]; `cas: false` is an older shapeDb without it.
   w.shapeDb = cloud !== undefined && cloud !== false
-    ? { getUser: async () => (uid ? { id: uid } : null), getUserGoals: async () => cloud, saveUserGoals: async (k, v, o) => { writes.push([k, v, o]); return saveResult; } }
+    ? {
+      getUser: async () => (uid ? { id: uid } : null),
+      getUserGoals: async () => cloud,
+      ...(cas
+        ? { saveUserGoalsIfRev: async (k, v, expectedRev, expectedUid) => { writes.push([k, v, { expectedRev, expectedUid }]); return saveResult; } }
+        : { saveUserGoals: async (k, v, o) => { writes.push([k, v, o]); return saveResult; } }),
+    }
     : undefined;
   return { toasts, writes };
 }
@@ -190,8 +198,9 @@ test('Save with the Eat page closed: written where it reads on mount, merged int
     assert.deepEqual(JSON.parse(dom.window.localStorage.getItem('shape.deletedGroceryIds')), ['custom-9']);
     assert.equal(writes.length, 1);
     assert.equal(writes[0][0], 'client_grocery_lists');
-    assert.deepEqual(writes[0][1].map((l) => l.id), ['received-m3', 'custom-1', 'other-device'], 'read, merged, written back');
-    assert.deepEqual(writes[0][2], { expectedUserId: 'u1' }, 'bound to the account the read was made for');
+    assert.deepEqual(writes[0][1].lists.map((l) => l.id), ['received-m3', 'custom-1', 'other-device'], 'read, merged, written back');
+    assert.equal(writes[0][1].rev, 1, 'now a revisioned document');
+    assert.deepEqual(writes[0][2], { expectedRev: null, expectedUid: 'u1' }, 'compare-and-set on the bare array\'s missing rev, bound to the account the read was made for');
   } finally { await r.done(); }
   // Opened again later, the card knows it is saved; saving again adds nothing.
   const again = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, messageId: 'm3', from: 'Sam Reyes' }));
@@ -201,6 +210,31 @@ test('Save with the Eat page closed: written where it reads on mount, merged int
     await React.act(async () => { btn.click(); });
     assert.equal(JSON.parse(dom.window.localStorage.getItem('shape.recipeGroceryLists')).length, 2);
   } finally { await again.done(); }
+});
+
+test('a list saved with the Eat page closed is recorded in the sync base, but only a copy this save kept (Codex P1 on #2433)', async () => {
+  const BASE = 'shape.recipeGroceryListsBase';
+  const mine = { id: 'custom-1', name: 'Mine' };
+  env({ lists: [mine], cloud: { v: 1, rev: 2, lists: [mine] } });
+  dom.window.localStorage.setItem(BASE, JSON.stringify({ uid: 'u1', lists: [mine] }));
+  const r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, messageId: 'm7', from: 'Sam Reyes' }));
+  try {
+    await React.act(async () => { r.host.querySelector('[data-bs-grocery-save]').click(); });
+    await React.act(async () => { await new Promise((res) => setTimeout(res, 0)); });
+    const local = JSON.parse(dom.window.localStorage.getItem('shape.recipeGroceryLists'));
+    const base = JSON.parse(dom.window.localStorage.getItem(BASE));
+    assert.deepEqual(base.lists.map((l) => l.id), ['received-m7', 'custom-1']);
+    assert.deepEqual(base.lists[0], local[0], 'the base holds the copy the device holds');
+  } finally { await r.done(); }
+  // A copy already on the device (it may carry an edit made here) is left for the next sync to read.
+  env({ lists: [{ id: 'received-m8', name: 'Edited here' }, mine], cloud: { v: 1, rev: 2, lists: [mine] } });
+  dom.window.localStorage.setItem(BASE, JSON.stringify({ uid: 'u1', lists: [mine] }));
+  const saved = { window: globalThis.window, CustomEvent: globalThis.CustomEvent };
+  globalThis.window = dom.window; globalThis.CustomEvent = dom.window.CustomEvent;
+  try {
+    assert.equal(await SHARE.bsSaveReceivedGroceryList({ id: 'received-m8', name: 'From the chat', items: [] }), 'stored');
+  } finally { Object.assign(globalThis, saved); }
+  assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(BASE)).lists.map((l) => l.id), ['custom-1']);
 });
 
 test('the cloud write is skipped, never guessed: a failed read writes nothing; no document yet writes the one list (Codex P1s on #2432)', async () => {
@@ -219,7 +253,7 @@ test('the cloud write is skipped, never guessed: a failed read writes nothing; n
   // An absent document reads as {}: the first list starts it.
   w = env({ cloud: {} });
   await save('m5');
-  assert.deepEqual(w.writes.map(([k, v]) => [k, v.map((l) => l.id)]), [['client_grocery_lists', ['received-m5']]]);
+  assert.deepEqual(w.writes.map(([k, v]) => [k, v.lists.map((l) => l.id)]), [['client_grocery_lists', ['received-m5']]]);
   // Signed out between the tap and the read: nothing to bind the write to.
   w = env({ cloud: [], uid: null });
   await save('m6');
@@ -228,7 +262,11 @@ test('the cloud write is skipped, never guessed: a failed read writes nothing; n
   w = env({ cloud: [], saveResult: { accountChanged: true, error: { message: 'Account changed' } } });
   await save('m7');
   assert.equal(w.writes.length, 1);
-  assert.deepEqual(w.writes[0][2], { expectedUserId: 'u1' });
+  assert.deepEqual(w.writes[0][2], { expectedRev: null, expectedUid: 'u1' });
+  // An older shapeDb without the compare-and-set still writes, bound to the account.
+  w = env({ cloud: [], cas: false });
+  await save('m11');
+  assert.deepEqual(w.writes.map(([k, v, o]) => [k, v.lists.map((l) => l.id), o]), [['client_grocery_lists', ['received-m11'], { expectedUserId: 'u1' }]]);
 });
 
 test('a save that landed nowhere says so and stays tappable (Codex P2 on #2432)', async () => {
@@ -291,7 +329,7 @@ test('storage the browser denies outright still lets the cloud keep the list (Co
   try {
     await React.act(async () => { r.host.querySelector('[data-bs-grocery-save]').click(); });
     await React.act(async () => { await new Promise((res) => setTimeout(res, 0)); });
-    assert.deepEqual(writes.map(([k, v]) => [k, v.map((l) => l.id)]), [['client_grocery_lists', ['received-m10']]], 'the cloud kept it');
+    assert.deepEqual(writes.map(([k, v]) => [k, v.lists.map((l) => l.id)]), [['client_grocery_lists', ['received-m10']]], 'the cloud kept it');
     assert.equal(r.host.querySelector('[data-bs-grocery-save]').getAttribute('aria-pressed'), 'true');
   } finally { Object.defineProperty(dom.window, 'localStorage', desc); await r.done(); }
 });

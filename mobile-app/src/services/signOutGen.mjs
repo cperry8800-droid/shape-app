@@ -20,7 +20,16 @@
 // starts — the check can never race the bump it is testing for.
 
 let _gen = 0;
+// Whether a sign-out is under way: set by the bump that starts it, cleared when an account is next signed
+// in (shapeBackend's setCached, the one identity chokepoint). Between the bump and the cleared user lie the
+// sign-out's awaited teardown steps, and work STARTED in that window would capture the bumped generation
+// and pass for live; this lets it refuse to start at all (the grocery lists store, Codex P1 on #2433).
+let _signingOut = false;
 
 export function signOutGen() { return _gen; }
 
-export function bumpSignOutGen() { _gen += 1; return _gen; }
+export function bumpSignOutGen() { _gen += 1; _signingOut = true; return _gen; }
+
+export function signOutInProgress() { return _signingOut; }
+
+export function signOutEnded() { _signingOut = false; }

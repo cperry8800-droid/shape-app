@@ -247,8 +247,8 @@ planned builds.
   the dashboard frame, `/admin`, Business (website and app), the coach application
   uploads or the Wall's live story with a real set.
 - The Wall's old card (`variant="wall"`) is unused in the app; the website chat bubble
-  still draws its copy. Coaches can read a sent grocery list, not save it; a
-  member's save isn't a compare-and-set.
+  still draws its copy. Coaches can read a sent grocery list, not save it; old
+  builds' grocery writes go unmerged.
 - Native mic and camera plugins (including iOS barcode scanning) and on-device macro
   reads from a meal photo aren't built yet.
 - The daily check-in (#2398): its saves have no timeout, so a request the network holds

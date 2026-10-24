@@ -65,7 +65,8 @@ import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx
 import { BSEatFuel } from './BSEatFuel.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead } from './BSWallStory.jsx';
-import { BSGroceryShareCard } from './BSGroceryShare.jsx';
+import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
+import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
 import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
@@ -73,7 +74,7 @@ import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx'
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
-import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot } from '../services/focusLayout.mjs';
+import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot, bsGroceryCheckedKeys } from '../services/focusLayout.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -13705,32 +13706,57 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     if (list) loadGroceryList(list);
   };
 
-  // Cross-device sync: saved grocery lists ride in user_goals('client_grocery_lists').
-  // Load once on mount + merge any server-only lists; only push to the server after
-  // that initial merge so we don't clobber it with the local-only copy.
-  const grocSyncedRef = React.useRef(false);
+  // Cross-device sync: saved grocery lists ride in user_goals('client_grocery_lists'), through the app's
+  // grocery lists store (services/groceryLists.mjs via BSGroceryShare.jsx). Each sync reads the cloud,
+  // merges what this device changed since it last synced with what other devices changed, and writes
+  // compare-and-set, so a list another device added in between is kept rather than overwritten. It runs
+  // on mount and after every change; a sync queued behind another reads the latest lists.
+  const grocLocalRef = React.useRef(recipeLists);
+  const grocGoneRef = React.useRef(deletedGroceryIds);
+  const grocMountedRef = React.useRef(true);
+  // This page's base: in memory for as long as its lists are, over the stored one (storage may be denied).
+  const grocBaseRef = React.useRef(null);
+  if (!grocBaseRef.current) grocBaseRef.current = bsGroceryListsPageBase(bsGroceryListsAppStore().base);
+  React.useEffect(() => () => { grocMountedRef.current = false; }, []);
   React.useEffect(() => {
-    if (!(window.shapeDb && window.shapeDb.getUserGoals)) { grocSyncedRef.current = true; return undefined; }
-    let cancelled = false;
-    window.shapeDb.getUserGoals('client_grocery_lists').then(saved => {
-      if (cancelled || !Array.isArray(saved)) return;
-      setRecipeLists(prev => {
-        const have = new Set(prev.map(l => l.id));
-        const extra = saved.filter(l => l && l.id && !have.has(l.id) && !deletedGroceryIds.includes(l.id));
-        return extra.length ? [...extra, ...prev] : prev;
-      });
-    }).catch(() => {}).finally(() => { grocSyncedRef.current = true; });
-    return () => { cancelled = true; };
-  }, []);
-
-  React.useEffect(() => {
+    grocLocalRef.current = recipeLists;
     try {
       window.localStorage && window.localStorage.setItem('shape.recipeGroceryLists', JSON.stringify(recipeLists));
     } catch {}
-    if (grocSyncedRef.current && window.shapeDb?.saveUserGoals) { try { window.shapeDb.saveUserGoals('client_grocery_lists', recipeLists); } catch (e) {} }
+    bsGroceryListsAppStore().sync({
+      getLocal: () => grocLocalRef.current,
+      getGone: () => grocGoneRef.current,
+      base: grocBaseRef.current,
+      // Another device's changes: kept where the next load reads them where storage allows, then on screen.
+      // When this page has closed they did not reach the lists the next sync reads, so the store leaves
+      // them unsynced. Storage denied, the lists on screen still take them (Codex P2 on #2433).
+      apply: (delta, used) => {
+        try {
+          const raw = window.localStorage.getItem('shape.recipeGroceryLists');
+          const stored = raw ? JSON.parse(raw) : [];
+          const next = bsGroceryListsApply(Array.isArray(stored) ? stored : [], used, delta);
+          if (next !== stored) window.localStorage.setItem('shape.recipeGroceryLists', JSON.stringify(next));
+        } catch (e) { /* storage off, full or unreadable */ }
+        if (!grocMountedRef.current) return false;
+        // The lists the next sync reads, now: a sync queued behind this one runs before React renders, and
+        // without these it would take them for lists deleted here (Codex P1 on #2433).
+        const before = grocLocalRef.current;
+        grocLocalRef.current = bsGroceryListsApply(before, used, delta);
+        // The open list deleted elsewhere closes, rather than staying on screen to be edited and so brought
+        // back without the member knowing it was deleted (Codex P1 on #2433).
+        const gone = new Set(before.filter((l) => l && !grocLocalRef.current.some((n) => n && n.id === l.id)).map((l) => l.id));
+        if (gone.size) setSelectedGroceryList((sel) => (sel && gone.has(sel.id) ? null : sel));
+        const putIds = new Set(delta.put.map((l) => l.id));
+        if (putIds.size) grocGoneRef.current = grocGoneRef.current.filter((id) => !putIds.has(id));
+        setRecipeLists((prev) => bsGroceryListsApply(prev, used, delta));
+        if (putIds.size) setDeletedGroceryIds((prev) => (prev.some((id) => putIds.has(id)) ? prev.filter((id) => !putIds.has(id)) : prev));
+        return true;
+      },
+    });
   }, [recipeLists]);
 
   React.useEffect(() => {
+    grocGoneRef.current = deletedGroceryIds;
     try {
       window.localStorage && window.localStorage.setItem('shape.deletedGroceryIds', JSON.stringify(deletedGroceryIds));
     } catch {}
@@ -13775,7 +13801,15 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     ),
     [PROGRAM, liveProgram, liveMealCoach, liveMealTitle, bsEatSignedIn, tr],
   );
-  const activeGroceryList = selectedGroceryList || planGrocery;
+  // The open list. One that lives in recipeLists is drawn from there, as reopening it would, not from the
+  // copy taken when it opened: another device's edit, taken in by the sync, must reach the screen, or the
+  // next edit here, made on the stale copy, would write it back over theirs (Codex P1 on #2433). The
+  // copy is still what a list from outside recipeLists (the plan's, a built-in) is drawn from.
+  const openGroceryRecord = selectedGroceryList && selectedGroceryList.id
+    ? recipeLists.find((l) => l && l.id === selectedGroceryList.id) : null;
+  const activeGroceryList = openGroceryRecord
+    ? { ...bsNormalizeGroceryList(openGroceryRecord), editable: !!(openGroceryRecord.editable || selectedGroceryList.editable) }
+    : (selectedGroceryList || planGrocery);
   // Shop by meal files each ingredient under the meal it is for, in the order the
   // meals come: the week from today, earliest first, each labelled with its day
   // and slot. A meal the week does not hold keeps the list's own order.
@@ -34572,26 +34606,25 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   // meal): the Eat page ticks the same items, by name, so one tick is one tick
   // on both pages and survives leaving this one. Nothing remembered yet → the
   // list's own defaults (a pantry staple starts got).
+  // The state holds the got NAMES; the ticked rows are worked out from them on
+  // every render, so when another device's edit lands while this list is open
+  // (an item added in front, one removed, the order changed) each tick stays on
+  // its item instead of on the row it used to be in.
   const _gStore = (typeof window !== 'undefined' && window.localStorage) || null;
   const _gListKey = String(list.id || list.name || 'list');
-  const readChecked = () => {
-    const got = bsReadGotItems(_gStore, _gListKey);
-    const set = new Set();
-    list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => { if (bsGroceryIsGot(it, got)) set.add(`${ai}-${ii}`); }));
-    return set;
-  };
-  const [checked, setChecked] = useStateBSC(readChecked);
+  const [gotNames, setGotNames] = useStateBSC(() => bsReadGotItems(_gStore, _gListKey));
   React.useEffect(() => {
-    setChecked(readChecked());
-  }, [list.id || list.name]);
+    setGotNames(bsReadGotItems(_gStore, _gListKey));
+  }, [_gListKey]);
+  const checked = bsGroceryCheckedKeys(list.aisles, gotNames);
 
   const toggle = (k) => {
-    const next = new Set(checked);
-    if (next.has(k)) next.delete(k); else next.add(k);
-    setChecked(next);
-    const names = new Set();
-    list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => { if (next.has(`${ai}-${ii}`)) names.add(bsGroceryItemKey(it)); }));
-    bsSaveGotItems(_gStore, _gListKey, names);
+    const [ai, ii] = String(k).split('-').map(Number);
+    const item = list.aisles[ai] && list.aisles[ai].items[ii];
+    if (!item) return;
+    const next = bsToggleGot(list.aisles, gotNames, item);
+    setGotNames(next);
+    bsSaveGotItems(_gStore, _gListKey, next);
   };
   // ── SHOP BY (owner, 2026-10-11): the same list two ways — by aisle for the
   // store (one aisle at a time), or by meal for the week (each ingredient under
