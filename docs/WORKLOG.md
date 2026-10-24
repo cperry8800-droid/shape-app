@@ -2,12 +2,9 @@
 
 The current rules, the code map and the open items. Every session loads this file,
 so it stays short: when a rule changes, replace the old line instead of adding a
-correction under it.
-
-There is **no changelog**. The PR description records what shipped, and `git log`
-covers the rest. Everything written here before 2026-10-16 is in the archives (see
-History at the end). `tests/worklog-rules.test.mjs` fails if a dated entry comes
-back or the file grows past 20 KB.
+correction under it. There is **no changelog**: the PR description records what
+shipped, and History lists the archives. `tests/worklog-rules.test.mjs` fails on a
+dated entry or past 20 KB.
 
 ## How we work
 
@@ -81,8 +78,7 @@ back or the file grows past 20 KB.
   `coachForecast.js` holds the coach Business figures; the app imports it too, so
   change a figure there, not in a page.
 - **Next.js app (`src/`):** API routes, the gated `/dashboard` and `/admin`. Typecheck
-  with `npx tsc --noEmit`. This Next version has breaking changes, so read
-  `node_modules/next/dist/docs/` before writing Next code. When you add a route,
+  with `npx tsc --noEmit` (read the Next docs first). When you add a route,
   register it in the War Room's `RAW_ROUTES`. A route the app calls reads the caller with
   `clientForRequest`/`currentUser` (`src/lib/request-auth.ts`): the installed app sends a
   Bearer token and no cookie. `tests/app-routes-bearer.test.mjs` enforces it.
@@ -109,13 +105,16 @@ back or the file grows past 20 KB.
 - **Window globals.** Modules expose components with `Object.assign(window, {...})`.
   A role module that reads a global before the feature module defines it causes React
   error #130. `iosAppBroadsheetMain.jsx` loads feature modules before role modules.
+  ⚠ Coach Today crashes cold: `iosAppBroadsheetPros.jsx` reads the client's
+  `BSFacetAvatar` at load, and a coach never loads the client module.
 - **Sheets** use `createPortal` into `#bs-phone-surface`.
 - **Pages** render inside `BSPage`, which pins a condensed masthead once the page's own
   masthead scrolls away; a page that is its own scroller gets none. A `position: sticky`
   row inside a `BSPage` sticks at `top: useBSPinnedMastTop()`, below that masthead.
 - **Theme:** `useBS()` → `t`. The teal accent is
   `t.isLight ? '#0a8f87' : '#34d6c5'`; nutritionists are gold `#a07a2e` and trainers
-  rust `#c0533b`.
+  rust `#c0533b`. The Wall, chat and the chrome take the magazine's red and Oswald
+  from `bsMagazine.mjs`.
 - **App copy** goes through `useShapeTr()` in all 13 locales.
   `tests/i18n-surface-inventory.test.mjs` counts the strings that aren't translated
   yet.
@@ -292,6 +291,5 @@ planned builds.
 - The old version of this file, with every reviewer ruling and why:
   [`WORKLOG-ARCHIVE-conventions-2026-10-16.md`](WORKLOG-ARCHIVE-conventions-2026-10-16.md).
 - Old session handoffs (`docs/HANDOFF-*.md`) are history; none are written now.
-- To find something in these files (0.2–1.1 MB each), run
-  `grep -n "<term>" docs/WORKLOG-ARCHIVE-*.md`, then read only that entry with
-  `sed -n '<start>,<end>p'`. Never `cat` or `@`-import an archive.
+- Search them (0.2–1.1 MB each) with `grep -n "<term>" docs/WORKLOG-ARCHIVE-*.md`,
+  then read one entry with `sed -n`. Never `cat` or `@`-import an archive.

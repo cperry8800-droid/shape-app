@@ -1,5 +1,6 @@
 import React from 'react';
 import { bsSdSplitUnit } from '../services/sessionLedger.mjs';
+import { bsWsRed, bsWsHead } from './bsMagazine.mjs';
 // ─── THE WALL · A STORY ──────────────────────────────────────────────────────────────────────────
 // Owner, 2026-10-23: the dark magazine look for the Wall, its headlines in Oswald ("use oswald"), and
 // "keep the same likes and comments". A post on the Wall reads as a story: a picture or its route with
@@ -12,10 +13,9 @@ import { bsSdSplitUnit } from '../services/sessionLedger.mjs';
 
 // The kicker over a picture: a warm tint that reads on any photo or the route's dark ground.
 const BS_WS_OVER_KICKER = '#ffb39f';
-// The magazine's red and its headline face, shared with the chat page's header (owner, 2026-10-24: the
-// header above the Wall "to match the new feed wall look").
-export const bsWsRed = (t) => (t.isLight ? '#b23a1f' : '#ff7a5c');
-export const bsWsHead = (t) => t.HEADLINE || t.DISPLAY;
+// The magazine's red and its headline face live in bsMagazine.mjs, which the app's chrome reads too; the
+// client takes them from here with the story pieces.
+export { bsWsRed, bsWsHead };
 
 
 function BSWsKicker({ children, color }) {

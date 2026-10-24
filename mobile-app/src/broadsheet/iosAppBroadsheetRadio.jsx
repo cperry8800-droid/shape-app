@@ -1439,8 +1439,10 @@ function bsRadioCorner(ink, bg) {
         : null}
       {(typeof window !== 'undefined' && window.BSFacetAvatar)
         ? React.createElement(window.BSFacetAvatar, {
+          // The magazine's flat cut, framed in the page's ink (owner, 2026-10-24).
+          flat: true,
           size,
-          c: (window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98',
+          c: ink,
           initial: (window.bsMyInitials && window.bsMyInitials()) || 'A',
           name: (window.bsMyName && window.bsMyName()) || undefined,
           photo: (window.bsMyPhoto && window.bsMyPhoto()) || undefined,

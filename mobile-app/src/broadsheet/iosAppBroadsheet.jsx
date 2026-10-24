@@ -1,6 +1,7 @@
 import React from 'react';
 import { bsSwipeIntent } from '../services/swipeIntent.mjs';
 import { bsSdUnitizeText, bsSdUnitizeStat, bsSdUnitizeLabel, bsSdMeasure } from '../services/sessionLedger.mjs';
+import { bsWsRed } from './bsMagazine.mjs';
 // iosAppBroadsheet.jsx — Shared tokens, primitives, theme context for the
 // Broadsheet redesign of the Shape iOS app.
 //
@@ -625,9 +626,10 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
     </div>
   );
 
-  // Pinned condensed masthead — mirrors the tab bar's paper treatment (same
-  // gradient/blur/hairline/shadow, flipped) so top + bottom chrome read as one
-  // instrument. Slides in only once scrolled past the page's own masthead.
+  // Pinned condensed masthead — the tab bar's paper, flipped: flat paper over a
+  // rule, with no fade, blur or shadow (the Wall's magazine look, owner
+  // 2026-10-24), so top + bottom chrome read as one. Slides in only once
+  // scrolled past the page's own masthead.
   const MastCorner = (typeof window !== 'undefined' && window.BSMastCorner) || null;
   const mastReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const pinnedMast = mast ? (
@@ -643,12 +645,10 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
       // full-size corner (34) with room to breathe, so scrolling doesn't shrink
       // the bar; only its vertical padding is trimmed vs the hero.
       padding: `max(calc(12px + env(safe-area-inset-top, 0px)), var(--bs-notch-floor, 0px)) ${t.padX}px 11px`,
-      background: `linear-gradient(0deg, rgba(${t.inkRGB},0.05), transparent 26%), ${t.PAPER_BG}`,
+      background: t.PAPER_BG,
       backgroundColor: t.PAPER,
       color: t.INK,
-      borderBottom: `1px solid ${t.SURFACE_BORDER}`,
-      backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
-      boxShadow: `0 16px 40px ${t.isLight ? 'rgba(15,14,12,0.08)' : 'rgba(0,0,0,0.26)'}`,
+      borderBottom: `1px solid ${t.RULE}`,
       transform: mastCondensed ? 'translateY(0)' : 'translateY(-110%)',
       opacity: mastCondensed ? 1 : 0,
       pointerEvents: mastCondensed ? 'auto' : 'none',
@@ -1277,7 +1277,7 @@ function BSHalftone({ height = 180, accent, pattern = 'dots' }) {
   );
 }
 
-// Tab bar — Broadsheet style: thick top rule, mono labels, accent active
+// Tab bar — the magazine's: a rule, mono labels, the active tab in ink under the red
 // Line-art tab icons — monochrome, inherit color via currentColor.
 const BS_TAB_ICON_KEYS = new Set(['home', 'train', 'eat', 'chat', 'store', 'me', 'today', 'clients', 'programs', 'plans']);
 function BSTabIcon({ name, size = 22 }) {
@@ -1333,34 +1333,26 @@ function BSTabBar({ tabs, active, onChange }) {
     setChatUnread(window.ShapeUnread?.total?.() || 0);
     return () => { try { off && off(); } catch (e) {} };
   }, []);
+  // The Wall's magazine look (owner, 2026-10-24: the tab bar "in new design"): flat paper over a rule,
+  // the tabs in ink against grey, and the active one marked by the magazine's red on the rule, as the
+  // chat page's section strip marks its word. No fade, blur, shadow, glow or plate.
+  const red = bsWsRed(t);
+  const activeIdx = Math.max(0, tabs.findIndex((tb) => tb.key === active));
+  const n = tabs.length;
   return (
-    <div style={{
+    <div data-bs-tabbar="" style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
       height: BS_TABBAR_H, padding: '5px 20px calc(8px + env(safe-area-inset-bottom, 0px))',
-      // Match the page's full background (PAPER_BG carries metallic/textured sheen
-      // on papers like Steel) so the bar reads as part of the same paper, with a
-      // faint theme-derived top fade for separation. Adapts to every paper.
-      background: `linear-gradient(180deg, rgba(${t.inkRGB},0.05), transparent 26%), ${t.PAPER_BG}`,
+      // The page's own paper (PAPER_BG carries the sheen on papers like Steel), so the bar is the
+      // same sheet as the page.
+      background: t.PAPER_BG,
       backgroundColor: t.PAPER,
       color: t.INK,
-      borderTop: `1px solid ${t.SURFACE_BORDER}`,
-      display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`, gap: 10,
-      backdropFilter: 'blur(18px)',
-      WebkitBackdropFilter: 'blur(18px)',
-      boxShadow: `0 -16px 40px ${t.isLight ? 'rgba(15,14,12,0.08)' : 'rgba(0,0,0,0.26)'}`,
+      borderTop: `1px solid ${t.RULE}`,
+      display: 'grid', gridTemplateColumns: `repeat(${n}, 1fr)`, gap: 10,
     }}>
-      {/* Instrument dock rail — accent gradient hairline with a glowing tick
-          that slides to sit above the active tab. */}
-      {(() => {
-        const activeIdx = Math.max(0, tabs.findIndex((tb) => tb.key === active));
-        const n = tabs.length;
-        return (
-          <React.Fragment>
-            <span aria-hidden style={{ position: 'absolute', top: -1, left: 0, right: 0, height: 1.5, background: `linear-gradient(90deg, transparent, ${t.ACCENT}44 28%, ${t.ACCENT}44 72%, transparent)` }} />
-            <span aria-hidden style={{ position: 'absolute', top: -1.5, height: 2.5, borderRadius: 2, width: `calc((100% - 40px) / ${n} * 0.44)`, left: `calc(20px + ((100% - 40px) / ${n}) * (${activeIdx} + 0.28))`, background: t.ACCENT, boxShadow: `0 0 9px ${t.ACCENT}`, transition: 'left .28s cubic-bezier(.4,0,.2,1)' }} />
-          </React.Fragment>
-        );
-      })()}
+      {/* The red rule over the active tab, on the bar's own rule. It slides to the tab tapped. */}
+      <span aria-hidden data-bs-tab-mark="" style={{ position: 'absolute', top: -1, height: 2, width: `calc((100% - 40px) / ${n} * 0.44)`, left: `calc(20px + ((100% - 40px) / ${n}) * (${activeIdx} + 0.28))`, background: red, transition: 'left .28s cubic-bezier(.4,0,.2,1)' }} />
       {tabs.map((tab, i) => {
         const on = tab.key === active;
         return (
@@ -1368,11 +1360,8 @@ function BSTabBar({ tabs, active, onChange }) {
             border: 0, background: 'transparent',
             cursor: 'pointer', padding: '3px 0',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
-            color: on ? t.ACCENT : t.INK50, position: 'relative',
+            color: on ? t.INK : t.INK50, position: 'relative',
           }}>
-            {/* Active tab rides a clipped instrument plate with an accent spine. */}
-            {on && <span aria-hidden style={{ position: 'absolute', inset: '1px 2px 3px', clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', background: `linear-gradient(165deg, ${t.ACCENT}2e, ${t.ACCENT}0a 72%)` }} />}
-            {on && <span aria-hidden style={{ position: 'absolute', left: 2, top: 1, bottom: 3, width: 2.5, background: t.ACCENT }} />}
             <span style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
               {BS_TAB_ICON_KEYS.has(tab.key)
                 ? <BSTabIcon name={tab.key} size={20} />
@@ -1383,8 +1372,9 @@ function BSTabBar({ tabs, active, onChange }) {
                 }}>{tab.label}</span>
               )}
             </span>
+            {/* The unread count: a square of the magazine's red. */}
             {tab.key === 'chat' && chatUnread > 0 && (
-              <span style={{ position: 'absolute', top: 0, left: '52%', minWidth: 15, height: 15, borderRadius: 4, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{chatUnread > 9 ? '9+' : chatUnread}</span>
+              <span style={{ position: 'absolute', top: 0, left: '52%', minWidth: 15, height: 15, borderRadius: 0, background: red, color: t.PAPER, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{chatUnread > 9 ? '9+' : chatUnread}</span>
             )}
           </button>
         );

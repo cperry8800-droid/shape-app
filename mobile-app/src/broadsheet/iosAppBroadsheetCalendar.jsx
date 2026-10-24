@@ -361,7 +361,8 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         const photo = (W.bsMyPhoto && W.bsMyPhoto()) || undefined;
         const live = !!(W.bsAmLive && W.bsAmLive());
         const FA = W.BSFacetAvatar;
-        if (FA) return React.createElement(FA, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, c: color, initial: init, photo, live, showRank: false, onClick: onProfile });
+        // The magazine's flat cut, an ink frame, as on every page's corner (owner, 2026-10-24).
+        if (FA) return React.createElement(FA, { flat: true, size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, c: t.INK, initial: init, photo, live, showRank: false, onClick: onProfile });
         return <BSAvatarCal init={init} size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} fill={color} ink={role !== 'client' ? t.PAPER : null} onClick={onProfile} />;
       })()}
     </div>
