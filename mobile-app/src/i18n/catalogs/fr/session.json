@@ -350,5 +350,16 @@
   "train.music": "Musique",
   "train.forToday": "Pour aujourd’hui",
   "train.fullPlan": "Plan complet",
-  "train.playlistBy": "{who} · Votre coach"
+  "train.playlistBy": "{who} · Votre coach",
+  "burn.title": "Brûlé cette semaine",
+  "burn.sample": "Semaine d’exemple",
+  "burn.kcalWord": "kcal",
+  "burn.avg": "{avg}/jour",
+  "burn.chartAria": "Calories brûlées chaque jour cette semaine",
+  "burn.reading": "Lecture de votre semaine…",
+  "burn.failed": "Impossible de lire votre activité",
+  "burn.retry": "Réessayer",
+  "burn.none": "Rien d’enregistré cette semaine.",
+  "burn.connect": "Connecter",
+  "burn.manual": "votre journal"
 }

@@ -350,5 +350,16 @@
   "train.music": "Музика",
   "train.forToday": "На сьогодні",
   "train.fullPlan": "Увесь план",
-  "train.playlistBy": "{who} · Ваш тренер"
+  "train.playlistBy": "{who} · Ваш тренер",
+  "burn.title": "Спалено за тиждень",
+  "burn.sample": "Приклад тижня",
+  "burn.kcalWord": "ккал",
+  "burn.avg": "{avg}/день",
+  "burn.chartAria": "Спалені калорії по днях цього тижня",
+  "burn.reading": "Читаємо твій тиждень…",
+  "burn.failed": "Не вдалося прочитати активність",
+  "burn.retry": "Повторити",
+  "burn.none": "Цього тижня ще нічого не записано.",
+  "burn.connect": "Підключити",
+  "burn.manual": "твій журнал"
 }

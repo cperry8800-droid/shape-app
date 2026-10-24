@@ -284,8 +284,9 @@ function activityPostPayload(
   };
 }
 
-// Typed per-activity row for the activities table (preserves sport type).
-function stravaActivityRow(activity: StravaActivity, userId: string) {
+// Typed per-activity row for the activities table (preserves sport type). `known` is the calorie
+// read from the activity's detail (stravaCalories), which the list leaves out.
+function stravaActivityRow(activity: StravaActivity, userId: string, known?: StravaCalories) {
   const sport = (activity.sport_type || activity.type || 'Activity').toLowerCase();
   const secs = activity.moving_time ?? activity.elapsed_time ?? null;
   return {
@@ -297,13 +298,14 @@ function stravaActivityRow(activity: StravaActivity, userId: string) {
     started_at: activity.start_date ?? null,
     duration_min: typeof secs === 'number' ? Math.round(secs / 60) : null,
     distance_km: typeof activity.distance === 'number' ? Number((activity.distance / 1000).toFixed(2)) : null,
-    calories: typeof activity.calories === 'number' ? Math.round(activity.calories) : null,
+    calories: typeof activity.calories === 'number' ? Math.round(activity.calories) : known?.calories ?? null,
     avg_hr: typeof activity.average_heartrate === 'number' ? Math.round(activity.average_heartrate) : null,
     metrics: {
       elevationGainMeter: activity.total_elevation_gain ?? null,
       maxHeartRate: activity.max_heartrate ?? null,
       averageSpeedMeterSecond: activity.average_speed ?? null,
       sufferScore: activity.suffer_score ?? null,
+      ...(known?.checked ? { caloriesChecked: true } : {}),
     },
   };
 }
@@ -430,6 +432,75 @@ async function fetchActivitySplits(
   }
 }
 
+type StravaCalories = { calories: number | null; checked: boolean };
+
+// ⚠ STRAVA'S ACTIVITY LIST CARRIES NO CALORIES; THE DETAIL DOES (Codex P2 on #2437). Train's Burned
+// this week needs them, so an activity of the last eight days is read once for its calories: a row
+// that already holds them, or was read and had none (metrics.caloriesChecked), keeps what it has.
+// At most 3 details a sync, newest first, and none after a failed read, because Strava's rate limit
+// is shared by every member. null when the rows on file can't be read: writing then would put the
+// list's no-calories over the ones stored (Codex P2 on #2437).
+async function stravaCalories(client: SupabaseClient, userId: string, accessToken: string, activities: StravaActivity[]): Promise<Map<string, StravaCalories> | null> {
+  const known = new Map<string, StravaCalories>();
+  const ids = activities.filter((a) => a.id).map((a) => String(a.id));
+  if (!ids.length) return known;
+  const { data, error } = await client
+    .from('activities')
+    .select('external_id, calories, metrics')
+    .eq('user_id', userId)
+    .eq('source', 'strava')
+    .in('external_id', ids);
+  if (error) {
+    console.error('[shape-api] strava calories read failed:', error.message);
+    return null;
+  }
+  for (const row of (data || []) as { external_id: string; calories: number | null; metrics: { caloriesChecked?: boolean } | null }[]) {
+    const has = typeof row.calories === 'number' && row.calories > 0;
+    if (has || row.metrics?.caloriesChecked) known.set(String(row.external_id), { calories: has ? row.calories : null, checked: true });
+  }
+  const since = Date.now() - 8 * 86_400_000;
+  let reads = 0;
+  for (const activity of activities) {
+    const id = String(activity.id);
+    if (!activity.id || known.has(id) || typeof activity.calories === 'number') continue;
+    if (!(Date.parse(activity.start_date || '') >= since)) continue;
+    if (reads >= 3) break;
+    reads += 1;
+    try {
+      const detail = await stravaGet<{ calories?: number }>(accessToken, `/activities/${activity.id}`);
+      const kcal = typeof detail?.calories === 'number' && detail.calories > 0 ? Math.round(detail.calories) : null;
+      known.set(id, { calories: kcal, checked: true });
+    } catch (error) {
+      console.warn('[shape-api] strava activity detail failed:', (error as Error).message);
+      break;
+    }
+  }
+  return known;
+}
+
+// ⚠ THE TYPED ACTIVITIES ROWS ARE WRITTEN ON EVERY SYNC (Codex P2 on #2437). Train's Burned this week
+// and Home's Week so far read them, and the Sync button never asks for ?import=1. Only the feed
+// posts (and their HR traces) stay behind Import. A refused row is reported.
+async function writeStravaActivityRows(client: SupabaseClient, userId: string, accessToken: string, activities: StravaActivity[]) {
+  let written = 0;
+  const errors: string[] = [];
+  const known = await stravaCalories(client, userId, accessToken, activities);
+  if (!known) return { written, errors: ['Could not save an activity.'] };
+  for (const activity of activities) {
+    if (!activity.id) continue;
+    const { error } = await client
+      .from('activities')
+      .upsert(stravaActivityRow(activity, userId, known.get(String(activity.id))), { onConflict: 'user_id,source,external_id' });
+    if (error) {
+      console.error('[shape-api] strava activity row failed:', error.message);
+      errors.push('Could not save an activity.');
+    } else {
+      written += 1;
+    }
+  }
+  return { written, errors };
+}
+
 async function importStravaActivities(
   client: SupabaseClient,
   userId: string,
@@ -450,11 +521,6 @@ async function importStravaActivities(
 
   for (const activity of activities) {
     if (!activity.id) continue;
-    // Typed per-activity row (idempotent on user+source+external_id).
-    await client
-      .from('activities')
-      .upsert(stravaActivityRow(activity, userId), { onConflict: 'user_id,source,external_id' });
-
     const { data: existing, error: lookupError } = await client
       .from('community_posts')
       .select('id')
@@ -542,6 +608,7 @@ export async function GET(request: Request) {
       stravaGet<StravaActivity[]>(accessToken, '/athlete/activities?per_page=30&page=1'),
     ]);
 
+    const activityRows = await writeStravaActivityRows(client, user.id, accessToken, activities);
     const url = new URL(request.url);
     const shouldImport = url.searchParams.get('import') === '1';
     const importResult = shouldImport
@@ -565,6 +632,7 @@ export async function GET(request: Request) {
         athlete,
         activities,
       },
+      activities: activityRows,
       import: importResult,
       snapshot,
     });

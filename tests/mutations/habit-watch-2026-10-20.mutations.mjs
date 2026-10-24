@@ -105,9 +105,9 @@ export default {
     { name: 'the candidates come back in no set order, so pages can skip or repeat', file: DATA, find: ".order('full_name', { nullsFirst: false }).order('user_id').range(", replace: ".range(" },
     { name: 'the same person is sent twice', file: DATA, find: 'p_watchers: [...new Set(userIds || [])]', replace: 'p_watchers: userIds || []' },
 
-    // ── The button and the sheet ──
-    { name: 'the button shows before the watchers have read', file: UI, find: '      {Array.isArray(watchers) && (\n', replace: '      {true && (\n' },
-    { name: 'a failed watchers read offers the button', file: UI, find: "setWatch(r && r.kind === 'ready' ? r.byHabit : null)", replace: "setWatch(r && r.byHabit ? r.byHabit : {})" },
+    // ── The share option and the sheet ──
+    { name: 'the share option shows before the watchers have read', file: UI, find: '          {Array.isArray(watchers) && (\n', replace: '          {true && (\n' },
+    { name: 'a failed watchers read offers sharing', file: UI, find: "setWatch(r && r.kind === 'ready' ? r.byHabit : null)", replace: "setWatch(r && r.byHabit ? r.byHabit : {})" },
     { name: 'a refused save closes as saved', file: UI, find: "    if (!r || r.kind !== 'ready') { window.__bsToast?.(tr('habits:share.saveFailed'", replace: "    if (!r) { window.__bsToast?.(tr('habits:share.saveFailed'" },
     { name: 'saving sends everyone listed', file: UI, find: 'window.ShapeHabitWatch?.set?.(habit.id, [...picked])', replace: 'window.ShapeHabitWatch?.set?.(habit.id, (people && people.people || []).map(p => p.userId))' },
     { name: 'someone no longer connected cannot be dropped', file: UI, find: "...[...picked].filter(id => !people.people.some(p => p.userId === id)).map(id => ({ userId: id, name: tr('habits:share.notConnected', { defaultValue: 'No longer connected' }) }))]", replace: ']' },

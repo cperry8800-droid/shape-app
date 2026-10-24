@@ -350,5 +350,16 @@
   "train.music": "Музыка",
   "train.forToday": "На сегодня",
   "train.fullPlan": "Весь план",
-  "train.playlistBy": "{who} · Ваш тренер"
+  "train.playlistBy": "{who} · Ваш тренер",
+  "burn.title": "Сожжено за неделю",
+  "burn.sample": "Пример недели",
+  "burn.kcalWord": "ккал",
+  "burn.avg": "{avg}/день",
+  "burn.chartAria": "Сожжённые калории по дням этой недели",
+  "burn.reading": "Читаем твою неделю…",
+  "burn.failed": "Не удалось прочитать активность",
+  "burn.retry": "Повторить",
+  "burn.none": "На этой неделе пока ничего не записано.",
+  "burn.connect": "Подключить",
+  "burn.manual": "твой журнал"
 }

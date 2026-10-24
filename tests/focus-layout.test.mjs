@@ -321,7 +321,10 @@ test('Train reads in the Focus order: the week, the session, the links', () => {
   const week = at((n) => typeof n.type === 'function' && n.type.name === 'BSWeekStrip');
   const lead = at((n) => n.props && n.props.tour === 'hero-train');
   const find = at((n) => typeof n.type === 'function' && n.type.name === 'BSFindCoachBar');
+  const burn = at((n) => typeof n.type === 'function' && n.type.name === 'BSTrainBurn');
   assert.ok(week >= 0 && lead > week, 'the session sits under the week');
+  // Owner, 2026-10-24: the week's calories burned sit under the week strip, as Eat's Fuel left does.
+  assert.ok(burn > week && burn < lead, 'Burned this week sits between the week and the session');
   assert.ok(find > lead, 'Find a trainer is a link at the foot, not pinned to the top');
   assert.ok(String(order[lead].props.title || '').length > 0, 'the session has a title');
 });

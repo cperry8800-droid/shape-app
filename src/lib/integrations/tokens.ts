@@ -89,6 +89,7 @@ export async function getFreshAccessToken(userId: string, providerId: ProviderId
     client_id: creds.clientId,
     client_secret: creds.clientSecret,
   });
+  if (cfg.refreshScope) body.set('scope', cfg.refreshScope);
 
   const res = await fetch(cfg.tokenUrl, {
     method: 'POST',
