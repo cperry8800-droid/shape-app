@@ -23995,9 +23995,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // never looks pinned.
   const PinIcon = ({ filled, size = 18 }) => (
     <svg viewBox="0 0 24 24" width={size} height={size} style={{ display: 'block' }} aria-hidden="true">
-      <path d="M10.7 13 L13.3 13 L12 22.5 Z" fill={filled ? '#9aa0a6' : 'none'} stroke={filled ? 'none' : muted} strokeWidth="1.3" strokeLinejoin="round" />
-      <circle cx="12" cy="8" r="6.4" fill={filled ? TEALB : 'none'} stroke={filled ? 'none' : muted} strokeWidth="1.5" />
-      {filled && <circle cx="9.9" cy="5.9" r="1.7" fill="#ffffff" opacity="0.45" />}
+      {/* Flat, in the magazine's red (owner, 2026-10-24): no gloss. */}
+      <path d="M10.7 13 L13.3 13 L12 22.5 Z" fill={filled ? t.INK50 : 'none'} stroke={filled ? 'none' : muted} strokeWidth="1.3" strokeLinejoin="round" />
+      <circle cx="12" cy="8" r="6.4" fill={filled ? magRed : 'none'} stroke={filled ? 'none' : muted} strokeWidth="1.5" />
     </svg>
   );
   const [composerSlot, setComposerSlot] = useStateBSC(null);
@@ -24380,18 +24380,18 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const AV_OFFSET = 49; // avatar (38) + gap (11), to align meta/reactions under the bubble
     return (
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
-        {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> {tr('feed:bubble.pinned', { defaultValue: 'Pinned' })}</div>}
+        {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: magRed, marginBottom: 6 }}><PinIcon filled size={13} /> {tr('feed:bubble.pinned', { defaultValue: 'Pinned' })}</div>}
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11, maxWidth: '90%' }}>
-          <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? (bsMyPhoto() || undefined) : (p.userId ? (avatarByUser[p.userId] || undefined) : (p.photo || bsDemoFace(p.who)))} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} activity={isMe ? bsMyActivity() : bsUserActivity(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier, photo: (p.userId ? avatarByUser[p.userId] : (p.photo || bsDemoFace(p.who))) }) : undefined} />
+          <BSFacetAvatar flat size={38} c={t.INK} dotC={(isMe ? bsMyActivity() : bsUserActivity(p.userId)) === 'cooking' ? (t.AMBER || '#d8a23a') : magRed} BG={t.PAPER} initial={avInit} photo={isMe ? (bsMyPhoto() || undefined) : (p.userId ? (avatarByUser[p.userId] || undefined) : (p.photo || bsDemoFace(p.who)))} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} activity={isMe ? bsMyActivity() : bsUserActivity(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier, photo: (p.userId ? avatarByUser[p.userId] : (p.photo || bsDemoFace(p.who))) }) : undefined} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
-              <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier, photo: avatarByUser[p.userId] || p.photo })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</button>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: rc, border: `1px solid ${rc}66`, borderRadius: 4, padding: '1px 5px' }}>{roleMeta.label}</span>
+              <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier, photo: avatarByUser[p.userId] || p.photo })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.BODY, fontWeight: 600, fontSize: 14, color: cardInk }}>{p.who}</button>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: akind === 'TRAINER' || akind === 'NUTRI' ? magRed : muted }}>{roleMeta.label}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
             </div>
-            <div style={{ borderRadius: 16, [right ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, padding: p.photo && !p.body ? 4 : '11px 14px', background: bubbleBg, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${tc}40`, fontFamily: p.official ? `'Newsreader', Georgia, serif` : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4, overflow: 'hidden' }}>
+            <div style={{ borderRadius: 0, padding: p.photo && !p.body ? 4 : '11px 14px', background: p.official ? bubbleBg : (right ? bsTHexA(t.INK, 0.05) : 'transparent'), color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${bsTHexA(t.INK, 0.18)}`, fontFamily: p.official ? `'Newsreader', Georgia, serif` : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4, overflow: 'hidden' }}>
               {p.body && <div style={{ padding: p.photo ? '7px 10px 9px' : 0 }}>{p.body}</div>}
-              {p.photo && <img src={p.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12 }} />}
+              {p.photo && <img src={p.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover' }} />}
               {Array.isArray(p.mentions) && p.mentions.length > 0 && (
                 <div style={{ padding: p.photo ? '8px 10px 2px' : '8px 0 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.02em', color: p.official ? '#5a534a' : muted }}>
                   {tr('feed:bubble.with', { defaultValue: 'with' })} {p.mentions.map((mn, mi) => (
@@ -24407,7 +24407,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </div>
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'center', gap: 16, marginTop: 6, padding: right ? `0 ${AV_OFFSET}px 0 0` : `0 0 0 ${AV_OFFSET}px`, fontFamily: t.MONO, fontSize: 11, color: muted }}>
           <button aria-label={tr('feed:action.like', { defaultValue: 'Like' })} onClick={() => like(p)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: p.liked ? (t.isLight ? '#c0392b' : '#ff6b6b') : muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>{bsFeedIcon('heart', 13, !!p.liked)}<span>{p.hearts}</span></button>
-          <button aria-label={tr('feed:action.comment', { defaultValue: 'Comment' })} onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: actCmtOpen === p.id ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('comment', 13)}<span>{replyCount}</span></button>
+          <button aria-label={tr('feed:action.comment', { defaultValue: 'Comment' })} onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: actCmtOpen === p.id ? magRed : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('comment', 13)}<span>{replyCount}</span></button>
           <button aria-label={tr('feed:action.sendPost', { defaultValue: 'Send post' })} onClick={() => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.(tr('feed:toast.samplePost', { defaultValue: 'Sample post — engagement lights up on real posts.' }), 'info'); return; } setSendPostFor({ postId: id, who: p.name, title: p.status, body: p.note }); }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('send', 13)}</button>
           <button aria-label={tr('feed:action.sharePost', { defaultValue: 'Share post' })} onClick={() => bsSharePostExternal({ who: p.name, title: p.status, body: p.note, postId: bsRealPostId(p) })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
           <button aria-label={tr('feed:action.repost', { defaultValue: 'Repost' })} onClick={async () => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.(tr('feed:toast.samplePost', { defaultValue: 'Sample post — engagement lights up on real posts.' }), 'info'); return; } try { await bsRepostPost({ postId: id, who: p.name, title: p.status, body: p.note }); window.__bsToast?.(tr('feed:action.reposted', { defaultValue: 'Reposted to your feed' }), 'ok'); } catch (e) { window.__bsToast?.(tr('feed:action.repostError', { defaultValue: 'Could not repost.' }), 'error'); } }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('repost', 13)}</button>
@@ -24419,13 +24419,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <div style={{ alignSelf: 'stretch', marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
             {[...(p.comments || []), ...(actComments[p.id] || [])].map((c, ci) => (
               <div key={ci} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? TEALB : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? magRed : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
                 <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk, lineHeight: 1.35 }}>{c.body}</span>
               </div>
             ))}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 8, alignItems: 'center', marginTop: (actComments[p.id] || []).length ? 4 : 0 }}>
-              <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(p.id); }} placeholder={tr('feed:composer.message', { defaultValue: 'Message…' })} style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
-              <button onClick={() => sendActComment(p.id)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>{tr('feed:action.send', { defaultValue: 'Send' })}</button>
+              <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(p.id); }} placeholder={tr('feed:composer.message', { defaultValue: 'Message…' })} style={{ minWidth: 0, height: 38, background: 'transparent', border: `1px solid ${bsTHexA(t.INK, 0.25)}`, borderRadius: 0, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
+              <button onClick={() => sendActComment(p.id)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 0, background: actCmtDraft.trim() ? t.INK : t.SURFACE, color: actCmtDraft.trim() ? t.PAPER : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>{tr('feed:action.send', { defaultValue: 'Send' })}</button>
             </div>
           </div>
         )}
@@ -24584,8 +24584,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </div>
         <div style={{ minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, rowGap: 8 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>{tr('feed:masthead.eyebrow', { defaultValue: 'Chat' })}</div>
-            <h1 style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: magRed, fontWeight: 700 }}>{tr('feed:masthead.eyebrow', { defaultValue: 'Chat' })}</div>
+            {/* The page's title in the Wall's headline face (owner, 2026-10-24: "everything on chat page should
+                match new feed wall design"). */}
+            <h1 style={{ fontFamily: bsWsHead(t), fontWeight: 500, fontSize: 36, letterSpacing: '0.005em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
               {tab === 'feed' ? tr('feed:masthead.titleFeed', { defaultValue: 'Community' }) : tab === 'channels' ? tr('feed:masthead.titleChannels', { defaultValue: 'Channels' }) : tab === 'support' ? tr('feed:masthead.titleSupport', { defaultValue: 'Support' }) : tr('feed:masthead.titleTeam', { defaultValue: 'Your team' })}
             </h1>
           </div>
@@ -24710,39 +24712,37 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             const time = f.time || (f.messages && f.messages.length ? (f.messages[f.messages.length - 1].time || '') : '');
             const online = !!f.online || count > 0;
             const isLast = Array.isArray(arr) && i === arr.length - 1;
+            // In the Wall's magazine look (owner, 2026-10-24: "make the team list match the new design too"):
+            // the flat face with a still red dot, the role in mono over the name in the headline face, the
+            // last line in the body face, an unread count as a bare red number, a hairline between rows.
             return (
-              <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 11, alignItems: 'center', padding: '10px 2px', borderBottom: isLast ? 0 : `1px solid ${t.isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.045)'}`, background: 'transparent', border: 0, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
-                <span style={{ position: 'relative', flexShrink: 0, display: 'inline-flex' }}>
-                  <BSFacetAvatar size={46} c={bsTierColor(bsPostTier({ who: f.n }))} initial={bsInitials(f.n) || f.i} photo={f.conversation_id ? undefined : bsDemoFace(f.n)} showRank={false} />
-                  {online && <span aria-hidden style={{ position: 'absolute', right: -2, bottom: -2, width: 12, height: 12, borderRadius: 999, background: teal, border: `2px solid ${t.PAPER}`, ...(bsSdReduced() ? null : { '--sd-glow': bsTHexA(teal, 0.5), animation: 'bsSdPrBreath 2.4s ease-in-out infinite' }) }} />}
-                </span>
+              <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', padding: '12px 0', background: 'transparent', border: 0, borderBottom: isLast ? 0 : `1px solid ${t.HAIR}`, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
+                <BSFacetAvatar flat size={44} c={t.INK} initial={bsInitials(f.n) || f.i} photo={f.conversation_id ? undefined : bsDemoFace(f.n)} showRank={false} online={online} dotC={magRed} BG={t.PAPER} />
                 <span style={{ minWidth: 0, display: 'block' }}>
-                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
-                  {f.s && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontWeight: 700, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.s}</span>}
-                  {last && <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 12.5, color: count > 0 ? cardInk : muted, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{last}</span>}
+                  {f.s && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.s}</span>}
+                  <span style={{ display: 'block', marginTop: f.s ? 3 : 0, fontFamily: bsWsHead(t), fontWeight: 500, fontSize: 20, lineHeight: 1.05, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
+                  {last && <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, color: count > 0 ? t.INK : muted, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{last}</span>}
                 </span>
                 <span style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 7, alignSelf: 'flex-start', marginTop: 2 }}>
-                  {time && <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: count > 0 ? TEALB : muted, fontWeight: 700 }}>{time}</span>}
-                  {count > 0 && <span style={{ minWidth: 18, height: 18, borderRadius: 999, background: TEAL, color: '#031f1c', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>{count > 9 ? '9+' : count}</span>}
+                  {time && <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: count > 0 ? magRed : muted, fontWeight: 700 }}>{time}</span>}
+                  {count > 0 && <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: magRed, fontVariantNumeric: 'tabular-nums' }}>{count > 9 ? '9+' : count}</span>}
                 </span>
               </button>
             );
           };
-          // List header — "X unread · Y threads" + New.
+          // The list's masthead, as THE WALL's: the name in the headline face over a heavy rule, then the
+          // thread count (the new ones in red) and New on a hairline.
           const ThreadHead = (rows, label) => {
             const tot = (rows || []).reduce((a, f) => a + ((unread && unread['dm:' + (f.conversation_id || '')]) || 0), 0);
             const n = (rows || []).length;
             return (
-              <div style={{ padding: '2px 2px 10px' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: muted, fontWeight: 800 }}>{label || tr('feed:team.threads', { defaultValue: 'Threads' })}</span>
-                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: muted, fontVariantNumeric: 'tabular-nums' }}>{tr('feed:team.threadCount', { defaultValue: '{count, plural, one {# thread} other {# threads}}', count: n })}{tot > 0 ? <span> · <span style={{ color: teal, fontWeight: 800 }}>{tr('feed:team.newCount', { defaultValue: '{count} new', count: tot })}</span></span> : null}</span>
-                    <button onClick={() => { setNewDmOpen(true); setDmQuery(''); }} title={tr('feed:team.startConversation', { defaultValue: 'Start a conversation' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, padding: 0 }}>{tr('feed:team.new', { defaultValue: '＋ New' })}</button>
-                  </span>
+              <header data-bs-team-head="">
+                <h2 style={{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid ${t.INK}`, fontFamily: bsWsHead(t), fontSize: 30, fontWeight: 600, lineHeight: 0.95, letterSpacing: '0.012em', textTransform: 'uppercase', color: t.INK }}>{label || tr('feed:team.threads', { defaultValue: 'Threads' })}</h2>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.HAIR}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{tr('feed:team.threadCount', { defaultValue: '{count, plural, one {# thread} other {# threads}}', count: n })}{tot > 0 ? <span> · <span style={{ color: magRed, fontWeight: 800 }}>{tr('feed:team.newCount', { defaultValue: '{count} new', count: tot })}</span></span> : null}</span>
+                  <button onClick={() => { setNewDmOpen(true); setDmQuery(''); }} title={tr('feed:team.startConversation', { defaultValue: 'Start a conversation' })} style={{ minHeight: 36, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: magRed, padding: 0 }}>{tr('feed:team.new', { defaultValue: '＋ New' })}</button>
                 </div>
-                <div aria-hidden style={{ marginTop: 8, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 62%, transparent)` }} />
-              </div>
+              </header>
             );
           };
 
@@ -24796,7 +24796,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // live/action (the old pink LIVE/NEW capsules die), one breathing dot per
           // live room, unread as bare teal text. Send/share moved into the thread
           // header (the row keeps only the pin STATE + open/join).
-          const tealSig = teal; // same component-level teal source (declared above)
+          // The Channels accent is the magazine's red (owner, 2026-10-24: "everything on chat page should
+          // match new feed wall design").
+          const tealSig = magRed;
           const chReduced = bsSdReduced();
           const chRow = (ch, i) => {
             const isSample = String(ch.id || '').startsWith('sample');
@@ -24806,10 +24808,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 2px', borderTop: i ? `1px solid ${hair}66` : 0, ...(chReduced ? null : { animation: 'bsSdFadeUp 300ms ease both', animationDelay: `${Math.min(i, 10) * 26}ms` }) }}>
                 <button onClick={openOrJoin} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk, padding: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15.5, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{ch.name}</span>
+                    <span style={{ fontFamily: bsWsHead(t), fontWeight: 500, fontSize: 20, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{ch.name}</span>
                     {ch.live && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                        <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: tealSig, ...(chReduced ? null : { '--sd-glow': bsTHexA(tealSig, 0.5), animation: 'bsSdPrBreath 2.4s ease-in-out infinite' }) }} />
+                        <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: tealSig }} />
                         <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', color: tealSig }}>{tr('feed:channels.live', { defaultValue: 'LIVE' })}</span>
                       </span>
                     )}
@@ -24827,7 +24829,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? tr('feed:channels.unpin', { defaultValue: 'Unpin' }) : tr('feed:channels.pinToTop', { defaultValue: 'Pin to top' })} title={ch.pinned ? tr('feed:channels.unpin', { defaultValue: 'Unpin' }) : tr('feed:channels.pinToTop', { defaultValue: 'Pin to top' })} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.3 }}><PinIcon filled={ch.pinned} size={15} /></button>
                   {ch.joined
                     ? <button onClick={openOrJoin} aria-label={tr('feed:channels.openChannel', { defaultValue: 'Open #{name}', name: ch.name })} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 15, lineHeight: 1, cursor: 'pointer', padding: 0 }}>›</button>
-                    : <button onClick={openOrJoin} style={{ marginLeft: 4, padding: '8px 13px', borderRadius: 4, clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:channels.join', { defaultValue: 'Join' })}</button>}
+                    : <button onClick={openOrJoin} style={{ marginLeft: 4, padding: '8px 13px', borderRadius: 0, background: t.INK, color: t.PAPER, border: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:channels.join', { defaultValue: 'Join' })}</button>}
                 </div>
               </div>
             );
@@ -24840,19 +24842,19 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           if (tab === 'channels') {
             const chLiveCount = chDisplay.filter(c => c.live).length;
             return (
-              <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {/* Ledger head — honest register + the ink→teal rule */}
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, padding: '0 2px' }}>
-                    <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: muted, fontWeight: 800 }}>{tr('feed:channels.head', { defaultValue: 'The channels' })}</span>
-                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: muted, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+              <div style={{ padding: '16px 12px 90px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* The masthead, as THE WALL's and the Team list's: the name over a heavy rule, then the register
+                    (channels, live, new) on a hairline. */}
+                <header data-bs-channels-head="">
+                  <h2 style={{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid ${t.INK}`, fontFamily: bsWsHead(t), fontSize: 30, fontWeight: 600, lineHeight: 0.95, letterSpacing: '0.012em', textTransform: 'uppercase', color: t.INK }}>{tr('feed:channels.head', { defaultValue: 'The channels' })}</h2>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderBottom: `1px solid ${t.HAIR}` }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                       {tr('feed:channels.count', { defaultValue: '{count, plural, one {# channel} other {# channels}}', count: chDisplay.length })}
                       {chLiveCount ? <span> · <span style={{ color: tealSig, fontWeight: 800 }}>{tr('feed:channels.liveCount', { defaultValue: '{count} live', count: chLiveCount })}</span></span> : null}
                       {chUnread ? <span> · <span style={{ color: tealSig, fontWeight: 800 }}>{tr('feed:team.newCount', { defaultValue: '{count} new', count: chUnread })}</span></span> : null}
                     </span>
                   </div>
-                  <div aria-hidden style={{ marginTop: 7, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${tealSig} 62%, transparent)` }} />
-                </div>
+                </header>
                 {/* Underline search + ＋ NEW text-action */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                   <div className="bs-uline bs-uline-row" style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '7px 2px 9px', '--bs-uline-ink': bsTHexA(t.INK, 0.25), '--bs-accent': tealSig }}>
@@ -24886,7 +24888,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 2 }}>
                       <button onClick={() => { setNewChannel(null); setNewChannelPrivate(false); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, borderBottom: `2px solid ${bsTHexA(t.INK, 0.25)}`, paddingBottom: 3 }}>{tr('feed:action.cancel', { defaultValue: 'Cancel' })}</button>
-                      <button onClick={createChannelNow} disabled={!newChannel.trim()} style={{ marginLeft: 'auto', padding: '11px 18px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', background: newChannel.trim() ? TEAL : `${TEAL}55`, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: newChannel.trim() ? 'pointer' : 'default' }}>{tr('feed:channels.create', { defaultValue: 'Create channel' })}</button>
+                      <button onClick={createChannelNow} disabled={!newChannel.trim()} style={{ marginLeft: 'auto', padding: '11px 18px', borderRadius: 0, background: newChannel.trim() ? t.INK : bsTHexA(t.INK, 0.3), color: t.PAPER, border: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: newChannel.trim() ? 'pointer' : 'default' }}>{tr('feed:channels.create', { defaultValue: 'Create channel' })}</button>
                     </div>
                   </div>
                 )}
@@ -24910,7 +24912,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           }
           // Team — Coaches / Friends sub-tabs (shared by every profile type).
           return (
-            <div style={{ padding: `7px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            // On the Wall's 12px edge (owner, 2026-10-24), so the list's rules end where the strip's do.
+            <div style={{ padding: '7px 12px 90px', display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div inert={subHidden} style={bsSubStyle(16)}>
               {/* Centred on the page under the strip (owner, 2026-10-24: "center these on page"). */}
               <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 22 }}>
@@ -25040,7 +25043,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       {tab === 'feed' && (
         <>
           <input ref={feedPhotoRef} type="file" accept="image/*" onChange={onFeedPhotoFile} style={{ display: 'none' }} />
-          <BSMessageComposer value={draft} onChange={setDraft} onSend={post} onPhoto={onFeedPhoto} photoBusy={photoBusy} onTag={() => { setTagOpen(true); setTagQuery(''); }} tags={tagged} onRemoveTag={removeTagged} onLog={canChatNow ? () => setShowLog(true) : null} pinned placeholder={tr('feed:composer.message', { defaultValue: 'Message…' })} />
+          <BSMessageComposer mag value={draft} onChange={setDraft} onSend={post} onPhoto={onFeedPhoto} photoBusy={photoBusy} onTag={() => { setTagOpen(true); setTagQuery(''); }} tags={tagged} onRemoveTag={removeTagged} onLog={canChatNow ? () => setShowLog(true) : null} pinned placeholder={tr('feed:composer.message', { defaultValue: 'Message…' })} />
         </>
       )}
       {showLog && <BSLogActivitySheet c={TEALB} INK={t.INK} BG={t.PAPER} onClose={() => setShowLog(false)} onPosted={() => { setShowLog(false); setFeedNonce(n => n + 1); }} />}
@@ -25929,11 +25932,13 @@ function useBSCanChat() {
   return v;
 }
 
-function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false, holdToTalk = false, onVoiceComplete }) {
+function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false, holdToTalk = false, onVoiceComplete, mag = false }) {
+  // `mag`: the chat page's composer in the Wall's magazine look (owner, 2026-10-24): square, an ink send
+  // button, the magazine's red, no lock emoji and no floating shadow. Nora's sheet keeps its own.
   const t = useBS();
   const canSend = value.trim().length > 0 || (tags && tags.length > 0);
   const canChat = useBSCanChat();
-  const TEALB = t.isLight ? '#0a8f87' : '#34d6c5';
+  const TEALB = mag ? bsWsRed(t) : (t.isLight ? '#0a8f87' : '#34d6c5');
 
   // ── Voice input (push-to-talk) — only when `voice` (Nora's support composer). ──
   // Produces text into THIS composer's onChange → the SAME onSend, so speaking a
@@ -26100,7 +26105,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
           display: 'block',
           background: pinned ? t.SURFACE : t.PAPER,
           border: `1px solid ${t.SURFACE_BORDER}`,
-          borderRadius: 17,
+          borderRadius: mag ? 0 : 17,
           padding: '7px 40px 7px 13px', // right pad clears the embedded send button
           fontFamily: t.BODY,
           fontSize: 13.5,
@@ -26118,9 +26123,9 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         style={{
           position: 'absolute', right: 4, bottom: 4,
           width: 26, height: 26, flexShrink: 0,
-          border: 0, borderRadius: 999,
-          background: canSend ? t.ACCENT : t.SURFACE_BORDER,
-          color: canSend ? '#031f1c' : t.INK50,
+          border: 0, borderRadius: mag ? 0 : 999,
+          background: canSend ? (mag ? t.INK : t.ACCENT) : t.SURFACE_BORDER,
+          color: canSend ? (mag ? t.PAPER : '#031f1c') : t.INK50,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: canSend ? 'pointer' : 'default',
           opacity: canSend ? 1 : 0.7,
@@ -26142,18 +26147,18 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         width: '100%', boxSizing: 'border-box', minHeight: 34,
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         background: pinned ? t.SURFACE : t.PAPER, border: `1px solid ${t.SURFACE_BORDER}`,
-        borderRadius: 20, padding: '11px 15px', cursor: 'pointer',
+        borderRadius: mag ? 0 : 20, padding: '11px 15px', cursor: 'pointer',
         fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em',
         textTransform: 'uppercase', color: t.INK50,
       }}
     >
-      <span aria-hidden>🔒</span> Join Shape to send messages
+      {mag ? null : <span aria-hidden>🔒</span>} Join Shape to send messages{mag ? ' →' : ''}
     </button>
   );
   // Optional photo-attach button (community feed). Sits to the left of the field.
   const photoBtn = onPhoto ? (
     <button onClick={() => !photoBusy && onPhoto()} disabled={photoBusy} aria-label="Add photo" title="Add a photo" style={{
-      flexShrink: 0, width: 33, height: 34, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 17,
+      flexShrink: 0, width: 33, height: 34, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: mag ? 0 : 17,
       background: pinned ? t.SURFACE : t.PAPER, color: photoBusy ? t.INK50 : t.INK, cursor: photoBusy ? 'default' : 'pointer',
       display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end',
     }}>
@@ -26165,7 +26170,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   // Tag-people button (community feed) — opens the member picker.
   const tagBtn = onTag ? (
     <button onClick={onTag} aria-label="Tag people" title="Tag people" style={{
-      flexShrink: 0, width: 33, height: 34, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 17,
+      flexShrink: 0, width: 33, height: 34, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: mag ? 0 : 17,
       background: pinned ? t.SURFACE : t.PAPER, color: (tags && tags.length) ? TEALB : t.INK, cursor: 'pointer',
       display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 17, lineHeight: 1,
     }}>@</button>
@@ -26173,7 +26178,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   // ＋ Log activity — opens the full Note/Photo/Video/Workout/Link composer.
   const logBtn = onLog ? (
     <button onClick={onLog} aria-label="Log activity" title="Log an activity (photo / video / workout)" style={{
-      flexShrink: 0, width: 33, height: 34, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 17,
+      flexShrink: 0, width: 33, height: 34, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: mag ? 0 : 17,
       background: pinned ? t.SURFACE : t.PAPER, color: t.INK, cursor: 'pointer',
       display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 18, lineHeight: 1,
     }}>＋</button>
@@ -26186,7 +26191,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
     : { onClick: toggleVoice };
   const micBtn = voiceOk ? (
     <button {...micHandlers} aria-label={holdToTalk ? 'Hold to talk' : (voiceState === 'listening' ? 'Stop listening' : 'Speak to Nora')} title={holdToTalk ? 'Hold to talk' : (voiceState === 'listening' ? 'Stop' : 'Speak to Nora')} style={{
-      flexShrink: 0, width: 33, height: 34, borderRadius: 17,
+      flexShrink: 0, width: 33, height: 34, borderRadius: mag ? 0 : 17,
       border: `1px solid ${voiceState === 'listening' ? t.RUST : t.SURFACE_BORDER}`,
       background: voiceState === 'listening' ? `${t.RUST}1f` : (pinned ? t.SURFACE : t.PAPER),
       color: voiceState === 'listening' ? t.RUST : (voiceState === 'transcribing' ? t.INK50 : t.INK),
@@ -26240,7 +26245,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   return (
     <div style={{
       margin: `0 ${t.padX}px 16px`,
-      filter: `drop-shadow(0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'})`,
+      filter: mag ? 'none' : `drop-shadow(0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'})`,
     }}>
       {voiceStatus}
       {body}
@@ -26373,9 +26378,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     return () => { on = false; };
   }, [thread.conversationId, thread.channelId, thread.userId, allMessages.length]);
   const rx = useBSReactions();
-  // Per-thread accent (matches the feed bubbles): channels read teal, people read
-  // their tier color so the chat stays color-coordinated with the feed.
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  // The thread's accent is the magazine's red, as on the chat page (owner, 2026-10-24: "everything on chat
+  // page should match new feed wall design"): the faces are flat, the boxes square, the labels plain mono.
+  const teal = bsWsRed(t);
   // Coaches read their own tier ladder (Certified/Pro/Elite/Master/Icon) on the
   // coach color ramp; members read the client ladder. `coachTint` maps a client-
   // tier key → the coach ramp color for the same rung.
@@ -26435,9 +26440,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
-            {!thread.group && <BSFacetAvatar size={38} c={threadColor} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} photo={((thread.userId || thread.counterpartId) && threadAvatars[thread.userId || thread.counterpartId]) || (!thread.conversationId && !thread.channelId ? bsDemoFace(thread.who) : undefined)} showRank={false} />}
+            {!thread.group && <BSFacetAvatar flat size={38} c={t.INK} dotC={teal} BG={t.PAPER} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} photo={((thread.userId || thread.counterpartId) && threadAvatars[thread.userId || thread.counterpartId]) || (!thread.conversationId && !thread.channelId ? bsDemoFace(thread.who) : undefined)} showRank={false} />}
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>{thread.who}</div>
+              <div style={{ fontFamily: bsWsHead(t), fontSize: 26, fontWeight: 500, lineHeight: 1.05, color: t.INK }}>{thread.who}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{thread.role}</div>
             </div>
           </button>
@@ -26494,25 +26499,25 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
               <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
                 {!me ? (
-                  <BSFacetAvatar size={32} c={senderTC} initial={bsInitials(senderName) || '?'} photo={(m.userId && threadAvatars[m.userId]) || (!thread.group && (thread.userId || thread.counterpartId) ? threadAvatars[thread.userId || thread.counterpartId] : undefined) || (m.photo) || (!thread.conversationId && !thread.channelId ? bsDemoFace(senderName) : undefined)} live={bsIsUserOnline(m.userId)} activity={bsUserActivity(m.userId)} showRank={false} onClick={() => openP(senderName, m.userId)} />
+                  <BSFacetAvatar flat size={32} c={t.INK} dotC={teal} BG={t.PAPER} initial={bsInitials(senderName) || '?'} photo={(m.userId && threadAvatars[m.userId]) || (!thread.group && (thread.userId || thread.counterpartId) ? threadAvatars[thread.userId || thread.counterpartId] : undefined) || (m.photo) || (!thread.conversationId && !thread.channelId ? bsDemoFace(senderName) : undefined)} live={bsIsUserOnline(m.userId)} activity={bsUserActivity(m.userId)} showRank={false} onClick={() => openP(senderName, m.userId)} />
                 ) : (
-                  <BSFacetAvatar size={32} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                  <BSFacetAvatar flat size={32} c={t.INK} dotC={teal} BG={t.PAPER} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
               {!me && thread.group && (
                 <button onClick={() => openP(senderName)} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', marginBottom: 5 }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13, color: t.INK, letterSpacing: '-0.01em' }}>{senderName}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: senderTC, border: `1px solid ${senderTC}80`, padding: '2px 5px', borderRadius: 3, lineHeight: 1 }}>{String(senderTierLabel).toUpperCase()}</span>
-                  {roleLabel && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#fff', background: roleC, padding: '2px 5px', borderRadius: 3, lineHeight: 1 }}>{roleLabel}</span>}
+                  <span style={{ fontFamily: t.BODY, fontWeight: 600, fontSize: 13.5, color: t.INK }}>{senderName}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1 }}>{String(senderTierLabel).toUpperCase()}</span>
+                  {roleLabel && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, lineHeight: 1 }}>{roleLabel}</span>}
                 </button>
               )}
               <div style={{ minWidth: 0, position: 'relative' }}>
                 <div {...lp} style={{
-                  borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5,
-                  fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em',
+                  borderRadius: 0,
+                  fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em',
                   color: t.INK,
-                  background: bubbleBg,
-                  border: `1px solid ${bubbleTC}40`,
+                  background: me ? bsTHexA(t.INK, 0.05) : 'transparent',
+                  border: `1px solid ${bsTHexA(t.INK, 0.18)}`,
                   padding: '11px 14px',
                   cursor: 'pointer', userSelect: 'none',
                 }}>
@@ -26575,7 +26580,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
       </div>
 
       {/* Composer — pinned to the bottom of the screen, iMessage-style */}
-      <BSMessageComposer value={text} onChange={setText} onSend={send} pinned />
+      <BSMessageComposer value={text} onChange={setText} onSend={send} pinned mag />
     </BSPage>
   );
 }

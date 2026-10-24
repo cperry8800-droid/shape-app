@@ -70,3 +70,66 @@ test('the tab rows under the strip are an index, ink against grey, centred on th
   assert.match(CLIENT, /<div style=\{\{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 22 \}\}>\s*\{selectors\.map\(sec => bsSubTab\(/);
   assert.match(CLIENT, /onClick=\{\(\) => switchFeedMode\(k\)\} aria-pressed=\{on\}[\s\S]{0,400}color: on \? t\.INK : t\.INK50[\s\S]{0,200}background: magRed \}\} \/>\}/);
 });
+
+// Owner, 2026-10-24: "make the team list match the new design too". The Team list (Coaches and Friends)
+// gets THE WALL's masthead grammar and the magazine's rows, on the Wall's 12px edge.
+test('the Team list is in the magazine look: a masthead, flat faces, red unread, hairlines', () => {
+  const team = CLIENT.slice(CLIENT.indexOf("          const Row = (f, i, arr) => {"), CLIENT.indexOf('          // Friends — now a sub-tab INSIDE Team'));
+  // The rows.
+  assert.match(team, /<BSFacetAvatar flat size=\{44\} c=\{t\.INK\} initial=\{bsInitials\(f\.n\) \|\| f\.i\}[^>]*online=\{online\} dotC=\{magRed\} BG=\{t\.PAPER\} \/>/);
+  assert.match(team, /fontFamily: bsWsHead\(t\), fontWeight: 500, fontSize: 20[^}]*\}\}>\{f\.n\}<\/span>/, 'the name in the headline face');
+  assert.match(team, /\{count > 0 && <span style=\{\{ fontFamily: t\.MONO, fontSize: 10, fontWeight: 800, color: magRed/, 'a bare red count');
+  assert.match(team, /border: 0, borderBottom: isLast \? 0 : `1px solid \$\{t\.HAIR\}`/, 'a hairline between rows, after the border reset');
+  assert.doesNotMatch(team, /background: TEAL|teal\} 62%|bsSdPrBreath|bsTierColor/, 'no teal pill, gradient rule, breathing dot or tier gem');
+  // The masthead.
+  assert.match(team, /<header data-bs-team-head="">\s*<h2 style=\{\{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid \$\{t\.INK\}`, fontFamily: bsWsHead\(t\), fontSize: 30/);
+  assert.match(team, /color: magRed, padding: 0 \}\}>\{tr\('feed:team\.new'/, 'New in red');
+  // The Team tab's column sits on the Wall's 12px edge.
+  assert.match(CLIENT, /<div style=\{\{ padding: '7px 12px 90px', display: 'flex', flexDirection: 'column', gap: 16 \}\}>\s*<div inert=\{subHidden\} style=\{bsSubStyle\(16\)\}>/);
+});
+
+// Owner, 2026-10-24: "everything on chat page should match new feed wall design". The page's title, the
+// Client / Community posts, Channels, the thread screen and the composer follow the Wall.
+const between = (src, a, b) => { const i = src.indexOf(a); return src.slice(i, src.indexOf(b, i)); };
+
+test('the chat page\'s title is in the Wall\'s face under a red kicker', () => {
+  const feed = between(CLIENT, 'function BSClientFeed(', 'function BSNoraSheet(');
+  assert.match(feed, /color: magRed, fontWeight: 700 \}\}>\{tr\('feed:masthead\.eyebrow'/);
+  assert.match(feed, /<h1 style=\{\{ fontFamily: bsWsHead\(t\), fontWeight: 500, fontSize: 36/);
+});
+
+test('a Client or Community post is a square note under a flat face, not a tinted bubble', () => {
+  const post = between(CLIENT, '  const renderPost = (p, i) => {', '  // Bundle every closure dep');
+  assert.match(post, /<BSFacetAvatar flat size=\{38\} c=\{t\.INK\}/);
+  assert.match(post, /<div style=\{\{ borderRadius: 0, [^}]*border: p\.official \? 'none' : `1px solid \$\{bsTHexA\(t\.INK, 0\.18\)\}`/);
+  assert.doesNotMatch(post, /TEALB|t\.ACCENT|border: `1px solid \$\{rc\}66`/, 'no teal, no coloured role chip');
+});
+
+test('Channels: the masthead, the magazine\'s red, the names in the Wall\'s face, still dots, ink buttons', () => {
+  const ch = between(CLIENT, '          const tealSig = ', '                {channels && chList.length === 0 && newChannel === null && (');
+  assert.match(ch, /const tealSig = magRed;/);
+  assert.match(ch, /<header data-bs-channels-head="">\s*<h2 style=\{\{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid \$\{t\.INK\}`, fontFamily: bsWsHead\(t\)/);
+  assert.match(ch, /fontFamily: bsWsHead\(t\), fontWeight: 500, fontSize: 20[^}]*\}\}>#\{ch\.name\}/);
+  assert.doesNotMatch(ch, /bsSdPrBreath|background: TEAL|linear-gradient\(90deg, \$\{t\.INK\}, \$\{tealSig\}/, 'no breathing dot, teal button or gradient rule');
+  assert.match(CLIENT, /<div style=\{\{ padding: '16px 12px 90px', display: 'flex', flexDirection: 'column', gap: 12 \}\}>/, 'on the Wall\'s 12px edge');
+});
+
+test('the thread screen: the red accent, flat faces, the name in the Wall\'s face, square boxes', () => {
+  const th = between(CLIENT, 'function BSChatThread({', '\n}\n');
+  assert.match(th, /const teal = bsWsRed\(t\);/);
+  assert.equal((th.match(/<BSFacetAvatar flat /g) || []).length, 3, 'the header face and both message faces');
+  assert.doesNotMatch(th, /<BSFacetAvatar (?!flat)/, 'a glowing gem in the thread');
+  assert.match(th, /fontFamily: bsWsHead\(t\), fontSize: 26, fontWeight: 500, lineHeight: 1\.05, color: t\.INK \}\}>\{thread\.who\}/);
+  assert.match(th, /borderRadius: 0,\s*fontFamily: t\.BODY, fontSize: 14\.5/);
+  assert.match(th, /<BSMessageComposer value=\{text\} onChange=\{setText\} onSend=\{send\} pinned mag \/>/);
+});
+
+test('the composer is square with an ink send button on the chat page; Nora\'s keeps its own', () => {
+  const comp = between(CLIENT, 'function BSMessageComposer({', '\n}\n');
+  assert.match(comp, /onVoiceComplete, mag = false \}\) \{/);
+  assert.match(comp, /background: canSend \? \(mag \? t\.INK : t\.ACCENT\) : t\.SURFACE_BORDER/);
+  assert.match(comp, /\{mag \? null : <span aria-hidden>🔒<\/span>\}/);
+  assert.equal((comp.match(/borderRadius: 17,/g) || []).length, 0, 'every rounded control asks mag');
+  assert.match(CLIENT, /<BSMessageComposer mag value=\{draft\}/, 'the chat page asks for it');
+  assert.match(CLIENT, /<BSMessageComposer value=\{supportDraft\}/, 'Nora\'s does not');
+});
