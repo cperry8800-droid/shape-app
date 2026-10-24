@@ -287,6 +287,11 @@ test('the coach\'s own Me tab draws in the same look', () => {
   globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
   const d = drive(mod.BSSignalCoachProfile, { person: MAYA, isSelf: true, meMode: true, onBack() {}, onMessage() {} });
   assert.ok(d.nodes().find(named('BSTerrainTabs')));
+  // The owner's own ＋ Log activity is the Me page's underlined word, not the old pill (Codex P2 on #2441:
+  // this driver draws no nested component, so the element's props are what is checked).
+  const log = d.nodes().find(named('BSActivityLogCta'));
+  assert.equal(log.props.ledger, true);
+  assert.equal(log.props.INK, THEME.INK);
   assert.ok(!d.nodes().find(named('BSCoachProfileDock')), 'no Message / Work-with on one\'s own profile');
   assert.deepEqual(oldLook(d.nodes()).map((n) => n.type), []);
 });

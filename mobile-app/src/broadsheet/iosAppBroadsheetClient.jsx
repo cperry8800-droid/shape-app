@@ -17872,7 +17872,8 @@ function BSActivityLogCta({ isSelf, accent, onClick, ledger = false, INK = '#f2e
   if (!isSelf) return null;
   const MONO = "'JetBrains Mono', monospace";
   // ledger = the Terrain "Route Card" treatment: ink text + a 1px heat underline
-  // (no pill). Default keeps the tinted pill (coach Signal profile).
+  // (no pill). Both profiles ask for it since the coach profile took the Wall's look
+  // (2026-10-24, Codex P2 on #2441); the tinted pill is the default left for any other caller.
   if (ledger) {
     return (
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -19903,7 +19904,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           /* field notes */
           <div style={{ marginTop: 8 }}>
             <BSProfileExtras custom={customEff} demo={demoFill} c={c} INK={INK} BG={BG} isSelf={isSelf} coach ledger bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, rating: { label: tr('profile:stat.rating', { defaultValue: 'Rating' }), value: rating != null ? rating : tr('marketplace:rating.new', { defaultValue: 'New' }) }, reviews: { label: tr('profile:tab.reviews', { defaultValue: 'Reviews' }), value: reviewCount } }} />
-            <BSActivityLogCta isSelf={isSelf} accent={c} onClick={() => setShowLog(true)} />
+            <BSActivityLogCta isSelf={isSelf} accent={c} INK={INK} onClick={() => setShowLog(true)} ledger />
             <div style={{ marginTop: isSelf ? 12 : 0 }}>
               {coachFeedEff.length === 0 && (
                 <div style={{ ...quiet, letterSpacing: '0.04em', textTransform: 'none' }}>{isSelf ? tr('profile:coach.nothingLogged', { defaultValue: 'Nothing logged yet — tap ＋ Log activity to post your first update.' }) : tr('profile:coach.noActivity', { defaultValue: 'No activity yet.' })}</div>
