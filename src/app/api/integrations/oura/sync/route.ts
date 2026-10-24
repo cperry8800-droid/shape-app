@@ -148,9 +148,15 @@ async function importOuraWorkouts(
 
   for (const workout of workouts) {
     if (!workout.id) continue;
-    await client
+    // ⚠ A REFUSED ACTIVITY ROW IS REPORTED. The table's source check refused 'oura' until
+    // 2026-10-24-activities-source.sql, and nothing said so. The post below still goes ahead.
+    const { error: activityError } = await client
       .from('activities')
       .upsert(ouraActivityRow(workout, userId), { onConflict: 'user_id,source,external_id' });
+    if (activityError) {
+      console.error('[shape-api] oura activity row failed:', activityError.message);
+      errors.push('Could not save an activity.');
+    }
 
     const payload = workoutPostPayload(workout, userId, profile, fallbackName, sharePrivacy);
     const { data: existing, error: lookupError } = await client

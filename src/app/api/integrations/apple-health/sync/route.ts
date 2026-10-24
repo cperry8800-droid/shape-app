@@ -129,7 +129,14 @@ async function importWorkouts(
   const sharePrivacy = await resolveWorkoutSharePrivacy(client, userId);
   for (const w of workouts) {
     if (!w.externalId) continue;
-    await client.from('activities').upsert(activityRow(w, userId), { onConflict: 'user_id,source,external_id' });
+    // ⚠ A REFUSED ACTIVITY ROW IS REPORTED. The table's source check refused 'apple_health' until
+    // 2026-10-24-activities-source.sql, and nothing said so. The post below still goes ahead; the
+    // row is what Train's Burned this week and Home's Week so far count.
+    const { error: activityError } = await client.from('activities').upsert(activityRow(w, userId), { onConflict: 'user_id,source,external_id' });
+    if (activityError) {
+      console.error('[shape-api] apple-health activity row failed:', activityError.message);
+      errors.push('Could not save an activity.');
+    }
     const payload = workoutPostPayload(w, userId, profile, fallbackName, sharePrivacy);
     const { data: existing, error: lookupError } = await client
       .from('community_posts')
