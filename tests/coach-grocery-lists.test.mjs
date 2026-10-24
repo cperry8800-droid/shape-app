@@ -133,7 +133,7 @@ test('a trainer has personal lists only: no Clients tab, no client option, no Se
   assert.match(m.text(), /2 lists/);
   assert.equal(m.button(/^Clients/), undefined, 'a trainer has no Clients tab');
   assert.match(m.text(), /Old client list/, "a trainer's older client list stays visible");
-  assert.equal(m.button(/^Send to/), undefined, 'a trainer has no Send');
+  assert.equal(m.button(/^Send to (?!a member)/), undefined, 'a trainer has no Send to a client');
   await m.click(/New grocery list/);
   assert.equal(m.button(/For a client/), undefined, 'a trainer cannot make a client list');
   await m.close();
@@ -208,4 +208,37 @@ test('the masthead keeps one hairline, not the heavy rule and double rule', asyn
   assert.equal(mastProps.thinRule, true);
   assert.equal(mastProps.showDoubleRule, false);
   await m.close();
+});
+
+// Owner, 2026-10-24 ("every member / yes coaches as well"): any coach list goes to any member in a
+// message, through the same picker and message members send with (BSPostSendSheet, from the client module).
+test('a coach sends any list to a member, through the members\' send sheet', async () => {
+  const opened = [];
+  W.BSPostSendSheet = ({ post, onClose }) => { opened.push(post); return React.createElement('div', { 'data-send-sheet': '' }, React.createElement('button', { onClick: onClose }, 'Close sheet')); };
+  try {
+    for (const isNutri of [false, true]) {
+      opened.length = 0;
+      services({ lists: [real({ items: [{ name: 'Oats', aisle: 'Grains' }, { name: 'Kale', aisle: 'Produce' }] }), real({ id: 'e2', name: 'Nothing yet', items: [] }), real({ id: 'c3', name: 'Ana week', client_id: 'u-ana', client_name: 'Ana Reyes' })] });
+      const m = await mount(isNutri);
+      if (isNutri) await m.click(/^Mine/);
+      const sends = () => [...m.host.querySelectorAll('[data-bs-grocery-send]')];
+      // Every list with items has one: a trainer sees all their lists (an older client list too), a
+      // nutritionist's Mine tab the personal ones. The empty list has none.
+      assert.equal(sends().length, isNutri ? 1 : 2);
+      assert.equal(sends()[0].textContent, 'Send to a member →');
+      await React.act(async () => { sends()[0].click(); });
+      await flush();
+      assert.deepEqual(opened, [{ grocery: { name: 'Sunday shop', items: [{ n: 'Oats', a: 'Grains' }, { n: 'Kale', a: 'Produce' }] } }]);
+      assert.ok(m.host.querySelector('[data-send-sheet]'));
+      await m.click(/^Close sheet$/);
+      assert.ok(!m.host.querySelector('[data-send-sheet]'), 'closing the sheet closes it');
+      if (isNutri) {
+        // A client list keeps Send to that client, and goes to any member too.
+        await m.click(/^Clients/);
+        assert.ok(m.button(/^Send to Ana/));
+        assert.equal(sends().length, 1);
+      }
+      await m.close();
+    }
+  } finally { delete W.BSPostSendSheet; }
 });

@@ -502,6 +502,7 @@
   "grocery.newList": "＋ Danh sách mua sắm mới",
   "grocery.personal": "Cá nhân",
   "grocery.sendToClient": "Gửi cho {name} →",
+  "grocery.sendMember": "Gửi cho thành viên →",
   "grocery.statusApproval": "Đang chờ duyệt",
   "grocery.statusReady": "Sẵn sàng gửi",
   "grocery.statusReview": "Đang xem xét",

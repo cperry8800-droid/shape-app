@@ -247,7 +247,7 @@ planned builds.
   the dashboard frame, `/admin`, Business (website and app), the coach application
   uploads or the Wall's live story with a real set.
 - The Wall's old card (`variant="wall"`) is unused in the app; the website chat bubble
-  still draws its copy. Coaches can read a sent grocery list, not save it; old
+  still draws its copy. Grocery lists are sent and saved in the app only; old
   builds' grocery writes go unmerged.
 - Native mic and camera plugins (including iOS barcode scanning) and on-device macro
   reads from a meal photo aren't built yet.

@@ -19,6 +19,7 @@ import { coachIntakeView, screeningState } from '../services/coachIntake.mjs';
 import { bsDeriveCycle } from '../services/cyclePhase.mjs';
 import { BS_LISTING_GALLERY_MAX, BS_LISTING_CAPTION_MAX } from '../services/listingMedia.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
+import { bsGroceryFromCoachList } from '../services/groceryShare.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
@@ -685,7 +686,9 @@ function BSProLiveWatch(props) {
 
 // Coach Grocery Lists — real, owner-scoped lists (coach_grocery_lists). A coach
 // builds lists for THEMSELVES or for a client, then sends a client list to that
-// client (real delivery via a chat message). Demo seeds when signed out.
+// client (real delivery via a chat message). Demo seeds when signed out. Any list
+// also goes to any member in a message, as members send theirs (owner, 2026-10-24:
+// "every member / yes coaches as well"), and a list a coach is sent is saved here.
 const _BS_GRO_AISLES = [
   [/(chicken|beef|turkey|pork|salmon|tuna|fish|tofu|tempeh|egg|shrimp|steak|protein|lentil|bean|chickpea)/, 'Protein'],
   [/(milk|yogurt|cheese|butter|cream|feta|kefir|dairy)/, 'Dairy'],
@@ -719,6 +722,7 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
   // Nutritionists keep both, and a client list goes to that client's Eat page.
   const [tab, setTab] = useStateBSP(isNutri ? 'clients' : 'mine');
   const [creating, setCreating] = useStateBSP(false);
+  const [sendFor, setSendFor] = useStateBSP(null); // the list going to a member (the shared send sheet)
   const blank = { name: '', items: '', forClient: isNutri, clientId: '' };
   const [draft, setDraft] = useStateBSP(blank);
   const [busy, setBusy] = useStateBSP(false);
@@ -905,6 +909,7 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
               {preview.length > 0 && <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>{preview.join(' · ')}{more > 0 ? tr('coach:grocery.andMore', { defaultValue: ' +{count} more', count: more }) : ''}</div>}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 13 }}>
                 {canSend && <button type="button" onClick={() => send(g)} style={{ ...tealCta, padding: '10px 16px', minHeight: 40 }}>{tr('coach:grocery.sendToClient', { defaultValue: 'Send to {name} →', name: first || tr('coach:grocery.clientWord', { defaultValue: 'client' }) })}</button>}
+                {n > 0 && <button type="button" data-bs-grocery-send="" onClick={() => setSendFor(g)} style={{ ...textAction(teal), minHeight: 32 }}>{tr('coach:grocery.sendMember', { defaultValue: 'Send to a member →' })}</button>}
                 <button type="button" onClick={() => del(g)} aria-label={tr('coach:grocery.deleteConfirm', { defaultValue: 'Delete list' })} style={{ ...textAction(rust), marginLeft: 'auto', minHeight: 32 }}>{tr('coach:common.delete', { defaultValue: 'Delete' })}</button>
               </div>
             </div>
@@ -912,6 +917,9 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
         })}
       </div>
       <BSFooter left={isNutri ? tr('coach:grocery.footerNutri', { defaultValue: 'Nutrition Queue' }) : tr('coach:grocery.footerTrainer', { defaultValue: 'Coach Queue' })} right={tr('coach:grocery.footerRight', { defaultValue: 'Grocery delivery' })} />
+      {/* The member picker and the message are the ones members send with (BSPostSendSheet, read at call
+          time from the client module): the list arrives as the card a member's list does. */}
+      {sendFor && window.BSPostSendSheet && React.createElement(window.BSPostSendSheet, { post: { grocery: bsGroceryFromCoachList(sendFor) }, onClose: () => setSendFor(null) })}
     </BSPage>
   );
 }

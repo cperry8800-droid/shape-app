@@ -502,6 +502,7 @@
   "grocery.newList": "＋ Nuova lista della spesa",
   "grocery.personal": "Personale",
   "grocery.sendToClient": "Invia a {name} →",
+  "grocery.sendMember": "Invia a un membro →",
   "grocery.statusApproval": "In attesa di approvazione",
   "grocery.statusReady": "Pronta da inviare",
   "grocery.statusReview": "In revisione",
