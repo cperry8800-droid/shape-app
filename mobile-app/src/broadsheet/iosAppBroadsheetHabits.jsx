@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { hpWeek, hpMonth, hpStep, hpCanGoBack, hpCanGoForward, hpWindowStart, hpLocalYmd } from './habitProgress.mjs';
+import { hpWeek, hpMonth, hpStep, hpPeriodStart, hpCanGoBack, hpCanGoForward, hpWindowStart, hpLocalYmd } from './habitProgress.mjs';
 // ─── HABIT TRACKER ──────────────────────────────────────────
 // A user-curated list of "Do daily" / "Don't do" items with optional
 // reminder times. Renders on Client + Trainer + Nutritionist home.
@@ -589,16 +589,23 @@ function BSHabitProgress({ habits }) {
   // first tick, so the days before it existed are not misses.
   const known = React.useMemo(() => habits.map(h => (h.createdOn ? h : { ...h, createdOn: (h.history && h.history[0]) || today })), [habits, today]);
   const [mode, setMode] = React.useState('week');
-  const [anchor, setAnchor] = React.useState(today);
+  // null follows the current week or month, so a page left open past Sunday night or the month's
+  // end moves on with today (Codex P2 on #2437); a period paged back to stays where it was.
+  const [anchor, setAnchor] = React.useState(null);
   const [selected, setSelected] = React.useState(null);
-  const opts = { anchor, today, firstDay, windowStart };
+  const at = anchor || today;
+  const opts = { anchor: at, today, firstDay, windowStart };
   const week = mode === 'week' ? hpWeek(known, opts) : null;
   const month = mode === 'month' ? hpMonth(known, opts) : null;
   const view = week || month;
-  const pick = (m) => { setMode(m); setAnchor(today); setSelected(null); };
-  const step = (n) => { setAnchor(a => hpStep(mode, a, n, firstDay)); setSelected(null); };
-  const canBack = hpCanGoBack(mode, anchor, { firstDay, windowStart });
-  const canFwd = hpCanGoForward(mode, anchor, { firstDay, today });
+  const pick = (m) => { setMode(m); setAnchor(null); setSelected(null); };
+  const step = (n) => {
+    const next = hpStep(mode, at, n, firstDay);
+    setAnchor(hpPeriodStart(mode, next, firstDay) === hpPeriodStart(mode, today, firstDay) ? null : next);
+    setSelected(null);
+  };
+  const canBack = hpCanGoBack(mode, at, { firstDay, windowStart });
+  const canFwd = hpCanGoForward(mode, at, { firstDay, today });
   const cells = week ? week.days : month.cells;
   const picked = selected ? cells.find(c => c.day === selected) : null;
   const eyebrow = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 };

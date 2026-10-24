@@ -109,3 +109,24 @@ test('a routine Strava sync saves the activity rows and posts nothing', async ()
   assert.deepEqual(body.activities, { written: 1, errors: [] });
   assert.equal(client.writes.posts.length, 0);
 });
+
+// Codex P2 on #2437: the app's callers read only response.ok, so a reply carrying refused rows
+// read as a sync that worked (the Integrations page's "synced" toast, the check-in card's 30-minute
+// wait). The app's syncWhoop and syncStrava, cut from shapeBackend.js and run, now fail on them.
+const { readFileSync } = await import('node:fs');
+const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+const from = BACKEND.indexOf('async function syncWhoop(');
+const to = BACKEND.indexOf('async function syncOura(');
+assert.ok(from > 0 && to > from, 'the sync functions moved: re-point this cut');
+const appSync = (reply) => new Function('fetch', 'apiBaseUrl', 'state', `${BACKEND.slice(from, to)}\nreturn { syncWhoop, syncStrava };`)(
+  async () => ({ ok: true, json: async () => reply }), 'https://shape.test', { session: { access_token: 'tok' } },
+);
+
+test('the app’s WHOOP and Strava syncs fail when the server could not save the workout rows', async () => {
+  const refused = appSync({ activities: { written: 0, errors: ['Could not save an activity.'] } });
+  await assert.rejects(refused.syncWhoop(), /WHOOP synced, but its workouts weren’t saved/);
+  await assert.rejects(refused.syncStrava({ importActivities: true }), /Strava synced, but its workouts weren’t saved/);
+  const saved = appSync({ activities: { written: 2, errors: [] }, snapshot: { days: 1 } });
+  assert.deepEqual((await saved.syncWhoop()).activities, { written: 2, errors: [] });
+  assert.equal((await appSync({ snapshot: { days: 0 } }).syncStrava()).snapshot.days, 0, 'a reply with no rows field is a sync that worked');
+});

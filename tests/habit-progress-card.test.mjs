@@ -112,3 +112,34 @@ test('the month: a calendar of every day, its legend, rates by habit and the bes
   assert.ok(m.btn(/Next month/).disabled);
   await m.close();
 });
+
+// Codex P2 on #2437: the page left open past Sunday night (signed out, nothing remounts the card)
+// moves the card on with today, but a week paged back to stays where it was.
+test('the card follows today into the new week, and a week paged back to stays put', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 9, 25, 23, 59, 50).getTime() });
+  const habits = [{ id: 'w', name: 'Water', type: 'do', history: ['2026-10-20', '2026-10-25'], createdOn: '2026-10-01' }];
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = ReactDOMClient.createRoot(host);
+  const draw = () => React.act(async () => { root.render(React.createElement(H.BSHabitProgress, { habits })); });
+  const btn = (re) => [...host.querySelectorAll('button')].find((b) => re.test(b.getAttribute('aria-label') || ''));
+  const range = () => btn(/Previous week/).nextElementSibling.textContent; // the week between the arrows
+  await draw();
+  assert.match(range(), /^Oct 19\W+25$/);
+  assert.match(host.textContent, /so far/, 'Sunday the 25th is in the current week');
+  t.mock.timers.tick(20000);
+  await draw(); // the page's midnight refresh draws it again
+  assert.match(range(), /^Oct 26\W+Nov 1$/, 'Monday moves the card to the new week');
+  assert.match(host.textContent, /so far/);
+  assert.ok(btn(/Next week/).disabled, 'and the new week is the last one');
+  await React.act(async () => { btn(/Previous week/).click(); });
+  assert.match(range(), /^Oct 19\W+25$/);
+  t.mock.timers.tick(7 * 864e5);
+  await draw();
+  assert.match(range(), /^Oct 19\W+25$/, 'a week paged back to is not moved');
+  await React.act(async () => { btn(/Next week/).click(); });
+  await React.act(async () => { btn(/Next week/).click(); });
+  assert.match(range(), /^Nov 2\W+8$/, 'paging forward reaches the week holding today');
+  assert.ok(btn(/Next week/).disabled);
+  await React.act(async () => { root.unmount(); host.remove(); });
+});

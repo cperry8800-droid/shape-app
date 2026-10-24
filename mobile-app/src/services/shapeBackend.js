@@ -4161,6 +4161,7 @@ async function syncWhoop({ importWorkouts = false } = {}) {
   if (!response.ok) {
     throw new Error(payload.error || 'WHOOP sync failed.');
   }
+  bsSyncRowsSaved(payload, 'WHOOP');
   return payload;
 }
 
@@ -4183,7 +4184,17 @@ async function syncStrava({ importActivities = false } = {}) {
   if (!response.ok) {
     throw new Error(payload.error || 'Strava sync failed.');
   }
+  bsSyncRowsSaved(payload, 'Strava');
   return payload;
+}
+
+// A sync whose workout rows the server could not save fails (Codex P2 on #2437): Train's Burned
+// this week reads those rows, so the Integrations page must not say "synced" and the check-in
+// card must not wait out its 30 minutes before trying again. Syncing again writes them again.
+function bsSyncRowsSaved(payload, name) {
+  if (payload?.activities?.errors?.length) {
+    throw new Error(`${name} synced, but its workouts weren’t saved. Try again.`);
+  }
 }
 
 async function syncOura({ importWorkouts = false } = {}) {
