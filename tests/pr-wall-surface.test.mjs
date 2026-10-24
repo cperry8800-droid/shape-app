@@ -163,10 +163,10 @@ test('the Wall is NOT a segment — it is the activity sub-tab', () => {
   // Support left the row on 2026-10-07 (#2245): Nora is the ✦ sheet in every header now.
   assert.deepEqual(keys, ['feed', 'teams', 'channels'],
     'the Wall must not be a segment of its own — it IS the activity feed');
-  // The grid's column count tracks the pill count, or the last pill is clipped
-  // off a 375px phone.
-  const grid = bare.split('\n').find((l) => l.includes('gridTemplateColumns') && l.includes('1px solid ' + String.fromCharCode(36) + '{hair}') && l.includes('borderRadius: 12'));
-  assert.ok(grid, 'the pill row container was not found');
+  // The grid's column count tracks the section count, or the last section is clipped
+  // off a 375px phone. (The row is the magazine's section strip since 2026-10-24.)
+  const grid = bare.split('\n').find((l) => l.includes('gridTemplateColumns') && l.includes('data-bs-chat-sections'));
+  assert.ok(grid, 'the section row container was not found');
   assert.match(grid, new RegExp('repeat\\(' + keys.length + ', 1fr\\)'));
 });
 
