@@ -212,6 +212,31 @@ test('Save with the Eat page closed: written where it reads on mount, merged int
   } finally { await again.done(); }
 });
 
+test('a list saved with the Eat page closed is recorded in the sync base, but only a copy this save kept (Codex P1 on #2433)', async () => {
+  const BASE = 'shape.recipeGroceryListsBase';
+  const mine = { id: 'custom-1', name: 'Mine' };
+  env({ lists: [mine], cloud: { v: 1, rev: 2, lists: [mine] } });
+  dom.window.localStorage.setItem(BASE, JSON.stringify({ uid: 'u1', lists: [mine] }));
+  const r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, messageId: 'm7', from: 'Sam Reyes' }));
+  try {
+    await React.act(async () => { r.host.querySelector('[data-bs-grocery-save]').click(); });
+    await React.act(async () => { await new Promise((res) => setTimeout(res, 0)); });
+    const local = JSON.parse(dom.window.localStorage.getItem('shape.recipeGroceryLists'));
+    const base = JSON.parse(dom.window.localStorage.getItem(BASE));
+    assert.deepEqual(base.lists.map((l) => l.id), ['received-m7', 'custom-1']);
+    assert.deepEqual(base.lists[0], local[0], 'the base holds the copy the device holds');
+  } finally { await r.done(); }
+  // A copy already on the device (it may carry an edit made here) is left for the next sync to read.
+  env({ lists: [{ id: 'received-m8', name: 'Edited here' }, mine], cloud: { v: 1, rev: 2, lists: [mine] } });
+  dom.window.localStorage.setItem(BASE, JSON.stringify({ uid: 'u1', lists: [mine] }));
+  const saved = { window: globalThis.window, CustomEvent: globalThis.CustomEvent };
+  globalThis.window = dom.window; globalThis.CustomEvent = dom.window.CustomEvent;
+  try {
+    assert.equal(await SHARE.bsSaveReceivedGroceryList({ id: 'received-m8', name: 'From the chat', items: [] }), 'stored');
+  } finally { Object.assign(globalThis, saved); }
+  assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(BASE)).lists.map((l) => l.id), ['custom-1']);
+});
+
 test('the cloud write is skipped, never guessed: a failed read writes nothing; no document yet writes the one list (Codex P1s on #2432)', async () => {
   const save = async (messageId) => {
     const r = await render(React.createElement(SHARE.BSGroceryShareCard, { shared: SHARED, messageId, from: 'Sam Reyes' }));

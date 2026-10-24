@@ -337,6 +337,12 @@ export function bsGroceryListsStore({ db, baseStore = null, session = null } = {
     return bsGroceryListsSerial(async () => {
       let res;
       try { res = await attempt(change, live, asked); } catch (e) { return { ok: false, reason: 'failed' }; }
+      // ⚠ A write was awaited: another tab may have signed straight into another account meanwhile, with no
+      // sign-out to move the generation. Then nothing of this account is taken in (Codex P1 on #2433).
+      if (res.ok && res.wrote && settle) {
+        const now = await uidNow();
+        if (!now || String(now) !== String(res.uid)) return { ok: false, reason: 'account-changed' };
+      }
       if (res.ok && !live()) return { ok: false, reason: 'signed-out' }; // settle nothing after a sign-out began
       if (res.ok && settle) { try { settle(res); } catch (e) { /* the base stays as it was */ } }
       return res;
@@ -393,11 +399,20 @@ export function bsGroceryListsStore({ db, baseStore = null, session = null } = {
     return run;
   };
 
-  // Add one list (a list another member sent) unless the document has it already.
-  const add = (list) => commit((raw) => {
+  // Add one list (a list another member sent) unless the document has it already. `kept` is the copy the
+  // caller has just put in this device's lists, if it did: once the document has the list, the base records
+  // that copy too, so a later edit to it on another device reads as theirs, not as a list new here that
+  // would be written over it (Codex P1 on #2433). Only into a base that exists: with none, the next sync is
+  // a first sync, where the cloud's copy wins.
+  const add = (list, { kept = null } = {}) => commit((raw) => {
     const lists = bsGroceryListsOf(raw);
     if (!isList(list) || lists.some((l) => l.id === list.id)) return { lists, write: false };
     return { lists: [list, ...lists], write: true };
+  }, (res) => {
+    if (!isList(kept) || !isList(list) || kept.id !== list.id) return;
+    const was = base.get(res.uid);
+    if (!Array.isArray(was)) return;
+    base.set(res.uid, [kept, ...was.filter((l) => l && l.id !== kept.id)]);
   });
 
   return { uidNow, readCloud, commit, sync, add, base };

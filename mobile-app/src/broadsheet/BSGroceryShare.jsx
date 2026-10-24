@@ -82,10 +82,11 @@ export async function bsSaveReceivedGroceryList(list) {
   let store = null;
   try { store = window.localStorage; } catch (e) { store = null; }
   let local = false;
+  let wrote = false; // this save put the copy in the device's lists (not one already there)
   if (store) {
     try {
       const lists = readLocalLists();
-      if (!lists.some((l) => l && l.id === list.id)) store.setItem(LISTS_KEY, JSON.stringify([list, ...lists]));
+      if (!lists.some((l) => l && l.id === list.id)) { store.setItem(LISTS_KEY, JSON.stringify([list, ...lists])); wrote = true; }
       local = true;
     } catch (e) { /* storage off or full */ }
     // Saving it again after deleting an earlier copy brings it back: the Eat page hides deleted ids.
@@ -94,16 +95,17 @@ export async function bsSaveReceivedGroceryList(list) {
       if (Array.isArray(gone) && gone.includes(list.id)) store.setItem(DELETED_KEY, JSON.stringify(gone.filter((x) => x !== list.id)));
     } catch (e) { /* storage off */ }
   }
-  const cloud = await saveToCloud(list);
+  const cloud = await saveToCloud(list, wrote);
   if (cloud) return 'stored';
   if (local) return 'local';
   throw new Error('not_saved');
 }
 
-// The cloud half of the save: true only when the list is in the member's own document.
-async function saveToCloud(list) {
+// The cloud half of the save: true only when the list is in the member's own document. A copy this save
+// put in the device's lists is recorded in the sync base with it (the store's `kept`).
+async function saveToCloud(list, wrote) {
   try {
-    const res = await bsGroceryListsAppStore().add(list);
+    const res = await bsGroceryListsAppStore().add(list, { kept: wrote ? list : null });
     return !!(res && res.ok);
   } catch (e) { return false; }
 }

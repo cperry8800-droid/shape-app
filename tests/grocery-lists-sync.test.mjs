@@ -387,6 +387,47 @@ test('a page\'s lists belong to the account it synced as: another account\'s ses
   assert.deepEqual(puts, ['b-list']);
 });
 
+test('another tab signing straight into another account while a write is in flight: nothing is taken in (Codex P1 on #2433)', async () => {
+  const t = twoAccounts();
+  t.rows.u1 = { v: 1, rev: 1, lists: [L('from-phone')] };
+  const write = t.db.saveUserGoalsIfRev;
+  t.db.saveUserGoalsIfRev = async (...args) => { const r = await write(...args); t.session = 'u2'; return r; };
+  const stored = memBase();
+  stored.set('u1', []);
+  const page = bsGroceryListsPageBase(stored);
+  const applied = [];
+  const res = await bsGroceryListsStore({ db: t.db, baseStore: stored })
+    .sync({ getLocal: () => [L('mine')], base: page, apply: (d) => { applied.push(d); return true; } });
+  assert.deepEqual(t.writes, [{ uid: 'u1', lists: ['mine', 'from-phone'] }], 'the write landed in A\'s own document');
+  assert.deepEqual([res.ok, res.reason], [false, 'account-changed']);
+  assert.deepEqual(applied, [], "A's lists aren't taken into the page now B's");
+  assert.deepEqual(stored.get('u1'), [], 'nor recorded as synced');
+});
+
+test('a received list saved into the document is recorded in the base, so another device\'s later edit to it wins (Codex P1 on #2433)', async () => {
+  const cloud = cloudDb({ v: 1, rev: 1, lists: [L('x')] });
+  const stored = memBase();
+  stored.set('u1', [L('x')]);
+  const store = bsGroceryListsStore({ db: cloud.db, baseStore: stored });
+  const R = L('received', { name: 'Week 3 shop' });
+  assert.equal((await store.add(R, { kept: R })).ok, true);
+  assert.deepEqual(ids(stored.get('u1')), ['received', 'x'], 'the copy put in this device\'s lists is in the base');
+  // Another device renames it before this device's Eat page syncs again.
+  cloud.row = { v: 1, rev: 3, lists: [{ ...R, name: 'Saturday shop' }, L('x')] };
+  const puts = [];
+  await store.sync({ getLocal: () => [R, L('x')], apply: (d) => { puts.push(...d.put.map((l) => l.name)); return true; } });
+  assert.equal(cloud.row.lists.find((l) => l.id === 'received').name, 'Saturday shop', 'the rename stands');
+  assert.deepEqual(puts, ['Saturday shop'], 'and this device takes it');
+  // Without a copy kept here, or with no base yet, the base is left as it was.
+  const s2 = memBase();
+  s2.set('u1', [L('x')]);
+  await bsGroceryListsStore({ db: cloudDb({ v: 1, rev: 1, lists: [] }).db, baseStore: s2 }).add(L('r2'));
+  assert.deepEqual(ids(s2.get('u1')), ['x']);
+  const s3 = memBase();
+  await bsGroceryListsStore({ db: cloudDb({ v: 1, rev: 1, lists: [] }).db, baseStore: s3 }).add(L('r3'), { kept: L('r3') });
+  assert.equal(s3.get('u1'), null, 'no base: the next sync is a first sync');
+});
+
 test('once a sign-out has begun, a sync writes and keeps nothing (Codex P1 on #2433)', async () => {
   // Begun while the write was in flight: the write lands (the member's own lists, to their own row), but
   // nothing is taken into this device or recorded as synced, since the scrub may already have run.
@@ -562,7 +603,7 @@ test('every writer goes through the store: no whole-document write of the lists 
   assert.match(CLIENT, /apply: \(delta, used\) => \{\s*try \{\s*const raw = window\.localStorage\.getItem\('shape\.recipeGroceryLists'\);[\s\S]{0,400}\} catch \(e\) \{[^}]*\}\s*if \(!grocMountedRef\.current\) return false;/);
   assert.match(HTML, /baseRef\.current = window\.ShapeGroceryListsLib\.bsGroceryListsPageBase\(store\.base\)/);
   assert.match(HTML, /same: \(p, u\) => GL\.bsGrocerySame\(stripTicks\(p\), stripTicks\(u\)\)/, 'the website\'s apply ignores ticks');
-  assert.match(SHARE, /bsGroceryListsAppStore\(\)\.add\(list\)/);
+  assert.match(SHARE, /bsGroceryListsAppStore\(\)\.add\(list, \{ kept: wrote \? list : null \}\)/);
   // The open list on the Eat page is drawn from its record, so another device's edit reaches the screen
   // before the next edit is made on it (Codex P1 on #2433).
   assert.match(CLIENT, /const openGroceryRecord = selectedGroceryList && selectedGroceryList\.id\s*\? recipeLists\.find\(\(l\) => l && l\.id === selectedGroceryList\.id\) : null;\s*const activeGroceryList = openGroceryRecord\s*\? \{ \.\.\.bsNormalizeGroceryList\(openGroceryRecord\),/);
