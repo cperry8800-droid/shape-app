@@ -430,6 +430,27 @@ async function fetchActivitySplits(
   }
 }
 
+// ⚠ THE TYPED ACTIVITIES ROWS ARE WRITTEN ON EVERY SYNC (Codex P2 on #2437). Train's Burned this week
+// and Home's Week so far read them, and the Sync button never asks for ?import=1. Only the feed
+// posts (and their HR traces) stay behind Import. A refused row is reported.
+async function writeStravaActivityRows(client: SupabaseClient, userId: string, activities: StravaActivity[]) {
+  let written = 0;
+  const errors: string[] = [];
+  for (const activity of activities) {
+    if (!activity.id) continue;
+    const { error } = await client
+      .from('activities')
+      .upsert(stravaActivityRow(activity, userId), { onConflict: 'user_id,source,external_id' });
+    if (error) {
+      console.error('[shape-api] strava activity row failed:', error.message);
+      errors.push('Could not save an activity.');
+    } else {
+      written += 1;
+    }
+  }
+  return { written, errors };
+}
+
 async function importStravaActivities(
   client: SupabaseClient,
   userId: string,
@@ -450,11 +471,6 @@ async function importStravaActivities(
 
   for (const activity of activities) {
     if (!activity.id) continue;
-    // Typed per-activity row (idempotent on user+source+external_id).
-    await client
-      .from('activities')
-      .upsert(stravaActivityRow(activity, userId), { onConflict: 'user_id,source,external_id' });
-
     const { data: existing, error: lookupError } = await client
       .from('community_posts')
       .select('id')
@@ -542,6 +558,7 @@ export async function GET(request: Request) {
       stravaGet<StravaActivity[]>(accessToken, '/athlete/activities?per_page=30&page=1'),
     ]);
 
+    const activityRows = await writeStravaActivityRows(client, user.id, activities);
     const url = new URL(request.url);
     const shouldImport = url.searchParams.get('import') === '1';
     const importResult = shouldImport
@@ -565,6 +582,7 @@ export async function GET(request: Request) {
         athlete,
         activities,
       },
+      activities: activityRows,
       import: importResult,
       snapshot,
     });

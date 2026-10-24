@@ -159,6 +159,27 @@ function whoopActivityRow(workout: WhoopWorkout, userId: string) {
   };
 }
 
+// ⚠ THE TYPED ACTIVITIES ROWS ARE WRITTEN ON EVERY SYNC (Codex P2 on #2437). Train's Burned this week
+// and Home's Week so far read them, and the routine sync (the check-in card, the Sync button) never
+// asks for ?import=1. Only the feed posts stay behind Import. A refused row is reported.
+async function writeWhoopActivityRows(client: SupabaseClient, userId: string, workouts: WhoopWorkout[]) {
+  let written = 0;
+  const errors: string[] = [];
+  for (const workout of workouts) {
+    if (!workout.id) continue;
+    const { error } = await client
+      .from('activities')
+      .upsert(whoopActivityRow(workout, userId), { onConflict: 'user_id,source,external_id' });
+    if (error) {
+      console.error('[shape-api] whoop activity row failed:', error.message);
+      errors.push('Could not save an activity.');
+    } else {
+      written += 1;
+    }
+  }
+  return { written, errors };
+}
+
 async function importWhoopWorkouts(
   client: SupabaseClient,
   userId: string,
@@ -174,11 +195,6 @@ async function importWhoopWorkouts(
 
   for (const workout of workouts) {
     if (!workout.id) continue;
-    // Typed per-activity row (idempotent on user+source+external_id).
-    await client
-      .from('activities')
-      .upsert(whoopActivityRow(workout, userId), { onConflict: 'user_id,source,external_id' });
-
     const payload = workoutPostPayload(workout, userId, profile, fallbackName, sharePrivacy);
     const { data: existing, error: lookupError } = await client
       .from('community_posts')
@@ -245,6 +261,7 @@ export async function GET(request: Request) {
       whoopGet<WhoopCollection<WhoopWorkout>>(accessToken, '/v2/activity/workout?limit=10'),
     ]);
 
+    const activityRows = await writeWhoopActivityRows(client, user.id, workouts.records ?? []);
     const url = new URL(request.url);
     const shouldImport = url.searchParams.get('import') === '1';
     const importResult = shouldImport
@@ -276,6 +293,7 @@ export async function GET(request: Request) {
         sleeps,
         workouts,
       },
+      activities: activityRows,
       import: importResult,
       snapshot,
     });

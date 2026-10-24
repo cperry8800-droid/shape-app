@@ -104,3 +104,17 @@ test('signed out shows the preview’s sample week, marked as one', async () => 
   assert.ok(m.host.querySelectorAll('svg path').length >= 2, 'the sample week draws its line');
   await m.close();
 });
+
+// Codex P2 on #2437: Train left open across Sunday night moves to the new week on its own.
+test('the card moves to the new week past Sunday midnight with nothing else redrawing it', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'], now: new Date(2026, 9, 25, 23, 59, 30).getTime() });
+  signIn();
+  const asked = [];
+  W.ShapeBurn = { week: async (wk) => { asked.push(wk); return { ok: true, snaps: [], acts: [] }; } };
+  const m = await mount();
+  assert.deepEqual(asked, ['2026-10-19'], 'Sunday the 25th is in the week of the 19th');
+  await React.act(async () => { t.mock.timers.tick(60000); });
+  await flush();
+  assert.deepEqual(asked, ['2026-10-19', '2026-10-26'], 'a minute later it reads the new week');
+  await m.close();
+});

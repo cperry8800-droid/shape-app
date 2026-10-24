@@ -44,7 +44,17 @@ export function BSTrainBurn() {
   const tr = useShapeTr();
   const uid = window.ShapeAuth?.getCachedState?.()?.user?.id || null;
   const signedIn = !!uid;
-  const todayIso = bsHwIso(new Date());
+  // Today is state, read again each minute and when the app comes back to the front (Codex P2 on
+  // #2437): Train left open past midnight moves to the new day, and past Sunday night to the new
+  // week, without anything else on the screen changing.
+  const [todayIso, setTodayIso] = useState(() => bsHwIso(new Date()));
+  useEffect(() => {
+    const tick = () => { const next = bsHwIso(new Date()); setTodayIso((cur) => (cur === next ? cur : next)); };
+    const timer = setInterval(tick, 60000);
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(timer); window.removeEventListener('focus', tick); document.removeEventListener('visibilitychange', tick); };
+  }, []);
   const monday = bsHwWeekDays(todayIso)[0];
   const [read, setRead] = useState(null); // { uid, monday, ok, snaps, acts }
   const [tries, setTries] = useState(0);
