@@ -529,7 +529,7 @@ test('the photo viewer: the shot whole, its caption, where it sits on the wall, 
     assert.equal(q('img').style.objectFit, 'contain', 'the shot is cropped, not shown whole');
     assert.equal(q('img').getAttribute('alt'), 'Dawn miles before work.');
     assert.match(dlg.textContent, /1 \/ 3/);
-    assert.equal(dom.window.document.activeElement, q('[data-bs-photo-close]'), 'focus did not move into the viewer');
+    assert.ok(dom.window.document.activeElement === q('[data-bs-photo-close]'), 'focus did not move into the viewer');
     for (const sel of ['[data-bs-photo-close]', '[data-bs-photo-prev]', '[data-bs-photo-next]']) {
       assert.equal(q(sel).style.minHeight, '44px', `${sel} is under 44 px`);
       assert.equal(parseFloat(q(sel).style.borderRadius), 0, `${sel} is round`);
@@ -546,7 +546,7 @@ test('the photo viewer: the shot whole, its caption, where it sits on the wall, 
     await key('Escape');
     assert.equal(open, false, 'Escape did not close the viewer');
     assert.equal(q('[data-bs-photo-viewer]'), null);
-    assert.equal(dom.window.document.activeElement, opener, 'focus did not go back to the shot that opened it');
+    assert.ok(dom.window.document.activeElement === opener, 'focus did not go back to the shot that opened it');
     // One shot: no arrows. A tap on the dark ground closes it, as × does.
     await React.act(async () => { root.render(null); });
     await React.act(async () => { root.render(React.createElement(Harness, { list: shots.slice(0, 1) })); });
