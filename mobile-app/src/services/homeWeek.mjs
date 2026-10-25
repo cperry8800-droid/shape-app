@@ -56,7 +56,7 @@ function bsHwByDay(series) {
 //   · protein and steps: the daily average over the days that have a reading;
 //   · mornings: mornings checked in, by the check-in card's own rule (`answered`), when given.
 // A figure nothing could read is null, so the row says "—" rather than a zero it does not know.
-export function bsHomeWeekSoFar({ todayIso, series = null, workoutsDone = null, workoutsPlanned = null, proteinTarget = null, stepGoal = null, answered = null } = {}) {
+export function bsHomeWeekSoFar({ todayIso, series = null, workoutsDone = null, workoutsPlanned = null, proteinTarget = null, stepGoal = null, answered = null, trainedDays = null, plannedDays = null, planRead = false } = {}) {
   const days = bsHwWeekDays(todayIso);
   const read = !!series;
   const cal = bsHwByDay(series && series.calories);
@@ -77,7 +77,56 @@ export function bsHomeWeekSoFar({ todayIso, series = null, workoutsDone = null, 
     protein: { avg: read ? avg(pro) : null, target: num(proteinTarget) },
     steps: { avg: read ? avg(st) : null, goal: num(stepGoal) },
     mornings: read && typeof answered === 'function' ? days.filter((d) => answered(d)).length : null,
+    grid: bsHwWeekGrid({ todayIso, read, cal, pro, st, proteinTarget: num(proteinTarget), stepGoal: num(stepGoal), answered, trainedDays, plannedDays, planRead }),
   };
+}
+
+// THE WEEK AS A GRID (owner, 2026-10-25, of the three Week so far mockups: "go with B"). A square a day,
+// Monday to Sunday, for each row, each one of:
+//   · 'hit': trained; food logged; protein or steps at the target (without a target, any reading);
+//     checked in;
+//   · 'miss': a day gone by without it (for sessions, only a day the plan set a session on);
+//   · 'rest': a day gone by with no session set and none trained (sessions only), once the plan was
+//     read: a plan read that failed or hasn't landed leaves those days null, since it may have set
+//     sessions on them (Codex P2 on #2449);
+//   · 'ahead': today until it is hit, and the days after it, so a day still under way never reads
+//     as missed;
+//   · null: nothing could be read, so the square says nothing rather than "missed".
+// `trainedDays` are the days trained (ShapeCommit's), `plannedDays` the plan's seven, Monday first (null
+// with no training plan), and `planRead` whether the plan read succeeded.
+export function bsHwWeekGrid({ todayIso, read = false, cal = new Map(), pro = new Map(), st = new Map(), proteinTarget = null, stepGoal = null, answered = null, trainedDays = null, plannedDays = null, planRead = false } = {}) {
+  const so = bsHwWeekDays(todayIso);
+  if (!so.length) return null;
+  const week = Array.from({ length: 7 }, (_, i) => bsHwShift(so[0], i));
+  const trained = Array.isArray(trainedDays) ? new Set(trainedDays.map((d) => String(d).slice(0, 10))) : null;
+  const planned = Array.isArray(plannedDays) && plannedDays.length === 7 ? plannedDays.map(Boolean) : null;
+  const row = (known, hit, gone = () => 'miss') => week.map((d, i) => {
+    if (d > todayIso) return 'ahead';
+    if (!known) return null;
+    if (hit(d, i)) return 'hit';
+    if (d === todayIso) return 'ahead';
+    return gone(d, i);
+  });
+  const atLeast = (m, goal) => (d) => { const v = m.get(d); return v != null && (goal == null || v >= goal); };
+  return {
+    week,
+    today: week.indexOf(todayIso),
+    sessions: row(!!trained, (d) => trained.has(d), (d, i) => (!planRead ? null : planned && planned[i] ? 'miss' : 'rest')),
+    food: row(read, (d) => cal.has(d)),
+    protein: row(read, atLeast(pro, proteinTarget)),
+    steps: row(read, atLeast(st, stepGoal)),
+    mornings: row(read && typeof answered === 'function', (d) => !!answered(d)),
+  };
+}
+
+// Which days of this week the plan sets a session on, Monday first, laid as Train lays them
+// (bsSlotWeek), or null when no training plan was read.
+export function bsHomeSessionsPlannedDays(plan, now = new Date()) {
+  const training = plan && plan.training;
+  if (!training || !training.hasPlan) return null;
+  const monday = new Date(now); monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  return bsSlotWeek(training.workouts || [], monday).map(Boolean);
 }
 
 // The sessions this week's plan holds, laid on the week exactly as Train lays them (bsSlotWeek: a
@@ -95,6 +144,10 @@ export function bsHomeSessionsPlanned(plan, now = new Date()) {
 // fallback is { workouts: 0 }, and a failed read must say "—", not "0" (Codex P2 on #2424).
 export function bsHwTrainedOf(p) {
   return p && p.ok === true && typeof p.workouts === 'number' && Number.isFinite(p.workouts) ? p.workouts : null;
+}
+// The days trained off the same read, for the grid's sessions row, or null as above.
+export function bsHwTrainedDaysOf(p) {
+  return p && p.ok === true && Array.isArray(p.days) ? p.days.map((d) => String(d).slice(0, 10)) : null;
 }
 
 // The member's local week as instants, for a timestamp column ([from, to): local Monday midnight to

@@ -7481,7 +7481,7 @@ async function getCommitmentProgress(weekOf) {
     (snaps.data || []).forEach((s) => { if ((s.workout_minutes || 0) > 0) days.add(s.snapshot_date); });
     (acts.data || []).forEach((a) => { const day = local ? bsHwLocalDayOf(a.started_at) : String(a.started_at).slice(0, 10); if (day) days.add(day); });
     const ok = !snaps.error && !acts.error && !(chk && chk.error) && !habs.error;
-    return { workouts: days.size, checkin: !!(chk && chk.data), habits: (habs.data || []).length, ok };
+    return { workouts: days.size, days: [...days].sort(), checkin: !!(chk && chk.data), habits: (habs.data || []).length, ok };
   } catch (e) { return { workouts: 0, checkin: false, habits: 0, ok: false }; }
 }
 // Train's Burned this week (BSTrainBurn.jsx; services/weekBurn.mjs adds the figures up): the week's
