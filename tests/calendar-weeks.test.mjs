@@ -351,6 +351,12 @@ test('a run is dated by the day the app stored, not re-read where the member is 
   assert.equal(plan.find((e) => e.id === 'plan:w-travel').status, 'planned', 'last week\'s Sunday run ticked the new week in Tokyo');
 });
 
+test('a session saved with no start and no stored day is dated by when it ended, as the streak does', async () => {
+  const legacy = ran('w-legacy', now.getTime(), { started_at: null, ended_at: new Date(now.getTime()).toISOString(), created_at: new Date(monday.getTime() - 3 * DAY).toISOString() });
+  const plan = await ROUTE({ client_workouts: [workout('w-legacy', null)], workout_sessions: [legacy] });
+  assert.equal(plan.find((e) => e.id === 'plan:w-legacy').status, 'completed', 'dated by when it was saved, last week');
+});
+
 test('past the read\'s cap the oldest runs drop, never this week\'s', async () => {
   // The stand-in keeps one row per read, as a full cap would: it must be the newest.
   const old = ran('w-capped', monday.getTime() - 10 * DAY);
