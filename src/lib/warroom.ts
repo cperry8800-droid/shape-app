@@ -615,6 +615,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Goals in B, the dashboard look — #2459. No migration',
+      items: [
+        { label: 'Owner, 2026-10-25, after #2456: "make Goals match the new look too"; of the mock: "Yes go with goals". Each part keeps one colour: training coral, nutrition amber, work violet, this week teal, the terms lime, your why violet; card names in Saira in the text shade, rings and bars in the mark shade. No copy changed (i18n inventory 616)', status: 'done' },
+        { label: 'The cover: the goal\'s share done in a ring beside the verdict (still one role="img", none for a goal in words), Current / To go / Pace as tiles, Log weigh-in a teal pill, the next milestone a card with its track, the five doors cards two to a row with the count as the figure', status: 'done' },
+        { label: 'A station: the coach\'s credit a tinted card; the targets in one card, with a bar only for a target climbing to its mark (one coming down has no start to measure from); key lifts as tiles. This week: a ring per figure with a target. The terms: a milestone track and Your why in its own card', status: 'done' },
+        { label: 'Review: Codex on 3748983, P2: a target at 0 drew a 4% bar; fixed in bd1b859 (the fill is the share itself, tests/goals-dash pins it). P1: the WORKLOG rule moves a touched screen into its own module; the owner\'s call: this look first, then a move-only PR. Codex clean on bd1b859. CodeRabbit not run. tests/goals-dash pins the shape; npm test 8,458 / 8,458', status: 'done' },
+        { label: 'Device pass: Goals on a phone, light and dark', status: 'manual' },
+        { label: 'Goals moves out of iosAppBroadsheetClient.jsx into its own module (owner: the next PR, move-only)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Progress and Your mornings in B, the dashboard look — #2456. No migration',
       items: [
         { label: 'Owner, 2026-10-25, of Your mornings: "we need to make this look less analog"; of Progress: "very boring, monotone"; of three mocks: "I like B", following the paper. BSDash.jsx holds the look: cards, rings, sparklines and a small switch, and a palette where a metric keeps one colour, its words in a text shade that reads at 4.6:1 or better on all 18 papers and its bars and rings in a brighter mark shade', status: 'done' },
@@ -622,7 +633,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Progress: What\'s next a hero card with the headline goal\'s share done in a ring (only for a goal with a start); the tabs, then (owner: "Don\'t need those boxes so big") a 34px capsule as wide as its words with 44px keys; figures in tiles with sparklines; every station a card; the trend a gradient area in the series\' colour. No copy changed (i18n inventory 616)', status: 'done' },
         { label: 'Review: Codex P1 on a2b5076, the card headings were h2s in the mono face where every heading is Saira: fixed in 80b8d8a (card names in Saira, figure labels mono); Codex clean on 80b8d8a. CodeRabbit not run. tests/dash-look holds every text shade to 4.5:1 on every paper; tests/progress-dash pins Progress\'s shape; npm test 8,447 / 8,447. CI was red on 80b8d8a: with #2455 on main the WORKLOG passed 20 KB, so it keeps main\'s text and the palette\'s rule lives in BSDash.jsx', status: 'done' },
         { label: 'Device pass: Progress and Your mornings on a phone, light and dark', status: 'manual' },
-        { label: 'Goals, opened from Progress, keeps the ledger look; the hero\'s headline is goalBrief\'s English in the goal\'s own unit', status: 'pending' },
+        { label: 'The hero\'s headline is goalBrief\'s English in the goal\'s own unit', status: 'pending' },
       ],
     },
     {
