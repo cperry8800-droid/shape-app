@@ -117,11 +117,14 @@ export function BSCalendarWeeks({ events, viewYear, viewMonth, todayIso, focusIs
   // A distance in the member's unit ("3.6 mi").
   const fmtKm = (km) => { const m = t.uMeasure ? t.uMeasure(km, 'km') : { value: Math.round(km * 10) / 10, unit: 'km' }; return `${m.value} ${m.unit}`; };
   // A card's second line: once done, how far and how long it took ("3.6 mi · 35m 24s"); else
-  // when and how long it is planned for; else its note.
+  // when and how long it is planned for; else its note. A done workout's time is the one measured
+  // (doneSec), never its plan's: a synced run with a distance and no time reads "5 km", not the
+  // plan's "5 km · 45m" (Codex on #2460). An activity's own minutes are measured.
   const detail = (e) => {
     const km = Number(e.distanceKm) > 0 ? Number(e.distanceKm) : null;
     if (e.state === 'done' && (e.doneSec || km || e.source === 'activity')) {
-      const measured = [km ? fmtKm(km) : null, e.doneSec ? fmtSec(e.doneSec) : (Number(e.dur) > 0 ? fmtMin(Number(e.dur)) : null)].filter(Boolean).join(' · ');
+      const took = e.doneSec ? fmtSec(e.doneSec) : (e.source === 'activity' && Number(e.dur) > 0 ? fmtMin(Number(e.dur)) : null);
+      const measured = [km ? fmtKm(km) : null, took].filter(Boolean).join(' · ');
       if (measured) return measured;
     }
     const when = timeLabel(e);

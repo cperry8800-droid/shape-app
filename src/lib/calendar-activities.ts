@@ -124,7 +124,7 @@ function namedTitle(row: ActivityRow): string | null {
 export function calendarActivities({ rows, zone, from, to, done = [], planned = [] }: {
   rows: ActivityRow[]; zone: string; from: string; to: string; done?: DoneWorkout[]; planned?: PlannedWorkout[];
 }): { events: ActivityEvent[]; workouts: Map<string, WorkoutFill> } {
-  type Group = { t: number; row: ActivityRow; title: string | null; km: number | null; min: number | null; kcal: number | null; sources: Set<string> };
+  type Group = { t: number; row: ActivityRow; types: string[]; title: string | null; km: number | null; min: number | null; kcal: number | null; sources: Set<string> };
   const groups: Group[] = [];
   const timed = (Array.isArray(rows) ? rows : [])
     .map((row) => ({ row, t: Date.parse(String(row?.started_at ?? '')) }))
@@ -138,10 +138,11 @@ export function calendarActivities({ rows, zone, from, to, done = [], planned = 
       twin.min = max(twin.min, positive(row.duration_min));
       twin.kcal = max(twin.kcal, positive(row.calories));
       twin.title = twin.title || namedTitle(row);
+      twin.types.push(String(row.activity_type ?? ''));
       twin.sources.add(src);
       continue;
     }
-    groups.push({ t, row, title: namedTitle(row), km: positive(row.distance_km), min: positive(row.duration_min), kcal: positive(row.calories), sources: new Set([src]) });
+    groups.push({ t, row, types: [String(row.activity_type ?? '')], title: namedTitle(row), km: positive(row.distance_km), min: positive(row.duration_min), kcal: positive(row.calories), sources: new Set([src]) });
   }
 
   const events: ActivityEvent[] = [];
@@ -159,7 +160,10 @@ export function calendarActivities({ rows, zone, from, to, done = [], planned = 
       if (km != null) workouts.set(logged.id, { distanceKm: km, durationMin: null, by, matched: false });
       continue;
     }
-    const kind = workoutKind(g.row.activity_type) ?? workoutKind(g.title);
+    // The most telling type among the copies: one provider's "workout" never hides another's
+    // "running" (Codex on #2460).
+    const type = g.types.find((ty) => workoutKind(ty)) ?? g.types.find(Boolean) ?? null;
+    const kind = workoutKind(type) ?? workoutKind(g.title);
     const plan = kind && planned.find((w) => !folded.has(w.id) && w.kind === kind && w.days.includes(local.date));
     if (plan) {
       folded.add(plan.id);
@@ -170,14 +174,14 @@ export function calendarActivities({ rows, zone, from, to, done = [], planned = 
       id: `act:${g.row.id}`,
       source: 'activity',
       kind: 'WORKOUT',
-      title: g.title || activityTypeLabel(g.row.activity_type),
+      title: g.title || activityTypeLabel(type),
       sub: by,
       date: local.date,
       time: local.time,
       durationMin: g.min == null ? null : Math.round(g.min),
       distanceKm: km,
       calories: g.kcal == null ? null : Math.round(g.kcal),
-      activityType: String(g.row.activity_type || 'workout').toLowerCase(),
+      activityType: String(type || 'workout').toLowerCase(),
       sources: keys,
       named: g.title != null,
       with: '', location: '', accent: '', status: 'completed', createdByRole: 'client', editable: false,

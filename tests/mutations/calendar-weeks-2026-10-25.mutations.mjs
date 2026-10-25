@@ -80,7 +80,7 @@ export default {
       find: 'const canAdd = onAdd && iso >= todayIso;',
       replace: 'const canAdd = !!onAdd;' },
     { name: 'a finished workout reads its plan instead of its time', file: WEEKS,
-      find: "e.doneSec ? fmtSec(e.doneSec) : (Number(e.dur) > 0 ? fmtMin(Number(e.dur)) : null)].filter(Boolean)",
-      replace: "Number(e.dur) > 0 ? fmtMin(Number(e.dur)) : null].filter(Boolean)" },
+      find: "const took = e.doneSec ? fmtSec(e.doneSec) : (e.source === 'activity'",
+      replace: "const took = Number(e.dur) > 0 ? fmtMin(Number(e.dur)) : (e.source === 'activity'" },
   ],
 };

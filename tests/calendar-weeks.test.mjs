@@ -436,6 +436,11 @@ test('a workout a synced run finished reads how far and how long, and where it c
   // The Weeks card: a whole-minute time reads as minutes.
   const text = strip(render({ events: [{ id: 'plan:w1', source: 'plan', date: '2026-10-21', kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2100, distanceKm: 5.79, dur: 45, time: '—', doneBy: 'Strava' }] }));
   assert.match(text, /Easy Run 3\.6 mi · 35m ✓/, 'a whole-minute time read "35m 0s"');
+  // A synced copy with a distance and no time: the card says how far, never the plan's 45 minutes
+  // as if it were measured.
+  const untimed = strip(render({ events: [{ id: 'plan:w2', source: 'plan', date: '2026-10-21', kind: 'WORKOUT', title: 'Long Run', state: 'done', doneSec: null, distanceKm: 5.79, dur: 45, time: '—', doneBy: 'Strava' }] }));
+  assert.match(untimed, /Long Run 3\.6 mi ✓/);
+  assert.doesNotMatch(untimed, /Long Run 3\.6 mi · 45m/, 'the plan\'s minutes read as the run\'s');
   // Its sheet: the plan's card, with the synced line under the register.
   const d = sheetOf({ id: 'plan:w1', source: 'plan', kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2100, distanceKm: 5.79, dur: 45, doneBy: 'Strava' });
   const body = drive(CAL.BSEventWorkoutBody, { event: { kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2100, distanceKm: 5.79, dur: 45, doneBy: 'Strava' }, role: 'client' });

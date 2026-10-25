@@ -171,6 +171,20 @@ test('an undated planned workout takes a matching activity from any day of its w
   assert.equal(events.length, 0);
 });
 
+test('a run two providers sync takes the telling type: one\'s "workout" never hides the other\'s "running"', () => {
+  const rows = [
+    act('w1', 'whoop', 'activity', 'activity', '2026-10-21T11:00:00Z', { distance_km: null }),
+    act('g1', 'garmin', 'running', 'running', '2026-10-21T11:02:00Z'),
+  ];
+  // Nothing planned: one card, titled and typed as the run it is (on foot, so it reads a pace).
+  const { events } = place(rows);
+  assert.deepEqual(events.map((e) => [e.title, e.activityType, e.named, e.distanceKm]), [['Running', 'running', false, 5.79]]);
+  // A run planned that day: it is finished, and no card is drawn.
+  const matched = place(rows, { planned: [planned('plan:w-run', ['2026-10-21'], 'run')] });
+  assert.equal(matched.workouts.get('plan:w-run')?.matched, true, 'the generic first copy hid the run');
+  assert.equal(matched.events.length, 0);
+});
+
 test('a workout logged by hand names no provider', () => {
   const { events } = place([act('m1', 'manual', 'yoga', 'Sunday flow', '2026-10-25T09:00:00Z', { distance_km: null })]);
   assert.deepEqual(events.map((e) => [e.title, e.sub, e.sources]), [['Sunday flow', '', ['manual']]]);
