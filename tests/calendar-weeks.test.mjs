@@ -246,6 +246,13 @@ test('an activity titled only by its type reads in the member\'s language; a nam
   globalThis.ShapeI18n = await translator('es');
   try {
     assert.deepEqual(await titles(), ['Carrera', 'Entrenamiento de fuerza', 'Trail running', 'Morning Run', 'Running']);
+    // A language change while the calendar is open retitles what is on screen before any new read
+    // answers (this harness starts one each render; it has not landed when the render is read).
+    const { d, settle } = await screen({ stored: 'weeks', answer });
+    await settle();
+    globalThis.ShapeI18n = en;
+    d.render();
+    assert.deepEqual(d.nodes().find(named('BSCalendarWeeks')).props.events.map((e) => e.title).slice(0, 2), ['Running', 'Strength training']);
   } finally {
     globalThis.ShapeI18n = en;
   }

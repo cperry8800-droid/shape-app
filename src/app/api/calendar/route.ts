@@ -368,8 +368,11 @@ export async function GET(request: Request) {
         const day = storedDay(r.local_day) ?? memberDay(at, zone);
         if (!day || day < weekISO[0]) continue;
       }
-      // The newest run's time (the read is newest first), not the longest attempt's.
-      if (!doneSec.has(id)) doneSec.set(id, Number(r.duration_seconds) || 0);
+      // The newest run's time (the read is newest first), not the longest attempt's, and its start
+      // is the one a synced copy pairs with: an older attempt's copy is its own card and never
+      // lends this card its distance (Codex on #2460).
+      if (doneSec.has(id)) continue;
+      doneSec.set(id, Number(r.duration_seconds) || 0);
       if (Number.isFinite(at)) doneAt.push({ id: `plan:${id}`, at });
     }
     for (const w of planWorkouts) {

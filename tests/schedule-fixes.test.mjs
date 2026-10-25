@@ -306,7 +306,7 @@ test('the app sends its zone on every calendar read, and hands the named zone ba
   const t = { isLight: false, RUST: '#c0533b', AMBER: '#d8a23a', BLUE: '#7ed4ff', INK50: '#999' };
   assert.equal(_bsMapServerCalEvent({ id: 'session:s-1', date: '2026-10-07', time: '09:00' }, t, NY).zone, NY);
   assert.match(APP_CAL, /window\.ShapeCalendar\.list\(\{ from, to, clientId, role \}\)/, 'the screen no longer sends its role');
-  assert.match(APP_CAL, /_bsMapServerCalEvent\(e, t, d\.zone, tr\)/, 'the screen drops the zone the route named');
+  assert.match(APP_CAL, /_bsMapServerCalEvent\(e, t, d\.zone\)/, 'the screen drops the zone the route named');
   assert.match(APP_CAL, /action: 'reschedule', date: newDate, time, tz: event\.zone/, 'the app reschedule no longer sends the zone it was shown in');
 });
 

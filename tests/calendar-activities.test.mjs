@@ -205,6 +205,18 @@ test('a finished workout takes its synced copy\'s distance; the copy is not draw
   assert.equal(ofSource(body, 'activity').length, 0);
 });
 
+test('a workout run twice takes the newest run\'s synced copy; the older copy is its own card', async () => {
+  const ws = (id, sec, at, created) => ({ id, client_id: 'member-1', client_workout_id: 'w1', status: 'completed', duration_seconds: sec, started_at: at, created_at: created });
+  const body = await GET({
+    client_workouts: [{ id: 'w1', client_id: 'member-1', status: 'published', title: 'Easy Run', description: null, payload: { duration: '35 min' }, scheduled_date: '2026-10-21' }],
+    workout_sessions: [ws('ws-old', 1800, '2026-10-20T10:58:00Z', '2026-10-20T11:30:00Z'), ws('ws-new', 2124, '2026-10-21T10:58:00Z', '2026-10-21T11:34:00Z')],
+    activities: [row('s-old', 'member-1', '2026-10-20T11:00:00Z', { distance_km: 4.02 }), row('s-new', 'member-1', '2026-10-21T11:00:00Z')],
+  }, { qs: `${QS}&activities=1` });
+  // The card shows the newest run: its time and its synced copy's distance, not the older run's.
+  assert.deepEqual(ofSource(body, 'plan').map((e) => [e.id, e.doneSeconds, e.distanceKm]), [['plan:w1', 2124, 5.79]]);
+  assert.deepEqual(ofSource(body, 'activity').map((e) => [e.id, e.date, e.distanceKm]), [['act:s-old', '2026-10-20', 4.02]], 'the newest run was drawn twice, or the older one not at all');
+});
+
 test('the route ticks the planned workout a synced activity matches by day and type, and no other', async () => {
   const cw = (id, title, scheduled_date) => ({ id, client_id: 'member-1', status: 'published', title, description: null, payload: { duration: '45 min' }, scheduled_date });
   const body = await GET({

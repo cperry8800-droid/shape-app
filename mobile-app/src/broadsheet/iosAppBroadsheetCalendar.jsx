@@ -260,7 +260,7 @@ function bsCalEventTitle(ev, tr) {
   return hit ? hit[1](tr) : (ev.title || '');
 }
 
-function _bsMapServerCalEvent(ev, t, zone = null, tr = null) {
+function _bsMapServerCalEvent(ev, t, zone = null) {
   const [, , dd] = (ev.date || '').split('-');
   const accents = _BS_CAL_ACCENTS(t);
   return {
@@ -272,7 +272,9 @@ function _bsMapServerCalEvent(ev, t, zone = null, tr = null) {
     time: ev.time || '—',
     dur: ev.durationMin || 0,
     kind: ev.kind || 'ADMIN',
-    title: bsCalEventTitle(ev, tr),
+    title: ev.title || '',
+    // false: the title is only the provider's type, said in the member's language on screen.
+    named: typeof ev.named === 'boolean' ? ev.named : null,
     sub: ev.sub || '',
     accent: accents[ev.kind] || t.RUST,
     state: ev.status === 'done' || ev.status === 'completed' ? 'done' : undefined,
@@ -369,7 +371,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
     const from = wk ? bsCalIso(wk[0][0]) : `${viewYear}-${pad(viewMonth + 1)}-01`;
     const to = wk ? bsCalIso(wk[wk.length - 1][6]) : `${viewYear}-${pad(viewMonth + 1)}-${new Date(viewYear, viewMonth + 1, 0).getDate()}`;
     window.ShapeCalendar.list({ from, to, clientId, role })
-      .then(d => { if (seq !== loadSeq.current) return; setServerZone(typeof d.zone === 'string' && d.zone ? d.zone : null); setServerEvents((d.events || []).map(e => _bsMapServerCalEvent(e, t, d.zone, tr))); })
+      .then(d => { if (seq !== loadSeq.current) return; setServerZone(typeof d.zone === 'string' && d.zone ? d.zone : null); setServerEvents((d.events || []).map(e => _bsMapServerCalEvent(e, t, d.zone))); })
       .catch(() => { if (seq === loadSeq.current) setServerEvents([]); });
   }, [loggedIn, viewYear, viewMonth, clientId, role, view]);
   React.useEffect(() => { loadMonth(); }, [loadMonth]);
@@ -386,8 +388,15 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
       return day ? { ...event, day } : event;
     });
   }, [role, t]);
+  // A type-only activity is titled in the language the member reads now, on every render, so a
+  // language change while the calendar is open retitles it without a new read (Codex on #2460).
+  const locale = (typeof window !== 'undefined' && window.ShapeI18n?.current?.()) || '';
+  const liveEvents = React.useMemo(() => serverEvents && serverEvents.map((e) => {
+    const title = bsCalEventTitle(e, tr);
+    return title === e.title ? e : { ...e, title };
+  }), [serverEvents, locale]);
   const useServer = loggedIn && serverEvents != null;
-  const events = useServer ? serverEvents : demoEvents;
+  const events = useServer ? liveEvents : demoEvents;
   const sheet = useBSSheet();
   // Demo month = the authored May-2026 preview, shown ONLY when logged out. It's
   // the sole month that renders the demo events and the only one that pins
@@ -402,7 +411,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   const ym = `${viewYear}-${pad(viewMonth + 1)}`;
   const monthEvents = (useServer || isDemoMonth) ? events.filter((e) => !e.date || e.date.slice(0, 7) === ym) : [];
   // The weeks list reads dates; the demo's are its May days. Signed in, never the demo.
-  const weekEvents = useServer ? serverEvents : (!loggedIn && isDemoMonth ? demoEvents.map((e) => ({ ...e, date: `2026-05-${pad(e.day)}` })) : []);
+  const weekEvents = useServer ? liveEvents : (!loggedIn && isDemoMonth ? demoEvents.map((e) => ({ ...e, date: `2026-05-${pad(e.day)}` })) : []);
   const kindAccent = _BS_CAL_ACCENTS(t);
   const openEvent = (e) => sheet && sheet.open(<BSEventSheet event={e} role={role} live={useServer} onChanged={loadMonth} onClose={() => sheet.close()} />);
   // Month name localizes via Intl (calLocale) — never a translated English array.
