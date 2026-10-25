@@ -326,6 +326,42 @@ export async function GET(request: Request) {
     weekTaken.add(weekISO[wslot]); wslot += 1;
   }
 
+  // A workout the member has finished reads done, with the time it took: the logged
+  // session keeps the assigned workout it ran (workout_sessions.client_workout_id).
+  // ⚠ AN UNDATED WORKOUT IS SLOTTED ONTO EVERY CURRENT WEEK, so only a session from this
+  // week finishes it; last week's run of it doesn't tick this week's. The session's day is
+  // read on the zone's clock: a Monday-morning run in Tokyo is still Sunday in UTC. A failed
+  // read leaves every workout planned, as before.
+  const undatedIds = new Set(undatedW.map((w) => w.id));
+  const planIds = planWorkouts.map((w) => String(w.id).slice('plan:'.length));
+  if (planIds.length) {
+    type WsRow = { client_workout_id: string | null; duration_seconds: number | null; started_at: string | null; created_at: string | null };
+    const { data: wsRows } = await supabase
+      .from('workout_sessions')
+      .select('client_workout_id, duration_seconds, started_at, created_at')
+      .eq('client_id', targetUserId)
+      .in('client_workout_id', planIds)
+      .in('status', ['completed', 'reviewed'])
+      .limit(1000);
+    const doneSec = new Map<string, number>();
+    for (const r of (wsRows ?? []) as WsRow[]) {
+      const id = r.client_workout_id;
+      if (!id) continue;
+      if (undatedIds.has(id)) {
+        const at = Date.parse(String(r.started_at || r.created_at || ''));
+        const day = Number.isFinite(at) ? wallClockInZone(at, zone)?.date : null;
+        if (!day || day < weekISO[0]) continue;
+      }
+      doneSec.set(id, Math.max(doneSec.get(id) ?? 0, Number(r.duration_seconds) || 0));
+    }
+    for (const w of planWorkouts) {
+      const sec = doneSec.get(String(w.id).slice('plan:'.length));
+      if (sec == null) continue;
+      w.status = 'completed';
+      w.doneSeconds = sec || null;
+    }
+  }
+
   // 4) The active weekly menu (nutritionist "push to client"), expanded onto
   //    real dates by day-of-week — from this week forward only (the current
   //    menu says nothing about what past weeks were).

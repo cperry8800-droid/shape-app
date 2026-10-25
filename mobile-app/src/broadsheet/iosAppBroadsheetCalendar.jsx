@@ -1,8 +1,9 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WORKOUTS } from './bsClientWeekDemo.js';
+import { BSCalendarWeeks, bsCalWeeksOf, bsCalIso } from './BSCalendarWeeks.jsx';
 const _BS_CAL_KIND_ICON = { WORKOUT: '🏋', MEAL: '🍽', CHECKIN: '✅', CONSULT: '💬', REVIEW: '📋', PLAN: '🗺', REST: '😴', ADMIN: '✦' };
-// iosAppBroadsheetCalendar.jsx — Sheet overlay system + Week/Month calendar screen.
+// iosAppBroadsheetCalendar.jsx — Sheet overlay system + the calendar screen (Month | Weeks).
 // Newspaper-styled. Role-aware events (client / trainer / nutritionist).
 
 const { useState: useStateBSCal, useEffect: useEffectBSCal, useContext: useContextBSCal, createContext: createContextBSCal, useRef: useRefBSCal } = React;
@@ -254,6 +255,8 @@ function _bsMapServerCalEvent(ev, t, zone = null) {
     sub: ev.sub || '',
     accent: accents[ev.kind] || t.RUST,
     state: ev.status === 'done' || ev.status === 'completed' ? 'done' : undefined,
+    // A finished assigned workout carries the time it took (the Weeks view reads it).
+    doneSec: Number(ev.doneSeconds) > 0 ? Number(ev.doneSeconds) : null,
     meetingUrl: ev.meetingUrl || null,
     // Live coaching bookings (source 'session') carry their sessions-table id +
     // status so the event sheet can write real completes/reschedules through
@@ -265,6 +268,13 @@ function _bsMapServerCalEvent(ev, t, zone = null) {
     // hands it back, so the wall clock it keeps is read on the clock it was shown on.
     zone: zone || null,
   };
+}
+
+// Month (the grid) or Weeks (the weeks list, BSCalendarWeeks.jsx). The device remembers the
+// last one picked; anything else, or no storage, opens Month.
+const _BS_CAL_VIEW_KEY = 'shape.calendarView';
+function bsCalViewPref() {
+  try { return localStorage.getItem(_BS_CAL_VIEW_KEY) === 'weeks' ? 'weeks' : 'month'; } catch (e) { return 'month'; }
 }
 
 function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', onBack, clientId = null, initialDate = null }) {
@@ -283,6 +293,10 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   // The zone /api/calendar placed this month's bookings in (its response names it).
   const [serverZone, setServerZone] = useStateBSCal(null);
   const [showAdd, setShowAdd] = useStateBSCal(false);
+  // The day ＋ Add opens on: a day in the weeks list, else the day picked in Month.
+  const [addOn, setAddOn] = useStateBSCal(null);
+  const [view, setViewState] = useStateBSCal(bsCalViewPref);
+  const setView = (v) => { setViewState(v); try { localStorage.setItem(_BS_CAL_VIEW_KEY, v); } catch (e) {} };
   // The auth cache can hydrate just AFTER this screen mounts; if we read "logged
   // out" at first paint we'd be stuck on the May-demo view and never load live
   // events. Re-check shortly + on identity changes; on first detecting a session,
@@ -301,14 +315,20 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   }, [loggedIn]);
 
   const pad = (n) => String(n).padStart(2, '0');
+  // ⚠ ONLY THE LATEST READ LANDS. Paging months or switching views starts a new read, and an
+  // older one answering after it would put the wrong range on screen.
+  const loadSeq = useRefBSCal(0);
   const loadMonth = React.useCallback(() => {
+    const seq = ++loadSeq.current;
     if (!loggedIn || !window.ShapeCalendar) { setServerEvents(null); return; }
-    const from = `${viewYear}-${pad(viewMonth + 1)}-01`;
-    const to = `${viewYear}-${pad(viewMonth + 1)}-${new Date(viewYear, viewMonth + 1, 0).getDate()}`;
+    // Weeks lists whole weeks: from the Monday before the 1st to the Sunday after the last day.
+    const wk = view === 'weeks' ? bsCalWeeksOf(viewYear, viewMonth) : null;
+    const from = wk ? bsCalIso(wk[0][0]) : `${viewYear}-${pad(viewMonth + 1)}-01`;
+    const to = wk ? bsCalIso(wk[wk.length - 1][6]) : `${viewYear}-${pad(viewMonth + 1)}-${new Date(viewYear, viewMonth + 1, 0).getDate()}`;
     window.ShapeCalendar.list({ from, to, clientId, role })
-      .then(d => { setServerZone(typeof d.zone === 'string' && d.zone ? d.zone : null); setServerEvents((d.events || []).map(e => _bsMapServerCalEvent(e, t, d.zone))); })
-      .catch(() => setServerEvents([]));
-  }, [loggedIn, viewYear, viewMonth, clientId, role]);
+      .then(d => { if (seq !== loadSeq.current) return; setServerZone(typeof d.zone === 'string' && d.zone ? d.zone : null); setServerEvents((d.events || []).map(e => _bsMapServerCalEvent(e, t, d.zone))); })
+      .catch(() => { if (seq === loadSeq.current) setServerEvents([]); });
+  }, [loggedIn, viewYear, viewMonth, clientId, role, view]);
   React.useEffect(() => { loadMonth(); }, [loadMonth]);
 
   // Trainer/nutritionist demo events are authored on days 20-26 and remapped onto
@@ -334,9 +354,19 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   // Which events the month grid actually renders: the live account's events on
   // any month, the demo set on the demo month, and nothing on a logged-out
   // non-demo month (the demo events are only authored for May 2026).
-  const monthEvents = (useServer || isDemoMonth) ? events : [];
+  // A weeks read also carries the days either side of the month; the grid keys by day of
+  // the month, so it keeps to this month's dates.
+  const ym = `${viewYear}-${pad(viewMonth + 1)}`;
+  const monthEvents = (useServer || isDemoMonth) ? events.filter((e) => !e.date || e.date.slice(0, 7) === ym) : [];
+  // The weeks list reads dates; the demo's are its May days. Signed in, never the demo.
+  const weekEvents = useServer ? serverEvents : (!loggedIn && isDemoMonth ? demoEvents.map((e) => ({ ...e, date: `2026-05-${pad(e.day)}` })) : []);
+  const kindAccent = _BS_CAL_ACCENTS(t);
+  const openEvent = (e) => sheet && sheet.open(<BSEventSheet event={e} role={role} live={useServer} onChanged={loadMonth} onClose={() => sheet.close()} />);
   // Month name localizes via Intl (calLocale) — never a translated English array.
   const monthName = new Date(viewYear, viewMonth, 1).toLocaleDateString(calLocale(), { month: 'long' });
+
+  const prevMonth = () => { let m = viewMonth - 1, y = viewYear; if (m < 0) { m = 11; y -= 1; } setViewMonth(m); setViewYear(y); };
+  const nextMonth = () => { let m = viewMonth + 1, y = viewYear; if (m > 11) { m = 0; y += 1; } setViewMonth(m); setViewYear(y); };
 
   // Serif page title removed (owner request) — the mast row + Calendar kicker carry the page.
 
@@ -363,15 +393,47 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         onBack={onBack}
       />
 
-      {useServer && (
+      {/* Month | Weeks — the house's pill switch (as on the leaderboards). */}
+      <div style={{ padding: `10px ${t.padX}px ${useServer && view === 'month' ? 0 : 10}px` }}>
+        <div role="tablist" aria-label={tr('calendar:view.label', { defaultValue: 'Calendar view' })} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 3, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: 3 }}>
+          {[['month', tr('calendar:view.month', { defaultValue: 'Month' })], ['weeks', tr('calendar:view.weeks', { defaultValue: 'Weeks' })]].map(([k, l]) => {
+            const on = view === k;
+            return (
+              <button key={k} type="button" role="tab" aria-selected={on} onClick={() => setView(k)} style={{
+                minHeight: 38, padding: '0 4px', borderRadius: 999, border: 0, cursor: 'pointer',
+                background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70,
+                fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+              }}>{l}</button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* In Weeks, each day from today on carries its own ＋ Add. */}
+      {useServer && view === 'month' && (
         <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-          <button onClick={() => setShowAdd(true)} style={{
+          <button onClick={() => { setAddOn(null); setShowAdd(true); }} style={{
             width: '100%', padding: '11px 0', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
             fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
           }}>{tr('calendar:cta.addToCalendar', { defaultValue: '+ Add to calendar' })}</button>
         </div>
       )}
 
+      {view === 'weeks' ? (
+        <BSCalendarWeeks
+          events={weekEvents}
+          viewYear={viewYear}
+          viewMonth={viewMonth}
+          todayIso={isDemoMonth ? '2026-05-14' : bsCalIso(new Date())}
+          focusIso={bsCalIso(new Date(viewYear, viewMonth, selDay))}
+          head={<BSCalMonthHead viewYear={viewYear} viewMonth={viewMonth} monthName={monthName} zone={useServer && serverZone ? serverZone : null} onPrev={prevMonth} onNext={nextMonth} />}
+          accentOf={(e) => kindAccent[e.kind] || e.accent || t.RUST}
+          timeLabel={bsCalTimeLabel}
+          onOpen={openEvent}
+          onOpenDay={(d) => sheet && sheet.open(<BSCalDaySheet date={d} events={weekEvents.filter((e) => e.date === bsCalIso(d))} onOpen={openEvent} />)}
+          onAdd={useServer ? (d) => { setAddOn(d); setShowAdd(true); } : null}
+        />
+      ) : (
       <BSCalendarMonth
         events={monthEvents}
         viewYear={viewYear}
@@ -385,16 +447,17 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         live={useServer}
         zone={useServer ? serverZone : null}
         onChanged={loadMonth}
-        onPrev={() => { let m = viewMonth - 1, y = viewYear; if (m < 0) { m = 11; y -= 1; } setViewMonth(m); setViewYear(y); }}
-        onNext={() => { let m = viewMonth + 1, y = viewYear; if (m > 11) { m = 0; y += 1; } setViewMonth(m); setViewYear(y); }}
+        onPrev={prevMonth}
+        onNext={nextMonth}
       />
+      )}
 
       <BSFooterCal left={tr('calendar:footer.left', { defaultValue: 'The Shape Daily · Calendar' })} right={`${monthName} · ${viewYear}`} />
       {showAdd && (
         <BSCalAddSheet
-          year={viewYear} month={viewMonth} day={selDay}
-          onClose={() => setShowAdd(false)}
-          onSaved={() => { setShowAdd(false); loadMonth(); }}
+          year={addOn ? addOn.getFullYear() : viewYear} month={addOn ? addOn.getMonth() : viewMonth} day={addOn ? addOn.getDate() : selDay}
+          onClose={() => { setShowAdd(false); setAddOn(null); }}
+          onSaved={() => { setShowAdd(false); setAddOn(null); loadMonth(); }}
         />
       )}
     </BSPageCal>
@@ -483,7 +546,9 @@ function BSCalAddSheet({ year, month, day, onClose, onSaved }) {
 // Day timeline — vertical, each event a row. Mark "now" (8:30 AM May 14) and gaps.
 
 // ────────── MONTH VIEW
-function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, selDay, setSelDay, sheet, role, live = false, zone = null, onChanged = () => {}, onPrev = () => {}, onNext = () => {} }) {
+// The month's headline with its ‹ prev / next › nav, and the zone its times are read in.
+// Month and Weeks both open on it.
+function BSCalMonthHead({ viewYear, viewMonth, monthName, zone = null, onPrev = () => {}, onNext = () => {} }) {
   const t = useBSCal();
   const tr = useShapeTr();
   const teal = bsCalTeal(t);
@@ -491,6 +556,36 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
   const monthAbbr = (m) => new Date(viewYear, ((m % 12) + 12) % 12, 1).toLocaleDateString(calLocale(), { month: 'short' });
   const prevAbbr = monthAbbr(viewMonth + 11);
   const nextAbbr = monthAbbr(viewMonth + 1);
+  return (
+    <>
+      {/* Month headline — serif month (teal italic) + inline prev/next nav */}
+      <div style={{ padding: `18px ${t.padX}px 10px`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, letterSpacing: '-0.035em', lineHeight: 1, color: t.INK }}>
+          <span style={{ fontStyle: 'italic', color: teal }}>{monthName}</span> <span>{viewYear}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button onClick={onPrev} aria-label={tr('calendar:nav.prevMonth', { defaultValue: 'Previous month' })} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>‹ {prevAbbr}</button>
+          <button onClick={onNext} aria-label={tr('calendar:nav.nextMonth', { defaultValue: 'Next month' })} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{nextAbbr} ›</button>
+        </div>
+      </div>
+
+      {/* ⚠ A BARE "9:00" IS A CLAIM ABOUT A CLOCK, so the month names the zone its bookings
+          are read in: the one /api/calendar answered in (the coach's stored zone, or this
+          device's), never a guess. Live accounts only — the demo month has no one's clock.
+          Registered on #2222, done 2026-10-07. */}
+      {zone && (
+        <div style={{ padding: `0 ${t.padX}px 8px`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+          {tr('calendar:zone.timesIn', { defaultValue: 'Times in {zone}', zone })}
+        </div>
+      )}
+    </>
+  );
+}
+
+function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, selDay, setSelDay, sheet, role, live = false, zone = null, onChanged = () => {}, onPrev = () => {}, onNext = () => {} }) {
+  const t = useBSCal();
+  const tr = useShapeTr();
+  const teal = bsCalTeal(t);
   // Weekday header letters — Monday-first, localized narrow names via Intl
   // (Jan 1 2024 is a Monday). No translated weekday array.
   const dowNarrow = Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(2024, 0, 1 + i)).toLocaleDateString(calLocale(), { weekday: 'narrow', timeZone: 'UTC' }));
@@ -523,26 +618,7 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
 
   return (
     <>
-      {/* Month headline — serif month (teal italic) + inline prev/next nav */}
-      <div style={{ padding: `18px ${t.padX}px 10px`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, letterSpacing: '-0.035em', lineHeight: 1, color: t.INK }}>
-          <span style={{ fontStyle: 'italic', color: teal }}>{monthName}</span> <span>{viewYear}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <button onClick={onPrev} aria-label={tr('calendar:nav.prevMonth', { defaultValue: 'Previous month' })} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>‹ {prevAbbr}</button>
-          <button onClick={onNext} aria-label={tr('calendar:nav.nextMonth', { defaultValue: 'Next month' })} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{nextAbbr} ›</button>
-        </div>
-      </div>
-
-      {/* ⚠ A BARE "9:00" IS A CLAIM ABOUT A CLOCK, so the month names the zone its bookings
-          are read in: the one /api/calendar answered in (the coach's stored zone, or this
-          device's), never a guess. Live accounts only — the demo month has no one's clock.
-          Registered on #2222, done 2026-10-07. */}
-      {zone && (
-        <div style={{ padding: `0 ${t.padX}px 8px`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
-          {tr('calendar:zone.timesIn', { defaultValue: 'Times in {zone}', zone })}
-        </div>
-      )}
+      <BSCalMonthHead viewYear={viewYear} viewMonth={viewMonth} monthName={monthName} zone={zone} onPrev={onPrev} onNext={onNext} />
 
       {/* DOW header — single letters */}
       <div style={{ padding: `2px ${t.padX}px 6px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
@@ -625,48 +701,80 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
                 {tr('calendar:day.items', { count: dayEv.length, defaultValue: '{count, plural, one {# item} other {# items}}' })}
               </div>
             </div>
-            {dayEv.length === 0 ? (
-              <div style={{ padding: `4px ${t.padX}px 18px`, fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600 }}>
-                — {tr('calendar:empty.nothingLogged', { defaultValue: 'Nothing logged' })} —
-              </div>
-            ) : (
-              <div style={{ padding: `0 ${t.padX}px 18px` }}>
-                {dayEv.map((e, i) => {
-                  const done = e.state === 'done';
-                  return (
-                  <button key={i} onClick={() => sheet && sheet.open(<BSEventSheet event={e} role={role} live={live} onChanged={onChanged} onClose={() => sheet.close()} />)} style={{
-                    width: '100%', padding: '13px 0', background: 'transparent', border: 0,
-                    borderBottom: i === dayEv.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-                    textAlign: 'left', cursor: 'pointer',
-                    display: 'grid', gridTemplateColumns: '50px 1fr auto', alignItems: 'center', gap: 11,
-                  }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, color: done ? t.INK50 : t.INK, letterSpacing: '0.02em', fontVariantNumeric: 'tabular-nums' }}>
-                      {bsCalTimeLabel(e)}
-                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 600, letterSpacing: '0.08em', marginTop: 3 }}>{e.dur ? tr('calendar:unit.min', { min: e.dur, defaultValue: '{min} MIN' }) : ''}</div>
-                    </div>
-                    <div style={{ minWidth: 0, display: 'flex', alignItems: 'stretch', gap: 11 }}>
-                      <span style={{ width: 3, alignSelf: 'stretch', minHeight: 30, borderRadius: 999, background: accentOf(e), flex: '0 0 auto' }} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', color: accentOf(e), textTransform: 'uppercase' }}>{e.kind}</span>
-                          {done && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.16em', fontWeight: 700 }}>{tr('calendar:state.done', { defaultValue: '✓ DONE' })}</span>}
-                          {e.state === 'now' && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: teal, letterSpacing: '0.16em', fontWeight: 800 }}>{tr('calendar:state.now', { defaultValue: '● NOW' })}</span>}
-                          {e.state === 'next' && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK70, letterSpacing: '0.16em', fontWeight: 700 }}>{tr('calendar:state.upNext', { defaultValue: 'UP NEXT' })}</span>}
-                        </div>
-                        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.02em', color: done ? t.INK50 : t.INK, lineHeight: 1.12, textDecoration: done ? 'line-through' : 'none' }}>{e.title}</div>
-                        {e.sub && <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK50, marginTop: 2, letterSpacing: '-0.005em' }}>{e.sub}</div>}
-                      </div>
-                    </div>
-                    <span style={{ fontFamily: t.MONO, fontSize: 15, color: t.INK30 }}>›</span>
-                  </button>
-                  );
-                })}
-              </div>
-            )}
+            <BSCalDayList events={dayEv} accentOf={accentOf} onOpen={(e) => sheet && sheet.open(<BSEventSheet event={e} role={role} live={live} onChanged={onChanged} onClose={() => sheet.close()} />)} />
           </>
         );
       })()}
     </>
+  );
+}
+
+// A day's items as rows (time, kind, title), each opening its event sheet. Month's day
+// reader and the weeks list's day sheet both list a day with it.
+function BSCalDayList({ events: dayEv, accentOf, onOpen }) {
+  const t = useBSCal();
+  const tr = useShapeTr();
+  const teal = bsCalTeal(t);
+  return dayEv.length === 0 ? (
+    <div style={{ padding: `4px ${t.padX}px 18px`, fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600 }}>
+      — {tr('calendar:empty.nothingLogged', { defaultValue: 'Nothing logged' })} —
+    </div>
+  ) : (
+    <div style={{ padding: `0 ${t.padX}px 18px` }}>
+      {dayEv.map((e, i) => {
+        const done = e.state === 'done';
+        return (
+        <button key={i} onClick={() => onOpen(e)} style={{
+          width: '100%', padding: '13px 0', background: 'transparent', border: 0,
+          borderBottom: i === dayEv.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+          textAlign: 'left', cursor: 'pointer',
+          display: 'grid', gridTemplateColumns: '50px 1fr auto', alignItems: 'center', gap: 11,
+        }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, color: done ? t.INK50 : t.INK, letterSpacing: '0.02em', fontVariantNumeric: 'tabular-nums' }}>
+            {bsCalTimeLabel(e)}
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 600, letterSpacing: '0.08em', marginTop: 3 }}>{e.dur ? tr('calendar:unit.min', { min: e.dur, defaultValue: '{min} MIN' }) : ''}</div>
+          </div>
+          <div style={{ minWidth: 0, display: 'flex', alignItems: 'stretch', gap: 11 }}>
+            <span style={{ width: 3, alignSelf: 'stretch', minHeight: 30, borderRadius: 999, background: accentOf(e), flex: '0 0 auto' }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', color: accentOf(e), textTransform: 'uppercase' }}>{e.kind}</span>
+                {done && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.16em', fontWeight: 700 }}>{tr('calendar:state.done', { defaultValue: '✓ DONE' })}</span>}
+                {e.state === 'now' && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: teal, letterSpacing: '0.16em', fontWeight: 800 }}>{tr('calendar:state.now', { defaultValue: '● NOW' })}</span>}
+                {e.state === 'next' && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK70, letterSpacing: '0.16em', fontWeight: 700 }}>{tr('calendar:state.upNext', { defaultValue: 'UP NEXT' })}</span>}
+              </div>
+              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.02em', color: done ? t.INK50 : t.INK, lineHeight: 1.12, textDecoration: done ? 'line-through' : 'none' }}>{e.title}</div>
+              {e.sub && <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK50, marginTop: 2, letterSpacing: '-0.005em' }}>{e.sub}</div>}
+            </div>
+          </div>
+          <span style={{ fontFamily: t.MONO, fontSize: 15, color: t.INK30 }}>›</span>
+        </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// A day in a sheet: the weeks list opens it from a day's meal plan card.
+function BSCalDaySheet({ date, events, onOpen }) {
+  const t = useBSCal();
+  const tr = useShapeTr();
+  const kindAccent = _BS_CAL_ACCENTS(t);
+  const dayEv = events.slice().sort((a, b) => String(a.time).localeCompare(String(b.time)));
+  return (
+    <div style={{ paddingBottom: 'calc(84px + env(safe-area-inset-bottom, 0px))' }}>
+      <div style={{ padding: `18px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+          {tr('calendar:day.label', { defaultValue: 'Day' })} · {tr('calendar:day.items', { count: dayEv.length, defaultValue: '{count, plural, one {# item} other {# items}}' })}
+        </div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, lineHeight: 1, letterSpacing: '-0.035em', color: t.INK }}>
+          {date.toLocaleDateString(calLocale(), { weekday: 'long', month: 'short', day: 'numeric' })}
+        </div>
+      </div>
+      <div style={{ paddingTop: 6 }}>
+        <BSCalDayList events={dayEv} accentOf={(e) => kindAccent[e.kind] || e.accent || t.RUST} onOpen={onOpen} />
+      </div>
+    </div>
   );
 }
 

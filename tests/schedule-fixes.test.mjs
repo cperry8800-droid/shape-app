@@ -310,7 +310,10 @@ test('the app calendar names the zone its bookings are read in, for a live accou
   // Registered on #2222 ("the app calendar doesn't label its zone"), done the same day.
   assert.match(APP_CAL, /setServerZone\(typeof d\.zone === 'string' && d\.zone \? d\.zone : null\)/, 'the screen no longer keeps the zone the route named');
   assert.match(APP_CAL, /zone=\{useServer \? serverZone : null\}/, 'the demo month would be given a zone, or a live one none');
-  const month = between(APP_CAL, 'function BSCalendarMonth(', '{/* DOW header');
+  // The label is drawn by the month's headline, which Month and Weeks both open on.
+  const month = between(APP_CAL, 'function BSCalMonthHead(', 'function BSCalendarMonth(');
+  assert.match(between(APP_CAL, 'function BSCalendarMonth(', '{/* DOW header'), /<BSCalMonthHead [^>]*zone=\{zone\}/, 'Month no longer hands its zone to the headline');
+  assert.match(APP_CAL, /head=\{<BSCalMonthHead [^>]*zone=\{useServer && serverZone \? serverZone : null\}/, 'Weeks names a zone signed out, or none signed in');
   assert.match(month, /\{zone && \(/, 'the label shows without a zone');
   assert.match(month, /tr\('calendar:zone\.timesIn', \{ defaultValue: 'Times in \{zone\}', zone \}\)/, 'the label is not the translated one');
   for (const loc of ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
