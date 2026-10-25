@@ -30,18 +30,18 @@ const bsEfTint = (c, alpha, fallback) => (/^#[0-9a-f]{6}$/i.test(String(c || '')
 // kcal bar, and each macro a tinted tile with its own rounded bar.
 // ⚠ `unread`: the meal plan read hasn't answered or failed. What was eaten comes from the plan, so it
 // and what is left read "—", not 0; a target reads only when Eat has one from elsewhere (a coach's
-// Adjust), and the tiles open nothing, since their pages would show the same zeros.
-export function BSEatFuel({ calLeft, calTarget, calNow, calPct, macros = [], onOpen, unread = false }) {
+// Adjust: `calTargetKnown`, and a macro's `gKnown`, which keep a coach's 0 g; Codex P2 on #2453), and the
+// tiles open nothing, since their pages would show the same zeros.
+export function BSEatFuel({ calLeft, calTarget, calNow, calPct, macros = [], onOpen, unread = false, calTargetKnown = false }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const dash = '—';
-  const known = (n) => typeof n === 'number' && n > 0;
   return (
     <>
       {/* Right under the week strip, so a tighter gap than a section's (owner, 2026-10-23: "reduce the
           spacing here"). */}
       <BSFocusHead glyph="◐" top={10} label={tr('nutrition:eat.fuelLeft', { defaultValue: 'Fuel left today' })}
-        meta={unread && !known(calTarget) ? dash : tr('nutrition:eat.kcalPlan', { defaultValue: '{kcal} kcal plan', kcal: calTarget.toLocaleString() })} />
+        meta={unread && !calTargetKnown ? dash : tr('nutrition:eat.kcalPlan', { defaultValue: '{kcal} kcal plan', kcal: calTarget.toLocaleString() })} />
       <section data-eat-fuel="" data-eat-fuel-unread={unread ? '' : undefined} style={{ margin: `8px ${t.padX}px 0`, padding: '14px 14px 12px', borderRadius: 16, background: t.PAPER2 || t.PAPER, border: t.isLight ? 0 : `1px solid ${t.HAIR}`, boxShadow: t.isLight ? '0 10px 24px -18px rgba(15,14,12,0.45)' : 'none' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 34, lineHeight: 0.95, letterSpacing: '-0.03em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{unread ? dash : calLeft.toLocaleString()}</span>
@@ -56,7 +56,7 @@ export function BSEatFuel({ calLeft, calTarget, calNow, calPct, macros = [], onO
           {macros.map((m) => {
             const left = unread ? dash : tr('nutrition:eat.gramsLeft', { defaultValue: '{g}g left', g: Math.max(0, m.g - m.v) });
             const pct = !unread && m.g > 0 ? Math.max(0, Math.min(100, Math.round((m.v / m.g) * 100))) : 0;
-            const of = unread ? `${dash} / ${known(m.g) ? m.g : dash}` : `${m.v} / ${m.g}`;
+            const of = unread ? `${dash} / ${m.gKnown ? m.g : dash}` : `${m.v} / ${m.g}`;
             return (
               <button key={m.k} type="button" onClick={() => !unread && onOpen && onOpen(m.k)} disabled={unread} aria-label={`${m.l} ${left} ${of}`}
                 style={{ minWidth: 0, minHeight: 44, border: 0, borderRadius: 12, background: bsEfTint(m.c, '14', t.HAIR), padding: '9px 10px 10px', textAlign: 'left', cursor: unread ? 'default' : 'pointer', font: 'inherit', color: 'inherit' }}>

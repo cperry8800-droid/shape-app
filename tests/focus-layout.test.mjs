@@ -338,12 +338,18 @@ test('Fuel left reads "—", not 0, when the meal plan could not be read', () =>
   assert.ok(doors.every((b) => b.props.disabled === true && b.props.style.cursor === 'default'));
   doors.forEach((b) => b.props.onClick());
   assert.deepEqual(opened, [], 'a tile opens no page of zeros');
-  // A coach's Adjust target is read apart from the plan, so it still reads.
-  const coached = drive(EATFUEL.BSEatFuel, { calLeft: 2100, calTarget: 2100, calNow: 0, calPct: 0, macros: zero.map((m) => ({ ...m, g: 150 })), onOpen() {}, unread: true });
+  // A coach's Adjust target is read apart from the plan, so it still reads, a 0 g one too (Codex P2 on
+  // #2453: Adjust allows 0 for a macro).
+  const coachMacros = [{ ...zero[0], g: 150, gKnown: true }, { ...zero[1], g: 0, gKnown: true }, { ...zero[2], g: 0, gKnown: false }];
+  const coached = drive(EATFUEL.BSEatFuel, { calLeft: 2100, calTarget: 2100, calNow: 0, calPct: 0, macros: coachMacros, onOpen() {}, unread: true, calTargetKnown: true });
   const ch = coached.nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSFocusHead');
   assert.equal(ch.props.meta, '2,100 kcal plan');
   assert.doesNotMatch(coached.text, /2,100kcal left/, 'what is left is still unknown');
-  assert.deepEqual(coached.nodes().filter((n) => n.type === 'button').map((b) => b.props['aria-label'])[0], 'PROTEIN — — / 150');
+  assert.deepEqual(coached.nodes().filter((n) => n.type === 'button').map((b) => b.props['aria-label']), ['PROTEIN — — / 150', 'CARBS — — / 0', 'FAT — — / —']);
+  // A target with no source beside the plan reads "—", even when a figure was passed.
+  const unsourced = drive(EATFUEL.BSEatFuel, { calLeft: 2100, calTarget: 2100, calNow: 0, calPct: 0, macros: zero.map((m) => ({ ...m, g: 150 })), onOpen() {}, unread: true });
+  assert.equal(unsourced.nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSFocusHead').props.meta, '—');
+  assert.deepEqual(unsourced.nodes().filter((n) => n.type === 'button').map((b) => b.props['aria-label'])[0], 'PROTEIN — — / —');
   // Read, it is as before.
   const read = drive(EATFUEL.BSEatFuel, { calLeft: 0, calTarget: 0, calNow: 0, calPct: 0, macros: zero, onOpen() {} });
   assert.equal(read.nodes().find((n) => n.props && n.props['data-eat-fuel'] != null).props['data-eat-fuel-unread'], undefined);
@@ -368,8 +374,11 @@ test('Eat: signed in, Fuel left is unread until the meals read answers for meals
   assert.equal(preview.nodes().find(fn('BSEatFuel')).props.unread, false, 'the signed-out preview reads its sample');
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(client, /const bsEatFuelUnread = bsEatSignedIn && !eatPlanRead && !liveMealDays;/);
-  assert.match(client, /macros=\{bsEatMacros\} onOpen=\{\(k\) => setMacroPage\(k\)\} unread=\{bsEatFuelUnread\} \/>/);
-  assert.match(client, /tag=\{bsEatFuelUnread && !\(bsEatCalTgt > 0\) \? planGoalLabel : `\$\{planGoalLabel\} · \$\{bsEatCalTgt\.toLocaleString\(\)\}`\}/);
+  assert.match(client, /macros=\{bsEatMacros\} onOpen=\{\(k\) => setMacroPage\(k\)\} unread=\{bsEatFuelUnread\} calTargetKnown=\{bsEatCoachSet\('calories'\)\} \/>/);
+  assert.match(client, /tag=\{bsEatFuelUnread && !bsEatCoachSet\('calories'\) \? planGoalLabel : `\$\{planGoalLabel\} · \$\{bsEatCalTgt\.toLocaleString\(\)\}`\}/);
+  // Each macro says whether its target is the coach's, so a coach's 0 g reads as 0 (Codex P2 on #2453).
+  assert.match(client, /const bsEatCoachSet = \(key\) => !!\(bsEatCoachN && bsEatCoachN\[key\] != null\);/);
+  for (const key of ['protein', 'carbs', 'fat']) assert.ok(client.includes(`gKnown: bsEatCoachSet('${key}')`), key);
 });
 
 // Owner, 2026-10-24: "the 3 of these are links to the same page, need to change that". Each tile opens

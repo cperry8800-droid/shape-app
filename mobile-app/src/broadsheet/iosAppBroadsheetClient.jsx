@@ -14254,10 +14254,13 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   const bsEatCalTgt = (bsEatCoachN && bsEatCoachN.calories != null) ? bsEatNum(bsEatCoachN.calories) : bsEatNum(cur.totals.target.cal);
   const bsEatCalLeft = Math.max(0, bsEatCalTgt - bsEatCalNow);
   const bsEatCalPct = bsEatCalTgt ? Math.min(100, Math.round((bsEatCalNow / bsEatCalTgt) * 100)) : 0;
+  // Whether a target is the coach's (Adjust plan): read apart from the meal plan, so still known when the
+  // plan read hasn't answered, and 0 g is a real one (Codex P2 on #2453).
+  const bsEatCoachSet = (key) => !!(bsEatCoachN && bsEatCoachN[key] != null);
   const bsEatMacros = [
-    { k: 'p', l: tr('coach:adjust.protein', { defaultValue: 'PROTEIN' }), v: bsEatEaten(cur, 'p'), g: (bsEatCoachN && bsEatCoachN.protein != null) ? bsEatNum(bsEatCoachN.protein) : bsEatNum(cur.totals.target.p), c: t.RUST },
-    { k: 'c', l: tr('coach:adjust.carbs', { defaultValue: 'CARBS' }), v: bsEatEaten(cur, 'c'), g: (bsEatCoachN && bsEatCoachN.carbs != null) ? bsEatNum(bsEatCoachN.carbs) : bsEatNum(cur.totals.target.c), c: t.AMBER },
-    { k: 'f', l: tr('coach:adjust.fat', { defaultValue: 'FAT' }), v: bsEatEaten(cur, 'f'), g: (bsEatCoachN && bsEatCoachN.fat != null) ? bsEatNum(bsEatCoachN.fat) : bsEatNum(cur.totals.target.f), c: t.BLUE },
+    { k: 'p', l: tr('coach:adjust.protein', { defaultValue: 'PROTEIN' }), v: bsEatEaten(cur, 'p'), g: bsEatCoachSet('protein') ? bsEatNum(bsEatCoachN.protein) : bsEatNum(cur.totals.target.p), gKnown: bsEatCoachSet('protein'), c: t.RUST },
+    { k: 'c', l: tr('coach:adjust.carbs', { defaultValue: 'CARBS' }), v: bsEatEaten(cur, 'c'), g: bsEatCoachSet('carbs') ? bsEatNum(bsEatCoachN.carbs) : bsEatNum(cur.totals.target.c), gKnown: bsEatCoachSet('carbs'), c: t.AMBER },
+    { k: 'f', l: tr('coach:adjust.fat', { defaultValue: 'FAT' }), v: bsEatEaten(cur, 'f'), g: bsEatCoachSet('fat') ? bsEatNum(bsEatCoachN.fat) : bsEatNum(cur.totals.target.f), gKnown: bsEatCoachSet('fat'), c: t.BLUE },
   ];
   // The meals read hasn't answered, or failed (eatPlanRead): what was eaten comes from the plan, so Fuel
   // left reads "—", not 0 kcal, and the coach link names no 0 kcal target. A member the read says has no
@@ -14339,7 +14342,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       {/* Fuel left today (BSEatFuel.jsx), above the next meal (owner, 2026-10-22). Coach-set
           targets (Adjust plan → Apply) win; each macro opens its own page. */}
       <BSEatFuel calLeft={bsEatCalLeft} calTarget={bsEatCalTgt} calNow={bsEatCalNow} calPct={bsEatCalPct}
-        macros={bsEatMacros} onOpen={(k) => setMacroPage(k)} unread={bsEatFuelUnread} />
+        macros={bsEatMacros} onOpen={(k) => setMacroPage(k)} unread={bsEatFuelUnread} calTargetKnown={bsEatCoachSet('calories')} />
 
       {/* The next meal — on its own, today only. Log it opens the meal, where it
           is logged; Swap opens the swap sheet on this meal. */}
@@ -14511,7 +14514,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
           <div style={{ marginTop: t.sectGap }}>
             <BSFocusLink tour="hero-grocery" color={t.GREEN} glyph="◎" label={tr('nutrition:eat.shopList', { defaultValue: 'The shop list' })} tag={total > 0 ? toGet : ''} sub={[byline, cats].filter(Boolean).join(' · ')} onOpen={() => setView('grocery')} />
             <BSFocusLink data-bsck-door="prep" color={t.isLight ? '#0a8f87' : t.ACCENT} glyph="→" label={tr('cook:prep.door', { defaultValue: 'Prep the week' })} onOpen={() => openPrep()} />
-            <BSFocusLink color="#a07a2e" glyph="✎" label={coach} tag={bsEatFuelUnread && !(bsEatCalTgt > 0) ? planGoalLabel : `${planGoalLabel} · ${bsEatCalTgt.toLocaleString()}`} onOpen={() => setPreviewDayBrief(true)} />
+            <BSFocusLink color="#a07a2e" glyph="✎" label={coach} tag={bsEatFuelUnread && !bsEatCoachSet('calories') ? planGoalLabel : `${planGoalLabel} · ${bsEatCalTgt.toLocaleString()}`} onOpen={() => setPreviewDayBrief(true)} />
             {cur.coachLine ? (
               <div style={{ margin: `10px ${t.padX}px 0`, padding: '2px 0 2px 12px', borderLeft: '3px solid #a07a2e', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>&ldquo;{cur.coachLine}&rdquo;</div>
             ) : null}
