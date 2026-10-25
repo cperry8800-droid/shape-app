@@ -341,6 +341,16 @@ test('a workout run twice reads the newest run\'s time, not the longest', async 
   assert.equal(plan.find((e) => e.id === 'plan:w-twice').doneSeconds, 2098);
 });
 
+test('a run is dated by the day the app stored, not re-read where the member is now', async (t) => {
+  // Finished at 8:00 PM on Sunday the 25th in Los Angeles (stored as that day), then opened in
+  // Tokyo at 2:30 PM on Monday the 26th: in Tokyo's zone the run's instant reads Monday.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-26T05:30:00Z') });
+  const sunday = ran('w-travel', Date.parse('2026-10-26T03:00:00Z'), { summary: { snapshotDate: '2026-10-25' } });
+  const plan = await ROUTE({ client_workouts: [workout('w-travel', null)], workout_sessions: [sunday] },
+    { tz: 'Asia/Tokyo', range: '&from=2026-10-26&to=2026-11-01' });
+  assert.equal(plan.find((e) => e.id === 'plan:w-travel').status, 'planned', 'last week\'s Sunday run ticked the new week in Tokyo');
+});
+
 test('past the read\'s cap the oldest runs drop, never this week\'s', async () => {
   // The stand-in keeps one row per read, as a full cap would: it must be the newest.
   const old = ran('w-capped', monday.getTime() - 10 * DAY);

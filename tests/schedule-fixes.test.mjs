@@ -76,6 +76,7 @@ async function routes() {
   const booking = await loadRealModule(join(ROOT, 'src/lib/session-booking.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/owned-provider', owned]]) });
   const series = await loadRealModule(join(ROOT, 'src/lib/session-series.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/time', time]]) });
   const activities = await loadRealModule(join(ROOT, 'src/lib/calendar-activities.ts'), { typescript: true, registry: new Map([['@/lib/time', time]]) });
+  const workoutDays = await loadRealModule(join(ROOT, 'src/lib/workout-days.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/time', time]]) });
   let client = null, userId = 'coach-1';
   const notices = [];
   const registry = () => new Map([
@@ -86,6 +87,7 @@ async function routes() {
     ['@/lib/session-booking', booking],
     ['@/lib/session-series', series],
     ['@/lib/calendar-activities', activities],
+    ['@/lib/workout-days', workoutDays],
     // No paid sessions in these worlds (fix 3c; tests/schedule-step2.test.mjs runs the real one).
     ['@/lib/paid-sessions', { openPaidSessions: async () => ({ ok: true, rows: [] }), linkPaidSession: async () => true }],
     ['@/lib/require-membership', { requireMembership: async () => null }],

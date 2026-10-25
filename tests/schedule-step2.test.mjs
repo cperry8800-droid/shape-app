@@ -342,6 +342,7 @@ async function routes() {
   const booking = await lib('session-booking.ts', [['@supabase/supabase-js', {}], ['@/lib/owned-provider', owned]]);
   const series = await lib('session-series.ts', [['@supabase/supabase-js', {}], ['@/lib/time', time]]);
   const activities = await lib('calendar-activities.ts', [['@/lib/time', time]]);
+  const workoutDays = await lib('workout-days.ts', [['@supabase/supabase-js', {}], ['@/lib/time', time]]);
   const emails = await lib('coach-application-emails.ts');
   const paidSessions = await lib('paid-sessions.ts', [['@supabase/supabase-js', {}]]);
   const capacity = await lib('capacity.ts');
@@ -356,6 +357,7 @@ async function routes() {
     ['@/lib/paid-sessions', paidSessions],
     ['@/lib/session-series', series],
     ['@/lib/calendar-activities', activities],
+    ['@/lib/workout-days', workoutDays],
     ['@/lib/request-auth', { clientForRequest: async () => state.client, currentUser: async () => state.user }],
     ['@/lib/supabase/admin', { createAdminClient: () => state.admin }],
     ['@/lib/video', { videoRoomUrl: (id) => 'https://meet.shape.test/' + id }],

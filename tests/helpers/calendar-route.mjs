@@ -23,13 +23,14 @@ export async function calendarRoute() {
   const booking = await lib('session-booking.ts', new Map([['@supabase/supabase-js', {}], ['@/lib/owned-provider', owned]]));
   const series = await lib('session-series.ts', new Map([['@supabase/supabase-js', {}], ['@/lib/time', time]]));
   const activities = await lib('calendar-activities.ts', new Map([['@/lib/time', time]]));
+  const workoutDays = await lib('workout-days.ts', new Map([['@/lib/time', time], ['@supabase/supabase-js', {}]]));
   let client = null;
   const route = await loadRealModule(join(ROOT, 'src/app/api/calendar/route.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer], ['@/lib/time', time], ['@/lib/request-utils', requestUtils],
       ['@/lib/access-guards.mjs', guards], ['@/lib/session-booking', booking], ['@/lib/session-series', series],
-      ['@/lib/calendar-activities', activities],
+      ['@/lib/calendar-activities', activities], ['@/lib/workout-days', workoutDays],
       ['@/lib/paid-sessions', { openPaidSessions: async () => ({ ok: true, rows: [] }), linkPaidSession: async () => true }],
       ['@/lib/require-membership', { requireMembership: async () => null }],
       ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: 'member-1' }) }],
