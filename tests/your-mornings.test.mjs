@@ -35,6 +35,8 @@ const registry = new Map([['react', React], ['react-dom', require_('react-dom')]
 const CARD = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSCheckinCard.jsx'), { registry });
 registry.set('./BSCheckinCard.jsx', CARD);
 const PAGE = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSYourMornings.jsx'), { registry });
+// B's colours, read as the page reads them: a metric's mark shade and its text shade on this paper.
+const DASH = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSDash.jsx'), { registry });
 
 const appRequire = createRequire(join(ROOT, 'mobile-app/package.json'));
 const i18next = appRequire('i18next');
@@ -806,21 +808,24 @@ test('Who sees this is the card\'s, and the cycle chip is drawn as Home hands it
   try { assert.equal(solo.q('[data-bs-mornings-who]').textContent, 'Only you see these.'); } finally { solo.unmount(); }
 });
 
-test('amber marks but is never text on a light paper: the example line, the hunger chip, Take it easy', async () => {
+test("a colour's words take its text shade, never its mark: the example line, the hunger chip, Take it easy", async () => {
+  // The marks (bars, the ring, a rule) are the bright shade; words are the text shade, which reads on
+  // every paper (tests/dash-look.test.mjs). On a light paper the amber mark is 2.4:1.
   const css = (c) => { const el = document.createElement('i'); el.style.color = c; return el.style.color; };
   const bg = (c) => { const el = document.createElement('i'); el.style.borderLeftColor = c; return el.style.borderLeftColor; };
-  const AMBER = '#b9802a';
+  const fill = (c) => { const el = document.createElement('i'); el.style.background = c; return el.style.background; };
+  let D = DASH.bsDash(theme);
   // Signed out: the example line is the notes' ink, with an amber rule beside it.
   env({ uid: null });
   let m = await mount();
   try {
     const p = m.q('[data-bs-mornings-sample]');
     assert.equal(p.style.color, css(theme.INK70));
-    assert.equal(p.firstElementChild.style.borderLeftColor, bg(AMBER));
-    assert.notEqual(p.firstElementChild.style.color, css(AMBER));
+    assert.equal(p.firstElementChild.style.borderLeftColor, bg(D.mark.amber));
+    assert.notEqual(p.firstElementChild.style.color, css(D.mark.amber));
   } finally { m.unmount(); }
-  // A Take it easy morning and a hungrier week: the band word and the chip's word in ink, the bar and
-  // the chip's border amber.
+  // A Take it easy morning and a hungrier week: the band word and the chip's word in the text shades,
+  // the ring amber, the chip lime at 12%, the score in ink inside the ring.
   const d = run('hunger', 6, [8, 8, 8, 8, 8, 8, 8], run('hunger', 13, [4, 4, 4, 4, 4, 4, 4]));
   d[TODAY] = { ...d[TODAY], energy: 4, sleep: 8, sleepQuality: 4 }; // (35·35 + 25·100 + 15·35) / 75 = 57
   env({ days: d, plan: NUTRITIONIST });
@@ -829,19 +834,23 @@ test('amber marks but is never text on a light paper: the example line, the hung
     const band = m.q('[data-bs-mornings-band]');
     assert.equal(band.getAttribute('data-bs-mornings-band'), 'easy');
     assert.equal(band.textContent, 'Take it easy');
-    assert.equal(band.style.color, css(theme.INK70));
-    assert.equal(m.q('[data-bs-mornings-score]').style.color, css(AMBER), 'the score lost its band colour');
+    assert.equal(band.style.color, css(D.text.amber));
+    assert.notEqual(D.text.amber, D.mark.amber);
+    assert.equal(m.q('[data-bs-mornings-score]').style.color, css(theme.INK));
+    assert.deepEqual([...m.q('[data-bs-mornings-hero] [data-bs-dash-ring] stop').parentElement.children].map((s) => s.getAttribute('stop-color')), [D.mark.amber, D.mark.amber], 'the ring lost its band colour');
     const chip = m.dir('hunger').firstElementChild;
     assert.equal(chip.textContent, 'Hungrier');
-    assert.equal(chip.style.color, css(theme.INK70));
-    assert.match(chip.style.border, /rgba\(185, 128, 42/);
+    assert.equal(chip.style.color, css(D.text.lime));
+    assert.equal(chip.style.background, fill(DASH.bsDashA(D.mark.lime, 0.12)));
   } finally { m.unmount(); }
-  // A dark paper keeps the amber words: #e8b14a reads there.
+  // A dark paper takes its own text shades.
   theme.isLight = false;
+  D = DASH.bsDash(theme);
   m = await mount();
   try {
-    assert.equal(m.q('[data-bs-mornings-band]').style.color, css('#e8b14a'));
-    assert.equal(m.dir('hunger').firstElementChild.style.color, css('#e8b14a'));
+    assert.equal(m.q('[data-bs-mornings-band]').style.color, css(D.text.amber));
+    assert.equal(m.dir('hunger').firstElementChild.style.color, css(D.text.lime));
+    assert.equal(D.text.amber, '#ffb64b');
   } finally { m.unmount(); theme.isLight = true; }
 });
 
@@ -1095,7 +1104,7 @@ test("never drawn signed out, on a failed read, or for another account's read", 
   } finally { m.unmount(); }
 }));
 
-test('with patterns drawn: no /10 at either range, and amber is never their text on a light paper', () => later(async () => {
+test('with patterns drawn: no /10 at either range, and no mark shade is their text on a light paper', () => later(async () => {
   const d = thirty({ energy: lowAfterShort, rested: tiredAfterFull });
   d[LATER] = { ...d[LATER], hunger: 7, sleepFromDevice: 1, hrv: 70, recovery: 66 };
   env({ days: d, plan: BOTH });
@@ -1114,7 +1123,8 @@ test('with patterns drawn: no /10 at either range, and amber is never their text
     const css = (c) => { const el = document.createElement('i'); el.style.color = c; return el.style.color; };
     const inked = [m.section('patterns'), ...m.section('patterns').querySelectorAll('*')].filter((el) => el.style.color);
     assert.ok(inked.length > 4);
-    for (const el of inked) assert.notEqual(el.style.color, css('#b9802a'), `amber text in What we've noticed: ${el.textContent}`);
+    const marks = Object.values(DASH.bsDash(theme).mark).map(css);
+    for (const el of inked) assert.ok(!marks.includes(el.style.color), `a mark shade as text in What we've noticed: ${el.textContent}`);
   } finally { m.unmount(); }
 }));
 
@@ -1165,36 +1175,53 @@ test("bsNoraOpen's close is called when the page unmounts, and a close that is n
   try { assert.ok(m.q('[data-bs-mornings-hero]')); } finally { m.unmount(); delete dom.window.bsNoraOpen; }
 });
 
-test('the page in the Wall\'s look: word tabs for the range, ruled heads, square boxes, the title upright', async () => {
-  // Owner, 2026-10-24: "also update design and layout here".
+test("the page in B's look: pills for the range, each check a card under its name in its colour, the ring", async () => {
+  // Owner, 2026-10-25: "we need to make this look less analog", then "I like B", following the paper.
+  const css = (c) => { const el = document.createElement('i'); el.style.color = c; return el.style.color; };
+  const fill = (c) => { const el = document.createElement('i'); el.style.background = c; return el.style.background; };
+  const D = DASH.bsDash(theme);
   const d = run('hunger', 6, [8, 8, 8, 8, 8, 8, 8], run('hunger', 13, [4, 4, 4, 4, 4, 4, 4]));
   d[TODAY] = { ...d[TODAY], energy: 8, sleep: 8, sleepQuality: 4 };
   env({ days: d, plan: NUTRITIONIST });
   const m = await mount();
   try {
-    // 7 days | 30 days: the strip the Wall and the profiles open on, the one shown underlined in red.
-    const sw = m.q('[data-bs-mornings-range]');
-    assert.match(sw.style.borderTop, /^3px solid/);
-    const btns = [...sw.querySelectorAll('button')];
+    // 7 days | 30 days: a small capsule in a group named Show, the one shown a pill in ink (owner,
+    // 2026-10-25: "Don't need those boxes so big"), each key still a 44px target.
+    const seg = m.q('[data-bs-mornings-range] [data-bs-dash-segment]');
+    assert.ok(seg, 'the range is not the pill switch');
+    assert.equal(seg.getAttribute('role'), 'group');
+    assert.equal(seg.getAttribute('aria-label'), 'Show');
+    assert.equal(seg.style.display, 'inline-flex', 'the capsule runs the width of the page again');
+    assert.equal(parseFloat(seg.style.height), 34);
+    const btns = [...seg.querySelectorAll('button')];
     assert.deepEqual(btns.map((b) => b.getAttribute('aria-pressed')), ['true', 'false']);
-    assert.ok(btns.every((b) => !b.style.borderRadius || parseFloat(b.style.borderRadius) === 0), 'a range key is a pill again');
     assert.ok(btns.every((b) => parseFloat(b.style.minHeight) >= 44), 'a range key is under 44px');
-    assert.match(btns[0].firstElementChild.style.boxShadow, /inset 0(px)? -2px 0(px)? (#b23a1f|rgb\(178, 58, 31\))/);
-    assert.equal(btns[1].firstElementChild.style.boxShadow, 'none');
+    const pills = btns.map((b) => b.firstElementChild);
+    assert.ok(pills.every((p) => p.hasAttribute('data-bs-dash-pill') && parseFloat(p.style.borderRadius) >= 999), 'a range key is square again');
+    assert.ok(pills.every((p) => parseFloat(p.style.height) <= 28), 'a range pill is big again');
+    assert.equal(pills[0].style.background, fill(theme.INK));
+    assert.equal(pills[0].style.color, css(theme.PAPER));
+    assert.equal(pills[1].style.background, 'transparent');
     await m.click(/^30 days$/);
     assert.deepEqual([...m.q('[data-bs-mornings-range]').querySelectorAll('button')].map((b) => b.getAttribute('aria-pressed')), ['false', 'true']);
     await m.click(/^7 days$/);
-    // Each station opens on its name over a 2px ink rule, its colour kept as the key.
-    for (const kind of ['readiness', 'sleep', 'energy', 'rested', 'hunger']) {
-      const h2 = m.section(kind).querySelector('h2');
+    // Each check is a rounded card opening on its name, an uppercase eyebrow in its colour's text shade.
+    const want = { readiness: D.text.teal, sleep: D.text.violet, energy: D.text.amber, rested: D.text.coral, hunger: D.text.lime };
+    for (const [kind, color] of Object.entries(want)) {
+      const sec = m.section(kind);
+      assert.ok(sec.hasAttribute('data-bs-dash-card'), `${kind} is not a card`);
+      assert.equal(parseFloat(sec.style.borderRadius), 20);
+      const h2 = sec.querySelector('h2');
       assert.ok(h2, `${kind} has no head`);
-      assert.match(h2.parentElement.style.borderBottom, /^2px solid/, `${kind}'s head has no ink rule`);
       assert.equal(h2.style.textTransform, 'uppercase');
+      assert.equal(h2.style.color, css(color), `${kind}'s head is not in its colour`);
+      // A heading is Saira, the theme's display face (WORKLOG: every heading is Saira), never the mono.
+      assert.equal(h2.style.fontFamily, theme.DISPLAY, `${kind}'s head is not in the display face`);
     }
-    // Square: the direction box and today's cell.
-    assert.equal(parseFloat(m.dir('hunger').firstElementChild.style.borderRadius), 0);
-    const today = m.cells('readiness').find((c) => c.getAttribute('data-bs-mornings-day') === TODAY);
-    assert.equal(parseFloat(today.style.borderRadius), 0);
+    // The hero is a card with the score in a ring; the direction is a rounded chip; the bars are rounded.
+    assert.ok(m.q('[data-bs-mornings-hero]').hasAttribute('data-bs-dash-card'));
+    assert.ok(m.q('[data-bs-mornings-hero] [data-bs-dash-ring] [data-bs-mornings-score]'), 'the score is not in the ring');
+    assert.equal(parseFloat(m.dir('hunger').firstElementChild.style.borderRadius), 999);
     // The title is upright: no italic word in it.
     assert.ok(![...m.host.querySelectorAll('span')].some((s) => s.style.fontStyle === 'italic'), 'the italic title is back');
   } finally { m.unmount(); }
