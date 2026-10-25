@@ -39,6 +39,7 @@ function stubClient(tables) {
       },
       eq: () => q, neq: () => q, in: () => q, gte: () => q, lte: () => q, lt: () => q, gt: () => q,
       order: () => q, limit: () => q, not: () => q, is: () => q, ilike: () => q, or: () => q, filter: () => q,
+      range: (from, to) => { rows = rows.slice(from, to + 1); return q; },
       maybeSingle: async () => ({ data: rows[0] || null, error: null }),
       single: async () => ({ data: rows[0] || null, error: null }),
       then: (res, rej) => Promise.resolve({ data: rows, error: null }).then(res, rej),

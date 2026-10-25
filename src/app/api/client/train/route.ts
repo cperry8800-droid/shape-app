@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { DAY_MS, normalizeZone, startOfWeek } from '@/lib/time';
-import { dayStreak, memberDay, shiftDay } from '@/lib/workout-days';
+import { memberDay, readDayStreak, shiftDay } from '@/lib/workout-days';
 import { requireMembership } from '@/lib/require-membership';
 import { setLoadLb, setLoadUnit } from '@/lib/set-load';
 
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
   // Newest first, so the cap keeps the recent sets the 7- and 14-day volumes are made of.
   const { data: setRows } = await supabase
     .from('workout_set_logs')
-    .select('actual_load, actual_reps, rpe, completed, created_at, payload, load_unit')
+    .select('actual_load, actual_reps, rpe, completed, created_at, started_at, finished_at, payload, load_unit')
     .eq('client_id', user.id)
     .order('created_at', { ascending: false })
     .limit(5000);
@@ -80,10 +80,7 @@ export async function GET(request: Request) {
 
   const sessions: SessionRow[] = sessRows ?? [];
   const completed = sessions.filter((s) => s.status === 'completed');
-  const trainedDays = new Set(
-    completed.map((s) => memberDay(sessionAt(s), zone)).filter((d): d is string => d != null)
-  );
-  const currentStreak = todayKey ? dayStreak(trainedDays, todayKey) : 0;
+  const currentStreak = todayKey ? await readDayStreak(supabase, user.id, zone, todayKey) : 0;
 
   const weekStart = startOfWeek(new Date());
   const thisWeekCount = completed.filter(
@@ -109,8 +106,11 @@ export async function GET(request: Request) {
       // Pounds, whatever the set was logged in (`@/lib/set-load`).
       const vol = setLoadLb(load, r.load_unit) * reps;
       totalVolume += vol;
-      if (now - new Date(r.created_at).getTime() <= 7 * DAY_MS) volume7d += vol;
-      const day = memberDay(r.created_at, zone);
+      // When the set was lifted, not when it reached the database: a session saved or retried
+      // later keeps each set's own finished_at (Codex P2 on #2451).
+      const liftedAt = r.finished_at || r.started_at || r.created_at;
+      if (now - new Date(liftedAt).getTime() <= 7 * DAY_MS) volume7d += vol;
+      const day = memberDay(liftedAt, zone);
       if (day) volumeOn.set(day, (volumeOn.get(day) ?? 0) + vol);
     }
     const rpeVal = r.rpe != null ? Number(r.rpe) : pnum(p.rpe);

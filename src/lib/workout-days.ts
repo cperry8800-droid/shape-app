@@ -8,6 +8,7 @@
 // client_profiles.timezone, which the app posts on open (/api/client/timezone). A member
 // with none on file is counted in UTC, which is what the dashboard's server-local midnight
 // always was on the server.
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { wallClockInZone } from '@/lib/time';
 
 /** The member's date ('YYYY-MM-DD') at an instant, in `zone` (UTC when none), or null. */
@@ -36,4 +37,52 @@ export function dayStreak(days: Set<string>, today: string): number {
     cursor = shiftDay(cursor, -1);
   }
   return n;
+}
+
+/** Finished sessions read per page by readDayStreak, and the most pages it reads. */
+export const STREAK_PAGE = 500;
+export const STREAK_PAGES = 20;
+
+/**
+ * The member's day streak over every finished session it needs, by one query for both routes.
+ *
+ * ⚠ NOT FROM A ROUTE'S CAPPED TIMELINE READ. The train route lists its newest 200 sessions of
+ * any status and the dashboard its newest 500 finished ones, so a streak counted from either was
+ * cut short for a member with more sessions in it, and the two could disagree (Codex P2 on
+ * #2451). This reads finished sessions newest first, a page at a time, until the streak is
+ * broken: once a page reaches sessions saved two days before the streak's first day, none
+ * further down can extend it (a session is saved after it starts; the second day is margin for
+ * a device clock). It stops at STREAK_PAGES pages (10,000 sessions), and on a failed read
+ * counts what it has.
+ */
+export async function readDayStreak(
+  supabase: SupabaseClient,
+  userId: string,
+  zone: string | null,
+  today: string
+): Promise<number> {
+  const days = new Set<string>();
+  for (let i = 0; i < STREAK_PAGES; i += 1) {
+    const from = i * STREAK_PAGE;
+    const { data, error } = await supabase
+      .from('workout_sessions')
+      .select('started_at, ended_at, created_at')
+      .eq('client_id', userId)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .range(from, from + STREAK_PAGE - 1);
+    if (error || !data) break;
+    let oldestSave: string | null = null;
+    for (const s of data as Array<{ started_at: string | null; ended_at: string | null; created_at: string }>) {
+      const day = memberDay(s.started_at || s.ended_at || s.created_at, zone);
+      if (day) days.add(day);
+      const saved = memberDay(s.created_at, zone);
+      if (saved && (oldestSave == null || saved < oldestSave)) oldestSave = saved;
+    }
+    if (data.length < STREAK_PAGE) break;
+    const end = days.has(today) ? today : shiftDay(today, -1);
+    const start = shiftDay(end, 1 - dayStreak(days, today));
+    if (oldestSave != null && oldestSave < shiftDay(start, -2)) break;
+  }
+  return dayStreak(days, today);
 }

@@ -7,7 +7,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { normalizeZone, startOfWeek } from '@/lib/time';
-import { dayStreak, memberDay } from '@/lib/workout-days';
+import { memberDay, readDayStreak } from '@/lib/workout-days';
 import { requireMembership } from '@/lib/require-membership';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
@@ -69,11 +69,8 @@ export async function GET(request: Request) {
     .eq('user_id', user.id)
     .maybeSingle();
   const zone = normalizeZone(tzRow?.timezone);
-  const trainedDays = new Set(
-    completed.map((s) => memberDay(sessionDate(s), zone)).filter((d): d is string => d != null)
-  );
   const todayKey = memberDay(Date.now(), zone);
-  const streak = todayKey ? dayStreak(trainedDays, todayKey) : 0;
+  const streak = todayKey ? await readDayStreak(supabase, user.id, zone, todayKey) : 0;
 
   const weekStart = startOfWeek(new Date());
   const workoutsThisWeek = completed.filter((s) => midnight(sessionDate(s)) >= weekStart).length;
