@@ -68,7 +68,7 @@ import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './B
 import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
-import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead, bsWsRed, bsWsHead } from './BSWallStory.jsx';
+import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsRed, bsWsHead } from './BSWallStory.jsx';
 import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
@@ -25045,7 +25045,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <>
           {/* Role filter chips — auto-hide on scroll-down (bsSubStyle) */}
           <div inert={subHidden} style={bsSubStyle(0)}>
-          {/* The role chips. The Wall's type filter is its masthead's tabs (owner, 2026-10-23, the
+          {/* The role chips. The Wall's type filter is its own row of tabs (owner, 2026-10-23, the
               magazine design); it was an ALL ▾ select at this row's right end. */}
           <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', alignItems: 'center', gap: 22, padding: '2px 12px' }}>
             {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, onClick: () => setFilter(k), label: chipLabel(k) }))}
@@ -25054,21 +25054,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: '4px 0 84px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {/* The Wall's masthead (owner, 2026-10-23, the magazine design): its name over a heavy rule,
-                  the day and how many are in a workout (the live story's people, so Universal only), then
-                  the activity types as tabs. */}
-              {(() => {
-                const trainingNow = railOn && feedMode === 'universal' ? railPeople.filter((p) => p && p.activity === 'workout').length : 0;
-                let dateline = '';
-                try { dateline = new Date().toLocaleDateString(bsDateLocale(), { weekday: 'long', month: 'short', day: 'numeric' }); } catch (e) { dateline = ''; }
-                return (
-                  <BSWallMasthead title={tr('feed:wallMast.title', { defaultValue: 'The Wall' })} dateline={dateline}
-                    trainingLine={trainingNow ? tr('feed:wallMast.trainingNow', { defaultValue: '{count, number} training now', count: trainingNow }) : null}
-                    types={[['all', tr('feed:type.all', { defaultValue: 'All' })], ['workouts', tr('feed:type.workouts', { defaultValue: 'Workouts' })], ['runs', tr('feed:type.runs', { defaultValue: 'Runs' })], ['prs', tr('feed:type.prs', { defaultValue: 'PRs' })], ['nutrition', tr('feed:type.nutrition', { defaultValue: 'Nutrition' })], ['milestones', tr('feed:type.milestones', { defaultValue: 'Milestones' })]]}
-                    typesLabel={tr('feed:type.filterAria', { defaultValue: 'Filter by activity type' })}
-                    type={feedType} onType={setFeedType} />
-                );
-              })()}
+              {/* The activity types as tabs. THE WALL's masthead over them (its name, the day and how many
+                  were training) is cut (owner, 2026-10-25: "remove this header in chat page", "clean this
+                  up"); the live story below says who is training. */}
+              <BSWallTypes
+                types={[['all', tr('feed:type.all', { defaultValue: 'All' })], ['workouts', tr('feed:type.workouts', { defaultValue: 'Workouts' })], ['runs', tr('feed:type.runs', { defaultValue: 'Runs' })], ['prs', tr('feed:type.prs', { defaultValue: 'PRs' })], ['nutrition', tr('feed:type.nutrition', { defaultValue: 'Nutrition' })], ['milestones', tr('feed:type.milestones', { defaultValue: 'Milestones' })]]}
+                typesLabel={tr('feed:type.filterAria', { defaultValue: 'Filter by activity type' })}
+                type={feedType} onType={setFeedType} />
               {/* LIVE NOW (owner, 2026-10-22; the magazine's live story since 2026-10-23): who is training
                   right now opens the Wall, with their live set and a boost. The rail's people (real ones
                   signed in, the preview's signed out), under All in Universal only (presence is not

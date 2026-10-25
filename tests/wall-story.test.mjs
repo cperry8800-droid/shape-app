@@ -213,39 +213,35 @@ test('the figures, the record and the quote', async () => {
   try { assert.equal(r.host.textContent, '“Depth was clean.Coach Jordan · co-signed · Coach'); } finally { await r.done(); }
 });
 
-test('the masthead: the Wall\'s name in capitals, the day and who is training, and the types as tabs', async () => {
+// Owner, 2026-10-25: "remove this header in chat page" and "clean this up", of THE WALL over its heavy rule
+// and the day with how many were training. What stays is the type filter, one row on the cards' gutter.
+test('the Wall\'s types are one row of tabs, with no masthead over them', async () => {
   const picked = [];
   const types = [['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs']];
-  let r = await render(React.createElement(STORY.BSWallMasthead, { title: 'The Wall', dateline: 'Thursday, Oct 23', trainingLine: '3 training now', types, typesLabel: 'Filter by activity type', type: 'runs', onType: (k) => picked.push(k) }));
+  const r = await render(React.createElement(STORY.BSWallTypes, { types, typesLabel: 'Filter by activity type', type: 'runs', onType: (k) => picked.push(k) }));
   try {
-    assert.equal(r.host.querySelector('[data-bs-wall-masthead]').style.margin, '0px 12px', 'on the cards\' gutter, as the live story is');
-    const h = r.host.querySelector('[data-bs-wall-masthead] h2');
-    assert.equal(h.textContent, 'The Wall');
-    assert.equal(h.style.fontFamily, 'display');
-    assert.equal(h.style.textTransform, 'uppercase');
-    assert.match(r.host.textContent, /Thursday, Oct 233 training now/);
-    const nav = r.host.querySelector('nav');
+    const nav = r.host.querySelector('nav[data-bs-wall-types]');
+    assert.ok(nav, 'no type tabs');
+    assert.equal(nav.style.margin, '0px 12px', 'on the cards\' gutter, as the live story is');
     assert.equal(nav.getAttribute('aria-label'), 'Filter by activity type');
+    assert.ok(!r.host.querySelector('h2'), 'a masthead is back over the tabs');
+    assert.equal(r.host.textContent, 'AllWorkoutsRunsPRs', 'the row carries a dateline or a count again');
     const tabs = [...nav.querySelectorAll('button')];
-    assert.deepEqual(tabs.map((b) => b.textContent), ['All', 'Workouts', 'Runs', 'PRs']);
     assert.deepEqual(tabs.map((b) => b.getAttribute('aria-pressed')), ['false', 'false', 'true', 'false'], 'the type shown is the pressed tab');
     assert.ok(tabs.every((b) => b.style.minHeight === '44px'), 'every tab is a full touch target');
     await React.act(async () => { tabs[3].click(); });
     assert.deepEqual(picked, ['prs']);
   } finally { await r.done(); }
-  r = await render(React.createElement(STORY.BSWallMasthead, { title: 'The Wall', dateline: 'Thursday, Oct 23', types, type: 'all' }));
-  try { assert.doesNotMatch(r.host.textContent, /training now/, 'nobody training, no count'); } finally { await r.done(); }
 });
 
-test('the Wall opens on its masthead, whose tabs are the type filter the ALL ▾ select was', () => {
+test('the Wall opens on its type tabs, the filter the ALL ▾ select was, with no masthead', () => {
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
   assert.doesNotMatch(src, /<select value=\{feedType\}/, 'the select is gone');
-  const at = src.indexOf('<BSWallMasthead ');
-  assert.ok(at > 0, 'the Wall draws its masthead');
+  assert.doesNotMatch(src, /BSWallMasthead|feed:wallMast\./, 'THE WALL\'s masthead is back');
+  const at = src.indexOf('<BSWallTypes');
+  assert.ok(at > 0, 'the Wall draws its type tabs');
   const call = src.slice(at, src.indexOf('/>', at));
   assert.match(call, /type=\{feedType\} onType=\{setFeedType\}/, 'its tabs filter the Wall');
   for (const k of ['all', 'workouts', 'runs', 'prs', 'nutrition', 'milestones']) assert.match(call, new RegExp(`\\['${k}', tr\\('feed:type\\.${k}'`), k);
-  // The count is the live story's people: in a workout, under Universal, with the rail on.
-  assert.match(src, /const trainingNow = railOn && feedMode === 'universal' \? railPeople\.filter\(\(p\) => p && p\.activity === 'workout'\)\.length : 0;/);
-  assert.ok(at < src.indexOf('<BSWallTrainingNow '), 'the masthead heads the live story');
+  assert.ok(at < src.indexOf('<BSWallTrainingNow '), 'the tabs head the live story');
 });

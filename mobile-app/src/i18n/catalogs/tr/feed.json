@@ -311,7 +311,5 @@
   "wallLive.resting": "Dinleniyor",
   "wallLive.sendBoost": "Destek gönder →",
   "wallLive.alsoTraining": "Antrenmanda olanlar:",
-  "wallMast.title": "Duvar",
-  "wallMast.trainingNow": "şu anda {count, number} kişi antrenmanda",
   "card.you": "Sen"
 }

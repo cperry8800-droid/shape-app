@@ -51,8 +51,8 @@ test('the rail and the Wall\'s faces keep the faceted shape in the magazine\'s f
 
 test('the sections are a strip on the Wall\'s 12px edge, the red under the word', () => {
   // The masthead below sits 12px in; the strip's rules start and end with its rules.
-  assert.match(WALL_STORY, /<header data-bs-wall-masthead="" style=\{\{ margin: '0 12px' \}\}>/);
-  // Over a hairline only (owner, 2026-10-24: "look too busy"): THE WALL's rule is the one heavy rule.
+  assert.match(WALL_STORY, /<nav data-bs-wall-types="" className="bs-hide-scroll" aria-label=\{typesLabel\} style=\{\{ margin: '0 12px',/);
+  // Over a hairline only (owner, 2026-10-24: "look too busy").
   assert.match(CLIENT, /<div ref=\{bsSubAnchorRef\} style=\{\{ padding: '14px 12px 0' \}\}>\s*<div data-bs-chat-sections="" style=\{\{ display: 'grid', gridTemplateColumns: 'repeat\(3, 1fr\)', borderBottom: `1px solid \$\{t\.HAIR\}` \}\}>/);
   const sec = CLIENT.slice(CLIENT.indexOf('const SectionTab = '), CLIENT.indexOf('// Real "active now" roster'));
   // The button fills its third (the target); the word's own span carries the red, down on the hairline.
