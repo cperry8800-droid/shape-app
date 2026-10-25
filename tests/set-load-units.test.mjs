@@ -160,7 +160,7 @@ test('the all-time PR RPC\'s rows keep their own load and unit, like the fallbac
 // more moves had a new bench PR crowded out of the profile's activity feed by older,
 // heavier squat and deadlift records. `recentPrs` is the six most recently set,
 // picked from EVERY move's best.
-test('recentPrs is the newest bests across every move, from the RPC', async () => {
+test('recentPrs is the newest bests across every move, from get_my_lift_prs before the recent-PRs migration', async () => {
   const m = await routes();
   const client = stubClient({ workout_set_logs: [] });
   let asked = null;
@@ -189,4 +189,41 @@ test('recentPrs is newest first on the windowed fallback too', async () => {
   const body = await call('progress', { workout_set_logs: sets });
   assert.deepEqual(body.prs.map((p) => p.move), ['Deadlift', 'Squat', 'Bench']);
   assert.deepEqual(body.recentPrs.map((p) => [p.move, p.best, p.unit]), [['Bench', 60, 'kg'], ['Squat', 315, 'lb'], ['Deadlift', 405, 'lb']]);
+});
+
+// 2026-10-25-my-recent-lift-prs.sql: get_my_lift_prs stops at the 100 heaviest moves, so a
+// member past 100 moves could still lose a new light record (Codex P2 on #2445). Once
+// get_my_recent_lift_prs answers, the newest come from it, ordered by date before its limit.
+test('recentPrs comes from get_my_recent_lift_prs when it answers', async () => {
+  const m = await routes();
+  const client = stubClient({ workout_set_logs: [] });
+  const asked = {};
+  // The heaviest list stops before the curl; the recent function still finds it.
+  const heavy = [{ move: 'Deadlift', best: 405, best_reps: 1, unit: 'lb', best_at: ago(40) }, { move: 'Squat', best: 315, best_reps: 3, unit: 'lb', best_at: ago(20) }];
+  const recent = [{ move: 'Curl', best: 15, best_reps: 10, unit: 'kg', best_at: ago(0) }, { move: 'Squat', best: 315, best_reps: 3, unit: 'lb', best_at: ago(20) }];
+  client.rpc = async (name, args) => {
+    asked[name] = args;
+    if (name === 'get_my_lift_prs') return { data: heavy, error: null };
+    if (name === 'get_my_recent_lift_prs') return { data: recent, error: null };
+    return { data: null, error: { message: 'not applied' } };
+  };
+  m.use(client);
+  const body = await (await m.progress.GET(new Request('https://shape.test/api/client/progress'))).json();
+  assert.deepEqual(asked.get_my_recent_lift_prs, { p_limit: 6 });
+  assert.deepEqual(body.prs.map((p) => p.move), ['Deadlift', 'Squat'], 'prs stays the heaviest');
+  assert.deepEqual(body.recentPrs.map((p) => [p.move, p.best, p.unit, p.bestReps]), [['Curl', 15, 'kg', 10], ['Squat', 315, 'lb', 3]], 'the newest, as the function returns them, in their own unit');
+});
+
+test('a recent-PRs function that throws leaves the fallback standing', async () => {
+  const m = await routes();
+  const client = stubClient({ workout_set_logs: [] });
+  client.rpc = async (name) => {
+    if (name === 'get_my_recent_lift_prs') throw new Error('network');
+    if (name === 'get_my_lift_prs') return { data: [{ move: 'Squat', best: 315, best_reps: 3, unit: 'lb', best_at: ago(5) }, { move: 'Bench', best: 185, best_reps: 3, unit: 'lb', best_at: ago(1) }], error: null };
+    return { data: null, error: { message: 'not applied' } };
+  };
+  m.use(client);
+  const body = await (await m.progress.GET(new Request('https://shape.test/api/client/progress'))).json();
+  assert.deepEqual(body.recentPrs.map((p) => p.move), ['Bench', 'Squat'], 'picked by date from get_my_lift_prs\'s rows');
+  assert.deepEqual(body.prs.map((p) => p.move), ['Squat', 'Bench']);
 });
