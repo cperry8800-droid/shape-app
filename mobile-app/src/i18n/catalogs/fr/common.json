@@ -76,5 +76,11 @@
   "notifications.emptyBody": "Les demandes de réservation, les confirmations et les autres actualités s’afficheront ici.",
   "notifications.open": "Ouvrir →",
   "notifications.now": "maintenant",
-  "notifications.footer": "Activité"
+  "notifications.footer": "Activité",
+  "planRead.eyebrow": "Non chargé",
+  "planRead.training": "Impossible de charger votre entraînement",
+  "planRead.meals": "Impossible de charger votre plan de repas",
+  "planRead.body": "Si vous avez un plan, il est toujours là. Vérifiez votre connexion et réessayez.",
+  "planRead.retry": "Réessayer",
+  "planRead.retrying": "Chargement…"
 }

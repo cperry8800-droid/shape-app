@@ -437,7 +437,7 @@ test('the days trained and the plan\'s days come off their reads, and a failed r
   // null when it fails, and the route says training.read false when its workouts read failed.
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(client, /const \[planRead, setPlanRead\] = useStateBSC\(false\);/);
-  assert.match(client, /if \(on && p && p\.ok === true && p\.training && p\.training\.read !== false\) setPlanRead\(true\);/);
+  assert.match(client, /if \(on && bsPlanPartRead\(p, 'training'\)\) setPlanRead\(true\);/);
   const route = readFileSync(join(ROOT, 'src', 'app', 'api', 'client', 'plan', 'route.ts'), 'utf8');
   assert.match(route, /const \{ data: cwRows, error: cwErr \} = await supabase\s+\.from\('client_workouts'\)/);
   assert.match(route, /hasPlan: workouts\.length > 0,[\s\S]{0,240}?read: !cwErr,/);

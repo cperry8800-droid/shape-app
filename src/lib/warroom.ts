@@ -615,6 +615,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'A failed plan read says so on Train and Eat, not "no plan" — #2452. No migration',
+      items: [
+        { label: 'Owner, 2026-10-25: "Do this task here: Train: show a failed workouts read, not \'no plan\'". /api/client/plan sends read false on a part whose table read failed (workouts since #2449, meal plans now), and ShapePlan.get resolves null when the request fails; both looked like no plan', status: 'done' },
+        { label: 'bsPlanPartRead (planRead.mjs) says whether the read answered for training or meals. BSPlanReadFailed (its own module): "Couldn’t load your training" or "…your meal plan", that a plan is still there, and a square Try again; six strings in all 13 locales', status: 'done' },
+        { label: 'Train shows it instead of the Build door, Find a trainer or an empty rest week; Eat instead of "No meals planned"; Try again reads past the 60-second cache. A failed reload keeps a plan already shown. Tonight\'s prep reads a failed read as unknown, and the check-in (app and website) asks adherence for a part it could not read', status: 'done' },
+        { label: 'Website Workouts and Nutrition: "Couldn’t load your program" / "…your meal plan" with Try again in place of the no-plan plates; the coach-preparing plates are unchanged', status: 'done' },
+        { label: 'Review: Codex clean on 64a424b. CodeRabbit not run. tests/plan-read-failed (8: Train\'s and Eat\'s loaders run as they ship against stub reads, the block mounted in jsdom, the route, the website, 13 locales; six fail on main, two cover new files); npm test 8,411/8,415 with the 4 failures this change caused fixed; tsc clean; Chromium renders of Train and Eat on both papers; CI green on all four jobs', status: 'done' },
+        { label: 'Device pass: Train and Eat with the network off on a phone, then Try again with it back', status: 'manual' },
+        { label: 'Eat\'s Fuel left reads "0 kcal plan" on a failed read, as for a member with no plan; website Nutrition shows the demo menu when the plan read fails, nothing is logged and no coach is known (dnuSourceOf)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Detail pages: the header scrolls away, and the pinned bar reads ← and the title — #2450. No migration',
       items: [
         { label: 'Owner, 2026-10-25, of the Library\'s header (back, the count, the kicker and a two-line title), which stayed pinned whole, about a quarter of the screen: "yes make the header smaller on scroll"', status: 'done' },
@@ -631,7 +643,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'What a square says (bsHwWeekGrid, homeWeek.mjs): hit (trained, food logged, protein or steps at the target or any reading without one, checked in); missed (a day gone by without it, and for sessions only a day the plan set one); rest day (no session set and none trained, once the plan was read); to come (today until it is hit, and the days after); a dot when the read failed or hasn\'t answered. ShapeCommit.progress now hands back the days trained with its count. The signed-out sample\'s counts are its own squares\' hits', status: 'done' },
         { label: 'Review: Codex on f4e72ba (P2: the squares, day letters and key were hidden from a screen reader; fixed in 6a7f6f3, each row names its days), on 6a7f6f3 (P2: a failed plan read looked like no plan, so untrained days read as rest days; fixed in 900002d, planRead) and on 900002d (P2: /api/client/plan ignored its workouts read\'s error and answered ok with no plan; fixed in acb7bca, the route sends training.read false and Home gates on it); clean on acb7bca. CodeRabbit not run. tests/home-sections (24, the new and changed ones failing on the code before them), the plan route\'s readers (204) and tsc clean; the Web job on 900002d failed on the Google font fetch in next build, then passed again; CI green on all four jobs', status: 'done' },
         { label: 'Device pass: Week so far on a phone, signed in with a coach\'s plan and without, light and dark, with VoiceOver on a row', status: 'manual' },
-        { label: 'Train takes a failed workouts read (training.read false) for no plan; only Home reads the flag', status: 'pending' },
+        { label: 'Train takes a failed workouts read (training.read false) for no plan; only Home reads the flag. Done in #2452: Train and Eat say it could not load', status: 'done' },
       ],
     },
     {

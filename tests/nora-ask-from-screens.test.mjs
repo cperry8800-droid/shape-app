@@ -45,8 +45,9 @@ test('app: the link opens Nora\'s sheet; an error\'s kind and words go with the 
 
 test('app: an empty menu on Eat asks what to eat, today or on the day shown', () => {
   const eat = between(APP, '{effMeals.length === 0 && (eatPlanRead || !bsEatSignedIn) && (', '{/* Tonight\'s prep for tomorrow');
-  // ⚠ Not before the plan read answers: a signed-in member's menu is empty until it does.
-  assert.match(between(APP, 'const [eatPlanRead, setEatPlanRead] = useStateBSC(false);', '}, []);'), /\} finally \{\n[^\n]*\n\s+if \(!cancelled\) setEatPlanRead\(true\);/);
+  // ⚠ Not before the plan read answers: a signed-in member's menu is empty until it does. And only
+  // when it answered for meals: a failed read says it could not load instead (plan-read-failed).
+  assert.match(between(APP, 'const [eatPlanRead, setEatPlanRead] = useStateBSC(false);', '}, [eatPlanReads]);'), /read = bsPlanPartRead\(p, 'meals'\);[\s\S]*\} finally \{\n\s+if \(!cancelled\) \{ setEatPlanRead\(read\); setEatPlanFailed\(!read\); setEatPlanRetrying\(false\); \}/);
   assert.match(eat, /day === bsWeekdayIdx\(\)/);
   assert.match(eat, /label=\{tr\('feed:support\.ask\.eatTodayLink'/);
   assert.match(eat, /draft=\{tr\('feed:support\.ask\.eatToday', \{ defaultValue: 'What should I eat today\?' \}\)\}/);

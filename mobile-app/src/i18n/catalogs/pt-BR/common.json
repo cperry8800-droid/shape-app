@@ -76,5 +76,11 @@
   "notifications.emptyBody": "Pedidos de agendamento, confirmações e outras novidades vão aparecer aqui.",
   "notifications.open": "Abrir →",
   "notifications.now": "agora",
-  "notifications.footer": "Atividade"
+  "notifications.footer": "Atividade",
+  "planRead.eyebrow": "Não carregado",
+  "planRead.training": "Não foi possível carregar seu treino",
+  "planRead.meals": "Não foi possível carregar seu plano alimentar",
+  "planRead.body": "Se você tem um plano, ele continua lá. Verifique sua conexão e tente de novo.",
+  "planRead.retry": "Tentar de novo",
+  "planRead.retrying": "Carregando…"
 }

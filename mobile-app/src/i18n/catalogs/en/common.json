@@ -76,5 +76,11 @@
   "notifications.emptyBody": "Booking requests, confirmations and other updates will show up here.",
   "notifications.open": "Open →",
   "notifications.now": "now",
-  "notifications.footer": "Activity"
+  "notifications.footer": "Activity",
+  "planRead.eyebrow": "Not loaded",
+  "planRead.training": "Couldn’t load your training",
+  "planRead.meals": "Couldn’t load your meal plan",
+  "planRead.body": "If you have a plan, it’s still there. Check your connection and try again.",
+  "planRead.retry": "Try again",
+  "planRead.retrying": "Loading…"
 }

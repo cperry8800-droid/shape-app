@@ -203,8 +203,7 @@ The War Room has the full list; this covers what needs the owner and the planned
 - Home (`BSHomeSections.jsx`): Week so far counts days trained (workout minutes or an
   activity) against the plan's sessions, and food days, not meals; a protein or steps square
   needs the target (else any reading). The weekly notes, message doors and next
-  session show only for a paid coach (no sample signed out). Train takes a failed workouts
-  read (`training.read: false`) for no plan.
+  session show only for a paid coach (no sample signed out).
 - Eat on a live meal plan takes what was eaten (Fuel left, macro pages) from the plan's
   day `totals` and meals' `state`, not the logs.
 - Signed in, others' profiles show the demo signals and climb (owner: leave it).
