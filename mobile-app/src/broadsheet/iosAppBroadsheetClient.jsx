@@ -27984,15 +27984,17 @@ function BSOLHead({ heat, label, right = null, t }) {
     </div>
   );
 }
-// Ink text action with a 2px heat underline (the Standing's grammar). >=44px target.
+// A quiet action, B's small pill (Goals, 2026-10-25): a 34px capsule on the track, its words in ink, a
+// 44px target. `heat` is the caller's colour and no longer drawn: the pill reads on every paper as is.
 function BSOLAct({ heat, label, onClick, t }) {
+  const D = bsDash(t);
   return (
-    <button onClick={onClick} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 0', minHeight: 44, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>
-      <span style={{ borderBottom: `2px solid ${heat}`, paddingBottom: 2 }}>{label}</span>
+    <button type="button" onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44 }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', height: 34, padding: '0 15px', borderRadius: 999, background: D.track, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>{label}</span>
     </button>
   );
 }
-// Dot-leader row: glyph . text . leader dots . right meta. Button when onPress.
+// A row: glyph . text . right meta. Button when onPress.
 function BSOLRow({ glyph = null, glyphColor, text, textColor, sub = null, meta = null, metaColor, onPress = null, t }) {
   const inner = (
     <>
@@ -28001,7 +28003,7 @@ function BSOLRow({ glyph = null, glyphColor, text, textColor, sub = null, meta =
         {text}
         {sub && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{sub}</span>}
       </span>
-      <span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-4px)' }} />
+      <span aria-hidden style={{ flex: 1, minWidth: 14 }} />
       {meta != null && <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: metaColor || t.INK50 }}>{meta}</span>}
     </>
   );
@@ -28010,13 +28012,14 @@ function BSOLRow({ glyph = null, glyphColor, text, textColor, sub = null, meta =
     ? <button onClick={onPress} style={{ ...style, background: 'transparent', border: 0, cursor: 'pointer' }}>{inner}</button>
     : <div style={style}>{inner}</div>;
 }
-// Press credit: 3px role spine + serif title + mono credit line.
-function BSOLCredit({ spine, title, credit, t }) {
+// Press credit, in B: a card washed in the coach's role colour (`spine`, a mark shade), the credit line
+// over the plan's title in that role's text shade (`ink`).
+function BSOLCredit({ spine, ink = null, title, credit, t }) {
   return (
-    <div style={{ borderLeft: `3px solid ${spine}`, padding: '3px 0 3px 11px', margin: '10px 0 0' }}>
-      <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</div>
-      <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{credit}</div>
-    </div>
+    <BSDashCard tint={spine} style={{ marginTop: 12, padding: '14px 16px' }}>
+      <div style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, lineHeight: 1.2, letterSpacing: '0.1em', textTransform: 'uppercase', color: ink || t.INK70 }}>{credit}</div>
+      <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{title}</div>
+    </BSDashCard>
   );
 }
 
@@ -28032,7 +28035,15 @@ function BSOLCredit({ spine, title, credit, t }) {
 function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog, onEditTargets, onOpenProgress, onAddGoal, onEditGoal, onEditHeadline, plans: livePlans = null, weekTargets: liveWeekTargets = null, train = null }) {
   const t = useBS();
   const tr = useShapeTr();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  // B, the dashboard look (owner, 2026-10-25: "make Goals match the new look too", after Progress and
+  // Your mornings): each station a card in its colour (training coral, nutrition amber, work violet,
+  // this week teal, the terms lime), a card's name in Saira in its colour's TEXT shade, rings and
+  // rounded bars in its MARK shade (BSDash.jsx). The page title's period stays the member's tier.
+  const D = bsDash(t);
+  const STATION_C = { training: 'coral', nutrition: 'amber', work: 'violet', week: 'teal', terms: 'lime' };
+  const cardName = (c, x = null) => ({ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, lineHeight: 1.2, letterSpacing: '0.1em', textTransform: 'uppercase', color: D.text[c], ...x });
+  const goArrow = (c) => <span aria-hidden style={{ flexShrink: 0, display: 'grid', placeItems: 'center', width: 30, height: 30, borderRadius: 999, background: bsDashA(D.mark[c], D.light ? 0.12 : 0.18), color: D.text[c], fontFamily: t.MONO, fontSize: 12, fontWeight: 800 }}>→</span>;
+  const nextChip = <span style={{ flexShrink: 0, padding: '3px 9px', borderRadius: 999, background: bsDashA(D.mark.lime, D.light ? 0.12 : 0.16), color: D.text.lime, fontFamily: t.BODY, fontSize: 11.5, fontWeight: 600 }}>{tr('goal:terms.next', { defaultValue: 'Next' })}</span>;
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   // Every figure below is KILOGRAMS; `dsp` is the only thing that turns one into
   // a number the member reads, and `unit` is their Settings preference rather
@@ -28082,7 +28093,6 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   // pounds. `goalProj` is deliberately NOT converted — it contributes a date
   // label and a slip in DAYS, no weights.
   const verdict = bsGoalVerdict({ start: dsp(start), now: dsp(now), target: dsp(target), unit, proj: goalProj, tr });
-  const toneColor = { good: t.GREEN, warn: t.AMBER, bad: t.RUST, neutral: t.INK }[verdict.tone] || t.INK;
   // The house treatment gives the lead's FINAL STOP the tier heat. The shipped
   // expression was `verdict.lead.slice(0, -1)` + a hardcoded '.', which is wrong
   // twice once the lead is translated:
@@ -28111,7 +28121,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   const [readRef, readSeen] = useBSSdInView();
   // Shared station furniture (all three station pages render the same anatomy).
   const stationMotto = (meta) => (meta.title || meta.subtitle) ? (
-    <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.4, color: t.INK50 }}>“{[meta.title, meta.subtitle].filter(Boolean).join(' — ')}”</div>
+    <div style={{ fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>“{[meta.title, meta.subtitle].filter(Boolean).join(' — ')}”</div>
   ) : null;
   // The five station names — ONE map, read by the door titles AND the station
   // page titles, so a rename can never move one and leave the other.
@@ -28131,8 +28141,9 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
     training: tr('goal:station.recordTraining', { defaultValue: 'The full training record' }),
     nutrition: tr('goal:station.recordNutrition', { defaultValue: 'The full nutrition record' }),
   };
-  const tgtEyebrow = () => (
-    <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('goal:station.supportingTargets', { defaultValue: 'Supporting targets · serve the goal' })}</div>
+  // The targets card's name, the heading a reader hears, in the station's colour.
+  const tgtEyebrow = (c) => (
+    <h2 style={{ margin: 0, ...cardName(c) }}>{tr('goal:station.supportingTargets', { defaultValue: 'Supporting targets · serve the goal' })}</h2>
   );
   const hasGoal = range !== 0 && Number.isFinite(start) && Number.isFinite(target) && start && target;
   // ⚠ A GOAL THAT ISN'T ABOUT WEIGHT HAS NO WEIGHT READ (owner, 2026-10-20: "Show the goal's
@@ -28184,16 +28195,18 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
     // false of row 3, which read "Steps · avg · goal 8k" here and "7d volume ·
     // load lifted" the moment the rollup resolved. A row that renames itself
     // mid-load is the claim being wrong, not the label; the live wording wins.
+    // Each row carries its colour (`c`) and, where it has a target, the share of it done (`pct`, the
+    // ring on This week); a row with no target has no `pct` and reads as its figure alone.
     : (signedIn ? [
-      { l: tr('goal:week.sessions', { defaultValue: 'Sessions' }), v: '0/—', sub: tr('goal:week.setPlan', { defaultValue: 'set a plan' }) },
-      { l: tr('goal:week.protein', { defaultValue: 'Protein days' }), v: '0/7', sub: tr('goal:week.proteinTracked', { defaultValue: 'days tracked' }) },
-      { l: tr('goal:week.volume', { defaultValue: '7d volume' }), v: '—', sub: tr('goal:week.volumeSub', { defaultValue: 'load lifted' }) },
-      { l: tr('goal:week.sleep', { defaultValue: 'Sleep' }), v: '—', sub: tr('goal:week.sleepSub', { defaultValue: 'avg · goal 7h' }) },
+      { l: tr('goal:week.sessions', { defaultValue: 'Sessions' }), v: '0/—', sub: tr('goal:week.setPlan', { defaultValue: 'set a plan' }), c: 'coral', pct: null },
+      { l: tr('goal:week.protein', { defaultValue: 'Protein days' }), v: '0/7', sub: tr('goal:week.proteinTracked', { defaultValue: 'days tracked' }), c: 'amber', pct: 0 },
+      { l: tr('goal:week.volume', { defaultValue: '7d volume' }), v: '—', sub: tr('goal:week.volumeSub', { defaultValue: 'load lifted' }), c: 'teal', pct: null },
+      { l: tr('goal:week.sleep', { defaultValue: 'Sleep' }), v: '—', sub: tr('goal:week.sleepSub', { defaultValue: 'avg · goal 7h' }), c: 'violet', pct: null },
     ] : [
-      { l: 'Sessions', v: '3/4', sub: 'one to go' },
-      { l: 'Protein days', v: '6/7', sub: '≥170g hit' },
-      { l: 'Steps', v: '7.2k', sub: 'avg · goal 8k' },
-      { l: 'Sleep', v: '6.8h', sub: 'avg · goal 7h' },
+      { l: 'Sessions', v: '3/4', sub: 'one to go', c: 'coral', pct: 3 / 4 },
+      { l: 'Protein days', v: '6/7', sub: '≥170g hit', c: 'amber', pct: 6 / 7 },
+      { l: 'Steps', v: '7.2k', sub: 'avg · goal 8k', c: 'teal', pct: 7.2 / 8 },
+      { l: 'Sleep', v: '6.8h', sub: 'avg · goal 7h', c: 'violet', pct: 6.8 / 7 },
     ]);
   // Key lifts — live PRs when present, [] when signed-in with no data, demo
   // signed-out. That is what the old Training tab's comment claimed; it is what
@@ -28226,9 +28239,8 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   const nutritionMeta = data.nutritionMeta || {};
   const workMeta = data.workMeta || {};
   const goalMeta = (g) => (g.pct ? `${g.cur ?? 0}/${g.tgt ?? 100}%` : `${g.cur ?? 0} → ${g.tgt ?? ''}`.trim());
-  const breathDot = (
-    <span aria-hidden style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 99, background: heat, boxShadow: `0 0 0 3px ${bsTHexA(heat, 0.2)}`, ...(bsSdReduced() ? null : { '--sd-glow': bsTHexA(heat, 0.45), animation: 'bsSdPrBreath 2400ms ease-in-out infinite' }) }} />
-  );
+  // The next milestone's dot on the terms track: lime, breathing (still when motion is reduced).
+  const breathGlow = bsSdReduced() ? null : { '--sd-glow': bsDashA(D.mark.lime, 0.45), animation: 'bsSdPrBreath 2400ms ease-in-out infinite' };
   // Cover-door sublines — an honest one-line inventory of what each page holds.
   // ⚠ ICU, not `target${n === 1 ? '' : 's'}` — no language forms a plural by
   // appending a letter, and ru/uk need FOUR categories rather than two.
@@ -28236,15 +28248,18 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
     ? tr('goal:door.targets', { defaultValue: '{count, plural, one {# target} other {# targets}}', count: n })
     : tr('goal:door.noTargets', { defaultValue: 'No targets yet' });
   const noPlan = tr('goal:door.noPlan', { defaultValue: 'no plan yet' });
-  const trainDoorSub = [tCount(trainGoals.length), trainPlan ? trainPlan.t : (signedIn ? noPlan : null), trainPlan ? trainPlan.sub : null].filter(Boolean).join(' · ');
-  const nutrDoorSub = [tCount(nutrGoals.length), nutrPlan ? nutrPlan.t : (signedIn ? noPlan : null), nutrPlan ? nutrPlan.sub : null].filter(Boolean).join(' · ');
-  const workDoorSub = tCount(workGoals.length);
+  // The count is the door's figure (`tCount`); the subline is the plan and its coach, or the headline.
+  const trainDoorSub = [trainPlan ? trainPlan.t : (signedIn ? noPlan : null), trainPlan ? trainPlan.sub : null].filter(Boolean).join(' · ');
+  const nutrDoorSub = [nutrPlan ? nutrPlan.t : (signedIn ? noPlan : null), nutrPlan ? nutrPlan.sub : null].filter(Boolean).join(' · ');
+  const workDoorSub = workMeta.title || null;
   // ⚠ NO `.toLowerCase()` ON THE LABEL. It is locale-INSENSITIVE (Turkish folds
   // I→ı, not i), it now runs over TRANSLATED text — and it was pointless even in
   // English: the door subline's own style carries CSS `text-transform:
   // uppercase`, so the JS fold was undone one line later by a transform that IS
   // locale-aware. How a label sits in a meta line is the catalog's call.
-  const weekDoorSub = weekTargets.slice(0, 2).map((w) => `${w.v} ${String(w.l || '')}`).join(' · ');
+  // This week's door: the first figure large, its name and the second figure under it.
+  const weekDoorBig = weekTargets[0] ? weekTargets[0].v : null;
+  const weekDoorSub = [weekTargets[0] ? String(weekTargets[0].l || '') : null, weekTargets[1] ? `${weekTargets[1].v} ${String(weekTargets[1].l || '')}` : null].filter(Boolean).join(' · ');
   const termsDoorSub = wordsOnly
     ? (overall.why ? tr('goal:terms.whyHead', { defaultValue: 'Your why' }) : tr('goal:terms.addWhy', { defaultValue: 'Add your why' }))
     : hasGoal
@@ -28253,32 +28268,81 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
       : tr('goal:door.milestones', { defaultValue: '{done}/{total} milestones', done: milestones.filter((m) => m.done).length, total: milestones.length }))
     : tr('goal:door.setTerms', { defaultValue: 'Set the terms' });
   const nextTerm = milestones.find((m) => m.next) || null;
-  // A station door — 3px role spine, title + inventory subline, heat arrow.
-  const door = (spine, title, sub, key, last = false) => (
-    <button key={key} data-goal-door={key} onClick={() => onOpenView(key)} style={{ display: 'flex', alignItems: 'stretch', gap: 11, width: '100%', boxSizing: 'border-box', textAlign: 'left', background: 'transparent', border: 0, borderBottom: last ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer', padding: '13px 0', minHeight: 56 }}>
-      <span aria-hidden style={{ width: 3, background: spine, flexShrink: 0 }} />
-      <span style={{ flex: 1, minWidth: 0, alignSelf: 'center' }}>
-        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', color: t.INK }}>{title}</span>
-        {sub ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.35, color: bsTHexA(t.INK, 0.62), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</span> : null}
-      </span>
-      <span aria-hidden style={{ flexShrink: 0, alignSelf: 'center', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, color: heat }}>→</span>
-    </button>
+  // A station door — a card in the station's colour (`c`): its name, the figure (`big`), the inventory
+  // subline and an arrow. Two to a row; a `wide` door runs the row with its name and subline beside
+  // the arrow.
+  const door = (c, title, big, sub, key, wide = false) => (
+    <BSDashCard as="button" key={key} type="button" data-goal-door={key} onClick={() => onOpenView(key)} style={{ display: 'flex', flexDirection: wide ? 'row' : 'column', alignItems: wide ? 'center' : 'stretch', gap: wide ? 12 : 0, width: '100%', minWidth: 0, textAlign: 'left', cursor: 'pointer', padding: '13px 14px', borderRadius: 18, minHeight: 56, color: t.INK, font: 'inherit', gridColumn: wide ? '1 / -1' : undefined }}>
+      {wide ? (
+        <>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: 'block', ...cardName(c) }}>{title}</span>
+            {sub ? <span style={{ display: 'block', marginTop: 4, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.35, color: t.INK70 }}>{sub}</span> : null}
+          </span>
+          {goArrow(c)}
+        </>
+      ) : (
+        <>
+          <span style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ minWidth: 0, ...cardName(c) }}>{title}</span>
+            {goArrow(c)}
+          </span>
+          {big ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.15, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{big}</span> : null}
+          {sub ? <span style={{ marginTop: 4, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.3, color: t.INK70, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{sub}</span> : null}
+        </>
+      )}
+    </BSDashCard>
   );
   // Sub-page chrome — mast row + ← Back + the station title (the parent hides
   // its own header + share strip while a sub-page is open).
+  // The station's colour names its page: "The contract" in it, and the title's period.
   const pageHead = (label) => (
     <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
       {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, fontWeight: 800 }}>{tr('goal:station.eyebrow', { defaultValue: 'The contract' })}</span>
+        <span style={cardName(STATION_C[view] || 'teal', { fontSize: 10.5 })}>{tr('goal:station.eyebrow', { defaultValue: 'The contract' })}</span>
       </div>
       {/* tabIndex -1 so the parent can move focus here when a station opens: the
           door that was pressed unmounts with the cover, and without this a
           keyboard/screen-reader user is dropped on document.body with no
           announcement that the page changed. Not in the tab order. */}
-      <h1 data-goal-heading tabIndex={-1} style={{ outline: 'none', margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK }}><span style={{ fontStyle: 'italic', color: heat }}>{label}.</span></h1>
-      <div aria-hidden style={{ marginTop: 12, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${heat} 62%, transparent)` }} />
+      <h1 data-goal-heading tabIndex={-1} style={{ outline: 'none', margin: '6px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK }}>{label}<span style={{ color: D.mark[STATION_C[view] || 'teal'] }}>.</span></h1>
+    </div>
+  );
+  // A supporting target: its words, where it stands against its mark, the note under it, and a rounded
+  // bar when the target is above where it stands (a count or a share climbing to it). A target below
+  // where it stands (a weight or a time coming down) has no start to measure from, so it has no bar.
+  const targetShare = (g) => {
+    const cur = Number(g.cur), tgt = Number(g.tgt);
+    return Number.isFinite(cur) && Number.isFinite(tgt) && tgt > 0 && cur >= 0 && cur <= tgt ? cur / tgt : null;
+  };
+  const targetRow = (kind, g, i) => {
+    const share = targetShare(g);
+    const c = STATION_C[kind];
+    return (
+      <button key={`${kind}-${i}`} type="button" data-goal-target={i} onClick={() => onEditGoal(kind, i)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', textAlign: 'left', background: 'transparent', border: 0, borderTop: i ? `1px solid ${D.border}` : 0, cursor: 'pointer', padding: '12px 0', minHeight: 44, font: 'inherit', color: t.INK }}>
+        <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+          <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: t.INK }}>{g.t || tr('goal:station.targetFallback', { defaultValue: 'Target' })}</span>
+          <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{goalMeta(g)}</span>
+        </span>
+        {g.sub ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.35, color: t.INK70 }}>{g.sub}</span> : null}
+        {share != null ? (
+          <span aria-hidden data-goal-target-bar="" style={{ display: 'block', height: 8, marginTop: 8, borderRadius: 99, background: D.track, overflow: 'hidden' }}>
+            <span style={{ display: 'block', width: `${share * 100}%`, height: '100%', borderRadius: 99, background: `linear-gradient(90deg, ${bsDashA(D.mark[c], 0.62)}, ${D.mark[c]})` }} />
+          </span>
+        ) : null}
+      </button>
+    );
+  };
+  // A key lift: its name, its best and the change on it, in a tile.
+  const liftTile = (l, i) => (
+    <div key={`lift-${i}`} style={{ minWidth: 0, padding: '10px 11px', borderRadius: 14, background: D.track }}>
+      <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.t}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6, marginTop: 3 }}>
+        <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{l.w}</span>
+        <span style={{ flexShrink: 0, padding: '2px 7px', borderRadius: 999, background: bsDashA(D.mark.lime, D.light ? 0.12 : 0.16), fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: D.text.lime, whiteSpace: 'nowrap' }}>▲ {l.d}</span>
+      </div>
     </div>
   );
   // Full station body — the one-ledger design's station anatomy VERBATIM
@@ -28293,6 +28357,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
   const stationBody = (kind) => {
     const goalsArr = kind === 'training' ? trainGoals : kind === 'nutrition' ? nutrGoals : workGoals;
     const meta = kind === 'training' ? trainingMeta : kind === 'nutrition' ? nutritionMeta : workMeta;
+    const c = STATION_C[kind];
     return (
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         {stationMotto(meta)}
@@ -28300,72 +28365,109 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
           // ⚠ NO `.toUpperCase()` — BSOLCredit's credit line already carries CSS
           // `text-transform: uppercase` (locale-aware via <html lang>), and the
           // value is a coach-authored cadence string, not our copy.
-          ? <BSOLCredit spine={t.RUST} title={trainPlan.t} credit={tr('goal:station.creditTrainer', { defaultValue: 'TRAINER · {detail}', detail: String(trainPlan.sub || '') })} t={t} />
+          ? <BSOLCredit spine={D.mark.coral} ink={D.text.coral} title={trainPlan.t} credit={tr('goal:station.creditTrainer', { defaultValue: 'TRAINER · {detail}', detail: String(trainPlan.sub || '') })} t={t} />
           : signedIn
             ? <><BSTRedact INK={t.INK} label={tr('goal:station.noTrainingPlan', { defaultValue: 'No training plan yet' })} /><BSOLAct heat={heat} label={tr('goal:station.findCoach', { defaultValue: 'Find a coach →' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'trainer' })); } catch (e) {} }} t={t} /></>
-            : <BSOLCredit spine={t.RUST} title="12-wk lean strength" credit="TRAINER · JORDAN · 4×/WK" t={t} />)}
+            : <BSOLCredit spine={D.mark.coral} ink={D.text.coral} title="12-wk lean strength" credit="TRAINER · JORDAN · 4×/WK" t={t} />)}
         {kind === 'nutrition' && (nutrPlan
-          ? <BSOLCredit spine={'#d8a23a'} title={nutrPlan.t} credit={tr('goal:station.creditNutritionist', { defaultValue: 'NUTRITIONIST · {detail}', detail: String(nutrPlan.sub || '') })} t={t} />
+          ? <BSOLCredit spine={D.mark.amber} ink={D.text.amber} title={nutrPlan.t} credit={tr('goal:station.creditNutritionist', { defaultValue: 'NUTRITIONIST · {detail}', detail: String(nutrPlan.sub || '') })} t={t} />
           : signedIn
             ? <><BSTRedact INK={t.INK} label={tr('goal:station.noNutritionPlan', { defaultValue: 'No nutrition plan yet' })} /><BSOLAct heat={heat} label={tr('goal:station.findCoach', { defaultValue: 'Find a coach →' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'nutritionist' })); } catch (e) {} }} t={t} /></>
-            : <BSOLCredit spine={'#d8a23a'} title="Protein-led cut" credit="NUTRITIONIST · DR. MAYA · 1,890 KCAL" t={t} />)}
-        {tgtEyebrow()}
-        {goalsArr.length === 0 && <BSTRedact INK={t.INK} label={tr('goal:door.noTargets', { defaultValue: 'No targets yet' })} />}
-        {goalsArr.map((g, i) => (
-          <BSOLRow key={`${kind}-${i}`} t={t} text={g.t || tr('goal:station.targetFallback', { defaultValue: 'Target' })} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal(kind, i)} />
-        ))}
-        {kind === 'training' && liftRows.map((l, i) => (
-          <BSOLRow key={`lift-${i}`} t={t} text={l.t} meta={`${l.w} ▲ ${l.d}`} metaColor={t.INK70} />
-        ))}
-        <button onClick={() => onAddGoal(kind)} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> {ADD_TARGET[kind]}</button>
-        <div style={{ display: 'flex', gap: 22 }}>
+            : <BSOLCredit spine={D.mark.amber} ink={D.text.amber} title="Protein-led cut" credit="NUTRITIONIST · DR. MAYA · 1,890 KCAL" t={t} />)}
+        <BSDashCard as="section" data-goal-targets={kind} style={{ marginTop: 12, padding: '14px 16px 4px' }}>
+          {tgtEyebrow(c)}
+          {goalsArr.length === 0 && <div style={{ padding: '8px 0' }}><BSTRedact INK={t.INK} label={tr('goal:door.noTargets', { defaultValue: 'No targets yet' })} /></div>}
+          {goalsArr.map((g, i) => targetRow(kind, g, i))}
+        </BSDashCard>
+        {kind === 'training' && liftRows.length > 0 && (
+          <BSDashCard data-goal-lifts="" style={{ marginTop: 12, padding: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {liftRows.map((l, i) => liftTile(l, i))}
+          </BSDashCard>
+        )}
+        <button onClick={() => onAddGoal(kind)} style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 16, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: D.mark[c], fontSize: 13, lineHeight: 1 }}>＋</span> {ADD_TARGET[kind]}</button>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0 10px', marginTop: 4 }}>
           <BSOLAct heat={heat} label={tr('goal:station.editHeadline', { defaultValue: 'Edit headline' })} onClick={() => onEditHeadline(kind)} t={t} />
         </div>
-        {(kind === 'training' || kind === 'nutrition') && <BSOLRow t={t} text={RECORD_LINK[kind]} meta="→" metaColor={heat} onPress={onOpenProgress} />}
+        {(kind === 'training' || kind === 'nutrition') && (
+          <BSDashCard style={{ marginTop: 6, padding: '0 16px', borderRadius: 18 }}>
+            <BSOLRow t={t} text={RECORD_LINK[kind]} meta="→" metaColor={D.text[c]} onPress={onOpenProgress} />
+          </BSDashCard>
+        )}
       </div>
     );
   };
 
+  const msDone = milestones.filter((m) => m.done).length;
+  const msLabel = tr('goal:door.milestones', { defaultValue: '{done}/{total} milestones', done: msDone, total: milestones.length });
+
   // ── Sub-pages (view != 'cover') — full-screen, their own ← Back ──
   if (view !== 'cover') {
+    // The terms track runs teal up to the last milestone met. A milestone to come is a hollow dot
+    // filled with the card's own colour (its see-through white laid over the paper), so the track
+    // stops at its rim.
+    const lastDone = milestones.reduce((a, m, i) => (m.done ? i : a), -1);
+    const trackPct = milestones.length > 1 && lastDone > 0 ? Math.round((lastDone / (milestones.length - 1)) * 100) : 0;
     return (
       <>
         {pageHead(STATION_LABEL[view] || tr('goal:station.eyebrow', { defaultValue: 'The contract' }))}
         {view === 'week' && (
-          <div style={{ padding: `10px ${t.padX}px 0` }}>
-            {weekTargets.map((w, i) => <BSOLRow key={i} t={t} text={w.l} sub={w.sub} meta={w.v} metaColor={t.INK} />)}
+          // Each figure a card in its colour, in a ring of its share done when it has a target.
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: `14px ${t.padX}px 0` }}>
+            {weekTargets.map((w, i) => {
+              const c = w.c || ['coral', 'amber', 'teal', 'violet'][i % 4];
+              const share = Number.isFinite(w.pct) ? Math.max(0, Math.min(1, w.pct)) : null;
+              const fig = <span style={{ fontFamily: t.DISPLAY, fontSize: String(w.v).length > 5 ? 17 : 22, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{w.v}</span>;
+              return (
+                <BSDashCard as="section" key={i} data-goal-week={i} style={{ padding: 14, borderRadius: 18 }}>
+                  <h2 style={{ margin: 0, ...cardName(c) }}>{w.l}</h2>
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 88, margin: '10px 0 8px' }}>
+                    {share != null ? <BSDashRing id={`goal-week-${i}`} pct={share} size={88} stroke={9} from={D.mark[c]}>{fig}</BSDashRing> : fig}
+                  </div>
+                  <div style={{ textAlign: 'center', fontFamily: t.BODY, fontSize: 12, lineHeight: 1.3, color: t.INK70 }}>{w.sub}</div>
+                </BSDashCard>
+              );
+            })}
           </div>
         )}
         {view === 'terms' && (
-          <>
-            <div style={{ padding: `10px ${t.padX}px 0` }}>
-              {wordsOnly ? (
-                <>
-                  <div data-goal-words style={{ padding: '6px 0 2px', fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70, overflowWrap: 'anywhere' }}>
-                    {tr('goal:terms.wordsNone', { defaultValue: '“{goal}” isn’t a weight goal, so it has no weight milestones.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}
+          <div style={{ padding: `14px ${t.padX}px 0` }}>
+            {wordsOnly ? (
+              <BSDashCard>
+                <div data-goal-words style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70, overflowWrap: 'anywhere' }}>
+                  {tr('goal:terms.wordsNone', { defaultValue: '“{goal}” isn’t a weight goal, so it has no weight milestones.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}
+                </div>
+                <BSOLAct heat={heat} label={tr('goal:cover.editTargets', { defaultValue: 'Edit targets' })} onClick={onEditTargets} t={t} />
+              </BSDashCard>
+            ) : !hasGoal ? (
+              <><BSTRedact INK={t.INK} label={tr('goal:terms.noGoal', { defaultValue: 'No goal set yet' })} /><BSOLAct heat={heat} label={tr('goal:door.setTerms', { defaultValue: 'Set the terms' })} onClick={onEditTargets} t={t} /></>
+            ) : (
+              <>
+                <BSDashCard as="section" data-goal-milestones="" style={{ padding: '14px 16px 8px' }}>
+                  <h2 style={{ margin: 0, ...cardName('lime') }}>{msLabel}</h2>
+                  <div style={{ position: 'relative', marginTop: 8 }}>
+                    <span aria-hidden style={{ position: 'absolute', left: 10, top: 24, bottom: 24, width: 2, borderRadius: 2, background: `linear-gradient(${D.mark.teal} 0 ${trackPct}%, ${D.track} ${trackPct}%)` }} />
+                    {milestones.map((m, i) => (
+                      <div key={i} data-goal-milestone={m.done ? 'done' : m.next ? 'next' : 'todo'} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, minHeight: 48 }}>
+                        <span aria-hidden style={{ flexShrink: 0, width: 22, height: 22, boxSizing: 'border-box', borderRadius: 99, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, ...(m.done ? { background: D.mark.teal, color: t.isLight ? '#fff' : '#04201d' } : m.next ? { background: D.mark.lime, boxShadow: `0 0 0 5px ${bsDashA(D.mark.lime, 0.22)}`, ...breathGlow } : { background: `linear-gradient(${D.card}, ${D.card}), ${t.PAPER}`, border: `2px solid ${D.track}` }) }}>{m.done ? '✓' : ''}</span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: m.next ? 700 : 500, letterSpacing: '-0.01em', color: m.done ? t.INK50 : t.INK }}>{m.t}</span>
+                          {m.next && m.sub ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.BODY, fontSize: 12, color: t.INK70 }}>{m.sub}</span> : null}
+                        </span>
+                        {m.next ? nextChip : <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.when || ''}</span>}
+                      </div>
+                    ))}
                   </div>
-                  <BSOLAct heat={heat} label={tr('goal:cover.editTargets', { defaultValue: 'Edit targets' })} onClick={onEditTargets} t={t} />
-                </>
-              ) : !hasGoal ? (
-                <><BSTRedact INK={t.INK} label={tr('goal:terms.noGoal', { defaultValue: 'No goal set yet' })} /><BSOLAct heat={heat} label={tr('goal:door.setTerms', { defaultValue: 'Set the terms' })} onClick={onEditTargets} t={t} /></>
-              ) : (
-                <>
-                  {milestones.map((m, i) => (
-                    <BSOLRow key={i} t={t}
-                      glyph={m.done ? '✓' : m.next ? breathDot : '○'}
-                      glyphColor={m.done ? heat : t.INK50}
-                      text={m.t} textColor={m.done ? t.INK50 : t.INK} sub={m.next ? m.sub : null}
-                      meta={m.next ? tr('goal:terms.next', { defaultValue: 'Next' }) : (m.when || '')} metaColor={m.next ? heat : t.INK50} />
-                  ))}
-                  <BSOLAct heat={heat} label={tr('goal:cover.editTargets', { defaultValue: 'Edit targets' })} onClick={onEditTargets} t={t} />
-                </>
-              )}
-            </div>
-            <BSOLHead heat={heat} label={tr('goal:terms.whyHead', { defaultValue: 'Your why' })} t={t} />
-            {overall.why
-              ? <div style={{ padding: `6px ${t.padX}px 0`, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.5, color: t.INK }}>“{overall.why}”</div>
-              : <div style={{ padding: `2px ${t.padX}px 0` }}><BSOLAct heat={heat} label={tr('goal:terms.addWhy', { defaultValue: 'Add your why' })} onClick={onEditTargets} t={t} /></div>}
-          </>
+                </BSDashCard>
+                <BSOLAct heat={heat} label={tr('goal:cover.editTargets', { defaultValue: 'Edit targets' })} onClick={onEditTargets} t={t} />
+              </>
+            )}
+            <BSDashCard as="section" data-goal-why="" tint={D.mark.violet} style={{ marginTop: 12 }}>
+              <h2 style={{ margin: 0, ...cardName('violet') }}>{tr('goal:terms.whyHead', { defaultValue: 'Your why' })}</h2>
+              {overall.why
+                ? <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 500, lineHeight: 1.45, color: t.INK }}>“{overall.why}”</div>
+                : <BSOLAct heat={heat} label={tr('goal:terms.addWhy', { defaultValue: 'Add your why' })} onClick={onEditTargets} t={t} />}
+            </BSDashCard>
+          </div>
         )}
         {(view === 'training' || view === 'nutrition' || view === 'work') && stationBody(view)}
         <div style={{ height: 28 }} />
@@ -28387,88 +28489,96 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
       : tr('goal:cover.target', { defaultValue: 'Target {value}', value: `${dsp(target)} ${unit}` }))
     : null;
   const ctaInk = t.isLight ? '#fff' : '#04201d';
-  const statLabel = { fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.62) };
+  // Current, To go and Pace, each in a tile in its own colour.
+  const statC = ['teal', 'amber', 'violet'];
   return (
     <>
-      {targetLine && <div style={{ padding: `6px ${t.padX}px 0`, fontFamily: t.BODY, fontSize: 15, lineHeight: 1.4, color: t.INK70 }}>{targetLine}</div>}
-
-      {/* THE READ — the verdict, the bar, the three figures */}
-      <div ref={readRef} style={{ margin: `16px ${t.padX}px 0`, padding: '16px 16px 14px', border: `1px solid ${t.RULE}`, borderRadius: 8, background: t.PAPER2 }}>
-        {wordsOnly ? (
-          <div data-goal-words>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.22, color: t.INK }}>
-              {tr('goal:cover.wordsLead', { defaultValue: 'Your targets carry this one' })}<span style={{ color: heat }}>.</span>
-            </div>
-            <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70, overflowWrap: 'anywhere' }}>
-              {tr('goal:cover.wordsSub', { defaultValue: '“{goal}” isn’t a weight goal, so there’s no weight bar. Add a weight target to track one too.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}
-            </div>
-          </div>
-        ) : (
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.22, color: verdict.tone === 'bad' ? t.RUST : t.INK }}>
-          {leadBody}{leadDot ? <span style={{ color: heat }}>{leadDot}</span> : null}
-        </div>
-        )}
-        {pct != null && (
-          <>
-            <div role="img" aria-label={`${pct}%`} style={{ marginTop: 14, height: 8, borderRadius: 4, background: bsTHexA(t.INK, 0.1), overflow: 'hidden' }}>
-              <div style={{ width: `${pct}%`, height: '100%', borderRadius: 4, background: heat, transformOrigin: 'left', transform: (bsSdReduced() || readSeen) ? 'none' : 'scaleX(0)', transition: 'transform .7s cubic-bezier(.2,.7,.2,1)' }} />
-            </div>
-            <div style={{ marginTop: 7, display: 'flex', justifyContent: 'space-between', gap: 8, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, color: bsTHexA(t.INK, 0.62), fontVariantNumeric: 'tabular-nums' }}>
-              <span>{dsp(start)} {unit}</span>
-              <span style={{ color: verdict.tone === 'neutral' ? t.INK : toneColor }}>{pct}%</span>
-              <span>{dsp(target)} {unit}</span>
-            </div>
-          </>
-        )}
-        {!wordsOnly && <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-          {[
-            { l: tr('goal:cover.statCurrent', { defaultValue: 'Current' }), v: dsp(now), u: unit },
-            { l: tr('goal:cover.statToGo', { defaultValue: 'To go' }), v: hasGoal ? bsGoalRemaining({ start: dsp(start), now: dsp(now), target: dsp(target) }) : null, u: unit },
-            { l: tr('goal:cover.statPace', { defaultValue: 'Pace' }), v: paceVal != null ? dsp(paceVal) : null, u: `${unit}/wk` },
-          ].map((r, i) => (
-            <div key={i} style={{ minWidth: 0 }}>
-              <div style={statLabel}>{r.l}</div>
-              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                {r.v != null ? <><BSSdCountUp text={String(r.v)} run={readSeen} /><span style={{ fontSize: 11, color: t.INK50, marginLeft: 3 }}>{r.u}</span></> : '—'}
+      {/* THE READ — the goal's ring beside the verdict and its target, then the three figures. The
+          ring is the bar it replaced: one role="img", its share done as its name. */}
+      <div ref={readRef} style={{ margin: `14px ${t.padX}px 0` }}>
+        <BSDashCard data-goal-read="" tint={D.mark.teal}>
+          {wordsOnly ? (
+            <div data-goal-words>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.22, color: t.INK }}>
+                {tr('goal:cover.wordsLead', { defaultValue: 'Your targets carry this one' })}<span style={{ color: D.mark.teal }}>.</span>
+              </div>
+              <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70, overflowWrap: 'anywhere' }}>
+                {tr('goal:cover.wordsSub', { defaultValue: '“{goal}” isn’t a weight goal, so there’s no weight bar. Add a weight target to track one too.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}
               </div>
             </div>
-          ))}
-        </div>}
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              {pct != null && (
+                <div role="img" aria-label={`${pct}%`} style={{ flexShrink: 0 }}>
+                  <BSDashRing id="goal-read" pct={pct / 100} size={92} stroke={10} from={D.mark.teal} to={D.mark.lime}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
+                  </BSDashRing>
+                </div>
+              )}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.22, color: verdict.tone === 'bad' ? t.RUST : t.INK }}>
+                  {leadBody}{leadDot ? <span style={{ color: D.mark.teal }}>{leadDot}</span> : null}
+                </div>
+                {targetLine && <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.35, color: t.INK70 }}>{targetLine}</div>}
+              </div>
+            </div>
+          )}
+          {!wordsOnly && <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            {[
+              { l: tr('goal:cover.statCurrent', { defaultValue: 'Current' }), v: dsp(now), u: unit },
+              { l: tr('goal:cover.statToGo', { defaultValue: 'To go' }), v: hasGoal ? bsGoalRemaining({ start: dsp(start), now: dsp(now), target: dsp(target) }) : null, u: unit },
+              { l: tr('goal:cover.statPace', { defaultValue: 'Pace' }), v: paceVal != null ? dsp(paceVal) : null, u: `${unit}/wk` },
+            ].map((r, i) => (
+              <div key={i} style={{ minWidth: 0, padding: '10px 10px 9px', borderRadius: 14, background: D.track }}>
+                <div style={cardName(statC[i], { fontSize: 9.5 })}>{r.l}</div>
+                <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                  {r.v != null ? <><BSSdCountUp text={String(r.v)} run={readSeen} /><span style={{ fontFamily: t.BODY, fontSize: 10.5, fontWeight: 400, color: t.INK50, marginLeft: 3 }}>{r.u}</span></> : '—'}
+                </div>
+              </div>
+            ))}
+          </div>}
+        </BSDashCard>
       </div>
 
       {/* The one action, and its quiet partner */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 18, padding: `14px ${t.padX}px 0` }}>
-        <button onClick={onLog} style={{ flex: 1, minHeight: 48, borderRadius: 6, border: 0, cursor: 'pointer', background: teal, color: ctaInk, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:cover.logWeighIn', { defaultValue: 'Log weigh-in' })}</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: `12px ${t.padX}px 0` }}>
+        <button onClick={onLog} style={{ flex: 1, minHeight: 44, borderRadius: 999, border: 0, cursor: 'pointer', background: D.mark.teal, color: ctaInk, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', boxShadow: D.light ? 'none' : `0 0 18px ${bsDashA(D.mark.teal, 0.35)}` }}>{tr('goal:cover.logWeighIn', { defaultValue: 'Log weigh-in' })}</button>
         <BSOLAct heat={heat} label={tr('goal:cover.editTargets', { defaultValue: 'Edit targets' })} onClick={onEditTargets} t={t} />
       </div>
 
-      {/* The next milestone — one row; every milestone is behind it. The milestones are
-          weight points, so a goal read in words has none (and is no "No goal set yet"). */}
-      {!wordsOnly && <div style={{ margin: `18px ${t.padX}px 0` }}>
+      {/* The next milestone — one card; every milestone is behind it, its track under it from start to
+          target. The milestones are weight points, so a goal read in words has none (and is no "No
+          goal set yet"). */}
+      {!wordsOnly && <div style={{ margin: `12px ${t.padX}px 0` }}>
         {!hasGoal ? (
           <>
             <BSTRedact INK={t.INK} size={9.5} label={tr('goal:terms.noGoal', { defaultValue: 'No goal set yet' })} />
             <BSOLAct heat={heat} label={tr('goal:door.setTerms', { defaultValue: 'Set the terms' })} onClick={onEditTargets} t={t} />
           </>
         ) : (
-          <button data-goal-next onClick={() => onOpenView('terms')} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 12, minHeight: 56, padding: '12px 0', background: 'transparent', border: 0, borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, cursor: 'pointer', textAlign: 'left' }}>
-            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat }}>{nextTerm ? tr('goal:terms.next', { defaultValue: 'Next' }) : '✓'}</span>
-            <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{nextTerm ? nextTerm.t : tr('goal:terms.allMet', { defaultValue: 'Every term met' })}</span>
-            <span aria-hidden style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 13, fontWeight: 800, color: heat }}>→</span>
-          </button>
+          <BSDashCard as="button" type="button" data-goal-next onClick={() => onOpenView('terms')} style={{ display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', padding: '14px 16px', color: t.INK, font: 'inherit' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {nextTerm ? nextChip : <span aria-hidden style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, color: D.text.teal }}>✓</span>}
+              <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{nextTerm ? nextTerm.t : tr('goal:terms.allMet', { defaultValue: 'Every term met' })}</span>
+              {goArrow('lime')}
+            </span>
+            <span aria-hidden style={{ display: 'flex', gap: 5, marginTop: 12 }}>
+              {milestones.map((m, i) => <span key={i} style={{ flex: 1, height: 6, borderRadius: 99, background: m.done ? D.mark.teal : m.next ? `linear-gradient(90deg, ${D.mark.lime}, ${D.track})` : D.track }} />)}
+            </span>
+            <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>
+              <span>{dsp(start)} {unit}</span><span>{msLabel}</span><span>{dsp(target)} {unit}</span>
+            </span>
+          </BSDashCard>
         )}
       </div>}
 
-      {/* THE STATIONS — each opens its full-screen page */}
-      <div style={{ margin: `8px ${t.padX}px 0` }}>
-        {door(t.RUST, STATION_LABEL.training, trainDoorSub, 'training')}
-        {door('#d8a23a', STATION_LABEL.nutrition, nutrDoorSub, 'nutrition')}
-        {/* Work rides t.BLUE — the token the Home slate already tags Work with.
-            (#7aa7dc is the WEBSITE's slate accent; on mobile it is not a token
-            and would be the one spine on this page that ignores the paper.) */}
-        {door(t.BLUE, STATION_LABEL.work, workDoorSub, 'work')}
-        {door(teal, STATION_LABEL.week, weekDoorSub, 'week')}
-        {door(bsTHexA(t.INK, 0.35), tr('goal:door.termsWhy', { defaultValue: 'The terms & your why' }), termsDoorSub, 'terms', true)}
+      {/* THE STATIONS — each a card that opens its full-screen page, two to a row, the terms the width */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, margin: `12px ${t.padX}px 0` }}>
+        {door('coral', STATION_LABEL.training, tCount(trainGoals.length), trainDoorSub, 'training')}
+        {door('amber', STATION_LABEL.nutrition, tCount(nutrGoals.length), nutrDoorSub, 'nutrition')}
+        {door('violet', STATION_LABEL.work, tCount(workGoals.length), workDoorSub, 'work')}
+        {door('teal', STATION_LABEL.week, weekDoorBig, weekDoorSub, 'week')}
+        {door('lime', tr('goal:door.termsWhy', { defaultValue: 'The terms & your why' }), null, termsDoorSub, 'terms', true)}
       </div>
     </>
   );
@@ -30308,10 +30418,13 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       setLiveWeek([
         // Unknown target → the same words the honest-empty set above uses, so the
         // live and empty paths can never disagree about what "no target" looks like.
-        { l: tr('goal:week.sessions', { defaultValue: 'Sessions' }), v: `${thisWk}/${sessTarget || '—'}`, sub: sessTarget ? (thisWk >= sessTarget ? tr('goal:week.done', { defaultValue: 'done' }) : tr('goal:week.toGo', { defaultValue: '{count} to go', count: Math.max(0, sessTarget - thisWk) })) : tr('goal:week.setPlan', { defaultValue: 'set a plan' }) },
-        { l: tr('goal:week.protein', { defaultValue: 'Protein days' }), v: `${adher}/7`, sub: proteinTgt ? tr('goal:week.proteinHit', { defaultValue: '≥{grams}g hit', grams: proteinTgt }) : tr('goal:week.proteinTracked', { defaultValue: 'days tracked' }) },
-        { l: tr('goal:week.sleep', { defaultValue: 'Sleep' }), v: sleep ? `${sleep}h` : '—', sub: tr('goal:week.sleepSub', { defaultValue: 'avg · goal 7h' }) },
-        { l: tr('goal:week.volume', { defaultValue: '7d volume' }), v: '—', volLb: vol7, sub: tr('goal:week.volumeSub', { defaultValue: 'load lifted' }) },
+        // `c` is the row's colour on This week, `pct` its share of the target: the sessions against the
+        // plan's (none without one), the protein days of seven, the nights against the 7h its line
+        // names; volume has no target, so no ring.
+        { l: tr('goal:week.sessions', { defaultValue: 'Sessions' }), v: `${thisWk}/${sessTarget || '—'}`, sub: sessTarget ? (thisWk >= sessTarget ? tr('goal:week.done', { defaultValue: 'done' }) : tr('goal:week.toGo', { defaultValue: '{count} to go', count: Math.max(0, sessTarget - thisWk) })) : tr('goal:week.setPlan', { defaultValue: 'set a plan' }), c: 'coral', pct: sessTarget ? Math.min(1, thisWk / sessTarget) : null },
+        { l: tr('goal:week.protein', { defaultValue: 'Protein days' }), v: `${adher}/7`, sub: proteinTgt ? tr('goal:week.proteinHit', { defaultValue: '≥{grams}g hit', grams: proteinTgt }) : tr('goal:week.proteinTracked', { defaultValue: 'days tracked' }), c: 'amber', pct: Math.min(1, adher / 7) },
+        { l: tr('goal:week.sleep', { defaultValue: 'Sleep' }), v: sleep ? `${sleep}h` : '—', sub: tr('goal:week.sleepSub', { defaultValue: 'avg · goal 7h' }), c: 'violet', pct: sleep ? Math.min(1, sleep / 7) : null },
+        { l: tr('goal:week.volume', { defaultValue: '7d volume' }), v: '—', volLb: vol7, sub: tr('goal:week.volumeSub', { defaultValue: 'load lifted' }), c: 'teal', pct: null },
       ]);
     }).catch(() => {});
     return () => { on = false; };
@@ -30470,6 +30583,8 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   };
   const ownGoal = bsPrimaryGoalIsCustom(data.primaryGoal) ? data.primaryGoal : '';
   const ownGoalNext = customGoal == null ? '' : bsPrimaryGoalFromText(customGoal);
+  // B (2026-10-25): the cover's head in the dashboard look, as the page's cards are (BSGoalsContract).
+  const D = bsDash(t);
   return (
     <BSPage>
       {/* Header — Back where every page keeps it, the eyebrow, then the goal and
@@ -30479,10 +30594,11 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       {goalView === 'cover' && <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 4 }} />}
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
-        <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat }}>{tr('home:goal.eyebrow', { defaultValue: 'Your goal' })}</div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginTop: 6 }}>
-          <h1 style={{ margin: 0, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: heat }}>{hLast}{hStop}</span></h1>
-          <button onClick={() => setEditPrimary(true)} style={{ flexShrink: 0, minHeight: 40, padding: '0 14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:page.edit', { defaultValue: 'Edit' })}</button>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, lineHeight: 1.2, letterSpacing: '0.1em', textTransform: 'uppercase', color: D.text.teal }}>{tr('home:goal.eyebrow', { defaultValue: 'Your goal' })}</div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginTop: 4 }}>
+          {/* Upright, as every title in the dashboard look; the stop takes the member's tier. */}
+          <h1 style={{ margin: 0, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK, overflowWrap: 'anywhere' }}>{hHead ? hHead + ' ' : ''}{hLast}<span style={{ color: heat }}>{hStop}</span></h1>
+          <button onClick={() => setEditPrimary(true)} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}><span style={{ display: 'inline-flex', alignItems: 'center', height: 34, padding: '0 15px', borderRadius: 999, background: D.track, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('goal:page.edit', { defaultValue: 'Edit' })}</span></button>
         </div>
       </div>}
 
@@ -30503,15 +30619,15 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
 
       {/* Share with coaches — applies to the whole ledger, so it lives on the
           COVER (a station page is one station's detail, not the whole record). */}
-      {goalView === 'cover' && <div style={{ margin: `24px ${t.padX}px 0`, padding: '16px 0', borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      {goalView === 'cover' && <BSDashCard data-goal-share="" style={{ margin: `10px ${t.padX}px 0`, padding: '14px 16px', borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{tr('goal:page.shareTitle', { defaultValue: 'Share with your coaches' })}</div>
-          <div style={{ marginTop: 3, fontFamily: t.BODY, fontSize: 13, color: bsTHexA(t.INK, 0.62), lineHeight: 1.4 }}>{data.share ? tr('goal:page.shareOn', { defaultValue: 'Your coaches can see your goals' }) : tr('goal:page.shareOff', { defaultValue: 'Private — coaches can’t see your goals' })}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{tr('goal:page.shareTitle', { defaultValue: 'Share with your coaches' })}</div>
+          <div style={{ marginTop: 3, fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.4 }}>{data.share ? tr('goal:page.shareOn', { defaultValue: 'Your coaches can see your goals' }) : tr('goal:page.shareOff', { defaultValue: 'Private — coaches can’t see your goals' })}</div>
         </div>
-        <button onClick={() => persist({ ...data, share: !data.share })} aria-label={tr('goal:page.shareAria', { defaultValue: 'Toggle coach visibility' })} style={{ flexShrink: 0, width: 46, height: 28, borderRadius: 999, border: 0, cursor: 'pointer', padding: 3, background: data.share ? heat : t.RULE, display: 'flex', justifyContent: data.share ? 'flex-end' : 'flex-start', alignItems: 'center' }}>
-          <span style={{ width: 22, height: 22, borderRadius: 999, background: '#fff', display: 'block' }} />
+        <button onClick={() => persist({ ...data, share: !data.share })} aria-label={tr('goal:page.shareAria', { defaultValue: 'Toggle coach visibility' })} style={{ flexShrink: 0, width: 46, height: 28, borderRadius: 999, border: 0, cursor: 'pointer', padding: 3, background: data.share ? D.mark.teal : t.RULE, display: 'flex', justifyContent: data.share ? 'flex-end' : 'flex-start', alignItems: 'center' }}>
+          <span style={{ width: 22, height: 22, borderRadius: 999, background: '#fff', display: 'block', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
         </button>
-      </div>}
+      </BSDashCard>}
       <div style={{ height: 28 }} />
       {/* Primary-goal editor — edits IN PLACE (no Settings takeover, so back
           always returns here). Saves to client_goals.primaryGoal and mirrors

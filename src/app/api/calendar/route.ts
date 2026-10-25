@@ -47,6 +47,7 @@ import { isSessionReschedulable } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 import { requireMembership } from '@/lib/require-membership';
 import { DAY_MS, normalizeZone, wallClockInZone } from '@/lib/time';
+import { memberDay, storedDay } from '@/lib/workout-days';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -294,9 +295,12 @@ export async function GET(request: Request) {
   };
 
   // Current week (Mon..Sun) ISO dates — undated workouts slot here, matching Home.
-  const wkMon = new Date(today); wkMon.setHours(0, 0, 0, 0);
-  wkMon.setDate(wkMon.getDate() - ((wkMon.getDay() + 6) % 7));
-  const weekISO = Array.from({ length: 7 }, (_, i) => { const d = new Date(wkMon); d.setDate(wkMon.getDate() + i); return d.toISOString().slice(0, 10); });
+  // ⚠ THE WEEK IS THE ZONE'S, as Home's is the device's. Read on the server's clock (UTC), it
+  // turned at 5:00 PM on a Los Angeles Sunday: the member's undated workouts jumped to next
+  // week, and a run that Sunday no longer finished this week's (Codex on #2457).
+  const zoneToday = wallClockInZone(today.getTime(), zone)?.date ?? today.toISOString().slice(0, 10);
+  const zoneDow = (new Date(`${zoneToday}T00:00:00Z`).getUTCDay() + 6) % 7;
+  const weekISO = Array.from({ length: 7 }, (_, i) => shiftDate(zoneToday, i - zoneDow));
   const inWin = (iso: string) => iso >= dFrom && iso <= dTo;
 
   const planWorkouts: Array<Record<string, unknown>> = [];
@@ -324,6 +328,49 @@ export async function GET(request: Request) {
     if (wslot >= 7) break;
     planWorkouts.push(mkWorkout(w, weekISO[wslot]));
     weekTaken.add(weekISO[wslot]); wslot += 1;
+  }
+
+  // A workout the member has finished reads done, with the time it took: the logged
+  // session keeps the assigned workout it ran (workout_sessions.client_workout_id).
+  // ⚠ AN UNDATED WORKOUT IS SLOTTED ONTO EVERY CURRENT WEEK, so only a session from this
+  // week finishes it; last week's run of it doesn't tick this week's. The session's day is the
+  // one the app stored when it finished (summary.snapshotDate, the member's own date then), as
+  // workout-days.ts reads it: re-read in today's zone, a Sunday run in Los Angeles turns Monday
+  // once the member opens the app in Tokyo (Codex on #2457). A session saved without one is read
+  // on the zone's clock, where a Monday-morning run in Tokyo is still Monday, not UTC's Sunday,
+  // from the same instant the streak reads (started, else ended, else saved).
+  // A failed read leaves every workout planned, as before.
+  const undatedIds = new Set(undatedW.map((w) => w.id));
+  const planIds = planWorkouts.map((w) => String(w.id).slice('plan:'.length));
+  if (planIds.length) {
+    type WsRow = { client_workout_id: string | null; duration_seconds: number | null; started_at: string | null; ended_at: string | null; created_at: string | null; local_day: string | null };
+    const { data: wsRows } = await supabase
+      .from('workout_sessions')
+      .select('client_workout_id, duration_seconds, started_at, ended_at, created_at, local_day:summary->>snapshotDate')
+      .eq('client_id', targetUserId)
+      .in('client_workout_id', planIds)
+      .in('status', ['completed', 'reviewed'])
+      // Newest first: past the cap, what drops is the oldest runs, never this week's (Codex on
+      // #2457). Reaching it takes years of one undated workout repeated.
+      .order('created_at', { ascending: false })
+      .limit(1000);
+    const doneSec = new Map<string, number>();
+    for (const r of (wsRows ?? []) as WsRow[]) {
+      const id = r.client_workout_id;
+      if (!id) continue;
+      if (undatedIds.has(id)) {
+        const day = storedDay(r.local_day) ?? memberDay(r.started_at || r.ended_at || r.created_at, zone);
+        if (!day || day < weekISO[0]) continue;
+      }
+      // The newest run's time (the read is newest first), not the longest attempt's.
+      if (!doneSec.has(id)) doneSec.set(id, Number(r.duration_seconds) || 0);
+    }
+    for (const w of planWorkouts) {
+      const sec = doneSec.get(String(w.id).slice('plan:'.length));
+      if (sec == null) continue;
+      w.status = 'completed';
+      w.doneSeconds = sec || null;
+    }
   }
 
   // 4) The active weekly menu (nutritionist "push to client"), expanded onto
