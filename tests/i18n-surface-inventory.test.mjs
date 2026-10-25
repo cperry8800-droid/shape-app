@@ -447,8 +447,9 @@ const PARTIAL = new Set([
   // BSClientEat and BSClientTrain ended in. The SIGNED-IN branches of both those
   // stations are fully keyed (the redaction line and the find-a-coach action),
   // and a live plan renders the coach's own authored strings through
-  // station.creditTrainer / station.creditNutritionist.
-  'Client::BSGoalsContract',
+  // station.creditTrainer / station.creditNutritionist. It MOVED FILES 2026-10-25
+  // (iosAppBroadsheetClient.jsx → BSGoals.jsx) with the Goals page; the key follows the file.
+  'BSGoals::BSGoalsContract',
   'Marketplace::BSCoachDetailPublic', 'Marketplace::MktCoachCard',
   'Marketplace::MktComboCard', 'Marketplace::MktRow', 'Pros::BSProClientPreviewPage',
   'Pros::BSProSoundtracks',

@@ -36,7 +36,9 @@ const src = fs.readFileSync(SRC, 'utf8');
 // ⚠ EVERY SOURCE ASSERTION BELOW READS THE COMMENT-STRIPPED FILE. The rationale
 // written at each site quotes the very shapes these tests ban; this repo has
 // paid for that trap more than once.
-const code = stripComments(src);
+// Every writer and reader of the goal, wherever it lives: the Goals page moved into its own module
+// (BSGoals.jsx, 2026-10-25), and the goal model it reads stayed here.
+const code = stripComments(src) + '\n' + stripComments(fs.readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/BSGoals.jsx'), 'utf8'));
 
 function extractFn(marker) {
   const at = src.indexOf(marker);

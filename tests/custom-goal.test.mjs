@@ -11,7 +11,7 @@
 // shapeDb, so the load → pick → save path is the one production takes.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadBroadsheet, drive, textOf, SHIM } from './helpers/broadsheet-mount.mjs';
+import { loadBroadsheet, loadCarved, drive, textOf, SHIM } from './helpers/broadsheet-mount.mjs';
 
 globalThis.window.addEventListener = () => {};
 globalThis.window.removeEventListener = () => {};
@@ -22,7 +22,9 @@ globalThis.cancelAnimationFrame = () => {};
 if (typeof globalThis.document === 'undefined') globalThis.document = { getElementById: () => null, body: {} };
 
 const RUN_EFFECTS = { ...SHIM, useEffect(fn) { fn(); } };
-const { BSClientGoals, BSIntentStep, BSMeGoalCard, BSGoalsContract } = await loadBroadsheet(['BSClientGoals', 'BSIntentStep', 'BSMeGoalCard', 'BSGoalsContract'], RUN_EFFECTS);
+const { BSClientGoals, BSIntentStep, BSMeGoalCard } = await loadBroadsheet(['BSClientGoals', 'BSIntentStep', 'BSMeGoalCard'], RUN_EFFECTS);
+// The contract is in BSGoals.jsx, rendered only by its own page, so the client module doesn't import it.
+const { BSGoalsContract } = await loadCarved('BSGoals.jsx', RUN_EFFECTS);
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
