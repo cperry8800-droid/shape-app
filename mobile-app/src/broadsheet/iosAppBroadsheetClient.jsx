@@ -4465,8 +4465,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const [livePlan, setLivePlan] = useStateBSC(null);
   // The coaches the member pays, off the same read, plan or no plan (From your coaches).
   const [planCoaches, setPlanCoaches] = useStateBSC([]);
-  // Whether that read came back. ShapePlan.get resolves null when it fails, which looks like no plan,
-  // so Week so far calls an untrained day a rest day only once the plan was read (Codex P2 on #2449).
+  // Whether that read came back with the workouts. ShapePlan.get resolves null when it fails, and the
+  // route sends training.read false when its workouts read failed; both look like no plan, so Week so
+  // far calls an untrained day a rest day only once the plan was read (Codex P2s on #2449).
   const [planRead, setPlanRead] = useStateBSC(false);
   React.useEffect(() => {
     let on = true;
@@ -4474,7 +4475,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       window.ShapePlan.get().then((p) => {
         if (on && p && ((p.training && p.training.hasPlan) || (p.meals && p.meals.hasPlan))) setLivePlan(p);
         if (on && p) setPlanCoaches(bsHomeCoachesOf(p));
-        if (on && p && p.ok === true) setPlanRead(true);
+        if (on && p && p.ok === true && p.training && p.training.read !== false) setPlanRead(true);
       }).catch(() => {});
     }
     return () => { on = false; };
