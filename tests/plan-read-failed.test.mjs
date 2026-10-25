@@ -137,10 +137,40 @@ test('the website: a failed read says so on Workouts and Nutrition, and reads ag
   assert.match(train, /setPlanFailed\(dtrPlanFailed\(pl\)\);/);
   assert.match(train, /\{weeks\.length === 0 && anytime\.length === 0 && live && planFailed && \(\s+<div data-dtr-plan-failed[\s\S]{0,700}?onClick=\{reloadAll\}[^>]*>Try again ↻<\/button>/);
   assert.match(train, /\{weeks\.length === 0 && anytime\.length === 0 && !\(live && planFailed\) && \(/, '"No program assigned yet" only when the read answered');
-  assert.match(nutri, /setPlanFailed\(dnuPlanFailed\(pl\)\);/);
+  assert.match(nutri, /setPlanFailed\(dnuMemberReadFailed\(pl, plRes\.status\)\);/);
+  assert.match(nutri, /setSource\(dnuSourceOf\(pl, nu, plRes\.status\)\);/);
+  assert.match(nutri, /\.then\(async \(r\) => \(\{ status: r\.status, body: r\.ok \? await r\.json\(\)\.catch\(\(\) => null\) : null \}\)\)\s+\.catch\(\(\) => \(\{ status: 0, body: null \}\)\);/, 'no network is status 0');
   assert.match(nutri, /\}, \[reloadTick\]\);/);
   assert.match(nutri, /const failedPlate = live && planFailed \? \(\s+<div data-dnu-plan-failed[\s\S]{0,900}?onClick=\{\(\) => setReloadTick\(\(n\) => n \+ 1\)\}[^>]*>Try again ↻<\/button>/);
   assert.match(nutri, /\{ key: "noplan", title: "No meal plan yet", size: "full", render: \(\) => failedPlate \|\| \(/);
+});
+
+// Owner, 2026-10-25: "fix the website Nutrition demo menu on a failed read". A member with no coach known
+// and nothing logged got the demo menu, under the demo band, when their plan read failed. The gate
+// answers 401, 402 or 403 to a caller who isn't a signed-in member, so those keep the preview; any other
+// failure is the member's own plan not loading, and the page is live, saying so.
+test('website Nutrition: a member\'s failed plan read is live, not the demo menu', () => {
+  const nutri = read('public/newdesign/dashNutri.jsx');
+  const f = new Function(slice(nutri, 'function dnuSourceOf(', 'function ClientNutritionPage(') + ';return { dnuSourceOf, dnuMemberReadFailed };')();
+  const nothingLogged = { ok: true, today: null };
+  const noCoach = { ok: true, meals: { hasPlan: false, read: true, coaching: null } };
+  // The member's own read failing: a server error, a 429, no network, or the meal plan read failing.
+  for (const [pl, status, why] of [[null, 500, 'a server error'], [null, 429, 'rate-limited'], [null, 0, 'no network'],
+    [{ ok: true, meals: { hasPlan: false, read: false, coaching: null } }, 200, 'the meal plan read failed']]) {
+    assert.equal(f.dnuMemberReadFailed(pl, status), true, why);
+    assert.equal(f.dnuSourceOf(pl, nothingLogged, status), 'live', `${why}: not the demo menu`);
+    assert.equal(f.dnuSourceOf(pl, null, status), 'live', `${why}, the nutrition read failing too`);
+  }
+  // A caller who isn't a signed-in member keeps the preview.
+  for (const status of [401, 402, 403]) {
+    assert.equal(f.dnuMemberReadFailed(null, status), false, String(status));
+    assert.equal(f.dnuSourceOf(null, null, status), 'demo', String(status));
+  }
+  // A read that answered is as before: no coach and nothing logged is the preview; a coach is live.
+  assert.equal(f.dnuMemberReadFailed(noCoach, 200), false);
+  assert.equal(f.dnuSourceOf(noCoach, nothingLogged, 200), 'demo');
+  assert.equal(f.dnuSourceOf({ ok: true, meals: { hasPlan: false, read: true, coaching: { name: 'Maya' } } }, nothingLogged, 200), 'live');
+  assert.equal(f.dnuSourceOf(null, null), 'demo', 'no status: as before');
 });
 
 // The block, mounted with the shipping module.

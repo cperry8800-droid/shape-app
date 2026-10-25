@@ -935,7 +935,7 @@ test('a coached member with no plan yet sees their coach preparing it, never the
   assert.equal(dnuSourceOf({ ok: true, meals: { hasPlan: true } }, null), 'live');
   assert.equal(dnuSourceOf(null, { ok: true, today: { kcal: 10 } }), 'live');
   assert.equal(dnuSourceOf(null, null), 'demo', 'signed out');
-  assert.match(nutri, /setSource\(dnuSourceOf\(pl, nu\)\);/);
+  assert.match(nutri, /setSource\(dnuSourceOf\(pl, nu, plRes\.status\)\);/);
 
   // Website Train: the same rule, and the empty program names the trainer instead of the marketplace.
   const train = read('public/newdesign/dashTrain.jsx');
