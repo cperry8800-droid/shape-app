@@ -154,3 +154,39 @@ test('the all-time PR RPC\'s rows keep their own load and unit, like the fallbac
   const body = await (await m.progress.GET(new Request('https://shape.test/api/client/progress'))).json();
   assert.deepEqual(body.prs.map((p) => [p.move, p.best, p.unit]), [['Squat', 102.5, 'kg'], ['Bench', 185, 'lb']]);
 });
+
+// ── The profile feed's PRs: the most recently set, not the heaviest few ────────
+// Codex P2 on #2445: `prs` is the six heaviest bests, so a member with records on
+// more moves had a new bench PR crowded out of the profile's activity feed by older,
+// heavier squat and deadlift records. `recentPrs` is the six most recently set,
+// picked from EVERY move's best.
+test('recentPrs is the newest bests across every move, from the RPC', async () => {
+  const m = await routes();
+  const client = stubClient({ workout_set_logs: [] });
+  let asked = null;
+  const heavy = ['Deadlift', 'Squat', 'Hip thrust', 'Leg press', 'Rack pull', 'Front squat', 'Row'];
+  const rows = heavy.map((move, i) => ({ move, best: 400 - i * 20, best_reps: 3, unit: 'lb', best_at: ago(30 + i) }));
+  rows.push({ move: 'Bench', best: 135, best_reps: 5, unit: 'lb', best_at: ago(0) });
+  client.rpc = async (name, args) => {
+    if (name !== 'get_my_lift_prs') return { data: null, error: { message: 'not applied' } };
+    asked = args;
+    return { data: rows, error: null };
+  };
+  m.use(client);
+  const body = await (await m.progress.GET(new Request('https://shape.test/api/client/progress'))).json();
+  assert.equal(asked.p_limit, 100, 'every move\'s best is read, not only the heaviest twelve');
+  assert.deepEqual(body.prs.map((p) => p.move), heavy.slice(0, 6), 'prs stays the six heaviest');
+  assert.ok(!body.prs.some((p) => p.move === 'Bench'), 'the new bench record is not among the heaviest');
+  assert.deepEqual(body.recentPrs.map((p) => p.move), ['Bench', ...heavy.slice(0, 5)], 'newest first: the bench record leads');
+});
+
+test('recentPrs is newest first on the windowed fallback too', async () => {
+  const sets = [
+    { move_name: 'Deadlift', actual_load: 405, actual_reps: 1, load_unit: 'lb', payload: {}, created_at: ago(20), completed: true },
+    { move_name: 'Squat', actual_load: 315, actual_reps: 3, load_unit: 'lb', payload: {}, created_at: ago(10), completed: true },
+    { move_name: 'Bench', actual_load: 60, actual_reps: 5, load_unit: 'kg', payload: {}, created_at: ago(1), completed: true },
+  ];
+  const body = await call('progress', { workout_set_logs: sets });
+  assert.deepEqual(body.prs.map((p) => p.move), ['Deadlift', 'Squat', 'Bench']);
+  assert.deepEqual(body.recentPrs.map((p) => [p.move, p.best, p.unit]), [['Bench', 60, 'kg'], ['Squat', 315, 'lb'], ['Deadlift', 405, 'lb']]);
+});
