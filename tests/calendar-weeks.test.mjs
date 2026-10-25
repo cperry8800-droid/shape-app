@@ -262,12 +262,14 @@ const ROUTE = await (async () => {
   const owned = await loadRealModule(join(ROOT, 'src/lib/owned-provider.ts'), { typescript: true, registry: new Map([['@/lib/time', time], ['@supabase/supabase-js', {}]]) });
   const booking = await loadRealModule(join(ROOT, 'src/lib/session-booking.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/owned-provider', owned]]) });
   const series = await loadRealModule(join(ROOT, 'src/lib/session-series.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/time', time]]) });
+  const workoutDays = await loadRealModule(join(ROOT, 'src/lib/workout-days.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/time', time]]) });
   let client = null;
   const route = await loadRealModule(join(ROOT, 'src/app/api/calendar/route.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer], ['@/lib/time', time], ['@/lib/request-utils', requestUtils],
       ['@/lib/access-guards.mjs', guards], ['@/lib/session-booking', booking], ['@/lib/session-series', series],
+      ['@/lib/workout-days', workoutDays],
       ['@/lib/paid-sessions', { openPaidSessions: async () => ({ ok: true, rows: [] }), linkPaidSession: async () => true }],
       ['@/lib/require-membership', { requireMembership: async () => null }],
       ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: 'member-1' }) }],
@@ -346,6 +348,16 @@ test('a workout run twice reads the newest run\'s time, not the longest', async 
     ],
   });
   assert.equal(plan.find((e) => e.id === 'plan:w-twice').doneSeconds, 2098);
+});
+
+test('a run is dated by the day the app stored, not re-read where the member is now', async (t) => {
+  // Finished at 8:00 PM on Sunday the 25th in Los Angeles (stored as that day), then opened in
+  // Tokyo at 2:30 PM on Monday the 26th: in Tokyo's zone the run's instant reads Monday.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-26T05:30:00Z') });
+  const sunday = ran('w-travel', Date.parse('2026-10-26T03:00:00Z'), { summary: { snapshotDate: '2026-10-25' } });
+  const plan = await ROUTE({ client_workouts: [workout('w-travel', null)], workout_sessions: [sunday] },
+    { tz: 'Asia/Tokyo', range: '&from=2026-10-26&to=2026-11-01' });
+  assert.equal(plan.find((e) => e.id === 'plan:w-travel').status, 'planned', 'last week\'s Sunday run ticked the new week in Tokyo');
 });
 
 test('past the read\'s cap the oldest runs drop, never this week\'s', async () => {

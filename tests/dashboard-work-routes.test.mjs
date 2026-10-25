@@ -29,6 +29,8 @@ async function api(path, results = {}, user = { id: 'coach-a' }) {
     // check stays permissive here.
     ['@/lib/time',{...(await loadRealModule(fileURLToPath(new URL('../src/lib/time.ts',import.meta.url)),{typescript:true})),normalizeZone:(zone)=>zone || null}],
   ]);
+  // The calendar dates a finished run by the day the app stored (src/lib/workout-days.ts).
+  registry.set('@/lib/workout-days',await loadRealModule(fileURLToPath(new URL('../src/lib/workout-days.ts',import.meta.url)),{typescript:true,registry:new Map([['@/lib/time',registry.get('@/lib/time')],['@supabase/supabase-js',{}]])}));
   const route = await loadRealModule(fileURLToPath(new URL('../src/app/api/'+path+'/route.ts',import.meta.url)),{typescript:true,registry});
   return { route, calls };
 }

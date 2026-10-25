@@ -47,6 +47,7 @@ import { isSessionReschedulable } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 import { requireMembership } from '@/lib/require-membership';
 import { DAY_MS, normalizeZone, wallClockInZone } from '@/lib/time';
+import { storedDay } from '@/lib/workout-days';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -332,16 +333,19 @@ export async function GET(request: Request) {
   // A workout the member has finished reads done, with the time it took: the logged
   // session keeps the assigned workout it ran (workout_sessions.client_workout_id).
   // ⚠ AN UNDATED WORKOUT IS SLOTTED ONTO EVERY CURRENT WEEK, so only a session from this
-  // week finishes it; last week's run of it doesn't tick this week's. The session's day is
-  // read on the zone's clock: a Monday-morning run in Tokyo is still Sunday in UTC. A failed
-  // read leaves every workout planned, as before.
+  // week finishes it; last week's run of it doesn't tick this week's. The session's day is the
+  // one the app stored when it finished (summary.snapshotDate, the member's own date then), as
+  // workout-days.ts reads it: re-read in today's zone, a Sunday run in Los Angeles turns Monday
+  // once the member opens the app in Tokyo (Codex on #2457). A session saved without one is read
+  // on the zone's clock, where a Monday-morning run in Tokyo is still Monday, not UTC's Sunday.
+  // A failed read leaves every workout planned, as before.
   const undatedIds = new Set(undatedW.map((w) => w.id));
   const planIds = planWorkouts.map((w) => String(w.id).slice('plan:'.length));
   if (planIds.length) {
-    type WsRow = { client_workout_id: string | null; duration_seconds: number | null; started_at: string | null; created_at: string | null };
+    type WsRow = { client_workout_id: string | null; duration_seconds: number | null; started_at: string | null; created_at: string | null; local_day: string | null };
     const { data: wsRows } = await supabase
       .from('workout_sessions')
-      .select('client_workout_id, duration_seconds, started_at, created_at')
+      .select('client_workout_id, duration_seconds, started_at, created_at, local_day:summary->>snapshotDate')
       .eq('client_id', targetUserId)
       .in('client_workout_id', planIds)
       .in('status', ['completed', 'reviewed'])
@@ -355,7 +359,7 @@ export async function GET(request: Request) {
       if (!id) continue;
       if (undatedIds.has(id)) {
         const at = Date.parse(String(r.started_at || r.created_at || ''));
-        const day = Number.isFinite(at) ? wallClockInZone(at, zone)?.date : null;
+        const day = storedDay(r.local_day) ?? (Number.isFinite(at) ? wallClockInZone(at, zone)?.date : null);
         if (!day || day < weekISO[0]) continue;
       }
       // The newest run's time (the read is newest first), not the longest attempt's.
