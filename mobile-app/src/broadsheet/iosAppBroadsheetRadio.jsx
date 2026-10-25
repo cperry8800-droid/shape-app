@@ -1469,6 +1469,16 @@ const SIGNAL_GRACE_S = 6;
 // asks for less motion is asking for less motion, not for a worse reading.
 const REDUCED_FPS = 4;
 
+// ⚠ THE APP DRAWS THE FIELD QUIETER THAN THE MODULE'S FULL STRENGTH. Owner, 2026-10-24, on the
+// matching panel with the example signal lighting every dot: "background here is overpowering".
+// The grid is wider (18 px, where it was 14, so about 40% fewer dots), the ground is dimmer, and
+// the light on it reads the bins at a fraction of its strength. It still lights per bin and
+// breathes on the kick through fieldK; it is just ground under the type again. The website's
+// Radio wall reads the same module at its own strength and is unchanged.
+const FIELD_STEP = 18;
+const FIELD_DIM = 0.7;
+const FIELD_LIGHT = 0.4;
+
 function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, paper, figureRef, preview, onRead, onSignal, onRail }) {
   const wrapRef = useRefBR(null);
   const cvsRef = useRefBR(null);
@@ -1790,13 +1800,13 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, pape
       // this page draws instead of a cloud. The alpha and the radius are
       // untouched: the rest is still FIELD_REST_ALPHA, so a field with nothing
       // on the air reads exactly as it did.
-      for (let y = 7; y < H; y += 14) {
-        for (let x = 7; x < W; x += 14) {
+      for (let y = FIELD_STEP / 2; y < H; y += FIELD_STEP) {
+        for (let x = FIELD_STEP / 2; x < W; x += FIELD_STEP) {
           const v = live ? Math.max(0, Math.min(1, (bins[fieldBin(Math.hypot(x - cx, y - cy), nBins)] || 0) / 255)) : 0;
           ctx.fillStyle = v > FIELD_HOT_V ? cfg.hot : cfg.teal;
-          ctx.globalAlpha = fieldAlpha(v, k);
+          ctx.globalAlpha = fieldAlpha(v, k * FIELD_LIGHT) * FIELD_DIM;
           ctx.beginPath();
-          ctx.arc(x, y, fieldRadius(v, k), 0, Math.PI * 2);
+          ctx.arc(x, y, fieldRadius(v, k * FIELD_LIGHT), 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -2602,7 +2612,7 @@ function BSRadioScreen({ onBack }) {
           position: 'absolute',
           inset: 0,
           zIndex: 0,
-          background: `radial-gradient(95% 42% at 50% 17%, ${TEAL}1f, ${TEAL}08 42%, transparent 62%)`,
+          background: `radial-gradient(95% 42% at 50% 17%, ${TEAL}12, ${TEAL}05 42%, transparent 62%)`,
           pointerEvents: 'none',
         }} />
         {/* ⚠ THE PAGE'S GROUND, AND THE ONLY THING ON IT THAT MOVES. The stage
@@ -2615,7 +2625,7 @@ function BSRadioScreen({ onBack }) {
           preview={previewSim}
           onRead={setTempoRead} onSignal={setHasSig} onRail={setRailLit}
         />
-        <BSStageLight color={TEAL} opacity={0.1} paused={r.paused} />
+        <BSStageLight color={TEAL} opacity={0.06} paused={r.paused} />
 
         <div style={{ position: 'relative', zIndex: 2, padding: `12px ${t.padX}px 16px` }}>
           {/* The mode label — which of the instrument's two states you are in. */}

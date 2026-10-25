@@ -108,7 +108,7 @@ test('the field keeps a rest that no strength can scale away', () => {
 
 test('every dot of the grid is drawn — nothing is skipped for being unlit', () => {
   const body = fieldBody();
-  const loop = braceBlock(body, 'for (let y = 7; y < H; y += 14) {');
+  const loop = braceBlock(body, 'for (let y = FIELD_STEP / 2; y < H; y += FIELD_STEP) {');
   assert.match(loop, /fieldAlpha\(/, 'the grid no longer reads its alpha from the pure module');
   assert.match(loop, /fieldRadius\(/, 'the grid no longer reads its radius from the pure module');
   assert.match(loop, /ctx\.arc\(/, 'the grid draws no dots');
@@ -116,6 +116,33 @@ test('every dot of the grid is drawn — nothing is skipped for being unlit', ()
   // the rest is a constant, and the exact mechanism by which a scaled-away rest
   // became an empty canvas. A skip on the alpha is how the void comes back.
   assert.doesNotMatch(loop, /continue/, 'the grid skips dots again — a rest that can be skipped is a rest that can vanish');
+});
+
+// Owner, 2026-10-24, on the matching panel with the example signal lighting every dot: "background
+// here is overpowering". The app draws the module's field quieter, and never back to the void.
+test('the app draws the field as quiet ground: a wider grid, a dimmer rest, a fraction of the light', () => {
+  const num = (name) => {
+    const m = code.match(new RegExp(`const ${name} = ([0-9.]+);`));
+    assert.ok(m, `${name} is gone`);
+    return Number(m[1]);
+  };
+  const step = num('FIELD_STEP');
+  const dim = num('FIELD_DIM');
+  const light = num('FIELD_LIGHT');
+  assert.ok(step >= 18, `the grid is ${step} px apart: as dense as the field the owner called overpowering`);
+  assert.ok(dim > 0 && dim < 1, `the ground is drawn at ${dim} of the module's alpha`);
+  assert.ok(light > 0 && light < 1, `the light on the grid is drawn at ${light} of its strength`);
+  // Quieter, but still a ground: the dimmed rest stays above the floor the void test holds.
+  assert.ok(FIELD_REST_ALPHA * dim >= 0.08, `the resting dot is ${FIELD_REST_ALPHA * dim}: on its way back to the void`);
+  // A fully lit dot at full strength stays under half opacity, under the type.
+  assert.ok(fieldAlpha(1, light) * dim <= 0.5, `a fully lit dot is ${fieldAlpha(1, light) * dim}: louder than the type over it`);
+  const loop = braceBlock(fieldBody(), 'for (let y = FIELD_STEP / 2; y < H; y += FIELD_STEP) {');
+  assert.match(loop, /ctx\.globalAlpha = fieldAlpha\(v, k \* FIELD_LIGHT\) \* FIELD_DIM;/, 'the grid is drawn at the module\'s full strength again');
+  assert.match(loop, /ctx\.arc\(x, y, fieldRadius\(v, k \* FIELD_LIGHT\), 0, Math\.PI \* 2\)/, 'a lit dot grows at the module\'s full strength again');
+  // The glow and the stage light behind the panel are softer too.
+  const screen = screenBody();
+  assert.match(screen, /radial-gradient\(95% 42% at 50% 17%, \$\{TEAL\}12, \$\{TEAL\}05 42%, transparent 62%\)/, 'the panel\'s teal glow is back at full strength');
+  assert.match(screen, /<BSStageLight color=\{TEAL\} opacity=\{0\.06\} paused=\{r\.paused\} \/>/, 'the stage light is back at full strength');
 });
 
 test('the listening instrument is drawn at rest; only its bars wait for data', () => {
