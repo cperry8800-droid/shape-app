@@ -615,6 +615,14 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Goals moves into its own module, BSGoals.jsx — #2461. No migration',
+      items: [
+        { label: 'Codex on #2459 cited the WORKLOG rule (a touched screen moves into its own module); the owner chose the new look first, then this move-only PR. BSGoals.jsx holds the Goals page, its contract, its four sheets and their helpers, the code unchanged but for the seams: window globals named on each component\'s first line (read at call time), its own useShapeTr, no import back. The goal model stays in the client module and is published on window after its last const. The client module is 1,392 lines shorter', status: 'done' },
+        { label: 'Nothing a member sees changes: the 10 screenshots (cover, Training, This week, the terms; light and dark) are byte-identical to main\'s, and the 1,387 moved lines are the deleted ones with the seams undone', status: 'done' },
+        { label: 'Review: Codex clean on 8721dda. CodeRabbit not run. tests/goals-module pins the shape (evaluating the module alone reads no window global; fails with a planted top-level read); seven suites and 14 mutations re-pointed, all 14 killed; npm test 8,465 / 8,465', status: 'done' },
+      ],
+    },
+    {
       section: 'Goals in B, the dashboard look — #2459. No migration',
       items: [
         { label: 'Owner, 2026-10-25, after #2456: "make Goals match the new look too"; of the mock: "Yes go with goals". Each part keeps one colour: training coral, nutrition amber, work violet, this week teal, the terms lime, your why violet; card names in Saira in the text shade, rings and bars in the mark shade. No copy changed (i18n inventory 616)', status: 'done' },
@@ -622,7 +630,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'A station: the coach\'s credit a tinted card; the targets in one card, with a bar only for a target climbing to its mark (one coming down has no start to measure from); key lifts as tiles. This week: a ring per figure with a target. The terms: a milestone track and Your why in its own card', status: 'done' },
         { label: 'Review: Codex on 3748983, P2: a target at 0 drew a 4% bar; fixed in bd1b859 (the fill is the share itself, tests/goals-dash pins it). P1: the WORKLOG rule moves a touched screen into its own module; the owner\'s call: this look first, then a move-only PR. Codex clean on bd1b859. CodeRabbit not run. tests/goals-dash pins the shape; npm test 8,458 / 8,458', status: 'done' },
         { label: 'Device pass: Goals on a phone, light and dark', status: 'manual' },
-        { label: 'Goals moves out of iosAppBroadsheetClient.jsx into its own module (owner: the next PR, move-only)', status: 'pending' },
+        { label: 'Goals moves out of iosAppBroadsheetClient.jsx into its own module (owner: the next PR, move-only): done in #2461', status: 'done' },
       ],
     },
     {
