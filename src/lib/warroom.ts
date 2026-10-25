@@ -615,6 +615,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'The profile feed\'s newest PRs from their own function, past the 100-move cap — #2448. MIGRATION 2026-10-25-my-recent-lift-prs.sql APPLIED + VERIFIED LIVE 2026-10-25',
+      items: [
+        { label: 'Owner, 2026-10-25: "fix it", of Codex\'s P2 on #2445. get_my_lift_prs ranks every move\'s best by load and clamps its limit to 100, so a member past 100 distinct moves who set a new best on a light move had it cut before /api/client/progress picked the newest. get_my_recent_lift_prs computes the same per-move bests and orders them by date before its limit: self-scoped definer, search_path pinned with pg_temp, EXECUTE for authenticated only, idempotent', status: 'done' },
+        { label: 'The progress route asks both functions in parallel: prs stays the six heaviest; recentPrs comes from the new function when it answers, and from get_my_lift_prs\'s rows (as before) until the migration runs', status: 'done' },
+        { label: 'Review: Codex clean on ab8852c. Verified: CI green on all four jobs; tests/recent-lift-prs holds the new body equal to get_my_lift_prs\'s except its final ORDER BY, and set-load-units drives the route (new function, fallback, a throw); mutation spec recent-lift-prs-2026-10-25 15/15 killed, and set-load-units-2026-10-06 13/13 after re-anchoring the two lines #2445 moved; the definer-grants audit passes', status: 'done' },
+        { label: 'Migration run by the owner (2026-10-25) and checked live, read-only: get_my_recent_lift_prs(p_limit integer) exists, SECURITY DEFINER, STABLE, search_path public, pg_temp, ordered by date and scoped to auth.uid(); EXECUTE for authenticated, not for anon or PUBLIC; called with no caller it returns no rows', status: 'done' },
+      ],
+    },
+    {
       section: 'Eat\'s Library as a compact index and the recipe rows as a quiet list; the nav bar see-through, its icon centred — #2447. No migration',
       items: [
         { label: 'Owner, 2026-10-24: "improve design and look of this library page", "same with this, looks really busy" (the recipe menu), "give me some options to preview", "dont need to make magazine the look for every page". Of three mocked options: "for library go with C, recipes for with A", and "keep filters the same"', status: 'done' },
@@ -657,7 +666,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Verified: CI green on all four jobs; npm test 8,373/8,374 locally before the last fixes, with the one failure (units-loaded-figures fed the feed\'s PRs through train) fixed in b0636b3; tests/profile-signals and the recentPrs route tests in set-load-units, each failing on the code before them; the built app in Chromium (Me page and coach profile, signed out)', status: 'done' },
         { label: '/api/client/train sends no streak, daily volume, PRs or muscle split, so the Train page\'s Streak, Volume · 14 days, Personal records and Muscle split read 0 or empty for signed-in members', status: 'pending' },
         { label: 'The Climb\'s Strength tab sets its target at the best lift plus 10% and draws the climber at a fixed 62%', status: 'pending' },
-        { label: 'OWNER — a member past 100 distinct moves can miss a new light PR in the profile feed: get_my_lift_prs needs a recency-ordered result (a migration) to close it', status: 'manual' },
+        { label: 'A member past 100 distinct moves could miss a new light PR in the profile feed: closed by #2448 (get_my_recent_lift_prs, applied and verified live)', status: 'done' },
         { label: 'Signed-in pass: your own Signals tab (streak, weekly bars, trajectory, key lifts, disciplines) and the feed\'s PRs on a real account, light and dark', status: 'manual' },
       ],
     },
