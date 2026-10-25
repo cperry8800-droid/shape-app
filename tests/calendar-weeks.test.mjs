@@ -202,6 +202,18 @@ test('Month keeps to its own dates when a weeks read carried the days either sid
   assert.deepEqual(d.nodes().find(named('BSCalendarMonth')).props.events.map((e) => e.id), ['oct']);
 });
 
+test('Weeks reads today on the clock the calendar is in, not the phone\'s', async (t) => {
+  // 11 PM UTC on the 25th: 7 PM in New York (this suite's device), 1 PM on the 26th on Kiritimati.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-25T23:00:00Z') });
+  const { d, settle } = await screen({ stored: 'weeks', answer: () => ({ events: [], zone: 'Pacific/Kiritimati' }) });
+  assert.equal(d.nodes().find(named('BSCalendarWeeks')).props.todayIso, '2026-10-25', 'before the route names a zone: the device\'s day');
+  await settle();
+  assert.equal(d.nodes().find(named('BSCalendarWeeks')).props.todayIso, '2026-10-26');
+  const junk = await screen({ stored: 'weeks', answer: () => ({ events: [], zone: 'Mars/Olympus' }) });
+  await junk.settle();
+  assert.equal(junk.d.nodes().find(named('BSCalendarWeeks')).props.todayIso, '2026-10-25', 'a zone the device can\'t read: its own day');
+});
+
 test('only the latest read lands', async () => {
   const pending = [];
   const { d } = await screen({});
@@ -322,6 +334,18 @@ test('this week is the member\'s: a Los Angeles Sunday-evening run ticks the wee
   const w = plan.find((e) => e.id === 'plan:w-undated');
   assert.ok(w.date >= '2026-10-19' && w.date <= '2026-10-25', `slotted onto ${w.date}, the server's week, not the member's`);
   assert.equal(w.status, 'completed', 'the member\'s Sunday run fell in "last week"');
+});
+
+test('a workout run twice reads the newest run\'s time, not the longest', async () => {
+  const day = dayIso(now.getTime() - 2 * DAY);
+  const plan = await ROUTE({
+    client_workouts: [workout('w-twice', day)],
+    workout_sessions: [
+      ran('w-twice', now.getTime() - 2 * DAY, { duration_seconds: 3000 }),
+      ran('w-twice', now.getTime() - DAY, { duration_seconds: 2098 }),
+    ],
+  });
+  assert.equal(plan.find((e) => e.id === 'plan:w-twice').doneSeconds, 2098);
 });
 
 test('past the read\'s cap the oldest runs drop, never this week\'s', async () => {

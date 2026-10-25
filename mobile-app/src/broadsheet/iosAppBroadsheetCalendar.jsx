@@ -270,6 +270,20 @@ function _bsMapServerCalEvent(ev, t, zone = null) {
   };
 }
 
+// Today on the clock the calendar is read in: the zone /api/calendar named (a coach's stored
+// zone can differ from the phone's), else this device's (Codex on #2457).
+function bsCalTodayIso(zone) {
+  if (zone) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+      const part = (k) => (parts.find((x) => x.type === k) || {}).value;
+      const iso = `${part('year')}-${part('month')}-${part('day')}`;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+    } catch (e) { /* a zone this device can't read: its own day */ }
+  }
+  return bsCalIso(new Date());
+}
+
 // Month (the grid) or Weeks (the weeks list, BSCalendarWeeks.jsx). The device remembers the
 // last one picked; anything else, or no storage, opens Month.
 const _BS_CAL_VIEW_KEY = 'shape.calendarView';
@@ -424,7 +438,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
           events={weekEvents}
           viewYear={viewYear}
           viewMonth={viewMonth}
-          todayIso={isDemoMonth ? '2026-05-14' : bsCalIso(new Date())}
+          todayIso={isDemoMonth ? '2026-05-14' : bsCalTodayIso(useServer ? serverZone : null)}
           focusIso={bsCalIso(new Date(viewYear, viewMonth, selDay))}
           head={<BSCalMonthHead viewYear={viewYear} viewMonth={viewMonth} monthName={monthName} zone={useServer && serverZone ? serverZone : null} onPrev={prevMonth} onNext={nextMonth} />}
           accentOf={(e) => kindAccent[e.kind] || e.accent || t.RUST}
