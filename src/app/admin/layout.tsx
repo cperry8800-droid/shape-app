@@ -6,7 +6,7 @@
 // itself (requireStaff), and this layout's check only keeps the frame from rendering for a
 // visitor or a non-staff account.
 
-import { Fraunces, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import { notFound, redirect } from 'next/navigation';
 import SignOutButton from '@/components/SignOutButton';
 import SentryUser from '@/components/SentryUser';
@@ -17,9 +17,20 @@ import { LEVEL_LABELS, pagesFor, toolsFor } from '@/lib/staff-levels.mjs';
 import AdminSidebar from './AdminSidebar';
 import { MONO } from './ui';
 
-// The website's titles and labels (public/newdesign), for the console only.
-const display = Fraunces({ subsets: ['latin'], axes: ['opsz'], variable: '--font-admin-display' });
-const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-admin-mono' });
+// The website's titles and labels (public/newdesign), for the console only. Self-hosted, as the root
+// layout's Inter is (src/app/fonts, OFL): the Latin subsets the Google calls loaded, Fraunces with its
+// optical-size axis, and a serif fallback for it as the Google call chose.
+const display = localFont({
+  src: '../fonts/fraunces-latin-opsz-normal.woff2',
+  weight: '100 900',
+  variable: '--font-admin-display',
+  adjustFontFallback: 'Times New Roman',
+});
+const mono = localFont({
+  src: '../fonts/jetbrains-mono-latin-wght-normal.woff2',
+  weight: '100 800',
+  variable: '--font-admin-mono',
+});
 
 export const metadata = {
   title: 'Shape — Admin',

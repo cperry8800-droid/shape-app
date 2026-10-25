@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
@@ -7,10 +7,14 @@ import GlobalChatButton from "@/components/GlobalChatButton";
 import { Analytics } from '@vercel/analytics/next';
 import Script from 'next/script';
 
-const inter = Inter({
+// Inter, self-hosted (src/app/fonts, OFL). next/font/google fetched it from Google during the build,
+// and the build failed whenever that fetch did (CI on #2449 and #2453). The file is the Latin subset
+// the Google call preloaded, as one variable font (weights 100 to 900); a character outside it falls
+// back to the size-matched fallback, as the Google call's other subsets did until they loaded.
+const inter = localFont({
+  src: "./fonts/inter-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["200", "300", "400", "500", "600", "700", "800", "900"],
 });
 
 export const metadata: Metadata = {
