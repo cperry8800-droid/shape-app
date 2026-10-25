@@ -397,7 +397,7 @@ test('a synced run opens on what was measured, and offers nothing to start', () 
 test('a workout a synced run finished reads how far and how long, and where it came from', () => {
   // The Weeks card: a whole-minute time reads as minutes.
   const text = strip(render({ events: [{ id: 'plan:w1', source: 'plan', date: '2026-10-21', kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2100, distanceKm: 5.79, dur: 45, time: '—', doneBy: 'Strava' }] }));
-  assert.match(text, /Easy Run 3\.6 mi · 35m /);
+  assert.match(text, /Easy Run 3\.6 mi · 35m ✓/, 'a whole-minute time read "35m 0s"');
   // Its sheet: the plan's card, with the synced line under the register.
   const d = sheetOf({ id: 'plan:w1', source: 'plan', kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2100, distanceKm: 5.79, dur: 45, doneBy: 'Strava' });
   const body = drive(CAL.BSEventWorkoutBody, { event: { kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2100, distanceKm: 5.79, dur: 45, doneBy: 'Strava' }, role: 'client' });

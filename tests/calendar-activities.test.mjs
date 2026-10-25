@@ -119,6 +119,10 @@ test('a synced run finishes the planned run on its day, with its distance and ti
   assert.deepEqual(workouts.get('plan:str'), { distanceKm: null, durationMin: 50, by: 'Strava', matched: true });
   assert.equal(workouts.has('plan:tue'), false, 'a run finished another day\'s planned run');
   assert.deepEqual(events.map((e) => e.id), ['act:r1'], 'a ride with no planned ride keeps its card');
+  // The only planned run is the day before: the run keeps its own card.
+  const other = place([act('s1', 'strava', 'run', 'Morning Run', '2026-10-21T11:00:00Z')], { planned: [planned('plan:tue', ['2026-10-20'], 'run')] });
+  assert.equal(other.workouts.size, 0, 'a run finished another day\'s planned run');
+  assert.deepEqual(other.events.map((e) => e.id), ['act:s1']);
 });
 
 test('only a planned workout of a named kind is matched, each takes one activity, and a logged one comes first', () => {
