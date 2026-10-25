@@ -122,3 +122,20 @@ test('the count tile keeps the translated words in the locale\'s order', () => {
   const row = en.nodes().find((n) => n.type === 'button' && 'aria-expanded' in n.props && textOf(n).includes('Sunday staples'));
   assert.match(textOf(row), /^11itemsSunday staples/, 'the English word left its place under the figure');
 });
+
+// Codex P2 on #2447: a count past a thousand is grouped by the locale ("1,200 items", "1.200 Artikel"). The
+// tile shows the whole localized number, never the raw count beside the leftover digits.
+test('the count tile shows a grouped number whole', () => {
+  const BIG = { id: 'big-1', name: 'Warehouse run', kind: 'custom', count: 1200, preview: 'Rice · Beans' };
+  const prev = globalThis.ShapeI18n;
+  try {
+    for (const [label, want] of [[(n) => `${n.toLocaleString('en-US')} items`, /^1,200itemsWarehouse run/], [(n) => `${n.toLocaleString('de-DE')} Artikel`, /^1\.200ArtikelWarehouse run/]]) {
+      globalThis.ShapeI18n = { t: (k, o) => (k === 'nutrition:grocery.itemCount' ? label(o.count) : undefined) };
+      const d = drive(MOD.BSGroceryLibrary, { recipeLists: [BIG] });
+      const row = d.nodes().find((n) => n.type === 'button' && 'aria-expanded' in n.props && textOf(n).includes('Warehouse run'));
+      assert.match(textOf(row), want);
+    }
+  } finally {
+    globalThis.ShapeI18n = prev;
+  }
+});

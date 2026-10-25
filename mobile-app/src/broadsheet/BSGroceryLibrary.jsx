@@ -172,7 +172,10 @@ export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], 
           // in its order (Codex P2 on #2447): "11 items" sets the word under the figure, Hausa's
           // "kayayyaki 11" sets it above, so the tile shows and reads as the locale says it.
           const countLabel = tr('nutrition:grocery.itemCount', { defaultValue: `${itemCount} item${itemCount === 1 ? '' : 's'}`, count: itemCount });
-          const countParts = String(countLabel).match(/^(.*?)(\d+)(.*)$/);
+          // The figure is the whole localized number, its grouping included ("1,200", "1.200"; Codex P2 on
+          // #2447), shown as the translation formats it rather than re-printed from the count.
+          const countParts = String(countLabel).match(/^(.*?)(\d+(?:[.,\s\u00a0\u202f'’]\d+)*)(.*)$/);
+          const countFigure = countParts ? countParts[2] : String(itemCount);
           const countBefore = countParts ? countParts[1].trim() : '';
           const countAfter = countParts ? countParts[3].trim() : '';
           const countWord = (w, below) => <span style={{ [below ? 'marginTop' : 'marginBottom']: 3, maxWidth: 48, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{w}</span>;
@@ -190,7 +193,7 @@ export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], 
               }}>
                 <span style={{ width: 52, height: 52, flex: 'none', borderRadius: 12, background: t.PAPER2 || t.PAPER, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                   {countBefore ? countWord(countBefore, false) : null}
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 500, lineHeight: 1, color: figure, fontVariantNumeric: 'tabular-nums' }}>{itemCount}</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: countFigure.length > 3 ? 15 : 19, fontWeight: 500, lineHeight: 1, color: figure, fontVariantNumeric: 'tabular-nums' }}>{countFigure}</span>
                   {countAfter ? countWord(countAfter, true) : null}
                 </span>
                 <span style={{ flex: 1, minWidth: 0 }}>
