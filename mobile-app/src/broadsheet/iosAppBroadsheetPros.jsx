@@ -82,12 +82,14 @@ const {
   BSPublicProfile, BSFacetAvatar,
 } = window;
 
-// The coach pages' clean type (owner, 2026-10-25, "Do with clean", the header mockup 3): Today,
-// Clients and Programs set their words in one clean sans in place of Saira. A page swaps the face in
-// its own theme (useBSProClean) and hands that theme to what it renders (BSProCleanType), so a
-// child's text follows; the masthead and the top bars sit outside and keep theirs. One constant, so
-// another face is a one-line change.
-const BS_PRO_SANS = "'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+// The coach pages' clean type (owner, 2026-10-25, "Do with clean", the header mockup 3, and "I want
+// both" of the two faces offered): Today, Clients and Programs set their titles and section heads in
+// Geist and their words in Inter Tight, in place of Saira; both are bundled (fonts.css) and draw
+// Cyrillic and Vietnamese. A page swaps the text face in its own theme (useBSProClean) and hands that
+// theme to what it renders (BSProCleanType), so a child's text follows; the masthead and the top bars
+// sit outside and keep theirs.
+const BS_PRO_HEAD = "'Geist', 'Inter Tight', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+const BS_PRO_SANS = "'Inter Tight', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 function useBSProClean() {
   const base = useBS();
   return React.useMemo(() => ({ ...base, DISPLAY: BS_PRO_SANS }), [base]);
@@ -116,9 +118,9 @@ function BSProCleanType({ t, children }) {
 }
 // The clean header grammar: a 38px title (no period), a 16px line under it with its lead in bold,
 // 20px section heads that carry a count badge, and teal text links.
-const bsProH1 = (t) => ({ margin: 0, minWidth: 0, fontFamily: BS_PRO_SANS, fontSize: 38, fontWeight: 800, letterSpacing: '-0.045em', lineHeight: 1.05, color: t.INK });
+const bsProH1 = (t) => ({ margin: 0, minWidth: 0, fontFamily: BS_PRO_HEAD, fontSize: 38, fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1.05, color: t.INK });
 const bsProLede = (t) => ({ margin: '6px 0 0', fontFamily: BS_PRO_SANS, fontSize: 16, fontWeight: 500, lineHeight: 1.45, color: t.INK70 });
-const bsProH2 = (t) => ({ margin: 0, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: BS_PRO_SANS, fontSize: 20, fontWeight: 750, letterSpacing: '-0.025em', lineHeight: 1.2, color: t.INK });
+const bsProH2 = (t) => ({ margin: 0, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: BS_PRO_HEAD, fontSize: 20, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.2, color: t.INK });
 const bsProLink = (t) => ({ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 650, color: t.isLight ? '#07706a' : '#34d6c5', whiteSpace: 'nowrap' });
 // A count on a section head. `bg` is a deep tone on light papers and a light one on dark, so the
 // figure is white on light and ink on dark.
@@ -2058,7 +2060,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
               {tr('coach:today.upNextAt', { defaultValue: 'Up next · {time}', time: fmtAt(upB.time) })}{upIn != null ? ` · ${tr('coach:today.inDur', { defaultValue: 'in {dur}', dur: fmtFor(upIn) })}` : ''}
             </span>
           </div>
-          <div style={{ marginTop: 8, fontFamily: BS_PRO_SANS, fontSize: 24, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.15 }}>{upB.title}</div>
+          <div style={{ marginTop: 8, fontFamily: BS_PRO_HEAD, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.15 }}>{upB.title}</div>
           <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.35, opacity: 0.85 }}>{lineOf(upB)}</div>
           <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 10 }}>
             <button type="button" onClick={upPrimary[1]} style={{ minHeight: 48, borderRadius: 12, border: 0, background: t.PAPER, color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{upPrimary[0]}</button>
@@ -3189,12 +3191,12 @@ function BSProFeaturedPlan({ plan, heat, t, onOpen, onAssign }) {
   return (
     <div data-featured-plan="" style={{ marginTop: 10, borderRadius: 14, overflow: 'hidden', background: t.PAPER2 }}>
       <div style={{ minHeight: 88, background: bsProBand(heat), color: '#ffffff', padding: '14px 16px', boxSizing: 'border-box', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ fontFamily: BS_PRO_SANS, fontSize: wk ? 34 : 28, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em' }}>{wk ? tr('coach:plans.weeksBig', { defaultValue: '{count} wk', count: wk }) : (n ? tr('coach:plans.clientsCount', { defaultValue: '{count, plural, one {# client} other {# clients}}', count: Number(n) }) : '')}</span>
+        <span style={{ fontFamily: BS_PRO_HEAD, fontSize: wk ? 34 : 28, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em' }}>{wk ? tr('coach:plans.weeksBig', { defaultValue: '{count} wk', count: wk }) : (n ? tr('coach:plans.clientsCount', { defaultValue: '{count, plural, one {# client} other {# clients}}', count: Number(n) }) : '')}</span>
         <span style={{ fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 700, textAlign: 'right' }}>{[wk && n ? tr('coach:plans.clientsCount', { defaultValue: '{count, plural, one {# client} other {# clients}}', count: Number(n) }) : null, rating ? `${rating} ★` : null].filter(Boolean).join(' · ')}</span>
       </div>
       <div style={{ padding: '12px 16px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button type="button" onClick={onOpen} aria-label={tr('coach:plans.openAria', { defaultValue: 'Open {name}', name: plan.n })} style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: t.INK }}>
-          <span style={{ display: 'block', fontFamily: BS_PRO_SANS, fontSize: 18, fontWeight: 750, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{plan.n}</span>
+          <span style={{ display: 'block', fontFamily: BS_PRO_HEAD, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{plan.n}</span>
           {plan.price && <span style={{ display: 'block', marginTop: 2, fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 600, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{String(plan.price)}</span>}
         </button>
         {onAssign && <button type="button" onClick={onAssign} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name: plan.n })} style={{ flexShrink: 0, minHeight: 44, padding: '0 18px', borderRadius: 12, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{tr('coach:head.assign', { defaultValue: 'Assign' })}</button>}
