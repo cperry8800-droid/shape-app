@@ -257,6 +257,12 @@ function _bsMapServerCalEvent(ev, t, zone = null) {
     state: ev.status === 'done' || ev.status === 'completed' ? 'done' : undefined,
     // A finished assigned workout carries the time it took (the Weeks view reads it).
     doneSec: Number(ev.doneSeconds) > 0 ? Number(ev.doneSeconds) : null,
+    // A synced or hand-logged activity (source 'activity'), and the distance a workout logged
+    // in Shape took from its synced copy, in km; drawn in the member's unit.
+    distanceKm: Number(ev.distanceKm) > 0 ? Number(ev.distanceKm) : null,
+    calories: Number(ev.calories) > 0 ? Number(ev.calories) : null,
+    activityType: ev.activityType || null,
+    sources: Array.isArray(ev.sources) ? ev.sources : [],
     meetingUrl: ev.meetingUrl || null,
     // Live coaching bookings (source 'session') carry their sessions-table id +
     // status so the event sheet can write real completes/reschedules through
@@ -866,6 +872,9 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
     }
   };
   const isWorkout = event.kind === 'TRN' || event.kind === 'SES' || event.kind === 'WORKOUT';
+  // A synced or hand-logged activity: done when it reached the calendar, nothing to start.
+  const isActivity = event.source === 'activity';
+  const isDoneWorkout = isWorkout && (isActivity || event.state === 'done');
   const isMeal    = event.kind === 'MEAL';
   const isConsult = event.kind === 'CON';
   const isCheck   = event.kind === 'CHK';
@@ -885,7 +894,8 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       </div>
 
       {/* Body */}
-      {isWorkout && <BSEventWorkoutBody event={event} role={role} />}
+      {isWorkout && !isActivity && <BSEventWorkoutBody event={event} role={role} />}
+      {isActivity && <BSEventActivityBody event={event} />}
       {isMeal    && <BSEventMealBody event={event} />}
       {isConsult && <BSEventConsultBody event={event} role={role} live={live} />}
       {isCheck   && <BSEventCheckBody event={event} />}
@@ -911,7 +921,8 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
                 : <button onClick={onClose} style={primaryBtn(t)}>{tr('calendar:cta.done', { defaultValue: 'Done' })}</button>
         ) : (
           <>
-            {(isWorkout || isMeal) && (
+            {isDoneWorkout && <button onClick={onClose} style={primaryBtn(t)}>{tr('calendar:cta.completed', { defaultValue: 'Completed ✓' })}</button>}
+            {((isWorkout && !isDoneWorkout) || isMeal) && (
               <button onClick={() => {
                 if (role !== 'trainer' && isWorkout) { try { window.dispatchEvent(new Event('shape:startWorkout')); } catch (e) {} onClose(); }
                 else { onClose(); window.__bsToast?.(tr('calendar:msg.logged', { defaultValue: 'Logged ✓' }), 'ok'); }
@@ -1025,6 +1036,37 @@ function BSEventWorkoutBody({ event, role }) {
         </div>
       )}
       {/* Padding for sticky footer */}
+      <div style={{ height: 12 }} />
+    </>
+  );
+}
+
+// A synced or hand-logged activity: what was measured. The header's line names the providers;
+// one logged by hand says so here. Distance and pace are in the member's unit.
+function BSEventActivityBody({ event }) {
+  const t = useBSCal();
+  const tr = useShapeTr();
+  const km = Number(event.distanceKm) > 0 ? Number(event.distanceKm) : null;
+  const shown = km != null && t.uMeasure ? t.uMeasure(km, 'km') : (km != null ? { value: Math.round(km * 10) / 10, unit: 'km' } : null);
+  const min = Number(event.dur) > 0 ? Number(event.dur) : null;
+  // Pace for what is done on foot, per the member's unit (converted unrounded: 1 km is 0.621 mi).
+  const perKm = t.uMeasure ? Number(t.uMeasure(1e6, 'km').value) / 1e6 : 1;
+  const onFoot = /(run|jog|walk|hike)/.test(String(event.activityType || ''));
+  const paceSec = onFoot && km && min && perKm > 0 ? Math.round((min * 60) / (km * perKm)) : null;
+  const stats = [
+    [tr('calendar:stat.dist', { defaultValue: 'DIST' }), shown ? `${shown.value} ${shown.unit}` : '—'],
+    [tr('calendar:stat.dur', { defaultValue: 'DUR' }), min ? tr('calendar:unit.durMin', { min, defaultValue: '{min}m' }) : '—'],
+    [tr('calendar:stat.pace', { defaultValue: 'PACE' }), paceSec ? `${Math.floor(paceSec / 60)}:${String(paceSec % 60).padStart(2, '0')} /${shown.unit}` : '—'],
+    [tr('calendar:stat.kcal', { defaultValue: 'KCAL' }), event.calories ? String(event.calories) : '—'],
+  ];
+  return (
+    <>
+      <BSEventStatRegister t={t} items={stats} accent={event.accent} />
+      {!event.sub && (
+        <div style={{ padding: `14px ${t.padX}px 4px`, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.005em' }}>
+          {tr('calendar:activity.loggedByHand', { defaultValue: 'Logged by hand.' })}
+        </div>
+      )}
       <div style={{ height: 12 }} />
     </>
   );

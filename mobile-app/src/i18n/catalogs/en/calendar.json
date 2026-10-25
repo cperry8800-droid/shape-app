@@ -1,4 +1,5 @@
 {
+  "activity.loggedByHand": "Logged by hand.",
   "add.added": "Added to calendar",
   "add.couldNotSave": "Could not save",
   "add.needTitle": "Add a title",
@@ -89,6 +90,7 @@
   "stat.fat": "FAT",
   "stat.kcal": "KCAL",
   "stat.moves": "MOVES",
+  "stat.pace": "PACE",
   "stat.pro": "PRO",
   "stat.rpe": "RPE",
   "stat.zone": "ZONE",

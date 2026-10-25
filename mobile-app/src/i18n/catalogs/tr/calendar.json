@@ -1,4 +1,5 @@
 {
+  "activity.loggedByHand": "Elle kaydedildi.",
   "add.added": "Takvime eklendi",
   "add.couldNotSave": "Kaydedilemedi",
   "add.needTitle": "Bir başlık ekle",
@@ -89,6 +90,7 @@
   "stat.fat": "YAĞ",
   "stat.kcal": "KCAL",
   "stat.moves": "HAREKET",
+  "stat.pace": "TEMPO",
   "stat.pro": "PROT",
   "stat.rpe": "RPE",
   "stat.zone": "BÖLGE",

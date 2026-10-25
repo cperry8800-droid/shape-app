@@ -1,4 +1,5 @@
 {
+  "activity.loggedByHand": "Записано вручную.",
   "add.added": "Добавлено в календарь",
   "add.couldNotSave": "Не удалось сохранить",
   "add.needTitle": "Добавьте название",
@@ -89,6 +90,7 @@
   "stat.fat": "ЖИРЫ",
   "stat.kcal": "ККАЛ",
   "stat.moves": "УПРАЖ",
+  "stat.pace": "ТЕМП",
   "stat.pro": "БЕЛКИ",
   "stat.rpe": "RPE",
   "stat.zone": "ЗОНА",

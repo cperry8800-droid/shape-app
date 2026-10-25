@@ -1,4 +1,5 @@
 {
+  "activity.loggedByHand": "Von Hand erfasst.",
   "add.added": "Zum Kalender hinzugefügt",
   "add.couldNotSave": "Speichern fehlgeschlagen",
   "add.needTitle": "Titel hinzufügen",
@@ -89,6 +90,7 @@
   "stat.fat": "FETT",
   "stat.kcal": "KCAL",
   "stat.moves": "ÜBUNGEN",
+  "stat.pace": "PACE",
   "stat.pro": "PROT",
   "stat.rpe": "RPE",
   "stat.zone": "ZONE",

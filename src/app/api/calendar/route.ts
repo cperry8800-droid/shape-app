@@ -47,6 +47,7 @@ import { isSessionReschedulable } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 import { requireMembership } from '@/lib/require-membership';
 import { DAY_MS, normalizeZone, wallClockInZone } from '@/lib/time';
+import { calendarActivities, type ActivityRow, type ActivityEvent, type DoneWorkout } from '@/lib/calendar-activities';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,6 +55,8 @@ export const dynamic = 'force-dynamic';
 // How many published plan rows the calendar reads, newest first with the undated ones
 // kept — see the note on that query.
 const PLAN_CAP = 200;
+// A month or six weeks of a member's activities; a read that fills it keeps the newest.
+const ACTIVITY_CAP = 500;
 // The plans row reads a window of every client's assigned training days (one row per day
 // planned), in pages, to the end of the window. Past the cap the read is reported incomplete
 // (`clientPlansReadable: false`) rather than drawn as days with no training.
@@ -334,6 +337,8 @@ export async function GET(request: Request) {
   // read leaves every workout planned, as before.
   const undatedIds = new Set(undatedW.map((w) => w.id));
   const planIds = planWorkouts.map((w) => String(w.id).slice('plan:'.length));
+  // When each finished workout's session started: a synced copy of it folds into its card (3b).
+  const doneAt: DoneWorkout[] = [];
   if (planIds.length) {
     type WsRow = { client_workout_id: string | null; duration_seconds: number | null; started_at: string | null; created_at: string | null };
     const { data: wsRows } = await supabase
@@ -347,18 +352,42 @@ export async function GET(request: Request) {
     for (const r of (wsRows ?? []) as WsRow[]) {
       const id = r.client_workout_id;
       if (!id) continue;
+      const at = Date.parse(String(r.started_at || r.created_at || ''));
       if (undatedIds.has(id)) {
-        const at = Date.parse(String(r.started_at || r.created_at || ''));
         const day = Number.isFinite(at) ? wallClockInZone(at, zone)?.date : null;
         if (!day || day < weekISO[0]) continue;
       }
       doneSec.set(id, Math.max(doneSec.get(id) ?? 0, Number(r.duration_seconds) || 0));
+      if (Number.isFinite(at)) doneAt.push({ id: `plan:${id}`, at });
     }
     for (const w of planWorkouts) {
       const sec = doneSec.get(String(w.id).slice('plan:'.length));
       if (sec == null) continue;
       w.status = 'completed';
       w.doneSeconds = sec || null;
+    }
+  }
+
+  // 3b) The member's activities: Strava, Garmin, Apple Health, WHOOP, Oura, or logged by hand.
+  //     Only the member calendar asks for them (`activities=1`, the app's); the coach's Schedule
+  //     and the website's overlay read this route without. Placed on the zone's dates, a workout
+  //     two providers synced shown once, and one logged in Shape folded into its card
+  //     (src/lib/calendar-activities.ts). A failed read shows none.
+  let activityEvents: ActivityEvent[] = [];
+  if (url.searchParams.get('activities') === '1') {
+    const { data: actRows } = await supabase
+      .from('activities')
+      .select('id, source, activity_type, title, started_at, duration_min, distance_km, calories')
+      .eq('user_id', targetUserId)
+      .gte('started_at', fromIso)
+      .lte('started_at', toIso)
+      .order('started_at', { ascending: false })
+      .limit(ACTIVITY_CAP);
+    const placed = calendarActivities({ rows: (actRows ?? []) as ActivityRow[], zone, from: dFrom, to: dTo, done: doneAt });
+    activityEvents = placed.events;
+    for (const w of planWorkouts) {
+      const km = placed.workoutDistance.get(String(w.id));
+      if (km != null) w.distanceKm = km;
     }
   }
 
@@ -480,7 +509,7 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ events: [...events, ...sessions, ...planWorkouts, ...planMeals], zone, ...(plansRow || {}) });
+  return NextResponse.json({ events: [...events, ...sessions, ...planWorkouts, ...activityEvents, ...planMeals], zone, ...(plansRow || {}) });
 }
 
 // ── POST ─────────────────────────────────────────────────────────────────────

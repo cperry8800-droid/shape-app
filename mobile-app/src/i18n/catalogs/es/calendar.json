@@ -1,4 +1,5 @@
 {
+  "activity.loggedByHand": "Registrado a mano.",
   "add.added": "Añadido al calendario",
   "add.couldNotSave": "No se pudo guardar",
   "add.needTitle": "Añade un título",
@@ -89,6 +90,7 @@
   "stat.fat": "GRASA",
   "stat.kcal": "KCAL",
   "stat.moves": "EJERCICIOS",
+  "stat.pace": "RITMO",
   "stat.pro": "PROT",
   "stat.rpe": "RPE",
   "stat.zone": "ZONA",

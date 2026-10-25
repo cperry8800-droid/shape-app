@@ -1,4 +1,5 @@
 {
+  "activity.loggedByHand": "Ghi thủ công.",
   "add.added": "Đã thêm vào lịch",
   "add.couldNotSave": "Không thể lưu",
   "add.needTitle": "Thêm tiêu đề",
@@ -89,6 +90,7 @@
   "stat.fat": "BÉO",
   "stat.kcal": "KCAL",
   "stat.moves": "ĐỘNG TÁC",
+  "stat.pace": "NHỊP",
   "stat.pro": "ĐẠM",
   "stat.rpe": "RPE",
   "stat.zone": "VÙNG",

@@ -1,4 +1,5 @@
 {
+  "activity.loggedByHand": "Dicatat manual.",
   "add.added": "Ditambahkan ke kalender",
   "add.couldNotSave": "Tidak bisa menyimpan",
   "add.needTitle": "Tambahkan judul",
@@ -89,6 +90,7 @@
   "stat.fat": "LEMAK",
   "stat.kcal": "KKAL",
   "stat.moves": "GERAKAN",
+  "stat.pace": "PACE",
   "stat.pro": "PROT",
   "stat.rpe": "RPE",
   "stat.zone": "ZONA",

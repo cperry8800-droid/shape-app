@@ -26,6 +26,8 @@ import { bsHwShift, bsHwLocalDayOf } from './homeWeek.mjs';
 export const BS_BURN_SOURCES = { apple_health: 'Apple Health', apple: 'Apple Health', garmin: 'Garmin', oura: 'Oura', strava: 'Strava', whoop: 'WHOOP', manual: 'manual' };
 
 const TWIN_MS = 20 * 60 * 1000;
+// The calendar shows a synced workout once by the same rule (src/lib/calendar-activities.ts).
+export const BS_BURN_TWIN_MS = TWIN_MS;
 
 const kcalOf = (v) => {
   if (v == null || v === '') return null;

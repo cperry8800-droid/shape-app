@@ -29,6 +29,8 @@ async function api(path, results = {}, user = { id: 'coach-a' }) {
     // check stays permissive here.
     ['@/lib/time',{...(await loadRealModule(fileURLToPath(new URL('../src/lib/time.ts',import.meta.url)),{typescript:true})),normalizeZone:(zone)=>zone || null}],
   ]);
+  // The member calendar's activities (src/lib/calendar-activities.ts), on the same clock.
+  registry.set('@/lib/calendar-activities',await loadRealModule(fileURLToPath(new URL('../src/lib/calendar-activities.ts',import.meta.url)),{typescript:true,registry:new Map([['@/lib/time',registry.get('@/lib/time')]])}));
   const route = await loadRealModule(fileURLToPath(new URL('../src/app/api/'+path+'/route.ts',import.meta.url)),{typescript:true,registry});
   return { route, calls };
 }

@@ -1,4 +1,5 @@
 {
+  "activity.loggedByHand": "Saisi à la main.",
   "add.added": "Ajouté au calendrier",
   "add.couldNotSave": "Enregistrement impossible",
   "add.needTitle": "Ajoute un titre",
@@ -89,6 +90,7 @@
   "stat.fat": "LIP",
   "stat.kcal": "KCAL",
   "stat.moves": "EXOS",
+  "stat.pace": "ALLURE",
   "stat.pro": "PROT",
   "stat.rpe": "RPE",
   "stat.zone": "ZONE",

@@ -6,11 +6,11 @@ import React from 'react';
 // remembers the choice (shape.calendarView).
 //
 // The month's weeks, Monday to Sunday, one block each: the dates, a This / Last / Next week
-// tag, and the week's total (done of planned, and the planned time). A row per day: the
+// tag, and the week's total (done of planned, the time, the distance). A row per day: the
 // weekday and date, today in a filled disc, then a card per item with its kind's spine and
-// a ✓ once done. A finished workout reads the time it took. A day's meals fold into one
-// card, which opens that day in Month (where the day reader lists them). From today on, a
-// signed-in day offers ＋ Add.
+// a ✓ once done. A finished workout reads how far and how long it took; a run synced from
+// Strava, Garmin or Apple Health is a card of its own (/api/calendar). A day's meals fold
+// into one card, which opens the day in a sheet. From today on, a signed-in day offers ＋ Add.
 //
 // ⚠ THE CALENDAR MODULE HANDS IN WHAT IT OWNS (the kind colors, the time label, the event
 // sheet, the add sheet) AS PROPS, so this file never imports it back. Window globals are
@@ -58,13 +58,15 @@ export function bsCalWeeksOf(year, month) {
 const FOLDED = new Set(['MEAL']);
 const UNCOUNTED = new Set(['MEAL', 'REST']);
 
-// A week's total: how many of its items are done, and the time they were planned for.
+// A week's total: how many of its items are done, their time, and the distance covered (km:
+// synced and hand-logged activities, and the workouts logged in Shape that a sync measured).
 export function bsCalWeekTotals(items) {
   const counted = items.filter((e) => !UNCOUNTED.has(e.kind));
   return {
     done: counted.filter((e) => e.state === 'done').length,
     total: counted.length,
     minutes: counted.reduce((n, e) => n + (Number(e.dur) > 0 ? Number(e.dur) : 0), 0),
+    km: Math.round(counted.reduce((n, e) => n + (Number(e.distanceKm) > 0 ? Number(e.distanceKm) : 0), 0) * 100) / 100,
   };
 }
 
@@ -111,9 +113,16 @@ export function BSCalendarWeeks({ events, viewYear, viewMonth, todayIso, focusIs
     return tr('calendar:weeks.durMS', { m: Math.floor(s / 60), s: s % 60, defaultValue: '{m}m {s}s' });
   };
   const shortDate = (d) => d.toLocaleDateString(calLocale(), { month: 'short', day: 'numeric' });
-  // A card's second line: the time it took once done, else when and how long, else its note.
+  // A distance in the member's unit ("3.6 mi").
+  const fmtKm = (km) => { const m = t.uMeasure ? t.uMeasure(km, 'km') : { value: Math.round(km * 10) / 10, unit: 'km' }; return `${m.value} ${m.unit}`; };
+  // A card's second line: once done, how far and how long it took ("3.6 mi · 35m 24s"); else
+  // when and how long it is planned for; else its note.
   const detail = (e) => {
-    if (e.state === 'done' && e.doneSec) return fmtSec(e.doneSec);
+    const km = Number(e.distanceKm) > 0 ? Number(e.distanceKm) : null;
+    if (e.state === 'done' && (e.doneSec || km || e.source === 'activity')) {
+      const measured = [km ? fmtKm(km) : null, e.doneSec ? fmtSec(e.doneSec) : (Number(e.dur) > 0 ? fmtMin(Number(e.dur)) : null)].filter(Boolean).join(' · ');
+      if (measured) return measured;
+    }
     const when = timeLabel(e);
     const parts = [when && when !== '—' ? when : null, Number(e.dur) > 0 ? fmtMin(Number(e.dur)) : null].filter(Boolean);
     return parts.length ? parts.join(' · ') : (e.sub || '');
@@ -152,7 +161,7 @@ export function BSCalendarWeeks({ events, viewYear, viewMonth, todayIso, focusIs
               </div>
               <div style={{ marginTop: 5, marginBottom: 8, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>
                 {tot.total
-                  ? <>{tr('calendar:weeks.total', { defaultValue: 'Total' })} · <span style={{ color: t.INK }}>{tr('calendar:weeks.doneOf', { done: tot.done, total: tot.total, defaultValue: '{done} of {total} done' })}</span>{tot.minutes ? ` · ${fmtMin(tot.minutes)}` : ''}</>
+                  ? <>{tr('calendar:weeks.total', { defaultValue: 'Total' })} · <span style={{ color: t.INK }}>{tr('calendar:weeks.doneOf', { done: tot.done, total: tot.total, defaultValue: '{done} of {total} done' })}</span>{tot.minutes ? ` · ${fmtMin(tot.minutes)}` : ''}{tot.km ? <> · <span style={{ color: t.INK }}>{fmtKm(tot.km)}</span></> : null}</>
                   : tr('calendar:weeks.nothingPlanned', { defaultValue: 'Nothing planned' })}
               </div>
               {days.map((d) => {
