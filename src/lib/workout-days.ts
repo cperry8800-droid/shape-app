@@ -81,7 +81,9 @@ export async function readDayStreak(
       .from('workout_sessions')
       .select('started_at, ended_at, created_at, local_day:summary->>snapshotDate')
       .eq('client_id', userId)
-      .eq('status', 'completed')
+      // A reviewed session is a finished one a coach has looked at (trainer analytics and
+      // get_client_lifts count both; Codex P2 on #2451).
+      .in('status', ['completed', 'reviewed'])
       .order('created_at', { ascending: false })
       .range(from, from + STREAK_PAGE - 1);
     if (error || !data) break;

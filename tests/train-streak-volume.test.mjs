@@ -234,3 +234,16 @@ test('a member who has since moved zone keeps each workout on the day it was don
   assert.equal(train.volumeByDay[11], 500, 'the set is on its session\'s stored day, two days back');
   assert.equal(train.volumeByDay[12], 0, 'not on the day London reads it as');
 });
+
+test('a workout a coach has reviewed still counts toward the streak', async () => {
+  const { days } = await load();
+  const today = days.memberDay(Date.now(), NY);
+  const sessions = [
+    session('v-1', await at(days.shiftDay(today, -1), '18:00', NY), 'reviewed'),
+    session('v-2', await at(days.shiftDay(today, -2), '18:00', NY)),
+    session('v-3', await at(days.shiftDay(today, -3), '18:00', NY), 'abandoned'),
+  ];
+  const tables = { client_profiles: [{ user_id: 'u-1', timezone: NY }], client_workouts: [], workout_sessions: sessions, workout_set_logs: [] };
+  assert.equal((await GET('train', tables)).stats.currentStreak, 2, 'yesterday\'s reviewed workout keeps the streak; an abandoned one does not');
+  assert.equal((await GET('dashboard', tables)).kpis.streak, 2);
+});
