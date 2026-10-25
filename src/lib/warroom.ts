@@ -615,6 +615,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'The app\'s fonts ship in the repo, so the build never fetches from Google — #2455. No migration',
+      items: [
+        { label: 'Owner, 2026-10-25: "self-host the Google fonts so CI stops failing". next/font/google fetched Inter, Fraunces and JetBrains Mono from Google during next build, and CI\'s Web job failed whenever that fetch did (#2449 on 900002d, #2453 on 08a7c7b)', status: 'done' },
+        { label: 'src/app/fonts holds each font as one variable WOFF2 (Fontsource 5.3.0, OFL licences beside them): the Latin subset the Google calls preloaded. Inter 100–900 (--font-inter, globals.css), Fraunces 100–900 with its optical-size axis and a Times fallback (--font-admin-display) and JetBrains Mono 100–800 (--font-admin-mono) load through next/font/local, with the same variables, size-matched fallbacks and preload', status: 'done' },
+        { label: 'Review: Codex clean on 4001d52. CodeRabbit not run. The failure reproduced on main with Google unreachable ("Failed to fetch … from Google Fonts"); the same blocked build passes on this branch. tests/self-hosted-fonts (5: no next/font/google under src/, each localFont call, its WOFF2 file and licence); the suites that read the layouts (77) and worklog-rules; tsc clean; Chromium on next start: /forgot-password in Inter from the bundled file, no request to Google; CI green on all four jobs', status: 'done' },
+        { label: 'Letters outside Latin (a name\'s ł or ő, Cyrillic, Greek, Vietnamese) draw in the size-matched Arial or Times fallback: next/font/local can\'t give each subset its own unicode-range. Importing the Fontsource CSS packages would cover them, at three dependencies and no preload', status: 'pending' },
+      ],
+    },
+    {
       section: 'A meal plan that wasn\'t read: Eat\'s Fuel left reads "—", not 0 kcal, and website Nutrition shows no demo menu — #2453. No migration',
       items: [
         { label: 'Owner, 2026-10-25: "fix the Eat Fuel left 0 kcal on a failed read" and "fix the website Nutrition demo menu on a failed read" (both left open by #2452)', status: 'done' },
