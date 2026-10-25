@@ -126,8 +126,7 @@ dated entry or past 20 KB.
 
 ## Open items
 
-The War Room has the full list. This section covers what needs the owner, plus the
-planned builds.
+The War Room has the full list; this covers what needs the owner and the planned builds.
 
 **Waiting on the owner**
 - Push keys (the app side is built, #2385; 0 push devices in production). For iPhone,
@@ -160,7 +159,6 @@ planned builds.
   referral.
 - Add the `localhost` hostname to the Turnstile widget.
 - Get a native speaker to read the PAR-Q translations.
-- Pick a Week so far design: A, B or C (mockups sent 2026-10-24).
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
@@ -202,11 +200,13 @@ planned builds.
   Stripe; the 90-day churn is a floor once all 12 listed cancellations fall in it. The
   dashboard routes drop their session and coach-row read errors. Renewals and the origin
   feed show "—" for an unread name and for none.
-- Home (`BSHomeSections.jsx`): Week so far counts days trained (workout minutes or a logged
-  activity) against the plan's sessions, and days with food logged, not meals. The weekly
-  notes, message doors and next session show only for a paid coach (no sample signed out).
+- Home (`BSHomeSections.jsx`): Week so far counts days trained (workout minutes or an
+  activity) against the plan's sessions, and food days, not meals; a protein or steps square
+  needs the target (else any reading). The weekly notes, message doors and next
+  session show only for a paid coach (no sample signed out). Train takes a failed workouts
+  read (`training.read: false`) for no plan.
 - Eat on a live meal plan takes what was eaten (Fuel left, macro pages) from the plan's
-  day `totals` and meals' `state`, not the member's logs.
+  day `totals` and meals' `state`, not the logs.
 - Signed in, others' profiles show the demo signals and climb (owner: leave it).
 - Shape Wire (the launch telegram) shows the coach's latest note however old, and its
   morning protein line is usually absent (it reads only today's row).
@@ -238,8 +238,8 @@ planned builds.
 - Staff two-factor has no recovery codes, and reloading `/staff-verify` during set-up
   makes a new key (#2388). The Radio page can ask for the code again.
 - The website's usage stats don't wait for the consent banner in the EEA and UK.
-- Nothing opens the chat panel from a URL. `TrainerNewProgram.html` and
-  `get-started.html` aren't linked from anywhere.
+- Nothing opens the chat panel from a URL; `TrainerNewProgram.html` and `get-started.html`
+  are linked from nowhere.
 - The website's Kitchen (`recipesPage.jsx`) still runs its filter toggles and jump row
   off the right edge of a phone.
 - No signed-in pass has been done in a browser or on a phone for client onboarding,
@@ -287,6 +287,6 @@ planned builds.
   [`-2026-06-cycles-2-5`](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 - The old version of this file, with every reviewer ruling and why:
   [`-conventions-2026-10-16`](WORKLOG-ARCHIVE-conventions-2026-10-16.md).
-- Old session handoffs (`docs/HANDOFF-*.md`) are history; none are written now.
+- Handoffs (`docs/HANDOFF-*.md`) are history.
 - Search them with `grep -n "<term>" docs/WORKLOG-ARCHIVE-*.md`, then read one entry
   with `sed -n` (AGENTS.md: never `cat` one).

@@ -146,7 +146,7 @@ export async function GET(request: Request) {
   // early-future…], so the current week + repeats are never crowded out by a
   // long block's later weeks. (this-week-forward, not this-week-only, so a coach
   // plan that starts next week still reads as hasPlan — no false Build door.)
-  const { data: cwRows } = await supabase
+  const { data: cwRows, error: cwErr } = await supabase
     .from('client_workouts')
     .select('id, title, description, kind, payload, scheduled_date, created_at, trainer_id')
     .eq('client_id', user.id)
@@ -155,6 +155,7 @@ export async function GET(request: Request) {
     .order('scheduled_date', { ascending: true, nullsFirst: true })
     .order('created_at', { ascending: false })
     .limit(60);
+  if (cwErr) console.error('[client/plan] workouts read failed:', cwErr.message);
 
   const workouts = (cwRows ?? []).map((w) => {
     const payload = (w.payload && typeof w.payload === 'object') ? (w.payload as Record<string, unknown>) : null;
@@ -340,6 +341,9 @@ export async function GET(request: Request) {
     weekStart,
     training: {
       hasPlan: workouts.length > 0,
+      // false when the workouts read failed, so an empty list reads as unknown, not as no plan (Codex
+      // P2 on #2449: Home's Week so far would call the plan's days rest days).
+      read: !cwErr,
       coach: trName,
       workouts,
       ...(trainerCoaching === undefined ? {} : { coaching: trainerCoaching }),

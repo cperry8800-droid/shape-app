@@ -72,7 +72,7 @@ import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
-import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomePaidBanners } from '../services/homeWeek.mjs';
+import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomeSessionsPlannedDays, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
@@ -4465,12 +4465,17 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const [livePlan, setLivePlan] = useStateBSC(null);
   // The coaches the member pays, off the same read, plan or no plan (From your coaches).
   const [planCoaches, setPlanCoaches] = useStateBSC([]);
+  // Whether that read came back with the workouts. ShapePlan.get resolves null when it fails, and the
+  // route sends training.read false when its workouts read failed; both look like no plan, so Week so
+  // far calls an untrained day a rest day only once the plan was read (Codex P2s on #2449).
+  const [planRead, setPlanRead] = useStateBSC(false);
   React.useEffect(() => {
     let on = true;
     if (window.ShapePlan?.get) {
       window.ShapePlan.get().then((p) => {
         if (on && p && ((p.training && p.training.hasPlan) || (p.meals && p.meals.hasPlan))) setLivePlan(p);
         if (on && p) setPlanCoaches(bsHomeCoachesOf(p));
+        if (on && p && p.ok === true && p.training && p.training.read !== false) setPlanRead(true);
       }).catch(() => {});
     }
     return () => { on = false; };
@@ -5283,7 +5288,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       <BSHomeGoal tour="hero-goal" demo={bsHomeSignedIn ? null : BS_GOALS_DEFAULT} docKg={bsGoalDocKg} isWeightGoal={bsPrimaryGoalIsWeight}
         goalWords={(id) => bsPrimaryGoalLabel(id, tr)} onOpen={() => setGoalsPage(true)} />
       <BSHomeWeekSoFar
-        sessionsPlanned={bsHomeSessionsPlanned(livePlan)}
+        sessionsPlanned={bsHomeSessionsPlanned(livePlan)} plannedDays={bsHomeSessionsPlannedDays(livePlan)} planRead={planRead}
         proteinTarget={ticker && typeof ticker.protein_target === 'number' ? ticker.protein_target : null}
         stepGoal={stepsToday.goal} checkinsOn={checkinPrefOn}
         onTrain={() => goTrain?.()} onEat={() => goEat()} onProgress={() => setHomeProgressPage(true)}

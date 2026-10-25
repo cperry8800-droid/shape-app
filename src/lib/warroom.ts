@@ -615,6 +615,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Home\'s Week so far as a square a day (the owner\'s pick, B); the plan route says when its workouts read failed — #2449. No migration',
+      items: [
+        { label: 'Owner, 2026-10-24: "we also need to improve look of this, give me 3 new ideas" (Week so far). Three mockups went over (A a scoreboard, B a day grid, C a lede); the owner, 2026-10-25: "go with B"', status: 'done' },
+        { label: 'Week so far (BSHomeSections.jsx) is a row per figure (Sessions, Food logged, Protein, Steps, and Check-ins when on): the name, a square a day Monday to Sunday in the row\'s colour, and the week\'s figure. Each row is a 44 px door to where its old row went. The magazine head ("Week so far" over a 2 px ink rule, "A square a day"), the day letters in the member\'s locale with today underlined in red, a key and the targets\' rule under the grid. A screen reader hears each row\'s figure and then every day\'s square ("Monday: hit, Tuesday: rest day, …")', status: 'done' },
+        { label: 'What a square says (bsHwWeekGrid, homeWeek.mjs): hit (trained, food logged, protein or steps at the target or any reading without one, checked in); missed (a day gone by without it, and for sessions only a day the plan set one); rest day (no session set and none trained, once the plan was read); to come (today until it is hit, and the days after); a dot when the read failed or hasn\'t answered. ShapeCommit.progress now hands back the days trained with its count. The signed-out sample\'s counts are its own squares\' hits', status: 'done' },
+        { label: 'Review: Codex on f4e72ba (P2: the squares, day letters and key were hidden from a screen reader; fixed in 6a7f6f3, each row names its days), on 6a7f6f3 (P2: a failed plan read looked like no plan, so untrained days read as rest days; fixed in 900002d, planRead) and on 900002d (P2: /api/client/plan ignored its workouts read\'s error and answered ok with no plan; fixed in acb7bca, the route sends training.read false and Home gates on it); clean on acb7bca. CodeRabbit not run. tests/home-sections (24, the new and changed ones failing on the code before them), the plan route\'s readers (204) and tsc clean; the Web job on 900002d failed on the Google font fetch in next build, then passed again; CI green on all four jobs', status: 'done' },
+        { label: 'Device pass: Week so far on a phone, signed in with a coach\'s plan and without, light and dark, with VoiceOver on a row', status: 'manual' },
+        { label: 'Train takes a failed workouts read (training.read false) for no plan; only Home reads the flag', status: 'pending' },
+      ],
+    },
+    {
       section: 'The profile feed\'s newest PRs from their own function, past the 100-move cap — #2448. MIGRATION 2026-10-25-my-recent-lift-prs.sql APPLIED + VERIFIED LIVE 2026-10-25',
       items: [
         { label: 'Owner, 2026-10-25: "fix it", of Codex\'s P2 on #2445. get_my_lift_prs ranks every move\'s best by load and clamps its limit to 100, so a member past 100 distinct moves who set a new best on a light move had it cut before /api/client/progress picked the newest. get_my_recent_lift_prs computes the same per-move bests and orders them by date before its limit: self-scoped definer, search_path pinned with pg_temp, EXECUTE for authenticated only, idempotent', status: 'done' },
@@ -652,7 +663,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Owner: "i should be able to click on this, also this box doesnt match look of page". Burned this week is a row between two rules on Train\'s paper, and the whole of it opens the week day by day: each day\'s figure, a bar to the best day, where it came from, Not tracked and To come', status: 'done' },
         { label: 'Owner: "also update design and look of this page" (Customize). Saira heads over 2 px ink rules with their hints at the right, square 44 px fields, square ink-outline actions, chosen chips in ink, Save in ink; nothing rounded, dashed, notched or gold', status: 'done' },
         { label: 'Review: Codex found two on the macro pages, both fixed: a logged meal\'s swap now counts at its swap\'s amounts on the tile, the page and the week, and a swapped meal opens as its swap (from the menu too). A third (count the swaps of meals not yet eaten) was answered: Eat\'s figure is what was eaten. Verified: CI green on all four jobs; the new tests in nora-radio-magazine, focus-layout, water-line, me-page-magazine, profile-magazine-module, train-burn and week-burn, each failing on the code before them; Chromium renders', status: 'done' },
-        { label: 'OWNER — pick a design for Home\'s Week so far: A a scoreboard, B a day grid, C a lede (mockups sent 2026-10-24)', status: 'manual' },
+        { label: 'OWNER — pick a design for Home\'s Week so far: A a scoreboard, B a day grid, C a lede (mockups sent 2026-10-24). The owner picked B, built in #2449', status: 'done' },
         { label: 'Eat on a live meal plan takes what was eaten from the plan\'s day totals and meals\' state, not the member\'s logs (no member meal plans in production yet)', status: 'pending' },
       ],
     },
