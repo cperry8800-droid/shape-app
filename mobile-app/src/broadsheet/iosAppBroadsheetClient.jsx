@@ -28319,7 +28319,7 @@ function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack, onLog,
         {g.sub ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.35, color: t.INK70 }}>{g.sub}</span> : null}
         {share != null ? (
           <span aria-hidden data-goal-target-bar="" style={{ display: 'block', height: 8, marginTop: 8, borderRadius: 99, background: D.track, overflow: 'hidden' }}>
-            <span style={{ display: 'block', width: `${Math.max(4, share * 100)}%`, height: '100%', borderRadius: 99, background: `linear-gradient(90deg, ${bsDashA(D.mark[c], 0.62)}, ${D.mark[c]})` }} />
+            <span style={{ display: 'block', width: `${share * 100}%`, height: '100%', borderRadius: 99, background: `linear-gradient(90deg, ${bsDashA(D.mark[c], 0.62)}, ${D.mark[c]})` }} />
           </span>
         ) : null}
       </button>

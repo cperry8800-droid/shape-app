@@ -96,6 +96,14 @@ test("a target climbing to its mark has a bar; one coming down to it has none (n
   assert.ok(!JSON.stringify(h1.props.style).includes('italic'));
 });
 
+test("a target's bar is its share exactly: none done is an empty bar, a sliver is a sliver", () => {
+  const data = { ...DATA, training: [{ t: 'New target', cur: 0, tgt: 10 }, { t: 'Barely begun', cur: 1, tgt: 100 }] };
+  const rows = prop(contract({ view: 'training', data }).nodes(), 'data-goal-target');
+  const fillOf = (row) => { let w = null; const walk = (n) => { if (!n || typeof n !== 'object') return; if (n.props && n.props['data-goal-target-bar'] !== undefined) w = [].concat(n.props.children)[0].props.style.width; [].concat(n.props && n.props.children).flat(Infinity).forEach(walk); }; walk(row); return w; };
+  assert.equal(fillOf(rows[0]), '0%');
+  assert.equal(fillOf(rows[1]), '1%');
+});
+
 test("This week: a ring for each figure with a target, the figure alone without one", () => {
   const week = [
     { l: 'Sessions', v: '3/4', sub: 'one to go', c: 'coral', pct: 0.75 },
