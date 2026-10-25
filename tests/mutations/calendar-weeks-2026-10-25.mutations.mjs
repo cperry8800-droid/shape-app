@@ -12,8 +12,14 @@ export default {
   mutations: [
     // ── the route ──
     { name: 'an abandoned session finishes the workout', file: ROUTE,
-      find: "      .in('status', ['completed', 'reviewed'])\n      .limit(1000);",
+      find: "      .in('status', ['completed', 'reviewed'])\n",
+      replace: '' },
+    { name: 'the capped session read keeps arbitrary rows', file: ROUTE,
+      find: "      .order('created_at', { ascending: false })\n      .limit(1000);",
       replace: '      .limit(1000);' },
+    { name: 'the week is the server\'s, not the zone\'s', file: ROUTE,
+      find: 'const zoneToday = wallClockInZone(today.getTime(), zone)?.date ?? today.toISOString().slice(0, 10);',
+      replace: 'const zoneToday = today.toISOString().slice(0, 10);' },
     { name: 'last week\'s run ticks this week\'s undated slot', file: ROUTE,
       find: '        if (!day || day < weekISO[0]) continue;\n',
       replace: '' },
