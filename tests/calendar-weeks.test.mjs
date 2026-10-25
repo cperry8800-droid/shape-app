@@ -392,6 +392,11 @@ test('a synced run opens on what was measured, and offers nothing to start', () 
   const ride = drive(CAL.BSEventActivityBody, { event: { source: 'activity', distanceKm: 20, dur: 50, activityType: 'ride', sub: '' } });
   assert.deepEqual(ride.nodes().find(named('BSEventStatRegister')).props.items[2], ['PACE', '—']);
   assert.match(ride.text, /Logged by hand\./);
+  // A hike is on foot, whatever case the provider sent: 8 km in 96 minutes is 19:19 a mile.
+  for (const activityType of ['hiking', 'HIKE', 'trail_running']) {
+    const hike = drive(CAL.BSEventActivityBody, { event: { source: 'activity', distanceKm: 8, dur: 96, activityType, sub: 'Garmin' } });
+    assert.deepEqual(hike.nodes().find(named('BSEventStatRegister')).props.items[2], ['PACE', '19:19 /mi'], activityType);
+  }
 });
 
 test('a workout a synced run finished reads how far and how long, and where it came from', () => {

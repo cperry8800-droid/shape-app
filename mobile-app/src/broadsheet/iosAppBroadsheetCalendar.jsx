@@ -1078,7 +1078,7 @@ function BSEventActivityBody({ event }) {
   const min = Number(event.dur) > 0 ? Number(event.dur) : null;
   // Pace for what is done on foot, per the member's unit (converted unrounded: 1 km is 0.621 mi).
   const perKm = t.uMeasure ? Number(t.uMeasure(1e6, 'km').value) / 1e6 : 1;
-  const onFoot = /(run|jog|walk|hike)/.test(String(event.activityType || ''));
+  const onFoot = /run|jog|walk|hik(e|ing)/.test(String(event.activityType || '').toLowerCase());
   const paceSec = onFoot && km && min && perKm > 0 ? Math.round((min * 60) / (km * perKm)) : null;
   const stats = [
     [tr('calendar:stat.dist', { defaultValue: 'DIST' }), shown ? `${shown.value} ${shown.unit}` : '—'],

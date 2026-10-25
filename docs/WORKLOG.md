@@ -33,8 +33,8 @@ dated entry or past 20 KB.
   - Copilot runs on push (or `mcp__github__request_copilot_review`); it often declines.
   - CodeRabbit runs only when the owner asks for it on that PR. When they do, put the
     brief in the PR description, wait for CodeRabbit's own notice, then post just
-    `@coderabbitai full review`. Run one round per PR and don't re-trigger it. It
-    bills $0.25 per file beyond the included review each hour.
+    `@coderabbitai full review`. Run one round per PR. It bills $0.25 per file beyond
+    the included review each hour.
   - A head that no reviewer covered is merged only on the owner's word.
   - A Codex review's `commit_id` names the head it read. Its inline comments all show
     the current head, so judge a finding against the review, not the comment.
@@ -47,8 +47,7 @@ dated entry or past 20 KB.
 - **Pre-commit hook** (`.githooks/pre-commit` → `scripts/verify-staged.sh`). It runs
   the checks a staged change can break. For a small commit, run the tests that touch
   the change and commit with `SKIP_VERIFY=1` (~4 min saved), then say in the PR what
-  ran. CI still runs everything. On a local machine, enable the hook once with
-  `git config core.hooksPath .githooks`.
+  ran. On a local machine, enable the hook once with `git config core.hooksPath .githooks`.
 - **Mutation rounds** are for changes involving money, data or a migration. Always use
   the one runner:
   `node scripts/mutate.mjs --spec tests/mutations/<subject>.mutations.mjs --fail-on-skipped`.
@@ -70,8 +69,8 @@ dated entry or past 20 KB.
 
 ## Where the code lives
 
-- **Website: `public/newdesign/`.** Each `*.html` file is a live page, and shared
-  components live in `pageShell.jsx`, `living*.jsx` and `chatWidget.jsx`. Don't bump
+- **Website: `public/newdesign/`.** Each `*.html` file is a live page; shared
+  components are `pageShell.jsx`, `living*.jsx` and `chatWidget.jsx`. Don't bump
   `?v=`: `scripts/build-newdesign.mjs` replaces it with a content hash at deploy.
   Before editing a legacy `*.jsx`, check that something still loads it.
   `coachForecast.js` holds the coach Business figures; the app imports it too, so
@@ -85,25 +84,23 @@ dated entry or past 20 KB.
 - **Mobile app: `mobile-app/`** (Capacitor/Vite SPA, served at `/m/`).
   - Build: from `mobile-app/`, run `VITE_BASE=/m/ npm run build`.
   - `public/m` isn't committed: `scripts/build-m.sh` builds it at deploy (Vercel's
-    `buildCommand`). CI's Mobile job checks only that the bundle builds and its assets
-    resolve.
+    `buildCommand`); CI's Mobile job checks that it builds and its assets resolve.
   - Parse-check a JSX file:
     `node -e "require('@babel/parser').parse(require('fs').readFileSync('<file>','utf8'),{sourceType:'module',plugins:['jsx']})"`
   - Native builds get `VITE_API_BASE_URL=https://theshapecommunity.com` from
     `android-build.yml` and `codemagic.yaml`. The hosted `/m/` build calls its own
     origin.
 - **`iosAppBroadsheetClient.jsx`** is the member app (~38k lines): Home, Eat, Train,
-  the logger, chat and settings. When a PR already touches a self-contained screen,
-  move that screen into its own ES module. `BSIntegrationsPage.jsx` and
-  `BSLeaderboard.jsx` show the pattern: read window globals at call time inside the
-  component, keep its own `useShapeTr()`, and never import back into the client
-  module.
+  the logger, chat and settings. When a PR touches a self-contained screen, move it into
+  its own ES module. `BSIntegrationsPage.jsx` and `BSLeaderboard.jsx` show the pattern:
+  read window globals at call time inside the component, keep its own `useShapeTr()`,
+  and never import back into the client module.
 - **Other app modules:** `iosAppBroadsheetPros.jsx` (trainer and nutritionist apps),
   `iosAppBroadsheet.jsx` (shared chrome: `BSPage`, `BSFooter`, `BSPlate`,
   `BSSwapSheet`), `iosAppBroadsheetRadio.jsx` (Shape Radio) and
   `services/shapeBackend.js` (the Supabase data layer).
 - **Window globals.** Modules expose components with `Object.assign(window, {...})`.
-  A role module that reads a global before the feature module defines it causes React
+  A role module reading a global before its feature module defines it causes React
   error #130. `iosAppBroadsheetMain.jsx` loads feature modules before role modules.
   ⚠ `iosAppBroadsheetPros.jsx` reads the client module's globals at load, so
   `loadProsBundle` loads the whole client bundle first.
@@ -115,18 +112,21 @@ dated entry or past 20 KB.
   `t.isLight ? '#0a8f87' : '#34d6c5'`; nutritionists are gold `#a07a2e` and trainers
   rust `#c0533b`. The Wall, chat and the chrome take the magazine's red from
   `bsMagazine.mjs`; every heading is Saira.
-- **App copy** goes through `useShapeTr()` in all 13 locales.
-  `tests/i18n-surface-inventory.test.mjs` counts the strings that aren't translated
-  yet.
+- **App copy** goes through `useShapeTr()` in all 13 locales;
+  `tests/i18n-surface-inventory.test.mjs` counts the untranslated strings.
 - **Backend touchpoints:**
   - `src/app/api/nutrition/meal-note/route.ts` sends a meal note, memo or photo to
     linked coaches through the private `meal-notes` bucket.
   - `src/app/api/nutrition/voice/route.ts` does Whisper transcription.
   - The War Room (`/warroom`, `src/lib/warroom.ts`) is the go-live status board.
+  - `/api/calendar?activities=1` (member calendar only) adds activities: providers' copies
+    within 20 min are one; a logged workout's folds into it; one ticks an open planned
+    workout of its day (undated: its week) and `workoutKind`, unless its title names no
+    kind or two.
 
 ## Open items
 
-The War Room has the full list; this covers what needs the owner and the planned builds.
+The War Room has the full list.
 
 **Waiting on the owner**
 - Push keys (the app side is built, #2385; 0 push devices in production). For iPhone,
@@ -184,10 +184,9 @@ The War Room has the full list; this covers what needs the owner and the planned
   nutritionist only.
 - A subscription to a coach who is later suspended keeps renewing.
 - The `?error=` redirects from `/purchase` and `/subscribe` are never shown.
-- A coach's referral link brings a new member back to the coach after sign-up, but the
-  confirmation email's own link opens a bare `Login.html`: the way back rides in the
-  browser that signed up (two days), so confirming on another device lands on the
-  dashboard.
+- A coach's referral link brings a new member back to the coach after sign-up only in the
+  browser that signed up (two days): the confirmation email's link opens a bare
+  `Login.html`, so confirming on another device lands on the dashboard.
 - `checkin_submitted` is a switch nothing writes.
 - Payment notices (#2402) reach the owners in code (`admin-access.ts`), not Staff-page
   staff.
@@ -287,5 +286,4 @@ The War Room has the full list; this covers what needs the owner and the planned
 - The old version of this file, with every reviewer ruling and why:
   [`-conventions-2026-10-16`](WORKLOG-ARCHIVE-conventions-2026-10-16.md).
 - Handoffs (`docs/HANDOFF-*.md`) are history.
-- Search them with `grep -n "<term>" docs/WORKLOG-ARCHIVE-*.md`, then read one entry
-  with `sed -n` (AGENTS.md: never `cat` one).
+- Grep them; read one entry with `sed -n` (never `cat` one).
