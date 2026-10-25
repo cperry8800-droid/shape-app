@@ -7,7 +7,8 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { bsGoalVerdict } from '../mobile-app/src/services/goalContract.mjs'
 
-const SRC = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'
+// Goals moved out of iosAppBroadsheetClient.jsx into its own module (2026-10-25).
+const SRC = 'mobile-app/src/broadsheet/BSGoals.jsx'
 const CAT = 'mobile-app/src/i18n/catalogs'
 const EN = JSON.parse(readFileSync(`${CAT}/en/goal.json`, 'utf8'))
 

@@ -3,6 +3,7 @@
 // every one must be killed. Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/units-loaded-figures-2026-10-06.mutations.mjs --fail-on-skipped
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
+const GOALS = 'mobile-app/src/broadsheet/BSGoals.jsx'; // the Goals page, moved out of the client module 2026-10-25
 
 export default {
   test: 'node --test tests/units-loaded-figures.test.mjs',
@@ -38,19 +39,19 @@ export default {
       find: "  return m.unit === 'mi' ? `${m.value} mi` : `${m.value}K`;",
       replace: '  return `${m.value}K`;' },
     // ── the goal page's 7d volume ──
-    { name: 'the volume is converted in the effect, freezing its unit', file: CLIENT,
+    { name: 'the volume is converted in the effect, freezing its unit', file: GOALS,
       find: "v: '—', volLb: vol7, sub: tr('goal:week.volumeSub'",
       replace: "v: bsGoalVolume(t, vol7), sub: tr('goal:week.volumeSub'" },
-    { name: 'the contract is handed the unconverted rows', file: CLIENT,
+    { name: 'the contract is handed the unconverted rows', file: GOALS,
       find: 'plans={livePlans} weekTargets={liveWeekIn} train={liveTrain} />',
       replace: 'plans={livePlans} weekTargets={liveWeek} train={liveTrain} />' },
-    { name: 'the volume ignores the setting', file: CLIENT,
+    { name: 'the volume ignores the setting', file: GOALS,
       find: "  const m = t.uMeasure(n, 'lb');\n  return `${(Number(m.value) / 1000).toFixed(1)}k ${m.unit || 'lb'}`;",
       replace: "  const m = { value: n, unit: 'lb' };\n  return `${(Number(m.value) / 1000).toFixed(1)}k ${m.unit || 'lb'}`;" },
-    { name: 'the volume drops its unit', file: CLIENT,
+    { name: 'the volume drops its unit', file: GOALS,
       find: "  return `${(Number(m.value) / 1000).toFixed(1)}k ${m.unit || 'lb'}`;",
       replace: '  return `${(Number(m.value) / 1000).toFixed(1)}k`;' },
-    { name: 'no volume reads "0.0k"', file: CLIENT,
+    { name: 'no volume reads "0.0k"', file: GOALS,
       find: "  if (!n) return '—';\n  const m = t.uMeasure(n, 'lb');",
       replace: "  const m = t.uMeasure(n, 'lb');" },
   ],

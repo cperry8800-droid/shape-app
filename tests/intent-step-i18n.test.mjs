@@ -168,9 +168,10 @@ test('both label calls take tr — the client_identity.goal mirror agreed to dis
   assert.match(region, /const label = bsPrimaryGoalLabel\(id, tr\);/, 'the mirror writer passes tr');
   assert.match(region, /\{bsPrimaryGoalLabel\(g\.id, tr\)\}/, 'the chip renders a translated label');
   // And the OTHER writer still does, so the two cannot drift apart again: the Goals
-  // page's setPrimaryGoal, which every row of its picker and its own-words field call.
-  const outside = src.slice(0, src.indexOf(region)) + src.slice(src.indexOf(region) + region.length);
-  assert.ok(/const setPrimaryGoal = async \(id\) => \{\n\s*if \(!id\) return;\n\s*const label = bsPrimaryGoalLabel\(id, tr\);/.test(outside),
+  // page's setPrimaryGoal, which every row of its picker and its own-words field call. The page
+  // moved into its own module (BSGoals.jsx, 2026-10-25), so that is where the writer is read.
+  const goals = fs.readFileSync(path.join('mobile-app', 'src', 'broadsheet', 'BSGoals.jsx'), 'utf8');
+  assert.ok(/const setPrimaryGoal = async \(id\) => \{\n\s*if \(!id\) return;\n\s*const label = bsPrimaryGoalLabel\(id, tr\);/.test(goals),
     "BSGoalsContract's mirror writer still passes tr");
 });
 
