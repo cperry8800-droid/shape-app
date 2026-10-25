@@ -615,6 +615,25 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Eat\'s Library as a compact index and the recipe rows as a quiet list; the nav bar see-through, its icon centred — #2447. No migration',
+      items: [
+        { label: 'Owner, 2026-10-24: "improve design and look of this library page", "same with this, looks really busy" (the recipe menu), "give me some options to preview", "dont need to make magazine the look for every page". Of three mocked options: "for library go with C, recipes for with A", and "keep filters the same"', status: 'done' },
+        { label: 'The Library (BSGroceryLibrary.jsx): each list is one button row, its item count in a tile (gold for a meal plan, amber for a recipe list, ink for the member\'s own), the name, what it holds and a chevron; a tap opens its kind and uses, its items, Load / Edit / Duplicate / Delete and Send to a member. The purple spine, the clipped Load key and the actions on every closed row go. The tile\'s word is read off the translated count, so no new string', status: 'done' },
+        { label: 'The recipe rows (BSRecipeBox): the name, one line of diet and credit, one line of numbers, the allergen note where a recipe carries one (still above the grocery action), and square 44 px ＋ and ♡ keys; the ＋ keeps "Send to grocery" for a screen reader. The filters, the time tabs, Today\'s board and the course headings are unchanged', status: 'done' },
+        { label: 'Owner: "make nav bar a little transparent" and "make sure the emojis are centered in the black shape". The capsule\'s paper is 60% (was about three-quarters). Each filled icon has an optical nudge (BS_TAB_ICON_NUDGE), measured as the centroid of its pixels in the gem: every icon now sits within 0.2 px of its centre, in the member and coach apps', status: 'done' },
+        { label: 'Review: Codex on f4e50fb (P1: on a row with an allergen note the ＋ sat beside the title, above the certification on screen; fixed in b065fb9, the keys sit in a row after the note), on b065fb9 (P2: the count tile set the figure first, so Hausa\'s "kayayyaki 11" read "11 kayayyaki"; fixed in f7444f8, words before the figure sit above it) and on f7444f8 (P2: a grouped count, "1,200", split at its separator; fixed in 8b6c831, the figure is the whole localized number); clean on 0c1763f (main merged in). CodeRabbit not run. tests/eat-quiet-rows (seven tests, each failing on the code before its fix) and the tab bar\'s nudge test; the kitchen, Library, tab bar, i18n and War Room suites 661/661 on the merge; CI green on all four jobs', status: 'done' },
+        { label: 'Device pass: the Library, the recipe rows (a thumb on ＋ and ♡) and the nav bar on a phone, light and dark', status: 'manual' },
+      ],
+    },
+    {
+      section: 'Radio\'s matching panel: the dot field is quiet ground again — #2444. No migration',
+      items: [
+        { label: 'Owner, 2026-10-24, of the matching panel on the example signal: "background here is overpowering". The app draws the signal field on an 18 px grid (was 14, about 40% fewer dots), the ground at 0.7 of the module\'s alpha and the light at 0.4 of its strength; the teal glow (12/05, was 1f/08) and the stage light (0.06, was 0.1) are softer. It still lights per bin and breathes on the kick. The website\'s Radio wall reads the shared module at its own strength and is unchanged', status: 'done' },
+        { label: 'Review: Codex clean on 2f78072 (the run started when the PR opened hung for 45 minutes and was requested again once). The Radio suites 261/261; CI green on all four jobs. tests/radio-rest-state pins the wider grid and the dimmer ground, keeps the rest above the void\'s 0.08 floor and a lit dot under 0.5; it fails on main', status: 'done' },
+        { label: 'Device pass: the Radio page on a phone, on both papers, with the example signal and with the station live', status: 'manual' },
+      ],
+    },
+    {
       section: 'The profile\'s Signals tab reads real data; no quote at the top of profiles; a shorter cover photo — #2445. No migration',
       items: [
         { label: 'Owner, 2026-10-24: "where is this data updated from" (Signals and Climb), then "yes fix them". Signed in, on your own profile, every Signals figure read a field its route never sends. The day streak and weekly bars read /api/client/train\'s currentStreak and volumeByDay (it sends neither), the trajectory ran progress\'s { date, value } weigh-ins through Number() (all NaN), and key lifts read train\'s prs (none). Now (profileSignals.mjs): the streak from /api/client/dashboard; key lifts and disciplines from /api/client/profile-stats (the website profile\'s reads); weekly momentum as workout minutes on each of the last 7 days, labelled with their weekdays, and the trajectory from /api/client/progress', status: 'done' },
