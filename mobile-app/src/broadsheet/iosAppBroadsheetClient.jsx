@@ -64,7 +64,7 @@ import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx'
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
-import { BSEatFuel, BSEatMacroPage } from './BSEatFuel.jsx';
+import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta } from './BSEatFuel.jsx';
 import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead, bsWsRed, bsWsHead } from './BSWallStory.jsx';
@@ -14209,14 +14209,16 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // course both read them). Coach-set targets (Adjust plan → Apply) win.
   const bsEatNum = (x) => parseInt(String(x).replace(/[^0-9]/g, ''), 10) || 0;
   const bsEatCoachN = bsEatProgram.detail?.nutrition;
-  const bsEatCalNow = bsEatNum(cur.totals.cal);
+  // A logged meal the member swapped counts at its swap's amounts (bsEatSwapDelta), as its row does.
+  const bsEatEaten = (dd, k) => Math.max(0, bsEatNum(k === 'kcal' ? dd.totals.cal : dd.totals[k]) + bsEatSwapDelta(dd.meals, mealOverrides, k));
+  const bsEatCalNow = bsEatEaten(cur, 'kcal');
   const bsEatCalTgt = (bsEatCoachN && bsEatCoachN.calories != null) ? bsEatNum(bsEatCoachN.calories) : bsEatNum(cur.totals.target.cal);
   const bsEatCalLeft = Math.max(0, bsEatCalTgt - bsEatCalNow);
   const bsEatCalPct = bsEatCalTgt ? Math.min(100, Math.round((bsEatCalNow / bsEatCalTgt) * 100)) : 0;
   const bsEatMacros = [
-    { k: 'p', l: tr('coach:adjust.protein', { defaultValue: 'PROTEIN' }), v: bsEatNum(cur.totals.p), g: (bsEatCoachN && bsEatCoachN.protein != null) ? bsEatNum(bsEatCoachN.protein) : bsEatNum(cur.totals.target.p), c: t.RUST },
-    { k: 'c', l: tr('coach:adjust.carbs', { defaultValue: 'CARBS' }), v: bsEatNum(cur.totals.c), g: (bsEatCoachN && bsEatCoachN.carbs != null) ? bsEatNum(bsEatCoachN.carbs) : bsEatNum(cur.totals.target.c), c: t.AMBER },
-    { k: 'f', l: tr('coach:adjust.fat', { defaultValue: 'FAT' }), v: bsEatNum(cur.totals.f), g: (bsEatCoachN && bsEatCoachN.fat != null) ? bsEatNum(bsEatCoachN.fat) : bsEatNum(cur.totals.target.f), c: t.BLUE },
+    { k: 'p', l: tr('coach:adjust.protein', { defaultValue: 'PROTEIN' }), v: bsEatEaten(cur, 'p'), g: (bsEatCoachN && bsEatCoachN.protein != null) ? bsEatNum(bsEatCoachN.protein) : bsEatNum(cur.totals.target.p), c: t.RUST },
+    { k: 'c', l: tr('coach:adjust.carbs', { defaultValue: 'CARBS' }), v: bsEatEaten(cur, 'c'), g: (bsEatCoachN && bsEatCoachN.carbs != null) ? bsEatNum(bsEatCoachN.carbs) : bsEatNum(cur.totals.target.c), c: t.AMBER },
+    { k: 'f', l: tr('coach:adjust.fat', { defaultValue: 'FAT' }), v: bsEatEaten(cur, 'f'), g: (bsEatCoachN && bsEatCoachN.fat != null) ? bsEatNum(bsEatCoachN.fat) : bsEatNum(cur.totals.target.f), c: t.BLUE },
   ];
   // A macro tile's own page (owner, 2026-10-24: "the 3 of these are links to the same page"): the
   // macro's figures as the tile reads them, the day's meals by it, and the week against the target
@@ -14233,7 +14235,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     };
     return <BSEatMacroPage k={_mk} name={_names[_mk]} color={_macroOpen.c} v={_macroOpen.v} g={_macroOpen.g}
       meals={effMeals} dayIdx={day} todayIdx={bsWeekdayIdx()}
-      week={PROGRAM.map((dd) => ({ d: dd.d, v: bsEatNum(dd.totals[_mk]), g: _coachG != null ? _coachG : bsEatNum(dd.totals.target[_mk]) }))}
+      week={PROGRAM.map((dd) => ({ d: dd.d, v: bsEatEaten(dd, _mk), g: _coachG != null ? _coachG : bsEatNum(dd.totals.target[_mk]) }))}
       onBack={() => setMacroPage(null)}
       onMealClick={(id) => { setMacroPage(null); setPreviewMealId(id); }}
       onDay={() => { setMacroPage(null); setPreviewDayBrief(true); }} />;

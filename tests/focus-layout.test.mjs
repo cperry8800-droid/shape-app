@@ -16,6 +16,7 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { loadBroadsheet, drive, textOf, SHIM, ROOT } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { stripComments } from './helpers/strip-comments.mjs';
 import * as F from '../mobile-app/src/services/focusLayout.mjs';
 
 const require_ = createRequire(import.meta.url);
@@ -349,6 +350,30 @@ test('Eat opens a macro tile on its own page, a different one for each', () => {
   d.render();
   assert.equal(page(), undefined);
   assert.ok(d.nodes().find(fn('BSDayBriefPreview')), 'The whole day opens the day brief');
+});
+
+// Codex P2 on #2446: a swapped meal's row read its swap's grams while the figure above it read the plan's.
+// A logged meal the member swapped counts at its swap's amounts, on the tile, the page and the week alike;
+// a swap of a meal still to come changes nothing eaten.
+test('a logged meal\'s swap moves what was eaten by its difference, and nothing else does', () => {
+  const meals = [
+    { title: 'Oats and whey', state: 'done', kcal: 520, p: 38, c: 60, f: 9 },
+    { title: 'Chicken bowl', state: 'next', kcal: 640, p: '46', c: 70, f: 14 },
+    { title: 'Salmon rice', state: 'done', kcal: 610, p: 42, c: 55, f: 18 },
+  ];
+  const overrides = { 'Oats and whey': { title: 'Greek yogurt bowl', kcal: 430, p: 52, c: 40, f: 8 }, 'Chicken bowl': { title: 'Tofu bowl', kcal: 560, p: 30, c: 66, f: 16 }, 'Salmon rice': { title: 'Salmon salad' } };
+  assert.equal(EATFUEL.bsEatSwapDelta(meals, overrides, 'p'), 14, 'the logged swap adds its 52 g less the planned 38');
+  assert.equal(EATFUEL.bsEatSwapDelta(meals, overrides, 'kcal'), -90);
+  assert.equal(EATFUEL.bsEatSwapDelta(meals, overrides, 'f'), -1);
+  assert.equal(EATFUEL.bsEatSwapDelta(meals, {}, 'p'), 0, 'no swap, no change');
+  assert.equal(EATFUEL.bsEatSwapDelta(meals, null, 'p'), 0);
+  assert.equal(EATFUEL.bsEatSwapDelta(null, overrides, 'p'), 0);
+  // Eat reads what was eaten through it for the tile's kcal and macros, the page and each day of the week.
+  const eat = stripComments(readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8'));
+  assert.match(eat, /const bsEatEaten = \(dd, k\) => Math\.max\(0, bsEatNum\(k === 'kcal' \? dd\.totals\.cal : dd\.totals\[k\]\) \+ bsEatSwapDelta\(dd\.meals, mealOverrides, k\)\);/);
+  assert.match(eat, /const bsEatCalNow = bsEatEaten\(cur, 'kcal'\);/);
+  for (const k of ['p', 'c', 'f']) assert.match(eat, new RegExp(`\\{ k: '${k}', l: tr\\([^)]*\\), v: bsEatEaten\\(cur, '${k}'\\),`));
+  assert.match(eat, /week=\{PROGRAM\.map\(\(dd\) => \(\{ d: dd\.d, v: bsEatEaten\(dd, _mk\),/);
 });
 
 test('a macro\'s page: what is left, the day\'s meals by it, the week against the target, in the magazine look', () => {

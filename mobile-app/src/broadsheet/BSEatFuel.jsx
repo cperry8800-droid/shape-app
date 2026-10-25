@@ -86,6 +86,21 @@ function BSEfHead({ t, label, meta }) {
 
 const bsEfNum = (x) => { const n = Number(String(x == null ? '' : x).replace(/[^0-9.]/g, '')); return Number.isFinite(n) ? n : 0; };
 
+// What the member's swaps change in what was eaten (Codex P2 on #2446: a swapped meal's row read its
+// swap's grams while the figure above it read the plan's). Eat swaps a meal by its plan title
+// (mealOverrides: title → { kcal, p, c, f }), and only a meal already logged is in the day's figure,
+// so each logged meal that was swapped adds its swap's amount less the planned one. `k` is 'kcal',
+// 'p', 'c' or 'f'; a swap that names no amount for it changes nothing.
+export function bsEatSwapDelta(meals, overrides, k) {
+  let d = 0;
+  for (const m of Array.isArray(meals) ? meals : []) {
+    const ov = m && overrides ? overrides[m.title] : null;
+    if (!ov || m.state !== 'done' || ov[k] == null || ov[k] === '') continue;
+    d += bsEfNum(ov[k]) - bsEfNum(m[k]);
+  }
+  return Math.round(d);
+}
+
 export function BSEatMacroPage({ k, name, color, v, g, meals = [], week = [], dayIdx = 0, todayIdx = 0, onBack, onMealClick, onDay }) {
   const { BSPage, BSDetailHeader, BSFooter } = window;
   const t = window.useBS();
