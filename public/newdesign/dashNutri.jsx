@@ -189,10 +189,10 @@ function DnuLogHistory({ week, currentStreak, longestStreak, loggedDays7 }) {
 // confirmed `coaching: null` (no nutritionist) with nothing logged is the preview.
 // ⚠ AND A PLAN READ THAT FAILED IS NOT THE PREVIEW (owner, 2026-10-25: "fix the website Nutrition demo
 // menu on a failed read"): a member with no coach known and nothing logged got the demo menu, under the
-// demo band, when their plan read failed. With the plan read's HTTP status, a failure that is the
-// member's own (dnuMemberReadFailed) makes the page live, where it says it could not load.
-function dnuSourceOf(pl, nu, status) {
-  if (status !== undefined && dnuMemberReadFailed(pl, status)) return "live";
+// demo band, when their plan read failed. A failure that is the member's own (dnuMemberReadFailed) makes
+// the page live, where it says it could not load.
+function dnuSourceOf(pl, nu, status, signedIn) {
+  if (status !== undefined && dnuMemberReadFailed(pl, status, signedIn)) return "live";
   return (pl && pl.ok && pl.meals && (pl.meals.hasPlan || pl.meals.coaching !== null)) || (nu && nu.ok && nu.today) ? "live" : "demo";
 }
 
@@ -202,12 +202,13 @@ function dnuSourceOf(pl, nu, status) {
 function dnuPlanFailed(pl) {
   return !(pl && pl.ok && pl.meals && pl.meals.read !== false);
 }
-// Whether a failed plan read is a member's: the gate answers 401, 402 or 403 to a caller who isn't a
-// signed-in member (src/lib/supabase/middleware.ts), and those keep the preview. Any other failure (a
-// server error, 429, no network, or an answer whose meal plan read failed) is this member's plan not
-// loading.
-function dnuMemberReadFailed(pl, status) {
-  if (status === 401 || status === 402 || status === 403) return false;
+// Whether a failed plan read is a member's. An answer whose meal plan read failed (`read: false`) is:
+// the route answers only a signed-in member. With no answer, only a session (`signedIn`) makes it one,
+// since the rate limiter (429) and a lost connection (0) reach visitors too (Codex P2 on #2453); and the
+// gate's 401, 402 and 403 (src/lib/supabase/middleware.ts) keep the preview even then.
+function dnuMemberReadFailed(pl, status, signedIn) {
+  if (pl && pl.ok && pl.meals && pl.meals.read === false) return true;
+  if (!signedIn || status === 401 || status === 402 || status === 403) return false;
   return dnuPlanFailed(pl);
 }
 
@@ -227,14 +228,16 @@ function ClientNutritionPage() {
     const jStatus = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" })
       .then(async (r) => ({ status: r.status, body: r.ok ? await r.json().catch(() => null) : null }))
       .catch(() => ({ status: 0, body: null }));
+    // Whether a session exists (the cookie bridge included), for a plan request that got no answer.
+    const session = () => Promise.resolve(window.shapeDb && window.shapeDb.getSession ? window.shapeDb.getSession() : null).catch(() => null);
     (async () => {
-      const [plRes, nu] = await Promise.all([jStatus("/api/client/plan"), j("/api/client/nutrition")]);
+      const [plRes, nu, ses] = await Promise.all([jStatus("/api/client/plan"), j("/api/client/nutrition"), session()]);
       if (!on) return;
       const pl = plRes.body;
       if (pl && pl.ok) setPlan(pl);
-      setPlanFailed(dnuMemberReadFailed(pl, plRes.status));
+      setPlanFailed(dnuMemberReadFailed(pl, plRes.status, !!ses));
       if (nu && nu.ok) setNutri(nu);
-      setSource(dnuSourceOf(pl, nu, plRes.status));
+      setSource(dnuSourceOf(pl, nu, plRes.status, !!ses));
     })();
     return () => { on = false; };
   }, [reloadTick]);
