@@ -50,12 +50,14 @@ test('the module imports react and the magazine\'s colours only, and never the c
   assert.doesNotMatch(src, /iosAppBroadsheetClient/);
 });
 
-test('the client imports both pieces, declares neither again, and renders them on both profiles', () => {
+test('the client imports both pieces, declares neither again, and renders them on the profiles', () => {
   const client = stripComments(fs.readFileSync(CLIENT, 'utf8'));
   assert.match(client, /^import \{ BSTPullQuote, BSProfileDock \} from '\.\/BSProfileMagazine\.jsx';/m);
   assert.doesNotMatch(client, /^(?:export )?function (BSTPullQuote|BSProfileDock|useBSHideOnScrollDown)\(/m, 'a piece is declared in the client module again');
   const body = (marker) => { const at = client.indexOf(marker); return client.slice(at, client.indexOf('\nfunction ', at + marker.length)); };
-  assert.match(body('function BSTerrainProfile('), /<BSTPullQuote /);
+  // The member's profile pulls no quote out at the top any more (owner, 2026-10-24); its
+  // answers are pulled out by BSProfileExtras.
+  assert.doesNotMatch(body('function BSTerrainProfile('), /<BSTPullQuote /);
   assert.match(body('function BSSignalCoachProfile('), /<BSTPullQuote /);
   assert.match(body('function BSSignalCoachProfile('), /<BSProfileDock /);
   assert.match(body('function BSTerrainProfile('), /<BSProfileDock /);

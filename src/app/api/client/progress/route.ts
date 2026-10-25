@@ -296,22 +296,27 @@ export async function GET(request: Request) {
     }
   }
 
-  let prs = [...prMap.values()]
-    .sort((a, b) => b.lb - a.lb)
-    .slice(0, 6)
-    .map((p) => {
-      const e = epleyE1rm(p.best, p.bestReps);
-      return { move: p.move, best: p.best, bestReps: p.bestReps, unit: p.unit, bestAt: p.bestAt, e1rm: e == null ? null : Math.round(e * 10) / 10 };
-    });
+  const toPr = (p: PR) => {
+    const e = epleyE1rm(p.best, p.bestReps);
+    return { move: p.move, best: p.best, bestReps: p.bestReps, unit: p.unit, bestAt: p.bestAt, e1rm: e == null ? null : Math.round(e * 10) / 10 };
+  };
+  // `prs` is the six heaviest bests. `recentPrs` is the six most recently set,
+  // across every move, for the profile's activity feed: a new bench record must
+  // not lose its place to an older, heavier squat (Codex P2 on #2445).
+  const newestFirst = (a: { bestAt: string }, b: { bestAt: string }) => String(b.bestAt).localeCompare(String(a.bestAt));
+  let prs = [...prMap.values()].sort((a, b) => b.lb - a.lb).slice(0, 6).map(toPr);
+  let recentPrs = [...prMap.values()].sort(newestFirst).slice(0, 6).map(toPr);
 
   // Prefer all-time PRs from the aggregate RPC — it scans EVERY logged set, so a
   // high-volume athlete's old all-time best is never dropped by the newest-3000
   // window above (which still feeds the recent strength trajectory below). Falls
   // back to the windowed row-scan until the migration is applied.
   try {
-    const { data: prRows, error: prErr } = await supabase.rpc('get_my_lift_prs', { p_limit: 12 });
+    // Every move's best (the RPC's ceiling is 100), heaviest first, so the most
+    // recent can be picked from all of them and not only from the heaviest few.
+    const { data: prRows, error: prErr } = await supabase.rpc('get_my_lift_prs', { p_limit: 100 });
     if (!prErr && Array.isArray(prRows) && prRows.length) {
-      prs = (prRows as Array<Record<string, unknown>>).slice(0, 6).map((r) => {
+      const all = (prRows as Array<Record<string, unknown>>).map((r) => {
         const best = Number(r.best);
         const repsN = r.best_reps == null ? null : Number(r.best_reps);
         const reps = repsN != null && Number.isFinite(repsN) ? repsN : null;
@@ -325,6 +330,8 @@ export async function GET(request: Request) {
           e1rm: e == null ? null : Math.round(e * 10) / 10,
         };
       });
+      prs = all.slice(0, 6);
+      recentPrs = [...all].sort(newestFirst).slice(0, 6);
     }
   } catch {
     // keep the windowed row-scan PRs (RPC not yet applied, or a transient error)
@@ -368,6 +375,7 @@ export async function GET(request: Request) {
     weightSeries,
     kpis,
     prs,
+    recentPrs,
     series: {
       weight: weightSeries,
       bodyFat: bodyFatSeries,

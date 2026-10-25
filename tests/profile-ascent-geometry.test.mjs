@@ -46,11 +46,12 @@ test('the cover band and the pad above it sum to one constant block', () => {
   // block, so growing the block to raise the line would RE-CROP the photo
   // instead of moving the line up it. The extra range is spent out of the
   // padding, never added to the height.
-  // 278 is written HERE rather than read from the source, or the assertion is
+  // 224 is written HERE rather than read from the source, or the assertion is
   // algebra: `padFor` IS `BLOCK - heroAscentH`, so summing them back to BLOCK
-  // can never fail. It is the block the photo was cropped to before this change
-  // (the old 128 pad + 150 band), and moving it re-frames every member's cover.
-  assert.equal(padFor(H_COVER) + H_COVER, 278, 'the cover block changed height — the photo now crops differently');
+  // can never fail. Moving it re-frames every member's cover. It was 278 (the old
+  // 128 pad + 150 band) until the owner asked for "the picture part a little
+  // smaller, more condenced" (2026-10-24).
+  assert.equal(padFor(H_COVER) + H_COVER, 224, 'the cover block changed height — the photo now crops differently');
   assert.ok(padFor(H_COVER) >= 0, 'the band cannot be taller than the block it sits in');
   assert.ok(H_COVER > H_PAPER, 'the cover band is the taller of the two, or there is nothing to climb');
 });

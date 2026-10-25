@@ -615,6 +615,20 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'The profile\'s Signals tab reads real data; no quote at the top of profiles; a shorter cover photo — #2445. No migration',
+      items: [
+        { label: 'Owner, 2026-10-24: "where is this data updated from" (Signals and Climb), then "yes fix them". Signed in, on your own profile, every Signals figure read a field its route never sends. The day streak and weekly bars read /api/client/train\'s currentStreak and volumeByDay (it sends neither), the trajectory ran progress\'s { date, value } weigh-ins through Number() (all NaN), and key lifts read train\'s prs (none). Now (profileSignals.mjs): the streak from /api/client/dashboard; key lifts and disciplines from /api/client/profile-stats (the website profile\'s reads); weekly momentum as workout minutes on each of the last 7 days, labelled with their weekdays, and the trajectory from /api/client/progress', status: 'done' },
+        { label: 'Owner: "leave demo data but make sure live feed is correct". The signed-out preview and other members\' profiles keep every sample figure. The activity feed\'s PRs, which read train\'s prs and so never showed, read progress\'s new recentPrs: the six most recently set bests across every move', status: 'done' },
+        { label: 'Owner: "remove the quote at the top on profiles and make the picture part a little smaller, more condenced". The member\'s line under the name and the coach\'s line under the rule are no longer pulled out (the website\'s desktop profile still shows the line, so the editor keeps its field). The cover block is 224 px with a 196 px climb band (was 278 and 214); the route keeps its steepness and clears the flag', status: 'done' },
+        { label: 'Review: Codex on be259be (P2: the feed kept the four heaviest bests, so a new lighter PR was crowded out; fixed in c4f1b84 with recentPrs) and on c4f1b84 (P2: get_my_lift_prs ranks by load and caps at 100 moves, so a member past 100 distinct moves can still miss one; answered: no member has a logged set in production, and closing it needs a migration, the owner\'s call). CodeRabbit not run', status: 'done' },
+        { label: 'Verified: CI green on all four jobs; npm test 8,373/8,374 locally before the last fixes, with the one failure (units-loaded-figures fed the feed\'s PRs through train) fixed in b0636b3; tests/profile-signals and the recentPrs route tests in set-load-units, each failing on the code before them; the built app in Chromium (Me page and coach profile, signed out)', status: 'done' },
+        { label: '/api/client/train sends no streak, daily volume, PRs or muscle split, so the Train page\'s Streak, Volume · 14 days, Personal records and Muscle split read 0 or empty for signed-in members', status: 'pending' },
+        { label: 'The Climb\'s Strength tab sets its target at the best lift plus 10% and draws the climber at a fixed 62%', status: 'pending' },
+        { label: 'OWNER — a member past 100 distinct moves can miss a new light PR in the profile feed: get_my_lift_prs needs a recency-ordered result (a migration) to close it', status: 'manual' },
+        { label: 'Signed-in pass: your own Signals tab (streak, weekly bars, trajectory, key lifts, disciplines) and the feed\'s PRs on a real account, light and dark', status: 'manual' },
+      ],
+    },
+    {
       section: 'Nora\'s ×, Talk to a person, a member\'s Message dock, the Radio deck, the tab gem on Radio, and Your mornings — #2443. No migration',
       items: [
         { label: 'Owner, 2026-10-24: "the x is overlapping nora box". The Nora sheet\'s head row stops short of its × (34 px, 10 px in), measured off the gutter, so Talk to Nora clears it at every density', status: 'done' },

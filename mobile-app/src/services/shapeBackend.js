@@ -7868,7 +7868,11 @@ async function getClientAnalytics() { return cachedClientJson('/api/client/analy
 async function getClientTrain() { return cachedClientJson('/api/client/train').then((d) => (d && d.ok ? d : null)); }
 async function getClientNutrition() { return cachedClientJson('/api/client/nutrition').then((d) => (d && d.ok ? d : null)); }
 async function getClientHabits() { return cachedClientJson('/api/client/habits'); }
-window.ShapeProgress = { progress: getClientProgress, analytics: getClientAnalytics, train: getClientTrain, nutrition: getClientNutrition };
+// The profile's day streak and its key lifts and disciplines (profileSignals.mjs), the website
+// profile's own reads.
+async function getClientDashboard() { return cachedClientJson('/api/client/dashboard').then((d) => (d && d.kpis ? d : null)); }
+async function getClientProfileStats() { return cachedClientJson('/api/client/profile-stats').then((d) => (d && d.ok ? d : null)); }
+window.ShapeProgress = { progress: getClientProgress, analytics: getClientAnalytics, train: getClientTrain, nutrition: getClientNutrition, dashboard: getClientDashboard, profileStats: getClientProfileStats };
 
 // Member self-path weekend adherence split. Fetches the already-cached habits +
 // progress payloads, builds weekly buckets client-side, and returns the split.
