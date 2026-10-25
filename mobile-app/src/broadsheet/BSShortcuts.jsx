@@ -36,8 +36,9 @@ export function BSShortcutIcon({ name, color, size = 22 }) {
 }
 
 // The section: a heading and the two-column grid its tiles fill. `head` swaps the heading for the
-// page's own (the member's Home passes its BSFocusTitle, so the grid reads as part of that page).
-export function BSShortcuts({ title, head, children }) {
+// page's own (the member's Home passes its BSFocusTitle, so the grid reads as part of that page);
+// `titleStyle` restyles the plain heading (the coach Today's clean section head).
+export function BSShortcuts({ title, head, titleStyle, children }) {
   const t = window.useBS();
   if (head) {
     return (
@@ -49,7 +50,7 @@ export function BSShortcuts({ title, head, children }) {
   }
   return (
     <section aria-label={title} style={{ padding: `${(t.sectGap || 22) + 4}px ${t.padX}px 0` }}>
-      <h2 style={{ margin: '0 0 10px', fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2, color: t.INK }}>{title}</h2>
+      <h2 style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2, color: t.INK, ...titleStyle, marginBottom: 10 }}>{title}</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>{children}</div>
     </section>
   );

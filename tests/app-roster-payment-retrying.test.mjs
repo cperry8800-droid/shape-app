@@ -100,7 +100,7 @@ test('a retrying client keeps their station and carries "Payment retrying", in N
     // Needs you (two red clients): their group, their rows, the mark on the retrying one only.
     assert.equal(m.host.querySelector('[role="tablist"]').getAttribute('data-roster-view'), 'needs');
     const red = m.host.querySelector('[data-roster-group="red"]');
-    assert.ok(red && /· 2/.test(red.textContent), 'two to reach out to today');
+    assert.ok(red && /^Reach out today\s*2$/.test(red.querySelector('h2')?.textContent || ''), 'two to reach out to today, on the head\'s count');
     assert.deepEqual(['Marcus Tran', 'Ben Tal'].map((n) => !!rowOf(m.host, n)), [true, true]);
     assert.deepEqual(['Priya Shah', 'Ana Reyes'].map((n) => !!rowOf(m.host, n)), [false, false], 'on-track clients are on their own tab');
     assert.deepEqual(['Marcus Tran', 'Ben Tal'].map((n) => marked(m.host, n)), [true, false]);
