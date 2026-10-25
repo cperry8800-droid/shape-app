@@ -625,6 +625,27 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'A meal plan that wasn\'t read: Eat\'s Fuel left reads "—", not 0 kcal, and website Nutrition shows no demo menu — #2453. No migration',
+      items: [
+        { label: 'Owner, 2026-10-25: "fix the Eat Fuel left 0 kcal on a failed read" and "fix the website Nutrition demo menu on a failed read" (both left open by #2452)', status: 'done' },
+        { label: 'Fuel left (BSEatFuel.jsx) takes unread while the meals read hasn\'t answered or failed: what is left "—", no eaten line or bar, and the tiles disabled; a coach\'s Adjust target still reads, a 0 g one too (calTargetKnown, gKnown from bsEatCoachSet). The coach link names no 0 kcal target. A member with no plan is unchanged', status: 'done' },
+        { label: 'Website Nutrition (dashNutri.jsx): a member\'s failed plan read makes the page live with "Couldn’t load your meal plan" and Try again, not the demo menu. An answer with meals.read false always counts; a request with no answer counts only when signed in (the dashboard\'s ShapePortalSession reading first, then the Supabase session); the gate\'s 401, 402 and 403 keep the preview', status: 'done' },
+        { label: 'Review: Codex clean on 13352dc; on 7258ff0 (P2: a visitor\'s 429 or lost connection lost the preview; fixed in 14c63ac, a session is needed), on 14c63ac (P2: a coach\'s 0 g target read "—"; fixed in 08a7c7b) and on 08a7c7b (P2: a cookie-only member\'s session read hits the same rate limit; fixed in 139b7cf, the portal reading first); clean on 139b7cf. CodeRabbit not run. The Web job on 08a7c7b failed on the Google font fetch in next build (not this PR\'s; commented). focus-layout and plan-read-failed, the new tests failing on the code before them; every dashNutri suite (63); the /m/ build; Chromium render of Fuel left; CI green on all four jobs', status: 'done' },
+        { label: 'Website Nutrition with a failing plan read rendered in a browser, signed in and signed out (the container could not serve ClientNutri.html with its session and CDN scripts)', status: 'manual' },
+      ],
+    },
+    {
+      section: 'The Train page\'s Streak and Volume · 14 days read real days; one day streak for Train and the dashboard — #2451. No migration',
+      items: [
+        { label: 'Owner, 2026-10-25: "fix the train page streak and volume too" (left open in #2445). The Train page read /api/client/train\'s stats.currentStreak and volumeByDay, which the route never sent, so every signed-in member saw "0d" and "Volume · nothing logged"', status: 'done' },
+        { label: 'src/lib/workout-days.ts: a member\'s day in client_profiles.timezone (UTC when none), and readDayStreak, which reads finished sessions (completed or reviewed) newest first, 500 a page, until the streak is broken. Each session counts on the day the app stored when it finished (summary.snapshotDate), so travelling doesn\'t move past workouts. /api/client/train sends stats.currentStreak and volumeByDay (pounds lifted on each of the last 14 days, by when each set was lifted; its capped set read is now newest first). /api/client/dashboard\'s streak (the profile, the website profile, the splash) is the same number; it used to count from the server\'s UTC midnight. The chart keeps its "nothing logged" line until a day has volume', status: 'done' },
+        { label: 'Review: Codex on fc9f6c4 (two P2s: sets bucketed by save time, not lift time; the streak counted from each route\'s capped timeline, so a long streak was cut short and the two could disagree; fixed in f786645, liftedAt and readDayStreak), on f786645 (P2: a zone change moved past sessions between days; fixed in 13ce329, the stored day), on 13ce329 (P2: a coach-reviewed session dropped out of the streak; fixed in 63e471a). Codex\'s two runs on 63e471a hung (33 and 90 minutes) with no result; the owner, 2026-10-25: "merge if clean and green". CodeRabbit not run; Copilot out of quota. tests/train-streak-volume (12, driving both routes on fake-supabase; the discriminating cases fail on the code before them), set-load-units and profile-signals; tsc clean; CI green on all four jobs', status: 'done' },
+        { label: 'The streak counts finished workout sessions only: a logged activity (a Strava run) or device workout minutes don\'t extend it', status: 'pending' },
+        { label: 'The train route\'s thisWeekCount and recent sessions and the dashboard\'s workout counts take completed sessions only (not reviewed ones), and the dashboard\'s workoutsThisWeek still uses the server\'s week', status: 'pending' },
+        { label: 'Signed-in pass: the Train page\'s Streak and Volume · 14 days on a real account, after a late-evening workout', status: 'manual' },
+      ],
+    },
+    {
       section: 'A failed plan read says so on Train and Eat, not "no plan" — #2452. No migration',
       items: [
         { label: 'Owner, 2026-10-25: "Do this task here: Train: show a failed workouts read, not \'no plan\'". /api/client/plan sends read false on a part whose table read failed (workouts since #2449, meal plans now), and ShapePlan.get resolves null when the request fails; both looked like no plan', status: 'done' },
@@ -633,7 +654,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Website Workouts and Nutrition: "Couldn’t load your program" / "…your meal plan" with Try again in place of the no-plan plates; the coach-preparing plates are unchanged', status: 'done' },
         { label: 'Review: Codex clean on 64a424b. CodeRabbit not run. tests/plan-read-failed (8: Train\'s and Eat\'s loaders run as they ship against stub reads, the block mounted in jsdom, the route, the website, 13 locales; six fail on main, two cover new files); npm test 8,411/8,415 with the 4 failures this change caused fixed; tsc clean; Chromium renders of Train and Eat on both papers; CI green on all four jobs', status: 'done' },
         { label: 'Device pass: Train and Eat with the network off on a phone, then Try again with it back', status: 'manual' },
-        { label: 'Eat\'s Fuel left reads "0 kcal plan" on a failed read, as for a member with no plan; website Nutrition shows the demo menu when the plan read fails, nothing is logged and no coach is known (dnuSourceOf)', status: 'pending' },
+        { label: 'Eat\'s Fuel left reads "0 kcal plan" on a failed read, as for a member with no plan; website Nutrition shows the demo menu when the plan read fails, nothing is logged and no coach is known (dnuSourceOf). Done in #2453', status: 'done' },
       ],
     },
     {
@@ -706,7 +727,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Owner: "remove the quote at the top on profiles and make the picture part a little smaller, more condenced". The member\'s line under the name and the coach\'s line under the rule are no longer pulled out (the website\'s desktop profile still shows the line, so the editor keeps its field). The cover block is 224 px with a 196 px climb band (was 278 and 214); the route keeps its steepness and clears the flag', status: 'done' },
         { label: 'Review: Codex on be259be (P2: the feed kept the four heaviest bests, so a new lighter PR was crowded out; fixed in c4f1b84 with recentPrs) and on c4f1b84 (P2: get_my_lift_prs ranks by load and caps at 100 moves, so a member past 100 distinct moves can still miss one; answered: no member has a logged set in production, and closing it needs a migration, the owner\'s call). CodeRabbit not run', status: 'done' },
         { label: 'Verified: CI green on all four jobs; npm test 8,373/8,374 locally before the last fixes, with the one failure (units-loaded-figures fed the feed\'s PRs through train) fixed in b0636b3; tests/profile-signals and the recentPrs route tests in set-load-units, each failing on the code before them; the built app in Chromium (Me page and coach profile, signed out)', status: 'done' },
-        { label: '/api/client/train sends no streak, daily volume, PRs or muscle split, so the Train page\'s Streak, Volume · 14 days, Personal records and Muscle split read 0 or empty for signed-in members', status: 'pending' },
+        { label: 'The Train page\'s Streak and Volume · 14 days read real days since #2451. /api/client/train still sends no PRs or muscle split, so its Personal records and Muscle split read empty for signed-in members', status: 'pending' },
         { label: 'The Climb\'s Strength tab sets its target at the best lift plus 10% and draws the climber at a fixed 62%', status: 'pending' },
         { label: 'A member past 100 distinct moves could miss a new light PR in the profile feed: closed by #2448 (get_my_recent_lift_prs, applied and verified live)', status: 'done' },
         { label: 'Signed-in pass: your own Signals tab (streak, weekly bars, trajectory, key lifts, disciplines) and the feed\'s PRs on a real account, light and dark', status: 'manual' },

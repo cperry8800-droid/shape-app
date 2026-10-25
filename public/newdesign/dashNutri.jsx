@@ -187,7 +187,12 @@ function DnuLogHistory({ week, currentStreak, longestStreak, loggedDays7 }) {
 // state never rendered. ⚠ AND A COACH IT COULD NOT READ IS NOT "NONE" (Codex on #2378): the route omits
 // `coaching` when its subscriptions read fails, and the member got the demo menu as their own. Only a
 // confirmed `coaching: null` (no nutritionist) with nothing logged is the preview.
-function dnuSourceOf(pl, nu) {
+// ⚠ AND A PLAN READ THAT FAILED IS NOT THE PREVIEW (owner, 2026-10-25: "fix the website Nutrition demo
+// menu on a failed read"): a member with no coach known and nothing logged got the demo menu, under the
+// demo band, when their plan read failed. A failure that is the member's own (dnuMemberReadFailed) makes
+// the page live, where it says it could not load.
+function dnuSourceOf(pl, nu, status, signedIn) {
+  if (status !== undefined && dnuMemberReadFailed(pl, status, signedIn)) return "live";
   return (pl && pl.ok && pl.meals && (pl.meals.hasPlan || pl.meals.coaching !== null)) || (nu && nu.ok && nu.today) ? "live" : "demo";
 }
 
@@ -196,6 +201,24 @@ function dnuSourceOf(pl, nu) {
 // member whose nutritionist's plan did not load. It says so and can read again.
 function dnuPlanFailed(pl) {
   return !(pl && pl.ok && pl.meals && pl.meals.read !== false);
+}
+// Whether a failed plan read is a member's. An answer whose meal plan read failed (`read: false`) is:
+// the route answers only a signed-in member. With no answer, only a session (`signedIn`) makes it one,
+// since the rate limiter (429) and a lost connection (0) reach visitors too (Codex P2 on #2453); and the
+// gate's 401, 402 and 403 (src/lib/supabase/middleware.ts) keep the preview even then.
+function dnuMemberReadFailed(pl, status, signedIn) {
+  if (pl && pl.ok && pl.meals && pl.meals.read === false) return true;
+  if (!signedIn || status === 401 || status === 402 || status === 403) return false;
+  return dnuPlanFailed(pl);
+}
+// Whether the page has a signed-in member, for a plan request that got no answer. The dashboard's own
+// account reading comes first (ShapePortalSession, from /api/me before the page drew): it needs no
+// request, so a rate limit that refused the plan read can't refuse it too (Codex P2 on #2453). Then
+// the Supabase session, whose cookie bridge is itself an /api request.
+function dnuSignedIn() {
+  const portal = window.ShapePortalSession && window.ShapePortalSession.peek ? window.ShapePortalSession.peek() : null;
+  if (portal && portal.user) return Promise.resolve(true);
+  return Promise.resolve(window.shapeDb && window.shapeDb.getSession ? window.shapeDb.getSession() : null).then((s) => !!s, () => false);
 }
 
 function ClientNutritionPage() {
@@ -209,13 +232,19 @@ function ClientNutritionPage() {
   React.useEffect(() => {
     let on = true;
     const j = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    // The plan read keeps its status (0 with no network), so a member's failed read is told from a
+    // visitor's 401 (dnuMemberReadFailed).
+    const jStatus = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" })
+      .then(async (r) => ({ status: r.status, body: r.ok ? await r.json().catch(() => null) : null }))
+      .catch(() => ({ status: 0, body: null }));
     (async () => {
-      const [pl, nu] = await Promise.all([j("/api/client/plan"), j("/api/client/nutrition")]);
+      const [plRes, nu, signedIn] = await Promise.all([jStatus("/api/client/plan"), j("/api/client/nutrition"), dnuSignedIn()]);
       if (!on) return;
+      const pl = plRes.body;
       if (pl && pl.ok) setPlan(pl);
-      setPlanFailed(dnuPlanFailed(pl));
+      setPlanFailed(dnuMemberReadFailed(pl, plRes.status, signedIn));
       if (nu && nu.ok) setNutri(nu);
-      setSource(dnuSourceOf(pl, nu));
+      setSource(dnuSourceOf(pl, nu, plRes.status, signedIn));
     })();
     return () => { on = false; };
   }, [reloadTick]);

@@ -6,7 +6,8 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { DAY_MS, startOfWeek } from '@/lib/time';
+import { normalizeZone, startOfWeek } from '@/lib/time';
+import { memberDay, readDayStreak } from '@/lib/workout-days';
 import { requireMembership } from '@/lib/require-membership';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
@@ -60,17 +61,16 @@ export async function GET(request: Request) {
     created_at: string;
   }) => s.started_at || s.ended_at || s.created_at;
 
-  const dayStamps = new Set<number>(completed.map((s) => midnight(sessionDate(s))));
-
-  let streak = 0;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let cursor = today.getTime();
-  if (!dayStamps.has(cursor)) cursor -= DAY_MS;
-  while (dayStamps.has(cursor)) {
-    streak += 1;
-    cursor -= DAY_MS;
-  }
+  // The day streak counts the member's own days (their zone on file, UTC without one), by the
+  // rule /api/client/train's Streak uses too (src/lib/workout-days.ts), so the two are one number.
+  const { data: tzRow } = await supabase
+    .from('client_profiles')
+    .select('timezone')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const zone = normalizeZone(tzRow?.timezone);
+  const todayKey = memberDay(Date.now(), zone);
+  const streak = todayKey ? await readDayStreak(supabase, user.id, zone, todayKey) : 0;
 
   const weekStart = startOfWeek(new Date());
   const workoutsThisWeek = completed.filter((s) => midnight(sessionDate(s)) >= weekStart).length;

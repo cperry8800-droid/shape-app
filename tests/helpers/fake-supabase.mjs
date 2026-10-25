@@ -45,15 +45,18 @@ export function fakeSupabase({ tables = {}, rpcs = {}, fail = [], maxRows = null
     if (maxRows != null && !state.single) rows = rows.slice(0, maxRows);
     return { rows: rows.map((r) => project(r, state.select)), count };
   }
-  // PostgREST's select list: `col`, `alias:col`, and `*` / `rel(...)` (no projection).
+  // PostgREST's select list: `col`, `alias:col`, a JSON path (`alias:summary->>snapshotDate`,
+  // named by its last key without an alias, as PostgREST names it), and `*` / `rel(...)` (no
+  // projection).
   function project(row, select) {
     if (select == null) return row;
     const cols = String(select).split(',').map((c) => c.trim()).filter(Boolean);
     if (!cols.length || cols.some((c) => c === '*' || c.includes('('))) return row;
     const out = {};
     for (const c of cols) {
-      const [alias, col] = c.includes(':') ? c.split(':') : [c, c];
-      if (Object.prototype.hasOwnProperty.call(row, col)) out[alias] = row[col];
+      const [alias, col] = c.includes(':') ? c.split(':') : [c.split(/->>?/).pop(), c];
+      if (col.includes('->')) out[alias] = val(row, col);
+      else if (Object.prototype.hasOwnProperty.call(row, col)) out[alias] = row[col];
     }
     return out;
   }
