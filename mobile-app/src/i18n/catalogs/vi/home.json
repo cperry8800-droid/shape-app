@@ -453,6 +453,7 @@
   "week.keyMissed": "lỡ",
   "week.keyAhead": "sắp tới",
   "week.keyRest": "ngày nghỉ",
+  "week.dayState": "{day}: {state}",
   "week.ruleProtein": "ngày đạm đạt {n} g",
   "week.ruleSteps": "ngày bước đạt {n}",
   "coaches.kicker": "Huấn luyện viên của bạn",

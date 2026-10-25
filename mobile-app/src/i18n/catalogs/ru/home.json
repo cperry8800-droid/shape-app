@@ -453,6 +453,7 @@
   "week.keyMissed": "пропущено",
   "week.keyAhead": "впереди",
   "week.keyRest": "день отдыха",
+  "week.dayState": "{day}: {state}",
   "week.ruleProtein": "день белка — от {n} г",
   "week.ruleSteps": "день шагов — от {n}",
   "coaches.kicker": "Ваши тренеры",

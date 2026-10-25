@@ -326,6 +326,18 @@ export function BSHomeWeekView({ w, checkinsOn = true, onTrain, onEat, onProgres
   try { narrow = new Intl.DateTimeFormat(locale, { weekday: 'narrow' }); } catch (e) { narrow = new Intl.DateTimeFormat(undefined, { weekday: 'narrow' }); }
   const dayOf = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); };
   const anyRest = !!(g && g.sessions && g.sessions.includes('rest'));
+  // The key's words, which also name each day's square for a screen reader (Codex P2 on #2449: the
+  // squares, the day letters and the key are hidden from it, so a row's label says them day by day).
+  const word = {
+    hit: tr('home:week.keyHit', { defaultValue: 'hit' }),
+    miss: tr('home:week.keyMissed', { defaultValue: 'missed' }),
+    ahead: tr('home:week.keyAhead', { defaultValue: 'to come' }),
+    rest: tr('home:week.keyRest', { defaultValue: 'rest day' }),
+  };
+  let long = null;
+  try { long = new Intl.DateTimeFormat(locale, { weekday: 'long' }); } catch (e) { long = new Intl.DateTimeFormat(undefined, { weekday: 'long' }); }
+  // A day nothing could read is left out, never named "missed".
+  const spoken = (cells) => (g && cells ? g.week.map((d, i) => (cells[i] ? tr('home:week.dayState', { defaultValue: '{day}: {state}', day: long.format(dayOf(d)), state: word[cells[i]] }) : null)).filter(Boolean) : []);
   const rules = [
     w.protein.target ? tr('home:week.ruleProtein', { defaultValue: 'a protein day reaches {n} g', n: num(w.protein.target) }) : null,
     w.steps.goal ? tr('home:week.ruleSteps', { defaultValue: 'a steps day reaches {n}', n: num(w.steps.goal) }) : null,
@@ -354,7 +366,7 @@ export function BSHomeWeekView({ w, checkinsOn = true, onTrain, onEat, onProgres
       ) : null}
       {rows.map((r) => (
         <button key={r.key} type="button" data-bs-home-week-row={r.key} onClick={typeof r.onOpen === 'function' ? r.onOpen : undefined} disabled={typeof r.onOpen !== 'function'}
-          aria-label={`${r.label}: ${r.value}${r.unit || ''}${r.note ? ` ${r.note}` : ''}`}
+          aria-label={`${r.label}: ${r.value}${r.unit || ''}${r.note ? ` ${r.note}` : ''}${spoken(r.cells).length ? `. ${spoken(r.cells).join(', ')}` : ''}`}
           style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', width: '100%', minHeight: 44, padding: '6px 0', border: 0, borderBottom: `1px solid ${t.HAIR}`, borderRadius: 0, background: 'transparent', cursor: typeof r.onOpen === 'function' ? 'pointer' : 'default', font: 'inherit', color: 'inherit', textAlign: 'left' }}>
           <span style={{ ...mono, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', lineHeight: 1.3, color: t.INK70, overflowWrap: 'anywhere' }}>{r.label}</span>
           {(r.cells || Array.from({ length: 7 }, () => null)).map((c, i) => <BSHsWeekCell key={i} state={c} color={r.color} />)}
@@ -366,10 +378,10 @@ export function BSHomeWeekView({ w, checkinsOn = true, onTrain, onEat, onProgres
         </button>
       ))}
       <div aria-hidden style={{ ...mono, display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 14, rowGap: 6, marginTop: 10, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50, textTransform: 'none' }}>
-        {key({ background: t.INK }, tr('home:week.keyHit', { defaultValue: 'hit' }))}
-        {key({ boxShadow: `inset 0 0 0 1.5px ${t.RULE}` }, tr('home:week.keyMissed', { defaultValue: 'missed' }))}
-        {key({ border: `1px dashed ${t.RULE}` }, tr('home:week.keyAhead', { defaultValue: 'to come' }))}
-        {anyRest ? key({ height: 2, width: 8, background: t.RULE }, tr('home:week.keyRest', { defaultValue: 'rest day' })) : null}
+        {key({ background: t.INK }, word.hit)}
+        {key({ boxShadow: `inset 0 0 0 1.5px ${t.RULE}` }, word.miss)}
+        {key({ border: `1px dashed ${t.RULE}` }, word.ahead)}
+        {anyRest ? key({ height: 2, width: 8, background: t.RULE }, word.rest) : null}
       </div>
       {rules.length ? <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50 }}>{rules.join(' · ')}</div> : null}
     </section>

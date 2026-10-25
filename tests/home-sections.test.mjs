@@ -346,9 +346,15 @@ test('Week so far: a row a figure with a square a day, each row opening where it
   const d = drive(S.BSHomeWeekView, { ...props, checkinsOn: true });
   const rows = d.nodes().filter((n) => n.type === 'button' && n.props['data-bs-home-week-row']);
   assert.deepEqual(rows.map((r) => r.props['data-bs-home-week-row']), ['sessions', 'food', 'protein', 'steps', 'mornings']);
-  // Each row names itself and its figure for a screen reader, as the old rows read.
+  // Each row names itself, its figure and each day's square for a screen reader (Codex P2 on #2449: the
+  // squares, the day letters and the key are hidden from it).
+  const ahead = 'Thursday: to come, Friday: to come, Saturday: to come, Sunday: to come';
   assert.deepEqual(rows.map((r) => r.props['aria-label']), [
-    'Sessions: 2 of 4', 'Food logged: 3 of 4 days', 'Protein: 121g of 140 g', 'Steps: 6,980 of 8,000', 'Check-ins: 3 of 4',
+    `Sessions: 2 of 4. Monday: hit, Tuesday: rest day, Wednesday: missed, ${ahead}`,
+    'Food logged: 3 of 4 days. Monday: hit, Tuesday: hit, Wednesday: missed, Thursday: hit, Friday: to come, Saturday: to come, Sunday: to come',
+    `Protein: 121g of 140 g. Monday: hit, Tuesday: missed, Wednesday: hit, ${ahead}`,
+    `Steps: 6,980 of 8,000. Monday: missed, Tuesday: hit, Wednesday: missed, ${ahead}`,
+    `Check-ins: 3 of 4. Monday: hit, Tuesday: missed, Wednesday: hit, ${ahead}`,
   ]);
   assert.ok(rows.every((r) => r.props.style.minHeight === 44 && !r.props.style.borderRadius), 'a row is a square 44 px door');
   // The squares are the grid's, a row's in its own colour.

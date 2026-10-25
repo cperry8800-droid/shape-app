@@ -453,6 +453,7 @@
   "week.keyMissed": "an rasa",
   "week.keyAhead": "na zuwa",
   "week.keyRest": "ranar hutu",
+  "week.dayState": "{day}: {state}",
   "week.ruleProtein": "ranar furotin tana kai {n} g",
   "week.ruleSteps": "ranar takai tana kai {n}",
   "coaches.kicker": "Kocinka",

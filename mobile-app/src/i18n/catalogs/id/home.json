@@ -453,6 +453,7 @@
   "week.keyMissed": "terlewat",
   "week.keyAhead": "akan datang",
   "week.keyRest": "hari istirahat",
+  "week.dayState": "{day}: {state}",
   "week.ruleProtein": "hari protein mencapai {n} g",
   "week.ruleSteps": "hari langkah mencapai {n}",
   "coaches.kicker": "Pelatihmu",

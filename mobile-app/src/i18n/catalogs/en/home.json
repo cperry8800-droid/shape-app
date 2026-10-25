@@ -453,6 +453,7 @@
   "week.keyMissed": "missed",
   "week.keyAhead": "to come",
   "week.keyRest": "rest day",
+  "week.dayState": "{day}: {state}",
   "week.ruleProtein": "a protein day reaches {n} g",
   "week.ruleSteps": "a steps day reaches {n}",
   "coaches.kicker": "Your coaches",

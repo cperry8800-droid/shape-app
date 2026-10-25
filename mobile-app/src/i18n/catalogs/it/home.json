@@ -453,6 +453,7 @@
   "week.keyMissed": "mancato",
   "week.keyAhead": "da venire",
   "week.keyRest": "giorno di riposo",
+  "week.dayState": "{day}: {state}",
   "week.ruleProtein": "un giorno di proteine arriva a {n} g",
   "week.ruleSteps": "un giorno di passi arriva a {n}",
   "coaches.kicker": "I tuoi coach",

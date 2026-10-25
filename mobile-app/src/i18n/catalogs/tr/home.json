@@ -453,6 +453,7 @@
   "week.keyMissed": "kaçtı",
   "week.keyAhead": "sırada",
   "week.keyRest": "dinlenme günü",
+  "week.dayState": "{day}: {state}",
   "week.ruleProtein": "protein günü {n} g’a ulaşır",
   "week.ruleSteps": "adım günü {n}’e ulaşır",
   "coaches.kicker": "Koçların",
