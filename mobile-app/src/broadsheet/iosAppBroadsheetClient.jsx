@@ -39144,6 +39144,8 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
 
   // ---------- TRAINING ----------
   const ts = TR.stats || {};
+  // /api/client/train sends 14 days, today last, a day with no sets as 0; with nothing
+  // lifted in any of them the station keeps its "nothing logged" line, not 14 empty bars.
   const volDays = (TR.volumeByDay || []).map((d) => (d && typeof d === 'object' ? d.v : d)).map(Number);
   const maxVol = Math.max(1, ...volDays);
   const tRegs = [
@@ -39164,7 +39166,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
       ))}
       {station('Volume · 14 days', null, (
         <>
-          {volDays.length ? (
+          {volDays.some((v) => v > 0) ? (
             <div ref={tVolRef} style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 96 }}>
               {volDays.map((v, i) => { const hgt = v ? Math.max(6, (v / maxVol) * 100) : 3; const today = i === volDays.length - 1; return (
                 <div key={i} style={{ flex: 1, height: `${hgt}%`, minHeight: 3, background: v ? (today ? heat : bsTHexA(heat, 0.4)) : bsTHexA(t.INK, 0.07), transformOrigin: 'bottom', transform: (tVolSeen || reduced) ? undefined : 'scaleY(0)', animation: (tVolSeen && !reduced) ? `bsSdGrowY 480ms cubic-bezier(.4,0,.2,1) ${i * 40}ms both` : 'none' }} />

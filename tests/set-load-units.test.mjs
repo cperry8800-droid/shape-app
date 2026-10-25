@@ -39,6 +39,7 @@ function stubClient(tables) {
       },
       eq: () => q, neq: () => q, in: () => q, gte: () => q, lte: () => q, lt: () => q, gt: () => q,
       order: () => q, limit: () => q, not: () => q, is: () => q, ilike: () => q, or: () => q, filter: () => q,
+      range: (from, to) => { rows = rows.slice(from, to + 1); return q; },
       maybeSingle: async () => ({ data: rows[0] || null, error: null }),
       single: async () => ({ data: rows[0] || null, error: null }),
       then: (res, rej) => Promise.resolve({ data: rows, error: null }).then(res, rej),
@@ -59,10 +60,12 @@ async function routes() {
   const nextServer = require('next/server');
   const lib = (f) => loadRealModule(join(ROOT, 'src/lib', f), { typescript: true });
   const [time, setLoad, e1rm, readiness, localDay] = await Promise.all([lib('time.ts'), lib('set-load.ts'), lib('e1rm.ts'), lib('recovery-readiness.ts'), lib('local-day.ts')]);
+  const workoutDays = await loadRealModule(join(ROOT, 'src/lib/workout-days.ts'), { typescript: true, registry: new Map([['@/lib/time', time]]) });
   let client = null;
   const registry = () => new Map([
     ['next/server', nextServer],
     ['@/lib/time', time],
+    ['@/lib/workout-days', workoutDays],
     ['@/lib/set-load', setLoad],
     ['@/lib/e1rm', e1rm],
     ['@/lib/local-day', localDay],
