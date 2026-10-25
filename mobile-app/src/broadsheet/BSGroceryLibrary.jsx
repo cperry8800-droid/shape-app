@@ -168,11 +168,14 @@ export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], 
           const open = openList === l.id;
           const previewItems = l.items || bsLibraryPreviewItems(l);
           const itemCount = bsGroceryLibCount(l);
-          // The tile sets the figure large and its word small, both read off the one translated count
-          // ("11 items", "kayayyaki 11"): the word is whatever surrounds the number, in the locale's order.
+          // The tile sets the figure large and its words small, read off the one translated count and kept
+          // in its order (Codex P2 on #2447): "11 items" sets the word under the figure, Hausa's
+          // "kayayyaki 11" sets it above, so the tile shows and reads as the locale says it.
           const countLabel = tr('nutrition:grocery.itemCount', { defaultValue: `${itemCount} item${itemCount === 1 ? '' : 's'}`, count: itemCount });
           const countParts = String(countLabel).match(/^(.*?)(\d+)(.*)$/);
-          const countWord = countParts ? `${countParts[1]} ${countParts[3]}`.trim() : '';
+          const countBefore = countParts ? countParts[1].trim() : '';
+          const countAfter = countParts ? countParts[3].trim() : '';
+          const countWord = (w, below) => <span style={{ [below ? 'marginTop' : 'marginBottom']: 3, maxWidth: 48, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{w}</span>;
           const key = (primary) => ({
             minHeight: 40, padding: '0 14px', borderRadius: 9, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
@@ -186,8 +189,9 @@ export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], 
                 background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: t.INK,
               }}>
                 <span style={{ width: 52, height: 52, flex: 'none', borderRadius: 12, background: t.PAPER2 || t.PAPER, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                  {countBefore ? countWord(countBefore, false) : null}
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 500, lineHeight: 1, color: figure, fontVariantNumeric: 'tabular-nums' }}>{itemCount}</span>
-                  {countWord ? <span style={{ marginTop: 3, maxWidth: 48, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{countWord}</span> : null}
+                  {countAfter ? countWord(countAfter, true) : null}
                 </span>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1.2, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>

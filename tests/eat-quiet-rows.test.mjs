@@ -105,3 +105,20 @@ test('a row with an allergen note puts ＋ and ♡ after the note, never beside 
   assert.ok(seen.noted > 0, 'no recipe with an allergen note was reached — this test proves nothing');
   assert.ok(seen.plain > 0, 'no recipe without a note was reached');
 });
+
+// Codex P2 on #2447: the tile reads the words off the translated count, and keeps them in the locale's
+// order. Hausa says "kayayyaki 11", so its word sits above the figure; English's "11 items" sits below.
+test('the count tile keeps the translated words in the locale\'s order', () => {
+  const prev = globalThis.ShapeI18n;
+  globalThis.ShapeI18n = { t: (k, o) => (k === 'nutrition:grocery.itemCount' ? `kayayyaki ${o.count}` : undefined) };
+  try {
+    const d = drive(MOD.BSGroceryLibrary, { recipeLists: [] });
+    const row = d.nodes().find((n) => n.type === 'button' && 'aria-expanded' in n.props && textOf(n).includes('Sunday staples'));
+    assert.match(textOf(row), /^kayayyaki11Sunday staples/, 'the Hausa word was moved after the figure');
+  } finally {
+    globalThis.ShapeI18n = prev;
+  }
+  const en = drive(MOD.BSGroceryLibrary, { recipeLists: [] });
+  const row = en.nodes().find((n) => n.type === 'button' && 'aria-expanded' in n.props && textOf(n).includes('Sunday staples'));
+  assert.match(textOf(row), /^11itemsSunday staples/, 'the English word left its place under the figure');
+});
