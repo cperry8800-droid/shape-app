@@ -239,7 +239,28 @@ const _BS_CAL_ACCENTS = (t) => {
     REST: t.INK50,
   };
 };
-function _bsMapServerCalEvent(ev, t, zone = null) {
+// An activity whose provider sent only its type (Garmin's "RUNNING", Apple Health's
+// "traditionalstrengthtraining") is titled in the member's language when the type is a plain one;
+// any other type keeps the route's label ("Trail running"), as Train's activity list shows it.
+const _BS_CAL_TYPE_TITLES = [
+  [['run', 'running'], (tr) => tr('calendar:activity.type.running', { defaultValue: 'Running' })],
+  [['ride', 'cycling', 'biking', 'bike'], (tr) => tr('calendar:activity.type.cycling', { defaultValue: 'Cycling' })],
+  [['swim', 'swimming'], (tr) => tr('calendar:activity.type.swimming', { defaultValue: 'Swimming' })],
+  [['walk', 'walking'], (tr) => tr('calendar:activity.type.walking', { defaultValue: 'Walking' })],
+  [['hike', 'hiking'], (tr) => tr('calendar:activity.type.hiking', { defaultValue: 'Hiking' })],
+  [['row', 'rowing'], (tr) => tr('calendar:activity.type.rowing', { defaultValue: 'Rowing' })],
+  [['yoga'], (tr) => tr('calendar:activity.type.yoga', { defaultValue: 'Yoga' })],
+  [['strength', 'strengthtraining', 'traditionalstrengthtraining', 'functionalstrengthtraining', 'weighttraining', 'weightlifting'], (tr) => tr('calendar:activity.type.strength', { defaultValue: 'Strength training' })],
+  [['workout', 'activity', 'other', 'whoopworkout'], (tr) => tr('calendar:activity.type.workout', { defaultValue: 'Workout' })],
+];
+function bsCalEventTitle(ev, tr) {
+  if (ev.source !== 'activity' || ev.named !== false || typeof tr !== 'function') return ev.title || '';
+  const type = String(ev.activityType || '').toLowerCase().replace(/[^a-z]/g, '');
+  const hit = _BS_CAL_TYPE_TITLES.find(([types]) => types.includes(type));
+  return hit ? hit[1](tr) : (ev.title || '');
+}
+
+function _bsMapServerCalEvent(ev, t, zone = null, tr = null) {
   const [, , dd] = (ev.date || '').split('-');
   const accents = _BS_CAL_ACCENTS(t);
   return {
@@ -251,7 +272,7 @@ function _bsMapServerCalEvent(ev, t, zone = null) {
     time: ev.time || '—',
     dur: ev.durationMin || 0,
     kind: ev.kind || 'ADMIN',
-    title: ev.title || '',
+    title: bsCalEventTitle(ev, tr),
     sub: ev.sub || '',
     accent: accents[ev.kind] || t.RUST,
     state: ev.status === 'done' || ev.status === 'completed' ? 'done' : undefined,
@@ -348,7 +369,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
     const from = wk ? bsCalIso(wk[0][0]) : `${viewYear}-${pad(viewMonth + 1)}-01`;
     const to = wk ? bsCalIso(wk[wk.length - 1][6]) : `${viewYear}-${pad(viewMonth + 1)}-${new Date(viewYear, viewMonth + 1, 0).getDate()}`;
     window.ShapeCalendar.list({ from, to, clientId, role })
-      .then(d => { if (seq !== loadSeq.current) return; setServerZone(typeof d.zone === 'string' && d.zone ? d.zone : null); setServerEvents((d.events || []).map(e => _bsMapServerCalEvent(e, t, d.zone))); })
+      .then(d => { if (seq !== loadSeq.current) return; setServerZone(typeof d.zone === 'string' && d.zone ? d.zone : null); setServerEvents((d.events || []).map(e => _bsMapServerCalEvent(e, t, d.zone, tr))); })
       .catch(() => { if (seq === loadSeq.current) setServerEvents([]); });
   }, [loggedIn, viewYear, viewMonth, clientId, role, view]);
   React.useEffect(() => { loadMonth(); }, [loadMonth]);

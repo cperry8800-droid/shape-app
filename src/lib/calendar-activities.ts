@@ -68,12 +68,25 @@ const KIND_WORDS: Array<[WorkoutKind, RegExp]> = [
   ['row', /rowing|(^|[^a-z])row(er)?($|[^a-z])|(^|[^a-z])erg($|[^a-z])/],
   ['yoga', /yoga|pilates|mobility|stretch/],
   ['strength', /strength|weight|lifting|crossfit|hypertroph|squat|deadlift|bench|upper body|lower body|full body/],
+  // The app's other languages, for a title a coach writes in theirs ("Carrera fácil",
+  // "Lauftraining"): Spanish, Portuguese, French, German, Italian, Indonesian, Turkish, Russian,
+  // Ukrainian and Vietnamese, read without their accents. Pidgin titles use the English words; a
+  // Hausa title isn't read. A short word stands alone: never "manager" (nager), "velocity" (velo) or
+  // "retirement"; French "course" alone isn't read ("golf course").
+  ['run', /carrera|correr|trote|rodaje|corrida|course a pied|courir|footing|sortie longue|lauf|corsa|(^|[^a-z])lari($|[^a-z])|(^|[^a-z])kosu|бег|пробеж|біг|пробіж|(^|[^a-z])chay($|[^a-z])/],
+  ['ride', /cicl|bici|pedal|(^|[^a-z])velo($|[^a-z])|radfahr|fahrrad|rennrad|sepeda|bisiklet|вело|đap xe|xe đap/],
+  ['swim', /natacion|natacao|natation|nadar|(^|[^a-z])nager($|[^a-z])|schwimm|nuot|renang|yuzme|плаван|(^|[^a-z])boi($|[^a-z])/],
+  ['walk', /camin|cammin|senderismo|trilha|marche|randonn|spazier|wander|passeggiat|escursion|jalan|yuruyus|ходьб|прогул|đi bo/],
+  ['row', /(^|[^a-z])remo($|[^a-z])|aviron|rameur|ruder|canottag|vogator|dayung|kurek|гребл|гребн|веслув|(^|[^a-z])cheo($|[^a-z])/],
+  ['yoga', /иога|mobilit|mobilid|movilidad|estiramiento|alongamento|(^|[^a-z])etirement|dehn|esneme|растяж|розтяж|peregangan|gian co/],
+  ['strength', /fuerza|pesas|forca|muscula|renfo|kraft|forza|(^|[^a-z])pesi($|[^a-z])|kekuatan|beban|kuvvet|ag[iı]rl[iı]k|силов|suc manh/],
 ];
 
 /** The one kind `text` names, or null for none or more than one. */
 export function workoutKind(text: string | null | undefined): WorkoutKind | null {
-  const s = String(text ?? '').toLowerCase().replace(/[_-]+/g, ' ');
-  const hits = KIND_WORDS.filter(([, re]) => re.test(s)).map(([k]) => k);
+  // Accents off ("Natación" reads as "natacion", Turkish "BİSİKLET" as "bisiklet"); đ and ı stay.
+  const s = String(text ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[_-]+/g, ' ');
+  const hits = [...new Set(KIND_WORDS.filter(([, re]) => re.test(s)).map(([k]) => k))];
   return hits.length === 1 ? hits[0] : null;
 }
 
@@ -81,6 +94,9 @@ export type ActivityEvent = {
   id: string; source: 'activity'; kind: 'WORKOUT'; title: string; sub: string;
   date: string; time: string; durationMin: number | null; distanceKm: number | null; calories: number | null;
   activityType: string; sources: string[];
+  // false when the title is only the provider's type ("Running"): the app says that in the
+  // member's language.
+  named: boolean;
   with: ''; location: ''; accent: ''; status: 'completed'; createdByRole: 'client'; editable: false;
 };
 
@@ -163,6 +179,7 @@ export function calendarActivities({ rows, zone, from, to, done = [], planned = 
       calories: g.kcal == null ? null : Math.round(g.kcal),
       activityType: String(g.row.activity_type || 'workout').toLowerCase(),
       sources: keys,
+      named: g.title != null,
       with: '', location: '', accent: '', status: 'completed', createdByRole: 'client', editable: false,
     });
   }

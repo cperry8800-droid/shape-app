@@ -51,6 +51,8 @@ test('one run on two providers is one card at the larger reading, with the run\'
   const first = events[0];
   assert.deepEqual([first.source, first.kind, first.status, first.date, first.time, first.sources, first.activityType, first.editable],
     ['activity', 'WORKOUT', 'completed', '2026-10-21', '11:00', ['garmin', 'strava'], 'run', false]);
+  // A title that is only the type says so, and the app titles it in the member's language.
+  assert.deepEqual(events.map((e) => e.named), [true, true, false]);
 });
 
 test('a title that only repeats the type reads as the type, made readable', () => {
@@ -104,6 +106,23 @@ test('a provider\'s type and a workout\'s title each name one kind, or none', ()
   // None, or more than one: never guessed at.
   for (const text of ['Hill Repeats', 'Over and Unders 1km', 'Strong Foundation', 'Core crunches', 'Brunch', 'Bent-over rows', 'Strength for runners', 'Run then lift weights', 'workout', '', null]) {
     assert.equal(LIB.workoutKind(text), null, String(text));
+  }
+});
+
+test('a title in one of the app\'s other languages names its kind too, accents or none', () => {
+  const cases = {
+    run: ['Carrera fácil', 'Rodaje suave 8 km', 'Corrida leve', 'Course à pied', 'Footing 40 min', 'Sortie longue', 'Lauftraining', 'Dauerlauf', 'Corsa lenta', 'Lari santai', 'Kolay koşu', 'KOŞU', 'Лёгкий бег', 'Пробежка', 'Легка пробіжка', 'Chạy nhẹ'],
+    ride: ['Ciclismo', 'Bici de ruta', 'Vélo', 'Radfahren', 'Bersepeda', 'BİSİKLET', 'Велотренировка', 'Đạp xe'],
+    swim: ['Natación', 'Natacion', 'Natação', 'Natation', 'Schwimmen', 'Nuoto', 'Berenang', 'Yüzme', 'Плавание', 'Bơi'],
+    walk: ['Caminata', 'Caminhada', 'Randonnée', 'Wandern', 'Camminata', 'Jalan kaki', 'Yürüyüş', 'Ходьба', 'Прогулянка', 'Đi bộ'],
+    row: ['Remo', 'Aviron', 'Rudern', 'Canottaggio', 'Dayung', 'Kürek', 'Гребля', 'Веслування'],
+    yoga: ['Йога', 'Movilidad', 'Mobilität', 'Étirements', 'Dehnen', 'Растяжка'],
+    strength: ['Fuerza: tren superior', 'Treino de força', 'Musculation', 'Renforcement', 'Krafttraining', 'Forza', 'Angkat beban', 'Kuvvet', 'AĞIRLIK', 'Силовая тренировка', 'Силове тренування', 'Tập sức mạnh', 'Velocity squats'],
+  };
+  for (const [kind, texts] of Object.entries(cases)) for (const text of texts) assert.equal(LIB.workoutKind(text), kind, text);
+  // An English word is never read as another language's: "manager", "golf course", "retirement".
+  for (const text of ['Manager check-in', 'Golf course', 'Retirement plan', 'Carrera y bici', 'Fuerza y carrera']) {
+    assert.equal(LIB.workoutKind(text), null, text);
   }
 });
 
@@ -189,14 +208,15 @@ test('a finished workout takes its synced copy\'s distance; the copy is not draw
 test('the route ticks the planned workout a synced activity matches by day and type, and no other', async () => {
   const cw = (id, title, scheduled_date) => ({ id, client_id: 'member-1', status: 'published', title, description: null, payload: { duration: '45 min' }, scheduled_date });
   const body = await GET({
-    client_workouts: [cw('w-run', '3.25mi Easy Run', '2026-10-21'), cw('w-str', 'Upper Body Strength', '2026-10-21'), cw('w-hill', 'Hill Repeats', '2026-10-22')],
-    activities: [row('s1', 'member-1', '2026-10-21T11:00:00Z'), row('s2', 'member-1', '2026-10-22T11:00:00Z')],
+    client_workouts: [cw('w-run', '3.25mi Easy Run', '2026-10-21'), cw('w-str', 'Upper Body Strength', '2026-10-21'), cw('w-hill', 'Hill Repeats', '2026-10-22'), cw('w-es', 'Carrera fácil', '2026-10-23')],
+    activities: [row('s1', 'member-1', '2026-10-21T11:00:00Z'), row('s2', 'member-1', '2026-10-22T11:00:00Z'), row('s3', 'member-1', '2026-10-23T11:00:00Z')],
   }, { qs: `${QS}&activities=1` });
   const plan = Object.fromEntries(ofSource(body, 'plan').map((e) => [e.id, e]));
   assert.deepEqual([plan['plan:w-run'].status, plan['plan:w-run'].doneSeconds, plan['plan:w-run'].distanceKm, plan['plan:w-run'].doneBy], ['completed', 2100, 5.79, 'Strava']);
   assert.equal(plan['plan:w-str'].status, 'planned', 'a run finished the strength session');
   assert.equal(plan['plan:w-str'].doneBy, undefined);
   assert.equal(plan['plan:w-hill'].status, 'planned', '"Hill Repeats" was guessed to be a run');
+  assert.equal(plan['plan:w-es'].status, 'completed', 'a coach\'s Spanish "Carrera fácil" was not read as a run');
   assert.deepEqual(ofSource(body, 'activity').map((e) => e.id), ['act:s2'], 'the matched run was drawn again, or the unmatched one was not');
 });
 

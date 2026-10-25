@@ -225,6 +225,32 @@ test('a synced run from the route reaches Weeks with its distance, calories and 
   assert.deepEqual([e.state, e.dur, e.distanceKm, e.calories, e.activityType, e.sources, e.editable], ['done', 35, 5.81, 410, 'run', ['garmin', 'strava'], false]);
 });
 
+test('an activity titled only by its type reads in the member\'s language; a named one keeps its name', async () => {
+  const ev = (id, activityType, title, named) => ({ id, source: 'activity', kind: 'WORKOUT', title, date: '2026-10-21', time: '07:00', durationMin: 35, activityType, sources: ['garmin'], status: 'completed', editable: false, named });
+  const answer = () => ({ zone: 'UTC', events: [
+    ev('act:g1', 'running', 'Running', false),
+    ev('act:a1', 'traditionalstrengthtraining', 'Traditionalstrengthtraining', false),
+    // A type with no plain title keeps the route's label, as Train's activity list shows it.
+    ev('act:g2', 'trail_running', 'Trail running', false),
+    ev('act:s1', 'run', 'Morning Run', true),
+    // A route from before this change sends no flag: its title stands.
+    ev('act:x1', 'running', 'Running', undefined),
+  ] });
+  const titles = async () => {
+    const { d, settle } = await screen({ stored: 'weeks', answer });
+    await settle();
+    return d.nodes().find(named('BSCalendarWeeks')).props.events.map((e) => e.title);
+  };
+  assert.deepEqual(await titles(), ['Running', 'Strength training', 'Trail running', 'Morning Run', 'Running']);
+  const en = globalThis.ShapeI18n;
+  globalThis.ShapeI18n = await translator('es');
+  try {
+    assert.deepEqual(await titles(), ['Carrera', 'Entrenamiento de fuerza', 'Trail running', 'Morning Run', 'Running']);
+  } finally {
+    globalThis.ShapeI18n = en;
+  }
+});
+
 test('Weeks reads today on the clock the calendar is in, not the phone\'s', async (t) => {
   // 11 PM UTC on the 25th: 7 PM in New York (this suite's device), 1 PM on the 26th on Kiritimati.
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-25T23:00:00Z') });
