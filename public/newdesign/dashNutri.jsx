@@ -191,10 +191,19 @@ function dnuSourceOf(pl, nu) {
   return (pl && pl.ok && pl.meals && (pl.meals.hasPlan || pl.meals.coaching !== null)) || (nu && nu.ok && nu.today) ? "live" : "demo";
 }
 
+// Whether the plan read failed: no answer, or one without its meals part (`read: false` when the
+// route's meal plan read failed). ⚠ NOT "NO MEAL PLAN": the page said "No meal plan assigned yet" to a
+// member whose nutritionist's plan did not load. It says so and can read again.
+function dnuPlanFailed(pl) {
+  return !(pl && pl.ok && pl.meals && pl.meals.read !== false);
+}
+
 function ClientNutritionPage() {
   const [plan, setPlan] = React.useState(null);
   const [nutri, setNutri] = React.useState(null);
   const [source, setSource] = React.useState(null);
+  const [planFailed, setPlanFailed] = React.useState(false);
+  const [reloadTick, setReloadTick] = React.useState(0);
   const [pickedDow, setPickedDow] = React.useState(dnuTodayDow());
 
   React.useEffect(() => {
@@ -204,11 +213,12 @@ function ClientNutritionPage() {
       const [pl, nu] = await Promise.all([j("/api/client/plan"), j("/api/client/nutrition")]);
       if (!on) return;
       if (pl && pl.ok) setPlan(pl);
+      setPlanFailed(dnuPlanFailed(pl));
       if (nu && nu.ok) setNutri(nu);
       setSource(dnuSourceOf(pl, nu));
     })();
     return () => { on = false; };
-  }, []);
+  }, [reloadTick]);
   const live = source === "live";
 
   // PREPPED display (Cook Mode PR C — the web's ONLY prep surface, ruling
@@ -265,13 +275,24 @@ function ClientNutritionPage() {
   const grocery = React.useMemo(() => dnuBuildGrocery(days), [days]);
   const favorites = live ? [] : DNU_DEMO.favorites; // no web saved-recipe store yet
 
+  // A plan read that failed takes the no-plan card's place (dnuPlanFailed): it says so and reads again.
+  const failedPlate = live && planFailed ? (
+    <div data-dnu-plan-failed className="dash-plate dash-plate--tick" style={{ "--dac": DNU_GOLD, paddingLeft: 24 }} role="status">
+      <div className="dash-eyebrow" style={{ color: DNU_GOLD }}>Couldn’t load your meal plan</div>
+      <div style={{ fontSize: 13, color: DNU_INK50, lineHeight: 1.55, marginTop: 8, maxWidth: 480 }}>
+        If you have a meal plan, it’s still there. Check your connection and try again.
+      </div>
+      <button type="button" onClick={() => setReloadTick((n) => n + 1)} style={{ fontFamily: DNU_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_INK50, background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "9px 12px", minHeight: 36, marginTop: 12, cursor: "pointer" }}>Try again ↻</button>
+    </div>
+  ) : null;
+
   // Each top-level card becomes a draggable/resizable DashGrid widget (role=client,
   // tab=nutrition), mirroring the client Score rollout. The DashPage hero stays the
   // page header; only the card stack is gridded. The week strip + meal ledger are the
   // primary wide cards (full); grocery / logging history / saved recipes pair (half).
   const widgets = (!hasPlan
     ? [
-        { key: "noplan", title: "No meal plan yet", size: "full", render: () => (
+        { key: "noplan", title: "No meal plan yet", size: "full", render: () => failedPlate || (
           <div className="dash-plate dash-plate--tick" style={{ "--dac": DNU_GOLD, paddingLeft: 24 }}>
             {/* A member with a nutritionist is waiting on them, not on the marketplace (client-onboarding
                 review, M16; /api/client/plan meals.coaching). */}

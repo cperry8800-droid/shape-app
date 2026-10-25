@@ -76,5 +76,11 @@
   "notifications.emptyBody": "Booking requests, confirmations and other updates go show here.",
   "notifications.open": "Open →",
   "notifications.now": "now now",
-  "notifications.footer": "Activity"
+  "notifications.footer": "Activity",
+  "planRead.eyebrow": "E no load",
+  "planRead.training": "We no fit load your training",
+  "planRead.meals": "We no fit load your meal plan",
+  "planRead.body": "If you get plan, e still dey there. Check your connection and try again.",
+  "planRead.retry": "Try again",
+  "planRead.retrying": "E dey load…"
 }

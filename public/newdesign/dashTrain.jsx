@@ -669,6 +669,12 @@ function dtrCoachingOf(plan) {
 function dtrFindCoachOk(plan, live) {
   return !live || !!(plan && plan.training && plan.training.coaching === null);
 }
+// Whether the plan read failed: no answer, or one without its training part (`read: false` when the
+// route's workouts read failed). ⚠ NOT "NO PROGRAM": the page said "No program assigned yet" to a
+// member whose coach's program did not load. It says so and can read again.
+function dtrPlanFailed(pl) {
+  return !(pl && pl.ok && pl.training && pl.training.read !== false);
+}
 
 function ClientWorkoutsPage() {
   const [plan, setPlan] = React.useState(null);
@@ -677,6 +683,7 @@ function ClientWorkoutsPage() {
   const [prs, setPrs] = React.useState(null);
   const [source, setSource] = React.useState(null);
   const [selfData, setSelfData] = React.useState(null); // /api/client/self-training (builder)
+  const [planFailed, setPlanFailed] = React.useState(false);
   const [reloadTick, setReloadTick] = React.useState(0);
 
   React.useEffect(() => {
@@ -688,6 +695,7 @@ function ClientWorkoutsPage() {
       ]);
       if (!on) return;
       if (pl && pl.ok) setPlan(pl);
+      setPlanFailed(dtrPlanFailed(pl));
       if (tr && tr.ok) setTrain(tr);
       if (db && db.kpis) setDash(db);
       if (pg && pg.ok) setPrs(pg.prs || []);
@@ -786,7 +794,16 @@ function ClientWorkoutsPage() {
 
     { key: "program", title: "The program, by week", size: "full", render: () => (
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-        {weeks.length === 0 && anytime.length === 0 && (
+        {weeks.length === 0 && anytime.length === 0 && live && planFailed && (
+          <div data-dtr-plan-failed className="dash-plate dash-plate--tick" style={{ "--dac": DTR_RUST, paddingLeft: 24 }} role="status">
+            <div className="dash-eyebrow" style={{ color: DTR_RUST }}>Couldn’t load your program</div>
+            <div style={{ fontSize: 13, color: DTR_INK50, lineHeight: 1.55, marginTop: 8, maxWidth: 480 }}>
+              If you have a program, it’s still there. Check your connection and try again.
+            </div>
+            <button type="button" onClick={reloadAll} style={{ ...DTR_BTN, marginTop: 12, minHeight: 36 }}>Try again ↻</button>
+          </div>
+        )}
+        {weeks.length === 0 && anytime.length === 0 && !(live && planFailed) && (
           <div className="dash-plate dash-plate--tick" style={{ "--dac": DTR_RUST, paddingLeft: 24 }}>
             {/* ⚠ A COACHED MEMBER WAS SENT TO THE MARKETPLACE HERE (Codex on #2378): the builder below
                 named their trainer while this said to browse for one. */}

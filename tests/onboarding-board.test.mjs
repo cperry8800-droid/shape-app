@@ -681,7 +681,7 @@ test('the member app and the website say the coach is preparing the plan, and as
   assert.match(client, /setTrainCoaching\(p && p\.training && 'coaching' in p\.training \? \(p\.training\.coaching \|\| null\) : undefined\);/);
   // Eat: the same for a nutritionist, before any menu.
   assert.match(client, /\{bsEatSignedIn && eatPlanRead && !liveMealDays && eatCoaching && <BSCoachPreparing role="nutritionist" coaching=\{eatCoaching\} \/>\}/);
-  assert.match(client, /if \(!cancelled\) setEatCoaching\(p && p\.meals && 'coaching' in p\.meals \? \(p\.meals\.coaching \|\| null\) : undefined\);\s+if \(cancelled \|\| !p\?\.meals\?\.hasPlan\) return;/);
+  assert.match(client, /if \(!cancelled\) setEatCoaching\(p && p\.meals && 'coaching' in p\.meals \? \(p\.meals\.coaching \|\| null\) : undefined\);\s+if \(cancelled \|\| !read \|\| !p\.meals\.hasPlan\) return;/);
   // The check-in's adherence questions follow the plans, in the app and on the website.
   const RATINGS = [['trainingAdherence'], ['nutritionAdherence'], ['sleep'], ['energy']];
   const app = new Function('BS_CHECKIN_RATINGS', slice(client, 'function bsCheckinRatings(', 'const BS_MEASURE_SITES') + ';return bsCheckinRatings;')(RATINGS);

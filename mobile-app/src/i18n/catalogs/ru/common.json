@@ -76,5 +76,11 @@
   "notifications.emptyBody": "Здесь появятся запросы на запись, подтверждения и другие новости.",
   "notifications.open": "Открыть →",
   "notifications.now": "сейчас",
-  "notifications.footer": "Активность"
+  "notifications.footer": "Активность",
+  "planRead.eyebrow": "Не загружено",
+  "planRead.training": "Не удалось загрузить твои тренировки",
+  "planRead.meals": "Не удалось загрузить твой план питания",
+  "planRead.body": "Если у тебя есть план, он никуда не делся. Проверь подключение и попробуй ещё раз.",
+  "planRead.retry": "Попробовать ещё раз",
+  "planRead.retrying": "Загрузка…"
 }
