@@ -363,7 +363,8 @@ export async function GET(request: Request) {
         const day = Number.isFinite(at) ? wallClockInZone(at, zone)?.date : null;
         if (!day || day < weekISO[0]) continue;
       }
-      doneSec.set(id, Math.max(doneSec.get(id) ?? 0, Number(r.duration_seconds) || 0));
+      // The newest run's time (the read is newest first), not the longest attempt's.
+      if (!doneSec.has(id)) doneSec.set(id, Number(r.duration_seconds) || 0);
       if (Number.isFinite(at)) doneAt.push({ id: `plan:${id}`, at });
     }
     for (const w of planWorkouts) {
