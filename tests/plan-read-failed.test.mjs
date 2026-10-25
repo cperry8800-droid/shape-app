@@ -137,8 +137,8 @@ test('the website: a failed read says so on Workouts and Nutrition, and reads ag
   assert.match(train, /setPlanFailed\(dtrPlanFailed\(pl\)\);/);
   assert.match(train, /\{weeks\.length === 0 && anytime\.length === 0 && live && planFailed && \(\s+<div data-dtr-plan-failed[\s\S]{0,700}?onClick=\{reloadAll\}[^>]*>Try again ↻<\/button>/);
   assert.match(train, /\{weeks\.length === 0 && anytime\.length === 0 && !\(live && planFailed\) && \(/, '"No program assigned yet" only when the read answered');
-  assert.match(nutri, /setPlanFailed\(dnuMemberReadFailed\(pl, plRes\.status, !!ses\)\);/);
-  assert.match(nutri, /setSource\(dnuSourceOf\(pl, nu, plRes\.status, !!ses\)\);/);
+  assert.match(nutri, /setPlanFailed\(dnuMemberReadFailed\(pl, plRes\.status, signedIn\)\);/);
+  assert.match(nutri, /setSource\(dnuSourceOf\(pl, nu, plRes\.status, signedIn\)\);/);
   assert.match(nutri, /\.then\(async \(r\) => \(\{ status: r\.status, body: r\.ok \? await r\.json\(\)\.catch\(\(\) => null\) : null \}\)\)\s+\.catch\(\(\) => \(\{ status: 0, body: null \}\)\);/, 'no network is status 0');
   assert.match(nutri, /\}, \[reloadTick\]\);/);
   assert.match(nutri, /const failedPlate = live && planFailed \? \(\s+<div data-dnu-plan-failed[\s\S]{0,900}?onClick=\{\(\) => setReloadTick\(\(n\) => n \+ 1\)\}[^>]*>Try again ↻<\/button>/);
@@ -181,9 +181,24 @@ test('website Nutrition: a member\'s failed plan read is live, not the demo menu
   assert.equal(f.dnuSourceOf(noCoach, nothingLogged, 200, true), 'demo');
   assert.equal(f.dnuSourceOf({ ok: true, meals: { hasPlan: false, read: true, coaching: { name: 'Maya' } } }, nothingLogged, 200, true), 'live');
   assert.equal(f.dnuSourceOf(null, null), 'demo', 'no status: as before');
-  // The page reads the session alongside the two reads, and a session read that throws is none.
-  assert.match(nutri, /const session = \(\) => Promise\.resolve\(window\.shapeDb && window\.shapeDb\.getSession \? window\.shapeDb\.getSession\(\) : null\)\.catch\(\(\) => null\);/);
-  assert.match(nutri, /const \[plRes, nu, ses\] = await Promise\.all\(\[jStatus\("\/api\/client\/plan"\), j\("\/api\/client\/nutrition"\), session\(\)\]\);/);
+  // The page reads whether it is signed in alongside the two reads.
+  assert.match(nutri, /const \[plRes, nu, signedIn\] = await Promise\.all\(\[jStatus\("\/api\/client\/plan"\), j\("\/api\/client\/nutrition"\), dnuSignedIn\(\)\]\);/);
+});
+
+test('website Nutrition: signed in is the dashboard\'s account reading first, then the Supabase session', async () => {
+  const nutri = read('public/newdesign/dashNutri.jsx');
+  const make = (win) => new Function('window', slice(nutri, 'function dnuSignedIn(', 'function ClientNutritionPage(') + ';return dnuSignedIn;')(win);
+  let asked = 0;
+  const shapeDb = (answer) => ({ getSession: () => { asked++; return typeof answer === 'function' ? answer() : Promise.resolve(answer); } });
+  // Codex P2 on #2453: the dashboard's cached /api/me reading needs no request, so a 429 can't refuse it.
+  assert.equal(await make({ ShapePortalSession: { peek: () => ({ user: { id: 'u1' } }) }, shapeDb: shapeDb(null) })(), true);
+  assert.equal(asked, 0, 'no session request when the dashboard already read the account');
+  // Without it, the Supabase session decides; one that fails, or none, is signed out.
+  assert.equal(await make({ ShapePortalSession: { peek: () => null }, shapeDb: shapeDb({ user: { id: 'u1' } }) })(), true);
+  assert.equal(await make({ shapeDb: shapeDb({ user: { id: 'u1' } }) })(), true, 'the standalone page has no portal reading');
+  assert.equal(await make({ shapeDb: shapeDb(null) })(), false);
+  assert.equal(await make({ shapeDb: shapeDb(() => Promise.reject(new Error('429'))) })(), false);
+  assert.equal(await make({})(), false, 'no auth client at all');
 });
 
 // The block, mounted with the shipping module.

@@ -211,6 +211,15 @@ function dnuMemberReadFailed(pl, status, signedIn) {
   if (!signedIn || status === 401 || status === 402 || status === 403) return false;
   return dnuPlanFailed(pl);
 }
+// Whether the page has a signed-in member, for a plan request that got no answer. The dashboard's own
+// account reading comes first (ShapePortalSession, from /api/me before the page drew): it needs no
+// request, so a rate limit that refused the plan read can't refuse it too (Codex P2 on #2453). Then
+// the Supabase session, whose cookie bridge is itself an /api request.
+function dnuSignedIn() {
+  const portal = window.ShapePortalSession && window.ShapePortalSession.peek ? window.ShapePortalSession.peek() : null;
+  if (portal && portal.user) return Promise.resolve(true);
+  return Promise.resolve(window.shapeDb && window.shapeDb.getSession ? window.shapeDb.getSession() : null).then((s) => !!s, () => false);
+}
 
 function ClientNutritionPage() {
   const [plan, setPlan] = React.useState(null);
@@ -228,16 +237,14 @@ function ClientNutritionPage() {
     const jStatus = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" })
       .then(async (r) => ({ status: r.status, body: r.ok ? await r.json().catch(() => null) : null }))
       .catch(() => ({ status: 0, body: null }));
-    // Whether a session exists (the cookie bridge included), for a plan request that got no answer.
-    const session = () => Promise.resolve(window.shapeDb && window.shapeDb.getSession ? window.shapeDb.getSession() : null).catch(() => null);
     (async () => {
-      const [plRes, nu, ses] = await Promise.all([jStatus("/api/client/plan"), j("/api/client/nutrition"), session()]);
+      const [plRes, nu, signedIn] = await Promise.all([jStatus("/api/client/plan"), j("/api/client/nutrition"), dnuSignedIn()]);
       if (!on) return;
       const pl = plRes.body;
       if (pl && pl.ok) setPlan(pl);
-      setPlanFailed(dnuMemberReadFailed(pl, plRes.status, !!ses));
+      setPlanFailed(dnuMemberReadFailed(pl, plRes.status, signedIn));
       if (nu && nu.ok) setNutri(nu);
-      setSource(dnuSourceOf(pl, nu, plRes.status, !!ses));
+      setSource(dnuSourceOf(pl, nu, plRes.status, signedIn));
     })();
     return () => { on = false; };
   }, [reloadTick]);
