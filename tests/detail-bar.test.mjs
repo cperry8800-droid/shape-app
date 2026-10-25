@@ -79,11 +79,11 @@ test('a detail page: the bar comes in at 64px, then reads ← and the title once
 
   await scrollTo(0);
   assert.equal(bar.getAttribute('aria-hidden'), 'true', 'the bar is out at the top');
-  assert.equal(bar.querySelector('[data-bs-detail-bar]'), null);
+  assert.ok(!bar.querySelector('[data-bs-detail-bar]'), 'the bar reads the title at the top of the page');
 
   await scrollTo(80);
   assert.equal(bar.getAttribute('aria-hidden'), 'false', 'the bar is not in at 80px, so the page would run under the status bar');
-  assert.equal(bar.querySelector('[data-bs-detail-bar]'), null, 'the title shows in the bar while the page still shows it');
+  assert.ok(!bar.querySelector('[data-bs-detail-bar]'), 'the title shows in the bar while the page still shows it');
   assert.match(bar.textContent, /Vol\. 1 · No\. 1/);
 
   await scrollTo(120);
@@ -102,12 +102,12 @@ test('a detail page: the bar comes in at 64px, then reads ← and the title once
 
   // Back up, the page's own header shows again and the bar drops the title.
   await scrollTo(100);
-  assert.equal(bar.querySelector('[data-bs-detail-bar]'), null);
+  assert.ok(!bar.querySelector('[data-bs-detail-bar]'), 'the bar keeps the title once the page shows it again');
 
   // A page with no detail header keeps the plain bar at any depth.
   await render(false);
   await scrollTo(400);
-  assert.equal(bar.querySelector('[data-bs-detail-bar]'), null, 'the title outlived its header');
+  assert.ok(!bar.querySelector('[data-bs-detail-bar]'), 'the title outlived its header');
   assert.match(bar.textContent, /Vol\. 1 · No\. 1/);
   await act(async () => root.unmount());
 });

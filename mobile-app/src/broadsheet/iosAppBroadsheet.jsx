@@ -557,7 +557,7 @@ function useBSReportBareMast(bare) {
 // stay pinned whole, about a quarter of the screen. Inside a BSPage it now scrolls away, and
 // once its title has passed under BSPage's condensing masthead that bar reads ← and the
 // page's title in place of the logo and Vol·No, keeping its corner. It is the same bar at the
-// same height, so every sticky row that measures [data-bs-pinned-mast] still sits under it.
+// same height, so every sticky row that measures it (useBSPinnedMastTop) still sits under it.
 const BSDetailBarCtx = React.createContext(null);
 
 // The title as one line of words: a <br/> is a space, and a styled span gives its text.
