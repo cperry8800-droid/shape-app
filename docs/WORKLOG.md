@@ -126,8 +126,7 @@ dated entry or past 20 KB.
 
 ## Open items
 
-The War Room has the full list. This section covers what needs the owner, plus the
-planned builds.
+The War Room has the full list; this covers what needs the owner and the planned builds.
 
 **Waiting on the owner**
 - Push keys (the app side is built, #2385; 0 push devices in production). For iPhone,
@@ -201,12 +200,13 @@ planned builds.
   Stripe; the 90-day churn is a floor once all 12 listed cancellations fall in it. The
   dashboard routes drop their session and coach-row read errors. Renewals and the origin
   feed show "—" for an unread name and for none.
-- Home (`BSHomeSections.jsx`): Week so far counts days trained (workout minutes or a logged
-  activity) against the plan's sessions, and days with food logged, not meals; a protein or
-  steps square needs the target (a reading, without one). The weekly
-  notes, message doors and next session show only for a paid coach (no sample signed out).
+- Home (`BSHomeSections.jsx`): Week so far counts days trained (workout minutes or an
+  activity) against the plan's sessions, and food days, not meals; a protein or steps square
+  needs the target (else any reading). The weekly notes, message doors and next
+  session show only for a paid coach (no sample signed out). Train takes a failed workouts
+  read (`training.read: false`) for no plan.
 - Eat on a live meal plan takes what was eaten (Fuel left, macro pages) from the plan's
-  day `totals` and meals' `state`, not the member's logs.
+  day `totals` and meals' `state`, not the logs.
 - Signed in, others' profiles show the demo signals and climb (owner: leave it).
 - Shape Wire (the launch telegram) shows the coach's latest note however old, and its
   morning protein line is usually absent (it reads only today's row).
@@ -287,6 +287,6 @@ planned builds.
   [`-2026-06-cycles-2-5`](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 - The old version of this file, with every reviewer ruling and why:
   [`-conventions-2026-10-16`](WORKLOG-ARCHIVE-conventions-2026-10-16.md).
-- Old session handoffs (`docs/HANDOFF-*.md`) are history; none are written now.
+- Handoffs (`docs/HANDOFF-*.md`) are history.
 - Search them with `grep -n "<term>" docs/WORKLOG-ARCHIVE-*.md`, then read one entry
   with `sed -n` (AGENTS.md: never `cat` one).
