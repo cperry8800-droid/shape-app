@@ -76,5 +76,11 @@
   "notifications.emptyBody": "Rezervasyon talepleri, onaylar ve diğer güncellemeler burada görünecek.",
   "notifications.open": "Aç →",
   "notifications.now": "şimdi",
-  "notifications.footer": "Etkinlik"
+  "notifications.footer": "Etkinlik",
+  "planRead.eyebrow": "Yüklenmedi",
+  "planRead.training": "Antrenmanın yüklenemedi",
+  "planRead.meals": "Beslenme planın yüklenemedi",
+  "planRead.body": "Bir planın varsa hâlâ orada. Bağlantını kontrol edip tekrar dene.",
+  "planRead.retry": "Tekrar dene",
+  "planRead.retrying": "Yükleniyor…"
 }

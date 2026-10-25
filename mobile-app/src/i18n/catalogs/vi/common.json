@@ -76,5 +76,11 @@
   "notifications.emptyBody": "Yêu cầu đặt lịch, xác nhận và các cập nhật khác sẽ hiện ở đây.",
   "notifications.open": "Mở →",
   "notifications.now": "vừa xong",
-  "notifications.footer": "Hoạt động"
+  "notifications.footer": "Hoạt động",
+  "planRead.eyebrow": "Chưa tải được",
+  "planRead.training": "Không tải được lịch tập của bạn",
+  "planRead.meals": "Không tải được thực đơn của bạn",
+  "planRead.body": "Nếu bạn có kế hoạch, nó vẫn còn đó. Hãy kiểm tra kết nối rồi thử lại.",
+  "planRead.retry": "Thử lại",
+  "planRead.retrying": "Đang tải…"
 }

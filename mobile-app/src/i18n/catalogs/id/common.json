@@ -76,5 +76,11 @@
   "notifications.emptyBody": "Permintaan booking, konfirmasi, dan kabar lainnya akan muncul di sini.",
   "notifications.open": "Buka →",
   "notifications.now": "baru saja",
-  "notifications.footer": "Aktivitas"
+  "notifications.footer": "Aktivitas",
+  "planRead.eyebrow": "Belum dimuat",
+  "planRead.training": "Latihanmu tidak bisa dimuat",
+  "planRead.meals": "Rencana makanmu tidak bisa dimuat",
+  "planRead.body": "Kalau kamu punya rencana, rencananya masih ada. Periksa koneksimu lalu coba lagi.",
+  "planRead.retry": "Coba lagi",
+  "planRead.retrying": "Memuat…"
 }

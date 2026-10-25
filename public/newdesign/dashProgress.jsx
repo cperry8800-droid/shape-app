@@ -531,7 +531,9 @@ function DprCheckinForm({ kit, onSaved, units }) {
     let on = true;
     fetch("/api/client/plan", { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((p) => { if (on && p && p.ok) setPlans({ training: !!(p.training && p.training.hasPlan), nutrition: !!(p.meals && p.meals.hasPlan) }); })
+      // A part the read could not answer (`read: false`) asks its adherence question, as a failed read
+      // always did (the app's bsPlanCheckinParts).
+      .then((p) => { if (on && p && p.ok) setPlans({ training: !!(p.training && (p.training.hasPlan || p.training.read === false)), nutrition: !!(p.meals && (p.meals.hasPlan || p.meals.read === false)) }); })
       .catch(() => {});
     return () => { on = false; };
   }, []);

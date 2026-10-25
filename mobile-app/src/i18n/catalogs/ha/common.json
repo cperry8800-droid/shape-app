@@ -76,5 +76,11 @@
   "notifications.emptyBody": "Buƙatun ajiyar lokaci, tabbatarwa da sauran labarai za su bayyana a nan.",
   "notifications.open": "Buɗe →",
   "notifications.now": "yanzu",
-  "notifications.footer": "Ayyuka"
+  "notifications.footer": "Ayyuka",
+  "planRead.eyebrow": "Ba a loda ba",
+  "planRead.training": "An kasa loda horonka",
+  "planRead.meals": "An kasa loda tsarin abincinka",
+  "planRead.body": "Idan kana da tsari, yana nan. Duba haɗinka ka sake gwadawa.",
+  "planRead.retry": "Sake gwadawa",
+  "planRead.retrying": "Ana lodawa…"
 }

@@ -76,5 +76,11 @@
   "notifications.emptyBody": "Buchungsanfragen, Bestätigungen und andere Neuigkeiten erscheinen hier.",
   "notifications.open": "Öffnen →",
   "notifications.now": "jetzt",
-  "notifications.footer": "Aktivität"
+  "notifications.footer": "Aktivität",
+  "planRead.eyebrow": "Nicht geladen",
+  "planRead.training": "Dein Training konnte nicht geladen werden",
+  "planRead.meals": "Dein Ernährungsplan konnte nicht geladen werden",
+  "planRead.body": "Wenn du einen Plan hast, ist er noch da. Prüfe deine Verbindung und versuch es noch einmal.",
+  "planRead.retry": "Erneut versuchen",
+  "planRead.retrying": "Wird geladen…"
 }

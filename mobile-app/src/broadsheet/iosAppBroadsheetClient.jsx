@@ -66,6 +66,7 @@ import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
 import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.jsx';
 import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
+import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead, bsWsRed, bsWsHead } from './BSWallStory.jsx';
 import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
@@ -73,6 +74,7 @@ import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
 import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomeSessionsPlannedDays, bsHomePaidBanners } from '../services/homeWeek.mjs';
+import { bsPlanPartRead, bsPlanCheckinParts } from '../services/planRead.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
@@ -4475,7 +4477,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       window.ShapePlan.get().then((p) => {
         if (on && p && ((p.training && p.training.hasPlan) || (p.meals && p.meals.hasPlan))) setLivePlan(p);
         if (on && p) setPlanCoaches(bsHomeCoachesOf(p));
-        if (on && p && p.ok === true && p.training && p.training.read !== false) setPlanRead(true);
+        if (on && bsPlanPartRead(p, 'training')) setPlanRead(true);
       }).catch(() => {});
     }
     return () => { on = false; };
@@ -6331,6 +6333,10 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // `coaching` when its subscriptions read fails, and a coached member was sent to find a trainer.
   const [trainCoaching, setTrainCoaching] = useStateBSC(undefined);
   const [planLoaded, setPlanLoaded] = useStateBSC(false);
+  // The plan read failed, or answered without its training part (bsPlanPartRead). That is not "no
+  // plan": the member is told it could not load and can try again, never sent to the Build door.
+  const [planFailed, setPlanFailed] = useStateBSC(false);
+  const [planRetrying, setPlanRetrying] = useStateBSC(false);
   const [builder, setBuilder] = useStateBSC(null); // { mode, ...seed } | null — the self-serve builder overlay
 
   // Pull the client's assigned OR self-authored plan. A self-save/program lands
@@ -6341,11 +6347,19 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       window.ShapeMetrics?.invalidate?.();
       const p = await window.ShapePlan?.get?.();
       setTrainCoaching(p && p.training && 'coaching' in p.training ? (p.training.coaching || null) : undefined);
-      if (p?.training?.hasPlan) { setLiveWorkouts(p.training.workouts); setLiveTrainCoach(p.training.coach || null); setDay(bsWeekdayIdx()); }
+      const read = bsPlanPartRead(p, 'training');
+      setPlanFailed(!read);
+      // A failed read keeps the plan an earlier read found (a reload after a builder save).
+      if (!read) return;
+      if (p.training.hasPlan) { setLiveWorkouts(p.training.workouts); setLiveTrainCoach(p.training.coach || null); setDay(bsWeekdayIdx()); }
       else { setLiveWorkouts(null); setLiveTrainCoach(null); }
-    } catch (e) { /* keep demo program */ }
+    } catch (e) { setPlanFailed(true); }
     finally { setPlanLoaded(true); }
   }, []);
+  const retryPlan = async () => {
+    setPlanRetrying(true);
+    try { await loadPlan(); } finally { setPlanRetrying(false); }
+  };
   React.useEffect(() => { let cancelled = false; (async () => { if (!cancelled) await loadPlan(); })(); return () => { cancelled = true; }; }, []);
 
   // ⚠ THE BUILT WEEK IS DERIVED, NEVER STORED. bsBuildTrainProgram bakes tr()
@@ -6414,6 +6428,18 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   if (session) return <BSSession draft={resumeDraft} clientWorkoutId={openSession ? null : cur.workoutId} prescriptionMeta={{ template: cur.template, program: cur.program, adjustGen: cur.adjustGen }} title={openSession || (effMoves.length === 0 && isRestDay) ? tr('session:train.openSession', { defaultValue: 'Open session' }) : cur.title} moves={openSession ? [] : bsSessionMoves(effMoves)} onBack={leaveSession} />;
   if (previewing) return <BSWorkoutPreview program={{ ...cur, moves: effMoves }} coach={coachDayName} onBack={() => setPreviewing(false)} onStart={() => { setPreviewing(false); setSession(true); }} />;
   if (burnOpen) return <BSTrainBurnPage onBack={() => setBurnOpen(false)} />;
+
+  // A plan read that failed, with no plan read before it: the page says so and can read again,
+  // instead of the Build door or an empty rest week.
+  if (bsTrainSignedIn && planLoaded && planFailed && !liveProgram) {
+    return (
+      <BSPage>
+        <BSPageHeader kicker={tr('session:train.kickerTrain', { defaultValue: 'Train' })} title={tr('session:train.yourTraining', { defaultValue: 'Your training' })} trailing={<BSHeaderTools onProfile={onProfile} />} />
+        {resumeBanner}
+        <BSPlanReadFailed part="training" onRetry={retryPlan} busy={planRetrying} />
+      </BSPage>
+    );
+  }
 
   // Signed-in member with NO plan (assigned or self) → the Build-your-week door
   // instead of the empty rest-week. Signed-out preview keeps the demo deck.
@@ -12491,7 +12517,7 @@ const bsLocalDay = (ms) => bsYmdIn(ms);
 async function bsLoadPrepTonight() {
   try {
     const plan = await window.ShapePlan?.get?.();
-    if (!plan || !plan.meals) return null;
+    if (!bsPlanPartRead(plan, 'meals')) return null;
     if (!plan.meals.hasPlan) return [];
     const [swaps, entries] = await Promise.all([
       window.shapeDb?.getUserGoals?.('client_meal_swaps'),
@@ -12791,28 +12817,36 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   };
 
   // Pull the client's assigned meal plan; fall back to the demo menu when none.
+  // eatPlanRead: the read answered for meals (bsPlanPartRead), so an empty menu is real. eatPlanFailed:
+  // it did not, and the menu says it could not load instead of "No meals planned"; Try again reads again.
   const [eatPlanRead, setEatPlanRead] = useStateBSC(false);
+  const [eatPlanFailed, setEatPlanFailed] = useStateBSC(false);
+  const [eatPlanReads, setEatPlanReads] = useStateBSC(0);
+  const [eatPlanRetrying, setEatPlanRetrying] = useStateBSC(false);
   // The nutritionist this member pays, when they have one (/api/client/plan `meals.coaching`, M16).
   // As Train's: the object, null for none, undefined while unknown (Codex on #2378).
   const [eatCoaching, setEatCoaching] = useStateBSC(undefined);
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
+      let read = false;
       try {
+        // Try again reads past the 60-second cache, which keeps the failed answer.
+        if (eatPlanReads) window.ShapeMetrics?.invalidate?.();
         const p = await window.ShapePlan?.get?.();
+        read = bsPlanPartRead(p, 'meals');
         if (!cancelled) setEatCoaching(p && p.meals && 'coaching' in p.meals ? (p.meals.coaching || null) : undefined);
-        if (cancelled || !p?.meals?.hasPlan) return;
+        if (cancelled || !read || !p.meals.hasPlan) return;
         setLiveMealDays(p.meals.days);
         setLiveMealCoach(p.meals.coach || null);
         setLiveMealTitle(p.meals.title || null);
         setDay(bsWeekdayIdx());
       } catch (e) { /* keep demo menu */ } finally {
-        // The plan read has answered (with a plan or without), so an empty menu is real.
-        if (!cancelled) setEatPlanRead(true);
+        if (!cancelled) { setEatPlanRead(read); setEatPlanFailed(!read); setEatPlanRetrying(false); }
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [eatPlanReads]);
 
   // ⚠ THE BUILT MENU IS DERIVED, NEVER STORED — the Train twin of this defect,
   // one tab over. buildMealProgram bakes tr() output (kicker, title, headline,
@@ -14296,6 +14330,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       <BSCoachAdjustBanner detail={bsEatProgram.detail} kind="nutrition" />
 
       {bsEatSignedIn && eatPlanRead && !liveMealDays && eatCoaching && <BSCoachPreparing role="nutritionist" coaching={eatCoaching} />}
+      {bsEatSignedIn && eatPlanFailed && !liveMealDays && <BSPlanReadFailed part="meals" busy={eatPlanRetrying} onRetry={() => { setEatPlanRetrying(true); setEatPlanReads((n) => n + 1); }} />}
 
       {/* Fuel left today (BSEatFuel.jsx), above the next meal (owner, 2026-10-22). Coach-set
           targets (Adjust plan → Apply) win; each macro opens its own page. */}
@@ -30687,7 +30722,8 @@ function BSWeeklyCheckin({ onBack }) {
   React.useEffect(() => {
     if (!loggedIn || !window.ShapePlan?.get) return undefined;
     let on = true;
-    window.ShapePlan.get().then((p) => { if (on && p) setPlans({ training: !!p.training?.hasPlan, nutrition: !!p.meals?.hasPlan }); }).catch(() => {});
+    // A part the read could not answer asks its adherence question, as a failed read always did.
+    window.ShapePlan.get().then((p) => { if (on && p) setPlans(bsPlanCheckinParts(p)); }).catch(() => {});
     return () => { on = false; };
   }, [loggedIn]);
   // Prefill this week's check-in when it exists — saving again updates it.

@@ -76,5 +76,11 @@
   "notifications.emptyBody": "Qui compariranno richieste di prenotazione, conferme e altri aggiornamenti.",
   "notifications.open": "Apri →",
   "notifications.now": "ora",
-  "notifications.footer": "Attività"
+  "notifications.footer": "Attività",
+  "planRead.eyebrow": "Non caricato",
+  "planRead.training": "Impossibile caricare il tuo allenamento",
+  "planRead.meals": "Impossibile caricare il tuo piano alimentare",
+  "planRead.body": "Se hai un piano, è ancora lì. Controlla la connessione e riprova.",
+  "planRead.retry": "Riprova",
+  "planRead.retrying": "Caricamento…"
 }

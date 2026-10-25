@@ -201,13 +201,14 @@ export async function GET(request: Request) {
   });
 
   // ── Meals: the most recent published weekly menu. ──
-  const { data: mpRows } = await supabase
+  const { data: mpRows, error: mpErr } = await supabase
     .from('client_meal_plans')
     .select('id, title, week_start, payload, created_at, nutritionist_id')
     .eq('client_id', user.id)
     .eq('status', 'published')
     .order('created_at', { ascending: false })
     .limit(1);
+  if (mpErr) console.error('[client/plan] meal plan read failed:', mpErr.message);
 
   const mp = (mpRows ?? [])[0] ?? null;
 
@@ -342,7 +343,7 @@ export async function GET(request: Request) {
     training: {
       hasPlan: workouts.length > 0,
       // false when the workouts read failed, so an empty list reads as unknown, not as no plan (Codex
-      // P2 on #2449: Home's Week so far would call the plan's days rest days).
+      // P2 on #2449): Home's Week so far shows no rest days and Train says it could not load.
       read: !cwErr,
       coach: trName,
       workouts,
@@ -350,6 +351,8 @@ export async function GET(request: Request) {
     },
     meals: {
       hasPlan: Array.isArray(mealDays) && mealDays.length > 0,
+      // As training's: false when the meal plan read failed, so Eat says it could not load.
+      read: !mpErr,
       title: mp?.title ?? null,
       coach: nuName,
       weekStart: mp?.week_start ?? null,

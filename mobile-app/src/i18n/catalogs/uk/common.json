@@ -76,5 +76,11 @@
   "notifications.emptyBody": "Тут з’являтимуться запити на запис, підтвердження та інші новини.",
   "notifications.open": "Відкрити →",
   "notifications.now": "зараз",
-  "notifications.footer": "Активність"
+  "notifications.footer": "Активність",
+  "planRead.eyebrow": "Не завантажено",
+  "planRead.training": "Не вдалося завантажити твої тренування",
+  "planRead.meals": "Не вдалося завантажити твій план харчування",
+  "planRead.body": "Якщо в тебе є план, він нікуди не зник. Перевір з’єднання і спробуй ще раз.",
+  "planRead.retry": "Спробувати ще раз",
+  "planRead.retrying": "Завантаження…"
 }
