@@ -327,33 +327,115 @@ test('Your goal says only what it can: words alone, no weigh-ins yet, or nothing
   assert.ok(weighed.nodes().some((n) => fn('BSHsAction')(n) && n.props.label === 'Weigh in →'));
 }));
 
-test('Week so far: a row for each figure, each opening where it lives, and no check-ins row with Check-ins off', () => {
+// Owner, 2026-10-25, of the three Week so far mockups: "go with B". A row a figure, each a door to where
+// it lives: its name, a square a day Monday to Sunday, and the week's figure at the right.
+const GRID = {
+  week: ['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25'],
+  today: 3,
+  sessions: ['hit', 'rest', 'miss', 'ahead', 'ahead', 'ahead', 'ahead'],
+  food: ['hit', 'hit', 'miss', 'hit', 'ahead', 'ahead', 'ahead'],
+  protein: ['hit', 'miss', 'hit', 'ahead', 'ahead', 'ahead', 'ahead'],
+  steps: ['miss', 'hit', 'miss', 'ahead', 'ahead', 'ahead', 'ahead'],
+  mornings: ['hit', 'miss', 'hit', 'ahead', 'ahead', 'ahead', 'ahead'],
+};
+test('Week so far: a row a figure with a square a day, each row opening where it lives, and no check-ins row with Check-ins off', () => {
   const doors = [];
   const door = (k) => () => doors.push(k);
-  const w = { days: 4, sessions: { done: 2, planned: 4 }, daysLogged: 3, protein: { avg: 121, target: 140 }, steps: { avg: 6980, goal: 8000 }, mornings: 3 };
+  const w = { days: 4, sessions: { done: 2, planned: 4 }, daysLogged: 3, protein: { avg: 121, target: 140 }, steps: { avg: 6980, goal: 8000 }, mornings: 3, grid: GRID };
   const props = { w, onTrain: door('train'), onEat: door('eat'), onProgress: door('progress'), onSteps: door('steps'), onMornings: door('mornings') };
   const d = drive(S.BSHomeWeekView, { ...props, checkinsOn: true });
-  const rows = d.nodes().filter(fn('BSFocusLeader'));
-  assert.deepEqual(rows.map((r) => [r.props.label, r.props.value, r.props.note]), [
-    ['Sessions', '2', 'of 4'],
-    ['Food logged', '3', 'of 4 days'],
-    ['Avg protein', '121', 'of 140 g'],
-    ['Avg steps', '6,980', 'of 8,000'],
-    ['Check-ins', '3', 'of 4'],
+  const rows = d.nodes().filter((n) => n.type === 'button' && n.props['data-bs-home-week-row']);
+  assert.deepEqual(rows.map((r) => r.props['data-bs-home-week-row']), ['sessions', 'food', 'protein', 'steps', 'mornings']);
+  // Each row names itself and its figure for a screen reader, as the old rows read.
+  assert.deepEqual(rows.map((r) => r.props['aria-label']), [
+    'Sessions: 2 of 4', 'Food logged: 3 of 4 days', 'Protein: 121g of 140 g', 'Steps: 6,980 of 8,000', 'Check-ins: 3 of 4',
   ]);
-  assert.deepEqual(rows.map((r) => r.props.pct), [50, 75, 86, 87, 75]);
-  rows.forEach((r) => r.props.onOpen());
+  assert.ok(rows.every((r) => r.props.style.minHeight === 44 && !r.props.style.borderRadius), 'a row is a square 44 px door');
+  // The squares are the grid's, a row's in its own colour.
+  const cells = (r) => (Array.isArray(r.props.children) ? r.props.children.flat() : []).filter(fn('BSHsWeekCell'));
+  assert.deepEqual(cells(rows[0]).map((c) => c.props.state), GRID.sessions);
+  assert.deepEqual(cells(rows[3]).map((c) => c.props.state), GRID.steps);
+  assert.equal(cells(rows[0])[0].props.color, THEME.RUST);
+  rows.forEach((r) => r.props.onClick());
   assert.deepEqual(doors, ['train', 'eat', 'progress', 'steps', 'mornings']);
-  const title = d.nodes().find(fn('BSFocusTitle'));
-  assert.equal(title.props.title, 'Week so far');
+  // The head: the magazine's, over a 2px ink rule; the days' letters, today's underlined.
+  const head = d.nodes().find((n) => n.props && n.props['data-bs-home-week-head'] != null);
+  assert.match(head.props.style.borderBottom, /^2px solid /);
+  assert.match(d.text, /Week so far/);
+  assert.match(d.text, /A square a day/);
+  // The key, with a rest day because the sessions row has one, and the targets' rule.
+  assert.match(d.text, /hit.*missed.*to come.*rest day/);
+  assert.match(d.text, /a protein day reaches 140 g · a steps day reaches 8,000/);
   const off = drive(S.BSHomeWeekView, { ...props, checkinsOn: false });
-  assert.equal(off.nodes().filter(fn('BSFocusLeader')).length, 4, 'Check-ins off: no mornings row');
-  // Nothing read: a dash, never a zero; no plan: "this week".
-  const unknown = drive(S.BSHomeWeekView, { ...props, w: { days: 4, sessions: { done: null, planned: null }, daysLogged: null, protein: { avg: null, target: null }, steps: { avg: null, goal: 8000 }, mornings: null } });
-  const u = unknown.nodes().filter(fn('BSFocusLeader'));
-  assert.deepEqual(u.map((r) => r.props.value), ['—', '—', '—', '—', '—']);
-  assert.equal(u[0].props.note, 'this week');
-  assert.equal(u[2].props.unit, null, 'no "g" after a dash');
+  assert.equal(off.nodes().filter((n) => n.type === 'button' && n.props['data-bs-home-week-row']).length, 4, 'Check-ins off: no mornings row');
+  // Nothing read: a dash, never a zero, a dot for each square; no plan: "this week", no "/n".
+  const unknown = drive(S.BSHomeWeekView, { ...props, w: { days: 4, sessions: { done: null, planned: null }, daysLogged: null, protein: { avg: null, target: null }, steps: { avg: null, goal: 8000 }, mornings: null, grid: null } });
+  const u = unknown.nodes().filter((n) => n.type === 'button' && n.props['data-bs-home-week-row']);
+  assert.deepEqual(u.map((r) => r.props['aria-label']), ['Sessions: — this week', 'Food logged: — of 4 days', 'Protein: —', 'Steps: — of 8,000', 'Check-ins: — of 4']);
+  assert.ok(cells(u[0]).every((c) => c.props.state == null), 'an unread week marks no square missed');
+  assert.doesNotMatch(unknown.text, /\/4/, 'no "/4" after a dash');
+  assert.doesNotMatch(unknown.text, /rest day/);
+});
+
+// The squares, through the model: hit, missed (a session only on a day the plan set one), a rest day,
+// today until it is hit and the days ahead, and nothing said when nothing was read.
+test('the week grid: a square a day for each row, today never missed, a session missed only on a day the plan set', () => {
+  const series = {
+    calories: [{ date: '2026-10-19', value: 1800 }, { date: '2026-10-21', value: 2000 }],
+    protein: [{ date: '2026-10-19', value: 150 }, { date: '2026-10-20', value: 90 }, { date: '2026-10-22', value: 141 }],
+    steps: [{ date: '2026-10-20', value: 8000 }, { date: '2026-10-21', value: 7999 }],
+  };
+  const w = H.bsHomeWeekSoFar({ todayIso: '2026-10-22', series, proteinTarget: 140, stepGoal: 8000, answered: (d) => d === '2026-10-20',
+    trainedDays: ['2026-10-19', '2026-10-18'], plannedDays: [true, false, true, true, false, true, false] });
+  const g = w.grid;
+  assert.deepEqual(g.week, ['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25']);
+  assert.equal(g.today, 3);
+  assert.deepEqual(g.sessions, ['hit', 'rest', 'miss', 'ahead', 'ahead', 'ahead', 'ahead'], 'Tuesday set nothing, so it rests; last Sunday\'s session is not this week\'s');
+  assert.deepEqual(g.food, ['hit', 'miss', 'hit', 'ahead', 'ahead', 'ahead', 'ahead'], 'today without food yet is still to come');
+  assert.deepEqual(g.protein, ['hit', 'miss', 'miss', 'hit', 'ahead', 'ahead', 'ahead'], 'a day hits at the target, and today once it does');
+  assert.deepEqual(g.steps, ['miss', 'hit', 'miss', 'ahead', 'ahead', 'ahead', 'ahead'], '7,999 is short of 8,000');
+  assert.deepEqual(g.mornings, ['miss', 'hit', 'miss', 'ahead', 'ahead', 'ahead', 'ahead']);
+  // Without a target, a protein or steps square is a day with a reading.
+  const free = H.bsHomeWeekSoFar({ todayIso: '2026-10-22', series }).grid;
+  assert.deepEqual(free.protein.slice(0, 3), ['hit', 'hit', 'miss']);
+  // No plan read: an untrained day rests, never "missed" against a plan nobody has.
+  assert.deepEqual(H.bsHomeWeekSoFar({ todayIso: '2026-10-22', series, trainedDays: [] }).grid.sessions.slice(0, 3), ['rest', 'rest', 'rest']);
+  // Nothing read: no square says missed.
+  const none = H.bsHomeWeekSoFar({ todayIso: '2026-10-22' }).grid;
+  for (const k of ['sessions', 'food', 'protein', 'steps', 'mornings']) {
+    assert.deepEqual(none[k], [null, null, null, null, 'ahead', 'ahead', 'ahead'], k);
+  }
+  // A Sunday is the whole week; nothing is ahead but today until it is hit.
+  assert.deepEqual(H.bsHomeWeekSoFar({ todayIso: '2026-10-25', series, trainedDays: [] }).grid.food, ['hit', 'miss', 'hit', 'miss', 'miss', 'miss', 'ahead']);
+  assert.equal(H.bsHomeWeekSoFar({ todayIso: 'not a day' }).grid, null);
+});
+
+test('the days trained and the plan\'s days come off their reads, and a failed read is unknown', () => {
+  assert.deepEqual(H.bsHwTrainedDaysOf({ ok: true, workouts: 2, days: ['2026-10-19', '2026-10-21T00:00:00'] }), ['2026-10-19', '2026-10-21']);
+  assert.equal(H.bsHwTrainedDaysOf({ ok: false, days: ['2026-10-19'] }), null);
+  assert.equal(H.bsHwTrainedDaysOf({ ok: true, workouts: 0 }), null, 'an older read without days is unknown');
+  assert.equal(H.bsHomeSessionsPlannedDays(null), null);
+  assert.equal(H.bsHomeSessionsPlannedDays({ training: { hasPlan: false } }), null);
+  const days = H.bsHomeSessionsPlannedDays({ training: { hasPlan: true, workouts: [] } }, new Date(2026, 9, 22));
+  assert.deepEqual(days, [false, false, false, false, false, false, false]);
+  // The backend's read hands the days back with the count.
+  const backend = readFileSync(join(ROOT, 'mobile-app', 'src', 'services', 'shapeBackend.js'), 'utf8');
+  assert.match(backend, /return \{ workouts: days\.size, days: \[\.\.\.days\]\.sort\(\),/);
+});
+
+// The signed-out preview's sample is one week, and its counts are its own squares' hits so far.
+test('the preview\'s sample week: the counts beside the squares are its own hits so far', () => {
+  delete globalThis.ShapeAuth;
+  const d = drive(S.BSHomeWeekSoFar, {});
+  const view = d.nodes().find(fn('BSHomeWeekView'));
+  const w = view.props.w;
+  assert.ok(w.grid, 'the sample draws no squares');
+  const hits = (k) => w.grid[k].filter((x) => x === 'hit').length;
+  assert.equal(w.sessions.done, hits('sessions'));
+  assert.equal(w.daysLogged, hits('food'));
+  assert.equal(w.mornings, hits('mornings'));
+  assert.equal(w.sessions.planned, 4);
+  assert.ok(w.grid.sessions.every((x, i) => x !== 'miss' || [0, 2, 3, 5].includes(i)), 'a sample session is missed only on a planned day');
 });
 
 test('From your coaches: their notes, a message door to each with what is unread, and the next session', () => {
@@ -431,7 +513,8 @@ test('Week so far uses a read only in the week it was read for (Codex P2s on #24
   // Both of the section's reads go through it.
   const src = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSHomeSections.jsx'), 'utf8');
   assert.match(src, /setSeries\(\{ monday, v: bsHwSeriesOf\(p\) \}\)/);
-  assert.match(src, /setTrained\(\{ monday, v: bsHwTrainedOf\(p\) \}\)/);
+  assert.match(src, /setTrained\(\{ monday, v: bsHwTrainedOf\(p\), days: bsHwTrainedDaysOf\(p\) \}\)/);
+  assert.match(src, /trainedDays: trained && trained\.monday === monday \? trained\.days : null, plannedDays,/);
   assert.match(src, /const weekSeries = bsHwOfWeek\(series, monday\);/);
   assert.match(src, /series: weekSeries, workoutsDone: bsHwOfWeek\(trained, monday\),/);
   assert.match(src, /answered: \(iso\) => bsCiAnswered\(bsCiDay\(weekSeries, iso\)\)/);

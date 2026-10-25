@@ -160,7 +160,6 @@ planned builds.
   referral.
 - Add the `localhost` hostname to the Turnstile widget.
 - Get a native speaker to read the PAR-Q translations.
-- Pick a Week so far design: A, B or C (mockups sent 2026-10-24).
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
@@ -203,7 +202,8 @@ planned builds.
   dashboard routes drop their session and coach-row read errors. Renewals and the origin
   feed show "—" for an unread name and for none.
 - Home (`BSHomeSections.jsx`): Week so far counts days trained (workout minutes or a logged
-  activity) against the plan's sessions, and days with food logged, not meals. The weekly
+  activity) against the plan's sessions, and days with food logged, not meals; its grid marks a
+  protein or steps day only at the target (any reading without one). The weekly
   notes, message doors and next session show only for a paid coach (no sample signed out).
 - Eat on a live meal plan takes what was eaten (Fuel left, macro pages) from the plan's
   day `totals` and meals' `state`, not the member's logs.

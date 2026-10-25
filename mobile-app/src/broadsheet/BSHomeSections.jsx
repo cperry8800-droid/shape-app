@@ -1,14 +1,16 @@
 import React from 'react';
-import { BSFocusTitle, BSFocusLeader, BSFocusLink } from './BSFocus.jsx';
+import { BSFocusTitle, BSFocusLink } from './BSFocus.jsx';
 import { bsCiDay, bsCiAnswered, bsCiIso, BS_CI_SAVED } from './BSCheckinCard.jsx';
-import { bsHomeWeekSoFar, bsHwPct, bsHomeGoalRead, bsHwRedate, bsHomeNextSession, bsHwDaysBetween, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf, bsHwSeriesOf, bsHwGoalData, bsHwOfWeek } from '../services/homeWeek.mjs';
+import { bsHomeWeekSoFar, bsHwPct, bsHomeGoalRead, bsHwRedate, bsHomeNextSession, bsHwDaysBetween, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf, bsHwTrainedDaysOf, bsHwSeriesOf, bsHwGoalData, bsHwOfWeek, bsHwWeekGrid, bsHwShift } from '../services/homeWeek.mjs';
+import { bsWsRed } from './bsMagazine.mjs';
 // ─── HOME, PART 2: YOUR GOAL · WEEK SO FAR · FROM YOUR COACHES ─────────────────────────────────────
 // Owner, 2026-10-22: "The home page is repetitive of the train and eat pages." Off the mockup the owner
 // approved, Home says what only Home can, under Today's call:
 //   · Your goal: the goal in the member's words and, for a weight goal or a weight target, where the
 //     weigh-ins stand: now, the target, the line of the last weeks, the pace and when it lands;
 //   · Week so far: Monday to today, against the plan: sessions, days with food logged, protein,
-//     steps and the mornings checked in;
+//     steps and the mornings checked in, as a square a day (owner, 2026-10-25, of three mockups:
+//     "go with B");
 //   · From your coaches: their notes, a message door to each coach they pay (with what is unread)
 //     and their next booked session.
 // Home hands in what it already holds (the plan's sessions and coaches, the targets, the doors);
@@ -207,20 +209,36 @@ export function BSHomeGoalView({ data, docKg, isWeightGoal, goalWords, onOpen, t
 
 // ── WEEK SO FAR ──────────────────────────────────────────────────────────────────────────────────
 
-// The preview's week: a sample, fitted to the days that have passed this week.
-function bsHsDemoWeek(days) {
-  const upTo = (n) => Math.min(n, days);
+// The preview's week: a sample, laid on this week's days. The squares run off one pattern a row
+// (Monday first), so the counts beside them are the sample's own hits so far; protein and steps keep
+// a sample average. The plan sets sessions on Monday, Wednesday, Thursday and Saturday.
+const BS_HS_DEMO = {
+  sessions: [1, 0, 0, 1, 0, 0, 0], planned: [1, 0, 1, 1, 0, 1, 0],
+  food: [1, 1, 0, 1, 0, 0, 1], protein: [1, 0, 1, 1, 0, 1, 0], steps: [1, 1, 0, 0, 1, 0, 1], mornings: [1, 0, 1, 0, 0, 1, 0],
+};
+function bsHsDemoWeek(todayIso) {
+  const so = bsHomeWeekSoFarDays(todayIso);
+  const week = so.length ? Array.from({ length: 7 }, (_, i) => bsHwShift(so[0], i)) : [];
+  const on = (k) => week.filter((d, i) => BS_HS_DEMO[k][i] && d <= todayIso);
+  const map = (k, hit, miss) => new Map(week.map((d, i) => [d, BS_HS_DEMO[k][i] ? hit : miss]));
+  const grid = bsHwWeekGrid({
+    todayIso, read: true,
+    cal: new Map(on('food').map((d) => [d, 1900])),
+    pro: map('protein', 150, 104), st: map('steps', 9200, 5400), proteinTarget: 140, stepGoal: 8000,
+    answered: (d) => on('mornings').includes(d), trainedDays: on('sessions'), plannedDays: BS_HS_DEMO.planned.map(Boolean),
+  });
   return {
-    days,
-    sessions: { done: upTo(2), planned: 4 },
-    daysLogged: upTo(3),
+    days: so.length,
+    sessions: { done: on('sessions').length, planned: BS_HS_DEMO.planned.filter(Boolean).length },
+    daysLogged: on('food').length,
     protein: { avg: 121, target: 140 },
     steps: { avg: 6980, goal: 8000 },
-    mornings: upTo(3),
+    mornings: on('mornings').length,
+    grid,
   };
 }
 
-export function BSHomeWeekSoFar({ sessionsPlanned = null, proteinTarget = null, stepGoal = null, ...view }) {
+export function BSHomeWeekSoFar({ sessionsPlanned = null, plannedDays = null, proteinTarget = null, stepGoal = null, ...view }) {
   const signedIn = bsHsSignedIn();
   // The week the reads are for: Home left open across Sunday into Monday reads the new week, and each
   // read is kept with its Monday and used only in that week (bsHwOfWeek), so last week's figures
@@ -228,7 +246,7 @@ export function BSHomeWeekSoFar({ sessionsPlanned = null, proteinTarget = null, 
   const todayIso = bsCiIso(new Date());
   const monday = bsHomeWeekSoFarDays(todayIso)[0];
   const [series, setSeries] = useState(null); // { monday, v }
-  const [trained, setTrained] = useState(null); // { monday, v }
+  const [trained, setTrained] = useState(null); // { monday, v, days }
   const [reads, setReads] = useState(0);
   useEffect(() => {
     const again = () => setReads((n) => n + 1);
@@ -244,47 +262,116 @@ export function BSHomeWeekSoFar({ sessionsPlanned = null, proteinTarget = null, 
     }
     if (window.ShapeCommit?.progress) {
       // This member's own Monday, not UTC's (see getCommitmentProgress).
-      window.ShapeCommit.progress(monday).then((p) => { if (on) setTrained({ monday, v: bsHwTrainedOf(p) }); }).catch(() => {});
+      window.ShapeCommit.progress(monday).then((p) => { if (on) setTrained({ monday, v: bsHwTrainedOf(p), days: bsHwTrainedDaysOf(p) }); }).catch(() => {});
     }
     return () => { on = false; };
   }, [signedIn, reads, monday]);
 
   const weekSeries = bsHwOfWeek(series, monday);
   const w = signedIn
-    ? bsHomeWeekSoFar({ todayIso, series: weekSeries, workoutsDone: bsHwOfWeek(trained, monday), workoutsPlanned: sessionsPlanned, proteinTarget, stepGoal, answered: (iso) => bsCiAnswered(bsCiDay(weekSeries, iso)) })
-    : bsHsDemoWeek(bsHomeWeekSoFar({ todayIso }).days);
+    ? bsHomeWeekSoFar({
+      todayIso, series: weekSeries, workoutsDone: bsHwOfWeek(trained, monday), workoutsPlanned: sessionsPlanned, proteinTarget, stepGoal,
+      answered: (iso) => bsCiAnswered(bsCiDay(weekSeries, iso)),
+      trainedDays: trained && trained.monday === monday ? trained.days : null, plannedDays,
+    })
+    : bsHsDemoWeek(todayIso);
   return <BSHomeWeekView w={w} {...view} />;
 }
 
-// The section itself, off `w` (bsHomeWeekSoFar's shape): the tests draw it directly.
+// One day's square in a row's colour: filled for a day it was hit, an outline for one missed, a dash
+// for a rest day, a dashed outline for today until it is hit and the days still to come, and a dot
+// for one nothing could read.
+function BSHsWeekCell({ state, color }) {
+  const t = window.useBS();
+  const box = { width: 16, height: 16, boxSizing: 'border-box' };
+  const mark = state === 'hit' ? <span style={{ ...box, background: color }} />
+    : state === 'miss' ? <span style={{ ...box, boxShadow: `inset 0 0 0 1.5px ${t.RULE}` }} />
+      : state === 'rest' ? <span style={{ width: 8, height: 2, background: t.RULE }} />
+        : state === 'ahead' ? <span style={{ ...box, border: `1px dashed ${t.RULE}` }} />
+          : <span style={{ width: 4, height: 4, background: t.RULE }} />;
+  return <span data-cell={state || 'unknown'} style={{ display: 'grid', placeItems: 'center', minWidth: 0 }}>{mark}</span>;
+}
+
+// The section itself, off `w` (bsHomeWeekSoFar's shape): the tests draw it directly. A row a figure,
+// each a door to where it lives: its name, a square a day Monday to Sunday (w.grid), and the week's
+// figure at the right.
 export function BSHomeWeekView({ w, checkinsOn = true, onTrain, onEat, onProgress, onSteps, onMornings }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const teal = bsHsTeal(t);
-  const num = (n) => (n == null ? '—' : Number(n).toLocaleString(bsHsLocale()));
+  const red = bsWsRed(t);
+  const locale = bsHsLocale();
+  const num = (n) => (n == null ? '—' : Number(n).toLocaleString(locale));
+  const g = w.grid || null;
   const rows = [
-    { key: 'sessions', label: tr('home:week.sessions', { defaultValue: 'Sessions' }), value: num(w.sessions.done),
+    { key: 'sessions', label: tr('home:week.sessions', { defaultValue: 'Sessions' }), value: num(w.sessions.done), of: w.sessions.planned && w.sessions.done != null ? w.sessions.planned : null,
       note: w.sessions.planned ? tr('home:week.ofN', { defaultValue: 'of {n}', n: w.sessions.planned }) : tr('home:week.thisWeek', { defaultValue: 'this week' }),
-      pct: bsHwPct(w.sessions.done, w.sessions.planned), color: t.RUST, onOpen: onTrain },
-    { key: 'food', label: tr('home:week.food', { defaultValue: 'Food logged' }), value: num(w.daysLogged),
+      color: t.RUST, cells: g && g.sessions, onOpen: onTrain },
+    { key: 'food', label: tr('home:week.food', { defaultValue: 'Food logged' }), value: num(w.daysLogged), of: w.daysLogged != null ? w.days : null,
       note: tr('home:week.ofDays', { defaultValue: 'of {n, plural, one {# day} other {# days}}', n: w.days }),
-      pct: bsHwPct(w.daysLogged, w.days), color: teal, onOpen: onEat },
-    { key: 'protein', label: tr('home:week.protein', { defaultValue: 'Avg protein' }), value: num(w.protein.avg), unit: w.protein.avg != null ? 'g' : null,
+      color: teal, cells: g && g.food, onOpen: onEat },
+    { key: 'protein', label: tr('home:week.gridProtein', { defaultValue: 'Protein' }), value: num(w.protein.avg), unit: w.protein.avg != null ? 'g' : null,
       note: w.protein.target ? tr('home:week.ofG', { defaultValue: 'of {n} g', n: num(w.protein.target) }) : '',
-      pct: bsHwPct(w.protein.avg, w.protein.target), color: t.RUST, onOpen: onProgress },
-    { key: 'steps', label: tr('home:week.steps', { defaultValue: 'Avg steps' }), value: num(w.steps.avg),
+      color: t.RUST, cells: g && g.protein, onOpen: onProgress },
+    { key: 'steps', label: tr('home:week.gridSteps', { defaultValue: 'Steps' }), value: num(w.steps.avg),
       note: w.steps.goal ? tr('home:week.ofN', { defaultValue: 'of {n}', n: num(w.steps.goal) }) : '',
-      pct: bsHwPct(w.steps.avg, w.steps.goal), color: teal, onOpen: onSteps },
-    ...(checkinsOn ? [{ key: 'mornings', label: tr('home:week.mornings', { defaultValue: 'Check-ins' }), value: num(w.mornings),
+      color: teal, cells: g && g.steps, onOpen: onSteps },
+    ...(checkinsOn ? [{ key: 'mornings', label: tr('home:week.mornings', { defaultValue: 'Check-ins' }), value: num(w.mornings), of: w.mornings != null ? w.days : null,
       note: tr('home:week.ofN', { defaultValue: 'of {n}', n: w.days }),
-      pct: bsHwPct(w.mornings, w.days), color: t.BLUE || teal, onOpen: onMornings }] : []),
+      color: t.BLUE || teal, cells: g && g.mornings, onOpen: onMornings }] : []),
   ];
+  const cols = '84px repeat(7, minmax(0, 1fr)) 62px';
+  const mono = { fontFamily: t.MONO, textTransform: 'uppercase' };
+  let narrow = null;
+  try { narrow = new Intl.DateTimeFormat(locale, { weekday: 'narrow' }); } catch (e) { narrow = new Intl.DateTimeFormat(undefined, { weekday: 'narrow' }); }
+  const dayOf = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); };
+  const anyRest = !!(g && g.sessions && g.sessions.includes('rest'));
+  const rules = [
+    w.protein.target ? tr('home:week.ruleProtein', { defaultValue: 'a protein day reaches {n} g', n: num(w.protein.target) }) : null,
+    w.steps.goal ? tr('home:week.ruleSteps', { defaultValue: 'a steps day reaches {n}', n: num(w.steps.goal) }) : null,
+  ].filter(Boolean);
+  const key = (style, text) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+      <span aria-hidden style={{ display: 'inline-block', width: 9, height: 9, boxSizing: 'border-box', ...style }} />{text}
+    </span>
+  );
   return (
-    <section data-bs-home-week="">
-      <BSFocusTitle kicker={tr('home:week.kicker', { defaultValue: 'Monday to today' })} title={tr('home:week.title', { defaultValue: 'Week so far' })} color={teal} />
-      <div style={{ marginTop: 4 }}>
-        {rows.map((r, i) => <BSFocusLeader key={r.key} first={i === 0} label={r.label} value={r.value} unit={r.unit} note={r.note} pct={r.pct} color={r.color} onOpen={typeof r.onOpen === 'function' ? r.onOpen : undefined} />)}
+    <section data-bs-home-week="" style={{ padding: `${t.sectGap + 6}px ${t.padX}px 0` }}>
+      <div data-bs-home-week-head="" style={{ display: 'flex', alignItems: 'baseline', gap: 10, paddingBottom: 6, borderBottom: `2px solid ${t.INK}` }}>
+        <h2 style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, lineHeight: 1, letterSpacing: '0.02em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>{tr('home:week.title', { defaultValue: 'Week so far' })}</h2>
+        <span style={{ ...mono, marginLeft: 'auto', fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('home:week.gridMeta', { defaultValue: 'A square a day' })}</span>
       </div>
+      {g ? (
+        <div aria-hidden style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', padding: '10px 0 4px' }}>
+          <span />
+          {g.week.map((d, i) => (
+            <span key={d} style={{ ...mono, textAlign: 'center', fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: i === g.today ? t.INK : t.INK50 }}>
+              <span style={{ paddingBottom: 2, boxShadow: i === g.today ? `inset 0 -2px 0 ${red}` : 'none' }}>{narrow.format(dayOf(d))}</span>
+            </span>
+          ))}
+          <span />
+        </div>
+      ) : null}
+      {rows.map((r) => (
+        <button key={r.key} type="button" data-bs-home-week-row={r.key} onClick={typeof r.onOpen === 'function' ? r.onOpen : undefined} disabled={typeof r.onOpen !== 'function'}
+          aria-label={`${r.label}: ${r.value}${r.unit || ''}${r.note ? ` ${r.note}` : ''}`}
+          style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', width: '100%', minHeight: 44, padding: '6px 0', border: 0, borderBottom: `1px solid ${t.HAIR}`, borderRadius: 0, background: 'transparent', cursor: typeof r.onOpen === 'function' ? 'pointer' : 'default', font: 'inherit', color: 'inherit', textAlign: 'left' }}>
+          <span style={{ ...mono, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', lineHeight: 1.3, color: t.INK70, overflowWrap: 'anywhere' }}>{r.label}</span>
+          {(r.cells || Array.from({ length: 7 }, () => null)).map((c, i) => <BSHsWeekCell key={i} state={c} color={r.color} />)}
+          <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{r.value}</span>
+            {r.unit ? <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}>{r.unit}</span> : null}
+            {r.of != null ? <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}>/{num(r.of)}</span> : null}
+          </span>
+        </button>
+      ))}
+      <div aria-hidden style={{ ...mono, display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 14, rowGap: 6, marginTop: 10, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50, textTransform: 'none' }}>
+        {key({ background: t.INK }, tr('home:week.keyHit', { defaultValue: 'hit' }))}
+        {key({ boxShadow: `inset 0 0 0 1.5px ${t.RULE}` }, tr('home:week.keyMissed', { defaultValue: 'missed' }))}
+        {key({ border: `1px dashed ${t.RULE}` }, tr('home:week.keyAhead', { defaultValue: 'to come' }))}
+        {anyRest ? key({ height: 2, width: 8, background: t.RULE }, tr('home:week.keyRest', { defaultValue: 'rest day' })) : null}
+      </div>
+      {rules.length ? <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50 }}>{rules.join(' · ')}</div> : null}
     </section>
   );
 }
