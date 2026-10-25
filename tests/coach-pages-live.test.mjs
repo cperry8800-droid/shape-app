@@ -1,7 +1,9 @@
-// Two things the coach pages' redesign must keep (Codex on #2458):
+// What the coach pages' redesign must keep (Codex on #2458):
 // - Today moves with the clock. Up next, the ticker's countdown, the NOW line and the signed-out
 //   demo's done rows read the time at render, so the page re-renders on each minute while it stays
 //   open, and clears its timers when it goes.
+// - The calendar read follows the week the strip shows, so a new week at Sunday midnight reloads it.
+// - To do holds five rows: paid sessions share the budget, and the rest open in place.
 // - The Programs page's one search covers every list on it, the signed-in workout clips included.
 
 import test from 'node:test';
@@ -35,4 +37,19 @@ test('the library search filters the signed-in workout clips, with the same miss
   assert.match(block, /\{!shownClips\.length && libSearchMiss\}/);
   assert.match(block, /\{shownClips\.map\(/);
   assert.doesNotMatch(block.slice(0, block.indexOf('</div>\n          );')), /\{clips\.map\(/, 'the unfiltered clips still render');
+});
+
+test('the calendar read is keyed to the week the strip shows', () => {
+  const today = body('BSProToday', 'BSTrainerToday');
+  assert.match(today, /const calendarWeek = _ds\(bsProWeek\(\)\.dates\[0\]\);/);
+  assert.match(today, /\}, \[isNutri, calendarReload, calendarOwner, calendarWeek\]\);/);
+});
+
+test('To do: paid sessions share the five-row budget and the rest open in place', () => {
+  const today = body('BSProToday', 'BSTrainerToday');
+  assert.match(today, /const paidShown = showAllPaid \? toScheduleList : toScheduleList\.slice\(0, TODO_MAX\);/);
+  assert.match(today, /const todoShown = triageRows\.slice\(0, Math\.max\(0, TODO_MAX - paidShown\.length\)\);/);
+  assert.match(today, /\{toSchedule !== false && paidShown\.map\(\(p\) => \(/);
+  assert.match(today, /\{paidMore > 0 && <button type="button" onClick=\{\(\) => setShowAllPaid\(true\)\}/);
+  assert.doesNotMatch(today, /toSchedule\.map\(/, 'every paid row still renders');
 });

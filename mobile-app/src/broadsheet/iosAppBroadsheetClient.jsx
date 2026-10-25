@@ -73,7 +73,7 @@ import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
-import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomeSessionsPlannedDays, bsHomePaidBanners } from '../services/homeWeek.mjs';
+import { bsHomeCoachesOf, bsHomeCoachesKnown, bsHomeSessionsPlanned, bsHomeSessionsPlannedDays, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { bsPlanPartRead, bsPlanCheckinParts } from '../services/planRead.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSShortcuts, BSShortcutTile } from './BSShortcuts.jsx';
@@ -4469,6 +4469,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const [livePlan, setLivePlan] = useStateBSC(null);
   // The coaches the member pays, off the same read, plan or no plan (From your coaches).
   const [planCoaches, setPlanCoaches] = useStateBSC([]);
+  // Whether that read could say who they are (bsHomeCoachesKnown): Find a coach waits for it.
+  const [coachesKnown, setCoachesKnown] = useStateBSC(false);
   // Whether that read came back with the workouts. ShapePlan.get resolves null when it fails, and the
   // route sends training.read false when its workouts read failed; both look like no plan, so Week so
   // far calls an untrained day a rest day only once the plan was read (Codex P2s on #2449).
@@ -4479,6 +4481,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       window.ShapePlan.get().then((p) => {
         if (on && p && ((p.training && p.training.hasPlan) || (p.meals && p.meals.hasPlan))) setLivePlan(p);
         if (on && p) setPlanCoaches(bsHomeCoachesOf(p));
+        if (on && bsHomeCoachesKnown(p)) setCoachesKnown(true);
         if (on && bsPlanPartRead(p, 'training')) setPlanRead(true);
       }).catch(() => {});
     }
@@ -5322,7 +5325,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           a coach has their coaches' section, so Find a coach shows only to a member with none. Daily
           habits and Progress keep their tour anchors. */}
       {(() => {
-        const findCoach = !planCoaches.length;
+        // Signed in, only once the read said there is no coach (not while it loads, not after it fails).
+        const findCoach = !planCoaches.length && (!bsHomeSignedIn || coachesKnown);
         return (
           <BSShortcuts title={tr('home:shortcut.title', { defaultValue: 'Shortcuts' })}
             head={<BSFocusTitle kicker={tr('home:shortcut.kicker', { defaultValue: 'Jump to' })} title={tr('home:shortcut.title', { defaultValue: 'Shortcuts' })} color={t.ACCENT} />}>

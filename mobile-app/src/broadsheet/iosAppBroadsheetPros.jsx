@@ -1649,6 +1649,9 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const [calendarStatus, setCalendarStatus] = useStateBSP('loading');
   const [calendarReload, setCalendarReload] = useStateBSP(0);
   const calendarOwner = window.ShapeAuth?.getCachedState?.().user?.id || null;
+  // The week the strip shows keys the read: the minute tick moves the strip to a new week at Sunday
+  // midnight, and the read follows it (Codex on #2458).
+  const calendarWeek = _ds(bsProWeek().dates[0]);
   React.useEffect(() => {
     setRealByDate(null);
     if (!calendarOwner) { setCalendarStatus('ready'); return undefined; }
@@ -1692,7 +1695,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       setRealByDate(byDate); setCalendarStatus('ready');
     }).catch(() => { if (on) setCalendarStatus('error'); });
     return () => { on = false; };
-  }, [isNutri, calendarReload, calendarOwner]);
+  }, [isNutri, calendarReload, calendarOwner, calendarWeek]);
   // Per-day bookings dataset (demo). "Today" (offset 0) is always the busy
   // roster regardless of the real weekday. Trainer keys off 21; nutritionist off 22.
   const TRAINER_BOOKINGS = {
@@ -1932,8 +1935,14 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         ? tr('coach:today.doneOfNutri', { defaultValue: '{done} of {total, plural, one {# consult} other {# consults}} done.', done: doneToday, total: todayBookings.length })
         : tr('coach:today.doneOf', { defaultValue: '{done} of {total, plural, one {# session} other {# sessions}} done.', done: doneToday, total: todayBookings.length }))
       : tr('coach:today.nothingToday', { defaultValue: 'Nothing booked today.' });
+  // To do shows five rows: paid sessions to book first, then flagged clients. Paid rows past five
+  // open in place (they are listed nowhere else); flagged rows past the budget go to Clients (Codex on
+  // #2458).
   const TODO_MAX = 5;
-  const todoShown = triageRows.slice(0, Math.max(0, TODO_MAX - toScheduleList.length));
+  const [showAllPaid, setShowAllPaid] = useStateBSP(false);
+  const paidShown = showAllPaid ? toScheduleList : toScheduleList.slice(0, TODO_MAX);
+  const paidMore = toScheduleList.length - paidShown.length;
+  const todoShown = triageRows.slice(0, Math.max(0, TODO_MAX - paidShown.length));
   const todoMore = triageRows.length - todoShown.length;
 
   // The day's schedule: finished sessions fold on today; the NOW line sits before the next one.
@@ -2121,7 +2130,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                 ? tr('coach:today.toScheduleFailed', { defaultValue: "Paid sessions to schedule couldn't load." })
                 : tr('coach:today.toScheduleHead', { defaultValue: 'TO SCHEDULE · {count}', count: toSchedule.length })}
             </div>
-            {toSchedule !== false && toSchedule.map((p) => (
+            {toSchedule !== false && paidShown.map((p) => (
               <div key={p.purchaseId} data-paid={p.purchaseId} style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
                 <span aria-hidden style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 999, border: `2.5px solid ${heat}`, boxSizing: 'border-box' }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -2136,6 +2145,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                 </button>
               </div>
             ))}
+            {paidMore > 0 && <button type="button" onClick={() => setShowAllPaid(true)} style={LINK}>{tr('coach:today.seeAllTodo', { defaultValue: 'See all {count} →', count: toScheduleList.length })}</button>}
           </div>
         )}
         {todoShown.map((w, i) => (
