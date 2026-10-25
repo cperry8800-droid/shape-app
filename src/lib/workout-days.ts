@@ -18,6 +18,18 @@ export function memberDay(at: string | number | null | undefined, zone: string |
   return wallClockInZone(t, zone || 'UTC')?.date ?? null;
 }
 
+/**
+ * The day a session was done on, as the app stored it when it finished (`summary.snapshotDate`,
+ * the member's own date then), or null for a session saved without one.
+ *
+ * ⚠ PREFER THIS TO RE-READING THE INSTANT IN TODAY'S ZONE. /api/client/timezone overwrites the
+ * zone whenever the app opens somewhere else, so a member who travels would otherwise see past
+ * workouts move between days and their streak change (Codex P2 on #2451).
+ */
+export function storedDay(v: unknown): string | null {
+  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+}
+
 /** A 'YYYY-MM-DD' moved by `n` calendar days. */
 export function shiftDay(day: string, n: number): string {
   const d = new Date(`${day}T00:00:00Z`);
@@ -50,10 +62,11 @@ export const STREAK_PAGES = 20;
  * any status and the dashboard its newest 500 finished ones, so a streak counted from either was
  * cut short for a member with more sessions in it, and the two could disagree (Codex P2 on
  * #2451). This reads finished sessions newest first, a page at a time, until the streak is
- * broken: once a page reaches sessions saved two days before the streak's first day, none
- * further down can extend it (a session is saved after it starts; the second day is margin for
- * a device clock). It stops at STREAK_PAGES pages (10,000 sessions), and on a failed read
- * counts what it has.
+ * broken: once a page reaches sessions saved three days before the streak's first day, none
+ * further down can extend it (a session is saved after it starts; the margin covers a device
+ * clock and a day stored in another zone). It stops at STREAK_PAGES pages (10,000 sessions), and
+ * on a failed read counts what it has. Each session counts on its stored day (storedDay) when it
+ * has one, else on its start read in the member's zone.
  */
 export async function readDayStreak(
   supabase: SupabaseClient,
@@ -66,15 +79,15 @@ export async function readDayStreak(
     const from = i * STREAK_PAGE;
     const { data, error } = await supabase
       .from('workout_sessions')
-      .select('started_at, ended_at, created_at')
+      .select('started_at, ended_at, created_at, local_day:summary->>snapshotDate')
       .eq('client_id', userId)
       .eq('status', 'completed')
       .order('created_at', { ascending: false })
       .range(from, from + STREAK_PAGE - 1);
     if (error || !data) break;
     let oldestSave: string | null = null;
-    for (const s of data as Array<{ started_at: string | null; ended_at: string | null; created_at: string }>) {
-      const day = memberDay(s.started_at || s.ended_at || s.created_at, zone);
+    for (const s of data as Array<{ started_at: string | null; ended_at: string | null; created_at: string; local_day: unknown }>) {
+      const day = storedDay(s.local_day) ?? memberDay(s.started_at || s.ended_at || s.created_at, zone);
       if (day) days.add(day);
       const saved = memberDay(s.created_at, zone);
       if (saved && (oldestSave == null || saved < oldestSave)) oldestSave = saved;
@@ -82,7 +95,7 @@ export async function readDayStreak(
     if (data.length < STREAK_PAGE) break;
     const end = days.has(today) ? today : shiftDay(today, -1);
     const start = shiftDay(end, 1 - dayStreak(days, today));
-    if (oldestSave != null && oldestSave < shiftDay(start, -2)) break;
+    if (oldestSave != null && oldestSave < shiftDay(start, -3)) break;
   }
   return dayStreak(days, today);
 }

@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { DAY_MS, normalizeZone, startOfWeek } from '@/lib/time';
-import { memberDay, readDayStreak, shiftDay } from '@/lib/workout-days';
+import { memberDay, readDayStreak, shiftDay, storedDay } from '@/lib/workout-days';
 import { requireMembership } from '@/lib/require-membership';
 import { setLoadLb, setLoadUnit } from '@/lib/set-load';
 
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
 
   const { data: sessRows } = await supabase
     .from('workout_sessions')
-    .select('id, title, status, started_at, ended_at, created_at, duration_seconds')
+    .select('id, title, status, started_at, ended_at, created_at, duration_seconds, local_day:summary->>snapshotDate')
     .eq('client_id', user.id)
     .order('created_at', { ascending: false })
     .limit(200);
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
   // Newest first, so the cap keeps the recent sets the 7- and 14-day volumes are made of.
   const { data: setRows } = await supabase
     .from('workout_set_logs')
-    .select('actual_load, actual_reps, rpe, completed, created_at, started_at, finished_at, payload, load_unit')
+    .select('session_id, actual_load, actual_reps, rpe, completed, created_at, started_at, finished_at, payload, load_unit')
     .eq('client_id', user.id)
     .order('created_at', { ascending: false })
     .limit(5000);
@@ -81,6 +81,13 @@ export async function GET(request: Request) {
   const sessions: SessionRow[] = sessRows ?? [];
   const completed = sessions.filter((s) => s.status === 'completed');
   const currentStreak = todayKey ? await readDayStreak(supabase, user.id, zone, todayKey) : 0;
+  // A set's volume lands on its session's stored day when the session has one, so a member who
+  // has since changed zone keeps their past bars where they were (src/lib/workout-days.ts).
+  const sessionDay = new Map<string, string>();
+  for (const s of sessions as Array<SessionRow & { id?: string; local_day?: unknown }>) {
+    const day = storedDay(s.local_day);
+    if (s.id && day) sessionDay.set(String(s.id), day);
+  }
 
   const weekStart = startOfWeek(new Date());
   const thisWeekCount = completed.filter(
@@ -110,7 +117,7 @@ export async function GET(request: Request) {
       // later keeps each set's own finished_at (Codex P2 on #2451).
       const liftedAt = r.finished_at || r.started_at || r.created_at;
       if (now - new Date(liftedAt).getTime() <= 7 * DAY_MS) volume7d += vol;
-      const day = memberDay(liftedAt, zone);
+      const day = (r.session_id != null ? sessionDay.get(String(r.session_id)) : undefined) ?? memberDay(liftedAt, zone);
       if (day) volumeOn.set(day, (volumeOn.get(day) ?? 0) + vol);
     }
     const rpeVal = r.rpe != null ? Number(r.rpe) : pnum(p.rpe);

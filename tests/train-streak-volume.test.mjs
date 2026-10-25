@@ -146,7 +146,7 @@ test('the Train page\'s Streak and the profile\'s day streak are one number', as
 
 test('the train route keeps the newest sets under its cap', () => {
   const src = readFileSync(join(ROOT, 'src/app/api/client/train/route.ts'), 'utf8');
-  assert.match(src, /\.from\('workout_set_logs'\)\n\s+\.select\('actual_load, actual_reps, rpe, completed, created_at, started_at, finished_at, payload, load_unit'\)\n\s+\.eq\('client_id', user\.id\)\n\s+\.order\('created_at', \{ ascending: false \}\)\n\s+\.limit\(5000\);/);
+  assert.match(src, /\.from\('workout_set_logs'\)\n\s+\.select\('session_id, actual_load, actual_reps, rpe, completed, created_at, started_at, finished_at, payload, load_unit'\)\n\s+\.eq\('client_id', user\.id\)\n\s+\.order\('created_at', \{ ascending: false \}\)\n\s+\.limit\(5000\);/);
 });
 
 test('the Train page shows "nothing logged" until a day has volume, not 14 empty bars', () => {
@@ -207,4 +207,30 @@ test('a broken streak stops reading after the page that shows the gap', async ()
   assert.equal(train.stats.currentStreak, 3);
   const pages = lastClient._calls.filter((c) => c.table === 'workout_sessions' && c.range);
   assert.equal(pages.length, 1, 'one page showed the gap; the 1,190 older sessions are not read');
+});
+
+test('a member who has since moved zone keeps each workout on the day it was done', async () => {
+  const { days } = await load();
+  const LONDON = 'Europe/London';
+  const today = days.memberDay(Date.now(), LONDON);
+  // Two New York evenings, two and three days back, stored with their New York day. Read again
+  // in London they fall a day later (yesterday and the day before), which would make a live
+  // streak of 2; on the days they were done, yesterday was missed and the streak is over.
+  const nyEvening = async (k) => {
+    const day = days.shiftDay(today, -k);
+    return { ...session(`t-${k}`, await at(day, '23:30', NY)), summary: { snapshotDate: day } };
+  };
+  const sessions = [await nyEvening(2), await nyEvening(3)];
+  const lifted = await at(days.shiftDay(today, -2), '23:20', NY);
+  const tables = {
+    client_profiles: [{ user_id: 'u-1', timezone: LONDON }],
+    client_workouts: [],
+    workout_sessions: sessions,
+    workout_set_logs: [set(lifted, 100, 5, 'lb', { session_id: 't-2', finished_at: lifted })],
+  };
+  const train = await GET('train', tables);
+  assert.equal(train.stats.currentStreak, 0, 'yesterday was missed on the days the member trained');
+  assert.equal((await GET('dashboard', tables)).kpis.streak, 0);
+  assert.equal(train.volumeByDay[11], 500, 'the set is on its session\'s stored day, two days back');
+  assert.equal(train.volumeByDay[12], 0, 'not on the day London reads it as');
 });
