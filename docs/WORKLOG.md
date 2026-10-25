@@ -202,8 +202,8 @@ planned builds.
   dashboard routes drop their session and coach-row read errors. Renewals and the origin
   feed show "—" for an unread name and for none.
 - Home (`BSHomeSections.jsx`): Week so far counts days trained (workout minutes or a logged
-  activity) against the plan's sessions, and days with food logged, not meals; its grid marks a
-  protein or steps day only at the target (any reading without one). The weekly
+  activity) against the plan's sessions, and days with food logged, not meals; a protein or
+  steps square needs the target (a reading, without one). The weekly
   notes, message doors and next session show only for a paid coach (no sample signed out).
 - Eat on a live meal plan takes what was eaten (Fuel left, macro pages) from the plan's
   day `totals` and meals' `state`, not the member's logs.
@@ -238,8 +238,8 @@ planned builds.
 - Staff two-factor has no recovery codes, and reloading `/staff-verify` during set-up
   makes a new key (#2388). The Radio page can ask for the code again.
 - The website's usage stats don't wait for the consent banner in the EEA and UK.
-- Nothing opens the chat panel from a URL. `TrainerNewProgram.html` and
-  `get-started.html` aren't linked from anywhere.
+- Nothing opens the chat panel from a URL; `TrainerNewProgram.html` and `get-started.html`
+  are linked from nowhere.
 - The website's Kitchen (`recipesPage.jsx`) still runs its filter toggles and jump row
   off the right edge of a phone.
 - No signed-in pass has been done in a browser or on a phone for client onboarding,
