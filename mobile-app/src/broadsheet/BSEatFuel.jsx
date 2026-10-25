@@ -91,6 +91,19 @@ const bsEfNum = (x) => { const n = Number(String(x == null ? '' : x).replace(/[^
 // (mealOverrides: title → { kcal, p, c, f }), and only a meal already logged is in the day's figure,
 // so each logged meal that was swapped adds its swap's amount less the planned one. `k` is 'kcal',
 // 'p', 'c' or 'f'; a swap that names no amount for it changes nothing.
+// The meal a tap opens (Codex P2 on #2446: a swapped meal's row opened the planned meal). A swap carries
+// only a title and its amounts (BS_MEAL_SWAPS), so the meal opens as the swap: its title, kcal and
+// macros, and none of the planned meal's recipe, picture or note, which are not the swap's. A meal
+// with no swap opens as it is.
+export function bsEatSwappedMeal(meal, overrides) {
+  const ov = meal && overrides ? overrides[meal.title] : null;
+  if (!ov || !ov.title) return meal || null;
+  return {
+    ...meal, title: ov.title, kcal: ov.kcal, p: ov.p, c: ov.c, f: ov.f, sub: ov.sub || meal.sub,
+    hero: '', brief: '', ingredients: [], steps: [], coachNote: '', prep: '—', score: '—', _swappedFrom: meal.title,
+  };
+}
+
 export function bsEatSwapDelta(meals, overrides, k) {
   let d = 0;
   for (const m of Array.isArray(meals) ? meals : []) {

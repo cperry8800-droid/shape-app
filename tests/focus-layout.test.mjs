@@ -376,6 +376,24 @@ test('a logged meal\'s swap moves what was eaten by its difference, and nothing 
   assert.match(eat, /week=\{PROGRAM\.map\(\(dd\) => \(\{ d: dd\.d, v: bsEatEaten\(dd, _mk\),/);
 });
 
+// Codex P2 on #2446: a swapped meal's row (on the macro page, as on the menu) opened the planned meal. It
+// opens as its swap: the swap's title and amounts, and none of the planned meal's recipe.
+test('a swapped meal opens as its swap, with none of the planned meal\'s recipe', () => {
+  const meal = { id: 'm2', title: 'Chicken bowl', state: 'next', kcal: 640, p: 46, c: 70, f: 14, hero: 'Bowl.', brief: 'Rice, chicken.', ingredients: [{ m: 'Chicken' }], steps: ['Cook'], coachNote: 'Good', prep: '10 min', portion: '1 plate', score: 'A' };
+  const overrides = { 'Chicken bowl': { title: 'Tofu stir-fry + rice', kcal: 580, p: 34, c: 72, f: 16, sub: '580 kcal · 34P · 72C · 16F' } };
+  const open = EATFUEL.bsEatSwappedMeal(meal, overrides);
+  assert.equal(open.id, 'm2', 'the swap keeps its slot');
+  assert.deepEqual([open.title, open.kcal, open.p, open.c, open.f], ['Tofu stir-fry + rice', 580, 34, 72, 16]);
+  assert.deepEqual([open.hero, open.brief, open.ingredients, open.steps, open.coachNote], ['', '', [], [], ''], 'the planned meal\'s recipe is not the swap\'s');
+  assert.equal(open._swappedFrom, 'Chicken bowl');
+  assert.equal(open.portion, '1 plate');
+  assert.equal(EATFUEL.bsEatSwappedMeal(meal, {}), meal, 'no swap: the meal as it is');
+  assert.equal(EATFUEL.bsEatSwappedMeal(meal, null), meal);
+  assert.equal(EATFUEL.bsEatSwappedMeal(undefined, overrides), null);
+  const eat = stripComments(readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8'));
+  assert.match(eat, /if \(previewMealId\) \{\n\s*const meal = bsEatSwappedMeal\(meals\.find\(m => m\.id === previewMealId\), mealOverrides\);/, 'Eat opens a meal without its swap');
+});
+
 test('a macro\'s page: what is left, the day\'s meals by it, the week against the target, in the magazine look', () => {
   const saved = {};
   for (const name of ['BSPage', 'BSDetailHeader', 'BSFooter']) { saved[name] = globalThis[name]; }

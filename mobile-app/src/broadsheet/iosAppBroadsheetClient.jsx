@@ -64,7 +64,7 @@ import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx'
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
-import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta } from './BSEatFuel.jsx';
+import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.jsx';
 import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead, bsWsRed, bsWsHead } from './BSWallStory.jsx';
@@ -14103,7 +14103,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     );
   }
   if (previewMealId) {
-    const meal = meals.find(m => m.id === previewMealId);
+    // A swapped meal opens as its swap, as its row reads (bsEatSwappedMeal).
+    const meal = bsEatSwappedMeal(meals.find(m => m.id === previewMealId), mealOverrides);
     if (meal) return <BSMealPreview meal={meal} onBack={() => setPreviewMealId(null)} />;
   }
   if (previewRecipe && cur.recipe) {
