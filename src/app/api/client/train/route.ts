@@ -7,7 +7,8 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { DAY_MS, startOfWeek } from '@/lib/time';
+import { DAY_MS, normalizeZone, startOfWeek } from '@/lib/time';
+import { dayStreak, memberDay, shiftDay } from '@/lib/workout-days';
 import { requireMembership } from '@/lib/require-membership';
 import { setLoadLb, setLoadUnit } from '@/lib/set-load';
 
@@ -58,14 +59,31 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: false })
     .limit(200);
 
+  // Newest first, so the cap keeps the recent sets the 7- and 14-day volumes are made of.
   const { data: setRows } = await supabase
     .from('workout_set_logs')
     .select('actual_load, actual_reps, rpe, completed, created_at, payload, load_unit')
     .eq('client_id', user.id)
+    .order('created_at', { ascending: false })
     .limit(5000);
+
+  // The member's own days (their zone on file, UTC without one): the Streak below is the
+  // dashboard's day streak, by one rule (src/lib/workout-days.ts), and the daily volume
+  // lands on the day the member trained.
+  const { data: tzRow } = await supabase
+    .from('client_profiles')
+    .select('timezone')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const zone = normalizeZone(tzRow?.timezone);
+  const todayKey = memberDay(Date.now(), zone);
 
   const sessions: SessionRow[] = sessRows ?? [];
   const completed = sessions.filter((s) => s.status === 'completed');
+  const trainedDays = new Set(
+    completed.map((s) => memberDay(sessionAt(s), zone)).filter((d): d is string => d != null)
+  );
+  const currentStreak = todayKey ? dayStreak(trainedDays, todayKey) : 0;
 
   const weekStart = startOfWeek(new Date());
   const thisWeekCount = completed.filter(
@@ -77,6 +95,7 @@ export async function GET(request: Request) {
   let volume7d = 0;
   let rpeSum = 0;
   let rpeCount = 0;
+  const volumeOn = new Map<string, number>();
   for (const r of setRows ?? []) {
     if (r.completed === false) continue;
     // Prefer the column when it's a real positive value; null/0 → fall back to the
@@ -91,6 +110,8 @@ export async function GET(request: Request) {
       const vol = setLoadLb(load, r.load_unit) * reps;
       totalVolume += vol;
       if (now - new Date(r.created_at).getTime() <= 7 * DAY_MS) volume7d += vol;
+      const day = memberDay(r.created_at, zone);
+      if (day) volumeOn.set(day, (volumeOn.get(day) ?? 0) + vol);
     }
     const rpeVal = r.rpe != null ? Number(r.rpe) : pnum(p.rpe);
     if (Number.isFinite(rpeVal)) {
@@ -98,6 +119,12 @@ export async function GET(request: Request) {
       rpeCount += 1;
     }
   }
+
+  // The Train page's "Volume · 14 days": pounds lifted on each of the member's last 14 days,
+  // oldest first, today last; a day with no sets is 0.
+  const volumeByDay = todayKey
+    ? Array.from({ length: 14 }, (_, i) => Math.round(volumeOn.get(shiftDay(todayKey, i - 13)) ?? 0))
+    : [];
 
   // Recent sessions, with logged-vs-prescribed set detail (Workouts tab).
   // workout_set_logs stores the prescription (target_reps/target_load) next
@@ -181,11 +208,13 @@ export async function GET(request: Request) {
     stats: {
       completedCount: completed.length,
       thisWeekCount,
+      currentStreak,
       totalVolumeLb: Math.round(totalVolume),
       volume7dLb: Math.round(volume7d),
       avgRpe: rpeCount ? Math.round((rpeSum / rpeCount) * 10) / 10 : null,
       lastSessionAt: completed.length ? sessionAt(completed[0]) : null,
     },
+    volumeByDay,
     recentSessions,
   });
 }

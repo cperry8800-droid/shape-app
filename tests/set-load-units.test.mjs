@@ -59,10 +59,12 @@ async function routes() {
   const nextServer = require('next/server');
   const lib = (f) => loadRealModule(join(ROOT, 'src/lib', f), { typescript: true });
   const [time, setLoad, e1rm, readiness, localDay] = await Promise.all([lib('time.ts'), lib('set-load.ts'), lib('e1rm.ts'), lib('recovery-readiness.ts'), lib('local-day.ts')]);
+  const workoutDays = await loadRealModule(join(ROOT, 'src/lib/workout-days.ts'), { typescript: true, registry: new Map([['@/lib/time', time]]) });
   let client = null;
   const registry = () => new Map([
     ['next/server', nextServer],
     ['@/lib/time', time],
+    ['@/lib/workout-days', workoutDays],
     ['@/lib/set-load', setLoad],
     ['@/lib/e1rm', e1rm],
     ['@/lib/local-day', localDay],
