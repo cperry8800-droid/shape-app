@@ -615,6 +615,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Progress and Your mornings in B, the dashboard look — #2456. No migration',
+      items: [
+        { label: 'Owner, 2026-10-25, of Your mornings: "we need to make this look less analog"; of Progress: "very boring, monotone"; of three mocks: "I like B", following the paper. BSDash.jsx holds the look: cards, rings, sparklines and a small switch, and a palette where a metric keeps one colour, its words in a text shade that reads at 4.6:1 or better on all 18 papers and its bars and rings in a brighter mark shade', status: 'done' },
+        { label: 'Your mornings: each section a card under its name in its colour; readiness in a gradient ring, its name first for a reader; rounded gradient bars; 7 days | 30 days the small switch; Progress\'s door a card', status: 'done' },
+        { label: 'Progress: What\'s next a hero card with the headline goal\'s share done in a ring (only for a goal with a start); the tabs, then (owner: "Don\'t need those boxes so big") a 34px capsule as wide as its words with 44px keys; figures in tiles with sparklines; every station a card; the trend a gradient area in the series\' colour. No copy changed (i18n inventory 616)', status: 'done' },
+        { label: 'Review: Codex P1 on a2b5076, the card headings were h2s in the mono face where every heading is Saira: fixed in 80b8d8a (card names in Saira, figure labels mono); Codex clean on 80b8d8a. CodeRabbit not run. tests/dash-look holds every text shade to 4.5:1 on every paper; tests/progress-dash pins Progress\'s shape; npm test 8,447 / 8,447. CI was red on 80b8d8a: with #2455 on main the WORKLOG passed 20 KB, so it keeps main\'s text and the palette\'s rule lives in BSDash.jsx', status: 'done' },
+        { label: 'Device pass: Progress and Your mornings on a phone, light and dark', status: 'manual' },
+        { label: 'Goals, opened from Progress, keeps the ledger look; the hero\'s headline is goalBrief\'s English in the goal\'s own unit', status: 'pending' },
+      ],
+    },
+    {
       section: 'The app\'s fonts ship in the repo, so the build never fetches from Google — #2455. No migration',
       items: [
         { label: 'Owner, 2026-10-25: "self-host the Google fonts so CI stops failing". next/font/google fetched Inter, Fraunces and JetBrains Mono from Google during next build, and CI\'s Web job failed whenever that fetch did (#2449 on 900002d, #2453 on 08a7c7b)', status: 'done' },

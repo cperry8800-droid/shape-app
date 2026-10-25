@@ -77,6 +77,7 @@ import { bsHomeCoachesOf, bsHomeSessionsPlanned, bsHomeSessionsPlannedDays, bsHo
 import { bsPlanPartRead, bsPlanCheckinParts } from '../services/planRead.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSShortcuts, BSShortcutTile } from './BSShortcuts.jsx';
+import { bsDash, bsDashA, BSDashCard, BSDashRing, BSDashSpark, BSDashSegment } from './BSDash.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
@@ -18028,7 +18029,16 @@ const BST_SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-seri
 // `size` is the label's px; the session pages keep 7.5, Progress reads at 10.
 // `mag` is the member profile's head in the Wall's look (owner, 2026-10-24, the Me page "cleaned up"): the
 // name in the headline face over a 2px ink rule, its count in mono at the right.
-function BSTStationHead({ heat, INK, label, meta, size = 7.5, mag = false }) {
+function BSTStationHead({ heat, INK, label, meta, size = 7.5, mag = false, dash = false }) {
+  // B, the dashboard look (Progress, 2026-10-25): the card is the box, so no tick; its name is the
+  // heading a reader hears, an eyebrow in the card's colour (`heat`, a text shade from bsDash), in
+  // Saira as every heading is (the mono face is for figures' labels and the meta).
+  if (dash) return (
+    <div data-bst-head="dash" style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
+      <h2 style={{ margin: 0, fontFamily: BST_SERIF, fontSize: 11.5, fontWeight: 700, lineHeight: 1.2, letterSpacing: '0.1em', textTransform: 'uppercase', color: heat }}>{label}</h2>
+      {meta ? <span style={{ marginLeft: 'auto', fontFamily: BST_MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.62), whiteSpace: 'nowrap' }}>{meta}</span> : null}
+    </div>
+  );
   if (mag) return (
     <div data-bst-head="mag" style={{ display: 'flex', alignItems: 'baseline', gap: 10, paddingBottom: 6, marginBottom: 12, borderBottom: `2px solid ${INK}` }}>
       <span style={{ fontFamily: BST_SERIF, fontSize: 17, fontWeight: 600, lineHeight: 1, letterSpacing: '0.02em', textTransform: 'uppercase', color: INK }}>{label}</span>
@@ -18057,11 +18067,11 @@ function BSTRedact({ INK, label, size = 7.5 }) {
 // Eyebrow-above-figure ledger stat (the Open Ledger hero-stat pattern). Counts
 // the numeric part up on `seen`; the unit is split into a mono column so figures
 // across a row can share one right edge.
-function BSTLedgerStat({ INK, label, value, seen, figSize = 30, delay = 0, align = 'left', labelSize = 7.5 }) {
+function BSTLedgerStat({ INK, label, value, seen, figSize = 30, delay = 0, align = 'left', labelSize = 7.5, labelColor = null }) {
   const u = bsSdSplitUnit(value);
   return (
     <div style={{ textAlign: align }}>
-      <div style={{ fontFamily: BST_MONO, fontSize: labelSize, fontWeight: 800, letterSpacing: labelSize > 7.5 ? '0.12em' : '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, labelSize > 7.5 ? 0.62 : 0.5) }}>{label}</div>
+      <div style={{ fontFamily: BST_MONO, fontSize: labelSize, fontWeight: 800, letterSpacing: labelSize > 7.5 ? '0.12em' : '0.18em', textTransform: 'uppercase', color: labelColor || bsTHexA(INK, labelSize > 7.5 ? 0.62 : 0.5) }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 3, justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}>
         <span style={{ fontFamily: BST_SERIF, fontSize: figSize, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>
           {seen ? <BSSdCountUp text={u.num} duration={780} delay={delay} /> : u.num}
@@ -30073,16 +30083,15 @@ function BSStrengthCard({ onOpen }) {
   const lifts = (data && Array.isArray(data.lifts)) ? data.lifts : [];
   const lead = lifts[0] || null;
   const sm = lead ? bsStrengthStatusMeta(lead.status, t, tier) : null;
-  // Field Ledger chrome (single consumer — the Progress Training tab): the
-  // bordered card died → a zero-box station row on a hairline; the tier-colored
-  // eyebrow demoted to ink (the heat tick carries the tier). Data/hook verbatim;
-  // the status label keeps its SEMANTIC status color.
+  // B's card (single consumer — the Progress Training tab, owner 2026-10-25): the
+  // eyebrow in coral, the colour of strength on that tab. Data/hook verbatim; the
+  // status label keeps its SEMANTIC status color.
+  const D = bsDash(t);
   return (
-    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 0, borderBottom: `1px solid ${bsTHexA(t.INK, 0.09)}`, background: 'transparent', padding: '2px 0 13px', marginBottom: 20, minHeight: 44 }}>
+    <BSDashCard as="button" type="button" onClick={onOpen} style={{ display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', marginBottom: 12, minHeight: 44, color: t.INK, font: 'inherit' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: tier }} />
-        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>Strength · Estimated 1RM</span>
-        <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>View →</span>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: D.text.coral }}>Strength · Estimated 1RM</span>
+        <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70 }}>View →</span>
       </div>
       {lead ? (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 9 }}>
@@ -30091,9 +30100,9 @@ function BSStrengthCard({ onOpen }) {
           {sm && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: sm.color }}>{sm.label}</span>}
         </div>
       ) : (
-        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, marginTop: 9 }}>Log sets with weight & reps to track your estimated max.</div>
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, marginTop: 9 }}>Log sets with weight & reps to track your estimated max.</div>
       )}
-    </button>
+    </BSDashCard>
   );
 }
 
@@ -38413,29 +38422,29 @@ const BSPROG_EMPTY = {
     week: [], loggedDays7: 0, adherentDays7: 0, currentStreak: 0, longestStreak: 0, topFoods: [], hydration7d: [],
   },
 };
-// Series carry no colors anymore — the Field Ledger draws every trend in the
-// page's one heat (the member's tier); the 9-color palette died with wave 6.
+// Each series is drawn in its metric's colour from B's palette (`c`, a bsDash key; owner, 2026-10-25,
+// of Progress: "very boring, monotone"), the colour its tile above the trend carries too.
 const BSPROG_TREND_TABS = [
-  { k: 'weight', label: 'Weight', unit: 'lb', fmt: (v) => Math.round(v) },
-  { k: 'bodyFat', label: 'Body fat', unit: '%', fmt: (v) => v.toFixed(1) },
-  { k: 'strength', label: 'Strength', unit: 'lb', fmt: (v) => Math.round(v) },
-  { k: 'restingHr', label: 'Resting HR', unit: 'bpm', fmt: (v) => Math.round(v) },
-  { k: 'sleep', label: 'Sleep', unit: 'h', fmt: (v) => v.toFixed(1) },
+  { k: 'weight', label: 'Weight', unit: 'lb', c: 'teal', fmt: (v) => Math.round(v) },
+  { k: 'bodyFat', label: 'Body fat', unit: '%', c: 'amber', fmt: (v) => v.toFixed(1) },
+  { k: 'strength', label: 'Strength', unit: 'lb', c: 'coral', fmt: (v) => Math.round(v) },
+  { k: 'restingHr', label: 'Resting HR', unit: 'bpm', c: 'coral', fmt: (v) => Math.round(v) },
+  { k: 'sleep', label: 'Sleep', unit: 'h', c: 'violet', fmt: (v) => v.toFixed(1) },
   // Energy, Hunger and Rested left these tabs for Your mornings (part 2, the BSMorningsDoor under
   // 'The trend'): there they read by date and in the member's words, where a chart here spaced the
   // answers evenly and printed them '/10'.
-  { k: 'hrv', label: 'HRV', unit: 'ms', fmt: (v) => Math.round(v) },
-  { k: 'volume', label: 'Volume', unit: 'min', fmt: (v) => Math.round(v) },
-  { k: 'protein', label: 'Protein', unit: 'g', fmt: (v) => Math.round(v) },
-  { k: 'hydration', label: 'Hydration', unit: 'L', fmt: (v) => v.toFixed(1) },
+  { k: 'hrv', label: 'HRV', unit: 'ms', c: 'lime', fmt: (v) => Math.round(v) },
+  { k: 'volume', label: 'Volume', unit: 'min', c: 'amber', fmt: (v) => Math.round(v) },
+  { k: 'protein', label: 'Protein', unit: 'g', c: 'coral', fmt: (v) => Math.round(v) },
+  { k: 'hydration', label: 'Hydration', unit: 'L', c: 'teal', fmt: (v) => v.toFixed(1) },
 ];
 function bsProgSeriesVals(s) { return (Array.isArray(s) ? s : []).map((x) => (x && typeof x === 'object' ? x.value : x)).filter((v) => Number.isFinite(Number(v))).map(Number); }
-// Field Ledger trace — line-only: hairline grid, a single SELF-DRAWING stroke
-// in the page heat (pathLength/dashoffset on first view, the ridge trick), a
-// heat end-dot. The old gradient area fill died with wave 6; the empty state
-// is the standard redaction line, never a boxed banner.
+// B's trace: a SELF-DRAWING line in the series' colour (pathLength/dashoffset on first view, the ridge
+// trick) over a gradient of that colour fading to the card, which fades in once the line is down, and
+// an end dot that glows on a dark paper. Faint guides, no axis; the empty state is the redaction line.
 function BSProgChart({ points, color, h = 150 }) {
   const t = useBS();
+  const D = bsDash(t);
   const [ref, seen] = useBSSdInView();
   const reduced = bsSdReduced();
   const vals = bsProgSeriesVals(points);
@@ -38443,15 +38452,20 @@ function BSProgChart({ points, color, h = 150 }) {
   const W = 320, H = h, pad = 14, mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length;
   const pts = vals.map((v, i) => [pad + (i / (n - 1)) * (W - pad * 2), H - pad - ((v - mn) / span) * (H - pad * 2)]);
   const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const area = `${line} L${pts[n - 1][0].toFixed(1)},${H} L${pts[0][0].toFixed(1)},${H} Z`;
   const end = pts[n - 1];
   const drawn = seen || reduced;
+  // One gradient per colour: two charts in one colour would draw the same fill.
+  const gid = `bs-prog-area-${String(color).replace(/[^0-9a-z]/gi, '')}`;
   return (
     <div ref={ref}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
-        {[0, 0.5, 1].map((g) => <line key={g} x1={pad} x2={W - pad} y1={pad + g * (H - pad * 2)} y2={pad + g * (H - pad * 2)} stroke={t.HAIR} strokeWidth="1" />)}
-        <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" pathLength={1}
+      <svg viewBox={`0 0 ${W} ${H}`} aria-hidden="true" style={{ width: '100%', height: 'auto', display: 'block', overflow: 'visible' }}>
+        <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={color} stopOpacity={D.light ? 0.22 : 0.34} /><stop offset="1" stopColor={color} stopOpacity="0" /></linearGradient></defs>
+        {[0, 0.5, 1].map((g) => <line key={g} x1={pad} x2={W - pad} y1={pad + g * (H - pad * 2)} y2={pad + g * (H - pad * 2)} stroke={t.HAIR} strokeWidth="1" strokeDasharray="2 4" />)}
+        <path data-bs-prog-area="" d={area} fill={`url(#${gid})`} style={{ opacity: drawn ? 1 : 0, transition: reduced ? 'none' : 'opacity 600ms ease 700ms' }} />
+        <path d={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" pathLength={1}
           strokeDasharray="1 1" style={{ strokeDashoffset: drawn ? 0 : 1, transition: reduced ? 'none' : 'stroke-dashoffset 1100ms cubic-bezier(.4,0,.2,1) 150ms' }} />
-        <circle cx={end[0]} cy={end[1]} r="3" fill={color} style={{ opacity: drawn ? 1 : 0, transition: reduced ? 'none' : 'opacity 300ms ease 1150ms' }} />
+        <circle cx={end[0]} cy={end[1]} r="4" fill={color} stroke={t.PAPER} strokeWidth="2" style={{ filter: D.glow(color, 6), opacity: drawn ? 1 : 0, transition: reduced ? 'none' : 'opacity 300ms ease 1150ms' }} />
       </svg>
     </div>
   );
@@ -38463,7 +38477,6 @@ function BSProgChart({ points, color, h = 150 }) {
 // when there's no live record yet (subtle "example" tag).
 function BSClientNextPlate() {
   const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [d, setD] = React.useState(null); // { eyebrow, headline, sub, demo } | null = loading
   React.useEffect(() => {
     let on = true;
@@ -38479,32 +38492,42 @@ function BSClientNextPlate() {
       const sIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
       if (!hasData && !sIn) { try { record = (E.buildMockClients && E.buildMockClients()[0]) || null; demo = !!record; } catch (e) {} }
       if (!on) return;
-      let headline = null, sub = null;
+      let headline = null, sub = null, ring = null;
       if (record) {
         try { const brief = E.goalBrief && E.goalBrief(record); if (brief) { headline = brief; sub = 'Your headline goal'; } } catch (e) {}
+        // The ring is the headline goal's share done, as goalBrief reads it (the first visible goal,
+        // projectGoal's pct), and only when there is a start to measure from: no pct, no ring.
+        if (headline) { try { const g = E.visibleGoals(record.goals)[0]; const p = g && E.projectGoal(g); if (p && Number.isFinite(p.pct)) ring = { pct: p.pct, done: p.state === 'achieved' }; } catch (e) {} }
         if (!headline) { try { const ms = S.milestones(record); const next = ms && ms.next && ms.next[0]; if (next && next.label) { headline = next.label; sub = 'Next milestone'; } } catch (e) {} }
       }
       if (!headline) { headline = 'Log a weigh-in.'; sub = 'Track your progress to see what’s next.'; demo = false; }
-      setD({ eyebrow: "What's next", headline, sub, demo });
+      setD({ eyebrow: "What's next", headline, sub, demo, ring });
     })();
     return () => { on = false; };
   }, []);
   if (d == null) return null; // brief async — no flash
-  // THE VERDICT — the Field Ledger lead: heat-tick eyebrow, one serif verdict
-  // line with a heat period, mono sub. Same engine-fed data + honest gating as
-  // the old plate (goalBrief → milestone → "Log a weigh-in."); zero box.
-  const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || teal;
+  // THE VERDICT, in B's hero card: the headline goal's ring beside one verdict line, the eyebrow in
+  // teal. Same engine-fed data + honest gating as before (goalBrief → milestone → "Log a weigh-in.");
+  // the ring only for a goal with a start, its figure the share done.
+  const D = bsDash(t);
   const headline = String(d.headline || '').replace(/\.\s*$/, '');
+  const ring = d.ring;
   return (
-    <div style={{ padding: `10px ${t.padX}px 0` }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span aria-hidden style={{ flex: 'none', width: 10, height: 2, background: heat }} />
-        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7) }}>{d.eyebrow}</span>
-        {d.demo && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Example</span>}
+    <BSDashCard data-bs-prog-next="" tint={D.mark.teal} style={{ margin: `10px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 16 }}>
+      {ring ? (
+        <BSDashRing id="prog-next" pct={ring.pct} size={84} stroke={9} from={D.mark.teal} to={D.mark.lime}>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: ring.done ? 26 : 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{ring.done ? '✓' : `${Math.round(ring.pct * 100)}%`}</span>
+        </BSDashRing>
+      ) : null}
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: D.text.teal }}>{d.eyebrow}</span>
+          {d.demo && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Example</span>}
+        </div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.22, color: t.INK, overflowWrap: 'anywhere' }}>{headline}</div>
+        {d.sub && <div style={{ marginTop: 5, fontFamily: t.BODY, fontSize: 12.5, color: t.INK70 }}>{d.sub}</div>}
       </div>
-      <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>{headline}<span style={{ color: heat }}>.</span></div>
-      {d.sub && <div style={{ marginTop: 5, fontFamily: t.BODY, fontSize: 13, color: bsTHexA(t.INK, 0.62) }}>{d.sub}</div>}
-    </div>
+    </BSDashCard>
   );
 }
 // BSWeekendsCard — member weekday-vs-weekend adherence split in the Progress
@@ -38530,14 +38553,15 @@ function BSWeekendsCard({ isSelf }) {
   // Field Ledger: the plate died — a zero-box station on the page heat (tier).
   // The flagged gap figure keeps RUST as a semantic state color (state, not
   // identity — the same exception the waitlist spines hold).
-  const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
+  // B (2026-10-25): a card under its name in amber, the colour of the week's rhythm on Progress.
+  const heat = bsDash(t).text.amber;
   if (data.status === 'building' || !present.length) {
     return (
-      <div style={{ marginBottom: 22 }}>
-        <BSTStationHead heat={heat} INK={t.INK} label="Weekends" />
+      <BSDashCard as="section" style={{ marginBottom: 12 }}>
+        <BSTStationHead dash heat={heat} INK={t.INK} label="Weekends" />
         <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', color: t.INK }}>Still learning your weekend pattern.</div>
         <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70, marginTop: 5 }}>A few more weekends of logging and this fills in.</div>
-      </div>
+      </BSDashCard>
     );
   }
 
@@ -38552,8 +38576,8 @@ function BSWeekendsCard({ isSelf }) {
     : 'Your weekends hold steady with your weekdays.';
 
   return (
-    <div style={{ marginBottom: 22 }}>
-      <BSTStationHead heat={heat} INK={t.INK} label="Weekends" meta={flagged ? 'Pattern flagged' : 'Holding steady'} />
+    <BSDashCard as="section" style={{ marginBottom: 12 }}>
+      <BSTStationHead dash heat={heat} INK={t.INK} label="Weekends" meta={flagged ? 'Pattern flagged' : 'Holding steady'} />
       <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.3, color: t.INK }}>{headline}</div>
       <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
         {present.map(([k, d], i) => (
@@ -38569,7 +38593,7 @@ function BSWeekendsCard({ isSelf }) {
         ))}
       </div>
       {flagged && <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70, marginTop: 9 }}>Closing that gap is your easiest win this month.</div>}
-    </div>
+    </BSDashCard>
   );
 }
 
@@ -38619,21 +38643,21 @@ function BSCrossoverCard({ isSelf }) {
     return () => { alive = false; };
   }, [isSelf]);
   if (!isSelf || !read) return null;
-  const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const heat = bsDash(t).text.violet; // B (2026-10-25): a card under its name in violet
   // Words + numbers both come from the shared engine (crossoverCopy) — the
   // web widget renders the identical rows, so the wording can never drift.
   const rows = (window.DashSignals && window.DashSignals.crossoverCopy) ? window.DashSignals.crossoverCopy(read) : [];
   if (!rows.length) return null;
   return (
-    <div style={{ marginBottom: 22 }}>
-      <BSTStationHead heat={heat} INK={t.INK} label="The crossover" meta="Work × body" />
+    <BSDashCard as="section" style={{ marginBottom: 12 }}>
+      <BSTStationHead dash heat={heat} INK={t.INK} label="The crossover" meta="Work × body" />
       {rows.map((r, i) => (
         <div key={r.k} style={{ paddingTop: i ? 10 : 0, marginTop: i ? 10 : 0, borderTop: i ? `1px solid ${bsTHexA(t.INK, 0.09)}` : 0 }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.3, color: t.INK }}>{r.text}</div>
           <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em', textTransform: 'uppercase', fontVariantNumeric: 'tabular-nums' }}>{r.sub}</div>
         </div>
       ))}
-    </div>
+    </BSDashCard>
   );
 }
 
@@ -38754,7 +38778,7 @@ function BSCycleCard({ isSelf }) {
   }, [isSelf, optIn, cycle, starts]);
 
   if (!isSelf || !optIn) return null;                          // absence, never a padlock
-  const heat = bsCycleHeat(t);
+  const heat = bsDash(t).text.coral; // B (2026-10-25): a card under its name in coral
   const phaseLabel = bsCyclePhaseLabel(tr, cycle && cycle.phase);
   const head = !cycle
     ? tr('cycle:card.setup', { defaultValue: 'Log a period start to begin.' })
@@ -38766,8 +38790,8 @@ function BSCycleCard({ isSelf }) {
   const cycles = bsCycleCompleteCycles(starts);
   const readText = bsCycleReadText(tr, read);
   return (
-    <div style={{ marginBottom: 22 }}>
-      <BSTStationHead heat={heat} INK={t.INK} label={tr('cycle:card.station', { defaultValue: 'The cycle' })} meta={tr('cycle:card.meta', { defaultValue: 'Private to you' })} />
+    <BSDashCard as="section" style={{ marginBottom: 12 }}>
+      <BSTStationHead dash heat={heat} INK={t.INK} label={tr('cycle:card.station', { defaultValue: 'The cycle' })} meta={tr('cycle:card.meta', { defaultValue: 'Private to you' })} />
       <button type="button" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openCycle')); } catch (e) {} }}
         style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', minHeight: 44 }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.3, color: t.INK }}>{head}</div>
@@ -38786,7 +38810,7 @@ function BSCycleCard({ isSelf }) {
           </div>
         ) : null}
       </button>
-    </div>
+    </BSDashCard>
   );
 }
 
@@ -38871,7 +38895,7 @@ function BSWeeklyReadoutCard({ isSelf }) {
   // a session that lost its user renders nothing without a separate clause.
   const data = held && held.uid === uid ? held.data : null;
   if (!isSelf || !data || !data.readout) return null;
-  const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const heat = bsDash(t).text.teal; // B (2026-10-25): a card under its name in teal
   const insights = Array.isArray(data.readout.insights) ? data.readout.insights : [];
   const hair = bsTHexA(t.INK, 0.09);
 
@@ -38889,8 +38913,8 @@ function BSWeeklyReadoutCard({ isSelf }) {
   ].filter(Boolean).join(' · ');
 
   return (
-    <div style={{ marginBottom: 22 }}>
-      <BSTStationHead heat={heat} INK={t.INK} label="The read" meta="This week" />
+    <BSDashCard as="section" style={{ marginBottom: 12 }}>
+      <BSTStationHead dash heat={heat} INK={t.INK} label="The read" meta="This week" />
       <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.35, color: t.INK }}>
         {data.readout.summary}
       </div>
@@ -38926,7 +38950,7 @@ function BSWeeklyReadoutCard({ isSelf }) {
           {stamp}
         </div>
       ) : null}
-    </div>
+    </BSDashCard>
   );
 }
 
@@ -38977,11 +39001,14 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   const TR = { ...PB.train, ...(train || {}), stats: { ...PB.train.stats, ...((train && train.stats) || {}) } };
   const NU = { ...PB.nutri, ...(nutri || {}), targets: { ...PB.nutri.targets, ...((nutri && nutri.targets) || {}) }, today: { ...PB.nutri.today, ...((nutri && nutri.today) || {}) } };
 
-  // Field Ledger language (wave 6): heat = the member's TIER color, line-only —
-  // zero-box stations on hairline rules, eyebrow-above-figure registers,
-  // dot-leader rows, redaction lines for every empty case. Keyframes are
+  // B, the dashboard look (owner, 2026-10-25, of this page: "very boring, monotone", then "I like B",
+  // following the paper): every station a card under its name in its colour, the figures in tiles with
+  // a sparkline of their series, the trend a gradient area, bars rounded. A metric keeps one colour
+  // (bsDash keys: weight teal, body fat amber, resting HR coral, sleep violet); words take its TEXT
+  // shade, marks its MARK shade. The title's period stays the member's tier (`heat`). Keyframes are
   // injected HERE (the Terrain lesson — never rely on another surface mounting).
   const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || teal;
+  const D = bsDash(t);
   React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
   const reduced = bsSdReduced();
   // One-shot in-view observers — one per animated station (per tab; unmounted
@@ -38994,38 +39021,46 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   const [nMacRef, nMacSeen] = useBSSdInView();
   const [nWkRef, nWkSeen] = useBSSdInView();
   const hair = bsTHexA(t.INK, 0.09);
-  const leader = <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-3px)', minWidth: 16 }} />;
+  // A row's name and its figure, apart: the card holds them, so no dotted leader between.
+  const leader = <span aria-hidden style={{ flex: 1, minWidth: 16 }} />;
+  // A bar's fill: its colour, full at the tip and softer toward the base.
+  const barFill = (c, deg = 180) => `linear-gradient(${deg}deg, ${D.mark[c]}, ${bsDashA(D.mark[c], 0.62)})`;
   // Plain render FUNCTIONS (never inline components — a per-render component
   // identity would remount the subtree and replay entrances on every state change).
-  const station = (label, meta, children, mb = 24) => (
-    <div style={{ marginBottom: mb }}>
-      <BSTStationHead heat={heat} INK={t.INK} label={label} meta={meta} size={10} />
+  const station = (label, meta, children, c = 'teal') => (
+    <BSDashCard as="section" style={{ marginBottom: 12 }}>
+      <BSTStationHead dash heat={D.text[c]} INK={t.INK} label={label} meta={meta} />
       {children}
-    </div>
+    </BSDashCard>
   );
+  // The figures in tiles, two to a row: the name in its colour, the figure, what it is against, and
+  // a sparkline of its series where the page has one (`s`, a series key).
   const registers = (items, ref, seen) => (
-    <div ref={ref} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 16px', margin: '2px 0 26px' }}>
+    <div ref={ref} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
       {items.map((it, i) => (
-        <div key={it.label}>
-          <BSTLedgerStat INK={t.INK} label={it.label} value={it.value} seen={seen} figSize={26} delay={i * 90} labelSize={10} />
-          {it.sub ? (
-            <div style={{ marginTop: 5, fontFamily: t.BODY, fontSize: 12.5, color: bsTHexA(t.INK, 0.62) }}>
-              {it.glyph ? <span role="img" aria-label={it.glyph === '▾' ? 'down' : 'up'} style={{ color: heat }}>{it.glyph} </span> : null}{it.sub}
-            </div>
-          ) : null}
-        </div>
+        <BSDashCard key={it.label} data-bs-prog-tile={it.c} style={{ padding: '11px 13px', borderRadius: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <BSTLedgerStat INK={t.INK} label={it.label} value={it.value} seen={seen} figSize={22} delay={i * 90} labelSize={8.5} labelColor={D.text[it.c]} />
+          {it.sub || it.s ? <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginTop: 6 }}>
+            {it.sub ? (
+              <div style={{ minWidth: 0, flex: 1, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.25, color: t.INK70 }}>
+                {it.glyph ? <span role="img" aria-label={it.glyph === '▾' ? 'down' : 'up'} style={{ color: D.text[it.c] }}>{it.glyph} </span> : null}{it.sub}
+              </div>
+            ) : <span style={{ flex: 1 }} />}
+            {it.s ? <BSDashSpark values={bsProgSeriesVals(O.series[it.s]).slice(-30)} color={D.mark[it.c]} /> : null}
+          </div> : null}
+        </BSDashCard>
       ))}
     </div>
   );
-  // Horizontal ledger bars: label (ink) · heat fill drawing rightward · figure.
-  const barRows = (rows, ref, seen) => (
+  // Horizontal bars: label (ink) · a rounded fill in the row's colour drawing rightward · figure.
+  const barRows = (rows, ref, seen, c = 'teal') => (
     <div ref={ref}>
       {rows.map((r, i) => (
         <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
           <span style={{ width: 92, flexShrink: 0, fontFamily: t.BODY, fontSize: 13, color: bsTHexA(t.INK, 0.75), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.label}</span>
-          <span aria-hidden style={{ flex: 1, position: 'relative', height: 8, minWidth: 0 }}>
-            <span style={{ position: 'absolute', inset: 0, background: bsTHexA(t.INK, 0.07) }} />
-            <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${Math.max(2, Math.min(100, r.pct * 100))}%`, background: heat, transformOrigin: 'left', transform: (seen || reduced) ? undefined : 'scaleX(0)', animation: (seen && !reduced) ? `bsSdDrawX 560ms cubic-bezier(.4,0,.2,1) ${i * 90}ms both` : 'none' }} />
+          <span aria-hidden style={{ flex: 1, position: 'relative', height: 10, minWidth: 0 }}>
+            <span style={{ position: 'absolute', inset: 0, borderRadius: 99, background: D.track }} />
+            <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 99, width: `${Math.max(4, Math.min(100, r.pct * 100))}%`, background: barFill(r.c || c, 270), boxShadow: D.light ? 'none' : `0 0 10px ${bsDashA(D.mark[r.c || c], 0.45)}`, transformOrigin: 'left', transform: (seen || reduced) ? undefined : 'scaleX(0)', animation: (seen && !reduced) ? `bsSdDrawX 560ms cubic-bezier(.4,0,.2,1) ${i * 90}ms both` : 'none' }} />
           </span>
           <span style={{ flexShrink: 0, minWidth: 54, textAlign: 'right', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', opacity: (seen || reduced) ? 1 : 0, transition: `opacity 400ms ease ${i * 90 + 200}ms` }}>{r.fig}</span>
         </div>
@@ -39051,16 +39086,17 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   // "kg" label, which is the one outcome worse than not converting at all.
   const activeTrendRaw = BSPROG_TREND_TABS.find((x) => x.k === trend) || BSPROG_TREND_TABS[0];
   const activeTrend = { ...activeTrendRaw, unit: t.uLabel(activeTrendRaw.unit) };
+  const trendC = activeTrendRaw.c || 'teal';
   const trendVals = bsProgSeriesVals(O.series[activeTrend.k]).map((v) => (v == null ? v : t.uMeasure(v, activeTrendRaw.unit).value));
   const latest = trendVals.length ? trendVals[trendVals.length - 1] : null;
   const first = trendVals.length ? trendVals[0] : null;
   const delta = latest != null && first != null ? latest - first : null;
   const oRegs = [
-    { label: 'Bodyweight', value: wc(kpis.weightChange), sub: kpis.weightLatest != null ? `Now ${wt(kpis.weightLatest).n} ${wt(kpis.weightLatest).unit}` : null },
-    { label: 'Body fat', value: kpis.bodyFatLatest != null ? kpis.bodyFatLatest.toFixed(1) + '%' : '—', sub: kpis.bodyFatFirst != null ? `From ${kpis.bodyFatFirst.toFixed(1)}%` : null },
-    { label: 'Resting HR', value: kpis.restingHr != null ? kpis.restingHr + ' bpm' : '—', sub: kpis.restingHrDelta != null ? `${Math.abs(kpis.restingHrDelta)} vs prior wk` : null, glyph: kpis.restingHrDelta != null && kpis.restingHrDelta !== 0 ? (kpis.restingHrDelta < 0 ? '▾' : '▴') : null },
-    { label: 'Sleep', value: kpis.sleepAvg != null ? kpis.sleepAvg + ' h' : '—', sub: '30-day avg' },
-    ...(ana && ana.kpis && ana.kpis.weekly_points != null ? [{ label: 'Weekly points', value: `${ana.kpis.weekly_points >= 0 ? '+' : ''}${ana.kpis.weekly_points}`, sub: 'This week' }] : []),
+    { label: 'Bodyweight', c: 'teal', s: 'weight', value: wc(kpis.weightChange), sub: kpis.weightLatest != null ? `Now ${wt(kpis.weightLatest).n} ${wt(kpis.weightLatest).unit}` : null },
+    { label: 'Body fat', c: 'amber', s: 'bodyFat', value: kpis.bodyFatLatest != null ? kpis.bodyFatLatest.toFixed(1) + '%' : '—', sub: kpis.bodyFatFirst != null ? `From ${kpis.bodyFatFirst.toFixed(1)}%` : null },
+    { label: 'Resting HR', c: 'coral', s: 'restingHr', value: kpis.restingHr != null ? kpis.restingHr + ' bpm' : '—', sub: kpis.restingHrDelta != null ? `${Math.abs(kpis.restingHrDelta)} vs prior wk` : null, glyph: kpis.restingHrDelta != null && kpis.restingHrDelta !== 0 ? (kpis.restingHrDelta < 0 ? '▾' : '▴') : null },
+    { label: 'Sleep', c: 'violet', s: 'sleep', value: kpis.sleepAvg != null ? kpis.sleepAvg + ' h' : '—', sub: '30-day avg' },
+    ...(ana && ana.kpis && ana.kpis.weekly_points != null ? [{ label: 'Weekly points', c: 'lime', value: `${ana.kpis.weekly_points >= 0 ? '+' : ''}${ana.kpis.weekly_points}`, sub: 'This week' }] : []),
   ];
   const overallView = (
     <div>
@@ -39068,26 +39104,28 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
       {station('The trend', null, (
         <>
           {/* One picker for the nine series (owner, 2026-10-20: nine tabs on two rows read as clutter). */}
-          <div style={{ position: 'relative', display: 'inline-block', marginBottom: 12 }}>
-            <select value={trend} onChange={(e) => setTrend(e.target.value)} aria-label="Trend" style={{ appearance: 'none', WebkitAppearance: 'none', minHeight: 40, padding: '0 34px 0 12px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+          {/* A 34px capsule like the tabs', drawn behind a 44px select so the target stays full size. */}
+          <div style={{ position: 'relative', display: 'inline-block', margin: '-5px 0 6px' }}>
+            <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: 5, bottom: 5, borderRadius: 999, background: D.track, pointerEvents: 'none' }} />
+            <select value={trend} onChange={(e) => setTrend(e.target.value)} aria-label="Trend" style={{ position: 'relative', appearance: 'none', WebkitAppearance: 'none', minHeight: 44, padding: '0 32px 0 14px', borderRadius: 999, border: 0, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
               {BSPROG_TREND_TABS.map((x) => <option key={x.k} value={x.k}>{x.label}</option>)}
             </select>
-            <span aria-hidden style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontFamily: t.MONO, fontSize: 11, color: heat }}>▾</span>
+            <span aria-hidden style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontFamily: t.MONO, fontSize: 10, color: D.mark[trendC] }}>▾</span>
           </div>
           {latest != null && (
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, marginBottom: 4 }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 800, color: t.INK, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{activeTrend.fmt(latest)}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK50 }}>{activeTrend.unit}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{activeTrend.fmt(latest)}</span>
+              <span style={{ alignSelf: 'flex-end', fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK50 }}>{activeTrend.unit}</span>
               {delta != null && delta !== 0 && (
-                <span style={{ marginLeft: 'auto', fontFamily: t.BODY, fontSize: 12.5, color: bsTHexA(t.INK, 0.62) }}>
-                  <span role="img" aria-label={delta < 0 ? 'down' : 'up'} style={{ color: heat }}>{delta < 0 ? '▾' : '▴'}</span> {activeTrend.fmt(Math.abs(delta))} since start
+                <span data-bs-prog-delta="" style={{ marginLeft: 'auto', padding: '4px 10px', borderRadius: 999, background: bsDashA(D.mark[trendC], D.light ? 0.12 : 0.16), fontFamily: t.BODY, fontSize: 12, fontWeight: 600, color: D.text[trendC], whiteSpace: 'nowrap' }}>
+                  <span role="img" aria-label={delta < 0 ? 'down' : 'up'}>{delta < 0 ? '▾' : '▴'}</span> {activeTrend.fmt(Math.abs(delta))} since start
                 </span>
               )}
             </div>
           )}
-          <BSProgChart points={trendVals} color={heat} />
+          <BSProgChart points={trendVals} color={D.mark[trendC]} />
         </>
-      ))}
+      ), trendC)}
       {/* Energy, Hunger and Rested live on Your mornings now, by date and in words: their door. */}
       <BSMorningsDoor onOpen={() => setMorningsOpen(true)} />
       {station('Personal records', 'From your sets', (O.prs || []).length ? (O.prs || []).map((p, i) => (
@@ -39100,7 +39138,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
         <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t.uMeasure(Math.round(p.best), p.unit).value} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{t.uMeasure(p.best, p.unit).unit}</span></span>
         {p.bestReps != null && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: bsTHexA(t.INK, 0.55), whiteSpace: 'nowrap' }}>× {p.bestReps}</span>}
       </div>
-      )) : <BSTRedact INK={t.INK} size={9.5} label="Lifts · not on record" />)}
+      )) : <BSTRedact INK={t.INK} size={9.5} label="Lifts · not on record" />, 'coral')}
       {/* Measurements — latest per site + change since first log (live only) */}
       {measRows.length > 0 && station('Measurements', 'From your check-ins', (() => {
         const bySite = new Map();
@@ -39121,11 +39159,11 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
               <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK }}>{label[site] || site}</span>
               {leader}
               <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{Number(lastM.value)} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{lastM.unit}</span></span>
-              <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: delta === 0 ? t.INK50 : bsTHexA(t.INK, 0.7), fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{delta === 0 ? '—' : <><span role="img" aria-label={delta < 0 ? 'down' : 'up'} style={{ color: delta < 0 ? heat : undefined }}>{delta < 0 ? '▾' : '▴'}</span> {Math.abs(delta)}</>}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: delta === 0 ? t.INK50 : bsTHexA(t.INK, 0.7), fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{delta === 0 ? '—' : <><span role="img" aria-label={delta < 0 ? 'down' : 'up'} style={{ color: delta < 0 ? D.text.teal : undefined }}>{delta < 0 ? '▾' : '▴'}</span> {Math.abs(delta)}</>}</span>
             </div>
           );
         });
-      })())}
+      })(), 'amber')}
       {/* Progress photos — date-stamped front/side/back timeline (live only) */}
       {photoRows.length > 0 && station('Progress photos', null, (() => {
             const byDate = new Map();
@@ -39137,13 +39175,13 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
                   {['front', 'side', 'back'].map((pose) => {
                     const ph = list.find((x) => x.pose === pose);
                     return ph
-                      ? <a key={pose} href={ph.url} target="_blank" rel="noreferrer" style={{ display: 'block', height: 96, borderRadius: 4, background: `url(${ph.url}) center/cover`, border: `1px solid ${t.RULE}` }} aria-label={`${pose} photo`} />
-                      : <div key={pose} style={{ height: 96, borderRadius: 4, border: `1px dashed ${t.HAIR}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{pose}</div>;
+                      ? <a key={pose} href={ph.url} target="_blank" rel="noreferrer" style={{ display: 'block', height: 96, borderRadius: 12, background: `url(${ph.url}) center/cover`, border: `1px solid ${D.border}` }} aria-label={`${pose} photo`} />
+                      : <div key={pose} style={{ height: 96, borderRadius: 12, background: D.track, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{pose}</div>;
                   })}
                 </div>
               </div>
             ));
-          })())}
+          })(), 'violet')}
       <BSWeeklyReadoutCard isSelf={signedIn} />
       <BSWeekendsCard isSelf={signedIn} />
       <BSCrossoverCard isSelf={signedIn} />
@@ -39158,10 +39196,10 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   const volDays = (TR.volumeByDay || []).map((d) => (d && typeof d === 'object' ? d.v : d)).map(Number);
   const maxVol = Math.max(1, ...volDays);
   const tRegs = [
-    { label: 'Workouts logged', value: String(ts.completedCount ?? 0) },
-    { label: 'This week', value: String(ts.thisWeekCount ?? 0) },
-    { label: 'Volume 7d', value: kVol(ts.volume7dLb ?? 0) },
-    { label: 'Avg RPE', value: ts.avgRpe != null ? String(ts.avgRpe) : '—' },
+    { label: 'Workouts logged', c: 'teal', value: String(ts.completedCount ?? 0) },
+    { label: 'This week', c: 'violet', value: String(ts.thisWeekCount ?? 0) },
+    { label: 'Volume 7d', c: 'amber', s: 'volume', value: kVol(ts.volume7dLb ?? 0) },
+    { label: 'Avg RPE', c: 'coral', value: ts.avgRpe != null ? String(ts.avgRpe) : '—' },
   ];
   const trainingView = (
     <div>
@@ -39172,13 +39210,13 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
           <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{TR.weeklyFocus.primary}</div>
           <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45, marginTop: 5 }}>{TR.weeklyFocus.note}</div>
         </>
-      ))}
+      ), 'violet')}
       {station('Volume · 14 days', null, (
         <>
           {volDays.some((v) => v > 0) ? (
             <div ref={tVolRef} style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 96 }}>
-              {volDays.map((v, i) => { const hgt = v ? Math.max(6, (v / maxVol) * 100) : 3; const today = i === volDays.length - 1; return (
-                <div key={i} style={{ flex: 1, height: `${hgt}%`, minHeight: 3, background: v ? (today ? heat : bsTHexA(heat, 0.4)) : bsTHexA(t.INK, 0.07), transformOrigin: 'bottom', transform: (tVolSeen || reduced) ? undefined : 'scaleY(0)', animation: (tVolSeen && !reduced) ? `bsSdGrowY 480ms cubic-bezier(.4,0,.2,1) ${i * 40}ms both` : 'none' }} />
+              {volDays.map((v, i) => { const hgt = v ? Math.max(6, (v / maxVol) * 100) : 4; const today = i === volDays.length - 1; return (
+                <div key={i} style={{ flex: 1, height: `${hgt}%`, minHeight: 4, borderRadius: 5, background: v ? barFill('coral') : D.track, opacity: v && !today ? 0.7 : 1, boxShadow: v && today && !D.light ? `0 0 12px ${bsDashA(D.mark.coral, 0.5)}` : 'none', transformOrigin: 'bottom', transform: (tVolSeen || reduced) ? undefined : 'scaleY(0)', animation: (tVolSeen && !reduced) ? `bsSdGrowY 480ms cubic-bezier(.4,0,.2,1) ${i * 40}ms both` : 'none' }} />
               ); })}
             </div>
           ) : <BSTRedact INK={t.INK} size={9.5} label="Volume · nothing logged" />}
@@ -39188,7 +39226,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
             <BSTLedgerStat INK={t.INK} label="Avg RPE" value={String(ts.avgRpe ?? '—')} seen={tVolSeen} figSize={18} delay={180} />
           </div>
         </>
-      ))}
+      ), 'coral')}
       {station('Personal records', null, (TR.prs || []).length ? (TR.prs || []).map((p, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 10, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${hair}` : 0 }}>
           <span style={{ minWidth: 0 }}>
@@ -39197,82 +39235,73 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
           </span>
           {leader}
           <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{bsProgressLoad(t, p.value, p.unit || null).n} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{bsProgressLoad(t, p.value, p.unit || null).unit}</span></span>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: bsTHexA(t.INK, 0.7), whiteSpace: 'nowrap' }}><span aria-hidden style={{ color: heat }}>▴</span> {Number(p.deltaPct).toFixed(1)}%</span>
+          <span style={{ padding: '3px 8px', borderRadius: 999, background: bsDashA(D.mark.lime, D.light ? 0.12 : 0.16), fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: D.text.lime, whiteSpace: 'nowrap' }}><span aria-hidden>▴</span> {Number(p.deltaPct).toFixed(1)}%</span>
         </div>
-      )) : <BSTRedact INK={t.INK} size={9.5} label="PRs · not on record" />)}
+      )) : <BSTRedact INK={t.INK} size={9.5} label="PRs · not on record" />, 'coral')}
       {station('Muscle split', '14 days', (TR.muscleSplit || []).length
-        ? barRows((TR.muscleSplit || []).map((m) => ({ label: m.name, pct: (m.pct || 0) / Math.max(1, ...(TR.muscleSplit || []).map((x) => x.pct || 0)), fig: `${m.pct}%` })), tMusRef, tMusSeen)
-        : <BSTRedact INK={t.INK} size={9.5} label="Split · nothing logged" />)}
+        ? barRows((TR.muscleSplit || []).map((m) => ({ label: m.name, pct: (m.pct || 0) / Math.max(1, ...(TR.muscleSplit || []).map((x) => x.pct || 0)), fig: `${m.pct}%` })), tMusRef, tMusSeen, 'violet')
+        : <BSTRedact INK={t.INK} size={9.5} label="Split · nothing logged" />, 'violet')}
       {station('Recent sessions', null, (TR.recentSessions || []).length ? (TR.recentSessions || []).map((s, i) => (
         <div key={i} style={{ padding: '10px 0', borderTop: i ? `1px solid ${hair}` : 0 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK }}>{s.title}</span>
-            {s.prCount > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: bsTHexA(t.INK, 0.7) }}><span aria-hidden style={{ color: heat }}>▴</span> PR ×{s.prCount}</span>}
+            {s.prCount > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: D.text.lime }}><span aria-hidden>▴</span> PR ×{s.prCount}</span>}
           </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}><span>{s.durationMin}m</span>{s.volumeLb > 0 && <span>{kVol(s.volumeLb)}</span>}<span>RPE {s.avgRpe}</span><span>{s.exercises} ex</span></div>
         </div>
-      )) : <BSTRedact INK={t.INK} size={9.5} label="Sessions · none yet" />)}
+      )) : <BSTRedact INK={t.INK} size={9.5} label="Sessions · none yet" />, 'teal')}
     </div>
   );
 
   // ---------- NUTRITION ----------
   const today = NU.today || {}, targets = NU.targets || {};
-  const macroRow = (label, cur, tgt) => ({ label, pct: tgt ? Math.min(1, (cur || 0) / tgt) : 0, fig: `${cur != null ? Math.round(cur) : '—'}${tgt ? ` / ${Math.round(tgt)}` : ''}` });
+  const macroRow = (label, cur, tgt, c) => ({ label, c, pct: tgt ? Math.min(1, (cur || 0) / tgt) : 0, fig: `${cur != null ? Math.round(cur) : '—'}${tgt ? ` / ${Math.round(tgt)}` : ''}` });
   const wk = NU.week || []; const maxCal = Math.max(1, ...wk.map((d) => d.calories || 0), targets.calories || 0);
   const maxHyd = Math.max(1, ...(NU.hydration7d || []), 3);
   const nRegs = [
-    { label: 'Calories today', value: today.calories ? today.calories.toLocaleString() : '—', sub: targets.calories ? `Of ${targets.calories.toLocaleString()}` : null },
-    { label: 'Protein', value: today.protein != null ? today.protein + 'g' : '—', sub: targets.protein ? `Of ${targets.protein}g` : null },
-    { label: 'Days logged', value: `${NU.loggedDays7 || 0}/7`, sub: 'This week' },
-    { label: 'Adherent days', value: `${NU.adherentDays7 || 0}/7`, sub: 'Macros hit' },
+    { label: 'Calories today', c: 'amber', value: today.calories ? today.calories.toLocaleString() : '—', sub: targets.calories ? `Of ${targets.calories.toLocaleString()}` : null },
+    { label: 'Protein', c: 'coral', s: 'protein', value: today.protein != null ? today.protein + 'g' : '—', sub: targets.protein ? `Of ${targets.protein}g` : null },
+    { label: 'Days logged', c: 'teal', value: `${NU.loggedDays7 || 0}/7`, sub: 'This week' },
+    { label: 'Adherent days', c: 'lime', value: `${NU.adherentDays7 || 0}/7`, sub: 'Macros hit' },
   ];
   const nutritionView = (
     <div>
       {registers(nRegs, nRegRef, nRegSeen)}
       {station('Today vs target', null, barRows([
-        macroRow('Calories', today.calories, targets.calories),
-        macroRow('Protein', today.protein, targets.protein),
-        macroRow('Carbs', today.carbs, targets.carbs),
-        macroRow('Fat', today.fat, targets.fat),
-      ], nMacRef, nMacSeen))}
+        macroRow('Calories', today.calories, targets.calories, 'amber'),
+        macroRow('Protein', today.protein, targets.protein, 'coral'),
+        macroRow('Carbs', today.carbs, targets.carbs, 'teal'),
+        macroRow('Fat', today.fat, targets.fat, 'violet'),
+      ], nMacRef, nMacSeen), 'amber')}
       {station('Calories · this week', null, wk.length ? (
         <div ref={nWkRef} style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 88 }}>
           {wk.map((d, i) => { const hgt = d.calories ? Math.max(6, (d.calories / maxCal) * 100) : 3; return (
             <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, justifyContent: 'flex-end', height: '100%' }}>
-              <div style={{ width: '100%', height: `${hgt}%`, minHeight: 3, background: d.logged ? (d.adherent ? heat : bsTHexA(heat, 0.4)) : bsTHexA(t.INK, 0.07), transformOrigin: 'bottom', transform: (nWkSeen || reduced) ? undefined : 'scaleY(0)', animation: (nWkSeen && !reduced) ? `bsSdGrowY 480ms cubic-bezier(.4,0,.2,1) ${i * 50}ms both` : 'none' }} />
+              <div style={{ width: '100%', height: `${hgt}%`, minHeight: 4, borderRadius: 5, background: d.logged ? barFill('amber') : D.track, opacity: d.logged && !d.adherent ? 0.5 : 1, transformOrigin: 'bottom', transform: (nWkSeen || reduced) ? undefined : 'scaleY(0)', animation: (nWkSeen && !reduced) ? `bsSdGrowY 480ms cubic-bezier(.4,0,.2,1) ${i * 50}ms both` : 'none' }} />
               <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'][i] || ''}</span>
             </div>
           ); })}
         </div>
-      ) : <BSTRedact INK={t.INK} size={9.5} label="Week · nothing logged" />)}
+      ) : <BSTRedact INK={t.INK} size={9.5} label="Week · nothing logged" />, 'amber')}
       {station('Hydration · 7 days', 'L', (NU.hydration7d || []).length ? (
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 56 }}>
-          {(NU.hydration7d || []).map((v, i) => <div key={i} style={{ flex: 1, height: `${Math.max(4, (v / maxHyd) * 100)}%`, minHeight: 3, background: v ? bsTHexA(heat, 0.55) : bsTHexA(t.INK, 0.07) }} />)}
+          {(NU.hydration7d || []).map((v, i) => <div key={i} style={{ flex: 1, height: `${Math.max(6, (v / maxHyd) * 100)}%`, minHeight: 4, borderRadius: 5, background: v ? barFill('teal') : D.track }} />)}
         </div>
-      ) : <BSTRedact INK={t.INK} size={9.5} label="Hydration · not tracked" />)}
+      ) : <BSTRedact INK={t.INK} size={9.5} label="Hydration · not tracked" />, 'teal')}
       {station('Most-logged foods', null, (NU.topFoods || []).length ? (NU.topFoods || []).map((f, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '9px 0', borderTop: i ? `1px solid ${hair}` : 0 }}>
           <span style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK }}>{f.name}</span>
           {leader}
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: bsTHexA(t.INK, 0.6), fontVariantNumeric: 'tabular-nums' }}>{f.count}×{f.avgKcal ? ` · ~${f.avgKcal} kcal` : ''}</span>
         </div>
-      )) : <BSTRedact INK={t.INK} size={9.5} label="Foods · nothing logged" />)}
+      )) : <BSTRedact INK={t.INK} size={9.5} label="Foods · nothing logged" />, 'lime')}
     </div>
   );
 
   const TABS = [['overall', 'Overall'], ['training', 'Training'], ['nutrition', 'Nutrition']];
-  // Typographic index (Field Ledger): bare mono labels on a hairline, the active
-  // tab carries a 2px heat underline that draws in. Deliberately NOT sticky —
-  // BSDetailHeader already owns the sticky top on this page.
-  const tabRow = (
-    <div role="tablist" style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 8, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-      {TABS.map(([k, l]) => { const on = tab === k; return (
-        <button key={k} role="tab" aria-selected={on} onClick={() => setTab(k)} style={{ flex: 1, minWidth: 0, minHeight: 40, borderRadius: 6, border: 0, cursor: 'pointer', padding: '0 4px', background: on ? t.INK : 'transparent', color: on ? t.PAPER : bsTHexA(t.INK, 0.7), fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', transition: reduced ? 'none' : 'background .18s ease, color .18s ease' }}>
-          {l}
-        </button>
-      ); })}
-    </div>
-  );
+  // B's pills, the one shown filled in ink. Deliberately NOT sticky — BSPage's
+  // pinned masthead already owns the top on this page.
+  const tabRow = <BSDashSegment role="tab" options={TABS} value={tab} onChange={setTab} />;
   const tabBody = tab === 'overall' ? overallView : tab === 'training' ? trainingView : nutritionView;
   // Your mornings is Progress's own takeover, as the strength history is, so both of Progress's hosts
   // (Home and Settings) get it with nothing to wire, and its Back returns here on the same tab. It is
@@ -39285,8 +39314,8 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
       {strengthOpen && <BSStrengthHistory focusKey={strengthOpen.key || null} onClose={() => setStrengthOpen(null)} />}
       <BSDetailHeader onBack={onBack} title={<>Progress<span style={{ color: heat }}>.</span></>} />
       <BSClientNextPlate />
-      <div style={{ padding: `14px ${t.padX}px 0` }}>{tabRow}</div>
-      <div style={{ padding: `18px ${t.padX}px 28px` }}>{tabBody}</div>
+      <div style={{ padding: `12px ${t.padX}px 0` }}>{tabRow}</div>
+      <div style={{ padding: `12px ${t.padX}px 28px` }}>{tabBody}</div>
       <BSFooter right="Progress" />
     </BSPage>
   );

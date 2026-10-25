@@ -72,8 +72,8 @@ test('the module carries its own translator, bound the way the i18n ratchet reco
 test('the module imports react, the card, the readiness and patterns modules, and the card never imports it back', () => {
   // morningPatterns.mjs (part 3) counts What we've noticed: pure, so Nora's server read runs it too.
   const imports = [...page.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);
-  // bsMagazine.mjs (2026-10-24): the magazine's red for the range strip's underline.
-  assert.deepEqual(imports, ['react', './BSCheckinCard.jsx', '../services/morningReadiness.mjs', '../services/morningPatterns.mjs', './bsMagazine.mjs'], `unexpected imports: ${imports.join(', ')}`);
+  // BSDash.jsx (2026-10-25): B's cards, ring, pills and colours, which Progress draws with too.
+  assert.deepEqual(imports, ['react', './BSCheckinCard.jsx', '../services/morningReadiness.mjs', '../services/morningPatterns.mjs', './BSDash.jsx'], `unexpected imports: ${imports.join(', ')}`);
   // react-dom is stubbed as { createPortal } in the client harnesses; the page needs none of it.
   assert.doesNotMatch(page, /from 'react-dom/);
   const cardImports = [...card.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);
