@@ -56,7 +56,7 @@ function bsHwByDay(series) {
 //   · protein and steps: the daily average over the days that have a reading;
 //   · mornings: mornings checked in, by the check-in card's own rule (`answered`), when given.
 // A figure nothing could read is null, so the row says "—" rather than a zero it does not know.
-export function bsHomeWeekSoFar({ todayIso, series = null, workoutsDone = null, workoutsPlanned = null, proteinTarget = null, stepGoal = null, answered = null, trainedDays = null, plannedDays = null } = {}) {
+export function bsHomeWeekSoFar({ todayIso, series = null, workoutsDone = null, workoutsPlanned = null, proteinTarget = null, stepGoal = null, answered = null, trainedDays = null, plannedDays = null, planRead = false } = {}) {
   const days = bsHwWeekDays(todayIso);
   const read = !!series;
   const cal = bsHwByDay(series && series.calories);
@@ -77,7 +77,7 @@ export function bsHomeWeekSoFar({ todayIso, series = null, workoutsDone = null, 
     protein: { avg: read ? avg(pro) : null, target: num(proteinTarget) },
     steps: { avg: read ? avg(st) : null, goal: num(stepGoal) },
     mornings: read && typeof answered === 'function' ? days.filter((d) => answered(d)).length : null,
-    grid: bsHwWeekGrid({ todayIso, read, cal, pro, st, proteinTarget: num(proteinTarget), stepGoal: num(stepGoal), answered, trainedDays, plannedDays }),
+    grid: bsHwWeekGrid({ todayIso, read, cal, pro, st, proteinTarget: num(proteinTarget), stepGoal: num(stepGoal), answered, trainedDays, plannedDays, planRead }),
   };
 }
 
@@ -86,29 +86,32 @@ export function bsHomeWeekSoFar({ todayIso, series = null, workoutsDone = null, 
 //   · 'hit': trained; food logged; protein or steps at the target (without a target, any reading);
 //     checked in;
 //   · 'miss': a day gone by without it (for sessions, only a day the plan set a session on);
-//   · 'rest': a day gone by with no session set and none trained (sessions only);
+//   · 'rest': a day gone by with no session set and none trained (sessions only), once the plan was
+//     read: a plan read that failed or hasn't landed leaves those days null, since it may have set
+//     sessions on them (Codex P2 on #2449);
 //   · 'ahead': today until it is hit, and the days after it, so a day still under way never reads
 //     as missed;
 //   · null: nothing could be read, so the square says nothing rather than "missed".
-// `trainedDays` are the days trained (ShapeCommit's), `plannedDays` the plan's seven, Monday first.
-export function bsHwWeekGrid({ todayIso, read = false, cal = new Map(), pro = new Map(), st = new Map(), proteinTarget = null, stepGoal = null, answered = null, trainedDays = null, plannedDays = null } = {}) {
+// `trainedDays` are the days trained (ShapeCommit's), `plannedDays` the plan's seven, Monday first (null
+// with no training plan), and `planRead` whether the plan read succeeded.
+export function bsHwWeekGrid({ todayIso, read = false, cal = new Map(), pro = new Map(), st = new Map(), proteinTarget = null, stepGoal = null, answered = null, trainedDays = null, plannedDays = null, planRead = false } = {}) {
   const so = bsHwWeekDays(todayIso);
   if (!so.length) return null;
   const week = Array.from({ length: 7 }, (_, i) => bsHwShift(so[0], i));
   const trained = Array.isArray(trainedDays) ? new Set(trainedDays.map((d) => String(d).slice(0, 10))) : null;
   const planned = Array.isArray(plannedDays) && plannedDays.length === 7 ? plannedDays.map(Boolean) : null;
-  const row = (known, hit, missable = () => true) => week.map((d, i) => {
+  const row = (known, hit, gone = () => 'miss') => week.map((d, i) => {
     if (d > todayIso) return 'ahead';
     if (!known) return null;
     if (hit(d, i)) return 'hit';
     if (d === todayIso) return 'ahead';
-    return missable(d, i) ? 'miss' : 'rest';
+    return gone(d, i);
   });
   const atLeast = (m, goal) => (d) => { const v = m.get(d); return v != null && (goal == null || v >= goal); };
   return {
     week,
     today: week.indexOf(todayIso),
-    sessions: row(!!trained, (d) => trained.has(d), (d, i) => !!(planned && planned[i])),
+    sessions: row(!!trained, (d) => trained.has(d), (d, i) => (!planRead ? null : planned && planned[i] ? 'miss' : 'rest')),
     food: row(read, (d) => cal.has(d)),
     protein: row(read, atLeast(pro, proteinTarget)),
     steps: row(read, atLeast(st, stepGoal)),

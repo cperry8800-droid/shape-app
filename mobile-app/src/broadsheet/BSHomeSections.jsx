@@ -225,7 +225,7 @@ function bsHsDemoWeek(todayIso) {
     todayIso, read: true,
     cal: new Map(on('food').map((d) => [d, 1900])),
     pro: map('protein', 150, 104), st: map('steps', 9200, 5400), proteinTarget: 140, stepGoal: 8000,
-    answered: (d) => on('mornings').includes(d), trainedDays: on('sessions'), plannedDays: BS_HS_DEMO.planned.map(Boolean),
+    answered: (d) => on('mornings').includes(d), trainedDays: on('sessions'), plannedDays: BS_HS_DEMO.planned.map(Boolean), planRead: true,
   });
   return {
     days: so.length,
@@ -238,7 +238,7 @@ function bsHsDemoWeek(todayIso) {
   };
 }
 
-export function BSHomeWeekSoFar({ sessionsPlanned = null, plannedDays = null, proteinTarget = null, stepGoal = null, ...view }) {
+export function BSHomeWeekSoFar({ sessionsPlanned = null, plannedDays = null, planRead = false, proteinTarget = null, stepGoal = null, ...view }) {
   const signedIn = bsHsSignedIn();
   // The week the reads are for: Home left open across Sunday into Monday reads the new week, and each
   // read is kept with its Monday and used only in that week (bsHwOfWeek), so last week's figures
@@ -272,7 +272,7 @@ export function BSHomeWeekSoFar({ sessionsPlanned = null, plannedDays = null, pr
     ? bsHomeWeekSoFar({
       todayIso, series: weekSeries, workoutsDone: bsHwOfWeek(trained, monday), workoutsPlanned: sessionsPlanned, proteinTarget, stepGoal,
       answered: (iso) => bsCiAnswered(bsCiDay(weekSeries, iso)),
-      trainedDays: trained && trained.monday === monday ? trained.days : null, plannedDays,
+      trainedDays: trained && trained.monday === monday ? trained.days : null, plannedDays, planRead,
     })
     : bsHsDemoWeek(todayIso);
   return <BSHomeWeekView w={w} {...view} />;

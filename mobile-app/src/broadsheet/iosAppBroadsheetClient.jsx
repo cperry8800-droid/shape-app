@@ -4465,12 +4465,16 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const [livePlan, setLivePlan] = useStateBSC(null);
   // The coaches the member pays, off the same read, plan or no plan (From your coaches).
   const [planCoaches, setPlanCoaches] = useStateBSC([]);
+  // Whether that read came back. ShapePlan.get resolves null when it fails, which looks like no plan,
+  // so Week so far calls an untrained day a rest day only once the plan was read (Codex P2 on #2449).
+  const [planRead, setPlanRead] = useStateBSC(false);
   React.useEffect(() => {
     let on = true;
     if (window.ShapePlan?.get) {
       window.ShapePlan.get().then((p) => {
         if (on && p && ((p.training && p.training.hasPlan) || (p.meals && p.meals.hasPlan))) setLivePlan(p);
         if (on && p) setPlanCoaches(bsHomeCoachesOf(p));
+        if (on && p && p.ok === true) setPlanRead(true);
       }).catch(() => {});
     }
     return () => { on = false; };
@@ -5283,7 +5287,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       <BSHomeGoal tour="hero-goal" demo={bsHomeSignedIn ? null : BS_GOALS_DEFAULT} docKg={bsGoalDocKg} isWeightGoal={bsPrimaryGoalIsWeight}
         goalWords={(id) => bsPrimaryGoalLabel(id, tr)} onOpen={() => setGoalsPage(true)} />
       <BSHomeWeekSoFar
-        sessionsPlanned={bsHomeSessionsPlanned(livePlan)} plannedDays={bsHomeSessionsPlannedDays(livePlan)}
+        sessionsPlanned={bsHomeSessionsPlanned(livePlan)} plannedDays={bsHomeSessionsPlannedDays(livePlan)} planRead={planRead}
         proteinTarget={ticker && typeof ticker.protein_target === 'number' ? ticker.protein_target : null}
         stepGoal={stepsToday.goal} checkinsOn={checkinPrefOn}
         onTrain={() => goTrain?.()} onEat={() => goEat()} onProgress={() => setHomeProgressPage(true)}

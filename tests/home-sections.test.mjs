@@ -392,7 +392,7 @@ test('the week grid: a square a day for each row, today never missed, a session 
     steps: [{ date: '2026-10-20', value: 8000 }, { date: '2026-10-21', value: 7999 }],
   };
   const w = H.bsHomeWeekSoFar({ todayIso: '2026-10-22', series, proteinTarget: 140, stepGoal: 8000, answered: (d) => d === '2026-10-20',
-    trainedDays: ['2026-10-19', '2026-10-18'], plannedDays: [true, false, true, true, false, true, false] });
+    trainedDays: ['2026-10-19', '2026-10-18'], plannedDays: [true, false, true, true, false, true, false], planRead: true });
   const g = w.grid;
   assert.deepEqual(g.week, ['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25']);
   assert.equal(g.today, 3);
@@ -404,8 +404,14 @@ test('the week grid: a square a day for each row, today never missed, a session 
   // Without a target, a protein or steps square is a day with a reading.
   const free = H.bsHomeWeekSoFar({ todayIso: '2026-10-22', series }).grid;
   assert.deepEqual(free.protein.slice(0, 3), ['hit', 'hit', 'miss']);
-  // No plan read: an untrained day rests, never "missed" against a plan nobody has.
-  assert.deepEqual(H.bsHomeWeekSoFar({ todayIso: '2026-10-22', series, trainedDays: [] }).grid.sessions.slice(0, 3), ['rest', 'rest', 'rest']);
+  // The plan read with no training plan: an untrained day rests, never "missed" against a plan nobody has.
+  assert.deepEqual(H.bsHomeWeekSoFar({ todayIso: '2026-10-22', series, trainedDays: [], planRead: true }).grid.sessions.slice(0, 3), ['rest', 'rest', 'rest']);
+  // The plan read failed or hasn't landed (Codex P2 on #2449): a day trained still says so, today is
+  // still to come, and a day gone by untrained says nothing, since the plan may have set a session on it.
+  const unread = H.bsHomeWeekSoFar({ todayIso: '2026-10-22', series, trainedDays: ['2026-10-20'] }).grid.sessions;
+  assert.deepEqual(unread, [null, 'hit', null, 'ahead', 'ahead', 'ahead', 'ahead']);
+  assert.deepEqual(H.bsHomeWeekSoFar({ todayIso: '2026-10-22', series, trainedDays: ['2026-10-20'], plannedDays: [true, true, true, true, true, true, true] }).grid.sessions, unread,
+    'without a read, planned days are not taken on trust either');
   // Nothing read: no square says missed.
   const none = H.bsHomeWeekSoFar({ todayIso: '2026-10-22' }).grid;
   for (const k of ['sessions', 'food', 'protein', 'steps', 'mornings']) {
@@ -427,6 +433,11 @@ test('the days trained and the plan\'s days come off their reads, and a failed r
   // The backend's read hands the days back with the count.
   const backend = readFileSync(join(ROOT, 'mobile-app', 'src', 'services', 'shapeBackend.js'), 'utf8');
   assert.match(backend, /return \{ workouts: days\.size, days: \[\.\.\.days\]\.sort\(\),/);
+  // Home tells the section whether the plan read came back: ShapePlan.get resolves null when it fails.
+  const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(client, /const \[planRead, setPlanRead\] = useStateBSC\(false\);/);
+  assert.match(client, /if \(on && p && p\.ok === true\) setPlanRead\(true\);/);
+  assert.match(client, /plannedDays=\{bsHomeSessionsPlannedDays\(livePlan\)\} planRead=\{planRead\}/);
 });
 
 // The signed-out preview's sample is one week, and its counts are its own squares' hits so far.
@@ -520,7 +531,7 @@ test('Week so far uses a read only in the week it was read for (Codex P2s on #24
   const src = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSHomeSections.jsx'), 'utf8');
   assert.match(src, /setSeries\(\{ monday, v: bsHwSeriesOf\(p\) \}\)/);
   assert.match(src, /setTrained\(\{ monday, v: bsHwTrainedOf\(p\), days: bsHwTrainedDaysOf\(p\) \}\)/);
-  assert.match(src, /trainedDays: trained && trained\.monday === monday \? trained\.days : null, plannedDays,/);
+  assert.match(src, /trainedDays: trained && trained\.monday === monday \? trained\.days : null, plannedDays, planRead,/);
   assert.match(src, /const weekSeries = bsHwOfWeek\(series, monday\);/);
   assert.match(src, /series: weekSeries, workoutsDone: bsHwOfWeek\(trained, monday\),/);
   assert.match(src, /answered: \(iso\) => bsCiAnswered\(bsCiDay\(weekSeries, iso\)\)/);
