@@ -624,6 +624,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'A thinner nav bar, and the Wall without THE WALL\'s masthead — #2454. No migration',
+      items: [
+        { label: 'Owner, 2026-10-25: "make the nav bar a little smaller, not as thick". The capsule is 50px (was 60), the gem 30 (was 36), the icons 21 (was 24) with their optical nudges scaled, the Me face 24 / 20 on the gem, and the unread pill 15px; BS_TABBAR_H is 68 (was 78). Every icon\'s pixel centroid measures within 0.6px of the gem\'s centre on light paper', status: 'done' },
+        { label: 'Owner, of the chat page\'s Wall: "remove this header in chat page" and "clean this up". THE WALL over its heavy rule and the day with "N training now" are gone; BSWallMasthead is BSWallTypes, the activity types alone under the Wall / Client / Community switch, then the live story. feed:wallMast.title and .trainingNow leave all 13 catalogs', status: 'done' },
+        { label: 'Review: Codex clean on 34002d6. CodeRabbit not run. tests/app-chrome-magazine-tabbar pins the new sizes and the scaled nudges; tests/wall-story pins the type row with no masthead and no wallMast key; CI green on all four jobs', status: 'done' },
+        { label: 'Device pass: the thinner bar on a phone with a home indicator, light and dark', status: 'manual' },
+        { label: 'The Team tab still opens on its own COACHES / FRIENDS masthead (THE WALL\'s grammar)', status: 'pending' },
+      ],
+    },
+    {
       section: 'A meal plan that wasn\'t read: Eat\'s Fuel left reads "—", not 0 kcal, and website Nutrition shows no demo menu — #2453. No migration',
       items: [
         { label: 'Owner, 2026-10-25: "fix the Eat Fuel left 0 kcal on a failed read" and "fix the website Nutrition demo menu on a failed read" (both left open by #2452)', status: 'done' },

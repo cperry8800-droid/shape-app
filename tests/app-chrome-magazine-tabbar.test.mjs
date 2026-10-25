@@ -82,9 +82,10 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     assert.ok(bar, 'no tab bar');
     assert.equal(bar.tagName, 'NAV');
     assert.equal(bar.style.pointerEvents, 'auto');
-    // A 60px capsule of paper at about 60% (the page shows through; owner, 2026-10-24: "make nav bar a
-    // little transparent"), with a soft neutral shadow.
-    assert.equal(bar.style.height, '60px');
+    // A 50px capsule (owner, 2026-10-25: "make the nav bar a little smaller, not as thick"; it was 60) of
+    // paper at about 60% (the page shows through; owner, 2026-10-24: "make nav bar a little transparent"),
+    // with a soft neutral shadow.
+    assert.equal(bar.style.height, '50px');
     assert.equal(bar.style.borderRadius, '999px');
     assert.ok(sameColor(bar.style.background, `${theme.PAPER}99`), 'paper at about 60%');
     assert.doesNotMatch(bar.style.background, /gradient/);
@@ -92,14 +93,14 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     // The selected tab's gem: an ink square turned 45° with the facet's rounded corners, centred on the
     // chat tab (the fourth of five, so three and a half slots in), with no glow.
     const mark = bar.querySelector('[data-bs-tab-mark]');
-    assert.equal(mark.style.width, '36px');
-    assert.equal(mark.style.height, '36px');
+    assert.equal(mark.style.width, '30px');
+    assert.equal(mark.style.height, '30px');
     assert.equal(mark.style.borderRadius, '27%');
     assert.equal(mark.style.transform, 'rotate(45deg)');
     assert.ok(sameColor(mark.style.background, theme.INK), 'the gem is ink');
     assert.equal(mark.style.boxShadow, '');
-    // (jsdom folds the 9px of padding and the gem's half-width into one term: 9px - 18px.)
-    assert.match(mark.getAttribute('style'), /left: calc\(-9px \+ 3\.5 \* /, 'the gem sits on the chat tab');
+    // (jsdom folds the 9px of padding and the gem's half-width into one term: 9px - 15px.)
+    assert.match(mark.getAttribute('style'), /left: calc\(-6px \+ 3\.5 \* /, 'the gem sits on the chat tab');
     // Icons only: each tab is named for a screen reader and prints no label; the chat tab's name carries
     // its unread count, and only the selected tab is the current page. The selected one is filled in the
     // paper on its gem; the others are grey line icons with nothing filled.
@@ -152,7 +153,7 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
         assert.equal(p.initial, 'QH');
         // On the gem it is framed in the paper and a little smaller, so it sits inside the gem.
         assert.equal(p.c, active === 'me' ? theme.PAPER : `rgba(${theme.inkRGB},0.32)`);
-        assert.equal(p.size, active === 'me' ? 24 : 28);
+        assert.equal(p.size, active === 'me' ? 20 : 24);
         assert.equal(p.onClick, undefined, 'the tab is the button, not the face');
         await unmount();
       }
@@ -174,12 +175,12 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
       await draw('radio');
       const mark = host.querySelector('[data-bs-tab-mark]');
       assert.equal(mark.style.opacity, '0', 'the gem shows with no tab selected');
-      assert.match(mark.getAttribute('style'), /left: calc\(-9px \+ 3\.5 \* /, 'the gem jumped to Home as it faded');
+      assert.match(mark.getAttribute('style'), /left: calc\(-6px \+ 3\.5 \* /, 'the gem jumped to Home as it faded');
       assert.equal(host.querySelectorAll('button[aria-current="page"]').length, 0);
       assert.equal(host.querySelectorAll('svg [fill="currentColor"]').length, 0, 'an icon is filled with no tab selected');
       await draw('home');
       assert.equal(mark.style.opacity, '1');
-      assert.match(mark.getAttribute('style'), /left: calc\(-9px \+ 0\.5 \* /, 'the gem is not on Home');
+      assert.match(mark.getAttribute('style'), /left: calc\(-6px \+ 0\.5 \* /, 'the gem is not on Home');
       assert.equal(host.querySelector('button[data-tour="tab-home"]').getAttribute('aria-current'), 'page');
     } finally {
       await act(async () => root.unmount());
@@ -198,9 +199,9 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     assert.match(bar, /paddingBottom: BS_DOCK_BOTTOM_CSS,/);
     // A filled icon's inner marks (the coach's Today and Plans) are cut in the gem's ink when selected.
     assert.match(bar, /filled=\{on\} cut=\{on \? t\.INK : t\.PAPER\}/);
-    // 60px of capsule, 6px above it, and under it 12px or the home indicator's inset less 10px.
-    assert.equal(window.BS_TABBAR_H, 78);
-    assert.equal(window.BS_TABBAR_CSS, 'calc(66px + max(12px, calc(env(safe-area-inset-bottom, 0px) - 10px)))');
+    // 50px of capsule, 6px above it, and under it 12px or the home indicator's inset less 10px.
+    assert.equal(window.BS_TABBAR_H, 68);
+    assert.equal(window.BS_TABBAR_CSS, 'calc(56px + max(12px, calc(env(safe-area-inset-bottom, 0px) - 10px)))');
     // What stands on the tab bar stands on the same height.
     for (const f of ['iosAppBroadsheetClient.jsx', 'iosAppBroadsheetPros.jsx']) {
       const s = readFileSync(join(ROOT, 'mobile-app/src/broadsheet', f), 'utf8');
@@ -219,7 +220,7 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
       window.Element.prototype.getBoundingClientRect = function () { return { height: measured, width: 0, top: 0, left: 0, right: 0, bottom: 0 }; };
       measured = 0;
       const a = await mount(React.createElement(Probe), paperMode);
-      assert.equal(seen[seen.length - 1], 78, 'nothing measured: the height without an inset');
+      assert.equal(seen[seen.length - 1], 68, 'nothing measured: the height without an inset');
       await a.unmount();
       measured = 90;
       const b = await mount(React.createElement(Probe), paperMode);
@@ -290,7 +291,9 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
 // its painted weight (the centroid of its pixels, measured in the gem on the built app) sits on the gem's
 // centre; an unselected line icon is never moved.
 test('the selected icon is optically centred in the gem, and only the selected one moves', async () => {
-  const NUDGE = { home: '0px, -1.25px', train: '0.5px, 0px', eat: '1px, 0.5px', chat: '-0.5px, 1.75px', today: '0px, -1px', clients: '1.75px, -1.25px' };
+  // Measured on a 24px icon, so the nudge scales with the bar's 21px icon.
+  const AT24 = { home: [0, -1.25], train: [0.5, 0], eat: [1, 0.5], chat: [-0.5, 1.75], today: [0, -1], clients: [1.75, -1.25] };
+  const NUDGE = Object.fromEntries(Object.entries(AT24).map(([k, [x, y]]) => [k, `${(x * 21) / 24}px, ${(y * 21) / 24}px`]));
   const COACH = [
     { key: 'today', label: 'Today' }, { key: 'clients', label: 'Clients' }, { key: 'programs', label: 'Programs' },
     { key: 'chat', label: 'Chat' }, { key: 'me', label: 'Me' },
