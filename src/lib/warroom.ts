@@ -615,6 +615,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'A meal plan that wasn\'t read: Eat\'s Fuel left reads "—", not 0 kcal, and website Nutrition shows no demo menu — #2453. No migration',
+      items: [
+        { label: 'Owner, 2026-10-25: "fix the Eat Fuel left 0 kcal on a failed read" and "fix the website Nutrition demo menu on a failed read" (both left open by #2452)', status: 'done' },
+        { label: 'Fuel left (BSEatFuel.jsx) takes unread while the meals read hasn\'t answered or failed: what is left "—", no eaten line or bar, and the tiles disabled; a coach\'s Adjust target still reads, a 0 g one too (calTargetKnown, gKnown from bsEatCoachSet). The coach link names no 0 kcal target. A member with no plan is unchanged', status: 'done' },
+        { label: 'Website Nutrition (dashNutri.jsx): a member\'s failed plan read makes the page live with "Couldn’t load your meal plan" and Try again, not the demo menu. An answer with meals.read false always counts; a request with no answer counts only when signed in (the dashboard\'s ShapePortalSession reading first, then the Supabase session); the gate\'s 401, 402 and 403 keep the preview', status: 'done' },
+        { label: 'Review: Codex clean on 13352dc; on 7258ff0 (P2: a visitor\'s 429 or lost connection lost the preview; fixed in 14c63ac, a session is needed), on 14c63ac (P2: a coach\'s 0 g target read "—"; fixed in 08a7c7b) and on 08a7c7b (P2: a cookie-only member\'s session read hits the same rate limit; fixed in 139b7cf, the portal reading first); clean on 139b7cf. CodeRabbit not run. The Web job on 08a7c7b failed on the Google font fetch in next build (not this PR\'s; commented). focus-layout and plan-read-failed, the new tests failing on the code before them; every dashNutri suite (63); the /m/ build; Chromium render of Fuel left; CI green on all four jobs', status: 'done' },
+        { label: 'Website Nutrition with a failing plan read rendered in a browser, signed in and signed out (the container could not serve ClientNutri.html with its session and CDN scripts)', status: 'manual' },
+      ],
+    },
+    {
       section: 'The Train page\'s Streak and Volume · 14 days read real days; one day streak for Train and the dashboard — #2451. No migration',
       items: [
         { label: 'Owner, 2026-10-25: "fix the train page streak and volume too" (left open in #2445). The Train page read /api/client/train\'s stats.currentStreak and volumeByDay, which the route never sent, so every signed-in member saw "0d" and "Volume · nothing logged"', status: 'done' },
@@ -634,7 +644,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Website Workouts and Nutrition: "Couldn’t load your program" / "…your meal plan" with Try again in place of the no-plan plates; the coach-preparing plates are unchanged', status: 'done' },
         { label: 'Review: Codex clean on 64a424b. CodeRabbit not run. tests/plan-read-failed (8: Train\'s and Eat\'s loaders run as they ship against stub reads, the block mounted in jsdom, the route, the website, 13 locales; six fail on main, two cover new files); npm test 8,411/8,415 with the 4 failures this change caused fixed; tsc clean; Chromium renders of Train and Eat on both papers; CI green on all four jobs', status: 'done' },
         { label: 'Device pass: Train and Eat with the network off on a phone, then Try again with it back', status: 'manual' },
-        { label: 'Eat\'s Fuel left reads "0 kcal plan" on a failed read, as for a member with no plan; website Nutrition shows the demo menu when the plan read fails, nothing is logged and no coach is known (dnuSourceOf)', status: 'pending' },
+        { label: 'Eat\'s Fuel left reads "0 kcal plan" on a failed read, as for a member with no plan; website Nutrition shows the demo menu when the plan read fails, nothing is logged and no coach is known (dnuSourceOf). Done in #2453', status: 'done' },
       ],
     },
     {

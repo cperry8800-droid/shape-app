@@ -137,10 +137,68 @@ test('the website: a failed read says so on Workouts and Nutrition, and reads ag
   assert.match(train, /setPlanFailed\(dtrPlanFailed\(pl\)\);/);
   assert.match(train, /\{weeks\.length === 0 && anytime\.length === 0 && live && planFailed && \(\s+<div data-dtr-plan-failed[\s\S]{0,700}?onClick=\{reloadAll\}[^>]*>Try again ↻<\/button>/);
   assert.match(train, /\{weeks\.length === 0 && anytime\.length === 0 && !\(live && planFailed\) && \(/, '"No program assigned yet" only when the read answered');
-  assert.match(nutri, /setPlanFailed\(dnuPlanFailed\(pl\)\);/);
+  assert.match(nutri, /setPlanFailed\(dnuMemberReadFailed\(pl, plRes\.status, signedIn\)\);/);
+  assert.match(nutri, /setSource\(dnuSourceOf\(pl, nu, plRes\.status, signedIn\)\);/);
+  assert.match(nutri, /\.then\(async \(r\) => \(\{ status: r\.status, body: r\.ok \? await r\.json\(\)\.catch\(\(\) => null\) : null \}\)\)\s+\.catch\(\(\) => \(\{ status: 0, body: null \}\)\);/, 'no network is status 0');
   assert.match(nutri, /\}, \[reloadTick\]\);/);
   assert.match(nutri, /const failedPlate = live && planFailed \? \(\s+<div data-dnu-plan-failed[\s\S]{0,900}?onClick=\{\(\) => setReloadTick\(\(n\) => n \+ 1\)\}[^>]*>Try again ↻<\/button>/);
   assert.match(nutri, /\{ key: "noplan", title: "No meal plan yet", size: "full", render: \(\) => failedPlate \|\| \(/);
+});
+
+// Owner, 2026-10-25: "fix the website Nutrition demo menu on a failed read". A member with no coach known
+// and nothing logged got the demo menu, under the demo band, when their plan read failed. The gate
+// answers 401, 402 or 403 to a caller who isn't a signed-in member, so those keep the preview; any other
+// failure is the member's own plan not loading, and the page is live, saying so.
+test('website Nutrition: a member\'s failed plan read is live, not the demo menu', () => {
+  const nutri = read('public/newdesign/dashNutri.jsx');
+  const f = new Function(slice(nutri, 'function dnuSourceOf(', 'function ClientNutritionPage(') + ';return { dnuSourceOf, dnuMemberReadFailed };')();
+  const nothingLogged = { ok: true, today: null };
+  const noCoach = { ok: true, meals: { hasPlan: false, read: true, coaching: null } };
+  const mealsFailed = { ok: true, meals: { hasPlan: false, read: false, coaching: null } };
+  // The route answered, so the caller is a member, but its meal plan read failed: live, session or not.
+  for (const signedIn of [true, false]) {
+    assert.equal(f.dnuMemberReadFailed(mealsFailed, 200, signedIn), true);
+    assert.equal(f.dnuSourceOf(mealsFailed, nothingLogged, 200, signedIn), 'live');
+  }
+  // No answer, with a session: the member's own read failing.
+  for (const [status, why] of [[500, 'a server error'], [429, 'rate-limited'], [0, 'no network']]) {
+    assert.equal(f.dnuMemberReadFailed(null, status, true), true, why);
+    assert.equal(f.dnuSourceOf(null, nothingLogged, status, true), 'live', `${why}: not the demo menu`);
+    assert.equal(f.dnuSourceOf(null, null, status, true), 'live', `${why}, the nutrition read failing too`);
+    // Without one (Codex P2 on #2453): the rate limiter and a lost connection reach visitors too.
+    assert.equal(f.dnuMemberReadFailed(null, status, false), false, `${why}, signed out`);
+    assert.equal(f.dnuSourceOf(null, null, status, false), 'demo', `${why}, signed out: the preview`);
+  }
+  // The gate's refusals keep the preview, session or not.
+  for (const status of [401, 402, 403]) {
+    for (const signedIn of [true, false]) {
+      assert.equal(f.dnuMemberReadFailed(null, status, signedIn), false, String(status));
+      assert.equal(f.dnuSourceOf(null, null, status, signedIn), 'demo', String(status));
+    }
+  }
+  // A read that answered is as before: no coach and nothing logged is the preview; a coach is live.
+  assert.equal(f.dnuMemberReadFailed(noCoach, 200, true), false);
+  assert.equal(f.dnuSourceOf(noCoach, nothingLogged, 200, true), 'demo');
+  assert.equal(f.dnuSourceOf({ ok: true, meals: { hasPlan: false, read: true, coaching: { name: 'Maya' } } }, nothingLogged, 200, true), 'live');
+  assert.equal(f.dnuSourceOf(null, null), 'demo', 'no status: as before');
+  // The page reads whether it is signed in alongside the two reads.
+  assert.match(nutri, /const \[plRes, nu, signedIn\] = await Promise\.all\(\[jStatus\("\/api\/client\/plan"\), j\("\/api\/client\/nutrition"\), dnuSignedIn\(\)\]\);/);
+});
+
+test('website Nutrition: signed in is the dashboard\'s account reading first, then the Supabase session', async () => {
+  const nutri = read('public/newdesign/dashNutri.jsx');
+  const make = (win) => new Function('window', slice(nutri, 'function dnuSignedIn(', 'function ClientNutritionPage(') + ';return dnuSignedIn;')(win);
+  let asked = 0;
+  const shapeDb = (answer) => ({ getSession: () => { asked++; return typeof answer === 'function' ? answer() : Promise.resolve(answer); } });
+  // Codex P2 on #2453: the dashboard's cached /api/me reading needs no request, so a 429 can't refuse it.
+  assert.equal(await make({ ShapePortalSession: { peek: () => ({ user: { id: 'u1' } }) }, shapeDb: shapeDb(null) })(), true);
+  assert.equal(asked, 0, 'no session request when the dashboard already read the account');
+  // Without it, the Supabase session decides; one that fails, or none, is signed out.
+  assert.equal(await make({ ShapePortalSession: { peek: () => null }, shapeDb: shapeDb({ user: { id: 'u1' } }) })(), true);
+  assert.equal(await make({ shapeDb: shapeDb({ user: { id: 'u1' } }) })(), true, 'the standalone page has no portal reading');
+  assert.equal(await make({ shapeDb: shapeDb(null) })(), false);
+  assert.equal(await make({ shapeDb: shapeDb(() => Promise.reject(new Error('429'))) })(), false);
+  assert.equal(await make({})(), false, 'no auth client at all');
 });
 
 // The block, mounted with the shipping module.
