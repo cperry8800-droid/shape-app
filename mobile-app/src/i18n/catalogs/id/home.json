@@ -462,5 +462,15 @@
   "coaches.unread": "{n} baru",
   "coaches.nextSession": "Sesi berikutnya",
   "coaches.messageTrainer": "Kirim pesan ke pelatihmu",
-  "coaches.messageNutritionist": "Kirim pesan ke ahli gizimu"
+  "coaches.messageNutritionist": "Kirim pesan ke ahli gizimu",
+  "shortcut.title": "Pintasan",
+  "shortcut.progressSub": "Catatanmu sejauh ini",
+  "shortcut.scoreSub": "Poin dan tingkat",
+  "shortcut.findCoach": "Cari pelatih",
+  "shortcut.findCoachSub": "Pelatih dan ahli gizi",
+  "shortcut.kicker": "Langsung ke",
+  "shortcut.groceryList": "Daftar belanja",
+  "shortcut.grocerySub": "Belanja minggu ini",
+  "shortcut.devices": "Jam & aplikasi",
+  "shortcut.devicesSub": "Hubungkan langkah dan tidurmu"
 }

@@ -89,16 +89,28 @@ test('the row mapping keeps the flag, true only for a client the roster said is 
   assert.equal(marcus._sig.sev, 'red');
 });
 
-test('a retrying client keeps their station and carries "Payment retrying", in NEEDS YOU and in ON TRACK; nobody else does', async () => {
+// The roster's tabs (the Clients mockup C, 2026-10-25): Needs you, On track, Past. A tab is a
+// role="tab" button; the second is On track.
+const openTab = async (host, i) => { await React.act(async () => { host.querySelectorAll('[role="tab"]')[i].click(); }); };
+
+test('a retrying client keeps their station and carries "Payment retrying", in Needs you and in On track; nobody else does', async () => {
   locale = 'en';
   const m = await mount(rows());
   try {
-    const heads = [...m.host.querySelectorAll('[data-station-head]')].map((e) => e.getAttribute('data-station-head'));
-    assert.ok(heads.some((h) => /NEEDS YOU · 2/.test(h)) && heads.some((h) => /ON TRACK · 2/.test(h)), heads.join(' | '));
-    for (const name of ['Priya Shah', 'Marcus Tran', 'Ana Reyes', 'Ben Tal']) assert.ok(rowOf(m.host, name), name + ' is on the roster');
-    assert.deepEqual(['Priya Shah', 'Marcus Tran', 'Ana Reyes', 'Ben Tal'].map((n) => marked(m.host, n)), [true, true, false, false]);
+    // Needs you (two red clients): their group, their rows, the mark on the retrying one only.
+    assert.equal(m.host.querySelector('[role="tablist"]').getAttribute('data-roster-view'), 'needs');
+    const red = m.host.querySelector('[data-roster-group="red"]');
+    assert.ok(red && /· 2/.test(red.textContent), 'two to reach out to today');
+    assert.deepEqual(['Marcus Tran', 'Ben Tal'].map((n) => !!rowOf(m.host, n)), [true, true]);
+    assert.deepEqual(['Priya Shah', 'Ana Reyes'].map((n) => !!rowOf(m.host, n)), [false, false], 'on-track clients are on their own tab');
+    assert.deepEqual(['Marcus Tran', 'Ben Tal'].map((n) => marked(m.host, n)), [true, false]);
+    assert.equal(m.host.querySelectorAll('[data-pay-retry]').length, 1);
+    // On track: the other two, the mark on the retrying one only.
+    await openTab(m.host, 1);
+    assert.ok(m.host.querySelector('[data-roster-group="track"]'), 'the On track list');
+    assert.deepEqual(['Priya Shah', 'Ana Reyes'].map((n) => marked(m.host, n)), [true, false]);
     assert.equal(rowOf(m.host, 'Priya Shah').querySelector('[data-pay-retry]').textContent, 'Payment retrying');
-    assert.equal(m.host.querySelectorAll('[data-pay-retry]').length, 2);
+    assert.equal(m.host.querySelectorAll('[data-pay-retry]').length, 1);
   } finally { await m.close(); }
 });
 
@@ -112,6 +124,7 @@ test('the mark is the catalog\'s, in every locale the app ships', async () => {
   locale = 'de';
   const m = await mount(rows());
   try {
+    await openTab(m.host, 1);
     assert.equal(rowOf(m.host, 'Priya Shah').querySelector('[data-pay-retry]').textContent, catalog('de')['roster.paymentRetrying']);
   } finally { await m.close(); locale = 'en'; }
 });

@@ -462,5 +462,15 @@
   "coaches.unread": "{n} new",
   "coaches.nextSession": "Next session",
   "coaches.messageTrainer": "Message your trainer",
-  "coaches.messageNutritionist": "Message your nutritionist"
+  "coaches.messageNutritionist": "Message your nutritionist",
+  "shortcut.title": "Quick doors",
+  "shortcut.progressSub": "Your record so far",
+  "shortcut.scoreSub": "Points and level",
+  "shortcut.findCoach": "Find coach",
+  "shortcut.findCoachSub": "Trainers and nutritionists",
+  "shortcut.kicker": "Go straight to",
+  "shortcut.groceryList": "Market list",
+  "shortcut.grocerySub": "Dis week market",
+  "shortcut.devices": "Watch & apps",
+  "shortcut.devicesSub": "Connect your steps and sleep"
 }

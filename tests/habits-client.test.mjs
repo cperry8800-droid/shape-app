@@ -7,7 +7,7 @@ import vm from 'node:vm';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 const require = createRequire(import.meta.url);
 // ⚠ HOME NO LONGER CHECKS A HABIT OFF (the Focus layout, owner 2026-10-11): daily
-// habits are one link there, to the habits page. The future-date guard this file
+// habits are one Shortcuts tile there, to the habits page. The future-date guard this file
 // used to drive on Home's own toggle went with that toggle, so what is pinned now
 // is that Home writes no habit at all — a second writer would need its own guard.
 test('Home writes no habit: daily habits are a link to the habits page', () => {
@@ -15,7 +15,7 @@ test('Home writes no habit: daily habits are a link to the habits page', () => {
   const home = source.slice(source.indexOf('function BSClientHome('), source.indexOf('function _bsHomeWidgets('));
   assert.ok(home.length > 1000, 'BSClientHome was not found — re-point this guard');
   assert.doesNotMatch(home, /ShapeHabitsData\.action/, 'Home writes a habit again — give it the future-date guard');
-  assert.match(home, /<BSFocusLink tour="hero-habits"[\s\S]{0,400}?onOpen=\{\(\) => setHabitsPage\(true\)\}/, 'the daily-habits link no longer opens the habits page');
+  assert.match(home, /<BSShortcutTile tour="hero-habits"[\s\S]{0,400}?onOpen=\{\(\) => setHabitsPage\(true\)\}/, 'the daily-habits tile no longer opens the habits page');
 });
 const { JSDOM } = require('jsdom');
 const dom = new JSDOM('<div id="root"></div>', { url:'https://shape.test' });
