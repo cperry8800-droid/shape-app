@@ -11,15 +11,17 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { loadBroadsheet, drive, textOf, THEME, ROOT, SRC } from './helpers/broadsheet-mount.mjs';
+import { loadBroadsheet, loadCarved, drive, textOf, THEME, ROOT, GOALS_SRC } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 
 globalThis.useBS = () => THEME;
-const { BSGoalsContract } = await loadBroadsheet(['BSGoalsContract']);
+// The client module publishes the window globals Goals reads at call time; Goals is its own module.
+await loadBroadsheet(['BSClientGoals']);
+const { BSGoalsContract } = await loadCarved('BSGoals.jsx');
 const React = createRequire(import.meta.url)('react');
 const DASH = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSDash.jsx'), { registry: new Map([['react', React]]) });
 const D = DASH.bsDash(THEME);
-const src = readFileSync(SRC, 'utf8');
+const src = readFileSync(GOALS_SRC, 'utf8');
 
 // The member reads kilograms here, as in tests/custom-goal.
 Object.assign(THEME, { weightUnit: 'kg', kgToDisplay: (kg) => (kg == null ? null : Number(kg)) });

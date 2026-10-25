@@ -7,6 +7,7 @@
 const SERVER = 'src/lib/signup-answers.mjs';
 const FORM = 'public/newdesign/signup.jsx';
 const APP = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
+const GOALS = 'mobile-app/src/broadsheet/BSGoals.jsx'; // the Goals page, moved out of the client module 2026-10-25
 
 export default {
   test: 'node --test tests/custom-goal.test.mjs tests/signup-answers.test.mjs tests/primary-goal-token.test.mjs tests/intent-step-i18n.test.mjs',
@@ -37,13 +38,13 @@ export default {
     { name: 'toning reads in words', file: APP, find: "const BS_WEIGHT_GOAL_IDS = ['fat_loss', 'muscle', 'recomp', 'maintain', 'tone'];", replace: "const BS_WEIGHT_GOAL_IDS = ['fat_loss', 'muscle', 'recomp', 'maintain'];" },
 
     // ── The Goal card ──
-    { name: 'a weight target set still reads in words', file: APP, find: '  const wordsOnly = !hasGoal && !bsPrimaryGoalIsWeight(data && data.primaryGoal);', replace: '  const wordsOnly = !bsPrimaryGoalIsWeight(data && data.primaryGoal);' },
+    { name: 'a weight target set still reads in words', file: GOALS, find: '  const wordsOnly = !hasGoal && !bsPrimaryGoalIsWeight(data && data.primaryGoal);', replace: '  const wordsOnly = !bsPrimaryGoalIsWeight(data && data.primaryGoal);' },
     { name: 'the card keeps its weight figures for words', file: APP, find: "        {!wordsOnly && <div style={{ marginTop: 14, paddingTop: 12,", replace: "        {true && <div style={{ marginTop: 14, paddingTop: 12," },
     { name: 'the card says "No goal set yet" for words', file: APP, find: '      {!wordsOnly && <div style={{ margin: `18px ${t.padX}px 0` }}>', replace: '      {true && <div style={{ margin: `18px ${t.padX}px 0` }}>' },
-    { name: 'the card does not name the goal', file: APP, find: "Add a weight target to track one too.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}", replace: "Add a weight target to track one too.' })}" },
-    { name: 'the terms page does not name the goal', file: APP, find: "so it has no weight milestones.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}", replace: "so it has no weight milestones.' })}" },
+    { name: 'the card does not name the goal', file: GOALS, find: "Add a weight target to track one too.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}", replace: "Add a weight target to track one too.' })}" },
+    { name: 'the terms page does not name the goal', file: GOALS, find: "so it has no weight milestones.', goal: bsPrimaryGoalLabel(data.primaryGoal, tr) })}", replace: "so it has no weight milestones.' })}" },
 
-    { name: 'the terms door says "Set the terms" for words', file: APP, find: '  const termsDoorSub = wordsOnly\n', replace: '  const termsDoorSub = false\n' },
+    { name: 'the terms door says "Set the terms" for words', file: GOALS, find: '  const termsDoorSub = wordsOnly\n', replace: '  const termsDoorSub = false\n' },
     { name: 'the terms page says "No goal set yet" for words', file: APP, find: "              {wordsOnly ? (\n                <>\n                  <div data-goal-words style={{ padding: '6px 0 2px',", replace: "              {false ? (\n                <>\n                  <div data-goal-words style={{ padding: '6px 0 2px'," },
 
     // ── Home's Goal door ──
