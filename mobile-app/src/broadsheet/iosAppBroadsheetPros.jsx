@@ -1774,6 +1774,18 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const demoDataset = isNutri ? NUTRI_SCHEDULE : TRAINER_BOOKINGS;
   // The signed-out sample's today reads the clock: a sample booking that has ended is done, so the
   // preview's Up next, NOW line and done fold agree at any hour.
+  // The page moves with the clock (Codex on #2458): Up next, the ticker's countdown, the NOW line and
+  // the demo day's done rows read the time at render, so a tick on each minute re-renders them while
+  // the page stays open.
+  const [, setMinuteTick] = useStateBSP(0);
+  useEffectBSP(() => {
+    let every = null;
+    const first = setTimeout(() => {
+      setMinuteTick((n) => n + 1);
+      every = setInterval(() => setMinuteTick((n) => n + 1), 60000);
+    }, 60000 - (Date.now() % 60000) + 50);
+    return () => { clearTimeout(first); if (every) clearInterval(every); };
+  }, []);
   const demoNowMin = new Date().getHours() * 60 + new Date().getMinutes();
   const demoToday = (demoDataset[dataByIdx[todayIdx]] || []).map((b) => {
     const m = bsProMin(b.time);
@@ -7100,9 +7112,12 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } =
         ) : (() => {
           const clips = coachWorkoutVideos(serverPlans);
           if (!clips.length) return <div style={{ marginTop: 2 }}>{Redact ? <Redact INK={t.INK} label={tr('coach:plans.noClips', { defaultValue: 'NO CLIPS YET' })} /> : null}</div>;
+          // The library search covers the clips too (Codex on #2458), as it does the rows above.
+          const shownClips = clips.filter((c) => libMatch(c.name));
           return (
             <div style={{ marginTop: 2 }}>
-              {clips.map((c, i) => (
+              {!shownClips.length && libSearchMiss}
+              {shownClips.map((c, i) => (
                 <ShapeVideoPlayer key={c.url} value={c} title={c.name}/>
               ))}
             </div>
