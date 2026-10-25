@@ -12,7 +12,8 @@ import { fakeSupabase } from './fake-supabase.mjs';
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-// Returns `get(tables, { fail, qs })`: the route's JSON body for `?{qs}` over those tables.
+// Returns `get(tables, { fail, qs, maxRows })`: the route's JSON body for `?{qs}` over those
+// tables (`maxRows` caps every list read, as a full database would).
 export async function calendarRoute() {
   const nextServer = require_('next/server');
   const lib = (f, registry = new Map([['next/server', nextServer]])) => loadRealModule(join(ROOT, 'src/lib', f), { typescript: true, registry });
@@ -39,10 +40,11 @@ export async function calendarRoute() {
       ['@supabase/supabase-js', {}],
     ]),
   });
-  return async (tables, { fail = [], qs = 'tz=UTC' } = {}) => {
+  return async (tables, { fail = [], qs = 'tz=UTC', maxRows = null } = {}) => {
     client = fakeSupabase({
       tables: { trainers: [], nutritionists: [], sessions: [], calendar_events: [], client_meal_plans: [], client_profiles: [], client_workouts: [], workout_sessions: [], activities: [], ...tables },
       fail,
+      maxRows,
     });
     const res = await route.GET(new Request(`https://shape.test/api/calendar?${qs}`));
     return res.json();

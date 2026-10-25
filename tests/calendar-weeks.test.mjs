@@ -263,7 +263,8 @@ test('signed in, a day\'s ＋ Add opens the add sheet on that day, and a meal pl
 // ── the route: a finished assigned workout reads done ────────────────────────
 
 const GET = await calendarRoute();
-const ROUTE = async (tables, { fail = [], tz = 'UTC' } = {}) => (await GET(tables, { fail, qs: `tz=${encodeURIComponent(tz)}` })).events.filter((e) => e.source === 'plan');
+const ROUTE = async (tables, { fail = [], tz = 'UTC', range = '', maxRows = null } = {}) =>
+  (await GET(tables, { fail, maxRows, qs: `tz=${encodeURIComponent(tz)}${range}` })).events.filter((e) => e.source === 'plan');
 
 const DAY = 86400000;
 const now = new Date();
@@ -295,12 +296,33 @@ test('an undated workout, slotted onto this week, is ticked only by a run from t
   assert.equal(byId['plan:w-this-week'].status, 'completed');
 });
 
-test('this week is read on the member\'s clock: a Monday-morning run in Tokyo ticks the slot', async () => {
-  // 08:00 on this Monday in Tokyo is 23:00 on Sunday in UTC.
-  const [y, m, d] = [monday.getFullYear(), monday.getMonth(), monday.getDate()];
-  const tokyoMonday8 = Date.UTC(y, m, d, 8 - 9, 0);
-  const plan = await ROUTE({ client_workouts: [workout('w-tokyo', null)], workout_sessions: [ran('w-tokyo', tokyoMonday8)] }, { tz: 'Asia/Tokyo' });
+test('this week is read on the member\'s clock: a Monday-morning run in Tokyo ticks the slot', async (t) => {
+  // Wednesday the 21st. 08:00 on Monday the 19th in Tokyo is 23:00 on Sunday the 18th in UTC.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-21T12:00:00Z') });
+  const plan = await ROUTE({ client_workouts: [workout('w-tokyo', null)], workout_sessions: [ran('w-tokyo', Date.parse('2026-10-18T23:00:00Z'))] },
+    { tz: 'Asia/Tokyo', range: '&from=2026-10-19&to=2026-10-25' });
   assert.equal(plan.find((e) => e.id === 'plan:w-tokyo').status, 'completed', 'read on the UTC date, it fell in last week');
+});
+
+test('this week is the member\'s: a Los Angeles Sunday-evening run ticks the week that is still Sunday there', async (t) => {
+  // 05:30 UTC on Monday the 26th: Monday in New York (the server's clock in this suite) and in
+  // UTC, still 10:30 PM on Sunday the 25th in Los Angeles.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-26T05:30:00Z') });
+  const plan = await ROUTE({
+    client_workouts: [workout('w-undated', null)],
+    workout_sessions: [ran('w-undated', Date.parse('2026-10-26T03:00:00Z'))], // 8:00 PM Sunday in LA
+  }, { tz: 'America/Los_Angeles', range: '&from=2026-10-19&to=2026-11-01' });
+  const w = plan.find((e) => e.id === 'plan:w-undated');
+  assert.ok(w.date >= '2026-10-19' && w.date <= '2026-10-25', `slotted onto ${w.date}, the server's week, not the member's`);
+  assert.equal(w.status, 'completed', 'the member\'s Sunday run fell in "last week"');
+});
+
+test('past the read\'s cap the oldest runs drop, never this week\'s', async () => {
+  // The stand-in keeps one row per read, as a full cap would: it must be the newest.
+  const old = ran('w-capped', monday.getTime() - 10 * DAY);
+  const recent = ran('w-capped', now.getTime());
+  const plan = await ROUTE({ client_workouts: [workout('w-capped', null)], workout_sessions: [old, recent] }, { maxRows: 1 });
+  assert.equal(plan.find((e) => e.id === 'plan:w-capped').status, 'completed');
 });
 
 test('a failed read of the logged sessions leaves every workout planned', async () => {

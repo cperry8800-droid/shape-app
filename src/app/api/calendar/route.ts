@@ -297,9 +297,12 @@ export async function GET(request: Request) {
   };
 
   // Current week (Mon..Sun) ISO dates — undated workouts slot here, matching Home.
-  const wkMon = new Date(today); wkMon.setHours(0, 0, 0, 0);
-  wkMon.setDate(wkMon.getDate() - ((wkMon.getDay() + 6) % 7));
-  const weekISO = Array.from({ length: 7 }, (_, i) => { const d = new Date(wkMon); d.setDate(wkMon.getDate() + i); return d.toISOString().slice(0, 10); });
+  // ⚠ THE WEEK IS THE ZONE'S, as Home's is the device's. Read on the server's clock (UTC), it
+  // turned at 5:00 PM on a Los Angeles Sunday: the member's undated workouts jumped to next
+  // week, and a run that Sunday no longer finished this week's (Codex on #2457).
+  const zoneToday = wallClockInZone(today.getTime(), zone)?.date ?? today.toISOString().slice(0, 10);
+  const zoneDow = (new Date(`${zoneToday}T00:00:00Z`).getUTCDay() + 6) % 7;
+  const weekISO = Array.from({ length: 7 }, (_, i) => shiftDate(zoneToday, i - zoneDow));
   const inWin = (iso: string) => iso >= dFrom && iso <= dTo;
 
   const planWorkouts: Array<Record<string, unknown>> = [];
@@ -347,6 +350,9 @@ export async function GET(request: Request) {
       .eq('client_id', targetUserId)
       .in('client_workout_id', planIds)
       .in('status', ['completed', 'reviewed'])
+      // Newest first: past the cap, what drops is the oldest runs, never this week's (Codex on
+      // #2457). Reaching it takes years of one undated workout repeated.
+      .order('created_at', { ascending: false })
       .limit(1000);
     const doneSec = new Map<string, number>();
     for (const r of (wsRows ?? []) as WsRow[]) {
