@@ -6,7 +6,8 @@
 // Every live figure on that tab read a field its route never sent, so a signed-in member saw an
 // empty tab whatever they had logged:
 //   · the day streak read /api/client/train's `stats.currentStreak` and the weekly bars its
-//     `volumeByDay`; that route sends neither, so the streak was always 0 and the week redacted;
+//     `volumeByDay`; that route sent neither then (it does since, for the Train page), so the
+//     streak was always 0 and the week redacted;
 //   · the trajectory ran /api/client/progress's `series.weight` ({ date, value } rows) through
 //     Number(), so every weigh-in became NaN and it always read "no weigh-ins yet";
 //   · key lifts and the activity feed's PRs read `/api/client/train`'s `prs`, which it never sends.
@@ -99,7 +100,7 @@ test('the profile reads its live figures from those routes, and none from the tr
   assert.match(body, /bsProfileTrajectory\(prog\)/);
   assert.match(body, /bsProfileWeek\(prog\)/);
   assert.match(body, /Array\.isArray\(td\.recentPrs\)\) \? td\.recentPrs/, 'the feed reads the most recently set PRs, not the heaviest few');
-  assert.doesNotMatch(body, /ShapeProgress\??\.train/, 'the train route sends no streak, daily volume or PRs');
+  assert.doesNotMatch(body, /ShapeProgress\??\.train/, 'the profile reads the dashboard\'s streak and the progress route\'s week and PRs, not the train route');
   assert.doesNotMatch(body, /currentStreak|volumeByDay/);
 });
 
