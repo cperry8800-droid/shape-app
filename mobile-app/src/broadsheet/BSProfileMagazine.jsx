@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { bsWsRed } from './bsMagazine.mjs';
 
 // The profiles' pieces in the Wall's magazine look (owner, 2026-10-24: the Me page "needs to get cleaned
@@ -81,4 +82,58 @@ export function BSProfileDock({ INK, BG, PAPER, onMessage, messageLabel, onWorkW
       </div>
     </div>
   );
+}
+
+// A Wall shot full size (owner, 2026-10-24: "should be able to click on these pictures and make bigger"): the
+// photo whole on a dark ground, its caption in the headline face, "2 / 3" in mono, and the next and last shot
+// a swipe, an arrow or a key away. × or Escape closes it, a tap on the ground too, and focus goes back to the
+// shot that opened it. It sits over the tab bar, in the phone's own surface as every sheet does. Its words come
+// in `labels`, translated by the caller (this module has no translator).
+export function BSPhotoViewer({ shots, at, onClose, onStep, labels = {} }) {
+  const closeRef = React.useRef(null);
+  const swipe = React.useRef(null);
+  const live = React.useRef({ onClose, onStep });
+  live.current = { onClose, onStep };
+  React.useEffect(() => {
+    const opener = typeof document !== 'undefined' ? document.activeElement : null;
+    if (closeRef.current) closeRef.current.focus();
+    const key = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); live.current.onClose(); }
+      else if (e.key === 'ArrowRight') live.current.onStep(1);
+      else if (e.key === 'ArrowLeft') live.current.onStep(-1);
+    };
+    window.addEventListener('keydown', key);
+    return () => {
+      window.removeEventListener('keydown', key);
+      if (opener && typeof opener.focus === 'function') { try { opener.focus(); } catch (e) { /* the opener left the page */ } }
+    };
+  }, []);
+  const shot = shots && shots[at];
+  if (!shot) return null;
+  const many = shots.length > 1;
+  const CREAM = '#f4ede0';
+  const key = { flex: 'none', width: 44, height: 44, minHeight: 44, padding: 0, border: 0, borderRadius: 0, background: 'transparent', color: CREAM, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 18 };
+  const view = (
+    <div role="dialog" aria-modal="true" aria-label={shot.caption || labels.title || ''} data-bs-layer="photo-viewer" data-bs-photo-viewer=""
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: 'absolute', inset: 0, zIndex: 300, background: '#0a0a09', color: CREAM, display: 'flex', flexDirection: 'column', padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 12px calc(env(safe-area-inset-bottom, 0px) + 16px)', boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '0 4px', borderBottom: `1px solid ${inkA(CREAM, 0.22)}` }}>
+        <span aria-live="polite" style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: inkA(CREAM, 0.7), fontVariantNumeric: 'tabular-nums' }}>{at + 1} / {shots.length}</span>
+        <button ref={closeRef} type="button" data-bs-photo-close="" onClick={onClose} aria-label={labels.close} style={{ ...key, marginLeft: 'auto', marginRight: -10 }}>×</button>
+      </div>
+      <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        onPointerDown={(e) => { swipe.current = e.clientX; }}
+        onPointerUp={(e) => { const x0 = swipe.current; swipe.current = null; if (x0 == null || !many) return; const dx = e.clientX - x0; if (Math.abs(dx) > 40) onStep(dx < 0 ? 1 : -1); }}
+        style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'pan-y', padding: '12px 0' }}>
+        <img src={shot.url} alt={shot.caption || ''} draggable={false} style={{ display: 'block', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', userSelect: 'none' }} />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, borderTop: `2px solid ${CREAM}`, paddingTop: 10 }}>
+        {many ? <button type="button" data-bs-photo-prev="" onClick={() => onStep(-1)} aria-label={labels.prev} style={{ ...key, marginLeft: -10 }}>←</button> : null}
+        <p style={{ flex: 1, minWidth: 0, margin: '10px 0 0', fontFamily: SERIF, fontSize: 17, fontWeight: 500, lineHeight: 1.25, letterSpacing: '-0.005em', textAlign: many ? 'center' : 'left' }}>{shot.caption || ''}</p>
+        {many ? <button type="button" data-bs-photo-next="" onClick={() => onStep(1)} aria-label={labels.next} style={{ ...key, marginRight: -10 }}>→</button> : null}
+      </div>
+    </div>
+  );
+  const host = typeof document !== 'undefined' ? (document.getElementById('bs-phone-surface') || document.body) : null;
+  return host ? createPortal(view, host) : view;
 }

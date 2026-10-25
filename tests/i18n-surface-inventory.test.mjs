@@ -794,7 +794,11 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // The coach profile in the Wall's look (owner, 2026-10-24, "Design"): a pinned review's writer
   // falls back to the keyed profile:role.member (in all 13 locales), not a bare 'Member' literal:
   // partStrings 184 -> 183; part.length, noneStrings and none.length unchanged.
-  assert.equal(partStrings, 183, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The rest of the Radio page in the Wall's look (owner, 2026-10-24: "update the rest of the radio
+  // page to match"): Nora's section takes the magazine head, so its "Nora · " eyebrow literal goes,
+  // and Shape Sets' row title is one word pair, not "Shape" and an italic "Sets.": partStrings
+  // 183 -> 181.
+  assert.equal(partStrings, 181, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had

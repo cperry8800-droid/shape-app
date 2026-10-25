@@ -73,3 +73,25 @@ test('one workout two providers recorded counts once; one provider’s two worko
   assert.equal(w.total, 1340);
   assert.deepEqual(w.sources.sort(), ['Strava', 'WHOOP']);
 });
+
+// The week page names where each day's figure came from (owner, 2026-10-24: "i should be able to click on
+// this"), by the same rule as the week's: the source of the figure used, never one it set aside.
+test('each day names where its figure came from, and a day with none names nothing', () => {
+  const w = bsBurnWeek({
+    monday: MON, todayIso: TODAY,
+    snaps: [{ snapshot_date: '2026-10-19', calories: 512, sources: { calories: 'apple_health' } }],
+    acts: [
+      { started_at: at('2026-10-19'), calories: 300, source: 'strava' },
+      { started_at: at('2026-10-20', 7), calories: 410, source: 'strava' },
+      { started_at: at('2026-10-20', 18), calories: 220, source: 'manual' },
+      { started_at: at('2026-10-20', 19), calories: 120, source: 'strava' },
+      { started_at: at('2026-10-25', 9), calories: 500, source: 'whoop' },
+    ],
+  });
+  assert.deepEqual(w.days[0].from, ['Apple Health'], 'the snapshot day credits the snapshot, not the run it holds');
+  assert.deepEqual(w.days[1].from, ['Strava', 'manual'], 'an activity day credits each source once');
+  assert.deepEqual(w.days[2].from, [], 'a day with nothing tracked names nothing');
+  assert.equal(w.days[6].kcal, null, 'Sunday is still to come');
+  assert.deepEqual(w.days[6].from, [], 'a day to come names nothing, whatever is on file for it');
+  assert.deepEqual(w.sources, ['Apple Health', 'Strava', 'manual']);
+});

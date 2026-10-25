@@ -361,5 +361,12 @@
   "burn.retry": "Reintentar",
   "burn.none": "Aún no hay nada registrado esta semana.",
   "burn.connect": "Conectar",
-  "burn.manual": "tu registro"
+  "burn.manual": "tu registro",
+  "burn.page.daysTracked": "{n} de 7 días registrados",
+  "burn.page.from": "De {sources}",
+  "burn.page.byDay": "Día a día",
+  "burn.page.toCome": "Por venir",
+  "burn.page.notTracked": "Sin registro",
+  "burn.page.today": "Hoy",
+  "burn.page.rule": "Cada día cuenta una vez: la lectura de un reloj para todo el día o, si no, los entrenamientos registrados ese día."
 }

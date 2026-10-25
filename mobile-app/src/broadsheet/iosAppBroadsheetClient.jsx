@@ -64,11 +64,11 @@ import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx'
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
-import { BSEatFuel } from './BSEatFuel.jsx';
-import { BSTrainBurn } from './BSTrainBurn.jsx';
+import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.jsx';
+import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallMasthead, bsWsRed, bsWsHead } from './BSWallStory.jsx';
-import { BSTPullQuote, BSProfileDock } from './BSProfileMagazine.jsx';
+import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
@@ -6302,6 +6302,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     {drafts.map(d => <button key={d.sessionId} onClick={() => { setResumeDraft(d); setSession(true); }} style={{ display: 'block', minHeight: 44, width: '100%', textAlign: 'left', background: 'transparent', border: 0, color: t.ACCENT, cursor: 'pointer', padding: '10px 0' }}>{tr('session:player.resume')} · {d.title || tr('session:player.liveSession')}</button>)}
   </div> : null;
   const [previewing, setPreviewing] = useStateBSC(false);
+  // Burned this week, day by day (BSTrainBurnPage), opened from the row under the week (owner, 2026-10-24).
+  const [burnOpen, setBurnOpen] = useStateBSC(false);
   // Auto-launch the live session ONLY when arriving from the calendar's "Start
   // session" (a one-shot pending flag), then clear it so returning to Train from
   // the calendar overlay — which remounts this screen — never re-launches.
@@ -6406,6 +6408,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   if (session && launchWorkout && !resumeDraft) return <BSSession {...bsPreviewSession(launchWorkout, value => t.uText(value))} onBack={leaveSession} />;
   if (session) return <BSSession draft={resumeDraft} clientWorkoutId={openSession ? null : cur.workoutId} prescriptionMeta={{ template: cur.template, program: cur.program, adjustGen: cur.adjustGen }} title={openSession || (effMoves.length === 0 && isRestDay) ? tr('session:train.openSession', { defaultValue: 'Open session' }) : cur.title} moves={openSession ? [] : bsSessionMoves(effMoves)} onBack={leaveSession} />;
   if (previewing) return <BSWorkoutPreview program={{ ...cur, moves: effMoves }} coach={coachDayName} onBack={() => setPreviewing(false)} onStart={() => { setPreviewing(false); setSession(true); }} />;
+  if (burnOpen) return <BSTrainBurnPage onBack={() => setBurnOpen(false)} />;
 
   // Signed-in member with NO plan (assigned or self) → the Build-your-week door
   // instead of the empty rest-week. Signed-out preview keeps the demo deck.
@@ -6464,8 +6467,9 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
       <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
 
-      {/* Burned this week (BSTrainBurn.jsx), under the week as Eat's Fuel left is (owner, 2026-10-24). */}
-      <BSTrainBurn />
+      {/* Burned this week (BSTrainBurn.jsx), under the week as Eat's Fuel left is (owner, 2026-10-24); it
+          opens the week day by day. */}
+      <BSTrainBurn onOpen={() => setBurnOpen(true)} />
 
       {/* The session — on its own, on the move line's rust spine. */}
       <BSFocusLead tour="hero-train" color={t.RUST}
@@ -12640,6 +12644,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   const [previewRecipe, setPreviewRecipe] = useStateBSC(false);
   const [previewRecipeReturnView, setPreviewRecipeReturnView] = useStateBSC('eat');
   const [previewDayBrief, setPreviewDayBrief] = useStateBSC(false);
+  // The macro whose page is open ('p', 'c' or 'f'), from a Fuel left tile (owner, 2026-10-24).
+  const [macroPage, setMacroPage] = useStateBSC(null);
   const [recipeLists, setRecipeLists] = useStateBSC(() => {
     try {
       const raw = window.localStorage && window.localStorage.getItem('shape.recipeGroceryLists');
@@ -14006,7 +14012,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   React.useLayoutEffect(() => {
     const el = document.querySelector('.bs-scroll');
     if (el) el.scrollTop = 0;
-  }, [day, previewMealId, previewRecipe, previewDayBrief, view, skRecipe]);
+  }, [day, previewMealId, previewRecipe, previewDayBrief, macroPage, view, skRecipe]);
 
   // Deep-link from the Home "Shop list" card: Home sets a pending flag then
   // switches to the Eat tab; on mount we jump straight to the grocery list.
@@ -14096,7 +14102,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     );
   }
   if (previewMealId) {
-    const meal = meals.find(m => m.id === previewMealId);
+    // A swapped meal opens as its swap, as its row reads (bsEatSwappedMeal).
+    const meal = bsEatSwappedMeal(meals.find(m => m.id === previewMealId), mealOverrides);
     if (meal) return <BSMealPreview meal={meal} onBack={() => setPreviewMealId(null)} />;
   }
   if (previewRecipe && cur.recipe) {
@@ -14202,15 +14209,37 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // course both read them). Coach-set targets (Adjust plan → Apply) win.
   const bsEatNum = (x) => parseInt(String(x).replace(/[^0-9]/g, ''), 10) || 0;
   const bsEatCoachN = bsEatProgram.detail?.nutrition;
-  const bsEatCalNow = bsEatNum(cur.totals.cal);
+  // A logged meal the member swapped counts at its swap's amounts (bsEatSwapDelta), as its row does.
+  const bsEatEaten = (dd, k) => Math.max(0, bsEatNum(k === 'kcal' ? dd.totals.cal : dd.totals[k]) + bsEatSwapDelta(dd.meals, mealOverrides, k));
+  const bsEatCalNow = bsEatEaten(cur, 'kcal');
   const bsEatCalTgt = (bsEatCoachN && bsEatCoachN.calories != null) ? bsEatNum(bsEatCoachN.calories) : bsEatNum(cur.totals.target.cal);
   const bsEatCalLeft = Math.max(0, bsEatCalTgt - bsEatCalNow);
   const bsEatCalPct = bsEatCalTgt ? Math.min(100, Math.round((bsEatCalNow / bsEatCalTgt) * 100)) : 0;
   const bsEatMacros = [
-    { k: 'p', l: tr('coach:adjust.protein', { defaultValue: 'PROTEIN' }), v: bsEatNum(cur.totals.p), g: (bsEatCoachN && bsEatCoachN.protein != null) ? bsEatNum(bsEatCoachN.protein) : bsEatNum(cur.totals.target.p), c: t.RUST },
-    { k: 'c', l: tr('coach:adjust.carbs', { defaultValue: 'CARBS' }), v: bsEatNum(cur.totals.c), g: (bsEatCoachN && bsEatCoachN.carbs != null) ? bsEatNum(bsEatCoachN.carbs) : bsEatNum(cur.totals.target.c), c: t.AMBER },
-    { k: 'f', l: tr('coach:adjust.fat', { defaultValue: 'FAT' }), v: bsEatNum(cur.totals.f), g: (bsEatCoachN && bsEatCoachN.fat != null) ? bsEatNum(bsEatCoachN.fat) : bsEatNum(cur.totals.target.f), c: t.BLUE },
+    { k: 'p', l: tr('coach:adjust.protein', { defaultValue: 'PROTEIN' }), v: bsEatEaten(cur, 'p'), g: (bsEatCoachN && bsEatCoachN.protein != null) ? bsEatNum(bsEatCoachN.protein) : bsEatNum(cur.totals.target.p), c: t.RUST },
+    { k: 'c', l: tr('coach:adjust.carbs', { defaultValue: 'CARBS' }), v: bsEatEaten(cur, 'c'), g: (bsEatCoachN && bsEatCoachN.carbs != null) ? bsEatNum(bsEatCoachN.carbs) : bsEatNum(cur.totals.target.c), c: t.AMBER },
+    { k: 'f', l: tr('coach:adjust.fat', { defaultValue: 'FAT' }), v: bsEatEaten(cur, 'f'), g: (bsEatCoachN && bsEatCoachN.fat != null) ? bsEatNum(bsEatCoachN.fat) : bsEatNum(cur.totals.target.f), c: t.BLUE },
   ];
+  // A macro tile's own page (owner, 2026-10-24: "the 3 of these are links to the same page"): the
+  // macro's figures as the tile reads them, the day's meals by it, and the week against the target
+  // (a coach's Adjust target is the current one, so it is every day's).
+  const _macroOpen = macroPage ? bsEatMacros.find((m) => m.k === macroPage) : null;
+  if (_macroOpen) {
+    const _mk = _macroOpen.k;
+    const _coachKey = { p: 'protein', c: 'carbs', f: 'fat' }[_mk];
+    const _coachG = bsEatCoachN && bsEatCoachN[_coachKey] != null ? bsEatNum(bsEatCoachN[_coachKey]) : null;
+    const _names = {
+      p: tr('coach:case.macroProtein', { defaultValue: 'Protein' }),
+      c: tr('coach:case.macroCarbs', { defaultValue: 'Carbs' }),
+      f: tr('coach:case.macroFat', { defaultValue: 'Fat' }),
+    };
+    return <BSEatMacroPage k={_mk} name={_names[_mk]} color={_macroOpen.c} v={_macroOpen.v} g={_macroOpen.g}
+      meals={effMeals} dayIdx={day} todayIdx={bsWeekdayIdx()}
+      week={PROGRAM.map((dd) => ({ d: dd.d, v: bsEatEaten(dd, _mk), g: _coachG != null ? _coachG : bsEatNum(dd.totals.target[_mk]) }))}
+      onBack={() => setMacroPage(null)}
+      onMealClick={(id) => { setMacroPage(null); setPreviewMealId(id); }}
+      onDay={() => { setMacroPage(null); setPreviewDayBrief(true); }} />;
+  }
   // "Next" = explicit state, else the first un-done meal — today only.
   const bsEatNextMeal = day === bsWeekdayIdx() ? (effMeals.find(m => m.state === 'next') || effMeals.find(m => m.state !== 'done') || null) : null;
 
@@ -14264,9 +14293,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       {bsEatSignedIn && eatPlanRead && !liveMealDays && eatCoaching && <BSCoachPreparing role="nutritionist" coaching={eatCoaching} />}
 
       {/* Fuel left today (BSEatFuel.jsx), above the next meal (owner, 2026-10-22). Coach-set
-          targets (Adjust plan → Apply) win; a macro opens the day's breakdown. */}
+          targets (Adjust plan → Apply) win; each macro opens its own page. */}
       <BSEatFuel calLeft={bsEatCalLeft} calTarget={bsEatCalTgt} calNow={bsEatCalNow} calPct={bsEatCalPct}
-        macros={bsEatMacros} onOpen={() => setPreviewDayBrief(true)} />
+        macros={bsEatMacros} onOpen={(k) => setMacroPage(k)} />
 
       {/* The next meal — on its own, today only. Log it opens the meal, where it
           is logged; Swap opens the swap sheet on this meal. */}
@@ -15933,6 +15962,9 @@ function BSProfileFilmCard({ film, INK, c, label }) {
 // Render block — the song, prompts, and social links a member added.
 function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false, userId = null, coach = false, demo = false }) {
   const tr = useShapeTr();
+  // The Wall shot open full size, by its place on the wall (owner, 2026-10-24: "click on these pictures and
+  // make bigger"); null when none is.
+  const [shot, setShot] = useStateBSC(null);
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   // bleed = the host body's side padding: boxed pieces break out of it to run
   // full-bleed (side borders + radius dropped at the screen edges); typographic
@@ -15989,11 +16021,24 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
             <div className="bs-hide-scroll" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 2, scrollSnapType: 'x proximity', ...(bleed ? { marginRight: -bleed, paddingRight: bleed, scrollPaddingLeft: 0 } : null) }}>
               {wall.map((w, i) => (
                 <figure key={i} style={{ flex: 'none', width: 148, margin: 0, scrollSnapAlign: 'start' }}>
-                  <div style={{ width: 148, height: 108, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: bsTHexA(INK, 0.05) }} aria-hidden="true" />
+                  {/* The shot opens full size (BSPhotoViewer). */}
+                  <button type="button" data-bs-wall-shot="" onClick={() => setShot(i)}
+                    aria-label={tr('profile:wall.openShot', { defaultValue: 'Open photo {n} of {count}', n: i + 1, count: wall.length })}
+                    style={{ display: 'block', width: 148, height: 108, padding: 0, border: 0, borderRadius: 0, cursor: 'zoom-in', background: `center/cover no-repeat url("${w.url}")`, backgroundColor: bsTHexA(INK, 0.05) }} />
                   {w.caption ? <figcaption style={{ marginTop: 6, fontFamily: SERIF, fontSize: 12.5, fontWeight: 500, color: bsTHexA(INK, 0.7), lineHeight: 1.25 }}>{w.caption}</figcaption> : null}
                 </figure>
               ))}
             </div>
+            {shot != null && wall[shot] ? (
+              <BSPhotoViewer shots={wall} at={shot} onClose={() => setShot(null)}
+                onStep={(d) => setShot((i) => (i == null ? null : (i + d + wall.length) % wall.length))}
+                labels={{
+                  close: tr('cycle:close', { defaultValue: 'Close' }),
+                  prev: tr('profile:wall.prevShot', { defaultValue: 'Previous photo' }),
+                  next: tr('profile:wall.nextShot', { defaultValue: 'Next photo' }),
+                  title: tr('profile:wall.head', { defaultValue: 'The wall' }),
+                }} />
+            ) : null}
           </div>
         )}
         {shelf.length > 0 && (
@@ -17174,7 +17219,13 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   // ground), but the GUTTER is a density setting, so it reads the live theme —
   // a frozen 18px would drift from the profile headers behind it. It portals
   // into the phone surface, and a portal keeps React context, so useBS() resolves.
-  const gutter = bsGutter(useBS());
+  const tTheme = useBS();
+  const gutter = bsGutter(tTheme);
+  // The Wall's look (owner, 2026-10-24, of this page: "update design and look of this page"): the
+  // magazine's red for the kicker, Saira heads over a 2px ink rule, square fields and actions, and
+  // Save in ink with the paper's text (never BG, a gradient on Steel).
+  const RED = bsWsRed(tTheme);
+  const PAPER = tTheme.PAPER;
   const tr = useShapeTr();
   const init = initial || {};
   const PROMPT_OPTS = coach ? BS_COACH_PROMPTS : BS_PROFILE_PROMPTS;
@@ -17209,8 +17260,23 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     catch (err) { window.__bsToast?.(err?.message || tr('profile:editor.err.cover', { defaultValue: 'Could not upload cover.' }), 'err'); }
     finally { setCoverBusy(false); }
   };
-  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 15px', borderRadius: 9, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.045), color: INK, fontFamily: SANS, fontSize: 14, outline: 'none' };
-  const label = { fontFamily: MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: c, fontWeight: 700, marginBottom: 9, display: 'block' };
+  const field = { width: '100%', boxSizing: 'border-box', minHeight: 44, padding: '12px 13px', borderRadius: 0, border: `1px solid ${bsTHexA(INK, 0.28)}`, background: 'transparent', color: INK, fontFamily: SANS, fontSize: 14, outline: 'none' };
+  // A section's head: its name in Saira capitals over a 2px ink rule, and what follows its first " · "
+  // (the part's hint: "one motto", "up to 6") in mono at the right.
+  const head = (text) => {
+    const str = String(text || '');
+    const at = str.indexOf(' · ');
+    return (
+      <span data-cust-head="" style={{ display: 'flex', alignItems: 'baseline', gap: 10, paddingBottom: 6, marginBottom: 12, borderBottom: `2px solid ${INK}` }}>
+        <span style={{ fontFamily: SERIF, fontSize: 16, fontWeight: 600, lineHeight: 1.05, letterSpacing: '0.02em', textTransform: 'uppercase', color: INK }}>{at > 0 ? str.slice(0, at) : str}</span>
+        {at > 0 ? <span style={{ marginLeft: 'auto', textAlign: 'right', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{str.slice(at + 3)}</span> : null}
+      </span>
+    );
+  };
+  // Square actions: Add in the ink outline, × a bare 44 px key.
+  const addKey = { marginTop: 10, minHeight: 44, padding: '0 16px', background: 'transparent', border: `1px solid ${INK}`, borderRadius: 0, color: INK, fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' };
+  const xKey = { background: 'transparent', border: 0, borderRadius: 0, color: bsTHexA(INK, 0.6), width: 44, height: 44, padding: 0, cursor: 'pointer', flexShrink: 0, fontSize: 18, lineHeight: 1 };
+  const chip = (on) => ({ minHeight: 44, padding: '0 12px', borderRadius: 0, cursor: 'pointer', border: `1px solid ${on ? INK : bsTHexA(INK, 0.22)}`, background: on ? INK : 'transparent', color: on ? PAPER : bsTHexA(INK, 0.7), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' });
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
   const addPrompt = () => setPrompts((prev) => prev.length >= 4 ? prev : [...prev, { q: PROMPT_OPTS[prev.length % PROMPT_OPTS.length].id, a: '' }]);
   const removePrompt = (i) => setPrompts((prev) => prev.filter((_, j) => j !== i));
@@ -17363,19 +17429,19 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   // The intro film section — shared by the coach (P1 → coach-media) and member
   // (M5 → member-films) blocks; onFilmFile + save route the bucket by role.
   const filmSection = (
-    <div style={{ marginBottom: 18 }}>
-      <span style={label}>{tr('profile:editor.film.label', { defaultValue: 'Intro film · a short video' })}</span>
+    <div style={{ marginBottom: 28 }}>
+      {head(tr('profile:editor.film.label', { defaultValue: 'Intro film · a short video' }))}
       <input ref={filmRef} type="file" accept="video/*" onChange={onFilmFile} style={{ display: 'none' }} />
       {film && film.url ? (
         <div>
-          <div style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.14)}`, background: '#000' }}>
+          <div style={{ overflow: 'hidden', background: '#000' }}>
             <video src={film.url} controls playsInline preload="metadata" style={{ display: 'block', width: '100%', maxHeight: 220, background: '#000' }} />
           </div>
           <input value={film.caption} onChange={(e) => setFilm((prev) => ({ ...prev, caption: e.target.value.slice(0, BS_FILM_CAPTION_MAX) }))} maxLength={BS_FILM_CAPTION_MAX} placeholder={tr('profile:editor.ph.caption', { defaultValue: 'Caption (optional)' })} style={{ ...field, marginTop: 8 }} />
-          <button type="button" onClick={() => setFilm(null)} style={{ marginTop: 8, background: 'transparent', border: 0, color: bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>{tr('profile:editor.film.remove', { defaultValue: 'Remove film' })}</button>
+          <button type="button" onClick={() => setFilm(null)} style={{ marginTop: 8, minHeight: 44, background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>{tr('profile:editor.film.remove', { defaultValue: 'Remove film' })}</button>
         </div>
       ) : (
-        <button type="button" onClick={() => !filmBusy && filmRef.current && filmRef.current.click()} disabled={filmBusy} style={{ background: 'transparent', border: `1px dashed ${bsTHexA(c, 0.5)}`, color: c, borderRadius: 8, padding: '10px 15px', cursor: filmBusy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{filmBusy ? tr('profile:log.uploading', { defaultValue: 'Uploading…' }) : tr('profile:editor.film.add', { defaultValue: '+ Add intro film' })}</button>
+        <button type="button" onClick={() => !filmBusy && filmRef.current && filmRef.current.click()} disabled={filmBusy} style={{ ...addKey, marginTop: 0, cursor: filmBusy ? 'wait' : 'pointer' }}>{filmBusy ? tr('profile:log.uploading', { defaultValue: 'Uploading…' }) : tr('profile:editor.film.add', { defaultValue: '+ Add intro film' })}</button>
       )}
       <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.45) }}>{tr('profile:editor.film.hint', { defaultValue: '30–60 seconds · MP4, MOV or WebM' })}</div>
     </div>
@@ -17389,19 +17455,19 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
         <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
           {window.BSMastRow && <window.BSMastRow trailing={null} />}
         </div>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '12px 0 4px' }}>
-          <div>
-            <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c }}>{tr('profile:editor.eyebrow', { defaultValue: 'Your profile · Editor' })}</div>
-            <div style={{ fontFamily: SERIF, fontSize: 32, fontWeight: 700, letterSpacing: '-0.03em', marginTop: 6, lineHeight: 1 }}>{tr('profile:editor.title', { defaultValue: 'Customize' })}<span style={{ fontStyle: 'italic', color: c }}>.</span></div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '12px 0 0' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: RED }}>{tr('profile:editor.eyebrow', { defaultValue: 'Your profile · Editor' })}</div>
+            <div style={{ fontFamily: SERIF, fontSize: 34, fontWeight: 600, letterSpacing: '-0.02em', marginTop: 6, lineHeight: 1 }}>{tr('profile:editor.title', { defaultValue: 'Customize' })}</div>
           </div>
-          <button onClick={onClose} aria-label={tr('profile:editor.closeAria', { defaultValue: 'Close' })} style={{ marginTop: 4, width: 32, height: 32, borderRadius: 5, border: `1px solid ${bsTHexA(c, 0.4)}`, borderLeft: `3px solid ${c}`, background: bsTHexA(c, 0.08), color: INK, fontSize: 15, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', lineHeight: 1 }}>×</button>
+          <button data-cust-close="" onClick={onClose} aria-label={tr('profile:editor.closeAria', { defaultValue: 'Close' })} style={{ width: 44, height: 44, marginRight: -10, flex: 'none', borderRadius: 0, border: 0, background: 'transparent', color: INK, fontSize: 22, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', lineHeight: 1 }}>×</button>
         </div>
-        <div style={{ margin: '10px 0 18px', height: 2, background: `linear-gradient(90deg, ${c}, ${bsTHexA(c, 0.2)} 45%, transparent 85%)` }} />
+        <div aria-hidden style={{ margin: '14px 0 24px', height: 3, background: INK }} />
         {coach && (
           /* What the Signal sigil rings mean — moved off the public profile to here
              (coach-only). Explains the instrument on the coach's own profile. */
-          <div style={{ marginBottom: 18, padding: '14px 15px', borderRadius: 6, border: `1px solid ${bsTHexA(INK, 0.14)}`, borderLeft: `3px solid ${c}`, background: bsTHexA(c, 0.06) }}>
-            <span style={label}>{tr('profile:editor.signal.label', { defaultValue: 'Your Signal · what the rings mean' })}</span>
+          <div style={{ marginBottom: 28 }}>
+            {head(tr('profile:editor.signal.label', { defaultValue: 'Your Signal · what the rings mean' }))}
             <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.7), lineHeight: 1.5, marginBottom: 10 }}>{tr('profile:editor.signal.bodyPre', { defaultValue: 'The instrument on your profile reads your coaching at a glance. The' })} <strong style={{ color: INK }}>{tr('profile:editor.signal.bodyAccent', { defaultValue: 'outer ring' })}</strong> {tr('profile:editor.signal.bodyPost', { defaultValue: 'is your progress to the next coach tier; the three inner rings each track a contribution and fill as you keep them up:' })}</div>
             {[
               ['habits', c, tr('profile:editor.signal.ring.habits', { defaultValue: 'Habits' }), tr('profile:editor.signal.ring.habitsDesc', { defaultValue: 'Your own daily habit consistency.' })],
@@ -17418,34 +17484,34 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
             ))}
           </div>
         )}
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>{tr('profile:editor.bio.label', { defaultValue: 'Bio' })}</span>
+        <div style={{ marginBottom: 28 }}>
+          {head(tr('profile:editor.bio.label', { defaultValue: 'Bio' }))}
           <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder={tr('profile:editor.ph.bio', { defaultValue: 'A line about you, your training, your why…' })} style={{ ...field, resize: 'vertical', minHeight: 64 }} />
         </div>
         {coach && (<>
           {/* P2 · The Line (shared key) */}
-          <div style={{ marginBottom: 18 }}>
-            <span style={label}>{tr('profile:editor.line.label', { defaultValue: 'Your line · one motto' })}</span>
+          <div style={{ marginBottom: 28 }}>
+            {head(tr('profile:editor.line.label', { defaultValue: 'Your line · one motto' }))}
             <input value={line} onChange={(e) => setLine(e.target.value.slice(0, BS_LINE_MAX))} maxLength={BS_LINE_MAX} placeholder={tr('profile:editor.ph.lineCoach', { defaultValue: 'A line you coach by — e.g. Strong is a skill.' })} style={field} />
           </div>
           {/* P1 · The intro film (coach → coach-media) */}
           {filmSection}
           {/* P4 · The Business card */}
-          <div style={{ marginBottom: 18 }}>
-            <span style={label}>{tr('profile:editor.biz.label', { defaultValue: 'The practice · business card' })}</span>
+          <div style={{ marginBottom: 28 }}>
+            {head(tr('profile:editor.biz.label', { defaultValue: 'The practice · business card' }))}
             <input value={biz.name} onChange={(e) => setBiz((p) => ({ ...p, name: e.target.value.slice(0, BS_BIZ_NAME_MAX) }))} maxLength={BS_BIZ_NAME_MAX} placeholder={tr('profile:editor.ph.bizName', { defaultValue: 'Business name — e.g. Iron Path Strength' })} style={field} />
             <input value={biz.where} onChange={(e) => setBiz((p) => ({ ...p, where: e.target.value.slice(0, BS_BIZ_WHERE_MAX) }))} maxLength={BS_BIZ_WHERE_MAX} placeholder={tr('profile:editor.ph.bizWhere', { defaultValue: 'Where (optional) — e.g. Austin, TX · online' })} style={{ ...field, marginTop: 8 }} />
             <input value={biz.hours} onChange={(e) => setBiz((p) => ({ ...p, hours: e.target.value.slice(0, BS_BIZ_HOURS_MAX) }))} maxLength={BS_BIZ_HOURS_MAX} placeholder={tr('profile:editor.ph.bizHours', { defaultValue: 'Hours (optional) — e.g. Mon–Fri, mornings' })} style={{ ...field, marginTop: 8 }} />
             <input value={biz.handle} onChange={(e) => setBiz((p) => ({ ...p, handle: e.target.value.slice(0, BS_BIZ_HANDLE_MAX) }))} maxLength={BS_BIZ_HANDLE_MAX} placeholder={tr('profile:editor.ph.bizHandle', { defaultValue: 'Find me (optional) — e.g. @ironpath' })} style={{ ...field, marginTop: 8 }} />
           </div>
           {/* P5 · The Wins wall picker — only the coach's OWN pinnable reviews */}
-          <div style={{ marginBottom: 18 }}>
-            <span style={label}>{tr('profile:editor.pins.label', { count: BS_PINNED_REVIEWS_MAX, defaultValue: 'Wins wall · pin up to {count, plural, one {# review} other {# reviews}}' })}</span>
+          <div style={{ marginBottom: 28 }}>
+            {head(tr('profile:editor.pins.label', { count: BS_PINNED_REVIEWS_MAX, defaultValue: 'Wins wall · pin up to {count, plural, one {# review} other {# reviews}}' }))}
             {pickReviews && pickReviews.length ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {pickReviews.map((r) => { const on = pins.includes(r.id); return (
-                  <button key={r.id} type="button" aria-pressed={on} onClick={() => togglePin(r.id)} style={{ textAlign: 'left', cursor: 'pointer', background: on ? bsTHexA(c, 0.1) : 'transparent', border: `1px solid ${on ? c : bsTHexA(INK, 0.14)}`, borderRadius: 9, padding: '11px 13px' }}>
-                    <div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? c : bsTHexA(INK, 0.45) }}>{on ? tr('profile:editor.pins.pinned', { defaultValue: '✓ Pinned' }) : tr('profile:editor.pins.tapToPin', { defaultValue: 'Tap to pin' })} · ★ {Math.round(r.rating || 0)}/10 · {r.author || tr('profile:role.member', { defaultValue: 'Member' })}</div>
+                  <button key={r.id} type="button" aria-pressed={on} onClick={() => togglePin(r.id)} style={{ textAlign: 'left', cursor: 'pointer', background: 'transparent', border: `1px solid ${on ? INK : bsTHexA(INK, 0.18)}`, borderRadius: 0, padding: '11px 13px' }}>
+                    <div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? INK : bsTHexA(INK, 0.45) }}>{on ? tr('profile:editor.pins.pinned', { defaultValue: '✓ Pinned' }) : tr('profile:editor.pins.tapToPin', { defaultValue: 'Tap to pin' })} · ★ {Math.round(r.rating || 0)}/10 · {r.author || tr('profile:role.member', { defaultValue: 'Member' })}</div>
                     <div style={{ fontFamily: SANS, fontSize: 13, color: bsTHexA(INK, 0.82), marginTop: 5, lineHeight: 1.35 }}>“{(r.text || '').slice(0, 120)}{(r.text || '').length > 120 ? '…' : ''}”</div>
                   </button>
                 ); })}
@@ -17457,94 +17523,94 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
         </>)}
         {!coach && (<>
           {/* M4 · The Line */}
-          <div style={{ marginBottom: 18 }}>
-            <span style={label}>{tr('profile:editor.line.label', { defaultValue: 'Your line · one motto' })}</span>
+          <div style={{ marginBottom: 28 }}>
+            {head(tr('profile:editor.line.label', { defaultValue: 'Your line · one motto' }))}
             <input value={line} onChange={(e) => setLine(e.target.value.slice(0, BS_LINE_MAX))} maxLength={BS_LINE_MAX} placeholder={tr('profile:editor.ph.lineMember', { defaultValue: 'A line you live by — e.g. Strong is a skill.' })} style={field} />
           </div>
           {/* M2 · The Start line */}
-          <div style={{ marginBottom: 18 }}>
-            <span style={label}>{tr('profile:editor.start.label', { defaultValue: 'Training for · a countdown' })}</span>
+          <div style={{ marginBottom: 28 }}>
+            {head(tr('profile:editor.start.label', { defaultValue: 'Training for · a countdown' }))}
             <input value={startTitle} onChange={(e) => setStartTitle(e.target.value.slice(0, BS_START_TITLE_MAX))} maxLength={BS_START_TITLE_MAX} placeholder={tr('profile:editor.ph.startTitle', { defaultValue: "What you're training for — e.g. My first marathon" })} style={field} />
             <input value={startDate} onChange={(e) => setStartDate(e.target.value)} placeholder={tr('profile:editor.ph.startDate', { defaultValue: 'Date · YYYY-MM-DD' })} style={{ ...field, marginTop: 8 }} />
             {startDate.trim() && !startState && <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, color: '#c0533b', letterSpacing: '0.04em' }}>{bsValidStartDate(startDate) ? tr('profile:editor.start.errPast', { defaultValue: 'That date has passed — clear or update it.' }) : tr('profile:editor.start.errFormat', { defaultValue: 'Enter a real date as YYYY-MM-DD.' })}</div>}
             {startState && <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.5), letterSpacing: '0.04em' }}>{startState.days === 0 ? tr('profile:editor.start.showsToday', { defaultValue: 'Shows: TODAY' }) : tr('profile:editor.start.shows', { count: startState.days, defaultValue: '{count, plural, one {Shows: # day out} other {Shows: # days out}}' })}</div>}
-            {(startTitle.trim() || startDate.trim()) && <button onClick={() => { setStartTitle(''); setStartDate(''); }} style={{ marginTop: 8, background: 'transparent', border: 0, color: bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>{tr('profile:editor.start.clear', { defaultValue: 'Clear start line' })}</button>}
+            {(startTitle.trim() || startDate.trim()) && <button onClick={() => { setStartTitle(''); setStartDate(''); }} style={{ marginTop: 8, minHeight: 44, background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>{tr('profile:editor.start.clear', { defaultValue: 'Clear start line' })}</button>}
           </div>
           {/* M1 · The Wall */}
-          <div style={{ marginBottom: 18 }}>
-            <span style={label}>{tr('profile:editor.wall.label', { count: BS_WALL_MAX, defaultValue: 'The wall · pinned photos · up to {count}' })}</span>
+          <div style={{ marginBottom: 28 }}>
+            {head(tr('profile:editor.wall.label', { count: BS_WALL_MAX, defaultValue: 'The wall · pinned photos · up to {count}' }))}
             <input ref={wallRef} type="file" accept="image/*" onChange={onWallFile} style={{ display: 'none' }} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {wall.map((w, i) => (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <div aria-hidden="true" style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 8, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: bsTHexA(INK, 0.05) }} />
+                  <div aria-hidden="true" style={{ width: 52, height: 52, flexShrink: 0, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: bsTHexA(INK, 0.05) }} />
                   <input value={w.caption} onChange={(e) => setWallCap(i, e.target.value)} maxLength={BS_CAPTION_MAX} placeholder={tr('profile:editor.ph.caption', { defaultValue: 'Caption (optional)' })} style={{ ...field, flex: 1 }} />
-                  <button onClick={() => removeWall(i)} aria-label={tr('profile:editor.wall.removeAria', { defaultValue: 'Remove photo' })} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.16)}`, borderRadius: 999, color: bsTHexA(INK, 0.6), width: 32, height: 32, cursor: 'pointer', flexShrink: 0, fontSize: 16, lineHeight: 1 }}>×</button>
+                  <button onClick={() => removeWall(i)} aria-label={tr('profile:editor.wall.removeAria', { defaultValue: 'Remove photo' })} style={xKey}>×</button>
                 </div>
               ))}
             </div>
-            {wall.length < BS_WALL_MAX && <button onClick={() => !wallBusy && wallRef.current && wallRef.current.click()} disabled={wallBusy} style={{ marginTop: 10, background: 'transparent', border: `1px dashed ${bsTHexA(c, 0.5)}`, color: c, borderRadius: 5, padding: '8px 14px', cursor: wallBusy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{wallBusy ? tr('profile:log.uploading', { defaultValue: 'Uploading…' }) : tr('profile:editor.wall.add', { defaultValue: '+ Add photo' })}</button>}
+            {wall.length < BS_WALL_MAX && <button onClick={() => !wallBusy && wallRef.current && wallRef.current.click()} disabled={wallBusy} style={{ ...addKey, cursor: wallBusy ? 'wait' : 'pointer' }}>{wallBusy ? tr('profile:log.uploading', { defaultValue: 'Uploading…' }) : tr('profile:editor.wall.add', { defaultValue: '+ Add photo' })}</button>}
           </div>
           {/* M3 · The Shelf */}
-          <div style={{ marginBottom: 18 }}>
-            <span style={label}>{tr('profile:editor.shelf.label', { count: BS_SHELF_MAX, defaultValue: 'The shelf · proudest · up to {count}' })}</span>
+          <div style={{ marginBottom: 28 }}>
+            {head(tr('profile:editor.shelf.label', { count: BS_SHELF_MAX, defaultValue: 'The shelf · proudest · up to {count}' }))}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {shelf.map((s, i) => (
                 <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <input value={s.title} onChange={(e) => setShelfField(i, 'title', e.target.value)} maxLength={BS_SHELF_TITLE_MAX} placeholder={tr('profile:editor.ph.shelfTitle', { defaultValue: 'e.g. Deadlift 140kg' })} style={{ ...field, flex: 1 }} />
                   <input value={s.when} onChange={(e) => setShelfField(i, 'when', e.target.value)} maxLength={BS_SHELF_WHEN_MAX} placeholder={tr('profile:editor.ph.shelfWhen', { defaultValue: 'When' })} style={{ ...field, flex: '0 0 88px' }} />
-                  <button onClick={() => removeShelf(i)} aria-label={tr('profile:editor.shelf.removeAria', { defaultValue: 'Remove row' })} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.16)}`, borderRadius: 999, color: bsTHexA(INK, 0.6), width: 32, height: 32, cursor: 'pointer', flexShrink: 0, fontSize: 16, lineHeight: 1 }}>×</button>
+                  <button onClick={() => removeShelf(i)} aria-label={tr('profile:editor.shelf.removeAria', { defaultValue: 'Remove row' })} style={xKey}>×</button>
                 </div>
               ))}
             </div>
-            {shelf.length < BS_SHELF_MAX && <button onClick={addShelfRow} style={{ marginTop: 10, background: 'transparent', border: `1px dashed ${bsTHexA(c, 0.5)}`, color: c, borderRadius: 5, padding: '8px 14px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tr('profile:editor.shelf.add', { defaultValue: '+ Add row' })}</button>}
+            {shelf.length < BS_SHELF_MAX && <button onClick={addShelfRow} style={{ ...addKey, cursor: 'pointer' }}>{tr('profile:editor.shelf.add', { defaultValue: '+ Add row' })}</button>}
           </div>
           {/* M5 · The intro film (member → member-films) */}
           {filmSection}
         </>)}
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>{tr('profile:editor.cover.label', { defaultValue: 'Cover image' })}</span>
-          <div style={{ position: 'relative', height: 130, borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%)', overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.14)}`, borderLeft: `3px solid ${bsTHexA(accent || c, 0.8)}`, background: coverUrl ? '#000' : `linear-gradient(135deg, ${bsTHexA(accent || c, 0.4)}, ${bsTHexA(accent || c, 0.08)})` }}>
+        <div style={{ marginBottom: 28 }}>
+          {head(tr('profile:editor.cover.label', { defaultValue: 'Cover image' }))}
+          <div style={{ position: 'relative', height: 130, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.2)}`, background: coverUrl ? '#000' : bsTHexA(accent || c, 0.18) }}>
             {coverUrl && <img src={coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
             <input ref={coverRef} type="file" accept="image/*" onChange={onCoverFile} style={{ display: 'none' }} />
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <button onClick={() => !coverBusy && coverRef.current && coverRef.current.click()} disabled={coverBusy} style={{ padding: '7px 13px', borderRadius: 5, border: `1px solid ${bsTHexA(INK, 0.6)}`, background: bsTHexA('#000', 0.5), color: INK, cursor: coverBusy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{coverBusy ? tr('profile:log.uploading', { defaultValue: 'Uploading…' }) : coverUrl ? tr('profile:editor.cover.replace', { defaultValue: 'Replace' }) : tr('profile:editor.cover.upload', { defaultValue: 'Upload cover' })}</button>
-              {coverUrl && <button onClick={() => setCoverUrl('')} style={{ padding: '7px 11px', borderRadius: 5, border: `1px solid ${bsTHexA(INK, 0.4)}`, background: bsTHexA('#000', 0.5), color: bsTHexA(INK, 0.8), cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{tr('profile:action.remove', { defaultValue: 'Remove' })}</button>}
+              <button onClick={() => !coverBusy && coverRef.current && coverRef.current.click()} disabled={coverBusy} style={{ minHeight: 44, padding: '0 14px', borderRadius: 0, border: `1px solid ${INK}`, background: PAPER, color: INK, cursor: coverBusy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{coverBusy ? tr('profile:log.uploading', { defaultValue: 'Uploading…' }) : coverUrl ? tr('profile:editor.cover.replace', { defaultValue: 'Replace' }) : tr('profile:editor.cover.upload', { defaultValue: 'Upload cover' })}</button>
+              {coverUrl && <button onClick={() => setCoverUrl('')} style={{ minHeight: 44, padding: '0 12px', borderRadius: 0, border: `1px solid ${INK}`, background: PAPER, color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{tr('profile:action.remove', { defaultValue: 'Remove' })}</button>}
             </div>
           </div>
         </div>
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>{tr('profile:editor.accent.label', { defaultValue: 'Accent color' })}</span>
+        <div style={{ marginBottom: 28 }}>
+          {head(tr('profile:editor.accent.label', { defaultValue: 'Accent color' }))}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, alignItems: 'center' }}>
-            <button onClick={() => setAccent('')} title={tr('profile:editor.accent.tierDefault', { defaultValue: 'Tier default' })} style={{ width: 30, height: 30, borderRadius: 999, cursor: 'pointer', border: `2px solid ${!accent ? INK : bsTHexA(INK, 0.25)}`, background: `linear-gradient(135deg, ${c}, ${bsShade(c, 0.5)})`, display: 'grid', placeItems: 'center', color: '#fff', fontSize: 11 }}>{!accent ? '✓' : ''}</button>
+            <button onClick={() => setAccent('')} title={tr('profile:editor.accent.tierDefault', { defaultValue: 'Tier default' })} style={{ width: 36, height: 36, borderRadius: 0, cursor: 'pointer', border: `2px solid ${!accent ? INK : bsTHexA(INK, 0.25)}`, background: c, display: 'grid', placeItems: 'center', color: '#fff', fontSize: 11 }}>{!accent ? '✓' : ''}</button>
             {BS_PROFILE_ACCENTS.map((a) => (
-              <button key={a} onClick={() => setAccent(a)} style={{ width: 30, height: 30, borderRadius: 999, cursor: 'pointer', border: `2px solid ${accent === a ? INK : 'transparent'}`, background: a, display: 'grid', placeItems: 'center', color: '#fff', fontSize: 11 }}>{accent === a ? '✓' : ''}</button>
+              <button key={a} onClick={() => setAccent(a)} style={{ width: 36, height: 36, borderRadius: 0, cursor: 'pointer', border: `2px solid ${accent === a ? INK : 'transparent'}`, background: a, display: 'grid', placeItems: 'center', color: '#fff', fontSize: 11 }}>{accent === a ? '✓' : ''}</button>
             ))}
           </div>
           <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.06em', color: bsTHexA(INK, 0.45) }}>{tr('profile:editor.accent.hint', { defaultValue: 'Tints your cover + cards. Your tier badge keeps its tier color.' })}</div>
         </div>
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>{tr('profile:editor.stats.label', { count: 3, defaultValue: 'Headline stats · pick up to {count}' })}</span>
+        <div style={{ marginBottom: 28 }}>
+          {head(tr('profile:editor.stats.label', { count: 3, defaultValue: 'Headline stats · pick up to {count}' }))}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
             {BS_STAT_OPTIONS.map((s) => { const on = heroStats.includes(s.key); return (
-              <button key={s.key} onClick={() => toggleStat(s.key)} style={{ padding: '6px 12px', borderRadius: 4, cursor: 'pointer', border: `1px solid ${on ? bsTHexA(c, 0.5) : bsTHexA(INK, 0.18)}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(c, 0.14) : 'transparent', color: on ? c : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{on ? '✓ ' : ''}{bsOptLabel(s, tr)}</button>
+              <button key={s.key} aria-pressed={on} onClick={() => toggleStat(s.key)} style={chip(on)}>{on ? '✓ ' : ''}{bsOptLabel(s, tr)}</button>
             ); })}
           </div>
         </div>
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>{tr('profile:editor.pin.label', { defaultValue: 'Pin a highlight' })}</span>
+        <div style={{ marginBottom: 28 }}>
+          {head(tr('profile:editor.pin.label', { defaultValue: 'Pin a highlight' }))}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 9 }}>
             {BS_PIN_KINDS.map((k) => (
-              <button key={k.id} onClick={() => setPinKind(k.id)} aria-pressed={bsPinKindToken(pinKind) === k.id} style={{ padding: '6px 12px', borderRadius: 4, cursor: 'pointer', border: `1px solid ${bsPinKindToken(pinKind) === k.id ? bsTHexA(c, 0.5) : bsTHexA(INK, 0.18)}`, borderLeft: bsPinKindToken(pinKind) === k.id ? `3px solid ${c}` : `1px solid ${bsTHexA(INK, 0.18)}`, background: bsPinKindToken(pinKind) === k.id ? bsTHexA(c, 0.14) : 'transparent', color: bsPinKindToken(pinKind) === k.id ? c : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{bsPinKindLabel(k.id, tr)}</button>
+              <button key={k.id} onClick={() => setPinKind(k.id)} aria-pressed={bsPinKindToken(pinKind) === k.id} style={chip(bsPinKindToken(pinKind) === k.id)}>{bsPinKindLabel(k.id, tr)}</button>
             ))}
           </div>
           <input value={pinTitle} onChange={(e) => setPinTitle(e.target.value)} maxLength={80} placeholder={tr('profile:editor.ph.pinTitle', { defaultValue: 'Headline — e.g. Pulled 2× bodyweight today' })} style={field} />
           <input value={pinNote} onChange={(e) => setPinNote(e.target.value)} maxLength={160} placeholder={tr('profile:editor.ph.pinNote', { defaultValue: 'A line of context (optional)' })} style={{ ...field, marginTop: 8 }} />
           <input value={pinMetric} onChange={(e) => setPinMetric(e.target.value)} maxLength={24} placeholder={tr('profile:editor.ph.pinMetric', { defaultValue: 'Metric (optional) — e.g. 2×BW' })} style={{ ...field, marginTop: 8 }} />
-          {pinTitle.trim() && <button onClick={() => { setPinTitle(''); setPinNote(''); setPinMetric(''); }} style={{ marginTop: 8, background: 'transparent', border: 0, color: bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>{tr('profile:editor.pin.clear', { defaultValue: 'Clear pin' })}</button>}
+          {pinTitle.trim() && <button onClick={() => { setPinTitle(''); setPinNote(''); setPinMetric(''); }} style={{ marginTop: 8, minHeight: 44, background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>{tr('profile:editor.pin.clear', { defaultValue: 'Clear pin' })}</button>}
         </div>
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>{tr('profile:editor.song.label', { defaultValue: 'Profile song · Spotify link' })}</span>
+        <div style={{ marginBottom: 28 }}>
+          {head(tr('profile:editor.song.label', { defaultValue: 'Profile song · Spotify link' }))}
           {/* The URL example is deliberately NOT keyed — it is a literal address,
               byte-identical in every locale, so a key would ship thirteen copies of
               one string a translator must not touch (the "Shape Score" exemption).
@@ -17553,31 +17619,31 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
           <input value={songUrl} onChange={(e) => setSongUrl(e.target.value)} placeholder="https://open.spotify.com/track/…" style={field} />
           <input value={songLabel} onChange={(e) => setSongLabel(e.target.value)} placeholder={tr('profile:editor.ph.songLabel', { defaultValue: 'Label (optional) — e.g. Lift anthem' })} style={{ ...field, marginTop: 8 }} />
           {songUrl.trim() && !embedPreview && <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, color: '#c0533b', letterSpacing: '0.04em' }}>{tr('profile:editor.song.err', { defaultValue: 'Paste a Spotify track or playlist link (open.spotify.com/…).' })}</div>}
-          {embedPreview && <div style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.1)}` }}><iframe title={tr('profile:editor.song.previewTitle', { defaultValue: 'Song preview' })} src={embedPreview} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: 'block', border: 0 }} /></div>}
+          {embedPreview && <div style={{ marginTop: 10, overflow: 'hidden' }}><iframe title={tr('profile:editor.song.previewTitle', { defaultValue: 'Song preview' })} src={embedPreview} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: 'block', border: 0 }} /></div>}
         </div>
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>{tr('profile:editor.prompts.label', { defaultValue: 'Prompts' })}</span>
+        <div style={{ marginBottom: 28 }}>
+          {head(tr('profile:editor.prompts.label', { defaultValue: 'Prompts' }))}
           <div style={{ marginTop: -3, marginBottom: 10, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.04em', color: bsTHexA(INK, 0.45) }}>{tr('profile:editor.prompts.hint', { defaultValue: 'Pick a question, write a short answer — they show on your profile so people get a feel for you.' })}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {prompts.map((p, i) => (
-              <div key={i} style={{ border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 8, padding: 12, background: bsTHexA(INK, 0.025) }}>
+              <div key={i} style={{ borderTop: i ? `1px solid ${bsTHexA(INK, 0.18)}` : 0, paddingTop: i ? 12 : 0 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 9 }}>
                   <div style={{ position: 'relative', flex: 1 }}>
-                    <select value={bsPromptToken(p.q)} onChange={(e) => setPrompt(i, 'q', e.target.value)} style={{ ...field, padding: '10px 30px 10px 13px', fontSize: 12.5, fontFamily: MONO, letterSpacing: '0.04em', color: c, fontWeight: 700, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer' }}>
+                    <select value={bsPromptToken(p.q)} onChange={(e) => setPrompt(i, 'q', e.target.value)} style={{ ...field, padding: '10px 30px 10px 13px', fontSize: 12.5, fontFamily: MONO, letterSpacing: '0.04em', color: INK, fontWeight: 700, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer' }}>
                       {PROMPT_OPTS.map((q) => <option key={q.id} value={q.id} style={{ color: '#111', fontFamily: SANS }}>{bsPromptLabel(q.id, tr)}</option>)}
                     </select>
-                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: c, fontSize: 10 }}>▾</span>
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: INK, fontSize: 10 }}>▾</span>
                   </div>
-                  <button onClick={() => removePrompt(i)} aria-label={tr('profile:editor.prompts.removeAria', { defaultValue: 'Remove prompt' })} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.16)}`, borderRadius: 999, color: bsTHexA(INK, 0.6), width: 32, height: 32, cursor: 'pointer', flexShrink: 0, fontSize: 16, lineHeight: 1 }}>×</button>
+                  <button onClick={() => removePrompt(i)} aria-label={tr('profile:editor.prompts.removeAria', { defaultValue: 'Remove prompt' })} style={xKey}>×</button>
                 </div>
                 <input value={p.a} onChange={(e) => setPrompt(i, 'a', e.target.value)} maxLength={120} placeholder={tr('profile:editor.ph.promptAnswer', { defaultValue: 'Your answer…' })} style={field} />
               </div>
             ))}
           </div>
-          {prompts.length < 4 && <button onClick={addPrompt} style={{ marginTop: 10, background: 'transparent', border: `1px dashed ${bsTHexA(c, 0.5)}`, color: c, borderRadius: 5, padding: '8px 14px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tr('profile:editor.prompts.add', { defaultValue: '+ Add prompt' })}</button>}
+          {prompts.length < 4 && <button onClick={addPrompt} style={{ ...addKey, cursor: 'pointer' }}>{tr('profile:editor.prompts.add', { defaultValue: '+ Add prompt' })}</button>}
         </div>
         <div style={{ marginBottom: 22 }}>
-          <span style={label}>{tr('profile:editor.links.label', { defaultValue: 'Social links' })}</span>
+          {head(tr('profile:editor.links.label', { defaultValue: 'Social links' }))}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {BS_PROFILE_LINKS.map((l) => (
               <div key={l.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -17590,19 +17656,19 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
         {/* Identity fields (name · @handle · photo · pronouns · goal · link)
             live in the Settings editor — linked here so this sheet is the one
             complete hub for everything the public profile shows. */}
-        <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openProfile')); } catch (e) {} }} style={{ width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', borderRadius: 6, border: `1px solid ${bsTHexA(INK, 0.14)}`, borderLeft: `3px solid ${c}`, background: bsTHexA(INK, 0.045), padding: '13px 15px', cursor: 'pointer', marginBottom: 16 }}>
+        <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openProfile')); } catch (e) {} }} style={{ width: '100%', minHeight: 44, textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', borderRadius: 0, border: 0, borderTop: `1px solid ${bsTHexA(INK, 0.22)}`, borderBottom: `1px solid ${bsTHexA(INK, 0.22)}`, background: 'transparent', padding: '14px 0', cursor: 'pointer', marginBottom: 16 }}>
           <span style={{ minWidth: 0 }}>
             <span style={{ display: 'block', fontFamily: SERIF, fontSize: 15.5, fontWeight: 700, color: INK }}>{tr('profile:editor.identity.title', { defaultValue: 'Name, @handle, photo & details' })}</span>
             <span style={{ display: 'block', marginTop: 3, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:editor.identity.sub', { defaultValue: 'Pronouns · goal · link — edit in Settings' })}</span>
           </span>
-          <span style={{ color: c, fontSize: 15, fontWeight: 700 }}>→</span>
+          <span style={{ color: INK, fontSize: 15, fontWeight: 700 }}>→</span>
         </button>
         {/* The bar bleeds to the page edge, so its negative margin and its own
             padding must both track the SAME density gutter the container uses —
             a hardcoded 18 only looked right because the app currently boots at
             the dense density, where padX happens to be 18. */}
-        <div style={{ position: 'sticky', bottom: 0, marginLeft: -gutter, marginRight: -gutter, padding: `10px ${gutter}px calc(6px + env(safe-area-inset-bottom, 0px))`, background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
-          <button onClick={save} disabled={busy || wallBusy || coverBusy || filmBusy} style={{ width: '100%', minHeight: 50, borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', background: c, color: '#08120f', border: 0, cursor: (busy || wallBusy || coverBusy || filmBusy) ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, boxShadow: `0 6px 20px ${bsTHexA(c, 0.35)}` }}>{busy ? tr('profile:log.saving', { defaultValue: 'Saving…' }) : tr('profile:editor.save', { defaultValue: 'Save profile' })}</button>
+        <div style={{ position: 'sticky', bottom: 0, marginLeft: -gutter, marginRight: -gutter, padding: `10px ${gutter}px calc(6px + env(safe-area-inset-bottom, 0px))`, background: BG, borderTop: `1px solid ${bsTHexA(INK, 0.22)}` }}>
+          <button data-cust-save="" onClick={save} disabled={busy || wallBusy || coverBusy || filmBusy} style={{ width: '100%', minHeight: 50, borderRadius: 0, background: INK, color: PAPER, border: 0, cursor: (busy || wallBusy || coverBusy || filmBusy) ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{busy ? tr('profile:log.saving', { defaultValue: 'Saving…' }) : tr('profile:editor.save', { defaultValue: 'Save profile' })}</button>
         </div>
       </div>
     </div>,

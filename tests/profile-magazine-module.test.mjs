@@ -17,7 +17,7 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 const MOD = 'mobile-app/src/broadsheet/BSProfileMagazine.jsx';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const src = stripComments(fs.readFileSync(MOD, 'utf8'));
-const EXPORTED = ['BSTPullQuote', 'BSProfileDock', 'useBSHideOnScrollDown'];
+const EXPORTED = ['BSTPullQuote', 'BSProfileDock', 'useBSHideOnScrollDown', 'BSPhotoViewer'];
 
 test('evaluating the module by itself reads NO window global, and it exports what the client imports', async () => {
   const reads = [];
@@ -44,16 +44,16 @@ test('the theme is read at call time, and none of the client module\'s own helpe
   assert.doesNotMatch(src, /\b(useStateBSC|bsTHexA|bsSdReduced|BST_SERIF|BST_MONO|useBSPinnedMastTop)\b/);
 });
 
-test('the module imports react and the magazine\'s colours only, and never the client module', () => {
+test('the module imports react, its portal and the magazine\'s colours only, and never the client module', () => {
   const imports = [...src.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);
-  assert.deepEqual(imports, ['react', './bsMagazine.mjs']);
+  assert.deepEqual(imports, ['react', 'react-dom', './bsMagazine.mjs']);
   assert.doesNotMatch(src, /iosAppBroadsheetClient/);
 });
 
 test('the client imports both pieces, declares neither again, and renders them on the profiles', () => {
   const client = stripComments(fs.readFileSync(CLIENT, 'utf8'));
-  assert.match(client, /^import \{ BSTPullQuote, BSProfileDock \} from '\.\/BSProfileMagazine\.jsx';/m);
-  assert.doesNotMatch(client, /^(?:export )?function (BSTPullQuote|BSProfileDock|useBSHideOnScrollDown)\(/m, 'a piece is declared in the client module again');
+  assert.match(client, /^import \{ BSTPullQuote, BSProfileDock, BSPhotoViewer \} from '\.\/BSProfileMagazine\.jsx';/m);
+  assert.doesNotMatch(client, /^(?:export )?function (BSTPullQuote|BSProfileDock|useBSHideOnScrollDown|BSPhotoViewer)\(/m, 'a piece is declared in the client module again');
   const body = (marker) => { const at = client.indexOf(marker); return client.slice(at, client.indexOf('\nfunction ', at + marker.length)); };
   // The member's profile pulls no quote out at the top any more (owner, 2026-10-24); its
   // answers are pulled out by BSProfileExtras.
@@ -61,4 +61,5 @@ test('the client imports both pieces, declares neither again, and renders them o
   assert.match(body('function BSSignalCoachProfile('), /<BSTPullQuote /);
   assert.match(body('function BSSignalCoachProfile('), /<BSProfileDock /);
   assert.match(body('function BSTerrainProfile('), /<BSProfileDock /);
+  assert.match(body('function BSProfileExtras('), /<BSPhotoViewer /);
 });

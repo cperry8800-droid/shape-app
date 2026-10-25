@@ -361,5 +361,12 @@
   "burn.retry": "Thử lại",
   "burn.none": "Tuần này chưa ghi nhận gì.",
   "burn.connect": "Kết nối",
-  "burn.manual": "nhật ký của bạn"
+  "burn.manual": "nhật ký của bạn",
+  "burn.page.daysTracked": "Đã ghi {n}/7 ngày",
+  "burn.page.from": "Từ {sources}",
+  "burn.page.byDay": "Từng ngày",
+  "burn.page.toCome": "Sắp tới",
+  "burn.page.notTracked": "Chưa ghi",
+  "burn.page.today": "Hôm nay",
+  "burn.page.rule": "Mỗi ngày chỉ tính một lần: số đo của đồng hồ cho cả ngày, hoặc các buổi tập đã ghi trong ngày đó."
 }

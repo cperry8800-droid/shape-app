@@ -249,9 +249,17 @@ function BSWaterDay({ dayIso }) {
   // glasses against a target (one pip a glass of + Glass's size, at most 12), then + Glass as a round
   // button (owner, 2026-10-23, of the board's water row: "add the updated water to home page"). Apple
   // Health's share and Set a daily target are small lines under it.
-  const pips = known && target ? (() => {
-    const n = Math.max(1, Math.min(12, Math.round(target / glassL)));
-    return { n, on: Math.min(n, Math.floor((water.l / target) * n + 1e-6)) };
+  // ⚠ THE PIPS FILL A GLASS AT A TIME, TARGET OR NOT (owner, 2026-10-24: "the water here is supposed to
+  // show little bars that fill up each time you add a glass"). Without a target the member set they
+  // still measure nothing against one: the day's glasses filled and the next one empty, at most 12.
+  const pips = known ? (() => {
+    if (target) {
+      const n = Math.max(1, Math.min(12, Math.round(target / glassL)));
+      return { n, on: Math.min(n, Math.floor((water.l / target) * n + 1e-6)), mode: 'target' };
+    }
+    const had = Math.max(0, Math.round(water.l / glassL));
+    const n = Math.min(12, had + 1);
+    return { n, on: Math.min(n, had), mode: 'count' };
   })() : null;
   const onSky = t.isLight ? '#1a6f9c' : sky;
   return (
@@ -273,7 +281,7 @@ function BSWaterDay({ dayIso }) {
               </span>
             </span>
             {pips ? (
-              <span aria-hidden data-bs-water-bar="" style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+              <span aria-hidden data-bs-water-bar="" data-bs-water-mode={pips.mode} style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                 {Array.from({ length: pips.n }, (_, i) => (
                   <span key={i} style={{ width: 7, height: 14, borderRadius: 3, background: i < pips.on ? onSky : 'transparent', boxShadow: `inset 0 0 0 1.4px ${i < pips.on ? onSky : `${sky}66`}` }} />
                 ))}

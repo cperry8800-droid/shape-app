@@ -634,6 +634,20 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Radio\'s lower half, a page per macro, water bars, a photo viewer, Burned this week\'s page, and Customize — #2446. No migration',
+      items: [
+        { label: 'Owner, 2026-10-24: "update the rest of the radio page to match". Nora, Channel and Shape Sets open on the magazine head; the station rows are hairline rows (the playing one underlined in teal, no wash or spine); Watch Nora is the deck\'s square key; the Shape Sets page is upright with a ruled schedule block', status: 'done' },
+        { label: 'Owner: "the 3 of these are links to the same page, need to change that". Protein, Carbs and Fat each open their own page in the tile\'s colour: what is left or over, the day\'s meals by that macro, the week against the target; the day brief stays a tap away', status: 'done' },
+        { label: 'Owner: "the water here is supposed to show little bars that fill up each time you add a glass". Without a target set the line counts the day\'s glasses, filled, and the next one empty (at most 12), still measuring nothing against a target nobody chose', status: 'done' },
+        { label: 'Owner: "should be able to click on these pictures and make bigger". A Wall shot opens full size over the tab bar: the shot whole, its caption, 2 / 3, swipe, arrows or keys between shots, × or Escape back to the shot', status: 'done' },
+        { label: 'Owner: "i should be able to click on this, also this box doesnt match look of page". Burned this week is a row between two rules on Train\'s paper, and the whole of it opens the week day by day: each day\'s figure, a bar to the best day, where it came from, Not tracked and To come', status: 'done' },
+        { label: 'Owner: "also update design and look of this page" (Customize). Saira heads over 2 px ink rules with their hints at the right, square 44 px fields, square ink-outline actions, chosen chips in ink, Save in ink; nothing rounded, dashed, notched or gold', status: 'done' },
+        { label: 'Review: Codex found two on the macro pages, both fixed: a logged meal\'s swap now counts at its swap\'s amounts on the tile, the page and the week, and a swapped meal opens as its swap (from the menu too). A third (count the swaps of meals not yet eaten) was answered: Eat\'s figure is what was eaten. Verified: CI green on all four jobs; the new tests in nora-radio-magazine, focus-layout, water-line, me-page-magazine, profile-magazine-module, train-burn and week-burn, each failing on the code before them; Chromium renders', status: 'done' },
+        { label: 'OWNER — pick a design for Home\'s Week so far: A a scoreboard, B a day grid, C a lede (mockups sent 2026-10-24)', status: 'manual' },
+        { label: 'Eat on a live meal plan takes what was eaten from the plan\'s day totals and meals\' state, not the member\'s logs (no member meal plans in production yet)', status: 'pending' },
+      ],
+    },
+    {
       section: 'The profile\'s Signals tab reads real data; no quote at the top of profiles; a shorter cover photo — #2445. No migration',
       items: [
         { label: 'Owner, 2026-10-24: "where is this data updated from" (Signals and Climb), then "yes fix them". Signed in, on your own profile, every Signals figure read a field its route never sends. The day streak and weekly bars read /api/client/train\'s currentStreak and volumeByDay (it sends neither), the trajectory ran progress\'s { date, value } weigh-ins through Number() (all NaN), and key lifts read train\'s prs (none). Now (profileSignals.mjs): the streak from /api/client/dashboard; key lifts and disciplines from /api/client/profile-stats (the website profile\'s reads); weekly momentum as workout minutes on each of the last 7 days, labelled with their weekdays, and the trajectory from /api/client/progress', status: 'done' },
@@ -658,7 +672,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Owner: "also update design and layout here" (Your mornings). The title upright, 7 / 30 days as words underlined in red, each station on its name over a 2 px ink rule with its colour key, square badges and today\'s cell', status: 'done' },
         { label: 'Review: Codex clean on 1db7b99. Copilot declined on its quota. Verified: CI green on all four jobs; tests/nora-radio-magazine, the tab gem test in app-chrome-magazine-tabbar, the look test in your-mornings and the member dock in me-page-magazine, each failing on the code before them; Chromium renders on light and dark', status: 'done' },
         { label: 'OWNER — Talk to a person has had no request yet: send one from the app and answer it in /dashboard/support. This session could not read Vercel\'s settings to confirm RESEND_API_KEY; without it requests are saved and listed but the team inbox and the reply email are not sent', status: 'manual' },
-        { label: 'Radio below the deck (Watch Nora, the channel cards) keeps its old look', status: 'pending' },
+        { label: 'Radio below the deck (Watch Nora, the channel cards) in the Wall\'s look too (#2446)', status: 'done' },
       ],
     },
     {

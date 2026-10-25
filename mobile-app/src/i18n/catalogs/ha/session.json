@@ -361,5 +361,12 @@
   "burn.retry": "Sake gwadawa",
   "burn.none": "Ba a rubuta komai a wannan makon ba tukuna.",
   "burn.connect": "Haɗa",
-  "burn.manual": "rubutunka"
+  "burn.manual": "rubutunka",
+  "burn.page.daysTracked": "An bibiyi kwana {n} cikin 7",
+  "burn.page.from": "Daga {sources}",
+  "burn.page.byDay": "Kowace rana",
+  "burn.page.toCome": "Na zuwa",
+  "burn.page.notTracked": "Ba a bibiya ba",
+  "burn.page.today": "Yau",
+  "burn.page.rule": "Kowace rana ana ƙirga ta sau ɗaya: karatun agogo na duk ranar, ko kuma motsa jikin da aka rubuta a ranar."
 }
