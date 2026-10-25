@@ -114,7 +114,8 @@ dated entry or past 20 KB.
 - **Theme:** `useBS()` → `t`. The teal accent is
   `t.isLight ? '#0a8f87' : '#34d6c5'`; nutritionists are gold `#a07a2e` and trainers
   rust `#c0533b`. The Wall, chat and the chrome take the magazine's red from
-  `bsMagazine.mjs`; every heading is Saira.
+  `bsMagazine.mjs`; Progress and Your mornings take text and mark shades from
+  `BSDash.jsx`. Every heading is Saira.
 - **App copy** goes through `useShapeTr()` in all 13 locales.
   `tests/i18n-surface-inventory.test.mjs` counts the strings that aren't translated
   yet.
