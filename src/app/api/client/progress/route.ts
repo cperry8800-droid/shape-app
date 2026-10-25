@@ -307,35 +307,44 @@ export async function GET(request: Request) {
   let prs = [...prMap.values()].sort((a, b) => b.lb - a.lb).slice(0, 6).map(toPr);
   let recentPrs = [...prMap.values()].sort(newestFirst).slice(0, 6).map(toPr);
 
-  // Prefer all-time PRs from the aggregate RPC — it scans EVERY logged set, so a
+  // Prefer all-time PRs from the aggregate RPCs — they scan EVERY logged set, so a
   // high-volume athlete's old all-time best is never dropped by the newest-3000
   // window above (which still feeds the recent strength trajectory below). Falls
-  // back to the windowed row-scan until the migration is applied.
-  try {
-    // Every move's best (the RPC's ceiling is 100), heaviest first, so the most
-    // recent can be picked from all of them and not only from the heaviest few.
-    const { data: prRows, error: prErr } = await supabase.rpc('get_my_lift_prs', { p_limit: 100 });
-    if (!prErr && Array.isArray(prRows) && prRows.length) {
-      const all = (prRows as Array<Record<string, unknown>>).map((r) => {
-        const best = Number(r.best);
-        const repsN = r.best_reps == null ? null : Number(r.best_reps);
-        const reps = repsN != null && Number.isFinite(repsN) ? repsN : null;
-        const e = epleyE1rm(best, reps);
-        return {
-          move: String(r.move ?? ''),
-          best,
-          bestReps: reps,
-          unit: String(r.unit ?? 'lb'),
-          bestAt: String(r.best_at ?? ''),
-          e1rm: e == null ? null : Math.round(e * 10) / 10,
-        };
-      });
-      prs = all.slice(0, 6);
-      recentPrs = [...all].sort(newestFirst).slice(0, 6);
+  // back to the windowed row-scan until the migrations are applied.
+  // · get_my_lift_prs: every move's best (its ceiling is 100), heaviest first.
+  // · get_my_recent_lift_prs: the newest bests, ordered by date BEFORE its limit, so
+  //   a new record is never cut however many moves a member has (Codex P2 on #2445;
+  //   2026-10-25-my-recent-lift-prs.sql). Until that migration runs, the newest are
+  //   picked from get_my_lift_prs's rows, which stop at the 100 heaviest moves.
+  // Each RPC row keeps its set's own load and unit, as the fallback does.
+  const fromRow = (r: Record<string, unknown>) => {
+    const best = Number(r.best);
+    const repsN = r.best_reps == null ? null : Number(r.best_reps);
+    const reps = repsN != null && Number.isFinite(repsN) ? repsN : null;
+    const e = epleyE1rm(best, reps);
+    return {
+      move: String(r.move ?? ''),
+      best,
+      bestReps: reps,
+      unit: String(r.unit ?? 'lb'),
+      bestAt: String(r.best_at ?? ''),
+      e1rm: e == null ? null : Math.round(e * 10) / 10,
+    };
+  };
+  const rpcPrs = async (fn: 'get_my_lift_prs' | 'get_my_recent_lift_prs', limit: number) => {
+    try {
+      const { data, error } = await supabase.rpc(fn, { p_limit: limit });
+      return !error && Array.isArray(data) && data.length ? (data as Array<Record<string, unknown>>).map(fromRow) : null;
+    } catch {
+      return null; // not yet applied, or a transient error: the fallback stands
     }
-  } catch {
-    // keep the windowed row-scan PRs (RPC not yet applied, or a transient error)
+  };
+  const [heaviest, newest] = await Promise.all([rpcPrs('get_my_lift_prs', 100), rpcPrs('get_my_recent_lift_prs', 6)]);
+  if (heaviest) {
+    prs = heaviest.slice(0, 6);
+    recentPrs = [...heaviest].sort(newestFirst).slice(0, 6);
   }
+  if (newest) recentPrs = newest;
 
   // Strength trajectory: top one-rep-equivalent across all logged sets,
   // bucketed weekly so the chart shows the trend instead of every spike.
