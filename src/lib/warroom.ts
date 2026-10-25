@@ -615,6 +615,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Detail pages: the header scrolls away, and the pinned bar reads ← and the title — #2450. No migration',
+      items: [
+        { label: 'Owner, 2026-10-25, of the Library\'s header (back, the count, the kicker and a two-line title), which stayed pinned whole, about a quarter of the screen: "yes make the header smaller on scroll"', status: 'done' },
+        { label: 'BSDetailHeader (34 uses: the Library, Your mornings, Notifications, the leaderboards, Habits, Business, Integrations, the macro pages, Burned this week, the Score, the Store, the legal pages) scrolls with the page inside a BSPage. BSPage\'s bar still comes in at 64px; once the title is under it the bar\'s row reads ← and the title (useBSDetailBar, bsTitleText, bsMastCondenseAt), keeping its corner, at the same 92px height, so the menu\'s time tabs, the profile\'s tabs and Your mornings\' range switch still stick right under it. Outside a BSPage with a masthead the header stays sticky. The Score\'s Store and the Store\'s Score buttons now scroll away with their headers', status: 'done' },
+        { label: 'Review: Codex clean on 8b808a1. CodeRabbit not run. tests/detail-bar (mounts the real BSPage and scrolls it) and tests/detail-header-pin, five of six failing on main; npm test caught three suites on the first commit (the Menu\'s pinned-mast anchor read the new comment, DOM-valued assertions, the worklog at 20,609 bytes, past its 20 KB), all fixed in 8b808a1; CI green on all four jobs', status: 'done' },
+        { label: 'Device pass: the Library and Your mornings on a phone, light and dark — the swap on a real scroll and the ← under a thumb', status: 'manual' },
+      ],
+    },
+    {
       section: 'Home\'s Week so far as a square a day (the owner\'s pick, B); the plan route says when its workouts read failed — #2449. No migration',
       items: [
         { label: 'Owner, 2026-10-24: "we also need to improve look of this, give me 3 new ideas" (Week so far). Three mockups went over (A a scoreboard, B a day grid, C a lede); the owner, 2026-10-25: "go with B"', status: 'done' },

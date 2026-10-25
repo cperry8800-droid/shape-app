@@ -552,6 +552,51 @@ function useBSReportBareMast(bare) {
   }, [report, bare]);
 }
 
+// A detail page's header in one line on scroll (owner, 2026-10-25: "yes make the header
+// smaller on scroll"). BSDetailHeader (back, a count, a kicker and a two-line title) used to
+// stay pinned whole, about a quarter of the screen. Inside a BSPage it now scrolls away, and
+// once its title has passed under BSPage's condensing masthead that bar reads ← and the
+// page's title in place of the logo and Vol·No, keeping its corner. It is the same bar at the
+// same height, so every sticky row that measures it (useBSPinnedMastTop) still sits under it.
+const BSDetailBarCtx = React.createContext(null);
+
+// The title as one line of words: a <br/> is a space, and a styled span gives its text.
+function bsTitleText(node) {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(bsTitleText).join('');
+  if (node.type === 'br') return ' ';
+  return node.props ? bsTitleText(node.props.children) : '';
+}
+
+// The scroll past which the bar's row turns to ← and the title: once a detail title's bottom
+// is under the bar's, so the title is never on screen twice, and never before the bar is in
+// (64px).
+// Layout px throughout (offsetTop, offsetHeight, scrollTop), which a text-size zoom leaves
+// consistent. A title that isn't laid out inside the scroller keeps the plain 64.
+function bsMastCondenseAt(scroller, title, bar) {
+  if (!scroller || !title || !bar) return 64;
+  let y = 0;
+  let n = title;
+  while (n && n !== scroller) { y += n.offsetTop || 0; n = n.offsetParent; }
+  if (n !== scroller) return 64;
+  return Math.max(64, y + (title.offsetHeight || 0) - (bar.offsetHeight || 0));
+}
+
+// Called by a detail header with its title and back. Outside a BSPage with a masthead it
+// returns null and the header stays sticky, as it was; inside one it returns the ref for the
+// title, and BSPage's bar takes over once that title has scrolled under it.
+function useBSDetailBar(title, onBack) {
+  const bar = React.useContext(BSDetailBarCtx);
+  const titleRef = useRefBS(null);
+  const backRef = useRefBS(onBack);
+  backRef.current = onBack;
+  const text = bsTitleText(title).replace(/\s+/g, ' ').trim();
+  useEffectBS(() => (bar ? bar.register({ titleRef, backRef }) : undefined), [bar]);
+  useEffectBS(() => { if (bar) bar.setText(text); }, [bar, text]);
+  return bar ? titleRef : null;
+}
+
 // Page wrapper — sets paper background and provides scroll
 function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = true, noSwipe = false }) {
   const t = useBS();
@@ -571,12 +616,31 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
   // Full-screen flows with their own chrome (e.g. the meal logger) opt out
   // with mast={false}.
   const [mastCondensed, setMastCondensed] = useStateBS(false);
+  // A detail header on this page (useBSDetailBar): its title and back, and the title's words.
+  const pinnedRef = useRefBS(null);
+  const detailRef = useRefBS(null);
+  const [detailText, setDetailText] = useStateBS(null);
+  const [detailShown, setDetailShown] = useStateBS(false);
+  const detailBar = React.useMemo(() => (mast ? {
+    register(d) {
+      detailRef.current = d;
+      return () => { if (detailRef.current === d) { detailRef.current = null; setDetailText(null); } };
+    },
+    setText(s) { setDetailText(s || null); },
+  } : null), [mast]);
+  const tr = useShapeTr();
 
   useEffectBS(() => {
     if (!mast) return undefined;
     const el = scrollerRef.current;
     if (!el) return undefined;
-    const onScroll = () => setMastCondensed(el.scrollTop > 64);
+    // The bar comes in at 64px on every page, so nothing scrolls under the status bar; on a
+    // detail page its row turns to ← and the title once the title has gone under it.
+    const onScroll = () => {
+      const d = detailRef.current;
+      setMastCondensed(el.scrollTop > 64);
+      setDetailShown(el.scrollTop > bsMastCondenseAt(el, d && d.titleRef.current, pinnedRef.current));
+    };
     el.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
     return () => el.removeEventListener('scroll', onScroll);
@@ -650,7 +714,9 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
       fontFamily: t.BODY,
       scrollbarWidth: 'none', msOverflowStyle: 'none',
     }}>
-      <BSMastBareCtx.Provider value={reportBareMast}>{children}</BSMastBareCtx.Provider>
+      <BSMastBareCtx.Provider value={reportBareMast}>
+        <BSDetailBarCtx.Provider value={detailBar}>{children}</BSDetailBarCtx.Provider>
+      </BSMastBareCtx.Provider>
     </div>
   );
 
@@ -666,7 +732,7 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
     // or spend the whole scroll underneath it. The attribute lets such a page
     // MEASURE the bar instead of restating its padding + row height, which a
     // safe-area inset, a notch floor or a text-size change would make wrong.
-    <div aria-hidden={!mastCondensed} data-bs-pinned-mast="" style={{
+    <div ref={pinnedRef} aria-hidden={!mastCondensed} data-bs-pinned-mast="" style={{
       position: 'absolute', top: 0, left: 0, right: 0, zIndex: 60,
       // Match the in-page masthead's gutter (t.padX) AND its element rhythm — a
       // full-size corner (34) with room to breathe, so scrolling doesn't shrink
@@ -688,7 +754,25 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
           scrolled 64px. Twelve surfaces were live examples, including a REQUIRED
           health-intake gate that necessarily scrolls. The page reports the fact
           by rendering a trailing-less row; this honours it. */}
-      <BSMastRow trailing={(MastCorner && !bareMast) ? <MastCorner /> : null} />
+      {(detailText && detailShown) ? (
+        // A detail page's one line: ←, its title, and the corner. The ← is drawn in the corner's
+        // 34px row and reaches 44px with negative margins, so the bar keeps its height.
+        <div data-bs-detail-bar="" style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 34 }}>
+          <button type="button" onClick={() => { const d = detailRef.current; if (d && d.backRef.current) d.backRef.current(); }}
+            aria-label={tr('common:action.back', { defaultValue: 'Back' })} style={{
+              width: 44, height: 44, margin: '-5px -10px -5px -14px', padding: 0, flexShrink: 0,
+              display: 'grid', placeItems: 'center', background: 'transparent', border: 0, cursor: 'pointer',
+              color: t.INK, fontSize: 18, lineHeight: 1,
+            }}><span aria-hidden>←</span></button>
+          <div style={{
+            flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, lineHeight: 1.15,
+            letterSpacing: '-0.02em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{detailText}</div>
+          {(MastCorner && !bareMast) ? <MastCorner /> : null}
+        </div>
+      ) : (
+        <BSMastRow trailing={(MastCorner && !bareMast) ? <MastCorner /> : null} />
+      )}
     </div>
   ) : null;
 
@@ -1993,7 +2077,7 @@ function BSNavGestures() {
 
 Object.assign(window, {
   BSContext, BSProvider, useBS, BSBackButton, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
-  BSPage, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
+  BSPage, useBSDetailBar, bsTitleText, bsMastCondenseAt, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_CORNER_GAP,
   // The settings texture picker paints live pattern-preview tiles with this.

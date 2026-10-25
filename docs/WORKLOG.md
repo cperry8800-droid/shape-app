@@ -109,8 +109,8 @@ dated entry or past 20 KB.
   `loadProsBundle` loads the whole client bundle first.
 - **Sheets** use `createPortal` into `#bs-phone-surface`.
 - **Pages** render inside `BSPage`, which pins a condensed masthead once the page's own
-  masthead scrolls away; a page that is its own scroller gets none. A `position: sticky`
-  row inside a `BSPage` sticks at `top: useBSPinnedMastTop()`, below that masthead.
+  scrolls away (none if the page scrolls itself); past a `BSDetailHeader`'s title it reads
+  ← and the title. A sticky row in a `BSPage` takes `top: useBSPinnedMastTop()`.
 - **Theme:** `useBS()` → `t`. The teal accent is
   `t.isLight ? '#0a8f87' : '#34d6c5'`; nutritionists are gold `#a07a2e` and trainers
   rust `#c0533b`. The Wall, chat and the chrome take the magazine's red from

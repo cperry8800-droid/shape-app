@@ -33110,14 +33110,20 @@ Object.assign(window, {
 // ═══════════════════════════════════════════════════════════
 // SHARED: detail page back-header
 // ═══════════════════════════════════════════════════════════
+function bsNoDetailBar() { return null; }
+
 function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = false }) {
   const t = useBS();
   const BSMastRow = window.BSMastRow;
+  // Inside a BSPage the header scrolls away, and the page's pinned bar takes ← and the title in
+  // one line once the title has gone under it (owner: "yes make the header smaller on scroll";
+  // useBSDetailBar in iosAppBroadsheet.jsx). Anywhere else it stays sticky, as it was.
+  const titleRef = (window.useBSDetailBar || bsNoDetailBar)(title, onBack);
+  const pin = titleRef ? null : { position: 'sticky', top: 0, zIndex: 2 };
   // Standing masthead row first (logo + Vol·No + the search/avatar corners —
-  // the strip that opens every page), then the back + eyebrow row. Top padding
-  // dropped 64 → 46 so the sticky header stays about the same height.
+  // the strip that opens every page), then the back + eyebrow row.
   return (
-    <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 14px`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
+    <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 14px`, background: t.PAPER, ...pin }}>
       {BSMastRow && <BSMastRow trailing={noCorner ? null : <BSMeCorner />} style={{ marginBottom: 12 }} />}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
         <BSBackButton onClick={onBack} />
@@ -33125,7 +33131,7 @@ function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = f
       </div>
       {kicker && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 8 }}>{kicker}</div>}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, lineHeight: 0.96, fontWeight: t.W.display, letterSpacing: '-0.035em', color: t.INK }}>{title}</div>
+        <div ref={titleRef || undefined} style={{ fontFamily: t.DISPLAY, fontSize: 30, lineHeight: 0.96, fontWeight: t.W.display, letterSpacing: '-0.035em', color: t.INK }}>{title}</div>
         {trailing}
       </div>
     </div>
