@@ -1,5 +1,7 @@
 {
+  "activity.byHand": "Elle kaydedildi",
   "activity.loggedByHand": "Elle kaydedildi.",
+  "activity.syncedFrom": "{sources} üzerinden eşitlendi",
   "add.added": "Takvime eklendi",
   "add.couldNotSave": "Kaydedilemedi",
   "add.needTitle": "Bir başlık ekle",

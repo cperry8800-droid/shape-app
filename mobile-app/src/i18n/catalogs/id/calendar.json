@@ -1,5 +1,7 @@
 {
+  "activity.byHand": "Dicatat manual",
   "activity.loggedByHand": "Dicatat manual.",
+  "activity.syncedFrom": "Disinkronkan dari {sources}",
   "add.added": "Ditambahkan ke kalender",
   "add.couldNotSave": "Tidak bisa menyimpan",
   "add.needTitle": "Tambahkan judul",

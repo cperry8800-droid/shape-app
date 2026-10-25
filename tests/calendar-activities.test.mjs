@@ -76,16 +76,76 @@ test('an activity lands on the date and clock of the zone the route answers in, 
 
 test('a workout logged in Shape takes its synced copy\'s distance, and no second card is drawn', () => {
   const done = [{ id: 'plan:w1', at: Date.parse('2026-10-21T10:50:00Z') }];
-  const { events, workoutDistance } = place([
+  const { events, workouts } = place([
     act('s1', 'strava', 'run', 'Morning Run', '2026-10-21T11:00:00Z'),
     // A second run at the same hour is not the same workout twice.
     act('a1', 'apple_health', 'walking', 'walking', '2026-10-21T11:05:00Z', { distance_km: 2 }),
   ], { done });
-  assert.equal(workoutDistance.get('plan:w1'), 5.79);
+  assert.deepEqual(workouts.get('plan:w1'), { distanceKm: 5.79, durationMin: null, by: 'Apple Health · Strava', matched: false });
   assert.deepEqual(events.map((e) => e.id), [], 'the Apple Health walk twins the Strava run (two sources, 5 minutes apart)');
   const apart = place([act('s1', 'strava', 'run', 'Morning Run', '2026-10-21T11:00:00Z'), act('s2', 'strava', 'run', 'Later', '2026-10-21T11:05:00Z')], { done });
   assert.deepEqual(apart.events.map((e) => e.id), ['act:s2'], 'one logged workout swallowed two activities');
   assert.equal(place([act('s1', 'strava', 'run', 'Run', '2026-10-21T12:00:00Z')], { done }).events.length, 1, 'an activity an hour away was folded');
+});
+
+// ── matching a synced activity to the planned workout by day and type ────────
+
+test('a provider\'s type and a workout\'s title each name one kind, or none', () => {
+  const cases = {
+    run: ['run', 'trailrun', 'VirtualRun', 'RUNNING', 'treadmill_running', 'Morning Run', '3.25mi Easy Run', 'Easy run + strides', 'jog'],
+    ride: ['ride', 'virtualride', 'ebikeride', 'cycling', 'ROAD_BIKING', 'INDOOR_CYCLING', 'Spin class', 'Long Ride'],
+    swim: ['swim', 'Open water swim', 'LAP_SWIMMING'],
+    walk: ['walk', 'walking', 'Hike', 'hiking'],
+    row: ['rowing', 'Row', 'indoor_rowing'],
+    yoga: ['yoga', 'Pilates', 'Mobility flow'],
+    strength: ['weighttraining', 'traditionalstrengthtraining', 'STRENGTH_TRAINING', 'Upper Body Strength', 'Lower Body Strength Session', 'Strength Supersets', 'crossfit'],
+  };
+  for (const [kind, texts] of Object.entries(cases)) for (const text of texts) assert.equal(LIB.workoutKind(text), kind, text);
+  // None, or more than one: never guessed at.
+  for (const text of ['Hill Repeats', 'Over and Unders 1km', 'Strong Foundation', 'Core crunches', 'Brunch', 'Bent-over rows', 'Strength for runners', 'Run then lift weights', 'workout', '', null]) {
+    assert.equal(LIB.workoutKind(text), null, String(text));
+  }
+});
+
+const planned = (id, days, kind) => ({ id, days, kind });
+
+test('a synced run finishes the planned run on its day, with its distance and time, and is not drawn again', () => {
+  const { events, workouts } = place([
+    act('s1', 'strava', 'run', 'Morning Run', '2026-10-21T11:00:00Z', { calories: 410 }),
+    act('w1', 'strava', 'weighttraining', 'Lunch lift', '2026-10-21T16:00:00Z', { distance_km: null, duration_min: 50 }),
+    act('r1', 'garmin', 'cycling', 'cycling', '2026-10-21T19:00:00Z', { distance_km: 20 }),
+  ], { planned: [planned('plan:run', ['2026-10-21'], 'run'), planned('plan:str', ['2026-10-21'], 'strength'), planned('plan:tue', ['2026-10-20'], 'run')] });
+  assert.deepEqual(workouts.get('plan:run'), { distanceKm: 5.79, durationMin: 35, by: 'Strava', matched: true });
+  assert.deepEqual(workouts.get('plan:str'), { distanceKm: null, durationMin: 50, by: 'Strava', matched: true });
+  assert.equal(workouts.has('plan:tue'), false, 'a run finished another day\'s planned run');
+  assert.deepEqual(events.map((e) => e.id), ['act:r1'], 'a ride with no planned ride keeps its card');
+});
+
+test('only a planned workout of a named kind is matched, each takes one activity, and a logged one comes first', () => {
+  // Two runs, one planned run: the first takes it, the second keeps its card.
+  const two = place([act('s1', 'strava', 'run', 'AM', '2026-10-21T07:00:00Z'), act('s2', 'strava', 'run', 'PM', '2026-10-21T18:00:00Z')],
+    { planned: [planned('plan:run', ['2026-10-21'], 'run')] });
+  assert.equal(two.workouts.get('plan:run').matched, true);
+  assert.deepEqual(two.events.map((e) => e.id), ['act:s2']);
+  // A planned workout whose title names no kind is never guessed onto.
+  const unknown = place([act('s1', 'strava', 'run', 'Run', '2026-10-21T07:00:00Z')], { planned: [planned('plan:hill', ['2026-10-21'], null)] });
+  assert.equal(unknown.workouts.size, 0);
+  assert.equal(unknown.events.length, 1);
+  // An activity whose type names nothing is matched by its own name, else not at all.
+  const named = place([act('s1', 'strava', 'workout', 'Easy run', '2026-10-21T07:00:00Z')], { planned: [planned('plan:run', ['2026-10-21'], 'run')] });
+  assert.equal(named.workouts.get('plan:run').matched, true);
+  // A run that is the synced copy of a workout logged in Shape folds into that one, not a planned run.
+  const logged = place([act('s1', 'strava', 'run', 'Run', '2026-10-21T07:05:00Z')],
+    { done: [{ id: 'plan:logged', at: Date.parse('2026-10-21T07:00:00Z') }], planned: [planned('plan:run', ['2026-10-21'], 'run')] });
+  assert.equal(logged.workouts.get('plan:logged').matched, false);
+  assert.equal(logged.workouts.has('plan:run'), false);
+});
+
+test('an undated planned workout takes a matching activity from any day of its week', () => {
+  const week = ['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25'];
+  const { workouts, events } = place([act('s1', 'strava', 'run', 'Run', '2026-10-23T07:00:00Z')], { planned: [planned('plan:undated', week, 'run')] });
+  assert.equal(workouts.get('plan:undated').matched, true);
+  assert.equal(events.length, 0);
 });
 
 test('a workout logged by hand names no provider', () => {
@@ -119,6 +179,32 @@ test('a finished workout takes its synced copy\'s distance; the copy is not draw
   }, { qs: `${QS}&activities=1` });
   const plan = ofSource(body, 'plan');
   assert.deepEqual(plan.map((e) => [e.id, e.status, e.doneSeconds, e.distanceKm]), [['plan:w1', 'completed', 2124, 5.79]]);
+  assert.equal(ofSource(body, 'activity').length, 0);
+});
+
+test('the route ticks the planned workout a synced activity matches by day and type, and no other', async () => {
+  const cw = (id, title, scheduled_date) => ({ id, client_id: 'member-1', status: 'published', title, description: null, payload: { duration: '45 min' }, scheduled_date });
+  const body = await GET({
+    client_workouts: [cw('w-run', '3.25mi Easy Run', '2026-10-21'), cw('w-str', 'Upper Body Strength', '2026-10-21'), cw('w-hill', 'Hill Repeats', '2026-10-22')],
+    activities: [row('s1', 'member-1', '2026-10-21T11:00:00Z'), row('s2', 'member-1', '2026-10-22T11:00:00Z')],
+  }, { qs: `${QS}&activities=1` });
+  const plan = Object.fromEntries(ofSource(body, 'plan').map((e) => [e.id, e]));
+  assert.deepEqual([plan['plan:w-run'].status, plan['plan:w-run'].doneSeconds, plan['plan:w-run'].distanceKm, plan['plan:w-run'].doneBy], ['completed', 2100, 5.79, 'Strava']);
+  assert.equal(plan['plan:w-str'].status, 'planned', 'a run finished the strength session');
+  assert.equal(plan['plan:w-str'].doneBy, undefined);
+  assert.equal(plan['plan:w-hill'].status, 'planned', '"Hill Repeats" was guessed to be a run');
+  assert.deepEqual(ofSource(body, 'activity').map((e) => e.id), ['act:s2'], 'the matched run was drawn again, or the unmatched one was not');
+});
+
+test('the route lets an undated planned run take a run from any day of this week', async (t) => {
+  // Wednesday the 21st: the undated run is slotted onto Monday the 19th, and run on Thursday.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-21T12:00:00Z') });
+  const body = await GET({
+    client_workouts: [{ id: 'w-und', client_id: 'member-1', status: 'published', title: 'Easy Run', description: null, payload: {}, scheduled_date: null }],
+    activities: [row('s1', 'member-1', '2026-10-23T07:00:00Z')],
+  }, { qs: `${QS}&activities=1` });
+  const und = ofSource(body, 'plan').find((e) => e.id === 'plan:w-und');
+  assert.deepEqual([und.date, und.status, und.distanceKm], ['2026-10-19', 'completed', 5.79]);
   assert.equal(ofSource(body, 'activity').length, 0);
 });
 

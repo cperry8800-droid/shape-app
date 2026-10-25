@@ -1,5 +1,7 @@
 {
+  "activity.byHand": "Записано вручну",
   "activity.loggedByHand": "Записано вручну.",
+  "activity.syncedFrom": "Синхронізовано з {sources}",
   "add.added": "Додано до календаря",
   "add.couldNotSave": "Не вдалося зберегти",
   "add.needTitle": "Додайте назву",

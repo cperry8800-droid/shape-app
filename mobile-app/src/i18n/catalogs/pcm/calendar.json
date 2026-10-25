@@ -1,5 +1,7 @@
 {
+  "activity.byHand": "You log am by hand",
   "activity.loggedByHand": "You log am by hand.",
+  "activity.syncedFrom": "E sync from {sources}",
   "add.added": "Don add am to calendar",
   "add.couldNotSave": "No fit save am",
   "add.needTitle": "Add title",

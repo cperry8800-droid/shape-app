@@ -262,6 +262,8 @@ function _bsMapServerCalEvent(ev, t, zone = null) {
     distanceKm: Number(ev.distanceKm) > 0 ? Number(ev.distanceKm) : null,
     calories: Number(ev.calories) > 0 ? Number(ev.calories) : null,
     activityType: ev.activityType || null,
+    // An assigned workout a synced activity finished: the providers it came from ('' by hand).
+    doneBy: typeof ev.doneBy === 'string' ? ev.doneBy : null,
     sources: Array.isArray(ev.sources) ? ev.sources : [],
     meetingUrl: ev.meetingUrl || null,
     // Live coaching bookings (source 'session') carry their sessions-table id +
@@ -1014,6 +1016,17 @@ function BSEventWorkoutBody({ event, role }) {
     <>
       {/* Register — bare eyebrow-above-figure columns + an ink→accent rule (Open Ledger) */}
       <BSEventStatRegister t={t} items={stats} accent={event.accent} />
+
+      {/* Finished by a synced activity: where it came from, how far and how long. */}
+      {event.doneBy != null && (
+        <div style={{ padding: `10px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>
+          {[
+            event.doneBy ? tr('calendar:activity.syncedFrom', { sources: event.doneBy, defaultValue: 'Synced from {sources}' }) : tr('calendar:activity.byHand', { defaultValue: 'Logged by hand' }),
+            Number(event.distanceKm) > 0 ? (() => { const m = t.uMeasure ? t.uMeasure(Number(event.distanceKm), 'km') : { value: Math.round(Number(event.distanceKm) * 10) / 10, unit: 'km' }; return `${m.value} ${m.unit}`; })() : null,
+            Number(event.doneSec) > 0 ? tr('calendar:unit.durMin', { min: Math.round(Number(event.doneSec) / 60), defaultValue: '{min}m' }) : null,
+          ].filter(Boolean).join(' · ')}
+        </div>
+      )}
 
       {/* Coach's cue — accent-spine block, no box */}
       {detail && detail.note && (

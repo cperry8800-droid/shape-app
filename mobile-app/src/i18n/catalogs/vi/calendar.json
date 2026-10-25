@@ -1,5 +1,7 @@
 {
+  "activity.byHand": "Ghi thủ công",
   "activity.loggedByHand": "Ghi thủ công.",
+  "activity.syncedFrom": "Đồng bộ từ {sources}",
   "add.added": "Đã thêm vào lịch",
   "add.couldNotSave": "Không thể lưu",
   "add.needTitle": "Thêm tiêu đề",

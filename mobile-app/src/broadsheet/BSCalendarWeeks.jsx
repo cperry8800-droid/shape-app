@@ -109,7 +109,8 @@ export function BSCalendarWeeks({ events, viewYear, viewMonth, todayIso, focusIs
   };
   const fmtSec = (sec) => {
     const s = Math.round(sec);
-    if (s >= 3600) return fmtMin(Math.round(s / 60));
+    // Whole minutes read as minutes: a synced run is timed to the minute ("35m", not "35m 0s").
+    if (s >= 3600 || s % 60 === 0) return fmtMin(Math.round(s / 60));
     return tr('calendar:weeks.durMS', { m: Math.floor(s / 60), s: s % 60, defaultValue: '{m}m {s}s' });
   };
   const shortDate = (d) => d.toLocaleDateString(calLocale(), { month: 'short', day: 'numeric' });

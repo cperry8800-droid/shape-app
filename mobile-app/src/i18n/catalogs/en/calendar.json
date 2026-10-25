@@ -1,5 +1,7 @@
 {
+  "activity.byHand": "Logged by hand",
   "activity.loggedByHand": "Logged by hand.",
+  "activity.syncedFrom": "Synced from {sources}",
   "add.added": "Added to calendar",
   "add.couldNotSave": "Could not save",
   "add.needTitle": "Add a title",

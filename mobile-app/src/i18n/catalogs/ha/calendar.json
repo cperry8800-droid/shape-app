@@ -1,5 +1,7 @@
 {
+  "activity.byHand": "An rubuta da hannu",
   "activity.loggedByHand": "An rubuta da hannu.",
+  "activity.syncedFrom": "An daidaita daga {sources}",
   "add.added": "An ƙara zuwa kalanda",
   "add.couldNotSave": "An kasa ajiyewa",
   "add.needTitle": "Ƙara take",

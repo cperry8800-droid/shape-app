@@ -47,7 +47,7 @@ import { isSessionReschedulable } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 import { requireMembership } from '@/lib/require-membership';
 import { DAY_MS, normalizeZone, wallClockInZone } from '@/lib/time';
-import { calendarActivities, type ActivityRow, type ActivityEvent, type DoneWorkout } from '@/lib/calendar-activities';
+import { calendarActivities, workoutKind, type ActivityRow, type ActivityEvent, type DoneWorkout, type PlannedWorkout } from '@/lib/calendar-activities';
 import { memberDay, storedDay } from '@/lib/workout-days';
 
 export const runtime = 'nodejs';
@@ -383,7 +383,8 @@ export async function GET(request: Request) {
   // 3b) The member's activities: Strava, Garmin, Apple Health, WHOOP, Oura, or logged by hand.
   //     Only the member calendar asks for them (`activities=1`, the app's); the coach's Schedule
   //     and the website's overlay read this route without. Placed on the zone's dates, a workout
-  //     two providers synced shown once, and one logged in Shape folded into its card
+  //     two providers synced shown once, one logged in Shape folded into its card, and one that
+  //     is an unfinished assigned workout's day and kind finishing it, with its distance and time
   //     (src/lib/calendar-activities.ts). A failed read shows none.
   let activityEvents: ActivityEvent[] = [];
   if (url.searchParams.get('activities') === '1') {
@@ -395,11 +396,26 @@ export async function GET(request: Request) {
       .lte('started_at', toIso)
       .order('started_at', { ascending: false })
       .limit(ACTIVITY_CAP);
-    const placed = calendarActivities({ rows: (actRows ?? []) as ActivityRow[], zone, from: dFrom, to: dTo, done: doneAt });
+    // The unfinished ones, dated first: an undated workout takes a day of this week.
+    const planned: PlannedWorkout[] = planWorkouts
+      .filter((w) => w.status !== 'completed')
+      .map((w) => ({
+        id: String(w.id),
+        days: undatedIds.has(String(w.id).slice('plan:'.length)) ? weekISO : [String(w.date)],
+        kind: workoutKind(String(w.title ?? '')),
+      }))
+      .sort((a, b) => a.days.length - b.days.length);
+    const placed = calendarActivities({ rows: (actRows ?? []) as ActivityRow[], zone, from: dFrom, to: dTo, done: doneAt, planned });
     activityEvents = placed.events;
     for (const w of planWorkouts) {
-      const km = placed.workoutDistance.get(String(w.id));
-      if (km != null) w.distanceKm = km;
+      const fill = placed.workouts.get(String(w.id));
+      if (!fill) continue;
+      if (fill.distanceKm != null) w.distanceKm = fill.distanceKm;
+      if (!fill.matched) continue;
+      // Finished by a synced activity: its time, and the providers it came from ('' by hand).
+      w.status = 'completed';
+      w.doneSeconds = fill.durationMin ? fill.durationMin * 60 : null;
+      w.doneBy = fill.by;
     }
   }
 

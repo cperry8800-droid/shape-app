@@ -1,5 +1,7 @@
 {
+  "activity.byHand": "Registrado à mão",
   "activity.loggedByHand": "Registrado à mão.",
+  "activity.syncedFrom": "Sincronizado de {sources}",
   "add.added": "Adicionado ao calendário",
   "add.couldNotSave": "Não foi possível salvar",
   "add.needTitle": "Adicione um título",

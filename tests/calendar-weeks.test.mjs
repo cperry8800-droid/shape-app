@@ -152,7 +152,7 @@ const sheet = { opened: [], open(n) { this.opened.push(n); }, close() {} };
 const EFFECTS = { ...SHIM, useEffect: (fn) => { fn(); }, useContext: () => sheet };
 const CAL = await loadRealModule(join(BROADSHEET, 'iosAppBroadsheetCalendar.jsx'), {
   registry: new Map([['react', EFFECTS], ['react-dom', { createPortal: (n) => n }]]),
-  appendExports: 'export { BSCalendarScreen, BSCalDaySheet, BSEventSheet, BSEventActivityBody };',
+  appendExports: 'export { BSCalendarScreen, BSCalDaySheet, BSEventSheet, BSEventActivityBody, BSEventWorkoutBody };',
 });
 const named = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
 
@@ -216,8 +216,11 @@ test('Month keeps to its own dates when a weeks read carried the days either sid
 
 test('a synced run from the route reaches Weeks with its distance, calories and providers', async () => {
   const run = { id: 'act:s1', source: 'activity', kind: 'WORKOUT', title: 'Morning Run', sub: 'Garmin · Strava', date: '2026-10-21', time: '07:00', durationMin: 35, distanceKm: 5.81, calories: 410, activityType: 'run', sources: ['garmin', 'strava'], status: 'completed', editable: false };
-  const { d, settle } = await screen({ stored: 'weeks', answer: () => ({ events: [run], zone: 'UTC' }) });
+  const matched = { id: 'plan:w1', source: 'plan', kind: 'WORKOUT', title: 'Easy Run', date: '2026-10-22', time: null, durationMin: 45, status: 'completed', doneSeconds: 2100, distanceKm: 5.79, doneBy: 'Strava' };
+  const { d, settle } = await screen({ stored: 'weeks', answer: () => ({ events: [run, matched], zone: 'UTC' }) });
   await settle();
+  const m = d.nodes().find(named('BSCalendarWeeks')).props.events[1];
+  assert.deepEqual([m.state, m.doneSec, m.distanceKm, m.doneBy], ['done', 2100, 5.79, 'Strava'], 'a matched workout lost what finished it');
   const e = d.nodes().find(named('BSCalendarWeeks')).props.events[0];
   assert.deepEqual([e.state, e.dur, e.distanceKm, e.calories, e.activityType, e.sources, e.editable], ['done', 35, 5.81, 410, 'run', ['garmin', 'strava'], false]);
 });
@@ -389,6 +392,22 @@ test('a synced run opens on what was measured, and offers nothing to start', () 
   const ride = drive(CAL.BSEventActivityBody, { event: { source: 'activity', distanceKm: 20, dur: 50, activityType: 'ride', sub: '' } });
   assert.deepEqual(ride.nodes().find(named('BSEventStatRegister')).props.items[2], ['PACE', '—']);
   assert.match(ride.text, /Logged by hand\./);
+});
+
+test('a workout a synced run finished reads how far and how long, and where it came from', () => {
+  // The Weeks card: a whole-minute time reads as minutes.
+  const text = strip(render({ events: [{ id: 'plan:w1', source: 'plan', date: '2026-10-21', kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2100, distanceKm: 5.79, dur: 45, time: '—', doneBy: 'Strava' }] }));
+  assert.match(text, /Easy Run 3\.6 mi · 35m /);
+  // Its sheet: the plan's card, with the synced line under the register.
+  const d = sheetOf({ id: 'plan:w1', source: 'plan', kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2100, distanceKm: 5.79, dur: 45, doneBy: 'Strava' });
+  const body = drive(CAL.BSEventWorkoutBody, { event: { kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2100, distanceKm: 5.79, dur: 45, doneBy: 'Strava' }, role: 'client' });
+  assert.match(body.text, /Synced from Strava · 3\.6 mi · 35m/);
+  assert.deepEqual(buttonsOf(d).filter((b) => /Start session|Completed/.test(b)), ['Completed ✓']);
+  const byHand = drive(CAL.BSEventWorkoutBody, { event: { kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 1800, distanceKm: null, dur: 45, doneBy: '' }, role: 'client' });
+  assert.match(byHand.text, /Logged by hand · 30m/);
+  // A workout no activity finished has no such line.
+  const plain = drive(CAL.BSEventWorkoutBody, { event: { kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2124, dur: 45, doneBy: null }, role: 'client' });
+  assert.doesNotMatch(plain.text, /Synced from|Logged by hand/);
 });
 
 test('a finished workout reads Completed; one still to do offers to start it', () => {

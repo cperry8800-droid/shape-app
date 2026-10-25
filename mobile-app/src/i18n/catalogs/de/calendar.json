@@ -1,5 +1,7 @@
 {
+  "activity.byHand": "Von Hand erfasst",
   "activity.loggedByHand": "Von Hand erfasst.",
+  "activity.syncedFrom": "Synchronisiert von {sources}",
   "add.added": "Zum Kalender hinzugefügt",
   "add.couldNotSave": "Speichern fehlgeschlagen",
   "add.needTitle": "Titel hinzufügen",
