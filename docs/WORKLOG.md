@@ -30,8 +30,7 @@ dated entry or past 20 KB.
   - Read your own diff adversarially before every push.
   - Codex reviews on its own when a PR opens; read what it posts and fix or answer
     every finding. When it is at its usage limit, retry once.
-  - Copilot runs on push and can be requested with
-    `mcp__github__request_copilot_review`, but it often declines on its quota.
+  - Copilot runs on push (or `mcp__github__request_copilot_review`); it often declines.
   - CodeRabbit runs only when the owner asks for it on that PR. When they do, put the
     brief in the PR description, wait for CodeRabbit's own notice, then post just
     `@coderabbitai full review`. Run one round per PR and don't re-trigger it. It
@@ -81,7 +80,8 @@ dated entry or past 20 KB.
   with `npx tsc --noEmit` (read the Next docs first). When you add a route,
   register it in the War Room's `RAW_ROUTES`. A route the app calls reads the caller with
   `clientForRequest`/`currentUser` (`src/lib/request-auth.ts`): the installed app sends a
-  Bearer token and no cookie. `tests/app-routes-bearer.test.mjs` enforces it.
+  Bearer token and no cookie. `tests/app-routes-bearer.test.mjs` enforces it. Fonts are
+  in `src/app/fonts` (`next/font/local`, Latin only): `next/font/google` fetched at build.
 - **Mobile app: `mobile-app/`** (Capacitor/Vite SPA, served at `/m/`).
   - Build: from `mobile-app/`, run `VITE_BASE=/m/ npm run build`.
   - `public/m` isn't committed: `scripts/build-m.sh` builds it at deploy (Vercel's
