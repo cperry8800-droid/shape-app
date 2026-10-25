@@ -69,3 +69,39 @@ test('an open Library row shows its kind, its items and its actions', () => {
   }
   assert.match(d.text, /Limes4Rice1 bag/, 'the open row lists its items with their amounts');
 });
+
+// Codex P1 on #2447: beside the title, the ＋ sat ABOVE the allergen certification on screen though the note
+// came first in the DOM, so a member could act before reading what qualifies the claim. A row with a note
+// keeps its keys out of the title's row and puts them after the note; a row without one keeps them beside it.
+test('a row with an allergen note puts ＋ and ♡ after the note, never beside the title', () => {
+  const box = drive(MOD.BSRecipeBox, { recipes: SHAPE_KITCHEN_RECIPES, onOpenRecipe() {}, onSendToGrocery() {}, onChangeView() {} });
+  const seen = { noted: 0, plain: 0 };
+  for (const c of MOD.BS_KM_COURSES) {
+    const tab = box.nodes().find((n) => n.type === 'button' && String(n.key) === c.key);
+    if (!tab || tab.props.disabled) continue;
+    box.clickKey(c.key);
+    const door = box.nodes().find((n) => String(n.key) === `more-${c.key}` && n.props && typeof n.props.onClick === 'function');
+    if (door) box.clickKey(door.key);
+    // A row is the keyed div that opens with its recipe's title.
+    const rows = box.nodes().filter((n) => n.type === 'div' && n.key != null && /Send to grocery/.test(textOf(n)));
+    for (const r of SHAPE_KITCHEN_RECIPES) {
+      const row = rows.find((n) => textOf(n).startsWith(r.title));
+      if (!row) continue;
+      const parts = [].concat(row.props.children).filter((k) => k && k.props);
+      const top = parts[0];
+      const note = (r.allergenNotes || [])[0];
+      if (note) {
+        seen.noted += 1;
+        assert.doesNotMatch(textOf(top), /Send to grocery/, `"${r.title}": the ＋ sits beside the title, above its allergen note`);
+        const text = textOf(row);
+        assert.ok(text.indexOf(note.certification) < text.indexOf('Send to grocery'), `"${r.title}": the ＋ comes before the note`);
+        assert.equal(parts[parts.length - 1].props.style.justifyContent, 'flex-end', `"${r.title}": the keys are not a row under the note`);
+      } else {
+        seen.plain += 1;
+        assert.match(textOf(top), /Send to grocery/, `"${r.title}": a row with no note lost its keys beside the title`);
+      }
+    }
+  }
+  assert.ok(seen.noted > 0, 'no recipe with an allergen note was reached — this test proves nothing');
+  assert.ok(seen.plain > 0, 'no recipe without a note was reached');
+});
