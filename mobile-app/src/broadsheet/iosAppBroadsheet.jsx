@@ -480,7 +480,8 @@ function isInteractiveTarget(target) {
 // capsule BS_DOCK_H tall, BS_DOCK_SIDE in from the phone's sides, BS_DOCK_TOP_GAP
 // clear above it so a composer or banner never sits flush on it, and under it
 // either BS_DOCK_BOTTOM or, on a phone with a home indicator, enough to clear it.
-const BS_DOCK_H = 60;
+// 50px (owner, 2026-10-25: "make the nav bar a little smaller, not as thick"; it was 60).
+const BS_DOCK_H = 50;
 const BS_DOCK_SIDE = 16;
 const BS_DOCK_TOP_GAP = 6;
 const BS_DOCK_BOTTOM = 12;
@@ -1499,7 +1500,7 @@ function BSTabBar({ tabs, active, onChange }) {
   const activeIdx = lastIdx.current;
   const n = tabs.length;
   const PAD = 9;
-  const GEM = 36;
+  const GEM = 30;
   const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
   return (
     <div data-bs-tabbar-dock="" style={{
@@ -1543,18 +1544,18 @@ function BSTabBar({ tabs, active, onChange }) {
             }}>
               {face
                 ? <span data-bs-tab-face="" style={{ display: 'grid', placeItems: 'center' }}>{React.createElement(FA, {
-                    flat: true, size: on ? 24 : 28, showRank: false, BG: t.PAPER,
+                    flat: true, size: on ? 20 : 24, showRank: false, BG: t.PAPER,
                     c: on ? t.PAPER : `rgba(${t.inkRGB},0.32)`,
                     initial: (window.bsMyInitials && window.bsMyInitials()) || undefined,
                     name: (window.bsMyName && window.bsMyName()) || '',
                     photo: (window.bsMyPhoto && window.bsMyPhoto()) || undefined,
                   })}</span>
                 : BS_TAB_ICON_KEYS.has(tab.key)
-                  ? <BSTabIcon name={tab.key} size={24} weight={1.8} filled={on} cut={on ? t.INK : t.PAPER} />
+                  ? <BSTabIcon name={tab.key} size={21} weight={1.8} filled={on} cut={on ? t.INK : t.PAPER} />
                   : <span style={{ position: 'relative', fontFamily: t.MONO, fontWeight: on ? 800 : 700, fontSize: 11, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{String(i + 1).padStart(2, '0')}</span>}
               {/* The unread count: a red pill on the icon's shoulder, ringed in the paper. */}
               {unread && (
-                <span style={{ position: 'absolute', top: 8, left: '55%', minWidth: 17, height: 17, borderRadius: 999, background: red, color: t.PAPER, boxShadow: `0 0 0 2px ${t.PAPER}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', lineHeight: 1 }}>{unread}</span>
+                <span style={{ position: 'absolute', top: 5, left: '55%', minWidth: 15, height: 15, borderRadius: 999, background: red, color: t.PAPER, boxShadow: `0 0 0 2px ${t.PAPER}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', lineHeight: 1 }}>{unread}</span>
               )}
             </button>
           );

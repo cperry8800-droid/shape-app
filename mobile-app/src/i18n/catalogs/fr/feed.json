@@ -311,7 +311,5 @@
   "wallLive.resting": "Récup",
   "wallLive.sendBoost": "Encourager →",
   "wallLive.alsoTraining": "S’entraînent aussi :",
-  "wallMast.title": "Le Mur",
-  "wallMast.trainingNow": "{count, number} en plein entraînement",
   "card.you": "Toi"
 }
