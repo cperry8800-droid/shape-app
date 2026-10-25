@@ -160,6 +160,7 @@ planned builds.
   referral.
 - Add the `localhost` hostname to the Turnstile widget.
 - Get a native speaker to read the PAR-Q translations.
+- Pick a Week so far design: A, B or C (mockups sent 2026-10-24).
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
@@ -197,36 +198,34 @@ planned builds.
   rounding. A member whose coach disconnected is sent to Shape support (owner): Shape can't
   cancel on that account, so support handles it by hand. A recent checkout on a coach's former
   account that Shape can't read holds a new plan for up to 4 days (`payment_pending`).
-- Business: the plan's goal isn't remembered; renewals past 25 a load aren't checked
-  with Stripe; the 90-day churn total is a floor once all 12 listed cancellations fall
-  inside it. The dashboard routes' session reads and their coach-row read drop their
-  errors. Renewals and the origin feed show "—" for both an unread name and none on
-  file.
-- Home (the owner's 2026-10-22 redesign, `BSHomeSections.jsx`): Week so far counts days trained
-  (workout minutes or a logged activity) against the plan's sessions, and days with food logged,
-  not meals. The weekly notes, message doors and next session show only for a paid coach (no
-  sample signed out).
+- Business: the plan's goal isn't remembered; renewals past 25 a load go unchecked with
+  Stripe; the 90-day churn is a floor once all 12 listed cancellations fall in it. The
+  dashboard routes drop their session and coach-row read errors. Renewals and the origin
+  feed show "—" for an unread name and for none.
+- Home (`BSHomeSections.jsx`): Week so far counts days trained (workout minutes or a logged
+  activity) against the plan's sessions, and days with food logged, not meals. The weekly
+  notes, message doors and next session show only for a paid coach (no sample signed out).
+- Eat on a live meal plan takes what was eaten (Fuel left, macro pages) from the plan's
+  day `totals` and meals' `state`, not the member's logs.
 - Signed in, others' profiles show the demo signals and climb (owner: leave it).
-- Shape Wire (the launch telegram) shows the coach's latest note however old it is, and
-  in the morning its protein line is usually absent (it reads only today's row).
-- Server notices are said in the reader's stored language (`app_locale`): the app's bell, the push
-  and the notice email say them again from the `notice` catalog (`noticeCopy.mjs`); the row keeps
-  its English, which the website and English readers see. A writer stores `data.copy`; a trigger's
-  row is matched by its fixed English (`triggerCopy`), so a trigger whose English changes needs its
-  shape there too. Still English: the owners' payment notice, a coach alert's reason (the engine's,
+- Shape Wire (the launch telegram) shows the coach's latest note however old, and its
+  morning protein line is usually absent (it reads only today's row).
+- Server notices are said in the reader's stored language (`app_locale`): the bell, push and
+  notice email say them again from the `notice` catalog (`noticeCopy.mjs`); the row keeps its
+  English (the website shows it). A writer stores `data.copy`; a trigger's row is matched by its
+  fixed English (`triggerCopy`), so a trigger whose English changes needs its shape there too.
+  Still English: the owners' payment notice, a coach alert's reason (the engine's,
   as the roster says it), and the standalone emails (session emails with their .ics, the hire,
   welcome and intro emails). A reader whose app never stored a language reads English.
 - Habits: the charts read only the route's 90 days and can't tick a past day. Shared habits
-  (`habit_watchers`): a friend stops hearing only by turning Friends' habits off or unfollowing.
-  Sharing is set only in a habit's ⋯ options (no search). The daily cap counts only notices
-  stamped as pushed on the member's day (an unstamped `createNotification` row isn't). When the
-  AI notify engine can't read the day's pushes, it counts only its own sends. It and the habit
-  cron claim pushes first (`claim_push_slots`); a claim that can't be made sends on the count as
-  read.
-- A goal in the member's own words is set in the app (the Goal page's picker and the first-run
-  step) and in the website's sign-up. The website's Goals page shows goals and adds none (coaches
-  set them). Only the five weight goals have a weight read; any other goal reads in words until
-  a weight target is set too.
+  (`habit_watchers`): a friend stops hearing only by turning Friends' habits off or unfollowing;
+  sharing is set only in a habit's ⋯ options (no search). The daily cap counts only notices
+  stamped as pushed on the member's day (not an unstamped `createNotification` row). The AI
+  notify engine, failing to read the day's pushes, counts only its own. It and the habit cron
+  claim pushes first (`claim_push_slots`); a failed claim sends on the count as read.
+- A goal in the member's own words is set in the app (the Goal page's picker, the first-run step)
+  and the website's sign-up; the website's Goals page only shows goals (coaches set them). Only
+  the five weight goals have a weight read; any other reads in words until a weight target is set.
 - A client whose payment is retrying keeps access until Stripe cancels the plan; a
   Stripe setting that leaves it past_due keeps it open.
 - In the hosted `/m/` app signed out in its own client, a Nora load that starts as one
@@ -261,9 +260,8 @@ planned builds.
   trigger).
 - Sleep points (`award_sleep_points`) trust `sources.sleep_hours` on a row the member can
   write, checked against a provider they have connected. With one connected, a direct write
-  could still earn +5 a night for the last 14 days. Apple Health's nights and its connection
-  are whatever the app posts, so any signed-in member can post made-up Health nights, as they
-  can post made-up steps for Shape Steps.
+  could still earn +5 a night for the last 14 days. Apple Health's nights and connection are
+  whatever the app posts, so any member can post made-up Health nights, as for Shape Steps.
 - Water from Apple Health: two apps writing the same drink to Apple Health count it twice (raw
   samples, as for steps), and so does a drink logged in both Apple Health and Shape. Deleting every
   drink in a sync's window leaves Apple Health's last reading. Nora's meal-log undo refuses when a

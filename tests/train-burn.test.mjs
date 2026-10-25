@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadRealModule } from './helpers/load-real-module.mjs';
-import { bsHwIso, bsHwWeekDays } from '../mobile-app/src/services/homeWeek.mjs';
+import { bsHwIso, bsHwWeekDays, bsHwShift } from '../mobile-app/src/services/homeWeek.mjs';
 
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -37,11 +37,11 @@ const M = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSTrainBurn
 });
 
 const flush = () => React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
-async function mount() {
+async function mount(Comp = M.BSTrainBurn, props = {}) {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = ReactDOMClient.createRoot(host);
-  await React.act(async () => { root.render(React.createElement(M.BSTrainBurn)); });
+  await React.act(async () => { root.render(React.createElement(Comp, props)); });
   await flush();
   const btn = (re) => [...host.querySelectorAll('button')].find((b) => re.test(b.textContent));
   return { host, text: () => host.textContent, btn, close: () => React.act(async () => { root.unmount(); host.remove(); }) };
@@ -136,4 +136,93 @@ test('a sync or a logged workout reads the week again, keeping the last read mea
   assert.match(m.text(), /450kcal/);
   assert.match(m.text(), /· WHOOP/);
   await m.close();
+});
+
+// Owner, 2026-10-24: "i should be able to click on this, also this box doesnt match look of page". The row
+// sits on Train's paper between two rules (no tinted, rounded card), and the whole of it opens the week;
+// Retry and Connect stay their own buttons, outside it.
+test('the row is in Train\'s look and the whole of it opens the week', async () => {
+  signIn();
+  W.ShapeBurn = { week: async () => ({ ok: true, snaps: [], acts: [] }) };
+  let opened = 0;
+  const m = await mount(M.BSTrainBurn, { onOpen: () => { opened += 1; } });
+  try {
+    const row = m.host.querySelector('[data-train-burn]');
+    assert.equal(row.style.borderRadius, '', 'the row is a rounded card again');
+    assert.equal(row.style.background, '', 'the row is a tinted card again');
+    assert.equal(row.style.borderTop, '1px solid rgb(204, 204, 204)');
+    assert.equal(row.style.borderBottom, '1px solid rgb(204, 204, 204)');
+    const open = row.querySelector('[data-train-burn-open]');
+    assert.ok(open && open.tagName === 'BUTTON');
+    assert.match(open.textContent, /Burned this week/);
+    assert.ok(open.querySelector('svg'), 'the line is part of the door');
+    assert.equal(open.style.minHeight, '44px');
+    assert.ok(!open.contains(m.btn(/Connect/)), 'Connect sits inside the door');
+    await React.act(async () => { open.click(); });
+    assert.equal(opened, 1);
+  } finally { await m.close(); }
+  // Mounted with nothing to open, the row is no door.
+  const n = await mount();
+  assert.equal(n.host.querySelector('[data-train-burn-open]').disabled, true);
+  await n.close();
+});
+
+test('the week page: the total, the daily average over the days it counts, and each day with where it came from', async () => {
+  signIn();
+  W.BSPage = ({ children }) => React.createElement('div', { 'data-page': '' }, children);
+  W.BSDetailHeader = ({ eyebrow, title, onBack }) => React.createElement('header', null, React.createElement('button', { onClick: onBack }, '← Back'), eyebrow, '|', title);
+  W.BSFooter = () => null;
+  const today = bsHwIso(new Date());
+  const days = Array.from({ length: 7 }, (_, i) => bsHwShift(bsHwWeekDays(today)[0], i));
+  const idx = days.indexOf(today);
+  const snaps = [{ snapshot_date: days[0], calories: idx === 0 ? 900 : 700, sources: { calories: 'garmin' } }];
+  const acts = idx > 0 ? [{ started_at: new Date(Number(days[idx].slice(0, 4)), Number(days[idx].slice(5, 7)) - 1, Number(days[idx].slice(8, 10)), 0, 5).toISOString(), calories: 300, source: 'strava' }] : [];
+  W.ShapeBurn = { week: async () => ({ ok: true, snaps, acts }) };
+  let back = 0;
+  const m = await mount(M.BSTrainBurnPage, { onBack: () => { back += 1; } });
+  try {
+    const text = m.text();
+    assert.match(text, /\|Burned this week/);
+    const rows = [...m.host.querySelectorAll('[data-train-burn-day]')];
+    assert.equal(rows.length, 7, 'a row a day, Monday to Sunday');
+    assert.deepEqual(rows.map((r) => r.getAttribute('data-train-burn-day')), days);
+    const weekday = (iso) => new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))));
+    rows.forEach((r, i) => assert.match(r.textContent, new RegExp(`^${weekday(days[i])}`)));
+    assert.match(rows[0].textContent, /Garmin$/, 'Monday credits its watch');
+    assert.match(rows[idx].textContent, /Today/);
+    if (idx > 0) {
+      assert.match(rows[idx].textContent, /300.*Strava$/);
+      assert.match(text, /1,000kcal/);
+      assert.match(text, /500\/day · 2 of 7 days tracked/);
+      assert.match(text, /From Garmin · Strava/);
+      if (idx > 1) assert.match(rows[1].textContent, /—Not tracked$/, 'a day with nothing tracked says so, never 0');
+    }
+    if (idx < 6) assert.match(rows[6].textContent, /—To come$/, 'a day ahead is to come');
+    assert.match(text, /A day counts once/);
+    await React.act(async () => { m.btn(/Back/).click(); });
+    assert.equal(back, 1);
+  } finally { await m.close(); }
+});
+
+test('the week page with nothing tracked offers to connect, and a failed read can be tried again', async () => {
+  signIn();
+  let calls = 0;
+  W.ShapeBurn = { week: async () => { calls += 1; return calls === 1 ? { ok: false } : { ok: true, snaps: [], acts: [] }; } };
+  let opened = 0;
+  const onOpen = () => { opened += 1; };
+  W.addEventListener('shape:openIntegrations', onOpen);
+  const m = await mount(M.BSTrainBurnPage, { onBack() {} });
+  try {
+    assert.match(m.text(), /Couldn’t read your activity/);
+    await React.act(async () => { m.btn(/Retry/).click(); });
+    await flush();
+    assert.equal(calls, 2);
+    assert.match(m.text(), /Nothing tracked yet this week\./);
+    assert.doesNotMatch(m.text(), /\b0 ?kcal/);
+    const c = m.btn(/Connect/);
+    assert.equal(c.style.minHeight, '44px');
+    assert.equal(parseFloat(c.style.borderRadius), 0);
+    await React.act(async () => { c.click(); });
+    assert.equal(opened, 1);
+  } finally { W.removeEventListener('shape:openIntegrations', onOpen); await m.close(); }
 });

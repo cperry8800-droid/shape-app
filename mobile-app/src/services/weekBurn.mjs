@@ -63,16 +63,20 @@ export function bsBurnWeek({ monday, todayIso, snaps = [], acts = [] }) {
     actBy.set(w.day, cur);
   }
   const used = new Set();
+  // `from` names where a day's figure came from, as `sources` names the week's (the week page's rows).
+  const named = (keys) => [...new Set(keys.map((k) => BS_BURN_SOURCES[k] || null).filter(Boolean))];
   const out = days.map((day) => {
     const future = day > todayIso;
     let kcal = null;
-    if (!future && snapBy.has(day)) { const s = snapBy.get(day); kcal = Math.round(s.kcal); if (s.source) used.add(s.source); }
-    else if (!future && actBy.has(day)) { const a = actBy.get(day); kcal = Math.round(a.kcal); a.sources.forEach((x) => used.add(x)); }
-    return { day, kcal, future, isToday: day === todayIso };
+    let keys = [];
+    if (!future && snapBy.has(day)) { const s = snapBy.get(day); kcal = Math.round(s.kcal); if (s.source) keys = [s.source]; }
+    else if (!future && actBy.has(day)) { const a = actBy.get(day); kcal = Math.round(a.kcal); keys = [...a.sources]; }
+    keys.forEach((x) => used.add(x));
+    return { day, kcal, future, isToday: day === todayIso, from: named(keys) };
   });
   const counted = out.filter((d) => d.kcal != null);
   const total = counted.length ? counted.reduce((s, d) => s + d.kcal, 0) : null;
-  const names = [...new Set([...used].map((k) => BS_BURN_SOURCES[k] || null).filter(Boolean))];
+  const names = named([...used]);
   return {
     monday, days: out, total,
     daysCounted: counted.length,

@@ -361,5 +361,12 @@
   "burn.retry": "Повторить",
   "burn.none": "На этой неделе пока ничего не записано.",
   "burn.connect": "Подключить",
-  "burn.manual": "твой журнал"
+  "burn.manual": "твой журнал",
+  "burn.page.daysTracked": "Записано дней: {n} из 7",
+  "burn.page.from": "Источник: {sources}",
+  "burn.page.byDay": "По дням",
+  "burn.page.toCome": "Впереди",
+  "burn.page.notTracked": "Не записано",
+  "burn.page.today": "Сегодня",
+  "burn.page.rule": "День считается один раз: показание часов за весь день или, если его нет, тренировки, записанные в этот день."
 }

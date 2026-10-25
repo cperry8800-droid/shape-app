@@ -361,5 +361,12 @@
   "burn.retry": "Retry",
   "burn.none": "Nothing tracked yet this week.",
   "burn.connect": "Connect",
-  "burn.manual": "your log"
+  "burn.manual": "your log",
+  "burn.page.daysTracked": "{n} of 7 days tracked",
+  "burn.page.from": "From {sources}",
+  "burn.page.byDay": "Day by day",
+  "burn.page.toCome": "To come",
+  "burn.page.notTracked": "Not tracked",
+  "burn.page.today": "Today",
+  "burn.page.rule": "A day counts once: a watch’s reading for the whole day, or else the workouts logged that day."
 }

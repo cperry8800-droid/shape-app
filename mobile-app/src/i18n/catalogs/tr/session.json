@@ -361,5 +361,12 @@
   "burn.retry": "Tekrar dene",
   "burn.none": "Bu hafta henüz bir şey kaydedilmedi.",
   "burn.connect": "Bağla",
-  "burn.manual": "kendi kaydın"
+  "burn.manual": "kendi kaydın",
+  "burn.page.daysTracked": "7 günün {n} günü kaydedildi",
+  "burn.page.from": "Kaynak: {sources}",
+  "burn.page.byDay": "Gün gün",
+  "burn.page.toCome": "Sırada",
+  "burn.page.notTracked": "Kayıt yok",
+  "burn.page.today": "Bugün",
+  "burn.page.rule": "Bir gün bir kez sayılır: saatin tüm gün için okuması ya da o gün kaydedilen antrenmanlar."
 }
