@@ -96,3 +96,13 @@ test("the hero's ring is the headline goal's share done, drawn only for a goal w
   assert.match(plate, /\{ring \? \(\s*<BSDashRing /);
   assert.match(plate, /`\$\{Math\.round\(ring\.pct \* 100\)\}%`/);
 });
+
+test("a card's name is a heading, so it is in Saira, never the mono face of the figures' labels", () => {
+  // Codex on #2456: the station heads were h2s in the mono face; the WORKLOG says every heading is Saira.
+  const head = src.slice(src.indexOf('if (dash) return ('), src.indexOf('if (mag) return ('));
+  assert.match(head, /<h2 style=\{\{ margin: 0, fontFamily: BST_SERIF,/);
+  assert.doesNotMatch(head, /BST_MONO, fontSize: 9\.5/);
+  // The Strength card's name and What's next, which head their cards the same way.
+  assert.match(src, /fontFamily: t\.DISPLAY, fontSize: 11\.5, fontWeight: 700, letterSpacing: '0\.1em', textTransform: 'uppercase', color: D\.text\.coral \}\}>Strength · Estimated 1RM</);
+  assert.match(src, /fontFamily: t\.DISPLAY, fontSize: 11\.5, fontWeight: 700, letterSpacing: '0\.1em', textTransform: 'uppercase', color: D\.text\.teal \}\}>\{d\.eyebrow\}</);
+});

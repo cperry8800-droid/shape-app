@@ -18021,10 +18021,11 @@ const BST_SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-seri
 // name in the headline face over a 2px ink rule, its count in mono at the right.
 function BSTStationHead({ heat, INK, label, meta, size = 7.5, mag = false, dash = false }) {
   // B, the dashboard look (Progress, 2026-10-25): the card is the box, so no tick; its name is the
-  // heading a reader hears, an eyebrow in the card's colour (`heat`, a text shade from bsDash).
+  // heading a reader hears, an eyebrow in the card's colour (`heat`, a text shade from bsDash), in
+  // Saira as every heading is (the mono face is for figures' labels and the meta).
   if (dash) return (
     <div data-bst-head="dash" style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
-      <h2 style={{ margin: 0, fontFamily: BST_MONO, fontSize: 9.5, fontWeight: 800, lineHeight: 1.2, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat }}>{label}</h2>
+      <h2 style={{ margin: 0, fontFamily: BST_SERIF, fontSize: 11.5, fontWeight: 700, lineHeight: 1.2, letterSpacing: '0.1em', textTransform: 'uppercase', color: heat }}>{label}</h2>
       {meta ? <span style={{ marginLeft: 'auto', fontFamily: BST_MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.62), whiteSpace: 'nowrap' }}>{meta}</span> : null}
     </div>
   );
@@ -30079,7 +30080,7 @@ function BSStrengthCard({ onOpen }) {
   return (
     <BSDashCard as="button" type="button" onClick={onOpen} style={{ display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', marginBottom: 12, minHeight: 44, color: t.INK, font: 'inherit' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: D.text.coral }}>Strength · Estimated 1RM</span>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: D.text.coral }}>Strength · Estimated 1RM</span>
         <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70 }}>View →</span>
       </div>
       {lead ? (
@@ -38510,7 +38511,7 @@ function BSClientNextPlate() {
       ) : null}
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: D.text.teal }}>{d.eyebrow}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: D.text.teal }}>{d.eyebrow}</span>
           {d.demo && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Example</span>}
         </div>
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.22, color: t.INK, overflowWrap: 'anywhere' }}>{headline}</div>

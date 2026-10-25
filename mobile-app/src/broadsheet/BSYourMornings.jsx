@@ -399,13 +399,15 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
   });
 
   const mono = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
+  const cardName = { fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, lineHeight: 1.2, letterSpacing: '0.1em', textTransform: 'uppercase' };
   const dot = { position: 'absolute', left: '50%', top: -8, width: 5, height: 5, marginLeft: -2.5, borderRadius: 99, background: t.INK70 };
   const stub = { position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, borderRadius: 99, background: t.INK50 };
   // Each section is a card opening on its name as an eyebrow in its colour, the heading a reader hears;
-  // `trail` sits at the head's right (a section's direction).
+  // `trail` sits at the head's right (a section's direction). A heading, so Saira (`cardName`), never
+  // the mono face the figures' labels use.
   const head = (label, color, trail = null) => (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
-      <h2 style={{ margin: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, lineHeight: 1.2, letterSpacing: '0.16em', textTransform: 'uppercase', color }}>{label}</h2>
+      <h2 style={{ margin: 0, ...cardName, color }}>{label}</h2>
       {trail}
     </div>
   );
@@ -499,7 +501,7 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
         {r ? (
           <>
             {/* The name first, then the ring and the band: a reader hears "Readiness today, 85, Ready". */}
-            <div style={{ ...mono, color: t.INK50 }}>{tr('home:mornings.readinessToday', { defaultValue: 'Readiness today' })}</div>
+            <div style={{ ...cardName, color: t.INK70 }}>{tr('home:mornings.readinessToday', { defaultValue: 'Readiness today' })}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12 }}>
               <BSDashRing id="mornings-today" pct={r.score / 100} size={92} stroke={10} from={color} to={r.band === 'ready' ? D.mark.violet : color}>
                 <span data-bs-mornings-score="" style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{r.score}</span>
@@ -512,7 +514,7 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
           </>
         ) : (
           <>
-            <div style={{ ...mono, color: t.INK50 }}>{tr('home:mornings.readinessToday', { defaultValue: 'Readiness today' })}</div>
+            <div style={{ ...cardName, color: t.INK70 }}>{tr('home:mornings.readinessToday', { defaultValue: 'Readiness today' })}</div>
             {checkinsOn
               ? <p data-bs-mornings-open="" style={heroLine}>{tr('home:mornings.readinessOpen', { defaultValue: "Answer this morning's check-in to see today's readiness." })}</p>
               : offLine(heroLine)}

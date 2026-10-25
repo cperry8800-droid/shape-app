@@ -1215,6 +1215,8 @@ test("the page in B's look: pills for the range, each check a card under its nam
       assert.ok(h2, `${kind} has no head`);
       assert.equal(h2.style.textTransform, 'uppercase');
       assert.equal(h2.style.color, css(color), `${kind}'s head is not in its colour`);
+      // A heading is Saira, the theme's display face (WORKLOG: every heading is Saira), never the mono.
+      assert.equal(h2.style.fontFamily, theme.DISPLAY, `${kind}'s head is not in the display face`);
     }
     // The hero is a card with the score in a ring; the direction is a rounded chip; the bars are rounded.
     assert.ok(m.q('[data-bs-mornings-hero]').hasAttribute('data-bs-dash-card'));
