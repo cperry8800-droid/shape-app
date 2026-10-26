@@ -1216,6 +1216,78 @@ res['worst_tile']=max(tiles); res['frames']=len(Y); res['mean_luma_range']=[roun
 print(json.dumps(res))
 ```
 
+### The Club Shape ad, second cut (2026-10-26)
+
+Owner, on the first cut: *"the add needs to be more fluid and have a deep house track in background
+and more visuals"*, *"looks like a birthday party"* (its floor shot had string lights and rattan
+lanterns), *"needs to be darker in the club also"* (*"the club in the video ad"*), *"club shape is
+where djs will perform live"*, *"and nora"*. The first cut's agent was stopped; this cut replaced
+it at the same artifact (https://claude.ai/artifact/LC6wcwT2WcvRyHYRjqtdvz, version 2), with
+`club-shape-ad.mp4`, `club-shape-ad-16x9.mp4` and four stills (`stills/club-shape-ad-f120.jpg`,
+`-f264`, `-f348`, `-f442`).
+
+| file | md5 |
+| --- | --- |
+| `club-shape-ad.mp4`: 1080×1920, H.264 High, 24 fps, 480 frames, 20.000 s; AAC 48 kHz stereo 192k; 13,417,958 bytes | `8a6f288c773094ffe08159e2fa111607` |
+| `club-shape-ad-16x9.mp4`: 1920×1080, the vertical cut over a blurred fill of itself; 10,770,667 bytes | `ddf34b9d66cb9cb63309c6b724ac5ed2` |
+
+**The cut**, on the track's grid (122.35 BPM, entered on its bar 2, so the drop lands at 9.81 s);
+every cut a 0.4 s dissolve centred on its bar line: the room 0–3.92 (v1), a DJ live 3.92–6.87
+(v2), the hands into the drop 6.87–9.81 (v5), the drop 9.81–12.75 (v3), Nora 12.75–16.67 (v4), the
+wall 16.67–20.00 (v6) with CLUB SHAPE built onto its dots in post from `clubShapeMask.mjs` (a scan
+over one beat, a swell on each kick). The opening shot was lifted (gamma 1.22) because it came out
+nearly black on a phone. One grade over all (contrast 1.05); no added grain (with it, the file was
+167 MB).
+
+**Checked:** no general flash in either cut (no opposing 10 % luminance pair, full frame or any
+of 24 tiles); −13.3 LUFS integrated, −1.3 dBFS peak; the final audio cross-correlates with the
+source at 0.991, and the kicks' attack lands within 1 ms of the cut grid.
+
+**Makers' names taken off the decks in post.** v2's controller front carried one in faint grey; in
+the lower quarter of the frame, everything darker than that grey goes to black (`nologo.py`), and the
+LEDs, the jog metal and the hands stay. v5's deck plate carried one in white; it is tracked off the
+jog wheel's rim (OpenCV template match) and inpainted (`unname.py`). The cut uses v5 only to frame
+85; a faint trace remains after frame 100, which the cut never shows.
+
+**Keyframes**: `model nano_banana_pro`, reported `nano_banana_2`, aspect 9:16, delivered 1536×2752.
+
+| shot | job | md5 (PNG) | prompt (verbatim) |
+| --- | --- | --- | --- |
+| room | `bbec9a68-7ea3-4f55-b842-70e2b6d3c4c5` | failed, no reason given (the first cut's atrium keyframe failed the same way) | *Vertical 9:16 cinematic photograph, photoreal. Looking down from high inside a vast dark nightclub built in a grand open atrium at 1 a.m.: three tiers of balconies with glass railings and thin warm handrail lights, dim amber lounges behind glass, uplit palm trees, and an oval skylight ringed with a thin ice-blue light open to the night sky at the top of the frame. Far below, a packed dance floor in near silhouette faces a huge LED wall glowing deep teal behind a DJ booth on a black stage; narrow white beams from moving heads cut through thick haze. Very dark, deep blacks, high contrast, lit only by the stage, the wall, the beams and small warm practicals. Full-frame cinema camera, 24 mm lens, film grain. No text, no letters, no logos, no signage, no balloons, no confetti, no decorations.* |
+| DJ | `a62d78b5-1b01-4e62-9589-f34636c78e31` | `a3afb137409ae70be9b02d2641a0d2ce` | *Vertical 9:16 cinematic photograph, photoreal, medium close shot from the side of the stage: a male DJ in a plain black t-shirt performing live at a black DJ booth, one hand riding a channel fader on the mixer and the other on a CDJ jog wheel, headphones pressed to one ear, focused and moving to the music. He is lit from behind by the teal glow of a huge LED wall and from below by the small coloured lights of the equipment; haze and narrow white beams overhead; dark crowd silhouettes beyond the booth. Very dark, deep blacks, 35 mm film look, shallow depth of field. No text, no letters, no logos on the equipment, no signage.* |
+| drop | `2d350752-3912-48ad-b450-0541a28434bb` | `81041f7a30107995f5e4c04843789963` | *Vertical 9:16 cinematic photograph, photoreal, from inside a packed dark nightclub crowd looking toward the stage at the drop: dozens of people in silhouette with their hands raised, backlit by a huge bright LED wall showing a soft abstract teal and white image, narrow white beams fanning through thick haze above them, the DJ booth small in the distance. Very dark foreground, rim light on hair, hands and shoulders, deep blacks, 35 mm film look. No text, no letters, no logos, no signage, no phone screens, no balloons, no confetti.* |
+| Nora | `b040b063-5745-4262-849f-68b27280bc1f`, medias `[{role: image_references, value: 2e1b8ae6-677b-48a6-a4b9-eaf0e3858499}]` (Nora's face photo; submitted as role `image`, the server used `image_references`) | `07a622c85a365eed7cae990cd9eb44e6` | *Vertical 9:16 cinematic photograph, photoreal: the woman in the reference image, as a DJ performing live at a black DJ booth in a dark nightclub. Her long dark brown hair is straight and worn down, she wears a black camisole top and small black DJ headphones with one ear cup pushed back off her ear, and both her hands are on the mixer, with a slight smile. She is lit from behind by the teal glow of a huge LED wall and from the front by a soft warm key light; haze and narrow white beams overhead. Very dark, deep blacks, 50 mm lens, shallow depth of field. No text, no letters, no logos, no signage.* |
+| hands | `80fc6e7d-0b00-4f5b-aa34-a4f077a2f7df` | `302a398fe2560f3d2569fbf94dc00774` | *Vertical 9:16 cinematic photograph, photoreal, extreme close-up at a DJ booth in a dark nightclub: a DJ's hands on a CDJ jog wheel and a mixer, the jog wheel's ring glowing soft white, the mixer's small LED meters glowing green and amber, fingers on a filter knob, teal light from a huge LED wall reflecting on the brushed metal, haze in the background bokeh. Very dark, deep blacks, macro lens, shallow depth of field. No text, no letters, no logos, no brand names, no signage.* |
+| wall | `39708aed-b45e-4c9b-ba9a-8a21112da81b` | `c2937bf58dbf0bb0c1131f371f269333` | *Vertical 9:16 cinematic photograph, photoreal, straight-on and symmetrical from the middle of a dark dance floor: a huge LED video wall fills the upper half of the frame, switched off, a matte near-black panel of tiny unlit LED dots, completely empty. Below it a DJ booth with small equipment lights and a DJ in silhouette; the dark heads and raised hands of the crowd along the bottom of the frame; narrow white beams fan through haze from both sides. Very dark, deep blacks, high contrast. No text, no letters, no logos, nothing on the screen, no signage.* |
+
+The Nora keyframe gave her full over-ear headphones on both ears, not one cup pushed back.
+
+**Videos**: `model seedance_2_0 · aspect_ratio 9:16 · duration 5 · resolution 720p · generate_audio
+false`, from the keyframe as `start_image` (v1 from text alone, its keyframe having failed),
+delivered 720×1280 H.264, 24 fps, 121 frames.
+
+| clip | job · file | bytes · md5 | prompt (verbatim) |
+| --- | --- | --- | --- |
+| v1 room | `4aa8adbf-e543-47e6-8ae3-496ceac0ef23` · `hf_20261026_185812_4aa8adbf-e543-47e6-8ae3-496ceac0ef23.mp4` | 1,897,861 · `89a4d43a8aa8026cfd632e52d7f174a8` | *Vertical 9:16, photoreal cinematic footage: a slow, smooth crane shot descending from high inside a vast dark nightclub built in a grand open atrium at night, gliding past tiers of balconies with glass railings, warm handrail lights and uplit palm trees, down toward a packed dance floor in silhouette facing a huge LED wall glowing teal behind a DJ booth; narrow white beams sweep slowly through thick haze. Very dark, deep blacks, film grain. One continuous shot, no cuts. No text, no logos, no strobe flashes.* |
+| v2 DJ | `3f6330da-f7f9-4e54-a911-f082a282961a` · `hf_20261026_185812_3f6330da-f7f9-4e54-a911-f082a282961a.mp4` | 2,473,026 · `e3bd42692e988cb1a67fb2caf379e6b0` | *The DJ performs live: he rides a fader up and nudges the jog wheel, nodding to the beat with his headphones pressed to one ear; the camera slowly arcs around him from the side toward the front; white beams sweep slowly through the haze behind him and the crowd moves in silhouette. One continuous shot, no cuts. No text, no logos, no strobe flashes.* |
+| v3 drop | `86fe9f76-65c4-40d8-b305-1fb2f5ee8ff1` · `hf_20261026_185812_86fe9f76-65c4-40d8-b305-1fb2f5ee8ff1.mp4` | 2,033,036 · `916f58b0932d64c4a98e3787dc291593` | *The beat drops: the crowd jumps and pumps their raised hands in time, silhouetted against the bright LED wall; the camera pushes slowly forward through the crowd toward the stage while white beams sweep through the haze. One continuous shot, no cuts. No text, no logos, no strobe flashes.* |
+| v4 Nora | `3fde0f64-a6d1-495c-bca7-14275c85192f` · `hf_20261026_185812_3fde0f64-a6d1-495c-bca7-14275c85192f.mp4` | 2,377,428 · `ecb93ce5ad8c0d8db6239040d755eb00` | *She mixes live, turning an EQ knob and moving a fader, smiling and moving gently to the beat, her long straight hair swaying; the camera slowly dollies in toward her; the teal LED wall glows behind her and white beams drift through the haze. One continuous shot, no cuts. No text, no logos, no strobe flashes.* |
+| v5 hands | `52803dd0-0270-40e2-b841-5b127eee4762` · `hf_20261026_190004_52803dd0-0270-40e2-b841-5b127eee4762.mp4` | 1,622,990 · `9b5e1b1ee4a88150f41465b3310e0ea5` | *The DJ's fingers nudge the jog wheel and turn the filter knob while the small LED meters dance to the music; the camera slides slowly sideways along the equipment; haze and teal light glow in the background. One continuous shot, no cuts. No text, no logos, no strobe flashes.* |
+| v6 wall | `5cb48b22-8420-49b3-b4e3-7a549ed5114e` · `hf_20261026_185812_5cb48b22-8420-49b3-b4e3-7a549ed5114e.mp4` | 1,697,792 · `6f884a22938f0aad9c8db1735b6859bf` | *Locked-off static camera on a tripod, no camera movement. The crowd's raised hands sway and pump to the beat along the bottom of the frame, the DJ moves at the booth, and white beams slowly sweep through the haze from both sides. The giant LED wall stays completely dark and empty for the whole shot, showing nothing. One continuous shot, no cuts. No text, no logos, no strobe flashes.* |
+
+⚠ **v5 took two submissions.** The first came back without a job: the server recommended a preset
+("IN THE DARK", `24bae836-2c4a-48e0-89b6-49fcc0b21612`) instead of submitting. The identical
+request with `declined_preset_id` set to that preset went through.
+
+**The track**: `model sonilo_music · duration 60`, delivered AAC, 60.0 s.
+
+| track | job · file | md5 | measured | prompt (verbatim) |
+| --- | --- | --- | --- | --- |
+| **the pick** | `1f3d23a3-5065-41fa-939a-0eec86a12c7c` · `hf_20261026_185032_1f3d23a3-5065-41fa-939a-0eec86a12c7c.m4a` | `b86e8b178803f7b955e12839773b8353` | 122.35 BPM; a groove to 10 s, a breakdown 10–12 s, the drop at 13.78 s | *Deep house, 122 BPM. Warm rolling sub bassline, a crisp four-on-the-floor kick, shuffled open hi-hats, soft jazzy minor-seventh chord stabs with a little reverb, a filtered pad that opens up after a short build, late-night club groove, smooth and hypnotic. Instrumental, no vocals.* |
+| alternate | `a74031b3-3b67-4a2d-ab2f-73f2f18019a5` · `hf_20261026_185032_a74031b3-3b67-4a2d-ab2f-73f2f18019a5.m4a` | `46c58b371c3d25dc068aee0ba3e13244` | 116.35 BPM (prompted 120) | *Classic deep house, 120 BPM. Round analog bass, a dusty swung kick and clap, open hats, warm Rhodes chords and a soft organ stab, a long filter sweep into a full groove, intimate dark club at 2 a.m. Instrumental, no vocals.* |
+
+No credit figure was read back: the batch tools take no cost preflight.
+
 ### The booth's club, made more real (2026-10-26)
 
 Owner: *"make overall club better"*, *"its needs to look more real on website and app"*. All four
