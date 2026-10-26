@@ -1569,7 +1569,8 @@ function BSAppShell({ tweaks, setTweak }) {
 
   // Replay splash on demand from Tweaks panel
   useEffectBSM(() => {
-    function onReplay() { setBeatMinElapsed(false); setStage('beat'); }
+    // a replay spins the mark in again: the beat-to-hold clock starts over
+    function onReplay() { _bsMarkT0 = null; setBeatMinElapsed(false); setStage('beat'); }
     window.addEventListener('bs-replay-splash', onReplay);
     return () => window.removeEventListener('bs-replay-splash', onReplay);
   }, []);

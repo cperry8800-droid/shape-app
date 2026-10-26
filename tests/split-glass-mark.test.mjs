@@ -51,6 +51,11 @@ test("each surface's geometry is the mark that surface already draws", () => {
   for (const tri of SG.APP.tris) assert.ok(app.includes(`points="${tri.pts.join(' ')}" fill="${tri.solid}"`), `BSShapeMark has no ${tri.pts.join(' ')}`);
 });
 
+test('a replayed launch spins the app mark in again rather than resuming the drift', () => {
+  const app = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
+  assert.match(app, /function onReplay\(\) \{ _bsMarkT0 = null;/, 'bs-replay-splash keeps the first launch\'s clock');
+});
+
 test('mid-spin it is glass: every face of both prisms, see-through, with lit edges', () => {
   for (const e of [0.4, 1.2, 2, 4]) {
     const out = polys(SG.render(SG.SITE, SG.pose(e)));
