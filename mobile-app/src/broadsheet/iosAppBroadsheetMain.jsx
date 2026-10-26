@@ -6,6 +6,7 @@ import { I18nextProvider } from 'react-i18next';
 import { initI18n, applyDir, useTr, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
 import BSDobGate from './BSDobGate.jsx';
+import BSUpdateGate from './BSUpdateGate.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines, bsWireTraining, bsWireCoachNote, bsWireNutrition } from '../services/dailyWire.mjs';
 import { bsCiLeadReason } from './BSCheckinCard.jsx';
 import { bsMemberGate, bsMembershipAfter, bsMembershipSeed, bsPollMembership } from '../services/memberGate.mjs';
@@ -2023,7 +2024,8 @@ function BSAppShell({ tweaks, setTweak }) {
         )}
         {noraDoor && !noraSheet && <BSAskNoraDoor onAsk={askNora} />}
         {noraDoor && noraSheet && window.BSNoraSheet ? <window.BSNoraSheet onClose={() => setNoraSheet(false)} /> : null}
-
+        {/* Over every stage, signed in or not: an app too old for the server can't sign in either. */}
+        <BSUpdateGate />
       </BSPhone>
     </BSRadioProvider>
   );

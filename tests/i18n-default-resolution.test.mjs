@@ -46,6 +46,7 @@ const DEFAULT_NS = new Map([
   ['iosAppBroadsheetMain.jsx', 'onboarding'],
   ['BSDobGate.jsx', 'onboarding'],
   ['BSLanguagePicker.jsx', 'onboarding'],
+  ['BSUpdateGate.jsx', 'common'],
 ]);
 
 // ⚠ THE RATCHET IS EMPTY, AND THAT IS THE POINT OF IT HAVING BEEN A RATCHET. The

@@ -82,5 +82,14 @@
   "planRead.meals": "We no fit load your meal plan",
   "planRead.body": "If you get plan, e still dey there. Check your connection and try again.",
   "planRead.retry": "Try again",
-  "planRead.retrying": "E dey load…"
+  "planRead.retrying": "E dey load…",
+  "update.eyebrow": "Update",
+  "update.requiredTitle": "Update Shape make you continue.",
+  "update.requiredBody": "Dis version of di app no dey work with Shape again. Di update na free, and your account and everything wey you don log go remain as dem be.",
+  "update.cta": "Update now",
+  "update.noStoreIos": "Open App Store and update Shape.",
+  "update.noStoreAndroid": "Open Google Play and update Shape.",
+  "update.recommendedTitle": "New version of Shape don come out.",
+  "update.recommendedBody": "Update am make you get di latest fixes and features.",
+  "update.later": "No be now"
 }

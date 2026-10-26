@@ -82,5 +82,14 @@
   "planRead.meals": "Rencana makanmu tidak bisa dimuat",
   "planRead.body": "Kalau kamu punya rencana, rencananya masih ada. Periksa koneksimu lalu coba lagi.",
   "planRead.retry": "Coba lagi",
-  "planRead.retrying": "Memuat…"
+  "planRead.retrying": "Memuat…",
+  "update.eyebrow": "Pembaruan",
+  "update.requiredTitle": "Perbarui Shape untuk lanjut.",
+  "update.requiredBody": "Versi aplikasi ini sudah tidak bisa dipakai dengan Shape. Pembaruannya gratis, dan akunmu serta semua yang sudah kamu catat tetap seperti semula.",
+  "update.cta": "Perbarui sekarang",
+  "update.noStoreIos": "Buka App Store lalu perbarui Shape.",
+  "update.noStoreAndroid": "Buka Google Play lalu perbarui Shape.",
+  "update.recommendedTitle": "Versi baru Shape sudah tersedia.",
+  "update.recommendedBody": "Perbarui untuk mendapatkan perbaikan dan fitur terbaru.",
+  "update.later": "Nanti saja"
 }

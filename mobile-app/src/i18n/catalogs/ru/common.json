@@ -82,5 +82,14 @@
   "planRead.meals": "Не удалось загрузить твой план питания",
   "planRead.body": "Если у тебя есть план, он никуда не делся. Проверь подключение и попробуй ещё раз.",
   "planRead.retry": "Попробовать ещё раз",
-  "planRead.retrying": "Загрузка…"
+  "planRead.retrying": "Загрузка…",
+  "update.eyebrow": "Обновление",
+  "update.requiredTitle": "Обнови Shape, чтобы продолжить.",
+  "update.requiredBody": "Эта версия приложения больше не работает с Shape. Обновление бесплатное, а твой аккаунт и всё, что ты записал, останутся на месте.",
+  "update.cta": "Обновить",
+  "update.noStoreIos": "Открой App Store и обнови Shape.",
+  "update.noStoreAndroid": "Открой Google Play и обнови Shape.",
+  "update.recommendedTitle": "Вышла новая версия Shape.",
+  "update.recommendedBody": "Обнови, чтобы получить последние исправления и функции.",
+  "update.later": "Не сейчас"
 }

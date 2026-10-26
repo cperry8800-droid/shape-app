@@ -76,6 +76,9 @@ workflows:
           # so every /api call names the site. Unset, apiBaseUrl in shapeBackend.js and apiBase()
           # in push.js are '' and checkout, listings, push and the rest have nothing to call.
           export VITE_API_BASE_URL="https://theshapecommunity.com"
+          # The App Store id this pipeline already reads (the build-number step below), for the
+          # update screen's button when the server can't name the App Store page. Unset, it's empty.
+          export VITE_APP_STORE_ID="${APP_STORE_APP_ID:-}"
           npm run build
       - name: Capacitor sync iOS
         script: |
@@ -87,12 +90,21 @@ workflows:
           pod install --repo-update
       - name: Set up provisioning profiles
         script: xcode-project use-profiles
-      - name: Bump build number from TestFlight
+      # The version members see is mobile-app/package.json's, the one number for both stores: the
+      # app reads it as __SHAPE_VERSION__ and the update check compares it (src/lib/app-version.mjs).
+      # It is stamped here as MARKETING_VERSION, which Info.plist reads as CFBundleShortVersionString.
+      # ⚠ Raise it in package.json for each App Store release: once a version has been released,
+      # App Store Connect takes no new build of it.
+      - name: Bump build number from TestFlight, version from package.json
         script: |
           cd mobile-app/ios/App
           LATEST_BUILD=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" || echo "0")
           NEXT_BUILD=$((LATEST_BUILD + 1))
           agvtool new-version -all "$NEXT_BUILD"
+          VERSION=$(node -p "require('../../package.json').version")
+          perl -pi -e "s/MARKETING_VERSION = [^;]+;/MARKETING_VERSION = $VERSION;/g" App.xcodeproj/project.pbxproj
+          [ "$(grep -c "MARKETING_VERSION = $VERSION;" App.xcodeproj/project.pbxproj)" -eq 2 ] || { echo "MARKETING_VERSION was not set to $VERSION"; exit 1; }
+          echo "version $VERSION, build $NEXT_BUILD"
       - name: Build ipa
         script: |
           cd mobile-app/ios/App

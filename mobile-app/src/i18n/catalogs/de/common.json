@@ -82,5 +82,14 @@
   "planRead.meals": "Dein Ernährungsplan konnte nicht geladen werden",
   "planRead.body": "Wenn du einen Plan hast, ist er noch da. Prüfe deine Verbindung und versuch es noch einmal.",
   "planRead.retry": "Erneut versuchen",
-  "planRead.retrying": "Wird geladen…"
+  "planRead.retrying": "Wird geladen…",
+  "update.eyebrow": "Update",
+  "update.requiredTitle": "Aktualisiere Shape, um weiterzumachen.",
+  "update.requiredBody": "Diese Version der App funktioniert nicht mehr mit Shape. Das Update ist kostenlos, und dein Konto und alles, was du erfasst hast, bleiben, wie sie sind.",
+  "update.cta": "Jetzt aktualisieren",
+  "update.noStoreIos": "Öffne den App Store und aktualisiere Shape.",
+  "update.noStoreAndroid": "Öffne Google Play und aktualisiere Shape.",
+  "update.recommendedTitle": "Eine neue Version von Shape ist da.",
+  "update.recommendedBody": "Aktualisiere für die neuesten Fehlerbehebungen und Funktionen.",
+  "update.later": "Nicht jetzt"
 }
