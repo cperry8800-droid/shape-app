@@ -16078,11 +16078,12 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
         )}
         {wall.length > 0 && (
           <div style={{ marginBottom: 18 }}>
-            <BSTStationHead mag heat={c} INK={INK} label={tr('profile:wall.head', { defaultValue: 'The wall' })} meta={tr('profile:wall.count', { defaultValue: '{count, plural, one {# shot} other {# shots}}', count: wall.length })} />
             {/* The photos as the Wall prints them (owner, 2026-10-24, the Me page "cleaned up"): square, unframed,
                 the captions in the headline face; the strip runs to the screen's edge (`bleed`) instead of
                 stopping short of it, so the last shot is cut by the screen, not by the gutter. */}
-            <div className="bs-hide-scroll" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 2, scrollSnapType: 'x proximity', ...(bleed ? { marginRight: -bleed, paddingRight: bleed, scrollPaddingLeft: 0 } : null) }}>
+            {/* No head of its own (owner, 2026-10-26: "remove these headers. dont need it showing twice"): the
+                profile's Activity tab sits right above the strip, so it carries the name for a screen reader only. */}
+            <div className="bs-hide-scroll" role="group" aria-label={tr('profile:wall.head', { defaultValue: 'The wall' })} style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 2, scrollSnapType: 'x proximity', ...(bleed ? { marginRight: -bleed, paddingRight: bleed, scrollPaddingLeft: 0 } : null) }}>
               {wall.map((w, i) => (
                 <figure key={i} style={{ flex: 'none', width: 148, margin: 0, scrollSnapAlign: 'start' }}>
                   {/* The shot opens full size (BSPhotoViewer). */}
@@ -18966,9 +18967,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             )}
             {tab === 'climb' && (<>
             {/* THE CLIMB — the ascent inked straight on the paper (no box, no
-                wash). Heat route draws start → now; target stays a hollow circle. */}
+                wash). Heat route draws start → now; target stays a hollow circle.
+                No head: the Climb tab right above names it (owner, 2026-10-26). */}
             <div style={{ marginBottom: 28 }}>
-              <BSTStationHead mag heat={c} INK={INK} label={tr('profile:terrain.theClimb', { defaultValue: 'The climb' })} meta={tr('profile:terrain.memberSince', { date: since, defaultValue: 'Member since {date}' })} />
               {climbTabs.length > 1 && (
                 <div className="bs-hide-scroll" style={{ display: 'flex', gap: 16, marginBottom: 14, overflowX: 'auto', alignItems: 'center' }}>
                   {climbTabs.map((s) => { const on = activeClimb === s.key; return (
@@ -19050,9 +19051,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               const discBest = hasDisc ? discPerf.indexOf(Math.max(...discPerf)) : -1;
               const hasLifts = !signedInSelf || liftsEff.some(([, v]) => v !== '—');
               return (<>
-              {/* LIVING SIGNALS — day streak + weekly momentum, then trajectory */}
+              {/* LIVING SIGNALS — day streak + weekly momentum, then trajectory. No head: the Signals tab
+                  right above names it (owner, 2026-10-26: "dont need it showing twice"). */}
               <div style={{ marginBottom: 26 }}>
-                <BSTStationHead mag heat={c} INK={INK} label={tr('profile:terrain.livingSignals', { defaultValue: 'Living signals' })} meta={hasWeek ? tr('profile:terrain.todayUp', { defaultValue: 'today ↑' }) : null} />
                 <div style={{ display: 'flex', gap: 22, alignItems: 'flex-start' }}>
                   <div style={{ flex: 'none' }}>
                     <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:stat.dayStreak', { defaultValue: 'Day streak' })}</div>
