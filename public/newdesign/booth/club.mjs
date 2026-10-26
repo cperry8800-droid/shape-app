@@ -6,7 +6,7 @@
 //   dance floor  y = FLOOR_Y (−0.66)  — the crowd stands here, x ±7, z −1.8 … −34
 //   stage deck   y = STAGE_Y (−0.18)  — a raised deck with a rounded, LED-lined front
 //   DJ riser     y = STAND_Y ( 0.00)  — the DJ's feet (exported as club.standY)
-//   booth table  y = 0.92             — flight case, x ±0.75, z −0.40 … +0.22
+//   booth table  y = 0.92             — flight case, x ±1.25 (four decks), z −0.40 … +0.22
 //   the SCREEN   — the Shape mark (teal ▸, white ◂) over CLUB SHAPE, and a spectrum, in dots,
 //                  14.4 × 8.4 m, drawn additively onto the arena stage's LED wall on
 //                  that wall's own 75 mm dot grid, so the stage end is one large screen
@@ -79,6 +79,14 @@ export const CLUB_DIMS = {
 };
 
 const { FLOOR_Y, STAGE_Y, STAND_Y, TABLE_Y, BOOTH, WALL, PORTAL, STAGE, CROWD } = CLUB_DIMS;
+// ⚠ The dance floor is dark past its first rows, as a club's is (owner, 2026-10-26: "make the crowd
+// darker like a real club"). Measured in Crowd view, the wall's light panel was half the crowd's
+// brightness all the way down the room and the sky and environment light a quarter. The direct light
+// now runs from 60% at the stage (z 1.5) to 12% deep in the house over 6 m (≈39% on the front row,
+// ≈19% ten metres back), the ambient is a fifth, and the stage's own fill on their faces fades over
+// 11 m (9 on phones), not 17 (13). The rims, the back light and the beams' pools are untouched: they
+// are what a dark crowd is seen by.
+export const CROWD_HOUSE = Object.freeze({ near: 0.6, far: 0.12, fall: 6, ambient: 0.2 });
 // ⚠ The air and the room's black are a near-neutral dark now; they were navy (0x070a12, 0x05070c),
 // which put a blue cast on every shadow and read as CG (owner, 2026-10-26: "its needs to look more
 // real"). The colour in the air comes from the wall instead (wallGlow).
@@ -1430,7 +1438,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   if (crowdPack) {
     crowdPack.then((pack) => {
       if (disposed) return;
-      avatars = createCrowd({ THREE, pack, people, lodCount, rnd, lods: LODS, stageFalloff: low ? 13 : 17 });
+      avatars = createCrowd({ THREE, pack, people, lodCount, rnd, lods: LODS, stageFalloff: low ? 9 : 11, house: CROWD_HOUSE });
       group.add(avatars.group);
       for (const m of [...imBody, ...imArm]) { group.remove(m); m.dispose(); }
       updateCrowd(0, lastT);
@@ -1966,7 +1974,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       // the screen's own light on the faces toward it, in its colour (wallGlow): the reference's crowd
       // is lit by the picture, and goes to silhouettes when the wall is dark
       tmpC.copy(iceC).lerp(glowHue, 0.35 * Math.min(1, glowLum() * 12)).multiplyScalar(0.26 + 0.26 * lvl + 0.18 * kickS + 0.12 * drop);
-      tmpC2.copy(iceC).multiplyScalar(0.008 + 0.012 * lvl).add(glowA.copy(wallGlow).multiplyScalar(0.55));
+      tmpC2.copy(iceC).multiplyScalar(0.006 + 0.008 * lvl).add(glowA.copy(wallGlow).multiplyScalar(0.35));
       avatars.setLight(tmpC, tmpC2, crowdBackC);
     } else {
       for (let l = 0; l < 2; l++) {

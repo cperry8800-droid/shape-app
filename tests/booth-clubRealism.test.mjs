@@ -43,7 +43,7 @@ test('the club lights the room from the wall: the haze, the crowd\'s faces, Nora
   assert.match(CLUB, /wallGlow\.lerp\(glowA, 1 - Math\.exp\(-dt \/ 0\.45\)\)/, 'eased, never stepped');
   assert.match(CLUB, /fog\.color\.copy\(FOG_BASE\)\.add\(/);
   assert.match(CLUB, /wallLight\.color\.copy\(iceC\)\.lerp\(glowHue/);
-  assert.match(CLUB, /tmpC2\.copy\(iceC\)\.multiplyScalar\(0\.008 \+ 0\.012 \* lvl\)\.add\(glowA\.copy\(wallGlow\)/);
+  assert.match(CLUB, /tmpC2\.copy\(iceC\)\.multiplyScalar\(0\.006 \+ 0\.008 \* lvl\)\.add\(glowA\.copy\(wallGlow\)/);
   assert.match(CLUB, /glow: wallGlow,/, 'handed on with the show');
   assert.match(VENUE, /const g = state\.wallShow && state\.wallShow\.glow;/);
   assert.match(VENUE, /venueCrowd\.setLight\(CROWD_RIM, crowdFill\.copy\(CROWD_FILL\)\.add\(tmpC\.copy\(wallGlow\)/);

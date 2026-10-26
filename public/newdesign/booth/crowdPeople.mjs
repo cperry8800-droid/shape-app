@@ -183,8 +183,13 @@ export function dressPeople(header, people, rnd) {
  * @param {number} [o.stageFalloff]  metres over which the stage light fades toward the house
  * @param {string} [o.name]     the group's name
  * @param {number} [o.bob]      metres a static crowd dips on the kick (the venue's); 0 = the caller poses it
+ * @param {object} [o.house]    how much of the room's lights reach these people (default: all of it).
+ *   `near`/`far`: the share of the direct light (the stage's lamps and the wall's panel) on the front
+ *   row and deep in the house, fading over `fall` metres from the stage; `ambient`: the share of the
+ *   sky and environment light. A club floor is dark past its first rows (owner, 2026-10-26: "make the
+ *   crowd darker like a real club"); the venue's lounges are lit by their own lamps and keep all of it.
  */
-export function createPeopleCrowd({ THREE, pack, people, lodCount, rnd, lods = ['near', 'far'], stageFalloff = 13, name = 'crowdPeople', bob = 0 }) {
+export function createPeopleCrowd({ THREE, pack, people, lodCount, rnd, lods = ['near', 'far'], stageFalloff = 13, name = 'crowdPeople', bob = 0, house = null }) {
   const group = new THREE.Group();
   group.name = name;
   const disposables = [];
@@ -213,6 +218,7 @@ export function createPeopleCrowd({ THREE, pack, people, lodCount, rnd, lods = [
   const shared = {
     uRim: { value: new THREE.Color(0, 0, 0) }, uFill: { value: new THREE.Color(0, 0, 0) },
     uBack: { value: new THREE.Color(0, 0, 0) }, uStageFall: { value: stageFalloff },
+    uHouse: { value: house ? new THREE.Vector4(house.near, house.far, house.fall, house.ambient) : new THREE.Vector4(1, 1, 1e4, 1) },
     uDebug: { value: 0 }, uKick: { value: 0 }, uBob: { value: bob }, uTime: { value: 0 },
     uAtlasSize: { value: new THREE.Vector2(header.atlas.w, header.atlas.h) },
     // where the moving heads' beams land on the crowd (setPools): xz centre, radius, strength; colour
@@ -257,7 +263,7 @@ export function createPeopleCrowd({ THREE, pack, people, lodCount, rnd, lods = [
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', [
         '#include <common>',
-        'uniform vec3 uRim; uniform vec3 uFill; uniform vec3 uBack; uniform float uStageFall; uniform float uDebug; uniform vec2 uAtlasSize; uniform vec3 uHairMean; uniform vec4 uMeanL;',
+        'uniform vec3 uRim; uniform vec3 uFill; uniform vec3 uBack; uniform float uStageFall; uniform float uDebug; uniform vec2 uAtlasSize; uniform vec3 uHairMean; uniform vec4 uMeanL; uniform vec4 uHouse;',
         `uniform vec4 uPool[${POOLS}]; uniform vec3 uPoolC[${POOLS}];`,
         'varying float vPart; varying vec4 vTop; varying vec3 vLower; varying vec3 vShoe; varying vec3 vHair; varying float vStageZ; varying vec2 vArmW; varying float vObjY; varying vec2 vWorldXZ;',
         // colour = k · luma(texel): the garment's own shading, the person's colour (none when k.r < 0);
@@ -308,6 +314,14 @@ export function createPeopleCrowd({ THREE, pack, people, lodCount, rnd, lods = [
         '  vec3 pool = vec3(0.0);',
         `  for (int i = 0; i < ${POOLS}; i++) { vec2 dp = vWorldXZ - uPool[i].xy; pool += uPoolC[i] * uPool[i].w * exp(-dot(dp, dp) / (uPool[i].z * uPool[i].z)); }`,
         '  totalEmissiveRadiance += pool * tint * (0.3 + 0.7 * up) * (0.35 + 0.65 * hK); }',
+      ].join('\n'))
+      // the house lights (o.house): the direct light fades from the front row into the house, and the
+      // sky and environment are turned down
+      .replace('#include <lights_fragment_end>', [
+        '#include <lights_fragment_end>',
+        '{ float houseK = mix(uHouse.y, uHouse.x, exp(min(vStageZ - 1.5, 0.0) / uHouse.z));',
+        '  reflectedLight.directDiffuse *= houseK; reflectedLight.directSpecular *= houseK;',
+        '  reflectedLight.indirectDiffuse *= uHouse.w; reflectedLight.indirectSpecular *= uHouse.w; }',
       ].join('\n'));
   };
   const materials = B.map((b) => {

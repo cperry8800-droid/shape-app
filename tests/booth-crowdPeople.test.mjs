@@ -5,7 +5,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { decodePeoplePack, decodeAnyCrowdPack, crowdHasLod, recolour, dressPeople, PART } from '../public/newdesign/booth/crowdPeople.mjs';
+import { decodePeoplePack, decodeAnyCrowdPack, crowdHasLod, recolour, dressPeople, PART, createPeopleCrowd } from '../public/newdesign/booth/crowdPeople.mjs';
+import * as THREE from './helpers/booth-three.mjs';
 import { crowdPackPath, NORA_MODEL } from '../public/newdesign/booth/noraBoothState.mjs';
 import { imageSize } from '../scripts/nora-model/check-vrm.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
@@ -170,4 +171,45 @@ test('hair and the eyes\' clear shells are alpha-tested; nothing else is', () =>
   assert.match(src, /if \(P == 2 && diffuseColor\.a \* \(1\.0 \+ 0\.3 \* lod\) < 0\.5\) discard;/);
   assert.match(src, /if \(P == 3 && diffuseColor\.a < 0\.5\) discard;/);
   assert.equal((src.match(/discard;/g) || []).length, 2);
+});
+
+// ── the dark floor (owner, 2026-10-26: "make the crowd darker like a real club") ──
+
+// the shader a crowd material compiles, patched by its own onBeforeCompile on three's real standard
+// shader: every `replace` must find its include, or the patch would vanish silently
+function compiled(opts = {}) {
+  const pack = packs[1].pack;
+  const crowd = createPeopleCrowd({ THREE, pack, people: [{ lod: 0 }, { lod: 1 }], lodCount: [1, 1], rnd: seeded(5), lods: ['near', 'seat'], ...opts });
+  const mat = crowd.group.children.find((m) => m.count > 0).material;
+  const sh = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
+  mat.onBeforeCompile(sh);
+  crowd.dispose();
+  return sh;
+}
+
+test('the house lights: the direct light fades from the front row into the house, the ambient turns down', () => {
+  const sh = compiled({ house: { near: 0.6, far: 0.12, fall: 6, ambient: 0.2 } });
+  assert.match(sh.fragmentShader, /#include <lights_fragment_end>\n\{ float houseK = mix\(uHouse\.y, uHouse\.x, exp\(min\(vStageZ - 1\.5, 0\.0\) \/ uHouse\.z\)\);/);
+  assert.match(sh.fragmentShader, /reflectedLight\.directDiffuse \*= houseK; reflectedLight\.directSpecular \*= houseK;/);
+  assert.match(sh.fragmentShader, /reflectedLight\.indirectDiffuse \*= uHouse\.w; reflectedLight\.indirectSpecular \*= uHouse\.w;/);
+  assert.match(sh.fragmentShader, /uniform vec4 uHouse;/);
+  // the earlier patches still land too
+  for (const marker of ['totalEmissiveRadiance += pool', 'diffuseColor.a = 1.0;']) assert.ok(sh.fragmentShader.includes(marker), marker);
+  assert.deepEqual(sh.uniforms.uHouse.value.toArray(), [0.6, 0.12, 6, 0.2]);
+  // the shader's own curve: the front row (z −2) and ten metres back
+  const houseK = (z, h) => h.far + (h.near - h.far) * Math.exp(Math.min(z - 1.5, 0) / h.fall);
+  const H = { near: 0.6, far: 0.12, fall: 6 };
+  assert.ok(houseK(-2, H) > 0.35 && houseK(-2, H) < 0.42, 'the front row keeps ≈ 40% of the stage\'s direct light');
+  assert.ok(houseK(-10, H) < 0.2 && houseK(-30, H) - H.far < 0.01, 'deep in the house it is near the floor value');
+});
+
+test('without the option a crowd keeps all of the room\'s light (the venue\'s lounges)', () => {
+  assert.deepEqual(compiled().uniforms.uHouse.value.toArray(), [1, 1, 1e4, 1]);
+  const club = stripComments(readFileSync('public/newdesign/booth/club.mjs', 'utf8'));
+  assert.match(club, /export const CROWD_HOUSE = Object\.freeze\(\{ near: 0\.6, far: 0\.12, fall: 6, ambient: 0\.2 \}\);/);
+  assert.match(club, /avatars = createCrowd\(\{ THREE, pack, people, lodCount, rnd, lods: LODS, stageFalloff: low \? 9 : 11, house: CROWD_HOUSE \}\);/);
+  // the stage's fill on their faces: a smaller share of the wall's light than the 0.55 it was
+  assert.match(club, /tmpC2\.copy\(iceC\)\.multiplyScalar\(0\.006 \+ 0\.008 \* lvl\)\.add\(glowA\.copy\(wallGlow\)\.multiplyScalar\(0\.35\)\);/);
+  const venue = stripComments(readFileSync('public/newdesign/booth/clubVenue.mjs', 'utf8'));
+  assert.doesNotMatch(venue.match(/venueCrowd = createCrowd\(\{[\s\S]*?\}\);/)[0], /house/, 'the balconies are lit by their lounges');
 });
