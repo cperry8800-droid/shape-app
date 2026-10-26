@@ -39,7 +39,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { loadCrowdPack, createAvatarCrowd } from './crowdAvatars.mjs';
 import { ARENA_DIMS } from './arenaStage.mjs';
 import { CLUB_SHAPE_MASK, SHAPE_RADIO_MASK, NORA_MASK } from './clubShapeMask.mjs';
-import { wallArtAt } from './wallArt.mjs';
+import { wallHeadlineAt, stepWallLook, initialWallLook, wallLookMix, wallStepBeats, loopFadeAt, WALL_LOOKS, WALL_BUILDS } from './wallShow.mjs';
 import { createFlashGate } from './flashGate.mjs';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 
@@ -401,9 +401,11 @@ void main() {
   gl_Position = projectionMatrix * mv;
 }`;
 
-// The Signal Field: round dots on a fixed pitch. The idle artwork (the mark over CLUB SHAPE)
-// is sampled into the dots from a one-texel-per-dot mask; a dim mirrored spectrum sits
-// behind it; the kick lifts the whole panel; on the drop a beat-locked sweep crosses it.
+// The Signal Field: round dots on a fixed pitch. The headline artwork (the mark over CLUB SHAPE,
+// NORA, SHAPE RADIO) is sampled into the dots from a one-texel-per-dot mask; a dim mirrored spectrum
+// sits behind it on the dawn; the kick lifts and swells the dots; on the drop a beat-locked sweep
+// crosses it. The show (wallShow.mjs) builds the headline onto the dots, throws an echo of it
+// outward on the bar, and dissolves it before the look behind it changes.
 const WALL_FRAG = /* glsl */`
 uniform sampler2D uSpec;   // x = bar index from the centre; r = level, g = peak
 uniform sampler2D uMask;   // the artwork, one texel per dot: r = white parts, g = the teal ▸
@@ -421,28 +423,32 @@ uniform float uSweep;      // 0..1: the drop sweep (0 under reduced motion)
 uniform float uSweepDiv;   // beats per sweep (keeps it ≤ 3/s)
 uniform float uMotion;     // 1 normal, small under reduced motion
 uniform float uTime;
+uniform float uBuild;      // 0..1 through the headline's build (wallShow.mjs)
+uniform float uClear;      // 0..1 through its dissolve
+uniform float uStyle;      // the build: 0 a scan up, 1 a scatter, 2 a split from the centre, 3 none
+uniform float uEcho;       // the echo's strength (0: none) …
+uniform float uEchoScale;  // … and its size against the artwork's
+uniform vec4 uArtBox;      // the artwork's dots: bottom row, top row, centre column, centre row
+uniform float uSpecGain;   // the spectrum: on the dawn only
 uniform vec3 uFogColor;
 uniform float uFogDensity;
 varying vec2 vUv;
 varying float vDepth;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float artOf(vec4 k) { return max(smoothstep(0.1, 0.62, k.r), smoothstep(0.1, 0.62, k.g)); }
 
 void main() {
   vec2 cell = vUv * uGrid;
   vec2 id = floor(cell);
   vec2 f = fract(cell) - 0.5;
-  // ── the dot: round, crisp at any distance ─────────────────────────────
   float d = length(f);
   float aa = max(fwidth(d), 1e-4);
-  const float R = 0.38;
-  float dotMask = 1.0 - smoothstep(R - aa, R + aa, d);
-  // under ~2 px a dot resolves to its area coverage (pi * R^2), no moire
   float cellPx = 1.0 / max(fwidth(cell.x), 1e-4);
-  dotMask = mix(0.4536, dotMask, smoothstep(1.4, 3.0, cellPx));
 
-  // Drawn additively on the arena's LED wall, whose content is the idle field: nothing is added
-  // where the artwork and the spectrum are off, so no edge of this panel shows.
+  // Drawn additively on the arena's LED wall, whose content is the look: nothing is added where
+  // the artwork and the spectrum are off, so no edge of this panel shows. The headline has the wall
+  // to itself (wallShow.mjs): the look behind it is dark while it is up.
   vec3 col = vec3(0.0);
 
   // ── dim mirrored spectrum, bass at the centre, rising from the base ───
@@ -465,8 +471,9 @@ void main() {
       col = uIce * 0.14;
     }
   }
+  col *= uSpecGain;
 
-  // ── the artwork on top: the teal ▸, the white ◂ and CLUB SHAPE ──────
+  // ── the artwork on top: the teal ▸, the white ◂ and the name ─────────
   vec4 mkA = texture2D(uMask, (id + 0.5) / uGrid);
   vec4 mkB = texture2D(uMaskB, (id + 0.5) / uGrid);
   // the changeover: each dot switches as the front passes it, scattered over a fifth of the width
@@ -475,14 +482,53 @@ void main() {
   float sw = uWipe > 0.5 ? step(front, uMix) : uMix;
   vec4 mk = mix(mkA, mkB, sw);
   float edge = uWipe > 0.5 && uMix > 0.0 && uMix < 1.0 ? exp(-pow((front - uMix) / 0.035, 2.0)) : 0.0;
-  float mw = smoothstep(0.1, 0.62, mk.r), mt = smoothstep(0.1, 0.62, mk.g);
+
+  // the build: which dots have lit yet, and a bright edge where they are lighting
+  float lit = 1.0, glint = 0.0;
+  if (uStyle < 0.5) {
+    // a scan up the artwork, row by row
+    float yy = (id.y - uArtBox.x) / max(uArtBox.y - uArtBox.x, 1.0);
+    float fr = uBuild * 1.1 - 0.05;
+    lit = step(yy, fr);
+    glint = exp(-pow((yy - fr) / 0.05, 2.0));
+  } else if (uStyle < 1.5) {
+    // a scatter: each dot at its own moment
+    float h = hash(id + 17.0) * 0.96;
+    lit = step(h, uBuild);
+    glint = lit * exp(-pow((uBuild - h) / 0.07, 2.0));
+  } else if (uStyle < 2.5) {
+    // a split from the centre outward
+    float xx = abs(id.x + 0.5 - uArtBox.z) / (uGrid.x * 0.5);
+    float fr = uBuild * 1.05;
+    lit = step(xx, fr);
+    glint = exp(-pow((xx - fr) / 0.04, 2.0));
+  }
+  glint *= 1.0 - step(1.0, uBuild);
+  // the dissolve: dots go out one by one, each brightening as it goes
+  float hc = hash(id + 41.0) * 0.96;
+  float gone = step(hc, uClear);
+  float flare = (1.0 - gone) * exp(-pow((uClear - hc) / 0.05, 2.0)) * step(0.001, uClear);
+  float pres = lit * (1.0 - gone);
+
+  float mw = smoothstep(0.1, 0.62, mk.r) * pres, mt = smoothstep(0.1, 0.62, mk.g) * pres;
+  float m = max(mw, mt);
+  float art = max(smoothstep(0.1, 0.62, mk.r), smoothstep(0.1, 0.62, mk.g));
   float breath = 0.94 + 0.06 * sin(uTime * 0.7);
-  float lift = 1.2 * breath + 0.45 * uKick * uMotion + 0.15 * uLevel;
+  // the pulse: the kick lifts the artwork, and swells its dots a little
+  float lift = 1.2 * breath + 0.75 * uKick * uMotion + 0.15 * uLevel;
   col = mix(col, uIce * lift, mw);
   col = mix(col, uTint * lift * 1.6, mt);
-  float m = max(mw, mt);
+  col += uIce * art * (1.2 * glint + 1.0 * flare);
   // the wipe's leading edge, a soft cool line moving across (never a flash: it travels)
   col += uIce * 0.3 * edge;
+
+  // ── the echo: a copy of the artwork growing out of it and fading ─────
+  if (uEcho > 0.0) {
+    vec2 eid = floor(uArtBox.zw + (id + 0.5 - uArtBox.zw) / uEchoScale);
+    vec4 ke = texture2D(uMaskB, (eid + 0.5) / uGrid);
+    float e = artOf(ke) * (1.0 - m);
+    col += mix(uIce, uTint * 1.4, step(ke.r, ke.g)) * e * uEcho * 0.6;
+  }
 
   // ── the drop: a beat-locked sweep across the dots (≤ 3 per second) ────
   if (uSweep > 0.0) {
@@ -492,11 +538,44 @@ void main() {
     col += uIce * band * (0.5 + 1.1 * m) * uSweep;
   }
 
+  // ── the dot: round, crisp at any distance, a little larger on the kick under the artwork ─
+  float R = 0.38 + 0.05 * uKick * uMotion * m;
+  float dotMask = 1.0 - smoothstep(R - aa, R + aa, d);
+  // under ~2 px a dot resolves to its area coverage (pi * R^2), no moire
+  dotMask = mix(3.14159 * R * R, dotMask, smoothstep(1.4, 3.0, cellPx));
   col *= dotMask;
 
   // additive: fog only takes light away (the wall underneath carries the fog colour)
   float fogF = exp(-uFogDensity * uFogDensity * vDepth * vDepth);
   gl_FragColor = vec4(col * fogF, 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
+
+// The booth's fascia carries the show: while a look has the wall, a light runs out from the middle of
+// each of its three slats on every beat (a travelling light, never a flash); while the headline has the
+// wall, and under reduced motion, the slats hold still. The slats sit where fasciaTextures() draws them.
+const SLAT_VERT = /* glsl */`
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const SLAT_FRAG = /* glsl */`
+uniform float uBeat, uRun, uLevel;
+uniform vec3 uIce;
+varying vec2 vUv;
+void main() {
+  // the fascia canvas's own pixels (1024 × 600, y down): slats at 20, 34 and 48 % from the top,
+  // 12 px tall, from x 64 to 960
+  float x = vUv.x * 1024.0, y = (1.0 - vUv.y) * 600.0;
+  float slat = 0.0;
+  for (int i = 0; i < 3; i++) {
+    float y0 = (0.2 + 0.14 * float(i)) * 600.0;
+    slat = max(slat, step(y0, y) * step(y, y0 + 12.0));
+  }
+  slat *= step(64.0, x) * step(x, 960.0);
+  float u = abs(x - 512.0) / 448.0;      // 0 at the middle, 1 at either end
+  float pos = fract(uBeat);
+  float light = exp(-pow((u - pos) / 0.08, 2.0)) * (1.0 - 0.5 * pos);
+  gl_FragColor = vec4(uIce * slat * light * uRun * (1.4 + 0.8 * uLevel), 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
@@ -560,7 +639,7 @@ void main() {
  * @param {'high'|'low'} [o.quality]  'low' halves beams and crowd (phones)
  * @param {boolean} [o.reducedMotion]  no sweeps, no kick pulses, slow beams
  */
-export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5', quality = 'high', reducedMotion = false, crowdUrl = 'crowd.bin.txt', fetchImpl = null } = {}) {
+export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5', quality = 'high', reducedMotion = false, crowdUrl = 'crowd.bin.txt', fetchImpl = null, wallLoops = [] } = {}) {
   const rnd = mulberry32(seed * 7919 + 17);
   const low = quality === 'low';
   let reduced = !!reducedMotion;
@@ -602,6 +681,11 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   const matFascia = own(new THREE.MeshStandardMaterial({
     map: fascia.map, emissiveMap: fascia.emissiveMap, emissive: iceC.clone(), emissiveIntensity: 1.0,
     roughness: 0.6, metalness: 0.05,
+  }));
+  const slatU = { uBeat: { value: 0 }, uRun: { value: 0 }, uLevel: { value: 0 }, uIce: { value: iceC.clone() } };
+  const matSlatRun = own(new THREE.ShaderMaterial({
+    uniforms: slatU, vertexShader: SLAT_VERT, fragmentShader: SLAT_FRAG,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   }));
 
   function mesh(geo, mat, name) {
@@ -685,6 +769,12 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     const fasciaGeo = new THREE.PlaneGeometry(fw, fh);
     fasciaGeo.rotateY(Math.PI);
     mesh(fasciaGeo, matFascia, 'boothFascia').position.set(0, STAND_Y + 0.045 + fh / 2, BOOTH.z0 - 0.0065);
+    // the slats' running light, a millimetre in front of them (SLAT_FRAG)
+    const runGeo = new THREE.PlaneGeometry(fw, fh);
+    runGeo.rotateY(Math.PI);
+    const run = mesh(runGeo, matSlatRun, 'boothSlatRun');
+    run.position.set(0, STAND_Y + 0.045 + fh / 2, BOOTH.z0 - 0.0075);
+    run.renderOrder = 3;
 
     // aluminium extrusions: every edge of the case, plus the lid line
     const alu = [];
@@ -754,6 +844,15 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     shapeRadio: own(screenMaskTexture(THREE, WALL_COLS, WALL_ROWS, SHAPE_RADIO_MASK)),
     nora: own(screenMaskTexture(THREE, WALL_COLS, WALL_ROWS, NORA_MASK)),
   };
+  // each artwork's dots on the wall's grid (texture row 0 is the bottom): the scan builds up its rows,
+  // the split and the echo work out from its centre
+  const artBox = {};
+  for (const [k, L] of [['clubShape', CLUB_SHAPE_MASK], ['shapeRadio', SHAPE_RADIO_MASK], ['nora', NORA_MASK]]) {
+    const base = L.baseRow ?? ART_BASE_ROW, top = base + 1 - L.rows;
+    const y0 = WALL_ROWS - 1 - base, y1 = WALL_ROWS - top;
+    const cx = Math.floor((WALL_COLS - L.cols) / 2) + L.cols / 2;
+    artBox[k] = [y0, y1, cx, (y0 + y1) / 2];
+  }
   const maskTex = artTex.clubShape;
   let headliner = 'nora';
   const wallU = {
@@ -768,6 +867,8 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     uTint: { value: accentC.clone() },
     uKick: { value: 0 }, uLevel: { value: 0 }, uBeat: { value: 0 },
     uSweep: { value: 0 }, uSweepDiv: { value: 1 }, uMotion: { value: 1 }, uTime: { value: 0 },
+    uBuild: { value: 1 }, uClear: { value: 0 }, uStyle: { value: WALL_BUILDS.fade }, uEcho: { value: 0 }, uEchoScale: { value: 1 },
+    uArtBox: { value: new THREE.Vector4() }, uSpecGain: { value: 1 },
     uFogColor: { value: new THREE.Color(FOG_COLOR) }, uFogDensity: { value: FOG_DENSITY },
   };
   const matWall = own(new THREE.ShaderMaterial({
@@ -1280,6 +1381,96 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   let lastBeatIdx = null, lastBeatT = 0, beatPeriod = 60 / 124, beatCount = 0;
   let dropS = 0;
   let kickS = 0; // the kick as the room shows it (softened under reduced motion)
+  // the LED wall's show (wallShow.mjs): the look's state, the drop as the show reads it, and what
+  // the arena's wall is handed each frame (club.wallShow → venue.set({ wallShow }))
+  let look = initialWallLook();
+  let dropOn = false;
+  let pinnedLook = null;   // a preview's held look (pinWallLook), or null for the show
+  const show = { from: 0, to: 0, mix: 1, beat: 0, step: 1, plateFrom: null, plateTo: null };
+
+  // ── the video loops for the wall's plate look (made in Higgsfield) ─────
+  // Each loop is drawn into a small canvas at about the wall's own dot count (275 × 204), which the
+  // wall's dots then show. A generated clip does not end exactly on its first frame, so two copies of
+  // the file play in turn and the last WALL_LOOP_FADE seconds of one fade into the start of the other:
+  // no seam. Loops load one after another; one that fails (offline, blocked, refused by CORS) is
+  // dropped and the show never picks it. Only the loops on the wall play; the rest wait. The host
+  // decides who gets them (noraBoothState.wallLoopUrls: desktops only, battery and data first on phones).
+  const PLATE_W = 280, PLATE_H = 210;
+  const plates = [];
+  const playQuietly = (v) => { const r = v.play(); if (r && r.catch) r.catch(() => {}); };
+  function makeVideo(url) {
+    const v = document.createElement('video');
+    v.crossOrigin = 'anonymous';
+    v.muted = true; v.loop = false; v.playsInline = true; v.preload = 'auto';
+    v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+    v.src = url;
+    v.load();
+    return v;
+  }
+  function loadNextPlate() {
+    const p = plates.find((x) => x.state === 'idle');
+    if (!p || disposed) return;
+    p.state = 'loading';
+    const a = makeVideo(p.url);
+    p.a = a;
+    const done = (ok) => {
+      if (p.state !== 'loading') return;
+      if (!ok) { disposePlate(p); loadNextPlate(); return; }
+      // the second copy, for the fade over the seam: the same file, from the browser's cache
+      p.b = makeVideo(p.url);
+      const c = document.createElement('canvas');
+      c.width = PLATE_W; c.height = PLATE_H;
+      p.ctx = c.getContext('2d');
+      p.tex = new THREE.CanvasTexture(c);
+      p.tex.colorSpace = THREE.SRGBColorSpace;
+      p.tex.minFilter = p.tex.magFilter = THREE.LinearFilter;
+      p.tex.generateMipmaps = false;
+      p.state = 'ready';
+      drawPlate(p);   // its first frame, so a loop dissolving in is never black
+      loadNextPlate();
+    };
+    a.addEventListener('canplaythrough', () => done(true), { once: true });
+    a.addEventListener('error', () => done(false), { once: true });
+  }
+  function drawPlate(p) {
+    const A = p.a, B = p.b;
+    const w = loopFadeAt(A.currentTime, A.duration);
+    if (w > 0 && B.paused && p.on) { B.currentTime = 0; playQuietly(B); }
+    const g = p.ctx;
+    g.globalAlpha = 1;
+    g.drawImage(A, 0, 0, PLATE_W, PLATE_H);
+    if (w > 0 && B.readyState >= 2) { g.globalAlpha = w; g.drawImage(B, 0, 0, PLATE_W, PLATE_H); g.globalAlpha = 1; }
+    p.tex.needsUpdate = true;
+    // past the fade: the second copy carries on alone and the first waits at its start
+    if (w >= 1 || A.ended) { A.pause(); A.currentTime = 0; p.a = B; p.b = A; }
+  }
+  function setWallLoops(urls) {
+    for (const p of plates.splice(0)) disposePlate(p);
+    if (typeof document === 'undefined') return;
+    for (const u of Array.isArray(urls) ? urls : []) if (typeof u === 'string' && /^(https:|blob:|\/|\.)/.test(u)) plates.push({ url: u, state: 'idle', on: false, a: null, b: null, ctx: null, tex: null });
+    loadNextPlate();
+  }
+  function disposePlate(p) {
+    for (const v of [p.a, p.b]) if (v) { v.pause(); v.removeAttribute('src'); v.load(); }
+    if (p.tex) p.tex.dispose();
+    p.a = p.b = p.ctx = p.tex = null;
+    p.state = 'failed';
+  }
+  const plateReady = () => plates.map((p) => p.state === 'ready');
+  const plateTex = (i) => (plates[i] && plates[i].state === 'ready' ? plates[i].tex : null);
+  function showPlates(lk) {
+    plates.forEach((p, i) => {
+      if (p.state !== 'ready') return;
+      p.on = (lk.from === 'plate' && lk.fromPlate === i) || (lk.to === 'plate' && lk.toPlate === i);
+      if (p.on) {
+        if (p.a.paused) playQuietly(p.a);
+        drawPlate(p);
+      } else {
+        if (!p.a.paused) p.a.pause();
+        if (!p.b.paused) p.b.pause();
+      }
+    });
+  }
 
   const crowdBackC = new THREE.Color(0xffc890).multiplyScalar(0.022); // linear: the lounges' amber, dim
   const tmpM = new THREE.Matrix4();
@@ -1365,11 +1556,46 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     wallU.uMotion.value = reduced ? 0.15 : 1;
     const bp = beatPosAt(t);
     wallU.uBeat.value = bp;
-    const art = wallArtAt(bp, { headliner });
-    wallU.uMask.value = artTex[art.from];
-    wallU.uMaskB.value = artTex[art.to];
-    wallU.uMix.value = art.mix;
+    // the drop, with a little hysteresis so a level hovering on the line does not flip the look each bar
+    dropOn = dropOn ? drop > 0.4 : drop > 0.6;
+    // the headline: built onto the dots on the phrase's downbeat, held, echoed, dissolved (wallShow.mjs)
+    const head = wallHeadlineAt(bp, { headliner, drop: dropOn, reduced });
+    wallU.uMask.value = artTex[head.from];
+    wallU.uMaskB.value = artTex[head.art];
+    wallU.uMix.value = head.mix;
     wallU.uWipe.value = reduced ? 0 : 1;
+    wallU.uBuild.value = head.build;
+    wallU.uClear.value = head.clear;
+    wallU.uStyle.value = head.style;
+    wallU.uEcho.value = head.echo;
+    wallU.uEchoScale.value = head.echoScale;
+    wallU.uArtBox.value.fromArray(artBox[head.art]);
+    // the look behind it: the dawn, the tunnel, the chase or a loop, dissolving on a bar's downbeat
+    look = stepWallLook(look, { bp, drop: dropOn, ready: plateReady(), reduced });
+    if (pinnedLook) {
+      // a preview holding one look (pinWallLook), on its own as the show has it: a plate takes the
+      // first loop that has loaded, and the headline stays off
+      const k = pinnedLook === 'plate' ? plateReady().indexOf(true) : -1;
+      const name = pinnedLook === 'plate' && k < 0 ? 'dawn' : pinnedLook;
+      look = { from: name, fromPlate: k, to: name, toPlate: k, t0: -Infinity, bar: look.bar };
+      wallU.uBuild.value = name === 'blank' ? 1 : 0;
+      wallU.uClear.value = name === 'blank' ? 0 : 1;
+      wallU.uEcho.value = 0;
+    }
+    const lm = wallLookMix(look, bp);
+    const dawnW = (look.from === 'dawn' ? 1 - lm : 0) + (look.to === 'dawn' ? lm : 0);
+    wallU.uSpecGain.value = dawnW;
+    // the booth's slats run with the look, and hold still while the headline has the wall
+    const blankW = (look.from === 'blank' ? 1 - lm : 0) + (look.to === 'blank' ? lm : 0);
+    slatU.uBeat.value = bp;
+    slatU.uRun.value = reduced ? 0 : 1 - blankW;
+    slatU.uLevel.value = clamp(level * norm, 0, 1);
+    showPlates(look);
+    Object.assign(show, {
+      from: WALL_LOOKS[look.from], to: WALL_LOOKS[look.to], mix: lm, beat: bp, step: wallStepBeats(beatPeriod),
+      plateFrom: look.from === 'plate' ? plateTex(look.fromPlate) : null,
+      plateTo: look.to === 'plate' ? plateTex(look.toPlate) : null,
+    });
     // the drop sweep: once a beat, or every other beat when the tempo would push it past
     // 3 per second; none at all under reduced motion
     wallU.uSweepDiv.value = beatPeriod < 1 / 3 ? 2 : 1;
@@ -1557,6 +1783,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
 
   function dispose() {
     disposed = true;
+    for (const p of plates.splice(0)) disposePlate(p);
     if (avatars) { avatars.dispose(); avatars = null; }
     if (attachedScene) {
       if (replaced.fog && attachedScene.fog === fog) attachedScene.fog = null;
@@ -1575,6 +1802,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
 
   // prime the instances so the first frame is posed
   update(0, 0);
+  setWallLoops(wallLoops);
 
   return {
     group,
@@ -1585,6 +1813,14 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     get environment() { return envRT ? envRT.texture : null; },
     get crowdCount() { return NP; },
     crowdPack, // Promise<pack> | null — the baked avatar figures (crowdAvatars.decodeCrowdPack)
+    // the wall's look this frame, for the arena's LED wall: venue.set({ wallShow: club.wallShow })
+    get wallShow() { return show; },
+    // the video loops: [url], loaded in turn; [] for none
+    setWallLoops,
+    get wallLoops() { return plates.map((p) => ({ url: p.url, state: p.state })); },
+    // for a preview: hold the wall on one look ('dawn' | 'tunnel' | 'chase' | 'plate'), null for the
+    // show; 'blank' holds the headline on its dark wall
+    pinWallLook(name) { pinnedLook = Object.prototype.hasOwnProperty.call(WALL_LOOKS, name) ? name : null; },
     attach,
     set,
     update,

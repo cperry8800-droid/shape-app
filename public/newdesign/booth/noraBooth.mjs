@@ -85,6 +85,8 @@ function abortError() {
  *                                         shot out of the automatic rotation (the placeholder is an
  *                                         anime sample, and a frame-filling anime face is the single
  *                                         most "animated" frame the booth can show)
+ * @param {string[]} [o.wallLoops]         the LED wall's video loops (noraBoothState.wallLoopUrls): [] keeps
+ *                                         the drawn looks only
  * @param {AbortSignal|null} [o.signal]    abort while loading → rejects with an AbortError
  * @param {(f: number) => void} [o.onProgress]  the model download, 0..1, when the size is known
  * @param {(s: object) => void} [o.onState]      the snapshot, whenever a field a page shows changes
@@ -92,7 +94,7 @@ function abortError() {
 export async function createNoraBooth(o) {
   const {
     canvas, modelUrl, crowdUrl = null, venueUrl = null, quality = 'low', cinematic = false, fps = 30,
-    reducedMotion = false, portrait = true, signal = null, onProgress = null, onState = null,
+    reducedMotion = false, portrait = true, signal = null, onProgress = null, onState = null, wallLoops = [],
   } = o || {};
   if (!canvas) throw new Error('createNoraBooth: canvas is required');
   if (signal && signal.aborted) throw abortError();
@@ -205,7 +207,7 @@ export async function createNoraBooth(o) {
     owned.composer = composer; owned.bloom = bloom;
 
     // ── World ────────────────────────────────────────────────────────────────
-    const club = createClub({ THREE, renderer, seed: 7, accent: CLUB_ACCENT, quality, reducedMotion, crowdUrl });
+    const club = createClub({ THREE, renderer, seed: 7, accent: CLUB_ACCENT, quality, reducedMotion, crowdUrl, wallLoops });
     owned.parts.push(club);
     scene.add(club.group);
     const venueT0 = typeof performance !== 'undefined' ? performance.now() : 0;
@@ -673,7 +675,8 @@ export async function createNoraBooth(o) {
       // The wall headlines Nora only while she is the one on the decks (club.mjs wallArtAt).
       const roomState = { bands, kick: roomKick, beat: Math.floor(roomBar * 4) % 4, bar: Math.floor(roomBar), drop, accent: CLUB_ACCENT, reducedMotion, headliner: guestOnDecks ? null : 'nora' };
       club.set(roomState); club.update(dt, t);
-      venue.set(roomState); venue.update(dt, t);
+      // the LED wall's look comes from the club's show (wallShow.mjs), drawn on the venue's arena wall
+      venue.set({ ...roomState, wallShow: club.wallShow }); venue.update(dt, t);
 
       // Nora. During a human Shape Set she steps off the decks (ruling 1): there is never a 3D
       // stand-in for a real DJ.

@@ -256,6 +256,9 @@ The War Room has the full list; this covers what needs the owner and the planned
   website's coach Today draft, keep the "/10". The rest of parts 2 and 3 is in the War Room.
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted `/m/`,
   sheets add no history entry.
+- The booth's LED wall loops (`wallShow.mjs`, `WALL_LOOPS`) stream from Higgsfield's CDN on the
+  owner's account, desktops only (about 13 MB for the four); phones get the drawn looks. The show
+  has been seen only in headless Chromium, not on a real GPU or a phone.
 
 ## History
 

@@ -606,6 +606,64 @@ Repo assets (all on `main`):
   1597–1664 · 1749–1753 (the I is 5 px wide) · 1835–1913 (teal, ≈ 8,173,166). Because
   the ground is opaque black, its RGB IS premultiplied light — crop and add, no alpha.
 
+### The booth's LED wall loops (2026-10-26) — not part of the cut
+
+Owner: *"use higgsfield for cool looping images"*, *"make sure the images are moving, not just
+still shots"*, *"club shape doesnt have to be appearing in the images"*. The booth's LED wall
+plays them (`public/newdesign/booth/wallShow.mjs`, the `plate` look); `WALL_LOOPS` in
+`noraBoothState.mjs` lists the four it loads. Same cloudfront prefix as above; the CDN answers
+`access-control-allow-origin: *` and `cache-control: public, max-age=31536000, immutable`, which
+is what lets a browser draw them into WebGL.
+
+Keyframes first (`nano_banana_pro` requested, reported `nano_banana_2`; `aspect_ratio 4:3`;
+2400×1792 PNG), then each animated by `seedance_2_0` with that keyframe as both `start_image`
+and `end_image` so it would loop (`aspect_ratio 4:3 · duration 5 · resolution 720p ·
+generate_audio false`; delivered 1112×834 h264 High, 24 fps, 121 frames, 5.042 s, no audio).
+
+| loop | keyframe job · file | video job · file | bytes · md5 (video) | in `WALL_LOOPS` |
+| --- | --- | --- | --- | --- |
+| liquid chrome | `e9f6aad2-14fb-4ce9-bf4b-5996fbd294d2` · `hf_20261026_125914_e9f6aad2-….png` | `e4e3351c-9a6e-44d8-8796-96d08e10e879` · `hf_20261026_130216_e4e3351c-9a6e-44d8-8796-96d08e10e879.mp4` | 1,745,055 · `680dec0d0f10b01cb692ae5768862a9a` | yes |
+| triangle tunnel | `94719ee3-0038-4548-bcf0-69c19f82e670` · `hf_20261026_125913_94719ee3-….png` | `3941327a-5eb3-48ef-833f-d85f88f20ba6` · `hf_20261026_130216_3941327a-5eb3-48ef-833f-d85f88f20ba6.mp4` | 8,930,449 · `fbe0cc01264748ba14bf63705fd86309` | **no** (below) |
+| aurora | `ab76edd8-418d-461d-960a-ae9fa98ed88d` · `hf_20261026_125913_ab76edd8-….png` | `a0f6defb-eada-40ba-96ea-642dfdff8a67` · `hf_20261026_130217_a0f6defb-eada-40ba-96ea-642dfdff8a67.mp4` | 1,027,594 · `3a6dfae29d6836260cc0739fac639c85` | yes |
+| particle vortex | `2150926b-75ee-475c-85ed-becd01b3ab0e` · `hf_20261026_125913_2150926b-….png` | `6d9c5a67-cfbe-4546-befc-57e1c4968e60` · `hf_20261026_130216_6d9c5a67-cfbe-4546-befc-57e1c4968e60.mp4` | 6,854,650 · `27e3652df5bd65caa386b3aed12b1f1c` | yes |
+| prism | `251e24cf-cbbb-4e82-9307-911f89f11e1f` · `hf_20261026_125913_251e24cf-….png` | `dee7d77b-f3da-4dcd-ac47-c5471a1c032f` · `hf_20261026_130216_dee7d77b-f3da-4dcd-ac47-c5471a1c032f.mp4` | 3,181,704 · `8b80eac742554da31635434ba5dc2355` | yes |
+
+Keyframe prompts, verbatim (each ends *"No text, no logos, no people, no frame or border."*;
+the aurora's reads *"No text, no logos, no people, no landscape, no frame or border."*):
+
+1. *Abstract concert LED screen visual: glossy liquid chrome ribbons in deep teal (#34d6c5) and ice white flowing in wide symmetrical curves across a pure black void, bright specular highlights, high contrast, nothing else in frame.*
+2. *Abstract concert LED screen visual: a hypnotic tunnel of glowing concentric triangle outlines made of teal (#34d6c5) and ice-white neon light, receding to a dark vanishing point at the exact centre, perfectly symmetrical, pure black background, high contrast.*
+3. *Abstract concert LED screen visual: tall curtains of aurora light in teal, ice blue and soft violet rippling across a pure black sky, a thin warm amber glow along the bottom edge, luminous and high contrast.*
+4. *Abstract concert LED screen visual: a slow spiral vortex of thousands of tiny ice-white and warm amber light particles swirling around a dark centre like a galaxy, on a pure black background, high contrast, crisp points of light.*
+5. *Abstract concert LED screen visual: sharp crystalline glass prism shards arranged in a symmetrical starburst, refracting light into thin teal (#34d6c5) and white beams, deep black background, high contrast, clean geometric.*
+
+Motion prompts, verbatim:
+
+1. *The liquid chrome ribbons flow slowly and continuously along their own curves, bright highlights sliding along the glossy surfaces, gentle hypnotic motion, camera locked, the black background stays pure black, seamless loop. No text, no new objects.*
+2. *The camera glides steadily forward through the tunnel of glowing teal and white triangle outlines, each outline rushing outward past the edges of the frame as new ones appear at the centre, perfectly symmetrical, constant speed, seamless loop. No text.*
+3. *The aurora curtains ripple and sway gently, waves of light shimmering upward through them, the thin amber glow along the bottom shimmers softly, camera locked, black sky stays black, seamless loop. No text, no landscape.*
+4. *The spiral vortex of ice-white and amber light particles rotates slowly and steadily around its dark centre, particles twinkling softly, camera locked, black background, seamless loop. No text.*
+5. *The crystal prism shards turn slowly around the centre while the teal and white light beams sweep and stream outward from it, smooth steady motion, camera locked, black background, seamless loop. No text.*
+
+Measured on 278×208 grey frames (mean absolute change, 0–255):
+
+| loop | change per frame | first frame vs. the middle | last frame vs. the first | a quarter of the frame, worst frame-to-frame |
+| --- | --- | --- | --- | --- |
+| liquid chrome | 1.11 | 17.2 | 19.9 | 1.5 |
+| triangle tunnel | 59.2 | 76.1 | 73.1 | 14.2 |
+| aurora | 1.10 | 12.1 | 14.5 | 0.6 |
+| particle vortex | 8.54 | 32.8 | 29.2 | 1.3 |
+| prism | 3.27 | 19.8 | 10.4 | 0.9 |
+
+- **They move**: every clip is 12 to 76 away from its first frame by the middle.
+- ⚠ **The same keyframe at both ends does NOT make a seamless loop.** The last frame is 3 to 18
+  times a frame's own change away from the first, so a plain `loop` would jump. The booth plays
+  two copies in turn and fades the last 0.6 s of one into the start of the other
+  (`WALL_LOOP_FADE`, `loopFadeAt`).
+- **The tunnel is left out**: its thin lines rush so fast that a quarter of the frame changes by
+  up to 14/255 between frames, too close to a strobe on a wall that size, and the booth's drawn
+  tunnel look does the same job.
+
 ## The track pick (measured, not assumed)
 
 Three generations were made for the owner's *"deeper and darker"* note; each was decoded

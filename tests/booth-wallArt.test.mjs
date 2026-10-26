@@ -46,10 +46,13 @@ test('⚠ with a guest on the decks the wall never names Nora: the venue and the
 });
 
 test('club.mjs draws it on the wall and noraBooth.mjs names the act on the decks', () => {
+  // the rotation reaches the wall through the show (wallShow.mjs), which builds and clears each artwork
+  const show = stripComments(readFileSync('public/newdesign/booth/wallShow.mjs', 'utf8'));
+  assert.match(show, /import \{ wallArtAt, WALL_PHRASE_BEATS \} from '\.\/wallArt\.mjs';/);
+  assert.match(show, /const art = wallArtAt\(b, \{ headliner \}\);/);
   const club = stripComments(readFileSync('public/newdesign/booth/club.mjs', 'utf8'));
-  assert.match(club, /import \{ wallArtAt \} from '\.\/wallArt\.mjs';/);
-  assert.match(club, /const art = wallArtAt\(bp, \{ headliner \}\);/, 'read off the wall\'s own beat position');
-  for (const u of ['uMask.value = artTex\\[art.from\\]', 'uMaskB.value = artTex\\[art.to\\]', 'uMix.value = art.mix']) assert.match(club, new RegExp(u));
+  assert.match(club, /const head = wallHeadlineAt\(bp, \{ headliner, drop: dropOn, reduced \}\);/, 'read off the wall\'s own beat position');
+  for (const u of ['uMask.value = artTex\\[head.from\\]', 'uMaskB.value = artTex\\[head.art\\]', 'uMix.value = head.mix']) assert.match(club, new RegExp(u));
   // each artwork has its own texture, built from its own mask
   for (const [k, m] of [['clubShape', 'CLUB_SHAPE_MASK'], ['shapeRadio', 'SHAPE_RADIO_MASK'], ['nora', 'NORA_MASK']]) {
     assert.match(club, new RegExp(`${k}: [^\\n]*screenMaskTexture\\(THREE, WALL_COLS, WALL_ROWS, ${m}\\)`), k);

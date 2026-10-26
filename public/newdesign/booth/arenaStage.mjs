@@ -47,19 +47,29 @@ const LED_VERT = /* glsl */`
   }`;
 // The content is a function of the wall's own coordinates (metres), so anything drawn over it on
 // the same grid (club.mjs's artwork) lands on the same dots.
+//
+// The show (wallShow.mjs, run by club.mjs, handed in through set({ wallShow })) picks the look: the
+// dawn, the tunnel, the chase, a video loop, or the dark wall the headline has to itself, and
+// dissolves from one to the next across the 0.5 m cabinets. Without a show (a host that passes
+// none) the wall is the dawn, as it always was.
 const LED_FRAG = /* glsl */`
   uniform float uTime, uLevel, uKick, uMotion, uGain;
   uniform vec3 uIce, uAccent;
+  uniform float uLookA, uLookB, uLookMix;   // the look going out, the one coming in (WALL_LOOKS 0–4), 0..1
+  uniform float uBeat, uStep;               // the beat position; beats per chase step (1, or 2 when fast)
+  uniform sampler2D uPlateA, uPlateB;       // the video loops for a plate look (black when none)
   varying vec3 vW;
+  const float HALF_W = ${D.HALF_W.toFixed(3)}, WALL_Y0 = ${D.DECK_Y.toFixed(3)}, WALL_Y1 = ${D.TOP_Y.toFixed(3)};
+  const vec2 CENTRE = vec2(0.0, 5.3);       // the headline's centre (club.mjs's artwork, y 3.15 … 7.43)
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float ridge(float x, float seed, float freq) {
     return sin(x * freq + seed) * 0.5 + sin(x * freq * 2.3 + seed * 1.7) * 0.25 + sin(x * freq * 5.1 + seed * 2.9) * 0.12;
   }
-  void main() {
-    vec2 p = vW.xy;
-    float t = uTime * uMotion;
+
+  // ── the dawn: a sun rising over a dark sea (the wall's own picture) ──────────────────────
+  vec3 dawn(vec2 p, float t, float aa) {
     const float HY = 9.2;                 // the horizon: just over the booth portal's top (8.8)
     float a = p.y - HY;
-    float aa = max(fwidth(p.y), 0.02);
     vec3 hor = vec3(1.0, 0.52, 0.2);
     vec3 col;
     if (a >= 0.0) {
@@ -104,6 +114,78 @@ const LED_FRAG = /* glsl */`
       float dash = smoothstep(0.55, 0.9, 0.5 + 0.5 * sin(p.y * 9.0 + sin(p.x * 3.0 + t * 0.8) * 1.2 + t * 0.6));
       col += vec3(1.3, 0.7, 0.3) * streak * dash * exp(-d * 0.9);
     }
+    return col;
+  }
+
+  // ── the tunnel: the mark's two triangles, nested, flying out of the headline's centre ─────
+  // A triangle's nested outlines are the level sets of the largest of its three edge distances.
+  // The wall is seen from −z, so the crowd's right is world −x: v is the wall as the crowd sees it.
+  float triR(vec2 q) { return max(max(-q.x, dot(q, vec2(0.5, 0.8660254))), dot(q, vec2(0.5, -0.8660254))); }
+  vec3 tunnel(vec2 p) {
+    vec2 v = vec2(-p.x, p.y) - CENTRE;
+    vec3 col = vec3(0.003, 0.009, 0.014) + mix(uAccent, uIce, 0.3) * 0.16 * exp(-dot(v, v) * 0.06);
+    for (int k = 0; k < 2; k++) {
+      float fk = float(k);
+      // the teal ▸ sits low on the left of the mark, the white ◂ high on the right
+      vec2 q = k == 0 ? v + vec2(0.35, 0.2) : vec2(-(v.x - 0.35), v.y - 0.2);
+      float r = max(triR(q), 1e-3);
+      // one outline a beat per triangle, each 1.54× the last: they grow as they come out
+      float ph = log2(r) * 1.6 - uBeat - fk * 0.5;
+      float d = abs(fract(ph + 0.5) - 0.5);
+      // the outline stays about the same width in metres as it grows (thin, as LED lines are)
+      float w = 0.05 * clamp(1.6 / r, 0.3, 1.0);
+      float line = exp(-pow(d / w, 2.0)) + exp(-d * 18.0) * 0.08;
+      float fade = smoothstep(0.25, 1.1, r) * (1.0 - smoothstep(10.0, 18.0, r));
+      vec3 c = k == 0 ? uAccent * 1.05 : uIce * 0.8;
+      col += c * line * fade * (0.7 + 0.45 * uLevel + 0.3 * uKick);
+    }
+    return col;
+  }
+
+  // ── the chase: waves of light across the cabinets, a step a beat, in turn teal, ice, amber ─
+  vec3 chase(vec2 p) {
+    vec2 v = vec2(-p.x, p.y);
+    vec2 cab = floor(v / 0.5) + 0.5;
+    vec2 cc = cab * 0.5;
+    // a V rising from behind the booth: its arms climb toward the wall's edges
+    float ph = uBeat / uStep - (cc.y - abs(cc.x) * 0.6) * 0.16;
+    float idx = floor(ph);
+    float lit = exp(-fract(ph) * 4.0);
+    float which = mod(idx, 3.0);
+    vec3 c = which < 0.5 ? uAccent * 1.6 : which < 1.5 ? uIce * 1.35 : vec3(1.45, 0.78, 0.33);
+    return vec3(0.004, 0.01, 0.014) + c * lit * (0.55 + 0.45 * hash(cab + idx)) * (0.6 + 0.5 * uLevel);
+  }
+
+  // ── a video loop, drawn by the dots: each dot shows the picture at its own centre ──────────
+  vec3 plate(sampler2D tex, vec2 p) {
+    vec2 pc = (floor(p / 0.075) + 0.5) * 0.075;
+    vec2 uv = vec2((HALF_W - pc.x) / (2.0 * HALF_W), (pc.y - WALL_Y0) / (WALL_Y1 - WALL_Y0));
+    vec2 o = vec2(0.0375 / (2.0 * HALF_W), 0.0375 / (WALL_Y1 - WALL_Y0)) * 0.5;
+    vec3 c = (textureLod(tex, uv + vec2(-o.x, -o.y), 0.0).rgb + textureLod(tex, uv + vec2(o.x, -o.y), 0.0).rgb
+            + textureLod(tex, uv + vec2(-o.x, o.y), 0.0).rgb + textureLod(tex, uv + vec2(o.x, o.y), 0.0).rgb) * 0.25;
+    // the LED's black level, and the wall's brightness
+    return max(c - 0.015, 0.0) * 1.7 * (0.85 + 0.3 * uLevel);
+  }
+
+  vec3 look(float id, vec2 p, float t, float aa, bool b) {
+    if (id < 0.5) return dawn(p, t, aa);
+    if (id < 1.5) return tunnel(p);
+    if (id < 2.5) return chase(p);
+    if (id < 3.5) return b ? plate(uPlateB, p) : plate(uPlateA, p);
+    // blank: the dark wall the headline has to itself (the LEDs' own black)
+    return vec3(0.002, 0.004, 0.006);
+  }
+
+  void main() {
+    vec2 p = vW.xy;
+    float t = uTime * uMotion;
+    float aa = max(fwidth(p.y), 0.02);
+    // the dissolve: each cabinet switches at its own moment, the middle of the wall first
+    float sw = hash(floor(p / 0.5)) * 0.75 + 0.25 * clamp(abs(p.x) / HALF_W, 0.0, 1.0);
+    bool b = uLookMix >= 1.0 || uLookMix > sw;
+    vec3 col = look(b ? uLookB : uLookA, p, t, aa, b);
+    // a cabinet catches the light as it switches (a travelling sparkle, never the whole wall)
+    if (uLookMix > 0.0 && uLookMix < 1.0) col += uIce * 0.35 * exp(-pow((uLookMix - sw) / 0.05, 2.0));
     col *= uGain * (1.0 + 0.12 * uKick);
     // the LED: round dots on a 75 mm pitch, dark seams between 0.5 m modules. Once a dot is under
     // a couple of pixels it resolves to its area coverage (no moiré from the back of the room).
@@ -211,9 +293,14 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
   };
 
   // ── materials ───────────────────────────────────────────────────────────────────────────
+  // a black picture for a plate slot with no loop in it
+  const noPlate = own(new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1, THREE.RGBAFormat));
+  noPlate.needsUpdate = true;
   const ledU = {
     uTime: { value: 0 }, uLevel: { value: 0 }, uKick: { value: 0 }, uMotion: { value: RM ? 0.25 : 1 }, uGain: { value: 1 },
     uIce: { value: iceC.clone() }, uAccent: { value: accentC.clone() },
+    uLookA: { value: 0 }, uLookB: { value: 0 }, uLookMix: { value: 1 }, uBeat: { value: 0 }, uStep: { value: 1 },
+    uPlateA: { value: noPlate }, uPlateB: { value: noPlate },
   };
   const matLed = own(new THREE.ShaderMaterial({ uniforms: ledU, vertexShader: LED_VERT, fragmentShader: LED_FRAG }));
   const matDark = own(new THREE.MeshBasicMaterial({ vertexColors: true }));          // deck, cabinets (their tone is baked in the colour)
@@ -380,8 +467,22 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
   const dir = new THREE.Vector3(), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), scl = new THREE.Vector3();
   const down = new THREE.Vector3(0, -1, 0), white = new THREE.Color(0.86, 0.93, 1.0), cTmp = new THREE.Color();
 
+  // The show's look on the wall (club.mjs's wallShow): what is going out, what is coming in, how far
+  // through the dissolve, and the loops' pictures for a plate. Anything malformed leaves the dawn.
+  const lookId = (v) => (Number.isFinite(v) && v >= 0 && v <= 4 ? Math.round(v) : 0);
+  function applyShow(w) {
+    ledU.uLookA.value = lookId(w.from);
+    ledU.uLookB.value = lookId(w.to);
+    ledU.uLookMix.value = Number.isFinite(w.mix) ? clamp(w.mix, 0, 1) : 1;
+    if (Number.isFinite(w.beat)) ledU.uBeat.value = w.beat;
+    ledU.uStep.value = w.step === 2 ? 2 : 1;
+    ledU.uPlateA.value = (w.plateFrom && w.plateFrom.isTexture) ? w.plateFrom : noPlate;
+    ledU.uPlateB.value = (w.plateTo && w.plateTo.isTexture) ? w.plateTo : noPlate;
+  }
+
   function set(s = {}) {
     if (s.reducedMotion !== undefined) { RM = !!s.reducedMotion; ledU.uMotion.value = RM ? 0.25 : 1; }
+    if (s.wallShow) applyShow(s.wallShow);
     const b = s.bands || {};
     if (Number.isFinite(b.level)) st.level = clamp(b.level, 0, 1);
     if (Number.isFinite(s.kick)) st.kick = clamp(s.kick, 0, 1);
