@@ -25,7 +25,7 @@
 // from emissive colours above the booth's bloom threshold — zero dynamic lights of its own.
 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { createAvatarCrowd } from './crowdAvatars.mjs';
+import { createCrowd, crowdHasLod } from './crowdPeople.mjs';
 import { palmTrunk, palmFronds, palmBeam } from './palmGeometry.mjs';
 import { boxGrid, lightGrid, directAt, directAll, bakeMesh, bounceField, gridQuad } from './lightBake.mjs';
 import { createArenaStage, ARENA_DIMS } from './arenaStage.mjs';
@@ -98,7 +98,7 @@ function superHalfZ(a, b, x, n = SUPER_N) {
   return b * Math.pow(1 - Math.pow(u, n), 1 / n);
 }
 
-export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high', reducedMotion = false, crowdPack = null, now = null, accent = '#34d6c5' } = {}) {
+export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high', reducedMotion = false, crowdPack = null, now = null, accent = '#34d6c5', skylineUrl = null } = {}) {
   const clock = typeof now === 'function' ? now : () => 0;   // injected by the caller, for the bake's timings
   const bakeMs = { boxes: 0, structure: 0, floor: 0 };
   void renderer;
@@ -218,6 +218,8 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     return t;
   }
   const hdr = (hex, k) => new THREE.Color(hex).multiplyScalar(k);
+  // the balconies' crowd: backlit by the warm lounge glass, a little of the atrium's light in front
+  const CROWD_RIM = new THREE.Color(0.3, 0.19, 0.1), CROWD_FILL = new THREE.Color(0.035, 0.034, 0.036), CROWD_BACK = new THREE.Color(0.04, 0.026, 0.014);
 
   // ── canvas textures ─────────────────────────────────────────────────
   // Lounge / restaurant glass: warm interior seen through black-framed glass. 1024 px = 12.8 m.
@@ -395,6 +397,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   const matHalo = own(new THREE.MeshBasicMaterial({ vertexColors: true, color: HALO_BASE.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide }));
   const matMark = own(new THREE.MeshBasicMaterial({ color: hdr(0xf4f7ff, 1.35) }));
   const matTower = own(new THREE.MeshBasicMaterial({ map: cityTex, vertexColors: true, fog: false }));
+  const SKYLINE_GAIN = 1.3;   // the photographs are darker overall than the drawn windows were
   const matRed = own(new THREE.MeshBasicMaterial({ color: hdr(0xff2a1c, 2.2), fog: false }));
   const matCrown = own(new THREE.MeshBasicMaterial({ color: hdr(0xbfe4ff, 2.0), fog: false }));
   const matTrunk = own(new THREE.MeshBasicMaterial({ map: barkTex, vertexColors: true }));
@@ -1036,8 +1039,13 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       const h = 22 + Math.pow(rnd(), 1.2) * 21;   // tall enough to clear the skylight's far rim from the establishing shot
       place(x, z, w, d, h);
     }
-    const TW = 12, TH = 40;   // one texture tile: 32 columns × 64 floors (smaller windows: a city further off)
-    const addBox = (x, z, w, d, y0, y1, bright, tint) => {
+    // The facades are photographs (skylineUrl, made in Higgsfield): an atlas of two night towers side
+    // by side, an office tower's glass and a residential tower's stone. ⚠ They were drawn windows, a
+    // grid of coloured squares that read as an 8-bit city (owner, 2026-10-26: "its needs to look more
+    // real on website and app"). A tile is TW × TH metres; each face takes its own stretch of one
+    // tile, from its own corner, so no face wraps and no seam shows.
+    const TW = 24, TH = 46;
+    const addBox = (x, z, w, d, y0, y1, bright, tint, style) => {
       const g = box(x - w / 2, x + w / 2, y0, y1, z - d / 2, z + d / 2);
       const p = g.attributes.position, n = g.attributes.normal, uv = g.attributes.uv;
       const off = rnd();
@@ -1045,9 +1053,10 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       for (let i = 0; i < p.count; i++) {
         const nx = n.getX(i), ny = n.getY(i);
         const px = p.getX(i), py = p.getY(i), pz = p.getZ(i);
-        if (Math.abs(ny) > 0.5) { uv.setXY(i, 0.001, 0.001); cols.set([0.012, 0.014, 0.02], i * 3); continue; }
-        const s = Math.abs(nx) > 0.5 ? pz : px;
-        uv.setXY(i, off + s / TW, py / TH);
+        if (Math.abs(ny) > 0.5) { uv.setXY(i, style * 0.5 + 0.001, 0.001); cols.set([0.012, 0.014, 0.02], i * 3); continue; }
+        const xFace = Math.abs(nx) > 0.5;
+        const faceW = xFace ? d : w, local = xFace ? pz - (z - d / 2) : px - (x - w / 2);
+        uv.setXY(i, style * 0.5 + 0.5 * (off * Math.max(0, 1 - faceW / TW) + local / TW), (py + 1) / TH);
         cols.set([bright * tint[0], bright * tint[1], bright * tint[2]], i * 3);
       }
       g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
@@ -1059,9 +1068,10 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       const tint = rnd() < 0.25 ? [0.78, 0.88, 1.05] : [1, 1, 1];
       const setback = rnd() < 0.45 && t.h > 36;
       const h0 = setback ? t.h * (0.62 + rnd() * 0.15) : t.h;
-      addBox(t.x, t.z, t.w, t.d, -1, h0, bright, tint);
+      const style = (i * 7 + 3) % 5 < 3 ? 0 : 1;   // office glass or residential stone (no draw from rnd: the city stays as it was)
+      addBox(t.x, t.z, t.w, t.d, -1, h0, bright, tint, style);
       let top = h0, tw = t.w, td = t.d;
-      if (setback) { tw = t.w * 0.68; td = t.d * 0.68; addBox(t.x, t.z, tw, td, h0, t.h, bright * 1.05, tint); top = t.h; }
+      if (setback) { tw = t.w * 0.68; td = t.d * 0.68; addBox(t.x, t.z, tw, td, h0, t.h, bright * 1.05, tint, style); top = t.h; }
       if (t.x === -5 && t.z === 52) {
         // the spire
         const cone = new THREE.ConeGeometry(Math.min(tw, td) * 0.32, 9, 6);
@@ -1082,6 +1092,23 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     for (const g of T) if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
     const tm = mesh(merge(T, 'towers'), matTower, 'venueSkyline');
     tm.frustumCulled = false;
+  }
+  // the facade photographs replace the drawn windows once they load (offline, the drawn ones stay)
+  if (skylineUrl && typeof Image !== 'undefined') {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.decoding = 'async';
+    img.onload = () => {
+      if (venueDisposed) return;
+      const t = own(new THREE.Texture(img));
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = 4;
+      t.needsUpdate = true;
+      matTower.map = t;
+      matTower.color.setScalar(SKYLINE_GAIN);
+      matTower.needsUpdate = true;
+    };
+    img.src = skylineUrl;
   }
   const redMesh = mesh(merge(REDS, 'aviation'), matRed, 'venueAviationLights');
   redMesh.frustumCulled = false;
@@ -1361,13 +1388,13 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   if (crowdPack) Promise.resolve(crowdPack).then((pack) => {
     if (venueDisposed || !pack || !pack.geos) return;
     const stand = LOW ? 'tiny' : 'far';
-    if (!pack.geos[`body:${stand}`] || !pack.geos['body:seat']) return;   // an older pack: keep the boxes
+    if (!crowdHasLod(pack, stand) || !crowdHasLod(pack, 'seat')) return;   // an older pack: keep the boxes
     const seatY = (pack.header.seat && pack.header.seat.seatY) || 0.5;
     const ALL = FIG.concat(LOUNGE_GUESTS);   // the rails, the booths and the private boxes
     const people = ALL.map((f) => ({ lod: f.seat ? 1 : 0 }));
     const lodCount = [0, 0];
     for (const p of people) p.idx = lodCount[p.lod]++;
-    venueCrowd = createAvatarCrowd({ THREE, pack, people, lodCount, rnd: crowdRnd, lods: [stand, 'seat'],
+    venueCrowd = createCrowd({ THREE, pack, people, lodCount, rnd: crowdRnd, lods: [stand, 'seat'],
       stageFalloff: 1e4, name: 'venueCrowd', bob: RM ? 0 : 0.03 });
     const vs = venueCrowd.height / 1.68;
     ALL.forEach((f, i) => {
@@ -1380,7 +1407,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     });
     venueCrowd.commit();
     // backlit by the warm lounge glass, a little of the atrium's light on the front
-    venueCrowd.setLight(new THREE.Color(0.3, 0.19, 0.1), new THREE.Color(0.035, 0.034, 0.036), new THREE.Color(0.04, 0.026, 0.014));
+    venueCrowd.setLight(CROWD_RIM, CROWD_FILL, CROWD_BACK);
     group.add(venueCrowd.group);
     group.remove(imFig);
   }).catch(() => { /* the club already reports a missing pack; the boxes stay */ });
@@ -1400,6 +1427,9 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   const st = { level: 0, kick: 0, drop: 0, high: 0 };
   let envLevel = 0, envKick = 0, envDrop = 0, flickerAcc = 0;
   const tmpC = new THREE.Color();
+  // the balconies' crowd faces the stage: the wall's light (club.wallShow.glow) is on their faces too
+  const wallGlow = new THREE.Color();
+  const crowdFill = new THREE.Color();
 
   function set(state = {}) {
     if (state.reducedMotion !== undefined) {
@@ -1411,6 +1441,8 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     if (Number.isFinite(b.high)) st.high = clamp(b.high, 0, 1);
     if (Number.isFinite(state.kick)) st.kick = clamp(state.kick, 0, 1);
     if (Number.isFinite(state.drop)) st.drop = clamp(state.drop, 0, 1);
+    const g = state.wallShow && state.wallShow.glow;
+    if (g && Number.isFinite(g.r) && Number.isFinite(g.g) && Number.isFinite(g.b)) wallGlow.setRGB(g.r, g.g, g.b);
     arena.set(state);
   }
 
@@ -1432,7 +1464,10 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
 
     U.uTime.value = t;
     U.uKick.value = envKick * (RM ? 0 : 1);
-    if (venueCrowd) venueCrowd.setBeat(envKick * (RM ? 0 : 1), RM ? 0 : t);
+    if (venueCrowd) {
+      venueCrowd.setBeat(envKick * (RM ? 0 : 1), RM ? 0 : t);
+      venueCrowd.setLight(CROWD_RIM, crowdFill.copy(CROWD_FILL).add(tmpC.copy(wallGlow).multiplyScalar(0.3)), CROWD_BACK);
+    }
     arena.update(dt, t);
 
     // aviation lights: a slow soft blink (≈ 0.6 Hz), steady in reduced motion

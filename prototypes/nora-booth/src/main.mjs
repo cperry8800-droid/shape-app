@@ -128,7 +128,9 @@ addEventListener('resize', resize);
 // ── World ───────────────────────────────────────────────────────────────────
 // the LED wall's video loops: ?loops=url,url (or ?loops=0 for none); by default the booth's own list on high
 const LOOPS = Q.get('loops') === '0' ? [] : Q.get('loops') ? Q.get('loops').split(',') : wallLoopUrls(QUALITY, { reducedMotion: REDUCED_MOTION });
-const club = createClub({ THREE, renderer, seed: 7, accent: ACCENT, quality: QUALITY, reducedMotion: REDUCED_MOTION, wallLoops: LOOPS });
+// the crowd pack: ?crowd=<file> (crowd.bin.txt is the older avatar crowd), else the tier's people pack
+const CROWD = Q.get('crowd') || (QUALITY === 'high' ? 'crowd-people.bin.txt' : 'crowd-people-lo.bin.txt');
+const club = createClub({ THREE, renderer, seed: 7, accent: ACCENT, quality: QUALITY, reducedMotion: REDUCED_MOTION, wallLoops: LOOPS, crowdUrl: CROWD });
 // ?wall=dawn|tunnel|chase|plate holds the LED wall on one look (wallShow.mjs) instead of the show
 if (Q.get('wall')) club.pinWallLook(Q.get('wall'));
 scene.add(club.group);
@@ -136,7 +138,7 @@ scene.add(club.group);
 // The venue bakes its lighting on load (lightBake.mjs); how long that takes is timed here, since the
 // venue module itself reads no clock. window.__booth.venueMs reports it.
 const venueT0 = performance.now();
-const venue = createVenue({ THREE, renderer, seed: 11, quality: QUALITY, reducedMotion: REDUCED_MOTION, crowdPack: club.crowdPack, now: () => performance.now(), accent: ACCENT });
+const venue = createVenue({ THREE, renderer, seed: 11, quality: QUALITY, reducedMotion: REDUCED_MOTION, crowdPack: club.crowdPack, now: () => performance.now(), accent: ACCENT, skylineUrl: Q.get('skyline') === '0' ? null : QUALITY === 'high' ? 'skyline.webp' : 'skyline-lo.webp' });
 const venueMs = performance.now() - venueT0;
 scene.add(venue.group);
 // Club Shape from outside, for the arrival shot: a set of its own, drawn only while the arrival plays.
@@ -324,6 +326,7 @@ function scheduleMix(fromBar, due = null) {
 // ── Nora ────────────────────────────────────────────────────────────────────
 let nora = null;
 const loader = new GLTFLoader();
+loader.setMeshoptDecoder(MeshoptDecoder);   // a converted model is meshopt-compressed (scripts/nora-model/compress.mjs), as noraBooth.mjs loads it
 loader.register((p) => new VRMLoaderPlugin(p));
 // The artifact host serves no .vrm type, so the published page ships the model as base64 text
 // (nora.vrm.txt) and decodes it here; ?vrm=nora.vrm loads the binary directly in dev.

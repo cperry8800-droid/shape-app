@@ -1,8 +1,8 @@
 # Nora's Booth — prototype
 
 Nora DJing in Club Shape: a three.js scene with two media players and a mixer (modelled on the
-CDJ-3000 / DJM-A9 layout, no trademarks on screen), the Club Shape venue, a crowd built from
-Nora's own VRM, a camera director and a beat-matched two-deck mix.
+CDJ-3000 / DJM-A9 layout, no trademarks on screen), the Club Shape venue, a crowd of real people
+(MakeHuman, `crowd-mh/`), a camera director and a beat-matched two-deck mix.
 
 **The booth's runtime modules now live in [`public/newdesign/booth/`](../../public/newdesign/booth/)**,
 where the app's Radio screen and the website's Radio page both load them (Phase 1 of
@@ -19,9 +19,10 @@ Live preview (private artifact): https://claude.ai/artifact/RUCmUSmsu4W68dqzneoU
 | Path | What it is |
 |---|---|
 | `src/main.mjs` | The preview page: renderer, post (the cinematic chain on high, bloom alone on low), camera director, HUD, mix loop. Built to `pub/booth.js`. |
-| `../../public/newdesign/booth/` | The runtime modules, shared with the app and the website: the gear (`cdj3000`, `djmMixer`), Club Shape (`club`, `clubVenue`, `arenaStage`, `crowdAvatars`, `palmGeometry`, `lightBake`, `clubShapeMask`, `flashGate`), Nora (`noraPerformer`, `noraDirector`, `noraMix`), the audio (`deckAudio`, `trackAnalysis`, `tempoBridge`), the desktop `cinematic` tier and the host both pages mount (`noraBooth`). |
+| `../../public/newdesign/booth/` | The runtime modules, shared with the app and the website: the gear (`cdj3000`, `djmMixer`), Club Shape (`club`, `clubVenue`, `arenaStage`, `crowdPeople`, `crowdAvatars`, `palmGeometry`, `lightBake`, `clubShapeMask`, `flashGate`), Nora (`noraPerformer`, `noraDirector`, `noraMix`), the audio (`deckAudio`, `trackAnalysis`, `tempoBridge`), the desktop `cinematic` tier and the host both pages mount (`noraBooth`). |
 | `src/wordmarkGlyphs.mjs`, `src/screenArt.mjs`, `screen-mask.mjs` | The stage screen's artwork generator: the Shape mark's two triangles over CLUB SHAPE, from strokes fitted to the brand wordmark. `screen-mask.mjs` writes the result to `public/newdesign/booth/clubShapeMask.mjs`. |
-| `src/crowd-bake.mjs` | Bakes the crowd figures from the VRM (CPU skinning + QEM decimation) into `crowd.bin.txt`. |
+| `crowd-mh/` | The crowd as real people: MakeHuman people dressed for a night out, baked by Blender into `crowd-people.bin.txt` (+ `.webp` atlas) for desktops and `crowd-people-lo` for phones. Its own README. |
+| `src/crowd-bake.mjs` | The older crowd: Nora's VRM baked (CPU skinning + QEM decimation) into `crowd.bin.txt` (v2), which `crowdAvatars.mjs` still draws. |
 | `src/meshDecimate.mjs` | Quadric-error mesh decimation used by the bake (tested in `test/meshDecimate.test.mjs`). |
 | `src/*-test.mjs`, `dist/*.html` | Stand-alone test pages for each module (gear, mixer, club, venue, crowd, audio). |
 | `test/*.test.mjs` | The two node tests that cover this folder's own tools (the decimator, the screen artwork). The runtime modules' tests are in the root suite as `tests/booth-*.test.mjs`, so CI runs them. |
@@ -36,7 +37,7 @@ deck renders bit-identically to it on the synthesized path.
 ```bash
 cd prototypes/nora-booth
 npm ci                                   # three 0.185.1, @pixiv/three-vrm 3.5.5, esbuild, playwright-core
-cp ../../public/nora/placeholder.vrm dist/nora.vrm
+cp ../../public/nora/nora.vrm dist/nora.vrm
 node --test test/*.test.mjs              # 7 tests here; the other 69 run in the root suite (tests/booth-*.test.mjs)
 ```
 
@@ -57,7 +58,10 @@ node screen-mask.mjs /tmp/screen-preview.png
 # the VRM, base64'd (the artifact host will not serve .vrm)
 base64 -w0 dist/nora.vrm > pub/nora.vrm.txt
 
-# the crowd figures (needs a static server on dist/)
+# the crowd: the people packs are baked in Blender (crowd-mh/README.md), then copied beside booth.js
+cp ../../public/nora/crowd-people*.bin.txt ../../public/nora/crowd-people*.webp dist/
+
+# the older avatar crowd (v2; needs a static server on dist/)
 npx esbuild src/crowd-bake.mjs --bundle --format=esm --target=es2020 --outfile=dist/crowd-bake.js
 python3 -m http.server 8811 -d dist &
 node crowd-bake.cjs http://127.0.0.1:8811/crowd-bake.html pub/crowd.bin.txt

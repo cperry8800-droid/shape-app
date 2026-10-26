@@ -73,7 +73,8 @@ function abortError() {
  * @param {object} o
  * @param {HTMLCanvasElement} o.canvas
  * @param {string} o.modelUrl              Nora's VRM
- * @param {string|null} [o.crowdUrl]       the baked crowd pack (crowd.bin.txt); null keeps silhouettes
+ * @param {string|null} [o.crowdUrl]       the baked crowd pack (crowdPackPath); null keeps silhouettes
+ * @param {string|null} [o.skylineUrl]     the city's facade photographs (skylinePath); null keeps the drawn windows
  * @param {string|null} [o.venueUrl]       Club Shape from outside (CLUB_SHAPE_MODEL, a .glb): the booth
  *                                         opens on the fly-in to it. null, or a file that will not
  *                                         load, opens inside as before
@@ -93,7 +94,7 @@ function abortError() {
  */
 export async function createNoraBooth(o) {
   const {
-    canvas, modelUrl, crowdUrl = null, venueUrl = null, quality = 'low', cinematic = false, fps = 30,
+    canvas, modelUrl, crowdUrl = null, skylineUrl = null, venueUrl = null, quality = 'low', cinematic = false, fps = 30,
     reducedMotion = false, portrait = true, signal = null, onProgress = null, onState = null, wallLoops = [],
   } = o || {};
   if (!canvas) throw new Error('createNoraBooth: canvas is required');
@@ -211,7 +212,7 @@ export async function createNoraBooth(o) {
     owned.parts.push(club);
     scene.add(club.group);
     const venueT0 = typeof performance !== 'undefined' ? performance.now() : 0;
-    const venue = createVenue({ THREE, renderer, seed: 11, quality, reducedMotion, crowdPack: club.crowdPack, now: () => performance.now(), accent: CLUB_ACCENT });
+    const venue = createVenue({ THREE, renderer, seed: 11, quality, reducedMotion, crowdPack: club.crowdPack, now: () => performance.now(), accent: CLUB_ACCENT, skylineUrl });
     const venueMs = (typeof performance !== 'undefined' ? performance.now() : 0) - venueT0;
     owned.parts.push(venue);
     scene.add(venue.group);

@@ -36,11 +36,12 @@
 
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { loadCrowdPack, createAvatarCrowd } from './crowdAvatars.mjs';
+import { loadCrowd, createCrowd } from './crowdPeople.mjs';
 import { ARENA_DIMS } from './arenaStage.mjs';
 import { CLUB_SHAPE_MASK, SHAPE_RADIO_MASK, NORA_MASK } from './clubShapeMask.mjs';
-import { wallHeadlineAt, stepWallLook, initialWallLook, wallLookMix, wallStepBeats, loopFadeAt, WALL_LOOKS, WALL_BUILDS } from './wallShow.mjs';
+import { wallHeadlineAt, stepWallLook, initialWallLook, wallLookMix, wallStepBeats, loopFadeAt, wallLookGlow, WALL_LOOKS, WALL_BUILDS } from './wallShow.mjs';
 import { createFlashGate } from './flashGate.mjs';
+import { addBeamHaze } from './beamHaze.mjs';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 
 // ⚠ A POSITIVE MODULO FOR EVERY LOOK CHOSEN BY THE BAR. The bar clock is negative for the first
@@ -68,9 +69,12 @@ export const CLUB_DIMS = {
 };
 
 const { FLOOR_Y, STAGE_Y, STAND_Y, TABLE_Y, BOOTH, WALL, PORTAL, STAGE, CROWD } = CLUB_DIMS;
-const FOG_COLOR = 0x070a12;
+// ⚠ The air and the room's black are a near-neutral dark now; they were navy (0x070a12, 0x05070c),
+// which put a blue cast on every shadow and read as CG (owner, 2026-10-26: "its needs to look more
+// real"). The colour in the air comes from the wall instead (wallGlow).
+const FOG_COLOR = 0x050608;
 const FOG_DENSITY = 0.012;
-const BG_COLOR = 0x05070c;
+const BG_COLOR = 0x040506;
 
 // LED screen matrix: 192 × 112 dots over WALL (a 75 mm pitch, the arena wall's own), fine enough
 // to carry the wordmark; the shader resolves a dot to its area coverage once it drops under ~2 px.
@@ -588,10 +592,14 @@ varying float vAlong;
 varying vec3 vNormalV;
 varying vec3 vViewPos;
 varying float vSeed;
+varying float vEnd;
 void main() {
   vColor = aColor * aIntensity;
   vAlong = clamp(-position.y, 0.0, 1.0);
   vSeed = float(gl_InstanceID) * 1.37;
+  // how squarely the beam points at the camera: 1 straight down its axis (see BEAM_FRAG)
+  mat4 M = modelMatrix * instanceMatrix;
+  vEnd = dot(normalize(mat3(M) * vec3(0.0, -1.0, 0.0)), normalize(cameraPosition - (M * vec4(0.0, 0.0, 0.0, 1.0)).xyz));
   vec4 mv = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
   vViewPos = mv.xyz;
   mat3 nm = mat3(modelViewMatrix * instanceMatrix);
@@ -608,6 +616,7 @@ varying float vAlong;
 varying vec3 vNormalV;
 varying vec3 vViewPos;
 varying float vSeed;
+varying float vEnd;
 void main() {
   // bright at the lens, falling off with distance through the haze
   float fall = pow(1.0 - vAlong, 1.2) * (0.35 + 0.65 * exp(-vAlong * 3.0));
@@ -622,7 +631,10 @@ void main() {
   // a beam passing close to the lens fades to a faint streak instead of filling the frame
   float nearFade = smoothstep(2.0, 7.0, depth);
   float fog = exp(-uFogDensity * uFogDensity * depth * depth * 0.6);
-  vec3 c = vColor * fall * soft * haze * nearFade * fog * uGain;
+  // ⚠ a beam aimed at the camera stacks its whole length on one spot, which bloomed into a ball of
+  // light hanging in the air (owner, 2026-10-26: "need to make these look like they arent just
+  // floating orbs"): end-on it fades, and the lens (imLens) is the point of light that remains
+  vec3 c = vColor * fall * soft * haze * nearFade * fog * uGain * (1.0 - 0.85 * smoothstep(0.7, 0.95, vEnd));
   gl_FragColor = vec4(c, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -945,8 +957,14 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   imBeam.frustumCulled = false;
   imBeam.renderOrder = 10;
   group.add(imBeam);
+  // the haze each beam lights on its way (beamHaze.mjs): it moves with the beams' own matrices
+  const beamHaze = addBeamHaze({ THREE, beams: imBeam, lensRadius: LENS_R / (BEAM_LEN * Math.tan(BEAM_HALF)), widen: low ? 6 : 8, gain: 0.03, fogDensity: FOG_DENSITY, segments: low ? 10 : 16 });
+  group.add(beamHaze.mesh);
 
   const beamWhite = new THREE.Color(0.86, 0.93, 1.0);
+  // where each beam lands on the crowd (crowdPeople setPools), at head height
+  const POOL_Y = FLOOR_Y + 1.6;
+  const pools = FX_X.map(() => ({ x: 0, z: 0, r: 1, k: 0, color: new THREE.Color() }));
   const mh = fixtures.map((f) => ({
     pos: new THREE.Vector3(f.x, FX_Y, TRUSS.z),
     pivot: new THREE.Vector3(f.x, FX_Y - PIVOT_DROP, TRUSS.z),
@@ -1245,7 +1263,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   }
   group.add(imBody[0], imArm[0], imBody[1], imArm[1]);
 
-  // ── the crowd made of Nora's own avatar design (crowdAvatars.mjs) ────────
+  // ── the crowd: real people (crowdPeople.mjs), or Nora's own avatar design from an older pack ──
   // The cylinder silhouettes above are the fallback: they show until the baked figures
   // arrive, and stay if the pack cannot be fetched. Once the avatars are in, the fallback
   // meshes are removed so nothing is drawn twice.
@@ -1254,12 +1272,12 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   let lastT = 0; // the last update() clock, so the freshly-arrived crowd is posed to the same beat
   const fetchFn = fetchImpl || (typeof fetch === 'function' ? fetch : null);
   // One fetch of the baked figures, shared: the venue builds its balcony audience from the same pack.
-  const crowdPack = crowdUrl && fetchFn ? loadCrowdPack(crowdUrl, fetchFn) : null;
+  const crowdPack = crowdUrl && fetchFn ? loadCrowd(crowdUrl, fetchFn) : null;
   if (crowdPack) crowdPack.catch(() => {}); // the rejection is handled below; keep it off the console twice
   if (crowdPack) {
     crowdPack.then((pack) => {
       if (disposed) return;
-      avatars = createAvatarCrowd({ THREE, pack, people, lodCount, rnd, lods: LODS, stageFalloff: low ? 13 : 17 });
+      avatars = createCrowd({ THREE, pack, people, lodCount, rnd, lods: LODS, stageFalloff: low ? 13 : 17 });
       group.add(avatars.group);
       for (const m of [...imBody, ...imArm]) { group.remove(m); m.dispose(); }
       updateCrowd(0, lastT);
@@ -1276,7 +1294,8 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   // stage without landing flat on the gear. The truss light survives only as a narrow hair light on
   // her crown. Physically based units (candela, inverse-square).
   const hotC = hotFor(THREE, accent);
-  const hemi = new THREE.HemisphereLight(0x1b2438, 0x0b0806, 0.32);
+  const HEMI_SKY = new THREE.Color(0x171a20);   // was navy 0x1b2438; the wall's colour is added to it (wallGlow)
+  const hemi = new THREE.HemisphereLight(HEMI_SKY.clone(), 0x0b0806, 0.32);
   // ⚠ The key is aimed at her face and kept narrow, on purpose. The backs of her hands and the gear's
   // top plates are both horizontal and sit side by side, so any light that makes the gear bright makes
   // her hands several times brighter (skin's albedo is ~0.6, the gear's 0.02–0.15). The gear reads by
@@ -1386,7 +1405,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   let look = initialWallLook();
   let dropOn = false;
   let pinnedLook = null;   // a preview's held look (pinWallLook), or null for the show
-  const show = { from: 0, to: 0, mix: 1, beat: 0, step: 1, plateFrom: null, plateTo: null };
+  const show = { from: 0, to: 0, mix: 1, beat: 0, step: 1, plateFrom: null, plateTo: null, glow: null };
 
   // ── the video loops for the wall's plate look (made in Higgsfield) ─────
   // Each loop is drawn into a small canvas at about the wall's own dot count (275 × 204), which the
@@ -1441,6 +1460,8 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     g.drawImage(A, 0, 0, PLATE_W, PLATE_H);
     if (w > 0 && B.readyState >= 2) { g.globalAlpha = w; g.drawImage(B, 0, 0, PLATE_W, PLATE_H); g.globalAlpha = 1; }
     p.tex.needsUpdate = true;
+    // its mean colour, a few times a second: the light the picture throws into the room (wallGlow)
+    if ((p.n = (p.n || 0) + 1) % 8 === 1) p.mean = plateMean(p.ctx.canvas) || p.mean;
     // past the fade: the second copy carries on alone and the first waits at its start
     if (w >= 1 || A.ended) { A.pause(); A.currentTime = 0; p.a = B; p.b = A; }
   }
@@ -1471,6 +1492,44 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       }
     });
   }
+
+  // ── what the wall throws into the room ─────────────────────────────
+  // ⚠ The room's light comes from the screen now (owner, 2026-10-26: "its needs to look more real on
+  // website and app"). wallGlow is the wall's mean emission this frame (linear; wallShow.wallLookGlow
+  // per look, a loop's read off its own picture), mixed as the wall dissolves, plus the headline's
+  // white while it is up. It is eased over about half a second, so the room follows the screen
+  // without flickering with it. It colours the haze (the fog), the stage light on the crowd, Nora's
+  // back light and the hemisphere, and the venue's crowd (club.wallShow.glow).
+  const wallGlow = new THREE.Color();
+  const glowCols = { accent: accentC.toArray(), ice: iceC.toArray(), plateMean: null };
+  const glowA = new THREE.Color(), glowB = new THREE.Color(), glowHue = new THREE.Color();
+  let meanCtx = null;
+  function plateMean(canvas) {
+    try {
+      if (!meanCtx) { const c = document.createElement('canvas'); c.width = 8; c.height = 6; meanCtx = c.getContext('2d', { willReadFrequently: true }); }
+      meanCtx.drawImage(canvas, 0, 0, 8, 6);
+      const d = meanCtx.getImageData(0, 0, 8, 6).data;
+      const m = [0, 0, 0];
+      for (let i = 0; i < d.length; i += 4) for (let c = 0; c < 3; c++) m[c] += Math.pow(d[i + c] / 255, 2.2);
+      return m.map((v) => v / 48);
+    } catch (e) { return null; }   // a picture the page may not read
+  }
+  function lookGlow(name, plate, out) {
+    const p = name === 'plate' ? plates[plate] : null;
+    glowCols.plateMean = p ? p.mean : null;
+    return out.fromArray(wallLookGlow(name, glowCols));
+  }
+  function updateGlow(lm, head, dt) {
+    lookGlow(look.from, look.fromPlate, glowA).multiplyScalar(1 - lm);
+    lookGlow(look.to, look.toPlate, glowB).multiplyScalar(lm);
+    glowA.add(glowB).add(glowB.copy(iceC).multiplyScalar(0.04 * head.build * (1 - head.clear)));
+    wallGlow.lerp(glowA, 1 - Math.exp(-dt / 0.45));
+    // its hue at full strength, for tinting the lights (black when the wall is dark)
+    const mx = Math.max(wallGlow.r, wallGlow.g, wallGlow.b);
+    if (mx > 1e-4) glowHue.copy(wallGlow).multiplyScalar(1 / mx); else glowHue.setRGB(0, 0, 0);
+  }
+  const glowLum = () => wallGlow.r * 0.2126 + wallGlow.g * 0.7152 + wallGlow.b * 0.0722;
+  const FOG_BASE = new THREE.Color(FOG_COLOR);
 
   const crowdBackC = new THREE.Color(0xffc890).multiplyScalar(0.022); // linear: the lounges' amber, dim
   const tmpM = new THREE.Matrix4();
@@ -1591,10 +1650,12 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     slatU.uRun.value = reduced ? 0 : 1 - blankW;
     slatU.uLevel.value = clamp(level * norm, 0, 1);
     showPlates(look);
+    updateGlow(lm, head, dt);
     Object.assign(show, {
       from: WALL_LOOKS[look.from], to: WALL_LOOKS[look.to], mix: lm, beat: bp, step: wallStepBeats(beatPeriod),
       plateFrom: look.from === 'plate' ? plateTex(look.fromPlate) : null,
       plateTo: look.to === 'plate' ? plateTex(look.toPlate) : null,
+      glow: wallGlow,
     });
     // the drop sweep: once a beat, or every other beat when the tempo would push it past
     // 3 per second; none at all under reduced motion
@@ -1656,7 +1717,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       // third; on the drop the pairs alternate white and accent (the amber section is gone: under the
       // venue's warm light it read as a gold wash, not a beam)
       const bc = drop > 0.5 ? (k % 2 ? accentC : beamWhite) : [beamWhite, beamWhite, accentC][mode];
-      tmpC.copy(bc).multiplyScalar(0.8 + 2.4 * f.intensity);
+      tmpC.copy(bc).multiplyScalar(0.5 + 1.3 * f.intensity);   // was 0.8 + 2.4 ×: a glare ball once bloomed
       imLens.setColorAt(k, tmpC);
       // beam from the lens face along the aim
       const R = BEAM_LEN * Math.tan(BEAM_HALF);
@@ -1665,7 +1726,18 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       imBeam.setMatrixAt(k, tmpM);
       beamColor[k * 3] = bc.r; beamColor[k * 3 + 1] = bc.g; beamColor[k * 3 + 2] = bc.b;
       beamInt[k] = f.intensity;
+      // where it lands on the crowd: its light at head height, spread a little by the haze
+      const pool = pools[k];
+      pool.k = 0;
+      if (d.y < -0.05) {
+        const tt = (POOL_Y - f.pivot.y) / d.y;
+        pool.x = f.pivot.x + d.x * tt; pool.z = f.pivot.z + d.z * tt;
+        pool.r = 0.6 + tt * 0.03;
+        pool.k = pool.z < CROWD.z0 + 0.5 ? 0.45 * f.intensity : 0;
+        pool.color.copy(bc);
+      }
     }
+    if (avatars && avatars.setPools) avatars.setPools(pools);   // the older avatar crowd (v2 pack) has none
     imFxBody.instanceMatrix.needsUpdate = true;
     imHead.instanceMatrix.needsUpdate = true;
     imLens.instanceMatrix.needsUpdate = true;
@@ -1675,6 +1747,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     beamGeo.attributes.aIntensity.needsUpdate = true;
     beamU.uTime.value = t;
     beamU.uFogDensity.value = wallU.uFogDensity.value;
+    beamHaze.uniforms.uFogDensity.value = wallU.uFogDensity.value;
     lzU.uFogDensity.value = wallU.uFogDensity.value;
 
     // the wash rides an inner beam onto the crowd
@@ -1737,7 +1810,11 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       // crowd seen from the house reads as shoulders and heads, not a black mass. Steady, not on the beat.
       // front light: the stage's white wash on heads and shoulders (the reference's crowd is dark
       // clothes lit from the stage), a little fill so faces toward the stage are not black
-      avatars.setLight(tmpC.copy(iceC).multiplyScalar(0.26 + 0.26 * lvl + 0.18 * kickS + 0.12 * drop), tmpC2.copy(iceC).multiplyScalar(0.014 + 0.016 * lvl), crowdBackC);
+      // the screen's own light on the faces toward it, in its colour (wallGlow): the reference's crowd
+      // is lit by the picture, and goes to silhouettes when the wall is dark
+      tmpC.copy(iceC).lerp(glowHue, 0.35 * Math.min(1, glowLum() * 12)).multiplyScalar(0.26 + 0.26 * lvl + 0.18 * kickS + 0.12 * drop);
+      tmpC2.copy(iceC).multiplyScalar(0.008 + 0.012 * lvl).add(glowA.copy(wallGlow).multiplyScalar(0.55));
+      avatars.setLight(tmpC, tmpC2, crowdBackC);
     } else {
       for (let l = 0; l < 2; l++) {
         imBody[l].instanceMatrix.needsUpdate = true;
@@ -1754,7 +1831,13 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     const k = kickS;
     // The screen and the rims breathe with the music; the key and fill hold still (a portrait light
     // that pumps reads as a flicker on her face). Nothing here moves faster than the beat.
-    wallLight.intensity = 0.7 + 0.9 * lvl + 0.6 * k;
+    // the screen light behind her takes the wall's colour and some of its brightness (wallGlow)
+    const gl = glowLum();
+    wallLight.color.copy(iceC).lerp(glowHue, 0.5 * Math.min(1, gl * 12));
+    wallLight.intensity = (0.7 + 0.9 * lvl + 0.6 * k) * Math.min(1.35, 0.8 + 2.5 * gl);
+    // the air: a dark neutral haze lit the wall's colour; the hemisphere picks a little of it up
+    fog.color.copy(FOG_BASE).add(glowB.copy(wallGlow).multiplyScalar(0.07));
+    hemi.color.copy(HEMI_SKY).add(glowB.copy(wallGlow).multiplyScalar(0.12));
     rimL.intensity = 28 + 12 * lvl + 8 * k;
     rimR.intensity = 16 + 7 * lvl + 5 * k;    // amber blooms sooner than teal at the same power
     top.intensity = (44 + 16 * k) * 1.7;
@@ -1792,6 +1875,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       attachedScene = null;
     }
     if (envRT) { envRT.dispose(); envRT = null; }
+    beamHaze.dispose();
     [imFxBody, imHead, imLens, imBeam, imBlBody, imBlFace, ...imBody, ...imArm].forEach((m) => m.dispose());
     [hemi, key, top, wallLight, wash].forEach((l) => l.dispose && l.dispose());
     for (const d of disposables) if (d && d.dispose) d.dispose();
@@ -1812,7 +1896,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     background,
     get environment() { return envRT ? envRT.texture : null; },
     get crowdCount() { return NP; },
-    crowdPack, // Promise<pack> | null — the baked avatar figures (crowdAvatars.decodeCrowdPack)
+    crowdPack, // Promise<pack> | null — the baked crowd figures (crowdPeople.loadCrowd, either version)
     // the wall's look this frame, for the arena's LED wall: venue.set({ wallShow: club.wallShow })
     get wallShow() { return show; },
     // the video loops: [url], loaded in turn; [] for none

@@ -24,6 +24,8 @@
 // one screen. Everything is geometry and shaders — no textures, no pictures. The flashes rule holds:
 // nothing here flashes; the wall and the beams swell with the level and lift gently on the kick.
 
+import { addBeamHaze } from './beamHaze.mjs';
+
 export const ARENA_DIMS = {
   DECK_Y: -0.18,           // the club's stage height (CLUB_DIMS.STAGE_Y)
   FLOOR_Y: -0.66,
@@ -204,7 +206,7 @@ const LED_FRAG = /* glsl */`
 
 const BEAM_VERT = /* glsl */`
   attribute vec3 aColor;
-  varying vec3 vC; varying float vL; varying float vEdge; varying float vDepth;
+  varying vec3 vC; varying float vL; varying float vEdge; varying float vDepth; varying float vEnd;
   void main() {
     mat4 M = modelMatrix * instanceMatrix;
     vec4 w = M * vec4(position, 1.0);
@@ -214,6 +216,8 @@ const BEAM_VERT = /* glsl */`
     vEdge = abs(dot(n, normalize(cameraPosition - w.xyz)));
     vL = -position.y;
     vC = aColor;
+    // how squarely the beam points at the camera: 1 straight down its axis (see BEAM_FRAG)
+    vEnd = dot(normalize(m * vec3(0.0, -1.0, 0.0)), normalize(cameraPosition - (M * vec4(0.0, 0.0, 0.0, 1.0)).xyz));
     vec4 mv = viewMatrix * w;
     vDepth = -mv.z;
     gl_Position = projectionMatrix * mv;
@@ -224,9 +228,13 @@ const BEAM_VERT = /* glsl */`
 // beam crossing close to a lens is a faint streak, not a wall of light across the frame.
 const BEAM_FRAG = /* glsl */`
   uniform float uFog;
-  varying vec3 vC; varying float vL; varying float vEdge; varying float vDepth;
+  varying vec3 vC; varying float vL; varying float vEdge; varying float vDepth; varying float vEnd;
   void main() {
     float core = pow(vEdge, 7.0) * 1.6 + pow(vEdge, 2.0) * 0.12;
+    // ⚠ A beam aimed at the camera: every fragment of its 24 m faces the lens and they all land on
+    // one spot, which bloomed into a ball of light hanging in the air (owner, 2026-10-26: "need to
+    // make these look like they arent just floating orbs"). End-on it fades to a faint point.
+    core *= 1.0 - 0.85 * smoothstep(0.7, 0.95, vEnd);
     float along = pow(1.0 - vL, 1.6) * (0.35 + 0.65 * exp(-vL * 3.0));
     float fog = exp(-uFog * uFog * vDepth * vDepth * 0.4);
     float near = smoothstep(2.0, 7.0, vDepth);
@@ -407,7 +415,7 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
     for (const z of [T.z0, T.zMid]) for (let i = 0; i < n; i++) {
       const x = -9.4 + (18.8 * (i + 0.5)) / n;
       B.push(tint(can.clone().translate(x, T.y - T.size / 2 - 0.13, z), [0.02, 0.02, 0.022]));
-      L.push(tint(lens.clone().translate(x, T.y - T.size / 2 - 0.245, z), [3.0, 3.0, 2.9]));
+      L.push(tint(lens.clone().translate(x, T.y - T.size / 2 - 0.245, z), [1.5, 1.5, 1.45]));   // was 3.0: 32 glare points
     }
     mesh(merge(B, 'spotCans'), matDark, 'arenaSpotCans');
     mesh(merge(L, 'spotLenses'), matGlow, 'arenaSpotLenses');
@@ -460,6 +468,9 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
   imBeams.name = 'arenaBeams'; imBeams.frustumCulled = false; imBeams.renderOrder = 10;
   imBeams.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   group.add(imBeams);
+  // the haze each beam lights on its way (beamHaze.mjs): it moves with the beams' own matrices
+  const haze = addBeamHaze({ THREE, beams: imBeams, lensRadius: LENS_R / BEAM_R, widen: LOW ? 6 : 8, gain: 0.05, segments: LOW ? 10 : 16 });
+  group.add(haze.mesh);
 
   // ── state + animation ───────────────────────────────────────────────────────────────────
   const st = { level: 0, kick: 0, drop: 0, bar: 0 };
@@ -523,6 +534,7 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
 
   function dispose() {
     if (group.parent) group.parent.remove(group);
+    haze.dispose();
     imBeams.dispose();
     group.clear();
     for (const d of disposables) if (d && typeof d.dispose === 'function') d.dispose();

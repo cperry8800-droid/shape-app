@@ -181,51 +181,124 @@ export function applyStageLook(THREE, root, { outfit = 0x16181b, hairTint = null
   };
 }
 
-/** Over-ear DJ headphones, parented to the head bone. */
-function buildHeadphones(THREE, headNode, scale) {
+// Nora's head (public/nora/nora.vrm) as headFit measures it (normalized-rig metres, head-bone space),
+// for a model it can't measure.
+const HEAD_FALLBACK = Object.freeze({ earY: 0.011, earZ: 0.004, halfW: 0.09, top: 0.16 });
+
+/**
+ * Where the headphones go on THIS head: ear height, the ears' front-to-back position, the head's
+ * half-width at the ears and the top of the hair, in head-bone space. ⚠ Sized for the anime
+ * placeholder (a head about a third larger than a person's), the band floated a hand's width above a
+ * real head like a halo and the cups stood off her ears (owner, 2026-10-26: "whats going on with the
+ * headphones"). The width is the head's own (its opaque surfaces, ears included), not the hair's:
+ * her straight hair stands 2 cm out past her ears there, and cups fitted over it stood off her head
+ * and read as oversized ("make the headphones smaller"); cups press the hair in. Read from the
+ * skinned vertices the head bone moves most, at rest; ear height is a little under the eyes when the
+ * model has eye bones. Returns null when nothing is skinned to the head.
+ */
+export function headFit(THREE, vrm, headNode, eyeNode = null) {
+  const raw = vrm.humanoid && vrm.humanoid.getRawBoneNode ? vrm.humanoid.getRawBoneNode('head') : null;
+  if (!raw) return null;
+  vrm.scene.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(headNode.matrixWorld).invert();
+  const pts = [], meshes = [];
+  const v = new THREE.Vector3();
+  vrm.scene.traverse((o) => {
+    if (!o.isSkinnedMesh || !o.skeleton) return;
+    const bi = o.skeleton.bones.indexOf(raw);
+    const g = o.geometry;
+    if (bi < 0 || !g.attributes.skinIndex) return;
+    // hair, brows and lashes are alpha-tested cards; the head itself is opaque
+    const solid = (Array.isArray(o.material) ? o.material : [o.material]).every((m) => m && !m.transparent && !(m.alphaTest > 0));
+    const si = g.attributes.skinIndex, sw = g.attributes.skinWeight, n = g.attributes.position.count;
+    const mesh = meshes.push({ solid, n: 0 }) - 1;
+    for (let i = 0; i < n; i++) {
+      let w = 0;
+      for (let k = 0; k < 4; k++) if (si.getComponent(i, k) === bi) w += sw.getComponent(i, k);
+      if (w < 0.5) continue;
+      o.getVertexPosition(i, v).applyMatrix4(o.matrixWorld).applyMatrix4(inv);
+      pts.push(v.x, v.y, v.z, mesh);
+      meshes[mesh].n++;
+    }
+  });
+  if (pts.length < 400) return null;
+  let top = -Infinity;
+  for (let i = 1; i < pts.length; i += 4) top = Math.max(top, pts[i]);
+  // the head is the solid mesh with the most of the head bone's vertices (an opaque shell under the
+  // hair cards is solid too, but small)
+  let head = -1;
+  meshes.forEach((m, i) => { if (m.solid && (head < 0 || m.n > meshes[head].n)) head = i; });
+  let earY = HEAD_FALLBACK.earY;
+  if (eyeNode) {
+    const e = new THREE.Vector3();
+    eyeNode.getWorldPosition(e).applyMatrix4(inv);
+    earY = e.y - 0.02;
+  }
+  let halfW = 0, zMin = Infinity, zMax = -Infinity;
+  for (let i = 0; i < pts.length; i += 4) {
+    if (Math.abs(pts[i + 1] - earY) > 0.03 || (head >= 0 && pts[i + 3] !== head)) continue;
+    halfW = Math.max(halfW, Math.abs(pts[i]));
+    zMin = Math.min(zMin, pts[i + 2]); zMax = Math.max(zMax, pts[i + 2]);
+  }
+  if (!(halfW > 0.03)) return null;
+  return { earY, earZ: (zMin + zMax) / 2 - 0.005, halfW, top };
+}
+
+/** Over-ear DJ headphones, parented to the head bone and fitted to the head (headFit). */
+function buildHeadphones(THREE, headNode, fit) {
+  const F = fit || HEAD_FALLBACK;
   const g = new THREE.Group();
   g.name = 'NoraHeadphones';
+  g.userData.fit = F;
   const shell = new THREE.MeshStandardMaterial({ color: 0x0c0d0f, roughness: 0.35, metalness: 0.2 });
   const pad = new THREE.MeshStandardMaterial({ color: 0x1c1d20, roughness: 0.95 });
   const band = new THREE.MeshStandardMaterial({ color: 0x101113, roughness: 0.5, metalness: 0.35 });
   const trim = new THREE.MeshStandardMaterial({ color: 0x8b9096, roughness: 0.3, metalness: 0.9 });
-  const R = 0.098; // headband radius (normalized-rig metres, pre-scale)
-  const arc = new THREE.Mesh(new THREE.TorusGeometry(R, 0.0085, 10, 48, Math.PI * 1.02), band);
-  arc.rotation.set(0, Math.PI / 2, 0); // arc spans left↔right over the crown
-  arc.rotation.z = -0.01;
-  arc.position.set(0, 0.075, 0.0);
-  arc.rotation.x = 0; // stands in the Y-X plane after the Y turn
-  arc.scale.set(1, 1.08, 1);
+  // ⚠ Sized down a fifth from the first set (owner, 2026-10-26: "make the headphones smaller"): a
+  // DJ's closed-back cup is about 7 cm across, and these were 9.4 cm and stood off the hair.
+  const cupX = F.halfW + 0.018;   // the cup's centre: its cushion rests on the side of the head
+  const R = cupX + 0.004;         // headband radius (normalized-rig metres, pre-scale)
+  const arcY = 0.06;              // the band's centre above the cups (the yokes span the gap)
+  const arc = new THREE.Mesh(new THREE.TorusGeometry(R, 0.007, 10, 48, Math.PI * 1.02), band);
+  // A torus lies in its X-Y plane, and this half of one already spans left↔right (±X, the ears) over
+  // the crown. ⚠ It used to be turned a quarter about Y, which ran the band front-to-back over her
+  // head like a crest (owner, 2026-10-26: "whats going on with the headphones"); the anime
+  // placeholder's hair hid it.
+  arc.rotation.set(0, 0, -0.01);
+  arc.position.set(0, arcY, 0.0);
+  // resting on the top of the hair, never squashed flat
+  arc.scale.set(1, Math.max(0.85, (F.top + 0.008 - F.earY - arcY) / R), 1);
   g.add(arc);
   const cups = [];
   for (const side of [1, -1]) {
     const cup = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.043, 0.047, 0.03, 28), shell);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.037, 0.024, 28), shell);
     body.rotation.z = Math.PI / 2;
-    const cushion = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.012, 10, 28), pad);
+    const cushion = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.009, 10, 28), pad);
     cushion.rotation.y = Math.PI / 2;
-    cushion.position.x = -side * 0.016;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.044, 0.0025, 6, 28), trim);
+    cushion.position.x = -side * 0.012;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.002, 6, 28), trim);
     ring.rotation.y = Math.PI / 2;
-    ring.position.x = side * 0.016;
-    const yoke = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.05, 0.012), trim);
-    yoke.position.set(side * 0.004, 0.045, 0);
+    ring.position.x = side * 0.012;
+    const yoke = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.04, 0.009), trim);
+    yoke.position.set(side * 0.003, 0.036, 0);
     cup.add(body, cushion, ring, yoke);
-    cup.position.set(side * 0.092, 0.0, 0.0);
+    cup.position.set(side * cupX, 0.0, 0.0);
     g.add(cup);
     cups.push(cup);
   }
   // Classic one-ear look: the LEFT cup (character's left = +X in the normalized rig) is
   // pushed back off the ear so she can hear the room.
   cups[0].rotation.z = -0.35;
-  cups[0].position.set(0.098, 0.018, -0.03);
-  g.position.set(0, 0.058, 0.004);
+  cups[0].position.set(cupX + 0.005, 0.014, -0.024);
+  g.position.set(0, F.earY, F.earZ);
   headNode.add(g);
   g.userData.dispose = () => {
     g.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
     shell.dispose(); pad.dispose(); band.dispose(); trim.dispose();
   };
   g.userData.cups = cups;
+  g.userData.fit = F;
   return g;
 }
 
@@ -256,7 +329,7 @@ export class NoraPerformer {
     vrm.scene.position.set(stand.x, stand.y, stand.z);
     this.stand = stand;
     this._restoreLook = look === 'stage' ? applyStageLook(THREE, vrm.scene, { quality, ceiling }) : null;
-    this.headphones = headphones ? buildHeadphones(THREE, head, this.scale) : null;
+    this.headphones = headphones ? buildHeadphones(THREE, head, headFit(THREE, vrm, head, this.bone('leftEye'))) : null;
 
     // Rest bone lengths (normalized rig, pre-scale), read once.
     this.arm = {};

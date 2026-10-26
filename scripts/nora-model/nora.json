@@ -1,0 +1,64 @@
+{
+  "about": "Nora, built from MakeHuman's CC0 assets by makehuman_nora.py, after her profile picture (public/nora-avatar.png; owner, 2026-10-26: \"can you make nora look like her profile/avatar picture\", \"her face needs to be slimmed down\", \"dont have nora dressed in a suit when shes djing\"): a slim woman around 30, light skin with a few freckles, brown eyes, full dark brows, a soft smile, long dark-brown hair worn down; for the decks, a black camisole top and dark trousers; about 1.70 m. face_photo: a front-on, evenly lit photo of her (Higgsfield, job 2e1b8ae6-677b-48a6-a4b9-eaf0e3858499, nano_banana_pro reported nano_banana_2) baked onto the face by photo_face.py; it brings her brows, so there are no brow cards. face: MakeHuman modelling targets and their weights. tints: colours multiplied into a texture (sRGB, 0-1). Optional: hair_alpha / hair_underlayer (how solid the hair cards are drawn; fine-strand hair wants little boost and no opaque under-layer) and credits (what a CC BY asset asks to be credited for; written into the VRM meta). A long wavy fine-strand hair (punkduck_alpha7_curly2, CC BY) was tried and dropped: once she moved, it fell across her face.",
+  "macro": {
+    "gender": 0.0,
+    "age": 0.5,
+    "muscle": 0.42,
+    "weight": 0.3,
+    "height": 0.6,
+    "proportions": 0.85,
+    "race": {
+      "african": 0.03,
+      "asian": 0.12,
+      "caucasian": 0.85
+    }
+  },
+  "face": {
+    "head-oval": 0.6,
+    "head-fat-decr": 0.6,
+    "head-scale-horiz-decr": 0.25,
+    "l-cheek-volume-decr": 0.4,
+    "r-cheek-volume-decr": 0.4,
+    "l-cheek-bones-incr": 0.3,
+    "r-cheek-bones-incr": 0.3,
+    "l-eye-scale-incr": 0.15,
+    "r-eye-scale-incr": 0.15,
+    "mouth-lowerlip-volume-incr": 0.3,
+    "mouth-upperlip-volume-incr": 0.2,
+    "mouth-angles-up": 0.3,
+    "nose-scale-horiz-decr": 0.25,
+    "nose-point-width-decr": 0.3,
+    "chin-width-decr": 0.6
+  },
+  "skin": "toigo_light_skin_female_freckles",
+  "eyes": "high-poly",
+  "eyebrows": null,
+  "eyelashes": "eyelashes02",
+  "hair": "long01",
+  "clothes": [
+    "toigo_camisole_top",
+    "toigo_wool_pants",
+    "toigo_ankle_boots_female"
+  ],
+  "tints": {
+    "toigo_camisole_top": [
+      0.09,
+      0.09,
+      0.1
+    ],
+    "toigo_wool_pants": [
+      0.16,
+      0.16,
+      0.17
+    ],
+    "long01": [
+      0.72,
+      0.56,
+      0.46
+    ]
+  },
+  "face_photo": {
+    "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY/hf_20261026_172647_2e1b8ae6-677b-48a6-a4b9-eaf0e3858499.png",
+    "frame": 0.3
+  }
+}
