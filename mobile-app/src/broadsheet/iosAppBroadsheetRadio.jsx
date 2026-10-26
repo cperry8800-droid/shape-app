@@ -2198,7 +2198,7 @@ function bsBoothKeeper() {
         crowdUrl: noraAssetUrl(NORA_MODEL.crowd, import.meta.env.BASE_URL),
         portrait: NORA_MODEL.portrait,
         venueUrl: clubShapeModelUrl(CLUB_SHAPE_MODEL, import.meta.env.BASE_URL, tier.quality),
-        wallLoops: wallLoopUrls(tier.quality),
+        wallLoops: wallLoopUrls(tier.quality, { reducedMotion: reduced }),
         quality: tier.quality, cinematic: tier.cinematic, fps: tier.fps,
         reducedMotion: reduced, onProgress: progress,
       });

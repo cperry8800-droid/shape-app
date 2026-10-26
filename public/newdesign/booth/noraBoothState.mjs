@@ -132,9 +132,13 @@ export const WALL_LOOPS = Object.freeze([
   HF + 'hf_20261026_130216_6d9c5a67-cfbe-4546-befc-57e1c4968e60.mp4',   // particle vortex, 6.9 MB
 ]);
 
-/** The loops a device should load: all of them on high quality, none on a phone. */
-export function wallLoopUrls(quality = 'low', loops = WALL_LOOPS) {
-  if (quality !== 'high' || !Array.isArray(loops)) return [];
+/**
+ * The loops a device should load: all of them on high quality, none on a phone, and none under reduced
+ * motion, where the wall holds the dawn and never shows a loop (wallShow.mjs), so they would be ~13 MB
+ * downloaded for nothing.
+ */
+export function wallLoopUrls(quality = 'low', { reducedMotion = false, loops = WALL_LOOPS } = {}) {
+  if (quality !== 'high' || reducedMotion || !Array.isArray(loops)) return [];
   return loops.filter((u) => typeof u === 'string' && /^https:\/\//i.test(u));
 }
 

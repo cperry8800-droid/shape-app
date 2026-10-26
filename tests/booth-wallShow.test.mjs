@@ -170,3 +170,18 @@ test('club.mjs runs the show, the venue hands it to the arena wall, and both hos
   const preview = stripComments(readFileSync('prototypes/nora-booth/src/main.mjs', 'utf8'));
   assert.match(preview, /wallShow: club\.wallShow/);
 });
+
+test('the loops load on desktops only, and never under reduced motion, where the wall cannot show them', async () => {
+  const { wallLoopUrls, WALL_LOOPS } = await import('../public/newdesign/booth/noraBoothState.mjs');
+  assert.equal(WALL_LOOPS.length, 4);
+  assert.ok(WALL_LOOPS.every((u) => /^https:\/\/d8j0ntlcm91z4\.cloudfront\.net\/.+\.mp4$/.test(u)));
+  assert.deepEqual(wallLoopUrls('high'), [...WALL_LOOPS]);
+  assert.deepEqual(wallLoopUrls('low'), [], 'a phone keeps the drawn looks');
+  assert.deepEqual(wallLoopUrls('high', { reducedMotion: true }), [], 'reduced motion holds the dawn, so no download');
+  assert.deepEqual(wallLoopUrls('high', { loops: ['http://x/a.mp4', 'https://x/b.mp4'] }), ['https://x/b.mp4']);
+  // both pages hand it their reduced-motion setting
+  const site = stripComments(readFileSync('public/newdesign/radio.jsx', 'utf8'));
+  assert.match(site, /wallLoops: S\.wallLoopUrls\(tier\.quality, \{ reducedMotion: RD_REDUCED \}\)/);
+  const app = stripComments(readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx', 'utf8'));
+  assert.match(app, /wallLoops: wallLoopUrls\(tier\.quality, \{ reducedMotion: reduced \}\)/);
+});

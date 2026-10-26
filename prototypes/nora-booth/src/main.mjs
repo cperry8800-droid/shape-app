@@ -127,7 +127,7 @@ addEventListener('resize', resize);
 
 // ── World ───────────────────────────────────────────────────────────────────
 // the LED wall's video loops: ?loops=url,url (or ?loops=0 for none); by default the booth's own list on high
-const LOOPS = Q.get('loops') === '0' ? [] : Q.get('loops') ? Q.get('loops').split(',') : wallLoopUrls(QUALITY);
+const LOOPS = Q.get('loops') === '0' ? [] : Q.get('loops') ? Q.get('loops').split(',') : wallLoopUrls(QUALITY, { reducedMotion: REDUCED_MOTION });
 const club = createClub({ THREE, renderer, seed: 7, accent: ACCENT, quality: QUALITY, reducedMotion: REDUCED_MOTION, wallLoops: LOOPS });
 // ?wall=dawn|tunnel|chase|plate holds the LED wall on one look (wallShow.mjs) instead of the show
 if (Q.get('wall')) club.pinWallLook(Q.get('wall'));
