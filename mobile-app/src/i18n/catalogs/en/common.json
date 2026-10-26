@@ -82,5 +82,14 @@
   "planRead.meals": "Couldn’t load your meal plan",
   "planRead.body": "If you have a plan, it’s still there. Check your connection and try again.",
   "planRead.retry": "Try again",
-  "planRead.retrying": "Loading…"
+  "planRead.retrying": "Loading…",
+  "update.eyebrow": "Update",
+  "update.requiredTitle": "Update Shape to keep going.",
+  "update.requiredBody": "This version of the app no longer works with Shape. The update is free, and your account and everything you’ve logged stay as they are.",
+  "update.cta": "Update now",
+  "update.noStoreIos": "Open the App Store and update Shape.",
+  "update.noStoreAndroid": "Open Google Play and update Shape.",
+  "update.recommendedTitle": "A new version of Shape is out.",
+  "update.recommendedBody": "Update for the latest fixes and features.",
+  "update.later": "Not now"
 }

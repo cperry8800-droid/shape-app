@@ -82,5 +82,14 @@
   "planRead.meals": "Không tải được thực đơn của bạn",
   "planRead.body": "Nếu bạn có kế hoạch, nó vẫn còn đó. Hãy kiểm tra kết nối rồi thử lại.",
   "planRead.retry": "Thử lại",
-  "planRead.retrying": "Đang tải…"
+  "planRead.retrying": "Đang tải…",
+  "update.eyebrow": "Cập nhật",
+  "update.requiredTitle": "Hãy cập nhật Shape để tiếp tục.",
+  "update.requiredBody": "Phiên bản ứng dụng này không còn hoạt động với Shape. Bản cập nhật miễn phí, và tài khoản cùng mọi thứ bạn đã ghi lại vẫn được giữ nguyên.",
+  "update.cta": "Cập nhật ngay",
+  "update.noStoreIos": "Hãy mở App Store và cập nhật Shape.",
+  "update.noStoreAndroid": "Hãy mở Google Play và cập nhật Shape.",
+  "update.recommendedTitle": "Đã có phiên bản Shape mới.",
+  "update.recommendedBody": "Cập nhật để có các bản sửa lỗi và tính năng mới nhất.",
+  "update.later": "Để sau"
 }

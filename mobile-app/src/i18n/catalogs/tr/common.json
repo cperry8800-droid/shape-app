@@ -82,5 +82,14 @@
   "planRead.meals": "Beslenme planın yüklenemedi",
   "planRead.body": "Bir planın varsa hâlâ orada. Bağlantını kontrol edip tekrar dene.",
   "planRead.retry": "Tekrar dene",
-  "planRead.retrying": "Yükleniyor…"
+  "planRead.retrying": "Yükleniyor…",
+  "update.eyebrow": "Güncelleme",
+  "update.requiredTitle": "Devam etmek için Shape’i güncelle.",
+  "update.requiredBody": "Uygulamanın bu sürümü artık Shape ile çalışmıyor. Güncelleme ücretsiz; hesabın ve kaydettiğin her şey olduğu gibi kalır.",
+  "update.cta": "Şimdi güncelle",
+  "update.noStoreIos": "App Store’u aç ve Shape’i güncelle.",
+  "update.noStoreAndroid": "Google Play’i aç ve Shape’i güncelle.",
+  "update.recommendedTitle": "Shape’in yeni bir sürümü çıktı.",
+  "update.recommendedBody": "En son düzeltmeler ve özellikler için güncelle.",
+  "update.later": "Şimdi değil"
 }

@@ -92,6 +92,11 @@ dated entry or past 20 KB.
   - Native builds get `VITE_API_BASE_URL=https://theshapecommunity.com` from
     `android-build.yml` and `codemagic.yaml`. The hosted `/m/` build calls its own
     origin.
+  - The version is `mobile-app/package.json`'s, on both stores: raise it for each store
+    release. CI sets Android's versionCode and the iOS build number.
+  - Please update: `src/lib/app-version.mjs` sets each store's minimum version, and
+    `BSUpdateGate.jsx` covers an older installed app. Raise a minimum in the PR that
+    breaks older builds, and only once that store has the new version live.
 - **`iosAppBroadsheetClient.jsx`** is the member app (~38k lines): Home, Eat, Train,
   the logger, chat and settings. When a PR already touches a self-contained screen,
   move that screen into its own ES module. `BSIntegrationsPage.jsx` and

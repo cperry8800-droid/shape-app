@@ -82,5 +82,14 @@
   "planRead.meals": "Не вдалося завантажити твій план харчування",
   "planRead.body": "Якщо в тебе є план, він нікуди не зник. Перевір з’єднання і спробуй ще раз.",
   "planRead.retry": "Спробувати ще раз",
-  "planRead.retrying": "Завантаження…"
+  "planRead.retrying": "Завантаження…",
+  "update.eyebrow": "Оновлення",
+  "update.requiredTitle": "Онови Shape, щоб продовжити.",
+  "update.requiredBody": "Ця версія застосунку більше не працює з Shape. Оновлення безкоштовне, а твій акаунт і все, що ти записав, залишаться на місці.",
+  "update.cta": "Оновити",
+  "update.noStoreIos": "Відкрий App Store і онови Shape.",
+  "update.noStoreAndroid": "Відкрий Google Play і онови Shape.",
+  "update.recommendedTitle": "Вийшла нова версія Shape.",
+  "update.recommendedBody": "Онови, щоб отримати останні виправлення та функції.",
+  "update.later": "Не зараз"
 }

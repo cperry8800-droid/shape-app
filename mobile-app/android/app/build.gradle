@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+// The version members see is mobile-app/package.json's, the one number for both stores: the app
+// reads the same number (__SHAPE_VERSION__) and the update check compares it
+// (src/lib/app-version.mjs). Google Play refuses an upload whose versionCode isn't higher than the
+// last one, so android-build.yml passes SHAPE_VERSION_CODE; a local build is 1.
+def shapeVersion = new groovy.json.JsonSlurper().parse(file('../../package.json')).version
+def shapeVersionCode = (System.getenv('SHAPE_VERSION_CODE') ?: '1').toInteger()
+
 android {
     namespace "com.theshapecommunity.app"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,8 +14,8 @@ android {
         applicationId "com.theshapecommunity.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode shapeVersionCode
+        versionName shapeVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

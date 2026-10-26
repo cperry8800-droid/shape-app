@@ -181,10 +181,17 @@ jobs:
           echo "sourcemaps in native assets: $n"
           [ "$n" -eq 0 ] || { echo "::error::$n .map file(s) would ship in the APK"; exit 1; }
 
+      # ⚠ GOOGLE PLAY REFUSES AN UPLOAD WHOSE versionCode ISN'T HIGHER THAN THE LAST ONE, and
+      # build.gradle used to hold a fixed 1, so every build after the first would have been refused.
+      # build.gradle reads SHAPE_VERSION_CODE: minutes since 1970 (UTC), which only ever rises, needs
+      # no history and stays far under Play's 2,100,000,000 cap. The version members see is
+      # mobile-app/package.json's, which build.gradle reads too.
       - name: Assemble debug APK
         working-directory: mobile-app/android
         run: |
           chmod +x ./gradlew
+          export SHAPE_VERSION_CODE=$(( $(date -u +%s) / 60 ))
+          echo "versionCode $SHAPE_VERSION_CODE"
           ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload debug APK
@@ -307,8 +314,11 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        # versionCode as in the debug job: Play takes only a higher one.
         run: |
           chmod +x ./gradlew
+          export SHAPE_VERSION_CODE=$(( $(date -u +%s) / 60 ))
+          echo "versionCode $SHAPE_VERSION_CODE"
           ./gradlew assembleRelease --no-daemon --stacktrace \
             -Pandroid.injected.signing.store.file="$ANDROID_KEYSTORE_PATH" \
             -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \

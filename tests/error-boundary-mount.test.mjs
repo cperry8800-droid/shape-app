@@ -72,6 +72,7 @@ const MOD = await loadRealModule(MAIN_SRC, {
     // JSX siblings, never rendered by these tests (native import can't parse JSX).
     ['./BSLanguagePicker.jsx', { default: () => null }],
     ['./BSDobGate.jsx', { default: () => null }],
+    ['./BSUpdateGate.jsx', { default: () => null }],
     ['react-i18next', { I18nextProvider: ({ children }) => children }],
   ]),
   appendExports: 'export { BSErrorBoundary, bsCrashTestRequested, BSCrashProbe };',

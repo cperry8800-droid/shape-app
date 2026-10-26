@@ -82,5 +82,14 @@
   "planRead.meals": "An kasa loda tsarin abincinka",
   "planRead.body": "Idan kana da tsari, yana nan. Duba haɗinka ka sake gwadawa.",
   "planRead.retry": "Sake gwadawa",
-  "planRead.retrying": "Ana lodawa…"
+  "planRead.retrying": "Ana lodawa…",
+  "update.eyebrow": "Sabuntawa",
+  "update.requiredTitle": "Sabunta Shape don ci gaba.",
+  "update.requiredBody": "Wannan sigar manhajar ba ta aiki da Shape kuma. Sabuntawar kyauta ce, kuma asusunka da duk abin da ka rubuta za su kasance yadda suke.",
+  "update.cta": "Sabunta yanzu",
+  "update.noStoreIos": "Buɗe App Store ka sabunta Shape.",
+  "update.noStoreAndroid": "Buɗe Google Play ka sabunta Shape.",
+  "update.recommendedTitle": "Sabuwar sigar Shape ta fito.",
+  "update.recommendedBody": "Sabunta don samun sabbin gyare-gyare da fasaloli.",
+  "update.later": "Ba yanzu ba"
 }
