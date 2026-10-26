@@ -426,10 +426,40 @@ test('the hourly Nora job and the daily Score job page through everyone', () => 
   assert.match(ai, /\.select\('user_id, at:data->at'\)\s+\.eq\('kind', 'notify_snapshot'\)\s+\.order\('user_id', \{ ascending: true \}\)\s+\.range\(from, from \+ PAGE - 1\);/);
   assert.match(ai, /if \(at !== null && at < cutoff\) continue; \/\/ inactive → skip/);
   assert.match(ai, /await Promise\.all\(Array\.from\(\{ length: Math\.min\(CONCURRENCY, queue\.length\) \}, worker\)\);/);
-  assert.match(ai, /const offset = owners\.length \? Math\.floor\(startedAt \/ 3_600_000\) % owners\.length : 0;/);
+  assert.match(ai, /const offset = rotationStart\(Math\.floor\(startedAt \/ 3_600_000\), owners\.length\);/);
   const score = read('src/app/api/cron/score-accountability/route.ts');
   assert.doesNotMatch(score, /\.limit\(BATCH\)/);
   assert.match(score, /\.order\('client_id', \{ ascending: true \}\)\s+\.range\(from, from \+ SUB_PAGE - 1\);/);
+});
+
+test('runs that meet the time limit reach everyone within a few hours, not thousands (Codex on #2476)', async () => {
+  const { rotationStart } = await loadRealModule(join(ROOT, 'src/app/api/ai/notify/cron/route.ts'), {
+    typescript: true,
+    // Only the rotation runs here; the rest of the job is stubbed.
+    registry: new Map([['next/server', nextServer], ['@/lib/supabase/admin', { createAdminClient: () => null }],
+      ['@/lib/ai/notify-core', {}], ['@/lib/push-cap', {}], ['@/lib/roles.mjs', { isCoachRole: () => false }]]),
+  });
+  // Hourly runs that each reach `k` of `n` owners from their start: how many until all were reached.
+  const runsToReachAll = (n, k, hour0) => {
+    const seen = new Uint8Array(n);
+    let left = n;
+    for (let r = 0; r < 20000; r++) {
+      const start = rotationStart(hour0 + r, n);
+      assert.ok(Number.isInteger(start) && start >= 0 && start < n, `start ${start} of ${n}`);
+      for (let i = 0; i < k; i++) { const j = (start + i) % n; if (!seen[j]) { seen[j] = 1; left -= 1; } }
+      if (!left) return r + 1;
+    }
+    return Infinity;
+  };
+  const hour = Math.floor(Date.UTC(2026, 9, 26) / 3_600_000);
+  for (const [n, k] of [[10000, 1000], [10000, 300], [50000, 2000], [7, 3]]) {
+    for (let h = hour; h < hour + 100; h += 13) {
+      const runs = runsToReachAll(n, k, h);
+      assert.ok(runs <= 2 * Math.ceil(n / k), `${k} of ${n} a run took ${runs} runs to reach everyone`);
+    }
+  }
+  assert.equal(rotationStart(hour, 0), 0);
+  assert.equal(rotationStart(hour, 1), 0);
 });
 
 // ── 7a. Reminders at their minute ────────────────────────────────────────────────────────────────
@@ -440,13 +470,27 @@ test('a reminder goes at its minute, catches up a missed run, and only once a da
   });
   const r = (at, extra = {}) => ({ at_time: at, days: [0, 1, 2, 3, 4, 5, 6], last_fired_on: null, ...extra });
   const local = (h, m, date = '2026-10-26', dow = 1) => ({ minute: h * 60 + m, dow, date });
-  assert.equal(mod.reminderDue(r('07:45'), local(7, 44)), false, 'a minute early');
-  assert.equal(mod.reminderDue(r('07:45'), local(7, 45)), true, 'its minute');
-  assert.equal(mod.reminderDue(r('07:45:00'), local(7, 50)), true, 'the next run');
-  assert.equal(mod.reminderDue(r('07:45'), local(8, 15)), true, 'half an hour late: caught up');
-  assert.equal(mod.reminderDue(r('07:45'), local(8, 16)), false, 'later than that (a reminder saved after its time today): not sent');
-  assert.equal(mod.reminderDue(r('07:45', { last_fired_on: '2026-10-26' }), local(7, 50)), false, 'once a day');
-  assert.equal(mod.reminderDue(r('07:45', { days: [2] }), local(7, 50)), false, 'not its day');
+  const due = mod.reminderDueOn;
+  assert.equal(due(r('07:45'), local(7, 44)), null, 'a minute early');
+  assert.equal(due(r('07:45'), local(7, 45)), '2026-10-26', 'its minute');
+  assert.equal(due(r('07:45:00'), local(7, 50)), '2026-10-26', 'the next run');
+  assert.equal(due(r('07:45'), local(8, 15)), '2026-10-26', 'half an hour late: caught up');
+  assert.equal(due(r('07:45'), local(8, 16)), null, 'later than that (a reminder saved after its time today): not sent');
+  assert.equal(due(r('07:45', { last_fired_on: '2026-10-26' }), local(7, 50)), null, 'once a day');
+  assert.equal(due(r('07:45', { days: [2] }), local(7, 50)), null, 'not its day');
+  // Across midnight (Codex on #2476): a Monday 23:55 reminder whose run was missed goes at Tuesday
+  // 00:00 as Monday's, and does not stop Tuesday's.
+  const tue = (h, m) => local(h, m, '2026-10-27', 2);
+  assert.equal(due(r('23:55', { days: [1] }), tue(0, 0)), '2026-10-26', 'missed before midnight: caught up as yesterday\'s');
+  assert.equal(due(r('23:55', { last_fired_on: '2026-10-26' }), tue(0, 0)), null, 'yesterday\'s already went');
+  assert.equal(due(r('23:55', { days: [2] }), tue(0, 0)), null, 'yesterday was not its day');
+  assert.equal(due(r('23:55', { last_fired_on: '2026-10-26' }), tue(23, 55)), '2026-10-27', 'today\'s goes on its own day');
+  assert.equal(due(r('23:40'), tue(0, 11)), null, 'more than half an hour after');
+  assert.equal(due(r('00:10'), tue(0, 5)), null, 'early today is not late yesterday');
+  assert.equal(due(r('23:50'), local(0, 5, '2026-11-01', 0)), '2026-10-31', 'the day before the first of a month');
+  // The job records the day each went for.
+  const job = read('src/app/api/cron/reminders/route.ts');
+  assert.match(job, /const date = reminderDueOn\(r, localNow\(r\.tz, now\)\);\s+if \(date\) due\.push\(\{ r, date \}\);/);
   assert.deepEqual(mod.localNow('America/New_York', new Date('2026-10-26T11:45:00Z')), { minute: 7 * 60 + 45, dow: 1, date: '2026-10-26' });
   const crons = JSON.parse(read('vercel.json')).crons;
   assert.equal(crons.find((c) => c.path === '/api/cron/reminders').schedule, '*/5 * * * *');

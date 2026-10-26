@@ -57,15 +57,26 @@ export function localNow(tz: string, now: Date = new Date()): { minute: number; 
 // half an hour covers a late or missed 5-minute run and fires nothing set for this morning at noon.
 export const CATCH_UP_MINUTES = 30;
 
-// Whether a reminder is due at this local time: a weekday it is set for, its time reached today (to
-// the minute), at most CATCH_UP_MINUTES ago, and not yet fired today.
-export function reminderDue(r: Pick<Reminder, 'at_time' | 'days' | 'last_fired_on'>, local: { minute: number; dow: number; date: string }): boolean {
+// The local day before `date` (YYYY-MM-DD).
+function dayBefore(date: string): string {
+  const [y, mo, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y, mo - 1, d - 1)).toISOString().slice(0, 10);
+}
+
+// The local day a reminder is due for at this local time, or null: a weekday it is set for, its time
+// reached (to the minute) at most CATCH_UP_MINUTES ago, and not yet fired that day. The day is what
+// last_fired_on records.
+// ⚠ JUST AFTER MIDNIGHT THAT CAN BE YESTERDAY (Codex on #2476). A 23:55 reminder whose run was missed
+// goes at 00:00 as yesterday's; read as today's, it was dropped, and stamped today it would have
+// stopped today's own.
+export function reminderDueOn(r: Pick<Reminder, 'at_time' | 'days' | 'last_fired_on'>, local: { minute: number; dow: number; date: string }): string | null {
   const m = /^(\d{1,2}):(\d{2})/.exec(String(r.at_time || '09:00'));
   const at = m ? Math.min(23, Number(m[1])) * 60 + Math.min(59, Number(m[2])) : 9 * 60;
-  if (!Array.isArray(r.days) || !r.days.includes(local.dow)) return false;
-  if (r.last_fired_on === local.date) return false;
-  const late = local.minute - at;
-  return late >= 0 && late <= CATCH_UP_MINUTES;
+  if (!Array.isArray(r.days)) return null;
+  const today = local.minute - at;
+  const [late, dow, date] = today >= 0 ? [today, local.dow, local.date] : [today + 1440, (local.dow + 6) % 7, dayBefore(local.date)];
+  if (late > CATCH_UP_MINUTES || !r.days.includes(dow) || r.last_fired_on === date) return null;
+  return date;
 }
 
 // `copy` is how the bell and the push say it in another language (noticeCopy.mjs). A label the member
@@ -178,12 +189,12 @@ async function handle(request: Request) {
     return NextResponse.json({ ok: true, fired: 0, skipped: true });
   }
 
-  // Due now: its weekday, its time reached today (local), and not yet fired today.
+  // Due now, each for its local day: its weekday, its time reached, and not yet fired that day.
   const now = new Date();
   const due: Array<{ r: Reminder; date: string }> = [];
   for (const r of rows) {
-    const local = localNow(r.tz, now);
-    if (reminderDue(r, local)) due.push({ r, date: local.date });
+    const date = reminderDueOn(r, localNow(r.tz, now));
+    if (date) due.push({ r, date });
   }
   const answered = await morningsAnswered(admin, due.filter((d) => d.r.kind === 'daily_checkin').map((d) => ({ userId: d.r.user_id, date: d.date })));
 
