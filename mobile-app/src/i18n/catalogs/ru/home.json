@@ -462,5 +462,15 @@
   "coaches.unread": "новых: {n}",
   "coaches.nextSession": "Следующая сессия",
   "coaches.messageTrainer": "Написать тренеру",
-  "coaches.messageNutritionist": "Написать нутрициологу"
+  "coaches.messageNutritionist": "Написать нутрициологу",
+  "shortcut.title": "Быстрый доступ",
+  "shortcut.progressSub": "Ваши итоги на сегодня",
+  "shortcut.scoreSub": "Очки и уровень",
+  "shortcut.findCoach": "Найти тренера",
+  "shortcut.findCoachSub": "Тренеры и нутрициологи",
+  "shortcut.kicker": "Перейти",
+  "shortcut.groceryList": "Список покупок",
+  "shortcut.grocerySub": "Покупки на эту неделю",
+  "shortcut.devices": "Часы и приложения",
+  "shortcut.devicesSub": "Подключите шаги и сон"
 }

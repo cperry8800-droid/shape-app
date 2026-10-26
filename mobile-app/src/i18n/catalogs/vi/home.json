@@ -462,5 +462,15 @@
   "coaches.unread": "{n} mới",
   "coaches.nextSession": "Buổi tiếp theo",
   "coaches.messageTrainer": "Nhắn huấn luyện viên",
-  "coaches.messageNutritionist": "Nhắn chuyên gia dinh dưỡng"
+  "coaches.messageNutritionist": "Nhắn chuyên gia dinh dưỡng",
+  "shortcut.title": "Lối tắt",
+  "shortcut.progressSub": "Thành tích của bạn đến nay",
+  "shortcut.scoreSub": "Điểm và hạng",
+  "shortcut.findCoach": "Tìm huấn luyện viên",
+  "shortcut.findCoachSub": "Huấn luyện viên và chuyên gia dinh dưỡng",
+  "shortcut.kicker": "Đi tới",
+  "shortcut.groceryList": "Danh sách mua sắm",
+  "shortcut.grocerySub": "Đồ cần mua tuần này",
+  "shortcut.devices": "Đồng hồ & ứng dụng",
+  "shortcut.devicesSub": "Kết nối bước chân và giấc ngủ"
 }

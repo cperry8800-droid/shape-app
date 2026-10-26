@@ -33,8 +33,8 @@ dated entry or past 20 KB.
   - Copilot runs on push (or `mcp__github__request_copilot_review`); it often declines.
   - CodeRabbit runs only when the owner asks for it on that PR. When they do, put the
     brief in the PR description, wait for CodeRabbit's own notice, then post just
-    `@coderabbitai full review`. Run one round per PR. It bills $0.25 per file beyond
-    the included review each hour.
+    `@coderabbitai full review`. Run one round per PR and don't re-trigger it. It
+    bills $0.25 per file beyond the included review each hour.
   - A head that no reviewer covered is merged only on the owner's word.
   - A Codex review's `commit_id` names the head it read. Its inline comments all show
     the current head, so judge a finding against the review, not the comment.
@@ -47,7 +47,8 @@ dated entry or past 20 KB.
 - **Pre-commit hook** (`.githooks/pre-commit` → `scripts/verify-staged.sh`). It runs
   the checks a staged change can break. For a small commit, run the tests that touch
   the change and commit with `SKIP_VERIFY=1` (~4 min saved), then say in the PR what
-  ran. On a local machine, enable the hook once with `git config core.hooksPath .githooks`.
+  ran. CI still runs everything. On a local machine, enable the hook once with
+  `git config core.hooksPath .githooks`.
 - **Mutation rounds** are for changes involving money, data or a migration. Always use
   the one runner:
   `node scripts/mutate.mjs --spec tests/mutations/<subject>.mutations.mjs --fail-on-skipped`.
@@ -69,8 +70,8 @@ dated entry or past 20 KB.
 
 ## Where the code lives
 
-- **Website: `public/newdesign/`.** Each `*.html` file is a live page; shared
-  components are `pageShell.jsx`, `living*.jsx` and `chatWidget.jsx`. Don't bump
+- **Website: `public/newdesign/`.** Each `*.html` file is a live page, and shared
+  components live in `pageShell.jsx`, `living*.jsx` and `chatWidget.jsx`. Don't bump
   `?v=`: `scripts/build-newdesign.mjs` replaces it with a content hash at deploy.
   Before editing a legacy `*.jsx`, check that something still loads it.
   `coachForecast.js` holds the coach Business figures; the app imports it too, so
@@ -84,23 +85,25 @@ dated entry or past 20 KB.
 - **Mobile app: `mobile-app/`** (Capacitor/Vite SPA, served at `/m/`).
   - Build: from `mobile-app/`, run `VITE_BASE=/m/ npm run build`.
   - `public/m` isn't committed: `scripts/build-m.sh` builds it at deploy (Vercel's
-    `buildCommand`); CI's Mobile job checks that it builds and its assets resolve.
+    `buildCommand`). CI's Mobile job checks only that the bundle builds and its assets
+    resolve.
   - Parse-check a JSX file:
     `node -e "require('@babel/parser').parse(require('fs').readFileSync('<file>','utf8'),{sourceType:'module',plugins:['jsx']})"`
   - Native builds get `VITE_API_BASE_URL=https://theshapecommunity.com` from
     `android-build.yml` and `codemagic.yaml`. The hosted `/m/` build calls its own
     origin.
 - **`iosAppBroadsheetClient.jsx`** is the member app (~38k lines): Home, Eat, Train,
-  the logger, chat and settings. When a PR touches a self-contained screen, move it into
-  its own ES module. `BSIntegrationsPage.jsx` and `BSLeaderboard.jsx` show the pattern:
-  read window globals at call time inside the component, keep its own `useShapeTr()`,
-  and never import back into the client module.
+  the logger, chat and settings. When a PR already touches a self-contained screen,
+  move that screen into its own ES module. `BSIntegrationsPage.jsx` and
+  `BSLeaderboard.jsx` show the pattern: read window globals at call time inside the
+  component, keep its own `useShapeTr()`, and never import back into the client
+  module.
 - **Other app modules:** `iosAppBroadsheetPros.jsx` (trainer and nutritionist apps),
   `iosAppBroadsheet.jsx` (shared chrome: `BSPage`, `BSFooter`, `BSPlate`,
   `BSSwapSheet`), `iosAppBroadsheetRadio.jsx` (Shape Radio) and
   `services/shapeBackend.js` (the Supabase data layer).
 - **Window globals.** Modules expose components with `Object.assign(window, {...})`.
-  A role module reading a global before its feature module defines it causes React
+  A role module that reads a global before the feature module defines it causes React
   error #130. `iosAppBroadsheetMain.jsx` loads feature modules before role modules.
   ⚠ `iosAppBroadsheetPros.jsx` reads the client module's globals at load, so
   `loadProsBundle` loads the whole client bundle first.
@@ -108,12 +111,12 @@ dated entry or past 20 KB.
 - **Pages** render inside `BSPage`, which pins a condensed masthead once the page's own
   scrolls away (none if the page scrolls itself); past a `BSDetailHeader`'s title it reads
   ← and the title. A sticky row in a `BSPage` takes `top: useBSPinnedMastTop()`.
-- **Theme:** `useBS()` → `t`. The teal accent is
-  `t.isLight ? '#0a8f87' : '#34d6c5'`; nutritionists are gold `#a07a2e` and trainers
-  rust `#c0533b`. The Wall, chat and the chrome take the magazine's red from
-  `bsMagazine.mjs`; every heading is Saira.
-- **App copy** goes through `useShapeTr()` in all 13 locales;
-  `tests/i18n-surface-inventory.test.mjs` counts the untranslated strings.
+- **Theme:** `useBS()` → `t`. Teal `t.isLight ? '#0a8f87' : '#34d6c5'`; nutritionists gold
+  `#a07a2e`, trainers rust `#c0533b`. The Wall, chat and chrome take `bsMagazine.mjs`'s red.
+  Headings are Saira; coach Today, Clients and Programs use Geist and Inter Tight.
+- **App copy** goes through `useShapeTr()` in all 13 locales.
+  `tests/i18n-surface-inventory.test.mjs` counts the strings that aren't translated
+  yet.
 - **Backend touchpoints:**
   - `src/app/api/nutrition/meal-note/route.ts` sends a meal note, memo or photo to
     linked coaches through the private `meal-notes` bucket.
@@ -126,7 +129,7 @@ dated entry or past 20 KB.
 
 ## Open items
 
-The War Room has the full list.
+The War Room has the full list; this covers what needs the owner and the planned builds.
 
 **Waiting on the owner**
 - Push keys (the app side is built, #2385; 0 push devices in production). For iPhone,
@@ -172,110 +175,85 @@ The War Room has the full list.
   ([`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md)). This waits on a
   signed station provider.
 
-**Known gaps**
-- `get_display_names` returns a full name and photo for any id, whoever asks.
-- The app's notification list reads a failed load as "You're all caught up" (Clear all
-  is on both, #2386 and #2389). Email is offered only for coach messages, waitlist
-  invites, tier-ups and a coach's waiting list (#2387); a coach's red and amber clients
-  are app and push only, and a failed email is logged and dropped (no retry queue).
-- A member may pay two coaches of one role, sharing one section per discipline (#2384).
-  Nora's member read, the calendar and the prep-reminder cron still read only the
-  newest published meal plan, and the coach Shared clients roster is trainer to
-  nutritionist only.
+**Known gaps** (the War Room has the detail where a line says so)
+- `get_display_names` gives any caller a full name and photo for any id.
+- The app's notification list reads a failed load as "You're all caught up". Email covers only
+  coach messages, waitlist invites, tier-ups and a coach's waiting list (#2387); red and amber
+  client alerts are app and push only, and a failed email is dropped (no retry).
+- A member may pay two coaches of one role, sharing one section per discipline (#2384), but
+  Nora's member read, the calendar and the prep-reminder cron read only the newest published
+  meal plan (War Room).
 - A subscription to a coach who is later suspended keeps renewing.
 - The `?error=` redirects from `/purchase` and `/subscribe` are never shown.
-- A coach's referral link brings a new member back to the coach after sign-up only in the
-  browser that signed up (two days): the confirmation email's link opens a bare
-  `Login.html`, so confirming on another device lands on the dashboard.
+- A referral sign-up's confirmation email opens a bare `Login.html`, so confirming on another
+  device loses the way back to the coach (War Room).
 - `checkin_submitted` is a switch nothing writes.
-- Payment notices (#2402) reach the owners in code (`admin-access.ts`), not Staff-page
-  staff.
-- Direct charges (#2403): the app profile's one-tap Subscribe and Book have no code box (the
-  marketplace panel has one), and a one-time percent code's fee can be a cent off Stripe's
-  rounding. A member whose coach disconnected is sent to Shape support (owner): Shape can't
-  cancel on that account, so support handles it by hand. A recent checkout on a coach's former
-  account that Shape can't read holds a new plan for up to 4 days (`payment_pending`).
-- Business: the plan's goal isn't remembered; renewals past 25 a load go unchecked with
-  Stripe; the 90-day churn is a floor once all 12 listed cancellations fall in it. The
-  dashboard routes drop their session and coach-row read errors. Renewals and the origin
-  feed show "—" for an unread name and for none.
-- Home (`BSHomeSections.jsx`): Week so far counts days trained (workout minutes or an
-  activity) against the plan's sessions, and food days, not meals; a protein or steps square
-  needs the target (else any reading). The weekly notes, message doors and next
-  session show only for a paid coach (no sample signed out).
-- Eat on a live meal plan takes what was eaten (Fuel left, macro pages) from the plan's
-  day `totals` and meals' `state`, not the logs.
+- Payment notices (#2402) reach the owners in code (`admin-access.ts`), not Staff-page staff.
+- Direct charges (#2403): the app profile's one-tap Subscribe and Book have no code box; a
+  one-time percent code's fee can be a cent off Stripe's rounding; a member whose coach
+  disconnected goes to Shape support, which handles it by hand (Shape can't cancel on that
+  account); an unreadable recent checkout on a coach's former account holds a new plan up to 4
+  days (`payment_pending`).
+- Business: five read gaps, from the plan's goal not being remembered to the 25-renewal Stripe
+  check (War Room).
+- Home (`BSHomeSections.jsx`): Week so far counts days trained against the plan's sessions, and
+  food days, not meals; a protein or steps square without a target takes any reading; the
+  weekly notes, message doors and next session show only for a paid coach.
+- Eat on a live meal plan reads what was eaten from the plan's day `totals` and meals' `state`,
+  not the logs.
 - Signed in, others' profiles show the demo signals and climb (owner: leave it).
-- Shape Wire (the launch telegram) shows the coach's latest note however old, and its
-  morning protein line is usually absent (it reads only today's row).
-- Server notices are said in the reader's stored language (`app_locale`): the bell, push and
-  notice email say them again from the `notice` catalog (`noticeCopy.mjs`); the row keeps its
-  English (the website shows it). A writer stores `data.copy`; a trigger's row is matched by its
-  fixed English (`triggerCopy`), so a trigger whose English changes needs its shape there too.
-  Still English: the owners' payment notice, a coach alert's reason (the engine's,
-  as the roster says it), and the standalone emails (session emails with their .ics, the hire,
-  welcome and intro emails). A reader whose app never stored a language reads English.
-- Habits: the charts read only the route's 90 days and can't tick a past day. Shared habits
-  (`habit_watchers`): a friend stops hearing only by turning Friends' habits off or unfollowing;
-  sharing is set only in a habit's ⋯ options (no search). The daily cap counts only notices
-  stamped as pushed on the member's day (not an unstamped `createNotification` row). The AI
-  notify engine, failing to read the day's pushes, counts only its own. It and the habit cron
-  claim pushes first (`claim_push_slots`); a failed claim sends on the count as read.
-- A goal in the member's own words is set in the app (the Goal page's picker, the first-run step)
-  and the website's sign-up; the website's Goals page only shows goals (coaches set them). Only
-  the five weight goals have a weight read; any other reads in words until a weight target is set.
-- A client whose payment is retrying keeps access until Stripe cancels the plan; a
-  Stripe setting that leaves it past_due keeps it open.
-- In the hosted `/m/` app signed out in its own client, a Nora load that starts as one
-  cookie account and ends after another tab switched accounts still shows the first
-  account's conversation (every write is refused). Not to be fixed (owner: "the m app
-  website will not be in effect once the app is live on app store").
-- 52 mutations in 17 older specs anchor on removed code, so `--fail-on-skipped` fails
-  on those specs.
+- Shape Wire shows the coach's latest note however old; its morning protein line reads only
+  today's row.
+- Server notices: the bell, push and notice email say them in the reader's `app_locale` from
+  `noticeCopy.mjs` (the row keeps its English for the website). A writer stores `data.copy`; a
+  trigger's row is matched by its fixed English (`triggerCopy`), so changing that English needs
+  its shape there too. Still English: the owners' payment notice, a coach alert's reason, the
+  standalone emails (sessions with .ics, hire, welcome, intro), and any reader with no stored
+  language.
+- Habits: the charts read only 90 days and can't tick a past day; a friend stops hearing a
+  shared habit (`habit_watchers`) only by turning Friends' habits off or unfollowing; sharing
+  is set only in a habit's ⋯ options; the daily cap counts only notices stamped as pushed that
+  day; the AI notify engine, failing to read the day's pushes, counts only its own; a failed
+  `claim_push_slots` claim sends on the count as read.
+- A goal in the member's own words is set in the app (the Goal picker, first run) and the
+  website's sign-up; the website's Goals page only shows goals. Only the five weight goals read
+  weight; any other reads in words until a weight target is set.
+- A client whose payment is retrying keeps access until Stripe cancels; a Stripe setting that
+  leaves it past_due keeps it open.
+- Hosted `/m/`, signed out in its own client: a Nora load spanning an account switch in another
+  tab shows the first account's conversation (every write is refused). Not to be fixed (owner).
+- 52 mutations in 17 older specs anchor on removed code, so `--fail-on-skipped` fails on those
+  specs.
 - Apple Music playlists in the installed app still run MusicKit in the WebView.
-- Staff two-factor has no recovery codes, and reloading `/staff-verify` during set-up
-  makes a new key (#2388). The Radio page can ask for the code again.
+- Staff two-factor has no recovery codes, and reloading `/staff-verify` during set-up makes a
+  new key (#2388). The Radio page can ask for the code again.
 - The website's usage stats don't wait for the consent banner in the EEA and UK.
-- Nothing opens the chat panel from a URL; `TrainerNewProgram.html` and `get-started.html`
-  are linked from nowhere.
-- The website's Kitchen (`recipesPage.jsx`) still runs its filter toggles and jump row
-  off the right edge of a phone.
-- No signed-in pass has been done in a browser or on a phone for client onboarding,
-  the dashboard frame, `/admin`, Business (website and app), the coach application
-  uploads or the Wall's live story with a real set.
-- The Wall's old card (`variant="wall"`) is unused in the app; the website chat bubble
-  still draws its copy. Grocery lists are sent and saved in the app only; old
-  builds' grocery writes go unmerged.
-- Native mic and camera plugins (including iOS barcode scanning) and on-device macro
-  reads from a meal photo aren't built yet.
-- The daily check-in (#2398): its saves have no timeout, so a request the network holds
-  keeps Details waiting (the next card reads after 3 seconds anyway). `hydration_l` is
-  `numeric(4,2)`, so an 8 oz glass is stored as 0.24 L and totals drift up about 1.4%.
-  A device sync writes a night's hours and then its source, so typed hours landing in
-  between are stamped as the watch's until its next sync writes the watch's hours again.
-  The score job caps the device's Check-ins stamp at the row's database write time, but a
-  clock set behind can still date a change before the week ended (closing it needs a DB
-  trigger).
+- Nothing opens the chat panel from a URL; `TrainerNewProgram.html` and `get-started.html` are
+  linked from nowhere.
+- The website's Kitchen (`recipesPage.jsx`) runs its filter toggles and jump row off a phone's
+  right edge.
+- No signed-in pass in a browser or on a phone yet: client onboarding, the dashboard frame,
+  `/admin`, Business (website and app), coach application uploads, the Wall's live story with a
+  real set, the coach Today, Clients and Programs redesign (#2458).
+- The Wall's old card (`variant="wall"`) is unused in the app; the website chat bubble still
+  draws its copy. Grocery lists are sent and saved in the app only; old builds' grocery writes
+  go unmerged.
+- Not built yet: native mic and camera plugins (including iOS barcode scanning) and on-device
+  macro reads from a meal photo.
+- Daily check-in (#2398): saves have no timeout, `hydration_l` rounds an 8 oz glass up, typed
+  hours can be stamped as the watch's, and a clock set behind can date a change into a past
+  week (War Room).
 - Sleep points (`award_sleep_points`) trust `sources.sleep_hours` on a row the member can
-  write, checked against a provider they have connected. With one connected, a direct write
-  could still earn +5 a night for the last 14 days. Apple Health's nights and connection are
-  whatever the app posts, so any member can post made-up Health nights, as for Shape Steps.
-- Water from Apple Health: two apps writing the same drink to Apple Health count it twice (raw
-  samples, as for steps), and so does a drink logged in both Apple Health and Shape. Deleting every
-  drink in a sync's window leaves Apple Health's last reading. Nora's meal-log undo refuses when a
-  sync moved the day's water in between. The Daily check-in reminder fires on a day already done.
-- The Morning check-in: a failed read of a stored water target reads as none, so the water line
-  offers "Set a daily target". With Check-ins off the engine reads no water, so a target never brings
-  "Water is behind". A skip is never cleared: a skipped night that later gets hours counts them, but
-  Same as yesterday still won't copy Rested onto it. The energy lead still says "I'll take it
-  lighter →" but opens Your mornings, and the hydration lead does nothing when Home's water line
-  isn't on screen. Pushes and bell rows sent before part 2 keep their "/10", and the website's coach
-  Today message draft still puts the coach's "/10" reason in front of the member. The card's streak
-  line, evening label and Answer button are small amber text on light papers. Patterns
-  (`morningPatterns.mjs`) count mornings from 2026-10-19 only, so none show for a few weeks. Nora
-  says the five words in English. The signed-out demo calendar shows "Energy 7/10".
-- Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted
-  `/m/`, sheets add no history entry.
+  write: with a provider connected, a direct write could earn +5 a night for the last 14 days,
+  and Apple Health nights and connection are whatever the app posts, so a member can post
+  made-up nights (as for Shape Steps).
+- Apple Health water double-counts a drink that two apps, or Health and Shape, both log, and
+  the Daily check-in reminder fires on a day already done (War Room).
+- Morning check-in: a failed water-target read offers "Set a daily target"; with Check-ins off,
+  a target never brings "Water is behind"; pushes and bell rows from before part 2, and the
+  website's coach Today draft, keep the "/10". The rest of parts 2 and 3 is in the War Room.
+- Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted `/m/`,
+  sheets add no history entry.
 
 ## History
 
@@ -286,4 +264,5 @@ The War Room has the full list.
 - The old version of this file, with every reviewer ruling and why:
   [`-conventions-2026-10-16`](WORKLOG-ARCHIVE-conventions-2026-10-16.md).
 - Handoffs (`docs/HANDOFF-*.md`) are history.
-- Grep them; read one entry with `sed -n` (never `cat` one).
+- Search them with `grep -n "<term>" docs/WORKLOG-ARCHIVE-*.md`, then read one entry
+  with `sed -n` (AGENTS.md: never `cat` one).
