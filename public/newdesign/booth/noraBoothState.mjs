@@ -105,12 +105,23 @@ export function boothTier({ screenW = 0, screenH = 0, override = null } = {}) {
 // The crowd is real people (prototypes/nora-booth/crowd-mh): `crowd` for desktops (eight people, a
 // 2048×4096 atlas), `crowdLow` for phones (fewer people, lighter figures, a quarter of the texture).
 // Each pack's atlas (.webp) sits beside it.
-export const NORA_MODEL = Object.freeze({ path: 'nora/nora.vrm', crowd: 'nora/crowd-people.bin.txt', crowdLow: 'nora/crowd-people-lo.bin.txt', portrait: true });
+// skyline/skylineLow: the city through the skylight, two night tower facades (photographs made in
+// Higgsfield, 2026-10-26) in one atlas, for clubVenue's towers.
+export const NORA_MODEL = Object.freeze({
+  path: 'nora/nora.vrm', crowd: 'nora/crowd-people.bin.txt', crowdLow: 'nora/crowd-people-lo.bin.txt', portrait: true,
+  skyline: 'nora/skyline.webp', skylineLow: 'nora/skyline-lo.webp',
+});
 
 /** The crowd pack a device should load: the desktop pack on high quality, else the phone pack. */
 export function crowdPackPath(model = NORA_MODEL, quality = 'low') {
   if (!model) return null;
   return quality === 'high' || !model.crowdLow ? model.crowd : model.crowdLow;
+}
+
+/** The skyline atlas a device should load: the desktop one on high quality, else the phone one; null when none. */
+export function skylinePath(model = NORA_MODEL, quality = 'low') {
+  if (!model || !model.skyline) return null;
+  return quality === 'high' || !model.skylineLow ? model.skyline : model.skylineLow;
 }
 
 // Club Shape from outside, for the opening fly-in: a 3D model of the Shape Sets picture, built to

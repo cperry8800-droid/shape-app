@@ -176,3 +176,28 @@ export function loopFadeAt(time, duration, fade = WALL_LOOP_FADE) {
 export function wallStepBeats(beatPeriod) {
   return Number.isFinite(beatPeriod) && beatPeriod > 0 && beatPeriod < 1 / WALL_STEP_MAX_HZ ? 2 : 1;
 }
+
+// What the wall throws into the room (linear RGB, its mean emission), for club.mjs's wallGlow: a
+// real room takes its light from the screen, so a teal picture lights the crowd, the floor and the
+// haze teal, and the room goes dark with the wall. Each look's is read off the arena shader's own
+// colours times its dots' fill (about 0.74); a loop's off its picture's mean, less the LEDs' black,
+// times the shader's 1.7.
+const GLOW_DAWN = [0.18, 0.075, 0.05];
+const GLOW_AMBER = [1.45, 0.78, 0.33];   // the chase's third colour
+const GLOW_PLATE_UNREAD = [0.04, 0.07, 0.09];
+/**
+ * @param {string} look  dawn | tunnel | chase | plate | blank
+ * @param {{accent: number[], ice: number[], plateMean?: number[]|null}} c  linear RGB
+ * @returns {number[]} linear RGB
+ */
+export function wallLookGlow(look, { accent, ice, plateMean = null }) {
+  const mixOf = (...terms) => [0, 1, 2].map((i) => terms.reduce((s, [c, k]) => s + c[i] * k, 0));
+  if (look === 'dawn') return GLOW_DAWN.slice();
+  if (look === 'tunnel') return mixOf([accent, 0.03], [ice, 0.011]);
+  if (look === 'chase') return mixOf([accent, 0.063], [ice, 0.053], [GLOW_AMBER, 0.039]);
+  if (look === 'plate') {
+    return Array.isArray(plateMean) && plateMean.length === 3 && plateMean.every(Number.isFinite)
+      ? plateMean.map((v) => Math.max(0, v) * 1.25) : GLOW_PLATE_UNREAD.slice();
+  }
+  return [0, 0, 0];
+}

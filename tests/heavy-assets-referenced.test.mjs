@@ -70,6 +70,7 @@ const ALLOWED_DUPLICATES = new Map([
   ['mobile-app/public/nora/nora.vrm = public/nora/nora.vrm', MIRROR],
   ['mobile-app/public/nora/crowd-people.webp = public/nora/crowd-people.webp', MIRROR],
   ['mobile-app/public/nora/crowd-people-lo.webp = public/nora/crowd-people-lo.webp', MIRROR],
+  ['mobile-app/public/nora/skyline.webp = public/nora/skyline.webp', MIRROR],
   ['mobile-app/public/shape-logo.png = public/SHAPE-logo-teal-white.png = public/logo.png = public/shape-logo-new-teal-white.png',
     'one logo requested under four names (the mobile app asks for shape-logo.png, the site for the other three); folding them is a rename job for the pages that ask, not a delete'],
 ]);

@@ -138,7 +138,7 @@ scene.add(club.group);
 // The venue bakes its lighting on load (lightBake.mjs); how long that takes is timed here, since the
 // venue module itself reads no clock. window.__booth.venueMs reports it.
 const venueT0 = performance.now();
-const venue = createVenue({ THREE, renderer, seed: 11, quality: QUALITY, reducedMotion: REDUCED_MOTION, crowdPack: club.crowdPack, now: () => performance.now(), accent: ACCENT });
+const venue = createVenue({ THREE, renderer, seed: 11, quality: QUALITY, reducedMotion: REDUCED_MOTION, crowdPack: club.crowdPack, now: () => performance.now(), accent: ACCENT, skylineUrl: Q.get('skyline') === '0' ? null : QUALITY === 'high' ? 'skyline.webp' : 'skyline-lo.webp' });
 const venueMs = performance.now() - venueT0;
 scene.add(venue.group);
 // Club Shape from outside, for the arrival shot: a set of its own, drawn only while the arrival plays.

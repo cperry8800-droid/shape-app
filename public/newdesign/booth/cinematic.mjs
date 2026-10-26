@@ -139,8 +139,9 @@ const FILM_FRAG = /* glsl */`
     vec2 f = d * uFringe * dot(e, e);
     vec3 c = vec3(texture2D(tDiffuse, vUv - f).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv + f).b);
     float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-    // split tone: cool, slightly teal shadows; warm highlights
-    c += vec3(-0.012, 0.004, 0.018) * (1.0 - smoothstep(0.0, 0.4, l));
+    // split tone: faintly cool shadows, warm highlights. ⚠ It was (−0.012, 0.004, 0.018): a navy lift
+    // on every shadow, the CG look (owner, 2026-10-26: "its needs to look more real")
+    c += vec3(-0.004, 0.002, 0.006) * (1.0 - smoothstep(0.0, 0.4, l));
     c *= mix(vec3(1.0), vec3(1.05, 1.0, 0.93), smoothstep(0.45, 1.0, l));
     // a gentle S-curve and a touch more colour
     c = clamp(c, 0.0, 1.0);

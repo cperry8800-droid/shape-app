@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { boothLabel, exampleAllowed, boothTier, webgl2Available, NORA_MODEL, noraAssetUrl, crowdPackPath, CLUB_SHAPE_MODEL, clubShapeModelUrl, wallLoopUrls } from '../../../public/newdesign/booth/noraBoothState.mjs';
+import { boothLabel, exampleAllowed, boothTier, webgl2Available, NORA_MODEL, noraAssetUrl, crowdPackPath, skylinePath, CLUB_SHAPE_MODEL, clubShapeModelUrl, wallLoopUrls } from '../../../public/newdesign/booth/noraBoothState.mjs';
 import { createBoothKeeper } from '../../../public/newdesign/booth/noraBoothKeeper.mjs';
 import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 import {
@@ -2196,6 +2196,7 @@ function bsBoothKeeper() {
         canvas,
         modelUrl: noraAssetUrl(NORA_MODEL.path, import.meta.env.BASE_URL),
         crowdUrl: noraAssetUrl(crowdPackPath(NORA_MODEL, tier.quality), import.meta.env.BASE_URL),
+        skylineUrl: noraAssetUrl(skylinePath(NORA_MODEL, tier.quality), import.meta.env.BASE_URL),
         portrait: NORA_MODEL.portrait,
         venueUrl: clubShapeModelUrl(CLUB_SHAPE_MODEL, import.meta.env.BASE_URL, tier.quality),
         wallLoops: wallLoopUrls(tier.quality, { reducedMotion: reduced }),

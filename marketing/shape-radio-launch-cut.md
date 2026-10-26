@@ -664,6 +664,594 @@ Measured on 278×208 grey frames (mean absolute change, 0–255):
   up to 14/255 between frames, too close to a strobe on a wall that size, and the booth's drawn
   tunnel look does the same job.
 
+### The Club Shape ad (2026-10-26)
+
+A 20 s vertical ad for Club Shape, with a 16:9 version: arriving in the atrium → the crowd's hands
+up on the drop → friends on the floor → the LED wall, where CLUB SHAPE builds out of the dots,
+pulses on the kick and dissolves → an end card with the wordmark and, small, "on Shape Radio".
+The honesty rules above apply: the wordmark and "on Shape Radio" are the only words on screen;
+nothing says live, on air or tune in. Every clip was asked for no text, logos or signage, and
+all lettering is drawn in post from the booth's own wall artwork.
+
+**Final files** (in the owner's artifact, private until shared from its Share menu):
+https://claude.ai/artifact/LC6wcwT2WcvRyHYRjqtdvz. Published paths `club-shape-ad.mp4`,
+`club-shape-ad-16x9.mp4`, `stills/club-shape-ad-f110.png`, `-f315.png`, `-f445.png`. The edit is
+not on the Higgsfield CDN: this session had no Higgsfield upload tool (`media_upload` was not
+exposed), so the files went sandbox → a short-lived transfer host → the artifact, and the md5s
+below match at both ends. The transfer links expired within hours and are not recorded.
+
+| file | size | md5 |
+| --- | --- | --- |
+| `club-shape-ad.mp4`: 1080×1920, H.264 High, 24 fps, 480 frames, 20.000 s; AAC 48 kHz stereo 192k | 12,852,046 | `b15e854ae2816954b1cddc17d316b19f` |
+| `club-shape-ad-16x9.mp4`: 1920×1080, the same | 12,781,458 | `532d9b2da2052e1becb3d561c106865c` |
+| `club-shape-ad-f110.png` (the drop) | 4,137,425 | `7db50eb88337d5c8aeda944d8ccc6274` |
+| `club-shape-ad-f315.png` (the wall, on a kick) | 2,970,601 | `b9bd504ee2fe209a6dad166ec2fbff70` |
+| `club-shape-ad-f445.png` (the end card) | 1,535,411 | `f9256fef643e6acf1bf6ca2a006deb10` |
+
+**Keyframes** (same cloudfront prefix): `model nano_banana_pro · aspect_ratio 9:16 · resolution 2k`,
+reported `nano_banana_2`, delivered 1536×2752 PNG. **Videos**: `model seedance_2_0 · aspect_ratio
+9:16 · duration 5 · resolution 720p · generate_audio false · medias [{role: start_image, value:
+<the keyframe's job id>}]`, delivered 720×1280 H.264, 24 fps, 121 frames, 5.042 s, no audio.
+
+| shot | keyframe job · file · md5 | video job · file | bytes · md5 (video) |
+| --- | --- | --- | --- |
+| S1 arrival | `456fef1a-ca4c-4f02-9844-74d614e6c04b` · `hf_20261026_172910_456fef1a-….png` · `ae7d5971bd7bdf147bfb9862eca76051` | `e2bd96fe-4bb8-40f9-8ea9-4b5165eb8d3d` · `hf_20261026_173447_e2bd96fe-4bb8-40f9-8ea9-4b5165eb8d3d.mp4` | 2,225,440 · `3a0cb1eec24b5574b8047a098d7c18af` |
+| S2 the drop | `8bd31f91-0720-41ef-b1be-bed095c2f8de` · `hf_20261026_172300_8bd31f91-….png` · `65097dd383066ce3a317a5476cfcc638` | `559be8f6-10e0-4fbd-9bea-b05e40bc33fc` · `hf_20261026_173035_559be8f6-10e0-4fbd-9bea-b05e40bc33fc.mp4` | 3,113,035 · `bd82fdfefbeee97c118c2892700c33a8` |
+| S3 friends | `b59ea74f-7e51-4996-a041-63d91201c83d` · `hf_20261026_172300_b59ea74f-….png` · `20df8b560ec3a957024023d0dba17fee` | `a6cb111a-f4fb-4033-bfed-41612d6e178d` · `hf_20261026_173035_a6cb111a-f4fb-4033-bfed-41612d6e178d.mp4` | 2,389,239 · `18c9175a6b9404b0a231d85f09ec4a7f` |
+| S4 the wall | `62d65e65-d8aa-40ee-9600-1e9fe0388fdc` · `hf_20261026_172300_62d65e65-….png` · `13ff6b1bd615a06765b603e2eced07db` | `0f7b546a-c6aa-4660-af01-5e159281ce07` · `hf_20261026_173035_0f7b546a-c6aa-4660-af01-5e159281ce07.mp4` | 1,941,119 · `d188119761f1551c4ea8b7ee72ea6ec4` |
+
+Keyframe prompts, verbatim:
+
+1. S1 (`456fef1a`): *Vertical 9:16 cinematic photograph, photoreal, wide establishing shot. A glamorous nightclub inside a vast grand hotel atrium at night, seen from a raised entrance landing looking down the length of the room: balconies and lounges stacked on several levels glowing with warm amber light, tall palm trees, a crowded dance floor of elegantly dressed guests in evening wear filling the lower part of the frame, and far at the end a DJ booth in front of a huge LED wall glowing with soft abstract teal and magenta light. Thin haze, teal and ice-white light beams fanning up from the stage, warm amber lamps. 35mm film look, rich contrast. No text, no letters, no logos, no signage anywhere.*
+2. S2 (`8bd31f91`): *Vertical 9:16 cinematic photograph, photoreal. Inside a packed nightclub in a grand hotel atrium the moment the beat drops, seen from within the crowd: dozens of people dressed up for a night out (sequined dresses, satin slip dresses, blazers, going-out tops) throw their hands up toward the stage, faces lit by teal and warm amber light, ice-white light beams cutting through haze above them, balconies with warm amber lights and palm fronds soft in the background. Euphoric and joyful, real people, natural skin texture. No text, no letters, no logos, no signage, no phone screens.*
+3. S3 (`b59ea74f`): *Vertical 9:16 cinematic photograph, photoreal. Medium shot on the dance floor of a nightclub in a grand hotel atrium: a stylish group of friends dressed up for a night out (a woman in a satin slip dress and heels, a man in an open-collar blazer, a woman in a sequined going-out top) dancing and laughing together, warm amber lounge light on their faces and teal rim light from the stage, thin haze, soft bokeh of balcony lights and palm trees behind them. 35mm film look, shallow depth of field, real people, natural skin texture. No text, no letters, no logos, no signage.*
+4. S4 (`62d65e65`): *Vertical 9:16 cinematic photograph, photoreal, shot straight-on and symmetrical from the middle of a packed dance floor in a grand hotel atrium nightclub. The upper half of the frame is filled by a huge flat LED video wall behind a DJ booth, the wall switched off: a matte near-black panel of tiny unlit LED dots, completely empty, no image on it. Below the wall a DJ in silhouette at the booth with small glowing equipment lights; along the bottom of the frame the dark silhouettes of the crowd's heads and raised hands. Teal and ice-white light beams fan out from both sides of the stage through haze, warm amber balcony lights and palm trees at the far left and right edges. No text, no letters, no logos, no signage, nothing on the screen.*
+
+⚠ **The S1 keyframe took three submissions.** The first prompt (S2's wording style, opening
+*"Arriving at a nightclub built inside a vast grand hotel atrium at night, seen from the entrance
+looking down its length"* and listing *"(dresses, heels, blazers, going-out tops)"*) came back
+`failed` with no reason (`649db7db-98ce-4d4d-9ac2-5db88cdffad7`), and the identical resubmission
+came back `nsfw` (`01a09a45-222d-433d-a301-0cef39eb1330`). The prompt above, with the clothing
+list replaced by *"elegantly dressed guests in evening wear"*, went through first time. S2 and S3
+list the same clothes and were not flagged, so the trigger is not known.
+
+Motion prompts, verbatim:
+
+1. S1 (`e2bd96fe`): *Slow, smooth crane shot gliding forward and gently down from the entrance landing into the atrium toward the stage, the crowd below dancing and swaying, light beams slowly sweeping through the haze, the LED wall's soft abstract colours drifting, warm balcony lights glowing. One continuous shot, no cuts. No text, no logos, no strobe flashes.*
+2. S2 (`559be8f6`): *The beat drops: the crowd jumps and pumps their raised hands in time, cheering and smiling, hair and sequins catching the light, light beams sweep slowly across the haze above them, the camera pushes gently forward through the crowd. One continuous shot, no cuts. No text, no logos, no strobe flashes.*
+3. S3 (`a6cb111a`): *The friends dance to the beat, moving and swaying together, laughing, the satin and sequins catching the light, soft light shifting between teal and warm amber, slow handheld camera drift. One continuous shot, no cuts. No text, no logos, no strobe flashes.*
+4. S4 (`0f7b546a`): *Locked-off static camera on a tripod, no camera movement. The crowd's raised hands sway and pump to the beat along the bottom of the frame, the DJ moves at the booth, teal and white light beams slowly sweep through the haze. The giant LED wall stays completely dark and empty for the whole shot, showing nothing. One continuous shot, no cuts. No text, no logos, no strobe flashes.*
+
+**Credits: about 98, estimated, not read back.** No quote or balance tool was exposed in this
+session (`models_explore` and `get_cost` were unavailable, and the batch tools take no cost
+preflight), so the jobs were priced from the rate table bundled in the sandbox
+(`$HF_WORKFLOWS/katana/scripts/prices.json`, rates observed 2026-10-08): `seedance_2_0` 720p at
+4.5/s → 4 × 22.5 = 90, plus 4 keyframes at 2 = 8. The two S1 keyframes that did not deliver
+are not in that figure; whether they billed was not checked. The track is reused (0).
+
+**The track: v7.1 melodic 3** (`d3535005-a4f4-4b01-b3a3-6b575e193c59`, prompted "Melodic deep
+house, 120 BPM", md5 matches the table above). It was picked for its shape: an 8-beat build into
+a clean drop, a kick on every beat after it, and a breakdown where the end card sits. Measured
+with `beat.py` (below, the launch cut's method):
+
+| v7.1 track | prompted | measured BPM | halves | kick phase | why not / why |
+| --- | --- | --- | --- | --- | --- |
+| 1 house (chords) | 122 | 128.00 | 128.00 / 128.05 | 0.046 | the 35–150 Hz band peaks on the HALF beat (`fold.py`: bin 12 of 24): off-beat bass, so a kick pulse would sit on the wrong phase |
+| 2 progressive (arp) | 124 | 127.95 | 127.75 / 128.00 | 0.040 | kick presence under 1 on three beats of four after the drop |
+| **3 deep (Rhodes)** | 120 | **127.95** | 128.00 / 127.90 | **0.182** | intro −15 to −20 dB, a dip to −27.9 dB at beat 17 and a build, **the drop at beat 21 (10.03 s)** to −8.8 dB, kick presence > 1.5 on every beat 21–51, **breakdown from beat 52 (24.57 s)**, second drop at beat 85 (40.04 s) |
+| 4 anthem (lead) | 126 | (140.00) | 110.15 / 130.10 | – | no stable grid: the comb hit the top of its range and the halves disagree |
+
+The same `beat.py` reads the v3 pick at 119.45 BPM, kick phase 0.034 (recorded: 119.45, 0.030),
+so the instrument reproduces the recorded grid. Track 3's period is 0.468933 s. Its folded
+kick-band onset (`fold.py`, beats 21–51) peaks in the first 1/24-beat bin, 99 against a median
+near 60; the per-beat argmax residual is scattered (14 of 31 beats within a frame) because the
+sub bass moves inside the same band, so the fold is the phase check that counts here.
+
+**The timing** (`plan.py`, every cut on a beat): the ad opens at track beat 13
+(`T0 = 0.182 + 13·P = 6.2781 s`), so ad beat j sits at exactly j·P and the drop is ad beat 8.
+
+| ad beat | time | frame | what happens |
+| --- | --- | --- | --- |
+| 0 | 0.000 | 0 | S1 `v1[0,90)`, video and audio fade in (0.35 s / 0.25 s) |
+| 8 | 3.751 | 90 | the drop: hard cut to S2 `v2[0,90)` |
+| 16 | 7.503 | 180 | S3 `v3[20,110)` |
+| 24 | 11.254 | 270 | S4 `v4[0,113)`, the wall dark for one beat |
+| 25–26.6 | 11.72–12.48 | | the dots switch on left to right with jitter (0.10 s fade, a 0.12 s sparkle) |
+| 26.6–32 | | | the lockup pulses on each kick: 0.80 → 1.00, 0.17 s decay |
+| 32–33.6 | 15.01–15.76 | | the dots dissolve, left to right with jitter (0.16 s fade) |
+| 34 | 15.944 | 383 | end card: v4 frames 113–120 then 119→31 played back, blurred (σ 22) and dimmed to 0.34 over 0.33 s; the wordmark fades in over 0.30 s and pulses on kicks 35–38 |
+| 36 | 16.88 | | "on Shape Radio" fades in over 0.40 s |
+| 39 | 18.29 | | the track's breakdown (track beat 52); the card holds |
+| | 18.80 / 19.25 | | audio fades out over 1.2 s, video over 0.75 s |
+| | 20.000 | 480 | end |
+
+**The wall** (`meas_wall.py` on S4): the temporal median of all 121 frames puts the dark wall at
+x 128–589, y 12–788 of the 720×1280 clip (x 192–884, y 18–1182 at 1080×1920). Phase correlation
+of the wall block against frame 0 reads 0 px drift on every tenth frame, so the overlay sits at one
+fixed place. The generated wall has its own dot grid at about 3.75 px (720 space). The lockup is
+`buildScreenArt(ART)` from `prototypes/nora-booth/src/screenArt.mjs`: the 183 × 57-dot Shape mark
+over CLUB SHAPE, the same artwork as `CLUB_SHAPE_MASK` in `clubShapeMask.mjs`. It is drawn at a
+3.25 px pitch (86% of the wall's width), 595×185 px with its top-left at (240, 448), each dot a
+soft disc in ice white (232, 240, 248) or teal (52, 214, 197), with a halo (σ 2.5), a glow (σ 12)
+and a faint spill over the haze (σ 96), all SCREEN-blended so beams and dots add as light.
+
+**The end card**: the same lockup built at `capDots 120, pad 4, ss 6` (1810×554), downscaled to
+860×263 at (110, 749), glow σ 6 and σ 28. Below it, "on Shape Radio" in Saira (Google Fonts,
+OFL; variable axes wdth 100, wght 500) at 46 px, tracked 0.06 em, baseline y 1106: "on" in ice
+white at 72%, "Shape Radio" in teal. The 16:9 card puts the lockup at 1000×306, (460, 317), and the
+line at 40 px, baseline 693. The brand's wordmark has no font file; `wordmarkGlyphs.mjs` builds
+its letters from strokes, so this is the club wall's own lettering, not a lookalike.
+
+**16:9**: frames 0–382 are the 9:16 composite at 608×1080, centred over a blurred (σ 30), dimmed
+(0.42) fill of itself; frames 383–479 are the end card laid out again at 1920×1080, reached by a
+0.33 s dissolve from the pillarboxed base. No footage was generated for it.
+
+**Checked on the final files**, not assumed: `ffprobe` reads 480 frames at 24 fps and 20.000 s in
+both. `flash.py` finds no luminance swing of 10% or more (relative luminance, darker side under
+0.8) anywhere, full frame or any of 24 tiles, in either file. The wall pulses at the track's 2.13
+per second, under the 3-per-second line and on about 5% of the frame. The output audio
+re-measures 127.8 BPM on its own 20 s (halves 128.0 / 128.0) with the kick at 0.464 s, which is
+P − 5 ms, so every cut lands within 5 ms of a kick. Loudness is −13.9 LUFS integrated, peak
+−2.8 dBFS. The track window read −9.9 LUFS / +1.4 dBTP, so it got −4.1 dB of linear gain and
+no limiter. Frames looked at: the cut points (89/90, 269/270), the wall at 285, 300, 315, 340,
+365, 378 and full-res crops at 315, faces and hands at 130 and 225, the stage at 45, the end card
+at 381–445, and the 16:9 at 100, 315, 387 and 440. S1's speaker stack carries a thin vertical
+light streak that is not legible lettering. Hands in S2 smear in motion the way generated crowds
+do.
+
+**Re-making it.** Sandbox layout `~/ad/{in,in/v,key,assets,fonts,work,out,scripts}`, with the repo
+checked out at `~/shape` (only `prototypes/nora-booth/src/{screenArt,wordmarkGlyphs}.mjs` are
+read). Steps, in order:
+
+```bash
+P=https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY
+curl -sf -o ~/ad/in/m3.m4a $P/hf_20260903_164640_d3535005-a4f4-4b01-b3a3-6b575e193c59.m4a
+curl -sf -o ~/ad/in/v/v1.mp4 $P/hf_20261026_173447_e2bd96fe-4bb8-40f9-8ea9-4b5165eb8d3d.mp4
+curl -sf -o ~/ad/in/v/v2.mp4 $P/hf_20261026_173035_559be8f6-10e0-4fbd-9bea-b05e40bc33fc.mp4
+curl -sf -o ~/ad/in/v/v3.mp4 $P/hf_20261026_173035_a6cb111a-f4fb-4033-bfed-41612d6e178d.mp4
+curl -sf -o ~/ad/in/v/v4.mp4 $P/hf_20261026_173035_0f7b546a-c6aa-4660-af01-5e159281ce07.mp4
+curl -sfL -o ~/ad/fonts/Saira.ttf "https://github.com/google/fonts/raw/main/ofl/saira/Saira%5Bwdth,wght%5D.ttf"
+cd ~/ad && python3 scripts/beat.py in/m3.m4a work/beat_m3.json   # 127.95 BPM, phase_kick 0.182
+python3 scripts/meas_wall.py in/v/v4.mp4                          # the wall rect plan.py carries
+python3 scripts/plan.py                                           # work/params.json
+(cd assets && node ../scripts/mk_marks.mjs /home/user/shape 120)  # led.json + word.json
+scripts/render_base.sh                                            # work/base916.mp4
+python3 scripts/mk_overlay.py 916 | ffmpeg -y -f rawvideo -pix_fmt rgb24 -s 1080x1920 -r 24 -i - -c:v ffv1 -pix_fmt gbrp work/ov916.mkv
+scripts/render_final.sh                                           # work/comp916.mp4 + out/club-shape-ad.mp4
+python3 scripts/mk_overlay.py 169 | ffmpeg -y -f rawvideo -pix_fmt rgb24 -s 1920x1080 -r 24 -i - -c:v ffv1 -pix_fmt gbrp work/ov169.mkv
+scripts/render_169.sh                                             # out/club-shape-ad-16x9.mp4
+python3 scripts/flash.py out/club-shape-ad.mp4; python3 scripts/flash.py out/club-shape-ad-16x9.mp4
+for n in 110 315 445; do ffmpeg -y -i out/club-shape-ad.mp4 -vf "select=eq(n\,$n)" -frames:v 1 out/stills/club-shape-ad-f$n.png; done
+```
+
+The sandbox's foreground calls end at 60 s, so run `render_*.sh` and the overlays with
+`background: true` and poll.
+
+```python
+#!/usr/bin/env python3
+# beat.py <audio> <out.json> -- the measured beat grid + per-beat kick presence + loudness (the launch cut's method)
+import sys, json, subprocess, numpy as np
+src, out = sys.argv[1], sys.argv[2]
+SR = 8000
+raw = subprocess.run(['ffmpeg','-v','error','-i',src,'-ac','1','-ar',str(SR),'-f','f32le','-'],capture_output=True,check=True).stdout
+x = np.frombuffer(raw, np.float32).astype(np.float64)
+dur = len(x)/SR
+def band(lo, hi):
+    X = np.fft.rfft(x); f = np.fft.rfftfreq(len(x), 1/SR); X[(f<lo)|(f>hi)] = 0
+    return np.fft.irfft(X, len(x))
+H = int(0.005*SR)  # 5 ms hop
+def env(y):
+    n = len(y)//H; e = (y[:n*H].reshape(n,H)**2).mean(1)
+    k = np.ones(4)/4; e = np.convolve(e, k, 'same')
+    d = np.diff(np.log1p(e*1e4), prepend=0); return np.maximum(d, 0), e
+kick_on, kick_e = env(band(35,150))
+perc_on, _ = env(band(150,4000))
+comb_on = kick_on/ (kick_on.max()+1e-9) + perc_on/(perc_on.max()+1e-9)
+fps = 1/0.005
+def score(on, bpm, ph, t0=0, t1=None):
+    P = 60/bpm; t1 = dur if t1 is None else t1
+    ts = np.arange(ph + np.ceil((t0-ph)/P)*P, t1, P)
+    idx = np.round(ts*fps).astype(int); idx = idx[(idx>=1)&(idx<len(on)-1)]
+    return (on[idx]+0.5*on[idx-1]+0.5*on[idx+1]).mean() if len(idx) else 0
+def search(on, t0=0, t1=None):
+    best = (0,0,0)
+    for bpm in np.arange(110,140.01,0.25):
+        P = 60/bpm
+        for ph in np.arange(0,P,0.005):
+            s = score(on,bpm,ph,t0,t1)
+            if s>best[0]: best=(s,bpm,ph)
+    _, b0, _ = best
+    for bpm in np.arange(b0-1,b0+1.001,0.05):
+        P = 60/bpm
+        for ph in np.arange(0,P,0.002):
+            s = score(on,bpm,ph,t0,t1)
+            if s>best[0]: best=(s,bpm,ph)
+    return best
+s, bpm, ph = search(comb_on)
+h1 = search(comb_on, 0, dur/2); h2 = search(comb_on, dur/2, dur)
+P = 60/bpm
+# kick-centred phase: the kick band alone, at the chosen bpm
+bestk=(0,0)
+for p2 in np.arange(0,P,0.002):
+    v=score(kick_on,bpm,p2)
+    if v>bestk[0]: bestk=(v,p2)
+kph = bestk[1]
+beats = np.arange(kph, dur, P)
+# per beat: kick energy at the beat vs at the half beat (presence), and loudness in dB (full band RMS over the beat)
+ke = kick_e
+def at(t):
+    i = int(round(t*fps)); lo=max(0,i-4); hi=min(len(ke),i+8); return ke[lo:hi].max() if hi>lo else 0
+pres=[]; loud=[]
+for b in beats:
+    a = at(b+0.01); h = at(b+P/2+0.01); pres.append(round(float(a/(h+1e-12)),2))
+    i0=int(b*SR); i1=min(len(x),int((b+P)*SR)); seg=x[i0:i1]
+    loud.append(round(float(20*np.log10(np.sqrt((seg**2).mean())+1e-9)),1) if len(seg) else -99)
+res = dict(src=src, dur=round(dur,3), bpm=round(float(bpm),2), period=round(float(P),6), phase_comb=round(float(ph),3), phase_kick=round(float(kph),3),
+           halves=[round(float(h1[1]),2), round(float(h2[1]),2)], n_beats=len(beats), kick_presence=pres, loud_db=loud)
+json.dump(res, open(out,'w'))
+print(json.dumps({k:v for k,v in res.items() if k not in ('kick_presence','loud_db')}))
+```
+
+```python
+#!/usr/bin/env python3
+# fold.py <audio> <bpm> <phase> <t0> <t1> -- onset envelope folded on the beat period (kick / perc), 24 bins per beat
+import sys, subprocess, numpy as np
+src=sys.argv[1]; bpm=float(sys.argv[2]); ph=float(sys.argv[3]); t0=float(sys.argv[4]); t1=float(sys.argv[5])
+P=60/bpm; SR=8000
+x=np.frombuffer(subprocess.run(['ffmpeg','-v','error','-i',src,'-ac','1','-ar',str(SR),'-f','f32le','-'],capture_output=True,check=True).stdout,np.float32).astype(np.float64)
+def onset(lo,hi):
+    X=np.fft.rfft(x); f=np.fft.rfftfreq(len(x),1/SR); X[(f<lo)|(f>hi)]=0; y=np.fft.irfft(X,len(x))
+    H=int(0.002*SR); n=len(y)//H; e=(y[:n*H].reshape(n,H)**2).mean(1); e=np.convolve(e,np.ones(3)/3,'same')
+    return np.maximum(np.diff(np.log1p(e*1e4),prepend=0),0)
+for name,(lo,hi) in [('kick',(35,150)),('perc',(150,4000))]:
+    on=onset(lo,hi); t=np.arange(len(on))*0.002; m=(t>=t0)&(t<t1)
+    b=(((t[m]-ph)/P)%1*24).astype(int); prof=np.bincount(b,on[m],24)/np.maximum(np.bincount(b,None,24),1)
+    prof=prof/prof.max(); print(name.ljust(5),' '.join('%3d'%round(v*99) for v in prof), ' peak bin',int(prof.argmax()),'(%.0f ms)'%(prof.argmax()/24*P*1000))
+```
+
+```python
+#!/usr/bin/env python3
+# meas_wall.py <clip> -- the dark LED wall's rect in the locked-off wall shot, from the temporal MEDIAN of all frames,
+# plus how far the wall moves (phase correlation of the wall region, frame vs. frame 0)
+import sys, json, subprocess, numpy as np
+clip=sys.argv[1]; W,H=720,1280
+raw=subprocess.run(['ffmpeg','-v','error','-i',clip,'-f','rawvideo','-pix_fmt','gray','-'],capture_output=True,check=True).stdout
+F=np.frombuffer(raw,np.uint8).reshape(-1,H,W).astype(np.float32)
+med=np.median(F,0); mx=F.max(0)
+# rows/cols: the wall is the dark block; take the band where the MAX over time stays dark (beams cross it otherwise)
+def runs(mask):
+    best=(0,0,0); s=None
+    for i,v in enumerate(list(mask)+[False]):
+        if v and s is None: s=i
+        if not v and s is not None:
+            if i-s>best[0]: best=(i-s,s,i-1)
+            s=None
+    return best
+# columns: in the band y 100..600 (well inside the wall), the 90th percentile of the median
+colv=np.percentile(med[100:600,:],90,axis=0); rowv=np.percentile(med[:,200:520],90,axis=1)
+print('col p90 (every 20px):',[int(v) for v in colv[::20]])
+print('row p90 (every 20px):',[int(v) for v in rowv[::20]])
+c=runs(colv<40); r=runs(rowv<40)
+print('dark cols run',c,'dark rows run',r)
+# drift: phase correlation of the wall block vs frame 0
+x0,x1,y0,y1=c[1],c[2],max(r[1],0),r[2]
+ref=F[0,y0:y1,x0:x1]; ref=ref-ref.mean(); R=np.fft.fft2(ref)
+dr=[]
+for k in range(0,len(F),10):
+    g=F[k,y0:y1,x0:x1]; g=g-g.mean(); G=np.fft.fft2(g); cp=R*np.conj(G); cp/=np.abs(cp)+1e-9; c2=np.abs(np.fft.ifft2(cp))
+    iy,ix=np.unravel_index(np.argmax(c2),c2.shape); iy=iy-c2.shape[0] if iy>c2.shape[0]//2 else iy; ix=ix-c2.shape[1] if ix>c2.shape[1]//2 else ix
+    dr.append((k,int(ix),int(iy)))
+print('drift (frame, dx, dy):',dr)
+json.dump(dict(x0=int(x0),x1=int(x1),y0=int(y0),y1=int(y1),n=len(F)),open('work/wall_rect.json','w'))
+from PIL import Image; Image.fromarray(med.astype(np.uint8)).save('work/v4_median.png')
+```
+
+⚠ `meas_wall.py`'s `< 40` run is a first cut, not the number `plan.py` uses: beams cross the
+wall's lower part, so the run stops short of the bottom edge. The rect in `plan.py` (x 128–589,
+y 12–788) was read from the median's column and row means, where the luma steps from about 20
+inside the wall to 49–85 outside it (x 126→130, 588→592, y 789→790). Re-read those steps on a
+new clip; don't take the run.
+
+```python
+#!/usr/bin/env python3
+# plan.py -- params.json for the Club Shape ad, derived from the MEASURED grid of the track (work/beat_m3.json).
+# The rule from the launch cut: every cut lands ON a beat. The ad starts 8 beats before the track's first drop,
+# so ad beat j sits at exactly j*P and the drop is ad beat 8.
+import json
+b = json.load(open('work/beat_m3.json'))
+P, PH = b['period'], b['phase_kick']          # 0.468933 s (127.95 BPM measured; prompted 120), kick phase 0.182 s
+FPS, TOTAL = 24, 20.0
+N0 = 13                                         # track beat that opens the ad (the drop is track beat 21)
+T0 = PH + N0 * P                                # track seek
+f = lambda j: int(round(j * P * FPS))           # ad beat -> frame
+cuts = {'drop': 8, 'friends': 16, 'wall': 24, 'end': 34}
+p = dict(P=P, T0=round(T0, 4), fps=FPS, total=TOTAL, nframes=int(TOTAL * FPS), N0=N0)
+p['cut_beats'] = cuts
+p['cut_frames'] = {k: f(v) for k, v in cuts.items()}
+# kicks inside the ad: track beats 21..51 (beat.py kick presence > 1.5 on every one; the breakdown starts at track beat 52)
+p['kicks'] = [round((n - N0) * P, 4) for n in range(21, 52)]
+p['breakdown'] = round((52 - N0) * P, 4)
+# shot source windows: (clip, first source frame, length in frames)
+F = p['cut_frames']
+p['shots'] = [
+    dict(name='S1 arrival', clip='v1', src0=0,  n=F['drop']),
+    dict(name='S2 hands up (the drop)', clip='v2', src0=0, n=F['friends'] - F['drop']),
+    dict(name='S3 friends', clip='v3', src0=20, n=F['wall'] - F['friends']),
+    dict(name='S4 the wall', clip='v4', src0=0, n=F['end'] - F['wall']),
+]
+p['end_frames'] = p['nframes'] - F['end']
+# the wall's rect, measured in the 720x1280 clip (meas_wall.py: temporal median, edges at the luma steps; drift 0 px)
+p['wall720'] = dict(x0=128, x1=589, y0=12, y1=788)
+p['scale'] = 1.5
+json.dump(p, open('work/params.json', 'w'), indent=1)
+print(json.dumps({k: v for k, v in p.items() if k != 'kicks'}, indent=1)); print('kicks', len(p['kicks']), p['kicks'][:3], '...', p['kicks'][-1])
+```
+
+```js
+// mk_marks.mjs -- the CLUB SHAPE lockup from the repo's own construction (prototypes/nora-booth/src/screenArt.mjs):
+//   led.json  : the stage wall's dot artwork (default ART: 183 x 57 dots, 0-15 coverage, white + teal)
+//   word.json : the same lockup sampled at cap = CAP px for the end card (white + teal coverage, 0-255)
+import { writeFileSync } from 'node:fs';
+const S = process.argv[2];
+const { buildScreenArt, ART } = await import(S + '/prototypes/nora-booth/src/screenArt.mjs');
+const led = buildScreenArt(ART);
+writeFileSync('led.json', JSON.stringify({ cols: led.cols, rows: led.rows, capDots: led.capDots, markDots: led.markDots, white: Array.from(led.white), teal: Array.from(led.teal) }));
+const CAP = +(process.argv[3] || 120);
+const hi = buildScreenArt({ ...ART, capDots: CAP, pad: 4, ss: 6 });
+// rescale 0-15 -> 0-255 (buildScreenArt rounds coverage to 15 levels; 36 samples per pixel at ss 6, then LANCZOS-downscaled ~2x)
+writeFileSync('word.json', JSON.stringify({ cols: hi.cols, rows: hi.rows, cap: CAP, white: Array.from(hi.white, v => Math.round(v * 17)), teal: Array.from(hi.teal, v => Math.round(v * 17)) }));
+console.log(JSON.stringify({ led: [led.cols, led.rows], word: [hi.cols, hi.rows] }));
+```
+
+```python
+#!/usr/bin/env python3
+# mk_overlay.py <916|169> -- raw rgb24 frames on stdout: light that is ADDED (screen-blended) over the base.
+#   916: ad frames [F.wall, nframes): the LED wall's CLUB SHAPE (built from the repo's dot artwork, led.json) + the end card
+#   169: ad frames [F.end, nframes): the end card alone, laid out for 1920x1080
+# The wall lockup: the dots appear left to right with jitter over beats 25-26.6, pulse on every kick, dissolve over beats 32-33.6.
+# Pulses run at the track's 2.13 per second -- under the 3-per-second flash line -- and only the lockup area changes.
+import json, sys, numpy as np
+from PIL import Image, ImageDraw, ImageFont
+from scipy.ndimage import gaussian_filter, zoom
+MODE = sys.argv[1]
+p = json.load(open('work/params.json')); P, FPS, F, N = p['P'], p['fps'], p['cut_frames'], p['nframes']
+KICKS = np.array(p['kicks'])
+ICE = np.array([232, 240, 248], np.float32) / 255
+TEAL = np.array([52, 214, 197], np.float32) / 255
+ss = lambda x: np.clip(x, 0, 1) ** 2 * (3 - 2 * np.clip(x, 0, 1))
+def kick_env(t, tau):
+    k = KICKS[KICKS <= t + 1e-6]
+    return float(np.exp(-(t - k[-1]) / tau)) if len(k) else 0.0
+def resize_f(a, w, h):
+    return np.asarray(Image.fromarray(a.astype(np.float32), 'F').resize((w, h), Image.LANCZOS), np.float32)
+W, H = (1080, 1920) if MODE == '916' else (1920, 1080)
+out = sys.stdout.buffer
+
+# ---------------- the wall (9:16 only) ----------------
+if MODE == '916':
+    led = json.load(open('assets/led.json')); cols, rows = led['cols'], led['rows']
+    cw = np.array(led['white'], np.float32).reshape(rows, cols) / 15
+    ct = np.array(led['teal'], np.float32).reshape(rows, cols) / 15
+    s, wr = p['scale'], p['wall720']
+    wx0, wx1, wy0, wy1 = wr['x0'] * s, wr['x1'] * s, wr['y0'] * s, wr['y1'] * s
+    pitch = 0.86 * (wx1 - wx0) / cols
+    lw, lh = int(round(cols * pitch)), int(round(rows * pitch))
+    X0 = int(round((wx0 + wx1) / 2 - lw / 2)); Y0 = int(round(540 - lh / 2))
+    S = 8; yy, xx = np.mgrid[0:S, 0:S] + 0.5 - S / 2; K = np.clip((3.1 - np.hypot(xx, yy)) / 0.9, 0, 1).astype(np.float32)
+    rng = np.random.default_rng(20261026)
+    colf = (np.arange(cols, dtype=np.float32) / (cols - 1))[None, :]
+    b0 = p['cut_beats']['wall']
+    t_on = (b0 + 1.0 + (0.6 * rng.random((rows, cols)) + 0.4 * colf) * 1.6) * P
+    t_off = (b0 + 8.0 + (0.6 * rng.random((rows, cols)) + 0.4 * colf) * 1.6) * P
+    PAD = 70
+    meta = dict(pitch=round(pitch, 3), lockup=[lw, lh], at=[X0, Y0])
+    print(json.dumps(meta), file=sys.stderr)
+    for fi in range(F['wall'], F['end']):
+        t = fi / FPS
+        on = ss((t - t_on) / 0.10) * (1 - ss((t - t_off) / 0.16))
+        sparkle = 1 + 0.35 * np.where(t >= t_on, np.exp(-(t - t_on) / 0.12), 0)
+        pulse = 0.80 + 0.20 * kick_env(t, 0.17)
+        e = on * sparkle * pulse
+        wl = resize_f(np.kron(cw * e, K), lw, lh); tl = resize_f(np.kron(ct * e, K), lw, lh)
+        core = 1.15 * (np.clip(wl, 0, None)[..., None] * ICE + np.clip(tl, 0, None)[..., None] * TEAL)
+        reg = np.zeros((lh + 2 * PAD, lw + 2 * PAD, 3), np.float32); reg[PAD:PAD + lh, PAD:PAD + lw] = core
+        halo = gaussian_filter(reg, (2.5, 2.5, 0)); glow = gaussian_filter(reg, (12, 12, 0))
+        reg = reg + 1.0 * halo + 0.7 * glow
+        fr = np.zeros((H, W, 3), np.float32)
+        y0, x0 = Y0 - PAD, X0 - PAD
+        fr[y0:y0 + reg.shape[0], x0:x0 + reg.shape[1]] += reg
+        # spill: the lit wall lifts the haze and the crowd a little (1/8 res, sigma 96 px at full res)
+        sm = fr[::8, ::8].copy(); sm = gaussian_filter(sm, (12, 12, 0)) * 0.9
+        fr += zoom(sm, (8, 8, 1), order=1)[:H, :W]
+        out.write((np.clip(fr, 0, 1) * 255 + 0.5).astype(np.uint8).tobytes())
+
+# ---------------- the end card ----------------
+word = json.load(open('assets/word.json')); Wc, Hc = word['cols'], word['rows']
+ww = np.array(word['white'], np.float32).reshape(Hc, Wc) / 255; wt = np.array(word['teal'], np.float32).reshape(Hc, Wc) / 255
+TW = 860 if MODE == '916' else 1000
+TH = int(round(Hc * TW / Wc))
+CY = 880 if MODE == '916' else 470
+wl = resize_f(ww, TW, TH); tl = resize_f(wt, TW, TH)
+core = np.zeros((H, W, 3), np.float32)
+X0, Y0 = (W - TW) // 2, CY - TH // 2
+core[Y0:Y0 + TH, X0:X0 + TW] = np.clip(wl, 0, 1)[..., None] * ICE + np.clip(tl, 0, 1)[..., None] * TEAL
+glow = 0.45 * gaussian_filter(core, (6, 6, 0)) + 0.30 * gaussian_filter(core, (28, 28, 0))
+# "on Shape Radio" in Saira (Google Fonts, OFL), the brand's heading face
+FS = 46 if MODE == '916' else 40
+font = ImageFont.truetype('fonts/Saira.ttf', FS)
+try: font.set_variation_by_axes([100, 500])
+except Exception as ex: print('saira axes', ex, file=sys.stderr)
+parts = [('on ', ICE, 0.72), ('Shape Radio', TEAL, 1.0)]
+track = 0.06 * FS
+def run_width(txt):
+    return sum(font.getlength(c) + track for c in txt)
+total = sum(run_width(t) for t, _, _ in parts) - track
+txt = np.zeros((H, W, 3), np.float32)
+x = (W - total) / 2; ty = (CY + TH // 2 + (95 if MODE == '916' else 70))
+for t, colr, a in parts:
+    m = Image.new('L', (W, H), 0); d = ImageDraw.Draw(m)
+    for c in t:
+        d.text((x, ty), c, font=font, fill=255, anchor='ls'); x += font.getlength(c) + track
+    txt += (np.asarray(m, np.float32) / 255)[..., None] * colr * a
+print(json.dumps(dict(end_word=[TW, TH], at=[X0, Y0], text_baseline=ty, text_width=round(total, 1))), file=sys.stderr)
+te0 = F['end'] / FPS; b_end = p['cut_beats']['end']
+for fi in range(F['end'], N):
+    t = fi / FPS
+    a = float(ss((t - te0) / 0.30))
+    k = kick_env(t, 0.20)
+    b = 0.86 + 0.14 * k; g = 0.75 + 0.45 * k
+    ta = float(ss((t - (b_end + 2) * P) / 0.40))
+    fr = a * (core * b + glow * g) + ta * txt
+    out.write((np.clip(fr, 0, 1) * 255 + 0.5).astype(np.uint8).tobytes())
+```
+
+```bash
+#!/bin/bash
+# render_base.sh -- work/base916.mp4: the four shots cut on the beat + the end card's background, 1080x1920 24 fps, no overlay, no audio.
+# Cut frames come from work/params.json (plan.py): S1 v1[0,90) | S2 v2[0,90) | S3 v3[20,110) | S4 v4[0,113) | END 97 frames.
+# END background = v4 continuing (frames 113..120) then running back (119..31), dissolving from sharp to blurred + dimmed over 0.33 s.
+set -euo pipefail
+cd ~/ad
+UP="scale=1080:1920:flags=lanczos,unsharp=5:5:0.45:5:5:0,setsar=1,format=yuv420p"
+ffmpeg -v error -y -i in/v/v1.mp4 -i in/v/v2.mp4 -i in/v/v3.mp4 -i in/v/v4.mp4 -filter_complex "
+[0:v]trim=start_frame=0:end_frame=90,setpts=PTS-STARTPTS,$UP[s1];
+[1:v]trim=start_frame=0:end_frame=90,setpts=PTS-STARTPTS,$UP[s2];
+[2:v]trim=start_frame=20:end_frame=110,setpts=PTS-STARTPTS,$UP[s3];
+[3:v]split=3[x4][xe1][xe2];
+[x4]trim=start_frame=0:end_frame=113,setpts=PTS-STARTPTS,$UP[s4];
+[xe1]trim=start_frame=113:end_frame=121,setpts=PTS-STARTPTS[ea];
+[xe2]trim=start_frame=31:end_frame=120,setpts=PTS-STARTPTS,reverse[eb];
+[ea][eb]concat=n=2:v=1,setpts=N/(24*TB),$UP,split=2[esharp][e0];
+[e0]gblur=sigma=22,colorchannelmixer=rr=0.34:gg=0.34:bb=0.34[eblur];
+[esharp][eblur]blend=all_expr='A*(1-min(T/0.33\,1))+B*min(T/0.33\,1)',format=yuv420p[se];
+[s1][s2][s3][s4][se]concat=n=5:v=1,setpts=N/(24*TB)[v]" -map "[v]" -c:v libx264 -preset medium -crf 10 -pix_fmt yuv420p work/base916.mp4
+ffprobe -v error -count_frames -show_entries stream=width,height,nb_read_frames,r_frame_rate -of csv=p=0 work/base916.mp4
+```
+
+⚠ **`setpts=N/(24*TB)` after each concat is load-bearing.** The first render ended the chain with
+`fps=24` and came out at 479 frames, not 480: the reversed run-back's timestamps cost a frame at
+the join. Restamping by frame count gives 480 exactly, and `ffprobe -count_frames` is the check.
+
+```bash
+#!/bin/bash
+# render_final.sh -- step 1: work/comp916.mp4 = base916 + overlay (SCREEN blend in RGB), no grain/fades/audio
+#                    step 2: out/club-shape-ad.mp4 = comp916 + luma grain + fades + the track
+# Audio: track m3 from T0 (params.json), 20.0 s, -4.1 dB linear (the window measures -9.9 LUFS / +1.4 dBTP -> -14 LUFS),
+# fade in 0.25 s, out over the last 1.2 s. Video fades: in 0.35 s, out over the last 0.75 s.
+set -euo pipefail
+cd ~/ad
+T0=$(python3 -c "import json;print(json.load(open('work/params.json'))['T0'])")
+WALL=$(python3 -c "import json;print(json.load(open('work/params.json'))['cut_frames']['wall'])")
+ffmpeg -v error -y -i work/base916.mp4 -i work/ov916.mkv -filter_complex "
+[0:v]format=gbrp[a];[1:v]tpad=start=$WALL:color=black,format=gbrp[b];
+[a][b]blend=all_mode=screen,format=yuv420p[v]" -map "[v]" -c:v libx264 -preset medium -crf 10 -pix_fmt yuv420p work/comp916.mp4
+ffmpeg -v error -y -i work/comp916.mp4 -ss "$T0" -t 20 -i in/m3.m4a -filter_complex "
+[0:v]noise=c0s=4:c0f=t,fade=t=in:st=0:d=0.35,fade=t=out:st=19.25:d=0.75[v];
+[1:a]volume=-4.1dB,afade=t=in:st=0:d=0.25,afade=t=out:st=18.8:d=1.2,aresample=48000[au]" \
+ -map "[v]" -map "[au]" -t 20 -c:v libx264 -profile:v high -preset slow -crf 20 -maxrate 5M -bufsize 10M -pix_fmt yuv420p \
+ -c:a aac -b:a 192k -ac 2 -movflags +faststart out/club-shape-ad.mp4
+ffprobe -v error -count_frames -show_entries stream=codec_name,profile,width,height,r_frame_rate,nb_read_frames,duration,sample_rate,channels -of compact out/club-shape-ad.mp4
+stat -c '%s bytes' out/club-shape-ad.mp4; md5sum out/club-shape-ad.mp4
+```
+
+```bash
+#!/bin/bash
+# render_169.sh -- out/club-shape-ad-16x9.mp4. Frames [0,383): the 9:16 composite pillarboxed (608x1080 centred) over a blurred,
+# dimmed fill of itself. Frames [383,480): the end card re-laid for 1920x1080 (ov169.mkv over the same v4 run-back, cropped to
+# 16:9), reached by a 0.33 s dissolve from the pillarboxed base (no 9:16 wordmark, so nothing doubles). Same audio as the 9:16.
+set -euo pipefail
+cd ~/ad
+T0=$(python3 -c "import json;print(json.load(open('work/params.json'))['T0'])")
+END=$(python3 -c "import json;print(json.load(open('work/params.json'))['cut_frames']['end'])")
+PB="split=2[__a][__b];[__a]scale=1920:3414:flags=bicubic,crop=1920:1080:0:1167,gblur=sigma=30,colorchannelmixer=rr=0.42:gg=0.42:bb=0.42[__bg];[__b]scale=608:1080:flags=lanczos[__fg];[__bg][__fg]overlay=656:0,format=yuv420p"
+ffmpeg -v error -y -i work/comp916.mp4 -i work/base916.mp4 -i in/v/v4.mp4 -i work/ov169.mkv -ss "$T0" -t 20 -i in/m3.m4a -filter_complex "
+[0:v]trim=end_frame=$END,setpts=PTS-STARTPTS,${PB//__/p}[pa];
+[1:v]trim=start_frame=$END,setpts=PTS-STARTPTS,${PB//__/q}[pb];
+[2:v]split=2[xe1][xe2];
+[xe1]trim=start_frame=113:end_frame=121,setpts=PTS-STARTPTS[ea];
+[xe2]trim=start_frame=31:end_frame=120,setpts=PTS-STARTPTS,reverse[eb];
+[ea][eb]concat=n=2:v=1,setpts=N/(24*TB),scale=1920:3414:flags=lanczos,crop=1920:1080:0:1167,gblur=sigma=22,colorchannelmixer=rr=0.34:gg=0.34:bb=0.34,format=gbrp[ebg];
+[3:v]format=gbrp[eov];
+[ebg][eov]blend=all_mode=screen,format=yuv420p[endc];
+[pb][endc]blend=all_expr='A*(1-min(T/0.33\,1))+B*min(T/0.33\,1)',format=yuv420p[pe];
+[pa][pe]concat=n=2:v=1,setpts=N/(24*TB),noise=c0s=4:c0f=t,fade=t=in:st=0:d=0.35,fade=t=out:st=19.25:d=0.75[v];
+[4:a]volume=-4.1dB,afade=t=in:st=0:d=0.25,afade=t=out:st=18.8:d=1.2,aresample=48000[au]" \
+ -map "[v]" -map "[au]" -t 20 -c:v libx264 -profile:v high -preset slow -crf 20 -maxrate 5M -bufsize 10M -pix_fmt yuv420p \
+ -c:a aac -b:a 192k -ac 2 -movflags +faststart out/club-shape-ad-16x9.mp4
+ffprobe -v error -count_frames -show_entries stream=codec_name,width,height,r_frame_rate,nb_read_frames,duration -of compact out/club-shape-ad-16x9.mp4
+stat -c '%s bytes' out/club-shape-ad-16x9.mp4; md5sum out/club-shape-ad-16x9.mp4
+```
+
+```python
+#!/usr/bin/env python3
+# flash.py <video> -- general-flash check (WCAG 2.3.1 style): per tile and full frame, relative luminance (sRGB-linear),
+# transitions = swings of >= 0.10 where the darker side is < 0.80; flashes = transitions / 2; worst 1 s window must be <= 3.
+import sys, subprocess, json, numpy as np
+v=sys.argv[1]; GW,GH=4,6  # tiles across, down (each ~4% of the frame)
+p=subprocess.run(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=width,height,r_frame_rate','-of','json',v],capture_output=True,text=True)
+s=json.loads(p.stdout)['streams'][0]; fr=eval(s['r_frame_rate']); W,H=96,160
+raw=subprocess.run(['ffmpeg','-v','error','-i',v,'-vf',f'scale={W}:{H}:flags=area','-f','rawvideo','-pix_fmt','rgb24','-'],capture_output=True,check=True).stdout
+F=np.frombuffer(raw,np.uint8).reshape(-1,H,W,3).astype(np.float32)/255
+lin=np.where(F<=0.04045,F/12.92,((F+0.055)/1.055)**2.4); Y=lin@np.array([0.2126,0.7152,0.0722])
+def trans(L):
+    # hysteresis extrema walk
+    out=[]; ref=L[0]; dirn=0; ext=L[0]; ext_i=0
+    for i,x in enumerate(L):
+        if dirn>=0 and x>ext: ext,ext_i=x,i
+        if dirn<=0 and x<ext: ext,ext_i=x,i
+        if dirn>=0 and ext-x>=0.10 and min(ext,x)<0.8: out.append(i); dirn=-1; ext=x; ext_i=i
+        elif dirn<=0 and x-ext>=0.10 and min(ext,x)<0.8: out.append(i); dirn=1; ext=x; ext_i=i
+    return out
+def worst(L):
+    t=np.array(trans(L)); n=int(round(fr)); best=0
+    for a in range(0,len(L)):
+        best=max(best,int(((t>=a)&(t<a+n)).sum()))
+    return best/2
+res={'full':worst(Y.mean((1,2)))}
+tw,th=W//GW,H//GH; tiles=[]
+for gy in range(GH):
+    for gx in range(GW):
+        tiles.append(worst(Y[:,gy*th:(gy+1)*th,gx*tw:(gx+1)*tw].mean((1,2))))
+res['worst_tile']=max(tiles); res['frames']=len(Y); res['mean_luma_range']=[round(float(Y.mean((1,2)).min()),3),round(float(Y.mean((1,2)).max()),3)]
+print(json.dumps(res))
+```
+
+### The booth's club, made more real (2026-10-26)
+
+Owner: *"make overall club better"*, *"its needs to look more real on website and app"*. All four
+are `model nano_banana_pro`, reported `nano_banana_2`, delivered 1536×2752 (9:16) or 2752×1536
+(16:9) PNG, on the same cloudfront prefix.
+
+**The skyline facades** (in the booth: `public/nora/skyline.webp` and `skyline-lo.webp`, the
+app's copies the same). Both photos resized and packed side by side, office tower on the left:
+1536×1376 at WebP q80 (216,766 bytes) for desktops, 768×688 (78,340 bytes) for phones.
+
+| job | file | md5 (PNG) | aspect |
+| --- | --- | --- | --- |
+| `536ed302-6d5b-4b99-bcf9-78d690fa2799` (office) | `hf_20261026_183944_536ed302-6d5b-4b99-bcf9-78d690fa2799.png` | `0d8063d0fad7f02f0b4ec1d9e18c5b07` | 9:16 |
+| `6a30450d-7c0b-4856-b122-bf97794610d4` (residential) | `hf_20261026_183943_6a30450d-7c0b-4856-b122-bf97794610d4.png` | `c8fbf66de063bfafed8b82c8c6d8aa80` | 9:16 |
+
+Prompts, verbatim:
+1. `536ed302`: *Flat, front-on orthographic texture of a modern office tower facade at night, filling the whole frame edge to edge, photographed straight on with no perspective, no sky, no ground, no edges of the building. A regular grid of about 14 columns and 40 floors of windows separated by thin dark mullions and slab bands. About a third of the windows are lit: warm tungsten offices, a few cool white fluorescent ones, some with blinds half down, faint silhouettes of desks and ceiling lights inside. The rest are dark glass faintly reflecting a deep blue night. Realistic, high detail, evenly exposed, like a texture for a 3D city. No text, no logos.*
+2. `6a30450d`: *Flat, front-on orthographic texture of an older residential and hotel tower facade at night, filling the whole frame edge to edge, photographed straight on with no perspective, no sky, no ground, no edges of the building. A regular grid of about 12 columns and 36 floors of windows in a dark stone facade, with small balconies on some floors. Some windows are lit warm yellow behind curtains, a few cool blue with a television glow, most are dark. Realistic, high detail, evenly exposed, like a texture for a 3D city. No text, no logos.*
+
+**Two reference photographs** of what Club Shape should look like, used only to compare the booth's
+renders against (not in the product): `11617c2f-3e04-4ac7-b02f-ee67787fe964`
+(`hf_20261026_182818_….png`, 16:9, a wide shot from the floor) and
+`7e883b90-4d24-4914-9867-38ab07022025` (`hf_20261026_182819_….png`, 16:9, from the second tier).
+Measured on the second against the booth's establishing shot: median luminance 26 against 11, the
+brightest 5 % at 202 against 64. The booth was dim and flat, not too bright.
+Their prompts, verbatim:
+1. `11617c2f`: *Real photograph, wide shot from the middle of the dance floor of a grand luxury nightclub built in a tall open atrium, at 1 a.m. Three tiers of balconies run down both sides, with frameless glass railings, thin warm LED handrails, and dim amber-lit lounges behind glass where people sit at small lamp-lit tables. People lean on the rails watching the stage. Uplit palm trees stand on every tier. Overhead, a large oval skylight edged with a thin ice-blue LED ring opens to the night sky. Ahead, a huge LED wall stands behind a DJ booth on a raised black stage, with a truss of moving-head lights throwing narrow white beams through thick haze. The packed crowd on the dance floor is mostly in silhouette against the stage. Very dark room, deep blacks, the only light is from the stage, the wall, the beams and small warm practicals. Shot on a full-frame camera at ISO 6400, 24 mm lens, f/1.4, slight film grain, natural lens flare, no text.*
+2. `7e883b90`: *Real photograph from the second-tier balcony of a grand luxury nightclub in a tall open atrium at night, looking down over the glass railing at the dance floor and the stage. A dense crowd fills the polished black floor, which reflects the stage lights. On the stage, a DJ in a black top and headphones plays at a black booth with two CDJs and a mixer, in front of a huge LED wall showing a soft abstract blue-teal image. Narrow white beams from moving heads cut through haze. The balconies opposite have glass railings with thin warm LED handrails, people leaning on them, and amber lounges behind. Palm trees are uplit in gold. Dark, moody, high contrast. Shot on a full-frame camera at ISO 6400, 35 mm lens, f/1.8, film grain, no text.*
+
+**Nora's face photo** (`scripts/nora-model/nora.json` `face_photo`, baked into `public/nora/nora.vrm`):
+`2e1b8ae6-677b-48a6-a4b9-eaf0e3858499`, `hf_20261026_172647_2e1b8ae6-677b-48a6-a4b9-eaf0e3858499.png`,
+`nano_banana_pro` reported `nano_banana_2`, 3:4, delivered 1792×2400. Its prompt, verbatim:
+*Photorealistic passport-style portrait of a woman around 28: face straight to camera, eyes level, neutral relaxed expression with the faintest closed-mouth smile, the whole face from hairline to chin in sharp focus. Long dark brown softly wavy hair pulled back behind her ears. Fair, warm-toned skin with real texture, light natural makeup, brown eyes, full dark eyebrows, slim oval face with defined cheekbones, full lips. Plain black top. Flat, even, diffused frontal light from both sides, no shadows across the face, no rim light, plain neutral grey background, high resolution. No jewellery, no text, no logos.*
+Submitted in the same batch, `55b2b625-df38-4866-8eba-fe201e6e34a5` failed and delivered nothing;
+its prompt, verbatim: *Photorealistic head-and-shoulders portrait of a woman around 28, looking straight into the camera, face perfectly front-on and level, symmetrical framing, the whole face visible from hairline to chin. Long dark brown hair with soft waves, parted slightly off-centre and tucked behind both ears so the ears, cheeks and jawline are clear. Fair skin with a warm undertone, natural skin texture and pores, light natural makeup, brown eyes, full well-defined dark brows, a gentle closed-mouth smile. Slim oval face, defined cheekbones, straight nose, full lips. Plain black camisole top. Even, soft, shadowless frontal studio lighting with no colour cast, plain neutral light-grey background, sharp focus across the face, 85mm lens, high resolution. No jewellery, no text, no logos.*
+
 ## The track pick (measured, not assumed)
 
 Three generations were made for the owner's *"deeper and darker"* note; each was decoded

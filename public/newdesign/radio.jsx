@@ -165,6 +165,7 @@ async function rdKeeper() {
       canvas.setAttribute("aria-hidden", "true");
       return B.createNoraBooth({
         canvas, modelUrl: S.noraAssetUrl(S.NORA_MODEL.path, "/"), crowdUrl: S.noraAssetUrl(S.crowdPackPath(S.NORA_MODEL, tier.quality), "/"), portrait: S.NORA_MODEL.portrait,
+        skylineUrl: S.noraAssetUrl(S.skylinePath(S.NORA_MODEL, tier.quality), "/"),
         venueUrl: S.clubShapeModelUrl(S.CLUB_SHAPE_MODEL, "/", tier.quality),
         wallLoops: S.wallLoopUrls(tier.quality, { reducedMotion: RD_REDUCED }),
         quality: tier.quality, cinematic: tier.cinematic, fps: tier.fps,
