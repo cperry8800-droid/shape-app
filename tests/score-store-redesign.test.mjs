@@ -46,7 +46,7 @@ window.ShapeI18n = {
 
 // A signed-in member at 1,840 (Tempo, 160 from Form) with 900 to spend.
 const MEMBER_SCORE = { points_total: 1840, current_tier: { name: 'Tempo' }, next_tier: { name: 'Form', threshold: 2000 }, points_to_next: 160, week_gain: 40, recent: [], spendable_balance: 900 };
-function world() {
+function world(balance = 900) {
   window.ShapeAuth = { getCachedState: () => ({ user: { id: 'member-1' }, profile: { role: 'client' } }) };
   window.ShapeScore = undefined;
   window.__bsSessionGen = 0;
@@ -55,7 +55,7 @@ function world() {
   window.ShapeCommit = { get: async () => null, progress: async () => null };
   window.ShapeApi = {
     fetch: async (path) => (path === '/api/client/score'
-      ? { ok: true, status: 200, json: async () => MEMBER_SCORE }
+      ? { ok: true, status: 200, json: async () => ({ ...MEMBER_SCORE, spendable_balance: balance }) }
       : { ok: false, status: 404, json: async () => ({ error: 'unscripted' }) }),
   };
 }
@@ -105,21 +105,14 @@ test('Score: the ladder runs top rung first, names the member\'s rung and the ne
   } finally { await s.unmount(); }
 });
 
-test('Store: Worth is the balance at the points rate, and Closest names the first thing the balance can\'t reach yet', async () => {
-  world();
-  const s = await mount(React.createElement(MOD.BSShapeStorePage, { profile: P.client, onBack() {}, onOpenScore() {} }));
-  try {
-    const txt = s.text();
-    assert.match(txt, /Available900pts/);
-    assert.match(txt, new RegExp(`Worth\\$${(900 / MOD.BS_SHAPE_PTS_PER_USD).toFixed(2).replace('.', '\\.')}`));
-    const rail = closestRail(s.host);
-    const first = rail.find((c) => c.gap > 0);
-    assert.ok(first, 'no card the balance can\'t reach yet');
-    assert.match(txt, new RegExp(`Closest${first.name}${first.gap.toLocaleString('en-US')} to go`));
-  } finally { await s.unmount(); }
-});
+// The member's departments, the products a member can buy, and the one entry a product shows under
+// (a merch product's variants share their base name: "Shape Cap · Black" is "Shape Cap").
+const MEMBER_CATS = ['Shape Merch', 'Training', 'Nutrition', 'Shape Perks'];
+const BUYABLE = MOD.BS_STORE_PRODUCTS.filter((p) => MEMBER_CATS.includes(p.cat) && !p.locked);
+const entryName = (p) => (p.cat === 'Shape Merch' ? String(p.name).split(' · ')[0] : p.name);
+const storePage = () => mount(React.createElement(MOD.BSShapeStorePage, { profile: P.client, onBack() {}, onOpenScore() {} }));
 
-// The rail's cards, read off the page: each card's name and its points to go (0 when within balance).
+// The rail's cards, read off the page: each card's name and its points to go.
 function closestRail(host) {
   const head = [...host.querySelectorAll('[data-bst-head="mag"]')].find((h) => /Closest to you/.test(h.textContent));
   if (!head) return null;
@@ -127,28 +120,69 @@ function closestRail(host) {
     const spans = [...b.querySelectorAll(':scope > span')];
     const name = spans[1].textContent.trim();
     const m = spans[2].textContent.match(/^([\d,]+) to go$/);
-    return { b, name, gap: m ? Number(m[1].replace(/,/g, '')) : 0 };
+    assert.ok(m, `${name}: the card says no points to go ("${spans[2].textContent}")`);
+    return { b, name, gap: Number(m[1].replace(/,/g, '')) };
   });
 }
 
-test('Store: Closest to you lists the nearest unlocked things by points to go, one per variant group, at most four', async () => {
+test('Store: Worth is the balance at the points rate, and Closest names the first thing the balance can\'t reach yet', async () => {
   world();
-  const s = await mount(React.createElement(MOD.BSShapeStorePage, { profile: P.client, onBack() {}, onOpenScore() {} }));
+  const s = await storePage();
+  try {
+    const txt = s.text();
+    assert.match(txt, /Available900pts/);
+    assert.match(txt, new RegExp(`Worth\\$${(900 / MOD.BS_SHAPE_PTS_PER_USD).toFixed(2).replace('.', '\\.')}`));
+    const [first] = closestRail(s.host);
+    assert.match(txt, new RegExp(`Closest${first.name}${first.gap.toLocaleString('en-US')} to go`));
+  } finally { await s.unmount(); }
+});
+
+// Codex on #2469: a balance that covers four entries filled the rail with them, so Closest read
+// "Everything here is within your balance" with the dearer things still out of reach.
+test('Store: a balance that covers four or more entries still names the next thing to earn toward', async () => {
+  const costs = [...new Set(BUYABLE.map((p) => p.cost))].sort((a, b) => a - b);
+  const balance = costs.find((c) => new Set(BUYABLE.filter((p) => p.cost <= c).map(entryName)).size >= 5);
+  assert.ok(balance && balance < costs[costs.length - 1], 'the catalogue has no such balance');
+  const above = BUYABLE.filter((p) => p.cost > balance).sort((a, b) => a.cost - b.cost);
+  world(balance);
+  const s = await storePage();
+  try {
+    const txt = s.text();
+    assert.doesNotMatch(txt, /Everything here is within your balance/);
+    const rail = closestRail(s.host);
+    assert.ok(rail && rail.length, 'the rail is empty with things still out of reach');
+    for (const c of rail) assert.ok(c.gap > 0, `${c.name} is within the balance`);
+    assert.equal(rail[0].gap, above[0].cost - balance, 'the rail does not open on the nearest thing out of reach');
+    assert.match(txt, new RegExp(`Closest${rail[0].name}${rail[0].gap.toLocaleString('en-US')} to go`));
+  } finally { await s.unmount(); }
+});
+
+test('Store: a balance that covers everything says so, and shows no rail', async () => {
+  world(Math.max(...BUYABLE.map((p) => p.cost)));
+  const s = await storePage();
+  try {
+    assert.match(s.text(), /ClosestEverything here is within your balance/);
+    assert.equal(closestRail(s.host), null);
+  } finally { await s.unmount(); }
+});
+
+test('Store: Closest to you lists the nearest unlocked things out of reach by points to go, one per variant group, at most four', async () => {
+  world();
+  const s = await storePage();
   try {
     const rail = closestRail(s.host);
     assert.ok(rail && rail.length > 0 && rail.length <= 4, `rail of ${rail && rail.length}`);
     assert.equal(new Set(rail.map((c) => c.name)).size, rail.length, 'a variant group shows twice');
     for (let i = 1; i < rail.length; i++) assert.ok(rail[i].gap >= rail[i - 1].gap, 'not by points to go');
     // Each card is a real, unlocked product the member can buy, its gap read off the catalogue.
-    const memberCats = ['Shape Merch', 'Training', 'Nutrition', 'Shape Perks'];
     for (const c of rail) {
-      const ps = MOD.BS_STORE_PRODUCTS.filter((p) => memberCats.includes(p.cat) && !p.locked && (p.name === c.name || p.name.startsWith(c.name + ' ·') || p.name.startsWith(c.name + ' (')));
+      const ps = BUYABLE.filter((p) => entryName(p) === c.name);
       assert.ok(ps.length, `${c.name} is not an unlocked member product`);
-      assert.ok(ps.some((p) => Math.max(0, p.cost - 900) === c.gap), `${c.name}: ${c.gap} to go matches no variant`);
+      assert.ok(ps.some((p) => p.cost - 900 === c.gap), `${c.name}: ${c.gap} to go matches no variant`);
     }
-    // Nothing unlocked and in reach is nearer than the last card shown.
-    const nearer = MOD.BS_STORE_PRODUCTS.filter((p) => memberCats.includes(p.cat) && !p.locked && Math.max(0, p.cost - 900) < rail[rail.length - 1].gap);
-    for (const p of nearer) assert.ok(rail.some((c) => p.name === c.name || p.name.startsWith(c.name)), `${p.name} is nearer and missing`);
+    // Nothing out of reach is nearer than the last card shown and missing from the rail.
+    const nearer = BUYABLE.filter((p) => p.cost > 900 && p.cost - 900 < rail[rail.length - 1].gap);
+    for (const p of nearer) assert.ok(rail.some((c) => c.name === entryName(p)), `${p.name} is nearer and missing`);
     // A tap goes to the card's entry in the catalogue.
     window.__scrolledTo = null;
     await s.click(rail[0].b);
@@ -159,7 +193,7 @@ test('Store: Closest to you lists the nearest unlocked things by points to go, o
 
 test('Store: the rail is All\'s only, and leaves under Within balance, which stays in view beside the categories', async () => {
   world();
-  const s = await mount(React.createElement(MOD.BSShapeStorePage, { profile: P.client, onBack() {}, onOpenScore() {} }));
+  const s = await storePage();
   try {
     assert.ok(closestRail(s.host));
     const within = byText(s.host, /^Within balance$/);

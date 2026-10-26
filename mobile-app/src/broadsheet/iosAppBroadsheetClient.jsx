@@ -31383,17 +31383,19 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   const variantName = (p) => String(p.name).split(' · ').slice(1).join(' · ');
   const entryKey = (p) => (isMerch(p) ? 'merch-' + baseName(p) : p.id).replace(/[^\w-]+/g, '-');
   const pickOf = (group) => group.find((v) => v.id === variantPick[baseName(group[0])]) || group[0];
-  // The closest: role-correct, unlocked products by the points still to go; a variant group counts once.
+  // The closest: role-correct, unlocked products the balance can't reach yet, by the points still to
+  // go; a variant group counts once. What it already covers is under Within balance, so a balance
+  // that covers four things still names the next one to earn toward (Codex, #2469).
   const closest = (() => {
     const seen = new Set();
     return products
-      .filter((p) => roleCats.includes(p.cat) && !p.locked)
-      .map((p) => ({ p, gap: Math.max(0, p.cost - balance) }))
+      .filter((p) => roleCats.includes(p.cat) && !p.locked && p.cost > balance)
+      .map((p) => ({ p, gap: p.cost - balance }))
       .sort((a, b) => a.gap - b.gap || a.p.cost - b.p.cost)
       .filter(({ p }) => { const k = entryKey(p); if (seen.has(k)) return false; seen.add(k); return true; })
       .slice(0, 4);
   })();
-  const nextUp = closest.find((x) => x.gap > 0) || null;
+  const nextUp = closest[0] || null;
   const jumpTo = (p) => {
     if (isMerch(p)) setVariantPick((m) => ({ ...m, [baseName(p)]: p.id }));
     try { document.getElementById('bs-store-' + entryKey(p))?.scrollIntoView({ block: 'center', behavior: bsSdReduced() ? 'auto' : 'smooth' }); } catch (e) {}
@@ -31491,11 +31493,11 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
             {closest.map(({ p, gap }, i) => (
               <button key={p.id} type="button" onClick={() => jumpTo(p)} style={{ flex: '0 0 138px', scrollSnapAlign: 'start', textAlign: 'left', padding: 12, border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderRadius: 10, background: i === 0 ? bsTHexA(t.INK, 0.045) : 'transparent', cursor: 'pointer', color: t.INK }}>
                 <span style={{ position: 'relative', display: 'grid', placeItems: 'center', width: 60, height: 60 }}>
-                  {ring(balance / p.cost, 60, gap > 0 ? bsTierColor(profile.tier) : teal)}
+                  {ring(balance / p.cost, 60, bsTierColor(profile.tier))}
                   <BSStoreImg id={p.id} cat={p.cat} size={26} glyphColor={t.INK} />
                 </span>
                 <span style={{ display: 'block', marginTop: 10, minHeight: 34, fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.25 }}>{isMerch(p) ? baseName(p) : p.name}</span>
-                <span style={{ display: 'block', ...mono(7.5, gap > 0 ? bsTierText(t, profile.tier) : teal, { marginTop: 6, letterSpacing: '0.08em' }) }}>{gap > 0 ? tr('store:unit.toGo', { gap, defaultValue: '{gap, number} to go' }) : tr('store:drop.withinBalance', { defaultValue: '✓ within balance' })}</span>
+                <span style={{ display: 'block', ...mono(7.5, bsTierText(t, profile.tier), { marginTop: 6, letterSpacing: '0.08em' }) }}>{tr('store:unit.toGo', { gap, defaultValue: '{gap, number} to go' })}</span>
               </button>
             ))}
           </div>
