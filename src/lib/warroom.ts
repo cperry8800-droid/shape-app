@@ -615,6 +615,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Score and Store redesigned: the Score\'s ladder (the owner\'s A), the Store as a catalogue with Closest to you (B) — #2469. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26: "need to also imrpove look and design of these 2 pages", "show me 3 designs of shape score and store page", then "A for score and do B for store but include the \'closest to you\'"', status: 'done' },
+        { label: 'Score: the number and its rung; one plate with how far into the tier, what the next rung unlocks and a bar between the thresholds; BSScoreLadder (one rail, top rung first, "· you", "· Next · N to go", each rung\'s unlock, ✓ on rungs reached) replaces BSScoreStandingChart, its This-tier zoom and the Tiers tab; a member\'s week and stake under the page\'s heads; tabs Ledger and Points (a coach: Breakdown and Points); a coach\'s Next / To go figures go, the plate says it', status: 'done' },
+        { label: 'Store: a ruled balance (Available, Worth at 150 pts = $1, Closest); Closest to you lists up to four unlocked products out of reach by points to go, one per variant group, a tap jumping to its entry (All only, not under Within balance); only the categories scroll and Within balance stays in view; the catalogue by department, numbered, a merch product\'s variants one entry. Purchase rules unchanged', status: 'done' },
+        { label: 'bsTierText: a tier colour as text takes a darker shade on light papers (three read under 3:1 as words); 12 new strings in all 13 locales, and 12 nothing reads leave', status: 'done' },
+        { label: 'Review: Codex P2 on b05f4cd (a balance covering four entries filled the rail with them and Closest read "Everything here is within your balance"), fixed in 8623c87; Codex clean on 8623c87. Checks: tests/score-store-redesign.test.mjs mounts both pages signed in (three mutations and the Codex case caught); npm test 8,550/8,551 before the string cleanup, the one failure this PR\'s own DOM-valued assertion, fixed', status: 'done' },
+        { label: 'Device pass signed in: the ladder with a real score (at risk and at the top tier), and the Store\'s Closest with a real balance', status: 'manual' },
+      ],
+    },
+    {
       section: 'Session details: heart rate on every activity, the profile\'s doubled heads, and Get App\'s Habits frame signed in — #2468. No migration',
       items: [
         { label: 'Owner, 2026-10-26, on a deadlift PR\'s tiles: "this should say HR no BPM, make sure that is showing correctly for all activities"; on a bench PR: "there is not HR or other stats on this post"; then "show HR during PR if it is one, and always show AVG HR, and then show HR during different stages of activity depending on activity"', status: 'done' },

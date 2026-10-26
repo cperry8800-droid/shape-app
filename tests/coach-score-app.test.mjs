@@ -120,8 +120,9 @@ test('a signed-in trainer reads /api/coach/score, never the member ledger, and t
     // The headline is the coach total and the tier is the coach rung.
     assert.match(txt, /Elite, and climbing\./);
     assert.match(txt, /Score2,370/, 'the register prints the coach total');
-    assert.match(txt, /Next\s*Master/);
-    assert.match(txt, /To go2,630/);
+    // The next rung and what's left to it: on the ladder's next rung and the plate's line (no figures
+    // repeat them).
+    assert.match(txt, /Master5,000\+· Next · 2,630 to go/);
     assert.match(txt, /370 into the tier — 2,630 from Master\./);
     assert.match(txt, /Your coach standing/);
     // The breakdown is the default tab: the route's rows, their figures said in the app's words.
