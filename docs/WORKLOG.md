@@ -196,8 +196,6 @@ The War Room has the full list; this covers what needs the owner and the planned
   days (`payment_pending`).
 - Business: five read gaps, from the plan's goal not being remembered to the 25-renewal Stripe
   check (War Room).
-- Signed out, the website Goal page's What clients earn you reads "Couldn't read your subscriptions
-  just now": a 401 lands in its failed state, not a sample (War Room).
 - Home (`BSHomeSections.jsx`): Week so far counts days trained against the plan's sessions, and
   food days, not meals; a protein or steps square without a target takes any reading; the
   weekly notes, message doors and next session show only for a paid coach.

@@ -705,6 +705,50 @@ test('the Goal tab\'s live clients and net are today\'s (coachForecast.js todayF
   assert.deepEqual([neither.kind, neither.activeClients, neither.mrrNetCents], ['live', null, null]);
 });
 
+// ── A signed-out reader is the sample, not a failed read ─────────────────────
+// The analytics routes answer a signed-out caller with 401. The hook read every thrown fetch as
+// "unknown", so the Goal tab's What clients earn you told a signed-out preview "Couldn't read your
+// subscriptions just now". Only a 401 is the sample (the Score page's rule); anything else that
+// fails stays a failed read.
+test('the live figures read a 401 as the sample, and a 503, a 500 or a dead network as a failed read', async () => {
+  const data = readFileSync(ND('dashData.jsx'), 'utf8');
+  const lift = (re) => re.exec(data)[0];
+  const dashJsonSrc = [lift(/const DASH_CACHE_TTL = [^\n]*\n/), lift(/const _dashCache = [^\n]*\n/), lift(/async function _dashJson\(url\) \{[\s\S]*?\n\}/)].join('');
+  const hookSrc = lift(/function useCoachLiveFigures\(role\) \{[\s\S]*?\n\}/);
+  const kindFor = async (respond) => {
+    let state = null;
+    const R = { useState: (init) => [init, (v) => { state = v; }], useEffect: (fn) => { fn(); } };
+    // The real _dashJson, over a scripted fetch, so the status really comes off a response.
+    const fetch = async () => { const r = respond(); if (r instanceof Error) throw r; return r; };
+    const hook = new Function('React', 'fetch', 'window', dashJsonSrc + hookSrc + '\nreturn useCoachLiveFigures;')(R, fetch, { CoachForecast: CF });
+    hook('trainer');
+    for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0));
+    return state && state.kind;
+  };
+  const res = (status, body = {}) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+  assert.equal(await kindFor(() => res(401, { error: 'Authentication required.' })), 'demo', 'signed out reads as a failure again');
+  assert.equal(await kindFor(() => res(503, { error: 'Could not check your sign-in just now.' })), 'unknown', 'a sign-in that could not be checked is shown the sample');
+  assert.equal(await kindFor(() => res(500)), 'unknown');
+  assert.equal(await kindFor(() => new TypeError('Failed to fetch')), 'unknown', 'a dead network is shown the sample');
+  // Signed in but not this role: the route's own answer, still the sample.
+  assert.equal(await kindFor(() => res(200, { isTrainer: false })), 'demo');
+});
+
+test('the Goal tab\'s calculator says when its figures are the sample, and only then', async () => {
+  const demo = await mount(React.createElement(B.DbzGoalEarn, { role: 'trainer', live: { kind: 'demo' } }));
+  assert.equal(demo.div.querySelector('[data-dbz-sample]')?.textContent, 'Sample figures, not your own practice.');
+  assert.doesNotMatch(demo.text(), /Couldn't read/);
+  await demo.unmount();
+  const failed = await mount(React.createElement(B.DbzGoalEarn, { role: 'trainer', live: { kind: 'unknown' } }));
+  assert.match(failed.text(), /^Couldn't read your subscriptions just now/);
+  assert.equal(failed.div.querySelector('[data-dbz-sample]'), null, 'a failed read is labelled a sample');
+  await failed.unmount();
+  const weeks = [{ weekOf: '2026-10-12', active: 12, mrrNetCents: 179550, mrrGrossCents: 210000 }];
+  const own = await mount(React.createElement(B.DbzGoalEarn, { role: 'trainer', live: { kind: 'live', activeClients: 12, mrrNetCents: 179550, mrrGrossCents: 210000, trajectory: { weeks }, byoShare: 0, byoNote: null } }));
+  assert.equal(own.div.querySelector('[data-dbz-sample]'), null, 'a coach\'s own figures are labelled a sample');
+  await own.unmount();
+});
+
 test('the Goal tab\'s calculator links to the planner on Business, opened on Plan', async () => {
   const m = await mount(React.createElement(B.DbzGoalEarn, { role: 'nutritionist', live: { kind: 'demo' } }));
   const a = m.div.querySelector('a');

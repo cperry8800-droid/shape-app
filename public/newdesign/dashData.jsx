@@ -35,7 +35,8 @@ async function _dashJson(url) {
   entry.pending = (async () => {
     try {
       const res = await fetch(url, { credentials: "same-origin" });
-      if (!res.ok) throw new Error("HTTP " + res.status);
+      // The status rides on the error, so a caller can tell "signed out" (401) from a failed read.
+      if (!res.ok) { const err = new Error("HTTP " + res.status); err.status = res.status; throw err; }
       const data = await res.json();
       // A refresh can delete/replace the entry while this request is running.
       // Never let the old response repopulate that invalidated cache.
@@ -649,10 +650,15 @@ function useDashboard(role) {
 // chart pays nothing here.
 //
 // `kind` is the honest three-way: "live" when the payload came back for this
-// role, "demo" when the viewer is signed out or is not this role (the page's
-// own sample state), and "unknown" when the read FAILED — which must not be
-// rendered as a zero, because "you have no clients" and "we could not ask" are
-// different sentences.
+// role, "demo" when the viewer is signed out (the route's 401) or is not this
+// role (the page's own sample state), and "unknown" when the read FAILED, which
+// must not be rendered as a zero, because "you have no clients" and "we could
+// not ask" are different sentences.
+// ⚠ A 401 IS A READING, NOT A FAILURE. The route answers a signed-out caller with
+// 401, and this hook read every thrown fetch as "unknown", so the Goal page's What
+// clients earn you said "Couldn't read your subscriptions just now" to a signed-out
+// preview. Only a 401 is the sample (the Score page's rule); a 503 (sign-in not
+// checkable), a 5xx and a dead network stay "unknown".
 function useCoachLiveFigures(role) {
   const [state, setState] = React.useState({ kind: "loading" });
   React.useEffect(() => {
@@ -661,7 +667,7 @@ function useCoachLiveFigures(role) {
     (async () => {
       let a = null;
       try { a = await _dashJson("/api/" + role + "/analytics"); }
-      catch (e) { if (on) setState({ kind: "unknown" }); return; }
+      catch (e) { if (on) setState({ kind: e && e.status === 401 ? "demo" : "unknown" }); return; }
       if (!on) return;
       if (!a || !a[roleKey]) return setState({ kind: "demo" });
       // ⚠ TODAY'S CLIENTS AND NET ARE THE PLAN'S, BY ONE RULE (the sweep after #2394 round 10):

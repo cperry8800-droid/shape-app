@@ -1095,9 +1095,12 @@ function dbzGoalEarnBase(live) {
 }
 function DbzGoalEarn({ role, live }) {
   const base = dbzGoalEarnBase(live);
+  // The sample practice's figures say so on the card itself, not only in the page's subtitle.
+  const sample = !!live && live.kind === "demo";
   const href = typeof dashLinkedTab === "function" ? dashLinkedTab("business", role, { section: "plan" }) : (role === "nutritionist" ? "NutritionistApp.html" : "TrainerApp.html") + "#business?section=plan";
   return (
     <div>
+      {base.state === "ready" && sample && <div data-dbz-sample="" style={{ ...DBZ_NOTE, marginBottom: 10 }}>Sample figures, not your own practice.</div>}
       {base.state === "ready"
         ? <DbzEarnZone base={base} />
         : <div style={DBZ_NOTE}>{base.state === "loading" ? "Your numbers load with your live figures…" : "Couldn't read your subscriptions just now. Nothing is lost; reload to try again."}</div>}
