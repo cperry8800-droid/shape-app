@@ -75,7 +75,8 @@ dated entry or past 20 KB.
   `?v=`: `scripts/build-newdesign.mjs` replaces it with a content hash at deploy.
   Before editing a legacy `*.jsx`, check that something still loads it.
   `coachForecast.js` holds the coach Business figures; the app imports it too, so
-  change a figure there, not in a page.
+  change a figure there, not in a page. `splitGlassMark.js` draws the 3D splash mark
+  for both the homepage splash and the app's launch screens.
 - **Next.js app (`src/`):** API routes, the gated `/dashboard` and `/admin`. Typecheck
   with `npx tsc --noEmit` (read the Next docs first). When you add a route,
   register it in the War Room's `RAW_ROUTES`. A route the app calls reads the caller with
@@ -273,6 +274,8 @@ The War Room has the full list; this covers what needs the owner and the planned
   its speakers, the barrier, subs and front-of-house desk) have been seen only in headless Chromium,
   not on a real GPU or a phone. From the stage the crowd reads brighter and more evenly lit than a
   club floor. The old avatar crowd (`crowdAvatars.mjs`) is kept for a v2 pack.
+- The Split glass splash mark (#2474), on the homepage and the app's launch, has been seen only in
+  headless Chromium, not on a phone or in the installed app.
 
 ## History
 
