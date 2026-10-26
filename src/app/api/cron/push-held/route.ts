@@ -20,6 +20,9 @@ export const maxDuration = 120;
 const HELD_FOR_MS = 24 * 60 * 60 * 1000;
 const HELD_PER_PERSON = 3;
 const PAGE = 500;
+// ⚠ IT STOPS TAKING WORK WITH TIME TO SPARE (Codex on #2476). Cut off by maxDuration between taking a
+// hold off and the send, a notice would never be pushed. What a run leaves keeps its hold for the next.
+const TIME_BUDGET_MS = 90_000;
 
 function safeEqual(a: string, b: string): boolean {
   const x = Buffer.from(String(a || ''));
@@ -56,11 +59,23 @@ async function release(admin: ReturnType<typeof createAdminClient>, row: HeldRow
   return !error && Array.isArray(claimed) && claimed.length > 0;
 }
 
+// Puts the hold back on a row whose send failed, so the next run tries it again (one held over a day is
+// let go then). It goes over the row as it now stands: the attempt may have stamped its email, and that
+// stamp is kept so the email is not sent twice.
+async function rehold(admin: ReturnType<typeof createAdminClient>, row: HeldRow, heldAt: string): Promise<boolean> {
+  const { held_at: _held, ...before } = row.data ?? {};
+  const { data: now } = await admin.from('notifications').select('data').eq('id', row.id).maybeSingle();
+  const current = now && now.data && typeof now.data === 'object' ? (now.data as Record<string, unknown>) : before;
+  const { error } = await admin.from('notifications').update({ data: { ...current, held_at: heldAt } }).eq('id', row.id);
+  return !error;
+}
+
 async function run(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  const startedAt = Date.now();
   const admin = createAdminClient();
   const now = new Date();
-  let delivered = 0, letGo = 0, failed = 0;
+  let delivered = 0, letGo = 0, failed = 0, stopped = false;
   const perPerson = new Map<string, number>();
 
   // Paged on created_at, not on an offset: every row this run releases leaves the filter, so an
@@ -68,7 +83,7 @@ async function run(request: Request) {
   // capped-read-ok: one page of a walk over every held row, oldest first so the night's notices go in
   // the order they came and the per-person limit keeps the first ones; not a cap.
   let after = '';
-  for (;;) {
+  walk: for (;;) {
     let q = admin.from('notifications')
       .select('*')
       .not('data->>held_at', 'is', null)
@@ -78,10 +93,12 @@ async function run(request: Request) {
     const { data, error } = await q;
     if (error) {
       console.error('[push-held] read failed:', error.message);
-      return NextResponse.json({ ok: false, delivered, letGo, failed }, { status: 500 });
+      return NextResponse.json({ ok: false, delivered, letGo, failed, stopped }, { status: 500 });
     }
     const rows = (data ?? []) as HeldRow[];
     for (const row of rows) {
+      if (Date.now() - startedAt > TIME_BUDGET_MS) { stopped = true; break walk; }
+      let released = false;
       try {
         const verdict = heldVerdict(row, now);
         const used = perPerson.get(row.user_id) || 0;
@@ -90,6 +107,7 @@ async function run(request: Request) {
           continue;
         }
         if (!(await release(admin, row))) continue; // another run has it
+        released = true;
         const { held_at: _held, ...data } = row.data ?? {};
         const out = await deliverNotice({ ...row, data }, now);
         // Still the person's night (they moved their quiet hours): deliverNotice held it again.
@@ -97,12 +115,22 @@ async function run(request: Request) {
       } catch (err) {
         failed += 1;
         console.error('[push-held] could not send', row.id, err instanceof Error ? err.message : err);
+        // ⚠ A SEND THAT FAILED KEEPS ITS HOLD (Codex on #2476). The hold had come off before the send, so
+        // a send that threw left a row no run would see again, and its push was never sent.
+        if (released) {
+          try {
+            if (!(await rehold(admin, row, String(row.data?.held_at ?? now.toISOString())))) console.error('[push-held] could not hold it again', row.id);
+          } catch (e) {
+            console.error('[push-held] could not hold it again', row.id, e instanceof Error ? e.message : e);
+          }
+        }
       }
     }
     if (rows.length < PAGE) break;
     after = rows[rows.length - 1].created_at;
   }
-  return NextResponse.json({ ok: true, delivered, letGo, failed });
+  if (stopped) console.error('[push-held] the run stopped at its time limit; the rest stay held for the next');
+  return NextResponse.json({ ok: true, delivered, letGo, failed, stopped });
 }
 
 export async function GET(request: Request) { return run(request); }

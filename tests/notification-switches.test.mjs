@@ -374,9 +374,54 @@ test('a notice in quiet hours is held for the morning, not dropped', async () =>
   } finally { globalThis.Date = RealDate; }
 });
 
+// A stand-in for the notifications table the morning job reads and writes. A read returns copies, as a
+// database does, so a write never changes the row the job already holds. A write conditioned on the hold
+// (a claim) lands only on a row still held; any other write lands.
+function heldDb(rows) {
+  const stored = new Map();
+  const claims = [];
+  const dataOf = (r) => (stored.has(r.id) ? stored.get(r.id) : r.data) || {};
+  const admin = {
+    from() {
+      const f = { not: [], gt: null, idEq: null, patch: null, one: false };
+      const q = {
+        select: () => q, order: () => q, limit: () => q,
+        not: (...a) => { f.not.push(a); return q; },
+        gt: (_c, v) => { f.gt = v; return q; },
+        eq: (_c, v) => { f.idEq = v; return q; },
+        update: (patch) => { f.patch = patch; return q; },
+        maybeSingle: () => { f.one = true; return q; },
+      };
+      q.then = (ok, no) => {
+        const row = rows.find((r) => r.id === f.idEq);
+        if (f.patch) {
+          const claim = f.not.some((a) => a[0] === 'data->>held_at');
+          const was = row && dataOf(row).held_at;
+          const lands = row && (!claim || was);
+          if (lands) { stored.set(row.id, f.patch.data); if (claim) claims.push(row.id); }
+          return Promise.resolve({ data: lands ? [{ id: row.id }] : [], error: null }).then(ok, no);
+        }
+        if (f.one) return Promise.resolve({ data: row ? { data: { ...dataOf(row) } } : null, error: null }).then(ok, no);
+        const held = rows.filter((r) => dataOf(r).held_at && (!f.gt || r.created_at > f.gt)).sort((x, y) => x.created_at.localeCompare(y.created_at));
+        return Promise.resolve({ data: held.map((r) => ({ ...r, data: { ...dataOf(r) } })), error: null }).then(ok, no);
+      };
+      return q;
+    },
+  };
+  return { admin, stored, claims, dataById: (id) => dataOf(rows.find((r) => r.id === id)) };
+}
+const heldCron = (db, deliverNotice) => loadRealModule(join(ROOT, 'src/app/api/cron/push-held/route.ts'), {
+  typescript: true,
+  registry: new Map([
+    ['next/server', nextServer],
+    ['@/lib/supabase/admin', { createAdminClient: () => db.admin }],
+    ['../../push/dispatch/route', { deliverNotice }],
+  ]),
+});
+const heldRun = async (cron) => (await cron.GET(new Request('https://x/api/cron/push-held', { headers: { authorization: 'Bearer cron-test' } }))).json();
+
 test('the morning: held notices go once, oldest first, at most three a person, and not one already seen', async () => {
   const delivered = [];
-  let heldAgain = new Set();
   const rows = [];
   // Held during the night just gone: minutes before now, in order.
   const add = (id, user, mins, extra = {}) => rows.push({ id, user_id: user, type: 'follow', title: id, body: '', route: null, data: { held_at: 'x', keep: id }, created_at: new Date(Date.now() - (600 - mins) * 60000).toISOString(), read_at: null, ...extra });
@@ -384,55 +429,56 @@ test('the morning: held notices go once, oldest first, at most three a person, a
   add('b1', 'ben', 4, { read_at: '2026-10-16T05:00:00Z' }); add('b2', 'ben', 5, { cleared_at: '2026-10-16T05:00:00Z' });
   add('c1', 'cat', 6); rows.push({ ...rows[0], data: { held_at: 'x' }, id: 'old', user_id: 'dan', created_at: new Date(Date.now() - 3 * 86400000).toISOString() });
   add('e1', 'eve', 7);
-  heldAgain = new Set(['e1']);
-  const claims = [];
-  const dataOf = (r) => (stored.has(r.id) ? stored.get(r.id) : r.data) || {};
-  // The stored data, apart from the rows the job is handed: a read returns copies, as a database does,
-  // so a claim never changes the row the job already holds.
-  const stored = new Map();
-  const admin = {
-    from() {
-      const f = { not: [], gt: null, idEq: null, patch: null };
-      const q = {
-        select: () => q, order: () => q, limit: () => q,
-        not: (...a) => { f.not.push(a); return q; },
-        gt: (_c, v) => { f.gt = v; return q; },
-        eq: (_c, v) => { f.idEq = v; return q; },
-        update: (patch) => { f.patch = patch; return q; },
-      };
-      q.then = (ok, no) => {
-        if (f.patch) {
-          // A claim: only a row still held is taken.
-          const row = rows.find((r) => r.id === f.idEq);
-          const was = row && dataOf(row).held_at;
-          if (was) { stored.set(row.id, f.patch.data); claims.push(row.id); }
-          return Promise.resolve({ data: was ? [{ id: row.id }] : [], error: null }).then(ok, no);
-        }
-        const held = rows.filter((r) => dataOf(r).held_at && (!f.gt || r.created_at > f.gt)).sort((x, y) => x.created_at.localeCompare(y.created_at));
-        return Promise.resolve({ data: held.map((r) => ({ ...r, data: { ...dataOf(r) } })), error: null }).then(ok, no);
-      };
-      return q;
-    },
-  };
-  const cron = await loadRealModule(join(ROOT, 'src/app/api/cron/push-held/route.ts'), {
-    typescript: true,
-    registry: new Map([
-      ['next/server', nextServer],
-      ['@/lib/supabase/admin', { createAdminClient: () => admin }],
-      ['../../push/dispatch/route', { deliverNotice: async (r) => { delivered.push(r.id); assert.equal('held_at' in (r.data || {}), false, 'handed over without its hold'); return heldAgain.has(r.id) ? { held: true } : {}; } }],
-    ]),
-  });
+  const heldAgain = new Set(['e1']);
+  const db = heldDb(rows);
+  const cron = await heldCron(db, async (r) => { delivered.push(r.id); assert.equal('held_at' in (r.data || {}), false, 'handed over without its hold'); return heldAgain.has(r.id) ? { held: true } : {}; });
   assert.equal(cron.heldVerdict({ created_at: '2026-10-16T03:00:00Z', read_at: null }, new Date('2026-10-16T12:00:00Z')), 'send');
   assert.equal(cron.heldVerdict({ created_at: '2026-10-16T03:00:00Z', read_at: 'x' }, new Date('2026-10-16T12:00:00Z')), 'seen');
   assert.equal(cron.heldVerdict({ created_at: '2026-10-14T03:00:00Z', read_at: null }, new Date('2026-10-16T12:00:00Z')), 'stale');
   process.env.CRON_SECRET = 'cron-test';
   assert.equal((await cron.GET(new Request('https://x/api/cron/push-held'))).status, 401);
-  const res = await cron.GET(new Request('https://x/api/cron/push-held', { headers: { authorization: 'Bearer cron-test' } }));
-  const body = await res.json();
+  const body = await heldRun(cron);
   assert.deepEqual(delivered, ['a1', 'a2', 'a3', 'c1', 'e1'], 'oldest first, three for Ann, none seen or stale');
-  assert.deepEqual(body, { ok: true, delivered: 4, letGo: 4, failed: 0 }, "Eve's is held again (still her night), so it is not counted");
-  assert.deepEqual(stored.get('a1'), { keep: 'a1' }, 'the hold comes off, the rest of the data stays');
-  assert.ok(['a4', 'b1', 'b2', 'old'].every((id) => claims.includes(id)), 'what is not sent is let go');
+  assert.deepEqual(body, { ok: true, delivered: 4, letGo: 4, failed: 0, stopped: false }, "Eve's is held again (still her night), so it is not counted");
+  assert.deepEqual(db.stored.get('a1'), { keep: 'a1' }, 'the hold comes off, the rest of the data stays');
+  assert.ok(['a4', 'b1', 'b2', 'old'].every((id) => db.claims.includes(id)), 'what is not sent is let go');
+});
+
+test('a held notice whose send fails keeps its hold, and a run stops taking work at its time (Codex on #2476)', async () => {
+  process.env.CRON_SECRET = 'cron-test';
+  const row = (id, mins, user = id) => ({ id, user_id: user, type: 'follow', title: id, body: '', route: null, data: { held_at: '2026-10-26T03:00:00Z', keep: id }, created_at: new Date(Date.now() - (600 - mins) * 60000).toISOString(), read_at: null });
+  // The send throws after its email went out and was stamped on the row.
+  let db = heldDb([row('ok', 0), row('boom', 1), row('next', 2)]);
+  let cron = await heldCron(db, async (r) => {
+    if (r.id === 'boom') { db.stored.set('boom', { ...r.data, emailed_at: 'e' }); throw new Error('Firebase down'); }
+    return {};
+  });
+  let body = await heldRun(cron);
+  assert.deepEqual(body, { ok: true, delivered: 2, letGo: 0, failed: 1, stopped: false });
+  assert.deepEqual(db.dataById('boom'), { keep: 'boom', emailed_at: 'e', held_at: '2026-10-26T03:00:00Z' }, 'the failed send lost its hold, or its email stamp');
+  assert.deepEqual(db.stored.get('next'), { keep: 'next' }, 'a failure stopped the run');
+  // The next run tries it again, and does not email it again (the stamp is on the row it is handed).
+  let handed = null;
+  cron = await heldCron(db, async (r) => { handed = r; return {}; });
+  body = await heldRun(cron);
+  assert.equal(handed && handed.id, 'boom');
+  assert.equal(handed.data.emailed_at, 'e');
+  assert.deepEqual(body, { ok: true, delivered: 1, letGo: 0, failed: 0, stopped: false });
+  // Each send takes 40 s here: the run takes three in its 90 s and leaves the rest held.
+  const RealDate = Date;
+  let clock = RealDate.now();
+  globalThis.Date = class extends RealDate { constructor(...a) { if (a.length) super(...a); else super(clock); } static now() { return clock; } };
+  try {
+    db = heldDb([row('s1', 0), row('s2', 1), row('s3', 2), row('s4', 3), row('s5', 4)]);
+    const sent = [];
+    cron = await heldCron(db, async (r) => { clock += 40_000; sent.push(r.id); return {}; });
+    body = await heldRun(cron);
+  } finally {
+    globalThis.Date = RealDate;
+  }
+  assert.equal(body.stopped, true);
+  assert.equal(body.delivered, 3);
+  assert.ok(db.dataById('s4').held_at && db.dataById('s5').held_at, 'what the run left lost its hold');
 });
 
 // ── 1 and 7e. The database: direct messages, and no repeated follows or co-signs ──────────────────

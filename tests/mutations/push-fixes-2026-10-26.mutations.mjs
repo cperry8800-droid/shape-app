@@ -185,6 +185,16 @@ export default {
     { name: 'every Nora run starts at the same place', file: 'src/app/api/ai/notify/cron/route.ts',
       find: '  const queue = rotated(owners, Math.floor(startedAt / 3_600_000));',
       replace: '  const queue = owners;' },
+    // The held-notice job: a failed send keeps its hold, and a run stops with time to spare (Codex on #2476).
+    { name: 'a held notice whose send fails loses its hold', file: HELD,
+      find: '        if (released) {\n',
+      replace: '        if (false) {\n' },
+    { name: 'the hold put back drops the email stamp', file: HELD,
+      find: '  const current = now && now.data && typeof now.data === \'object\' ? (now.data as Record<string, unknown>) : before;',
+      replace: '  const current = before;' },
+    { name: 'the held-notice job runs past its time', file: HELD,
+      find: '      if (Date.now() - startedAt > TIME_BUDGET_MS) { stopped = true; break walk; }\n',
+      replace: '' },
     // The daily Score job: a time budget and a start that moves each day (Codex on #2476).
     { name: 'the Score job runs past its time', file: 'src/app/api/cron/score-accountability/route.ts',
       find: '      if (Date.now() - startedAt > TIME_BUDGET_MS) { unreached = clientIds.length - (at + i); break members; }\n',
