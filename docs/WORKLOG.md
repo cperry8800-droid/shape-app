@@ -202,6 +202,10 @@ The War Room has the full list; this covers what needs the owner and the planned
 - Eat on a live meal plan reads what was eaten from the plan's day `totals` and meals' `state`,
   not the logs.
 - Signed in, others' profiles show the demo signals and climb (owner: leave it).
+- Heart rate on Session details: the app draws it with no "bpm" (its label says HR), and every
+  Wall demo post carries Avg HR, a PR its PR set HR and each set, interval or split its own. A
+  lift logged live in the app records no HR per set, so its table has no HR column; the
+  website's community feed still prints "bpm".
 - Shape Wire shows the coach's latest note however old; its morning protein line reads only
   today's row.
 - Server notices: the bell, push and notice email say them in the reader's `app_locale` from

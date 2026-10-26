@@ -36,7 +36,7 @@ test('the Me page asks for the Wall\'s heads on every tab: the name, the score, 
   assert.equal(nodes.filter(named('BSTPullQuote')).length, 0, 'the member\'s line is pulled out at the top again');
   assert.match(d.text, /Training for/, 'the start line under the name went with the quote');
   const tabsOf = () => d.nodes().find(named('BSTerrainTabs'));
-  const seen = {};
+  const seen = {}, texts = {};
   for (const tb of tabsOf().props.tabs) {
     tabsOf().props.onPick(tb.key);
     d.render();
@@ -44,9 +44,16 @@ test('the Me page asks for the Wall\'s heads on every tab: the name, the score, 
     for (const h of heads) assert.equal(h.props.mag, true, `"${h.props.label}" on ${tb.key} is the old station head`);
     for (const b of d.nodes().filter(named('BSSdBars'))) assert.equal(b.props.mag, true, `bars on ${tb.key} are the old ones`);
     seen[tb.key] = heads.map((h) => h.props.label);
+    texts[tb.key] = d.text;
   }
-  assert.deepEqual(seen.signals, ['Living signals', 'Disciplines · strata', 'Key lifts']);
-  assert.deepEqual(seen.climb, ['The climb']);
+  // A tab's first section takes no head of its own: the tab right above names it (owner, 2026-10-26:
+  // "remove these headers. dont need it showing twice", then "and remove 'the climb'").
+  assert.deepEqual(seen.signals, ['Disciplines · strata', 'Key lifts']);
+  assert.deepEqual(seen.climb, []);
+  // The Climb's head carried the join date, the one place most profiles show it: it stays without the head
+  // (Codex P2 on #2468).
+  assert.match(texts.climb, /Member since/);
+  assert.ok(!seen.activity.includes('The wall'), 'the wall has its head back under the Activity tab');
 });
 
 test('the section strip: the names in the headline face between a heavy rule and a hairline, the active one underlined in red', () => {
@@ -112,8 +119,10 @@ test('the wall, the shelf and the prompts in the Wall\'s look: square shots to t
   const d = drive(mod.BSProfileExtras, { custom: mod.bsDemoMemberCustom(), c: '#c0533b', INK, BG: '#fff', isSelf: false, ledger: true, demo: true, bleed: 20 });
   const nodes = d.nodes();
   const heads = nodes.filter(named('BSTStationHead'));
-  assert.deepEqual(heads.map((h) => h.props.label), ['The wall', 'The shelf · Proudest']);
-  assert.ok(heads.every((h) => h.props.mag), 'the wall and shelf heads are the old ones');
+  // The wall takes no head (the Activity tab above names it) and keeps its name for a screen reader.
+  assert.deepEqual(heads.map((h) => h.props.label), ['The shelf · Proudest']);
+  assert.ok(heads.every((h) => h.props.mag), 'the shelf head is the old one');
+  assert.ok(nodes.some((n) => n.props && n.props.role === 'group' && n.props['aria-label'] === 'The wall'), 'the wall lost its accessible name');
   const figs = nodes.filter((n) => n.type === 'figure');
   assert.ok(figs.length >= 2, 'the demo wall has its shots');
   for (const f of figs) {

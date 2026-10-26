@@ -78,9 +78,15 @@ export function bsIbSetRow(row) {
   // nobody rated. The same trap this repo has now paid for on the Wall's
   // helpers, the demo payout history and the booking sheet.
   const rpe = Number.isFinite(rpeNum) && rpeNum > 0 ? rpeNum : null;
+  // The heart rate through the set (or the interval): a `bpm` token in the note,
+  // as the demo rows write it, or `hr` in the fourth element. It is lifted out
+  // like the RPE, so it reads in its own column and not twice.
+  const hrRaw = meta && meta.hr != null ? meta.hr : (note.match(/(\d{2,3})\s*bpm\b/i) || [])[1];
+  const hrNum = Number(hrRaw);
+  const hr = hrRaw != null && String(hrRaw).trim() !== '' && Number.isFinite(hrNum) && hrNum > 0 ? Math.round(hrNum) : null;
   // Whatever is left of the note once the RPE token is lifted out is the row's
   // own sub-label (the demo rows' `PR`, a live row's duration and rest).
-  const leftover = note.replace(/rpe\s*[\d.]+/i, '').replace(/^\s*·\s*|\s*·\s*$/g, '').trim();
+  const leftover = note.replace(/rpe\s*[\d.]+/i, '').replace(/\d{2,3}\s*bpm\b/i, '').replace(/(\s*·\s*)+/g, ' · ').replace(/^\s*·\s*|\s*·\s*$/g, '').trim();
   const restFromNote = (leftover.match(/rest\s+([^·]+)/i) || [])[1];
   // ⚠ WHAT THE REST COLUMN TAKES, THE NOTE COLUMN GIVES UP. Without this the
   // same `rest 2:30` renders in two columns of one row — the note reading
@@ -93,6 +99,7 @@ export function bsIbSetRow(row) {
     value: String(r[1] == null ? '' : r[1]),
     plan: plain(meta ? meta.plan : null),
     rpe,
+    hr,
     rest: plain(meta ? meta.rest : restFromNote),
     note: plain(spare),
   };
@@ -123,9 +130,13 @@ export function bsIbSetTable(rows) {
     cols: {
       plan: parsed.some((p) => p.plan != null),
       rpe: parsed.some((p) => p.rpe != null),
+      hr: parsed.some((p) => p.hr != null),
       rest: parsed.some((p) => p.rest != null),
       note: parsed.some((p) => p.note != null),
     },
+    // What the value column holds. A ride's intervals are times ('6:24'), and a
+    // LIFTED heading over them read as though the climbs were sets.
+    valueKind: parsed.length > 0 && parsed.every((p) => /^\d{1,2}(:\d{2}){1,2}$/.test(p.value.trim())) ? 'time' : 'load',
   };
 }
 

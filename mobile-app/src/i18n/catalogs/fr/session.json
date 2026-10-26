@@ -275,6 +275,7 @@
   "board.colSet": "Série",
   "board.colPlan": "Prévu",
   "board.colLifted": "Soulevé",
+  "board.colTime": "Durée",
   "board.colRpe": "RPE",
   "board.colRest": "Repos",
   "board.colHr": "FC",

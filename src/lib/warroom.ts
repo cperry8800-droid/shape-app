@@ -615,6 +615,20 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Session details: heart rate on every activity, the profile\'s doubled heads, and Get App\'s Habits frame signed in — #2468. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26, on a deadlift PR\'s tiles: "this should say HR no BPM, make sure that is showing correctly for all activities"; on a bench PR: "there is not HR or other stats on this post"; then "show HR during PR if it is one, and always show AVG HR, and then show HR during different stages of activity depending on activity"', status: 'done' },
+        { label: 'sessionLedger.mjs: bsSdFigure and bsSdFigureText draw a bpm figure as a bare number under its HR label, on the board\'s tiles and sheet, the dot-leader rows, both heroes, BSTLedgerStat, the Wall\'s preview grid and facts, and BSWallStory; the stored value keeps its bpm. The HR chart\'s peak and scrub drop it too', status: 'done' },
+        { label: 'Every Wall demo activity carries Avg HR; a PR carries PR set HR after it, equal to its PR row and at most Max HR; each set, ride interval, run or swim split carries its own HR in an HR column (bsIbSetRow reads a bpm token or meta.hr). Devon\'s bench PR and Casey\'s lower-strength session gained full stat sets', status: 'done' },
+        { label: 'A table of times is headed Time, not Lifted (bsIbSetTable valueKind; session:board.colTime in 13 locales). A swim pace splits off its /100yd, so it no longer runs into the next tile; the website\'s cfSplitUnit follows', status: 'done' },
+        { label: 'Profile (owner: "remove these headers. dont need it showing twice", "and remove \'the climb\'"): The wall, Living signals and The climb lose their heads under the tab row; the strip keeps its name for a screen reader, and "Member since" stays on the Climb\'s switch row (Codex P2 on 65e4d8c, fixed in 78cbc50)', status: 'done' },
+        { label: 'Get App\'s Habits frame re-shot through the page\'s signed-in path with every off-server request refused (?v=20261026b): +6 of 9 pts today · 1 to go, two habits ticked', status: 'done' },
+        { label: 'Review: Codex clean on 78cbc50 after its P2 on 65e4d8c was fixed. Checks: npm test 8,534/8,534; tests/session-hr.test.mjs pins the rule, every display site, per-set HR and every demo activity\'s HR', status: 'done' },
+        { label: 'A lift logged live in the app records no HR per set (bsBuildBreakdown\'s set rows carry RPE, plan, rest and duration), so a real lift has no HR column and a real PR no PR set HR; the column and parser are ready for meta.hr', status: 'pending' },
+        { label: 'The website\'s community feed (communityFeed.jsx) still prints "bpm" on its stats and split labels', status: 'pending' },
+      ],
+    },
+    {
       section: 'Website Goal page: a signed-out reader sees the sample, not "Couldn\'t read your subscriptions" — #2466. No migration',
       items: [
         { label: 'Owner, 2026-10-26: "fix the goal page couldn\'t read subscriptions" (the line #2464\'s re-shoot found under What clients earn you)', status: 'done' },
@@ -644,7 +658,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Coaches page (#2464): all 20 dashboard frames re-shot by the coaches.jsx recipe (?v=20261026); the Score copy names the real formula (three terms for a trainer, two for a nutritionist), Goal names What clients earn you, Business its Plan, Today its New clients', status: 'done' },
         { label: 'Review: Codex clean on #2463 (d7271e9) and on #2464 (d9f517e, after its first run stalled and was re-requested); CI green on both', status: 'done' },
         { label: 'Signed out, the website dashboard\'s Goal page read "Couldn\'t read your subscriptions just now" under What clients earn you: a 401 landed in the card\'s failed state, not a sample (DbzGoalEarn, dashBusiness.jsx). Fixed in #2466', status: 'done' },
-        { label: 'The Get App Habits frame is the untouched state: a tap in the preview opens sign-up, so a ticked habit needs a signed-in capture', status: 'pending' },
+        { label: 'The Get App Habits frame was the untouched state (a tap in the preview opens sign-up); re-shot signed in by #2468', status: 'done' },
       ],
     },
     {

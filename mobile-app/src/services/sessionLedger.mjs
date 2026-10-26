@@ -5,11 +5,30 @@
 
 // Split a stat value into { num, unit } for big-number + small-unit type.
 // Only a short trailing letter/%/slash token counts as a unit — composites
-// ("2.4 · M0") and times ("25:31") render whole.
+// ("2.4 · M0") and times ("25:31") render whole. A swim's pace carries its pool
+// length in the unit ("1:33/100yd"): read whole, it drew at the figure's size and
+// ran into the next tile.
 export function bsSdSplitUnit(text) {
   const s = String(text == null ? '' : text).trim();
-  const m = s.match(/^([\d.,:]+)\s*([a-zA-Z%/]{1,6})$/);
+  const m = s.match(/^([\d.,:]+)\s*((?:\/\d{2,4})?[a-zA-Z%/]{1,6})$/);
   return m ? { num: m[1], unit: m[2] } : { num: s, unit: '' };
+}
+
+// A figure as the page DRAWS it. Heart rate reads as a bare number: its label
+// already says HR (owner, 2026-10-26: "this should say HR no BPM, make sure that
+// is showing correctly for all activities"). The stored value keeps its "bpm",
+// which is how every reader tells a heart rate from another number.
+export function bsSdFigure(text) {
+  const u = bsSdSplitUnit(text);
+  return /^bpm$/i.test(u.unit) ? { num: u.num, unit: '' } : u;
+}
+
+// The same rule for a figure printed as one string (the Wall's preview grid, the
+// story's figures): "138 bpm" reads "138", anything else as written.
+export function bsSdFigureText(text) {
+  const s = String(text == null ? '' : text).trim();
+  const u = bsSdSplitUnit(s);
+  return /^bpm$/i.test(u.unit) ? u.num : s;
 }
 
 const SD_PACE_RE = /pace|speed/i;

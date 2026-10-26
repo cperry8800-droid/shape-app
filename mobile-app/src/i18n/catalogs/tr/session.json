@@ -275,6 +275,7 @@
   "board.colSet": "Set",
   "board.colPlan": "Plan",
   "board.colLifted": "Kaldırılan",
+  "board.colTime": "Süre",
   "board.colRpe": "RPE",
   "board.colRest": "Dinlenme",
   "board.colHr": "Nabız",

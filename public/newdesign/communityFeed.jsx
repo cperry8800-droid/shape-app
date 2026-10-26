@@ -480,7 +480,7 @@ function cfHeat(p) { return CF_HEAT[cfKindOfRole(p && p.role)] || CF_HEAT.CLIENT
 // a time ("25:31") stay whole and reach the renderability gate intact.
 function cfSplitUnit(text) {
   const s = String(text == null ? "" : text).trim();
-  const m = s.match(/^([\d.,:]+)\s*([a-zA-Z%/]{1,6})$/);
+  const m = s.match(/^([\d.,:]+)\s*((?:\/\d{2,4})?[a-zA-Z%/]{1,6})$/);
   return m ? { num: m[1], unit: m[2] } : { num: s, unit: "" };
 }
 
