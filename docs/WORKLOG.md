@@ -122,6 +122,10 @@ dated entry or past 20 KB.
     linked coaches through the private `meal-notes` bucket.
   - `src/app/api/nutrition/voice/route.ts` does Whisper transcription.
   - The War Room (`/warroom`, `src/lib/warroom.ts`) is the go-live status board.
+  - `/api/calendar?activities=1` (member calendar only) adds activities: providers' copies
+    within 20 min are one; a logged workout's folds into it; one ticks an open planned
+    workout of its day (undated: its week) and `workoutKind`, unless its title names no
+    kind or two.
 
 ## Open items
 

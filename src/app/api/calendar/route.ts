@@ -47,6 +47,7 @@ import { isSessionReschedulable } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 import { requireMembership } from '@/lib/require-membership';
 import { DAY_MS, normalizeZone, wallClockInZone } from '@/lib/time';
+import { calendarActivities, workoutKind, type ActivityRow, type ActivityEvent, type DoneWorkout, type PlannedWorkout } from '@/lib/calendar-activities';
 import { memberDay, storedDay } from '@/lib/workout-days';
 
 export const runtime = 'nodejs';
@@ -55,6 +56,8 @@ export const dynamic = 'force-dynamic';
 // How many published plan rows the calendar reads, newest first with the undated ones
 // kept — see the note on that query.
 const PLAN_CAP = 200;
+// A month or six weeks of a member's activities; a read that fills it keeps the newest.
+const ACTIVITY_CAP = 500;
 // The plans row reads a window of every client's assigned training days (one row per day
 // planned), in pages, to the end of the window. Past the cap the read is reported incomplete
 // (`clientPlansReadable: false`) rather than drawn as days with no training.
@@ -342,6 +345,8 @@ export async function GET(request: Request) {
   // A failed read leaves every workout planned, as before.
   const undatedIds = new Set(undatedW.map((w) => w.id));
   const planIds = planWorkouts.map((w) => String(w.id).slice('plan:'.length));
+  // When each finished workout's session started: a synced copy of it folds into its card (3b).
+  const doneAt: DoneWorkout[] = [];
   if (planIds.length) {
     type WsRow = { client_workout_id: string | null; duration_seconds: number | null; started_at: string | null; ended_at: string | null; created_at: string | null; local_day: string | null };
     const { data: wsRows } = await supabase
@@ -358,18 +363,62 @@ export async function GET(request: Request) {
     for (const r of (wsRows ?? []) as WsRow[]) {
       const id = r.client_workout_id;
       if (!id) continue;
+      const at = Date.parse(String(r.started_at || r.ended_at || r.created_at || ''));
       if (undatedIds.has(id)) {
-        const day = storedDay(r.local_day) ?? memberDay(r.started_at || r.ended_at || r.created_at, zone);
+        const day = storedDay(r.local_day) ?? memberDay(at, zone);
         if (!day || day < weekISO[0]) continue;
       }
-      // The newest run's time (the read is newest first), not the longest attempt's.
-      if (!doneSec.has(id)) doneSec.set(id, Number(r.duration_seconds) || 0);
+      // The newest run's time (the read is newest first), not the longest attempt's, and its start
+      // is the one a synced copy pairs with: an older attempt's copy is its own card and never
+      // lends this card its distance (Codex on #2460).
+      if (doneSec.has(id)) continue;
+      doneSec.set(id, Number(r.duration_seconds) || 0);
+      if (Number.isFinite(at)) doneAt.push({ id: `plan:${id}`, at });
     }
     for (const w of planWorkouts) {
       const sec = doneSec.get(String(w.id).slice('plan:'.length));
       if (sec == null) continue;
       w.status = 'completed';
       w.doneSeconds = sec || null;
+    }
+  }
+
+  // 3b) The member's activities: Strava, Garmin, Apple Health, WHOOP, Oura, or logged by hand.
+  //     Only the member calendar asks for them (`activities=1`, the app's); the coach's Schedule
+  //     and the website's overlay read this route without. Placed on the zone's dates, a workout
+  //     two providers synced shown once, one logged in Shape folded into its card, and one that
+  //     is an unfinished assigned workout's day and kind finishing it, with its distance and time
+  //     (src/lib/calendar-activities.ts). A failed read shows none.
+  let activityEvents: ActivityEvent[] = [];
+  if (url.searchParams.get('activities') === '1') {
+    const { data: actRows } = await supabase
+      .from('activities')
+      .select('id, source, activity_type, title, started_at, duration_min, distance_km, calories')
+      .eq('user_id', targetUserId)
+      .gte('started_at', fromIso)
+      .lte('started_at', toIso)
+      .order('started_at', { ascending: false })
+      .limit(ACTIVITY_CAP);
+    // The unfinished ones, dated first: an undated workout takes a day of this week.
+    const planned: PlannedWorkout[] = planWorkouts
+      .filter((w) => w.status !== 'completed')
+      .map((w) => ({
+        id: String(w.id),
+        days: undatedIds.has(String(w.id).slice('plan:'.length)) ? weekISO : [String(w.date)],
+        kind: workoutKind(String(w.title ?? '')),
+      }))
+      .sort((a, b) => a.days.length - b.days.length);
+    const placed = calendarActivities({ rows: (actRows ?? []) as ActivityRow[], zone, from: dFrom, to: dTo, done: doneAt, planned });
+    activityEvents = placed.events;
+    for (const w of planWorkouts) {
+      const fill = placed.workouts.get(String(w.id));
+      if (!fill) continue;
+      if (fill.distanceKm != null) w.distanceKm = fill.distanceKm;
+      if (!fill.matched) continue;
+      // Finished by a synced activity: its time, and the providers it came from ('' by hand).
+      w.status = 'completed';
+      w.doneSeconds = fill.durationMin ? fill.durationMin * 60 : null;
+      w.doneBy = fill.by;
     }
   }
 
@@ -491,7 +540,7 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ events: [...events, ...sessions, ...planWorkouts, ...planMeals], zone, ...(plansRow || {}) });
+  return NextResponse.json({ events: [...events, ...sessions, ...planWorkouts, ...activityEvents, ...planMeals], zone, ...(plansRow || {}) });
 }
 
 // ── POST ─────────────────────────────────────────────────────────────────────

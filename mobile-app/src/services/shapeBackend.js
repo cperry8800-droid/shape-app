@@ -5687,6 +5687,9 @@ async function listCalendar({ from, to, clientId, role, strict = false } = {}) {
   if (to) qs.set('to', to);
   if (clientId) qs.set('clientId', clientId);
   if (role === 'trainer' || role === 'nutritionist') qs.set('role', role);
+  // The member calendar shows their synced and hand-logged activities (Strava, Garmin, Apple
+  // Health…); a coach's own calendar and week don't ask for them.
+  else qs.set('activities', '1');
   qs.set('tz', deviceTimeZone());
   const d = await getJsonOrDefault(`${apiBaseUrl || ''}/api/calendar?${qs.toString()}`, null);
   if (strict && !Array.isArray(d?.events)) throw new Error('Calendar unavailable');

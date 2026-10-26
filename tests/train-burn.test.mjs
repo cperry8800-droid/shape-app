@@ -94,7 +94,10 @@ test('a failed read says so and can be tried again', async () => {
   await m.close();
 });
 
-test('signed out shows the preview’s sample week, marked as one', async () => {
+test('signed out shows the preview’s sample week, marked as one', async (t) => {
+  // A Thursday: the sample is fitted to the days gone this week, and on a Monday it is one point
+  // with no line, which failed this test every Monday (and, left mounted, the next one too).
+  t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 9, 22, 12).getTime() });
   W.ShapeAuth = { getCachedState: () => ({ user: null }) };
   W.ShapeBurn = { week: async () => { throw new Error('signed-out preview must not read'); } };
   const m = await mount();

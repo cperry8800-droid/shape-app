@@ -11,10 +11,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { drive, textOf, SHIM, ROOT } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
-import { fakeSupabase } from './helpers/fake-supabase.mjs';
+import { calendarRoute } from './helpers/calendar-route.mjs';
 
 const require_ = createRequire(import.meta.url);
 const React = require_('react');
@@ -68,8 +67,8 @@ test('a week totals what was done of what was planned, leaving out meals and res
     { kind: 'REST' },
     { kind: 'CHECKIN', dur: null },
   ]);
-  assert.deepEqual(tot, { done: 2, total: 4, minutes: 135 });
-  assert.deepEqual(WEEKS.bsCalWeekTotals([]), { done: 0, total: 0, minutes: 0 });
+  assert.deepEqual(tot, { done: 2, total: 4, minutes: 135, km: 0 });
+  assert.deepEqual(WEEKS.bsCalWeekTotals([]), { done: 0, total: 0, minutes: 0, km: 0 });
 });
 
 // ── what the weeks list draws ────────────────────────────────────────────────
@@ -114,6 +113,19 @@ test('signed out, the weeks list offers no ＋ Add', () => {
   assert.doesNotMatch(strip(render({ onAdd: null })), /＋ Add/);
 });
 
+test('a synced run is a done card with its distance in the member\'s unit, and the week totals it', () => {
+  // The harness theme reads imperial: 5.8 km is 3.6 mi.
+  const text = strip(render({ events: [
+    { id: 'act:s1', source: 'activity', date: '2026-10-21', kind: 'WORKOUT', title: 'Morning Run', state: 'done', distanceKm: 5.8, dur: 35, time: '07:00' },
+    { id: 'plan:w1', source: 'plan', date: '2026-10-22', kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2124, distanceKm: 5.8, dur: 35, time: '—' },
+    { id: 'act:y1', source: 'activity', date: '2026-10-23', kind: 'WORKOUT', title: 'Yoga', state: 'done', distanceKm: null, dur: 45, time: '08:00' },
+  ] }));
+  assert.match(text, /Morning Run 3\.6 mi · 35m /, 'a synced run: how far and how long');
+  assert.match(text, /Easy Run 3\.6 mi · 35m 24s/, 'a workout logged in Shape keeps its own time and takes the distance');
+  assert.match(text, /Yoga 45m /, 'no distance, no distance');
+  assert.match(text, /Total · 3 of 3 done · 1h 55m · 7\.2 mi/);
+});
+
 test('the weeks list speaks the reader\'s language, plurals included', async () => {
   const en = globalThis.ShapeI18n;
   globalThis.ShapeI18n = await translator('ru');
@@ -140,7 +152,7 @@ const sheet = { opened: [], open(n) { this.opened.push(n); }, close() {} };
 const EFFECTS = { ...SHIM, useEffect: (fn) => { fn(); }, useContext: () => sheet };
 const CAL = await loadRealModule(join(BROADSHEET, 'iosAppBroadsheetCalendar.jsx'), {
   registry: new Map([['react', EFFECTS], ['react-dom', { createPortal: (n) => n }]]),
-  appendExports: 'export { BSCalendarScreen, BSCalDaySheet };',
+  appendExports: 'export { BSCalendarScreen, BSCalDaySheet, BSEventSheet, BSEventActivityBody, BSEventWorkoutBody };',
 });
 const named = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
 
@@ -202,6 +214,50 @@ test('Month keeps to its own dates when a weeks read carried the days either sid
   assert.deepEqual(d.nodes().find(named('BSCalendarMonth')).props.events.map((e) => e.id), ['oct']);
 });
 
+test('a synced run from the route reaches Weeks with its distance, calories and providers', async () => {
+  const run = { id: 'act:s1', source: 'activity', kind: 'WORKOUT', title: 'Morning Run', sub: 'Garmin · Strava', date: '2026-10-21', time: '07:00', durationMin: 35, distanceKm: 5.81, calories: 410, activityType: 'run', sources: ['garmin', 'strava'], status: 'completed', editable: false };
+  const matched = { id: 'plan:w1', source: 'plan', kind: 'WORKOUT', title: 'Easy Run', date: '2026-10-22', time: null, durationMin: 45, status: 'completed', doneSeconds: 2100, distanceKm: 5.79, doneBy: 'Strava' };
+  const { d, settle } = await screen({ stored: 'weeks', answer: () => ({ events: [run, matched], zone: 'UTC' }) });
+  await settle();
+  const m = d.nodes().find(named('BSCalendarWeeks')).props.events[1];
+  assert.deepEqual([m.state, m.doneSec, m.distanceKm, m.doneBy], ['done', 2100, 5.79, 'Strava'], 'a matched workout lost what finished it');
+  const e = d.nodes().find(named('BSCalendarWeeks')).props.events[0];
+  assert.deepEqual([e.state, e.dur, e.distanceKm, e.calories, e.activityType, e.sources, e.editable], ['done', 35, 5.81, 410, 'run', ['garmin', 'strava'], false]);
+});
+
+test('an activity titled only by its type reads in the member\'s language; a named one keeps its name', async () => {
+  const ev = (id, activityType, title, named) => ({ id, source: 'activity', kind: 'WORKOUT', title, date: '2026-10-21', time: '07:00', durationMin: 35, activityType, sources: ['garmin'], status: 'completed', editable: false, named });
+  const answer = () => ({ zone: 'UTC', events: [
+    ev('act:g1', 'running', 'Running', false),
+    ev('act:a1', 'traditionalstrengthtraining', 'Traditionalstrengthtraining', false),
+    // A type with no plain title keeps the route's label, as Train's activity list shows it.
+    ev('act:g2', 'trail_running', 'Trail running', false),
+    ev('act:s1', 'run', 'Morning Run', true),
+    // A route from before this change sends no flag: its title stands.
+    ev('act:x1', 'running', 'Running', undefined),
+  ] });
+  const titles = async () => {
+    const { d, settle } = await screen({ stored: 'weeks', answer });
+    await settle();
+    return d.nodes().find(named('BSCalendarWeeks')).props.events.map((e) => e.title);
+  };
+  assert.deepEqual(await titles(), ['Running', 'Strength training', 'Trail running', 'Morning Run', 'Running']);
+  const en = globalThis.ShapeI18n;
+  globalThis.ShapeI18n = await translator('es');
+  try {
+    assert.deepEqual(await titles(), ['Carrera', 'Entrenamiento de fuerza', 'Trail running', 'Morning Run', 'Running']);
+    // A language change while the calendar is open retitles what is on screen before any new read
+    // answers (this harness starts one each render; it has not landed when the render is read).
+    const { d, settle } = await screen({ stored: 'weeks', answer });
+    await settle();
+    globalThis.ShapeI18n = en;
+    d.render();
+    assert.deepEqual(d.nodes().find(named('BSCalendarWeeks')).props.events.map((e) => e.title).slice(0, 2), ['Running', 'Strength training']);
+  } finally {
+    globalThis.ShapeI18n = en;
+  }
+});
+
 test('Weeks reads today on the clock the calendar is in, not the phone\'s', async (t) => {
   // 11 PM UTC on the 25th: 7 PM in New York (this suite's device), 1 PM on the 26th on Kiritimati.
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-25T23:00:00Z') });
@@ -254,38 +310,9 @@ test('signed in, a day\'s ＋ Add opens the add sheet on that day, and a meal pl
 
 // ── the route: a finished assigned workout reads done ────────────────────────
 
-const nextServer = require_('next/server');
-const ROUTE = await (async () => {
-  const lib = (f) => loadRealModule(join(ROOT, 'src/lib', f), { typescript: true, registry: new Map([['next/server', nextServer]]) });
-  const [time, requestUtils] = await Promise.all([lib('time.ts'), lib('request-utils.ts')]);
-  const guards = await import(pathToFileURL(join(ROOT, 'src/lib/access-guards.mjs')).href);
-  const owned = await loadRealModule(join(ROOT, 'src/lib/owned-provider.ts'), { typescript: true, registry: new Map([['@/lib/time', time], ['@supabase/supabase-js', {}]]) });
-  const booking = await loadRealModule(join(ROOT, 'src/lib/session-booking.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/owned-provider', owned]]) });
-  const series = await loadRealModule(join(ROOT, 'src/lib/session-series.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/time', time]]) });
-  const workoutDays = await loadRealModule(join(ROOT, 'src/lib/workout-days.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/time', time]]) });
-  let client = null;
-  const route = await loadRealModule(join(ROOT, 'src/app/api/calendar/route.ts'), {
-    typescript: true,
-    registry: new Map([
-      ['next/server', nextServer], ['@/lib/time', time], ['@/lib/request-utils', requestUtils],
-      ['@/lib/access-guards.mjs', guards], ['@/lib/session-booking', booking], ['@/lib/session-series', series],
-      ['@/lib/workout-days', workoutDays],
-      ['@/lib/paid-sessions', { openPaidSessions: async () => ({ ok: true, rows: [] }), linkPaidSession: async () => true }],
-      ['@/lib/require-membership', { requireMembership: async () => null }],
-      ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: 'member-1' }) }],
-      ['@/lib/supabase/admin', { createAdminClient: () => ({}) }],
-      ['@/lib/video', { videoRoomUrl: () => null }],
-      ['@/lib/notify', { createNotification: async () => {} }],
-      ['@/lib/session-emails', { afterSessionStep: async () => ({ emailed: false, followedUp: false }) }],
-      ['@supabase/supabase-js', {}],
-    ]),
-  });
-  return async (tables, { fail = [], tz = 'UTC', range = '', maxRows = null } = {}) => {
-    client = fakeSupabase({ tables: { trainers: [], nutritionists: [], sessions: [], calendar_events: [], client_meal_plans: [], client_profiles: [], workout_sessions: [], ...tables }, fail, maxRows });
-    const res = await route.GET(new Request(`https://shape.test/api/calendar?tz=${encodeURIComponent(tz)}${range}`));
-    return (await res.json()).events.filter((e) => e.source === 'plan');
-  };
-})();
+const GET = await calendarRoute();
+const ROUTE = async (tables, { fail = [], tz = 'UTC', range = '', maxRows = null } = {}) =>
+  (await GET(tables, { fail, maxRows, qs: `tz=${encodeURIComponent(tz)}${range}` })).events.filter((e) => e.source === 'plan');
 
 const DAY = 86400000;
 const now = new Date();
@@ -378,4 +405,58 @@ test('a failed read of the logged sessions leaves every workout planned', async 
   const day = dayIso(now.getTime() - DAY);
   const plan = await ROUTE({ client_workouts: [workout('w-1', day)], workout_sessions: [ran('w-1', now.getTime() - DAY)] }, { fail: ['workout_sessions'] });
   assert.deepEqual(plan.map((e) => [e.id, e.status]), [['plan:w-1', 'planned']], 'the workout went missing or read done');
+});
+
+// ── the event sheet ──────────────────────────────────────────────────────────
+
+const sheetOf = (event) => drive(CAL.BSEventSheet, { event: { accent: '#c0533b', date: '2026-10-21', time: '07:00', ...event }, role: 'client', onClose() {}, live: true });
+const buttonsOf = (d) => d.nodes().filter((n) => n.type === 'button').map((b) => textOf(b).trim());
+
+test('a synced run opens on what was measured, and offers nothing to start', () => {
+  const d = sheetOf({ id: 'act:s1', source: 'activity', kind: 'WORKOUT', title: 'Morning Run', sub: 'Strava', state: 'done', distanceKm: 5.8, dur: 35, activityType: 'run', calories: 410 });
+  assert.ok(d.nodes().some(named('BSEventActivityBody')));
+  assert.equal(d.nodes().some(named('BSEventWorkoutBody')), false, 'a synced run drew the session card (blank moves, RPE)');
+  assert.deepEqual(buttonsOf(d).filter((b) => /Start session|Completed/.test(b)), ['Completed ✓']);
+  // Its register, in the member's unit: 35 minutes over 3.604 mi is 9:43 a mile.
+  const body = drive(CAL.BSEventActivityBody, { event: { source: 'activity', distanceKm: 5.8, dur: 35, activityType: 'run', calories: 410, sub: 'Strava' } });
+  assert.deepEqual(body.nodes().find(named('BSEventStatRegister')).props.items, [['DIST', '3.6 mi'], ['DUR', '35m'], ['PACE', '9:43 /mi'], ['KCAL', '410']]);
+  assert.doesNotMatch(body.text, /Logged by hand/);
+  // A ride has no pace; one logged by hand says so.
+  const ride = drive(CAL.BSEventActivityBody, { event: { source: 'activity', distanceKm: 20, dur: 50, activityType: 'ride', sub: '' } });
+  assert.deepEqual(ride.nodes().find(named('BSEventStatRegister')).props.items[2], ['PACE', '—']);
+  assert.match(ride.text, /Logged by hand\./);
+  // A hike is on foot, whatever case the provider sent: 8 km in 96 minutes is 19:19 a mile.
+  for (const activityType of ['hiking', 'HIKE', 'trail_running']) {
+    const hike = drive(CAL.BSEventActivityBody, { event: { source: 'activity', distanceKm: 8, dur: 96, activityType, sub: 'Garmin' } });
+    assert.deepEqual(hike.nodes().find(named('BSEventStatRegister')).props.items[2], ['PACE', '19:19 /mi'], activityType);
+  }
+});
+
+test('a workout a synced run finished reads how far and how long, and where it came from', () => {
+  // The Weeks card: a whole-minute time reads as minutes.
+  const text = strip(render({ events: [{ id: 'plan:w1', source: 'plan', date: '2026-10-21', kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2100, distanceKm: 5.79, dur: 45, time: '—', doneBy: 'Strava' }] }));
+  assert.match(text, /Easy Run 3\.6 mi · 35m ✓/, 'a whole-minute time read "35m 0s"');
+  // A synced copy with a distance and no time: the card says how far, never the plan's 45 minutes
+  // as if it were measured.
+  const untimed = strip(render({ events: [{ id: 'plan:w2', source: 'plan', date: '2026-10-21', kind: 'WORKOUT', title: 'Long Run', state: 'done', doneSec: null, distanceKm: 5.79, dur: 45, time: '—', doneBy: 'Strava' }] }));
+  assert.match(untimed, /Long Run 3\.6 mi ✓/);
+  assert.doesNotMatch(untimed, /Long Run 3\.6 mi · 45m/, 'the plan\'s minutes read as the run\'s');
+  // Its sheet: the plan's card, with the synced line under the register.
+  const d = sheetOf({ id: 'plan:w1', source: 'plan', kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2100, distanceKm: 5.79, dur: 45, doneBy: 'Strava' });
+  const body = drive(CAL.BSEventWorkoutBody, { event: { kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2100, distanceKm: 5.79, dur: 45, doneBy: 'Strava' }, role: 'client' });
+  assert.match(body.text, /Synced from Strava · 3\.6 mi · 35m/);
+  assert.deepEqual(buttonsOf(d).filter((b) => /Start session|Completed/.test(b)), ['Completed ✓']);
+  const byHand = drive(CAL.BSEventWorkoutBody, { event: { kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 1800, distanceKm: null, dur: 45, doneBy: '' }, role: 'client' });
+  assert.match(byHand.text, /Logged by hand · 30m/);
+  // A workout no activity finished has no such line.
+  const plain = drive(CAL.BSEventWorkoutBody, { event: { kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2124, dur: 45, doneBy: null }, role: 'client' });
+  assert.doesNotMatch(plain.text, /Synced from|Logged by hand/);
+});
+
+test('a finished workout reads Completed; one still to do offers to start it', () => {
+  const done = sheetOf({ id: 'plan:w1', source: 'plan', kind: 'WORKOUT', title: 'Easy Run', state: 'done', doneSec: 2124 });
+  assert.ok(done.nodes().some(named('BSEventWorkoutBody')));
+  assert.deepEqual(buttonsOf(done).filter((b) => /Start session|Completed/.test(b)), ['Completed ✓']);
+  const open = sheetOf({ id: 'plan:w2', source: 'plan', kind: 'WORKOUT', title: 'Easy Run' });
+  assert.deepEqual(buttonsOf(open).filter((b) => /Start session|Completed/.test(b)), ['Start session →']);
 });
