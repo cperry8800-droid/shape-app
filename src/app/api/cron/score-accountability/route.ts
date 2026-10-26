@@ -24,9 +24,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // daily batch of per-user RPC round-trips
 
-// One page of members per run. Small userbase today; when it grows, paginate across
-// runs with a stored cursor (the RPCs are idempotent, so overlap is harmless).
-const BATCH = 500;
+// The members are read a page at a time; every one is evaluated each run (the RPCs are idempotent,
+// so a run that overlaps another is harmless).
+const SUB_PAGE = 1000;
 
 function safeEqual(a: string, b: string): boolean {
   const x = Buffer.from(String(a || ''));
@@ -64,12 +64,20 @@ async function run(request: Request) {
   else swept = Number(sweptCount ?? 0) || 0;
 
   // Active members to evaluate (clients carry the obligations; coaches/admins don't).
-  const { data: subs, error } = await admin
-    .from('platform_subscriptions')
-    .select('client_id, status')
-    .in('status', Array.from(ACTIVE_SUB))
-    .limit(BATCH);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // ⚠ EVERY ONE, A PAGE AT A TIME (owner, 2026-10-26: "fix 1-7"): a fixed 500 left everyone after the
+  // 500th unscored, and unnotified, every day.
+  const subs: Array<{ client_id?: string; status?: string }> = [];
+  for (let from = 0; ; from += SUB_PAGE) {
+    const { data, error } = await admin
+      .from('platform_subscriptions')
+      .select('client_id, status')
+      .in('status', Array.from(ACTIVE_SUB))
+      .order('client_id', { ascending: true })
+      .range(from, from + SUB_PAGE - 1);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    subs.push(...((data ?? []) as Array<{ client_id?: string; status?: string }>));
+    if ((data ?? []).length < SUB_PAGE) break;
+  }
 
   const now = new Date();
   const today = isoDate(now);

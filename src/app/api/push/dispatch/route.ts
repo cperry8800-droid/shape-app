@@ -19,9 +19,10 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendPushToUser, pushConfigured } from '@/lib/push';
 import { sendEmail } from '@/lib/email';
-import { inQuietHours, channelsForType } from '@/lib/ai/notifications.mjs';
+import { inQuietHours, quietWindow, channelsForType } from '@/lib/ai/notifications.mjs';
+import { personZone } from '@/lib/time';
 import { canonicalRoute } from '../../../../../public/newdesign/notificationRoutes.mjs';
-import { isEmailType } from '../../../../../public/newdesign/notificationSurfaces.mjs';
+import { isEmailType, preferenceTypeFor as switchFor } from '../../../../../public/newdesign/notificationSurfaces.mjs';
 import { noticeText } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
 import { readerCopy, type Translate } from '@/lib/reader-copy';
 
@@ -48,13 +49,10 @@ export function pushRoute(record: NotificationRecord): string {
 // ⚠ THE SWITCH A ROW ANSWERS TO IS THE ONE ITS RECIPIENT SEES (Codex on #2372). The database writes a
 // new message as type 'message' and a co-sign as 'cosign', and the preference center stores "Coach
 // messages" as 'coach_message' and "Co-signs" as 'coach_cosign', so reading the row's own type found
-// no switch and every such push went out to someone who had turned it off. A message is a "coach
-// message" only on the member's side of a coaching thread (data.side, 2026-10-15-notification-
-// routes.sql); a coach's client writing, and a member's direct message, have no switch of their own.
+// no switch and every such push went out to someone who had turned it off. The map is shared with
+// the app's list, the website's bell and the app's toast (notificationSurfaces.mjs PREFERENCE_OF).
 export function preferenceTypeFor(type: string, data?: Record<string, unknown> | null): string {
-  if (type === 'message') return data && data.side === 'client' ? 'coach_message' : 'message';
-  if (type === 'cosign') return 'coach_cosign';
-  return type;
+  return switchFor(type, data ?? null);
 }
 
 // A reminder the recipient scheduled for an hour of their own choosing (cron/reminders, types
@@ -63,13 +61,30 @@ export function heldByQuietHours(type: string): boolean {
   return !/^reminder_/.test(type);
 }
 
+// The zone a person's quiet hours are read in (personZone): their profile's, which the app refreshes
+// on every open, else their notification settings'. A profile that cannot be read leaves the
+// settings' zone; it never stops a send.
+async function profileZone(admin: ReturnType<typeof createAdminClient>, userId: string): Promise<string | null> {
+  try {
+    const { data, error } = await admin.from('client_profiles').select('timezone').eq('user_id', userId).maybeSingle();
+    return error ? null : ((data as { timezone?: string } | null)?.timezone ?? null);
+  } catch { return null; }
+}
+type Settings = { muted?: boolean; quiet_start?: number; quiet_end?: number; tz?: string } | null;
+function quietNow(now: Date, settings: Settings, profileTz: string | null): boolean {
+  return inQuietHours(now, quietWindow(settings, personZone(profileTz, settings?.tz)));
+}
+
 // ⚠ EVERY ROW ANSWERS TO ITS RECIPIENT, WHOEVER WROTE IT (the notification audit; Codex on #2372). Only
 // createPreferredNotification and the AI layer read the preference center; every createNotification
 // row and every row a database trigger writes (messages, workouts, plans, groceries, follows) was
 // pushed even to a member who muted everything or turned that type's push off. Read here, once per
-// push: master mute, the type's push switch, and quiet hours, which apply only to someone who saved
-// their settings (the defaults are 22:00 to 07:00 UTC, which would silence an American evening for
-// someone who never chose a zone). A read that fails sends nothing, as notify.ts does.
+// push: master mute, the type's push switch, and quiet hours.
+// ⚠ QUIET HOURS ARE THE PERSON'S OWN NIGHT, SAVED OR NOT (quietWindow; owner, 2026-10-26: "fix 1-7").
+// They applied only to someone who had saved settings, so everyone else was pushed all night; they
+// are 22:00 to 07:00 (or the saved hours) in the person's own zone, and none when no zone is known.
+// A row they hold is sent when the night is over (holdForMorning, /api/cron/push-held).
+// A read that fails sends nothing, as notify.ts does.
 // ⚠ A `data.channels` STAMP IS NOT PROOF THE SETTINGS WERE READ: the credential notices and the
 // reminders cron stamp { push: true } themselves. So the gate runs on every row; for a row the
 // preference-aware writers produced it agrees with what they already decided.
@@ -80,18 +95,17 @@ export async function pushAllowed(
   now: Date = new Date(),
   { quietHours = true }: { quietHours?: boolean } = {},
 ): Promise<{ ok: true } | { ok: false; why: string }> {
-  const [settingsRes, prefsRes] = await Promise.all([
+  const [settingsRes, prefsRes, profileTz] = await Promise.all([
     admin.from('notification_settings').select('muted, quiet_start, quiet_end, tz').eq('user_id', userId).maybeSingle(),
     admin.from('notification_preferences').select('channel, enabled').eq('user_id', userId).eq('type', type),
+    profileZone(admin, userId),
   ]);
   if (settingsRes.error || prefsRes.error) return { ok: false, why: 'preferences_unreadable' };
-  const settings = settingsRes.data as { muted?: boolean; quiet_start?: number; quiet_end?: number; tz?: string } | null;
+  const settings = settingsRes.data as Settings;
   if (settings?.muted === true) return { ok: false, why: 'muted' };
   const push = ((prefsRes.data ?? []) as { channel: string; enabled: boolean }[]).find((r) => r.channel === 'push');
   if (push && push.enabled === false) return { ok: false, why: 'push_channel_off' };
-  if (quietHours && settings && inQuietHours(now, { quietStart: settings.quiet_start, quietEnd: settings.quiet_end, tz: settings.tz })) {
-    return { ok: false, why: 'quiet_hours' };
-  }
+  if (quietHours && quietNow(now, settings, profileTz)) return { ok: false, why: 'quiet_hours' };
   return { ok: true };
 }
 
@@ -116,19 +130,19 @@ export async function emailDecision(
   if (!isEmailType(prefType)) return { send: false, why: 'not_offered' };
   if (record.data?.channels && typeof record.data.channels.email === 'boolean') return { send: false, why: 'writer_decided' };
   if (!record.user_id || !record.id || !record.type) return { send: false, why: 'no_record' };
-  const [settingsRes, prefsRes] = await Promise.all([
+  const [settingsRes, prefsRes, profileTz] = await Promise.all([
     admin.from('notification_settings').select('muted, quiet_start, quiet_end, tz').eq('user_id', record.user_id).maybeSingle(),
     admin.from('notification_preferences').select('channel, enabled').eq('user_id', record.user_id).eq('type', prefType),
+    profileZone(admin, record.user_id),
   ]);
   if (settingsRes.error || prefsRes.error) return { send: false, why: 'preferences_unreadable' };
-  const settings = settingsRes.data as { muted?: boolean; quiet_start?: number; quiet_end?: number; tz?: string } | null;
+  const settings = settingsRes.data as Settings;
   if (settings?.muted === true) return { send: false, why: 'muted' };
   const overrides: Record<string, boolean> = {};
   for (const r of (prefsRes.data ?? []) as { channel: string; enabled: boolean }[]) overrides[r.channel] = r.enabled;
   if (!channelsForType({ matrix: { [prefType]: overrides } }, prefType).email) return { send: false, why: 'email_off' };
-  if (settings && inQuietHours(now, { quietStart: settings.quiet_start, quietEnd: settings.quiet_end, tz: settings.tz })) {
-    return { send: false, why: 'quiet_hours' };
-  }
+  // The push's quiet hours (quietNow): a held row is emailed with its push, once the night is over.
+  if (quietNow(now, settings, profileTz)) return { send: false, why: 'quiet_hours' };
   let earlier = admin.from('notifications').select('id', { count: 'exact', head: true })
     .eq('user_id', record.user_id).eq('type', record.type)
     .gte('data->>emailed_at', new Date(now.getTime() - 60 * 60 * 1000).toISOString())
@@ -169,11 +183,11 @@ const htmlEscape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
 // Sends the email and, only when it went, stamps the row so the cooldown counts it. A failed send
 // (sendEmail logs why) is not stamped, so the next eligible notice can still email. Email here is
 // best-effort, as in notify.ts and the AI layer: answering the webhook with an error to have it
-// retried would push the notification a second time.
-async function emailRow(admin: ReturnType<typeof createAdminClient>, record: NotificationRecord, said: Said): Promise<boolean> {
+// retried would push the notification a second time. Answers the stamp it wrote, or null.
+async function emailRow(admin: ReturnType<typeof createAdminClient>, record: NotificationRecord, said: Said): Promise<string | null> {
   const { data } = await admin.auth.admin.getUserById(record.user_id as string);
   const to = data?.user?.email;
-  if (!to) return false;
+  if (!to) return null;
   const site = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://theshapecommunity.com').replace(/\/+$/, '');
   const { title, body } = said;
   const open = said.say('notice:email.open', `Open Shape: ${site}`, { site });
@@ -187,12 +201,24 @@ async function emailRow(admin: ReturnType<typeof createAdminClient>, record: Not
       + (body ? `<p style="font-size:14px;line-height:1.5;white-space:pre-line">${htmlEscape(body)}</p>` : '')
       + `<p><a href="${site}">${htmlEscape(link)}</a></p><p style="font-size:12px;color:#888">${htmlEscape(manage)}</p></div>`,
   });
-  if (!sent.ok) return false;
+  if (!sent.ok) return null;
+  const at = new Date().toISOString();
   const { error } = await admin.from('notifications')
-    .update({ data: { ...(record.data ?? {}), emailed_at: new Date().toISOString() } })
+    .update({ data: { ...(record.data ?? {}), emailed_at: at } })
     .eq('id', record.id as string);
   if (error) console.error('[push] email sent but not recorded; the next one inside the hour may also send:', error.message);
-  return true;
+  return at;
+}
+
+// ⚠ A NOTICE IN QUIET HOURS IS HELD, NOT DROPPED (owner, 2026-10-26: "fix 1-7"). Its push and its
+// email were skipped and never sent, so a coach's 11 pm message reached the phone neither then nor in
+// the morning. The row is stamped data.held_at, and /api/cron/push-held hands it back to deliverNotice
+// once the person's night is over, unless they have read or cleared it in the app by then.
+async function holdForMorning(admin: ReturnType<typeof createAdminClient>, record: NotificationRecord, data: Record<string, unknown>, now: Date): Promise<boolean> {
+  if (!record.id) return false;
+  const { error } = await admin.from('notifications').update({ data: { ...data, held_at: now.toISOString() } }).eq('id', record.id);
+  if (error) console.error('[push] could not hold a quiet-hours notice; it stays in the app only:', error.message);
+  return !error;
 }
 
 // L7 (2026-10-08 review): the same constant-time comparison the cron routes use, so the
@@ -204,16 +230,12 @@ function secretMatches(given: string | null, expected: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-export async function POST(request: Request) {
-  const secret = process.env.PUSH_WEBHOOK_SECRET;
-  if (!secret || !secretMatches(request.headers.get('x-push-secret'), secret)) {
-    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-  }
-  const payload = await request.json().catch(() => ({}));
-  const record = (payload?.record ?? payload?.new ?? {}) as NotificationRecord;
-  if (!record.user_id || !record.title) {
-    return NextResponse.json({ ok: true, skipped: 'no_record' });
-  }
+// One notice, delivered: its email (for the types email is offered for) and its push, each by the
+// recipient's settings, or held for the morning when it falls in their quiet hours. The webhook
+// below runs it for every new row, and /api/cron/push-held for a held one once the night is over.
+export type Delivered = { skipped?: string; held?: boolean };
+export async function deliverNotice(record: NotificationRecord, now: Date = new Date()): Promise<Delivered> {
+  if (!record.user_id || !record.title) return { skipped: 'no_record' };
   // The recipient's words for it, read once and only when something goes out (readerText).
   let said: Said | null = null;
   const sayIt = async (admin: ReturnType<typeof createAdminClient>): Promise<Said> => {
@@ -222,34 +244,44 @@ export async function POST(request: Request) {
     }
     return said;
   };
-  // Email first, and whether or not push is set up: it does not wait on Apple or Firebase.
-  const emailType = preferenceTypeFor(record.type ?? 'general', record.data ?? null);
-  if (isEmailType(emailType)) {
+  let data: Record<string, unknown> = { ...(record.data ?? {}) };
+  let quiet = false;
+  // Email first, and whether or not push is set up: it does not wait on Apple or Firebase. A row
+  // emailed already (before it was held) is not emailed again.
+  const emailType = preferenceTypeFor(record.type ?? 'general', data);
+  if (isEmailType(emailType) && !data.emailed_at) {
     try {
       const admin = createAdminClient();
-      const mail = await emailDecision(admin, record, emailType);
-      if (mail.send) await emailRow(admin, record, await sayIt(admin));
+      const mail = await emailDecision(admin, { ...record, data }, emailType, now);
+      if (mail.send) {
+        const at = await emailRow(admin, { ...record, data }, await sayIt(admin));
+        if (at) data = { ...data, emailed_at: at };
+      } else if (mail.why === 'quiet_hours') quiet = true;
       else if (mail.why === 'preferences_unreadable' || mail.why === 'cooldown_unreadable') console.error('[push] could not read what an email needs; not emailing:', record.type);
     } catch (err) {
       console.error('[push] email failed:', err instanceof Error ? err.message : err);
     }
   }
+  const held = async (skipped?: string): Promise<Delivered> => {
+    const stamped = quiet && (await holdForMorning(createAdminClient(), record, data, now));
+    return { ...(skipped ? { skipped } : {}), ...(stamped ? { held: true } : {}) };
+  };
   if (!pushConfigured()) {
     // No FCM creds yet — accept the webhook so Supabase doesn't retry-storm.
-    return NextResponse.json({ ok: true, skipped: 'fcm_not_configured' });
+    return held('fcm_not_configured');
   }
   // Honor the notification preference center: a notification can be in-app-only
   // (push channel turned off for its type). Default ON when unspecified.
-  if (record.data && record.data.channels && record.data.channels.push === false) {
-    return NextResponse.json({ ok: true, skipped: 'push_channel_off' });
-  }
+  const channels = data.channels as { push?: boolean } | undefined;
+  if (channels && channels.push === false) return held('push_channel_off');
 
   const admin = createAdminClient();
   const type = record.type ?? 'general';
-  const gate = await pushAllowed(admin, record.user_id, preferenceTypeFor(type, record.data ?? null), new Date(), { quietHours: heldByQuietHours(type) });
+  const gate = await pushAllowed(admin, record.user_id, preferenceTypeFor(type, data), now, { quietHours: heldByQuietHours(type) });
   if (!gate.ok) {
     if (gate.why === 'preferences_unreadable') console.error('[push] could not read preferences; not pushing:', record.type);
-    return NextResponse.json({ ok: true, skipped: gate.why });
+    if (gate.why === 'quiet_hours') quiet = true;
+    return held(gate.why);
   }
   const text = await sayIt(admin);
   await sendPushToUser(admin, record.user_id, {
@@ -257,5 +289,15 @@ export async function POST(request: Request) {
     body: text.body,
     data: { route: pushRoute(record), type: record.type ?? 'general' },
   });
-  return NextResponse.json({ ok: true });
+  return held();
+}
+
+export async function POST(request: Request) {
+  const secret = process.env.PUSH_WEBHOOK_SECRET;
+  if (!secret || !secretMatches(request.headers.get('x-push-secret'), secret)) {
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  }
+  const payload = await request.json().catch(() => ({}));
+  const record = (payload?.record ?? payload?.new ?? {}) as NotificationRecord;
+  return NextResponse.json({ ok: true, ...(await deliverNotice(record)) });
 }

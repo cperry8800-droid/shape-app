@@ -852,6 +852,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         // Someone else's profile (a friend's habit not done by 8 pm), over the page they were on.
         case 'person': clear(); setNotifPerson(d.id || null); return;
         case 'feed': case 'community': case 'messages': clear(); setTab('chat'); return;
+        // A payment to Shape (the owners' notice): the admin console, on the website.
+        case 'admin': window.ShapeStaff?.openConsole?.(); return;
         default: return;
       }
     };
@@ -27199,9 +27201,14 @@ function BSNotifyPrefs({ onBack, role }) {
   const chOn = (type, ch) => { const o = matrix[type]; return (o && o[ch] !== undefined) ? o[ch] : chDefault(type, ch); };
   const toggleCh = (type, ch) => { const next = !chOn(type, ch); setMatrix(m => ({ ...m, [type]: { ...(m[type] || {}), [ch]: next } })); window.ShapeNotifyPrefs?.setChannel?.(type, ch, next); };
 
+  // ⚠ EVERY KIND A PERSON CAN RECEIVE HAS A ROW (owner, 2026-10-26: "make sure users have the ability to
+  // customize/toggle which notifications they want"). Each row is the switch the server reads for it
+  // (notificationSurfaces.mjs preferenceTypeFor), for the push, the list and the toast;
+  // tests/notification-switches.test.mjs holds these lists to that map. `checkin_submitted` is not
+  // here: nothing sends it, so its switch changed nothing (the website left it out for that reason).
   const TYPES = isCoach
-    ? [['client_red', 'Clients in the red', 'Crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up'], ['checkin_submitted', 'Check-in submitted', 'A client logs their week'], ['waitlist_join', 'Waiting list', 'When someone joins your waiting list'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"]]
-    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Score dips', 'When your Shape Score drops'], ['tier_up', 'Tier ups', 'When you reach a new Shape Score tier'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never shaming'], ['waitlist_invite', 'Waitlist invites', 'When a coach has room for you'], ['habit_reminder', 'Habit reminders', 'Set per-habit on the Habits page'], ['meal_prep', 'Prep reminders', 'The night before a meal that needs it'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"]];
+    ? [['client_red', 'Clients in the red', 'Crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up'], ['client_message', 'Client messages', 'When a client or their care team writes'], ['direct_message', 'Messages', 'When a member writes to you'], ['new_client', 'New clients', 'When someone signs up with you'], ['sessions', 'Sessions', 'Requests, payments and cancellations'], ['payments', 'Payments', 'Sales and monthly renewals'], ['waitlist_join', 'Waiting list', 'When someone joins your waiting list'], ['credentials', 'Credentials', 'Verified, a fix needed, or a renewal due'], ['follows', 'Followers', 'New followers and follow requests'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"], ['account', 'From Shape', 'Notes about your account']]
+    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['direct_message', 'Messages', 'When another member writes to you'], ['coach_content', 'From your coach', 'New workouts, programs, meal plans and grocery lists'], ['sessions', 'Sessions', 'Bookings, changes and cancellations'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Shape Score', 'When it dips, and your weekly commitment'], ['tier_up', 'Tier ups', 'When you reach a new Shape Score tier'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['follows', 'Followers', 'New followers and follow requests'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never shaming'], ['waitlist_invite', 'Waitlist invites', 'When a coach has room for you'], ['habit_reminder', 'Habit reminders', 'Set per-habit on the Habits page'], ['meal_prep', 'Prep reminders', 'The night before a meal that needs it'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"], ['payments', 'Receipts', 'When a payment goes through'], ['account', 'From Shape', 'Your welcome, and notes about your account']];
 
   const Toggle = ({ on, onClick }) => (
     <button onClick={onClick} aria-pressed={on} style={{ width: 46, height: 27, borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
@@ -34242,7 +34249,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showProgress, setShowProgress] = useStateBSC(false);
   const [showPublicProfile, setShowPublicProfile] = useStateBSC(false);
   // Your practice → Payouts opens Business on Money (null, or the tab it opens on).
-  const [showBusiness, setShowBusiness] = useStateBSC(null);
+  // A sale or a renewal notice opens Business on its money (initialPage 'business').
+  const [showBusiness, setShowBusiness] = useStateBSC(initialPage === 'business' ? 'money' : null);
   // Your practice → Rates (a takeover) and the listing's photo and monthly-offer sheets
   // ('photos' | 'offer' | null). They lived on the old coach Me page, which nothing rendered
   // (owner, 2026-10-17: "Move to Your practice"); the components are the pros module's, read

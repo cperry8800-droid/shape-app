@@ -43,12 +43,12 @@ const CST_CAPS = [2, 3, 4, 6, 8];
 // that registry the first time a type is added — and, worse, would invite listing a
 // type the matrix cannot actually govern.
 //
-// ⚠ AND TWO NOTIFICATIONS A COACH REALLY RECEIVES ARE DELIBERATELY ABSENT.
-// `credential_expiry` (cron) and `payment` (the Stripe webhook) reach coaches through
-// `createNotification`, which does NOT consult notification_preferences — only
-// `createPreferredNotification` and the AI notify layer do. A switch for those would
-// be a switch that changes nothing, so they are not offered and the card says which
-// notifications it governs.
+// ⚠ AND EVERY OTHER NOTIFICATION A COACH RECEIVES HAS A ROW TOO (owner, 2026-10-26: "make sure users
+// have the ability to customize/toggle which notifications they want"). Credential and payment
+// notices were left out because createNotification wrote them past the preference matrix, so a
+// switch would have changed nothing. The push dispatcher and the bell now read every row against the
+// switch it answers to (notificationSurfaces.mjs preferenceTypeFor), so each row here governs them.
+// tests/notification-switches.test.mjs holds this list to that map and to the app's.
 const CST_COACH_TYPES = [
   ["client_red", "Client went red", "A client you act on crossed into red"],
   ["client_amber", "Client went amber", "A client moved to amber — worth a look, not an alarm"],
@@ -65,6 +65,14 @@ const CST_COACH_TYPES = [
   // member by an accepted follow, so they need the same switch (Codex on #2413). Sent through
   // preferredNotificationOutcome, which reads the matrix; the cron applies quiet hours and the cap.
   ["friend_habit", "Friends' habits", "When a friend hasn't done a habit they shared with you"],
+  ["client_message", "Client messages", "When a client or their care team writes"],
+  ["direct_message", "Messages", "When a member writes to you"],
+  ["new_client", "New clients", "When someone signs up with you"],
+  ["sessions", "Sessions", "Requests, payments and cancellations"],
+  ["payments", "Payments", "Sales and monthly renewals"],
+  ["credentials", "Credentials", "Verified, a fix needed, or a renewal due"],
+  ["follows", "Followers", "New followers and follow requests"],
+  ["account", "From Shape", "Notes about your account"],
 ];
 // The registry's coach types, which this panel must cover in full — the extra entries
 // above are preference-gated sends that never become candidates.
@@ -671,10 +679,8 @@ function CoachNotificationCard({ signedIn, acct }) {
       <div style={{ marginTop: 12, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5 }}>
         {/* Said plainly, because the alternative is a coach believing they muted
             something they did not. */}
-        These are the notifications this panel governs. Credential-expiry and payment
-        alerts are sent outside the preference matrix and arrive whatever is set here.
-        {" "}Quiet hours and the daily cap apply to the client alerts and friends' habits above;
-        waiting-list requests are delivered as they happen.
+        Every notification you get is switched here. Quiet hours hold them until the morning;
+        the daily cap applies to the client alerts and friends' habits above.
       </div>
     </React.Fragment>
   );

@@ -116,6 +116,8 @@
   "credential.verified.body": "Your credentials checked out — a Verified badge now shows on your marketplace profile.",
   "credential.changes.title": "Credential review — a quick fix needed",
   "credential.changes.body": "We need a bit more to verify your credentials. Open your profile to update them.",
+  "credential.rejected.title": "Your credentials couldn’t be verified",
+  "credential.rejected.body": "We couldn’t verify what you uploaded, so your profile has no Verified badge. Open your profile to upload them again.",
   "credential.insurance.title": "Insurance renewal coming up",
   "credential.insurance.body": "Your liability insurance expires {date}. Renew and re-upload your COI to keep your Verified badge.",
   "credential.license.title": "License renewal — {state}",

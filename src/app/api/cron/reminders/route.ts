@@ -1,8 +1,9 @@
-// User-set reminders — hourly evaluator. Scans enabled user_scheduled_reminders,
-// and for each whose LOCAL hour (in the reminder's tz) matches its at_time and
-// whose local weekday is in `days`, fires ONE notification per local day (deduped
-// via last_fired_on). The notification rides the existing push spine (a
-// notifications INSERT → /api/push/dispatch webhook).
+// User-set reminders — every 5 minutes (vercel.json). Scans enabled user_scheduled_reminders,
+// and fires each whose LOCAL time (in the reminder's tz) has reached its at_time, on a weekday in
+// `days`, ONE notification per local day (deduped via last_fired_on). The notification rides the
+// existing push spine (a notifications INSERT → /api/push/dispatch webhook).
+// ⚠ TO THE MINUTE, AND A MISSED RUN CATCHES UP (owner, 2026-10-26: "fix 1-7"). The cron ran hourly and
+// fired on a matching hour, so a 7:45 reminder went at 7:00 and one whose run was missed never went.
 //
 // Auth: header `x-cron-secret: <CRON_SECRET>` OR Vercel Cron's `Authorization:
 // Bearer <CRON_SECRET>`. Runs as the service role. No-op until the
@@ -34,19 +35,37 @@ function authorized(request: Request): boolean {
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// Local hour (0-23), weekday (0=Sun), and date (YYYY-MM-DD) in a tz. Falls back to
+// Local minute of the day (0-1439), weekday (0=Sun), and date (YYYY-MM-DD) in a tz. Falls back to
 // UTC on a bad tz.
-function localNow(tz: string): { hour: number; dow: number; date: string } {
-  const now = new Date();
+export function localNow(tz: string, now: Date = new Date()): { minute: number; dow: number; date: string } {
   const zone = tz || 'UTC';
   try {
-    const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: '2-digit', hourCycle: 'h23' }).format(now));
+    const hm = new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+    const part = (k: string) => Number(hm.find((p) => p.type === k)?.value);
+    const hour = part('hour'), min = part('minute');
     const dow = DOW.indexOf(new Intl.DateTimeFormat('en-US', { timeZone: zone, weekday: 'short' }).format(now));
     const date = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
-    return { hour: Number.isFinite(hour) ? hour % 24 : 0, dow: dow < 0 ? 0 : dow, date };
+    const minute = Number.isFinite(hour) && Number.isFinite(min) ? (hour % 24) * 60 + min : 0;
+    return { minute, dow: dow < 0 ? 0 : dow, date };
   } catch {
-    return { hour: now.getUTCHours(), dow: now.getUTCDay(), date: now.toISOString().slice(0, 10) };
+    return { minute: now.getUTCHours() * 60 + now.getUTCMinutes(), dow: now.getUTCDay(), date: now.toISOString().slice(0, 10) };
   }
+}
+
+// How long after its time a reminder may still go: a run that was late or missed catches it up.
+// ⚠ SHORT ON PURPOSE. A reminder saved for a time already past today would go the moment it is saved;
+// half an hour covers a late or missed 5-minute run and fires nothing set for this morning at noon.
+export const CATCH_UP_MINUTES = 30;
+
+// Whether a reminder is due at this local time: a weekday it is set for, its time reached today (to
+// the minute), at most CATCH_UP_MINUTES ago, and not yet fired today.
+export function reminderDue(r: Pick<Reminder, 'at_time' | 'days' | 'last_fired_on'>, local: { minute: number; dow: number; date: string }): boolean {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(r.at_time || '09:00'));
+  const at = m ? Math.min(23, Number(m[1])) * 60 + Math.min(59, Number(m[2])) : 9 * 60;
+  if (!Array.isArray(r.days) || !r.days.includes(local.dow)) return false;
+  if (r.last_fired_on === local.date) return false;
+  const late = local.minute - at;
+  return late >= 0 && late <= CATCH_UP_MINUTES;
 }
 
 // `copy` is how the bell and the push say it in another language (noticeCopy.mjs). A label the member
@@ -138,29 +157,33 @@ async function handle(request: Request) {
   const admin = createAdminClient();
   let fired = 0;
 
+  // Every enabled reminder, a page at a time: a fixed 2,000 left the rest unread once there were more.
+  const PAGE = 1000;
   let rows: Reminder[] = [];
   try {
-    const { data, error } = await admin
-      .from('user_scheduled_reminders')
-      .select('id, user_id, kind, label, at_time, days, tz, last_fired_on')
-      .eq('enabled', true)
-      .limit(2000);
-    if (error) throw error;
-    rows = (data ?? []) as Reminder[];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await admin
+        .from('user_scheduled_reminders')
+        .select('id, user_id, kind, label, at_time, days, tz, last_fired_on')
+        .eq('enabled', true)
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      const page = (data ?? []) as Reminder[];
+      rows = rows.concat(page);
+      if (page.length < PAGE) break;
+    }
   } catch (err) {
     console.error('[shape] reminders scan failed (migration not applied?):', err);
     return NextResponse.json({ ok: true, fired: 0, skipped: true });
   }
 
-  // Due this hour: its local hour and weekday, and not yet fired today (local).
+  // Due now: its weekday, its time reached today (local), and not yet fired today.
+  const now = new Date();
   const due: Array<{ r: Reminder; date: string }> = [];
   for (const r of rows) {
-    const { hour, dow, date } = localNow(r.tz);
-    const targetHour = Number(String(r.at_time || '09:00').slice(0, 2));
-    if (hour !== targetHour) continue;
-    if (!Array.isArray(r.days) || !r.days.includes(dow)) continue;
-    if (r.last_fired_on === date) continue;
-    due.push({ r, date });
+    const local = localNow(r.tz, now);
+    if (reminderDue(r, local)) due.push({ r, date: local.date });
   }
   const answered = await morningsAnswered(admin, due.filter((d) => d.r.kind === 'daily_checkin').map((d) => ({ userId: d.r.user_id, date: d.date })));
 

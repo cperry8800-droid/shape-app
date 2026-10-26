@@ -100,7 +100,7 @@ const route = await loadRealModule(join(ROOT, 'src/app/api/push/dispatch/route.t
   registry: new Map([
     ['next/server', nextServer],
     ['@/lib/supabase/admin', { createAdminClient: () => st.admin }],
-    ['@/lib/push', { pushConfigured: () => st.pushReady, sendPushToUser: async (_a, userId, p) => { st.pushes.push({ userId, ...p }); } }],
+    ['@/lib/time', await loadRealModule(join(ROOT, 'src/lib/time.ts'), { typescript: true })], ['@/lib/push', { pushConfigured: () => st.pushReady, sendPushToUser: async (_a, userId, p) => { st.pushes.push({ userId, ...p }); } }],
     ['@/lib/email', { sendEmail: async (m) => { st.emails.push(m); return st.sendOk ? { ok: true } : { ok: false, error: 'resend_500' }; } }],
     ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')], ['@/lib/reader-copy', READER_COPY_EN],
   ]),

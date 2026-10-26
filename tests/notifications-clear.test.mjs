@@ -73,7 +73,8 @@ test('the feed leaves cleared notifications out, and reads as before until the m
   db = fakeDb([{ data: null, error: MISSING_COLUMN }, { data: [row], error: null }]);
   res = await (await loadRoute(db)).GET(new Request('https://shape.test/api/notifications'));
   assert.equal(res.status, 200);
-  assert.equal(db.calls.length, 2);
+  // Two reads of the rows (the switches the reader turned off are read after them, apart).
+  assert.equal(db.calls.filter((c) => c.table === 'notifications').length, 2);
   assert.ok(!db.calls[1].ops.some((o) => o[0] === 'is'), 'the retry still filters on the missing column');
   assert.equal((await res.json()).notifications.length, 1);
 

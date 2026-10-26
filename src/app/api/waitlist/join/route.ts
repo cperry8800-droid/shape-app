@@ -137,7 +137,9 @@ export async function POST(request: Request) {
         userId: ownerId, type: 'waitlist_join',
         title: 'New waiting-list request',
         body: 'Someone joined your waiting list.', route: 'waitlist',
-        data: { providerRole, providerId, copy: { title: np('waitlist.join.title'), body: np('waitlist.join.body') } },
+        // One a day per member and listing (owner, 2026-10-26: "fix 1-7"): leaving and joining again
+        // sent the coach a new request each time. The dedupe index refuses the repeat.
+        data: { providerRole, providerId, dedupe: `waitlist-join:${providerRole}:${providerId}:${user.id}:${new Date().toISOString().slice(0, 10)}`, copy: { title: np('waitlist.join.title'), body: np('waitlist.join.body') } },
       });
     }
   }

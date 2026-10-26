@@ -116,6 +116,8 @@
   "credential.verified.body": "Chứng chỉ của bạn đã hợp lệ — huy hiệu Đã xác minh giờ hiển thị trên hồ sơ chợ dịch vụ của bạn.",
   "credential.changes.title": "Xét duyệt chứng chỉ — cần bổ sung một chút",
   "credential.changes.body": "Chúng tôi cần thêm một chút thông tin để xác minh chứng chỉ của bạn. Mở hồ sơ để cập nhật.",
+  "credential.rejected.title": "Không thể xác minh chứng chỉ của bạn",
+  "credential.rejected.body": "Chúng tôi không thể xác minh những gì bạn đã tải lên, nên hồ sơ của bạn chưa có huy hiệu Đã xác minh. Hãy mở hồ sơ để tải lên lại.",
   "credential.insurance.title": "Sắp đến hạn gia hạn bảo hiểm",
   "credential.insurance.body": "Bảo hiểm trách nhiệm của bạn hết hạn vào ngày {date}. Hãy gia hạn và tải lại COI để giữ huy hiệu Đã xác minh.",
   "credential.license.title": "Gia hạn giấy phép — {state}",

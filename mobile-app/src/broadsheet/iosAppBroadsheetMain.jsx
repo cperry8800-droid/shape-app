@@ -13,6 +13,7 @@ import { bsMemberGate, bsMembershipAfter, bsMembershipSeed, bsPollMembership } f
 import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
 import { bumpSignOutGen } from '../services/signOutGen.mjs';
+import { preferenceTypeFor } from '../../../public/newdesign/notificationSurfaces.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -1805,12 +1806,27 @@ function BSAppShell({ tweaks, setTweak }) {
     })();
     return () => { cancelled = true; };
   }, [authReady, authUserId, memberAllowed, previewMode, browseMode]);
+  // A new notification's toast, by the reader's App switches as the list reads them
+  // (/api/notifications): not for a row written for push or email only, nor one whose switch has its
+  // App channel off (owner, 2026-10-26: "make sure users have the ability to customize/toggle which
+  // notifications they want"). The switches are read once and again whenever they are saved.
   useEffectBSM(() => {
     if (!authUserId || !window.ShapeNotifications?.subscribe) return () => {};
+    let appOff = new Set();
+    const readSwitches = () => {
+      Promise.resolve(window.ShapeNotifyPrefs?.center?.()).then((c) => {
+        appOff = new Set(((c && c.prefs) || []).filter((p) => p && p.channel === 'inapp' && p.enabled === false).map((p) => p.type));
+      }).catch(() => {});
+    };
+    readSwitches();
+    window.addEventListener('shape:notifyprefs', readSwitches);
     const unsub = window.ShapeNotifications.subscribe((n) => {
-      if (n && n.title) window.__bsToast?.(n.title, 'ok');
+      if (!n || !n.title) return;
+      if (n.data && n.data.channels && n.data.channels.inapp === false) return;
+      if (appOff.has(preferenceTypeFor(n.type, n.data))) return;
+      window.__bsToast?.(n.title, 'ok');
     });
-    return () => { try { unsub(); } catch (e) {} };
+    return () => { window.removeEventListener('shape:notifyprefs', readSwitches); try { unsub(); } catch (e) {} };
   }, [authUserId]);
 
   // Register for native push once signed in (no-op off native / until the

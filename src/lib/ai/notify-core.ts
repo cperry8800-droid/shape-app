@@ -12,7 +12,7 @@ import { copyFor, type Translate as ReaderTranslate } from '@/lib/reader-copy';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { createNotification } from '@/lib/notify';
 import { sendEmail } from '@/lib/email';
-import { normalizeZone } from '@/lib/time';
+import { normalizeZone, personZone } from '@/lib/time';
 import { claimPushSlots, type PushClaim } from '@/lib/push-cap';
 import type { SupabaseClient } from '@supabase/supabase-js';
 // The pure UMD engine (module.exports = api); imported directly (no window in Node).
@@ -39,6 +39,7 @@ export const Notify = NotifyLayer as unknown as {
   pushCount: (decided: { send: Candidate[]; digest: Candidate | null }) => number;
   DEFAULT_PREFS: Record<string, unknown>;
   dailyCheckinOn: (v: unknown) => boolean;
+  quietWindow: (settings: unknown, zone: string | null) => { quietStart: number; quietEnd: number; tz: string };
 };
 
 export type Prefs = { muted: boolean; quietStart: number; quietEnd: number; tz: string; capTz: string; maxPerDay: number; tone: string; matrix: Record<string, Record<string, boolean>> };
@@ -65,19 +66,22 @@ export async function loadPrefs(client: SupabaseClient, userId: string): Promise
   // when settings are saved, then UTC. The daily cap is shared with /api/cron/habit-watch, so
   // after travel two zones would date the same pushes on different days around either midnight,
   // and each sender would grant its own allowance.
-  // ⚠ ONLY THE CAP'S DAY (Codex on #2417). Quiet hours stay on `tz`, the settings' zone, because
-  // push delivery checks them there (pushAllowed, push/dispatch/route.ts): read in another zone,
-  // the engine pushed what delivery then dropped as quiet, and never held it for the digest.
+  // ⚠ QUIET HOURS ARE THE PERSON'S OWN NIGHT, ON THE CLOCK PUSH DELIVERY READS (quietWindow; owner,
+  // 2026-10-26: "fix 1-7"). They were read in the settings' zone, UTC for anyone who never saved
+  // settings, which held an American member's nudges from 6 pm and sent the digest at 3 am. Delivery
+  // (pushAllowed, push/dispatch/route.ts) reads the same zone: read in another, the engine pushed what
+  // delivery then held as quiet. No zone known: no quiet hours, there or here.
   const profileTz = normalizeZone((profileRes.data as { timezone?: string } | null)?.timezone);
+  const quiet = Notify.quietWindow(s, personZone(profileTz, s.tz));
   const matrix: Record<string, Record<string, boolean>> = {};
   for (const row of (prefsRes.data || []) as { type: string; channel: string; enabled: boolean }[]) {
     (matrix[row.type] ||= {})[row.channel] = !!row.enabled;
   }
   return {
     muted: s.muted === true,
-    quietStart: Number.isFinite(s.quiet_start) ? (s.quiet_start as number) : 22,
-    quietEnd: Number.isFinite(s.quiet_end) ? (s.quiet_end as number) : 7,
-    tz: s.tz || 'UTC',
+    quietStart: quiet.quietStart,
+    quietEnd: quiet.quietEnd,
+    tz: quiet.tz,
     capTz: profileTz || normalizeZone(s.tz) || 'UTC',
     maxPerDay: Number.isFinite(s.daily_cap) ? (s.daily_cap as number) : 4,
     tone: (voice as { tone?: string }).tone === 'direct' ? 'direct' : 'supportive',

@@ -205,12 +205,18 @@ test('the cap counts and holds pushes only: an in-app-only alert neither takes a
 // Codex on #2417: the habit cron dates the shared cap in the profile's zone first, the engine read
 // only the notification settings' zone, so after travel the two senders counted different days.
 // Only the cap's day moved: quiet hours stay on the settings' zone, where push delivery reads them.
-test("the cap's day is read in the habit cron's zone: profile, then settings, then UTC; quiet hours keep the settings' zone", async () => {
+test("the cap's day and quiet hours are read in the habit cron's zone: profile, then settings", async () => {
   const prefsWith = (tables) => core.loadPrefs(fakeSupabase({ tables }), 'ann');
   const settings = { notification_settings: [{ user_id: 'ann', tz: 'America/New_York' }] };
   const travelled = await prefsWith({ ...settings, client_profiles: [{ user_id: 'ann', timezone: 'Asia/Tokyo' }] });
   assert.equal(travelled.capTz, 'Asia/Tokyo');
-  assert.equal(travelled.tz, 'America/New_York', 'quiet hours stay where push delivery reads them');
+  // Owner, 2026-10-26 ("fix 1-7"): quiet hours are the person's own night. Push delivery reads the
+  // same zone (pushAllowed, push/dispatch/route.ts), so the engine never pushes what delivery holds.
+  assert.equal(travelled.tz, 'Asia/Tokyo', "quiet hours follow the person's profile zone, as push delivery's do");
+  assert.equal((await prefsWith({ ...settings })).tz, 'America/New_York', 'no profile zone: the settings zone');
+  const nowhere = await prefsWith({});
+  assert.equal(nowhere.quietStart, nowhere.quietEnd, 'no zone known: no quiet hours, rather than UTC nights');
+  assert.match(read('src/app/api/push/dispatch/route.ts'), /return inQuietHours\(now, quietWindow\(settings, personZone\(profileTz, settings\?\.tz\)\)\);/);
   assert.equal((await prefsWith({ ...settings })).capTz, 'America/New_York', 'no profile zone falls back to the settings');
   assert.equal((await prefsWith({ ...settings, client_profiles: [{ user_id: 'ann', timezone: 'Not/AZone' }] })).capTz, 'America/New_York', 'an unusable profile zone is skipped');
   assert.equal((await prefsWith({ client_profiles: [{ user_id: 'ben', timezone: 'Asia/Tokyo' }] })).capTz, 'UTC', "another person's profile is not read");

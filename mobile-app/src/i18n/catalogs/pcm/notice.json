@@ -116,6 +116,8 @@
   "credential.verified.body": "Your credentials check out — Verified badge dey show now for your marketplace profile.",
   "credential.changes.title": "Credential review — small fix dey needed",
   "credential.changes.body": "We need small more to verify your credentials. Open your profile make you update dem.",
+  "credential.rejected.title": "We no fit verify your credentials",
+  "credential.rejected.body": "We no fit verify wetin you upload, so Verified badge no dey your profile. Open your profile make you upload dem again.",
   "credential.insurance.title": "Insurance renewal dey come",
   "credential.insurance.body": "Your liability insurance go expire {date}. Renew am and upload your COI again make you keep your Verified badge.",
   "credential.license.title": "License renewal — {state}",

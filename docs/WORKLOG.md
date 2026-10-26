@@ -127,6 +127,10 @@ dated entry or past 20 KB.
     linked coaches through the private `meal-notes` bucket.
   - `src/app/api/nutrition/voice/route.ts` does Whisper transcription.
   - The War Room (`/warroom`, `src/lib/warroom.ts`) is the go-live status board.
+  - Notifications: each kind answers to a switch (`PREFERENCE_OF`, `notificationSurfaces.mjs`), read
+    by the push, `/api/notifications` and the app's toast; a new kind needs one there and on both
+    settings screens. Quiet hours are the person's night in their own zone; a notice in them is held
+    (`data.held_at`) for `/api/cron/push-held`.
   - `/api/calendar?activities=1` (member calendar only) adds activities: providers' copies
     within 20 min are one; a logged workout's folds into it; one ticks an open planned
     workout of its day (undated: its week) and `workoutKind`, unless its title names no
@@ -137,6 +141,8 @@ dated entry or past 20 KB.
 The War Room has the full list; this covers what needs the owner and the planned builds.
 
 **Waiting on the owner**
+- Run `2026-10-26-push-notice-fixes.sql`: until then a member's direct message notifies nobody, and
+  follows and co-signs repeat.
 - Push keys (the app side is built, #2385; 0 push devices in production). For iPhone,
   set `APNS_KEY_ID`, `APNS_TEAM_ID` and `APNS_PRIVATE_KEY` in Vercel. For Android, add
   the app to Firebase `shape-84d22` and save its `google-services.json` as the repo
@@ -192,7 +198,6 @@ The War Room has the full list; this covers what needs the owner and the planned
 - The `?error=` redirects from `/purchase` and `/subscribe` are never shown.
 - A referral sign-up's confirmation email opens a bare `Login.html`, so confirming on another
   device loses the way back to the coach (War Room).
-- `checkin_submitted` is a switch nothing writes.
 - Payment notices (#2402) reach the owners in code (`admin-access.ts`), not Staff-page staff.
 - Direct charges (#2403): the app profile's one-tap Subscribe and Book have no code box; a
   one-time percent code's fee can be a cent off Stripe's rounding; a member whose coach

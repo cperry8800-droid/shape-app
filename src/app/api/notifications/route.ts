@@ -12,7 +12,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
-import { PHONE_ONLY_IN } from '../../../../public/newdesign/notificationSurfaces.mjs';
+import { PHONE_ONLY_IN, preferenceTypeFor } from '../../../../public/newdesign/notificationSurfaces.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,13 +54,24 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: 'Could not read notifications.' }, { status: 502 });
 
   const rows = (data ?? []) as Row[];
+  // The switches whose App channel the reader turned off.
+  const offRes = rows.length
+    ? await supabase.from('notification_preferences').select('type').eq('user_id', user.id).eq('channel', 'inapp').eq('enabled', false)
+    : { data: [], error: null };
   // Honor the preference center's in-app channel: a row written for push/email
   // only (data.channels.inapp === false) never shows in the bell. Rows with no
   // channels metadata predate the preference stamping — default visible. The
   // query over-fetches (200 newest) BEFORE the 50-item cap so a run of hidden
   // push/email-only rows can't starve the feed of older visible ones.
+  // ⚠ AND A ROW NOTHING STAMPED ANSWERS TO ITS SWITCH TOO (owner, 2026-10-26: "make sure users have the
+  // ability to customize/toggle which notifications they want"). A database trigger's row (a message,
+  // a follow, a coach's new plan) carries no stamp, so its App switch hid nothing. Each row is read
+  // against the switch it answers to (preferenceTypeFor). A read of the switches that fails hides
+  // nothing: the list is never emptied on its own uncertainty.
+  const hidden = new Set(offRes.error ? [] : ((offRes.data ?? []) as { type: string }[]).map((p) => p.type));
   const visible = rows.filter(r =>
     ((r.data as { channels?: { inapp?: boolean } } | null)?.channels?.inapp) !== false
+    && !hidden.has(preferenceTypeFor(r.type, r.data))
   ).slice(0, 50);
   const notifications = visible.map(r => ({
     id: r.id,

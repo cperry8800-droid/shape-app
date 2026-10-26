@@ -50,3 +50,66 @@ export const EMAIL_ON_BY_DEFAULT = Object.freeze(['tier_up']);
 
 export const isEmailType = (type) => EMAIL_TYPES.includes(type);
 export const emailOnByDefault = (type) => EMAIL_ON_BY_DEFAULT.includes(type);
+
+// The switch each kind of notification answers to: the preference type the settings store, for the
+// push (/api/push/dispatch), the app's list and the website's bell (/api/notifications) and the
+// app's toast. A type not listed answers to its own name, which is the switch for every
+// preference-aware writer's type (waitlist_invite, tier_up, meal_prep, friend_habit, new_client, the
+// AI's). The reminders a member sets (reminder_*) are switched one by one where they are set.
+// ⚠ EVERY KIND A PERSON CAN RECEIVE HAS A SWITCH (owner, 2026-10-26: "make sure users have the ability
+// to customize/toggle which notifications they want"): tests/notification-switches.test.mjs holds the
+// settings screens to this map.
+// ⚠ BEFORE THESE, ONLY "MUTE EVERYTHING" STOPPED THEM (owner, 2026-10-26: "fix 1-7"): a coach's new
+// plans, sessions, follows, payments and a coach's client messages had no switch, and the daily
+// Shape Score push ignored the Score switch.
+export const PREFERENCE_OF = Object.freeze({
+  // What a coach sends a member.
+  workout: 'coach_content',
+  program: 'coach_content',
+  meal_plan: 'coach_content',
+  grocery: 'coach_content',
+  // Sessions, on either side.
+  session_booked: 'sessions',
+  session_confirmed: 'sessions',
+  session_declined: 'sessions',
+  session_rescheduled: 'sessions',
+  session_cancelled: 'sessions',
+  session_paid: 'sessions',
+  intro_followup: 'sessions',
+  booking_request: 'sessions',
+  // Followers.
+  follow: 'follows',
+  follow_request: 'follows',
+  follow_accept: 'follows',
+  // Money: a member's receipt, a coach's sale or renewal, the owners' notice.
+  payment_receipt: 'payments',
+  payment: 'payments',
+  platform_payment: 'payments',
+  // The Shape Score: the daily dip and the weekly commitment answer to the Score switch.
+  score_accountability: 'score_drop',
+  score_commitment: 'score_drop',
+  // From Shape itself: the welcome, and a note about the account (workouts now share automatically).
+  membership_welcome: 'account',
+  general: 'account',
+  // A coach's certifications: verified, a fix needed, not verified, a renewal coming up.
+  credential_verified: 'credentials',
+  credential_changes: 'credentials',
+  credential_rejected: 'credentials',
+  credential_expiry: 'credentials',
+  // The database writes a co-sign as 'cosign'; the setting is "Co-signs".
+  cosign: 'coach_cosign',
+});
+
+// A message's switch is the recipient's side of it (data.side, the message trigger): a member's own
+// coach writing is "Coach messages"; a client or the care team writing to a coach is "Client
+// messages"; another member's direct message is "Messages". A row written before `side` has none.
+export function preferenceTypeFor(type, data) {
+  if (type === 'message') {
+    const side = data && typeof data === 'object' ? data.side : null;
+    if (side === 'client') return 'coach_message';
+    if (side === 'coach') return 'client_message';
+    if (side === 'member') return 'direct_message';
+    return 'message';
+  }
+  return Object.prototype.hasOwnProperty.call(PREFERENCE_OF, type) ? PREFERENCE_OF[type] : type;
+}

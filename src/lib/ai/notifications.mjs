@@ -150,6 +150,20 @@ export function localDow(now, tz) {
   try { const w = new Intl.DateTimeFormat('en-US', { timeZone: tz || 'UTC', weekday: 'short' }).format(now); return _DOW[w] != null ? _DOW[w] : new Date(now).getUTCDay(); }
   catch { return new Date(now).getUTCDay(); }
 }
+// A person's quiet hours, on their own clock: the hours they saved (22:00 to 07:00 until they do)
+// in `zone`, the zone they live in (personZone, src/lib/time.ts). With no zone known there are none:
+// read in UTC, 22:00 to 07:00 silenced an American evening and let the night's pushes through.
+// ⚠ ONE RULE FOR EVERY SENDER (owner, 2026-10-26: "fix 1-7"). The push dispatcher applied quiet
+// hours only to someone who had saved settings, and this engine read them in UTC for everyone else.
+export function quietWindow(settings, zone) {
+  if (typeof zone !== 'string' || !zone) return { quietStart: 0, quietEnd: 0, tz: 'UTC' };
+  const s = settings && typeof settings === 'object' ? settings : {};
+  return {
+    quietStart: Number.isFinite(s.quiet_start) ? s.quiet_start : 22,
+    quietEnd: Number.isFinite(s.quiet_end) ? s.quiet_end : 7,
+    tz: zone,
+  };
+}
 export function inQuietHours(now, prefs) {
   const start = Number.isFinite(prefs.quietStart) ? prefs.quietStart : 22;
   const end = Number.isFinite(prefs.quietEnd) ? prefs.quietEnd : 7;

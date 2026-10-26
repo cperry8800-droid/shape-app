@@ -112,7 +112,10 @@ test('the exemptions are the eleven that were checked, and each is deliberate', 
   // #2400), which a head count cannot, so it walks the open subscriptions by the same readAllById.
   // cron/habit-watch/route.ts joined on 2026-10-20: it finds the shared habits by the same cursor
   // walk on `id` as cron/prep-reminders, a page at a time to the end of the table or a reported
-  // ceiling, where a newest-first cap would drop the habits past it.)
+  // ceiling, where a newest-first cap would drop the habits past it.
+  // cron/push-held/route.ts joined on 2026-10-26: it walks every held notice by created_at, a page at a
+  // time to the end, oldest first so the night's notices go in order and the per-person limit keeps
+  // the first ones.)
   const marked = capped().filter((r) => r.exempt).map((r) => r.where.replace(/:\d+$/, ''));
   assert.deepEqual([...new Set(marked)].sort(), [
     'client/onboarding/route.ts',
@@ -121,6 +124,7 @@ test('the exemptions are the eleven that were checked, and each is deliberate', 
     'conversations/[id]/messages/route.ts',
     'cron/habit-watch/route.ts',
     'cron/prep-reminders/route.ts',
+    'cron/push-held/route.ts',
     'nutritionist/analytics/route.ts',
     'nutritionist/dashboard/route.ts',
     'radio/rooms/route.ts',

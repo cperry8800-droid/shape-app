@@ -480,6 +480,8 @@ const DASH_INBOX_COACH_TABS = {
   home: "today", clients: "clients", schedule: "schedule", settings: "settings",
   // The certifications and the waiting room are on the Profile page.
   credentials: "profile", waitlist: "profile",
+  // A sale or a monthly renewal: the Business tab.
+  business: "business",
 };
 // The coach shell of `role` on `tab`: a hash switch inside that shell, the shell from anywhere else.
 function dashCoachHref(role, tab) {
@@ -511,14 +513,17 @@ function dashInboxIsCareTeam(n) { return !!(dashInboxIsMessage(n) && n.data && n
 // ⚠ THE NOTIFICATION SAYS WHICH SIDE ITS RECIPIENT IS ON (data.side, the notification audit): an
 // account can be a coach and a client, and a message from its own coach belongs in the bubble even
 // on its coach dashboard. A notification written before `side` falls back to the account's role.
+// A member's direct message is side "member" (2026-10-26-push-notice-fixes.sql): the bubble's Friends
+// tab, for a coach as for a member, since no Messages page lists it.
 function dashInboxSide(n) {
   const side = n && n.data && n.data.side;
-  return side === "client" || side === "coach" ? side : null;
+  return side === "client" || side === "coach" || side === "member" ? side : null;
 }
 function dashInboxThreadFor(n, role) {
   if (!dashInboxIsMessage(n)) return null;
   if (dashInboxIsCareTeam(n)) return dashInboxConversation(n) || null;
   const side = dashInboxSide(n);
+  if (side === "member") return dashInboxConversation(n) || null;
   if (side === "coach" || (!side && (role === "trainer" || role === "nutritionist"))) return null;
   return dashInboxConversation(n) || null;
 }
@@ -548,7 +553,7 @@ function dashInboxHref(n, role, accountCoach) {
   // Messages page lists one role's threads and refuses the other's, so a trainer thread opened from
   // the nutritionist dashboard read as missing. The alerts carry it (data.providerRole).
   // A message to the client side of a thread opens the bubble (dashInboxThreadFor), whatever the role.
-  if (dashInboxIsMessage(n) && dashInboxSide(n) === "client") return null;
+  if (dashInboxIsMessage(n) && (dashInboxSide(n) === "client" || dashInboxSide(n) === "member")) return null;
   const own = n.data && (n.data.providerRole === "trainer" || n.data.providerRole === "nutritionist") ? n.data.providerRole : null;
   // A coach-side notification opens the coach page of its role, from the member dashboard too.
   if ((role === "trainer" || role === "nutritionist" || dashInboxSide(n) === "coach") && own) role = own;
@@ -576,6 +581,8 @@ function dashInboxHref(n, role, accountCoach) {
     if (role !== "trainer" && role !== "nutritionist") return null;
     return "/newdesign/" + (role === "nutritionist" ? "Nutritionist" : "Trainer") + "Messages.html?conversation=" + encodeURIComponent(msgConv);
   }
+  // A payment to Shape (the owners' notice): the admin console.
+  if (n.route === "admin") return "/admin";
   // The night-before prep reminder ("prep:<recipe>") opens the website's cook page on that recipe.
   if (n.route.startsWith("prep:") && n.route.length > 5) return "/newdesign/Cook.html?r=" + encodeURIComponent(n.route.slice(5));
   // A waiting-list invite ("coach:<role>:<id>") opens that coach's profile, where the invited member books.
@@ -589,7 +596,7 @@ function dashInboxHref(n, role, accountCoach) {
   // A coach's own pages, in the notification's role (a schedule, waiting room or certifications
   // alert from the member dashboard opens the coach shell). "home" and "settings" are the coach's
   // only when the account is on its coach dashboard.
-  const coachOnly = n.route === "clients" || n.route === "schedule" || n.route === "credentials" || n.route === "waitlist";
+  const coachOnly = n.route === "clients" || n.route === "schedule" || n.route === "credentials" || n.route === "waitlist" || n.route === "business";
   if (coachOnly || ((n.route === "home" || n.route === "settings") && (role === "trainer" || role === "nutritionist"))) {
     return coachRole && DASH_INBOX_COACH_TABS[n.route] ? dashCoachHref(coachRole, DASH_INBOX_COACH_TABS[n.route]) : null;
   }

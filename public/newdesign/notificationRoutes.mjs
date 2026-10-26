@@ -23,6 +23,8 @@ export const ROUTES = Object.freeze({
   schedule: 'coach',     // the coach's calendar: a booking request, a session payment (schedule:<role>)
   waitlist: 'coach',     // the coach's waiting room (waitlist:<role>)
   credentials: 'coach',  // the coach's certifications
+  business: 'coach',     // the coach's Business page: a sale, a monthly renewal (business:<role>)
+  admin: 'either',       // the owners' admin console (on the website): a payment to Shape
   prep: 'member',        // the night-before prep reminder (prep:<recipe>)
   coach: 'member',       // a coach's listing (coach:<role>:<id>): a waiting-list invite
   sessions: 'member',    // the member's sessions: booked, confirmed, declined, moved, cancelled
@@ -80,7 +82,7 @@ export function canonicalRoute(route, data) {
     const id = ID(d.clientId);
     return id ? (role ? `client:${role}:${id}` : `client:${id}`) : route;
   }
-  if ((route === 'schedule' || route === 'waitlist' || route === 'credentials') && role) return `${route}:${role}`;
+  if ((route === 'schedule' || route === 'waitlist' || route === 'credentials' || route === 'business') && role) return `${route}:${role}`;
   if ((route === 'profile' || route === 'person') && ID(d.actorId)) return route + ':' + ID(d.actorId);
   if ((route === 'feed' || route === 'community') && ID(d.postId)) return 'feed:' + ID(d.postId);
   return route;
@@ -115,7 +117,7 @@ export function parseRoute(str) {
     return r ? { kind, id: /^\d+$/.test(id || '') ? id : null, role: r } : null;
   }
   if (kind === 'prep') return rest ? { kind, id: rest, role: null } : null;
-  if (kind === 'schedule' || kind === 'waitlist' || kind === 'credentials') return { kind, id: null, role: ROLE(rest) };
+  if (kind === 'schedule' || kind === 'waitlist' || kind === 'credentials' || kind === 'business') return { kind, id: null, role: ROLE(rest) };
   if (kind === 'profile' || kind === 'feed') return { kind, id: rest || null, role: null };
   // A person's profile opens only with the person named.
   if (kind === 'person') return rest ? { kind, id: rest, role: null } : null;

@@ -6,6 +6,7 @@
 // so the threshold tests DRIVE `evaluateClient` and assert the flag appears and
 // disappears, rather than checking that a number round-tripped. Run: node --test
 import test from 'node:test';
+import { PREFERENCE_OF } from '../public/newdesign/notificationSurfaces.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -244,33 +245,33 @@ test('the coach matrix matches the registry’s coach-audience types exactly', (
   // actually sends — not every coach-audience entry.
   assert.deepEqual(registryInPanel, fromRegistry.filter((k) => emitted.has(k)),
     'CST_REGISTRY_COACH_TYPES has drifted from the types coachCandidates emits');
-  // …and every EXTRA is a preference-gated send: it must be routed through
-  // createPreferredNotification somewhere, or the switch governs nothing.
+  // …and every EXTRA governs something. Since the push dispatcher and the list read every row
+  // against the switch it answers to (notificationSurfaces.mjs preferenceTypeFor; owner,
+  // 2026-10-26), a switch is real when a sent type answers to it: a message's side, a type
+  // PREFERENCE_OF maps, or a type a writer sends under the switch's own name.
   const extras = inPanel.filter((k) => !fromRegistry.includes(k));
   assert.ok(extras.length > 0, 'the extras guard is vacuous — no non-registry type is listed');
+  const mapped = new Set([...Object.values(PREFERENCE_OF), 'coach_message', 'client_message', 'direct_message']);
   for (const k of extras) {
-    const hit = execSync("grep -rl \"type: '" + k + "'\" src/app --include=*.ts", { encoding: 'utf8' }).trim().split('\n');
-    assert.ok(hit.length && hit[0], k + ' is offered as a switch but nothing sends it');
-    const src = readFileSync(new URL('../' + hit[0], import.meta.url), 'utf8');
-    assert.match(src, /createPreferredNotification\(|preferredNotificationOutcome\(/,
-      k + ' is offered as a switch but is not sent preference-aware — the toggle governs nothing');
+    if (mapped.has(k)) continue;
+    const hit = execSync("grep -rlE \"type: '" + k + "'|type: \\\"" + k + "\\\"\" src --include=*.ts", { encoding: 'utf8' }).trim();
+    assert.ok(hit, k + ' is offered as a switch but nothing sends it');
   }
 });
 
-test('the panel says which notifications it does NOT govern', () => {
-  // ⚠ credential_expiry (cron) and payment (the Stripe webhook) reach coaches through
-  // createNotification, which does not consult notification_preferences — only
-  // createPreferredNotification and the AI notify layer do. Offering a switch for
-  // those would be a switch that changes nothing, so they are absent AND said.
+test('the panel governs every notification a coach receives, and says so', () => {
+  // Owner, 2026-10-26: "make sure users have the ability to customize/toggle which notifications they
+  // want". Credential and payment notices were left off because createNotification wrote them past
+  // the matrix; the dispatcher and the list now read every row's switch, so they are offered, and the
+  // card no longer says they arrive whatever is set.
   const src = stripComments(SETTINGS);
-  assert.ok(!/"credential_expiry"|"payment"/.test(src), 'a notification the matrix cannot govern is offered as a toggle');
-  assert.match(src, /Credential-expiry and payment/, 'the card does not say what it leaves out');
-  // ⚠ AND THE QUIET-HOURS / CAP CONTROLS DO NOT REACH waitlist_join.
-  // `createPreferredNotification` reads only `muted` — never quiet_start, quiet_end, tz
-  // or daily_cap — so listing that type beneath those controls made them misleading for
-  // it. Said on the card rather than left for a coach to discover at 3 a.m.
-  assert.match(src, /Quiet hours and the daily cap apply to the client alerts and friends' habits above/,
-    'the card does not say which notifications the quiet hours and cap actually cover');
+  for (const k of ['client_message', 'new_client', 'sessions', 'payments', 'credentials', 'follows', 'direct_message', 'account']) {
+    assert.match(src, new RegExp('\\["' + k + '",'), k + ' has no switch on the coach card');
+  }
+  assert.doesNotMatch(src, /arrive whatever is set here/, 'the card still says some notifications ignore it');
+  assert.match(src, /Every notification you get is switched here\. Quiet hours hold them until the morning;/);
+  assert.match(src, /the daily cap applies to the client alerts and friends' habits above\./,
+    'the card does not say which notifications the cap covers');
 });
 
 test('an unset switch reads the GATE\u2019s default for that channel, not simply ON', () => {

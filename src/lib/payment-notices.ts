@@ -54,6 +54,16 @@ export function usd(cents: number): string {
   return `$${(Math.max(0, cents) / 100).toFixed(2)}`;
 }
 
+// ⚠ A PAYMENT NOTICE OPENS SOMETHING (owner, 2026-10-26: "fix 1-7"). Each had no route, so a tapped
+// receipt, renewal or owners' notice opened the app wherever it was. A member's receipt opens what was
+// bought; a coach's renewal opens Business; the owners' notice opens the admin console.
+export function receiptRoute(paidFor: PaidFor): string {
+  if (paidFor === 'program') return 'train';
+  if (paidFor === 'meal_plan') return 'eat';
+  if (paidFor === 'coaching') return 'messages';
+  return 'home';
+}
+
 /** The member's receipt: none for a paid session, whose own notice says it is paid. */
 export function memberGetsReceipt(p: Pick<PaymentNotice, 'paidFor'>): boolean {
   return p.paidFor !== 'booking';
@@ -201,6 +211,7 @@ export async function announcePayment(admin: SupabaseClient, p: PaymentNotice): 
         userId: ownerId,
         type: 'platform_payment',
         ...toOwner,
+        route: 'admin',
         data: { dedupe: `pay:${p.key}`, clientId: p.clientId, paidFor: p.paidFor, renewal: p.renewal, amountCents: p.amountCents, providerRole: role, providerId: p.provider?.id ?? null, side: 'owner' },
       });
       if (stored) out.owners += 1;
@@ -211,6 +222,7 @@ export async function announcePayment(admin: SupabaseClient, p: PaymentNotice): 
         userId: p.clientId,
         type: 'payment_receipt',
         ...memberReceipt(p, coach.name),
+        route: receiptRoute(p.paidFor),
         data: { dedupe: `receipt:${p.key}`, paidFor: p.paidFor, renewal: p.renewal, amountCents: p.amountCents, providerRole: role, side: 'client', copy: memberReceiptCopy(p, coach.name) },
       });
     }
@@ -220,6 +232,7 @@ export async function announcePayment(admin: SupabaseClient, p: PaymentNotice): 
         userId: coach.ownerId,
         type: 'payment',
         ...coachRenewal(p, client),
+        route: 'business',
         data: { dedupe: `renewal:${p.key}`, clientId: p.clientId, providerRole: role, side: 'coach', copy: coachRenewalCopy(p, client) },
       });
     }

@@ -102,6 +102,18 @@ export async function rejectCredential(formData: FormData): Promise<void> {
   if (error) throw error;
   if (!rejected?.length) await notRecorded(admin, ownerId);
 
+  // ⚠ THE COACH IS TOLD (owner, 2026-10-26: "fix 1-7"). A rejection sent nothing, so a coach whose
+  // badge came off learned it only by looking at their profile. The reviewer's notes are said as
+  // they wrote them; without notes the catalog's sentence is said in the coach's language.
+  await createNotification(admin, {
+    userId: ownerId,
+    type: 'credential_rejected',
+    title: 'Your credentials couldn’t be verified',
+    body: notes ? notes.slice(0, 160) : 'We couldn’t verify what you uploaded, so your profile has no Verified badge. Open your profile to upload them again.',
+    route: 'credentials', // the coach's certifications ('profile' is a person's profile)
+    data: { channels: { inapp: true, push: true, email: false }, copy: { title: np('credential.rejected.title'), ...(notes ? {} : { body: np('credential.rejected.body') }) } },
+  });
+
   revalidatePath('/dashboard/credentials');
   revalidatePath('/trainers');
   revalidatePath('/nutritionists');

@@ -40,6 +40,9 @@ async function runReminders(rows, snapshots = {}, { noSkipColumn = false, missin
         in(k, v) { q._eq[k] = 'in'; q._in = v; return q; },
         not(k, op, v) { q._not.push([k, op, v]); return q; },
         limit: async () => ({ data: rows, error: null }),
+        // The reminders are read a page at a time, in id order (one page here).
+        order() { return q; },
+        range: async () => ({ data: rows, error: null }),
         // An awaited snapshot read: the asked members' rows that day, kept by each `.not(col, 'is', null)`.
         then(resolve, reject) {
           reads.push({ table, ids: q._in, ...q._eq, not: q._not.flat(), cols: q._cols });

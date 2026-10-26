@@ -116,6 +116,8 @@
   "credential.verified.body": "Deine Qualifikationen wurden bestätigt — auf deinem Marktplatz-Profil steht jetzt das Abzeichen „Verifiziert“.",
   "credential.changes.title": "Prüfung deiner Qualifikationen — kurze Korrektur nötig",
   "credential.changes.body": "Wir brauchen noch etwas mehr, um deine Qualifikationen zu prüfen. Öffne dein Profil, um sie zu aktualisieren.",
+  "credential.rejected.title": "Deine Qualifikationen konnten nicht bestätigt werden",
+  "credential.rejected.body": "Wir konnten nicht bestätigen, was du hochgeladen hast, daher fehlt auf deinem Profil das Abzeichen „Verifiziert“. Öffne dein Profil, um sie erneut hochzuladen.",
   "credential.insurance.title": "Versicherung bald verlängern",
   "credential.insurance.body": "Deine Haftpflichtversicherung läuft am {date} ab. Verlängere sie und lade dein COI neu hoch, um dein Abzeichen „Verifiziert“ zu behalten.",
   "credential.license.title": "Lizenzverlängerung — {state}",
