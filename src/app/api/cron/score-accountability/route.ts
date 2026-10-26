@@ -139,8 +139,7 @@ async function run(request: Request) {
     return m;
   };
 
-  for (let at = 0; at < clientIds.length; at += CHUNK) {
-    if (Date.now() - startedAt > TIME_BUDGET_MS) { unreached = clientIds.length - at; break; }
+  members: for (let at = 0; at < clientIds.length; at += CHUNK) {
     const ids = clientIds.slice(at, at + CHUNK);
 
     type SessRow = { id: string; client_id: string };
@@ -243,7 +242,12 @@ async function run(request: Request) {
       continue;
     }
 
-    for (const uid of ids) {
+    for (let i = 0; i < ids.length; i++) {
+      const uid = ids[i];
+      // The budget is checked before each member, not each chunk: a chunk begun just inside it would run
+      // past maxDuration and end the run mid-member (Codex on #2476). A run overshoots by one member's
+      // work at most.
+      if (Date.now() - startedAt > TIME_BUDGET_MS) { unreached = clientIds.length - (at + i); break members; }
       try {
         evaluated += 1;
         const dipped: string[] = [];

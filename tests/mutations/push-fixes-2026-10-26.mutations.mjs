@@ -187,7 +187,7 @@ export default {
       replace: '  const queue = owners;' },
     // The daily Score job: a time budget and a start that moves each day (Codex on #2476).
     { name: 'the Score job runs past its time', file: 'src/app/api/cron/score-accountability/route.ts',
-      find: '    if (Date.now() - startedAt > TIME_BUDGET_MS) { unreached = clientIds.length - at; break; }\n',
+      find: '      if (Date.now() - startedAt > TIME_BUDGET_MS) { unreached = clientIds.length - (at + i); break members; }\n',
       replace: '' },
     { name: 'every Score run starts at the same place', file: 'src/app/api/cron/score-accountability/route.ts',
       find: '  ), Math.floor(now.getTime() / 86_400_000));',

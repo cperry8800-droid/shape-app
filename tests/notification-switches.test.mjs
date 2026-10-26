@@ -536,7 +536,8 @@ test('the daily Score job stops inside its time and starts elsewhere each day, s
           ['@/lib/membership-core', membership], ['@/lib/ai/notifications.mjs', notifyLayer]]),
       });
       const body = await (await mod.GET(new Request('https://x/api/cron/score-accountability', { headers: { 'x-cron-secret': 'score-secret' } }))).json();
-      assert.ok(clock - started <= 320_000, `a run went on for ${(clock - started) / 1000} s`);
+      // The budget is 270 s, checked before each member, so a run overshoots by one member's second at most.
+      assert.ok(clock - started <= 271_000, `a run went on for ${(clock - started) / 1000} s`);
       assert.ok(body.unreached > 0 && body.evaluated + body.unreached === N, JSON.stringify(body));
       days += 1;
     }
