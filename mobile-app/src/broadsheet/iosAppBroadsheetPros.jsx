@@ -1348,7 +1348,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (BS_MEMBER_PAGES.includes(d.page)) { if (d.fromNotification) bsHandOver(bsRouteFor('page', d), 'client', setTweak); return; }
-      if (d.fromNotification && d.role && d.role !== 'trainer' && (d.page === 'schedule' || d.page === 'waitlist' || d.page === 'credentials')) {
+      if (d.fromNotification && d.role && d.role !== 'trainer' && (d.page === 'schedule' || d.page === 'waitlist' || d.page === 'credentials' || d.page === 'business')) {
         bsHandOver(bsRouteFor('page', d), d.role, setTweak);
         return;
       }
@@ -1364,6 +1364,10 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         // The waiting room is in Settings ▸ Your practice.
         case 'waitlist': clear(); setSettingsStart('practice'); setShowSettings(true); return;
         case 'settings': clear(); setShowSettings(true); return;
+        // A sale or a monthly renewal: Business, in Settings.
+        case 'business': clear(); setSettingsStart('business'); setShowSettings(true); return;
+        // A payment to Shape (the owners' notice): the admin console, on the website.
+        case 'admin': window.ShapeStaff?.openConsole?.(); return;
         case 'profile': clear(); setTab('me'); return;
         // Someone else's profile (a friend's habit not done by 8 pm), over the page they were on.
         case 'person': clear(); bsProOpenPerson(d.id, setNotifPerson); return;
@@ -7548,7 +7552,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (BS_MEMBER_PAGES.includes(d.page)) { if (d.fromNotification) bsHandOver(bsRouteFor('page', d), 'client', setTweak); return; }
-      if (d.fromNotification && d.role && d.role !== 'nutritionist' && (d.page === 'schedule' || d.page === 'waitlist' || d.page === 'credentials')) {
+      if (d.fromNotification && d.role && d.role !== 'nutritionist' && (d.page === 'schedule' || d.page === 'waitlist' || d.page === 'credentials' || d.page === 'business')) {
         bsHandOver(bsRouteFor('page', d), d.role, setTweak);
         return;
       }
@@ -7564,6 +7568,10 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         // The waiting room is in Settings ▸ Your practice.
         case 'waitlist': clear(); setSettingsStart('practice'); setShowSettings(true); return;
         case 'settings': clear(); setShowSettings(true); return;
+        // A sale or a monthly renewal: Business, in Settings.
+        case 'business': clear(); setSettingsStart('business'); setShowSettings(true); return;
+        // A payment to Shape (the owners' notice): the admin console, on the website.
+        case 'admin': window.ShapeStaff?.openConsole?.(); return;
         case 'profile': clear(); setTab('me'); return;
         // Someone else's profile (a friend's habit not done by 8 pm), over the page they were on.
         case 'person': clear(); bsProOpenPerson(d.id, setNotifPerson); return;

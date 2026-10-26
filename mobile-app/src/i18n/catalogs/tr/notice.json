@@ -116,6 +116,8 @@
   "credential.verified.body": "Sertifikaların onaylandı — pazar yeri profilinde artık Doğrulandı rozeti görünüyor.",
   "credential.changes.title": "Sertifika incelemesi — küçük bir düzeltme gerekiyor",
   "credential.changes.body": "Sertifikalarını doğrulamak için biraz daha bilgiye ihtiyacımız var. Güncellemek için profilini aç.",
+  "credential.rejected.title": "Sertifikaların doğrulanamadı",
+  "credential.rejected.body": "Yüklediklerini doğrulayamadık, bu yüzden profilinde Doğrulandı rozeti yok. Yeniden yüklemek için profilini aç.",
   "credential.insurance.title": "Sigorta yenileme zamanı yaklaşıyor",
   "credential.insurance.body": "Mesleki sorumluluk sigortanın süresi {date} tarihinde doluyor. Doğrulandı rozetini korumak için sigortanı yenile ve COI belgeni yeniden yükle.",
   "credential.license.title": "Lisans yenileme — {state}",

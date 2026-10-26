@@ -116,6 +116,8 @@
   "credential.verified.body": "Vos diplômes ont été validés — le badge « Vérifié » s’affiche désormais sur votre profil de la place de marché.",
   "credential.changes.title": "Vérification des diplômes — une petite correction est nécessaire",
   "credential.changes.body": "Il nous faut un peu plus pour vérifier vos diplômes. Ouvrez votre profil pour les mettre à jour.",
+  "credential.rejected.title": "Vos diplômes n’ont pas pu être vérifiés",
+  "credential.rejected.body": "Nous n’avons pas pu vérifier ce que vous avez envoyé, votre profil n’a donc pas le badge « Vérifié ». Ouvrez votre profil pour les envoyer à nouveau.",
   "credential.insurance.title": "Renouvellement d’assurance à prévoir",
   "credential.insurance.body": "Votre assurance responsabilité civile expire le {date}. Renouvelez-la et téléversez à nouveau votre COI pour garder le badge « Vérifié ».",
   "credential.license.title": "Renouvellement de licence — {state}",

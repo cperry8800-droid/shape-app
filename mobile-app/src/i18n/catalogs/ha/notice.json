@@ -116,6 +116,8 @@
   "credential.verified.body": "An tabbatar da takaddun shaidarka — alamar An tabbatar tana bayyana yanzu a bayanin martabarka na kasuwa.",
   "credential.changes.title": "Duba takaddun shaida — ana buƙatar ɗan gyara",
   "credential.changes.body": "Muna buƙatar ƙarin bayani kaɗan don tabbatar da takaddun shaidarka. Buɗe bayanin martabarka don sabunta su.",
+  "credential.rejected.title": "Ba a iya tabbatar da takaddun shaidarka ba",
+  "credential.rejected.body": "Ba mu iya tabbatar da abin da ka loda ba, don haka babu alamar An tabbatar a bayanin martabarka. Buɗe bayanin martabarka ka sake loda su.",
   "credential.insurance.title": "Lokacin sabunta inshora na gabatowa",
   "credential.insurance.body": "Inshorar alhakinka za ta ƙare a ranar {date}. Sabunta ta kuma sake ɗora COI ɗinka don riƙe alamar An tabbatar.",
   "credential.license.title": "Sabunta lasisi — {state}",

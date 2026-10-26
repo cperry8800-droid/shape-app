@@ -66,8 +66,12 @@ const POLICIES = [
   ['profiles', 'providers_read_subscriber_profiles_base', 'profiles.id'],
 ];
 const count = (s, word) => (String(s).match(new RegExp(word, 'g')) || []).length;
-const after = M.replayDir(DIR);
+// As this file left them. A later file may restate one (2026-10-26-push-notice-fixes.sql restates
+// notify_on_new_message with a direct-message branch), so the latest definitions are checked apart:
+// they must keep past_due beside every trialing.
+const after = M.replayDir(DIR, { through: '2026-10-18' });
 const before = M.replayDir(DIR, { before: '2026-10-18' });
+const latest = M.replayDir(DIR);
 const only = (model, name) => {
   const fns = [...model.fns.values()].filter((f) => f.name === name);
   assert.equal(fns.length, 1, `${name}: ${fns.length} overloads`);
@@ -92,6 +96,16 @@ test('every coach↔client function is restated with past_due in each status lis
     // ⚠ AND ONLY THAT. Take past_due back out and the body is the previous one, byte for byte
     // (production's bodies read the same, line endings aside, on 2026-10-18).
     assert.equal(now.body.replace(/,(\s*)'past_due'/g, ''), was.body.replace(/\r\n/g, '\n'), `${name}: the body changed beyond its status lists`);
+  }
+});
+
+test('a later restatement keeps past_due beside trialing, and stays a definer pinned to public, pg_temp', () => {
+  for (const name of Object.keys(WIDENED)) {
+    const now = only(latest, name);
+    assert.ok(count(now.body, 'past_due') >= 1, `${name} (${now.file}): past_due is in it`);
+    assert.equal(count(now.body, 'past_due'), count(now.body, 'trialing'), `${name} (${now.file}): a status list stops at trialing again`);
+    assert.equal(now.definer, true, `${name} (${now.file}): SECURITY DEFINER`);
+    assert.deepEqual(now.searchPath, ['public', 'pg_temp'], `${name} (${now.file}): pinned to public, pg_temp`);
   }
 });
 

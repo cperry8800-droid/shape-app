@@ -116,6 +116,8 @@
   "credential.verified.body": "Kredensialmu sudah lolos pemeriksaan — lencana Terverifikasi kini tampil di profil marketplace-mu.",
   "credential.changes.title": "Tinjauan kredensial — perlu sedikit perbaikan",
   "credential.changes.body": "Kami butuh sedikit info lagi untuk memverifikasi kredensialmu. Buka profilmu untuk memperbaruinya.",
+  "credential.rejected.title": "Kredensialmu belum bisa diverifikasi",
+  "credential.rejected.body": "Kami belum bisa memverifikasi yang kamu unggah, jadi profilmu belum punya lencana Terverifikasi. Buka profilmu untuk mengunggahnya lagi.",
   "credential.insurance.title": "Perpanjangan asuransi sudah dekat",
   "credential.insurance.body": "Asuransi tanggung gugatmu berakhir pada {date}. Perpanjang dan unggah ulang COI-mu agar lencana Terverifikasi tetap ada.",
   "credential.license.title": "Perpanjangan lisensi — {state}",

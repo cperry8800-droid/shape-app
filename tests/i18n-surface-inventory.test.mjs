@@ -341,7 +341,6 @@ const UNCOVERED = new Set([
   'Client::BSLogActivity',
   'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
   'Client::BSNoraMemoryPage', 'Client::BSNoraProfile',
-  'Client::BSNotifyPrefs',
   'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
   'Client::BSProfileIdentityHead', 'Client::BSProgChart',
   'Client::BSRecipePreview',
@@ -896,10 +895,15 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // dropped BSClientProgress's header eyebrow ("Strength · body · recovery", which read as three
   // links) and its kicker ("Your progress", the title again), and its nine trend tabs became one
   // picker whose aria-label is "Trend". BSClientProgress stays UNCOVERED; localizing it is its own cut.
-  assert.equal(noneStrings, 616, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // ⚠ AND noneStrings 616 -> 601, none.length 80 -> 79: the notification settings (BSNotifyPrefs) were
+  // localized when every kind got a switch (Codex on #2476): its 15 walk-visible strings, the three
+  // channel labels and all 30 switch rows (a local array, which the walk never sees) are keyed under
+  // settings:notifyPrefs.* in all 13 locales, and its hours format in the reader's language. It lands
+  // fully covered, with the partial columns unchanged. Its line left UNCOVERED.
+  assert.equal(noneStrings, 601, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   // 33 -> 32: BSScoreStandingChart left with the Score page's ladder (see partStrings above).
   assert.equal(part.length, 32, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 80, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 79, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

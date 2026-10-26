@@ -39,6 +39,15 @@ export function normalizeZone(raw: unknown): string | null {
   return tz;
 }
 
+/**
+ * The zone a person lives in: their profile's (client_profiles.timezone, which the app refreshes on
+ * every open), else the one their notification settings were saved in, else null. The habit and
+ * prep crons read it in this order, and so do quiet hours.
+ */
+export function personZone(profileTz: unknown, settingsTz: unknown): string | null {
+  return normalizeZone(profileTz) || normalizeZone(settingsTz);
+}
+
 /** Whether the value is a zone this runtime can do arithmetic in. */
 export function isZone(raw: unknown): boolean {
   return normalizeZone(raw) !== null;

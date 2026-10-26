@@ -116,6 +116,8 @@
   "credential.verified.body": "Suas credenciais foram aprovadas — o selo Verificado agora aparece no seu perfil do marketplace.",
   "credential.changes.title": "Revisão de credenciais — falta um ajuste rápido",
   "credential.changes.body": "Precisamos de um pouco mais para verificar suas credenciais. Abra seu perfil para atualizá-las.",
+  "credential.rejected.title": "Não conseguimos verificar suas credenciais",
+  "credential.rejected.body": "Não conseguimos verificar o que você enviou, então seu perfil está sem o selo Verificado. Abra seu perfil para enviá-las de novo.",
   "credential.insurance.title": "Renovação do seguro se aproximando",
   "credential.insurance.body": "Seu seguro de responsabilidade civil vence em {date}. Renove e reenvie seu COI para manter o selo Verificado.",
   "credential.license.title": "Renovação de licença — {state}",

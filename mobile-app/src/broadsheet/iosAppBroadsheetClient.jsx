@@ -852,6 +852,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         // Someone else's profile (a friend's habit not done by 8 pm), over the page they were on.
         case 'person': clear(); setNotifPerson(d.id || null); return;
         case 'feed': case 'community': case 'messages': clear(); setTab('chat'); return;
+        // A payment to Shape (the owners' notice): the admin console, on the website.
+        case 'admin': window.ShapeStaff?.openConsole?.(); return;
         default: return;
       }
     };
@@ -27177,6 +27179,7 @@ function BSPushPermissionRow() {
 
 function BSNotifyPrefs({ onBack, role }) {
   const t = useBS();
+  const tr = useShapeTr();
   const { BSPage, BSDetailHeader } = window;
   const isCoach = role === 'trainer' || role === 'nutritionist' || role === 'dietitian';
   const [settings, setSettings] = useStateBSC(null);
@@ -27199,9 +27202,17 @@ function BSNotifyPrefs({ onBack, role }) {
   const chOn = (type, ch) => { const o = matrix[type]; return (o && o[ch] !== undefined) ? o[ch] : chDefault(type, ch); };
   const toggleCh = (type, ch) => { const next = !chOn(type, ch); setMatrix(m => ({ ...m, [type]: { ...(m[type] || {}), [ch]: next } })); window.ShapeNotifyPrefs?.setChannel?.(type, ch, next); };
 
+  // ⚠ EVERY KIND A PERSON CAN RECEIVE HAS A ROW (owner, 2026-10-26: "make sure users have the ability to
+  // customize/toggle which notifications they want"). Each row is the switch the server reads for it
+  // (notificationSurfaces.mjs preferenceTypeFor), for the push, the list and the toast;
+  // tests/notification-switches.test.mjs holds these lists to that map. `checkin_submitted` is not
+  // here: nothing sends it, so its switch changed nothing (the website left it out for that reason).
+  // The English here is each row's default; it renders through `settings:notifyPrefs.<side>.<type>`
+  // (and `.sub`) in every locale (Codex on #2476).
+  const side = isCoach ? 'coach' : 'member';
   const TYPES = isCoach
-    ? [['client_red', 'Clients in the red', 'Crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up'], ['checkin_submitted', 'Check-in submitted', 'A client logs their week'], ['waitlist_join', 'Waiting list', 'When someone joins your waiting list'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"]]
-    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Score dips', 'When your Shape Score drops'], ['tier_up', 'Tier ups', 'When you reach a new Shape Score tier'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never shaming'], ['waitlist_invite', 'Waitlist invites', 'When a coach has room for you'], ['habit_reminder', 'Habit reminders', 'Set per-habit on the Habits page'], ['meal_prep', 'Prep reminders', 'The night before a meal that needs it'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"]];
+    ? [['client_red', 'Clients in the red', 'Crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up'], ['client_message', 'Client messages', 'When a client or their care team writes'], ['direct_message', 'Messages', 'When a member writes to you'], ['new_client', 'New clients', 'When someone signs up with you'], ['sessions', 'Sessions', 'Requests, payments and cancellations'], ['payments', 'Payments', 'Sales and monthly renewals'], ['waitlist_join', 'Waiting list', 'When someone joins your waiting list'], ['credentials', 'Credentials', 'Verified, a fix needed, or a renewal due'], ['follows', 'Followers', 'New followers and follow requests'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"], ['account', 'From Shape', 'Notes about your account']]
+    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['direct_message', 'Messages', 'When another member writes to you'], ['coach_content', 'From your coach', 'New workouts, programs, meal plans and grocery lists'], ['sessions', 'Sessions', 'Bookings, changes and cancellations'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Shape Score', 'When it dips, and your weekly commitment'], ['tier_up', 'Tier ups', 'When you reach a new Shape Score tier'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['follows', 'Followers', 'New followers and follow requests'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never shaming'], ['waitlist_invite', 'Waitlist invites', 'When a coach has room for you'], ['habit_reminder', 'Habit reminders', 'Set per-habit on the Habits page'], ['meal_prep', 'Prep reminders', 'The night before a meal that needs it'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"], ['payments', 'Receipts', 'When a payment goes through'], ['account', 'From Shape', 'Your welcome, and notes about your account']];
 
   const Toggle = ({ on, onClick }) => (
     <button onClick={onClick} aria-pressed={on} style={{ width: 46, height: 27, borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
@@ -27226,33 +27237,35 @@ function BSNotifyPrefs({ onBack, role }) {
   const ChannelChip = ({ on, label, onClick }) => (
     <button onClick={onClick} aria-pressed={on} style={{ width: 44, padding: '5px 0', borderRadius: 8, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}22` : 'transparent', color: on ? t.ACCENT : t.INK50, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}</button>
   );
-  const hourLabel = (h) => _NP_HOURS.find(x => x.v === h)?.l || `${h}:00`;
+  // An hour in the reader's language ('7 AM', '07 Uhr'), as their other times are.
+  const hourLabel = (h) => { try { return new Date(2000, 0, 1, h).toLocaleTimeString(bsDateLocale(), { hour: 'numeric' }); } catch (e) { return _NP_HOURS.find(x => x.v === h)?.l || `${h}:00`; } };
+  const channelLabel = (k, l) => tr(`settings:notifyPrefs.channel.${k}`, { defaultValue: l });
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Section · Notifications" kicker="Notifications" title={<>What reaches<br/>you.</>} />
+      <BSDetailHeader onBack={onBack} eyebrow={tr('settings:notifyPrefs.eyebrow', { defaultValue: 'Section · Notifications' })} kicker={tr('settings:section.notifications', { defaultValue: 'Notifications' })} title={<>{tr('settings:notifyPrefs.titleA', { defaultValue: 'What reaches' })}<br/>{tr('settings:notifyPrefs.titleB', { defaultValue: 'you.' })}</>} />
       {settings === null ? (
-        <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+        <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:notifyPrefs.loading', { defaultValue: 'Loading…' })}</div>
       ) : (
         <div style={{ padding: `4px ${t.padX}px 30px` }}>
           <BSPushPermissionRow />
-          <Row label="Mute everything" sub={settings.muted ? 'All notifications paused' : 'Real events only — never spam'} border={false} right={<Toggle on={settings.muted} onClick={() => saveSettings({ muted: !settings.muted })} />} />
+          <Row label={tr('settings:notifyPrefs.mute', { defaultValue: 'Mute everything' })} sub={settings.muted ? tr('settings:notifyPrefs.muteOn', { defaultValue: 'All notifications paused' }) : tr('settings:notifyPrefs.muteOff', { defaultValue: 'Real events only — never spam' })} border={false} right={<Toggle on={settings.muted} onClick={() => saveSettings({ muted: !settings.muted })} />} />
           {!settings.muted && (
             <React.Fragment>
-              {Head('Quiet hours')}
-              <Row label="From" sub="Held for a daily digest" right={<Pill value={settings.quiet_start} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_start: v })} />} />
-              <Row label="To" sub="Uses your device time zone" right={<Pill value={settings.quiet_end} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_end: v })} />} />
-              <Row label="Daily limit" sub="Extra items batch into a digest" border={false} right={<Pill value={settings.daily_cap} opts={_NP_CAPS} fmt={(n) => `${n}/day`} onChange={(v) => saveSettings({ daily_cap: v })} />} />
+              {Head(tr('settings:notifyPrefs.quietHours', { defaultValue: 'Quiet hours' }))}
+              <Row label={tr('settings:notifyPrefs.from', { defaultValue: 'From' })} sub={tr('settings:notifyPrefs.fromSub', { defaultValue: 'Held until quiet hours end' })} right={<Pill value={settings.quiet_start} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_start: v })} />} />
+              <Row label={tr('settings:notifyPrefs.to', { defaultValue: 'To' })} sub={tr('settings:notifyPrefs.toSub', { defaultValue: 'Uses your device time zone' })} right={<Pill value={settings.quiet_end} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_end: v })} />} />
+              <Row label={tr('settings:notifyPrefs.dailyLimit', { defaultValue: 'Daily limit' })} sub={tr('settings:notifyPrefs.dailyLimitSub', { defaultValue: 'Extra items batch into a digest' })} border={false} right={<Pill value={settings.daily_cap} opts={_NP_CAPS} fmt={(n) => tr('settings:notifyPrefs.perDay', { n, defaultValue: '{n}/day' })} onChange={(v) => saveSettings({ daily_cap: v })} />} />
 
-              {Head('What you hear about · per channel')}
+              {Head(tr('settings:notifyPrefs.perChannel', { defaultValue: 'What you hear about · per channel' }))}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, padding: '0 0 6px' }}>
-                {_NP_CHANNELS.map(([k, l]) => <span key={k} style={{ width: 44, textAlign: 'center', fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>{l}</span>)}
+                {_NP_CHANNELS.map(([k, l]) => <span key={k} style={{ width: 44, textAlign: 'center', fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>{channelLabel(k, l)}</span>)}
               </div>
               {TYPES.map(([type, label, sub], i) => (
                 <div key={type} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderBottom: i < TYPES.length - 1 ? `1px solid ${t.HAIR}` : 0 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: t.INK }}>{label}</div>
-                    {sub && <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>}
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: t.INK }}>{tr(`settings:notifyPrefs.${side}.${type}`, { defaultValue: label })}</div>
+                    {sub && <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{tr(`settings:notifyPrefs.${side}.${type}.sub`, { defaultValue: sub })}</div>}
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {/* ⚠ EMAIL ONLY WHERE IT IS OFFERED (owner, 2026-10-16): coach messages, waitlist
@@ -27260,12 +27273,12 @@ function BSNotifyPrefs({ onBack, role }) {
                         switch at all, and the server never emails it. */}
                     {_NP_CHANNELS.map(([k, l]) => (k === 'email' && !isEmailType(type)
                       ? <span key={k} aria-hidden="true" style={{ width: 44, flexShrink: 0 }} />
-                      : <ChannelChip key={k} on={chOn(type, k)} label={l} onClick={() => toggleCh(type, k)} />))}
+                      : <ChannelChip key={k} on={chOn(type, k)} label={channelLabel(k, l)} onClick={() => toggleCh(type, k)} />))}
                   </div>
                 </div>
               ))}
               {!isCoach && <BSReminderManager />}
-              <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>Push also needs your device’s system permission. Shape only notifies on a real event — never a guilt-trip; each one deep-links you in, nothing changes your data.</div>
+              <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>{tr('settings:notifyPrefs.footer', { defaultValue: 'Push also needs your device’s system permission. Shape only notifies on a real event — never a guilt-trip; each one deep-links you in, nothing changes your data.' })}</div>
             </React.Fragment>
           )}
         </div>
@@ -34242,7 +34255,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showProgress, setShowProgress] = useStateBSC(false);
   const [showPublicProfile, setShowPublicProfile] = useStateBSC(false);
   // Your practice → Payouts opens Business on Money (null, or the tab it opens on).
-  const [showBusiness, setShowBusiness] = useStateBSC(null);
+  // A sale or a renewal notice opens Business on its money (initialPage 'business').
+  const [showBusiness, setShowBusiness] = useStateBSC(initialPage === 'business' ? 'money' : null);
   // Your practice → Rates (a takeover) and the listing's photo and monthly-offer sheets
   // ('photos' | 'offer' | null). They lived on the old coach Me page, which nothing rendered
   // (owner, 2026-10-17: "Move to Your practice"); the components are the pros module's, read

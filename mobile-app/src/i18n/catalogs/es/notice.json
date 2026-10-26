@@ -116,6 +116,8 @@
   "credential.verified.body": "Tus credenciales están en regla — la insignia «Verificado» ya aparece en tu perfil del mercado.",
   "credential.changes.title": "Revisión de credenciales — falta un pequeño ajuste",
   "credential.changes.body": "Necesitamos algo más para verificar tus credenciales. Abre tu perfil para actualizarlas.",
+  "credential.rejected.title": "No pudimos verificar tus credenciales",
+  "credential.rejected.body": "No pudimos verificar lo que subiste, así que tu perfil no tiene la insignia «Verificado». Abre tu perfil para subirlas de nuevo.",
   "credential.insurance.title": "Se acerca la renovación de tu seguro",
   "credential.insurance.body": "Tu seguro de responsabilidad civil vence el {date}. Renuévalo y vuelve a subir tu COI para conservar la insignia «Verificado».",
   "credential.license.title": "Renovación de licencia — {state}",

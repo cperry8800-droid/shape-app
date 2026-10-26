@@ -93,11 +93,10 @@ dated entry or past 20 KB.
   - Native builds get `VITE_API_BASE_URL=https://theshapecommunity.com` from
     `android-build.yml` and `codemagic.yaml`. The hosted `/m/` build calls its own
     origin.
-  - The version is `mobile-app/package.json`'s, on both stores: raise it for each store
-    release. CI sets Android's versionCode and the iOS build number.
-  - Please update: `src/lib/app-version.mjs` sets each store's minimum version, and
-    `BSUpdateGate.jsx` covers an older installed app. Raise a minimum in the PR that
-    breaks older builds, and only once that store has the new version live.
+  - Raise `mobile-app/package.json`'s version for each store release (CI sets the
+    build numbers). `src/lib/app-version.mjs` holds each store's minimum for
+    `BSUpdateGate.jsx`: raise it only in the PR that breaks older builds, once that
+    store has the new version live.
 - **`iosAppBroadsheetClient.jsx`** is the member app (~38k lines): Home, Eat, Train,
   the logger, chat and settings. When a PR already touches a self-contained screen,
   move that screen into its own ES module. `BSIntegrationsPage.jsx` and
@@ -128,6 +127,8 @@ dated entry or past 20 KB.
     linked coaches through the private `meal-notes` bucket.
   - `src/app/api/nutrition/voice/route.ts` does Whisper transcription.
   - The War Room (`/warroom`, `src/lib/warroom.ts`) is the go-live status board.
+  - Notifications: a new kind needs a switch in `PREFERENCE_OF` (`notificationSurfaces.mjs`) and on
+    both settings screens. A notice in the person's quiet hours is held for `/api/cron/push-held`.
   - `/api/calendar?activities=1` (member calendar only) adds activities: providers' copies
     within 20 min are one; a logged workout's folds into it; one ticks an open planned
     workout of its day (undated: its week) and `workoutKind`, unless its title names no
@@ -138,6 +139,8 @@ dated entry or past 20 KB.
 The War Room has the full list; this covers what needs the owner and the planned builds.
 
 **Waiting on the owner**
+- Run `2026-10-26-push-notice-fixes.sql`: until then a member's direct message notifies nobody, and
+  follows and co-signs repeat.
 - Push keys (the app side is built, #2385; 0 push devices in production). For iPhone,
   set `APNS_KEY_ID`, `APNS_TEAM_ID` and `APNS_PRIVATE_KEY` in Vercel. For Android, add
   the app to Firebase `shape-84d22` and save its `google-services.json` as the repo
@@ -193,7 +196,6 @@ The War Room has the full list; this covers what needs the owner and the planned
 - The `?error=` redirects from `/purchase` and `/subscribe` are never shown.
 - A referral sign-up's confirmation email opens a bare `Login.html`, so confirming on another
   device loses the way back to the coach (War Room).
-- `checkin_submitted` is a switch nothing writes.
 - Payment notices (#2402) reach the owners in code (`admin-access.ts`), not Staff-page staff.
 - Direct charges (#2403): the app profile's one-tap Subscribe and Book have no code box; a
   one-time percent code's fee can be a cent off Stripe's rounding; a member whose coach

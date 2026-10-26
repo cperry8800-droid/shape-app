@@ -116,6 +116,8 @@
   "credential.verified.body": "Le tue credenziali sono a posto — ora sul tuo profilo nel marketplace c’è il badge Verificato.",
   "credential.changes.title": "Revisione credenziali — serve una piccola correzione",
   "credential.changes.body": "Ci serve qualche informazione in più per verificare le tue credenziali. Apri il tuo profilo per aggiornarle.",
+  "credential.rejected.title": "Non siamo riusciti a verificare le tue credenziali",
+  "credential.rejected.body": "Non siamo riusciti a verificare ciò che hai caricato, quindi sul tuo profilo non c’è il badge Verificato. Apri il tuo profilo per caricarle di nuovo.",
   "credential.insurance.title": "Rinnovo dell’assicurazione in arrivo",
   "credential.insurance.body": "La tua assicurazione di responsabilità civile scade il {date}. Rinnovala e ricarica il tuo COI per mantenere il badge Verificato.",
   "credential.license.title": "Rinnovo della licenza — {state}",

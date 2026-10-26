@@ -387,7 +387,7 @@ test('L7: the push webhook\'s secret is compared in constant time, and a wrong l
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/supabase/admin', { createAdminClient: () => recorder().client }],
-      ['@/lib/push', { pushConfigured: () => false, sendPushToUser: async () => ({ sent: 0 }) }],
+      ['@/lib/time', await loadRealModule(join(ROOT, 'src/lib/time.ts'), { typescript: true })], ['@/lib/push', { pushConfigured: () => false, sendPushToUser: async () => ({ sent: 0 }) }],
       ['@/lib/email', { sendEmail: async () => ({ ok: true }) }],
       ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')], ['@/lib/reader-copy', READER_COPY_EN],
     ]),

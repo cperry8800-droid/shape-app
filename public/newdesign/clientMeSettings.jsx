@@ -1003,14 +1003,22 @@ const NP_EMAIL_ON = ["tier_up"];
 const npDefault = (type, ch) => (ch === "email" ? NP_EMAIL_ON.includes(type) : NP_DEF_CH[ch]);
 const NP_CHANNELS = [["inapp", "App"], ["push", "Push"], ["email", "Email"]];
 const NP_CAPS = [2, 3, 4, 6, 8];
+// ⚠ EVERY KIND A MEMBER CAN RECEIVE HAS A ROW (owner, 2026-10-26: "make sure users have the ability to
+// customize/toggle which notifications they want"): each is the switch the server reads for it
+// (notificationSurfaces.mjs preferenceTypeFor), for the push, the bell and the app.
+// tests/notification-switches.test.mjs holds this list to that map and to the app's.
 const NP_TYPES = [
   ["directive", "Your move", "The one thing to do today"],
   ["coach_message", "Coach messages", "When your coach writes"],
+  ["direct_message", "Messages", "When another member writes to you"],
+  ["coach_content", "From your coach", "New workouts, programs, meal plans and grocery lists"],
+  ["sessions", "Sessions", "Bookings, changes and cancellations"],
   ["checkin_due", "Check-in reminders", "Your weekly check-in is ready"],
   ["goal_slip", "Goal pace", "When your projected date slips"],
-  ["score_drop", "Score dips", "When your Shape Score drops"],
+  ["score_drop", "Shape Score", "When it dips, and your weekly commitment"],
   ["tier_up", "Tier ups", "When you reach a new Shape Score tier"],
   ["coach_cosign", "Co-signs", "When a coach co-signs your work"],
+  ["follows", "Followers", "New followers and follow requests"],
   ["streak_broken", "Streak restarts", "A gentle nudge — never shaming"],
   ["waitlist_invite", "Waitlist invites", "When a coach has room for you"],
   ["habit_reminder", "Habit reminders", "Set per-habit on the app's Habits page"],
@@ -1019,6 +1027,8 @@ const NP_TYPES = [
   // Shared habits (src/app/api/cron/habit-watch): someone you're connected to missed a habit they
   // shared with you, at 8 pm their time.
   ["friend_habit", "Friends' habits", "When a friend hasn't done a habit they shared with you"],
+  ["payments", "Receipts", "When a payment goes through"],
+  ["account", "From Shape", "Your welcome, and notes about your account"],
 ];
 
 function NotificationDashboard({ signedIn }) {

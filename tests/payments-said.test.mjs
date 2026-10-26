@@ -192,7 +192,8 @@ test('coachPaid: a redelivered event sends nothing twice, and a product is a sal
     assert.equal(n.title, 'Payment received: Cara Diaz');
     assert.equal(n.body, `Cara Diaz bought ${what} · $41.65 to you.`);
     assert.equal(n.data.dedupe, 'paid:cs_2');
-    assert.equal(n.route, undefined, 'nothing to open: the buyer is not a coaching client');
+    assert.equal(n.route, 'business', "the coach's Business page: the buyer is not a coaching client, so not their page");
+    assert.equal(n.data.providerRole, 'trainer', 'which listing\'s Business');
     assert.equal(sent.emails.length, 0);
   }
 });

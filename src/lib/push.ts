@@ -231,12 +231,17 @@ async function sendApns(token: string, msg: Msg): Promise<Result> {
 // other token to FCM, so an iOS build that ever registers an FCM token is delivered, not pruned. A
 // token whose service is not configured is left alone (it is not dead; there is just nothing to send
 // it with yet).
-export async function sendPushToUser(client: SupabaseClient, userId: string, msg: Msg): Promise<void> {
-  if (!pushConfigured() || !userId) return;
+// What it answers: how many devices took the push and how many sends failed (a dead token, pruned,
+// is neither). The morning job (/api/cron/push-held) holds a notice again when every send failed, since
+// a transient APNs or FCM error is answered here, never thrown (Codex on #2476).
+export type PushSent = { sent: number; failed: number };
+export async function sendPushToUser(client: SupabaseClient, userId: string, msg: Msg): Promise<PushSent> {
+  const out: PushSent = { sent: 0, failed: 0 };
+  if (!pushConfigured() || !userId) return out;
 
   const { data } = await client.from('push_tokens').select('token, platform').eq('user_id', userId);
   const rows = (data ?? []) as Array<{ token: string; platform: string | null }>;
-  if (!rows.length) return;
+  if (!rows.length) return out;
   const toApns = (r: { token: string; platform: string | null }) => r.platform === 'ios' && APNS_TOKEN.test(r.token);
   const needsFcm = rows.some((r) => !toApns(r));
   const fcmTok = needsFcm && fcmConfigured() ? await accessToken() : null;
@@ -250,8 +255,11 @@ export async function sendPushToUser(client: SupabaseClient, userId: string, msg
       result = await sendFcm(r.token, fcmTok, msg);
     }
     if (result === 'stale') stale.push(r.token);
+    else if (result === 'ok') out.sent += 1;
+    else if (result === 'error') out.failed += 1;
   }));
   if (stale.length) {
     await client.from('push_tokens').delete().in('token', stale);
   }
+  return out;
 }

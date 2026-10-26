@@ -69,7 +69,8 @@ test('a coach\'s routes say whose they are: the calendar, the certifications and
   // role; the webhook's nameless payment notice is gone.
   assert.match(read('src/lib/coach-thread.ts'), /type: 'session_paid',[\s\S]{0,300}route: 'schedule',\n\s+data: \{ dedupe: `paid:\$\{a\.checkoutId\}`, clientId: a\.clientId, conversationId: out\.conversationId, providerRole: a\.providerRole \},/);
   assert.doesNotMatch(read('src/app/api/stripe/webhook/route.ts'), /createNotification|route: 'sessions'/);
-  assert.equal((read('src/app/dashboard/credentials/actions.ts').match(/route: 'credentials',/g) || []).length, 2);
+  // Verified, changes asked for, and not verified (owner, 2026-10-26: a rejection tells the coach too).
+  assert.equal((read('src/app/dashboard/credentials/actions.ts').match(/route: 'credentials',/g) || []).length, 3);
   assert.match(read('src/app/api/cron/credential-expiry/route.ts'), /route: 'credentials',/);
   for (const f of ['src/app/api/sessions/manage/route.ts']) assert.doesNotMatch(read(f), /route: 'schedule'/, 'a member\'s session updates stay "sessions"');
 });
@@ -121,6 +122,7 @@ const SAMPLE = {
   sessions: ['sessions'], train: ['train'], eat: ['eat'], score: ['score'], checkin: ['checkin'], today: ['today'], goal: ['goal'],
   habits: ['habits'], progress: ['progress'], feed: ['feed'], community: ['community'],
   profile: ['profile', { actorId: 'u-2' }], person: ['person', { actorId: 'u-3' }], settings: ['settings'],
+  business: ['business', { providerRole: 'trainer' }], admin: ['admin'],
 };
 
 test('the router opens every route in the table, from the list and from a push alike', () => {
@@ -287,7 +289,7 @@ test('both coach apps open every coach route and hand every member route to the 
       assert.ok(handled.has(kind), `${mine} opens ${kind}`);
     }
     // The other listing's calendar, waiting room and certifications go to that role's app.
-    assert.match(body, new RegExp(`if \\(d\\.fromNotification && d\\.role && d\\.role !== '${mine}' && \\(d\\.page === 'schedule' \\|\\| d\\.page === 'waitlist' \\|\\| d\\.page === 'credentials'\\)\\) \\{\\s+bsHandOver\\(bsRouteFor\\('page', d\\), d\\.role, setTweak\\);`), mine);
+    assert.match(body, new RegExp(`if \\(d\\.fromNotification && d\\.role && d\\.role !== '${mine}' && \\(d\\.page === 'schedule' \\|\\| d\\.page === 'waitlist' \\|\\| d\\.page === 'credentials' \\|\\| d\\.page === 'business'\\)\\) \\{\\s+bsHandOver\\(bsRouteFor\\('page', d\\), d\\.role, setTweak\\);`), mine);
     // Only a notification switches apps: the same events fired inside an app do not.
     assert.match(shellSrc, /const toMember = \(kind\) => \(e\) => \{ if \(e && e\.detail && e\.detail\.fromNotification\) bsHandOver\(bsRouteFor\(kind, e\.detail\), 'client', setTweak\); \};/, mine);
   }
@@ -342,6 +344,7 @@ test('the website inbox opens every route for the people who receive it', () => 
     checkin: { route: 'checkin' }, today: { route: 'today' }, goal: { route: 'goal' }, habits: { route: 'habits' }, progress: { route: 'progress' },
     feed: { route: 'feed' }, community: { route: 'community' }, profile: { route: 'profile', data: { actorId: 'u-2' } },
     person: { route: 'person', data: { actorId: 'u-3' } }, settings: { route: 'settings' },
+    business: { route: 'business', data: { providerRole: 'trainer' } }, admin: { route: 'admin' },
   };
   for (const [kind, audience] of Object.entries(R.ROUTES)) {
     assert.ok(ROW[kind], kind);
@@ -463,7 +466,7 @@ test('a push answers the recipient\'s preferences, whichever way the row was wri
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/supabase/admin', { createAdminClient: () => st.admin }],
-      ['@/lib/push', { pushConfigured: () => true, sendPushToUser: async (_a, userId, p) => { st.sent.push({ userId, ...p }); } }],
+      ['@/lib/time', await loadRealModule(join(ROOT, 'src/lib/time.ts'), { typescript: true })], ['@/lib/push', { pushConfigured: () => true, sendPushToUser: async (_a, userId, p) => { st.sent.push({ userId, ...p }); } }],
       ['@/lib/email', { sendEmail: async () => ({ ok: true }) }],
       ['@/lib/ai/notifications.mjs', NOTIFY], ['@/lib/reader-copy', READER_COPY_EN],
     ]),

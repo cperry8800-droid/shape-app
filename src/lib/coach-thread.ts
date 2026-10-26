@@ -362,6 +362,7 @@ export async function coachPaid(
           type: 'payment',
           title: `Payment received: ${shown}`,
           body: `${shown} bought ${what}${pay}.`,
+          route: 'business', // the coach's Business page (data.providerRole names which)
           data: { dedupe: `paid:${a.checkoutId}`, clientId: a.clientId, providerRole: a.providerRole, kind: a.kind },
         }, {
           title: np('payment.product.title', { client: clientName || phrase('word.aClient') }),
