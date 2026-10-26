@@ -203,9 +203,13 @@ test('the screen: "required" covers the app with one way on, the store', async (
   document.getElementById('bs-phone-surface').appendChild(behind);
   const ui = await mount({ update: 'required', storeUrl: 'https://apps.apple.com/us/app/shape/id42' });
   assert.equal(behind.hasAttribute('inert'), true, 'the app underneath can still be reached by keyboard');
+  assert.equal(behind.getAttribute('aria-hidden'), 'true', 'a screen reader still reads the app underneath');
   // A boolean, never the nodes themselves: a failing compare of live DOM nodes takes long enough to
   // format that the runner kills the file (tests/assert-dom-value.test.mjs).
   assert.ok(document.activeElement === ui.buttons()[0], 'the Update button has the focus');
+  // Where `inert` does nothing (iOS before 15.5), a focus that reaches the app is sent back.
+  await React.act(async () => { behind.querySelector('#behind').focus(); });
+  assert.ok(document.activeElement === ui.buttons()[0], 'focus that lands behind the screen is not sent back to it');
   assert.deepEqual(ui.asked, ['/api/app/version?platform=ios&version=1.0.0'], 'asks with the build\'s own version');
   assert.equal(ui.gate().dataset.bsUpdate, 'required');
   assert.equal(ui.gate().getAttribute('role'), 'alertdialog');
@@ -214,6 +218,9 @@ test('the screen: "required" covers the app with one way on, the store', async (
   assert.match(ui.buttons()[0].textContent, /Update now/);
   ui.unmount();
   assert.equal(behind.hasAttribute('inert'), false, 'the app is given back when the screen goes');
+  assert.equal(behind.hasAttribute('aria-hidden'), false, 'and shown to screen readers again');
+  behind.querySelector('#behind').focus();
+  assert.ok(document.activeElement === behind.querySelector('#behind'), 'focus is free again');
   behind.remove();
 
   const noStore = await mount({ update: 'required', storeUrl: null });

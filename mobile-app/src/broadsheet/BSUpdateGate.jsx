@@ -62,8 +62,10 @@ export default function BSUpdateGate() {
   const required = !!answer && answer.update === 'required';
   // ⚠ THE APP BEHIND A REQUIRED UPDATE IS INERT, NOT ONLY COVERED (Codex on #2472). aria-modal says the
   // screen is modal and enforces nothing: a hardware keyboard tabbed past the button into the app
-  // underneath. Every other child of the phone surface is made inert while it shows, and the button
-  // takes the focus.
+  // underneath. Every other child of the phone surface is made inert and hidden from screen readers
+  // while it shows, and the button takes the focus.
+  // ⚠ AND FOCUS IS HELD BY HAND TOO: `inert` first shipped in iOS 15.5 and the app supports iOS 14
+  // (Codex on #2472), so a focus that lands outside the screen is sent back to its button.
   const gateRef = React.useRef(null);
   React.useEffect(() => {
     if (!required) return undefined;
@@ -72,10 +74,23 @@ export default function BSUpdateGate() {
     if (!surface) return undefined;
     const made = [];
     for (const el of Array.from(surface.children)) {
-      if (el !== gate && !el.hasAttribute('inert')) { el.setAttribute('inert', ''); made.push(el); }
+      if (el === gate) continue;
+      const was = { el, inert: el.hasAttribute('inert'), hidden: el.getAttribute('aria-hidden') };
+      el.setAttribute('inert', '');
+      el.setAttribute('aria-hidden', 'true');
+      made.push(was);
     }
-    try { gate.querySelector('button')?.focus(); } catch (e) {}
-    return () => { for (const el of made) el.removeAttribute('inert'); };
+    const toGate = () => { try { gate.querySelector('button')?.focus(); } catch (e) {} };
+    const hold = (e) => { try { if (e.target && !gate.contains(e.target)) toGate(); } catch (err) {} };
+    document.addEventListener('focusin', hold);
+    toGate();
+    return () => {
+      document.removeEventListener('focusin', hold);
+      for (const w of made) {
+        if (!w.inert) w.el.removeAttribute('inert');
+        if (w.hidden === null) w.el.removeAttribute('aria-hidden'); else w.el.setAttribute('aria-hidden', w.hidden);
+      }
+    };
   }, [required]);
 
   if (!answer || answer.update === 'none') return null;
