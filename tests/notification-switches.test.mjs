@@ -193,7 +193,8 @@ test('a switched-off kind is left out in the query, so 200 of it never hide the 
   const row = (id, type, data, i) => ({ id, type, title: id, body: '', route: null, data, read_at: null, created_at: at(i) });
   // A coach with Client messages off, and 250 client messages newer than a payment and a session.
   const coach = [...Array.from({ length: 250 }, (_, i) => row('m' + i, 'message', { side: 'coach' }, i)),
-    row('dm', 'message', { side: 'member' }, 251), row('pay', 'payment', {}, 252), row('sess', 'session_booked', {}, 253)];
+    // A coach's renewal carries side 'coach' too (payment-notices.ts): only a message answers to its side.
+    row('dm', 'message', { side: 'member' }, 251), row('pay', 'payment', { side: 'coach' }, 252), row('sess', 'session_booked', {}, 253)];
   let out = await listFor(coach, ['client_message']);
   assert.deepEqual(out.ids, ['dm', 'pay', 'sess'], 'the client messages filled the cap and the older notices were lost');
   // A member with Followers off, and 250 follows newer than their coach's message and a new plan.
@@ -211,7 +212,8 @@ test('a switched-off kind is left out in the query, so 200 of it never hide the 
 test('the query leaves out exactly what each offered switch hides, and never a row the switch would show', async () => {
   const sides = ['client', 'coach', 'member', 'care', undefined];
   const kinds = [...new Set([...Object.keys(PREFERENCE_OF), ...Object.values(PREFERENCE_OF), ...appMember, ...appCoach, 'message', 'reminder_water', 'ai_directive'])];
-  const universe = kinds.flatMap((type) => (type === 'message' ? sides.map((side) => ({ type, data: side ? { side } : {} })) : [{ type, data: {} }]));
+  // Every kind with every side: payment and hire notices carry a side as well as messages do.
+  const universe = kinds.flatMap((type) => sides.map((side) => ({ type, data: side ? { side } : {} })));
   for (const sw of [...new Set([...appMember, ...appCoach, 'message', 'follow'])]) {
     const { rowsRead } = await listFor([], [sw]);
     for (const r of universe) {
