@@ -73,7 +73,7 @@ function abortError() {
  * @param {object} o
  * @param {HTMLCanvasElement} o.canvas
  * @param {string} o.modelUrl              Nora's VRM
- * @param {string|null} [o.crowdUrl]       the baked crowd pack (crowd.bin.txt); null keeps silhouettes
+ * @param {string|null} [o.crowdUrl]       the baked crowd pack (crowdPackPath); null keeps silhouettes
  * @param {string|null} [o.venueUrl]       Club Shape from outside (CLUB_SHAPE_MODEL, a .glb): the booth
  *                                         opens on the fly-in to it. null, or a file that will not
  *                                         load, opens inside as before

@@ -97,11 +97,21 @@ export function boothTier({ screenW = 0, screenH = 0, override = null } = {}) {
 // ── The model ───────────────────────────────────────────────────────────────
 // What the booth draws, in one place for both surfaces, so swapping Nora is one line. Paths are
 // relative to the site root (the website prefixes "/", the app its BASE_URL).
-// ⚠ `portrait: false` WHILE SHE IS THE PLACEHOLDER: pixiv's VRoid sample (VRM Public License 1.0) is
-// an anime face, and a frame-filling anime face is the most "animated" frame the booth can show
-// (owner, 2026-10-09). The full-face close-up stays out of the camera's rotation until a realistic
-// model replaces her; set it true with that model.
-export const NORA_MODEL = Object.freeze({ path: 'nora/placeholder.vrm', crowd: 'nora/crowd.bin.txt', portrait: false });
+// Nora is a MakeHuman person built from CC0 assets (scripts/nora-model/makehuman_nora.py, nora.json),
+// to the brief in docs/BUILD-2026-10-09-metahuman-nora.md; she replaced pixiv's anime VRoid sample
+// (owner, 2026-10-26: "make the crowd look like real people", "including nora"). `portrait` lets the
+// full-face close-up into the camera's rotation; an anime model must set it false (a frame-filling
+// anime face is the most "animated" frame the booth can show, owner, 2026-10-09).
+// The crowd is real people (prototypes/nora-booth/crowd-mh): `crowd` for desktops (eight people, a
+// 2048×4096 atlas), `crowdLow` for phones (fewer people, lighter figures, a quarter of the texture).
+// Each pack's atlas (.webp) sits beside it.
+export const NORA_MODEL = Object.freeze({ path: 'nora/nora.vrm', crowd: 'nora/crowd-people.bin.txt', crowdLow: 'nora/crowd-people-lo.bin.txt', portrait: true });
+
+/** The crowd pack a device should load: the desktop pack on high quality, else the phone pack. */
+export function crowdPackPath(model = NORA_MODEL, quality = 'low') {
+  if (!model) return null;
+  return quality === 'high' || !model.crowdLow ? model.crowd : model.crowdLow;
+}
 
 // Club Shape from outside, for the opening fly-in: a 3D model of the Shape Sets picture, built to
 // docs/BUILD-2026-10-10-club-shape-model.md. While `path` is null the booth does not fly in at all and

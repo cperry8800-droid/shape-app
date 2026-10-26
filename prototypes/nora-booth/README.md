@@ -36,7 +36,7 @@ deck renders bit-identically to it on the synthesized path.
 ```bash
 cd prototypes/nora-booth
 npm ci                                   # three 0.185.1, @pixiv/three-vrm 3.5.5, esbuild, playwright-core
-cp ../../public/nora/placeholder.vrm dist/nora.vrm
+cp ../../public/nora/nora.vrm dist/nora.vrm
 node --test test/*.test.mjs              # 7 tests here; the other 69 run in the root suite (tests/booth-*.test.mjs)
 ```
 

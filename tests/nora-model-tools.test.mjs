@@ -245,8 +245,8 @@ test('readGlb refuses what is not a glTF 2.0 binary', () => {
   assert.throws(() => readGlb(g), /glTF 2\.0/);
 });
 
-test('the shipped placeholder is a VRM 1.0 with every bone and expression the performer uses', () => {
-  const r = checkVrm(readFileSync('public/nora/placeholder.vrm'), null);
+test('the shipped Nora is a VRM 1.0 with every bone and expression the performer uses, within the budget', () => {
+  const r = checkVrm(readFileSync('public/nora/nora.vrm'), JSON.parse(readFileSync('scripts/nora-model/maps.json', 'utf8')).budget);
   assert.deepEqual(r.errors, [], 'the booth\'s own model fails the structural checks');
 });
 

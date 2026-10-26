@@ -25,7 +25,7 @@
 // from emissive colours above the booth's bloom threshold — zero dynamic lights of its own.
 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { createAvatarCrowd } from './crowdAvatars.mjs';
+import { createCrowd, crowdHasLod } from './crowdPeople.mjs';
 import { palmTrunk, palmFronds, palmBeam } from './palmGeometry.mjs';
 import { boxGrid, lightGrid, directAt, directAll, bakeMesh, bounceField, gridQuad } from './lightBake.mjs';
 import { createArenaStage, ARENA_DIMS } from './arenaStage.mjs';
@@ -1361,13 +1361,13 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   if (crowdPack) Promise.resolve(crowdPack).then((pack) => {
     if (venueDisposed || !pack || !pack.geos) return;
     const stand = LOW ? 'tiny' : 'far';
-    if (!pack.geos[`body:${stand}`] || !pack.geos['body:seat']) return;   // an older pack: keep the boxes
+    if (!crowdHasLod(pack, stand) || !crowdHasLod(pack, 'seat')) return;   // an older pack: keep the boxes
     const seatY = (pack.header.seat && pack.header.seat.seatY) || 0.5;
     const ALL = FIG.concat(LOUNGE_GUESTS);   // the rails, the booths and the private boxes
     const people = ALL.map((f) => ({ lod: f.seat ? 1 : 0 }));
     const lodCount = [0, 0];
     for (const p of people) p.idx = lodCount[p.lod]++;
-    venueCrowd = createAvatarCrowd({ THREE, pack, people, lodCount, rnd: crowdRnd, lods: [stand, 'seat'],
+    venueCrowd = createCrowd({ THREE, pack, people, lodCount, rnd: crowdRnd, lods: [stand, 'seat'],
       stageFalloff: 1e4, name: 'venueCrowd', bob: RM ? 0 : 0.03 });
     const vs = venueCrowd.height / 1.68;
     ALL.forEach((f, i) => {

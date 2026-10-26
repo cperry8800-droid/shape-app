@@ -117,7 +117,7 @@ export default {
     { name: 'the rotation ignores exclusions', file: DIR,
       find: "&& id !== 'screen' && !this.exclude.has(id));", replace: "&& id !== 'screen');" },
     { name: 'the placeholder takes close-ups', file: STATE,
-      find: "export const NORA_MODEL = Object.freeze({ path: 'nora/placeholder.vrm', crowd: 'nora/crowd.bin.txt', portrait: false });", replace: "export const NORA_MODEL = Object.freeze({ path: 'nora/placeholder.vrm', crowd: 'nora/crowd.bin.txt', portrait: true });" },
+      find: "path: 'nora/nora.vrm',", replace: "path: 'nora/placeholder.vrm'," },
     { name: 'the booth ignores portrait', file: HOST,
       find: "exclude: portrait ? [] : ['face'] });", replace: "exclude: [] });" },
     { name: 'the app drops the portrait rule', file: APP,

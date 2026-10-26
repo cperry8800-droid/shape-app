@@ -7,7 +7,9 @@ dist/*.vrm
 dist/mixer-shots/
 pub/booth.js
 pub/*.txt
+pub/*.webp
 dist/*.txt
+dist/*.webp
 pubsite/
 fixture-site/
 shots-*/

@@ -36,7 +36,7 @@
 
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { loadCrowdPack, createAvatarCrowd } from './crowdAvatars.mjs';
+import { loadCrowd, createCrowd } from './crowdPeople.mjs';
 import { ARENA_DIMS } from './arenaStage.mjs';
 import { CLUB_SHAPE_MASK, SHAPE_RADIO_MASK, NORA_MASK } from './clubShapeMask.mjs';
 import { wallHeadlineAt, stepWallLook, initialWallLook, wallLookMix, wallStepBeats, loopFadeAt, WALL_LOOKS, WALL_BUILDS } from './wallShow.mjs';
@@ -1245,7 +1245,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   }
   group.add(imBody[0], imArm[0], imBody[1], imArm[1]);
 
-  // ── the crowd made of Nora's own avatar design (crowdAvatars.mjs) ────────
+  // ── the crowd: real people (crowdPeople.mjs), or Nora's own avatar design from an older pack ──
   // The cylinder silhouettes above are the fallback: they show until the baked figures
   // arrive, and stay if the pack cannot be fetched. Once the avatars are in, the fallback
   // meshes are removed so nothing is drawn twice.
@@ -1254,12 +1254,12 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   let lastT = 0; // the last update() clock, so the freshly-arrived crowd is posed to the same beat
   const fetchFn = fetchImpl || (typeof fetch === 'function' ? fetch : null);
   // One fetch of the baked figures, shared: the venue builds its balcony audience from the same pack.
-  const crowdPack = crowdUrl && fetchFn ? loadCrowdPack(crowdUrl, fetchFn) : null;
+  const crowdPack = crowdUrl && fetchFn ? loadCrowd(crowdUrl, fetchFn) : null;
   if (crowdPack) crowdPack.catch(() => {}); // the rejection is handled below; keep it off the console twice
   if (crowdPack) {
     crowdPack.then((pack) => {
       if (disposed) return;
-      avatars = createAvatarCrowd({ THREE, pack, people, lodCount, rnd, lods: LODS, stageFalloff: low ? 13 : 17 });
+      avatars = createCrowd({ THREE, pack, people, lodCount, rnd, lods: LODS, stageFalloff: low ? 13 : 17 });
       group.add(avatars.group);
       for (const m of [...imBody, ...imArm]) { group.remove(m); m.dispose(); }
       updateCrowd(0, lastT);
@@ -1812,7 +1812,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     background,
     get environment() { return envRT ? envRT.texture : null; },
     get crowdCount() { return NP; },
-    crowdPack, // Promise<pack> | null — the baked avatar figures (crowdAvatars.decodeCrowdPack)
+    crowdPack, // Promise<pack> | null — the baked crowd figures (crowdPeople.loadCrowd, either version)
     // the wall's look this frame, for the arena's LED wall: venue.set({ wallShow: club.wallShow })
     get wallShow() { return show; },
     // the video loops: [url], loaded in turn; [] for none
