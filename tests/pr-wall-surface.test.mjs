@@ -528,9 +528,15 @@ test('the preview shows what the activity carries, not a fixed set of rows', () 
   const ride = cardText(demoBy('Marcus Bell'), 'wall');
   assert.match(ride, /Avg power/i);
   assert.match(ride, /Max power/i);
-  const lift = cardText(demoBy('Priya Shah'), 'wall');
+  const lift = cardText(demoBy('Maya Okafor'), 'wall');
   assert.match(lift, /Volume/i);
   assert.doesNotMatch(lift, /Avg power/i, 'a lift brings no power figures');
+  // A PR brings the heart rate through its PR set (owner, 2026-10-26: "show HR during PR if it is
+  // one, and always show AVG HR"), and no heart rate reads with a BPM after it.
+  const pr = cardText(demoBy('Priya Shah'), 'wall');
+  assert.match(pr, /Avg HR138/);
+  assert.match(pr, /PR set HR157/);
+  for (const who of ['Priya Shah', 'Marcus Bell', 'Lena Fischer', 'Maya Okafor']) assert.doesNotMatch(cardText(demoBy(who), 'wall'), /\d\s*bpm/i, who);
   const swim = cardText(demoBy('Lena Fischer'), 'wall');
   assert.match(swim, /Avg pace/i, 'and a swim brings its own');
   assert.doesNotMatch(swim, /Volume/i);
@@ -547,7 +553,7 @@ test('the preview shows what the activity carries, not a fixed set of rows', () 
 });
 
 test('an activity with no zones and no trace renders neither, never an empty axis', () => {
-  // Theo's rest day carries three stats and nothing else.
+  // Theo's rest day carries its stats (sleep, the day's heart rate, HRV, readiness) and nothing else.
   const rest = demoBy('Theo Nakamura');
   assert.ok(rest && !rest.zones && !rest.trace, 'the fixture is the honest-empty one');
   const text = cardText(rest, 'wall');

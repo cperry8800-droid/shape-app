@@ -275,6 +275,7 @@
   "board.colSet": "Set",
   "board.colPlan": "Plan",
   "board.colLifted": "Lifted",
+  "board.colTime": "Time",
   "board.colRpe": "RPE",
   "board.colRest": "Rest",
   "board.colHr": "HR",

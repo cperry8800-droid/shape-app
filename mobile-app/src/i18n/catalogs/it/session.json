@@ -275,6 +275,7 @@
   "board.colSet": "Serie",
   "board.colPlan": "Piano",
   "board.colLifted": "Sollevato",
+  "board.colTime": "Durata",
   "board.colRpe": "RPE",
   "board.colRest": "Riposo",
   "board.colHr": "FC",

@@ -103,9 +103,9 @@ test('an unrated set gets no dial — 0 is not a rating and null is not a 0', ()
 
 test('an optional column exists only when a row has something to put in it', () => {
   const bare = bsIbSetTable([['Set 1', '225 lb × 3', ''], ['Set 2', '245 lb × 3', '']]);
-  assert.deepEqual(bare.cols, { plan: false, rpe: false, rest: false, note: false });
-  const full = bsIbSetTable([['Set 1', '225 lb × 3', 'RPE 7', { plan: '225 × 3', rpe: 7, rest: '2:30' }]]);
-  assert.deepEqual(full.cols, { plan: true, rpe: true, rest: true, note: false });
+  assert.deepEqual(bare.cols, { plan: false, rpe: false, hr: false, rest: false, note: false });
+  const full = bsIbSetTable([['Set 1', '225 lb × 3', 'RPE 7', { plan: '225 × 3', rpe: 7, rest: '2:30', hr: 148 }]]);
+  assert.deepEqual(full.cols, { plan: true, rpe: true, hr: true, rest: true, note: false });
   // One row among many is enough for the column to exist — the others render empty.
   const some = bsIbSetTable([['Set 1', '225 lb', ''], ['Set 2', '245 lb', '', { plan: '245 × 1' }]]);
   assert.equal(some.cols.plan, true);
@@ -210,8 +210,11 @@ test('a tile draws its ghost, its needle, or neither — never both', () => {
   assert.equal(svgsOf(needle, 'line').length, 2, 'the needle band is a baseline and a mark');
   const plain = drive(mod.BSIbTile, { ...base, kind: 'plain', ghostPath: 'M0 0 L100 100', needle: { frac: 0.5, lo: 'a', hi: 'b' } });
   assert.equal(svgsOf(plain, 'path').length + svgsOf(plain, 'line').length, 0, 'a plain tile drew an instrument');
-  // The unit is typeset apart from the figure, so it is on the tile either way.
-  assert.match(ghost.text, /bpm/);
+  // A heart rate reads as a bare number: the label says HR (owner, 2026-10-26: "this should say HR no BPM").
+  assert.doesNotMatch(ghost.text, /bpm/i);
+  assert.match(ghost.text, /Avg HR/);
+  // Any other unit is typeset apart from the figure, so it is on the tile.
+  assert.match(drive(mod.BSIbTile, { ...base, label: 'Volume', value: '8,150 lb', kind: 'plain', ghostPath: null, needle: null }).text, /lb/);
 });
 
 test('the needle states its endpoints once, because a tick mark alone claims nothing', () => {

@@ -275,6 +275,7 @@
   "board.colSet": "Подход",
   "board.colPlan": "План",
   "board.colLifted": "Поднято",
+  "board.colTime": "Время",
   "board.colRpe": "RPE",
   "board.colRest": "Отдых",
   "board.colHr": "Пульс",

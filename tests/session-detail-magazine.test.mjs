@@ -89,8 +89,9 @@ test('a summary figure is flat: the number in the headline face under a hairline
   assert.equal(styled(tile, (s) => s.width === 2 && s.position === 'absolute').length, 0, 'the spine is back');
   const num = styled(tile, (s) => s.fontSize === 24)[0];
   assert.equal(num.props.style.fontFamily, THEME.DISPLAY, 'the headline face (bsWsHead), the app\'s own');
-  // The figure counts up (BSSdCountUp) and the harness doesn't run its effect; its unit is set apart.
-  assert.match(tile.text, /bpm/);
+  // The figure counts up (BSSdCountUp) and the harness doesn't run its effect. A heart rate has no unit
+  // beside it: its label says HR.
+  assert.doesNotMatch(tile.text, /bpm/i);
 });
 
 test('the zones run warm grey to the magazine\'s red, in the bar and the RPE dial', () => {

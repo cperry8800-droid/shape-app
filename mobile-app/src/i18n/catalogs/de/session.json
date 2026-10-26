@@ -275,6 +275,7 @@
   "board.colSet": "Satz",
   "board.colPlan": "Plan",
   "board.colLifted": "Gehoben",
+  "board.colTime": "Dauer",
   "board.colRpe": "RPE",
   "board.colRest": "Ruhe",
   "board.colHr": "HF",

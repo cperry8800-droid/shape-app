@@ -275,6 +275,7 @@
   "board.colSet": "Set",
   "board.colPlan": "Rencana",
   "board.colLifted": "Diangkat",
+  "board.colTime": "Durasi",
   "board.colRpe": "RPE",
   "board.colRest": "Istirahat",
   "board.colHr": "Detak",

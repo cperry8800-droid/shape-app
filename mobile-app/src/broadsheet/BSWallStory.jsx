@@ -1,5 +1,5 @@
 import React from 'react';
-import { bsSdSplitUnit } from '../services/sessionLedger.mjs';
+import { bsSdFigure, bsSdFigureText } from '../services/sessionLedger.mjs';
 import { bsWsRed, bsWsHead } from './bsMagazine.mjs';
 // ─── THE WALL · A STORY ──────────────────────────────────────────────────────────────────────────
 // Owner, 2026-10-23: the dark magazine look for the Wall, its headlines in the headline face, and
@@ -106,7 +106,7 @@ export function BSWallStoryFigures({ items = [] }) {
     <div data-bs-wall-story-figs="" style={{ display: 'grid', gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))`, borderTop: `1px solid ${t.HAIR}` }}>
       {shown.map(([k, v], i) => (
         <div key={`${k}-${i}`} style={{ minWidth: 0, paddingTop: 9, ...(i ? { paddingLeft: 12, borderLeft: `1px solid ${t.HAIR}` } : null) }}>
-          <div style={{ fontFamily: bsWsHead(t), fontSize: 26, fontWeight: 600, lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
+          <div style={{ fontFamily: bsWsHead(t), fontSize: 26, fontWeight: 600, lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bsSdFigureText(v)}</div>
           <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k}</div>
         </div>
       ))}
@@ -118,7 +118,7 @@ export function BSWallStoryFigures({ items = [] }) {
 // 48 px, not the board's 84 (owner, 2026-10-23: "this doesnt need to be so big").
 export function BSWallStoryRecord({ value, best = null }) {
   const t = window.useBS();
-  const u = bsSdSplitUnit(value);
+  const u = bsSdFigure(value);
   if (!u.num) return null;
   return (
     <div data-bs-wall-story-record="" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
