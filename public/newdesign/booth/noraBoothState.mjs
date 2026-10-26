@@ -116,6 +116,28 @@ export function clubShapeModelUrl(model = CLUB_SHAPE_MODEL, base = '/', quality 
   return noraAssetUrl(path, base);
 }
 
+// The LED wall's video loops (wallShow.mjs's plate look), made in Higgsfield on 2026-10-26: each a
+// 5 s Seedance 2.0 clip whose first and last frames are the same keyframe, so it loops without a
+// seam. Their prompts and job ids are in marketing/shape-radio-launch-cut.md (Sources). They are
+// served from Higgsfield's CDN, which allows any origin (CORS) and caches them for a year; the
+// booth draws them through the wall's dots. Desktops only: a phone keeps the drawn looks (ruling 7,
+// battery and data first). Empty, or a loop that will not load, and the show plays the drawn looks.
+// The tunnel clip of the same batch is left out: its thin lines rush so fast that a quarter of the
+// frame changes by up to 14/255 from one frame to the next, and the drawn tunnel does the same job.
+const HF = 'https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY/';
+export const WALL_LOOPS = Object.freeze([
+  HF + 'hf_20261026_130216_e4e3351c-9a6e-44d8-8796-96d08e10e879.mp4',   // liquid chrome, 1.7 MB
+  HF + 'hf_20261026_130217_a0f6defb-eada-40ba-96ea-642dfdff8a67.mp4',   // aurora, 1.0 MB
+  HF + 'hf_20261026_130216_dee7d77b-f3da-4dcd-ac47-c5471a1c032f.mp4',   // prism, 3.2 MB
+  HF + 'hf_20261026_130216_6d9c5a67-cfbe-4546-befc-57e1c4968e60.mp4',   // particle vortex, 6.9 MB
+]);
+
+/** The loops a device should load: all of them on high quality, none on a phone. */
+export function wallLoopUrls(quality = 'low', loops = WALL_LOOPS) {
+  if (quality !== 'high' || !Array.isArray(loops)) return [];
+  return loops.filter((u) => typeof u === 'string' && /^https:\/\//i.test(u));
+}
+
 /**
  * Where to fetch an asset NORA_MODEL names. A realistic Nora is hosted OUTSIDE this public repository
  * (scripts/nora-model/README.md), so a path may be a full https URL, which is used as it is; a

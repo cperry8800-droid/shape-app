@@ -27,6 +27,7 @@ import { NoraPerformer } from '../../../public/newdesign/booth/noraPerformer.mjs
 import { NoraDirector, SHOTS, SHOT_IDS } from '../../../public/newdesign/booth/noraDirector.mjs';
 import { createTempoTracker } from '../../../public/newdesign/booth/tempoBridge.mjs';
 import { createCinematic } from '../../../public/newdesign/booth/cinematic.mjs';
+import { wallLoopUrls } from '../../../public/newdesign/booth/noraBoothState.mjs';
 
 const Q = new URLSearchParams(location.search);
 const ACCENT = '#34d6c5';
@@ -125,7 +126,11 @@ function resize() {
 addEventListener('resize', resize);
 
 // ── World ───────────────────────────────────────────────────────────────────
-const club = createClub({ THREE, renderer, seed: 7, accent: ACCENT, quality: QUALITY, reducedMotion: REDUCED_MOTION });
+// the LED wall's video loops: ?loops=url,url (or ?loops=0 for none); by default the booth's own list on high
+const LOOPS = Q.get('loops') === '0' ? [] : Q.get('loops') ? Q.get('loops').split(',') : wallLoopUrls(QUALITY);
+const club = createClub({ THREE, renderer, seed: 7, accent: ACCENT, quality: QUALITY, reducedMotion: REDUCED_MOTION, wallLoops: LOOPS });
+// ?wall=dawn|tunnel|chase|plate holds the LED wall on one look (wallShow.mjs) instead of the show
+if (Q.get('wall')) club.pinWallLook(Q.get('wall'));
 scene.add(club.group);
 // Club Shape itself: the atrium, balconies, palms, lounges and the skylight ring.
 // The venue bakes its lighting on load (lightBake.mjs); how long that takes is timed here, since the
@@ -592,7 +597,7 @@ function frame() {
   mixer.set(mixerState); mixer.update(dt, t);
   club.set({ bands, kick: audio ? kick * Math.min(1, bands.low * 3) : 0, beat: Math.floor(beat) % 4, bar: Math.floor(bar), drop, accent: ACCENT, reducedMotion: REDUCED_MOTION });
   club.update(dt, t);
-  venue.set({ bands, kick: audio ? kick * Math.min(1, bands.low * 3) : 0, beat: Math.floor(beat) % 4, bar: Math.floor(bar), drop, accent: ACCENT, reducedMotion: REDUCED_MOTION });
+  venue.set({ bands, kick: audio ? kick * Math.min(1, bands.low * 3) : 0, beat: Math.floor(beat) % 4, bar: Math.floor(bar), drop, accent: ACCENT, reducedMotion: REDUCED_MOTION, wallShow: club.wallShow });
   venue.update(dt, t);
 
   // Nora.

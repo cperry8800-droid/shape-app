@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { boothLabel, exampleAllowed, boothTier, webgl2Available, NORA_MODEL, noraAssetUrl, CLUB_SHAPE_MODEL, clubShapeModelUrl } from '../../../public/newdesign/booth/noraBoothState.mjs';
+import { boothLabel, exampleAllowed, boothTier, webgl2Available, NORA_MODEL, noraAssetUrl, CLUB_SHAPE_MODEL, clubShapeModelUrl, wallLoopUrls } from '../../../public/newdesign/booth/noraBoothState.mjs';
 import { createBoothKeeper } from '../../../public/newdesign/booth/noraBoothKeeper.mjs';
 import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 import {
@@ -2198,6 +2198,7 @@ function bsBoothKeeper() {
         crowdUrl: noraAssetUrl(NORA_MODEL.crowd, import.meta.env.BASE_URL),
         portrait: NORA_MODEL.portrait,
         venueUrl: clubShapeModelUrl(CLUB_SHAPE_MODEL, import.meta.env.BASE_URL, tier.quality),
+        wallLoops: wallLoopUrls(tier.quality),
         quality: tier.quality, cinematic: tier.cinematic, fps: tier.fps,
         reducedMotion: reduced, onProgress: progress,
       });
