@@ -120,7 +120,8 @@ test('an iOS token goes to Apple, signed with the .p8 key; an Android token goes
       // An iOS row holding an FCM token (an iOS build on Firebase Messaging) goes to FCM, not to Apple
       // and not to the bin.
       const db = tokensDb([{ token: IOS, platform: 'ios' }, { token: DROID, platform: 'android' }, { token: 'fcm:ios-token', platform: 'ios' }]);
-      await mod.sendPushToUser(db, 'u1', { title: 'New message', body: 'Tom: see you at 6', data: { route: 'chat:abc', type: 'message' } });
+      // It answers how many devices took it (Codex on #2476: the morning job holds a notice none took).
+      assert.deepEqual(await mod.sendPushToUser(db, 'u1', { title: 'New message', body: 'Tom: see you at 6', data: { route: 'chat:abc', type: 'message' } }), { sent: 3, failed: 0 });
       assert.equal(h2.sent.length, 1);
       const a = h2.sent[0];
       assert.equal(a.host, 'api.push.apple.com', 'production first');
@@ -176,7 +177,8 @@ test('a sandbox token is retried on the sandbox; a dead one, on either service, 
         { token: SANDBOX, platform: 'ios' }, { token: GONE, platform: 'ios' }, { token: NOWHERE, platform: 'ios' }, { token: 'E'.repeat(64), platform: 'ios' },
         { token: 'dead', platform: 'android' }, { token: 'not-a-token', platform: 'android' }, { token: 'fine-but-bad-payload', platform: 'android' },
       ]);
-      await mod.sendPushToUser(db, 'u1', { title: 't', body: 'b' });
+      // The sandbox token took it; the Apple 500 and the refused payload failed; the dead ones are neither.
+      assert.deepEqual(await mod.sendPushToUser(db, 'u1', { title: 't', body: 'b' }), { sent: 1, failed: 2 });
       assert.deepEqual(h2.sent.filter((r) => r.path.endsWith(SANDBOX)).map((r) => r.host), ['api.push.apple.com', 'api.sandbox.push.apple.com']);
       assert.deepEqual(db.deleted.sort(), [GONE, NOWHERE, 'dead', 'not-a-token'].sort(),
         'Unregistered, a token neither Apple host knows, FCM UNREGISTERED and an invalid FCM token; never an Apple 500 or a payload FCM refused');
@@ -223,7 +225,7 @@ test('a token whose service is not set up is left alone, and with neither set no
     const { mod, restore } = await loadPush(fakeHttp2(() => [200, null]));
     try {
       assert.equal(mod.pushConfigured(), false);
-      await mod.sendPushToUser({ from() { throw new Error('read with nothing to send'); } }, 'u1', { title: 't', body: 'b' });
+      assert.deepEqual(await mod.sendPushToUser({ from() { throw new Error('read with nothing to send'); } }, 'u1', { title: 't', body: 'b' }), { sent: 0, failed: 0 });
     } finally { restore(); }
   });
 });

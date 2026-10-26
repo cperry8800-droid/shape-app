@@ -5,7 +5,8 @@
 //
 // A notice the person read or cleared in the app meanwhile is not pushed: they have seen it. One held
 // more than a day is let go (it stays in the app). At most HELD_PER_PERSON pushes per person per run,
-// oldest first, so a busy night is not a burst of pushes at 7 am; the rest stay in the app.
+// oldest first, so a busy night is not a burst of pushes at 7 am; the rest stay in the app. Only a push
+// that reached a device counts against it.
 //
 // Auth: x-cron-secret: <CRON_SECRET> OR Authorization: Bearer <CRON_SECRET>.
 import { NextResponse } from 'next/server';
@@ -110,8 +111,13 @@ async function run(request: Request) {
         released = true;
         const { held_at: _held, ...data } = row.data ?? {};
         const out = await deliverNotice({ ...row, data }, now);
+        // Every device's send failed (APNs or FCM answered an error): held again, below, for the next run.
+        if (out.pushFailed) throw new Error('every device refused the push');
         // Still the person's night (they moved their quiet hours): deliverNotice held it again.
-        if (!out.held) { perPerson.set(row.user_id, used + 1); delivered += 1; }
+        if (!out.held) delivered += 1;
+        // ⚠ ONLY A PUSH THAT WENT COUNTS AGAINST THE PERSON'S CAP (Codex on #2476). A notice whose switch was
+        // turned off overnight, or with no device to go to, took the place of one still to be pushed.
+        if (out.pushed) perPerson.set(row.user_id, used + 1);
       } catch (err) {
         failed += 1;
         console.error('[push-held] could not send', row.id, err instanceof Error ? err.message : err);

@@ -275,7 +275,8 @@ test('the query leaves out exactly what each offered switch hides, and never a r
 });
 
 // ── 2 and 3. The push: switches, quiet hours on the person's own clock, and the hold ─────────────
-const st = { admin: null, pushReady: true, sent: [], emails: [] };
+// `pushAnswer`: what sendPushToUser answers, the devices it reached; undefined, as an older stand-in did.
+const st = { admin: null, pushReady: true, sent: [], emails: [], pushAnswer: undefined };
 function fakeAdmin({ settings = null, prefs = {}, profileTz = null } = {}) {
   const updates = [];
   return {
@@ -305,7 +306,7 @@ const dispatch = await loadRealModule(join(ROOT, 'src/app/api/push/dispatch/rout
     ['next/server', nextServer],
     ['@/lib/supabase/admin', { createAdminClient: () => st.admin }],
     ['@/lib/time', TIME],
-    ['@/lib/push', { pushConfigured: () => st.pushReady, sendPushToUser: async (_a, userId, p) => { st.sent.push({ userId, ...p }); } }],
+    ['@/lib/push', { pushConfigured: () => st.pushReady, sendPushToUser: async (_a, userId, p) => { st.sent.push({ userId, ...p }); return st.pushAnswer; } }],
     ['@/lib/email', { sendEmail: async (m) => { st.emails.push(m); return { ok: true }; } }],
     ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')], ['@/lib/reader-copy', READER_COPY_EN],
   ]),
@@ -431,7 +432,7 @@ test('the morning: held notices go once, oldest first, at most three a person, a
   add('e1', 'eve', 7);
   const heldAgain = new Set(['e1']);
   const db = heldDb(rows);
-  const cron = await heldCron(db, async (r) => { delivered.push(r.id); assert.equal('held_at' in (r.data || {}), false, 'handed over without its hold'); return heldAgain.has(r.id) ? { held: true } : {}; });
+  const cron = await heldCron(db, async (r) => { delivered.push(r.id); assert.equal('held_at' in (r.data || {}), false, 'handed over without its hold'); return heldAgain.has(r.id) ? { held: true } : { pushed: 1 }; });
   assert.equal(cron.heldVerdict({ created_at: '2026-10-16T03:00:00Z', read_at: null }, new Date('2026-10-16T12:00:00Z')), 'send');
   assert.equal(cron.heldVerdict({ created_at: '2026-10-16T03:00:00Z', read_at: 'x' }, new Date('2026-10-16T12:00:00Z')), 'seen');
   assert.equal(cron.heldVerdict({ created_at: '2026-10-14T03:00:00Z', read_at: null }, new Date('2026-10-16T12:00:00Z')), 'stale');
@@ -451,7 +452,7 @@ test('a held notice whose send fails keeps its hold, and a run stops taking work
   let db = heldDb([row('ok', 0), row('boom', 1), row('next', 2)]);
   let cron = await heldCron(db, async (r) => {
     if (r.id === 'boom') { db.stored.set('boom', { ...r.data, emailed_at: 'e' }); throw new Error('Firebase down'); }
-    return {};
+    return { pushed: 1 };
   });
   let body = await heldRun(cron);
   assert.deepEqual(body, { ok: true, delivered: 2, letGo: 0, failed: 1, stopped: false });
@@ -459,7 +460,7 @@ test('a held notice whose send fails keeps its hold, and a run stops taking work
   assert.deepEqual(db.stored.get('next'), { keep: 'next' }, 'a failure stopped the run');
   // The next run tries it again, and does not email it again (the stamp is on the row it is handed).
   let handed = null;
-  cron = await heldCron(db, async (r) => { handed = r; return {}; });
+  cron = await heldCron(db, async (r) => { handed = r; return { pushed: 1 }; });
   body = await heldRun(cron);
   assert.equal(handed && handed.id, 'boom');
   assert.equal(handed.data.emailed_at, 'e');
@@ -471,7 +472,7 @@ test('a held notice whose send fails keeps its hold, and a run stops taking work
   try {
     db = heldDb([row('s1', 0), row('s2', 1), row('s3', 2), row('s4', 3), row('s5', 4)]);
     const sent = [];
-    cron = await heldCron(db, async (r) => { clock += 40_000; sent.push(r.id); return {}; });
+    cron = await heldCron(db, async (r) => { clock += 40_000; sent.push(r.id); return { pushed: 1 }; });
     body = await heldRun(cron);
   } finally {
     globalThis.Date = RealDate;
@@ -479,6 +480,37 @@ test('a held notice whose send fails keeps its hold, and a run stops taking work
   assert.equal(body.stopped, true);
   assert.equal(body.delivered, 3);
   assert.ok(db.dataById('s4').held_at && db.dataById('s5').held_at, 'what the run left lost its hold');
+});
+
+test('a held push no device took keeps its hold, and only a push that went counts against the cap (Codex on #2476)', async () => {
+  process.env.CRON_SECRET = 'cron-test';
+  const row = (id, mins, user = 'ann') => ({ id, user_id: user, type: 'follow', title: id, body: '', route: null, data: { held_at: '2026-10-26T03:00:00Z' }, created_at: new Date(Date.now() - (600 - mins) * 60000).toISOString(), read_at: null });
+  // Every device answered an error: held again for the next run, and it takes no place under the cap.
+  // Three whose switch was turned off overnight take none either, so the next three still go.
+  let db = heldDb([row('down', 0), row('off1', 1), row('off2', 2), row('off3', 3), row('go1', 4), row('go2', 5), row('go3', 6), row('late', 7)]);
+  const handed = [];
+  let cron = await heldCron(db, async (r) => {
+    handed.push(r.id);
+    if (r.id === 'down') return { pushed: 0, pushFailed: true };
+    if (r.id.startsWith('off')) return { skipped: 'push_channel_off' };
+    return { pushed: 1 };
+  });
+  const body = await heldRun(cron);
+  assert.deepEqual(handed, ['down', 'off1', 'off2', 'off3', 'go1', 'go2', 'go3'], 'a skipped notice took a pushed one\'s place');
+  assert.deepEqual(body, { ok: true, delivered: 6, letGo: 1, failed: 1, stopped: false });
+  assert.equal(db.dataById('down').held_at, '2026-10-26T03:00:00Z', 'a push no device took lost its hold');
+  assert.equal(db.dataById('late').held_at, undefined, 'the fourth push for one person went in the same run');
+  // The dispatcher says which: every device failed, some went, or none to go to.
+  const coach = { type: 'message', data: { side: 'client' } };
+  st.pushAnswer = { sent: 0, failed: 2 };
+  assert.deepEqual(await deliver(fakeAdmin(), coach, NOON), { pushed: 1, emailed: 0, pushFailed: true });
+  st.pushAnswer = { sent: 1, failed: 1 };
+  const some = await dispatch.deliverNotice({ user_id: 'u-1', title: 'Hello', body: '', route: null, ...coach }, NOON);
+  assert.equal(some.pushed, 1);
+  assert.equal('pushFailed' in some, false, 'one device took it');
+  st.pushAnswer = { sent: 0, failed: 0 };
+  assert.equal('pushFailed' in (await dispatch.deliverNotice({ user_id: 'u-1', title: 'Hello', body: '', route: null, ...coach }, NOON)), false, 'no device to go to is not a failure');
+  st.pushAnswer = undefined;
 });
 
 // ── 1 and 7e. The database: direct messages, and no repeated follows or co-signs ──────────────────

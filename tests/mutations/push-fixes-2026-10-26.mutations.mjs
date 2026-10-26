@@ -13,7 +13,8 @@ const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const MAIN = 'mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx';
 
 export default {
-  test: 'node --test tests/notification-switches.test.mjs',
+  // push-delivery holds what sendPushToUser answers (Codex on #2476).
+  test: 'node --test tests/notification-switches.test.mjs tests/push-delivery.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── 2. Quiet hours: the person's own night, saved or not ──
@@ -59,8 +60,8 @@ export default {
       find: "        if (verdict !== 'send' || used >= HELD_PER_PERSON) {",
       replace: "        if (verdict !== 'send') {" },
     { name: 'a notice held again is counted as delivered', file: HELD,
-      find: '        if (!out.held) { perPerson.set(row.user_id, used + 1); delivered += 1; }',
-      replace: '        perPerson.set(row.user_id, used + 1); delivered += 1;' },
+      find: '        if (!out.held) delivered += 1;',
+      replace: '        delivered += 1;' },
     { name: 'the hold is not taken off before the send', file: HELD,
       find: '        if (!(await release(admin, row))) continue; // another run has it\n',
       replace: '' },
@@ -194,6 +195,25 @@ export default {
       replace: '  const current = before;' },
     { name: 'the held-notice job runs past its time', file: HELD,
       find: '      if (Date.now() - startedAt > TIME_BUDGET_MS) { stopped = true; break walk; }\n',
+      replace: '' },
+    // A held push counts only when it reached a device, and is held again when none took it (Codex on #2476).
+    { name: 'a held push no device took loses its hold', file: HELD,
+      find: "        if (out.pushFailed) throw new Error('every device refused the push');\n",
+      replace: '' },
+    { name: 'a skipped notice takes a place under the cap', file: HELD,
+      find: '        if (out.pushed) perPerson.set(row.user_id, used + 1);',
+      replace: '        if (!out.held) perPerson.set(row.user_id, used + 1);' },
+    { name: 'a push some devices took reads as failed', file: DISPATCH,
+      find: '...(sent.sent === 0 && sent.failed > 0 ? { pushFailed: true } : {})',
+      replace: '...(sent.failed > 0 ? { pushFailed: true } : {})' },
+    { name: 'no device to go to reads as failed', file: DISPATCH,
+      find: '...(sent.sent === 0 && sent.failed > 0 ? { pushFailed: true } : {})',
+      replace: '...(sent.sent === 0 ? { pushFailed: true } : {})' },
+    { name: 'a device that took the push is not counted', file: 'src/lib/push.ts',
+      find: "    else if (result === 'ok') out.sent += 1;\n",
+      replace: '' },
+    { name: 'a failed send is not counted', file: 'src/lib/push.ts',
+      find: "    else if (result === 'error') out.failed += 1;\n",
       replace: '' },
     // The daily Score job: a time budget and a start that moves each day (Codex on #2476).
     { name: 'the Score job runs past its time', file: 'src/app/api/cron/score-accountability/route.ts',

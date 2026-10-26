@@ -233,7 +233,9 @@ function secretMatches(given: string | null, expected: string): boolean {
 // One notice, delivered: its email (for the types email is offered for) and its push, each by the
 // recipient's settings, or held for the morning when it falls in their quiet hours. The webhook
 // below runs it for every new row, and /api/cron/push-held for a held one once the night is over.
-export type Delivered = { skipped?: string; held?: boolean };
+// `pushed` is how many devices took it, `pushFailed` that every device's send failed: the morning job
+// counts the first against a person's cap and holds the notice again on the second (Codex on #2476).
+export type Delivered = { skipped?: string; held?: boolean; pushed?: number; pushFailed?: boolean };
 export async function deliverNotice(record: NotificationRecord, now: Date = new Date()): Promise<Delivered> {
   if (!record.user_id || !record.title) return { skipped: 'no_record' };
   // The recipient's words for it, read once and only when something goes out (readerText).
@@ -284,12 +286,14 @@ export async function deliverNotice(record: NotificationRecord, now: Date = new 
     return held(gate.why);
   }
   const text = await sayIt(admin);
-  await sendPushToUser(admin, record.user_id, {
+  const sent = await sendPushToUser(admin, record.user_id, {
     title: text.title,
     body: text.body,
     data: { route: pushRoute(record), type: record.type ?? 'general' },
   });
-  return held();
+  const out = await held();
+  if (!sent) return out;
+  return { ...out, pushed: sent.sent, ...(sent.sent === 0 && sent.failed > 0 ? { pushFailed: true } : {}) };
 }
 
 export async function POST(request: Request) {
