@@ -75,7 +75,8 @@ dated entry or past 20 KB.
   `?v=`: `scripts/build-newdesign.mjs` replaces it with a content hash at deploy.
   Before editing a legacy `*.jsx`, check that something still loads it.
   `coachForecast.js` holds the coach Business figures; the app imports it too, so
-  change a figure there, not in a page.
+  change a figure there, not in a page. `splitGlassMark.js` draws the 3D splash mark
+  for both the homepage splash and the app's launch screens.
 - **Next.js app (`src/`):** API routes, the gated `/dashboard` and `/admin`. Typecheck
   with `npx tsc --noEmit` (read the Next docs first). When you add a route,
   register it in the War Room's `RAW_ROUTES`. A route the app calls reads the caller with
@@ -92,11 +93,10 @@ dated entry or past 20 KB.
   - Native builds get `VITE_API_BASE_URL=https://theshapecommunity.com` from
     `android-build.yml` and `codemagic.yaml`. The hosted `/m/` build calls its own
     origin.
-  - The version is `mobile-app/package.json`'s, on both stores: raise it for each store
-    release. CI sets Android's versionCode and the iOS build number.
-  - Please update: `src/lib/app-version.mjs` sets each store's minimum version, and
-    `BSUpdateGate.jsx` covers an older installed app. Raise a minimum in the PR that
-    breaks older builds, and only once that store has the new version live.
+  - Raise `mobile-app/package.json`'s version for each store release (CI sets the
+    build numbers). `src/lib/app-version.mjs` holds each store's minimum for
+    `BSUpdateGate.jsx`: raise it only in the PR that breaks older builds, once that
+    store has the new version live.
 - **`iosAppBroadsheetClient.jsx`** is the member app (~38k lines): Home, Eat, Train,
   the logger, chat and settings. When a PR already touches a self-contained screen,
   move that screen into its own ES module. `BSIntegrationsPage.jsx` and
@@ -127,10 +127,8 @@ dated entry or past 20 KB.
     linked coaches through the private `meal-notes` bucket.
   - `src/app/api/nutrition/voice/route.ts` does Whisper transcription.
   - The War Room (`/warroom`, `src/lib/warroom.ts`) is the go-live status board.
-  - Notifications: each kind answers to a switch (`PREFERENCE_OF`, `notificationSurfaces.mjs`), read
-    by the push, `/api/notifications` and the app's toast; a new kind needs one there and on both
-    settings screens. Quiet hours are the person's night in their own zone; a notice in them is held
-    (`data.held_at`) for `/api/cron/push-held`.
+  - Notifications: a new kind needs a switch in `PREFERENCE_OF` (`notificationSurfaces.mjs`) and on
+    both settings screens. A notice in the person's quiet hours is held for `/api/cron/push-held`.
   - `/api/calendar?activities=1` (member calendar only) adds activities: providers' copies
     within 20 min are one; a logged workout's folds into it; one ticks an open planned
     workout of its day (undated: its week) and `workoutKind`, unless its title names no
@@ -278,6 +276,8 @@ The War Room has the full list; this covers what needs the owner and the planned
   its speakers, the barrier, subs and front-of-house desk) have been seen only in headless Chromium,
   not on a real GPU or a phone. From the stage the crowd reads brighter and more evenly lit than a
   club floor. The old avatar crowd (`crowdAvatars.mjs`) is kept for a v2 pack.
+- The Split glass splash mark (#2474), on the homepage and the app's launch, has been seen only in
+  headless Chromium, not on a phone or in the installed app.
 
 ## History
 

@@ -615,6 +615,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Splash: the mark becomes Split glass, on the homepage and the app\'s launch — #2474. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26: "can we make the triangles look more 3d on the splash pages. I want to see preview", then, from a live preview of eight treatments (claude.ai/artifact/3RBjoq7yfCtH4Y6T1m13h7), "i like glass and split" and "do split glass"', status: 'done' },
+        { label: 'public/newdesign/splitGlassMark.js, shared like coachForecast.js: the two triangles are glass prisms at two depths that spin in from edge-on, then drift; ten SVG polygons a frame, no WebGL. The homepage loads it in the head and plays it into the splash mark; end() settles it face-on, flat and solid while it glides, so the summit gets the flag. Without the script the flat mark draws as before', status: 'done' },
+        { label: 'App: BSShapeMark plays it on the launch beat and the hold from the first mount\'s clock, so the hold picks up the drift (bs-replay-splash restarts it); the calm mark drops its pulse; reduced motion gets one still pose', status: 'done' },
+        { label: 'Review: Codex P2 on 66dc86c (a replayed launch reused the first launch\'s clock), fixed in 017665e; Codex clean on 017665e. Checks: tests/split-glass-mark.test.mjs (10) and five more in tests/homepage-splash.test.mjs; three injected bugs each caught; npm test 8,594/8,595 before the fix to the one failure, this PR\'s own DOM-valued assertion; rendered in headless Chromium (the homepage at 1360 and 390 with a screencast of the hand-off, the app\'s beat at 390); staging deployed', status: 'done' },
+        { label: 'OWNER: watch the splash on a phone: the homepage with ?splash, and the installed app\'s launch. Every render was headless Chromium', status: 'manual' },
+      ],
+    },
+    {
       section: 'Booth: the club seen from its stage — four decks, booth speakers, barrier, subs, front of house — #2473. No migration',
       items: [
         { label: 'Owner, 2026-10-26: "this needs to look more like a legit club/venue from a stage perspective", "the booth needs to be larger", "yes need both speakers on the sides etc", "booth speakers"', status: 'done' },
