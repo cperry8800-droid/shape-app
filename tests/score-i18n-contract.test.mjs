@@ -53,12 +53,13 @@ test('every score: key the code BUILDS dynamically exists in en (the #1759/#1761
   const filters = [...between(CLIENT, /const filters = \[/, /\];/).matchAll(/\['([a-z]+)'/g)].map((m) => m[1]);
   for (const f of filters) if (!(`record.filter.${f}` in EN)) missing.push(`record.filter.${f}`);
 
-  // tab.<key> — the Score page's 4 tabs, and a coach's Breakdown
-  for (const k of ['tiers', 'rewards', 'points', 'ledger', 'breakdown']) if (!(`tab.${k}` in EN)) missing.push(`tab.${k}`);
+  // tab.<key> — the Score page's tabs: a member's Ledger and Points, a coach's Breakdown and Points
+  for (const k of ['points', 'ledger', 'breakdown']) if (!(`tab.${k}` in EN)) missing.push(`tab.${k}`);
 
-  // reg.<key> — the register row's labels, a member's and a coach's
+  // reg.<key> — the figures' labels: a member's week (This wk, Streak). A coach's next rung is the
+  // plate's own line ("1,940 from Master"), so it has no figures. The score's own label is read by name.
   const regs = [...between(CLIENT, /function BSShapeScorePage\(/, /\n\}\n/).matchAll(/\['(reg\.\w+)'/g)].map((m) => m[1]);
-  assert.ok(regs.length >= 6, `expected both register rows, got ${regs.join(', ')}`);
+  assert.deepEqual(regs, ['reg.thisWeek', 'reg.streak'], `expected the week's figure row, got ${regs.join(', ')}`);
   for (const r of regs) if (!(r in EN)) missing.push(r);
 
   // earn.<id>.name / .note and cap.<capKey> — every earn/penalty row, the member's and the coach

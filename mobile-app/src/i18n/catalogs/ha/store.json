@@ -99,5 +99,13 @@
   "unlocked.notUnlocked": "Ba a buɗe wannan kyautar ba tukuna.",
   "unlocked.needsShipping": "Muna buƙatar cikakken adireshin aikawa don mu aika.",
   "unlocked.badChoice": "Zaɓi ɗaya daga cikin zaɓuɓɓukan da aka nuna.",
-  "unlocked.claimFailed": "An kasa karɓa. Ka sake gwadawa."
+  "unlocked.claimFailed": "An kasa karɓa. Ka sake gwadawa.",
+  "page.dek": "Duk abin da ke nan ana sayen sa da makin da kake samu ta motsa jiki, cin abinci da barci mai kyau.",
+  "balance.worth": "Darajar",
+  "balance.rate": "Maki {rate} = $1",
+  "balance.closest": "Mafi kusa",
+  "balance.allWithin": "Duk abin da ke nan yana cikin ma’aunin ka",
+  "closest.head": "Mafi kusa da kai",
+  "closest.meta": "Ta maki da suka rage",
+  "item.no": "Na {n}"
 }

@@ -99,5 +99,13 @@
   "unlocked.notUnlocked": "Phần thưởng đó chưa được mở khóa.",
   "unlocked.needsShipping": "Chúng tôi cần địa chỉ giao hàng đầy đủ để gửi.",
   "unlocked.badChoice": "Hãy chọn một trong các lựa chọn hiển thị.",
-  "unlocked.claimFailed": "Không nhận được. Vui lòng thử lại."
+  "unlocked.claimFailed": "Không nhận được. Vui lòng thử lại.",
+  "page.dek": "Mọi thứ ở đây đều đổi bằng điểm bạn kiếm được khi tập luyện, ăn uống và ngủ tốt.",
+  "balance.worth": "Giá trị",
+  "balance.rate": "{rate} điểm = $1",
+  "balance.closest": "Gần nhất",
+  "balance.allWithin": "Mọi thứ ở đây đều trong số dư của bạn",
+  "closest.head": "Gần bạn nhất",
+  "closest.meta": "Theo điểm còn thiếu",
+  "item.no": "Số {n}"
 }

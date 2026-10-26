@@ -99,5 +99,13 @@
   "unlocked.notUnlocked": "Quel premio non è ancora sbloccato.",
   "unlocked.needsShipping": "Ci serve un indirizzo di spedizione completo per inviarlo.",
   "unlocked.badChoice": "Scegli una delle opzioni mostrate.",
-  "unlocked.claimFailed": "Impossibile richiederlo. Riprova."
+  "unlocked.claimFailed": "Impossibile richiederlo. Riprova.",
+  "page.dek": "Qui tutto si compra con i punti che guadagni allenandoti, mangiando e dormendo bene.",
+  "balance.worth": "Valore",
+  "balance.rate": "{rate} pt = 1 $",
+  "balance.closest": "Il più vicino",
+  "balance.allWithin": "Tutto qui rientra nel tuo saldo",
+  "closest.head": "Il più vicino a te",
+  "closest.meta": "Per punti mancanti",
+  "item.no": "N. {n}"
 }

@@ -99,5 +99,13 @@
   "unlocked.notUnlocked": "That reward is not unlocked yet.",
   "unlocked.needsShipping": "We need a full shipping address to send that.",
   "unlocked.badChoice": "Pick one of the options shown.",
-  "unlocked.claimFailed": "Could not claim that. Please try again."
+  "unlocked.claimFailed": "Could not claim that. Please try again.",
+  "page.dek": "Everything here is bought with the points you earn training, eating and sleeping well.",
+  "balance.worth": "Worth",
+  "balance.rate": "{rate} pts = $1",
+  "balance.closest": "Closest",
+  "balance.allWithin": "Everything here is within your balance",
+  "closest.head": "Closest to you",
+  "closest.meta": "By points to go",
+  "item.no": "No. {n}"
 }

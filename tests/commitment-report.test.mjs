@@ -41,7 +41,7 @@ const CARD = slice('BSCommitmentCard');
 test('guard-the-guard: the slice is the card and only the card', () => {
   assert.ok(CARD.length > 3000 && CARD.length < 30000, `slice length ${CARD.length} is implausible`);
   assert.match(CARD, /window\.ShapeCommit/, 'slice does not contain the commitment data layer');
-  assert.doesNotMatch(CARD, /function BSScoreStandingChart/, 'slice ran past the component');
+  assert.doesNotMatch(CARD, /function bsTierText|function BSScoreLadder/, 'slice ran past the component');
 });
 
 test('a failed set is REPORTED — three branches, all through notice()', () => {

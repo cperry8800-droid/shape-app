@@ -99,5 +99,13 @@
   "unlocked.notUnlocked": "Цю нагороду ще не відкрито.",
   "unlocked.needsShipping": "Щоб надіслати, потрібна повна адреса доставки.",
   "unlocked.badChoice": "Обери один із показаних варіантів.",
-  "unlocked.claimFailed": "Не вдалося забрати. Спробуй ще раз."
+  "unlocked.claimFailed": "Не вдалося забрати. Спробуй ще раз.",
+  "page.dek": "Усе тут купується за бали, які ти заробляєш тренуваннями, добрим харчуванням і сном.",
+  "balance.worth": "Вартість",
+  "balance.rate": "{rate} б. = $1",
+  "balance.closest": "Найближче",
+  "balance.allWithin": "Усе тут у межах твого балансу",
+  "closest.head": "Найближче до тебе",
+  "closest.meta": "За балами, що лишилися",
+  "item.no": "№ {n}"
 }

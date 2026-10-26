@@ -99,5 +99,13 @@
   "unlocked.notUnlocked": "Эта награда ещё не открыта.",
   "unlocked.needsShipping": "Чтобы отправить, нужен полный адрес доставки.",
   "unlocked.badChoice": "Выбери один из показанных вариантов.",
-  "unlocked.claimFailed": "Не удалось забрать. Попробуй ещё раз."
+  "unlocked.claimFailed": "Не удалось забрать. Попробуй ещё раз.",
+  "page.dek": "Всё здесь покупается за баллы, которые ты получаешь за тренировки, хорошее питание и сон.",
+  "balance.worth": "Стоимость",
+  "balance.rate": "{rate} б. = $1",
+  "balance.closest": "Ближе всего",
+  "balance.allWithin": "Всё здесь тебе по балансу",
+  "closest.head": "Ближе всего к тебе",
+  "closest.meta": "По оставшимся баллам",
+  "item.no": "№ {n}"
 }

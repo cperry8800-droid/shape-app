@@ -99,5 +99,13 @@
   "unlocked.notUnlocked": "O ödül henüz açılmadı.",
   "unlocked.needsShipping": "Göndermek için eksiksiz bir teslimat adresi gerekiyor.",
   "unlocked.badChoice": "Gösterilen seçeneklerden birini seç.",
-  "unlocked.claimFailed": "Alınamadı. Lütfen tekrar dene."
+  "unlocked.claimFailed": "Alınamadı. Lütfen tekrar dene.",
+  "page.dek": "Buradaki her şey antrenman, iyi beslenme ve iyi uykuyla kazandığın puanlarla alınır.",
+  "balance.worth": "Değeri",
+  "balance.rate": "{rate} puan = 1 $",
+  "balance.closest": "En yakın",
+  "balance.allWithin": "Buradaki her şey bakiyenin içinde",
+  "closest.head": "Sana en yakın",
+  "closest.meta": "Kalan puana göre",
+  "item.no": "No. {n}"
 }
