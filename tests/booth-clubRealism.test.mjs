@@ -140,3 +140,33 @@ test('the skyline is photographed: an atlas per tier, the same on the website an
   assert.match(VENUE, /if \(venueDisposed\) return;/);
   assert.match(VENUE, /matTower\.map = t;/);
 });
+
+test('the room\'s stone, ceilings and soffits are a neutral charcoal, not navy', () => {
+  for (const name of ['C_DARK', 'C_WALL', 'C_WALKWAY', 'C_SOFFIT_RAIL', 'C_POST', 'C_CEIL']) {
+    const m = VENUE.match(new RegExp(`const ${name} = \\[([^\\]]+)\\];`));
+    assert.ok(m, name);
+    const [r, , b] = m[1].split(',').map(Number);
+    assert.ok(b - r <= 0.001, `${name} leans blue by ${(b - r).toFixed(4)}`);
+  }
+  assert.match(VENUE, /gr\.addColorStop\(0, 'rgb\(44,42,41\)'\); gr\.addColorStop\(1, 'rgb\(30,29,29\)'\);/, 'the fascia stone is charcoal');
+  assert.match(CLUB, /color: 0x070708, side: THREE\.BackSide \}\); tmp\.push\(roomM\);   \/\/ was navy 0x06080d/);
+});
+
+test('the palms are not one plant: three crowns of fronds (two on phones), neighbours different, each its own height', () => {
+  assert.match(VENUE, /const FROND_KINDS = LOW \? 2 : 3;/);
+  assert.match(VENUE, /palmFronds\(mulberry32\(seed \* 29 \+ 3 \+ k \* 101\), PQ\)/, 'the first crown keeps the old seed');
+  assert.match(VENUE, /const kindOf = \(i\) => i % FROND_KINDS;/);
+  assert.match(VENUE, /const palmRnd = mulberry32\(seed \* 31 \+ 7\);/, 'its own stream: the rest of the room stays where it was');
+  assert.match(VENUE, /for \(const im of \[imTrunk, \.\.\.imFronds, imBeam, imSofa, imTable, imCandle, imFig\]\) im\.dispose\(\);/);
+});
+
+test('the stage deck shows the wall in its polish: the wall\'s own light, only where a reflection would reach it', () => {
+  assert.match(CLUB, /const sheenGeo = own\(new THREE\.ShapeGeometry\(shape, 24\)\);/, 'the deck\'s own outline');
+  assert.match(CLUB, /mesh\(sheenGeo, sheenM, 'stageSheen'\)\.renderOrder = 2;/);
+  assert.match(CLUB, /float toWall = smoothstep\(0\.0, 0\.35, -V\.z\);/, 'a reflected line of sight running toward the wall');
+  assert.match(CLUB, /float fres = pow\(1\.0 - clamp\(V\.y, 0\.0, 1\.0\), 3\.0\);/, 'strongest at a grazing angle');
+  assert.match(CLUB, /sheenU\.uGlow\.value\.copy\(wallGlow\);/, 'in the wall\'s current colour');
+  assert.doesNotMatch(CLUB, /buildFloorEnvironment/, 'not an environment map: that holds one colour and the wall changes');
+  // the gear and Nora keep the small screen's environment
+  assert.match(CLUB, /const wg = new THREE\.PlaneGeometry\(7\.2, 4\.2\);/);
+});

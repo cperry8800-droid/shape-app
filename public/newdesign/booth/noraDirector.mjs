@@ -37,7 +37,7 @@ export const SHOTS = {
   profile:   { label: 'Profile',   bars: 4,  weight: 2, handheld: 0.006, fov: 30 },
   crane:     { label: 'Crane',     bars: 8,  weight: 1, handheld: 0.000, fov: 42 },
   face:      { label: 'Nora',      bars: 4,  weight: 1, handheld: 0.005, fov: 28 },
-  behind:    { label: 'Behind Nora', bars: 8, weight: 2, handheld: 0.004, fov: 54 },
+  behind:    { label: 'Behind Nora', bars: 8, weight: 2, handheld: 0.004, fov: 62 },
   drone:     { label: 'Drone',     bars: 40, weight: 1, handheld: 0.0015, fov: 58 },
   arrival:   { label: 'Arrival',   bars: 12, weight: 1, handheld: 0.0, fov: 46 },
 };
@@ -226,9 +226,10 @@ export function evalShot(id, u, t, ctx, out) {
       break;
     }
     case 'shoulder': {
-      // Behind Nora looking out at the room: her silhouette, the decks, the crowd, the beams.
-      P.x = lerp(-0.42, -0.2, e); P.y = 1.78; P.z = 1.3;
-      T.x = 0.15; T.y = 1.25; T.z = -3.5;
+      // Behind Nora looking out at the room: her silhouette, the decks, the crowd, the beams. Above
+      // her head and off her left shoulder, so her head sits in the right third, not across the room.
+      P.x = lerp(-0.62, -0.4, e); P.y = 1.95; P.z = 1.3;
+      T.x = 0.25; T.y = 1.15; T.z = -3.5;
       break;
     }
     case 'profile': {
@@ -243,12 +244,15 @@ export function evalShot(id, u, t, ctx, out) {
       break;
     }
     case 'behind': {
-      // Behind her and a little above her head, looking out at the crowd: the back of her head and
-      // shoulders at the bottom of the frame, the dance floor filling it, the balconies at the top.
-      // In front of the LED wall (z 2.0), so the wall lights her from behind. The aim sits low
-      // enough that her head (≈27° below the lens) stays in frame at this lens.
-      P.x = lerp(-0.32, 0.32, e); P.y = 2.2 + 0.06 * Math.sin(u * Math.PI); P.z = 1.45;
-      T.x = lerp(-1.4, 1.4, e); T.y = -0.6; T.z = -12;
+      // The view from the stage: behind her and above her head, looking out level over the room. Her
+      // head and shoulders and the booth's four decks across the lower third, the barrier and the
+      // crowd's raised hands across the middle, the balconies at the top (owner, 2026-10-26: "this
+      // needs to look more like a legit club/venue from a stage perspective"). In front of the LED
+      // wall (z 2.0), so the wall lights her from behind. Aimed 7° down: her head sits ≈7° and the
+      // outer decks ≈20° below the centre, inside the ±24° the 2.39:1 bars leave of this lens on a
+      // 16:9 screen (the bars crop a landscape frame's height; a portrait one has none).
+      P.x = lerp(-0.45, 0.45, e); P.y = 1.95 + 0.05 * Math.sin(u * Math.PI); P.z = 1.65;
+      T.x = lerp(-1.2, 1.2, e); T.y = 0.25; T.z = -12;
       break;
     }
     case 'drone': {
