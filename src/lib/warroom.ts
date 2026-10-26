@@ -615,6 +615,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Upkeep: the 80 coach keys nothing reads, and Next.js 16.4.3 with the patched dependencies — #2462. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26: "Clean up the 30 unused coach keys", then "Fix the vulnerabilities" (GitHub reported 54 Dependabot alerts on main, 1 critical and 29 high)', status: 'done' },
+        { label: '80 coach catalog keys nothing reads left all 13 locales (1,471 to 1,391 each): 61 left by #2458, 19 older. Checked as literal, bare and computed-prefix reads across the app, the website, src, tests and scripts', status: 'done' },
+        { label: 'Website: next 16.3.6 to 16.4.3, closing two unauthenticated remote code execution advisories (the image optimizer with SVGs; use cache returning typed arrays), an image-optimizer SSRF and a Server Actions denial of service, with sharp, undici, fast-uri and others patched in range', status: 'done' },
+        { label: 'Mobile app: vite 8.3.5, proxy-addr, body-parser, qs, @xmldom/xmldom and others in range (lockfile only; the @sentry/react and bluetooth-le pins held). scripts/nora-model: @gltf-transform 4.5.1 and sharp 0.35.5. npm audit 0 in every tree, no major moved', status: 'done' },
+        { label: 'tests/train-burn.test.mjs failed every Monday and hung the Tests run; #2460 fixed it (7a971ec) while this PR carried the same port', status: 'done' },
+        { label: 'Re-read GitHub\'s Dependabot alerts on main after the merge (its database is not npm\'s, and Gradle alerts, if any, are not covered by npm audit)', status: 'manual' },
+        { label: 'next.config.ts imports withSentryConfig from @sentry/nextjs, which stops working in Sentry v11 (@sentry/nextjs/config)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Calendar: synced activities on the member calendar, matched to the planned workout by day and type — #2460. No migration',
       items: [
         { label: 'Owner, 2026-10-25, after #2457: "yes" to Strava, Garmin and Apple Health runs, with distance, on the calendar. The member calendar shows the member\'s activities (Strava, Garmin, Apple Health, WHOOP, Oura, logged by hand) as done cards in Month and Weeks, in the member\'s unit ("Morning Run · 3.6 mi · 35m"); the week\'s total adds the distance. One run on two providers is one card at the larger reading (Train\'s 20-minute rule, BS_BURN_TWIN_MS); one that matches a workout logged in Shape folds into that card as its distance (src/lib/calendar-activities.ts)', status: 'done' },
@@ -644,7 +656,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Type: Geist (BS_PRO_HEAD) for titles and section heads, Inter Tight (BS_PRO_SANS) for the words, on Today, Clients and Programs only (useBSProClean, BSProCleanType). Both bundled as variable files with Cyrillic and Vietnamese (fonts.css font-34 to font-43, tests/coach-font-axes). The default "regular" weight no longer steps their weights down', status: 'done' },
         { label: 'Review: Codex on 361728d, P1 Today never re-rendered with the clock, P2 the search skipped live workout clips, both fixed in ae988de; on ae988de, P2 the calendar read didn\'t follow a new week, P2 paid rows ignored To do\'s budget, P2 Find a coach showed before the coach read, all fixed in 01b562d; Codex clean on 01b562d. Copilot out of quota; CodeRabbit not run. npm test 8,486 / 8,486', status: 'done' },
         { label: 'Device pass: the coach Today, Clients and Programs and the member Home shortcuts on a phone, signed in, light and dark', status: 'manual' },
-        { label: '30 coach catalog keys the old headers read are unused (roster.theRoster, plans.mostPopular, rail.calendar and others), left in all 13 locales for a cleanup', status: 'pending' },
+        { label: 'The coach catalog keys the old headers read: 61 went unused here (this line first said 30), and with 19 older ones all 80 left the 13 locales in #2462', status: 'done' },
       ],
     },
     {

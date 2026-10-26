@@ -228,6 +228,8 @@ The War Room has the full list; this covers what needs the owner and the planned
 - Staff two-factor has no recovery codes, and reloading `/staff-verify` during set-up makes a
   new key (#2388). The Radio page can ask for the code again.
 - The website's usage stats don't wait for the consent banner in the EEA and UK.
+- `next.config.ts` imports `withSentryConfig` from `@sentry/nextjs`, which stops working in Sentry
+  v11 (`@sentry/nextjs/config`).
 - Nothing opens the chat panel from a URL; `TrainerNewProgram.html` and `get-started.html` are
   linked from nowhere.
 - The website's Kitchen (`recipesPage.jsx`) runs its filter toggles and jump row off a phone's
