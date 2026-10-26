@@ -49,6 +49,8 @@
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <script src="/vendor/supabase-js-2.108.2.umd.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
 <script src="/supabase.js?v=20260923"></script>
+<!-- The splash mark in 3D ("Split glass"): the splash script below reads it as it starts. -->
+<script src="/newdesign/splitGlassMark.js?v=20261026"></script>
 <style>
   /* Metrics-matched fallbacks so the web-font swap doesn't reflow the page.
      Anybody at wdth 100 and Schibsted are both grotesks -> Arial; Doto is a
@@ -658,7 +660,11 @@
      so no script, or a script that fails before that line, leaves the page.
      ⚠ IT HANDS OFF TO THE CLIMB RATHER THAN RACING IT. The fold's load-in (the
      words widening, the route climbing) waits for `shape:intro-end`, and the
-     splash's mark glides into the summit flag, which is the same mark. */
+     splash's mark glides into the summit flag, which is the same mark.
+     THE MARK IS "SPLIT GLASS" (owner, 2026-10-26: "make the triangles look more 3d on
+     the splash pages", then "do split glass"): two glass prisms at two depths that spin
+     in from edge-on, drawn by /newdesign/splitGlassMark.js into `.ig3`. `.g3` hides the
+     flat mark under it, which still draws as before if that script is missing. */
   #shape-intro{display:none;position:fixed;inset:0;z-index:200;place-items:center;overflow:hidden;
     background:radial-gradient(120% 90% at 78% -10%,rgba(10,143,135,.14),transparent 55%),
                linear-gradient(180deg,var(--ink-2) 0%,var(--ink) 100%);
@@ -675,6 +681,7 @@
   #shape-intro .imark .ic{stroke-dasharray:1;stroke-dashoffset:1;fill:transparent;
     animation:siDraw 1s cubic-bezier(.2,.7,.2,1) forwards,siFillT .45s ease 1.75s forwards}
   #shape-intro .imark .ic2{animation-name:siDraw,siFillW}
+  #shape-intro .imark.g3 .iv,#shape-intro .imark.g3 .ic{display:none}
   /* Doto is this page's reading face, so the line reads like the wire and the
      eyebrows: 700 / ROND 30, the setting the type note keeps for small labels. */
   #shape-intro .iline{margin-top:28px;font-family:var(--num);font-weight:700;font-size:clamp(12px,1.3vw,15px);
@@ -719,9 +726,9 @@
   <svg class="istars" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>
   <div class="iw">
     <!-- The two-triangle mark: the nav pill's and the summit flag's geometry
-         (viewBox 8 8 79 98, teal bottom-left, white top-right). Six member-stars
-         pop at the vertices, then the strokes draw them together and the
-         triangles fill. -->
+         (viewBox 8 8 79 98, teal bottom-left, white top-right). Split glass draws
+         into .ig3; without its script, six member-stars pop at the vertices, then
+         the strokes draw them together and the triangles fill. -->
     <svg class="imark" viewBox="8 8 79 98" aria-hidden="true">
       <circle class="iv" cx="14" cy="47" r="1.8" style="animation-delay:.3s"/>
       <circle class="iv" cx="14" cy="100" r="1.8" style="animation-delay:.42s"/>
@@ -735,6 +742,7 @@
       <polygon class="ic ic2" points="81,14 81,65 44,39" pathLength="1"
         stroke="rgba(238,243,240,.9)" stroke-width="1.3" stroke-linejoin="round"
         style="animation-delay:.85s,1.75s"/>
+      <g class="ig3"></g>
     </svg>
     <div class="iline">Don&rsquo;t climb <b>alone.</b></div>
   </div>
@@ -770,6 +778,13 @@
   window.__shapeIntro='running';
   try{ window.dispatchEvent(new Event('shape:intro-start')); }catch(e){}
   el.classList.add('run');
+  /* The mark in 3D (see the stylesheet's note). end() settles it into the flat mark
+     before the glide, so what lands on the summit is the flag. */
+  var glass=null;
+  try{
+    var gm=el.querySelector('.imark'), SG=window.SplitGlassMark;
+    if(gm&&SG){ glass=SG.play(gm.querySelector('.ig3'),SG.SITE,{reduced:rm}); gm.classList.add('g3'); }
+  }catch(e){ glass=null; }
   /* Star dust, seeded (no Math.random) so every arrival draws the same sky. A
      handful twinkle. */
   try{
@@ -792,6 +807,7 @@
   var done=false;
   function end(){
     if(done) return; done=true;
+    if(glass){ try{ glass.settle(); }catch(e){} }
     /* The hand-off: the mark glides into the summit flag, which is the same mark,
        while the overlay fades through to the fold. The flag is placed by the climb
        script, so before that has drawn once (its inline left is still empty) there

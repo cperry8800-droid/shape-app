@@ -1,4 +1,5 @@
 import { effectiveAppPaper, appearancePatch, saveAppearancePatch, paperColorMode } from '../../../public/newdesign/appearanceSync.mjs';
+import '../../../public/newdesign/splitGlassMark.js'; // window.SplitGlassMark, shared with the website's splash
 import React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { createPortal } from 'react-dom';
@@ -124,11 +125,8 @@ function ensureSkyStyles() {
   const css = `
   @keyframes bsMarkPulse { 0%,100%{ transform:translateY(0) scale(1); } 50%{ transform:translateY(-10px) scale(1.085); } }
   .bs-shape-mark { animation: bsMarkPulse 2.1s ease-in-out infinite; filter:drop-shadow(0 0 32px rgba(10,197,168,0.85)) drop-shadow(0 0 14px rgba(46,224,196,0.8)); will-change: transform; }
-  .bs-shape-mark-calm { animation: bsMarkPulse 2.6s ease-in-out infinite; filter:drop-shadow(0 0 16px rgba(10,197,168,0.4)) drop-shadow(0 0 7px rgba(46,224,196,0.35)); will-change: transform; }
-  .bs-mark-edge { stroke-dasharray:38 97; animation: bsMarkEdge 3.2s linear infinite; }
-  .bs-mark-edge.e2 { animation-delay:-1.6s; }
-  @keyframes bsMarkEdge { to { stroke-dashoffset:-135; } }
-  @media (prefers-reduced-motion: reduce) { .bs-shape-mark,.bs-shape-mark-calm,.bs-mark-edge{ animation:none!important; } }
+  .bs-shape-mark-calm { filter:drop-shadow(0 0 16px rgba(10,197,168,0.4)) drop-shadow(0 0 7px rgba(46,224,196,0.35)); }
+  @media (prefers-reduced-motion: reduce) { .bs-shape-mark{ animation:none!important; } }
   .bs-hide-scroll { scrollbar-width: none; -ms-overflow-style: none; }
   .bs-hide-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
   .bs-no-spin::-webkit-inner-spin-button, .bs-no-spin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
@@ -235,14 +233,31 @@ function BSWireLoading({ top = 72 }) {
   );
 }
 
+// The launch mark in 3D, "Split glass" (owner, 2026-10-26: "make the triangles look more 3d on
+// the splash pages", then "do split glass"): two glass prisms at two depths that spin in from
+// edge-on, then drift. public/newdesign/splitGlassMark.js draws it, the same as the website's
+// splash. The beat and the hold screen each mount a mark, so the clock is the FIRST mount's: the
+// hold picks the drift up where the beat left it instead of spinning in again. The calm mark no
+// longer pulses, since the drift is its motion now.
+let _bsMarkT0 = null;
 function BSShapeMark({ size = 104, calm }) {
   ensureSkyStyles();
+  const gRef = React.useRef(null);
+  const SG = typeof window !== 'undefined' ? window.SplitGlassMark : null;
+  useEffectBSM(() => {
+    if (!SG || !gRef.current) return undefined;
+    if (_bsMarkT0 == null) _bsMarkT0 = performance.now();
+    const play = SG.play(gRef.current, SG.APP, { start: _bsMarkT0, reduced: bsPrefersReducedMotion() });
+    return () => play.stop();
+  }, [SG]);
   return (
-    <svg className={calm ? 'bs-shape-mark-calm' : 'bs-shape-mark'} width={size} height={size} viewBox="0 0 100 100" aria-hidden focusable="false" style={{ display: 'block' }}>
-      <polygon points="20,40 20,88 56,64" fill="#0ac5a8" />
-      <polygon points="80,12 80,60 44,36" fill="#ffffff" />
-      <polygon className="bs-mark-edge e1" points="20,40 20,88 56,64" fill="none" stroke="#ffffff" strokeWidth="1.6" strokeLinejoin="round" />
-      <polygon className="bs-mark-edge e2" points="80,12 80,60 44,36" fill="none" stroke="#0ac5a8" strokeWidth="1.6" strokeLinejoin="round" />
+    <svg className={calm ? 'bs-shape-mark-calm' : 'bs-shape-mark'} width={size} height={size} viewBox="0 0 100 100" aria-hidden focusable="false" style={{ display: 'block', overflow: 'visible' }}>
+      {SG ? <g ref={gRef} /> : (
+        <>
+          <polygon points="20,40 20,88 56,64" fill="#0ac5a8" />
+          <polygon points="80,12 80,60 44,36" fill="#ffffff" />
+        </>
+      )}
     </svg>
   );
 }

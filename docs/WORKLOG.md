@@ -75,7 +75,8 @@ dated entry or past 20 KB.
   `?v=`: `scripts/build-newdesign.mjs` replaces it with a content hash at deploy.
   Before editing a legacy `*.jsx`, check that something still loads it.
   `coachForecast.js` holds the coach Business figures; the app imports it too, so
-  change a figure there, not in a page.
+  change a figure there, not in a page. `splitGlassMark.js` draws the 3D splash mark
+  for both the homepage splash and the app's launch screens.
 - **Next.js app (`src/`):** API routes, the gated `/dashboard` and `/admin`. Typecheck
   with `npx tsc --noEmit` (read the Next docs first). When you add a route,
   register it in the War Room's `RAW_ROUTES`. A route the app calls reads the caller with

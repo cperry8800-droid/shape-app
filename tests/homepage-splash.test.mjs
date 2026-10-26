@@ -31,10 +31,13 @@ function cut(start, end, label) {
 
 const MARKUP = cut('<div id="shape-intro"', '\n<script>\n/* ══ WHEN THE SPLASH PLAYS', 'splash markup');
 const SCRIPT = cut('/* ══ WHEN THE SPLASH PLAYS', '</script>', 'splash script');
+const GLASS_SRC = readFileSync(new URL('../public/newdesign/splitGlassMark.js', import.meta.url), 'utf8');
 
 /** Arrive at the homepage: the shipped splash script runs in a fresh DOM. Timers
- *  are captured rather than run, so each test decides when 2.9 s has passed. */
-function arrive({ url = HOME, referrer, seen = false, reduced = false, user = null, summit = true, rects } = {}) {
+ *  are captured rather than run, so each test decides when 2.9 s has passed.
+ *  `glass` stands in for the head's splitGlassMark.js: a fake, or 'real' for the
+ *  shipped module (its animation frames are captured in `frames`, never run). */
+function arrive({ url = HOME, referrer, seen = false, reduced = false, user = null, summit = true, rects, glass } = {}) {
   const dom = new JSDOM(`<!doctype html><html><body>${MARKUP}
 <div id="summit" style="${summit ? 'left:900px;top:500px' : ''}"><svg class="flag"></svg></div></body></html>`,
     { url, ...(referrer ? { referrer } : {}), runScripts: 'outside-only', pretendToBeVisual: true });
@@ -50,6 +53,11 @@ function arrive({ url = HOME, referrer, seen = false, reduced = false, user = nu
     return Promise.resolve({ ok: true, json: () => Promise.resolve({ user }) });
   };
   if (seen) win.sessionStorage.setItem('shape.introSeen', '1');
+  const frames = [];
+  if (glass === 'real') {
+    win.requestAnimationFrame = (fn) => { frames.push(fn); return frames.length; };
+    win.eval(GLASS_SRC);
+  } else if (glass) win.SplitGlassMark = glass;
   if (rects) {
     win.Element.prototype.getBoundingClientRect = function () {
       for (const [sel, r] of Object.entries(rects)) {
@@ -67,7 +75,7 @@ function arrive({ url = HOME, referrer, seen = false, reduced = false, user = nu
     for (const t of due) { t.ran = true; t.fn(); }
     return due.length;
   };
-  return { win, events, timers, fetches, fire, body: win.document.body, el: () => win.document.getElementById('shape-intro') };
+  return { win, events, timers, fetches, frames, fire, body: win.document.body, el: () => win.document.getElementById('shape-intro') };
 }
 const settle = async () => { for (let i = 0; i < 6; i++) await new Promise((r) => setTimeout(r, 0)); };
 
@@ -102,7 +110,9 @@ test('it stays out of the way of a visitor who should go straight to the page', 
     'a deep link to a section': { url: `${HOME}#moments` },
   };
   for (const [label, opts] of Object.entries(cases)) {
-    const a = arrive(opts);
+    const glass = fakeGlass();
+    const a = arrive({ ...opts, glass });
+    assert.deepEqual(glass.calls, [], `${label}: it started the 3D mark`);
     assert.equal(a.el(), null, `${label}: the overlay is still in the page`);
     assert.equal(a.win.__shapeIntro, undefined, `${label}: it told the fold it was running`);
     assert.deepEqual(a.events, [], `${label}: it announced itself`);
@@ -186,6 +196,68 @@ test('the hand-off lands the mark on the summit flag, and only where the flag re
   const low = arrive({ rects: { ...rects, '.flag': { left: 900, top: 900, width: 22, height: 26 } } });
   low.fire(2900);
   assert.equal(low.el().querySelector('.iw').style.transform, '', 'it glided off the screen');
+});
+
+// ── The mark in 3D: "Split glass" (owner, 2026-10-26: "do split glass") ──────────────
+
+/** A stand-in for /newdesign/splitGlassMark.js that records what the splash asks of it. */
+function fakeGlass() {
+  const calls = [];
+  return {
+    calls,
+    SITE: { site: true },
+    APP: { app: true },
+    play(g, spec, opts) {
+      calls.push({ g, spec, opts });
+      return { settle: () => calls.push('settle'), stop: () => calls.push('stop') };
+    },
+  };
+}
+
+test('with its script loaded the mark is Split glass, and the end settles it flat once', () => {
+  const glass = fakeGlass();
+  const a = arrive({ glass });
+  const mark = a.el().querySelector('.imark');
+  assert.equal(glass.calls.length, 1, 'the splash never started Split glass');
+  assert.ok(glass.calls[0].g === mark.querySelector('.ig3'), 'it drew somewhere other than the mark');
+  assert.equal(glass.calls[0].spec, glass.SITE, "it drew the app's geometry, not the website's");
+  assert.equal(glass.calls[0].opts.reduced, false);
+  assert.ok(mark.classList.contains('g3'), 'the flat mark still draws under the glass');
+  assert.match(stripComments(SRC), /#shape-intro \.imark\.g3 \.iv,#shape-intro \.imark\.g3 \.ic\{display:none\}/,
+    'nothing hides the flat mark under the glass');
+
+  a.fire(2900);
+  assert.deepEqual(glass.calls.slice(1), ['settle'], 'the end did not settle the glass into the flat mark');
+  a.win.dispatchEvent(new a.win.Event('keydown'));
+  assert.deepEqual(glass.calls.slice(1), ['settle'], 'it settled twice');
+});
+
+test('a forced splash under reduced motion asks Split glass for its still pose', () => {
+  const glass = fakeGlass();
+  arrive({ url: `${HOME}?splash`, reduced: true, glass });
+  assert.equal(glass.calls[0].opts.reduced, true);
+});
+
+test('without its script, or if it throws, the flat mark draws as it always did', () => {
+  assert.equal(arrive().el().querySelector('.imark').classList.contains('g3'), false);
+  const broken = arrive({ glass: { SITE: {}, play() { throw new Error('no'); } } });
+  assert.equal(broken.el().querySelector('.imark').classList.contains('g3'), false, 'a failed Split glass hid the flat mark');
+  assert.equal(broken.win.__shapeIntro, 'running', 'a failed Split glass stopped the splash');
+  broken.fire(2900);
+  assert.equal(broken.win.__shapeIntro, 'done', 'a failed Split glass broke the end');
+});
+
+test('the shipped module draws its first frame into the mark at once', () => {
+  const a = arrive({ glass: 'real' });
+  const g = a.el().querySelector('.imark .ig3');
+  assert.equal(g.querySelectorAll('polygon').length, 10, 'the two glass prisms were not drawn');
+  assert.ok(a.frames.length > 0, 'it never asked for a second frame');
+});
+
+test('the head loads Split glass, blocking, before the splash script reads it', () => {
+  const head = SRC.slice(0, SRC.indexOf('</head>'));
+  assert.match(head, /<script src="\/newdesign\/splitGlassMark\.js\?v=\w+"><\/script>/,
+    'no blocking Split glass script in the head: the splash would always draw the flat mark');
 });
 
 test('without script nothing covers the page; with it the splash is up before anything paints', () => {
