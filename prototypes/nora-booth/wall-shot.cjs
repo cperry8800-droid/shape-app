@@ -12,9 +12,11 @@ const { chromium } = require('playwright-core');
     p.on('pageerror', (e) => errs.push('PAGEERROR ' + String(e)));
     p.on('console', (m) => { if (m.type() === 'error') errs.push(m.text().slice(0, 300)); });
     const u = url + (url.includes('?') ? '&' : '?') + (look === 'show' ? '' : 'wall=' + look) + '&mode=' + (shot || 'club');
-    await p.goto(u);
+    await p.goto(u, { timeout: 180000, waitUntil: 'domcontentloaded' });
     await p.waitForFunction(() => window.__booth && window.__frames > 3, null, { timeout: 240000 });
     await p.waitForTimeout(4000);
+    // a plate shows only once its loop has loaded (the pin falls back to the dawn until then)
+    if (look === 'plate') await p.waitForFunction(() => !!window.__booth.club.wallShow.plateTo, null, { timeout: 300000, polling: 250 });
     // AT=1,4.3,27 photographs the first phrase's beat positions instead (the frame lands a little after)
     const at = (process.env.AT || '').split(',').filter(Boolean).map(Number);
     for (let i = 0; i < (at.length || +frames || 1); i++) {
