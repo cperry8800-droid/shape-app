@@ -157,17 +157,14 @@ test('the Wall is NOT a segment — it is the activity sub-tab', () => {
   // verbatim. Owner: "the wall and feed are the same thing" / "the wall is
   // supposed to be a redesign of the shape feed". The Wall IS the activity
   // feed, and the segment row is back to what it was before.
-  const line = bare.split('\n').find((l) => l.includes('.map(([k, l, b])'));
-  assert.ok(line, 'the pill row was not found — has it been restructured?');
-  const keys = [...line.matchAll(/\['([a-z]+)', tr\('feed:tab\./g)].map((m) => m[1]);
-  // Support left the row on 2026-10-07 (#2245): Nora is the ✦ sheet in every header now.
-  assert.deepEqual(keys, ['feed', 'teams', 'channels'],
-    'the Wall must not be a segment of its own — it IS the activity feed');
-  // The grid's column count tracks the section count, or the last section is clipped
-  // off a 375px phone. (The row is the magazine's section strip since 2026-10-24.)
-  const grid = bare.split('\n').find((l) => l.includes('gridTemplateColumns') && l.includes('data-bs-chat-sections'));
-  assert.ok(grid, 'the section row container was not found');
-  assert.match(grid, new RegExp('repeat\\(' + keys.length + ', 1fr\\)'));
+  // Since 2026-10-26 (the owner's B) the places are the title's sheet, not a segment row. The Wall is
+  // still the activity feed: the COMMUNITY chip's place, named Wall, and nothing else is.
+  assert.match(bare, /const placeOf = \(k\) => \(k === 'COMMUNITY' \? 'wall' : k === 'SHAPE' \? 'community' : 'role'\);/,
+    'the Wall must be the activity feed (the COMMUNITY chip), not a place of its own');
+  const msg = [...bare.matchAll(/\{ key: '([a-z]+)', label: tr\('feed:tab\.[a-z]+'[^\n]*group: 'messages' \}/g)].map((m) => m[1]);
+  // Support left on 2026-10-07 (#2245): Nora is the ✦ sheet in every header now.
+  assert.deepEqual(msg, ['team', 'channels'], 'the Wall must not be a place of its own — it IS the activity feed');
+  assert.doesNotMatch(bare, /key: 'wall', label/, 'a second Wall place');
 });
 
 test("every Wall component this suite drives is actually rendered by the app", () => {

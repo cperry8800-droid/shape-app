@@ -1,10 +1,10 @@
 // The chat page's header above the Wall, in the Wall's magazine look (owner, 2026-10-24, on a screenshot
 // of the lens, the online rail, the Feed / Team / Channels pill and the Wall / Client / Community tabs:
 // "also need to design this to match the new feed wall look"). The rail keeps its faceted shape in a
-// flat, magazine cut ("keep the same facet shape but … go with the new design"); the sections are a
-// strip in the Wall's headline face over a hairline, ink over the magazine's red under the word; the
-// tab rows under it are an index, ink against grey with no underline ("look too busy"), centred
-// ("center these on page"); the strip sits on the Wall's 12px edge ("need to clean it up").
+// flat, magazine cut ("keep the same facet shape but … go with the new design"). Since 2026-10-26 (the
+// owner's B, "go with B") there is no section strip and no role tabs: the page's title names the place
+// and opens the places (BSChatPlaces.jsx, tests/chat-places.test.mjs). Team's Coaches / Friends row is
+// still an index, ink against grey with no underline ("look too busy"), centred ("center these on page").
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -49,26 +49,25 @@ test('the rail and the Wall\'s faces keep the faceted shape in the magazine\'s f
   assert.match(CLIENT, /<span aria-hidden style=\{\{ width: 6, height: 6, borderRadius: 3, background: magRed \}\} \/>/);
 });
 
-test('the sections are a strip on the Wall\'s 12px edge, the red under the word', () => {
-  // The masthead below sits 12px in; the strip's rules start and end with its rules.
+test('no section strip and no role tabs: the title is the switch, on the Wall\'s 12px edge', () => {
+  // The Wall's type chips keep the cards' 12px gutter.
   assert.match(WALL_STORY, /<nav data-bs-wall-types="" className="bs-hide-scroll" aria-label=\{typesLabel\} style=\{\{ margin: '0 12px',/);
-  // Over a hairline only (owner, 2026-10-24: "look too busy").
-  assert.match(CLIENT, /<div ref=\{bsSubAnchorRef\} style=\{\{ padding: '14px 12px 0' \}\}>\s*<div data-bs-chat-sections="" style=\{\{ display: 'grid', gridTemplateColumns: 'repeat\(3, 1fr\)', borderBottom: `1px solid \$\{t\.HAIR\}` \}\}>/);
-  const sec = CLIENT.slice(CLIENT.indexOf('const SectionTab = '), CLIENT.indexOf('// Real "active now" roster'));
-  // The button fills its third (the target); the word's own span carries the red, down on the hairline.
-  assert.match(sec, /<button onClick=\{onClick\} aria-pressed=\{!!on\} style=\{\{ display: 'flex', alignItems: 'stretch', justifyContent: 'center', minHeight: 44, padding: 0, border: 0, background: 'transparent'/);
-  assert.match(sec, /<span style=\{\{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 2px', boxShadow: on \? `inset 0 -2px 0 \$\{magRed\}` : 'none', color: on \? t\.INK : t\.INK50, fontFamily: bsWsHead\(t\)/);
+  // Owner, 2026-10-26: "go with B". The Feed / Team / Channels strip and the Wall / Client / Community
+  // tabs are gone; where the strip stood is the gap under the rail and the auto-hide's anchor.
+  assert.doesNotMatch(CLIENT, /data-bs-chat-sections|const SectionTab = /, 'the section strip is back');
+  assert.doesNotMatch(CLIENT, /CHIP_KEYS\.map\(k => bsSubTab\(/, 'the role tabs are back');
+  assert.match(CLIENT, /<div ref=\{bsSubAnchorRef\} aria-hidden style=\{\{ height: 14 \}\} \/>/);
+  assert.match(CLIENT, /<BSChatPlaceTitle label=\{placeLabel\} open=\{placesOpen\}/);
   assert.doesNotMatch(CLIENT, /<Pill key=\{k\}/, 'the teal pill is gone');
 });
 
-test('the tab rows under the strip are an index, ink against grey, centred on the page', () => {
+test('Team\'s Coaches / Friends row is an index, ink against grey, centred on the page', () => {
   const sub = CLIENT.slice(CLIENT.indexOf('const bsSubTab = '), CLIENT.indexOf('const ROLE = {'));
   assert.match(sub, /minHeight: 44, padding: 0/, 'the 44px target stays');
-  // No underline of their own ("look too busy"): the strip above carries the one red underline.
+  // No underline of their own ("look too busy").
   assert.match(sub, /color: on \? t\.INK : bsTHexA\(t\.INK, 0\.38\)/);
   assert.doesNotMatch(sub, /borderBottom|position: 'absolute'|magRed \}/, 'no underline');
-  // The Feed's role tabs and Team's Coaches / Friends sit centred on the page ("center these on page").
-  assert.match(CLIENT, /justifyContent: 'center', alignItems: 'center', gap: 22, padding: '2px 12px' \}\}>\s*\{CHIP_KEYS\.map\(k => bsSubTab\(/);
+  // Team's Coaches / Friends sits centred on the page ("center these on page").
   assert.match(CLIENT, /<div style=\{\{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 22 \}\}>\s*\{selectors\.map\(sec => bsSubTab\(/);
   assert.match(CLIENT, /onClick=\{\(\) => switchFeedMode\(k\)\} aria-pressed=\{on\}[\s\S]{0,400}color: on \? t\.INK : t\.INK50[\s\S]{0,200}background: magRed \}\} \/>\}/);
 });
@@ -96,8 +95,11 @@ const between = (src, a, b) => { const i = src.indexOf(a); return src.slice(i, s
 
 test('the chat page\'s title is in the Wall\'s face under a red kicker', () => {
   const feed = between(CLIENT, 'function BSClientFeed(', 'function BSNoraSheet(');
-  assert.match(feed, /color: magRed, fontWeight: 700 \}\}>\{tr\('feed:masthead\.eyebrow'/);
-  assert.match(feed, /<h1 style=\{\{ fontFamily: bsWsHead\(t\), fontWeight: 500, fontSize: 36/);
+  assert.match(feed, /color: magRed, fontWeight: 700 \}\}>\s*\{tr\('feed:masthead\.eyebrow'/);
+  // The title is the places' button now (BSChatPlaces.jsx), in the same face and size.
+  const places = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSChatPlaces.jsx'), 'utf8');
+  assert.match(places, /<h1 style=\{\{ margin: '4px 0 0', lineHeight: 1 \}\}>\s*<button ref=\{buttonRef\}/);
+  assert.match(places, /fontFamily: bsWsHead\(t\), fontWeight: 500, fontSize: 36/);
 });
 
 test('a Client or Community post is a square note under a flat face, not a tinted bubble', () => {
