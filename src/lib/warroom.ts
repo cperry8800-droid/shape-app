@@ -615,6 +615,14 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Store: the balance box drops its Closest cell; Closest to you stays — #2471. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26, on the Store after #2469: "drop the closest box, keep the row" (the box\'s Closest cell named the row\'s first card)', status: 'done' },
+        { label: 'The balance box is Available and Worth; nextUp and the cell go, and store:balance.closest and store:balance.allWithin leave all 13 locales. A balance covering everything shows no row and no line', status: 'done' },
+        { label: 'Review: Codex clean on b2def73. Checks: tests/score-store-redesign.test.mjs pins the two-cell box ("Closest" only as the row\'s head; fails with the cell restored); 932/932 across the catalog and Store suites; rendered on cream and dark at 375', status: 'done' },
+      ],
+    },
+    {
       section: 'Booth: real people in the crowd, Nora rebuilt with a photo face, and a club lit by its wall — #2470. No migration',
       items: [
         { label: 'Owner, 2026-10-26: "make the crowd look like real people", "including nora", "have the people look dressed up to go out", "can you make nora look like her profile/avatar picture", "her face still doesnt look natural", "make the headphones smaller", "make overall club better", "its needs to look more real on website and app", "need to make these look like they arent just floating orbs"', status: 'done' },

@@ -99,8 +99,6 @@
   "page.dek": "Alles hier kaufst du mit den Punkten, die du mit Training, gutem Essen und gutem Schlaf verdienst.",
   "balance.worth": "Wert",
   "balance.rate": "{rate} Pkt. = 1 $",
-  "balance.closest": "Am nächsten",
-  "balance.allWithin": "Alles hier liegt in deinem Guthaben",
   "closest.head": "Am nächsten dran",
   "closest.meta": "Nach fehlenden Punkten",
   "item.no": "Nr. {n}"

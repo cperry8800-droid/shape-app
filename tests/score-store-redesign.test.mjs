@@ -7,8 +7,9 @@
 // - Score (A): the ladder is the page's one picture of the tiers (top rung first, the member's rung
 //   and the next one named on it, a ✓ on each rung reached), under a plate that says what the next
 //   rung unlocks. The old Tiers and Rewards tabs are gone; the record is Ledger and Points.
-// - Store (B): a ruled balance (Available, Worth, Closest), then "Closest to you": the nearest
-//   unlocked things by points to go, one per variant group, which a tap jumps to.
+// - Store (B): a ruled balance (Available, Worth), then "Closest to you": the nearest unlocked
+//   things out of reach by points to go, one per variant group, which a tap jumps to. The balance's
+//   own Closest box is gone (owner, 2026-10-26: "drop the closest box, keep the row").
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -125,20 +126,20 @@ function closestRail(host) {
   });
 }
 
-test('Store: Worth is the balance at the points rate, and Closest names the first thing the balance can\'t reach yet', async () => {
+test('Store: the balance is Available and Worth, at the points rate; what it is nearest is only the row', async () => {
   world();
   const s = await storePage();
   try {
     const txt = s.text();
-    assert.match(txt, /Available900pts/);
-    assert.match(txt, new RegExp(`Worth\\$${(900 / MOD.BS_SHAPE_PTS_PER_USD).toFixed(2).replace('.', '\\.')}`));
-    const [first] = closestRail(s.host);
-    assert.match(txt, new RegExp(`Closest${first.name}${first.gap.toLocaleString('en-US')} to go`));
+    assert.match(txt, new RegExp(`Available900ptsWorth\\$${(900 / MOD.BS_SHAPE_PTS_PER_USD).toFixed(2).replace('.', '\\.')}150 pts = \\$1`));
+    // No Closest box: "Closest" is read only as the row's head.
+    assert.doesNotMatch(txt.replace(/Closest to you/g, ''), /Closest/);
+    assert.ok(closestRail(s.host).length > 0);
   } finally { await s.unmount(); }
 });
 
-// Codex on #2469: a balance that covers four entries filled the rail with them, so Closest read
-// "Everything here is within your balance" with the dearer things still out of reach.
+// Codex on #2469: a balance that covers four entries filled the rail with them, with the dearer
+// things still out of reach.
 test('Store: a balance that covers four or more entries still names the next thing to earn toward', async () => {
   const costs = [...new Set(BUYABLE.map((p) => p.cost))].sort((a, b) => a - b);
   const balance = costs.find((c) => new Set(BUYABLE.filter((p) => p.cost <= c).map(entryName)).size >= 5);
@@ -147,21 +148,17 @@ test('Store: a balance that covers four or more entries still names the next thi
   world(balance);
   const s = await storePage();
   try {
-    const txt = s.text();
-    assert.doesNotMatch(txt, /Everything here is within your balance/);
     const rail = closestRail(s.host);
     assert.ok(rail && rail.length, 'the rail is empty with things still out of reach');
     for (const c of rail) assert.ok(c.gap > 0, `${c.name} is within the balance`);
     assert.equal(rail[0].gap, above[0].cost - balance, 'the rail does not open on the nearest thing out of reach');
-    assert.match(txt, new RegExp(`Closest${rail[0].name}${rail[0].gap.toLocaleString('en-US')} to go`));
   } finally { await s.unmount(); }
 });
 
-test('Store: a balance that covers everything says so, and shows no rail', async () => {
+test('Store: a balance that covers everything shows no rail', async () => {
   world(Math.max(...BUYABLE.map((p) => p.cost)));
   const s = await storePage();
   try {
-    assert.match(s.text(), /ClosestEverything here is within your balance/);
     assert.equal(closestRail(s.host), null);
   } finally { await s.unmount(); }
 });
