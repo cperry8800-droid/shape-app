@@ -462,5 +462,15 @@
   "coaches.unread": "{n} novas",
   "coaches.nextSession": "Próxima sessão",
   "coaches.messageTrainer": "Mensagem para seu treinador",
-  "coaches.messageNutritionist": "Mensagem para seu nutricionista"
+  "coaches.messageNutritionist": "Mensagem para seu nutricionista",
+  "shortcut.title": "Atalhos",
+  "shortcut.progressSub": "Seu histórico até agora",
+  "shortcut.scoreSub": "Pontos e nível",
+  "shortcut.findCoach": "Encontrar um coach",
+  "shortcut.findCoachSub": "Treinadores e nutricionistas",
+  "shortcut.kicker": "Ir para",
+  "shortcut.groceryList": "Lista de compras",
+  "shortcut.grocerySub": "As compras da semana",
+  "shortcut.devices": "Relógio e apps",
+  "shortcut.devicesSub": "Conecte seus passos e seu sono"
 }

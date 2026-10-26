@@ -306,6 +306,15 @@ export function bsHwOfWeek(held, monday) {
 // message opens and the id their sessions are booked under. A read that failed (no `coaching`
 // key) or no coach reads as none. A coach whose name couldn't be read is still paid, so stays with
 // a null name (Home says the role instead, Codex P2 on #2424); an entry with neither is dropped.
+// Whether the plan read can say who the member's coaches are: the route sends `coaching` per
+// discipline (null for no coach) and omits the key when it could not read the subscriptions, so "no
+// coach" is known only when both parts carry it (Codex on #2458: Find a coach waits for that).
+export function bsHomeCoachesKnown(plan) {
+  return !!(plan && plan.ok !== false && plan.training && plan.meals
+    && Object.prototype.hasOwnProperty.call(plan.training, 'coaching')
+    && Object.prototype.hasOwnProperty.call(plan.meals, 'coaching'));
+}
+
 export function bsHomeCoachesOf(plan) {
   const out = [];
   const add = (part, role) => {

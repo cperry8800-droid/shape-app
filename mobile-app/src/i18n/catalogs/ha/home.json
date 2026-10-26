@@ -462,5 +462,15 @@
   "coaches.unread": "sababbi {n}",
   "coaches.nextSession": "Zama na gaba",
   "coaches.messageTrainer": "Aika saƙo ga mai horar da kai",
-  "coaches.messageNutritionist": "Aika saƙo ga masanin abincinka"
+  "coaches.messageNutritionist": "Aika saƙo ga masanin abincinka",
+  "shortcut.title": "Gajerun hanyoyi",
+  "shortcut.progressSub": "Tarihinka zuwa yanzu",
+  "shortcut.scoreSub": "Maki da mataki",
+  "shortcut.findCoach": "Nemi koci",
+  "shortcut.findCoachSub": "Masu horo da masana abinci",
+  "shortcut.kicker": "Je zuwa",
+  "shortcut.groceryList": "Jerin sayayya",
+  "shortcut.grocerySub": "Sayayyar wannan mako",
+  "shortcut.devices": "Agogo da manhajoji",
+  "shortcut.devicesSub": "Haɗa matakanka da barcinka"
 }

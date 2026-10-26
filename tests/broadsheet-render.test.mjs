@@ -972,8 +972,9 @@ test('app roster keeps new clients in Needs You and errors distinct from an empt
   const { html, warnings } = render(React.createElement(MOD.BSProRosterView, props));
   assert.deepEqual(warnings, []);
   assert.match(html, /New client/);
-  assert.match(html, /NEEDS YOU/);
-  assert.doesNotMatch(html, /ON TRACK/);
+  assert.match(html, /data-roster-view="needs"/, 'the roster opens on Needs you');
+  assert.match(html, /data-roster-group="new"/, 'the new client is in the New clients group');
+  assert.doesNotMatch(html, /data-roster-group="track"/);
   const failed = render(React.createElement(MOD.BSProRosterView, { ...props, clients: [], totalCount: 0, status: 'error' })).html;
   assert.match(failed, /Could not load your clients/);
   assert.match(failed, /Retry/);

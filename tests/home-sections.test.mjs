@@ -263,6 +263,19 @@ test('the coaches are the ones the plan read says the member pays, trainers firs
   assert.deepEqual(H.bsHomeCoachesOf(null), []);
 });
 
+test('"no coach" is known only when the read named coaching for both disciplines (Find a coach waits)', () => {
+  assert.equal(H.bsHomeCoachesKnown({ ok: true, training: { coaching: null }, meals: { coaching: null } }), true, 'read, and no coach');
+  assert.equal(H.bsHomeCoachesKnown({ ok: true, training: { coaching: { coaches: [{ name: 'Jordan' }] } }, meals: { coaching: null } }), true);
+  // The route omits `coaching` when it could not read the subscriptions: not known.
+  assert.equal(H.bsHomeCoachesKnown({ ok: true, training: {}, meals: { coaching: null } }), false);
+  assert.equal(H.bsHomeCoachesKnown({ ok: true, training: { coaching: null }, meals: {} }), false);
+  assert.equal(H.bsHomeCoachesKnown({ ok: false, training: { coaching: null }, meals: { coaching: null } }), false);
+  assert.equal(H.bsHomeCoachesKnown(null), false, 'ShapePlan.get resolves null when it fails');
+  const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(client, /if \(on && bsHomeCoachesKnown\(p\)\) setCoachesKnown\(true\);/);
+  assert.match(client, /const findCoach = !planCoaches\.length && \(!bsHomeSignedIn \|\| coachesKnown\);/);
+});
+
 // ── The sections ─────────────────────────────────────────────────────────────
 
 const GOAL_PROPS = (over = {}) => ({

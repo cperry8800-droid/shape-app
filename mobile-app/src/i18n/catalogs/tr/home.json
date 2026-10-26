@@ -462,5 +462,15 @@
   "coaches.unread": "{n} yeni",
   "coaches.nextSession": "Sonraki seans",
   "coaches.messageTrainer": "Antrenörünle mesajlaş",
-  "coaches.messageNutritionist": "Diyetisyeninle mesajlaş"
+  "coaches.messageNutritionist": "Diyetisyeninle mesajlaş",
+  "shortcut.title": "Kısayollar",
+  "shortcut.progressSub": "Şimdiye kadarki kaydın",
+  "shortcut.scoreSub": "Puan ve seviye",
+  "shortcut.findCoach": "Koç bul",
+  "shortcut.findCoachSub": "Antrenörler ve diyetisyenler",
+  "shortcut.kicker": "Hemen git",
+  "shortcut.groceryList": "Alışveriş listesi",
+  "shortcut.grocerySub": "Bu haftanın alışverişi",
+  "shortcut.devices": "Saat ve uygulamalar",
+  "shortcut.devicesSub": "Adımlarını ve uykunu bağla"
 }

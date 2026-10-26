@@ -615,6 +615,38 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Coach Today, Clients and Programs: clearer pages, clean headers in Geist and Inter Tight, the ticker — #2458. No migration',
+      items: [
+        { label: 'Owner, 2026-10-25: the coach Home, Programs and Clients "easier to read and managable", each layout picked from previews: Home A + C, Clients C, Programs A + C with option B\'s filter ("boxes set up across the top"); then the clean headers ("Do with clean") in Geist and Inter Tight ("I want both")', status: 'done' },
+        { label: 'Coach Today: the edition line, the ticker (the member Home\'s BSTicker with today\'s sessions done, next, need you, clients, paid to book and open hours, each only once known) and the radio bar; "Today" and one line of what needs the coach; Up next; the week strip; To do (five rows, paid sessions first); the schedule with done rows folded; a Shortcuts grid. The page re-renders on each minute', status: 'done' },
+        { label: 'Clients: Needs you, On track and Past tabs; Needs you grouped reach out today, this week and new, each head with a count; square phase filters. Programs (both roles): create buttons, one search over every list (workout clips included), option B\'s boxes with hairlines, a Most popular card. The member Home\'s FOCUS links became the same Shortcuts grid', status: 'done' },
+        { label: 'Type: Geist (BS_PRO_HEAD) for titles and section heads, Inter Tight (BS_PRO_SANS) for the words, on Today, Clients and Programs only (useBSProClean, BSProCleanType). Both bundled as variable files with Cyrillic and Vietnamese (fonts.css font-34 to font-43, tests/coach-font-axes). The default "regular" weight no longer steps their weights down', status: 'done' },
+        { label: 'Review: Codex on 361728d, P1 Today never re-rendered with the clock, P2 the search skipped live workout clips, both fixed in ae988de; on ae988de, P2 the calendar read didn\'t follow a new week, P2 paid rows ignored To do\'s budget, P2 Find a coach showed before the coach read, all fixed in 01b562d; Codex clean on 01b562d. Copilot out of quota; CodeRabbit not run. npm test 8,486 / 8,486', status: 'done' },
+        { label: 'Device pass: the coach Today, Clients and Programs and the member Home shortcuts on a phone, signed in, light and dark', status: 'manual' },
+        { label: '30 coach catalog keys the old headers read are unused (roster.theRoster, plans.mostPopular, rail.calendar and others), left in all 13 locales for a cleanup', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Known gaps the worklog listed and this board did not (carried here with #2458, 2026-10-25)',
+      items: [
+        { label: 'Direct charges (#2403): a member whose coach disconnected goes to Shape support, which handles it by hand (Shape can\'t cancel on that account); an unreadable recent checkout on a coach\'s former account holds a new plan up to 4 days (payment_pending)', status: 'pending' },
+        { label: 'A client whose payment is retrying keeps access until Stripe cancels the plan; a Stripe setting that leaves it past_due keeps it open', status: 'pending' },
+        { label: 'Server notices still in English: the owners\' payment notice, a coach alert\'s reason, the standalone emails (sessions with .ics, hire, welcome, intro) and any reader with no stored language. A trigger\'s row is matched by its fixed English (triggerCopy), so a trigger whose English changes needs its shape there too', status: 'pending' },
+        { label: 'Habits: the charts read only 90 days and can\'t tick a past day; a friend stops hearing a shared habit (habit_watchers) only by turning Friends\' habits off or unfollowing; sharing is set only in a habit\'s options; the daily cap counts only notices stamped as pushed that day; the AI notify engine, failing to read the day\'s pushes, counts only its own; a failed claim_push_slots claim sends on the count as read', status: 'pending' },
+        { label: 'A goal in the member\'s own words: the website\'s Goals page only shows goals, and only the five weight goals read weight; any other reads in words until a weight target is set', status: 'pending' },
+        { label: 'Sleep points (award_sleep_points) trust sources.sleep_hours on a row the member can write: with a provider connected, a direct write could earn +5 a night for the last 14 days', status: 'pending' },
+        { label: 'Morning check-in: a failed read of a stored water target offers "Set a daily target"; with Check-ins off a target never brings "Water is behind"; pushes and bell rows sent before part 2, and the website\'s coach Today message draft, keep the "/10"', status: 'pending' },
+        { label: 'Signed in, others\' profiles show the demo signals and climb (owner: leave it)', status: 'pending' },
+        { label: 'Staff two-factor has no recovery codes, and reloading /staff-verify during set-up makes a new key (#2388)', status: 'pending' },
+        { label: 'The website\'s usage stats don\'t wait for the consent banner in the EEA and UK', status: 'pending' },
+        { label: 'Nothing opens the chat panel from a URL; TrainerNewProgram.html and get-started.html are linked from nowhere', status: 'pending' },
+        { label: 'The Wall\'s old card (variant="wall") is unused in the app and the website chat bubble still draws its copy; grocery lists are sent and saved in the app only, and old builds\' grocery writes go unmerged', status: 'pending' },
+        { label: 'Not built: native mic and camera plugins (including iOS barcode scanning) and on-device macro reads from a meal photo', status: 'pending' },
+        { label: 'Android back leaves the native app from any sheet (no @capacitor/app); in the hosted /m/, sheets add no history entry', status: 'pending' },
+        { label: 'No signed-in pass of the coach application uploads', status: 'manual' },
+      ],
+    },
+    {
       section: 'Goals moves into its own module, BSGoals.jsx — #2461. No migration',
       items: [
         { label: 'Codex on #2459 cited the WORKLOG rule (a touched screen moves into its own module); the owner chose the new look first, then this move-only PR. BSGoals.jsx holds the Goals page, its contract, its four sheets and their helpers, the code unchanged but for the seams: window globals named on each component\'s first line (read at call time), its own useShapeTr, no import back. The goal model stays in the client module and is published on window after its last const. The client module is 1,392 lines shorter', status: 'done' },
