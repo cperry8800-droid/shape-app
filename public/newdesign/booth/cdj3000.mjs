@@ -37,6 +37,15 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const CDJ_DIMS = { w: 0.329, d: 0.453, h: 0.1185 };
 
+// The outer pair of a four-deck booth (club.mjs BOOTH): decks 3 and 4, left and right of Nora's two,
+// on the mixer's outer channels. Nobody plays them; they stand cued.
+export const OUTER_DECK_X = Object.freeze([-0.75, 0.75]);
+/** A deck nobody is playing: cued, nothing lit, its number on the screen. */
+export function idleDeckState(n) {
+  return { playing: false, jogAngle: 0, onAir: false, padsLit: new Array(8).fill(null),
+    screen: { deckLabel: 'DECK ' + n, loaded: false, color: n % 2 ? '#34d6c5' : '#e0a24a' } };
+}
+
 // ── Layout constants (metres, local frame) ──────────────────────────────────
 const W = CDJ_DIMS.w, D = CDJ_DIMS.d, H = CDJ_DIMS.h;
 const XL = -W / 2, ZB = -D / 2, ZF = D / 2;

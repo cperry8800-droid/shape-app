@@ -369,15 +369,16 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   // balcony glass: a faint blue-grey body and an additive sheen, so it reads as glass from every tier
   const matGlass = own(new THREE.MeshBasicMaterial({ color: 0x566a7c, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide }));
   const matRailSheen = own(new THREE.MeshBasicMaterial({ map: sheenTex, color: new THREE.Color(0.05, 0.056, 0.064), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  // dark stone for the balcony fascias: grey-navy with faint veins (its light is baked into the vertices)
+  // dark stone for the balcony fascias: charcoal with faint veins (its light is baked into the vertices;
+  // it was grey-navy, see the palette below)
   const stoneTex = (() => {
     const W = 512, H = 64, c = makeCanvas(W, H), g = c.getContext('2d');
     const gr = g.createLinearGradient(0, 0, 0, H);
-    gr.addColorStop(0, 'rgb(40,42,50)'); gr.addColorStop(1, 'rgb(28,30,37)');
+    gr.addColorStop(0, 'rgb(44,42,41)'); gr.addColorStop(1, 'rgb(30,29,29)');
     g.fillStyle = gr; g.fillRect(0, 0, W, H);
     for (let k = 0; k < 40; k++) {
       const x = rnd() * W, y = rnd() * H;
-      g.strokeStyle = `rgba(${rnd() < 0.7 ? '120,124,136' : '14,15,18'},${0.08 + rnd() * 0.14})`; g.lineWidth = 0.6 + rnd() * 1.2;
+      g.strokeStyle = `rgba(${rnd() < 0.7 ? '132,128,122' : '14,14,15'},${0.08 + rnd() * 0.14})`; g.lineWidth = 0.6 + rnd() * 1.2;
       g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x + 30 + rnd() * 60, y + (rnd() - 0.5) * 30, x + 60 + rnd() * 90, y + (rnd() - 0.5) * 40, x + 120 + rnd() * 120, y + (rnd() - 0.5) * 50); g.stroke();
     }
     for (let x = 0; x <= W; x += 128) { g.fillStyle = 'rgba(8,9,11,0.8)'; g.fillRect(x, 0, 1.5, H); }   // panel joints every 0.8 m
@@ -452,17 +453,19 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   matFrond.customProgramCacheKey = () => 'clubVenue-frond-3d';
 
   // ── colour palette (baked light) ────────────────────────────────────
-  const C_DARK = [0.01, 0.012, 0.017];
-  const C_WALL = [0.008, 0.01, 0.015];
-  const C_EDGE = [0.02, 0.018, 0.018];
-  // Dark stone and glass in deep navy-black; the warm pools on it come from the light bake
-  // (bakeVenueLight), never from a painted gradient.
-  const C_WALKWAY = [0.026, 0.026, 0.031];
-  const C_SOFFIT_RAIL = [0.016, 0.017, 0.022];
-  const C_SOFFIT_WALL = [0.03, 0.025, 0.024];
+  // Dark stone and glass in a neutral charcoal; the warm pools on it come from the light bake
+  // (bakeVenueLight), never from a painted gradient, and the room's colour from the LED wall (the
+  // club's fog). ⚠ It was a deep navy-black, which put a blue cast on every balcony and ceiling and
+  // read as CG once the air was neutral (owner, 2026-10-26: "its needs to look more real").
+  const C_DARK = [0.012, 0.012, 0.013];
+  const C_WALL = [0.01, 0.0098, 0.0102];
+  const C_EDGE = [0.02, 0.018, 0.017];
+  const C_WALKWAY = [0.028, 0.027, 0.027];
+  const C_SOFFIT_RAIL = [0.018, 0.0175, 0.018];
+  const C_SOFFIT_WALL = [0.03, 0.025, 0.023];
   const C_COLUMN = [0.012, 0.011, 0.01];
-  const C_POST = [0.03, 0.03, 0.034];
-  const C_CEIL = [0.006, 0.008, 0.013];
+  const C_POST = [0.031, 0.03, 0.03];
+  const C_CEIL = [0.0085, 0.0085, 0.009];
 
   // ── 1. structure: slabs, columns, walls, ceiling, skylight frame, rail posts ─────────
   const S = [];
@@ -1130,7 +1133,11 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     return own(g);
   };
   const trunkGeo = palmGeo(palmTrunk(PQ));
-  const frondGeo = palmGeo(palmFronds(mulberry32(seed * 29 + 3), PQ), true);
+  // ⚠ Three crowns, not one: every palm shared one set of fronds, so tier after tier showed the
+  // same plant turned a little (owner, 2026-10-26: "its needs to look more real"). The first keeps
+  // the old seed; neighbours along a rail take different ones (two on phones).
+  const FROND_KINDS = LOW ? 2 : 3;
+  const frondGeos = Array.from({ length: FROND_KINDS }, (_, k) => palmGeo(palmFronds(mulberry32(seed * 29 + 3 + k * 101), PQ), true));
   const beamGeo = palmGeo(palmBeam(PQ));
 
   const PALMS = [];   // { x, y, z, s }
@@ -1149,21 +1156,29 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
 
   const NP = PALMS.length;
   const imTrunk = new THREE.InstancedMesh(trunkGeo, matTrunk, NP);
-  const imFrond = new THREE.InstancedMesh(frondGeo, matFrond, NP);
+  const kindOf = (i) => i % FROND_KINDS;
+  const imFronds = frondGeos.map((g, k) => new THREE.InstancedMesh(g, matFrond, Math.max(1, PALMS.filter((_, i) => kindOf(i) === k).length)));
   const imBeam = new THREE.InstancedMesh(beamGeo, matBeam, NP);
-  imTrunk.name = 'venuePalmTrunks'; imFrond.name = 'venuePalmFronds'; imBeam.name = 'venuePalmUplights';
+  imTrunk.name = 'venuePalmTrunks'; imBeam.name = 'venuePalmUplights';
+  imFronds.forEach((im, k) => { im.name = k ? `venuePalmFronds${k + 1}` : 'venuePalmFronds'; });
   imBeam.renderOrder = 4;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v3 = new THREE.Vector3(), sc3 = new THREE.Vector3();
+  // each plant a little its own: height and spread (from a stream of its own, so the rest of the
+  // room, drawn from rnd after this, stays where it was)
+  const palmRnd = mulberry32(seed * 31 + 7);
+  const slot = new Array(FROND_KINDS).fill(0);
   PALMS.forEach((p, i) => {
     e.set((rnd() - 0.5) * 0.08, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.08);
     q.setFromEuler(e);
-    m4.compose(v3.set(p.x, p.y, p.z), q, sc3.set(p.s, p.s, p.s));
-    imTrunk.setMatrixAt(i, m4); imFrond.setMatrixAt(i, m4);
+    const sy = p.s * (0.92 + palmRnd() * 0.08), sxz = p.s * (0.9 + palmRnd() * 0.2);
+    m4.compose(v3.set(p.x, p.y, p.z), q, sc3.set(sxz, sy, sxz));
+    imTrunk.setMatrixAt(i, m4);
+    imFronds[kindOf(i)].setMatrixAt(slot[kindOf(i)]++, m4);
     e.set(0, e.y, 0); q.setFromEuler(e);
     m4.compose(v3.set(p.x, p.y, p.z), q, sc3.set(p.s, p.s, p.s));
     imBeam.setMatrixAt(i, m4);
   });
-  for (const im of [imTrunk, imFrond, imBeam]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im); }
+  for (const im of [imTrunk, ...imFronds, imBeam]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im); }
 
   // ── 8. floor lounges: cream booths, tables, candles ──────────────────
   const sofaGeo = (() => {
@@ -1491,7 +1506,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     if (venueCrowd) { venueCrowd.dispose(); venueCrowd = null; }
     if (group.parent) group.parent.remove(group);
     group.clear();
-    for (const im of [imTrunk, imFrond, imBeam, imSofa, imTable, imCandle, imFig]) im.dispose();
+    for (const im of [imTrunk, ...imFronds, imBeam, imSofa, imTable, imCandle, imFig]) im.dispose();
     arena.dispose();
     for (const d of disposables) if (d && typeof d.dispose === 'function') d.dispose();
     disposables.length = 0;

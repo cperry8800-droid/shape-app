@@ -23,7 +23,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 
-import { createCDJ, CDJ_DIMS } from './cdj3000.mjs';
+import { createCDJ, CDJ_DIMS, OUTER_DECK_X, idleDeckState } from './cdj3000.mjs';
 import { createMixer, DJM_DIMS } from './djmMixer.mjs';
 import { createClub } from './club.mjs';
 import { createVenue } from './clubVenue.mjs';
@@ -219,6 +219,13 @@ export async function createNoraBooth(o) {
     const FINISH = HIGH ? 'physical' : 'standard';
     const decks = [1, 2].map((n) => createCDJ({ THREE, deckNumber: n, accent: CLUB_ACCENT, textureScale: HIGH ? 1 : 0.75, finish: FINISH }));
     decks.forEach((d, i) => { d.group.position.set(DECK_X[i], TABLE_Y, FRONT_Z - CDJ_DIMS.d / 2); scene.add(d.group); owned.parts.push(d); });
+    // decks 3 and 4, the outer pair of the four-deck booth: cued, drawn once
+    [3, 4].forEach((n, i) => {
+      const d = createCDJ({ THREE, deckNumber: n, accent: CLUB_ACCENT, textureScale: HIGH ? 0.75 : 0.5, finish: FINISH });
+      d.group.position.set(OUTER_DECK_X[i], TABLE_Y, FRONT_Z - CDJ_DIMS.d / 2);
+      d.set(idleDeckState(n)); d.update(0, 0);
+      scene.add(d.group); owned.parts.push(d);
+    });
     const mixer = createMixer({ THREE, accent: CLUB_ACCENT, finish: FINISH });
     mixer.group.position.set(0, TABLE_Y, FRONT_Z - DJM_DIMS.d / 2);
     scene.add(mixer.group);

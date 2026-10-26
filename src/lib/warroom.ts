@@ -615,6 +615,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Booth: the club seen from its stage — four decks, booth speakers, barrier, subs, front of house — #2473. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26: "this needs to look more like a legit club/venue from a stage perspective", "the booth needs to be larger", "yes need both speakers on the sides etc", "booth speakers"', status: 'done' },
+        { label: 'The stage (club.mjs CLUB_DIMS): the booth is 2.5 m with four decks, decks 3 and 4 cued beside Nora\'s (cdj3000.mjs OUTER_DECK_X, idleDeckState; both hosts); a booth speaker on a stand each side aimed at her head (BOOTH_SPEAKERS); a crowd barrier along the stage\'s nose (BARRIER_X), sub stacks on the floor (SUBS) and the front-of-house desk mid-room (FOH). The booth front\'s canvas takes the fascia\'s aspect, so the Shape mark keeps its shape', status: 'done' },
+        { label: 'The shots (noraDirector.mjs): Behind Nora looks out from the booth over her shoulder, the four decks across the bottom of the frame inside the 2.39:1 bars; Crowd view rises above her head. The room: charcoal stone, three kinds of palm, the wall\'s light in the stage deck\'s polish', status: 'done' },
+        { label: 'Review: Codex clean on ab16a35. Checks: npm test 8,581/8,581; tests/booth-stageView.test.mjs (7; the old framing, the speakers moved in and a taller desk each fail one) and three more in tests/booth-clubRealism.test.mjs; renders in headless Chromium on both tiers; staging deployed', status: 'done' },
+        { label: 'OWNER: watch the stage on a real screen and a phone (staging or the next deploy): Behind Nora, the booth and its speakers, the barrier and the desk. Every render was software', status: 'manual' },
+        { label: 'From the stage the crowd still reads brighter and more evenly lit than a real club floor (its lighting is unchanged); the subs and the desk read as dark shapes', status: 'pending' },
+      ],
+    },
+    {
       section: 'Store: the balance box drops its Closest cell; Closest to you stays — #2471. No migration',
       items: [
         { label: 'Owner, 2026-10-26, on the Store after #2469: "drop the closest box, keep the row" (the box\'s Closest cell named the row\'s first card)', status: 'done' },

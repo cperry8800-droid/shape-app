@@ -57,7 +57,17 @@ export const CLUB_DIMS = {
   STAGE_Y: -0.18,
   STAND_Y: 0.0,
   TABLE_Y: 0.92,
-  BOOTH: { x0: -0.75, x1: 0.75, z0: -0.40, z1: 0.22 },
+  // ⚠ 2.5 m wide: four decks and a mixer, a club booth's size (owner, 2026-10-26: "the booth needs to
+  // be larger"); it was 1.5 m, two decks and the mixer edge to edge. Nora's decks and mixer stay put.
+  BOOTH: { x0: -1.25, x1: 1.25, z0: -0.40, z1: 0.22 },
+  // the booth speakers: on stands either side of her, a little behind her line, aimed at her head
+  // (clear of the Profile shot, which looks across x ≈ 1.8 at eye height in front of her)
+  BOOTH_SPEAKERS: { x: 1.62, z: 0.78, aimY: 1.62, aimZ: 0.3 },
+  // what the stage looks out on: the barrier along its nose (to |x| BARRIER_X), the sub stacks either
+  // side of it on the floor, and the front-of-house desk on its riser out in the crowd
+  BARRIER_X: 4.6,
+  SUBS: { x: 6.15, z: -0.9 },
+  FOH: { x: 0, z: -21, w: 3.2, d: 2.4, h: 0.4 },
   // the screen artwork on the arena's LED wall (face z 5.5): its plane, size and bottom edge. The
   // edges sit on the wall's 75 mm dot grid (−7.2 = −96 dots, 1.05 = 14 dots) so the dots coincide.
   WALL: { z: 5.44, w: 14.4, h: 8.4, y0: 1.05 },
@@ -235,14 +245,18 @@ function laminateTexture(THREE, rnd) {
  * The booth's crowd-facing fascia, as at Club Shape: black laminate, three horizontal
  * white light slats across it and a small white Shape mark under them.
  */
-function fasciaTextures(THREE, rnd) {
-  const W = 1024, H = 600;
+// W is the canvas's width in its own pixels at a height of 600: the fascia's aspect (fasciaWidth), so
+// the slats run its length and the mark keeps its shape on a booth of any width. `scale` sizes the
+// bitmap under that (phones draw it smaller); every coordinate below stays in the 600-high frame.
+function fasciaTextures(THREE, rnd, W = 1024, scale = 1) {
+  const H = 600;
   const slatY = [0.2, 0.34, 0.48].map((f) => Math.round(H * f));
   const slatH = 12, sx0 = 64, sx1 = W - 64;
   const markCy = Math.round(H * 0.74), markH = 104;
 
-  const c = makeCanvas(W, H);
+  const c = makeCanvas(Math.round(W * scale), Math.round(H * scale));
   const g = c.getContext('2d');
+  g.scale(scale, scale);
   g.fillStyle = '#0b0b0d';
   g.fillRect(0, 0, W, H);
   for (let i = 0; i < 16000; i++) {
@@ -261,8 +275,9 @@ function fasciaTextures(THREE, rnd) {
   map.colorSpace = THREE.SRGBColorSpace;
   map.anisotropy = 4;
 
-  const e = makeCanvas(W, H);
+  const e = makeCanvas(Math.round(W * scale), Math.round(H * scale));
   const ge = e.getContext('2d');
+  ge.scale(scale, scale);
   ge.fillStyle = '#000'; ge.fillRect(0, 0, W, H);
   ge.fillStyle = '#ffffff';
   for (const y of slatY) ge.fillRect(sx0, y, sx1 - sx0, slatH);
@@ -563,23 +578,50 @@ const SLAT_VERT = /* glsl */`
 varying vec2 vUv;
 void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const SLAT_FRAG = /* glsl */`
-uniform float uBeat, uRun, uLevel;
+uniform float uBeat, uRun, uLevel, uW;
 uniform vec3 uIce;
 varying vec2 vUv;
 void main() {
-  // the fascia canvas's own pixels (1024 × 600, y down): slats at 20, 34 and 48 % from the top,
-  // 12 px tall, from x 64 to 960
-  float x = vUv.x * 1024.0, y = (1.0 - vUv.y) * 600.0;
+  // the fascia canvas's own pixels (uW × 600, y down): slats at 20, 34 and 48 % from the top,
+  // 12 px tall, from x 64 to uW − 64
+  float x = vUv.x * uW, y = (1.0 - vUv.y) * 600.0;
   float slat = 0.0;
   for (int i = 0; i < 3; i++) {
     float y0 = (0.2 + 0.14 * float(i)) * 600.0;
     slat = max(slat, step(y0, y) * step(y, y0 + 12.0));
   }
-  slat *= step(64.0, x) * step(x, 960.0);
-  float u = abs(x - 512.0) / 448.0;      // 0 at the middle, 1 at either end
+  slat *= step(64.0, x) * step(x, uW - 64.0);
+  float u = abs(x - 0.5 * uW) / (0.5 * uW - 64.0);      // 0 at the middle, 1 at either end
   float pos = fract(uBeat);
   float light = exp(-pow((u - pos) / 0.08, 2.0)) * (1.0 - 0.5 * pos);
   gl_FragColor = vec4(uIce * slat * light * uRun * (1.4 + 0.8 * uLevel), 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
+
+// The wall's light in the stage deck (club.mjs 'stageSheen'): N is up, so the reflected line of sight
+// is (−V.x, V.y, −V.z); it meets the wall when it runs toward +z.
+const SHEEN_VERT = /* glsl */`
+varying vec3 vW;
+void main() {
+  vec4 w = modelMatrix * vec4(position, 1.0);
+  vW = w.xyz;
+  gl_Position = projectionMatrix * viewMatrix * w;
+}`;
+const SHEEN_FRAG = /* glsl */`
+uniform vec3 uGlow;
+uniform sampler2D uRough;
+uniform float uWallZ;
+varying vec3 vW;
+void main() {
+  vec3 V = normalize(cameraPosition - vW);
+  float toWall = smoothstep(0.0, 0.35, -V.z);
+  float fres = pow(1.0 - clamp(V.y, 0.0, 1.0), 3.0);
+  float near = exp(-max(uWallZ - vW.z, 0.0) / 6.0);
+  float wear = texture2D(uRough, vW.xz * 0.21).r;
+  // dim, and the wear only a breath of it: stronger read as a grey tiled floor, the texture's seams showing
+  float k = toWall * fres * (0.4 + 0.6 * near) * mix(1.0, 0.75, wear);
+  gl_FragColor = vec4(uGlow * k * 0.55, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
@@ -679,22 +721,26 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   const matTruss = own(new THREE.MeshStandardMaterial({ color: 0x1d1f23, roughness: 0.38, metalness: 0.85 }));
   const floorRough = own(floorRoughnessTexture(THREE, rnd));
   floorRough.repeat.set(4, 10);
-  const matFloor = own(new THREE.MeshStandardMaterial({ color: 0x0a0b0e, roughness: 0.3, metalness: 0.0, roughnessMap: floorRough }));
+  const matFloor = own(new THREE.MeshStandardMaterial({ color: 0x0a0a0b, roughness: 0.3, metalness: 0.0, roughnessMap: floorRough }));
   const grille = own(grilleTexture(THREE));
   grille.repeat.set(3, 3);
   const matSpeaker = own(new THREE.MeshStandardMaterial({ color: 0x5a5a60, roughness: 0.75, metalness: 0.3, map: grille }));
   const matCabinet = own(new THREE.MeshStandardMaterial({ color: 0x0e0e10, roughness: 0.7, metalness: 0.1 }));
   const matFixture = own(new THREE.MeshStandardMaterial({ color: 0x141418, roughness: 0.45, metalness: 0.5 }));
+  const matFohScreen = own(new THREE.MeshBasicMaterial({ color: new THREE.Color(0.16, 0.3, 0.34) }));   // the front-of-house desk's screens, dim
   // emissive "lines": white LED (stage edge, booth underglow) + a small teal accent
   const matLedWhite = own(new THREE.MeshBasicMaterial({ color: iceC.clone().multiplyScalar(2.4) }));
   const matAccentStrip = own(new THREE.MeshBasicMaterial({ color: accentC.clone().multiplyScalar(1.6) }));
-  const fascia = fasciaTextures(THREE, rnd);
+  // the fascia's own size (the booth block below): its canvas takes the same aspect
+  const fasciaW = BOOTH.x1 - BOOTH.x0 - 0.07, fasciaH = TABLE_Y - STAND_Y - 0.03 - 0.1;
+  const fasciaPx = Math.round((600 * fasciaW) / fasciaH / 8) * 8;
+  const fascia = fasciaTextures(THREE, rnd, fasciaPx, low ? 0.55 : 1);
   own(fascia.map); own(fascia.emissiveMap);
   const matFascia = own(new THREE.MeshStandardMaterial({
     map: fascia.map, emissiveMap: fascia.emissiveMap, emissive: iceC.clone(), emissiveIntensity: 1.0,
     roughness: 0.6, metalness: 0.05,
   }));
-  const slatU = { uBeat: { value: 0 }, uRun: { value: 0 }, uLevel: { value: 0 }, uIce: { value: iceC.clone() } };
+  const slatU = { uBeat: { value: 0 }, uRun: { value: 0 }, uLevel: { value: 0 }, uW: { value: fasciaPx }, uIce: { value: iceC.clone() } };
   const matSlatRun = own(new THREE.ShaderMaterial({
     uniforms: slatU, vertexShader: SLAT_VERT, fragmentShader: SLAT_FRAG,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
@@ -717,6 +763,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     mesh(floorGeo, matFloor, 'danceFloor').position.set(0, FLOOR_Y - 0.012, (zBack + zFar) / 2);
   }
 
+  const sheenU = { uGlow: { value: new THREE.Color(0, 0, 0) }, uRough: { value: floorRough }, uWallZ: { value: ARENA_DIMS.BACK_Z } };
   // ── the stage deck: a raised black deck with a softly rounded front ──
   const ribbonPts = [];
   {
@@ -741,6 +788,18 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     geo.rotateX(-Math.PI / 2);
     geo.translate(0, FLOOR_Y + bevT, 0);
     mesh(geo, matStageDeck, 'stageDeck');
+    // the wall in the deck: a polished black deck in front of a 20 m screen shows the screen, smeared
+    // by the deck's wear. It is drawn, not reflected (an environment map holds one colour, and the
+    // wall changes): the wall's current light (wallGlow), only where a reflected line of sight runs
+    // back toward the wall, strongest at a grazing angle and nearest the wall
+    const sheenGeo = own(new THREE.ShapeGeometry(shape, 24));
+    sheenGeo.rotateX(-Math.PI / 2);
+    sheenGeo.translate(0, STAGE_Y + 0.003, 0);
+    const sheenM = own(new THREE.ShaderMaterial({
+      uniforms: sheenU, vertexShader: SHEEN_VERT, fragmentShader: SHEEN_FRAG,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    mesh(sheenGeo, sheenM, 'stageSheen').renderOrder = 2;
 
     // the LED lines' path: up the left side, round the nose, back down the right side
     const off = 0.008;
@@ -762,7 +821,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   }
 
   // ── DJ riser ─────────────────────────────────────────────────────────
-  const riser = { x: 1.3, z0: -0.72, z1: 1.2 };
+  const riser = { x: 2.05, z0: -0.72, z1: 1.25 };   // the wider booth and its speakers stand on it
   const riserH = STAND_Y - STAGE_Y;
   mesh(new RoundedBoxGeometry(riser.x * 2, riserH, riser.z1 - riser.z0, 2, 0.01), matCarpet, 'riser')
     .position.set(0, STAGE_Y + riserH / 2, (riser.z0 + riser.z1) / 2);
@@ -777,7 +836,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     mesh(new RoundedBoxGeometry(bw + 0.02, 0.03, bd + 0.02, 2, 0.006), matTop, 'boothTop')
       .position.set(0, TABLE_Y - 0.015, bz);
     // front fascia (faces −Z), inset between the corner extrusions
-    const fw = bw - 0.07, fh = bodyH - 0.1;
+    const fw = fasciaW, fh = fasciaH;   // the canvas was drawn to this aspect (fasciaPx)
     const fasciaGeo = new THREE.PlaneGeometry(fw, fh);
     fasciaGeo.rotateY(Math.PI);
     mesh(fasciaGeo, matFascia, 'boothFascia').position.set(0, STAND_Y + 0.045 + fh / 2, BOOTH.z0 - 0.0065);
@@ -811,7 +870,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     for (const x of [x0, x1]) for (const z of [z0, z1]) for (const y of [yTop, yBot]) {
       chrome.push(placed(new THREE.SphereGeometry(0.03, 10, 8), x, y, z, 0, 0, 0, THREE));
     }
-    for (const x of [-0.46, 0.46]) {
+    for (const x of [-0.96, -0.46, 0.46, 0.96]) {
       chrome.push(placed(new THREE.BoxGeometry(0.075, 0.05, 0.012), x, yLid, z0 - 0.008, 0, 0, 0, THREE));
       chrome.push(placed(new THREE.CylinderGeometry(0.014, 0.014, 0.014, 10), x, yLid - 0.012, z0 - 0.016, Math.PI / 2, 0, 0, THREE));
     }
@@ -844,6 +903,97 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     }
     mesh(merge(cabParts), matCabinet, 'monitorCabinets');
     mesh(merge(grilleParts), matSpeaker, 'monitorGrilles');
+  }
+
+  // ── booth speakers: a pro monitor on a stand each side of the booth (owner: "booth speakers") ──
+  // A tall black cabinet, its grille toward her: a big woofer under a horn, on a plinth that puts the
+  // horn at her ear. Turned to aim at her head from a little behind her line.
+  {
+    const BS = CLUB_DIMS.BOOTH_SPEAKERS;
+    const cab = [], grille = [], trim = [], led = [];
+    for (const side of [-1, 1]) {
+      const x = side * BS.x, z = BS.z;
+      const yaw = Math.atan2(-x, BS.aimZ - z);           // the cabinet's front (−Z local) toward her
+      const M = new THREE.Matrix4().compose(new THREE.Vector3(x, STAND_Y, z),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw + Math.PI, 0)), new THREE.Vector3(1, 1, 1));
+      const add = (list, g) => { g.applyMatrix4(M); list.push(g); };
+      add(cab, placed(new THREE.BoxGeometry(0.34, 0.62, 0.34), 0, 0.31, 0, 0, 0, 0, THREE));                       // the plinth
+      add(cab, placed(new RoundedBoxGeometry(0.52, 0.98, 0.5, 2, 0.02), 0, 0.62 + 0.49, 0, 0, 0, 0, THREE));     // the cabinet
+      const g = new THREE.PlaneGeometry(0.46, 0.9); g.rotateY(Math.PI); g.translate(0, 0.62 + 0.49, -0.252);
+      add(grille, g);
+      // the woofer's surround and the horn's mouth, proud of the grille
+      add(trim, placed(new THREE.TorusGeometry(0.17, 0.012, 6, 28), 0, 0.62 + 0.36, -0.258, 0, 0, 0, THREE));
+      add(trim, placed(new THREE.BoxGeometry(0.3, 0.14, 0.02), 0, 0.62 + 0.8, -0.258, 0, 0, 0, THREE));
+      // the back, which is what the crowd sees: the amp plate with its power light, and a handle
+      add(trim, placed(new THREE.BoxGeometry(0.3, 0.36, 0.012), 0, 0.62 + 0.42, 0.254, 0, 0, 0, THREE));
+      add(trim, placed(new THREE.BoxGeometry(0.16, 0.035, 0.03), 0, 0.62 + 0.86, 0.262, 0, 0, 0, THREE));
+      add(led, placed(new THREE.BoxGeometry(0.014, 0.014, 0.004), 0.1, 0.62 + 0.56, 0.262, 0, 0, 0, THREE));
+    }
+    mesh(merge(cab), matCabinet, 'boothSpeakerCabinets');
+    mesh(merge(grille), matSpeaker, 'boothSpeakerGrilles');
+    mesh(merge(trim), matFixture, 'boothSpeakerTrim');
+    mesh(merge(led), matAccentStrip, 'boothSpeakerLeds');
+  }
+
+  // ── front of house: the barrier, the subs, the mix desk out in the room ──
+  // Owner, 2026-10-26: "this needs to look more like a legit club/venue from a stage perspective". What
+  // a stage looks out on: a steel crowd barrier along its nose (in the gap the crowd already keeps), the
+  // sub stacks on the floor either side, and the front-of-house desk on its riser out in the crowd.
+  {
+    const ONE = new THREE.Vector3(1, 1, 1);
+    const frame = [], infill = [];
+    const BX = CLUB_DIMS.BARRIER_X, step = low ? 1.2 : 1.0;
+    const nose = (x) => stageFrontZ(Math.min(Math.abs(x), STAGE.x)) - 0.2;
+    for (let x0 = -BX; x0 < BX - 0.05; x0 += step) {
+      const x1 = Math.min(BX, x0 + step), za = nose(x0), zb = nose(x1);
+      const len = Math.hypot(x1 - x0, zb - za);
+      const M = new THREE.Matrix4().compose(new THREE.Vector3((x0 + x1) / 2, FLOOR_Y, (za + zb) / 2),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.atan2(zb - za, x1 - x0), 0)), ONE);
+      const at = (list, g) => { g.applyMatrix4(M); list.push(g); };
+      at(frame, placed(new THREE.BoxGeometry(len, 0.05, 0.06), 0, 1.12, 0, 0, 0, 0, THREE));          // top rail
+      at(frame, placed(new THREE.BoxGeometry(len, 0.04, 0.04), 0, 0.16, 0, 0, 0, 0, THREE));          // bottom rail
+      for (const e of [-1, 1]) at(frame, placed(new THREE.BoxGeometry(0.05, 1.12, 0.05), e * (len / 2 - 0.03), 0.56, 0, 0, 0, 0, THREE));
+      at(frame, placed(new THREE.BoxGeometry(len, 0.02, 0.6), 0, 0.01, -0.3, 0, 0, 0, THREE));        // the foot plate the front row stands on
+      const g = new THREE.PlaneGeometry(len - 0.08, 0.9); g.rotateY(Math.PI); g.translate(0, 0.64, -0.01);
+      at(infill, g);
+    }
+    mesh(merge(frame), matTruss, 'barrierFrame');
+    mesh(merge(infill), matSpeaker, 'barrierMesh');
+
+    // the subs: two cabinets wide (one high on phones), facing the room
+    const SB = CLUB_DIMS.SUBS, subCab = [], subGrille = [];
+    for (const side of [-1, 1]) for (let i = 0; i < 2; i++) for (let j = 0; j < (low ? 1 : 2); j++) {
+      const x = side * (SB.x + (i - 0.5) * 1.22), y = FLOOR_Y + 0.6 + j * 1.2;
+      subCab.push(placed(new THREE.BoxGeometry(1.2, 1.18, 0.85), x, y, SB.z, 0, 0, 0, THREE));
+      const g = new THREE.PlaneGeometry(1.08, 1.06); g.rotateY(Math.PI); g.translate(x, y, SB.z - 0.426);
+      subGrille.push(g);
+    }
+    mesh(merge(subCab), matCabinet, 'subCabinets');
+    mesh(merge(subGrille), matSpeaker, 'subGrilles');
+
+    // front of house: a riser with a rail, two consoles sloped toward the stage, their screens lit, and
+    // a black canopy on four poles
+    const F = CLUB_DIMS.FOH, fohDark = [], fohMetal = [], fohGlow = [];
+    const top = FLOOR_Y + F.h;
+    fohDark.push(placed(new THREE.BoxGeometry(F.w, F.h, F.d), F.x, FLOOR_Y + F.h / 2, F.z, 0, 0, 0, THREE));
+    for (const sx of [-1, 1]) {
+      const cx = F.x + sx * 0.72, cz = F.z + 0.35;
+      fohDark.push(placed(new THREE.BoxGeometry(0.06, 0.78, 0.06), cx - 0.55, top + 0.39, cz, 0, 0, 0, THREE));
+      fohDark.push(placed(new THREE.BoxGeometry(0.06, 0.78, 0.06), cx + 0.55, top + 0.39, cz, 0, 0, 0, THREE));
+      fohDark.push(placed(new THREE.BoxGeometry(1.3, 0.12, 0.78), cx, top + 0.84, cz, -0.21, 0, 0, THREE));   // the console, sloped toward the operator
+      for (const k of [-0.32, 0.32]) {   // its screens, lit on the operator's side only
+        const g = new THREE.PlaneGeometry(0.42, 0.26); g.rotateX(0.25); g.rotateY(Math.PI); g.translate(cx + k, top + 1.12, cz + 0.36);
+        fohGlow.push(g);
+      }
+    }
+    // the rail on the stage side and the two ends (the back stays open for the stairs)
+    fohMetal.push(placed(new THREE.BoxGeometry(F.w, 0.04, 0.04), F.x, top + 1.0, F.z + F.d / 2 - 0.03, 0, 0, 0, THREE));
+    for (const sx of [-1, 1]) fohMetal.push(placed(new THREE.BoxGeometry(0.04, 0.04, F.d), F.x + sx * (F.w / 2 - 0.03), top + 1.0, F.z, 0, 0, 0, THREE));
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) fohMetal.push(placed(new THREE.BoxGeometry(0.05, 2.4, 0.05), F.x + sx * (F.w / 2 - 0.05), top + 1.2, F.z + sz * (F.d / 2 - 0.05), 0, 0, 0, THREE));
+    fohDark.push(placed(new THREE.BoxGeometry(F.w + 0.2, 0.05, F.d + 0.2), F.x, top + 2.42, F.z, 0, 0, 0, THREE));   // the canopy
+    mesh(merge(fohDark), matCabinet, 'fohRiser');
+    mesh(merge(fohMetal), matTruss, 'fohFrame');
+    mesh(merge(fohGlow), matFohScreen, 'fohScreens');
   }
 
   // ── the LED screen (Signal Field dot matrix) ─────────────────────────
@@ -1201,6 +1351,9 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
         if (Math.abs(px) > CROWD.x || pz > CROWD.z0) continue;
         // keep off the stage front (the runway that ran into the crowd is gone; the floor fills to the lip)
         if (Math.abs(px) < STAGE.x + 0.4 && pz > stageFrontZ(Math.min(Math.abs(px), STAGE.x)) - 0.35) continue;
+        // the front-of-house riser
+        const F = CLUB_DIMS.FOH;
+        if (Math.abs(px - F.x) < F.w / 2 + 0.35 && Math.abs(pz - F.z) < F.d / 2 + 0.35) continue;
         // the WIDE camera path (−0.6,−6.2) → (0.35,−4.7): keep 0.45 m clear
         const ax = -0.6, az = -6.2, bx = 0.35, bz = -4.7;
         const k = clamp(((px - ax) * (bx - ax) + (pz - az) * (bz - az)) / ((bx - ax) ** 2 + (bz - az) ** 2), 0, 1);
@@ -1345,7 +1498,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     const es = new THREE.Scene();
     const tmp = [];
     const box = new THREE.BoxGeometry(28, 18, 52); tmp.push(box);
-    const roomM = new THREE.MeshBasicMaterial({ color: 0x06080d, side: THREE.BackSide }); tmp.push(roomM);
+    const roomM = new THREE.MeshBasicMaterial({ color: 0x070708, side: THREE.BackSide }); tmp.push(roomM);   // was navy 0x06080d
     const room = new THREE.Mesh(box, roomM); room.position.set(0, 7.5, -20); es.add(room);
     // the bright screen at the stage end
     const wg = new THREE.PlaneGeometry(7.2, 4.2); tmp.push(wg);
@@ -1838,6 +1991,8 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     // the air: a dark neutral haze lit the wall's colour; the hemisphere picks a little of it up
     fog.color.copy(FOG_BASE).add(glowB.copy(wallGlow).multiplyScalar(0.07));
     hemi.color.copy(HEMI_SKY).add(glowB.copy(wallGlow).multiplyScalar(0.12));
+    // the deck's sheen: the wall's own colour, as bright as the wall is
+    sheenU.uGlow.value.copy(wallGlow);
     rimL.intensity = 28 + 12 * lvl + 8 * k;
     rimR.intensity = 16 + 7 * lvl + 5 * k;    // amber blooms sooner than teal at the same power
     top.intensity = (44 + 16 * k) * 1.7;
