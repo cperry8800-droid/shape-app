@@ -137,6 +137,52 @@ test('a row nothing stamped is hidden when its switch has the App channel off; a
   assert.match(main, /window\.addEventListener\('shape:notifyprefs', readSwitches\);/);
 });
 
+test('the toast waits for the first read of the switches, then goes by it (Codex on #2476)', async () => {
+  // The app's own effect, run as written against a stand-in window.
+  const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
+  const head = 'useEffectBSM(() => {\n    if (!authUserId || !window.ShapeNotifications?.subscribe) return () => {};';
+  const at = main.indexOf(head);
+  assert.ok(at > 0, 'the toast effect was not found');
+  const effect = new Function('window', 'authUserId', 'preferenceTypeFor', main.slice(at + 'useEffectBSM(() => {'.length, main.indexOf('  }, [authUserId]);', at)));
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  const mount = (center) => {
+    const ui = { toasts: [], send: null };
+    const win = {
+      ShapeNotifications: { subscribe: (fn) => { ui.send = fn; return () => { ui.send = null; }; } },
+      ShapeNotifyPrefs: { center },
+      __bsToast: (t) => ui.toasts.push(t),
+      addEventListener() {}, removeEventListener() {},
+    };
+    ui.unmount = effect(win, 'u1', preferenceTypeFor);
+    return ui;
+  };
+  let settle;
+  let ui = mount(() => new Promise((r) => { settle = r; }));
+  ui.send({ title: 'Followed', type: 'follow', data: {} });
+  ui.send({ title: 'Coach', type: 'message', data: { side: 'client' } });
+  assert.deepEqual(ui.toasts, [], 'a notice was toasted before the switches were read');
+  settle({ prefs: [{ type: 'follows', channel: 'inapp', enabled: false }] });
+  await tick();
+  assert.deepEqual(ui.toasts, ['Coach'], 'the early notices did not go by the switches once read');
+  ui.send({ title: 'Followed again', type: 'follow', data: {} });
+  ui.send({ title: 'Plan', type: 'workout', data: {} });
+  assert.deepEqual(ui.toasts, ['Coach', 'Plan']);
+  ui.unmount();
+  // A failed read holds nothing back.
+  ui = mount(() => Promise.reject(new Error('down')));
+  ui.send({ title: 'Followed', type: 'follow', data: {} });
+  await tick();
+  assert.deepEqual(ui.toasts, ['Followed']);
+  ui.unmount();
+  // Nothing is toasted after the app has moved on.
+  ui = mount(() => new Promise((r) => { settle = r; }));
+  ui.send({ title: 'Late', type: 'workout', data: {} });
+  ui.unmount();
+  settle({ prefs: [] });
+  await tick();
+  assert.deepEqual(ui.toasts, []);
+});
+
 // A stand-in that applies the list's filters as PostgREST and Postgres would: the type lists, the
 // message-side `or`, then the cap. A comparison with a null side is not true, as in SQL.
 const listOf = (s) => s.slice(1, -1).split(',');
@@ -426,19 +472,15 @@ test('the hourly Nora job and the daily Score job page through everyone', () => 
   assert.match(ai, /\.select\('user_id, at:data->at'\)\s+\.eq\('kind', 'notify_snapshot'\)\s+\.order\('user_id', \{ ascending: true \}\)\s+\.range\(from, from \+ PAGE - 1\);/);
   assert.match(ai, /if \(at !== null && at < cutoff\) continue; \/\/ inactive → skip/);
   assert.match(ai, /await Promise\.all\(Array\.from\(\{ length: Math\.min\(CONCURRENCY, queue\.length\) \}, worker\)\);/);
-  assert.match(ai, /const offset = rotationStart\(Math\.floor\(startedAt \/ 3_600_000\), owners\.length\);/);
+  assert.match(ai, /const queue = rotated\(owners, Math\.floor\(startedAt \/ 3_600_000\)\);/);
   const score = read('src/app/api/cron/score-accountability/route.ts');
   assert.doesNotMatch(score, /\.limit\(BATCH\)/);
   assert.match(score, /\.order\('client_id', \{ ascending: true \}\)\s+\.range\(from, from \+ SUB_PAGE - 1\);/);
 });
 
 test('runs that meet the time limit reach everyone within a few hours, not thousands (Codex on #2476)', async () => {
-  const { rotationStart } = await loadRealModule(join(ROOT, 'src/app/api/ai/notify/cron/route.ts'), {
-    typescript: true,
-    // Only the rotation runs here; the rest of the job is stubbed.
-    registry: new Map([['next/server', nextServer], ['@/lib/supabase/admin', { createAdminClient: () => null }],
-      ['@/lib/ai/notify-core', {}], ['@/lib/push-cap', {}], ['@/lib/roles.mjs', { isCoachRole: () => false }]]),
-  });
+  const { rotationStart, rotated } = await import('../src/lib/run-rotation.mjs');
+  assert.deepEqual(rotated(['a', 'b', 'c', 'd', 'e'], 1).sort(), ['a', 'b', 'c', 'd', 'e'], 'a rotation keeps everyone once');
   // Hourly runs that each reach `k` of `n` owners from their start: how many until all were reached.
   const runsToReachAll = (n, k, hour0) => {
     const seen = new Uint8Array(n);
@@ -460,6 +502,49 @@ test('runs that meet the time limit reach everyone within a few hours, not thous
   }
   assert.equal(rotationStart(hour, 0), 0);
   assert.equal(rotationStart(hour, 1), 0);
+});
+
+test('the daily Score job stops inside its time and starts elsewhere each day, so the days reach everyone (Codex on #2476)', async () => {
+  const { fakeSupabase } = await import('./helpers/fake-supabase.mjs');
+  const membership = await loadRealModule(join(ROOT, 'src/lib/membership-core.ts'), { typescript: true });
+  const notifyLayer = await import('../src/lib/ai/notifications.mjs');
+  const N = 400;
+  const ids = Array.from({ length: N }, (_, i) => 'c' + String(i).padStart(3, '0'));
+  const RealDate = Date;
+  let clock = 0;
+  globalThis.Date = class extends RealDate { constructor(...a) { if (a.length) super(...a); else super(clock); } static now() { return clock; } };
+  process.env.CRON_SECRET = 'score-secret';
+  try {
+    const reached = new Set();
+    let days = 0;
+    for (let d = 0; d < 12 && reached.size < N; d++) {
+      clock = RealDate.UTC(2026, 9, 26 + d, 6);
+      const started = clock;
+      const db = fakeSupabase({
+        tables: { platform_subscriptions: ids.map((id) => ({ client_id: id, status: 'active' })), sessions: [], client_workouts: [], user_habits: [], user_goals: [] },
+        rpcs: {
+          sweep_store_credit_reservations: () => 0,
+          // Each member's check-in RPC takes a second: 400 members are more than one run's time.
+          apply_obligation_penalty: (a) => { clock += 1000; reached.add(a.p_uid); return { applied: false }; },
+          award_session_kept: () => ({ awarded: false }),
+          settle_commitment: () => ({ settled: false }),
+        },
+      });
+      const mod = await loadRealModule(join(ROOT, 'src/app/api/cron/score-accountability/route.ts'), {
+        typescript: true,
+        registry: new Map([['next/server', nextServer], ['@/lib/supabase/admin', { createAdminClient: () => db }], ['@/lib/notify', { createNotification: async () => true }],
+          ['@/lib/membership-core', membership], ['@/lib/ai/notifications.mjs', notifyLayer]]),
+      });
+      const body = await (await mod.GET(new Request('https://x/api/cron/score-accountability', { headers: { 'x-cron-secret': 'score-secret' } }))).json();
+      assert.ok(clock - started <= 320_000, `a run went on for ${(clock - started) / 1000} s`);
+      assert.ok(body.unreached > 0 && body.evaluated + body.unreached === N, JSON.stringify(body));
+      days += 1;
+    }
+    assert.equal(reached.size, N, `after ${days} days, ${N - reached.size} members were never scored`);
+    assert.ok(days <= 4, `it took ${days} days to reach everyone; two runs' worth covers them`);
+  } finally {
+    globalThis.Date = RealDate;
+  }
 });
 
 // ── 7a. Reminders at their minute ────────────────────────────────────────────────────────────────

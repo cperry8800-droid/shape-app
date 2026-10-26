@@ -19,6 +19,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { candidatesFor, decideAndClaim, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadPushedToday, memberCopy, Notify, type Snapshot } from '@/lib/ai/notify-core';
 import { releasePushClaim } from '@/lib/push-cap';
 import { isCoachRole } from '@/lib/roles.mjs';
+import { rotated } from '../../../../../lib/run-rotation.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -125,16 +126,6 @@ async function evaluate(admin: ReturnType<typeof createAdminClient>, userId: str
   return delivered;
 }
 
-// Where an hour's run starts among the n owners. Each hour moves on by the golden ratio of the list, a
-// sequence whose starts spread evenly, so runs that meet the time limit reach everyone within a few
-// hours.
-// ⚠ NOT ONE PLACE FURTHER EACH HOUR (Codex on #2476). With 1,000 of 10,000 reached in a run, that
-// re-read nearly the same 1,000 the next hour, and the last owners waited some 9,000 hours.
-const GOLDEN = (Math.sqrt(5) - 1) / 2;
-export function rotationStart(hour: number, n: number): number {
-  return n > 0 ? Math.floor(((hour * GOLDEN) % 1) * n) % n : 0;
-}
-
 async function run(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   const startedAt = Date.now();
@@ -142,10 +133,9 @@ async function run(request: Request) {
   const owners = await activeSnapshotOwners(admin, startedAt - ACTIVE_WINDOW_MS);
   if (!owners) return NextResponse.json({ error: 'Could not read the snapshots.' }, { status: 500 });
 
-  // Started at a different place each hour, so a run that meets the time limit never leaves the same
-  // people out every time.
-  const offset = rotationStart(Math.floor(startedAt / 3_600_000), owners.length);
-  const queue = owners.slice(offset).concat(owners.slice(0, offset));
+  // Started at a different place each hour (run-rotation.mjs), so runs that meet the time limit reach
+  // everyone within a few hours.
+  const queue = rotated(owners, Math.floor(startedAt / 3_600_000));
   let evaluated = 0;
   let delivered = 0;
   let unreached = 0;

@@ -227,7 +227,8 @@ test('follow-up: the stale-reservation sweep runs from the daily cron, best-effo
   const cron = fs.readFileSync(join(ROOT, 'src/app/api/cron/score-accountability/route.ts'), 'utf8');
   assert.match(cron, /await admin\.rpc\('sweep_store_credit_reservations', \{ p_user_id: null, p_older_than: '48 hours' \}\);/);
   assert.match(cron, /if \(sweepErr\) console\.error\('\[cron\] store credit reservation sweep failed', sweepErr\.message\);/, 'a failed sweep is said, and the run goes on');
-  assert.match(cron, /\{ ok: true, evaluated, penalties, rewards, commitments, swept \}/);
+  // `unreached`: the members a run's time budget left for the next days (Codex on #2476).
+  assert.match(cron, /\{ ok: true, evaluated, unreached, penalties, rewards, commitments, swept \}/);
   const vercel = JSON.parse(fs.readFileSync(join(ROOT, 'vercel.json'), 'utf8'));
   assert.ok(vercel.crons.some((c) => c.path === '/api/cron/score-accountability'), 'the cron is scheduled');
 });

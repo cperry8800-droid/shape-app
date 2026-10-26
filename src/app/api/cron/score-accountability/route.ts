@@ -19,14 +19,21 @@ import { createNotification } from '@/lib/notify';
 import { listOf, np, phrase } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
 import { ACTIVE_SUB } from '@/lib/membership-core';
 import { dailyCheckinOn } from '@/lib/ai/notifications.mjs';
+import { rotated } from '../../../../lib/run-rotation.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // daily batch of per-user RPC round-trips
 
-// The members are read a page at a time; every one is evaluated each run (the RPCs are idempotent,
-// so a run that overlaps another is harmless).
+// The members are read a page at a time (the RPCs are idempotent, so a run that overlaps another is
+// harmless).
 const SUB_PAGE = 1000;
+// ⚠ A RUN STOPS INSIDE ITS TIME, AND EACH DAY STARTS ELSEWHERE (Codex on #2476). Every member is read, but
+// their RPCs run one member at a time: past maxDuration, Vercel ends the run, and starting in the same
+// order each day left the same tail unscored for good. A run stops at its budget and each day starts at
+// a different place (run-rotation.mjs), so the next days reach the rest. The RPCs' windows (a miss is
+// charged up to 14 days late, a kept session paid up to 21) cover that wait.
+const TIME_BUDGET_MS = 270_000;
 
 function safeEqual(a: string, b: string): boolean {
   const x = Buffer.from(String(a || ''));
@@ -51,6 +58,7 @@ async function run(request: Request) {
   if (!authorized(request)) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
+  const startedAt = Date.now();
   const admin = createAdminClient();
 
   // Store-credit reservations (H5, #2285) are released by checkout.session.expired, or by this
@@ -102,10 +110,11 @@ async function run(request: Request) {
   const sessionFloor = new Date(now);
   sessionFloor.setUTCDate(sessionFloor.getUTCDate() - 21);
 
-  const clientIds = Array.from(
+  const clientIds = rotated(Array.from(
     new Set((subs || []).map((s) => (s as { client_id?: string }).client_id).filter(Boolean) as string[]),
-  );
+  ), Math.floor(now.getTime() / 86_400_000));
 
+  let unreached = 0;
   let evaluated = 0;
   let penalties = 0;
   let rewards = 0;
@@ -131,6 +140,7 @@ async function run(request: Request) {
   };
 
   for (let at = 0; at < clientIds.length; at += CHUNK) {
+    if (Date.now() - startedAt > TIME_BUDGET_MS) { unreached = clientIds.length - at; break; }
     const ids = clientIds.slice(at, at + CHUNK);
 
     type SessRow = { id: string; client_id: string };
@@ -326,7 +336,8 @@ async function run(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, evaluated, penalties, rewards, commitments, swept });
+  if (unreached) console.error(`[score-accountability] the run's time ran out with ${unreached} members left; tomorrow starts elsewhere`);
+  return NextResponse.json({ ok: true, evaluated, unreached, penalties, rewards, commitments, swept });
 }
 
 export async function GET(request: Request) {

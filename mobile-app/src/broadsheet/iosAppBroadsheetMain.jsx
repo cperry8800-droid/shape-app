@@ -1826,23 +1826,37 @@ function BSAppShell({ tweaks, setTweak }) {
   // (/api/notifications): not for a row written for push or email only, nor one whose switch has its
   // App channel off (owner, 2026-10-26: "make sure users have the ability to customize/toggle which
   // notifications they want"). The switches are read once and again whenever they are saved.
+  // ⚠ NOTHING IS TOASTED BEFORE THE FIRST READ SETTLES (Codex on #2476). A notice that arrived just after
+  // sign-in was toasted against an empty set, whatever its switch. It waits, then goes by that read (by
+  // none, if the read failed).
   useEffectBSM(() => {
     if (!authUserId || !window.ShapeNotifications?.subscribe) return () => {};
+    let alive = true;
     let appOff = new Set();
+    let early = [];
+    const toast = (n) => {
+      if (n.data && n.data.channels && n.data.channels.inapp === false) return;
+      if (appOff.has(preferenceTypeFor(n.type, n.data))) return;
+      window.__bsToast?.(n.title, 'ok');
+    };
     const readSwitches = () => {
       Promise.resolve(window.ShapeNotifyPrefs?.center?.()).then((c) => {
         appOff = new Set(((c && c.prefs) || []).filter((p) => p && p.channel === 'inapp' && p.enabled === false).map((p) => p.type));
-      }).catch(() => {});
+      }).catch(() => {}).finally(() => {
+        if (!alive || !early) return;
+        const waiting = early;
+        early = null;
+        waiting.forEach(toast);
+      });
     };
     readSwitches();
     window.addEventListener('shape:notifyprefs', readSwitches);
     const unsub = window.ShapeNotifications.subscribe((n) => {
       if (!n || !n.title) return;
-      if (n.data && n.data.channels && n.data.channels.inapp === false) return;
-      if (appOff.has(preferenceTypeFor(n.type, n.data))) return;
-      window.__bsToast?.(n.title, 'ok');
+      if (early) { early.push(n); return; }
+      toast(n);
     });
-    return () => { window.removeEventListener('shape:notifyprefs', readSwitches); try { unsub(); } catch (e) {} };
+    return () => { alive = false; window.removeEventListener('shape:notifyprefs', readSwitches); try { unsub(); } catch (e) {} };
   }, [authUserId]);
 
   // Register for native push once signed in (no-op off native / until the
