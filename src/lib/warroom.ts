@@ -628,13 +628,14 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
-      section: 'Booth: an LED wall show, CLUB SHAPE on its own, and moving Higgsfield loops — #2467. No migration',
+      section: 'Score and Store redesigned: the Score\'s ladder (the owner\'s A), the Store as a catalogue with Closest to you (B) — #2469. No migration',
       items: [
-        { label: 'Owner, 2026-10-26: "create cool effects like real like shows on LED wall, include club shape appearing and re appearing, maybe pulsing", "use higgsfield for cool looping images", "make sure the images are moving", "club shape should only appear on its own"', status: 'done' },
-        { label: 'wallShow.mjs runs the wall per 8-bar phrase: the headline alone on a dark wall (built onto the dots, pulsing on the kick, echoed, dissolved), then one look (a Higgsfield loop, the tunnel, the chase or the dawn), then dark; the drop moves to the tunnel or the chase. Reduced motion keeps the dawn under a steady headline. Nothing flashes', status: 'done' },
-        { label: 'Four 5 s Seedance loops play through the wall\'s dots on desktops only (noraBoothState WALL_LOOPS, wallLoopUrls; none under reduced motion), two copies cross-faded over the seam; the tunnel clip was left out as too close to a strobe', status: 'done' },
-        { label: 'Review: Codex on 5f88605, a P2 (reduced motion still downloaded the loops), fixed in 8fed4f7; Codex\'s re-review of 8fed4f7 ran three hours without posting, and the owner\'s "just do it" merged it with CI green on all four jobs. Checks: npm test 8,537/8,537; tests/booth-wallShow.test.mjs (12)', status: 'done' },
-        { label: 'The loops (about 13 MB) stream from Higgsfield\'s CDN on the owner\'s account; if those files go, the wall falls back to the drawn looks. An iPad counts as the high tier and loads them too', status: 'pending' },
+        { label: 'Owner, 2026-10-26: "need to also imrpove look and design of these 2 pages", "show me 3 designs of shape score and store page", then "A for score and do B for store but include the \'closest to you\'"', status: 'done' },
+        { label: 'Score: the number and its rung; one plate with how far into the tier, what the next rung unlocks and a bar between the thresholds; BSScoreLadder (one rail, top rung first, "· you", "· Next · N to go", each rung\'s unlock, ✓ on rungs reached) replaces BSScoreStandingChart, its This-tier zoom and the Tiers tab; a member\'s week and stake under the page\'s heads; tabs Ledger and Points (a coach: Breakdown and Points); a coach\'s Next / To go figures go, the plate says it', status: 'done' },
+        { label: 'Store: a ruled balance (Available, Worth at 150 pts = $1, Closest); Closest to you lists up to four unlocked products out of reach by points to go, one per variant group, a tap jumping to its entry (All only, not under Within balance); only the categories scroll and Within balance stays in view; the catalogue by department, numbered, a merch product\'s variants one entry. Purchase rules unchanged', status: 'done' },
+        { label: 'bsTierText: a tier colour as text takes a darker shade on light papers (three read under 3:1 as words); 12 new strings in all 13 locales, and 12 nothing reads leave', status: 'done' },
+        { label: 'Review: Codex P2 on b05f4cd (a balance covering four entries filled the rail with them and Closest read "Everything here is within your balance"), fixed in 8623c87; Codex clean on 8623c87. Checks: tests/score-store-redesign.test.mjs mounts both pages signed in (three mutations and the Codex case caught); npm test 8,550/8,551 before the string cleanup, the one failure this PR\'s own DOM-valued assertion, fixed', status: 'done' },
+        { label: 'Device pass signed in: the ladder with a real score (at risk and at the top tier), and the Store\'s Closest with a real balance', status: 'manual' },
       ],
     },
     {
@@ -649,6 +650,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Review: Codex clean on 78cbc50 after its P2 on 65e4d8c was fixed. Checks: npm test 8,534/8,534; tests/session-hr.test.mjs pins the rule, every display site, per-set HR and every demo activity\'s HR', status: 'done' },
         { label: 'A lift logged live in the app records no HR per set (bsBuildBreakdown\'s set rows carry RPE, plan, rest and duration), so a real lift has no HR column and a real PR no PR set HR; the column and parser are ready for meta.hr', status: 'pending' },
         { label: 'The website\'s community feed (communityFeed.jsx) still prints "bpm" on its stats and split labels', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Booth: an LED wall show, CLUB SHAPE on its own, and moving Higgsfield loops — #2467. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26: "create cool effects like real like shows on LED wall, include club shape appearing and re appearing, maybe pulsing", "use higgsfield for cool looping images", "make sure the images are moving", "club shape should only appear on its own"', status: 'done' },
+        { label: 'wallShow.mjs runs the wall per 8-bar phrase: the headline alone on a dark wall (built onto the dots, pulsing on the kick, echoed, dissolved), then one look (a Higgsfield loop, the tunnel, the chase or the dawn), then dark; the drop moves to the tunnel or the chase. Reduced motion keeps the dawn under a steady headline. Nothing flashes', status: 'done' },
+        { label: 'Four 5 s Seedance loops play through the wall\'s dots on desktops only (noraBoothState WALL_LOOPS, wallLoopUrls; none under reduced motion), two copies cross-faded over the seam; the tunnel clip was left out as too close to a strobe', status: 'done' },
+        { label: 'Review: Codex on 5f88605, a P2 (reduced motion still downloaded the loops), fixed in 8fed4f7; Codex\'s re-review of 8fed4f7 ran three hours without posting, and the owner\'s "just do it" merged it with CI green on all four jobs. Checks: npm test 8,537/8,537; tests/booth-wallShow.test.mjs (12)', status: 'done' },
+        { label: 'The loops (about 13 MB) stream from Higgsfield\'s CDN on the owner\'s account; if those files go, the wall falls back to the drawn looks. An iPad counts as the high tier and loads them too', status: 'pending' },
       ],
     },
     {
