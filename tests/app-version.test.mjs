@@ -203,7 +203,9 @@ test('the screen: "required" covers the app with one way on, the store', async (
   document.getElementById('bs-phone-surface').appendChild(behind);
   const ui = await mount({ update: 'required', storeUrl: 'https://apps.apple.com/us/app/shape/id42' });
   assert.equal(behind.hasAttribute('inert'), true, 'the app underneath can still be reached by keyboard');
-  assert.equal(document.activeElement, ui.buttons()[0], 'the Update button has the focus');
+  // A boolean, never the nodes themselves: a failing compare of live DOM nodes takes long enough to
+  // format that the runner kills the file (tests/assert-dom-value.test.mjs).
+  assert.ok(document.activeElement === ui.buttons()[0], 'the Update button has the focus');
   assert.deepEqual(ui.asked, ['/api/app/version?platform=ios&version=1.0.0'], 'asks with the build\'s own version');
   assert.equal(ui.gate().dataset.bsUpdate, 'required');
   assert.equal(ui.gate().getAttribute('role'), 'alertdialog');
