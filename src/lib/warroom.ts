@@ -615,6 +615,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Website Goal page: a signed-out reader sees the sample, not "Couldn\'t read your subscriptions" — #2466. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26: "fix the goal page couldn\'t read subscriptions" (the line #2464\'s re-shoot found under What clients earn you)', status: 'done' },
+        { label: 'dashData.jsx: _dashJson carries the HTTP status on its error, and useCoachLiveFigures reads a 401 as the sample practice ("demo"), as it reads no session; a 503, a 500 or a dead network stays "unknown", so a failed read still says so', status: 'done' },
+        { label: 'dashBusiness.jsx: on the sample, the Goal tab\'s calculator says "Sample figures, not your own practice." on the card itself, not only in the page\'s subtitle', status: 'done' },
+        { label: 'A measured signed-out visitor is sent to Login.html by the dashboard gate, so the line showed only when the gate failed open (/api/me unreadable) and the figures then answered 401', status: 'done' },
+        { label: 'Review: Codex clean on 3027f0a. CI then caught two assertions in the new test comparing a DOM node (tests/assert-dom-value.test.mjs); they compare a boolean now. Checks: tests/business-plan-page.test.mjs lifts the real fetch and hook (the 401 test fails on the old catch) and mounts the three states; npm test passed 8,526 of 8,527 before the fix and the one left passes after it; both Goal tabs rendered in the preview', status: 'done' },
+      ],
+    },
+    {
       section: 'Chat: the title is the switch between Chat\'s places (the owner\'s B), and the website\'s Chat frame follows — #2465. No migration',
       items: [
         { label: 'Owner, 2026-10-26, on the Chat page\'s stacked tab rows: "still dont love the look of this", "give me 3 new ideas", then "go with B", "keep A though as ammo in case i want to change" and "make sure to update new chat page on website to after its done"', status: 'done' },
@@ -633,7 +643,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Homepage and Get App (#2463): all 17 app captures (12 screens) re-shot from the signed-out preview at 600×1387, the clock pinned to Fri 2026-09-11 09:30 New York; the Get App PNGs replaced in place (?v=20261026), the homepage JPEGs renamed -v3, the loop\'s four rings re-measured and re-pinned in tests/homepage-climb.test.mjs; the copy and alt text follow the screens', status: 'done' },
         { label: 'Coaches page (#2464): all 20 dashboard frames re-shot by the coaches.jsx recipe (?v=20261026); the Score copy names the real formula (three terms for a trainer, two for a nutritionist), Goal names What clients earn you, Business its Plan, Today its New clients', status: 'done' },
         { label: 'Review: Codex clean on #2463 (d7271e9) and on #2464 (d9f517e, after its first run stalled and was re-requested); CI green on both', status: 'done' },
-        { label: 'Signed out, the website dashboard\'s Goal page reads "Couldn\'t read your subscriptions just now" under What clients earn you: a 401 lands in the card\'s failed state, not a sample (DbzGoalEarn, dashBusiness.jsx). The Coaches page frame crops the line off', status: 'pending' },
+        { label: 'Signed out, the website dashboard\'s Goal page read "Couldn\'t read your subscriptions just now" under What clients earn you: a 401 landed in the card\'s failed state, not a sample (DbzGoalEarn, dashBusiness.jsx). Fixed in #2466', status: 'done' },
         { label: 'The Get App Habits frame is the untouched state: a tap in the preview opens sign-up, so a ticked habit needs a signed-in capture', status: 'pending' },
       ],
     },
