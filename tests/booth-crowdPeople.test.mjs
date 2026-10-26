@@ -11,12 +11,14 @@ import { crowdPackPath, NORA_MODEL } from '../public/newdesign/booth/noraBoothSt
 import { imageSize } from '../scripts/nora-model/check-vrm.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
-const LODS = ['near', 'far', 'tiny', 'seat'];
+const LODS = ['near', 'far', 'tiny', 'seat', 'seatNear'];
 // What a figure may cost, per level of detail: a re-bake past these is a performance decision, not a
 // tweak (the floor alone draws 300 near, 520 far and 1,500 tiny figures on a desktop).
 const BUDGET = {
-  'nora/crowd-people.bin.txt': { people: 12, near: 5800, far: 1500, tiny: 700, seat: 900 },
-  'nora/crowd-people-lo.bin.txt': { people: 6, near: 3200, far: 950, tiny: 450, seat: 560 },
+  // the close levels were rebuilt (owner, 2026-10-26: "the people look horrible"): a face of its own
+  // (--head), a fifth of the level for the hair, both drawn two-sided, and the hands their own share
+  'nora/crowd-people.bin.txt': { people: 12, near: 9200, far: 1500, tiny: 700, seat: 900, seatNear: 5000 },
+  'nora/crowd-people-lo.bin.txt': { people: 6, near: 4700, far: 950, tiny: 450, seat: 560, seatNear: 2800 },
 };
 const packs = Object.keys(BUDGET).map((path) => ({ path, pack: decodePeoplePack(readFileSync('public/' + path, 'utf8')) }));
 
@@ -44,10 +46,17 @@ test('both people packs decode whole: every person at every level, inside its bu
       assert.ok(b.height > 1.45 && b.height < 2.0, `${path}: ${b.name} is ${b.height} m`);
       // one seat height for everyone: the venue lowers every seated figure by the pack's one seatY
       assert.equal(b.seatY, header.seat.seatY, `${path}: ${b.name} sits at ${b.seatY} m`);
-      let minY = Infinity;
-      const s = geos[`${i}:seat`];
-      for (let v = 0; v < s.nv; v++) minY = Math.min(minY, s.pos[v * 3 + 1] / 1000);
-      assert.ok(minY > -0.08 && minY < header.seat.seatY - 0.25, `${path}: ${b.name}'s feet, seated, are ${minY} m up`);
+      // both seated levels (the booths' and the side rooms' detailed one) sit on that one seat
+      for (const l of ['seat', 'seatNear']) {
+        let minY = Infinity;
+        const s = geos[`${i}:${l}`];
+        for (let v = 0; v < s.nv; v++) minY = Math.min(minY, s.pos[v * 3 + 1] / 1000);
+        assert.ok(minY > -0.08 && minY < header.seat.seatY - 0.25, `${path}: ${b.name}'s feet, seated (${l}), are ${minY} m up`);
+      }
+      // the detailed seated figure keeps what the near one has: hair cards and the eyes
+      const sn = geos[`${i}:seatNear`];
+      assert.ok(sn.ni > 2 * geos[`${i}:seat`].ni, `${path}: ${b.name}'s seatNear is no more detailed than seat`);
+      assert.ok(sn.part.includes(PART.HAIR) || !geos[`${i}:near`].part.includes(PART.HAIR), `${path}: ${b.name}'s seatNear lost its hair cards`);
     });
     assert.ok(header.seat.seatY > 0.65 && header.seat.seatY < 1.0);
   }
@@ -166,11 +175,14 @@ test('the club, the venue and both pages use the people crowd', () => {
   assert.match(app, /crowdUrl: noraAssetUrl\(crowdPackPath\(NORA_MODEL, tier\.quality\), import\.meta\.env\.BASE_URL\)/);
 });
 
-test('hair and the eyes\' clear shells are alpha-tested; nothing else is', () => {
+test('hair, the brows and the eyes\' clear shells are alpha-tested; nothing else is', () => {
   const src = readFileSync('public/newdesign/booth/crowdPeople.mjs', 'utf8');
   assert.match(src, /if \(P == 2 && diffuseColor\.a \* \(1\.0 \+ 0\.3 \* lod\) < 0\.5\) discard;/);
   assert.match(src, /if \(P == 3 && diffuseColor\.a < 0\.5\) discard;/);
-  assert.equal((src.match(/discard;/g) || []).length, 2);
+  // the brows, cut thinner than the hair (owner: "the people look horrible"; they were marker strokes)
+  assert.match(src, /if \(P == 4 && diffuseColor\.a < 0\.62\) discard;/);
+  assert.equal((src.match(/discard;/g) || []).length, 3);
+  assert.equal(PART.BROWS, 4);
 });
 
 // ── the dark floor (owner, 2026-10-26: "make the crowd darker like a real club") ──

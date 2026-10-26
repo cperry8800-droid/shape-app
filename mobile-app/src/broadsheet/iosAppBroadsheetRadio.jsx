@@ -2289,6 +2289,8 @@ function BSNoraBooth({ on, prospect, stationConfigured, stationPlaying, guestDj,
   const live = label.key !== 'offAir';
   const playing = !!(snap && snap.example);
   const free = !!(snap && snap.camera === 'free');
+  // the side rooms' views (the venue's lounge and bar), each a camera of its own
+  const room = snap && (snap.camera === 'lounge' || snap.camera === 'bar') ? snap.camera : null;
   const MONO = t.MONO;
   // The booth's box is a fixed dark surface on either paper, so its overlays use fixed inks.
   const INK = '#f4ede0', INK60 = 'rgba(244,237,224,0.62)';
@@ -2350,11 +2352,17 @@ function BSNoraBooth({ on, prospect, stationConfigured, stationPlaying, guestDj,
           {playing && (
             <button type="button" onClick={() => boothRef.current && boothRef.current.nextTrack()} style={chip(false)}>{tr('radio:booth.nextTrack', { defaultValue: 'Next track' })} ⇄</button>
           )}
-          <button type="button" aria-pressed={!free} onClick={() => boothRef.current && boothRef.current.setCamera('auto')} style={chip(!free)}>
+          <button type="button" aria-pressed={!free && !room} onClick={() => boothRef.current && boothRef.current.setCamera('auto')} style={chip(!free && !room)}>
             {tr('radio:booth.autoCamera', { defaultValue: 'Auto camera' })}
           </button>
           <button type="button" aria-pressed={free} onClick={() => boothRef.current && boothRef.current.setCamera('free')} style={chip(free)}>
             {tr('radio:booth.lookAround', { defaultValue: 'Look around' })}
+          </button>
+          <button type="button" aria-pressed={room === 'lounge'} onClick={() => boothRef.current && boothRef.current.setCamera('lounge')} style={chip(room === 'lounge')}>
+            {tr('radio:booth.lounge', { defaultValue: 'Lounge' })}
+          </button>
+          <button type="button" aria-pressed={room === 'bar'} onClick={() => boothRef.current && boothRef.current.setCamera('bar')} style={chip(room === 'bar')}>
+            {tr('radio:booth.bar', { defaultValue: 'Bar' })}
           </button>
         </div>
       )}

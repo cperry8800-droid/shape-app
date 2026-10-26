@@ -175,6 +175,8 @@ export const LENS = {
   crane: { aperture: 1.5, maxCoc: 3 }, drone: { aperture: 1.0, maxCoc: 2.5 },
   // from a few hundred metres over the bay: everything at infinity, so almost no blur at all
   arrival: { aperture: 0.6, maxCoc: 1.5 },
+  // the side rooms: focus on the people a few metres in, the far wall soft
+  lounge: { aperture: 2.5, maxCoc: 4, focusAt: 5 }, bar: { aperture: 2.5, maxCoc: 4, focusAt: 5 },
   free: { aperture: 3, maxCoc: 4 },
 };
 export function lensFor(shot) { return LENS[shot] || LENS.free; }

@@ -316,6 +316,8 @@ function RadioNora() {
   const lit = label.key !== "offAir";
   const playing = !!(snap && snap.example);
   const free = !!(snap && snap.camera === "free");
+  // the side rooms' views (the venue's lounge and bar), each a camera of its own
+  const room = snap && (snap.camera === "lounge" || snap.camera === "bar") ? snap.camera : null;
   const showing = state === "open" || state === "opening";
   const chip = (active) => ({
     height: 38, padding: "0 14px", background: active ? "rgba(52,214,197,0.1)" : "transparent",
@@ -374,8 +376,10 @@ function RadioNora() {
                 ? <button type="button" onClick={() => boothRef.current && boothRef.current.stopExample()} style={chip(true)}>■ Stop the example set</button>
                 : <button type="button" onClick={() => boothRef.current && boothRef.current.playExample()} style={chip(false)}>▶ Play the example set</button>)}
               {playing && <button type="button" onClick={() => boothRef.current && boothRef.current.nextTrack()} style={chip(false)}>Next track ⇄</button>}
-              <button type="button" aria-pressed={!free} onClick={() => boothRef.current && boothRef.current.setCamera("auto")} style={chip(!free)}>Auto camera</button>
+              <button type="button" aria-pressed={!free && !room} onClick={() => boothRef.current && boothRef.current.setCamera("auto")} style={chip(!free && !room)}>Auto camera</button>
               <button type="button" aria-pressed={free} onClick={() => boothRef.current && boothRef.current.setCamera("free")} style={chip(free)}>Look around</button>
+              <button type="button" aria-pressed={room === "lounge"} onClick={() => boothRef.current && boothRef.current.setCamera("lounge")} style={chip(room === "lounge")}>Lounge</button>
+              <button type="button" aria-pressed={room === "bar"} onClick={() => boothRef.current && boothRef.current.setCamera("bar")} style={chip(room === "bar")}>Bar</button>
             </div>
           )}
           {state === "open" && allowed && (

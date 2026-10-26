@@ -8,6 +8,9 @@
 # Blender's edge-collapse decimator into the levels of detail the club draws:
 #   near  the front of the floor     far   the back of the floor
 #   tiny  the back of the room past ≈15 m      seat  the seated pose, at the tiny budget
+#   seatNear  the seated pose at a near level's detail (hair cards, eyes, brows): the side rooms'
+#             guests, seen a few metres off (owner, 2026-10-26: "make sure the people have the
+#             updated graphics")
 # A level's triangles go to each part by its surface area (the skin counts 1.5×, for the face), so a
 # pair of 22 k-triangle boots doesn't eat the budget.
 #
@@ -24,7 +27,7 @@
 #
 # Run (see README.md for the one-time set-up):
 #   <venv>/bin/python bake_people.py -- --people people.json --out ../pub/crowd-people [--tile 1024]
-#     [--only 0,2] [--budget near=5600,far=1400,tiny=460,seat=600]
+#     [--only 0,2] [--budget near=7500,far=1400,tiny=460,seat=600,seatNear=3600] [--head near=1600,seatNear=1200]
 # Writes <out>.bin.txt (base64 of the packed binary) and <out>.webp (the atlas).
 import os, sys, json, math, importlib, argparse, struct, base64
 import bpy, bmesh, mathutils
@@ -37,21 +40,31 @@ ap.add_argument('--people', required=True)
 ap.add_argument('--out', required=True)
 ap.add_argument('--tile', type=int, default=1024)
 ap.add_argument('--only', default='')
-ap.add_argument('--budget', default='near=5600,far=1400,tiny=460,seat=600')
+ap.add_argument('--budget', default='near=7500,far=1400,tiny=460,seat=600,seatNear=3600')
 ap.add_argument('--quality', type=int, default=82)
+# the face's own triangles at the levels drawn close (the rest of the skin shares the level's budget)
+ap.add_argument('--head', default='near=1600,seatNear=1200')
 A = ap.parse_args(sys.argv[sys.argv.index('--') + 1:])
 HERE = os.path.dirname(os.path.abspath(A.people))
 CFG = json.load(open(A.people))
 BUDGET = {k: int(v) for k, v in (kv.split('=') for kv in A.budget.split(','))}
-LODS = [l for l in ('near', 'far', 'tiny', 'seat') if l in BUDGET]
+HEAD_TRIS = {k: int(v) for k, v in (kv.split('=') for kv in A.head.split(','))} if A.head else {}
+LODS = [l for l in ('near', 'far', 'tiny', 'seat', 'seatNear') if l in BUDGET]
+# the levels drawn close: hair stays cards, the eyes and brows stay whole
+NEARISH = ('near', 'seatNear')
+SEATED = ('seat', 'seatNear')
 
 # ⚠ Kept in step with crowdPeople.mjs PART.
-PART = {'TOP': 0, 'SKIN': 1, 'HAIR': 2, 'EYE': 3, 'BOTTOM': 5, 'SHOES': 6, 'ACC': 7, 'HAIRSOLID': 8}
+PART = {'TOP': 0, 'SKIN': 1, 'HAIR': 2, 'EYE': 3, 'BROWS': 4, 'BOTTOM': 5, 'SHOES': 6, 'ACC': 7, 'HAIRSOLID': 8}
 # where every seated figure's thighs sit, above its feet as baked (see the seat level below)
 SEAT_Y = 0.75
 # the head's share of the skin's triangles, per level of detail
-HEAD_SHARE = {'near': 0.42, 'far': 0.3, 'tiny': 0.22, 'seat': 0.22}
+HEAD_SHARE = {'near': 0.42, 'far': 0.3, 'tiny': 0.22, 'seat': 0.22, 'seatNear': 0.42}
 ARM_BONES = ('upperarm', 'lowerarm', 'hand', 'thumb', 'index', 'middle', 'ring', 'pinky')
+# the hands' vertex groups (the game-engine rig's bones), simplified on their own at the close levels,
+# both on this share of the level's budget
+HAND_SHARE = 0.12
+HAND_GROUPS = tuple(f'{b}_{s}' for s in 'lr' for b in ['hand'] + [f'{f}_{j}' for f in ARM_BONES[3:] for j in ('01', '02', '03')])
 
 pkg = 'bl_ext.user_default.mpfb'
 if pkg not in bpy.context.preferences.addons:
@@ -119,6 +132,39 @@ def turn(b, deg, axis):
     bpy.context.view_layer.update()
 
 
+def bone_dir(b):
+    return (b.tail - b.head).normalized()
+
+
+def relax_hands(pb):
+    """A relaxed hand: the fingers drawn together, each bent toward the palm a little more than the
+    one before it (the little finger most), the thumb in by the index. MakeHuman's rest hand is open
+    with the fingers fanned about 34°, which read as a claw once they bent (owner, 2026-10-26)."""
+    sign = -1.0   # a negative turn about a finger bone's own x curls it toward the palm (seen on a render)
+    curl = {'index': (18, 26, 10), 'middle': (22, 30, 12), 'ring': (26, 34, 14), 'pinky': (30, 36, 16)}
+    close = {'index': 0.55, 'ring': 0.55, 'pinky': 0.6}   # how far each moves toward the middle finger
+    for s in 'lr':
+        if f'middle_01_{s}' not in pb:
+            continue
+        mid = bone_dir(pb[f'middle_01_{s}'])
+        for f, t in close.items():
+            b = pb.get(f'{f}_01_{s}')
+            if b is not None:
+                aim(b, bone_dir(b).lerp(mid, t))
+        th = pb.get(f'thumb_01_{s}')
+        if th is not None:
+            aim(th, bone_dir(th).lerp(bone_dir(pb[f'index_01_{s}']), 0.35))
+        for f, angles in curl.items():
+            for j, a in zip(('01', '02', '03'), angles):
+                b = pb.get(f'{f}_{j}_{s}')
+                if b is not None:
+                    turn(b, a * sign, b.matrix.to_3x3().col[0])
+        for j, a in (('02', 12), ('03', 14)):
+            b = pb.get(f'thumb_{j}_{s}')
+            if b is not None:
+                turn(b, a * sign, b.matrix.to_3x3().col[0])
+
+
 def pose(rig, kind, k):
     """Blender space: the person faces −Y, their left is +X. k ∈ [0,1) varies the stance a little."""
     pb = rig.pose.bones
@@ -127,18 +173,41 @@ def pose(rig, kind, k):
     bpy.context.view_layer.update()
     side = {'l': 1, 'r': -1}
     if kind == 'stand':
+        # A relaxed stance, each person their own (k): the torso turned a little, the elbows soft and
+        # one forearm up for some (talking, a drink), the weight on one leg with the other knee soft,
+        # the head turned and tilted. It was one stance for everyone, arms hanging straight like a
+        # mannequin's (owner, 2026-10-26: "the people look horrible").
+        k2 = (k * 7.31) % 1.0
+        lead = 'l' if k < 0.5 else 'r'           # the arm that comes up, and the leg that relaxes
+        if 'spine_02' in pb:
+            turn(pb['spine_02'], (k - 0.5) * 14, (0, 0, 1))
+            turn(pb['spine_02'], (k2 - 0.5) * 5, (0, 1, 0))
         for s in 'lr':
-            aim(pb['upperarm_' + s], (side[s] * (0.17 + 0.06 * k), 0.02, -1))
-            aim(pb['lowerarm_' + s], (side[s] * 0.1, -0.2 - 0.1 * k, -1))
-        # looking up at the stage
+            aim(pb['upperarm_' + s], (side[s] * (0.16 + 0.08 * k2), -0.08 - 0.1 * k, -1))
+            if s == lead and k2 > 0.45:
+                aim(pb['lowerarm_' + s], (side[s] * -0.15, -1, -0.25 - 0.5 * (1 - k2)))   # forearm up, hand at the chest
+            else:
+                aim(pb['lowerarm_' + s], (side[s] * 0.08, -0.42 - 0.3 * k2, -1))          # a soft elbow
+        if 'calf_' + lead in pb:
+            turn(pb['thigh_' + lead], -5, (1, 0, 0))
+            turn(pb['calf_' + lead], 9, (1, 0, 0))
+        relax_hands(pb)
+        # looking up at the stage, each a little to one side
         turn(pb['neck_01'], -4, (1, 0, 0))
         turn(pb['head'], -6, (1, 0, 0))
+        turn(pb['head'], (k2 - 0.5) * 22, (0, 0, 1))
+        turn(pb['head'], (k - 0.5) * 8, (0, 1, 0))
     else:
         for s in 'lr':
             aim(pb['thigh_' + s], (side[s] * 0.1, -1, -0.04))
             aim(pb['calf_' + s], (side[s] * 0.02, 0.06, -1))
             aim(pb['upperarm_' + s], (side[s] * 0.14, -0.35, -1))
             aim(pb['lowerarm_' + s], (side[s] * 0.05, -1, -0.3))
+        relax_hands(pb)
+        # talking to the person beside them: the head turned and tilted a little, each their own way
+        k2 = (k * 7.31) % 1.0
+        turn(pb['head'], (k2 - 0.5) * 30, (0, 0, 1))
+        turn(pb['head'], (k - 0.5) * 8, (0, 1, 0))
 
 
 # ── geometry ───────────────────────────────────────────────────────────────────────
@@ -227,19 +296,19 @@ def cover_skin(body, garments, reach=0.04, poke=0.012, under=0.004):
     bm.free()
 
 
-def split_by_group(me, obj, group):
-    """Two copies of me: the faces mostly in `group` (weight ≥ 0.5 on average) and the rest. The head
-    is simplified on its own budget so the face keeps its shape (Blender's vertex-group weighting of
-    the decimator stalls it instead). The cut is a boundary in both halves, which the decimator holds
-    in place, so they still meet."""
-    gi = obj.vertex_groups[group].index
+def split_by_group(me, obj, groups):
+    """Two copies of me: the faces mostly in `groups` (their weights summed, ≥ 0.5 on average) and the
+    rest. The head and the hands are simplified on their own budgets so they keep their shape
+    (Blender's vertex-group weighting of the decimator stalls it instead). The cut is a boundary in
+    both halves, which the decimator holds in place, so they still meet."""
+    gis = [obj.vertex_groups[g].index for g in ((groups,) if isinstance(groups, str) else groups) if g in obj.vertex_groups]
     halves = []
     for inside in (True, False):
         m = me.copy()
         bm = bmesh.new()
         bm.from_mesh(m)
         dl = bm.verts.layers.deform.active
-        drop = [f for f in bm.faces if ((sum(v[dl].get(gi, 0.0) for v in f.verts) / len(f.verts)) >= 0.5) != inside]
+        drop = [f for f in bm.faces if ((sum(v[dl].get(gi, 0.0) for v in f.verts for gi in gis) / len(f.verts)) >= 0.5) != inside]
         bmesh.ops.delete(bm, geom=drop, context='FACES')
         bm.to_mesh(m)
         bm.free()
@@ -260,8 +329,9 @@ def to_three(v):
     return (v[0], v[2], -v[1])
 
 
-def extract(me, obj, item, part, tile, two_sided=False):
-    """Triangles of `me` (an evaluated mesh of obj) as packed arrays, UVs remapped into the atlas tile."""
+def extract(me, obj, item, part, tile, two_sided=False, crop=None):
+    """Triangles of `me` (an evaluated mesh of obj) as packed arrays, UVs remapped into the atlas tile.
+    `crop` (u0, v0, u1, v1): the tile holds only that box of the source texture (the face's tile)."""
     me.calc_loop_triangles()
     names = {g.index: g.name for g in obj.vertex_groups}
     armSide = {}
@@ -286,6 +356,8 @@ def extract(me, obj, item, part, tile, two_sided=False):
                         wl += g.weight
                     elif s == 'r':
                         wr += g.weight
+                if crop:
+                    u = (u - crop[0]) / (crop[2] - crop[0]); v = (v - crop[1]) / (crop[3] - crop[1])
                 u = min(max(u, 0.0), 1.0); v = min(max(v, 0.0), 1.0)
                 # atlas UV, GL convention (v up from the image's bottom row)
                 U = (tx + u * tw) / AW
@@ -331,14 +403,18 @@ def srgb_to_linear(c):
 
 
 def tile_sizes(items, T):
-    """Square power-of-two tiles inside a T×T person tile: the skin gets half the width, the
-    garments by their area, the small parts what they need. Halves the biggest until they fit."""
+    """Square power-of-two tiles inside a T×T person tile: the face gets half the width (its own
+    crop of the skin: owner, 2026-10-26, "the people look horrible", and a face drawn from the whole
+    body's skin squeezed into one tile had ≈100 px), the rest of the skin a quarter, the garments by
+    their area, the small parts what they need. Halves the biggest until they fit, the face last."""
     want = []
     for it in items:
-        if it['part'] == 'SKIN':
+        if it['part'] == 'FACE':
             s = T // 2
+        elif it['part'] == 'SKIN':
+            s = T // 4 if any(o['part'] == 'FACE' for o in items) else T // 2
         elif it['part'] == 'EYE' or it.get('brows'):
-            s = T // 16
+            s = T // 8
         elif it['part'] == 'ACC':
             s = T // 32
         elif it['part'] == 'SHOES':
@@ -349,7 +425,7 @@ def tile_sizes(items, T):
             s = T // 2 if it['area'] > 0.9 else T // 4
         want.append(s)
     while sum(s * s for s in want) > T * T:
-        i = max(range(len(want)), key=lambda j: (want[j], items[j]['part'] != 'SKIN'))
+        i = max(range(len(want)), key=lambda j: (want[j], items[j]['part'] not in ('SKIN', 'FACE')))
         want[i] //= 2
     # then spend what is left: garments first (the biggest surfaces after the skin), then the hair
     grow = sorted((j for j in range(len(items)) if items[j]['part'] in ('TOP', 'BOTTOM', 'HAIR') and not items[j].get('brows')),
@@ -417,10 +493,29 @@ for bi, pi in enumerate(only):
         me = evaluated_mesh(it['obj'])
         full[it['name']] = me
         it['area'] = area(me)
-    sizes = tile_sizes(items, T)
+    # the face: the head's box of the skin texture, a tile of its own
+    extra = []
+    for it in items:
+        if it['part'] == 'SKIN' and 'head' in it['obj'].vertex_groups:
+            hd, rs = split_by_group(full[it['name']], it['obj'], 'head')
+            uv = np.array([d.uv[:] for d in hd.uv_layers.active.data]) if hd.uv_layers.active else np.zeros((0, 2))
+            bpy.data.meshes.remove(hd); bpy.data.meshes.remove(rs)
+            if len(uv):
+                lo, hi = np.clip(uv.min(0) - 0.004, 0, 1), np.clip(uv.max(0) + 0.004, 0, 1)
+                it['faceBox'] = (float(lo[0]), float(lo[1]), float(hi[0]), float(hi[1]))
+                extra.append({'name': 'face', 'part': 'FACE', 'obj': it['obj'], 'area': 0, 'skin': it})
+    sizes = tile_sizes(items + extra, T)
     spots = pack_quads(sizes, T)
     means = {}
-    for it, s, (x, y) in zip(items, sizes, spots):
+    for it, s, (x, y) in zip(items + extra, sizes, spots):
+        if it['part'] == 'FACE':
+            sk = it['skin']
+            w, h = sk['img'].size
+            u0, v0, u1, v1 = sk['faceBox']
+            crop = sk['img'].crop((round(u0 * w), round((1 - v1) * h), round(u1 * w), round((1 - v0) * h)))
+            atlas.paste(crop.resize((s, s), Image.LANCZOS), (ox + x, oy + y))
+            sk['faceTile'] = (ox + x, oy + y, s, s, AW, AH)
+            continue
         path = diffuse_image(it['obj'])
         img = Image.open(path).convert('RGBA') if path else Image.new('RGBA', (8, 8), (128, 128, 128, 255))
         bake = spec.get('bake', {}).get(it['name'])
@@ -444,6 +539,8 @@ for bi, pi in enumerate(only):
             means[it['part']] = mean_colour(img, full[it['name']], hairy)
         atlas.paste(img.resize((s, s), Image.LANCZOS), (ox + x, oy + y))
         it['tile'] = (ox + x, oy + y, s, s, AW, AH)
+        if it['part'] == 'SKIN':
+            it['img'] = img   # the face's tile is cropped from it (after the bake colours)
 
     # pivots: the shoulders (the upper arms' heads), three space
     bpy.context.view_layer.update()
@@ -452,11 +549,11 @@ for bi, pi in enumerate(only):
     pivot = {S: [round(c, 5) for c in to_three(rm @ pb['upperarm_' + s].head)] for S, s in (('L', 'l'), ('R', 'r'))}
 
     for lod in LODS:
-        if lod == 'seat':
+        if lod in SEATED:
             pose(rig, 'seat', k)
         meshes = {it['name']: evaluated_mesh(it['obj']) for it in items}
         cover_skin(meshes['body'], [meshes[it['name']] for it in items if it['part'] in ('TOP', 'BOTTOM', 'SHOES')])
-        keep = [it for it in items if not (it.get('brows') and lod != 'near')]
+        keep = [it for it in items if not (it.get('brows') and lod not in NEARISH)]
         # The hair and the brows first: the hair's cards need a few hundred triangles to read as hair
         # at all (both sides drawn, so each counts twice), the brows all of theirs (≈150); then the
         # rest of the level's budget by surface area, the skin counting 1.5× (the face).
@@ -466,10 +563,13 @@ for bi, pi in enumerate(only):
             if it.get('brows'):
                 fixed[it['name']] = n0
             elif it['part'] == 'HAIR':
-                fixed[it['name']] = min(n0, max(22, round(BUDGET[lod] * {'near': 0.093, 'far': 0.043, 'tiny': 0.048, 'seat': 0.037}[lod])))
+                fixed[it['name']] = min(n0, max(22, round(BUDGET[lod] * {'near': 0.2, 'far': 0.043, 'tiny': 0.048, 'seat': 0.037, 'seatNear': 0.2}[lod])))
             elif it['part'] == 'EYE':
-                fixed[it['name']] = n0 if lod in ('near', 'far') else 12   # decimated, an eye collapses into a slit
-        rest_budget = max(BUDGET[lod] - sum(v * (2 if (lod == 'near' and k != 'eyes') else 1) for k, v in fixed.items()), BUDGET[lod] // 3)
+                fixed[it['name']] = n0 if lod in ('near', 'far', 'seatNear') else 12   # decimated, an eye collapses into a slit
+        # The hands, at the levels drawn close, a fixed share too: simplified with the rest of the skin,
+        # by its area, a suit's two hands had ~150 triangles each and the fingers thinned to spikes.
+        handT = round(BUDGET[lod] * HAND_SHARE) if lod in NEARISH else 0
+        rest_budget = max(BUDGET[lod] - sum(v * (2 if (lod in NEARISH and k != 'eyes') else 1) for k, v in fixed.items()) - handT, BUDGET[lod] // 3)
         wt = {it['name']: area(meshes[it['name']]) * (1.5 if it['part'] == 'SKIN' else 1.0) for it in keep if it['name'] not in fixed}
         tot = sum(wt.values())
         chunks = []
@@ -480,17 +580,29 @@ for bi, pi in enumerate(only):
                 # the face: a fixed share of the skin's budget, simplified on its own
                 head, rest = split_by_group(meshes[it['name']], it['obj'], 'head')
                 share = HEAD_SHARE[lod]
-                pieces = [decimated(head, min(1.0, want * share / max(tris(head), 1))), decimated(rest, min(1.0, want * (1 - share) / max(tris(rest), 1)))]
+                headT = HEAD_TRIS.get(lod, want * share)
+                pieces = [decimated(head, min(1.0, headT / max(tris(head), 1)))]
+                if handT:
+                    hands, body = split_by_group(rest, it['obj'], HAND_GROUPS)
+                    pieces += [decimated(hands, min(1.0, handT / max(tris(hands), 1))), decimated(body, min(1.0, want * (1 - share) / max(tris(body), 1)))]
+                    bpy.data.meshes.remove(hands); bpy.data.meshes.remove(body)
+                else:
+                    pieces.append(decimated(rest, min(1.0, want * (1 - share) / max(tris(rest), 1))))
                 bpy.data.meshes.remove(head); bpy.data.meshes.remove(rest)
+                if it.get('faceTile'):
+                    # the face from its own tile: the head's crop of the skin
+                    chunks.append(extract(pieces[0], it['obj'], it, PART['SKIN'], it['faceTile'], crop=it['faceBox']))
+                    bpy.data.meshes.remove(pieces[0])
+                    pieces = pieces[1:]
             else:
                 pieces = [decimated(meshes[it['name']], min(1.0, want / max(n0, 1)))]
             if os.environ.get('BAKE_DEBUG'):
                 print(f'  {lod} {it["name"]}: {n0} -> want {int(want)} -> {sum(tris(m) for m in pieces)}', flush=True)
-            part = it['part']
-            if part == 'HAIR' and lod != 'near':
+            part = 'BROWS' if it.get('brows') else it['part']   # the brows: cut thinner and tinted by the shader
+            if part == 'HAIR' and lod not in NEARISH:
                 part = 'HAIRSOLID'
             for me in pieces:
-                chunks.append(extract(me, it['obj'], it, PART[part], it['tile'], two_sided=(part == 'HAIR')))
+                chunks.append(extract(me, it['obj'], it, PART[part], it['tile'], two_sided=(part in ('HAIR', 'BROWS'))))
                 bpy.data.meshes.remove(me)
         for me in meshes.values():
             bpy.data.meshes.remove(me)
@@ -499,7 +611,7 @@ for bi, pi in enumerate(only):
         geos.append(g)
         if lod == 'near':
             height = float(g['pos'][:, 1].max())
-        if lod == 'seat':
+        if lod in SEATED:
             # Where the thighs meet the seat: the underside of the thighs, now level. Searched only
             # between the hip joint and 20 cm below it, in front of the hips: lower down, the same
             # band holds the shins, which hang back under the knees.
@@ -518,7 +630,7 @@ for bi, pi in enumerate(only):
 
     bodies.append({
         'name': spec['name'], 'sex': spec['sex'], 'weight': spec.get('weight', 1), 'height': round(height, 4), 'pivot': pivot,
-        'seatY': round(seatY, 4) if 'seat' in LODS else None,
+        'seatY': round(seatY, 4) if any(l in SEATED for l in LODS) else None,
         'tile': [ox, oy, T, T],
         'mean': {str(PART[p]): c for p, c in means.items()},
         'tint': {str(PART[it['part']]): bool(it['tint']) for it in items if it['part'] in ('TOP', 'BOTTOM', 'SHOES')},
@@ -531,7 +643,7 @@ atlas.save(out + '.webp', 'WEBP', quality=A.quality, method=6)
 header = {
     'v': 3, 'lods': LODS, 'parts': PART, 'bodies': bodies,
     'height': round(sum(b['height'] for b in bodies) / len(bodies), 4),
-    'seat': {'name': 'seat', 'seatY': round(sum(b['seatY'] for b in bodies) / len(bodies), 4), 'headShift': 0} if 'seat' in LODS else None,
+    'seat': {'name': 'seat', 'seatY': round(sum(b['seatY'] for b in bodies) / len(bodies), 4), 'headShift': 0} if any(l in SEATED for l in LODS) else None,
     'atlas': {'file': atlas_file, 'w': AW, 'h': AH},
     'geos': [{'name': g['name'], 'nv': int(len(g['pos'])), 'ni': int(len(g['index']))} for g in geos],
 }
