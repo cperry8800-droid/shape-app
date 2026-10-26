@@ -24,9 +24,10 @@
 // shot before the gate existed. The next person to fulfil `{user:null}` will
 // read the redirect as the harness being broken; it is the gate working.
 //
-// The Clients, Business, Goal and Score frames were re-shot 2026-10-15 (both roles), after
-// #2365 made those four pages fixed layouts with no widget builder; same recipe as below,
-// Business on its default Overview section. The ?v on `src` moved with them.
+// All twenty frames re-shot 2026-10-26 by the recipe below (Business on its default Overview
+// section), after Today's Needs you gained New clients, Business its Plan section, Goal its
+// "What clients earn you" card and Score the three-term formula. The ?v on `src` moved with
+// them. Park the pointer off the icon rail (bottom right) before each shot, or the rail opens.
 // Captures refreshed 2026-10-14, after #2343 gave the dashboard its own app frame
 // (the icon rail and the app bar ARE the dashboard now, so they stay in every frame;
 // the old recipe's "hide the site header, move main up 72px" no longer applies).
@@ -37,8 +38,9 @@
 // "Preview · demo data" band; wait for the widgets and the fonts to paint. The fonts
 // matter: Google Fonts is unreachable from the capture container, so the css2 request
 // is answered with @font-face rules over the @fontsource-variable files (Anybody with
-// its wdth axis, Schibsted Grotesk, JetBrains Mono, Space Grotesk, Fraunces), and React
-// / Babel come from `npm pack` bytes as described above. JPEG quality 86; CoFrame keeps
+// its wdth axis, Schibsted Grotesk, JetBrains Mono, Space Grotesk, Fraunces), and React,
+// ReactDOM and Babel come from their `npm pack` bytes, which match the pages' SRI hashes
+// (unpkg is unreachable too). JPEG quality 86; CoFrame keeps
 // its 40px bottom crop. No production session or client data is used. The in-frame
 // example label below remains visible in the public tour.
 //
@@ -72,8 +74,8 @@ const CO_TOUR = {
       // DashNowColumn gives demo rows a bare "UP NEXT": the countdown needs a real booking's
       // start time, so a frame of it would need a signed-in capture. The same for both roles.
       { key: "today", file: "today", name: "Today",
-        body: "Your day on the left: the session up next, what you know about the client and a button to message them, above today's timeline. Beside it, Needs you puts client attention, check-ins to review, replies waiting and next week's programming one tab apart, above your figures, arranged however you like.",
-        list: ["The next session, one tap from a message", "Today's timeline, marked where you are", "Needs you: attention, check-ins, replies and programs", "Joint-attention flags shared with the client's other coach"] },
+        body: "Your day on the left: the session up next, what you know about the client and a button to message them, above today's timeline. Beside it, Needs you puts client attention, each new client's first 30 days, check-ins to review, replies waiting and next week's programming one tab apart, above your figures, arranged however you like.",
+        list: ["The next session, one tap from a message", "Today's timeline, marked where you are", "Needs you: attention, new clients, check-ins, replies and programs", "Joint-attention flags shared with the client's other coach"] },
       { key: "week", file: "week", name: "Week",
         body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
         list: ["Ratings, win, struggle and the question they asked you", "Adherence, food logs and weigh-in against the week before", "Message or leave a note from the row", "Mark all reviewed in one tap"] },
@@ -95,17 +97,17 @@ const CO_TOUR = {
         body: "Blocks, sessions, sets, reps, RPE and tempo, with autoregulation built in. Write a block once and clone it to a new client in one click.",
         list: ["Program templates by goal phase", "Who needs a program next", "Assign pre-fills the queue", "Publish a whole week at once"] },
       { key: "business", file: "business", name: "Business",
-        body: "The money side, told straight, one section at a time: the practice's trajectory, revenue and payouts, the marketplace funnel, and who stayed or left.",
-        list: ["Active clients, joined vs left, revenue over time", "Monthly recurring, net after the platform fee", "Churn and median tenure", "A CSV for your accountant"] },
+        body: "The money side, told straight, one section at a time: the practice's trajectory, your money and payouts, a plan for the next 12 months, the marketplace funnel, and who stayed or left.",
+        list: ["Active clients, joined vs left, revenue over time", "Monthly recurring, net after the platform fee", "A 12-month plan from your own price, clients and churn", "Churn and median tenure", "A CSV for your accountant"] },
       { key: "playlists", file: "playlists", name: "Playlists",
         body: "Paste a Spotify or Apple Music link, attach it to a workout, and your client gets a play button on the session card. Optional, always skippable.",
         list: ["A library of your playlists, with BPM range and length", "Attach matrix: assign playlists to workouts in bulk", "Builder: deep-edit tracks and notes", "Listens per playlist, and what you've shared"] },
       { key: "goal", file: "goal", name: "Goal",
-        body: "Your own targets for the quarter — clients, revenue, programs, adherence — each with a progress bar and the pace that gets it there. A revenue calculator turns your rate, hours and program sales into take-home.",
-        list: ["Client, revenue, program and adherence goals", "Progress and pace against the date", "Session rate × sessions, plus subscriptions and one-time sales", "Weekly, monthly, quarterly and annual take-home, net of the platform fee"] },
+        body: "Your own targets for the quarter — clients, revenue, programs, adherence — each with a progress bar and the pace that gets it there. What clients earn you starts from your live figures: set a client count and a monthly rate, and read what you take home after Shape's fee.",
+        list: ["Client, revenue, program and adherence goals", "Progress and pace against the date", "Clients × monthly rate, with the clients you brought yourself counted apart", "Your take-home after Shape's fee, and a 12-month plan on Business"] },
       { key: "score", file: "score", name: "Score",
-        body: "Your coach score, added up from active clients, adherence, session completion, client PRs, programs published and reviews. It drives marketplace ranking and the verified badge.",
-        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "What your tier unlocks", "How each action earns points"] },
+        body: "Your coach score, added up from three things: your active clients, your session completion and the programs you publish. It drives marketplace ranking and the verified badge.",
+        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "What the next tier unlocks", "How each term earns points"] },
       { key: "profile", file: "profile", name: "Profile",
         body: "The profile clients see on the marketplace: your credentials, coaching philosophy, Shape score and streak, availability with a book-a-consult button, and your activity, reviews and music underneath.",
         list: ["Credentials, philosophy and where you coach", "Availability, and a button to book a consult", "Activity, about, coaching, reviews and music", "Followers, following and posts"] },
@@ -115,8 +117,8 @@ const CO_TOUR = {
     label: "Nutritionist",
     tabs: [
       { key: "today", file: "today", name: "Today",
-        body: "Your day on the left: the consult up next, what you know about the client and a button to message them, above today's timeline. Beside it, Needs you puts client attention, check-ins to review and replies waiting one tab apart, above your figures and roster health, arranged however you like.",
-        list: ["The next consult, one tap from a message", "Today's timeline, marked where you are", "Needs you: attention, check-ins and replies", "Joint-attention flags shared with the client's trainer"] },
+        body: "Your day on the left: the consult up next, what you know about the client and a button to message them, above today's timeline. Beside it, Needs you puts client attention, each new client's first 30 days, check-ins to review, replies waiting and the plans due next one tab apart, above your figures and roster health, arranged however you like.",
+        list: ["The next consult, one tap from a message", "Today's timeline, marked where you are", "Needs you: attention, new clients, check-ins, replies and plans", "Joint-attention flags shared with the client's trainer"] },
       { key: "week", file: "week", name: "Week",
         body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
         list: ["Ratings, win, struggle and the question they asked you", "Adherence, food logs and weigh-in against the week before", "Message or leave a note from the row", "Mark all reviewed in one tap"] },
@@ -134,17 +136,17 @@ const CO_TOUR = {
         body: "Macro targets, swap rules and grocery lists that generate themselves. Save any plan as a template and reuse it across clients; the lifecycle view says who needs a plan next.",
         list: ["Plan templates by goal phase", "Expiring this week, ready for a phase change", "Assign pre-fills the plan queue", "Intake pending, so nothing is written blind"] },
       { key: "business", file: "business", name: "Business",
-        body: "The money side, told straight, one section at a time: the practice's trajectory, revenue and payouts, the marketplace funnel, and who stayed or left.",
-        list: ["Active clients, joined vs left, revenue over time", "Monthly recurring, net after the platform fee", "Churn and median tenure", "A CSV for your accountant"] },
+        body: "The money side, told straight, one section at a time: the practice's trajectory, your money and payouts, a plan for the next 12 months, the marketplace funnel, and who stayed or left.",
+        list: ["Active clients, joined vs left, revenue over time", "Monthly recurring, net after the platform fee", "A 12-month plan from your own price, clients and churn", "Churn and median tenure", "A CSV for your accountant"] },
       { key: "playlists", file: "playlists", name: "Playlists",
         body: "Paste a Spotify or Apple Music link, attach it to a meal, recipe or prep routine, and your client gets a play button in their kitchen. Optional, always skippable.",
         list: ["A library of your playlists, with BPM range and length", "Attach matrix: assign playlists to meals in bulk", "Builder: deep-edit tracks and notes", "Listens per playlist, and what you've shared"] },
       { key: "goal", file: "goal", name: "Goal",
-        body: "Your own targets for the quarter — clients, revenue, plans, adherence — each with a progress bar and the pace that gets it there. A revenue calculator turns your consult rate, consults and meal-plan subscribers into take-home.",
-        list: ["Client, revenue, plan and adherence goals", "Progress and pace against the date", "Consult rate × consults, plus meal-plan subscriptions", "Weekly, monthly, quarterly and annual take-home, net of the platform fee"] },
+        body: "Your own targets for the quarter — clients, revenue, plans, adherence — each with a progress bar and the pace that gets it there. What clients earn you starts from your live figures: set a client count and a monthly rate, and read what you take home after Shape's fee.",
+        list: ["Client, revenue, plan and adherence goals", "Progress and pace against the date", "Clients × monthly rate, with the clients you brought yourself counted apart", "Your take-home after Shape's fee, and a 12-month plan on Business"] },
       { key: "score", file: "score", name: "Score",
-        body: "Your coach score, added up from active clients, log adherence, client body-composition wins, plans published, reviews and the Radio rooms you host. It drives marketplace ranking and the verified badge.",
-        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "What your tier unlocks", "How each action earns points"] },
+        body: "Your coach score, added up from two things: your active clients and your session completion. It drives marketplace ranking and the verified badge.",
+        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "What the next tier unlocks", "How each term earns points"] },
       { key: "profile", file: "profile", name: "Profile",
         body: "The profile clients see on the marketplace: your credentials, practice philosophy, Shape score and streak, availability with a book-a-consult button, and your activity, reviews and music underneath.",
         list: ["Credentials, philosophy and where you practise", "Availability, and a button to book a consult", "Activity, about, coaching, reviews and music", "Followers, following and posts"] },
@@ -155,7 +157,7 @@ const CO_TOUR = {
 // ⚠ THE FRAME CARRIES ITS OWN LABEL. Not a caption under the picture — a mark on
 // it, so the claim travels with the image wherever it is seen.
 function CoFrame({ role, tab, style = {} }) {
-  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20261015-fixed`;
+  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20261026`;
   return (
     <div style={{ border: "1px solid rgba(238,243,240,0.10)", borderRadius: 10, background: "#0a0f17", boxShadow: "0 40px 90px rgba(0,0,0,0.55)", overflow: "hidden", ...style }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, height: 34, padding: "0 12px", borderBottom: "1px solid rgba(238,243,240,0.055)", background: "rgba(255,255,255,0.02)" }}>

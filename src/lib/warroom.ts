@@ -615,6 +615,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'The website\'s screenshots re-shot: the homepage and Get App (#2463), and the Coaches page\'s twenty frames — #2464. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26: "now need to update all screen shots of app on website", "on home/index page and app page", then "re-shoot the coaches page snapshots too"', status: 'done' },
+        { label: 'Homepage and Get App (#2463): all 17 app captures (12 screens) re-shot from the signed-out preview at 600×1387, the clock pinned to Fri 2026-09-11 09:30 New York; the Get App PNGs replaced in place (?v=20261026), the homepage JPEGs renamed -v3, the loop\'s four rings re-measured and re-pinned in tests/homepage-climb.test.mjs; the copy and alt text follow the screens', status: 'done' },
+        { label: 'Coaches page (#2464): all 20 dashboard frames re-shot by the coaches.jsx recipe (?v=20261026); the Score copy names the real formula (three terms for a trainer, two for a nutritionist), Goal names What clients earn you, Business its Plan, Today its New clients', status: 'done' },
+        { label: 'Review: Codex clean on #2463 (d7271e9) and on #2464 (d9f517e, after its first run stalled and was re-requested); CI green on both', status: 'done' },
+        { label: 'Signed out, the website dashboard\'s Goal page reads "Couldn\'t read your subscriptions just now" under What clients earn you: a 401 lands in the card\'s failed state, not a sample (DbzGoalEarn, dashBusiness.jsx). The Coaches page frame crops the line off', status: 'pending' },
+        { label: 'The Get App Habits frame is the untouched state: a tap in the preview opens sign-up, so a ticked habit needs a signed-in capture', status: 'pending' },
+      ],
+    },
+    {
       section: 'Upkeep: the 80 coach keys nothing reads, and Next.js 16.4.3 with the patched dependencies — #2462. No migration',
       items: [
         { label: 'Owner, 2026-10-26: "Clean up the 30 unused coach keys", then "Fix the vulnerabilities" (GitHub reported 54 Dependabot alerts on main, 1 critical and 29 high)', status: 'done' },
