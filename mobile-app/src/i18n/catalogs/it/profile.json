@@ -137,6 +137,7 @@
   "terrain.editProfileAria": "Modifica profilo pubblico",
   "terrain.settingsAria": "Impostazioni",
   "terrain.customizeClimb": "Personalizza la scalata",
+  "terrain.memberSince": "Membro dal {date}",
   "terrain.showOnClimb": "Mostra nella tua scalata",
   "terrain.climb.weight": "Peso corporeo",
   "terrain.climb.bodyfat": "Massa grassa",

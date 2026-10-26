@@ -18676,6 +18676,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const showCoachLink = !signedInSelf || !!coachReal;
   const memberSinceLabel = (isSelf && (() => { try { const cs = window.ShapeAuth?.getCachedState?.(); const ca = cs && cs.user && cs.user.created_at; if (ca) { const dt = new Date(ca); if (!isNaN(dt)) return dt.toLocaleDateString([], { month: 'short', year: 'numeric' }); } } catch (e) {} return null; })()) || person.since || 'Feb 2024';
   const since = memberSinceLabel;
+  // The join date the Climb's head used to carry, in that head's meta type.
+  const climbSinceMeta = <span style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), whiteSpace: 'nowrap' }}>{tr('profile:terrain.memberSince', { date: since, defaultValue: 'Member since {date}' })}</span>;
   const stravaUrl = person.strava
     ? (/^https?:/i.test(person.strava) ? person.strava : 'https://www.strava.com/athletes/' + String(person.strava).replace(/^@/, ''))
     : 'https://www.strava.com';
@@ -18968,8 +18970,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             {tab === 'climb' && (<>
             {/* THE CLIMB — the ascent inked straight on the paper (no box, no
                 wash). Heat route draws start → now; target stays a hollow circle.
-                No head: the Climb tab right above names it (owner, 2026-10-26). */}
+                No head: the Climb tab right above names it (owner, 2026-10-26). The
+                head's "Member since" stays, at the right of the climb's own switch
+                row (or on its own line when there is no switch): it is the only
+                place most profiles show it (Codex P2 on #2468). */}
             <div style={{ marginBottom: 28 }}>
+              {climbTabs.length <= 1 && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>{climbSinceMeta}</div>}
               {climbTabs.length > 1 && (
                 <div className="bs-hide-scroll" style={{ display: 'flex', gap: 16, marginBottom: 14, overflowX: 'auto', alignItems: 'center' }}>
                   {climbTabs.map((s) => { const on = activeClimb === s.key; return (
@@ -18978,6 +18984,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   {isSelf && <button onClick={() => setClimbCustomizing((v) => !v)} aria-label={tr('profile:terrain.customizeClimb', { defaultValue: 'Customize climb' })} title={tr('profile:terrain.customizeClimb', { defaultValue: 'Customize climb' })} style={{ flex: 'none', minWidth: 44, minHeight: 44, border: 0, background: 'transparent', color: climbCustomizing ? INK : bsTHexA(INK, 0.5), cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>}
+                  <span style={{ marginLeft: 'auto', flex: 'none' }}>{climbSinceMeta}</span>
                 </div>
               )}
               {isSelf && (climbTabs.length <= 1 || climbCustomizing) && (

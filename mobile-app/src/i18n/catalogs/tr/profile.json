@@ -137,6 +137,7 @@
   "terrain.editProfileAria": "Herkese açık profili düzenle",
   "terrain.settingsAria": "Ayarlar",
   "terrain.customizeClimb": "Tırmanışı özelleştir",
+  "terrain.memberSince": "Üyelik: {date}",
   "terrain.showOnClimb": "Tırmanışında göster",
   "terrain.climb.weight": "Vücut ağırlığı",
   "terrain.climb.bodyfat": "Vücut yağı",

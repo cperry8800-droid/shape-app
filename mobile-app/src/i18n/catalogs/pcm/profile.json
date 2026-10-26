@@ -137,6 +137,7 @@
   "terrain.editProfileAria": "Edit public profile",
   "terrain.settingsAria": "Settings",
   "terrain.customizeClimb": "Customize climb",
+  "terrain.memberSince": "Member since {date}",
   "terrain.showOnClimb": "Show for your climb",
   "terrain.climb.weight": "Body weight",
   "terrain.climb.bodyfat": "Body fat",

@@ -137,6 +137,7 @@
   "terrain.editProfileAria": "Редагувати публічний профіль",
   "terrain.settingsAria": "Налаштування",
   "terrain.customizeClimb": "Налаштувати сходження",
+  "terrain.memberSince": "Учасник з {date}",
   "terrain.showOnClimb": "Показувати у вашому сходженні",
   "terrain.climb.weight": "Вага тіла",
   "terrain.climb.bodyfat": "Жир тіла",

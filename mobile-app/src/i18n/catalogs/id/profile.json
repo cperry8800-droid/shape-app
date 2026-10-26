@@ -137,6 +137,7 @@
   "terrain.editProfileAria": "Edit profil publik",
   "terrain.settingsAria": "Pengaturan",
   "terrain.customizeClimb": "Sesuaikan pendakian",
+  "terrain.memberSince": "Anggota sejak {date}",
   "terrain.showOnClimb": "Tampilkan di pendakianmu",
   "terrain.climb.weight": "Berat badan",
   "terrain.climb.bodyfat": "Lemak tubuh",

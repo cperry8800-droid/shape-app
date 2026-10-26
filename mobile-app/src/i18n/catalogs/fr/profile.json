@@ -137,6 +137,7 @@
   "terrain.editProfileAria": "Modifier le profil public",
   "terrain.settingsAria": "Réglages",
   "terrain.customizeClimb": "Personnaliser l’ascension",
+  "terrain.memberSince": "Membre depuis {date}",
   "terrain.showOnClimb": "Afficher sur votre ascension",
   "terrain.climb.weight": "Poids corporel",
   "terrain.climb.bodyfat": "Masse grasse",
