@@ -741,11 +741,11 @@ test('the Goal tab\'s calculator says when its figures are the sample, and only 
   await demo.unmount();
   const failed = await mount(React.createElement(B.DbzGoalEarn, { role: 'trainer', live: { kind: 'unknown' } }));
   assert.match(failed.text(), /^Couldn't read your subscriptions just now/);
-  assert.equal(failed.div.querySelector('[data-dbz-sample]'), null, 'a failed read is labelled a sample');
+  assert.ok(!failed.div.querySelector('[data-dbz-sample]'), 'a failed read is labelled a sample');
   await failed.unmount();
   const weeks = [{ weekOf: '2026-10-12', active: 12, mrrNetCents: 179550, mrrGrossCents: 210000 }];
   const own = await mount(React.createElement(B.DbzGoalEarn, { role: 'trainer', live: { kind: 'live', activeClients: 12, mrrNetCents: 179550, mrrGrossCents: 210000, trajectory: { weeks }, byoShare: 0, byoNote: null } }));
-  assert.equal(own.div.querySelector('[data-dbz-sample]'), null, 'a coach\'s own figures are labelled a sample');
+  assert.ok(!own.div.querySelector('[data-dbz-sample]'), 'a coach\'s own figures are labelled a sample');
   await own.unmount();
 });
 

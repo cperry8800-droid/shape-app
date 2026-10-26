@@ -621,7 +621,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'dashData.jsx: _dashJson carries the HTTP status on its error, and useCoachLiveFigures reads a 401 as the sample practice ("demo"), as it reads no session; a 503, a 500 or a dead network stays "unknown", so a failed read still says so', status: 'done' },
         { label: 'dashBusiness.jsx: on the sample, the Goal tab\'s calculator says "Sample figures, not your own practice." on the card itself, not only in the page\'s subtitle', status: 'done' },
         { label: 'A measured signed-out visitor is sent to Login.html by the dashboard gate, so the line showed only when the gate failed open (/api/me unreadable) and the figures then answered 401', status: 'done' },
-        { label: 'Review: Codex clean on 3027f0a. Checks: tests/business-plan-page.test.mjs lifts the real fetch and hook (the 401 test fails on the old catch) and mounts the three states; 678/678 across the 33 dashboard and website suites; both Goal tabs rendered in the preview', status: 'done' },
+        { label: 'Review: Codex clean on 3027f0a. CI then caught two assertions in the new test comparing a DOM node (tests/assert-dom-value.test.mjs); they compare a boolean now. Checks: tests/business-plan-page.test.mjs lifts the real fetch and hook (the 401 test fails on the old catch) and mounts the three states; npm test passed 8,526 of 8,527 before the fix and the one left passes after it; both Goal tabs rendered in the preview', status: 'done' },
       ],
     },
     {
