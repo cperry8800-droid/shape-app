@@ -269,6 +269,8 @@ The War Room has the full list; this covers what needs the owner and the planned
   its speakers, the barrier, subs and front-of-house desk) have been seen only in headless Chromium,
   not on a real GPU or a phone. From the stage the crowd reads brighter and more evenly lit than a
   club floor. The old avatar crowd (`crowdAvatars.mjs`) is kept for a v2 pack.
+- The Split glass splash mark (#2474), on the homepage and the app's launch, has been seen only in
+  headless Chromium, not on a phone or in the installed app.
 
 ## History
 
