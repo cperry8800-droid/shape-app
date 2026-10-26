@@ -12,7 +12,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { loadBroadsheet, drive, THEME, SHIM, ROOT } from './helpers/broadsheet-mount.mjs';
+import { loadBroadsheet, loadCarved, drive, THEME, SHIM, ROOT, GOALS_SRC } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { bsSdUnitizeText, bsSdUnitizeStat, bsSdUnitizeLabel, bsSdMeasure } from '../mobile-app/src/services/sessionLedger.mjs';
 
@@ -31,7 +31,9 @@ const themeFor = (prefs) => new Proxy({}, {
 });
 let CURRENT = THEME;
 globalThis.useBS = () => CURRENT;
-const { BSClientProgress, BSTerrainProfile, bsProgressWeight, bsProgressLoad, BSYourMornings, BSMorningsDoor, BSCycleTodayChip, bsGoalWeekSleep } = await loadBroadsheet(['BSClientProgress', 'BSTerrainProfile', 'bsProgressWeight', 'bsProgressLoad', 'BSYourMornings', 'BSMorningsDoor', 'BSCycleTodayChip', 'bsGoalWeekSleep']);
+const { BSClientProgress, BSTerrainProfile, bsProgressWeight, bsProgressLoad, BSYourMornings, BSMorningsDoor, BSCycleTodayChip } = await loadBroadsheet(['BSClientProgress', 'BSTerrainProfile', 'bsProgressWeight', 'bsProgressLoad', 'BSYourMornings', 'BSMorningsDoor', 'BSCycleTodayChip']);
+// Goals is its own module (BSGoals.jsx, 2026-10-25); its week of sleep is exported from there.
+const { bsGoalWeekSleep } = await loadCarved('BSGoals.jsx');
 const W = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetWidgets.jsx'), {
   registry: new Map([['react', SHIM]]),
   appendExports: 'export { WWeight, WBody, WMeasurements, WPR };',
@@ -135,7 +137,7 @@ test("Goals' week of sleep is the nights dated today and the six days before, no
   assert.equal(bsGoalWeekSleep({ sleep: [n('2026-10-27', 9), n('2026-10-28', 7.33), n('2026-11-03', 7.5)] }, '2026-11-03'), 7.4);
   assert.equal(bsGoalWeekSleep({ sleep: [] }, '2026-10-19'), 0, 'no night reads as none');
   assert.equal(bsGoalWeekSleep(null, '2026-10-19'), 0);
-  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  const src = readFileSync(GOALS_SRC, 'utf8');
   assert.match(src, /const sleep = bsGoalWeekSleep\(prog && prog\.series, bsCiIso\(new Date\(\)\)\);/, 'Goals does not read its week of sleep by date');
   assert.doesNotMatch(src.slice(src.indexOf('function BSClientGoals(')), /^\s*const sleep = [^\n]*kpis\.sleepAvg/m, 'Goals still quotes the 30-day average as the week');
 });

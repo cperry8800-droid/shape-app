@@ -167,6 +167,18 @@ export async function loadBroadsheet(exportNames, reactImpl = SHIM) {
 // its fixtures from exactly where the component reads them.
 export const importSibling = (...parts) => import(pathToFileURL(join(SRC_DIR, ...parts)).href);
 
+// A feature carved OUT of the client module, compiled exactly as loadBroadsheet
+// compiles the siblings it imports: this harness's React shim as its `react`, so its
+// hooks land in the same render context as the client module's. For a component the
+// client module never imports (BSGoals.jsx's BSGoalsContract, rendered only by its own
+// page), which loadBroadsheet therefore cannot re-export. The module reads its window
+// globals at call time, so load the client module first (loadBroadsheet) to publish them.
+export const loadCarved = (file, reactImpl = SHIM) => loadRealModule(join(SRC_DIR, file), {
+  registry: new Map([['react', reactImpl], ['react-dom', { createPortal: (n) => n }]]), ancestors: [SRC],
+});
+// The carved-out Goals page (2026-10-25), for suites that read its source.
+export const GOALS_SRC = join(SRC_DIR, 'BSGoals.jsx');
+
 // -- tree walking ------------------------------------------------------------
 export function flatten(node, out = []) {
   if (node == null || node === false) return out;

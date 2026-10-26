@@ -13,6 +13,7 @@ const PAGE = 'mobile-app/src/broadsheet/BSYourMornings.jsx';
 const CARD = 'mobile-app/src/broadsheet/BSCheckinCard.jsx';
 const WATER = 'mobile-app/src/broadsheet/BSWaterLine.jsx';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
+const GOALS = 'mobile-app/src/broadsheet/BSGoals.jsx'; // the Goals page, moved out of the client module 2026-10-25
 const PROGRESS = 'src/app/api/client/progress/route.ts';
 const READOUT = 'src/app/api/ai/weekly-readout/route.ts';
 const ENGINE = 'public/newdesign/dashSignals.js';
@@ -508,19 +509,19 @@ export default {
       find: "  { k: 'hrv', label: 'HRV', unit: 'ms', fmt: (v) => Math.round(v) },\n",
       replace: "  { k: 'energy', label: 'Energy', unit: '/10', fmt: (v) => v.toFixed(1) },\n  { k: 'hrv', label: 'HRV', unit: 'ms', fmt: (v) => Math.round(v) },\n" },
     // ── Goals' week of sleep, by date ──
-    { name: 'the week takes in an eighth day', file: CLIENT,
+    { name: 'the week takes in an eighth day', file: GOALS,
       find: '  const from = bsCiShift(todayIso, -6);\n',
       replace: '  const from = bsCiShift(todayIso, -7);\n' },
-    { name: 'a night dated after today counts', file: CLIENT,
+    { name: 'a night dated after today counts', file: GOALS,
       find: 'p.date >= from && p.date <= todayIso && Number(p.value) > 0',
       replace: 'p.date >= from && Number(p.value) > 0' },
-    { name: 'a 0h night counts as a night', file: CLIENT,
+    { name: 'a 0h night counts as a night', file: GOALS,
       find: 'p.date <= todayIso && Number(p.value) > 0).map',
       replace: 'p.date <= todayIso && Number.isFinite(Number(p.value))).map' },
-    { name: 'the week is not rounded to a tenth', file: CLIENT,
+    { name: 'the week is not rounded to a tenth', file: GOALS,
       find: 'Math.round((nights.reduce((a, b) => a + b, 0) / nights.length) * 10) / 10',
       replace: 'nights.reduce((a, b) => a + b, 0) / nights.length' },
-    { name: 'Goals quotes the 30-day average as the week', file: CLIENT,
+    { name: 'Goals quotes the 30-day average as the week', file: GOALS,
       find: 'const sleep = bsGoalWeekSleep(prog && prog.series, bsCiIso(new Date()));',
       replace: 'const sleep = (prog && prog.kpis && Number(prog.kpis.sleepAvg)) || 0;' },
 
