@@ -23,13 +23,21 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
 
 // ── the route ──────────────────────────────────────────────────────────────────────────────
-// A query builder that records every call and answers with the next queued result.
+// A query builder that records every call and answers with the next queued result. The read of the
+// reader's switched-off switches comes first in the list route and is answered apart (none are off),
+// so `calls` and the queue are the notifications table's alone.
 function fakeDb(results) {
   const calls = [];
   const db = {
     calls,
+    prefReads: [],
     from(table) {
       const q = { table, ops: [] };
+      if (table === 'notification_preferences') {
+        db.prefReads.push(q);
+        const p = new Proxy({}, { get(_, op) { if (op === 'then') return (res, rej) => Promise.resolve({ data: [], error: null }).then(res, rej); return (...args) => { q.ops.push([op, ...args]); return p; }; } });
+        return p;
+      }
       calls.push(q);
       const b = new Proxy({}, {
         get(_, op) {
@@ -73,8 +81,9 @@ test('the feed leaves cleared notifications out, and reads as before until the m
   db = fakeDb([{ data: null, error: MISSING_COLUMN }, { data: [row], error: null }]);
   res = await (await loadRoute(db)).GET(new Request('https://shape.test/api/notifications'));
   assert.equal(res.status, 200);
-  // Two reads of the rows (the switches the reader turned off are read after them, apart).
+  // Two reads of the rows (the switches the reader turned off are read once, before them, apart).
   assert.equal(db.calls.filter((c) => c.table === 'notifications').length, 2);
+  assert.equal(db.prefReads.length, 1);
   assert.ok(!db.calls[1].ops.some((o) => o[0] === 'is'), 'the retry still filters on the missing column');
   assert.equal((await res.json()).notifications.length, 1);
 

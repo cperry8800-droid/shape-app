@@ -15,12 +15,18 @@ import { PHONE_ONLY_TYPES, PHONE_ONLY_IN, isPhoneOnly } from '../public/newdesig
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
 
+// The list route reads the reader's switched-off switches first; that read is answered apart (none
+// are off), so `calls` and the queue are the notifications table's alone.
 function fakeDb(results) {
   const calls = [];
   return {
     calls,
     from(table) {
       const q = { table, ops: [] };
+      if (table === 'notification_preferences') {
+        const p = new Proxy({}, { get(_, op) { if (op === 'then') return (res, rej) => Promise.resolve({ data: [], error: null }).then(res, rej); return () => p; } });
+        return p;
+      }
       calls.push(q);
       const b = new Proxy({}, {
         get(_, op) {

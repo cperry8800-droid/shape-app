@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { READER_COPY_EN } from './helpers/reader-copy-en.mjs';
-import { PREFERENCE_OF, preferenceTypeFor } from '../public/newdesign/notificationSurfaces.mjs';
+import { PREFERENCE_OF, preferenceTypeFor, switchedOffFilter } from '../public/newdesign/notificationSurfaces.mjs';
 import { quietWindow, inQuietHours } from '../src/lib/ai/notifications.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -72,6 +72,26 @@ test('the app and the website offer the same switches, and every switch a sent k
   assert.match(typesBlock, /\['score_drop', 'Shape Score', 'When it dips, and your weekly commitment'\]/);
 });
 
+test("every switch row on the app's screen is translated, its English the en catalog's (Codex on #2476)", () => {
+  const en = JSON.parse(read('mobile-app/src/i18n/catalogs/en/settings.json'));
+  const rowsOf = (src) => [...src.matchAll(/\[\s*'([a-z_]+)',\s*(['"])((?:(?!\2).)*)\2,\s*(['"])((?:(?!\4).)*)\4\s*\]/g)].map((m) => [m[1], m[3], m[5]]);
+  const lists = [['coach', rowsOf(typesBlock.slice(0, typesBlock.indexOf("    : [['directive'"))), appCoach],
+    ['member', rowsOf(typesBlock.slice(typesBlock.indexOf("    : [['directive'"))), appMember]];
+  for (const [side, rows, keys] of lists) {
+    assert.deepEqual(rows.map((r) => r[0]), keys, `${side}: rows not read`);
+    for (const [type, label, sub] of rows) {
+      assert.equal(en[`notifyPrefs.${side}.${type}`], label, `${side}.${type}`);
+      assert.equal(en[`notifyPrefs.${side}.${type}.sub`], sub, `${side}.${type}.sub`);
+    }
+  }
+  const screen = CLIENT.slice(CLIENT.indexOf('function BSNotifyPrefs('), CLIENT.indexOf('// ─── SESSIONS & IN-APP VIDEO CALLS'));
+  assert.match(screen, /const side = isCoach \? 'coach' : 'member';/, 'a row reads the other side\'s copy');
+  assert.match(screen, /\{tr\(`settings:notifyPrefs\.\$\{side\}\.\$\{type\}`, \{ defaultValue: label \}\)\}/);
+  assert.match(screen, /\{tr\(`settings:notifyPrefs\.\$\{side\}\.\$\{type\}\.sub`, \{ defaultValue: sub \}\)\}/);
+  // Quiet hours hold a notice until they end now; they no longer feed a daily digest.
+  assert.equal(en['notifyPrefs.fromSub'], 'Held until quiet hours end');
+});
+
 // ── 4. The list and the website's bell honour every App switch ───────────────────────────────────
 function fakeDb(results) {
   const calls = [];
@@ -99,19 +119,111 @@ const listRoute = (db) => loadRealModule(join(ROOT, 'src/app/api/notifications/r
 test('a row nothing stamped is hidden when its switch has the App channel off; a failed switch read hides nothing', async () => {
   const row = (id, type, data = {}) => ({ id, type, title: id, body: '', route: null, data, read_at: null, created_at: '2026-10-26T10:00:00Z' });
   const rows = [row('plan', 'workout'), row('follow', 'follow'), row('dm', 'message', { side: 'member' }), row('stamped', 'ai_directive', { channels: { inapp: false } })];
-  let db = fakeDb([{ data: rows, error: null }, { data: [{ type: 'coach_content' }, { type: 'direct_message' }], error: null }]);
+  // The switches are read first (the query leaves out what they hide), then the rows.
+  let db = fakeDb([{ data: [{ type: 'coach_content' }, { type: 'direct_message' }], error: null }, { data: rows, error: null }]);
   let body = await (await (await listRoute(db)).GET(new Request('https://shape.test/api/notifications'))).json();
   assert.deepEqual(body.notifications.map((n) => n.id), ['follow']);
   assert.equal(body.unread, 1);
   const prefsRead = db.calls.find((c) => c.table === 'notification_preferences');
   assert.deepEqual(prefsRead.ops.filter((o) => o[0] === 'eq'), [['eq', 'user_id', 'u1'], ['eq', 'channel', 'inapp'], ['eq', 'enabled', false]]);
-  db = fakeDb([{ data: rows, error: null }, { data: null, error: { message: 'down' } }]);
+  db = fakeDb([{ data: null, error: { message: 'down' } }, { data: rows, error: null }]);
   body = await (await (await listRoute(db)).GET(new Request('https://shape.test/api/notifications'))).json();
   assert.deepEqual(body.notifications.map((n) => n.id), ['plan', 'follow', 'dm'], 'an unreadable switch hides nothing; a stamped row keeps its own stamp');
+  const rowsRead = db.calls.find((c) => c.table === 'notifications');
+  assert.ok(!rowsRead.ops.some((o) => o[0] === 'or' || (o[0] === 'not' && o[1] === 'type')), 'an unreadable switch filtered the query');
   // The app's toast reads the same switches.
   const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
   assert.match(main, /if \(n\.data && n\.data\.channels && n\.data\.channels\.inapp === false\) return;\s+if \(appOff\.has\(preferenceTypeFor\(n\.type, n\.data\)\)\) return;\s+window\.__bsToast\?\.\(n\.title, 'ok'\);/);
   assert.match(main, /window\.addEventListener\('shape:notifyprefs', readSwitches\);/);
+});
+
+// A stand-in that applies the list's filters as PostgREST and Postgres would: the type lists, the
+// message-side `or`, then the cap. A comparison with a null side is not true, as in SQL.
+const listOf = (s) => s.slice(1, -1).split(',');
+const fieldOf = (row, f) => (f === 'type' ? row.type : f === 'data->>side' ? (row.data?.side ?? null) : undefined);
+const splitTop = (s) => { const out = []; let depth = 0, cur = ''; for (const ch of s) { if (ch === '(') depth++; if (ch === ')') depth--; if (ch === ',' && depth === 0) { out.push(cur); cur = ''; } else cur += ch; } out.push(cur); return out; };
+function holds(row, expr) {
+  const m = /^(type|data->>side)\.(not\.in|neq|is)\.(.+)$/.exec(expr);
+  assert.ok(m, `the stand-in cannot read ${expr}`);
+  const v = fieldOf(row, m[1]);
+  if (m[2] === 'is') { assert.equal(m[3], 'null'); return v === null; }
+  if (v === null) return false;
+  return m[2] === 'neq' ? v !== m[3] : !listOf(m[3]).includes(v);
+}
+function kept(row, ops) {
+  for (const o of ops) {
+    if (o[0] === 'not' && o[2] === 'in') { if (listOf(o[3]).includes(fieldOf(row, o[1]))) return false; }
+    else if (o[0] === 'or') { if (!splitTop(o[1]).some((e) => holds(row, e))) return false; }
+    else assert.ok(['select', 'is', 'order', 'limit'].includes(o[0]), `the stand-in cannot apply ${o[0]}`);
+  }
+  return true;
+}
+function applyingDb(rows, switchesOff) {
+  const calls = [];
+  return {
+    calls,
+    from(table) {
+      const q = { table, ops: [] };
+      calls.push(q);
+      const b = new Proxy({}, {
+        get(_, op) {
+          if (op !== 'then') return (...args) => { q.ops.push([op, ...args]); return b; };
+          if (table === 'notification_preferences') return (res) => res({ data: switchesOff.map((type) => ({ type })), error: null });
+          const lim = q.ops.find((o) => o[0] === 'limit');
+          return (res) => res({ data: rows.filter((r) => kept(r, q.ops)).slice(0, lim ? lim[1] : undefined), error: null });
+        },
+      });
+      return b;
+    },
+  };
+}
+const live = { db: null };
+const liveList = await loadRealModule(join(ROOT, 'src/app/api/notifications/route.ts'), {
+  typescript: true,
+  registry: new Map([['next/server', nextServer], ['@/lib/request-utils', requestUtils], ['@/lib/request-auth', { clientForRequest: async () => live.db, currentUser: async () => ({ id: 'u1' }) }]]),
+});
+const listFor = async (rows, switchesOff, url = 'https://shape.test/api/notifications') => {
+  live.db = applyingDb(rows, switchesOff);
+  const body = await (await liveList.GET(new Request(url))).json();
+  return { ids: body.notifications.map((n) => n.id), rowsRead: live.db.calls.find((c) => c.table === 'notifications') };
+};
+
+test('a switched-off kind is left out in the query, so 200 of it never hide the older notices (Codex on #2476)', async () => {
+  const at = (i) => new Date(Date.UTC(2026, 9, 26, 21) - i * 60000).toISOString();
+  const row = (id, type, data, i) => ({ id, type, title: id, body: '', route: null, data, read_at: null, created_at: at(i) });
+  // A coach with Client messages off, and 250 client messages newer than a payment and a session.
+  const coach = [...Array.from({ length: 250 }, (_, i) => row('m' + i, 'message', { side: 'coach' }, i)),
+    row('dm', 'message', { side: 'member' }, 251), row('pay', 'payment', {}, 252), row('sess', 'session_booked', {}, 253)];
+  let out = await listFor(coach, ['client_message']);
+  assert.deepEqual(out.ids, ['dm', 'pay', 'sess'], 'the client messages filled the cap and the older notices were lost');
+  // A member with Followers off, and 250 follows newer than their coach's message and a new plan.
+  const member = [...Array.from({ length: 250 }, (_, i) => row('f' + i, i % 2 ? 'follow' : 'follow_request', {}, i)),
+    row('coach', 'message', { side: 'client' }, 251), row('plan', 'workout', {}, 252)];
+  out = await listFor(member, ['follows']);
+  assert.deepEqual(out.ids, ['coach', 'plan']);
+  // The website's phone-only filter still applies beside them, and nothing off means no extra filter.
+  out = await listFor([row('w', 'reminder_water', {}, 1), row('f', 'follow', {}, 2), row('p', 'payment', {}, 3)], ['follows'], 'https://shape.test/api/notifications?surface=web');
+  assert.deepEqual(out.ids, ['p']);
+  out = await listFor(member.slice(0, 3), []);
+  assert.ok(!out.rowsRead.ops.some((o) => o[0] === 'or' || (o[0] === 'not' && o[1] === 'type')), 'no switch off, yet the query was filtered');
+});
+
+test('the query leaves out exactly what each offered switch hides, and never a row the switch would show', async () => {
+  const sides = ['client', 'coach', 'member', 'care', undefined];
+  const kinds = [...new Set([...Object.keys(PREFERENCE_OF), ...Object.values(PREFERENCE_OF), ...appMember, ...appCoach, 'message', 'reminder_water', 'ai_directive'])];
+  const universe = kinds.flatMap((type) => (type === 'message' ? sides.map((side) => ({ type, data: side ? { side } : {} })) : [{ type, data: {} }]));
+  for (const sw of [...new Set([...appMember, ...appCoach, 'message', 'follow'])]) {
+    const { rowsRead } = await listFor([], [sw]);
+    for (const r of universe) {
+      const hides = preferenceTypeFor(r.type, r.data) === sw;
+      const leftOut = !kept(r, rowsRead.ops);
+      if (sw === 'message') assert.ok(!leftOut || hides, `the bare message switch left out ${r.type} ${JSON.stringify(r.data)}`);
+      else assert.equal(leftOut, hides, `${sw}: ${r.type} ${JSON.stringify(r.data)}`);
+    }
+  }
+  // A switch is the reader's own row: anything but a snake_case word never reaches a filter.
+  assert.deepEqual(switchedOffFilter(['a),or(type.eq.x', 'follows', 7]), switchedOffFilter(['follows']));
+  assert.deepEqual(switchedOffFilter([]), { types: null, sides: null });
 });
 
 // ── 2 and 3. The push: switches, quiet hours on the person's own clock, and the hold ─────────────

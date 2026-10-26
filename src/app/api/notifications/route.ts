@@ -12,7 +12,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
-import { PHONE_ONLY_IN, preferenceTypeFor } from '../../../../public/newdesign/notificationSurfaces.mjs';
+import { PHONE_ONLY_IN, preferenceTypeFor, switchedOffFilter } from '../../../../public/newdesign/notificationSurfaces.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,9 +34,20 @@ export async function GET(request: Request) {
   // Filtered after it, a month of daily reminders filled the cap and the bell read empty while
   // older messages and bookings sat unread (Codex on #2386).
   const web = new URL(request.url).searchParams.get('surface') === 'web';
+  // The switches whose App channel the reader turned off, read first so the query can leave out what
+  // they hide. A read that fails hides nothing: the list is never emptied on its own uncertainty.
+  // ⚠ WHAT A SWITCH HIDES IS LEFT OUT IN THE QUERY TOO, BEFORE THE CAP (Codex on #2476). Filtered only
+  // after it, a coach with Client messages off and 200 newer client messages read an empty list while
+  // older payments and sessions sat unread: the #2386 failure again, one filter over.
+  const offRes = await supabase.from('notification_preferences').select('type').eq('user_id', user.id).eq('channel', 'inapp').eq('enabled', false);
+  const hidden = new Set(offRes.error ? [] : ((offRes.data ?? []) as { type: string }[]).map((p) => p.type));
+  const off = switchedOffFilter(hidden);
   const read = (hideCleared: boolean) => {
     let q = supabase.from('notifications').select('id, type, title, body, route, data, read_at, created_at');
     if (hideCleared) q = q.is('cleared_at', null);
+    if (off.types) q = q.not('type', 'in', off.types);
+    // A message answers to its side's switch; a message with no side, and every other kind, stays.
+    if (off.sides) q = q.or(`type.neq.message,data->>side.is.null,data->>side.not.in.${off.sides}`);
     if (web) q = q.not('type', 'in', PHONE_ONLY_IN);
     return q.order('created_at', { ascending: false }).limit(200);
   };
@@ -54,10 +65,6 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: 'Could not read notifications.' }, { status: 502 });
 
   const rows = (data ?? []) as Row[];
-  // The switches whose App channel the reader turned off.
-  const offRes = rows.length
-    ? await supabase.from('notification_preferences').select('type').eq('user_id', user.id).eq('channel', 'inapp').eq('enabled', false)
-    : { data: [], error: null };
   // Honor the preference center's in-app channel: a row written for push/email
   // only (data.channels.inapp === false) never shows in the bell. Rows with no
   // channels metadata predate the preference stamping — default visible. The
@@ -66,9 +73,8 @@ export async function GET(request: Request) {
   // ⚠ AND A ROW NOTHING STAMPED ANSWERS TO ITS SWITCH TOO (owner, 2026-10-26: "make sure users have the
   // ability to customize/toggle which notifications they want"). A database trigger's row (a message,
   // a follow, a coach's new plan) carries no stamp, so its App switch hid nothing. Each row is read
-  // against the switch it answers to (preferenceTypeFor). A read of the switches that fails hides
-  // nothing: the list is never emptied on its own uncertainty.
-  const hidden = new Set(offRes.error ? [] : ((offRes.data ?? []) as { type: string }[]).map((p) => p.type));
+  // against the switch it answers to (preferenceTypeFor), here as well as in the query: this catches
+  // what the query can't say (a bare 'message' switch).
   const visible = rows.filter(r =>
     ((r.data as { channels?: { inapp?: boolean } } | null)?.channels?.inapp) !== false
     && !hidden.has(preferenceTypeFor(r.type, r.data))

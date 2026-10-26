@@ -113,3 +113,20 @@ export function preferenceTypeFor(type, data) {
   }
   return Object.prototype.hasOwnProperty.call(PREFERENCE_OF, type) ? PREFERENCE_OF[type] : type;
 }
+
+// What a set of switched-off switches hides, as PostgREST lists for a query: `types` for
+// `.not('type', 'in', …)` and `sides`, the message sides, for the `data->>side` filter; null when
+// there are none. The inverse of preferenceTypeFor, so the list leaves them out before its row cap.
+// It never hides a row preferenceTypeFor would show. The one switch it can't express, a bare
+// 'message' (a message with no side), is left to the filter after the query. A switch is the
+// reader's own row, so anything but a snake_case word is skipped rather than written into a filter.
+const SIDE_OF_SWITCH = Object.freeze({ coach_message: 'client', client_message: 'coach', direct_message: 'member' });
+export function switchedOffFilter(switches) {
+  const off = new Set([...(switches || [])].filter((s) => typeof s === 'string' && /^[a-z0-9_]+$/.test(s)));
+  const types = new Set();
+  for (const [type, pref] of Object.entries(PREFERENCE_OF)) if (off.has(pref)) types.add(type);
+  for (const s of off) if (s !== 'message' && !Object.prototype.hasOwnProperty.call(PREFERENCE_OF, s)) types.add(s);
+  const sides = [...off].filter((s) => Object.prototype.hasOwnProperty.call(SIDE_OF_SWITCH, s)).map((s) => SIDE_OF_SWITCH[s]);
+  const list = (xs) => (xs.length ? `(${[...xs].sort().join(',')})` : null);
+  return { types: list([...types]), sides: list(sides) };
+}
