@@ -1573,10 +1573,14 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     // the look behind it: the dawn, the tunnel, the chase or a loop, dissolving on a bar's downbeat
     look = stepWallLook(look, { bp, drop: dropOn, ready: plateReady(), reduced });
     if (pinnedLook) {
-      // a preview holding one look (pinWallLook): a plate takes the first loop that has loaded
+      // a preview holding one look (pinWallLook), on its own as the show has it: a plate takes the
+      // first loop that has loaded, and the headline stays off
       const k = pinnedLook === 'plate' ? plateReady().indexOf(true) : -1;
       const name = pinnedLook === 'plate' && k < 0 ? 'dawn' : pinnedLook;
       look = { from: name, fromPlate: k, to: name, toPlate: k, t0: -Infinity, bar: look.bar };
+      wallU.uBuild.value = name === 'blank' ? 1 : 0;
+      wallU.uClear.value = name === 'blank' ? 0 : 1;
+      wallU.uEcho.value = 0;
     }
     const lm = wallLookMix(look, bp);
     const dawnW = (look.from === 'dawn' ? 1 - lm : 0) + (look.to === 'dawn' ? lm : 0);
@@ -1814,7 +1818,8 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     // the video loops: [url], loaded in turn; [] for none
     setWallLoops,
     get wallLoops() { return plates.map((p) => ({ url: p.url, state: p.state })); },
-    // for a preview: hold the wall on one look ('dawn' | 'tunnel' | 'chase' | 'plate'), null for the show
+    // for a preview: hold the wall on one look ('dawn' | 'tunnel' | 'chase' | 'plate'), null for the
+    // show; 'blank' holds the headline on its dark wall
     pinWallLook(name) { pinnedLook = Object.prototype.hasOwnProperty.call(WALL_LOOKS, name) ? name : null; },
     attach,
     set,
