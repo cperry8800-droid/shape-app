@@ -69,6 +69,7 @@ import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsRed, bsWsHead } from './BSWallStory.jsx';
+import { BSChatPlaceTitle, BSChatPlacesSheet } from './BSChatPlaces.jsx';
 import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
@@ -23796,11 +23797,17 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [tab, setTab] = useStateBSC('feed');
   const [filter, setFilter] = useStateBSC('COMMUNITY');
   const [teamsSel, setTeamsSel] = useStateBSC('coaches');
-  // Auto-hide the sub-tab rows (Feed role chips, Team Coaches/Friends) on
-  // scroll-down; reveal on scroll-up or near the top. One scroll listener on the
-  // BSPage scroller — found by walking up from the always-rendered main tab row
-  // (bsSubAnchorRef) — drives a shared `subHidden` flag; each sub-tab row
-  // collapses via bsSubStyle().
+  // The title's sheet of places (BSChatPlaces.jsx, the owner's B, 2026-10-26); focus goes back to the
+  // title when it closes.
+  const [placesOpen, setPlacesOpen] = useStateBSC(false);
+  const placesTitleRef = React.useRef(null);
+  // A notification that opens a conversation or a place lands over the sheet's choice; the sheet does
+  // not come back when the member backs out of that conversation.
+  React.useEffect(() => { if (openRequest && openRequest.nonce) setPlacesOpen(false); }, [openRequest && openRequest.nonce]);
+  // Auto-hide the sub-tab row (Team's Coaches / Friends) on scroll-down; reveal on
+  // scroll-up or near the top. One scroll listener on the BSPage scroller — found
+  // by walking up from the always-rendered anchor under the rail (bsSubAnchorRef) —
+  // drives a shared `subHidden` flag; the sub-tab row collapses via bsSubStyle().
   const [subHidden, setSubHidden] = useStateBSC(false);
   // Attach the scroll-direction listener via a CALLBACK ref on the (always-
   // rendered) main tab row, so it re-attaches whenever the feed remounts — e.g.
@@ -24575,20 +24582,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     setOpenProfile, setActivityDetail, setLikerSheetFor, setSendPostFor, feedApplyReaction,
   };
 
-  // Feed / Team / Channels as a newspaper's section strip (owner, 2026-10-24: the header "to
-  // match the new feed wall look"): the sections in the Wall's headline face, ink when active
-  // over the magazine's red, between a heavy rule and a hairline; an unread count is a bare
-  // red number, as on the sub-tabs.
-  const SectionTab = ({ on, onClick, children, badge = 0 }) => (
-    <button onClick={onClick} aria-pressed={!!on} style={{ display: 'flex', alignItems: 'stretch', justifyContent: 'center', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-      {/* The red sits under the word, on the hairline, as the Wall masthead's tabs do. */}
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 2px', boxShadow: on ? `inset 0 -2px 0 ${magRed}` : 'none', color: on ? t.INK : t.INK50, fontFamily: bsWsHead(t), fontSize: 15, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-        {children}
-        {badge > 0 && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: 0, color: magRed, fontVariantNumeric: 'tabular-nums' }}>{badge > 9 ? '9+' : badge}</span>}
-      </span>
-    </button>
-  );
-
   // Real "active now" roster (get_active_now RPC) — real people mid-workout/cooking
   // with name/tier/avatar; falls back to the demo rail when nobody's active / signed
   // out. ⚠ Hooks MUST stay ABOVE the openProfile/openChat early returns below —
@@ -24701,10 +24694,41 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const railProfileOf = (p) => ({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, userId: p.userId || null, photo: railPhotoOf(p) || bsDemoFace(p.name) });
   const liftingNow = online > 0 ? online : (loggedIn ? railPeople.length : 2104);
 
+  // THE TITLE IS THE SWITCH (owner, 2026-10-26: "go with B"). The five places Chat has, the feeds
+  // first and then the two message places with their unread, named in the title and opened from it;
+  // the Feed / Team / Channels strip and the role tabs under it are gone. The feeds are CHIP_KEYS, so
+  // the sheet offers exactly the channels the role tabs did: the viewer's own role and no other.
+  const placeOf = (k) => (k === 'COMMUNITY' ? 'wall' : k === 'SHAPE' ? 'community' : 'role');
+  const PLACE_ORDER = { wall: 0, community: 1, role: 2 };
+  const roleSubKey = myRoleChip === 'TRAINER' ? 'trainerSub' : myRoleChip === 'NUTRI' ? 'nutritionistSub' : 'clientSub';
+  const placeSub = {
+    wall: tr('feed:places.wallSub', { defaultValue: 'Workouts, PRs and who\'s training now' }),
+    community: tr('feed:places.communitySub', { defaultValue: 'Members\' posts and questions' }),
+    role: tr('feed:places.' + roleSubKey, { defaultValue: { clientSub: 'Posts between clients', trainerSub: 'Posts between trainers', nutritionistSub: 'Posts between nutritionists' }[roleSubKey] }),
+  };
+  const places = [
+    ...CHIP_KEYS.slice().sort((a, b) => PLACE_ORDER[placeOf(a)] - PLACE_ORDER[placeOf(b)])
+      .map((k) => ({ key: placeOf(k), chip: k, label: chipLabel(k), sub: placeSub[placeOf(k)], badge: 0, group: 'feed' })),
+    { key: 'team', label: tr('feed:tab.team', { defaultValue: 'Team' }), sub: tr('feed:places.teamSub', { defaultValue: 'Coaches and friends, one to one' }), badge: coachUnread + friendUnread, group: 'messages' },
+    { key: 'channels', label: tr('feed:tab.channels', { defaultValue: 'Channels' }), sub: tr('feed:places.channelsSub', { defaultValue: 'Group threads by topic' }), badge: chUnread, group: 'messages' },
+  ];
+  const place = tab === 'feed' ? placeOf(filter) : tab === 'channels' ? 'channels' : 'team';
+  const placeLabel = (places.find((p) => p.key === place) || places[0]).label;
+  const unreadElsewhere = places.reduce((a, p) => a + (p.key === place ? 0 : p.badge), 0);
+  const closePlaces = () => {
+    setPlacesOpen(false);
+    try { placesTitleRef.current?.focus({ preventScroll: true }); } catch (e) {}
+  };
+  const pickPlace = (key) => {
+    const feed = places.find((p) => p.key === key && p.group === 'feed');
+    if (feed) { setTab('feed'); setFilter(feed.chip); }
+    else setTab(key === 'channels' ? 'channels' : 'teams');
+    closePlaces();
+  };
+
   return (
     <BSPage>
-      {/* Tab-aware masthead — "CHAT" eyebrow + serif title that follows the
-          active tab (Community / Channels / Friends / Your team). */}
+      {/* The masthead: the "CHAT" kicker and the place's name as the title, which opens the places. */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -24715,12 +24739,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </div>
         <div style={{ minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, rowGap: 8 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: magRed, fontWeight: 700 }}>{tr('feed:masthead.eyebrow', { defaultValue: 'Chat' })}</div>
-            {/* The page's title in the Wall's headline face (owner, 2026-10-24: "everything on chat page should
-                match new feed wall design"). */}
-            <h1 style={{ fontFamily: bsWsHead(t), fontWeight: 500, fontSize: 36, letterSpacing: '0.005em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
-              {tab === 'feed' ? tr('feed:masthead.titleFeed', { defaultValue: 'Community' }) : tab === 'channels' ? tr('feed:masthead.titleChannels', { defaultValue: 'Channels' }) : tab === 'support' ? tr('feed:masthead.titleSupport', { defaultValue: 'Support' }) : tr('feed:masthead.titleTeam', { defaultValue: 'Your team' })}
-            </h1>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: magRed, fontWeight: 700 }}>
+              {tr('feed:masthead.eyebrow', { defaultValue: 'Chat' })}
+              {/* Unread in a place the page is not showing, so a message is never hidden behind the title. */}
+              {unreadElsewhere > 0 && <span style={{ color: t.INK50 }}> · {tr('feed:places.unreadElsewhere', { defaultValue: '{count, number} unread elsewhere', count: unreadElsewhere })}</span>}
+            </div>
+            {/* The place's name in the Wall's headline face (owner, 2026-10-24: "everything on chat page should
+                match new feed wall design"); tapping it opens the places. */}
+            <BSChatPlaceTitle label={placeLabel} open={placesOpen} onOpen={() => setPlacesOpen(true)} buttonRef={placesTitleRef} />
           </div>
           {/* The feed's viewing lens rides the title row, right-aligned (owner
               call 2026-07-14) — page-level control, out of the chip stack.
@@ -24815,14 +24841,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           onOpenProfile={() => setOpenProfile(boostFor._profile || { who: boostFor.name, kind: 'CLIENT', tier: boostFor.tier, public: true, userId: boostFor.userId || null, photo: boostFor.photoUrl || bsDemoFace(boostFor.name) })} />
       )}
 
-      {/* Feed / Team / Channels — Friends lives INSIDE Team as a sub-tab; Nora is the ✦ sheet */}
-      {/* The strip and the role tabs under it keep the Wall's 12px measure (owner, 2026-10-24: "clean
-          it up"), so their rules start and end with the masthead's below. */}
-      <div ref={bsSubAnchorRef} style={{ padding: '14px 12px 0' }}>
-        <div data-bs-chat-sections="" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderBottom: `1px solid ${t.HAIR}` }}>
-          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread]].map(([k, l, b]) => <SectionTab key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</SectionTab>)}
-        </div>
-      </div>
+      {/* Where the Feed / Team / Channels strip stood: the gap under the rail, and the always-rendered
+          anchor the sub-row auto-hide finds the scroller from (Team's Coaches / Friends still hides). */}
+      <div ref={bsSubAnchorRef} aria-hidden style={{ height: 14 }} />
+      {placesOpen && <BSChatPlacesSheet places={places} current={place} onPick={pickPlace} onClose={closePlaces} />}
 
       {tab !== 'feed' ? (
         (() => {
@@ -25068,15 +25090,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         })()
       ) : (
         <>
-          {/* Role filter chips — auto-hide on scroll-down (bsSubStyle) */}
-          <div inert={subHidden} style={bsSubStyle(0)}>
-          {/* The role chips. The Wall's type filter is its own row of tabs (owner, 2026-10-23, the
-              magazine design); it was an ALL ▾ select at this row's right end. */}
-          <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', alignItems: 'center', gap: 22, padding: '2px 12px' }}>
-            {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, onClick: () => setFilter(k), label: chipLabel(k) }))}
-          </div>
-          </div>
-
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: '4px 0 84px', display: 'flex', flexDirection: 'column', gap: 0 }}>
               {/* The activity types as tabs. THE WALL's masthead over them (its name, the day and how many

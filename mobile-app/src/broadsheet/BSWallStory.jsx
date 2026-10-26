@@ -144,23 +144,26 @@ export function BSWallStoryQuote({ text, cite, onOpen }) {
   );
 }
 
-// The Wall's activity types as text tabs with a red underline, spread across the column and scrolling
-// sideways when a language's words run longer. `types` are [key, label] pairs; `type` is the one shown.
-// It sits on the cards' 12px gutter, as the live story does. It used to stand under a masthead (THE WALL
-// over a heavy rule, the day and how many were training), cut by the owner, 2026-10-25: "remove this
-// header in chat page" and "clean this up"; the live story right under it says who is training.
+// The Wall's activity types as a row of chips, the one shown filled in ink, scrolling sideways when a
+// language's words run longer. `types` are [key, label] pairs; `type` is the one shown. Since the owner's
+// B (2026-10-26) the page's title is the switch between Chat's places (BSChatPlaces.jsx), so this is the
+// one row of controls left over the Wall; it sits on the cards' 12px gutter, as the live story does. It
+// used to stand under a masthead (THE WALL over a heavy rule, the day and how many were training), cut by
+// the owner, 2026-10-25: "remove this header in chat page" and "clean this up".
 export function BSWallTypes({ types = [], typesLabel, type, onType }) {
   const t = window.useBS();
-  const red = bsWsRed(t);
   const mono = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' };
   return (
-    <nav data-bs-wall-types="" className="bs-hide-scroll" aria-label={typesLabel} style={{ margin: '0 12px', display: 'flex', justifyContent: 'space-between', gap: 14, overflowX: 'auto', borderBottom: `1px solid ${t.HAIR}` }}>
+    <nav data-bs-wall-types="" className="bs-hide-scroll" aria-label={typesLabel} style={{ margin: '0 12px', display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 6, borderBottom: `1px solid ${t.HAIR}` }}>
       {types.map(([k, label]) => {
         const on = k === type;
         return (
+          // The 44px target is the button; the chip drawn inside it is the visible part.
           <button key={k} type="button" aria-pressed={on} onClick={() => onType && onType(k)}
-            style={{ ...mono, flex: 'none', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', color: on ? t.INK : t.INK50, boxShadow: on ? `inset 0 -2px 0 ${red}` : 'none' }}>
-            {label}
+            style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
+            <span style={{ ...mono, display: 'inline-block', padding: '9px 13px', borderRadius: 4, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK }}>
+              {label}
+            </span>
           </button>
         );
       })}

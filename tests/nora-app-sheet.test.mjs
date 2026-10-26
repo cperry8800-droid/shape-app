@@ -75,10 +75,12 @@ test('a reply that lands after the sheet closes is kept: the thread and the in-f
   assert.ok(!/setSupportMsgs\(m => \[\.\.\.m/.test(sheet), 'no reply is written only to this instance');
 });
 
-test('Chat\'s segment row is three columns now that Support has left', () => {
+test('Chat\'s places carry no Support now that it has left', () => {
   const feed = between(APP, 'function BSClientFeed(', 'function BSNoraSheet(');
-  // The row is the magazine's section strip since 2026-10-24 (data-bs-chat-sections).
-  assert.match(feed, /data-bs-chat-sections="" style=\{\{ display: 'grid', gridTemplateColumns: 'repeat\(3, 1fr\)'/);
+  // The places are the title's sheet since 2026-10-26 (the owner's B): the feeds, Team and Channels.
+  const msg = [...feed.matchAll(/\{ key: '([a-z]+)', label: tr\('feed:tab\.[a-z]+'[^\n]*group: 'messages' \}/g)].map((m) => m[1]);
+  assert.deepEqual(msg, ['team', 'channels']);
+  assert.doesNotMatch(feed, /key: 'support'|feed:tab\.support/);
 });
 
 test('each takeover renders the sheet once', () => {

@@ -214,8 +214,9 @@ test('the figures, the record and the quote', async () => {
 });
 
 // Owner, 2026-10-25: "remove this header in chat page" and "clean this up", of THE WALL over its heavy rule
-// and the day with how many were training. What stays is the type filter, one row on the cards' gutter.
-test('the Wall\'s types are one row of tabs, with no masthead over them', async () => {
+// and the day with how many were training. What stays is the type filter, one row on the cards' gutter;
+// since the owner's B (2026-10-26) it is a row of chips, the one shown filled in ink.
+test('the Wall\'s types are one row of chips, with no masthead over them', async () => {
   const picked = [];
   const types = [['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs']];
   const r = await render(React.createElement(STORY.BSWallTypes, { types, typesLabel: 'Filter by activity type', type: 'runs', onType: (k) => picked.push(k) }));
@@ -229,6 +230,9 @@ test('the Wall\'s types are one row of tabs, with no masthead over them', async 
     const tabs = [...nav.querySelectorAll('button')];
     assert.deepEqual(tabs.map((b) => b.getAttribute('aria-pressed')), ['false', 'false', 'true', 'false'], 'the type shown is the pressed tab');
     assert.ok(tabs.every((b) => b.style.minHeight === '44px'), 'every tab is a full touch target');
+    const fill = tabs.map((b) => b.firstElementChild.style.background);
+    assert.ok(fill[2] && fill[2] !== 'transparent', 'the type shown is not a filled chip');
+    assert.deepEqual([fill[0], fill[1], fill[3]], ['transparent', 'transparent', 'transparent'], 'a type not shown is filled');
     await React.act(async () => { tabs[3].click(); });
     assert.deepEqual(picked, ['prs']);
   } finally { await r.done(); }

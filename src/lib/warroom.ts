@@ -615,6 +615,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Chat: the title is the switch between Chat\'s places (the owner\'s B), and the website\'s Chat frame follows — #2465. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26, on the Chat page\'s stacked tab rows: "still dont love the look of this", "give me 3 new ideas", then "go with B", "keep A though as ammo in case i want to change" and "make sure to update new chat page on website to after its done"', status: 'done' },
+        { label: 'BSChatPlaces.jsx: the title names the place ("Wall ▾") and opens a sheet of the three feeds, then Messages (Team and Channels with their unread); the kicker reads "N unread elsewhere". The Feed / Team / Channels strip and the role tabs are gone; the feeds are CHIP_KEYS, so no peer channel is widened. The Wall\'s types are chips', status: 'done' },
+        { label: '14 feed:places.* strings in all 13 locales; five keys nothing reads removed (masthead.titleFeed/Team/Support/Wall, tab.support)', status: 'done' },
+        { label: 'Get App\'s Community frame re-shot with the new title (?v=20261026b); the Wall frames are scrolled past the tabs and unchanged', status: 'done' },
+        { label: 'Idea A (one contents line) kept in reserve with its build notes: docs/DESIGN-2026-10-26-chat-places.md', status: 'done' },
+        { label: 'Review: Codex clean on f464777. Checks: npm test 8,525/8,525; tests/chat-places.test.mjs mounts the sheet and the title', status: 'done' },
+        { label: 'Device pass signed in: the sheet, the unread kicker with real Team and Channels unread, and a coach\'s Trainer / Nutritionist feed', status: 'manual' },
+      ],
+    },
+    {
       section: 'The website\'s screenshots re-shot: the homepage and Get App (#2463), and the Coaches page\'s twenty frames — #2464. No migration',
       items: [
         { label: 'Owner, 2026-10-26: "now need to update all screen shots of app on website", "on home/index page and app page", then "re-shoot the coaches page snapshots too"', status: 'done' },
