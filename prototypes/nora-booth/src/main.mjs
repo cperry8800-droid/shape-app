@@ -678,7 +678,7 @@ resize();
 if (Q.get('mode')) setMode(Q.get('mode'));
 if (Q.get('autostart')) startSet();
 requestAnimationFrame(frame);
-window.__booth = { director, renderer, club, venue, exterior, venueMs, scene, camera, cine, get composer() { return composer; }, get nora() { return nora; }, get ms() { return window.__ms; }, get bar() { return barNow(); }, scheduleMix: () => scheduleMix(barNow()), setMode };
+window.__booth = { director, renderer, club, venue, exterior, venueMs, scene, camera, cine, orbit, get composer() { return composer; }, get nora() { return nora; }, get ms() { return window.__ms; }, get bar() { return barNow(); }, scheduleMix: () => scheduleMix(barNow()), setMode };
 
 // Debug: the first thing a camera ray hits among Nora and the gear (handprobe.cjs uses it to sample
 // only pixels that are actually her skin). Cheap: it tests only the foreground, never the crowd.

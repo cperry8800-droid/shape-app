@@ -11,8 +11,32 @@ the module by the pack's version.
 
 | file | for | people | levels of detail (triangles) | atlas |
 | --- | --- | --- | --- | --- |
-| `crowd-people.bin.txt` + `.webp` | desktops (`NORA_MODEL.crowd`) | 12 | near ≈5,600 · far ≈1,400 · tiny ≈460 · seat ≈600 | 4096×3072 |
-| `crowd-people-lo.bin.txt` + `.webp` | phones (`NORA_MODEL.crowdLow`) | 6 | near ≈3,000 · far ≈850 · tiny ≈320 · seat ≈420 | 1024×1536 |
+| `crowd-people.bin.txt` + `.webp` | desktops (`NORA_MODEL.crowd`) | 12 | near ≈8,500 · far ≈1,400 · tiny ≈460 · seat ≈600 · seatNear ≈4,500 | 4096×3072 |
+| `crowd-people-lo.bin.txt` + `.webp` | phones (`NORA_MODEL.crowdLow`) | 6 | near ≈4,300 · far ≈850 · tiny ≈320 · seat ≈420 · seatNear ≈2,300 | 1024×1536 |
+
+`seatNear` is the seated pose at a near level's detail (hair cards, eyes and brows kept), for the side
+rooms' guests, who sit a few metres from the camera (owner, 2026-10-26: *"make sure the people have
+the updated graphics"*); the hall's booths keep `seat`. The bake is deterministic: the same inputs
+give byte-identical figures and atlas.
+
+Owner, 2026-10-26: *"the people look horrible"*. Up close they read as low-detail game characters, so
+the close levels were rebuilt:
+- **The face has its own tile**: the head's box of the skin texture, half the person's tile (512 px on
+  desktops, 256 on phones), where it was a corner of the whole body's skin squeezed into one tile
+  (≈100 px a face). The rest of the skin takes a quarter.
+- **The head has its own triangles** at the close levels (`--head`, near 1,600 / seatNear 1,200 on
+  desktops), not a share of what the clothes leave; the hair gets a fifth of the level (it was a
+  tenth, and short hair decimated into a cap).
+- **The brows are a part of their own** (`BROWS`): the shader cuts them at a higher alpha and draws
+  them in the person's hair colour, where they were black marker strokes.
+- **A stance each**: the torso turned a little, soft elbows and one forearm up for some, the weight on
+  one leg with the other knee soft, the head turned and tilted; seated people turn to their
+  neighbour.
+- **Hands**: MakeHuman's rest hand is open with the fingers fanned ~34°, which read as a claw. The
+  fingers are drawn toward the middle one and curl a little more each from index to little finger,
+  the thumb in by the index. At the close levels the hands have their own triangles (12% of the
+  level, taken from what the rest shares): simplified with the rest of the skin by area, a suit's
+  hands had ~150 triangles each and the fingers thinned to spikes.
 
 The pack (v3) is base64 text like the old one: a JSON header, then per person and level the
 positions (int16 mm), normals (int8), a part tag, two arm weights and the atlas UVs (uint16), and the
@@ -49,15 +73,17 @@ What the bake does that matters, each measured on a render:
 
 ```bash
 cd prototypes/nora-booth/crowd-mh
-<venv>/bin/python bake_people.py -- --people people.json --out ../pub/crowd-people
+<venv>/bin/python bake_people.py -- --people people.json --out ../pub/crowd-people \
+    --budget near=7500,far=1400,tiny=460,seat=600,seatNear=3600 --head near=1600,seatNear=1200
 <venv>/bin/python bake_people.py -- --people people.json --out ../pub/crowd-people-lo \
-    --only 0,2,3,5,6,8 --tile 512 --budget near=3000,far=850,tiny=320,seat=420
+    --only 0,2,3,5,6,8 --tile 512 --budget near=3800,far=850,tiny=320,seat=420,seatNear=1900 \
+    --head near=800,seatNear=600
 # the website and the app serve the same files
 for d in ../../../public/nora ../../../mobile-app/public/nora; do
   cp ../pub/crowd-people*.bin.txt ../pub/crowd-people*.webp "$d"/; done
 ```
 
-About 90 s for the desktop pack. `BAKE_DEBUG=1` prints each part's triangles before and after.
+About 140 s for the desktop pack. `BAKE_DEBUG=1` prints each part's triangles before and after.
 `src/people-test.mjs` lines every person up at every level (`?url=`, `&cam=front|close|side`,
 `&raise=`, `&dress=0`); `tests/booth-crowdPeople.test.mjs` checks the committed packs.
 

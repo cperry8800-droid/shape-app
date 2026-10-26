@@ -29,6 +29,7 @@ import { createCrowd, crowdHasLod } from './crowdPeople.mjs';
 import { palmTrunk, palmFronds, palmBeam } from './palmGeometry.mjs';
 import { boxGrid, lightGrid, directAt, directAll, bakeMesh, bounceField, gridQuad } from './lightBake.mjs';
 import { createArenaStage, ARENA_DIMS } from './arenaStage.mjs';
+import { SIDE_ROOMS, roomX } from './clubRooms.mjs';
 
 export const VENUE_DIMS = {
   FLOOR_Y: -0.66,
@@ -58,6 +59,10 @@ const TIERS = [
   { y0: LEVELS[1], y1: LEVELS[2] - SLAB_T },
   { y0: LEVELS[2], y1: CEIL_Y },
 ];
+// The side rooms' doorway (clubRooms.mjs): the ground tier's bay 3 of 8 opens into them, so its two
+// private boxes, its glass and sill, and that stretch of the outer wall make way on both sides.
+const DOOR = SIDE_ROOMS.door;
+const inDoor = (za, zb) => za >= DOOR.z0 - 0.05 && zb <= DOOR.z1 + 0.05;
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -220,6 +225,11 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   const hdr = (hex, k) => new THREE.Color(hex).multiplyScalar(k);
   // the balconies' crowd: backlit by the warm lounge glass, a little of the atrium's light in front
   const CROWD_RIM = new THREE.Color(0.3, 0.19, 0.1), CROWD_FILL = new THREE.Color(0.035, 0.034, 0.036), CROWD_BACK = new THREE.Color(0.04, 0.026, 0.014);
+  // the side rooms' guests: lamplight from every side, a warm white so their clothes keep their
+  // colours (an amber fill turned everyone one shade of brown), and most of the room's ambient; none
+  // of the stage's direct light reaches them through the walls
+  const ROOM_RIM = new THREE.Color(0.17, 0.12, 0.07), ROOM_FILL = new THREE.Color(0.1, 0.086, 0.07), ROOM_BACK = new THREE.Color(0.02, 0.015, 0.01);
+  const ROOM_HOUSE = { near: 0, far: 0, fall: 1, ambient: 0.9 };
 
   // ── canvas textures ─────────────────────────────────────────────────
   // Lounge / restaurant glass: warm interior seen through black-framed glass. 1024 px = 12.8 m.
@@ -488,7 +498,12 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   // end walls (dark, behind the glass), ceiling
   S.push(solid(occ(box(-X_OUT, X_OUT, FLOOR_Y, CEIL_Y, Z_STAGE, Z_STAGE + 0.3)), C_WALL));
   S.push(solid(occ(box(-X_OUT, X_OUT, FLOOR_Y, CEIL_Y, Z_FAR - 0.3, Z_FAR)), C_WALL));
-  for (const s of [-1, 1]) S.push(solid(occ(box(s * X_OUT, s * (X_OUT + 0.3), FLOOR_Y, CEIL_Y + 2.2, Z_FAR, Z_STAGE)), C_WALL));
+  for (const s of [-1, 1]) {
+    // the side walls, open on the ground tier where the doorway into the side rooms is
+    S.push(solid(occ(box(s * X_OUT, s * (X_OUT + 0.3), FLOOR_Y, CEIL_Y + 2.2, Z_FAR, DOOR.z0)), C_WALL));
+    S.push(solid(occ(box(s * X_OUT, s * (X_OUT + 0.3), FLOOR_Y, CEIL_Y + 2.2, DOOR.z1, Z_STAGE)), C_WALL));
+    S.push(solid(occ(box(s * X_OUT, s * (X_OUT + 0.3), TIERS[0].y1, CEIL_Y + 2.2, DOOR.z0, DOOR.z1)), C_WALL));
+  }
 
   const SEG = LOW ? 72 : 128;
   const sk = SKYLIGHT;
@@ -703,12 +718,13 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
 
   const BOXES = [];   // { o:[x,y,z], th, w, d, h, tint, layout, uph, wood, accent, empty }
   const DEPTH = BACK_X - WIN_X;   // ≈ 1.76 m
-  TIERS.forEach((T) => {
+  TIERS.forEach((T, ti) => {
     const h = T.y1 - T.y0;
     for (const s of [-1, 1]) {
       lastTint = -1;
       for (let k = 0; k < 16; k++) {
         const za = lerp(FAR_WIN_Z, END_WIN_Z, k / 16), zb = lerp(FAR_WIN_Z, END_WIN_Z, (k + 1) / 16);
+        if (ti === 0 && inDoor(za, zb)) continue;   // the doorway into the side rooms
         BOXES.push({ o: [s * BACK_X, T.y0, (za + zb) / 2], th: -s * Math.PI / 2, w: zb - za, d: DEPTH, h, s, closeRight: (s > 0 && k === 15) || (s < 0 && k === 0) });
       }
     }
@@ -848,15 +864,19 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   // stand on the bay lines)
   {
     const MF = [], cF = [0.02, 0.018, 0.015];
-    TIERS.forEach((T) => {
+    TIERS.forEach((T, ti) => {
       const h = T.y1 - T.y0, tY = T.y1 - 0.133 * h;
       for (const s of [-1, 1]) {
         for (let k = 1; k < 32; k++) if (k % 4) {
           const z = lerp(FAR_WIN_Z, END_WIN_Z, k / 32);
+          if (ti === 0 && inDoor(z, z)) continue;
           MF.push(solid(box(s * (WIN_X - 0.04), s * (WIN_X + 0.04), T.y0, T.y1, z - 0.03, z + 0.03), cF));
         }
         MF.push(solid(box(s * (WIN_X - 0.03), s * (WIN_X + 0.03), tY, tY + 0.05, FAR_WIN_Z, END_WIN_Z), cF));
-        MF.push(solid(box(s * (WIN_X - 0.03), s * (WIN_X + 0.03), T.y0, T.y0 + 0.08, FAR_WIN_Z, END_WIN_Z), cF));
+        // the sill, but not across the doorway (its transom stays: the doorway's head)
+        for (const [za, zb] of ti === 0 ? [[FAR_WIN_Z, DOOR.z0], [DOOR.z1, END_WIN_Z]] : [[FAR_WIN_Z, END_WIN_Z]]) {
+          MF.push(solid(box(s * (WIN_X - 0.03), s * (WIN_X + 0.03), T.y0, T.y0 + 0.08, za, zb), cF));
+        }
       }
       for (let k = 1; k < 16; k++) if (k % 4) {
         const x = lerp(-WIN_X, WIN_X, k / 16);
@@ -868,15 +888,294 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     mesh(merge(MF, 'boxFrames'), matBoxes, 'venueBoxFrames');
     // a faint sheen on the glass, so the rooms read as behind glass
     const GS = [];
-    TIERS.forEach((T) => {
-      const h = T.y1 - T.y0, len = END_WIN_Z - FAR_WIN_Z;
-      GS.push(quad([WIN_X - 0.01, T.y0, END_WIN_Z], [0, 0, -1], [0, 1, 0], len, h, [0, 0, len / 6, 1]));
-      GS.push(quad([-WIN_X + 0.01, T.y0, FAR_WIN_Z], [0, 0, 1], [0, 1, 0], len, h, [0, 0, len / 6, 1]));
+    TIERS.forEach((T, ti) => {
+      const h = T.y1 - T.y0;
+      // no glass in the doorway (ground tier): the run either side of it
+      for (const [za, zb] of ti === 0 ? [[FAR_WIN_Z, DOOR.z0], [DOOR.z1, END_WIN_Z]] : [[FAR_WIN_Z, END_WIN_Z]]) {
+        const len = zb - za;
+        GS.push(quad([WIN_X - 0.01, T.y0, zb], [0, 0, -1], [0, 1, 0], len, h, [0, 0, len / 6, 1]));
+        GS.push(quad([-WIN_X + 0.01, T.y0, za], [0, 0, 1], [0, 1, 0], len, h, [0, 0, len / 6, 1]));
+      }
       GS.push(quad([-WIN_X, T.y0, FAR_WIN_Z + 0.01], [1, 0, 0], [0, 1, 0], 2 * WIN_X, h, [0, 0, (2 * WIN_X) / 6, 1]));
     });
     mesh(merge(GS, 'boxSheen'), matSheen, 'venueBoxGlass', 3);
   }
   mesh(merge(W, 'lounges'), matLounge, 'venueLounges');
+
+  // ── 2c. the side rooms: the VIP lounge (left) and the cocktail bar (right) ──────────────
+  // Owner, 2026-10-26: "i also want to create spearate side rooms/lounges and views of those". Two
+  // rooms of their own off the dance floor, through the ground tier's bay 3 (clubRooms.mjs): on the
+  // left a VIP lounge (a banquette under a back-lit onyx wall, sofa groups round low tables, a
+  // champagne bar, two chandeliers, a rope and a doorman at the door); on the right a cocktail bar (a
+  // 12 m counter under pendant lamps, a back bar of lit bottles, high tables, bartenders). Built as the
+  // private boxes are: geometry, each room's lamps baked into its own vertices, nothing a picture.
+  const ROOM_GUESTS = [];   // { x, y, z, ry, seat?: { x, z, top } } — the rooms' own crowd (9b)
+  const ROOM_PALMS = [];    // potted palms, drawn with the balconies' (7)
+  const ROOM_SPILL = [];    // each room's glow out through its doorway onto the hall (8b)
+  {
+    const R = SIDE_ROOMS, F = R.floorY, CY = R.ceilY, D = R.depth, Z0 = R.z0, Z1 = R.z1;
+    const zc = (DOOR.z0 + DOOR.z1) / 2;
+    const CELL = LOW ? 0.8 : 0.4;
+    const rr = mulberry32(seed * 41 + 13);   // its own stream: the rooms never move a palm or a box
+    const ROOM = [], RGLOW = [], ONYX = [], SIGNS = [];
+    const accentRGB = new THREE.Color(accent).toArray();
+    // bottles on a back-lit shelf: dark glass, the liquid catching the light behind it (amber spirits,
+    // green and clear bottles, a red aperitif, a blue gin), below the bloom threshold
+    const BOTTLES = [[0.42, 0.24, 0.07], [0.12, 0.26, 0.1], [0.34, 0.33, 0.3], [0.36, 0.08, 0.05], [0.1, 0.18, 0.32], [0.05, 0.04, 0.03]];
+    // furniture in a dim room: tops catch it, sides a little, undersides none. This is the look before
+    // the lamps, which the bake adds: kept low, so a pale marble top is bright only where a lamp is
+    const shade = (base) => (x, y, z, nx, ny) => {
+      const k = ny < -0.5 ? 0.05 : 0.14 + 0.3 * Math.max(0, ny) + 0.08 * (1 - Math.abs(ny));
+      return [base[0] * k, base[1] * k, base[2] * k];
+    };
+    const glowAt = (p, r, c, list = RGLOW) => { const g = new THREE.SphereGeometry(r, 8, 6); g.translate(p[0], p[1], p[2]); list.push(solid(g, c)); };
+    const cylY = (x, z, r, y0, y1, seg = 10) => { const g = new THREE.CylinderGeometry(r, r, y1 - y0, seg, 1); g.translate(x, (y0 + y1) / 2, z); return g; };
+
+    function buildRoom(s, kind) {
+      const X = (d) => roomX(s, d);
+      const xs = [X(-0.3), X(D)], xMin = Math.min(...xs), xMax = Math.max(...xs);
+      const shell = [], P = [], L = [];
+      const piece = (d0, d1, y0, y1, u0, u1, base) => P.push(paint(box(X(d0), X(d1), y0, y1, u0, u1), shade(base)));
+      const cyl = (d, u, r, y0, y1, base, seg) => P.push(paint(cylY(X(d), u, r, y0, y1, seg), shade(base)));
+      const light = (d, y, u, c, r0, range, dir = null, cos0, cos1) => L.push({ p: [X(d), y, u], c, r0, range, dir, cos0, cos1, shadow: false });
+      const guest = (d, u, yaw, seatTop = null) => {
+        // yaw 0 faces the hall (−s·x, toward d = 0), π the back wall, +π/2 toward +z, −π/2 toward −z
+        const g = { x: X(d), y: F, z: u, ry: (s > 0 ? -Math.PI / 2 : Math.PI / 2) + yaw * s + (rr() - 0.5) * 0.3 };
+        if (seatTop != null) g.seat = { x: g.x, z: u, top: F + seatTop };
+        if (!LOW || rr() < 0.6) ROOM_GUESTS.push(g);
+      };
+      const look = kind === 'lounge'
+        ? { floor: [0.032, 0.02, 0.012], wall: [0.03, 0.02, 0.014], ceil: [0.012, 0.01, 0.009], trim: [0.3, 0.2, 0.07] }
+        : { floor: [0.03, 0.03, 0.029], wall: [0.012, 0.032, 0.024], ceil: [0.01, 0.011, 0.011], trim: [0.3, 0.2, 0.07] };
+
+      // the shell: floor, ceiling, back wall, the two end walls and the hall-side wall either side of
+      // the doorway, cut into cells for the lamps' pools
+      shell.push(gridGeo([xMin, F + 0.004, Z0], [0, 0, 1], [1, 0, 0], Z1 - Z0, xMax - xMin, CELL, look.floor));
+      shell.push(gridGeo([xMin, CY, Z0], [1, 0, 0], [0, 0, 1], xMax - xMin, Z1 - Z0, CELL, look.ceil));
+      shell.push(gridGeo([X(D), F, s > 0 ? Z0 : Z1], [0, 0, s], [0, 1, 0], Z1 - Z0, CY - F, CELL, look.wall));
+      shell.push(gridGeo([xMin, F, Z0], [1, 0, 0], [0, 1, 0], xMax - xMin, CY - F, CELL, look.wall));
+      shell.push(gridGeo([xMax, F, Z1], [-1, 0, 0], [0, 1, 0], xMax - xMin, CY - F, CELL, look.wall));
+      for (const [za, zb] of [[Z0, DOOR.z0], [DOOR.z1, Z1]]) {
+        shell.push(gridGeo([X(0) + s * 0.004, F, s > 0 ? zb : za], [0, 0, -s], [0, 1, 0], zb - za, CY - F, CELL, look.wall));
+      }
+      // the passage from the glass line to the room: its two side walls and the wall's reveals
+      for (const z of [DOOR.z0, DOOR.z1]) piece(WIN_X + 0.2 - R.x0, X_OUT - R.x0, F, CY, z - 0.04, z + 0.04, look.wall);
+      // the doorway's head over the glass line, and its sign (facing the hall)
+      const tY = TIERS[0].y1 - 0.133 * (TIERS[0].y1 - TIERS[0].y0);
+      P.push(paint(box(s * (WIN_X - 0.06), s * (WIN_X + 0.06), tY + 0.05, TIERS[0].y1, DOOR.z0 + 0.25, DOOR.z1 - 0.25), shade([0.02, 0.018, 0.015])));
+      {
+        const w = 2.2, h = 0.32, y0 = tY + 0.1, za = zc - w / 2;
+        const g = quad([s * (WIN_X - 0.07), y0, s > 0 ? za : za + w], [0, 0, s], [0, 1, 0], w, h,
+          kind === 'lounge' ? [0, 0.5, 1, 1] : [0, 0, 1, 0.5], kind === 'lounge' ? [1.5, 1.15, 0.78] : accentRGB.map((c) => c * 1.7));
+        SIGNS.push(g);
+      }
+
+      if (kind === 'lounge') {
+        // walnut panelling: a brass fillet every 1.2 m on the back and end walls
+        for (let u = Z0 + 0.6; u < Z1 - 0.3; u += 1.2) piece(D - 0.02, D, F + 0.1, CY - 0.1, u - 0.012, u + 0.012, look.trim);
+        // the cove: a warm line round the ceiling
+        RGLOW.push(solid(box(X(0.15), X(D - 0.15), CY - 0.13, CY - 0.1, Z0 + 0.15, Z0 + 0.19), [1.3, 0.8, 0.38]));
+        RGLOW.push(solid(box(X(0.15), X(D - 0.15), CY - 0.13, CY - 0.1, Z1 - 0.19, Z1 - 0.15), [1.3, 0.8, 0.38]));
+        RGLOW.push(solid(box(X(D - 0.19), X(D - 0.15), CY - 0.13, CY - 0.1, Z0 + 0.15, Z1 - 0.15), [1.3, 0.8, 0.38]));
+        for (let u = Z0 + 1; u < Z1; u += 2.2) for (const d of [0.4, D - 0.4]) light(d, CY - 0.2, u, [0.06, 0.037, 0.017], 0.5, 3.2);
+        // the onyx wall behind the banquette: back-lit, its light on the room
+        const OW = 6.4, oy0 = F + 1.0, oy1 = F + 3.25;
+        ONYX.push(quad([X(D - 0.03), oy0, s > 0 ? zc - OW / 2 : zc + OW / 2], [0, 0, s], [0, 1, 0], OW, oy1 - oy0));
+        for (let i = 0; i < 6; i++) light(D - 0.5, F + 2.1, zc - OW / 2 + OW * (i + 0.5) / 6, [0.2, 0.12, 0.05], 0.7, 6.5, [-s, 0, 0], 0.1, -0.35);
+        // the banquette, all along the back wall: oxblood velvet
+        const velvet = [0.16, 0.028, 0.032], marble = [0.42, 0.4, 0.37], brass = [0.32, 0.22, 0.08];
+        piece(D - 0.88, D - 0.18, F, F + 0.44, Z0 + 0.5, Z1 - 0.5, velvet);
+        piece(D - 0.28, D - 0.06, F + 0.44, F + 0.98, Z0 + 0.5, Z1 - 0.5, velvet);
+        // low marble tables before it, a candle on each; guests on the banquette, armchairs across
+        for (let u = Z0 + 1.6, i = 0; u < Z1 - 1.0; u += 2.1, i++) {
+          piece(D - 1.75, D - 1.15, F + 0.38, F + 0.42, u - 0.45, u + 0.45, marble);
+          cyl(D - 1.45, u, 0.05, F, F + 0.38, brass, 8);
+          glowAt([X(D - 1.45), F + 0.47, u], 0.025, [2.6, 1.55, 0.6]);
+          light(D - 1.45, F + 0.55, u, [0.035, 0.021, 0.009], 0.3, 2.6);
+          guest(D - 0.62, u - 0.42, 0, 0.44); if (rr() < 0.75) guest(D - 0.62, u + 0.42, 0, 0.44);
+          if (i % 2 === 0) for (const du of [-0.45, 0.45]) {
+            piece(D - 2.75, D - 2.05, F, F + 0.42, u + du - 0.33, u + du + 0.33, [0.2, 0.12, 0.065]);
+            piece(D - 2.9, D - 2.72, F + 0.42, F + 0.86, u + du - 0.33, u + du + 0.33, [0.2, 0.12, 0.065]);
+            if (rr() < 0.7) guest(D - 2.4, u + du, Math.PI, 0.42);
+          }
+        }
+        // two sofa groups in the middle of the room, each under a chandelier, with a floor lamp
+        for (const uc of [Z0 + 3.4, Z1 - 4.6]) {
+          const dc = 4.4, sofa = [0.15, 0.115, 0.09];
+          for (const side of [-1, 1]) {
+            // a sofa either side of the table, facing it: seat 0.8 deep, its back on the outside
+            const uOut = uc + side * 1.55, uIn = uc + side * 0.75;
+            piece(dc - 1.0, dc + 1.0, F, F + 0.42, Math.min(uOut, uIn), Math.max(uOut, uIn), sofa);
+            piece(dc - 1.0, dc + 1.0, F + 0.42, F + 0.9, Math.min(uOut, uOut - side * 0.18), Math.max(uOut, uOut - side * 0.18), sofa);
+            for (const dd of [-0.5, 0.45]) if (rr() < 0.8) guest(dc + dd, uc + side * 1.12, side > 0 ? -Math.PI / 2 : Math.PI / 2, 0.42);
+          }
+          piece(dc - 0.6, dc + 0.6, F + 0.34, F + 0.38, uc - 0.35, uc + 0.35, marble);
+          cyl(dc, uc, 0.18, F, F + 0.34, brass, 12);
+          glowAt([X(dc), F + 0.43, uc], 0.025, [2.6, 1.55, 0.6]);
+          // the chandelier: a ring of crystal drops and an inner ring
+          const cy0 = CY - 0.8;
+          for (let i = 0; i < 18; i++) { const a = (i / 18) * Math.PI * 2; glowAt([X(dc + Math.cos(a) * 0.62), cy0 + 0.04 * Math.sin(a * 3), uc + Math.sin(a) * 0.62], 0.035, [2.4, 1.8, 1.1]); }
+          for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2 + 0.2; glowAt([X(dc + Math.cos(a) * 0.32), cy0 - 0.18, uc + Math.sin(a) * 0.32], 0.03, [2.4, 1.8, 1.1]); }
+          P.push(paint(cylY(X(dc), uc, 0.012, cy0, CY), shade(brass)));
+          light(dc, cy0 - 0.1, uc, [0.55, 0.38, 0.2], 0.45, 6.5);
+          // a floor lamp at the group's end
+          cyl(dc + 1.55, uc, 0.018, F, F + 1.55, brass, 6);
+          glowAt([X(dc + 1.55), F + 1.6, uc], 0.075, [1.25, 0.8, 0.38]);
+          light(dc + 1.55, F + 1.6, uc, [0.16, 0.1, 0.045], 0.2, 3.5);
+        }
+        // the champagne bar across the end by the doorway: a counter, a back shelf of lit bottles,
+        // a bartender, guests at it
+        const ub = Z1 - 1.7;
+        piece(1.8, 6.6, F, F + 1.04, ub - 0.3, ub + 0.3, [0.05, 0.032, 0.02]);
+        piece(1.75, 6.65, F + 1.04, F + 1.08, ub - 0.36, ub + 0.36, marble);
+        RGLOW.push(solid(box(X(1.85), X(6.55), F + 0.98, F + 1.0, ub - 0.37, ub - 0.35), [1.2, 0.75, 0.34]));
+        piece(1.8, 6.6, F, F + 0.9, Z1 - 0.5, Z1 - 0.05, [0.05, 0.032, 0.02]);
+        RGLOW.push(solid(box(X(1.9), X(6.5), F + 1.0, F + 2.4, Z1 - 0.04, Z1 - 0.02), [0.55, 0.36, 0.17]));
+        for (const y of [F + 1.3, F + 1.75, F + 2.2]) {
+          piece(1.9, 6.5, y - 0.015, y, Z1 - 0.3, Z1 - 0.04, [0.3, 0.3, 0.28]);
+          for (let d = 2.0; d < 6.4; d += (LOW ? 0.26 : 0.15) + rr() * 0.05) {
+            const h = 0.18 + rr() * 0.12, c = BOTTLES[Math.floor(rr() * BOTTLES.length)];
+            RGLOW.push(solid(cylY(X(d), Z1 - 0.17, 0.032, y, y + h, 6), c), solid(cylY(X(d), Z1 - 0.17, 0.011, y + h, y + h + 0.09, 5), c.map((v) => v * 0.6)));
+          }
+        }
+        for (let i = 0; i < 4; i++) light(2.4 + i * 1.3, F + 1.8, Z1 - 0.4, [0.12, 0.08, 0.035], 0.4, 3.5, [0, 0, -1], 0.2, -0.3);
+        guest(4.2, Z1 - 1.0, -Math.PI / 2);
+        for (const d of [2.5, 3.6, 5.2]) if (rr() < 0.85) guest(d, ub - 0.75, Math.PI / 2);
+        // sconces on the back wall beside the onyx
+        for (const u of [zc - 4.7, zc - 3.8, zc + 3.8, zc + 4.7]) {
+          glowAt([X(D - 0.08), F + 2.05, u], 0.06, [1.9, 1.2, 0.55]);
+          light(D - 0.3, F + 2.05, u, [0.09, 0.055, 0.025], 0.15, 2.8);
+        }
+        // the rope and the doorman at the door (in the hall, before the glass)
+        const brassC = [0.4, 0.28, 0.1];
+        const posts = [zc - 2.4, zc - 0.75, zc + 0.75, zc + 2.4];
+        for (const z of posts) {
+          P.push(paint(cylY(s * (WIN_X - 0.75), z, 0.025, F, F + 0.95, 8), shade(brassC)));
+          glowAt([s * (WIN_X - 0.75), F + 0.98, z], 0.04, [0.9, 0.6, 0.22]);
+        }
+        for (const [za, zb] of [[posts[0], posts[1]], [posts[2], posts[3]]]) {
+          for (let i = 0; i < 6; i++) {
+            const t0 = i / 6, t1 = (i + 1) / 6, sag = (t) => 0.16 * Math.sin(t * Math.PI);
+            const y0 = F + 0.88 - sag(t0), y1 = F + 0.88 - sag(t1);
+            P.push(paint(box(s * (WIN_X - 0.77), s * (WIN_X - 0.73), Math.min(y0, y1) - 0.02, Math.max(y0, y1) + 0.02, za + (zb - za) * t0, za + (zb - za) * t1), shade([0.3, 0.025, 0.035])));
+          }
+        }
+        ROOM_GUESTS.push({ x: s * (WIN_X - 1.15), y: F, z: zc + 0.1, ry: s > 0 ? -Math.PI / 2 : Math.PI / 2 });   // the doorman, facing the floor
+        // palms in the far corners
+        ROOM_PALMS.push({ x: X(D - 0.7), y: F, z: Z0 + 0.7, s: 0.74 }, { x: X(0.7), y: F, z: Z0 + 0.7, s: 0.7 });
+        ROOM_SPILL.push({ p: [s * 13.4, F + 2.2, zc], c: [0.55, 0.34, 0.15], r0: 1.2, range: 7.5, dir: [-s * 0.98, -0.196, 0], cos0: 0.3, cos1: -0.25, shadow: false });
+      } else {
+        const marble = [0.5, 0.48, 0.45], wood = [0.045, 0.028, 0.017], brass = [0.32, 0.22, 0.08];
+        // the counter: fluted front, marble top, a brass foot rail, a warm line under the top's lip
+        const cu0 = Z0 + 1.8, cu1 = Z1 - 1.8, cd0 = D - 2.9, cd1 = D - 2.1;
+        piece(cd0, cd1, F, F + 1.02, cu0, cu1, wood);
+        for (let u = cu0 + 0.1; u < cu1 - 0.05; u += LOW ? 0.4 : 0.2) piece(cd0 - 0.03, cd0, F + 0.08, F + 0.98, u - 0.035, u + 0.035, [0.06, 0.038, 0.022]);
+        piece(cd0 - 0.1, cd1 + 0.02, F + 1.02, F + 1.08, cu0 - 0.08, cu1 + 0.08, marble);
+        RGLOW.push(solid(box(X(cd0 - 0.09), X(cd0 - 0.07), F + 0.99, F + 1.01, cu0, cu1), [1.1, 0.7, 0.32]));
+        P.push(paint((() => { const g = new THREE.CylinderGeometry(0.025, 0.025, cu1 - cu0, 8, 1); g.rotateX(Math.PI / 2); g.translate(X(cd0 - 0.22), F + 0.22, (cu0 + cu1) / 2); return g; })(), shade(brass)));
+        // the back bar: a cabinet, a lit panel, three glass shelves of bottles
+        piece(D - 0.62, D - 0.04, F, F + 0.95, cu0 - 0.6, cu1 + 0.6, wood);
+        RGLOW.push(solid(box(X(D - 0.03), X(D - 0.01), F + 1.1, F + 2.55, cu0 - 0.4, cu1 + 0.4), [0.62, 0.4, 0.17]));
+        for (const y of [F + 1.35, F + 1.78, F + 2.2]) {
+          piece(D - 0.36, D - 0.04, y - 0.015, y, cu0 - 0.4, cu1 + 0.4, [0.3, 0.3, 0.28]);
+          for (let u = cu0 - 0.3; u < cu1 + 0.3; u += (LOW ? 0.26 : 0.15) + rr() * 0.05) {
+            const h = 0.18 + rr() * 0.12, c = BOTTLES[Math.floor(rr() * BOTTLES.length)];
+            RGLOW.push(solid(cylY(X(D - 0.2), u, 0.032, y, y + h, 6), c), solid(cylY(X(D - 0.2), u, 0.011, y + h, y + h + 0.09, 5), c.map((v) => v * 0.6)));
+          }
+        }
+        for (let i = 0; i < 6; i++) light(D - 0.4, F + 1.8, cu0 + (cu1 - cu0) * (i + 0.5) / 6, [0.16, 0.1, 0.045], 0.6, 4.5, [-s, 0, 0], 0.1, -0.35);
+        // pendants over the counter
+        for (let i = 0; i < 9; i++) {
+          const u = cu0 + 0.5 + (cu1 - cu0 - 1.0) * i / 8, dc = (cd0 + cd1) / 2;
+          P.push(paint(cylY(X(dc), u, 0.006, F + 2.45, CY), shade([0.05, 0.05, 0.05])));
+          P.push(paint((() => { const g = new THREE.CylinderGeometry(0.05, 0.16, 0.18, 14, 1, true); g.translate(X(dc), F + 2.38, u); return g; })(), shade(brass)));
+          glowAt([X(dc), F + 2.3, u], 0.06, [3.2, 2.0, 0.9]);
+          light(dc, F + 2.28, u, [0.34, 0.21, 0.095], 0.15, 3.4, [0, -1, 0], 0.55, -0.1);
+        }
+        // a grid of downlights in the ceiling
+        for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) {
+          const d = 1.4 + j * 1.9, u = Z0 + 2.2 + i * 3.9;
+          RGLOW.push(solid(box(X(d - 0.06), X(d + 0.06), CY - 0.012, CY - 0.004, u - 0.06, u + 0.06), [2.2, 1.7, 1.1]));
+          light(d, CY - 0.05, u, [0.28, 0.2, 0.12], 0.2, 4.2, [0, -1, 0], 0.8, 0.35);
+        }
+        // the Shape mark in neon on the end wall
+        {
+          const H_M = 0.9, k = H_M / 72;
+          const Pt = (x, y) => new THREE.Vector2((x - 100) * k, -(y - 50) * k);
+          const mg = new THREE.ShapeGeometry([new THREE.Shape([Pt(72, 38), Pt(72, 82), Pt(105, 60)]), new THREE.Shape([Pt(128, 18), Pt(128, 62), Pt(95, 40)])]);
+          mg.applyMatrix4(new THREE.Matrix4().makeTranslation(X(4.6), F + 2.25, Z0 + 0.03));
+          RGLOW.push(solid(mg, accentRGB.map((c) => c * 1.9)));
+          light(4.6, F + 2.25, Z0 + 0.4, accentRGB.map((c) => c * 0.12), 0.4, 3.5);
+        }
+        // high tables with people round them, and two armchair corners by the hall wall
+        for (const u of [Z0 + 2.6, Z0 + 6.0, Z1 - 6.0, Z1 - 2.6]) {
+          const d = 3.3;
+          P.push(paint(cylY(X(d), u, 0.36, F + 1.06, F + 1.1, 16), shade(marble)));
+          P.push(paint(cylY(X(d), u, 0.04, F, F + 1.06, 8), shade(brass)));
+          glowAt([X(d), F + 1.14, u], 0.022, [2.6, 1.55, 0.6]);
+          light(d, F + 1.2, u, [0.03, 0.018, 0.008], 0.3, 2.4);
+          const n = 2 + Math.floor(rr() * 2);
+          for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + rr(); guest(d + Math.cos(a) * 0.62, u + Math.sin(a) * 0.62, -a); }   // each facing the table
+        }
+        for (const u of [Z0 + 0.9, Z1 - 0.9]) {
+          for (const du of [-0.5, 0.5]) {
+            piece(0.55, 1.2, F, F + 0.42, u + du - 0.32, u + du + 0.32, [0.07, 0.035, 0.02]);
+            piece(0.4, 0.58, F + 0.42, F + 0.85, u + du - 0.32, u + du + 0.32, [0.07, 0.035, 0.02]);
+            if (rr() < 0.7) guest(0.85, u + du, Math.PI, 0.42);
+          }
+        }
+        // stools along the counter, people standing at it, bartenders behind it
+        for (let u = cu0 + 0.4; u < cu1 - 0.2; u += 0.75) {
+          P.push(paint(cylY(X(cd0 - 0.5), u, 0.18, F + 0.72, F + 0.78, 12), shade([0.07, 0.035, 0.02])));
+          P.push(paint(cylY(X(cd0 - 0.5), u, 0.025, F, F + 0.72, 6), shade(brass)));
+          P.push(paint(cylY(X(cd0 - 0.5), u, 0.2, F, F + 0.02, 12), shade(brass)));
+        }
+        for (let u = cu0 + 0.78; u < cu1 - 0.3; u += 1.5) if (rr() < 0.8) guest(cd0 - 0.45, u, Math.PI);
+        for (const u of [cu0 + 2.0, (cu0 + cu1) / 2, cu1 - 2.4]) guest(D - 1.35, u + (rr() - 0.5) * 0.8, 0);
+        ROOM_PALMS.push({ x: X(D - 0.6), y: F, z: Z1 - 0.6, s: 0.72 }, { x: X(D - 0.6), y: F, z: Z0 + 0.6, s: 0.72 });
+        ROOM_SPILL.push({ p: [s * 13.4, F + 2.2, zc], c: [0.42, 0.3, 0.16], r0: 1.2, range: 7.5, dir: [-s * 0.98, -0.196, 0], cos0: 0.3, cos1: -0.25, shadow: false });
+      }
+
+      // bake this room's lamps into its own shell and furniture (no shadows: one room, its own light)
+      const tb0 = clock();
+      const LGr = lightGrid(L, 2);
+      for (const g of shell) bakeMesh({ pos: g.attributes.position.array, nrm: g.attributes.normal.array, col: g.attributes.color.array, LG: LGr, OG: null, aoRays: 0, albedo: 0.5, neutral: 0.35 });
+      for (const g of P) bakeMesh({ pos: g.attributes.position.array, nrm: g.attributes.normal.array, col: g.attributes.color.array, LG: LGr, OG: null, aoRays: 0, albedo: 0.45, neutral: 0.3 });
+      bakeMs.rooms = (bakeMs.rooms || 0) + clock() - tb0;
+      ROOM.push(...shell, ...P);
+    }
+    buildRoom(SIDE_ROOMS.lounge, 'lounge');
+    buildRoom(SIDE_ROOMS.bar, 'bar');
+    mesh(merge(ROOM, 'sideRooms'), matBoxes, 'venueSideRooms');
+    mesh(merge(RGLOW, 'sideRoomLights'), matBoxGlow, 'venueSideRoomLights');
+    // the onyx: a canvas of warm veins, lit from behind (above the bloom threshold where it is brightest)
+    const onyxTex = (() => {
+      const W2 = 512, H2 = 192, c = makeCanvas(W2, H2), g = c.getContext('2d');
+      const gr = g.createLinearGradient(0, 0, 0, H2);
+      gr.addColorStop(0, 'rgb(150,92,40)'); gr.addColorStop(0.5, 'rgb(215,150,72)'); gr.addColorStop(1, 'rgb(140,84,36)');
+      g.fillStyle = gr; g.fillRect(0, 0, W2, H2);
+      for (let i = 0; i < 70; i++) {
+        const x = rr() * W2, y = rr() * H2;
+        g.strokeStyle = `rgba(${rr() < 0.5 ? '255,228,170' : '96,52,20'},${0.15 + rr() * 0.3})`; g.lineWidth = 0.8 + rr() * 3;
+        g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x + 40 + rr() * 80, y + (rr() - 0.5) * 60, x + 80 + rr() * 120, y + (rr() - 0.5) * 80, x + 160 + rr() * 160, y + (rr() - 0.5) * 90); g.stroke();
+      }
+      for (let x = 0; x <= W2; x += W2 / 4) { g.fillStyle = 'rgba(30,18,8,0.9)'; g.fillRect(x - 1.5, 0, 3, H2); }   // the slabs' joints
+      return tex(c);
+    })();
+    mesh(merge(ONYX, 'onyx'), own(new THREE.MeshBasicMaterial({ map: onyxTex, color: new THREE.Color(1.25, 1.0, 0.85) })), 'venueLoungeOnyx');
+    // the doorways' signs: LOUNGE and BAR, lit letters on one canvas
+    const signTex = (() => {
+      const c = makeCanvas(512, 128), g = c.getContext('2d');
+      g.clearRect(0, 0, 512, 128);
+      g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = '600 44px "Saira", "Arial Narrow", sans-serif';
+      const spaced = (t) => t.split('').join(' ');
+      g.fillText(spaced('LOUNGE'), 256, 32);
+      g.fillText(spaced('BAR'), 256, 96);
+      return tex(c, { mips: false });
+    })();
+    mesh(merge(SIGNS, 'signs'), own(new THREE.MeshBasicMaterial({ map: signTex, vertexColors: true, transparent: true, depthWrite: false })), 'venueSideRoomSigns', 3);
+  }
 
   // ── 3. warm linear LEDs: ceiling + balcony soffits ─────────────────
   const CL = [];
@@ -1152,6 +1451,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     PALMS.push({ x: s * 11.45, y: L, z: z + (rnd() - 0.5) * 1.2, s: Math.min(0.84, (room - 0.55) / 4.2) * (0.92 + rnd() * 0.08) });
   }
   for (const L of LEVELS) for (const s of LOW ? [1] : [-1, 1]) PALMS.push({ x: s * 7.6, y: L, z: -43.45, s: 0.8 });
+  PALMS.push(...ROOM_PALMS);   // the side rooms' potted palms (2c)
 
 
   const NP = PALMS.length;
@@ -1221,7 +1521,8 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   }
 
   const bayZ = [];
-  for (let k = 0; k < 12; k++) if (!LOW || k % 2 === 0) bayZ.push(-9 - k * 3);
+  // (none in front of the side rooms' doorway: the aisle to it)
+  for (let k = 0; k < 12; k++) if ((!LOW || k % 2 === 0) && !inDoor(-9 - k * 3 - 1.2, -9 - k * 3 + 1.2)) bayZ.push(-9 - k * 3);
   const SOFAS = [], TABLES = [];
   for (const s of [-1, 1]) for (const z of bayZ) {
     // inner sofa: back toward the crowd, seat facing the table; outer: back to the lounge glass
@@ -1291,6 +1592,8 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   for (const x of [-8, -4, 0, 4, 8]) for (const [y, c] of [[2.5, [0.3, 0.2, 0.11]], [7.5, [0.26, 0.2, 0.16]], [12.5, [0.12, 0.2, 0.3]]]) {
     LIGHTS.push({ p: [x, y, ARENA_DIMS.BACK_Z - 0.2], c, r0: 2.2, range: 10, dir: [0, 0, -1], cos0: 0.15, cos1: -0.3, shadow: false });
   }
+  // the side rooms' glow out through their doorways, onto the floor and the slab before them (2c)
+  LIGHTS.push(...ROOM_SPILL);
   // the booth candles (their pool on the floor; the sofas and table tops are baked above)
   for (const tb of TABLES) LIGHTS.push({ p: [tb.x, FLOOR_Y + 0.72, tb.z], c: CANDLE_LIGHT.c, r0: CANDLE_LIGHT.r0, range: CANDLE_LIGHT.range });
   // what blocks them: the architecture, and on the floor the booths' sofas and table tops
@@ -1427,6 +1730,38 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     group.remove(imFig);
   }).catch(() => { /* the club already reports a missing pack; the boxes stay */ });
 
+  // the side rooms' guests (2c): a crowd of their own, the same dressed MakeHuman people as the floor,
+  // sat and standing near the camera in the rooms' shots, so the standing ones are the near figure on
+  // phones too (owner, 2026-10-26: "make sure the people have the updated graphics"). The scene's lights
+  // stop at the rooms' walls (ROOM_HOUSE: none of the direct light), and their fill faces the
+  // camera, as people in a room lit from every side read.
+  let roomCrowd = null;
+  if (crowdPack && ROOM_GUESTS.length) Promise.resolve(crowdPack).then((pack) => {
+    if (venueDisposed || !pack || !pack.geos) return;
+    // the seated ones at the detailed seated level (seatNear) where the pack has it, else the booths'
+    const stand = 'near', sit = crowdHasLod(pack, 'seatNear') ? 'seatNear' : 'seat';
+    if (!crowdHasLod(pack, stand) || !crowdHasLod(pack, sit)) return;
+    const seatY = (pack.header.seat && pack.header.seat.seatY) || 0.5;
+    const people = ROOM_GUESTS.map((g) => ({ lod: g.seat ? 1 : 0 }));
+    const lodCount = [0, 0];
+    for (const p of people) p.idx = lodCount[p.lod]++;
+    const rnd2 = mulberry32(seed * 43 + 1);
+    roomCrowd = createCrowd({ THREE, pack, people, lodCount, rnd: rnd2, lods: [stand, sit], stageFalloff: 1e4, name: 'venueRoomCrowd', house: ROOM_HOUSE, fill: 'view' });
+    const vs = roomCrowd.height / 1.68;
+    ROOM_GUESTS.forEach((g, i) => {
+      q.setFromEuler(e.set(0, g.ry, 0));
+      const k = (g.seat ? 0.97 : 1) * (0.94 + rnd2() * 0.1) / vs;
+      if (g.seat) m4.compose(v3.set(g.seat.x, g.seat.top - seatY * k, g.seat.z), q, sc3.set(k, k, k));
+      else m4.compose(v3.set(g.x, g.y, g.z), q, sc3.set(k, k, k));
+      roomCrowd.setPerson(people[i], m4, 0, 0);
+    });
+    roomCrowd.commit();
+    roomCrowd.setLight(ROOM_RIM, ROOM_FILL, ROOM_BACK);
+    // still people in rooms off to the side: culled when out of view (the floor's crowd never is)
+    for (const m of roomCrowd.group.children) { m.computeBoundingSphere(); m.frustumCulled = true; }
+    group.add(roomCrowd.group);
+  }).catch(() => { /* the club already reports a missing pack; the rooms stand empty */ });
+
   // ── 10. the hall floor (under the stage module's dance floor) ──────────
   {
     const fg = new THREE.PlaneGeometry(2 * X_OUT, Z_STAGE - Z_FAR);
@@ -1504,6 +1839,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   function dispose() {
     venueDisposed = true;
     if (venueCrowd) { venueCrowd.dispose(); venueCrowd = null; }
+    if (roomCrowd) { roomCrowd.dispose(); roomCrowd = null; }
     if (group.parent) group.parent.remove(group);
     group.clear();
     for (const im of [imTrunk, ...imFronds, imBeam, imSofa, imTable, imCandle, imFig]) im.dispose();

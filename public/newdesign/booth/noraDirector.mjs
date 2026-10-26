@@ -10,6 +10,8 @@
 // No DOM, no Math.random / Date.now: shot choice is a seeded function of the bar number,
 // so the same set always cuts the same way (replayable, testable).
 
+import { SIDE_ROOMS, roomX } from './clubRooms.mjs';
+
 function mulberry32(a) {
   return function () {
     a |= 0; a = (a + 0x6d2b79f5) | 0;
@@ -40,6 +42,9 @@ export const SHOTS = {
   behind:    { label: 'Behind Nora', bars: 8, weight: 2, handheld: 0.004, fov: 62 },
   drone:     { label: 'Drone',     bars: 40, weight: 1, handheld: 0.0015, fov: 58 },
   arrival:   { label: 'Arrival',   bars: 12, weight: 1, handheld: 0.0, fov: 46 },
+  // the side rooms off the dance floor (clubRooms.mjs): cutaways while the set plays next door
+  lounge:    { label: 'Lounge',    bars: 8,  weight: 1, handheld: 0.004, fov: 56 },
+  bar:       { label: 'Bar',       bars: 8,  weight: 1, handheld: 0.004, fov: 50 },
 };
 export const SHOT_IDS = Object.keys(SHOTS);
 
@@ -257,6 +262,22 @@ export function evalShot(id, u, t, ctx, out) {
     }
     case 'drone': {
       droneAt(u, P, T);
+      break;
+    }
+    case 'lounge': {
+      // The VIP lounge, from high in its corner over the champagne bar: down across the sofa groups
+      // under their chandeliers to the banquette and the back-lit onyx wall, easing out of the corner.
+      const R = SIDE_ROOMS, s = R.lounge, zc = (R.door.z0 + R.door.z1) / 2;
+      P.x = roomX(s, lerp(0.6, 0.95, e)); P.y = R.floorY + lerp(2.9, 2.75, e); P.z = lerp(R.z1 - 0.6, R.z1 - 1.3, e);
+      T.x = roomX(s, R.depth - 2.0); T.y = R.floorY + 0.6; T.z = zc - 2.2;
+      break;
+    }
+    case 'bar': {
+      // The cocktail bar, down the length of the counter: the pendants, the lit back bar, the people
+      // at it and the bartenders, dollying along it.
+      const R = SIDE_ROOMS, s = R.bar;
+      P.x = roomX(s, lerp(5.1, 5.5, e)); P.y = R.floorY + 2.15; P.z = lerp(R.z1 - 1.2, R.z1 - 3.4, e);
+      T.x = roomX(s, R.depth - 1.6); T.y = R.floorY + 1.6; T.z = R.z0 + 2.5;
       break;
     }
     case 'arrival': {

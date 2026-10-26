@@ -16,6 +16,7 @@ const cam = q.get('cam') || 'front';
 if (cam === 'front') { camera.position.set(0, 1.55, 8.2); camera.lookAt(0, 1.0, -1); }
 else if (cam === 'close') { camera.position.set(-1.6, 1.5, 2.6); camera.lookAt(-1.6, 1.35, 0); }
 else if (cam === 'back') { camera.position.set(0, 1.6, -9); camera.lookAt(0, 1.0, -1); }
+else if (cam.startsWith('c:')) { const c = cam.slice(2).split(',').map(Number); camera.position.set(c[0], c[1], c[2]); camera.lookAt(c[3], c[4], c[5]); }
 else { camera.position.set(8, 1.5, 0.3); camera.lookAt(0, 1.0, -1); }
 scene.add(new THREE.HemisphereLight(0x2a3550, 0x0b0806, 0.7));
 const key = new THREE.SpotLight(0xffead6, 160, 0, 0.7, 0.7, 2); key.position.set(2, 5, 7); key.target.position.set(0, 1, -1); scene.add(key, key.target);
@@ -25,8 +26,8 @@ const teal = new THREE.SpotLight(0x34d6c5, 90, 0, 0.8, 0.7, 2); teal.position.se
 let seed = 5; const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
 loadCrowd(q.get('url') || 'crowd-people.bin.txt').then((pack) => {
   const N = pack.header.bodies.length;
-  const lods = ['near', 'far', 'tiny', 'seat'];
-  const people = [], lodCount = [0, 0, 0, 0];
+  const lods = (q.get('lods') || 'near,far,tiny,seat').split(',').filter((l) => pack.header.lods.includes(l));
+  const people = [], lodCount = lods.map(() => 0);
   const raise = +(q.get('raise') || 0);
   lods.forEach((l, li) => {
     for (let b = 0; b < N; b++) people.push({ x: (b - (N - 1) / 2) * 0.82, z: -li * 1.6, yaw: 0, lod: li, idx: lodCount[li]++, body: b, raise: li === 0 && b % 3 === 2 ? raise : 0 });
@@ -44,7 +45,7 @@ loadCrowd(q.get('url') || 'crowd-people.bin.txt').then((pack) => {
   crowd.setLight(new THREE.Color(0.25, 0.4, 0.5), new THREE.Color(0.02, 0.022, 0.026), new THREE.Color(0.01, 0.008, 0.012));
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(1, 1, 1), V = new THREE.Vector3();
   for (const p of people) {
-    const y = p.lod === 3 ? 0.45 - pack.header.seat.seatY : 0;
+    const y = /^seat/.test(lods[p.lod]) ? 0.45 - pack.header.seat.seatY : 0;
     M.compose(V.set(p.x, y, p.z), Q.setFromEuler(new THREE.Euler(0, p.yaw, 0)), S);
     crowd.setPerson(p, M, p.raise, p.raise * 0.9);
   }

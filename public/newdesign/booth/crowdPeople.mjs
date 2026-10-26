@@ -16,7 +16,7 @@
 import { decodeCrowdPack, createAvatarCrowd } from './crowdAvatars.mjs';
 
 // ⚠ Kept in step with bake_people.py PART.
-export const PART = Object.freeze({ TOP: 0, SKIN: 1, HAIR: 2, EYE: 3, BOTTOM: 5, SHOES: 6, ACC: 7, HAIRSOLID: 8 });
+export const PART = Object.freeze({ TOP: 0, SKIN: 1, HAIR: 2, EYE: 3, BROWS: 4, BOTTOM: 5, SHOES: 6, ACC: 7, HAIRSOLID: 8 });
 
 function bytesOf(b64) {
   const bin = atob(b64.replace(/\s+/g, ''));
@@ -188,8 +188,10 @@ export function dressPeople(header, people, rnd) {
  *   row and deep in the house, fading over `fall` metres from the stage; `ambient`: the share of the
  *   sky and environment light. A club floor is dark past its first rows (owner, 2026-10-26: "make the
  *   crowd darker like a real club"); the venue's lounges are lit by their own lamps and keep all of it.
+ * @param {'stage'|'view'} [o.fill]  where the fill on their faces comes from: the stage (the floor and
+ *   the balconies face it), or the camera's side (the side rooms, lit by lamps all round them)
  */
-export function createPeopleCrowd({ THREE, pack, people, lodCount, rnd, lods = ['near', 'far'], stageFalloff = 13, name = 'crowdPeople', bob = 0, house = null }) {
+export function createPeopleCrowd({ THREE, pack, people, lodCount, rnd, lods = ['near', 'far'], stageFalloff = 13, name = 'crowdPeople', bob = 0, house = null, fill = 'stage' }) {
   const group = new THREE.Group();
   group.name = name;
   const disposables = [];
@@ -219,6 +221,7 @@ export function createPeopleCrowd({ THREE, pack, people, lodCount, rnd, lods = [
     uRim: { value: new THREE.Color(0, 0, 0) }, uFill: { value: new THREE.Color(0, 0, 0) },
     uBack: { value: new THREE.Color(0, 0, 0) }, uStageFall: { value: stageFalloff },
     uHouse: { value: house ? new THREE.Vector4(house.near, house.far, house.fall, house.ambient) : new THREE.Vector4(1, 1, 1e4, 1) },
+    uFillView: { value: fill === 'view' ? 1 : 0 },
     uDebug: { value: 0 }, uKick: { value: 0 }, uBob: { value: bob }, uTime: { value: 0 },
     uAtlasSize: { value: new THREE.Vector2(header.atlas.w, header.atlas.h) },
     // where the moving heads' beams land on the crowd (setPools): xz centre, radius, strength; colour
@@ -263,7 +266,7 @@ export function createPeopleCrowd({ THREE, pack, people, lodCount, rnd, lods = [
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', [
         '#include <common>',
-        'uniform vec3 uRim; uniform vec3 uFill; uniform vec3 uBack; uniform float uStageFall; uniform float uDebug; uniform vec2 uAtlasSize; uniform vec3 uHairMean; uniform vec4 uMeanL; uniform vec4 uHouse;',
+        'uniform vec3 uRim; uniform vec3 uFill; uniform vec3 uBack; uniform float uStageFall; uniform float uDebug; uniform vec2 uAtlasSize; uniform vec3 uHairMean; uniform vec4 uMeanL; uniform vec4 uHouse; uniform float uFillView;',
         `uniform vec4 uPool[${POOLS}]; uniform vec3 uPoolC[${POOLS}];`,
         'varying float vPart; varying vec4 vTop; varying vec3 vLower; varying vec3 vShoe; varying vec3 vHair; varying float vStageZ; varying vec2 vArmW; varying float vObjY; varying vec2 vWorldXZ;',
         // colour = k · luma(texel): the garment's own shading, the person's colour (none when k.r < 0);
@@ -280,12 +283,16 @@ export function createPeopleCrowd({ THREE, pack, people, lodCount, rnd, lods = [
         '  if (P == 2 && diffuseColor.a * (1.0 + 0.3 * lod) < 0.5) discard;',
         // the eyeball's clear outer shell (the cornea); opaque, it paints the eyes black
         '  if (P == 3 && diffuseColor.a < 0.5) discard;',
+        // the brows: cut at a higher alpha, so they are drawn as brows and not as marker strokes
+        '  if (P == 4 && diffuseColor.a < 0.62) discard;',
         '  #endif',
         '  diffuseColor.a = 1.0;',
         '  if (P == 0) diffuseColor.rgb = recol(diffuseColor.rgb, vTop.rgb, uMeanL.x);',
         '  else if (P == 5) diffuseColor.rgb = recol(diffuseColor.rgb, vLower, uMeanL.y);',
         '  else if (P == 6) diffuseColor.rgb = recol(diffuseColor.rgb, vShoe, uMeanL.z);',
         '  else if (P == 2) diffuseColor.rgb = recol(diffuseColor.rgb, vHair, uMeanL.w);',
+        // and the person's own hair colour, a shade lighter than the black they were baked in
+        '  else if (P == 4) diffuseColor.rgb = (vHair.r < 0.0 ? uHairMean : vHair * dot(uHairMean, vec3(0.2126, 0.7152, 0.0722))) * 1.6 + 0.012;',
         // solid hair (past the near level): the person's hair colour, flat (k · luma(mean) = the target)
         '  else if (P == 8) diffuseColor.rgb = vHair.r < 0.0 ? uHairMean : vHair * dot(uHairMean, vec3(0.2126, 0.7152, 0.0722));',
         '  else if (P == 1) diffuseColor.rgb *= vTop.a;',
@@ -295,7 +302,7 @@ export function createPeopleCrowd({ THREE, pack, people, lodCount, rnd, lods = [
         '#include <emissivemap_fragment>',
         '{ float stageK = exp((vStageZ - 1.5) / uStageFall);',
         '  float rimF = 1.0 - clamp(abs(dot(normal, normalize(vViewPosition))), 0.0, 1.0);',
-        '  vec3 toStage = normalize((viewMatrix * vec4(0.0, 0.35, 1.0, 0.0)).xyz);',
+        '  vec3 toStage = uFillView > 0.5 ? normalize(vViewPosition) : normalize((viewMatrix * vec4(0.0, 0.35, 1.0, 0.0)).xyz);',
         '  float face = dot(normal, toStage);',
         '  float lit = 0.3 + 0.7 * smoothstep(-0.25, 0.6, face);',
         // the fill and the back light take the surface's colour; the rim is the light's own, grazing
