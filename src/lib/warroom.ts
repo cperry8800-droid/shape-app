@@ -615,6 +615,29 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Booth: real people in the crowd, Nora rebuilt with a photo face, and a club lit by its wall — #2470. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26: "make the crowd look like real people", "including nora", "have the people look dressed up to go out", "can you make nora look like her profile/avatar picture", "her face still doesnt look natural", "make the headphones smaller", "make overall club better", "its needs to look more real on website and app", "need to make these look like they arent just floating orbs"', status: 'done' },
+        { label: 'The crowd (crowdPeople.mjs): twelve MakeHuman people (CC0) dressed for a night out, baked by prototypes/nora-booth/crowd-mh/bake_people.py into a v3 pack with a WebP atlas; six on phones; recoloured per person, never next to their own copy, arms up on the drop. The club and the venue load it by the pack\'s version; crowdAvatars.mjs still serves a v2 pack', status: 'done' },
+        { label: 'Nora (scripts/nora-model/makehuman_nora.py, nora.json): a MakeHuman body after her profile picture with ARKit face units and eye bones; her face a Higgsfield portrait warped onto the head\'s MediaPipe landmarks (photo_warp.py, photo_face.py); straight hair, a black camisole, no suit. nora.vrm is 1.0 MB and replaces the 10.8 MB anime placeholder. The headphones are fitted to her head (headFit): band ear to ear, cups a fifth smaller, on the head and not the hair', status: 'done' },
+        { label: 'The club: the room takes its light from the LED wall (wallShow.wallLookGlow, club.mjs wallGlow) in the haze, the crowd\'s faces, Nora\'s back light and the balconies; haze round every beam (beamHaze.mjs); a beam aimed at the camera fades to a point instead of a floating orb, and the lenses glare less; the air and shadows are neutral, not navy; light pools on the crowd where the beams land; the skyline is two photographed night facades (Higgsfield), 217 KB desktop and 78 KB phone', status: 'done' },
+        { label: 'Review: Codex clean on 2a2d659. Checks: npm test 8,558/8,558 before the rebase onto #2468 and 829/829 of the booth, Nora, radio, heavy-asset and worklog suites after it; tests/booth-crowdPeople.test.mjs (11) and tests/booth-clubRealism.test.mjs (7); renders in headless Chromium on both tiers; staging deployed', status: 'done' },
+        { label: 'The Club Shape ad: the second cut (claude.ai/artifact/LC6wcwT2WcvRyHYRjqtdvz) was rejected by the owner: "the ad is awful, doesn\'t reflect club shape, different LED screen, super small. Also music sucks". Ads are on hold: "Just dont do anything else with the ads now". Its sources stay recorded in marketing/shape-radio-launch-cut.md', status: 'pending' },
+        { label: 'OWNER: watch the booth on a real screen and a phone (staging or the next deploy): Nora\'s face and headphones, the crowd, the wall\'s light on the room, the beams with no floating orbs. Nothing here was seen off a software renderer, and no render reproduced the frame the owner sent with the orbs', status: 'manual' },
+        { label: 'Nora\'s face photo is on Higgsfield\'s CDN (nora.json face_photo), so rebuilding her needs it; the crowd\'s beam pools are faint in the shots measured; in the ad, Nora\'s headphones cover both ears rather than one cup pushed back', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Booth: an LED wall show, CLUB SHAPE on its own, and moving Higgsfield loops — #2467. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26: "create cool effects like real like shows on LED wall, include club shape appearing and re appearing, maybe pulsing", "use higgsfield for cool looping images", "make sure the images are moving", "club shape should only appear on its own"', status: 'done' },
+        { label: 'wallShow.mjs runs the wall per 8-bar phrase: the headline alone on a dark wall (built onto the dots, pulsing on the kick, echoed, dissolved), then one look (a Higgsfield loop, the tunnel, the chase or the dawn), then dark; the drop moves to the tunnel or the chase. Reduced motion keeps the dawn under a steady headline. Nothing flashes', status: 'done' },
+        { label: 'Four 5 s Seedance loops play through the wall\'s dots on desktops only (noraBoothState WALL_LOOPS, wallLoopUrls; none under reduced motion), two copies cross-faded over the seam; the tunnel clip was left out as too close to a strobe', status: 'done' },
+        { label: 'Review: Codex on 5f88605, a P2 (reduced motion still downloaded the loops), fixed in 8fed4f7; Codex\'s re-review of 8fed4f7 ran three hours without posting, and the owner\'s "just do it" merged it with CI green on all four jobs. Checks: npm test 8,537/8,537; tests/booth-wallShow.test.mjs (12)', status: 'done' },
+        { label: 'The loops (about 13 MB) stream from Higgsfield\'s CDN on the owner\'s account; if those files go, the wall falls back to the drawn looks. An iPad counts as the high tier and loads them too', status: 'pending' },
+      ],
+    },
+    {
       section: 'Session details: heart rate on every activity, the profile\'s doubled heads, and Get App\'s Habits frame signed in — #2468. No migration',
       items: [
         { label: 'Owner, 2026-10-26, on a deadlift PR\'s tiles: "this should say HR no BPM, make sure that is showing correctly for all activities"; on a bench PR: "there is not HR or other stats on this post"; then "show HR during PR if it is one, and always show AVG HR, and then show HR during different stages of activity depending on activity"', status: 'done' },

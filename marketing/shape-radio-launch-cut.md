@@ -1218,6 +1218,11 @@ print(json.dumps(res))
 
 ### The Club Shape ad, second cut (2026-10-26)
 
+⚠ **Rejected by the owner, and ads are on hold:** *"the ad is awful, doesn't reflect club shape,
+different LED screen, super small. Also music sucks. Just dont do anything else with the ads now"*.
+The generated clubs and screens are not Club Shape's own room or wall, and the wordmark sat small on
+a stock-looking panel. The record below stays as the account of what was generated and spent.
+
 Owner, on the first cut: *"the add needs to be more fluid and have a deep house track in background
 and more visuals"*, *"looks like a birthday party"* (its floor shot had string lights and rattan
 lanterns), *"needs to be darker in the club also"* (*"the club in the video ad"*), *"club shape is
