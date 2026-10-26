@@ -23,7 +23,9 @@
   const FOCAL = 300; // the camera's distance, in the mark's own units
   const DEPTH = 14; // each prism's thickness
   const SEP = 11; // how far each triangle sits in front of (teal) or behind (white) the middle
-  const SPIN = 2.3; // seconds from edge-on to facing
+  // Seconds from edge-on to facing (owner, 2026-10-26: "make the spin a little slower", from 2.3).
+  // It eases out, so by the homepage splash's 2.9 s end it is turning less than a degree.
+  const SPIN = 3.0;
   const SETTLE = 0.6; // seconds from wherever it is to the flat mark
 
   const clamp = (x) => Math.min(1, Math.max(0, x));
