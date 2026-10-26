@@ -31395,7 +31395,6 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       .filter(({ p }) => { const k = entryKey(p); if (seen.has(k)) return false; seen.add(k); return true; })
       .slice(0, 4);
   })();
-  const nextUp = closest[0] || null;
   const jumpTo = (p) => {
     if (isMerch(p)) setVariantPick((m) => ({ ...m, [baseName(p)]: p.id }));
     try { document.getElementById('bs-store-' + entryKey(p))?.scrollIntoView({ block: 'center', behavior: bsSdReduced() ? 'auto' : 'smooth' }); } catch (e) {}
@@ -31453,7 +31452,8 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
 
       <div ref={storeRef} style={{ padding: `2px ${t.padX}px 0` }}>
         <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.45, color: t.INK70 }}>{tr('store:page.dek', { defaultValue: 'Everything here is bought with the points you earn training, eating and sleeping well.' })}</p>
-        {/* The balance, ruled: what you have, what it's worth, and the next thing it gets you. */}
+        {/* The balance, ruled: what you have and what it's worth. What it's nearest is the row below
+            (owner, 2026-10-26: "drop the closest box, keep the row"). */}
         <div style={{ display: 'flex', marginTop: 14, border: `1px solid ${t.INK}` }}>
           <div style={{ flex: 1, minWidth: 0, padding: '11px 12px' }}>
             <div style={mono(7.5, bsTHexA(t.INK, 0.55))}>{tr('store:balance.available', { defaultValue: 'Available' })}</div>
@@ -31464,16 +31464,6 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
             <div style={mono(7.5, bsTHexA(t.INK, 0.55))}>{tr('store:balance.worth', { defaultValue: 'Worth' })}</div>
             <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 500, color: teal, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>${(balance / SHAPE_PTS_PER_USD).toFixed(2)}</div>
             <div style={mono(7.5, bsTHexA(t.INK, 0.5), { marginTop: 5 })}>{tr('store:balance.rate', { rate: SHAPE_PTS_PER_USD, defaultValue: '{rate} pts = $1' })}</div>
-          </div>
-          {/* Inverted (ink ground), so its tier text takes the other paper's shade: amber on cream reads too faint. */}
-          <div style={{ flex: 1.2, minWidth: 0, padding: '11px 12px', background: t.INK }}>
-            <div style={mono(7.5, bsTHexA(t.PAPER, 0.6))}>{tr('store:balance.closest', { defaultValue: 'Closest' })}</div>
-            {nextUp ? (
-              <>
-                <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.2, color: t.PAPER }}>{isMerch(nextUp.p) ? baseName(nextUp.p) : nextUp.p.name}</div>
-                <div style={mono(7.5, bsTierText({ isLight: !t.isLight }, profile.tier), { marginTop: 5, letterSpacing: '0.08em' })}>{tr('store:unit.toGo', { gap: nextUp.gap, defaultValue: '{gap, number} to go' })}</div>
-              </>
-            ) : <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.25, color: t.PAPER }}>{tr('store:balance.allWithin', { defaultValue: 'Everything here is within your balance' })}</div>}
           </div>
         </div>
       </div>

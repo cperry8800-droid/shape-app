@@ -99,8 +99,6 @@
   "page.dek": "Mọi thứ ở đây đều đổi bằng điểm bạn kiếm được khi tập luyện, ăn uống và ngủ tốt.",
   "balance.worth": "Giá trị",
   "balance.rate": "{rate} điểm = $1",
-  "balance.closest": "Gần nhất",
-  "balance.allWithin": "Mọi thứ ở đây đều trong số dư của bạn",
   "closest.head": "Gần bạn nhất",
   "closest.meta": "Theo điểm còn thiếu",
   "item.no": "Số {n}"

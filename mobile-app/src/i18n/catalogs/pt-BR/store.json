@@ -99,8 +99,6 @@
   "page.dek": "Tudo aqui é comprado com os pontos que você ganha treinando, comendo e dormindo bem.",
   "balance.worth": "Vale",
   "balance.rate": "{rate} pts = US$ 1",
-  "balance.closest": "Mais perto",
-  "balance.allWithin": "Tudo aqui cabe no seu saldo",
   "closest.head": "Mais perto de você",
   "closest.meta": "Por pontos que faltam",
   "item.no": "Nº {n}"
