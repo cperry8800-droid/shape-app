@@ -59,8 +59,26 @@ export default function BSUpdateGate() {
     return () => { alive = false; document.removeEventListener('visibilitychange', onVisible); };
   }, []);
 
+  const required = !!answer && answer.update === 'required';
+  // ⚠ THE APP BEHIND A REQUIRED UPDATE IS INERT, NOT ONLY COVERED (Codex on #2472). aria-modal says the
+  // screen is modal and enforces nothing: a hardware keyboard tabbed past the button into the app
+  // underneath. Every other child of the phone surface is made inert while it shows, and the button
+  // takes the focus.
+  const gateRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!required) return undefined;
+    const gate = gateRef.current;
+    const surface = gate && gate.parentElement;
+    if (!surface) return undefined;
+    const made = [];
+    for (const el of Array.from(surface.children)) {
+      if (el !== gate && !el.hasAttribute('inert')) { el.setAttribute('inert', ''); made.push(el); }
+    }
+    try { gate.querySelector('button')?.focus(); } catch (e) {}
+    return () => { for (const el of made) el.removeAttribute('inert'); };
+  }, [required]);
+
   if (!answer || answer.update === 'none') return null;
-  const required = answer.update === 'required';
   if (!required && dismissed === answer.recommendedVersion) return null;
 
   const storeUrl = bsStoreUrl(answer.platform, answer.storeUrl, import.meta.env.VITE_APP_STORE_ID);
@@ -87,7 +105,7 @@ export default function BSUpdateGate() {
 
   if (required) {
     return createPortal(
-      <div role="alertdialog" aria-modal="true" aria-labelledby="bs-update-title" data-bs-update="required" style={{ position: 'absolute', inset: 0, zIndex: 200000, background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF, display: 'flex', flexDirection: 'column', padding: '52px 20px 24px' }}>
+      <div ref={gateRef} role="alertdialog" aria-modal="true" aria-labelledby="bs-update-title" data-bs-update="required" style={{ position: 'absolute', inset: 0, zIndex: 200000, background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF, display: 'flex', flexDirection: 'column', padding: '52px 20px 24px' }}>
         <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
           <span>Shape Wire</span>
           <span style={{ color: INKF }}>{tr('update.eyebrow', { defaultValue: 'Update' })}</span>

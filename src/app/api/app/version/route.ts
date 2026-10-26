@@ -9,7 +9,9 @@ import { NextResponse } from 'next/server';
 import { appUpdateFor, appStoreUrlFrom, APP_BUNDLE_ID, APP_RECOMMENDED_VERSION, PLAY_STORE_URL } from '@/lib/app-version.mjs';
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+// ⚠ NO `dynamic = 'force-dynamic'` (Codex on #2472): it is `fetchCache = 'force-no-store'`, which would
+// ask Apple on every check instead of once an hour. A route handler is not cached anyway, and this one
+// reads its request, so it answers each app on its own.
 
 // Apple's public lookup gives the App Store page (its numeric id lives nowhere in this repo).
 // Asked only when an iPhone has to update, and cached for an hour.

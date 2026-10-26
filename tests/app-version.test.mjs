@@ -125,6 +125,10 @@ test('GET /api/app/version answers the rule, and asks Apple only for an iPhone t
   const live = await route({});
   r = await live(`platform=ios&version=${APP_VERSION}`);
   assert.equal(r.body.update, 'none', 'today\'s rule leaves this build alone');
+  // force-dynamic is fetchCache 'force-no-store': it would ask Apple on every check (Codex on #2472).
+  const src = readFileSync(join(ROOT, 'src/app/api/app/version/route.ts'), 'utf8').replace(/\/\/[^\n]*/g, '');
+  assert.doesNotMatch(src, /export const (dynamic|fetchCache) =/);
+  assert.match(src, /next: \{ revalidate: 3600 \}/);
 });
 
 test('the app blocks only on an explicit "required", and knows where the store is', () => {
@@ -193,7 +197,13 @@ async function mount(answer, { native = true, platform = 'ios' } = {}) {
 }
 
 test('the screen: "required" covers the app with one way on, the store', async () => {
+  // The app behind it, in the same surface: inert while the screen shows (Codex on #2472).
+  const behind = document.createElement('div');
+  behind.innerHTML = '<button id="behind">Home</button>';
+  document.getElementById('bs-phone-surface').appendChild(behind);
   const ui = await mount({ update: 'required', storeUrl: 'https://apps.apple.com/us/app/shape/id42' });
+  assert.equal(behind.hasAttribute('inert'), true, 'the app underneath can still be reached by keyboard');
+  assert.equal(document.activeElement, ui.buttons()[0], 'the Update button has the focus');
   assert.deepEqual(ui.asked, ['/api/app/version?platform=ios&version=1.0.0'], 'asks with the build\'s own version');
   assert.equal(ui.gate().dataset.bsUpdate, 'required');
   assert.equal(ui.gate().getAttribute('role'), 'alertdialog');
@@ -201,6 +211,8 @@ test('the screen: "required" covers the app with one way on, the store', async (
   assert.equal(ui.buttons().length, 1, 'no way past it but the store');
   assert.match(ui.buttons()[0].textContent, /Update now/);
   ui.unmount();
+  assert.equal(behind.hasAttribute('inert'), false, 'the app is given back when the screen goes');
+  behind.remove();
 
   const noStore = await mount({ update: 'required', storeUrl: null });
   assert.equal(noStore.buttons().length, 0, 'an iPhone with no App Store page has no dead button');
