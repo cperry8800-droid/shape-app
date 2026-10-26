@@ -50,13 +50,17 @@ export function heldVerdict(row: Pick<HeldRow, 'created_at' | 'read_at' | 'clear
 }
 
 // Takes the hold off a row, only if it still has one: two overlapping runs never both send it.
-async function release(admin: ReturnType<typeof createAdminClient>, row: HeldRow): Promise<boolean> {
+// ⚠ A ROW TAKEN TO SEND IS TAKEN ONLY IF IT IS STILL UNSEEN (Codex on #2476). Read from a page that can be
+// a minute old, a notice the person read or cleared meanwhile would be pushed. Not taken, it keeps its
+// hold, and the next run reads it as seen and lets it go.
+async function release(admin: ReturnType<typeof createAdminClient>, row: HeldRow, { toSend = false } = {}): Promise<boolean> {
   const { held_at: _held, ...data } = row.data ?? {};
-  const { data: claimed, error } = await admin.from('notifications')
+  let q = admin.from('notifications')
     .update({ data })
     .eq('id', row.id)
-    .not('data->>held_at', 'is', null)
-    .select('id');
+    .not('data->>held_at', 'is', null);
+  if (toSend) q = q.is('read_at', null).is('cleared_at', null);
+  const { data: claimed, error } = await q.select('id');
   return !error && Array.isArray(claimed) && claimed.length > 0;
 }
 
@@ -107,7 +111,7 @@ async function run(request: Request) {
           if (await release(admin, row)) letGo += 1;
           continue;
         }
-        if (!(await release(admin, row))) continue; // another run has it
+        if (!(await release(admin, row, { toSend: true }))) continue; // another run has it, or it was seen
         released = true;
         const { held_at: _held, ...data } = row.data ?? {};
         const out = await deliverNotice({ ...row, data }, now);

@@ -384,10 +384,11 @@ function heldDb(rows) {
   const dataOf = (r) => (stored.has(r.id) ? stored.get(r.id) : r.data) || {};
   const admin = {
     from() {
-      const f = { not: [], gt: null, idEq: null, patch: null, one: false };
+      const f = { not: [], is: [], gt: null, idEq: null, patch: null, one: false };
       const q = {
         select: () => q, order: () => q, limit: () => q,
         not: (...a) => { f.not.push(a); return q; },
+        is: (c, v) => { f.is.push([c, v]); return q; },
         gt: (_c, v) => { f.gt = v; return q; },
         eq: (_c, v) => { f.idEq = v; return q; },
         update: (patch) => { f.patch = patch; return q; },
@@ -398,7 +399,8 @@ function heldDb(rows) {
         if (f.patch) {
           const claim = f.not.some((a) => a[0] === 'data->>held_at');
           const was = row && dataOf(row).held_at;
-          const lands = row && (!claim || was);
+          // An `is` condition is read on the row as it is now, as the database would.
+          const lands = row && (!claim || was) && f.is.every(([c, v]) => (row[c] ?? null) === v);
           if (lands) { stored.set(row.id, f.patch.data); if (claim) claims.push(row.id); }
           return Promise.resolve({ data: lands ? [{ id: row.id }] : [], error: null }).then(ok, no);
         }
@@ -500,6 +502,23 @@ test('a held push no device took keeps its hold, and only a push that went count
   assert.deepEqual(body, { ok: true, delivered: 6, letGo: 1, failed: 1, stopped: false });
   assert.equal(db.dataById('down').held_at, '2026-10-26T03:00:00Z', 'a push no device took lost its hold');
   assert.equal(db.dataById('late').held_at, undefined, 'the fourth push for one person went in the same run');
+  // Read in the app after the run read its page, and before the run reached it: not pushed, and let go
+  // the next run (Codex on #2476).
+  const rows = [row('first', 0, 'kim'), row('readNow', 1, 'kim'), row('clearedNow', 2, 'lee')];
+  db = heldDb(rows);
+  const sent = [];
+  cron = await heldCron(db, async (r) => {
+    sent.push(r.id);
+    if (r.id === 'first') { rows[1].read_at = '2026-10-27T07:01:00Z'; rows[2].cleared_at = '2026-10-27T07:01:00Z'; }
+    return { pushed: 1 };
+  });
+  await heldRun(cron);
+  assert.deepEqual(sent, ['first'], 'a notice read or cleared meanwhile was pushed');
+  assert.ok(db.dataById('readNow').held_at && db.dataById('clearedNow').held_at, 'not taken, it keeps its hold');
+  sent.length = 0;
+  const again = await heldRun(cron);
+  assert.deepEqual(sent, [], 'the next run pushed it');
+  assert.equal(again.letGo, 2, 'the next run lets it go');
   // The dispatcher says which: every device failed, some went, or none to go to.
   const coach = { type: 'message', data: { side: 'client' } };
   st.pushAnswer = { sent: 0, failed: 2 };
