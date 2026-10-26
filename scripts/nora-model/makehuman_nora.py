@@ -89,7 +89,8 @@ HS.set_character_skin(os.path.join(DATA, 'skins', SPEC['skin'], SPEC['skin'] + '
 parts = [(body, 'body', 'SKIN')]
 add = lambda kind, name, atype: HS.add_mhclo_asset(find_mhclo(kind, name), body, asset_type=atype, subdiv_levels=0, material_type='MAKESKIN')
 parts.append((add('eyes', SPEC['eyes'], 'Eyes'), SPEC['eyes'], 'EYES'))
-parts.append((add('eyebrows', SPEC['eyebrows'], 'Eyebrows'), SPEC['eyebrows'], 'CARD'))
+if SPEC.get('eyebrows'):   # none when a face photo brings its own (photo_face.py)
+    parts.append((add('eyebrows', SPEC['eyebrows'], 'Eyebrows'), SPEC['eyebrows'], 'CARD'))
 parts.append((add('eyelashes', SPEC['eyelashes'], 'Eyelashes'), SPEC['eyelashes'], 'CARD'))
 parts.append((add('hair', SPEC['hair'], 'Hair'), SPEC['hair'], 'CARD'))
 for c in SPEC['clothes']:
@@ -226,6 +227,29 @@ def diffuse_path(obj):
     raise SystemExit('no diffuse texture on ' + obj.name)
 
 
+def mhmat_colour(name, kind):
+    """The asset's own MakeHuman material colour (`diffuseColor`), which MakeHuman multiplies into
+    its texture: some hair textures are pale strands meant to be tinted by it (punkduck's alpha7
+    hair is a light-grey texture under a dark-brown colour). 1 when the material sets none."""
+    if kind == 'SKIN':
+        path = os.path.join(DATA, 'skins', SPEC['skin'], SPEC['skin'] + '.mhmat')
+    else:
+        folder = {'EYES': 'eyes', 'CLOTH': 'clothes'}.get(kind) or (
+            'hair' if name == SPEC['hair'] else 'eyelashes' if name == SPEC.get('eyelashes') else 'eyebrows')
+        mhclo = find_mhclo(folder, name)
+        rel = next((ln.split(None, 1)[1].strip() for ln in open(mhclo, encoding='utf-8', errors='replace') if ln.startswith('material ')), None)
+        if not rel:
+            return None
+        path = os.path.normpath(os.path.join(os.path.dirname(mhclo), rel))
+    if not os.path.isfile(path):
+        return None
+    for ln in open(path, encoding='utf-8', errors='replace'):
+        if ln.startswith('diffuseColor '):
+            c = [float(x) for x in ln.split()[1:4]]
+            return None if all(abs(x - 1) < 1e-3 for x in c) else c
+    return None
+
+
 def plain_material(obj, name, kind):
     img = bpy.data.images.load(diffuse_path(obj), check_existing=False)
     img.name = name
@@ -234,8 +258,11 @@ def plain_material(obj, name, kind):
         s = limit / max(img.size)
         img.scale(max(1, int(img.size[0] * s)), max(1, int(img.size[1] * s)))
     tint = SPEC.get('tints', {}).get(name)
-    if tint or kind == 'CARD':
+    own = mhmat_colour(name, kind)
+    if tint or own or kind == 'CARD':
         px = np.array(img.pixels[:], dtype=np.float32).reshape(-1, 4)
+        if own:
+            px[:, :3] *= np.array(own, dtype=np.float32)[None, :]
         if tint:
             # the pixels are linear here (Blender converts on load); the tint is given in sRGB
             lin = np.where(np.array(tint) <= 0.04045, np.array(tint) / 12.92, ((np.array(tint) + 0.055) / 1.055) ** 2.4)
@@ -244,7 +271,9 @@ def plain_material(obj, name, kind):
             # A card's coverage is soft: clipped at 0.5 as drawn, the hair thinned to a bald scalp in the
             # booth (measured). Scaled ×2.5, the clip falls at 0.2 of the original coverage. The brows
             # and lashes less (×1.3): at ×2.5 the brows read heavy and drawn on.
-            px[:, 3] = np.minimum(px[:, 3] * (2.5 if name == SPEC['hair'] else 1.3), 1.0)
+            # (`hair_alpha` in the recipe: fine-strand hair like punkduck's alpha7 needs far less, or its
+            # strands fuse into a solid hood)
+            px[:, 3] = np.minimum(px[:, 3] * (SPEC.get('hair_alpha', 2.5) if name == SPEC['hair'] else 1.3), 1.0)
         img.pixels[:] = px.ravel()
     img.pack()
     m = bpy.data.materials.new(name)
@@ -270,6 +299,16 @@ def plain_material(obj, name, kind):
 
 for o, name, kind in parts:
     plain_material(o, name, kind)
+
+# ── 6b. the face from a photograph (photo_face.py) ──────────────────────────
+if SPEC.get('face_photo'):
+    from photo_face import apply_face_photo
+    face_py = os.environ.get('FACE_PY')
+    model = os.environ.get('FACE_MODEL')
+    if not face_py or not model:
+        raise SystemExit('a face photo needs FACE_PY (a Python with mediapipe and scikit-image) and FACE_MODEL (face_landmarker.task); see README.md')
+    apply_face_photo(body, [o for o, _, k in parts if k in ('SKIN', 'EYES')], (centres['l'] + centres['r']) / 2,
+                     SPEC['face_photo'], os.path.join(os.path.dirname(os.path.abspath(OUT)), 'face-photo'), face_py, model, log)
 
 
 def hair_underlayer(hair, name, inset=0.0015):
@@ -307,8 +346,9 @@ def hair_underlayer(hair, name, inset=0.0015):
     return under
 
 
-hair_obj, hair_name = next((o, n) for o, n, k in parts if k == 'CARD' and n == SPEC['hair'])
-parts.append((hair_underlayer(hair_obj, hair_name), hair_name + '.under', 'HAIR_UNDER'))
+if SPEC.get('hair_underlayer', True):   # off for dense hair: an opaque copy of many long cards is a stack of sheets
+    hair_obj, hair_name = next((o, n) for o, n, k in parts if k == 'CARD' and n == SPEC['hair'])
+    parts.append((hair_underlayer(hair_obj, hair_name), hair_name + '.under', 'HAIR_UNDER'))
 
 # ── 7. skin binding, influences, VRM ────────────────────────────────────────
 meshes = [o for o, _, _ in parts]
@@ -351,11 +391,14 @@ maps = dict(MAPS, humanoid=HUMANOID)
 bound = setup_vrm(rig, maps, meshes)
 ext = rig.data.vrm_addon_extension.vrm1
 meta = ext.meta
-# Built from CC0 assets (MakeHuman's), so no third-party licence binds the model; it is Shape's
-# character, so the VRM meta allows no redistribution or modification by others.
-meta.other_license_url = 'https://creativecommons.org/publicdomain/zero/1.0/'
+# Built from MakeHuman community assets (CC0, and CC BY for her hair, credited below); she is
+# Shape's character, so the VRM meta allows no redistribution or modification by others.
+meta.other_license_url = ''   # not the MetaHuman licence setup_vrm names; her terms are the flags it sets
 meta.authors.clear()
-meta.authors.add().value = 'Shape (MakeHuman CC0 assets)'
+meta.authors.add().value = 'Shape (MakeHuman community assets)'
+# a CC BY asset (her hair) is credited where the model travels
+if SPEC.get('credits'):
+    meta.copyright_information = '; '.join(SPEC['credits'])
 # look-at from the midpoint of the eye bones, in world space (as mh_to_vrm.py)
 mw = rig.matrix_world
 mid = (mw @ rig.data.bones['eye_l'].head_local + mw @ rig.data.bones['eye_r'].head_local) / 2
