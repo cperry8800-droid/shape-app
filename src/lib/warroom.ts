@@ -615,6 +615,14 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Splash: Split glass spins in a little slower, 2.3 s to 3.0 s — #2477. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26, after #2474: "make the spin a little slower"', status: 'done' },
+        { label: 'splitGlassMark.js SPIN 2.3 → 3.0 s: the same 1.25 turns, its fastest moment about a quarter slower (1.25 turns a second, from 1.63). The homepage splash still ends at 2.9 s with 0.02° left to turn, so the settle into the summit flag is unchanged; the app\'s beat holds at least 3.5 s', status: 'done' },
+        { label: 'Review: Codex clean on cb769a4. Checks: split-glass-mark, homepage-splash and assert-dom-value, 31/31; staging deployed', status: 'done' },
+      ],
+    },
+    {
       section: 'Splash: the mark becomes Split glass, on the homepage and the app\'s launch — #2474. No migration',
       items: [
         { label: 'Owner, 2026-10-26: "can we make the triangles look more 3d on the splash pages. I want to see preview", then, from a live preview of eight treatments (claude.ai/artifact/3RBjoq7yfCtH4Y6T1m13h7), "i like glass and split" and "do split glass"', status: 'done' },
