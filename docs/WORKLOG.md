@@ -263,9 +263,11 @@ The War Room has the full list; this covers what needs the owner and the planned
 - The booth's LED wall loops (`wallShow.mjs`, `WALL_LOOPS`) stream from Higgsfield's CDN on the
   owner's account, desktops only (about 13 MB for the four); phones get the drawn looks. Nora's face
   photo (`scripts/nora-model/nora.json` `face_photo`) is on the same CDN, and rebuilding her needs it.
-  The show, the MakeHuman crowd (`crowdPeople.mjs`), Nora, and the room lit by the wall
-  (`wallLookGlow`) with haze on the beams (`beamHaze.mjs`), have been seen only in headless Chromium,
-  not on a real GPU or a phone. The old avatar crowd (`crowdAvatars.mjs`) is kept for a v2 pack.
+  The show, the MakeHuman crowd (`crowdPeople.mjs`), Nora, the room lit by the wall
+  (`wallLookGlow`) with haze on the beams (`beamHaze.mjs`), and the stage set (the four-deck booth,
+  its speakers, the barrier, subs and front-of-house desk) have been seen only in headless Chromium,
+  not on a real GPU or a phone. From the stage the crowd reads brighter and more evenly lit than a
+  club floor. The old avatar crowd (`crowdAvatars.mjs`) is kept for a v2 pack.
 
 ## History
 
