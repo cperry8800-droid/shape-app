@@ -615,6 +615,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Booth: a VIP lounge and a cocktail bar off the dance floor, and the people rebuilt close up — #2478. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26: "i also want to create spearate side rooms/lounges and views of those", "make sure the people have the updated graphics", "the people look horrible"', status: 'done' },
+        { label: 'The side rooms (clubRooms.mjs, clubVenue.mjs § 2c), through the ground tier\'s bay 3 on each side: a VIP lounge on the left (a back-lit onyx wall, a banquette, sofa groups under chandeliers, a champagne bar, a rope and a doorman) and a cocktail bar on the right (a lit counter, a back bar of bottles, pendants, a neon Shape mark, high tables, bartenders). Each is lit by its own baked lamps, its glow spilling onto the hall, with guests of its own (venueRoomCrowd) lit from the camera\'s side', status: 'done' },
+        { label: 'Lounge and Bar cameras (noraDirector.mjs, cinematic.mjs), which Auto cuts to now and then; Lounge and Bar chips on the Radio page and in the app, in all 13 locales', status: 'done' },
+        { label: 'The people (bake_people.py): the face has its own tile and triangles, the hair more of the level, the brows a part of their own in the hair colour; a stance each; hands drawn together and curled, with their own triangles; a detailed seated level (seatNear) for the rooms. Packs: 3.6 MB on desktops (was 2.5), 1.14 MB on phones (was 0.79)', status: 'done' },
+        { label: 'Review: Codex clean on e64a77b. Checks: npm test 8,615/8,615; tests/booth-sideRooms.test.mjs (6) and the booth-crowdPeople updates (seatNear, the brows, the hands\' budget); renders in headless Chromium on both tiers, the people before and after on one camera; staging deployed', status: 'done' },
+        { label: 'OWNER: open the Lounge and Bar on a real screen and a phone, and look at the people close (Crowd view, the rooms). Every render was software', status: 'manual' },
+        { label: 'Close up the people are still game-engine figures: no scanned faces and no facial animation', status: 'pending' },
+      ],
+    },
+    {
       section: 'Splash: Split glass spins in a little slower, 2.3 s to 3.0 s — #2477. No migration',
       items: [
         { label: 'Owner, 2026-10-26, after #2474: "make the spin a little slower"', status: 'done' },
@@ -633,6 +645,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Booth: a dark dance floor, as a club\'s is — #2475. No migration',
+      items: [
+        { label: 'Owner, 2026-10-26: "make the crowd darker like a real club"', status: 'done' },
+        { label: 'Measured in Crowd view, light by light: the LED wall\'s panel gave the crowd half its brightness all down the room, the sky and environment light another quarter. crowdPeople.mjs takes a house option (the share of the direct light at the stage and deep in the house, and of the ambient), applied after three\'s lights_fragment_end so the crowd\'s own rim, back light and the beams\' pools stay', status: 'done' },
+        { label: 'club.mjs CROWD_HOUSE: 60% at the stage falling to 12% over 6 m, a fifth of the ambient; the stage\'s fill takes 0.35 of the wall\'s light over 11 m (9 on phones). Crowd view, same frame: front rows 44.9 → 22.6, mid-room 42.1 → 19.6, the back 27.9 → 10.3 (mean sRGB)', status: 'done' },
+        { label: 'Review: Codex clean on 7d12db3. Checks: npm test 8,583/8,583; two tests in tests/booth-crowdPeople.test.mjs run the real onBeforeCompile on three\'s standard shader; renders in headless Chromium on both tiers', status: 'done' },
+      ],
+    },
+    {
       section: 'Booth: the club seen from its stage — four decks, booth speakers, barrier, subs, front of house — #2473. No migration',
       items: [
         { label: 'Owner, 2026-10-26: "this needs to look more like a legit club/venue from a stage perspective", "the booth needs to be larger", "yes need both speakers on the sides etc", "booth speakers"', status: 'done' },
@@ -640,7 +661,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'The shots (noraDirector.mjs): Behind Nora looks out from the booth over her shoulder, the four decks across the bottom of the frame inside the 2.39:1 bars; Crowd view rises above her head. The room: charcoal stone, three kinds of palm, the wall\'s light in the stage deck\'s polish', status: 'done' },
         { label: 'Review: Codex clean on ab16a35. Checks: npm test 8,581/8,581; tests/booth-stageView.test.mjs (7; the old framing, the speakers moved in and a taller desk each fail one) and three more in tests/booth-clubRealism.test.mjs; renders in headless Chromium on both tiers; staging deployed', status: 'done' },
         { label: 'OWNER: watch the stage on a real screen and a phone (staging or the next deploy): Behind Nora, the booth and its speakers, the barrier and the desk. Every render was software', status: 'manual' },
-        { label: 'From the stage the crowd still reads brighter and more evenly lit than a real club floor (its lighting is unchanged); the subs and the desk read as dark shapes', status: 'pending' },
+        { label: 'From the stage the crowd read brighter and more evenly lit than a real club floor: darkened in #2475', status: 'done' },
+        { label: 'The subs and the desk read as dark shapes', status: 'pending' },
       ],
     },
     {
