@@ -615,6 +615,38 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App Settings: design A, a ruled index with rounded controls in teal — #2482. No migration',
+      items: [
+        { label: 'Owner, 2026-10-27: "should we update design of this and each pages in settings?", "For settings design don\'t do anything until I see preview"; from a preview of two (claude.ai/artifact/R9P8QWYbsfv9NVyqBe9bKZ), "keep the teal coloring", "dont need the perfect square toggle", "go with A, but make sure these are rounded not so square"', status: 'done' },
+        { label: 'BSSettings (iosAppBroadsheetClient.jsx): every page opens on a headline over a double ink rule, a section\'s page numbered ("02 · Settings"); the root is the byline, the quick switches, Preview as, a numbered index of the sections, the Also rows and Sign out in ink; each setting a ruled row. Pill switches and pickers, 12 px swatch tiles, pill Cancel · Save; the edit page\'s fields rounded. Replaces the squared, chamfered Passport boxes', status: 'done' },
+        { label: 'One colour: the theme teal (#0a8f87 light, #34d6c5 dark), whatever accent the member picked; only the Accent swatch shows their accent. No rust or red in Settings. Nothing a setting stores changed, and no new copy', status: 'done' },
+        { label: 'Review: Codex clean on 23d7ac8. Checks: npm test 8,647/8,647; tests/settings-passport-root.test.mjs (two tests rewritten for A); the hosted /m/ bundle rendered in headless Chromium at 430 px, light and dark (the root, Account, Notifications, Customize)', status: 'done' },
+        { label: 'OWNER: open Settings on a phone, signed in. Every render was headless Chromium on demo data', status: 'manual' },
+        { label: 'The rest of the app\'s magazine red (the Wall, chat, the tab bar\'s dot, the Me page) is unchanged: the owner to say whether it goes teal', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Website: six dashboard skins, White, Bone, Black, Carbon, Night and Glass — #2481. No migration',
+      items: [
+        { label: 'Owner, 2026-10-27: "create different dashboard skins for website you can choose from, like on app. Do carbon, white, bone, black, and the eye sensitive one to limit blue light, and also a glass/transparent dashboard look"', status: 'done' },
+        { label: 'dash.css: a token block per skin (html[data-paper]); Glass draws three fixed glows and frosts only what floats (never a fixed panel or an in-flow card: backdrop-filter would capture their fixed children); Night keeps blue under 72% of each colour\'s strongest channel, washes photos (img, video, .dash-photo) in sepia and repaints the chat button, the demo band and the spotlight tour in amber', status: 'done' },
+        { label: 'The choice: DashPaperPicker tiles on both Settings pages; app_tweaks keeps colorMode (the light/dark the app reads) and webPaper (the skin) in one write (useRememberedChoice\'s `also`); a skin applies only while its mode is the shared one. The 33 hosts\' first-paint stamps admit the five non-White skins', status: 'done' },
+        { label: 'Review: Codex P2 ×3 on b9cfebd (two writes for one choice; the tour teal on Night; background photos unwashed), fixed in 651ad15; Codex clean on 651ad15. Checks: npm test 8,647/8,647; token parity, contrast floors per skin (Glass over each glow), the stamp, the picker, the paired write and the photo sweep, with thirteen injected bugs each caught; every skin rendered in headless Chromium on coach and client Today and Settings', status: 'done' },
+        { label: 'OWNER: pick a skin signed in and check the app follows its light or dark. The webPaper and colorMode write has been checked only by the unit guards', status: 'manual' },
+        { label: 'Night leaves fixed literals as they are (chart series, tag and tier colours, brand marks, the chat panel\'s teal header); Glass shows a plain ground on pages that paint their own root', status: 'pending' },
+      ],
+    },
+    {
+      section: 'App: the masthead mark in Split glass, and Nora\'s ✦ in teal — #2480. No migration',
+      items: [
+        { label: 'Owner, 2026-10-27: "also make the triangles here on app the same design/look as new triangle splash page", "also make this teal color"', status: 'done' },
+        { label: 'BSLogo (iosAppBroadsheet.jsx, 21 call sites) draws the splash\'s Split glass prisms at its still pose: splitGlassMark.js gains logo(ink, teal) in BSLogo\'s own viewBox and MAST, a denser look for 16 px; the splash\'s own output is unchanged. A non-hex ink or a missing SplitGlassMark keeps the flat mark', status: 'done' },
+        { label: 'The header\'s ✦ (Ask Nora) is the theme teal instead of the magazine red', status: 'done' },
+        { label: 'Review: Codex clean on 693fa0a. Checks: npm test 8,639/8,639; three tests in tests/split-glass-mark.test.mjs and the ✦ pinned in app-chrome-magazine-corner; the built app\'s masthead on Cream, Black, Bone and Teal in headless Chromium', status: 'done' },
+        { label: 'OWNER: look at the masthead mark on a phone and in the installed app. Every render was headless Chromium', status: 'manual' },
+      ],
+    },
+    {
       section: 'Support: a reviewer agent for the info@ Outlook inbox, replies signed by Nora — #2479. No migration',
       items: [
         { label: 'Owner, 2026-10-27: "how do i create agents to review customer service emails", "email is through outlook", "have the signature say its from Nora", "include shapes logo", "is there a refund button?"', status: 'done' },
