@@ -221,3 +221,62 @@ test('bsNormalizeProfileCustom: P4/P5 keys + film via opts.filmBucket + film pas
   assert.equal('pinnedReviews' in cleared, false);
   assert.equal(cleared.bio, 'x');
 });
+
+// ── The coach profile redesign (2026-10-27): look and studio ───────────────────
+import {
+  bsProfileLook, bsProfileCover, bsProfileStudio, bsStudioItem, BS_STUDIO_W, BS_STUDIO_H, BS_STUDIO_ITEMS_MAX, BS_STUDIO_STATIONS_MAX,
+} from '../mobile-app/src/services/profileCustom.mjs';
+
+test('cover: only an image in the owner\'s own community-photos or coach-media folder (Codex P1 on #2484)', () => {
+  const at = (bucket, owner, file) => `https://${BS_SUPABASE_HOST}/storage/v1/object/public/${bucket}/${owner}/${file}`;
+  assert.deepEqual(bsProfileCover({ image: at('community-photos', 'u1', 'a.jpg') }, 'u1'), { image: at('community-photos', 'u1', 'a.jpg') });
+  assert.deepEqual(bsProfileCover({ image: at('coach-media', 'u1', 'b.heic'), x: 1 }, 'u1'), { image: at('coach-media', 'u1', 'b.heic') }, 'a listing photo; extra keys dropped');
+  assert.equal(bsProfileCover({ image: 'https://tracker.example/pixel.gif' }, 'u1'), null, 'an outside host');
+  assert.equal(bsProfileCover({ image: at('community-photos', 'u2', 'a.jpg') }, 'u1'), null, 'another member\'s folder');
+  assert.equal(bsProfileCover({ image: at('meal-notes', 'u1', 'a.jpg') }, 'u1'), null, 'another bucket');
+  assert.equal(bsProfileCover({ image: at('community-photos', 'u1', 'a.svg') }, 'u1'), null, 'not an image type the guard keeps');
+  assert.equal(bsProfileCover({ image: at('community-photos', 'u1', 'a.jpg') }, null), null, 'no owner, no cover');
+  assert.equal(bsProfileCover(at('community-photos', 'u1', 'a.jpg'), 'u1'), null, 'a bare string is not the stored shape');
+});
+
+test('look: only Shape\'s own papers, accents and focus words survive', () => {
+  assert.deepEqual(bsProfileLook({ paper: 'bone', accent: 'rust', focus: 'top' }), { paper: 'bone', accent: 'rust', focus: 'top' });
+  assert.deepEqual(bsProfileLook({ paper: '#ff0000', accent: 'rust', extra: 1 }), { accent: 'rust' });
+  assert.equal(bsProfileLook({ paper: 'nope' }), null);
+  assert.equal(bsProfileLook('dark'), null);
+});
+
+test('studio: a piece is a known type kept inside the 344 × 528 plan', () => {
+  assert.deepEqual(bsStudioItem({ t: 'rack', x: 10, y: 20, w: 78, h: 46 }), { t: 'rack', x: 10, y: 20, w: 78, h: 46 });
+  assert.equal(bsStudioItem({ t: 'pool', x: 0, y: 0, w: 10, h: 10 }), null, 'unknown type');
+  assert.equal(bsStudioItem({ t: 'rack', x: 0, y: 0, w: 'x', h: 10 }), null, 'no size');
+  // Too big shrinks to the plan; a corner past the edge comes back in.
+  assert.deepEqual(bsStudioItem({ t: 'turf', x: 400, y: -9, w: 999, h: 60 }), { t: 'turf', x: 0, y: 0, w: BS_STUDIO_W, h: 60 });
+  assert.deepEqual(bsStudioItem({ t: 'bench', x: 340, y: 520, w: 18, h: 56 }), { t: 'bench', x: BS_STUDIO_W - 18, y: BS_STUDIO_H - 56, w: 18, h: 56 });
+  // Station words are cleaned and capped; a spot stays inside its piece.
+  const st = bsStudioItem({ t: 'desk', x: 0, y: 0, w: 72, h: 36, spot: [500, 10], st: { title: ' Front\u0000 desk ', note: 'x'.repeat(400) }, label: 'Front desk', evil: '<script>' });
+  assert.deepEqual(st.spot, [72, 10]);
+  assert.equal(st.st.title, 'Front desk');
+  assert.equal(st.st.note.length, 280);
+  assert.equal(st.evil, undefined);
+});
+
+test('studio: capped pieces and stations, an unknown kind is blank, no pieces is no studio', () => {
+  const many = Array.from({ length: 200 }, (_, i) => ({ t: 'bench', x: i, y: 0, w: 18, h: 56, st: { title: 'S' + i, note: '' } }));
+  const s = bsProfileStudio({ kind: 'castle', where: ' Iron Works ', items: many });
+  assert.equal(s.kind, 'blank');
+  assert.equal(s.where, 'Iron Works');
+  assert.equal(s.items.length, BS_STUDIO_ITEMS_MAX);
+  assert.equal(s.items.filter((x) => x.st).length, BS_STUDIO_STATIONS_MAX);
+  assert.equal(bsProfileStudio({ kind: 'gym', items: [] }), null);
+  assert.equal(bsProfileStudio({ kind: 'gym', items: [{ t: 'nope' }] }), null);
+});
+
+test('the normalizer keeps a valid look and studio and drops junk ones', () => {
+  const clean = bsNormalizeProfileCustom({ look: { paper: 'dark', accent: 'teal' }, studio: { kind: 'gym', items: [{ t: 'rack', x: 0, y: 0, w: 78, h: 46 }] }, other: 1 }, 'u1');
+  assert.deepEqual(clean.look, { paper: 'dark', accent: 'teal' });
+  assert.equal(clean.studio.items.length, 1);
+  assert.equal(clean.other, 1, 'other keys ride through');
+  const junk = bsNormalizeProfileCustom({ look: { paper: 'x' }, studio: { items: 'x' } }, 'u1');
+  assert.ok(!('look' in junk) && !('studio' in junk));
+});

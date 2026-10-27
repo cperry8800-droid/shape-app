@@ -173,6 +173,111 @@ export function bsProfilePinnedReviews(v) {
   return out;
 }
 
+// ── The coach profile redesign (owner, 2026-10-27) ────────────────────────────
+// `look`: the coach's own colours, chosen from Shape's papers and accents (the app's
+// makePalette keys, so the profile paints with the same values the app does), and what stays
+// in view in their wall photo (`cover.image`). `studio`: their space, drawn as pieces on a
+// fixed 344 × 528 plan (the profile's frame), some of them numbered stations with the
+// coach's own words. Both are public through get_public_profile like the rest of the doc, so
+// every value is an enum, a bounded integer or cleaned text, and every array scan is capped.
+export const BS_LOOK_PAPERS = ['dark', 'light', 'white', 'bone', 'manila', 'sage', 'rose', 'mist', 'steel', 'teal', 'forest', 'blueprint', 'midnight', 'slate', 'plum', 'oxblood', 'cocoa', 'carbon'];
+export const BS_LOOK_ACCENTS = ['teal', 'blue', 'amber', 'rust', 'green', 'violet', 'rose', 'white', 'black'];
+export const BS_LOOK_FOCUS = ['top', 'center', 'bottom'];
+
+export function bsProfileLook(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const out = {};
+  if (BS_LOOK_PAPERS.includes(v.paper)) out.paper = v.paper;
+  if (BS_LOOK_ACCENTS.includes(v.accent)) out.accent = v.accent;
+  if (BS_LOOK_FOCUS.includes(v.focus)) out.focus = v.focus;
+  return Object.keys(out).length ? out : null;
+}
+
+// The wall photo (`cover`, { image }) loads on the device of everyone who opens the profile, so
+// it is held to the owner's own media like the M1 wall and the film: an upload in community-photos
+// or one of their listing photos in coach-media, in their own folder, with an image extension.
+// Anything else, an outside URL included, is no cover (Codex P1 on #2484).
+export function bsProfileCover(v, ownerUid) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const image = bsOwnMediaUrl(v.image, 'community-photos', ownerUid) || bsOwnMediaUrl(v.image, 'coach-media', ownerUid);
+  return image ? { image } : null;
+}
+
+// The pieces a coach can place (mobile-app/src/services/studioKit.mjs draws each one).
+export const BS_STUDIO_TYPES = [
+  'dumbbells', 'bells', 'plates', 'barbells', 'bench', 'adjbench', 'rack', 'platform', 'landmine',
+  'smith', 'cable', 'latpull', 'chest', 'pecdeck', 'legpress', 'hack', 'legext', 'legcurl', 'hipthrust', 'preacher', 'dip', 'ghd',
+  'treadmill', 'bike', 'airbike', 'rower', 'ski', 'elliptical', 'stair',
+  'rig', 'turf', 'sled', 'boxes', 'ropes', 'wallballs', 'straps', 'bag', 'ring',
+  'mats', 'reformer', 'barre', 'mirror', 'speaker', 'desk', 'frames', 'tree', 'zone',
+  'counter', 'island', 'range', 'fridge', 'sink', 'pantry', 'table', 'scale', 'blender', 'herbs', 'board',
+  'sofa', 'armchair', 'screen', 'shelf',
+];
+// The kinds of space (each draws its own room outline and doors).
+export const BS_STUDIO_KINDS = ['private', 'garage', 'gym', 'pilates', 'boxing', 'outdoor', 'kitchen', 'home', 'clinic', 'online', 'blank'];
+export const BS_STUDIO_W = 344;
+export const BS_STUDIO_H = 528;
+export const BS_STUDIO_ITEMS_MAX = 80;
+export const BS_STUDIO_STATIONS_MAX = 12;
+export const BS_STUDIO_WHERE_MAX = 80;
+export const BS_STUDIO_LABEL_MAX = 24;
+export const BS_STATION_TITLE_MAX = 60;
+export const BS_STATION_NOTE_MAX = 280;
+const BS_STUDIO_SCAN = BS_STUDIO_ITEMS_MAX * 4;
+
+const bsInt = (v, lo, hi) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : null;
+};
+
+// One piece: { t, x, y, w, h, label?, tag?, spot?: [dx, dy], st?: { title, note } }. A piece is
+// kept inside the plan (its size first, then its corner). A station keeps the coach's words.
+export function bsStudioItem(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  if (!BS_STUDIO_TYPES.includes(v.t)) return null;
+  const w = bsInt(v.w, 4, BS_STUDIO_W), h = bsInt(v.h, 4, BS_STUDIO_H);
+  if (w == null || h == null) return null;
+  const x = bsInt(v.x, 0, BS_STUDIO_W - w), y = bsInt(v.y, 0, BS_STUDIO_H - h);
+  if (x == null || y == null) return null;
+  const out = { t: v.t, x, y, w, h };
+  const label = bsCleanText(v.label, BS_STUDIO_LABEL_MAX);
+  if (label) out.label = label;
+  const tag = bsCleanText(v.tag, BS_STUDIO_LABEL_MAX);
+  if (tag) out.tag = tag;
+  if (Array.isArray(v.spot) && v.spot.length === 2) {
+    const dx = bsInt(v.spot[0], 0, w), dy = bsInt(v.spot[1], 0, h);
+    if (dx != null && dy != null) out.spot = [dx, dy];
+  }
+  if (v.st && typeof v.st === 'object' && !Array.isArray(v.st)) {
+    out.st = { title: bsCleanText(v.st.title, BS_STATION_TITLE_MAX), note: bsCleanText(v.st.note, BS_STATION_NOTE_MAX) };
+  }
+  return out;
+}
+
+// The whole space. Null when it holds nothing to draw (no pieces), so an empty doc key drops.
+export function bsProfileStudio(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const raw = Array.isArray(v.items) ? (v.items.length > BS_STUDIO_SCAN ? v.items.slice(0, BS_STUDIO_SCAN) : v.items) : [];
+  const items = [];
+  let stations = 0;
+  for (const r of raw) {
+    if (items.length >= BS_STUDIO_ITEMS_MAX) break;
+    const it = bsStudioItem(r);
+    if (!it) continue;
+    if (it.st) {
+      if (stations >= BS_STUDIO_STATIONS_MAX) delete it.st;
+      else stations++;
+    }
+    items.push(it);
+  }
+  if (!items.length) return null;
+  return {
+    kind: BS_STUDIO_KINDS.includes(v.kind) ? v.kind : 'blank',
+    where: bsCleanText(v.where, BS_STUDIO_WHERE_MAX),
+    items,
+  };
+}
+
 // The trusted save wrapper's core: normalize THIS WAVE's keys on a copy of the
 // doc, dropping a key entirely when it's empty/invalid (never an empty-string
 // tombstone), and passing EVERY other key through byte-identical (AC 9). Junk
@@ -196,6 +301,10 @@ export function bsNormalizeProfileCustom(doc, ownerUid, opts) {
   if (bizCard) base.bizCard = bizCard; else delete base.bizCard;
   const pinnedReviews = bsProfilePinnedReviews(base.pinnedReviews);
   if (pinnedReviews.length) base.pinnedReviews = pinnedReviews; else delete base.pinnedReviews;
+  const look = bsProfileLook(base.look);
+  if (look) base.look = look; else delete base.look;
+  const studio = bsProfileStudio(base.studio);
+  if (studio) base.studio = studio; else delete base.studio;
   const filmBucket = (opts && typeof opts.filmBucket === 'string') ? opts.filmBucket : null;
   const filmKey = (opts && typeof opts.filmKey === 'string') ? opts.filmKey : 'film';
   if (filmBucket) {

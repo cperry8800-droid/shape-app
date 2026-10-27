@@ -11,6 +11,9 @@ export {
   bsCleanText, bsProfileLine, bsProfileWall, bsProfileShelf,
   bsValidStartDate, bsStartLineState, bsProfileStartLine,
   bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, bsNormalizeProfileCustom,
+  BS_LOOK_PAPERS, BS_LOOK_ACCENTS, BS_LOOK_FOCUS, bsProfileLook, bsProfileCover,
+  BS_STUDIO_TYPES, BS_STUDIO_KINDS, BS_STUDIO_W, BS_STUDIO_H, BS_STUDIO_ITEMS_MAX, BS_STUDIO_STATIONS_MAX,
+  BS_STUDIO_WHERE_MAX, BS_STUDIO_LABEL_MAX, BS_STATION_TITLE_MAX, BS_STATION_NOTE_MAX, bsStudioItem, bsProfileStudio,
   BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS,
   bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken,
 } from '../../../public/newdesign/profileCustom.mjs';

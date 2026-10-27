@@ -148,7 +148,9 @@ test('app listing: a current client sees their way to buy, never Join, and Join 
 
 test('app profile: a current client gets Book now, and the waiting list only for everyone else', () => {
   const src = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  const prof = src.slice(src.indexOf('function BSSignalCoachProfile('), src.indexOf('\nfunction ', src.indexOf('function BSSignalCoachProfile(') + 10));
+  // The profile's storefront is the shared hook and block (useBSCoachCommerce, BSCoachCoachingBlock), which
+  // the trainer profile runs too (2026-10-27).
+  const prof = src.slice(src.indexOf('function useBSCoachCommerce('), src.indexOf('function BSSignalCoachProfile('));
   // Keyed on the account, cleared before the bail (Codex on #2375): a switch never inherits the last answer.
   assert.match(prof, /React\.useEffect\(\(\) => \{\n    setWl\(null\); setClientOf\(undefined\);\n    if \(isSelf \|\| !atCapacity \|\| !capacityProviderId\) \{ setClientOf\(null\); return undefined; \}/);
   assert.match(prof, /\}, \[isSelf, atCapacity, capacityProviderId, capacityProviderRole, wlAuthUid\]\);/);

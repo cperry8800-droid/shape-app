@@ -82,6 +82,7 @@ import { BSClientGoals } from './BSGoals.jsx';
 import { bsDash, bsDashA, BSDashCard, BSDashRing, BSDashSpark, BSDashSegment } from './BSDash.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSCoachHoursPage } from './BSCoachHours.jsx';
+import { BSTrainerProfile } from './BSTrainerProfile.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
@@ -19274,103 +19275,13 @@ function bsDemoCoachActivity(name, isNutri, tier) {
     },
   ];
 }
-function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
-  // Only render Message affordances where the HOST actually wired a handler
-  // (it dismisses this profile before opening the thread) — no dead buttons.
-  const hasMessage = typeof onMessage === 'function';
-  const onMsg = hasMessage ? onMessage : () => {};
-  const tTheme = useBS();
+// ── The storefront every coach profile shares ─────────────────────────────────────────────────
+// Subscribe, Book, the waiting list and the at-capacity states, lifted out of BSSignalCoachProfile
+// unchanged (owner, 2026-10-27, the trainer profile redesign) so the trainer profile
+// (BSTrainerProfile.jsx) runs the same reviewed logic instead of a copy. Every note below came
+// with it.
+function useBSCoachCommerce({ person, isSelf, isNutri, name, first, city }) {
   const tr = useShapeTr();
-  const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
-  const SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
-  const [live, setLive] = useStateBSC(null);
-  const [tab, setTab] = useStateBSC('activity');
-  const [offerTab, setOfferTab] = useStateBSC('All');
-  // Real published catalogue (coach_plans) for this coach, keyed by their user id.
-  const [salePlans, setSalePlans] = useStateBSC(null);
-  React.useEffect(() => {
-    if (!person.userId || !window.ShapeCoachPlans?.salePlansByUser) { setSalePlans([]); return; }
-    let on = true;
-    window.ShapeCoachPlans.salePlansByUser(person.userId).then((r) => { if (on) setSalePlans(r || []); }).catch(() => { if (on) setSalePlans([]); });
-    return () => { on = false; };
-  }, [person.userId]);
-  const [custom, setCustom] = useStateBSC(null);
-  const [showCustomizer, setShowCustomizer] = useStateBSC(false);
-  // Business (owner, 2026-10-17: the website's Business page, designed for the app, inside Me):
-  // null, or the tab it opens on. Only the coach's own Me tab shows the card that opens it.
-  const [showBusiness, setShowBusiness] = useStateBSC(null);
-  const bizRole = person && person.kind === 'NUTRI' ? 'nutritionist' : 'trainer';
-  const [ringLive, setRingLive] = useStateBSC(null);
-  const [showLog, setShowLog] = useStateBSC(false);
-  const [coachFeedReloadNonce, setCoachFeedReloadNonce] = useStateBSC(0);
-  const [editingActivity, setEditingActivity] = useStateBSC(null);
-  const [coachPosts, setCoachPosts] = useStateBSC([]);
-  const sigMyId = (() => { try { return (window.ShapeAuth?.getCachedState?.() || {}).user?.id || null; } catch (e) { return null; } })();
-  const sigFeedAuthorId = isSelf ? (person.userId || sigMyId) : (person.userId || null);
-  // Coach's published activity feed (note/photo/video/workout/link) — same
-  // "log activity" composer + rich rendering as the member profile.
-  const loadCoachPosts = React.useCallback(() => {
-    if (!sigFeedAuthorId || !window.ShapeCommunity?.listByAuthor) return;
-    window.ShapeCommunity.listByAuthor(sigFeedAuthorId, { withPhotoOnly: false })
-      .then((r) => setCoachPosts(Array.isArray(r?.data) ? r.data : []))
-      .catch(() => {});
-  }, [sigFeedAuthorId]);
-  React.useEffect(() => { loadCoachPosts(); }, [loadCoachPosts, coachFeedReloadNonce]);
-  useBSPresence();
-  React.useEffect(() => { setLive(null); if (!person.userId || !window.ShapeProfiles?.getPublicProfile) return undefined; let on = true; window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (on && d) setLive(d); }).catch(() => {}); return () => { on = false; }; }, [person.userId]);
-  React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
-  // Live sigil rings for your own coach profile (habits / client workouts / own activity).
-  React.useEffect(() => { let on = true; if (isSelf && window.ShapeCoachRings?.get) { window.ShapeCoachRings.get().then((d) => { if (on && d) setRingLive(d); }).catch(() => {}); } return () => { on = false; }; }, [isSelf]);
-  React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
-  const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
-  // Signed-in own profile zeroes its demo sub-data (rings/disciplines/offerings/
-  // certs/lifts/philosophy). Viewing OTHER coaches keeps the illustrative
-  // fallback; signed-out preview is unchanged.
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
-  const ownZero = isSelf && signedIn;
-  const isNutri = person.kind === 'NUTRI';
-  // Signed-out preview → demo customizations (line/business card/cover/prompts)
-  // so the coach's profile-wave items read as filled. A signed-in coach always
-  // sees their REAL doc (empty until they fill it in).
-  const demoFill = !signedIn && !person.userId && !custom;
-  const customEff = React.useMemo(() => custom || (demoFill ? bsDemoCoachCustom(isNutri) : null), [custom, demoFill, isNutri]);
-  const points = live && Number.isFinite(live.points) ? live.points : null;
-  const baseTier = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
-  const tierName = bsCoachTier(baseTier);
-  const c = bsTierColor(String(tierName).toLowerCase());
-  const name = (isSelf && typeof bsMyName === 'function' && bsMyName()) || person.who || (isNutri ? 'Nutritionist' : 'Coach');
-  const first = name.split(' ')[0];
-  const city = person.city || 'Shape community';
-  const handle = (live && live.username && '@' + live.username) || (live && live.handle) || ('@' + first.toLowerCase().replace(/[^a-z0-9]/g, ''));
-  const pronouns = (!isPrivate && live && live.pronouns) || '';
-  const score = points != null ? points : 4970;
-  // Sigil rings — three coaching contributions (Habits · Client workouts · Own
-  // activity) whose fill tracks how close the coach is to the next tier. Anchored
-  // to real points-based progress so the rings genuinely "fill up" toward the next
-  // rung; the fixed offsets keep the three staggered (illustrative contribution shape).
-  const _SIG_TH = [0, 750, 2000, 5000, 15000];
-  const _sigPts = points != null ? points : score;
-  let _sigIdx = 0; for (let j = 0; j < _SIG_TH.length; j++) if (_sigPts >= _SIG_TH[j]) _sigIdx = j;
-  const _sigTop = _sigIdx >= _SIG_TH.length - 1;
-  const _sigFloor = _SIG_TH[_sigIdx], _sigNext = _sigTop ? _sigFloor : _SIG_TH[_sigIdx + 1];
-  const sigilToNext = _sigTop ? 1 : Math.max(0.05, Math.min(0.97, (_sigPts - _sigFloor) / Math.max(1, _sigNext - _sigFloor)));
-  const sigilNextTier = _sigTop ? bsCoachTier(baseTier) : bsCoachTier(['base', 'tempo', 'form', 'peak', 'legend'][_sigIdx + 1]);
-  const _sigClamp = (v) => Math.max(0.1, Math.min(0.98, v));
-  // Live values when we have them (your own profile); else anchored to tier
-  // progress. On your OWN signed-in profile with no live rings, zero them out
-  // (no demo fill) — viewing others / signed-out keeps the illustrative anchor.
-  const _ringVal = (live, fallback) => (live != null && Number.isFinite(live)) ? _sigClamp(live) : (ownZero ? 0 : _sigClamp(fallback));
-  const sigilRings = [
-    ['Habits', _ringVal(ringLive && ringLive.habits, sigilToNext + 0.14)],
-    ['Client workouts', _ringVal(ringLive && ringLive.clientWorkouts, sigilToNext - 0.1)],
-    ['Own activity', _ringVal(ringLive && ringLive.ownActivity, sigilToNext + 0.02)],
-  ];
-  const roleLabel = isNutri ? tr('profile:coach.roleNutri', { defaultValue: 'Nutritionist · RD' }) : tr('profile:coach.roleTrainer', { defaultValue: 'Trainer · CPT' });
-  // Real bio/goal shows on your own profile; the demo fallback is suppressed when
-  // signed-in (own) — the section hides if you haven't written one.
-  const philosophy = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || (ownZero ? '' : (isNutri ? 'Fuel the work you’re doing.' : 'Get strong, stay strong.'));
-  // ── Storefront: the profile IS the marketplace listing. Subscribe / Book run
-  // the same global Stripe + booking services the old detail page used. ──
   const commerce = person.commerce || null;
   const commerceCoach = (commerce && commerce.coach) || { name, provider_role: isNutri ? 'nutritionist' : 'trainer', provider_id: person.providerId || null, rate: 120, loc: city, id: person.userId };
   const monthlyPkg = (commerce && Array.isArray(commerce.packages) && commerce.packages.find((p) => p.type === 'Subscription')) || { type: 'Subscription', name: 'Monthly coaching', price: `$${isNutri ? 240 : 200}`, unit: '/ month', perks: ['Custom programming', 'Weekly check-ins', 'Daily chat'] };
@@ -19466,6 +19377,260 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
     } catch (e) { window.__bsToast?.(e?.message || tr('profile:coach.waitlistJoinError', { defaultValue: 'Could not join the waiting list.' }), 'err'); }
     finally { wlBusy.current = false; }
   };
+  return { commerce, commerceCoach, monthlyPkg, doSubscribe, doBookIntro, doBookOneTime, capacityProviderId, capacityProviderRole, atCapacity, introsOpenAtCap, wl, clientOf, wlWithdraw, wlJoin };
+}
+
+// "Work with": the at-capacity states (invited, waiting, already a client, full), the monthly
+// offer with Subscribe and the free intro, and the coach's catalogue with Buy. The Signal
+// profile's Coaching tab and the trainer profile's Work-with sheet both render it.
+function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, c }) {
+  const tTheme = useBS();
+  const tr = useShapeTr();
+  const INK = tTheme.INK;
+  const SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const { monthlyPkg, doSubscribe, doBookIntro, doBookOneTime, atCapacity, introsOpenAtCap, wl, clientOf, wlWithdraw, wlJoin } = cm;
+  const [offerTab, setOfferTab] = useStateBSC('All');
+  const Kick = ({ children, col }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: col || bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
+  const hair = bsTHexA(INK, 0.12);
+  const cta = { minHeight: 44, borderRadius: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' };
+  // Text on the ink fill is the solid paper: BG is PAPER_BG, which the Steel paper makes a gradient, and a
+  // gradient is no colour (Codex, P1 on #2441).
+  const ctaInk = { ...cta, border: 0, background: INK, color: tTheme.PAPER };
+  const ctaLine = { ...cta, border: `1px solid ${INK}`, background: 'transparent', color: INK };
+  const ctaBlock = { marginTop: 24, paddingTop: 12, borderTop: `3px solid ${INK}` };
+  const quiet = { padding: '13px 0', borderTop: `1px solid ${hair}`, fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) };
+  // Offerings, categorised so the Coaching tab can sub-tab them (like the website
+  // catalogue): trainers → Workouts / Programs / Coaching; nutritionists →
+  // Meals / Diets / Coaching. Each row: [cat, kind, name, sub, price].
+  const demoOfferings = isNutri
+    ? [
+        ['Meals', 'Meal plan', 'Custom meal plan', '2 weeks, built to your macros', '$60'],
+        ['Meals', 'Meal plan', 'Single-week reset', 'A 7-day plan + grocery list', '$35'],
+        ['Diets', 'Program', '6-week nutrition program', 'Plan + weekly adjustments', '$220'],
+        ['Diets', 'Program', 'Cut / recomp protocol', '8 weeks, macros + check-ins', '$280'],
+        ['Coaching', 'Coaching', 'Monthly coaching', 'Plans, labs review, accountability', '$160/mo'],
+        ['Coaching', 'Consult', 'Intro call', '15 min — see if we’re a fit', 'Free'],
+      ]
+    : [
+        ['Workouts', 'Workout', 'Single 1:1 session', '60 min, in-person or remote', '$32'],
+        ['Workouts', 'Workout', 'Technique / form check', '30 min video review', '$20'],
+        ['Programs', 'Program', '6-week strength block', 'Custom programming + check-ins', '$240'],
+        ['Programs', 'Program', '12-week hypertrophy', 'Full block + deloads', '$420'],
+        ['Coaching', 'Coaching', 'Monthly coaching', 'Full programming + daily chat', '$180/mo'],
+        ['Coaching', 'Consult', 'Intro call', '15 min — see if we’re a fit', 'Free'],
+      ];
+  // When the coach has real published plans (coach_plans), build the catalogue
+  // from them; otherwise fall back to the demo offerings.
+  const offerBucket = (cat) => {
+    const cc = String(cat || '').toLowerCase();
+    if (isNutri) return /meal/.test(cc) ? 'Meals' : /diet|cut|recomp|nutrition/.test(cc) ? 'Diets' : 'Coaching';
+    return /workout|single|session|form/.test(cc) ? 'Workouts' : /program|block|strength|hypertrophy|peak/.test(cc) ? 'Programs' : 'Coaching';
+  };
+  const realOfferings = (salePlans || []).map((pl) => [
+    offerBucket(pl.category),
+    String(pl.category || (pl.kind === 'meal_plan' ? 'meal plan' : 'program')).replace(/_/g, ' '),
+    pl.name,
+    pl.meta || '',
+    pl.price ? (/^\$|free/i.test(String(pl.price)) ? String(pl.price) : `$${pl.price}`) : 'Listed',
+    pl, // the plan object → enables Buy (Stripe Connect checkout)
+  ]);
+  // Buy a real published plan via the same Stripe Connect checkout as the
+  // marketplace (the by-user catalogue carries the provider id + role).
+  const buyPlan = async (pl) => {
+    if (!pl || !pl.id || !pl.providerId || !window.ShapeCoachPlans?.buy) return;
+    try {
+      const url = await window.ShapeCoachPlans.buy({ plan: { id: pl.id, name: pl.name, price: pl.price }, providerRole: pl.providerRole, providerId: pl.providerId });
+      if (url) bsOpenCheckout(url);
+    } catch (e) { window.__bsToast?.((e && e.message) || tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err'); }
+  };
+  // Own signed-in profile shows only your real published plans (never the demo
+  // catalogue) — empty until you publish; others / signed-out keep demo.
+  const offerings = realOfferings.length ? realOfferings : (ownZero ? [] : demoOfferings);
+  const offerCats = isNutri ? ['All', 'Meals', 'Diets', 'Coaching'] : ['All', 'Workouts', 'Programs', 'Coaching'];
+  const visibleOfferings = offerTab === 'All' ? offerings : offerings.filter((o) => o[0] === offerTab);
+  return (<>
+          {/* Work with {first} — the storefront CTA (subscribe + book), or —
+              when {first} is effectively at capacity — the waiting-list CTA.
+              Each opens on a heavy ink rule under its state's kicker (green for invited or already a client,
+              rust for waiting or full), with square actions. */}
+          {!isSelf && atCapacity && wl?.status === 'invited' && (
+            <div style={ctaBlock}>
+              <Kick col={tTheme.GREEN}>{tr('profile:coach.youreInvited', { defaultValue: "You're invited" })}</Kick>
+              <div style={{ fontFamily: SERIF, fontSize: 20, fontWeight: 600, lineHeight: 1.2, margin: '7px 0 12px' }}>{tr('profile:coach.hasRoom', { name: first, defaultValue: '{name} has room for you.' })}</div>
+              {/* Book now = the one-time purchase; the normal Work-with block is hidden
+                  at capacity, so the invited state must also carry the subscription
+                  path (mirrors the website invited CTA trio, #1498). */}
+              <button onClick={doBookOneTime} style={{ ...ctaInk, width: '100%' }}>{tr('profile:coach.bookNow', { defaultValue: 'Book now' })}</button>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+                <button onClick={doSubscribe} style={ctaLine}>{tr('profile:coach.subscribeMo', { defaultValue: 'Subscribe /mo' })}</button>
+                <button onClick={wlWithdraw} style={ctaLine}>{tr('profile:coach.decline', { defaultValue: 'Decline' })}</button>
+              </div>
+              <button onClick={doBookIntro} data-intro-at-capacity="" style={{ ...ctaLine, width: '100%', marginTop: 8 }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
+            </div>
+          )}
+          {!isSelf && atCapacity && wl && wl.status !== 'invited' && (
+            <div style={ctaBlock}>
+              <Kick col={tTheme.RUST}>{tr('profile:coach.onWaitingList', { defaultValue: 'On the waiting list' })}</Kick>
+              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.inLine', { pos: wl.position, name: first, defaultValue: "You're #{pos} in line. {name} will invite you when a spot opens." })}</div>
+              <button onClick={wlWithdraw} style={{ ...ctaLine, width: '100%' }}>{tr('profile:coach.leaveList', { defaultValue: 'Leave the list' })}</button>
+              {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ ...ctaLine, width: '100%', marginTop: 8 }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
+            </div>
+          )}
+          {!isSelf && atCapacity && !wl && clientOf === true && (
+            <div data-client-at-capacity="" style={ctaBlock}>
+              <Kick col={tTheme.GREEN}>{tr('profile:coach.yourClientTitle', { name: first, defaultValue: "You're {name}'s client" })}</Kick>
+              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.yourClientBody', { name: first, defaultValue: "{name} isn't taking new clients, and you're already one. You can still book and buy as before." })}</div>
+              <button onClick={doBookOneTime} style={{ ...ctaInk, width: '100%' }}>{tr('profile:coach.bookNow', { defaultValue: 'Book now' })}</button>
+            </div>
+          )}
+          {!isSelf && atCapacity && !wl && clientOf !== true && (
+            <div style={ctaBlock}>
+              <Kick col={tTheme.RUST}>{tr('profile:coach.atCapacity', { defaultValue: 'At capacity' })}</Kick>
+              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.atCapacityBody', { name: first, defaultValue: "{name} isn't taking new clients right now. Join the waiting list to be first in line." })}</div>
+              {clientOf === undefined ? null : <button onClick={wlJoin} style={{ ...ctaInk, width: '100%' }}>{tr('profile:coach.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>}
+              {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ ...ctaLine, width: '100%', marginTop: 8 }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
+            </div>
+          )}
+          {!isSelf && !atCapacity && (
+            <div style={ctaBlock}>
+              <Kick col={bsWsAccent(tTheme)}>{tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })}</Kick>
+              <div style={{ fontFamily: SERIF, fontSize: 21, fontWeight: 600, lineHeight: 1.2, marginTop: 8 }}>{monthlyPkg.name} · <span style={{ color: bsWsAccent(tTheme) }}>{monthlyPkg.price}{monthlyPkg.unit === '/ month' ? '/mo' : ''}</span></div>
+              {Array.isArray(monthlyPkg.perks) && <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.6), marginTop: 5 }}>{monthlyPkg.perks.slice(0, 3).join(' · ')}</div>}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 13 }}>
+                <button onClick={doSubscribe} style={ctaInk}>{tr('profile:coach.subscribe', { defaultValue: 'Subscribe' })}</button>
+                <button onClick={doBookIntro} style={ctaLine}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
+              </div>
+            </div>
+          )}
+          {/* services & prices — sub-tabbed by type (like the website catalogue) */}
+          <div style={{ marginTop: 28 }}>
+            <BSTStationHead mag heat={c} INK={INK} label={isNutri ? tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' }) : tr('profile:coach.trainWith', { name: first, defaultValue: 'Train with {name}' })} />
+            {/* category sub-tabs, as the Wall's own row under its masthead: mono words, the chosen one in ink over red */}
+            <div style={{ display: 'flex', gap: 18, overflowX: 'auto' }} className="bs-hide-scroll">
+              {offerCats.map((ct) => { const on = offerTab === ct; return (
+                <button key={ct} aria-pressed={on} onClick={() => setOfferTab(ct)} style={{ flex: 'none', minHeight: 36, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
+                  <span style={{ display: 'inline-block', padding: '6px 0', boxShadow: on ? `inset 0 -2px 0 ${bsWsAccent(tTheme)}` : 'none', color: on ? INK : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{tr('profile:coach.cat.' + String(ct).toLowerCase(), { defaultValue: ct })}</span>
+                </button>
+              ); })}
+            </div>
+            <div style={{ marginTop: 6 }}>
+              {visibleOfferings.length ? visibleOfferings.map(([cat, kind, nm, sub, price, pl], i) => {
+                const buyable = !isSelf && pl && pl.id && pl.providerId && price !== 'Free' && price !== 'Listed';
+                return (
+                <div key={i} style={{ borderTop: `1px solid ${hair}`, padding: '13px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginBottom: 4 }}>{kind}</div><div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 600 }}>{nm}</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.55), marginTop: 3 }}>{sub}</div></div>
+                  {buyable
+                    ? <button onClick={() => buyPlan(pl)} style={{ ...ctaInk, flex: 'none', padding: '0 14px', fontSize: 9.5, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{tr('profile:coach.buy', { defaultValue: 'Buy' })} · {price}</button>
+                    : <div style={{ fontFamily: SERIF, fontSize: 19, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: INK, flex: 'none' }}>{price}</div>}
+                </div>
+                );
+              }) : (
+                <div style={quiet}>{tr('profile:coach.publishFirst', { defaultValue: 'Publish your first plan to list it here' })}</div>
+              )}
+            </div>
+          </div>
+
+  </>);
+}
+
+function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
+  // Only render Message affordances where the HOST actually wired a handler
+  // (it dismisses this profile before opening the thread) — no dead buttons.
+  const hasMessage = typeof onMessage === 'function';
+  const onMsg = hasMessage ? onMessage : () => {};
+  const tTheme = useBS();
+  const tr = useShapeTr();
+  const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
+  const SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const [live, setLive] = useStateBSC(null);
+  const [tab, setTab] = useStateBSC('activity');
+  // Real published catalogue (coach_plans) for this coach, keyed by their user id.
+  const [salePlans, setSalePlans] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!person.userId || !window.ShapeCoachPlans?.salePlansByUser) { setSalePlans([]); return; }
+    let on = true;
+    window.ShapeCoachPlans.salePlansByUser(person.userId).then((r) => { if (on) setSalePlans(r || []); }).catch(() => { if (on) setSalePlans([]); });
+    return () => { on = false; };
+  }, [person.userId]);
+  const [custom, setCustom] = useStateBSC(null);
+  const [showCustomizer, setShowCustomizer] = useStateBSC(false);
+  // Business (owner, 2026-10-17: the website's Business page, designed for the app, inside Me):
+  // null, or the tab it opens on. Only the coach's own Me tab shows the card that opens it.
+  const [showBusiness, setShowBusiness] = useStateBSC(null);
+  const bizRole = person && person.kind === 'NUTRI' ? 'nutritionist' : 'trainer';
+  const [ringLive, setRingLive] = useStateBSC(null);
+  const [showLog, setShowLog] = useStateBSC(false);
+  const [coachFeedReloadNonce, setCoachFeedReloadNonce] = useStateBSC(0);
+  const [editingActivity, setEditingActivity] = useStateBSC(null);
+  const [coachPosts, setCoachPosts] = useStateBSC([]);
+  const sigMyId = (() => { try { return (window.ShapeAuth?.getCachedState?.() || {}).user?.id || null; } catch (e) { return null; } })();
+  const sigFeedAuthorId = isSelf ? (person.userId || sigMyId) : (person.userId || null);
+  // Coach's published activity feed (note/photo/video/workout/link) — same
+  // "log activity" composer + rich rendering as the member profile.
+  const loadCoachPosts = React.useCallback(() => {
+    if (!sigFeedAuthorId || !window.ShapeCommunity?.listByAuthor) return;
+    window.ShapeCommunity.listByAuthor(sigFeedAuthorId, { withPhotoOnly: false })
+      .then((r) => setCoachPosts(Array.isArray(r?.data) ? r.data : []))
+      .catch(() => {});
+  }, [sigFeedAuthorId]);
+  React.useEffect(() => { loadCoachPosts(); }, [loadCoachPosts, coachFeedReloadNonce]);
+  useBSPresence();
+  React.useEffect(() => { setLive(null); if (!person.userId || !window.ShapeProfiles?.getPublicProfile) return undefined; let on = true; window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (on && d) setLive(d); }).catch(() => {}); return () => { on = false; }; }, [person.userId]);
+  React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
+  // Live sigil rings for your own coach profile (habits / client workouts / own activity).
+  React.useEffect(() => { let on = true; if (isSelf && window.ShapeCoachRings?.get) { window.ShapeCoachRings.get().then((d) => { if (on && d) setRingLive(d); }).catch(() => {}); } return () => { on = false; }; }, [isSelf]);
+  React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
+  const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
+  // Signed-in own profile zeroes its demo sub-data (rings/disciplines/offerings/
+  // certs/lifts/philosophy). Viewing OTHER coaches keeps the illustrative
+  // fallback; signed-out preview is unchanged.
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
+  const ownZero = isSelf && signedIn;
+  const isNutri = person.kind === 'NUTRI';
+  // Signed-out preview → demo customizations (line/business card/cover/prompts)
+  // so the coach's profile-wave items read as filled. A signed-in coach always
+  // sees their REAL doc (empty until they fill it in).
+  const demoFill = !signedIn && !person.userId && !custom;
+  const customEff = React.useMemo(() => custom || (demoFill ? bsDemoCoachCustom(isNutri) : null), [custom, demoFill, isNutri]);
+  const points = live && Number.isFinite(live.points) ? live.points : null;
+  const baseTier = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
+  const tierName = bsCoachTier(baseTier);
+  const c = bsTierColor(String(tierName).toLowerCase());
+  const name = (isSelf && typeof bsMyName === 'function' && bsMyName()) || person.who || (isNutri ? 'Nutritionist' : 'Coach');
+  const first = name.split(' ')[0];
+  const city = person.city || 'Shape community';
+  const handle = (live && live.username && '@' + live.username) || (live && live.handle) || ('@' + first.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const pronouns = (!isPrivate && live && live.pronouns) || '';
+  const score = points != null ? points : 4970;
+  // Sigil rings — three coaching contributions (Habits · Client workouts · Own
+  // activity) whose fill tracks how close the coach is to the next tier. Anchored
+  // to real points-based progress so the rings genuinely "fill up" toward the next
+  // rung; the fixed offsets keep the three staggered (illustrative contribution shape).
+  const _SIG_TH = [0, 750, 2000, 5000, 15000];
+  const _sigPts = points != null ? points : score;
+  let _sigIdx = 0; for (let j = 0; j < _SIG_TH.length; j++) if (_sigPts >= _SIG_TH[j]) _sigIdx = j;
+  const _sigTop = _sigIdx >= _SIG_TH.length - 1;
+  const _sigFloor = _SIG_TH[_sigIdx], _sigNext = _sigTop ? _sigFloor : _SIG_TH[_sigIdx + 1];
+  const sigilToNext = _sigTop ? 1 : Math.max(0.05, Math.min(0.97, (_sigPts - _sigFloor) / Math.max(1, _sigNext - _sigFloor)));
+  const sigilNextTier = _sigTop ? bsCoachTier(baseTier) : bsCoachTier(['base', 'tempo', 'form', 'peak', 'legend'][_sigIdx + 1]);
+  const _sigClamp = (v) => Math.max(0.1, Math.min(0.98, v));
+  // Live values when we have them (your own profile); else anchored to tier
+  // progress. On your OWN signed-in profile with no live rings, zero them out
+  // (no demo fill) — viewing others / signed-out keeps the illustrative anchor.
+  const _ringVal = (live, fallback) => (live != null && Number.isFinite(live)) ? _sigClamp(live) : (ownZero ? 0 : _sigClamp(fallback));
+  const sigilRings = [
+    ['Habits', _ringVal(ringLive && ringLive.habits, sigilToNext + 0.14)],
+    ['Client workouts', _ringVal(ringLive && ringLive.clientWorkouts, sigilToNext - 0.1)],
+    ['Own activity', _ringVal(ringLive && ringLive.ownActivity, sigilToNext + 0.02)],
+  ];
+  const roleLabel = isNutri ? tr('profile:coach.roleNutri', { defaultValue: 'Nutritionist · RD' }) : tr('profile:coach.roleTrainer', { defaultValue: 'Trainer · CPT' });
+  // Real bio/goal shows on your own profile; the demo fallback is suppressed when
+  // signed-in (own) — the section hides if you haven't written one.
+  const philosophy = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || (ownZero ? '' : (isNutri ? 'Fuel the work you’re doing.' : 'Get strong, stay strong.'));
+  // ── Storefront: the profile IS the marketplace listing. Subscribe, Book and the waiting list live
+  // in useBSCoachCommerce, which the trainer profile (BSTrainerProfile.jsx) shares, so both read
+  // capacity and book the same way. ──
+  const cm = useBSCoachCommerce({ person, isSelf, isNutri, name, first, city });
   // Live reviews (shared with the website + marketplace via /api/coaches/reviews).
   const [liveReviews, setLiveReviews] = useStateBSC(null);
   const [reviewerProfile, setReviewerProfile] = useStateBSC(null);
@@ -19539,55 +19704,6 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const certs = ownZero ? [] : (isNutri
     ? [['RD', 'Registered Dietitian', '2018'], ['CSSD', 'Sports Dietetics Specialist', '2020'], ['FODMAP', 'Monash FODMAP-trained', '2022']]
     : [['NASM-CPT', 'Certified Personal Trainer', '2016'], ['USAW-L1', 'USA Weightlifting', '2020'], ['FMS-L2', 'Functional Movement Screen', '2021']]);
-  // Offerings, categorised so the Coaching tab can sub-tab them (like the website
-  // catalogue): trainers → Workouts / Programs / Coaching; nutritionists →
-  // Meals / Diets / Coaching. Each row: [cat, kind, name, sub, price].
-  const demoOfferings = isNutri
-    ? [
-        ['Meals', 'Meal plan', 'Custom meal plan', '2 weeks, built to your macros', '$60'],
-        ['Meals', 'Meal plan', 'Single-week reset', 'A 7-day plan + grocery list', '$35'],
-        ['Diets', 'Program', '6-week nutrition program', 'Plan + weekly adjustments', '$220'],
-        ['Diets', 'Program', 'Cut / recomp protocol', '8 weeks, macros + check-ins', '$280'],
-        ['Coaching', 'Coaching', 'Monthly coaching', 'Plans, labs review, accountability', '$160/mo'],
-        ['Coaching', 'Consult', 'Intro call', '15 min — see if we’re a fit', 'Free'],
-      ]
-    : [
-        ['Workouts', 'Workout', 'Single 1:1 session', '60 min, in-person or remote', '$32'],
-        ['Workouts', 'Workout', 'Technique / form check', '30 min video review', '$20'],
-        ['Programs', 'Program', '6-week strength block', 'Custom programming + check-ins', '$240'],
-        ['Programs', 'Program', '12-week hypertrophy', 'Full block + deloads', '$420'],
-        ['Coaching', 'Coaching', 'Monthly coaching', 'Full programming + daily chat', '$180/mo'],
-        ['Coaching', 'Consult', 'Intro call', '15 min — see if we’re a fit', 'Free'],
-      ];
-  // When the coach has real published plans (coach_plans), build the catalogue
-  // from them; otherwise fall back to the demo offerings.
-  const offerBucket = (cat) => {
-    const cc = String(cat || '').toLowerCase();
-    if (isNutri) return /meal/.test(cc) ? 'Meals' : /diet|cut|recomp|nutrition/.test(cc) ? 'Diets' : 'Coaching';
-    return /workout|single|session|form/.test(cc) ? 'Workouts' : /program|block|strength|hypertrophy|peak/.test(cc) ? 'Programs' : 'Coaching';
-  };
-  const realOfferings = (salePlans || []).map((pl) => [
-    offerBucket(pl.category),
-    String(pl.category || (pl.kind === 'meal_plan' ? 'meal plan' : 'program')).replace(/_/g, ' '),
-    pl.name,
-    pl.meta || '',
-    pl.price ? (/^\$|free/i.test(String(pl.price)) ? String(pl.price) : `$${pl.price}`) : 'Listed',
-    pl, // the plan object → enables Buy (Stripe Connect checkout)
-  ]);
-  // Buy a real published plan via the same Stripe Connect checkout as the
-  // marketplace (the by-user catalogue carries the provider id + role).
-  const buyPlan = async (pl) => {
-    if (!pl || !pl.id || !pl.providerId || !window.ShapeCoachPlans?.buy) return;
-    try {
-      const url = await window.ShapeCoachPlans.buy({ plan: { id: pl.id, name: pl.name, price: pl.price }, providerRole: pl.providerRole, providerId: pl.providerId });
-      if (url) bsOpenCheckout(url);
-    } catch (e) { window.__bsToast?.((e && e.message) || tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err'); }
-  };
-  // Own signed-in profile shows only your real published plans (never the demo
-  // catalogue) — empty until you publish; others / signed-out keep demo.
-  const offerings = realOfferings.length ? realOfferings : (ownZero ? [] : demoOfferings);
-  const offerCats = isNutri ? ['All', 'Meals', 'Diets', 'Coaching'] : ['All', 'Workouts', 'Programs', 'Coaching'];
-  const visibleOfferings = offerTab === 'All' ? offerings : offerings.filter((o) => o[0] === offerTab);
   const liveAvgAll = (liveAgg && liveAgg.count > 0) ? liveAgg.avg
     : (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
   const rating = liveCoach ? (liveAvgAll != null ? liveAvgAll.toFixed(1) : null) : (isNutri ? '9.9' : '9.94');
@@ -19605,12 +19721,6 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // actions (ink for the one to take, an ink outline for the other), blocks that open on a heavy ink rule,
   // and hairlines instead of filled cards.
   const hair = bsTHexA(INK, 0.12);
-  const cta = { minHeight: 44, borderRadius: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' };
-  // Text on the ink fill is the solid paper: BG is PAPER_BG, which the Steel paper makes a gradient, and a
-  // gradient is no colour (Codex, P1 on #2441).
-  const ctaInk = { ...cta, border: 0, background: INK, color: tTheme.PAPER };
-  const ctaLine = { ...cta, border: `1px solid ${INK}`, background: 'transparent', color: INK };
-  const ctaBlock = { marginTop: 24, paddingTop: 12, borderTop: `3px solid ${INK}` };
   const quiet = { padding: '13px 0', borderTop: `1px solid ${hair}`, fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) };
   // Render this coach's personal-activities feed as the SAME rich BSActivityCard
   // the community feed uses (author header hidden — the profile owns identity).
@@ -19902,89 +20012,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
 
           </>)}
 
-          {tab === 'coaching' && (<>
-          {/* Work with {first} — the storefront CTA (subscribe + book), or —
-              when {first} is effectively at capacity — the waiting-list CTA.
-              Each opens on a heavy ink rule under its state's kicker (green for invited or already a client,
-              rust for waiting or full), with square actions. */}
-          {!isSelf && atCapacity && wl?.status === 'invited' && (
-            <div style={ctaBlock}>
-              <Kick col={tTheme.GREEN}>{tr('profile:coach.youreInvited', { defaultValue: "You're invited" })}</Kick>
-              <div style={{ fontFamily: SERIF, fontSize: 20, fontWeight: 600, lineHeight: 1.2, margin: '7px 0 12px' }}>{tr('profile:coach.hasRoom', { name: first, defaultValue: '{name} has room for you.' })}</div>
-              {/* Book now = the one-time purchase; the normal Work-with block is hidden
-                  at capacity, so the invited state must also carry the subscription
-                  path (mirrors the website invited CTA trio, #1498). */}
-              <button onClick={doBookOneTime} style={{ ...ctaInk, width: '100%' }}>{tr('profile:coach.bookNow', { defaultValue: 'Book now' })}</button>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-                <button onClick={doSubscribe} style={ctaLine}>{tr('profile:coach.subscribeMo', { defaultValue: 'Subscribe /mo' })}</button>
-                <button onClick={wlWithdraw} style={ctaLine}>{tr('profile:coach.decline', { defaultValue: 'Decline' })}</button>
-              </div>
-              <button onClick={doBookIntro} data-intro-at-capacity="" style={{ ...ctaLine, width: '100%', marginTop: 8 }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
-            </div>
-          )}
-          {!isSelf && atCapacity && wl && wl.status !== 'invited' && (
-            <div style={ctaBlock}>
-              <Kick col={tTheme.RUST}>{tr('profile:coach.onWaitingList', { defaultValue: 'On the waiting list' })}</Kick>
-              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.inLine', { pos: wl.position, name: first, defaultValue: "You're #{pos} in line. {name} will invite you when a spot opens." })}</div>
-              <button onClick={wlWithdraw} style={{ ...ctaLine, width: '100%' }}>{tr('profile:coach.leaveList', { defaultValue: 'Leave the list' })}</button>
-              {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ ...ctaLine, width: '100%', marginTop: 8 }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
-            </div>
-          )}
-          {!isSelf && atCapacity && !wl && clientOf === true && (
-            <div data-client-at-capacity="" style={ctaBlock}>
-              <Kick col={tTheme.GREEN}>{tr('profile:coach.yourClientTitle', { name: first, defaultValue: "You're {name}'s client" })}</Kick>
-              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.yourClientBody', { name: first, defaultValue: "{name} isn't taking new clients, and you're already one. You can still book and buy as before." })}</div>
-              <button onClick={doBookOneTime} style={{ ...ctaInk, width: '100%' }}>{tr('profile:coach.bookNow', { defaultValue: 'Book now' })}</button>
-            </div>
-          )}
-          {!isSelf && atCapacity && !wl && clientOf !== true && (
-            <div style={ctaBlock}>
-              <Kick col={tTheme.RUST}>{tr('profile:coach.atCapacity', { defaultValue: 'At capacity' })}</Kick>
-              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.atCapacityBody', { name: first, defaultValue: "{name} isn't taking new clients right now. Join the waiting list to be first in line." })}</div>
-              {clientOf === undefined ? null : <button onClick={wlJoin} style={{ ...ctaInk, width: '100%' }}>{tr('profile:coach.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>}
-              {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ ...ctaLine, width: '100%', marginTop: 8 }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
-            </div>
-          )}
-          {!isSelf && !atCapacity && (
-            <div style={ctaBlock}>
-              <Kick col={bsWsAccent(tTheme)}>{tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })}</Kick>
-              <div style={{ fontFamily: SERIF, fontSize: 21, fontWeight: 600, lineHeight: 1.2, marginTop: 8 }}>{monthlyPkg.name} · <span style={{ color: bsWsAccent(tTheme) }}>{monthlyPkg.price}{monthlyPkg.unit === '/ month' ? '/mo' : ''}</span></div>
-              {Array.isArray(monthlyPkg.perks) && <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.6), marginTop: 5 }}>{monthlyPkg.perks.slice(0, 3).join(' · ')}</div>}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 13 }}>
-                <button onClick={doSubscribe} style={ctaInk}>{tr('profile:coach.subscribe', { defaultValue: 'Subscribe' })}</button>
-                <button onClick={doBookIntro} style={ctaLine}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
-              </div>
-            </div>
-          )}
-          {/* services & prices — sub-tabbed by type (like the website catalogue) */}
-          <div style={{ marginTop: 28 }}>
-            <BSTStationHead mag heat={c} INK={INK} label={isNutri ? tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' }) : tr('profile:coach.trainWith', { name: first, defaultValue: 'Train with {name}' })} />
-            {/* category sub-tabs, as the Wall's own row under its masthead: mono words, the chosen one in ink over red */}
-            <div style={{ display: 'flex', gap: 18, overflowX: 'auto' }} className="bs-hide-scroll">
-              {offerCats.map((ct) => { const on = offerTab === ct; return (
-                <button key={ct} aria-pressed={on} onClick={() => setOfferTab(ct)} style={{ flex: 'none', minHeight: 36, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
-                  <span style={{ display: 'inline-block', padding: '6px 0', boxShadow: on ? `inset 0 -2px 0 ${bsWsAccent(tTheme)}` : 'none', color: on ? INK : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{tr('profile:coach.cat.' + String(ct).toLowerCase(), { defaultValue: ct })}</span>
-                </button>
-              ); })}
-            </div>
-            <div style={{ marginTop: 6 }}>
-              {visibleOfferings.length ? visibleOfferings.map(([cat, kind, nm, sub, price, pl], i) => {
-                const buyable = !isSelf && pl && pl.id && pl.providerId && price !== 'Free' && price !== 'Listed';
-                return (
-                <div key={i} style={{ borderTop: `1px solid ${hair}`, padding: '13px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginBottom: 4 }}>{kind}</div><div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 600 }}>{nm}</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.55), marginTop: 3 }}>{sub}</div></div>
-                  {buyable
-                    ? <button onClick={() => buyPlan(pl)} style={{ ...ctaInk, flex: 'none', padding: '0 14px', fontSize: 9.5, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{tr('profile:coach.buy', { defaultValue: 'Buy' })} · {price}</button>
-                    : <div style={{ fontFamily: SERIF, fontSize: 19, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: INK, flex: 'none' }}>{price}</div>}
-                </div>
-                );
-              }) : (
-                <div style={quiet}>{tr('profile:coach.publishFirst', { defaultValue: 'Publish your first plan to list it here' })}</div>
-              )}
-            </div>
-          </div>
-
-          </>)}
+          {tab === 'coaching' && <BSCoachCoachingBlock cm={cm} isSelf={isSelf} isNutri={isNutri} first={first} ownZero={ownZero} salePlans={salePlans} c={c} />}
 
           {/* Reviews — its own tab (live /api/coaches/reviews when present) */}
           {tab === 'reviews' && (() => {
@@ -20071,6 +20099,13 @@ function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false,
     const role = person.kind === 'TRAINER' ? 'trainer' : person.kind === 'NUTRI' ? 'nutritionist' : 'client';
     bsRecentSearchPush({ userId: person.userId || null, name: person.who, role, avatar: person.photo || null, tier: person.tier || null, points: null });
   }, []);
+  // A trainer with a Shape account opens the trainer profile (BSTrainerProfile.jsx: their colours,
+  // their day, their studio, their replays). A demo trainer (no account) and every nutritionist
+  // keep the Signal profile for now (owner, 2026-10-27: nutritionists get their own design).
+  const signedIn = (() => { try { return !!window.ShapeAuth?.getCachedState?.()?.user?.id; } catch (e) { return false; } })();
+  if (person.kind === 'TRAINER' && (person.userId || (isSelf && signedIn))) {
+    return <BSTrainerProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
+  }
   if (person.kind === 'TRAINER' || person.kind === 'NUTRI') {
     return <BSSignalCoachProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
   }
@@ -31906,6 +31941,12 @@ Object.assign(window, {
   BSShapeScorePage,
   BSShapeStorePage,
   BSPublicProfile,
+  // The coach storefront, shared with the trainer profile (BSTrainerProfile.jsx).
+  useBSCoachCommerce,
+  BSCoachCoachingBlock,
+  // And the client pieces the trainer profile reads at call time (BSTrainerProfile.jsx).
+  bsGutter, useBSPinnedMastTop, useBSPresence, useBSProfilePhoto, bsInitials, bsIsUserOnline,
+  bsProfileCardFromPost, BSLogActivitySheet,
   BSNotifiedPerson,
   BSReconcile,
   BSFacetAvatar,
