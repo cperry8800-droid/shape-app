@@ -433,6 +433,39 @@ test('app: the backend door and the marketplace\'s word for a deep link to a coa
   assert.match(market, /onClick=\{\(\) => setDeepMiss\(false\)\}/);
 });
 
+test('app: a profile\'s owner lookup finds only a listed row, the marketplace\'s predicate (Codex P1 on #2484)', async () => {
+  const src = read('mobile-app/src/services/shapeBackend.js');
+  const i = src.indexOf('const PUBLIC_PROVIDER_COLUMNS = {');
+  const j = src.indexOf('window.ShapeCoachListing = {');
+  assert.ok(i > 0 && j > i, 'the lookup sits just above the ShapeCoachListing door');
+  // A table in memory that applies the query's eq filters, its order and its limit, as Postgres would.
+  let rows = [];
+  const table = () => {
+    const q = { eq: [], order: null, limit: null };
+    const b = {
+      select: () => b,
+      eq: (k, v) => { q.eq.push([k, v]); return b; },
+      order: (k, o) => { q.order = [k, !o || o.ascending !== false]; return b; },
+      limit: (n) => { q.limit = n; return b; },
+      then: (ok, bad) => {
+        let out = rows.filter((r) => q.eq.every(([k, v]) => r[k] === v));
+        if (q.order) { const [k, asc] = q.order; out = out.slice().sort((a, z) => (asc ? 1 : -1) * (a[k] - z[k])); }
+        if (q.limit != null) out = out.slice(0, q.limit);
+        return Promise.resolve({ data: out, error: null }).then(ok, bad);
+      },
+    };
+    return b;
+  };
+  const lookup = new Function('supabase', 'normalizeRole', 'bsNormalizeListingMedia', `${src.slice(i, j)}\nreturn publicListingByOwner;`)(
+    { from: table }, (r) => r, (m) => m || { cover: null, gallery: [] });
+  rows = [{ id: 3, owner_id: 'u1', listing_ready: false }];
+  assert.equal(await lookup('trainer', 'u1'), null, 'suspended or unfinished: no listing to offer times or checkout from');
+  rows = [{ id: 3, owner_id: 'u1', listing_ready: false }, { id: 9, owner_id: 'u1', listing_ready: true }];
+  assert.equal((await lookup('trainer', 'u1')).id, 9, 'the lowest listed row');
+  rows = [{ id: 9, owner_id: 'u1', listing_ready: true }, { id: 3, owner_id: 'u1', listing_ready: true }, { id: 1, owner_id: 'u2', listing_ready: true }];
+  assert.equal((await lookup('trainer', 'u1')).id, 3, 'the account\'s own lowest id');
+});
+
 // ── A photo can be the last step (Codex on #2324) ──────────────────────────
 test('website Profile: a photo saved below re-reads the readiness and keeps the rates as typed', async () => {
   let ready = false;
