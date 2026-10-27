@@ -117,7 +117,7 @@ dated entry or past 20 KB.
   scrolls away (none if the page scrolls itself); past a `BSDetailHeader`'s title it reads
   ← and the title. A sticky row in a `BSPage` takes `top: useBSPinnedMastTop()`.
 - **Theme:** `useBS()` → `t`. Teal `t.isLight ? '#0a8f87' : '#34d6c5'`; nutritionists gold
-  `#a07a2e`, trainers rust `#c0533b`. The Wall, chat and chrome take `bsMagazine.mjs`'s red.
+  `#a07a2e`, trainers rust `#c0533b`. The Wall, chat and chrome take `bsMagazine.mjs`'s teal.
   Headings are Saira; coach Today, Clients and Programs use Geist and Inter Tight.
 - **App copy** goes through `useShapeTr()` in all 13 locales.
   `tests/i18n-surface-inventory.test.mjs` counts the strings that aren't translated
