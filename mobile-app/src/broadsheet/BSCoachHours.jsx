@@ -208,13 +208,16 @@ function MemberPreview({ t, tr, role, providerId, nonce }) {
   else if (state.kind === 'error') body = <Note t={t}>{tr('coach:hours.previewError', { defaultValue: "Couldn't read your open times just now. Your hours are saved as shown above." })}</Note>;
   else if (state.kind === 'nozone') body = <Note t={t} tone="err">{tr('coach:hours.previewNoZone', { defaultValue: 'Your hours have no time zone yet, so members see no times. Save your hours once from this phone to fix it.' })}</Note>;
   else {
-    const first = state.open.slice(0, 6);
+    // Full with intro calls closed: members join the waiting list and the listing offers no
+    // times (its introClosed), so neither does this read-back (Codex on #2483).
+    const closed = state.atCapacity && !state.intros;
+    const first = closed ? [] : state.open.slice(0, 6);
     body = (
       <div>
         {state.atCapacity ? <Note t={t} style={{ marginBottom: 8 }}>{state.intros
           ? tr('coach:hours.previewFullIntros', { defaultValue: "You're full, so new members join your waiting list. They can still book a free intro call." })
           : tr('coach:hours.previewFull', { defaultValue: "You're full, so new members join your waiting list instead of booking." })}</Note> : null}
-        {first.length ? (
+        {closed ? null : first.length ? (
           <>
             <Note t={t}>{tr('coach:hours.previewCount', { defaultValue: '{count, plural, one {# open time} other {# open times}} in the next two weeks. The next ones:', count: state.open.length })}</Note>
             <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -304,7 +307,14 @@ function RulesEditor({ t, tr, role, disabled, onChanged }) {
 }
 
 // ── Time off ─────────────────────────────────────────────────────────────────────────────────
-const isoToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+// Today's date in the coach's stored zone, which the route reads whole days and part-days in
+// (Codex on #2483: a coach travelling across the date line saw the phone's today). en-CA formats
+// as YYYY-MM-DD. With no stored zone yet, the phone's own date.
+const isoToday = (zone) => {
+  if (zone) { try { return new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); } catch (e) {} }
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 function TimeOffEditor({ t, tr, role, disabled, onChanged }) {
   const locale = intlLocale();
   const [state, setState] = React.useState({ kind: disabled ? 'preview' : 'loading' });
@@ -406,12 +416,12 @@ function TimeOffEditor({ t, tr, role, disabled, onChanged }) {
           </div>
           {mode === 'days' ? (
             <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <label><span style={lbl}>{tr('coach:hours.offFrom', { defaultValue: 'From' })}</span><input type="date" style={field} value={form.from} min={isoToday()} onChange={(e) => setForm({ ...form, from: e.target.value, to: form.to < e.target.value ? e.target.value : form.to })} /></label>
+              <label><span style={lbl}>{tr('coach:hours.offFrom', { defaultValue: 'From' })}</span><input type="date" style={field} value={form.from} min={isoToday(tz)} onChange={(e) => setForm({ ...form, from: e.target.value, to: form.to < e.target.value ? e.target.value : form.to })} /></label>
               <label><span style={lbl}>{tr('coach:hours.offTo', { defaultValue: 'To' })}</span><input type="date" style={field} value={form.to} min={form.from} onChange={(e) => setForm({ ...form, to: e.target.value })} /></label>
             </div>
           ) : (
             <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <label style={{ gridColumn: '1 / -1' }}><span style={lbl}>{tr('coach:hours.offDate', { defaultValue: 'Day' })}</span><input type="date" style={field} value={form.date} min={isoToday()} onChange={(e) => setForm({ ...form, date: e.target.value })} /></label>
+              <label style={{ gridColumn: '1 / -1' }}><span style={lbl}>{tr('coach:hours.offDate', { defaultValue: 'Day' })}</span><input type="date" style={field} value={form.date} min={isoToday(tz)} onChange={(e) => setForm({ ...form, date: e.target.value })} /></label>
               <label><span style={lbl}>{tr('coach:hours.offFrom', { defaultValue: 'From' })}</span><input type="time" step={BS_HOURS_STEP * 60} style={field} value={bsHoursToInput(form.start)} onChange={(e) => { const m = bsHoursFromInput(e.target.value); if (m != null) setForm({ ...form, start: m }); }} /></label>
               <label><span style={lbl}>{tr('coach:hours.offTo', { defaultValue: 'To' })}</span><input type="time" step={BS_HOURS_STEP * 60} style={field} value={bsHoursToInput(form.end)} onChange={(e) => { const m = bsHoursFromInput(e.target.value); if (m != null) setForm({ ...form, end: m }); }} /></label>
             </div>
@@ -426,7 +436,7 @@ function TimeOffEditor({ t, tr, role, disabled, onChanged }) {
           </div>
         </div>
       ) : (
-        <button type="button" disabled={disabled} onClick={() => { setAdding(true); setMsg(null); }}
+        <button type="button" disabled={disabled} onClick={() => { const today = isoToday(tz); setForm((f) => ({ ...f, from: today, to: today, date: today })); setAdding(true); setMsg(null); }}
           style={{ marginTop: 6, minHeight: 44, padding: '0 2px', border: 0, background: 'transparent', color: teal(t), fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, cursor: disabled ? 'default' : 'pointer' }}>
           ＋ {tr('coach:hours.offAddRow', { defaultValue: 'Add time off' })}
         </button>
@@ -450,7 +460,7 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
   const [providerId, setProviderId] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
   const [msg, setMsg] = React.useState(null);
-  const [leaving, setLeaving] = React.useState(false);
+  const [leaving, setLeaving] = React.useState(null);
   const [reload, setReload] = React.useState(0);
   const [previewNonce, setPreviewNonce] = React.useState(0);
   React.useEffect(() => {
@@ -495,7 +505,9 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
       return false;
     } finally { setSaving(false); }
   };
-  const back = () => { if (dirty && live && load === 'ready') setLeaving(true); else onBack && onBack(); };
+  // Leaving with unsaved hours (Back, or See your calendar) asks first; `leaving` holds where to.
+  const leaveTo = (go) => { if (!go) return; if (dirty && live && load === 'ready') setLeaving(() => go); else go && go(); };
+  const back = () => leaveTo(onBack);
 
   let week;
   if (load === 'loading') week = <Note t={t} style={{ marginTop: 12 }}>{tr('coach:hours.loading', { defaultValue: 'Reading your hours…' })}</Note>;
@@ -529,7 +541,7 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
         </div>
 
         {onOpenCalendar ? (
-          <button type="button" onClick={onOpenCalendar}
+          <button type="button" onClick={() => leaveTo(onOpenCalendar)}
             style={{ marginTop: 26, width: '100%', minHeight: 50, padding: '0 14px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
             {tr('coach:hours.openCalendar', { defaultValue: 'See your calendar' })}<span style={{ color: teal(t) }}>→</span>
           </button>
@@ -542,11 +554,11 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
           {msg && msg.tone === 'err' ? <Note t={t} tone="err" style={{ marginBottom: 8 }}>{msg.text}</Note> : null}
           {!valid ? <Note t={t} tone="err" style={{ marginBottom: 8 }}>{tr('coach:hours.fixFirst', { defaultValue: 'Fix the times marked in red to save.' })}</Note> : null}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={() => { if (leaving) { onBack && onBack(); return; } setDays(bsHoursClone(seed)); setMsg(null); }}
+            <button type="button" onClick={() => { if (leaving) { leaving(); return; } setDays(bsHoursClone(seed)); setMsg(null); }}
               style={{ flex: 1, minHeight: 46, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>
               {leaving ? tr('coach:hours.discardLeave', { defaultValue: 'Leave without saving' }) : tr('coach:hours.undo', { defaultValue: 'Undo changes' })}
             </button>
-            <button type="button" data-save-hours="" disabled={saving || !valid} onClick={async () => { const ok = await save(); if (ok && leaving) onBack && onBack(); }}
+            <button type="button" data-save-hours="" disabled={saving || !valid} onClick={async () => { const ok = await save(); if (ok && leaving) leaving(); }}
               style={{ flex: 1.3, minHeight: 46, borderRadius: 999, border: 0, background: teal(t), color: onTeal(t), fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: saving || !valid ? 'default' : 'pointer', opacity: saving || !valid ? 0.55 : 1 }}>
               {saving ? tr('coach:hours.saving', { defaultValue: 'Saving…' }) : tr('coach:hours.save', { defaultValue: 'Save hours' })}
             </button>
