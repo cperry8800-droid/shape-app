@@ -100,3 +100,13 @@ test('time inputs: HH:MM both ways, and 23:59 stands for the end of the day', ()
   assert.equal(bsHoursFromInput('25:00'), null);
   assert.equal(bsHoursFromInput(''), null);
 });
+
+// Codex on #2483: a coach whose phone is now in another zone could not move unchanged hours to
+// it. The page offers that as its own action, which saves the stored hours as they are.
+test('a coach in a new zone can move their hours to it without editing them', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../mobile-app/src/broadsheet/BSCoachHours.jsx', import.meta.url), 'utf8');
+  assert.match(src, /const zoneMoved = live && load === 'ready' && !!phoneZone && !!zone && phoneZone !== zone;/);
+  assert.match(src, /const save = async \(\{ force = false \} = \{\}\) => \{\n\s+if \(!live \|\| saving \|\| \(!dirty && !force\) \|\| !valid\) return false;/);
+  assert.match(src, /\{zoneMoved && !dirty \? <div[^>]*><Chip t=\{t\} disabled=\{saving\} onClick=\{\(\) => save\(\{ force: true \}\)\}>\{tr\('coach:hours\.zoneMove'/);
+});

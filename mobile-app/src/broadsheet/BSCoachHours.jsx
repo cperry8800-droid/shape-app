@@ -490,8 +490,12 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
     const h = Math.floor(min / 60), m = min % 60;
     return m ? tr('coach:hours.totalHm', { defaultValue: '{h} h {m} min', h, m }) : tr('coach:hours.totalH', { defaultValue: '{h, plural, one {# hour} other {# hours}}', h });
   };
-  const save = async () => {
-    if (!live || saving || !dirty || !valid) return false;
+  // The phone is in another zone than the stored hours (a coach who moved): the hours stay on the
+  // old clock until a save, so moving them is its own action, never a side effect of looking
+  // (Codex on #2483: with nothing edited there was no way to save).
+  const zoneMoved = live && load === 'ready' && !!phoneZone && !!zone && phoneZone !== zone;
+  const save = async ({ force = false } = {}) => {
+    if (!live || saving || (!dirty && !force) || !valid) return false;
     setSaving(true); setMsg(null);
     try {
       const r = await window.ShapeCoachHours.save(role, bsHoursToRows(days));
@@ -535,6 +539,7 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
         <div style={{ marginTop: 22 }}>
           <Eyebrow t={t} right={load === 'ready' || load === 'preview' ? tr('coach:hours.perWeek', { defaultValue: '{total} a week', total: hoursLabel(total) }) : null}>{tr('coach:hours.weekHead', { defaultValue: 'Every week' })}</Eyebrow>
           {zoneLine && load === 'ready' ? <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50 }}>{zoneLine}</div> : null}
+          {zoneMoved && !dirty ? <div style={{ marginTop: 8 }}><Chip t={t} disabled={saving} onClick={() => save({ force: true })}>{tr('coach:hours.zoneMove', { defaultValue: 'Move my hours to {zone}', zone: phoneZone })}</Chip></div> : null}
           {week}
           {load === 'ready' && !dirty && msg ? <Note t={t} tone={msg.tone} style={{ marginTop: 10 }}>{msg.text}</Note> : null}
           {load === 'ready' ? <MemberPreview t={t} tr={tr} role={role} providerId={providerId} nonce={previewNonce} /> : null}

@@ -1464,6 +1464,7 @@
   "hours.offAdd": "Aggiungi assenza",
   "hours.offAddRow": "Aggiungi assenza",
   "hours.zoneMoved": "Orari in {zone}. Salvando da questo telefono passano a {phone}.",
+  "hours.zoneMove": "Sposta i miei orari su {zone}",
   "hours.zone": "Orari in {zone}",
   "hours.zoneFirst": "Gli orari saranno salvati in {zone}",
   "hours.saved": "Salvato. Ora i membri possono prenotare questi orari.",

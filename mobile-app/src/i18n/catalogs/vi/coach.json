@@ -1464,6 +1464,7 @@
   "hours.offAdd": "Thêm ngày nghỉ",
   "hours.offAddRow": "Thêm ngày nghỉ",
   "hours.zoneMoved": "Giờ theo {zone}. Lưu từ điện thoại này sẽ chuyển sang {phone}.",
+  "hours.zoneMove": "Chuyển giờ của tôi sang {zone}",
   "hours.zone": "Giờ theo {zone}",
   "hours.zoneFirst": "Giờ sẽ được lưu theo {zone}",
   "hours.saved": "Đã lưu. Thành viên có thể đặt những giờ này ngay.",

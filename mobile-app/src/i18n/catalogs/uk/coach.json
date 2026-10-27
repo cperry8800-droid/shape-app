@@ -1464,6 +1464,7 @@
   "hours.offAdd": "Додати вихідний",
   "hours.offAddRow": "Додати вихідний",
   "hours.zoneMoved": "Час у {zone}. Збереження з цього телефона переведе його в {phone}.",
+  "hours.zoneMove": "Перенести мої години в {zone}",
   "hours.zone": "Час у {zone}",
   "hours.zoneFirst": "Час збережеться в {zone}",
   "hours.saved": "Збережено. Учасники вже можуть бронювати цей час.",

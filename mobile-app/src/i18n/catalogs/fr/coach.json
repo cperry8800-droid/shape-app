@@ -1464,6 +1464,7 @@
   "hours.offAdd": "Ajouter une absence",
   "hours.offAddRow": "Ajouter une absence",
   "hours.zoneMoved": "Horaires en {zone}. Enregistrer depuis ce téléphone les passe en {phone}.",
+  "hours.zoneMove": "Passer mes horaires sur {zone}",
   "hours.zone": "Horaires en {zone}",
   "hours.zoneFirst": "Les horaires seront enregistrés en {zone}",
   "hours.saved": "Enregistré. Les membres peuvent réserver ces créneaux dès maintenant.",

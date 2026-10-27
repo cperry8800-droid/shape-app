@@ -1464,6 +1464,7 @@
   "hours.offAdd": "Tambah waktu libur",
   "hours.offAddRow": "Tambah waktu libur",
   "hours.zoneMoved": "Waktu di {zone}. Menyimpan dari ponsel ini memindahkannya ke {phone}.",
+  "hours.zoneMove": "Pindahkan jamku ke {zone}",
   "hours.zone": "Waktu di {zone}",
   "hours.zoneFirst": "Waktu akan disimpan di {zone}",
   "hours.saved": "Tersimpan. Anggota sekarang bisa memesan waktu ini.",

@@ -1464,6 +1464,7 @@
   "hours.offAdd": "Добавить выходной",
   "hours.offAddRow": "Добавить выходной",
   "hours.zoneMoved": "Время в {zone}. Сохранение с этого телефона переведёт его в {phone}.",
+  "hours.zoneMove": "Перенести мои часы в {zone}",
   "hours.zone": "Время в {zone}",
   "hours.zoneFirst": "Время сохранится в {zone}",
   "hours.saved": "Сохранено. Участники уже могут бронировать это время.",

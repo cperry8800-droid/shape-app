@@ -1464,6 +1464,7 @@
   "hours.offAdd": "İzin ekle",
   "hours.offAddRow": "İzin ekle",
   "hours.zoneMoved": "Saatler {zone} saatinde. Bu telefondan kaydetmek {phone} saatine taşır.",
+  "hours.zoneMove": "Saatlerimi {zone} saat dilimine taşı",
   "hours.zone": "Saatler {zone} saatinde",
   "hours.zoneFirst": "Saatler {zone} saatinde kaydedilecek",
   "hours.saved": "Kaydedildi. Üyeler artık bu saatleri alabilir.",

@@ -1464,6 +1464,7 @@
   "hours.offAdd": "Add time off",
   "hours.offAddRow": "Add time off",
   "hours.zoneMoved": "Times in {zone}. Saving from this phone moves them to {phone}.",
+  "hours.zoneMove": "Move my hours to {zone}",
   "hours.zone": "Times in {zone}",
   "hours.zoneFirst": "Times will be saved in {zone}",
   "hours.saved": "Saved. Members can book these times now.",
