@@ -326,7 +326,7 @@ function DprPhotoTile({ url, label, demo }) {
     <div style={{ flex: 1, minWidth: 0 }}>
       {url ? (
         <a href={url} target="_blank" rel="noreferrer" style={{ display: "block" }}>
-          <div style={{ height: 150, borderRadius: 6, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: `url(${url}) center/cover` }} />
+          <div className="dash-photo" style={{ height: 150, borderRadius: 6, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: `url(${url}) center/cover` }} />
         </a>
       ) : (
         <div style={{ height: 150, borderRadius: 6, border: "1px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.18)", background: demo ? "repeating-linear-gradient(45deg, rgba(var(--sh-ink-rgb, 242,237,228),0.05), rgba(var(--sh-ink-rgb, 242,237,228),0.05) 6px, transparent 6px, transparent 12px)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.03)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DPR_INK50 }}>{demo ? "demo" : "—"}</div>
@@ -1503,7 +1503,7 @@ function ClientProgressPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
           {(photos || []).slice(0, 12).map((p) => (
             <a key={p.id} href={p.url} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none" }}>
-              <div style={{ height: 120, borderRadius: 10, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: `url(${p.url}) center/cover` }} />
+              <div className="dash-photo" style={{ height: 120, borderRadius: 10, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: `url(${p.url}) center/cover` }} />
               <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DPR_INK50, textTransform: "uppercase" }}>{p.pose} · {String(p.taken_on).slice(5)}</div>
             </a>
           ))}

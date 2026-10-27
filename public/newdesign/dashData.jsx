@@ -1089,7 +1089,7 @@ function useRememberedChoices(live) {
 
 // One control's memory, read out of a store opened by `useRememberedChoices`.
 // Returns `[value, choose]` and is a drop-in for the `React.useState` it replaces.
-function useRememberedChoice(store, key, allowed, fallback, persistDefault = false) {
+function useRememberedChoice(store, key, allowed, fallback, persistDefault = false, also = null) {
   // The choice made in THIS session, if any, paired with the account it was made
   // under. Null means "nobody has touched it here"; see the account note below.
   const [chosen, setChosen] = React.useState(null);   // { acct, value } | null
@@ -1155,6 +1155,14 @@ function useRememberedChoice(store, key, allowed, fallback, persistDefault = fal
   // function stored, not React's updater semantics applied to it — and it stamps the
   // account the choice is being made under, which is what the pairing above compares.
   const choose = React.useCallback((next) => { setChosen({ acct: acct, value: next }); }, [acct]);
+  // ⚠ `also` NAMES SIBLING KEYS THAT LAND IN THE SAME WRITE: a function of the choice that
+  // returns `{ key: value }`. Two hooks would take a pair to the document as two separate
+  // whole-document writes, and a failure between them saves half of it: the website skin
+  // without the light/dark the app reads, or the reverse (Codex, #2481). It is the argument
+  // `useRememberedSlots` makes for a strip, for one choice that implies another key.
+  const extra = mine != null && typeof also === "function" ? also(mine) || {} : {};
+  const extraKeys = Object.keys(extra);
+  const extraStored = extraKeys.map((k) => k + "=" + String(extra[k]) + "/" + (Object.prototype.hasOwnProperty.call(doc, k) ? "v" + String(doc[k]) : "-")).join("\u0000");
 
   // ⚠ THE WRITE IS A RECONCILIATION, NOT A CLICK HANDLER, AND THAT IS THE WHOLE
   // REASON IT IS AN EFFECT. A choice made before the document is writable — during the
@@ -1180,7 +1188,7 @@ function useRememberedChoice(store, key, allowed, fallback, persistDefault = fal
     // member's own data, so tomorrow's default could never reach them. Choosing it back
     // means "no preference", which is what an absent key says.
     const want = mine === fallback && !persistDefault ? undefined : mine;
-    if (stored === want) return;                    // the document already says it
+    if (stored === want && extraKeys.every((k) => doc[k] === extra[k])) return;   // the document already says it
     // ⚠ ONE ATTEMPT PER CHOICE, AND THE REF IS WHAT MAKES THAT TRUE. `apply` paints
     // optimistically and rolls the paint back when the write fails, so `stored` moves
     // to the wanted value and then back again — which is a dependency change, which
@@ -1196,6 +1204,7 @@ function useRememberedChoice(store, key, allowed, fallback, persistDefault = fal
     apply((d) => {
       const out = { ...d };
       if (want === undefined) delete out[key]; else out[key] = want;
+      for (const k of extraKeys) out[k] = extra[k];
       return out;
     });
     // eslint-disable-next-line
@@ -1203,7 +1212,7 @@ function useRememberedChoice(store, key, allowed, fallback, persistDefault = fal
     // promotion changes neither `mine` nor `acct`, the effect never re-runs, and the choice
     // is adopted on screen and NEVER WRITTEN. Measured — it fails "the store stays SHUT
     // until the account is known" with saves 0.
-  }, [chosen, mine, acct, kind, stored, key, fallback, allowedKey]);
+  }, [chosen, mine, acct, kind, stored, key, fallback, allowedKey, extraStored]);
 
   return [value, choose];
 }
@@ -1645,6 +1654,8 @@ function dashApplyPaper(paper) {
 // that made it, so a sign-out and sign-in as someone else in the same tab reads
 // that account's own document rather than inheriting the previous member's tap.
 let dashPaperSession = null; // { acct, paper } | null
+// The shared light/dark a skin implies, written with the skin in one document operation.
+function dashPaperAlso(p) { return { colorMode: dashPaperMode(p) }; }
 function useDashPaper() {
   const legacy = useRememberedChoices(true);
   const accountId = legacy.accountId;
@@ -1653,9 +1664,12 @@ function useDashPaper() {
   // Keep the app's colored papers intact; colorMode is the shared light/dark choice.
   const appPaper = appStore.doc && appStore.doc.paperMode;
   const fallback = appPaper ? (["light","white","manila","steel","bone","sage","rose","mist"].includes(appPaper) ? "light" : "dark") : (legacy.doc && legacy.doc.paper === "dark" ? "dark" : "light");
-  const [remembered, choose] = useRememberedChoice(store, "colorMode", DASH_PAPER_MODES, fallback, true);
-  // The skin, with no fallback of its own: an absent one is the mode's plain paper.
-  const [rememberedSkin, chooseSkin] = useRememberedChoice(store, "webPaper", DASH_PAPERS, null, true);
+  // Read here and never chosen here: the skin's own write below carries it.
+  const [remembered] = useRememberedChoice(store, "colorMode", DASH_PAPER_MODES, fallback, true);
+  // The skin, with no fallback of its own: an absent one is the mode's plain paper. Its write
+  // takes the shared light/dark along in the SAME document operation (`also`), so a failure
+  // can never save the skin without the mode the app reads, or the mode without the skin.
+  const [rememberedSkin, chooseSkin] = useRememberedChoice(store, "webPaper", DASH_PAPERS, null, true, dashPaperAlso);
   const [paper, setPaper] = React.useState(() => dashReadPaperMirror());
   const kind = store && store.kind;
   const acct = store && store.accountId;
@@ -1700,11 +1714,10 @@ function useDashPaper() {
     paperReadVersion.current += 1;
     const p = dashPaperKey(next);
     dashPaperSession = { acct, paper: p };
-    choose(dashPaperMode(p)); // → the shared light/dark, which the app follows
-    chooseSkin(p);            // → the skin, which only the website reads
+    chooseSkin(p);            // → the skin and the shared light/dark the app follows, in one write
     dashApplyPaper(p);        // → the page and the device, now
     setPaper(p);
-  }, [choose, chooseSkin, acct]);
+  }, [chooseSkin, acct]);
   return [paper, setPaperChoice, { kind }];
 }
 

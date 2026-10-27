@@ -44,11 +44,13 @@ export function startTour(steps, opts = {}) {
   // The card's own palette: the light paper is the dashboard's builder white
   // (#ffffff / #15211e), the dark one its previous dark card. Both are literals
   // rather than tokens because this module also runs where dash.css is absent.
-  const ink = opts.isLight ? '#15211e' : '#f4eedf';
-  const paper = opts.isLight ? '#ffffff' : '#1a1714';
+  // A caller with a palette of its own (the website's Night skin) passes `paper`, `ink` and
+  // `onAccent` with its accent; the app passes none.
+  const ink = opts.ink || (opts.isLight ? '#15211e' : '#f4eedf');
+  const paper = opts.paper || (opts.isLight ? '#ffffff' : '#1a1714');
   // On the accent fill the label is white on the light teal and near-black on
   // the bright dark teal — either way the pair clears AA.
-  const onAccent = opts.isLight ? '#ffffff' : '#06231f';
+  const onAccent = opts.onAccent || (opts.isLight ? '#ffffff' : '#06231f');
   const rootPos0 = root.style.position;
   if (getComputedStyle(root).position === 'static') root.style.position = 'relative';
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;

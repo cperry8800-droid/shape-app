@@ -171,9 +171,11 @@ test('a blocked localStorage cannot break the paper', () => {
 test('useDashPaper rides the account\'s shared app_tweaks document and only a READ document corrects the mirror', () => {
   const hook = lift(DATA, 'useDashPaper');
   assert.match(hook, /useRememberedChoices\(true\)/, 'the hook must open the per-account preference store');
-  assert.match(hook, /useRememberedChoice\(store, "colorMode", DASH_PAPER_MODES, fallback, true\)/, 'the shared choice is validated against light/dark, with legacy and app-theme fallback');
+  assert.match(hook, /const \[remembered\] = useRememberedChoice\(store, "colorMode", DASH_PAPER_MODES, fallback, true\)/, 'the shared choice is validated against light/dark, with legacy and app-theme fallback, and is read only');
   assert.match(DATA, /const DASH_PAPER_MODES = \["light", "dark"\];/, 'colorMode would accept a skin the app cannot read');
-  assert.match(hook, /useRememberedChoice\(store, "webPaper", DASH_PAPERS, null, true\)/, 'the skin is not its own key, validated against the skins');
+  assert.match(hook, /useRememberedChoice\(store, "webPaper", DASH_PAPERS, null, true, dashPaperAlso\)/, 'the skin is not its own key, validated against the skins, written with its mode');
+  // ⚠ ONE WRITE FOR BOTH KEYS (Codex, #2481): the skin carries the shared light/dark it implies.
+  assert.match(DATA, /function dashPaperAlso\(p\) \{ return \{ colorMode: dashPaperMode\(p\) \}; \}/, 'the skin no longer takes its mode into the same write');
   assert.match(hook, /dashResolvePaper\(rememberedSkin, remembered\)/, 'the read document does not resolve the skin against the shared mode');
   assert.match(hook, /dashResolvePaper\(doc\.webPaper, mode\)/, 'the focus re-read does not resolve the skin against the shared mode');
   assert.match(hook, /useCoachDoc\("app_tweaks", accountId != null, accountId\)/, 'appearance must use the app account record');
@@ -184,10 +186,12 @@ test('useDashPaper rides the account\'s shared app_tweaks document and only a RE
   assert.match(DATA, /let dashPaperSession = null;/, 'the session choice is not held at module scope');
   assert.match(hook, /dashPaperSession = \{ acct, paper: p \}/, 'the session choice does not carry its account');
   assert.match(hook, /dashPaperSession\.acct === acct/, 'a choice made under another account would be honoured');
-  // Choosing writes the document, the page and the device in one call.
-  const choose = /const setPaperChoice = React\.useCallback\(\(next\) => \{([\s\S]*?)\}, \[choose, chooseSkin, acct\]\);/.exec(hook);
+  // Choosing writes the document, the page and the device in one call, and the document
+  // through the skin's one write: a second `choose` would be a second write.
+  const choose = /const setPaperChoice = React\.useCallback\(\(next\) => \{([\s\S]*?)\}, \[chooseSkin, acct\]\);/.exec(hook);
   assert.ok(choose, 'setPaperChoice moved');
-  for (const need of ['choose(dashPaperMode(p))', 'chooseSkin(p)', 'dashApplyPaper(p)', 'setPaper(p)']) assert.ok(choose[1].includes(need), `setPaperChoice no longer calls ${need}`);
+  for (const need of ['chooseSkin(p)', 'dashApplyPaper(p)', 'setPaper(p)']) assert.ok(choose[1].includes(need), `setPaperChoice no longer calls ${need}`);
+  assert.ok(!/\bchoose\(/.test(choose[1]), 'setPaperChoice writes the mode separately again');
   // And it is exported as a bare global like the store hooks.
   const exp = /Object\.assign\(window, \{([^}]*)\}\);/.exec(DATA);
   assert.ok(exp && /\buseDashPaper\b/.test(exp[1]), 'useDashPaper is not exported');
@@ -262,7 +266,10 @@ test('the spotlight tour reads the paper instead of assuming dark', () => {
   assert.match(tour, /isLight: !dark/, 'the tour card is pinned to one paper');
   assert.ok(!/isLight: false/.test(tour), 'the tour is hardcoded dark again');
   const engine = read('spotlightTour.js');
-  assert.match(engine, /const onAccent = opts\.isLight \? '#ffffff' : '#06231f';/, 'the Next button\'s label colour must follow the accent it sits on');
+  assert.match(engine, /const onAccent = opts\.onAccent \|\| \(opts\.isLight \? '#ffffff' : '#06231f'\);/, 'the Next button\'s label colour must follow the accent it sits on');
+  // A caller's own card palette wins; the app passes none and keeps the literals.
+  assert.match(engine, /const ink = opts\.ink \|\| \(opts\.isLight \? '#15211e' : '#f4eedf'\);/);
+  assert.match(engine, /const paper = opts\.paper \|\| \(opts\.isLight \? '#ffffff' : '#1a1714'\);/);
   // The light tour accents are the stylesheet's own light TEXT tokens — derived, not
   // typed, so the tour cannot drift from the paper it sits on (it read the builder's
   // #0a8f87 at 3.97:1 on the card until the text tokens moved to AA).
@@ -273,6 +280,16 @@ test('the spotlight tour reads the paper instead of assuming dark', () => {
   assert.equal(light[1], lightOf('--sh-accent'), 'the client tour accent is not the light paper\'s text teal');
   assert.equal(light[2], lightOf('--sh-accent'), 'the trainer tour accent is not the light paper\'s text teal');
   assert.equal(light[3], lightOf('--sh-gold'), 'the nutritionist tour accent is not the light paper\'s text gold');
+  // ⚠ NIGHT'S TOUR IS NIGHT'S (Codex, #2481): the dark teal is exactly the blue the skin
+  // exists to take out. Its card, ink, label and accents are the Night block's own tokens.
+  const nightBlock = /html\[data-paper="night"\] \{([\s\S]*?)\n\}/.exec(CSS)[1];
+  const nightOf = (tok) => new RegExp('\\s' + tok + ':\\s*(#[0-9a-f]{6});').exec(nightBlock)[1];
+  const night = /var NIGHT = \{ paper: '(#[0-9a-f]{6})', ink: '(#[0-9a-f]{6})', onAccent: '(#[0-9a-f]{6})', accent: \{ client: '(#[0-9a-f]{6})', trainer: '(#[0-9a-f]{6})', nutritionist: '(#[0-9a-f]{6})' \} \};/.exec(tour);
+  assert.ok(night, 'the tour has no Night palette');
+  assert.deepEqual(night.slice(1), ['--sh-card', '--sh-ink', '--sh-deep', '--sh-accent', '--sh-accent', '--sh-gold'].map(nightOf), 'the Night tour is not the Night block\'s tokens');
+  assert.match(tour, /data-paper'\) === 'night'/, 'the tour does not tell Night from the other dark skins');
+  assert.match(tour, /var ACCENT = night \? NIGHT\.accent : dark \? ACCENT_DARK : ACCENT_LIGHT;/);
+  for (const k of ['paper', 'ink', 'onAccent']) assert.match(tour, new RegExp(k + ': night \\? NIGHT\\.' + k + ' : undefined'), `the Night tour does not pass its ${k}`);
 });
 
 test('the card chrome is the builder\'s: one hairline, a 12px radius, no chamfer, no tick, no bracket', () => {
@@ -344,4 +361,37 @@ test('Night repaints the fixed teal the tokens cannot reach', () => {
     assert.ok(new RegExp(`html\\[data-paper="night"\\] ${sel.replace(/[.#-]/g, (c) => '\\' + c)}\\s*\\{[^}]*#f2a03d`).test(CSS), `${sel} keeps its teal on Night`);
   }
   assert.match(read('dashToday.jsx'), /<div className="dash-demo-band" style=/, 'the demo band lost the class Night repaints it by');
+});
+
+test('Night washes every photo on a dashboard page, a CSS background one included', () => {
+  // ⚠ A PHOTO DRAWN AS A CSS BACKGROUND IS NOT AN <img> (Codex, #2481): progress photos, a
+  // client's photos and the living profile's studio gallery kept their full blue on Night.
+  // Each is an element of its own carrying `dash-photo`, which the wash names.
+  const rule = /html\[data-paper="night"\] img, html\[data-paper="night"\] video, html\[data-paper="night"\] \.dash-photo \{ filter: sepia\(0\.4\) saturate\(0\.85\); \}/;
+  assert.match(CSS, rule, 'Night\'s photo wash lost a kind of photo');
+  // Every module a stamped dashboard page loads: a template `url(...)` there is a photo
+  // (an SVG gradient's `url(#id)` is not), and it sits on a `dash-photo` element.
+  const hosts = readdirSync(ND).filter((f) => f.endsWith('.html') && read(f).includes('shape.web.paper'));
+  const mods = new Set();
+  for (const h of hosts) for (const m of read(h).matchAll(/src="(?:\/newdesign\/)?([\w.-]+\.jsx)/g)) mods.add(m[1]);
+  assert.ok(mods.size >= 20, `read ${mods.size} modules — the sweep stopped matching`);
+  let photos = 0;
+  for (const f of mods) {
+    let src; try { src = read(f); } catch (e) { continue; }
+    const lines = src.split('\n');
+    lines.forEach((line, i) => {
+      if (!/url\(["']?\$\{/.test(line)) return;
+      photos += 1;
+      // A photo built into a const is checked where the const paints.
+      const named = /const (\w+) = /.exec(line) || /const (\w+) = /.exec(lines[i - 1] || '');
+      if (named && !/<\w/.test(line)) {
+        const uses = lines.filter((l) => new RegExp('background(?:Image)?: ' + named[1] + '\\b').test(l));
+        assert.ok(uses.length > 0, `${f}:${i + 1}: ${named[1]} paints nowhere this sweep can see`);
+        for (const u of uses) assert.match(u, /dash-photo/, `${f}: ${named[1]} paints a photo Night does not wash`);
+      } else {
+        assert.match(line, /className=\{?[^>]*dash-photo/, `${f}:${i + 1}: a CSS background photo Night does not wash`);
+      }
+    });
+  }
+  assert.ok(photos >= 6, `found ${photos} background photos — the sweep stopped matching`);
 });

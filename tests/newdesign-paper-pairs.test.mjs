@@ -177,7 +177,7 @@ test('the Night skin carries little blue', () => {
     if (lum(hexOf(c)) > 0.05 && c[2] > 0.72 * Math.max(c[0], c[1])) heavy.push(`${tok} ${v}`);
   }
   assert.deepEqual(heavy, [], 'a blue-heavy colour on the Night skin:\n' + heavy.join('\n'));
-  assert.match(CSS, /html\[data-paper="night"\] img, html\[data-paper="night"\] video \{ filter: sepia\(/, 'photos and video lost their warm wash on Night');
+  assert.match(CSS, /html\[data-paper="night"\] img, html\[data-paper="night"\] video, html\[data-paper="night"\] \.dash-photo \{ filter: sepia\(/, 'photos and video lost their warm wash on Night');
 });
 
 // ── Ink / fill pairs, derived over every style object in the tree ───────────

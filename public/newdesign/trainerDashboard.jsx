@@ -663,7 +663,9 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
   return (
     <div style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 10, marginBottom: 20, overflow: "hidden" }}>
       {/* Cover */}
-      <div style={{ position: "relative", height: 200, background: coverBg }}>
+      <div style={{ position: "relative", height: 200, background: cover ? undefined : coverBg }}>
+        {/* A photo is its own layer, so Night's wash (dash.css) reaches it and not the button. */}
+        {cover && <div className="dash-photo" aria-hidden="true" style={{ position: "absolute", inset: 0, background: coverBg }} />}
         <button style={{
           position: "absolute", top: 16, right: 16,
           background: "rgba(var(--sh-ground-rgb, 26,22,18),0.72)", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)",
@@ -679,7 +681,7 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
       <div style={{ padding: "0 32px 32px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "160px 1fr auto", gap: 28, alignItems: "flex-start" }}>
           <div style={{ position: "relative", marginTop: -80 }}>
-            <div style={{ width: 160, height: 160, borderRadius: 999, background: avatarBg, border: "4px solid var(--sh-ground, #1a1612)", boxShadow: "0 12px 72px -8px rgba(0,0,0,0.5)" }} />
+            <div className={avatar ? "dash-photo" : undefined} style={{ width: 160, height: 160, borderRadius: 999, background: avatarBg, border: "4px solid var(--sh-ground, #1a1612)", boxShadow: "0 12px 72px -8px rgba(0,0,0,0.5)" }} />
             <button style={{
               position: "absolute", bottom: 4, right: 4,
               width: 36, height: 36, borderRadius: 999,

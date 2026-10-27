@@ -697,8 +697,10 @@ html[data-paper="glass"] [style*="position: fixed"][style*="var(--sh-card,"] { b
 
 /* ── Night: the eye-sensitive skin ─────────────────────────────────────────
    Its tokens carry little blue; what the tokens cannot reach is a photo, an avatar or a
-   video, which take a sepia wash here. An inline filter on one of them still wins. */
-html[data-paper="night"] img, html[data-paper="night"] video { filter: sepia(0.4) saturate(0.85); }
+   video, which take a sepia wash here. A photo drawn as a CSS background is an element
+   of its own with `dash-photo`, since a filter reaches everything inside the element it
+   is on. An inline filter on one of them still wins. */
+html[data-paper="night"] img, html[data-paper="night"] video, html[data-paper="night"] .dash-photo { filter: sepia(0.4) saturate(0.85); }
 /* The corner's chat button and the demo band paint a fixed teal of their own
    (globalChatButton.js's injected sheet, dashToday.jsx's DashDemoBand), outside the tokens,
    so Night repaints them in its amber. The button's sheet is injected after this one; the
