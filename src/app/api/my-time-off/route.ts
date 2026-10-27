@@ -9,7 +9,8 @@
 //        → { ok, timeOff, overlapping }
 // DELETE { role, id }  (or ?role=&id=) → { ok, id }
 //
-// Auth exactly as /api/my-availability: the cookie session, the caller's OWN provider row for
+// Auth exactly as /api/my-availability: the caller (the website's cookie or the app's Bearer
+// token, via request-auth), the caller's OWN provider row for
 // that role, and RLS on provider_time_off (owner-only, every command) as the second wall. The
 // note is private and never leaves this route; members learn only THAT the coach is away, from
 // provider_busy_blocks.
@@ -21,7 +22,7 @@
 // /api/my-availability refuses hours) — and is never read as UTC.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { isMissingRelation, providerRole, resolveOwnedProvider } from '@/lib/owned-provider';
 import { parseTimeOff } from '../../../../public/newdesign/bookingRules.mjs';
@@ -44,10 +45,8 @@ const shape = (r: TimeOffRow) => ({ id: r.id, startsAt: r.starts_at, endsAt: r.e
 export async function GET(req: NextRequest) {
   const role = providerRole(new URL(req.url).searchParams.get('role'));
   if (!role) return NextResponse.json({ error: 'invalid role' }, { status: 400 });
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(req);
+  const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const owned = await resolveOwnedProvider(supabase, role, user.id);
@@ -91,10 +90,8 @@ export async function POST(req: NextRequest) {
   const role = providerRole(body.role ?? new URL(req.url).searchParams.get('role'));
   if (!role) return NextResponse.json({ error: 'invalid role' }, { status: 400 });
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(req);
+  const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const owned = await resolveOwnedProvider(supabase, role, user.id);
@@ -153,10 +150,8 @@ export async function DELETE(req: NextRequest) {
   const id = String(body.id ?? params.get('id') ?? '').trim();
   if (!UUID.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(req);
+  const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const owned = await resolveOwnedProvider(supabase, role, user.id);

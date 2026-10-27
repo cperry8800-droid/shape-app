@@ -1,10 +1,13 @@
 // Coach-facing availability endpoints. Reads and writes the signed-in
 // provider's weekly slots. RLS guarantees we only touch the caller's
 // own rows; we still double-check that the request's provider_id
-// matches a row the user actually owns.
+// matches a row the user actually owns. The website's Schedule page and the
+// coach app's "Your hours" both write here, so the caller is read through
+// request-auth: the website's cookie or the app's Bearer token.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { normalizeZone } from '@/lib/time';
 
@@ -18,7 +21,7 @@ type Role = 'trainer' | 'nutritionist';
 // would stop a coach editing their hours at all rather than merely not knowing their
 // zone. The house pattern (trainer/dashboard, trainer/analytics) for the same reason.
 async function resolveOwnedProvider(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: SupabaseClient,
   role: Role,
   userId: string
 ): Promise<{ id: number; timezone: string | null } | null> {
@@ -34,10 +37,8 @@ export async function GET(req: NextRequest) {
   if (role !== 'trainer' && role !== 'nutritionist') {
     return NextResponse.json({ error: 'invalid role' }, { status: 400 });
   }
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(req);
+  const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const owned = await resolveOwnedProvider(supabase, role, user.id);
@@ -76,10 +77,8 @@ export async function POST(req: NextRequest) {
     )
     .slice(0, 500);
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(req);
+  const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const owned = await resolveOwnedProvider(supabase, role, user.id);

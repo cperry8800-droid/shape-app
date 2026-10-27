@@ -232,3 +232,37 @@ test('each slot carries the COACH\'s own date and clock, which is what the booki
   assert.equal(half[0].coachDate, '2026-07-09');
   assert.equal(half[0].coachTime, '09:30');
 });
+
+// ⚠ A run of open hours is ONE stored row (both editors collapse 9:00 to 12:00 into {540, 180}),
+// and the projection used to offer only its first minute: open 9 to 12, a member could book 9:00
+// and nothing else, while the website (bookingSlots.js `expand`) offered 9, 10 and 11. The app now
+// lays every whole hour that fits a session inside the block, the website's rule.
+test('a block of several hours offers every whole hour a session fits in', () => {
+  const open = bsProjectAvailability({
+    slots: [{ weekday: 4, start_minute: 9 * 60, duration_min: 180 }], // Thu 9:00 to 12:00
+    booked: [], weeks: 1, now: NOW, zone: HERE, sessionMin: 30,
+  });
+  assert.deepEqual(open.map((s) => s.time), ['09:00', '10:00', '11:00']);
+  // A taken hour is gone and only that one.
+  const taken = new Date(2026, 6, 9, 10, 0, 0).toISOString();
+  const left = bsProjectAvailability({
+    slots: [{ weekday: 4, start_minute: 9 * 60, duration_min: 180 }],
+    booked: [taken], weeks: 1, now: NOW, zone: HERE, sessionMin: 30,
+  });
+  assert.deepEqual(left.map((s) => s.time), ['09:00', '11:00']);
+});
+
+test('a session that would run past the block is not offered; a short block keeps its start', () => {
+  // 9:00 to 10:30 with an hour-long session: 9:00 fits, 10:00 would end at 11:00, past the block.
+  const fit = bsProjectAvailability({
+    slots: [{ weekday: 4, start_minute: 9 * 60, duration_min: 90 }],
+    booked: [], weeks: 1, now: NOW, zone: HERE, sessionMin: 60,
+  });
+  assert.deepEqual(fit.map((s) => s.time), ['09:00']);
+  // A 30-minute block with a 45-minute session still offers its own start, as the website does.
+  const short = bsProjectAvailability({
+    slots: [{ weekday: 4, start_minute: 9 * 60, duration_min: 30 }],
+    booked: [], weeks: 1, now: NOW, zone: HERE, sessionMin: 45,
+  });
+  assert.deepEqual(short.map((s) => s.time), ['09:00']);
+});

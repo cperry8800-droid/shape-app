@@ -135,14 +135,24 @@ export function bsProjectAvailability({ slots = [], booked = [], weeks = 6, now 
     if (Number.isFinite(t)) takenMs.add(t);
   }
 
+  // ⚠ A BLOCK OFFERS EVERY WHOLE HOUR THAT FITS A SESSION, NOT ONLY ITS FIRST MINUTE. Both
+  // editors store a run of open hours as ONE row (9:00 to 12:00 is {540, 180}), and this used to
+  // offer just its start: a coach open 9 to 5 could be booked once a day, at 9, while the
+  // website (bookingSlots.js `expand`) offered 9, 10, 11 … 4. The same rule as the website's,
+  // so the two surfaces list the same times: each hour from the block's start whose session
+  // ends inside the block, and the start alone for a block shorter than one session.
+  const sessLen = Number.isFinite(Number(sessionMin)) && Number(sessionMin) > 0 ? Number(sessionMin) : 15;
   const byDay = new Map();
   for (const s of slots || []) {
     const wd = Number(s && s.weekday);
     if (!Number.isInteger(wd) || wd < 0 || wd > 6) continue;
     const startMin = Number(s && s.start_minute);
     if (!Number.isInteger(startMin) || startMin < 0 || startMin >= 24 * 60) continue;
+    const durationMin = Number(s.duration_min) > 0 ? Number(s.duration_min) : 60;
     const list = byDay.get(wd) || [];
-    list.push({ startMin, durationMin: Number(s.duration_min) || 60 });
+    const before = list.length;
+    for (let m = startMin; m + sessLen <= startMin + durationMin && m < 24 * 60; m += 60) list.push({ startMin: m, durationMin });
+    if (list.length === before) list.push({ startMin, durationMin });
     byDay.set(wd, list);
   }
   if (!byDay.size) return [];

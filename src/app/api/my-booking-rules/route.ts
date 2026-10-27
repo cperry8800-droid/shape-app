@@ -6,7 +6,8 @@
 // GET  ?role=trainer|nutritionist → { rules, providerId, timezone, saved, ready }
 // POST { role, bufferMin?, maxPerDay?, minNoticeHours?, consultMin? } → { ok, rules }
 //
-// Auth exactly as /api/my-availability: the cookie session, the caller's OWN provider row for
+// Auth exactly as /api/my-availability: the caller (the website's cookie or the app's Bearer
+// token, via request-auth), the caller's OWN provider row for
 // that role, and RLS on provider_booking_rules (owner write) as the second wall.
 //
 // The rules themselves — what each one means and how a booking is checked against them — live
@@ -19,7 +20,7 @@
 // and a read answers 15, the length every intro had.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { isMissingRelation, providerRole, resolveOwnedProvider } from '@/lib/owned-provider';
 import { DEFAULT_RULES, normalizeRules, validateRules } from '../../../../public/newdesign/bookingRules.mjs';
@@ -44,10 +45,8 @@ const FIELDS = [
 export async function GET(req: NextRequest) {
   const role = providerRole(new URL(req.url).searchParams.get('role'));
   if (!role) return NextResponse.json({ error: 'invalid role' }, { status: 400 });
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(req);
+  const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const owned = await resolveOwnedProvider(supabase, role, user.id);
@@ -93,10 +92,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid_rules', field: checked.field, detail: checked.error }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(req);
+  const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const owned = await resolveOwnedProvider(supabase, role, user.id);
