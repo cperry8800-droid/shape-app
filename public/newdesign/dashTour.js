@@ -14,11 +14,12 @@
    async-only onDone write was killed by the unload → the tour re-showed every login). */
 (function () {
   // The dashboard's paper is stamped on <html data-paper> before first paint
-  // (light is the default; "dark" is the switch). The tour card follows it, and
+  // (White is the default and stamps nothing; Bone is the other light skin, and
+  // every other skin is dark). The tour card follows it, and
   // the client accent is the paper's own teal — the dark paper's bright teal
   // reads at 1.6:1 on white. The light values are dash.css's text tokens
   // (--sh-accent / --sh-gold), which clear 4.5:1 on the card.
-  function isDarkPaper() { try { return document.documentElement.getAttribute('data-paper') === 'dark'; } catch (e) { return false; } }
+  function isDarkPaper() { try { return ['dark', 'carbon', 'night', 'glass'].indexOf(document.documentElement.getAttribute('data-paper')) >= 0; } catch (e) { return false; } }
   var ACCENT_DARK = { client: '#2ee0c4', trainer: '#0a8f87', nutritionist: '#a07a2e' };
   var ACCENT_LIGHT = { client: '#0a7a72', trainer: '#0a7a72', nutritionist: '#86662a' };
   // Dedicated web keys — NEVER write the app's client_onboarding / coach_onboarding

@@ -948,16 +948,17 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
 // (signed out, wrong role, or the API is down) the page SAYS so, exactly like
 // the profiles' preview band. Demo data must never look like real tracking.
 function DashDemoBand() {
-  // The band is a FIXED near-black fill on both papers, so its ink is the fixed
+  // The band is a FIXED near-black fill on every skin, so its ink is the fixed
   // bright teal — the paper's accent is the light paper's dark teal, which read
-  // 3.85:1 on this band and would only get darker.
+  // 3.85:1 on this band and would only get darker. Night repaints it amber by its
+  // class (dash.css).
   // Fixed BOTTOM banner (not a top strip). It's placed before the position:fixed
   // header on every dash page, so an in-flow top band was hidden behind the header
   // yet still pushed the whole dashboard down — a phantom gap under the nav bar.
   // Pinning it to the bottom (like the mobile preview banner) keeps the demo
   // notice visible while letting content sit flush under the header.
   return (
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", background: "rgba(16,20,18,0.92)", borderTop: "1px solid rgba(30,192,168,0.3)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", textAlign: "center" }}>
+    <div className="dash-demo-band" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", background: "rgba(16,20,18,0.92)", borderTop: "1px solid rgba(30,192,168,0.3)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", textAlign: "center" }}>
       <span>Preview · demo data — an example of a live account</span>
       <a href="/login" style={{ flexShrink: 0, color: "#06110e", background: "#1ec0a8", borderRadius: 999, padding: "4px 12px", textDecoration: "none" }}>Sign in →</a>
     </div>

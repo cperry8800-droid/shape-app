@@ -303,8 +303,412 @@ html[data-paper="dark"] {
   --sh-logo-dark: block;
 }
 
+/* ── THE OTHER FOUR SKINS (owner, 2026-10-27: "create different dashboard skins for
+   website you can choose from, like on app. Do carbon, white, bone, black, and the eye
+   sensitive one to limit blue light, and also a glass/transparent dashboard look").
+   White is :root and Black is the dark block above; these four declare the same token
+   set (tests/newdesign-paper-tokens.test.mjs holds every block to it), and each holds
+   the light paper's floors: text tokens 4.5:1 on the card, the ground, the resting fill
+   and their own tint, button text 4.5:1 on each role fill, chart marks 3:1
+   (tests/newdesign-paper-pairs.test.mjs).
+     bone   — the app's Bone (#ece4d3 under #1a160e), a warm light paper.
+     carbon — the app's Carbon: true black under a cool steel ink.
+     night  — the eye-sensitive one. Every colour is warm, with the blue channel well
+              under the red and green, so teal becomes amber, sky a sand, violet a rose;
+              photos and video take a sepia wash below.
+     glass  — see-through cards over a lit ground (the glow is drawn below). Its card,
+              lines, resting fill and tints are rgba() values, and each -rgb twin is that
+              value composited (a tint over the card, the rest over the ground), so an
+              alpha helper lands on the colour the eye sees. The ground itself stays a
+              solid hex: text is measured against it, and a cut-out that paints the ground
+              still hides what is behind it.
+   ⚠ The heat tokens are the app's values on bone, carbon and glass (light values on the
+   light paper, dark on the dark ones); night trades the client teal for its amber. */
+html[data-paper="bone"] {
+  --sh-ink: #1a160e;
+  --sh-ink-rgb: 26,22,14;
+  --sh-ink-soft: #ddd4c2;
+  --sh-ink-soft-rgb: 221,212,194;
+  --sh-ink2: #574f41;
+  --sh-ink2-rgb: 87,79,65;
+  --sh-ink3: #655c4d;
+  --sh-ink3-rgb: 101,92,77;
+  --sh-nav-ink: #1a160e;
+  --sh-nav-ink-rgb: 26,22,14;
+  --sh-ground: #ebe3d2;
+  --sh-ground-rgb: 235,227,210;
+  --sh-ground2: #f8f4ec;
+  --sh-ground2-rgb: 248,244,236;
+  --sh-deep: #ffffff;
+  --sh-deep-rgb: 255,255,255;
+  --sh-card: #f8f4ec;
+  --sh-card-rgb: 248,244,236;
+  --sh-line: #dcd2bf;
+  --sh-line-rgb: 220,210,191;
+  --sh-line2: #c8bca4;
+  --sh-line2-rgb: 200,188,164;
+  --sh-rest: #e3dac7;
+  --sh-rest-rgb: 227,218,199;
+  --sh-accent-tint: #dbe7dc;
+  --sh-accent-tint-rgb: 219,231,220;
+  --sh-rust-tint: #f4e1d6;
+  --sh-rust-tint-rgb: 244,225,214;
+  --sh-gold-tint: #efe3c6;
+  --sh-gold-tint-rgb: 239,227,198;
+  --sh-accent: #086b64;
+  --sh-accent-rgb: 8,107,100;
+  --sh-accent2: #086b64;
+  --sh-accent2-rgb: 8,107,100;
+  --sh-accent3: #086b64;
+  --sh-accent3-rgb: 8,107,100;
+  --sh-gold: #77591f;
+  --sh-gold-rgb: 119,89,31;
+  --sh-rust: #a1422c;
+  --sh-rust-rgb: 161,66,44;
+  --sh-rust2: #a1422c;
+  --sh-rust2-rgb: 161,66,44;
+  --sh-green: #326b26;
+  --sh-green-rgb: 50,107,38;
+  --sh-heat-trainer: #c0533b;
+  --sh-heat-trainer-rgb: 192,83,59;
+  --sh-heat-nutri: #a07a2e;
+  --sh-heat-nutri-rgb: 160,122,46;
+  --sh-heat-client: #0a8f87;
+  --sh-heat-client-rgb: 10,143,135;
+  --sh-accent-ink: #075a54;
+  --sh-accent-ink-rgb: 7,90,84;
+  --sh-ember: #a1422c;
+  --sh-ember-rgb: 161,66,44;
+  --sh-danger: #a1422c;
+  --sh-danger-rgb: 161,66,44;
+  --sh-sky: #1b5f8a;
+  --sh-sky-rgb: 27,95,138;
+  --sh-violet: #6240c4;
+  --sh-violet-rgb: 98,64,196;
+  --sh-gold2: #77591f;
+  --sh-gold2-rgb: 119,89,31;
+  --sh-spotify-ink: #11683a;
+  --sh-spotify-ink-rgb: 17,104,58;
+  --sh-cycle-heat: #086b64;
+  --sh-cycle-heat-rgb: 8,107,100;
+  --sh-cycle-heat-ink: #ffffff;
+  --sh-cycle-heat-ink-rgb: 255,255,255;
+  --sh-chart-teal: #0a8178;
+  --sh-chart-teal-rgb: 10,129,120;
+  --sh-chart-amber: #94702a;
+  --sh-chart-amber-rgb: 148,112,42;
+  --sh-tag-ink-mix: 35%;
+  --sh-header-bg: rgba(248,244,236,0.86);
+  --sh-menu-bg: rgba(248,244,236,0.98);
+  --sh-footer-bg: #e4dbc9;
+  --sh-footer-bg-rgb: 228,219,201;
+  --sh-logo-light: block;
+  --sh-logo-dark: none;
+}
+
+html[data-paper="carbon"] {
+  --sh-ink: #e2e6eb;
+  --sh-ink-rgb: 226,230,235;
+  --sh-ink-soft: #2a2e35;
+  --sh-ink-soft-rgb: 42,46,53;
+  --sh-ink2: #a0a7b0;
+  --sh-ink2-rgb: 160,167,176;
+  --sh-ink3: #7f8791;
+  --sh-ink3-rgb: 127,135,145;
+  --sh-nav-ink: #e6eaef;
+  --sh-nav-ink-rgb: 230,234,239;
+  --sh-ground: #000000;
+  --sh-ground-rgb: 0,0,0;
+  --sh-ground2: #08090b;
+  --sh-ground2-rgb: 8,9,11;
+  --sh-deep: #04211d;
+  --sh-deep-rgb: 4,33,29;
+  --sh-card: #0f1114;
+  --sh-card-rgb: 15,17,20;
+  --sh-line: #1f2227;
+  --sh-line-rgb: 31,34,39;
+  --sh-line2: #30343b;
+  --sh-line2-rgb: 48,52,59;
+  --sh-rest: #090a0c;
+  --sh-rest-rgb: 9,10,12;
+  --sh-accent-tint: #0b2a25;
+  --sh-accent-tint-rgb: 11,42,37;
+  --sh-rust-tint: #2c1611;
+  --sh-rust-tint-rgb: 44,22,17;
+  --sh-gold-tint: #2b2210;
+  --sh-gold-tint-rgb: 43,34,16;
+  --sh-accent: #2ee0c4;
+  --sh-accent-rgb: 46,224,196;
+  --sh-accent2: #0ac5a8;
+  --sh-accent2-rgb: 10,197,168;
+  --sh-accent3: #34d6c5;
+  --sh-accent3-rgb: 52,214,197;
+  --sh-gold: #d8a23a;
+  --sh-gold-rgb: 216,162,58;
+  --sh-rust: #e8694f;
+  --sh-rust-rgb: 232,105,79;
+  --sh-rust2: #e0644b;
+  --sh-rust2-rgb: 224,100,75;
+  --sh-green: #7bbf5a;
+  --sh-green-rgb: 123,191,90;
+  --sh-heat-trainer: #c0533b;
+  --sh-heat-trainer-rgb: 192,83,59;
+  --sh-heat-nutri: #d8b25a;
+  --sh-heat-nutri-rgb: 216,178,90;
+  --sh-heat-client: #34d6c5;
+  --sh-heat-client-rgb: 52,214,197;
+  --sh-accent-ink: #2ee0c4;
+  --sh-accent-ink-rgb: 46,224,196;
+  --sh-ember: #e27a4f;
+  --sh-ember-rgb: 226,122,79;
+  --sh-danger: #ec7f60;
+  --sh-danger-rgb: 236,127,96;
+  --sh-sky: #7ed4ff;
+  --sh-sky-rgb: 126,212,255;
+  --sh-violet: #a98cf8;
+  --sh-violet-rgb: 169,140,248;
+  --sh-gold2: #d8b25a;
+  --sh-gold2-rgb: 216,178,90;
+  --sh-spotify-ink: #1ed760;
+  --sh-spotify-ink-rgb: 30,215,96;
+  --sh-cycle-heat: #34d6c5;
+  --sh-cycle-heat-rgb: 52,214,197;
+  --sh-cycle-heat-ink: #0b0f0f;
+  --sh-cycle-heat-ink-rgb: 11,15,15;
+  --sh-chart-teal: #12a899;
+  --sh-chart-teal-rgb: 18,168,153;
+  --sh-chart-amber: #b8892f;
+  --sh-chart-amber-rgb: 184,137,47;
+  --sh-tag-ink-mix: 65%;
+  --sh-header-bg: rgba(0,0,0,0.62);
+  --sh-menu-bg: rgba(6,7,9,0.98);
+  --sh-footer-bg: #060708;
+  --sh-footer-bg-rgb: 6,7,8;
+  --sh-logo-light: none;
+  --sh-logo-dark: block;
+}
+
+html[data-paper="night"] {
+  --sh-ink: #f0d4a4;
+  --sh-ink-rgb: 240,212,164;
+  --sh-ink-soft: #3a2a19;
+  --sh-ink-soft-rgb: 58,42,25;
+  --sh-ink2: #c5a679;
+  --sh-ink2-rgb: 197,166,121;
+  --sh-ink3: #a6875f;
+  --sh-ink3-rgb: 166,135,95;
+  --sh-nav-ink: #f0d4a4;
+  --sh-nav-ink-rgb: 240,212,164;
+  --sh-ground: #120b05;
+  --sh-ground-rgb: 18,11,5;
+  --sh-ground2: #0d0804;
+  --sh-ground2-rgb: 13,8,4;
+  --sh-deep: #1c0f02;
+  --sh-deep-rgb: 28,15,2;
+  --sh-card: #1e150c;
+  --sh-card-rgb: 30,21,12;
+  --sh-line: #302316;
+  --sh-line-rgb: 48,35,22;
+  --sh-line2: #45331f;
+  --sh-line2-rgb: 69,51,31;
+  --sh-rest: #18100a;
+  --sh-rest-rgb: 24,16,10;
+  --sh-accent-tint: #33220c;
+  --sh-accent-tint-rgb: 51,34,12;
+  --sh-rust-tint: #36180f;
+  --sh-rust-tint-rgb: 54,24,15;
+  --sh-gold-tint: #302810;
+  --sh-gold-tint-rgb: 48,40,16;
+  --sh-accent: #f2a03d;
+  --sh-accent-rgb: 242,160,61;
+  --sh-accent2: #e8922e;
+  --sh-accent2-rgb: 232,146,46;
+  --sh-accent3: #f5ae55;
+  --sh-accent3-rgb: 245,174,85;
+  --sh-gold: #e2c25a;
+  --sh-gold-rgb: 226,194,90;
+  --sh-rust: #ef7b53;
+  --sh-rust-rgb: 239,123,83;
+  --sh-rust2: #e86f47;
+  --sh-rust2-rgb: 232,111,71;
+  --sh-green: #bcc65c;
+  --sh-green-rgb: 188,198,92;
+  --sh-heat-trainer: #e06a45;
+  --sh-heat-trainer-rgb: 224,106,69;
+  --sh-heat-nutri: #e2c25a;
+  --sh-heat-nutri-rgb: 226,194,90;
+  --sh-heat-client: #f2a03d;
+  --sh-heat-client-rgb: 242,160,61;
+  --sh-accent-ink: #f5ae55;
+  --sh-accent-ink-rgb: 245,174,85;
+  --sh-ember: #f08a5a;
+  --sh-ember-rgb: 240,138,90;
+  --sh-danger: #f48262;
+  --sh-danger-rgb: 244,130,98;
+  --sh-sky: #ebc18e;
+  --sh-sky-rgb: 235,193,142;
+  --sh-violet: #ea95a8;
+  --sh-violet-rgb: 234,149,168;
+  --sh-gold2: #e2c25a;
+  --sh-gold2-rgb: 226,194,90;
+  --sh-spotify-ink: #bcc65c;
+  --sh-spotify-ink-rgb: 188,198,92;
+  --sh-cycle-heat: #f2a03d;
+  --sh-cycle-heat-rgb: 242,160,61;
+  --sh-cycle-heat-ink: #1c0f02;
+  --sh-cycle-heat-ink-rgb: 28,15,2;
+  --sh-chart-teal: #e6b35c;
+  --sh-chart-teal-rgb: 230,179,92;
+  --sh-chart-amber: #c9743a;
+  --sh-chart-amber-rgb: 201,116,58;
+  --sh-tag-ink-mix: 65%;
+  --sh-header-bg: rgba(18,11,5,0.72);
+  --sh-menu-bg: rgba(13,8,4,0.98);
+  --sh-footer-bg: #0d0804;
+  --sh-footer-bg-rgb: 13,8,4;
+  --sh-logo-light: none;
+  --sh-logo-dark: block;
+}
+
+html[data-paper="glass"] {
+  --sh-ink: #eef2f8;
+  --sh-ink-rgb: 238,242,248;
+  --sh-ink-soft: #2b3447;
+  --sh-ink-soft-rgb: 43,52,71;
+  --sh-ink2: #b0bacb;
+  --sh-ink2-rgb: 176,186,203;
+  --sh-ink3: #97a3b7;
+  --sh-ink3-rgb: 151,163,183;
+  --sh-nav-ink: #f0f4fa;
+  --sh-nav-ink-rgb: 240,244,250;
+  --sh-ground: #0a1020;
+  --sh-ground-rgb: 10,16,32;
+  --sh-ground2: #121a2c;
+  --sh-ground2-rgb: 18,26,44;
+  --sh-deep: #04211d;
+  --sh-deep-rgb: 4,33,29;
+  --sh-card: rgba(255,255,255,0.065);
+  --sh-card-rgb: 26,32,46;
+  --sh-line: rgba(255,255,255,0.12);
+  --sh-line-rgb: 39,45,59;
+  --sh-line2: rgba(255,255,255,0.2);
+  --sh-line2-rgb: 59,64,77;
+  --sh-rest: rgba(255,255,255,0.04);
+  --sh-rest-rgb: 20,26,41;
+  --sh-accent-tint: rgba(46,224,196,0.14);
+  --sh-accent-tint-rgb: 29,58,67;
+  --sh-rust-tint: rgba(238,116,88,0.16);
+  --sh-rust-tint-rgb: 60,45,53;
+  --sh-gold-tint: rgba(224,173,72,0.16);
+  --sh-gold-tint-rgb: 58,54,51;
+  --sh-accent: #2ee0c4;
+  --sh-accent-rgb: 46,224,196;
+  --sh-accent2: #0ac5a8;
+  --sh-accent2-rgb: 10,197,168;
+  --sh-accent3: #34d6c5;
+  --sh-accent3-rgb: 52,214,197;
+  --sh-gold: #e0ad48;
+  --sh-gold-rgb: 224,173,72;
+  --sh-rust: #f5866b;
+  --sh-rust-rgb: 245,134,107;
+  --sh-rust2: #f28064;
+  --sh-rust2-rgb: 242,128,100;
+  --sh-green: #86cc66;
+  --sh-green-rgb: 134,204,102;
+  --sh-heat-trainer: #c0533b;
+  --sh-heat-trainer-rgb: 192,83,59;
+  --sh-heat-nutri: #d8b25a;
+  --sh-heat-nutri-rgb: 216,178,90;
+  --sh-heat-client: #34d6c5;
+  --sh-heat-client-rgb: 52,214,197;
+  --sh-accent-ink: #2ee0c4;
+  --sh-accent-ink-rgb: 46,224,196;
+  --sh-ember: #ec8a5c;
+  --sh-ember-rgb: 236,138,92;
+  --sh-danger: #f08a6c;
+  --sh-danger-rgb: 240,138,108;
+  --sh-sky: #8fd8ff;
+  --sh-sky-rgb: 143,216,255;
+  --sh-violet: #b49cfb;
+  --sh-violet-rgb: 180,156,251;
+  --sh-gold2: #e0bd65;
+  --sh-gold2-rgb: 224,189,101;
+  --sh-spotify-ink: #1ed760;
+  --sh-spotify-ink-rgb: 30,215,96;
+  --sh-cycle-heat: #34d6c5;
+  --sh-cycle-heat-rgb: 52,214,197;
+  --sh-cycle-heat-ink: #0b0f0f;
+  --sh-cycle-heat-ink-rgb: 11,15,15;
+  --sh-chart-teal: #16b3a2;
+  --sh-chart-teal-rgb: 22,179,162;
+  --sh-chart-amber: #c99a3c;
+  --sh-chart-amber-rgb: 201,154,60;
+  --sh-tag-ink-mix: 65%;
+  --sh-header-bg: rgba(10,16,32,0.5);
+  --sh-menu-bg: rgba(16,23,39,0.96);
+  --sh-footer-bg: #080d1a;
+  --sh-footer-bg-rgb: 8,13,26;
+  --sh-logo-light: none;
+  --sh-logo-dark: block;
+}
+
 html, body { margin: 0; padding: 0; background: var(--sh-ground, #1a1612); }
 * { box-sizing: border-box; }
+
+/* ── Glass: the lit ground behind see-through cards ────────────────────────
+   Three soft glows over the ground, fixed to the viewport, so a card's 6.5% white reads
+   as a pane with colour moving behind it as the page scrolls. The glows are smooth, so an
+   in-flow card needs no blur to look frosted, and none is applied: backdrop-filter makes
+   an element the containing block of its position:fixed children, and the dashboard
+   draws dozens of fixed overlays inline inside cards. tests/newdesign-paper-pairs.test.mjs
+   measures the text tokens over the brightest glow, so a stronger glow fails there.
+   ⚠ The frame paints the ground inline (`.dash-app`, `background: PAPER`), and an inline
+   style outranks this sheet, so the frame is cleared with !important.
+   ⚠ A panel that FLOATS over content (a popover, a menu, a sticky bar) cannot be
+   see-through: the rows under it would read through its text. Matched by its inline
+   style — floating, and painted with the card token — it takes a near-opaque glass and,
+   for the absolute and sticky ones (which hold no fixed overlay), a blur. A fixed panel
+   gets the colour only, for the containing-block reason above. */
+html[data-paper="glass"] {
+  background-color: #0a1020;
+  background-image:
+    radial-gradient(60vmax 50vmax at 6% 0%, rgba(46,224,196,0.14), transparent 70%),
+    radial-gradient(55vmax 50vmax at 100% 10%, rgba(138,92,246,0.16), transparent 70%),
+    radial-gradient(70vmax 55vmax at 55% 106%, rgba(56,120,255,0.12), transparent 70%);
+  background-attachment: fixed;
+}
+html[data-paper="glass"] body, html[data-paper="glass"] .dash-app { background: transparent !important; }
+html[data-paper="glass"] .dash-plate { box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 32px rgba(0,0,0,0.28); }
+html[data-paper="glass"] :is([style*="position: absolute"], [style*="position: sticky"])[style*="var(--sh-card,"] {
+  background-color: rgba(18,26,44,0.88) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+/* The same for the floating panels this sheet styles by class: the rail (which widens over
+   the page on hover) and the filter popover. A toggle's knob, painted with the card, would
+   all but vanish, so it takes the ink. */
+html[data-paper="glass"] :is(.dash-rail-panel, .dash-facet-pop) {
+  background-color: rgba(18,26,44,0.88);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+html[data-paper="glass"] .lb-sw::after { background: var(--sh-ink, #f2ede4); }
+html[data-paper="glass"] [style*="position: fixed"][style*="var(--sh-card,"] { background-color: rgba(18,26,44,0.96) !important; }
+
+/* ── Night: the eye-sensitive skin ─────────────────────────────────────────
+   Its tokens carry little blue; what the tokens cannot reach is a photo, an avatar or a
+   video, which take a sepia wash here. An inline filter on one of them still wins. */
+html[data-paper="night"] img, html[data-paper="night"] video { filter: sepia(0.4) saturate(0.85); }
+/* The corner's chat button and the demo band paint a fixed teal of their own
+   (globalChatButton.js's injected sheet, dashToday.jsx's DashDemoBand), outside the tokens,
+   so Night repaints them in its amber. The button's sheet is injected after this one; the
+   id-plus-attribute selector outranks it without !important. The band is inline, so it
+   needs !important. Dark text on the amber reads 8.4:1, as it did on the teal. */
+html[data-paper="night"] #shape-global-chat-button { background: #f2a03d; box-shadow: 0 10px 26px rgba(0,0,0,.32), 0 3px 10px rgba(242,160,61,.28); }
+html[data-paper="night"] #shape-global-chat-button :is(.sgc-star, .shape-global-chat-count) { color: #f2a03d; }
+html[data-paper="night"] #shape-global-chat-panel :is(.sgc-msg.me, .sgc-bdg) { background: #f2a03d; }
+html[data-paper="night"] .dash-demo-band { color: #f2a03d !important; border-top-color: rgba(242,160,61,0.3) !important; }
+html[data-paper="night"] .dash-demo-band a { background: #e8922e !important; }
 a { text-decoration: none; color: inherit; }
 
 /* ── Cards (the workout builder's vocabulary, owner 2026-09-21) ────────────

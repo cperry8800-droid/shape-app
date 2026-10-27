@@ -356,18 +356,13 @@ function CoachSettingsPage({ role }) {
             <React.Fragment>
               <div className="dash-eyebrow">Appearance</div>
               <div className="dash-ledger" />
-              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Paper</div>
+              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Skin</div>
               <div style={{ fontSize: 12, color: CST_INK50, lineHeight: 1.5, marginBottom: 12 }}>
-                Light is the dashboard's paper. Dark brings back the previous tones; both follow
-                your account across devices.
+                The dashboard's look. White and Bone are light, the rest dark; Night drops the blue
+                tones for evenings. It follows your account across devices, and the app follows
+                its light or dark.
               </div>
-              <div role="radiogroup" aria-label="Paper" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[["light", "Light"], ["dark", "Dark"]].map(([key, label]) => (
-                  <button key={key} type="button" role="radio" aria-checked={paperCtl[0] === key} disabled={!paperCtl[1]}
-                    onClick={() => paperCtl[1] && paperCtl[1](key)}
-                    style={{ ...cstChip(paperCtl[0] === key), minHeight: 30, opacity: paperCtl[1] ? 1 : 0.45 }}>{label}</button>
-                ))}
-              </div>
+              {typeof DashPaperPicker === "function" && <DashPaperPicker value={paperCtl[0]} onChoose={paperCtl[1]} />}
               {live === false && (
                 <div style={{ marginTop: 10, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5 }}>
                   Signed out the choice stays on this browser; sign in to keep it on your account.

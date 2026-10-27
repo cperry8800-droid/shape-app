@@ -315,6 +315,42 @@ function SectionTitle({ children, right }) {
     </div>
   );
 }
+// The dashboard's skin picker (owner, 2026-10-27: "create different dashboard skins for
+// website you can choose from, like on app"), on both Settings pages. A tile per skin in
+// the app's own grammar — the skin's ground with an "Aa" card on it — so each tile shows
+// its skin whichever one is on. The skins are dashData.jsx's DASH_PAPER_OPTS, read at
+// render because dashData.jsx loads after this file; without it there is nothing to
+// choose, and with no setter (signed out of a store that cannot write) the tiles are off.
+function DashPaperPicker({ value, onChoose }) {
+  const opts = typeof DASH_PAPER_OPTS !== "undefined" && Array.isArray(DASH_PAPER_OPTS) ? DASH_PAPER_OPTS : [];
+  return (
+    <div role="radiogroup" aria-label="Dashboard skin" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))", gap: 10 }}>
+      {opts.map(([key, label, hint, ground, card, ink, accent]) => {
+        const on = value === key;
+        const glow = key === "glass" ? "radial-gradient(90% 120% at 0% 0%, rgba(46,224,196,0.35), transparent 60%), radial-gradient(80% 110% at 100% 20%, rgba(138,92,246,0.4), transparent 60%), " : "";
+        return (
+          <button key={key} type="button" role="radio" aria-checked={on} aria-label={label + " — " + hint} disabled={!onChoose}
+            onClick={() => onChoose && onChoose(key)}
+            style={{ display: "block", width: "100%", textAlign: "left", padding: 0, font: "inherit", borderRadius: 10, overflow: "hidden", cursor: onChoose ? "pointer" : "default", opacity: onChoose ? 1 : 0.45,
+              background: "var(--sh-card, #25211d)", color: "var(--sh-ink, #f2ede4)", border: "1px solid var(--sh-line2, #413d38)",
+              boxShadow: on ? "0 0 0 2px var(--sh-accent, #2ee0c4)" : "none" }}>
+            <span aria-hidden style={{ display: "block", position: "relative", height: 62, background: glow + ground, borderBottom: "1px solid var(--sh-line, #302c27)" }}>
+              <span style={{ position: "absolute", left: 12, top: 12, width: "58%", bottom: 12, borderRadius: 6, background: card, border: "1px solid rgba(128,128,128,0.22)", color: ink, display: "flex", alignItems: "center", gap: 7, padding: "0 9px", fontFamily: serif, fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em" }}>
+                Aa<span style={{ flex: 1, height: 3, borderRadius: 2, background: accent }} />
+              </span>
+              {on && <span style={{ position: "absolute", right: 9, top: 7, fontSize: 14, fontWeight: 700, color: accent }}>✓</span>}
+            </span>
+            <span style={{ display: "block", padding: "8px 11px 10px" }}>
+              <span style={{ display: "block", fontSize: 13, fontWeight: 600 }}>{label}</span>
+              <span style={{ display: "block", fontSize: 11.5, lineHeight: 1.35, color: "var(--sh-ink2, #a09b94)", marginTop: 2 }}>{hint}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // The fixed coach pages' section switch (owner, 2026-10-15: Clients, Business, Goal and
 // Score lose the widget builder, "like Programs"). The same segmented control as Today's
 // Needs you card, so one control means one thing across the dashboard.
@@ -811,4 +847,4 @@ function DashExportButton({ kind, build, live, label }) {
   );
 }
 
-Object.assign(window, { goalQuarterLabel, DashShell, DashPage, DashFrame, DashSidebar, Sparkline, Card, SectionTitle, DashSegmented, Pill, RecentPayouts, ProfileHero, BioCard, SubscriptionCard, DashExportButton });
+Object.assign(window, { goalQuarterLabel, DashShell, DashPage, DashFrame, DashSidebar, Sparkline, Card, SectionTitle, DashSegmented, DashPaperPicker, Pill, RecentPayouts, ProfileHero, BioCard, SubscriptionCard, DashExportButton });

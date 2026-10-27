@@ -75,8 +75,8 @@ dated entry or past 20 KB.
   `?v=`: `scripts/build-newdesign.mjs` replaces it with a content hash at deploy.
   Before editing a legacy `*.jsx`, check that something still loads it.
   `coachForecast.js` holds the coach Business figures; the app imports it too, so
-  change a figure there, not in a page. `splitGlassMark.js` draws the 3D splash mark
-  for both the homepage splash and the app's launch screens.
+  change a figure there, not in a page. `splitGlassMark.js` draws the 3D mark on the
+  homepage splash and the app's launch and masthead.
 - **Next.js app (`src/`):** API routes, the gated `/dashboard` and `/admin`. Typecheck
   with `npx tsc --noEmit` (read the Next docs first). When you add a route,
   register it in the War Room's `RAW_ROUTES`. A route the app calls reads the caller with
@@ -246,9 +246,9 @@ The War Room has the full list; this covers what needs the owner and the planned
   linked from nowhere.
 - The website's Kitchen (`recipesPage.jsx`) runs its filter toggles and jump row off a phone's
   right edge.
-- No signed-in pass in a browser or on a phone yet: client onboarding, the dashboard frame,
-  `/admin`, Business (website and app), coach application uploads, the Wall's live story with a
-  real set, the coach Today, Clients and Programs redesign (#2458).
+- No signed-in pass in a browser or on a phone yet: client onboarding, the dashboard frame and
+  skins, `/admin`, Business (website and app), coach application uploads, the Wall's live story
+  with a real set, the coach Today, Clients and Programs redesign (#2458).
 - The Wall's old card (`variant="wall"`) is unused in the app; the website chat bubble still
   draws its copy. Grocery lists are sent and saved in the app only; old builds' grocery writes
   go unmerged.
