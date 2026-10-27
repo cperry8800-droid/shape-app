@@ -613,7 +613,9 @@ test('the app\'s full coach profile offers a free intro at capacity when the lis
   const market = read('mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx');
   assert.match(market, /commerce: \{ coach, role: saleProviderRole, packages: p\.packages, atCapacity, introsAtCapacity: introsAtCap, bookIntro:/, 'the listing hands over the coach\'s setting and what it read');
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  const prof = client.slice(client.indexOf('function BSSignalCoachProfile('), client.indexOf('\nfunction ', client.indexOf('function BSSignalCoachProfile(') + 10));
+  // The profile's storefront is the shared hook and block (useBSCoachCommerce, BSCoachCoachingBlock), which
+  // the trainer profile runs too (2026-10-27).
+  const prof = client.slice(client.indexOf('function useBSCoachCommerce('), client.indexOf('function BSSignalCoachProfile('));
   assert.match(prof, /const introsOpenAtCap = !!\(commerce && commerce\.introsAtCapacity === true\);/);
   const block = (from) => { const i = prof.indexOf(from); assert.ok(i > 0, from); return prof.slice(i, prof.indexOf('\n          )}', i)); };
   const intro = /<button onClick=\{doBookIntro\} data-intro-at-capacity=""/;

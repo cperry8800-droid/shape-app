@@ -404,7 +404,7 @@ test('app Rates: saves through ShapeCoachListing, follows the saved listing, and
 
 test('app: the backend door and the marketplace\'s word for a deep link to a coach who is not listed', () => {
   const backend = read('mobile-app/src/services/shapeBackend.js');
-  assert.match(backend, /window\.ShapeCoachListing = \{\s+getMine: getMyCoachListings,\s+saveRates: saveMyCoachRates,\s+\};/);
+  assert.match(backend, /window\.ShapeCoachListing = \{\s+getMine: getMyCoachListings,\s+saveRates: saveMyCoachRates,\s+publicByOwner: publicListingByOwner,\s+\};/);
   assert.match(backend, /fetch\(`\$\{apiBaseUrl\}\/api\/coach\/listing`, \{\s+method: 'POST',/);
   const market = read('mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx');
   assert.match(market, /if \(hit\) \{ setOpen\(hit\); setOpenNo\(null\); setDeepMiss\(false\); \} else setDeepMiss\(true\);\s+if \(onCoachConsumed\) onCoachConsumed\(\);/);
