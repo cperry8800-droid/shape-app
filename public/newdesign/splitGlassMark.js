@@ -1,8 +1,9 @@
 // Split glass: the splash mark in 3D (owner, 2026-10-26: "can we make the triangles look more
 // 3d on the splash pages", then "do split glass" from the preview's options). The mark's two
 // triangles become glass prisms at two depths. They spin in from edge-on, then drift so the
-// pieces slide past each other. It draws on the homepage splash (index.html, #shape-intro) and
-// on the app's launch and hold screens (BSShapeMark in iosAppBroadsheetMain.jsx).
+// pieces slide past each other. It draws on the homepage splash (index.html, #shape-intro), on
+// the app's launch and hold screens (BSShapeMark in iosAppBroadsheetMain.jsx), and, held still,
+// as the app's masthead mark (BSLogo in iosAppBroadsheet.jsx).
 //
 // Loads as a plain <script> on the website (exposes window.SplitGlassMark), as a side-effect
 // import in the app's bundle, and via require() in Node (tests/split-glass-mark.test.mjs).
@@ -66,9 +67,26 @@
     ],
   };
 
+  /** The app's masthead mark (BSLogo, viewBox 0 0 99 113; owner, 2026-10-27: "make the triangles
+   *  here on app the same design/look as new triangle splash page"): the teal prism in front, the
+   *  page's ink behind. `ink` and `teal` are [r, g, b]. */
+  function logo(ink, teal) {
+    return {
+      center: [49.5, 56],
+      tris: [
+        { pts: [[17, 49], [56, 73], [17, 97]], rgb: teal, edge: teal.join(","), solid: `rgb(${teal.join(",")})` },
+        { pts: [[43, 39], [82, 15], [82, 63]], rgb: ink, edge: ink.join(","), solid: `rgb(${ink.join(",")})` },
+      ],
+    };
+  }
+
   // The flat mark (the summit flag), and the one still pose reduced motion gets.
   const REST = { rx: 0, ry: 0, sep: 0, depth: 0, fill: 1 };
   const STILL = { rx: 0.12, ry: 0.32, sep: SEP, depth: DEPTH, fill: 0 };
+  // Denser glass for a mark 16px across: the splash's faces start at 7% and its edges are 0.7
+  // units, a tenth of a pixel at that size, so the masthead's faces start at 40% and its edges
+  // are 3.5 times as wide.
+  const MAST = { floor: 0.4, stroke: 3.5 };
 
   /** The pose `e` seconds in: 1.25 turns from edge-on that ease out into a slow drift, while
    *  the two triangles part to their depths. */
@@ -114,8 +132,11 @@
   }
 
   /** The SVG markup for one pose of `spec`'s mark. Glass draws every face, back ones first, so
-   *  the far edges show through; `fill` fades the glass out and the solid front faces in. */
-  function render(spec, p) {
+   *  the far edges show through; `fill` fades the glass out and the solid front faces in.
+   *  `look` ({ floor, stroke }, e.g. MAST) sets the faces' least opacity and widens the edges. */
+  function render(spec, p, look) {
+    const floor = look && look.floor != null ? look.floor : 0.07;
+    const wide = (look && look.stroke) || 1;
     const [cx, cy] = spec.center;
     const cX = Math.cos(p.rx), sX = Math.sin(p.rx), cY = Math.cos(p.ry), sY = Math.sin(p.ry);
     const turn = (v) => {
@@ -153,11 +174,11 @@
           // Faces turned edge-on to the camera read thicker, the way glass does.
           const fres = Math.pow(1 - Math.abs(u[2]), 1.5);
           const sp = HALF.reduce((s, h, k) => s + LIGHTS[k].k * Math.pow(Math.max(0, dot(u, h)), 36), 0);
-          const alpha = Math.min(0.9, 0.07 + 0.4 * fres + 0.55 * sp) * glass;
+          const alpha = Math.min(0.9, floor + 0.4 * fres + 0.55 * sp) * glass;
           const col = tri.rgb.map((c) => Math.round(Math.min(255, lerp(c, 255, clamp(sp * 0.85))))).join(",");
           const edge = ((facing ? 0.5 : 0.28) + 0.4 * fres) * glass;
           out += `<polygon points="${f.v.map(pt).join(" ")}" fill="rgb(${col})" fill-opacity="${r2(alpha)}"`
-            + ` stroke="rgba(${tri.edge},${r2(edge)})" stroke-width="${facing ? 0.7 : 0.45}" stroke-linejoin="round"/>`;
+            + ` stroke="rgba(${tri.edge},${r2(edge)})" stroke-width="${r2((facing ? 0.7 : 0.45) * wide)}" stroke-linejoin="round"/>`;
         }
       }
       if (p.fill > 0.001) {
@@ -208,5 +229,5 @@
     };
   }
 
-  return { SITE, APP, REST, STILL, SPIN, SETTLE, pose, blend, render, play };
+  return { SITE, APP, REST, STILL, MAST, SPIN, SETTLE, logo, pose, blend, render, play };
 });

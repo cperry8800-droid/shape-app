@@ -799,8 +799,30 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
 
 // Logo — two triangles, right + left pointing toward each other with vertical
 // offset (right-triangle sits low, left-triangle sits high). Brand mark.
+// The masthead mark in the splash's Split glass (owner, 2026-10-27: "make the triangles here on
+// app the same design/look as new triangle splash page"): the two prisms held at the splash's
+// still pose, the teal one in front and the ink behind, in public/newdesign/splitGlassMark.js's
+// denser MAST glass so they read at 16px. The teal follows the ink rather than the paper, so a
+// cream mark on Radio's dark ground takes the dark paper's teal. The markup depends only on the
+// ink, so it is drawn once per ink. A colour that is not a hex (currentColor) keeps the flat mark.
+const _bsLogoGlass = new Map();
+function bsLogoGlass(c) {
+  const SG = typeof window !== 'undefined' ? window.SplitGlassMark : null;
+  const m = /^#([0-9a-f]{6})$/i.exec(String(c || '').trim());
+  if (!SG || typeof SG.logo !== 'function' || !m) return null;
+  const key = m[1].toLowerCase();
+  if (!_bsLogoGlass.has(key)) {
+    const n = parseInt(key, 16);
+    const ink = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    const light = (0.2126 * ink[0] + 0.7152 * ink[1] + 0.0722 * ink[2]) / 255 > 0.5;
+    _bsLogoGlass.set(key, SG.render(SG.logo(ink, light ? [52, 214, 197] : [10, 143, 135]), SG.STILL, SG.MAST));
+  }
+  return _bsLogoGlass.get(key);
+}
+
 function BSLogo({ size = 18, color }) {
   const c = color || 'currentColor';
+  const glass = bsLogoGlass(c);
   return (
     <svg
       aria-hidden="true"
@@ -811,10 +833,15 @@ function BSLogo({ size = 18, color }) {
         display: 'inline-block',
         flex: '0 0 auto',
         verticalAlign: 'middle',
+        overflow: 'visible',
       }}
     >
-      <polygon points="43,39 82,15 82,63" fill={c} />
-      <polygon points="17,49 56,73 17,97" fill={c} />
+      {glass ? <g dangerouslySetInnerHTML={{ __html: glass }} /> : (
+        <>
+          <polygon points="43,39 82,15 82,63" fill={c} />
+          <polygon points="17,49 56,73 17,97" fill={c} />
+        </>
+      )}
     </svg>
   );
 }

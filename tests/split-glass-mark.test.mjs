@@ -117,3 +117,50 @@ test('stop ends the loop, and reduced motion draws one still pose and never anim
   still.settle();
   assert.equal(g.innerHTML, SG.render(SG.APP, SG.REST));
 });
+
+// The app's masthead mark (owner, 2026-10-27: "make the triangles here on app the same design/look as
+// new triangle splash page"): BSLogo draws the same prisms, held at the still pose, in denser glass.
+test('the masthead mark is BSLogo\'s own triangles, and settled it is the flat mark in the page\'s ink', () => {
+  const app = read('mobile-app/src/broadsheet/iosAppBroadsheet.jsx');
+  const ink = [15, 14, 12], teal = [10, 143, 135];
+  const spec = SG.logo(ink, teal);
+  // The fallback BSLogo draws for a colour that is not a hex is the same geometry.
+  for (const tri of spec.tris) assert.ok(app.includes(`points="${tri.pts.join(' ')}" fill={c}`), `BSLogo has no ${tri.pts.join(' ')}`);
+  assert.deepEqual(spec.tris[0].rgb, teal, 'the teal prism is not the front one');
+  const flat = polys(SG.render(spec, SG.REST));
+  assert.equal(flat.length, 2);
+  assert.ok(flat.some((p) => p.attrs === 'fill="rgb(15,14,12)"'), 'settled, the back prism is not the ink');
+});
+
+test('the masthead glass is denser than the splash\'s, and the splash is drawn as it was', () => {
+  const spec = SG.logo([15, 14, 12], [10, 143, 135]);
+  const opacity = (svg) => polys(svg).map((p) => Number(/fill-opacity="([\d.]+)"/.exec(p.attrs)[1]));
+  const width = (svg) => polys(svg).map((p) => Number(/stroke-width="([\d.]+)"/.exec(p.attrs)[1]));
+  const mast = SG.render(spec, SG.STILL, SG.MAST);
+  assert.equal(polys(mast).length, 10, 'every face of both prisms');
+  assert.ok(Math.min(...opacity(mast)) >= SG.MAST.floor - 1e-9, 'a masthead face is fainter than the floor');
+  assert.ok(Math.min(...width(mast)) >= 0.45 * SG.MAST.stroke - 0.01, 'a masthead edge is a hairline');
+  // Without a look, the splash keeps its 7% floor and its 0.7 / 0.45 edges.
+  const splash = SG.render(SG.APP, SG.STILL);
+  assert.deepEqual([...new Set(width(splash))].sort(), [0.45, 0.7]);
+  assert.ok(Math.min(...opacity(splash)) < SG.MAST.floor, 'the splash has gone dense');
+});
+
+test('BSLogo draws the glass from the shared module and keeps the flat mark when it cannot', () => {
+  const app = read('mobile-app/src/broadsheet/iosAppBroadsheet.jsx');
+  const at = app.indexOf('function bsLogoGlass(');
+  assert.ok(at >= 0, 'bsLogoGlass is gone');
+  const fn = app.slice(at, app.indexOf('\nfunction BSLogo(', at));
+  assert.match(fn, /window\.SplitGlassMark/, 'the masthead does not read the shared mark');
+  assert.match(fn, /SG\.render\(SG\.logo\(ink, light \? \[52, 214, 197\] : \[10, 143, 135\]\), SG\.STILL, SG\.MAST\)/,
+    'the masthead is not the still pose in MAST glass, teal by the ink');
+  assert.match(fn, /if \(!SG \|\| typeof SG\.logo !== 'function' \|\| !m\) return null;/, 'a non-hex colour or a missing module must fall back');
+  // Drive it: a hex ink draws glass, cached per ink; currentColor draws nothing (the flat mark).
+  const run = new Function('window', `const _bsLogoGlass = new Map();\n${fn}; return bsLogoGlass;`);
+  const bsLogoGlass = run({ SplitGlassMark: SG });
+  const dark = bsLogoGlass('#0f0e0c');
+  assert.equal(dark, SG.render(SG.logo([15, 14, 12], [10, 143, 135]), SG.STILL, SG.MAST));
+  assert.equal(bsLogoGlass('#F4EDE0'), SG.render(SG.logo([244, 237, 224], [52, 214, 197]), SG.STILL, SG.MAST), 'a light ink takes the dark paper\'s teal');
+  assert.equal(bsLogoGlass('currentColor'), null);
+  assert.equal(run(undefined)('#0f0e0c'), null, 'with no window it must fall back');
+});
