@@ -1468,6 +1468,8 @@
   "hours.zoneFirst": "Saatler {zone} saatinde kaydedilecek",
   "hours.saved": "Kaydedildi. Üyeler artık bu saatleri alabilir.",
   "hours.saveFailed": "Saatlerin kaydedilemedi. Hiçbir şey değişmedi; tekrar dene.",
+  "hours.savePartial": "Saatlerin tam kaydedilmedi, bu yüzden üyeler yalnızca şu an kayıtlı olanı görüyor. Bitirmek için tekrar kaydet.",
+  "hours.saveUnknown": "Saatlerin kaydedilemedi ve kayıtlı olan kontrol edilemedi. Çıkmadan önce tekrar kaydet.",
   "hours.loading": "Saatlerin okunuyor…",
   "hours.error": "Saatlerin şu an okunamadı. Hiçbir şey kaybolmadı.",
   "hours.notCoach": "Saatlerin koç başvurun onaylanınca açılır.",

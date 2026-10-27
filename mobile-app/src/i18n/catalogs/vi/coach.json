@@ -1468,6 +1468,8 @@
   "hours.zoneFirst": "Giờ sẽ được lưu theo {zone}",
   "hours.saved": "Đã lưu. Thành viên có thể đặt những giờ này ngay.",
   "hours.saveFailed": "Không lưu được giờ của bạn. Chưa có gì thay đổi; hãy thử lại.",
+  "hours.savePartial": "Giờ của bạn chưa được lưu đầy đủ, nên thành viên chỉ thấy những gì đang được lưu. Lưu lại để hoàn tất.",
+  "hours.saveUnknown": "Không lưu được giờ của bạn hoặc không kiểm tra được dữ liệu đã lưu. Hãy lưu lại trước khi rời đi.",
   "hours.loading": "Đang đọc giờ của bạn…",
   "hours.error": "Chưa đọc được giờ của bạn lúc này. Không mất gì cả.",
   "hours.notCoach": "Giờ của bạn sẽ mở khi đơn huấn luyện viên được duyệt.",

@@ -1468,6 +1468,8 @@
   "hours.zoneFirst": "Les horaires seront enregistrés en {zone}",
   "hours.saved": "Enregistré. Les membres peuvent réserver ces créneaux dès maintenant.",
   "hours.saveFailed": "Impossible d’enregistrer vos horaires. Rien n’a changé ; réessayez.",
+  "hours.savePartial": "Tes horaires n'ont pas été entièrement enregistrés : les membres ne voient que ce qui est enregistré maintenant. Enregistre à nouveau pour terminer.",
+  "hours.saveUnknown": "Impossible d'enregistrer tes horaires ou de vérifier ce qui est enregistré. Enregistre à nouveau avant de partir.",
   "hours.loading": "Lecture de vos horaires…",
   "hours.error": "Impossible de lire vos horaires pour l’instant. Rien n’est perdu.",
   "hours.notCoach": "Vos horaires s’ouvrent une fois votre candidature de coach approuvée.",

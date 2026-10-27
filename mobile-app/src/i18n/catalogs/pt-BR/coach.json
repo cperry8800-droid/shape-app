@@ -1468,6 +1468,8 @@
   "hours.zoneFirst": "Os horários serão salvos em {zone}",
   "hours.saved": "Salvo. Os membros já podem reservar esses horários.",
   "hours.saveFailed": "Não foi possível salvar seu horário. Nada mudou; tente de novo.",
+  "hours.savePartial": "Seus horários não foram salvos por completo, então os membros veem só o que está salvo agora. Salve de novo para terminar.",
+  "hours.saveUnknown": "Não foi possível salvar seus horários nem conferir o que está salvo. Salve de novo antes de sair.",
   "hours.loading": "Lendo seu horário…",
   "hours.error": "Não deu para ler seu horário agora. Nada se perdeu.",
   "hours.notCoach": "Seu horário abre quando sua candidatura de coach for aprovada.",

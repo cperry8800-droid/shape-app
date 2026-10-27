@@ -501,7 +501,17 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
       setPreviewNonce((n) => n + 1);
       return true;
     } catch (e) {
-      setMsg({ tone: 'err', text: (e && e.message) || tr('coach:hours.saveFailed', { defaultValue: "Couldn't save your hours. Nothing changed; try again." }) });
+      // The route clears the old hours before it writes the new ones, so a failed save can leave
+      // fewer hours stored, or none (Codex on #2483). Read back what is stored: the editor keeps
+      // the coach's changes on screen with the save bar up, and says what members see now.
+      let stored = null;
+      try { const d = await window.ShapeCoachHours.get(role); if (d && d.providerId) { stored = bsHoursFromRows(d.slots); if (d.timezone) setZone(d.timezone); } } catch (e2) {}
+      setPreviewNonce((n) => n + 1);
+      let text;
+      if (stored && bsHoursSame(stored, seed)) text = (e && e.message) || tr('coach:hours.saveFailed', { defaultValue: "Couldn't save your hours. Nothing changed; try again." });
+      else if (stored) { setSeed(stored); text = tr('coach:hours.savePartial', { defaultValue: "Your hours didn't fully save, so members see only what is stored now. Save again to finish." }); }
+      else text = tr('coach:hours.saveUnknown', { defaultValue: "Couldn't save your hours or check what is stored. Save again before you leave." });
+      setMsg({ tone: 'err', text });
       return false;
     } finally { setSaving(false); }
   };

@@ -1468,6 +1468,8 @@
   "hours.zoneFirst": "Zeiten werden in {zone} gespeichert",
   "hours.saved": "Gespeichert. Mitglieder können diese Zeiten jetzt buchen.",
   "hours.saveFailed": "Deine Zeiten konnten nicht gespeichert werden. Nichts wurde geändert; versuch es noch einmal.",
+  "hours.savePartial": "Deine Zeiten wurden nicht vollständig gespeichert, Mitglieder sehen nur, was jetzt gespeichert ist. Speichere noch einmal, um es abzuschließen.",
+  "hours.saveUnknown": "Deine Zeiten konnten nicht gespeichert und der gespeicherte Stand nicht geprüft werden. Speichere noch einmal, bevor du gehst.",
   "hours.loading": "Lese deine Zeiten…",
   "hours.error": "Deine Zeiten konnten gerade nicht gelesen werden. Es ist nichts verloren.",
   "hours.notCoach": "Deine Zeiten gibt es, sobald deine Coach-Bewerbung angenommen ist.",

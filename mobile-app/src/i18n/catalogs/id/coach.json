@@ -1468,6 +1468,8 @@
   "hours.zoneFirst": "Waktu akan disimpan di {zone}",
   "hours.saved": "Tersimpan. Anggota sekarang bisa memesan waktu ini.",
   "hours.saveFailed": "Gagal menyimpan jam kerjamu. Tidak ada yang berubah; coba lagi.",
+  "hours.savePartial": "Jam kamu tidak tersimpan sepenuhnya, jadi anggota hanya melihat yang tersimpan sekarang. Simpan lagi untuk menyelesaikan.",
+  "hours.saveUnknown": "Jam kamu tidak bisa disimpan dan isi yang tersimpan tidak bisa dicek. Simpan lagi sebelum keluar.",
   "hours.loading": "Membaca jam kerjamu…",
   "hours.error": "Jam kerjamu belum bisa dibaca sekarang. Tidak ada yang hilang.",
   "hours.notCoach": "Jam kerjamu terbuka setelah pendaftaran pelatihmu disetujui.",

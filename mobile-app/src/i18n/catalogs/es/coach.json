@@ -1468,6 +1468,8 @@
   "hours.zoneFirst": "Las horas se guardarán en {zone}",
   "hours.saved": "Guardado. Los miembros ya pueden reservar estas horas.",
   "hours.saveFailed": "No se pudo guardar tu horario. No cambió nada; inténtalo de nuevo.",
+  "hours.savePartial": "Tus horarios no se guardaron del todo, así que los miembros solo ven lo que está guardado ahora. Vuelve a guardar para terminar.",
+  "hours.saveUnknown": "No se pudieron guardar tus horarios ni comprobar lo guardado. Vuelve a guardar antes de salir.",
   "hours.loading": "Leyendo tu horario…",
   "hours.error": "No pudimos leer tu horario ahora. No se perdió nada.",
   "hours.notCoach": "Tu horario se abre cuando aprueben tu solicitud de coach.",

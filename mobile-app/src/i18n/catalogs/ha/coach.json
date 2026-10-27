@@ -1468,6 +1468,8 @@
   "hours.zoneFirst": "Za a adana lokuta a {zone}",
   "hours.saved": "An adana. Membobi za su iya yin rajistar waɗannan lokuta yanzu.",
   "hours.saveFailed": "Ba a iya adana lokutanka ba. Babu abin da ya canza; sake gwadawa.",
+  "hours.savePartial": "Ba a ajiye lokutanka gaba ɗaya ba, don haka mambobi suna ganin abin da aka ajiye yanzu kawai. Sake ajiyewa don kammalawa.",
+  "hours.saveUnknown": "Ba a iya ajiye lokutanka ko duba abin da aka ajiye ba. Sake ajiyewa kafin ka fita.",
   "hours.loading": "Ana karanta lokutanka…",
   "hours.error": "Ba a iya karanta lokutanka yanzu ba. Babu abin da ya ɓace.",
   "hours.notCoach": "Lokutanka za su buɗe da zarar an amince da buƙatarka ta koci.",

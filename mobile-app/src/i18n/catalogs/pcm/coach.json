@@ -1468,6 +1468,8 @@
   "hours.zoneFirst": "Times go save for {zone}",
   "hours.saved": "E don save. Members fit book these times now.",
   "hours.saveFailed": "We no fit save your hours. Nothing change; try again.",
+  "hours.savePartial": "Your hours no save finish, so members dey see only wetin dey saved now. Save again make e complete.",
+  "hours.saveUnknown": "We no fit save your hours or check wetin dey saved. Save again before you comot.",
   "hours.loading": "We dey read your hours…",
   "hours.error": "We no fit read your hours now. Nothing lost.",
   "hours.notCoach": "Your hours go open once dem approve your coach application.",

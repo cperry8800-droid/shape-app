@@ -1468,6 +1468,8 @@
   "hours.zoneFirst": "Times will be saved in {zone}",
   "hours.saved": "Saved. Members can book these times now.",
   "hours.saveFailed": "Couldn't save your hours. Nothing changed; try again.",
+  "hours.savePartial": "Your hours didn't fully save, so members see only what is stored now. Save again to finish.",
+  "hours.saveUnknown": "Couldn't save your hours or check what is stored. Save again before you leave.",
   "hours.loading": "Reading your hours…",
   "hours.error": "Couldn't read your hours just now. Nothing is lost.",
   "hours.notCoach": "Your hours open once your coach application is approved.",
