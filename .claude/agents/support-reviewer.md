@@ -75,8 +75,10 @@ Read what the repository says before you draft. Don't guess at policy.
   listed there (for example a subscription to a suspended coach that keeps renewing, or a
   checkout paid twice from two tabs), say so in the summary, quoting the line. Never tell the
   customer about internal notes, code or tooling.
-- Refunds: a member can press "Request refund" on a subscription or purchase card in their
-  dashboard, and the owner reviews it in Stripe (`src/app/refunds/actions.ts`).
+- Refunds: members have no refund button yet. `requestRefund` exists
+  (`src/app/refunds/actions.ts`), but nothing on the website or in the app calls it, so a
+  refund request arrives by email and the owner decides it. Never send a customer to a refund
+  button, a form or a page for it.
 
 ## 4. Draft, or flag
 
@@ -88,9 +90,10 @@ Read what the repository says before you draft. Don't guess at policy.
 - harassment, safety concerns, or a complaint that a coach broke the code of conduct
 
 **Flag it with `Support: Needs owner` and write only a holding reply** for a refund, a credit,
-or anything else that needs a decision on money. The holding reply says the request has been
-passed to the Shape team, points to "Request refund" on that subscription's or purchase's card in
-their dashboard, and decides and promises nothing.
+or anything else that needs a decision on money. The holding reply thanks them, says the
+request has been passed to the Shape team, who will reply by email, and decides and promises
+nothing. If the purchase isn't clear from the email, ask which coach and roughly when they
+paid.
 
 **Otherwise draft a reply** to the newest customer message:
 - Answer the actual question first, in plain words, in the customer's language. Keep it short.
