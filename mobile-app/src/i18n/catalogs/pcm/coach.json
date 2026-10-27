@@ -1465,6 +1465,7 @@
   "hours.offAddRow": "Add time off",
   "hours.zoneMoved": "Times for {zone}. If you save from this phone, e go move dem to {phone}.",
   "hours.zoneMove": "Move my hours go {zone}",
+  "hours.zoneSet": "Save my hours for {zone}",
   "hours.zone": "Times for {zone}",
   "hours.zoneFirst": "Times go save for {zone}",
   "hours.saved": "E don save. Members fit book these times now.",

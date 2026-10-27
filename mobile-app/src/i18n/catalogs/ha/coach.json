@@ -1465,6 +1465,7 @@
   "hours.offAddRow": "Ƙara hutu",
   "hours.zoneMoved": "Lokuta a {zone}. Ajiyewa daga wannan wayar zai mayar da su {phone}.",
   "hours.zoneMove": "Mayar da lokutana zuwa {zone}",
+  "hours.zoneSet": "Ajiye lokutana a {zone}",
   "hours.zone": "Lokuta a {zone}",
   "hours.zoneFirst": "Za a adana lokuta a {zone}",
   "hours.saved": "An adana. Membobi za su iya yin rajistar waɗannan lokuta yanzu.",

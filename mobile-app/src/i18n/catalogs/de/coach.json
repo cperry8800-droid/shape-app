@@ -1465,6 +1465,7 @@
   "hours.offAddRow": "Auszeit hinzufügen",
   "hours.zoneMoved": "Zeiten in {zone}. Speichern von diesem Telefon verschiebt sie nach {phone}.",
   "hours.zoneMove": "Meine Zeiten nach {zone} verschieben",
+  "hours.zoneSet": "Meine Zeiten in {zone} speichern",
   "hours.zone": "Zeiten in {zone}",
   "hours.zoneFirst": "Zeiten werden in {zone} gespeichert",
   "hours.saved": "Gespeichert. Mitglieder können diese Zeiten jetzt buchen.",

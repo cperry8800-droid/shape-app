@@ -1465,6 +1465,7 @@
   "hours.offAddRow": "Añadir ausencia",
   "hours.zoneMoved": "Horas en {zone}. Guardar desde este teléfono las pasa a {phone}.",
   "hours.zoneMove": "Pasar mis horarios a {zone}",
+  "hours.zoneSet": "Guardar mis horarios en {zone}",
   "hours.zone": "Horas en {zone}",
   "hours.zoneFirst": "Las horas se guardarán en {zone}",
   "hours.saved": "Guardado. Los miembros ya pueden reservar estas horas.",

@@ -490,10 +490,11 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
     const h = Math.floor(min / 60), m = min % 60;
     return m ? tr('coach:hours.totalHm', { defaultValue: '{h} h {m} min', h, m }) : tr('coach:hours.totalH', { defaultValue: '{h, plural, one {# hour} other {# hours}}', h });
   };
-  // The phone is in another zone than the stored hours (a coach who moved): the hours stay on the
-  // old clock until a save, so moving them is its own action, never a side effect of looking
+  // The stored hours are on another zone than the phone's (a coach who moved), or on none (hours
+  // saved before zones were, which members can't book): either way they stay as they are until a
+  // save, so placing them in the phone's zone is its own action, never a side effect of looking
   // (Codex on #2483: with nothing edited there was no way to save).
-  const zoneMoved = live && load === 'ready' && !!phoneZone && !!zone && phoneZone !== zone;
+  const zoneMoved = live && load === 'ready' && !!phoneZone && phoneZone !== zone && bsHoursTotal(seed) > 0;
   const save = async ({ force = false } = {}) => {
     if (!live || saving || (!dirty && !force) || !valid) return false;
     setSaving(true); setMsg(null);
@@ -508,9 +509,17 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
       // The route clears the old hours before it writes the new ones, so a failed save can leave
       // fewer hours stored, or none (Codex on #2483). Read back what is stored: the editor keeps
       // the coach's changes on screen with the save bar up, and says what members see now.
-      let stored = null;
-      try { const d = await window.ShapeCoachHours.get(role); if (d && d.providerId) { stored = bsHoursFromRows(d.slots); if (d.timezone) setZone(d.timezone); } } catch (e2) {}
+      let stored = null, storedZone = null;
+      try { const d = await window.ShapeCoachHours.get(role); if (d && d.providerId) { stored = bsHoursFromRows(d.slots); storedZone = d.timezone || null; if (storedZone) setZone(storedZone); } } catch (e2) {}
       setPreviewNonce((n) => n + 1);
+      // What was sent is what is stored (the save landed and only its answer was lost): it saved.
+      // A zone-only save stores the same hours, so for one the zone has to have moved too.
+      const sentChange = !bsHoursSame(days, seed);
+      if (stored && bsHoursSame(stored, days) && (sentChange || (!!phoneZone && storedZone === phoneZone))) {
+        setSeed(bsHoursClone(days));
+        setMsg({ tone: 'ok', text: tr('coach:hours.saved', { defaultValue: 'Saved. Members can book these times now.' }) });
+        return true;
+      }
       let text;
       if (stored && bsHoursSame(stored, seed)) text = (e && e.message) || tr('coach:hours.saveFailed', { defaultValue: "Couldn't save your hours. Nothing changed; try again." });
       else if (stored) { setSeed(stored); text = tr('coach:hours.savePartial', { defaultValue: "Your hours didn't fully save, so members see only what is stored now. Save again to finish." }); }
@@ -539,7 +548,9 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
         <div style={{ marginTop: 22 }}>
           <Eyebrow t={t} right={load === 'ready' || load === 'preview' ? tr('coach:hours.perWeek', { defaultValue: '{total} a week', total: hoursLabel(total) }) : null}>{tr('coach:hours.weekHead', { defaultValue: 'Every week' })}</Eyebrow>
           {zoneLine && load === 'ready' ? <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50 }}>{zoneLine}</div> : null}
-          {zoneMoved && !dirty ? <div style={{ marginTop: 8 }}><Chip t={t} disabled={saving} onClick={() => save({ force: true })}>{tr('coach:hours.zoneMove', { defaultValue: 'Move my hours to {zone}', zone: phoneZone })}</Chip></div> : null}
+          {zoneMoved && !dirty ? <div style={{ marginTop: 8 }}><Chip t={t} disabled={saving} onClick={() => save({ force: true })}>{zone
+            ? tr('coach:hours.zoneMove', { defaultValue: 'Move my hours to {zone}', zone: phoneZone })
+            : tr('coach:hours.zoneSet', { defaultValue: 'Save my hours in {zone}', zone: phoneZone })}</Chip></div> : null}
           {week}
           {load === 'ready' && !dirty && msg ? <Note t={t} tone={msg.tone} style={{ marginTop: 10 }}>{msg.text}</Note> : null}
           {load === 'ready' ? <MemberPreview t={t} tr={tr} role={role} providerId={providerId} nonce={previewNonce} /> : null}

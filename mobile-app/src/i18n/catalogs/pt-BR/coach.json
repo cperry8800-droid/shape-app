@@ -1465,6 +1465,7 @@
   "hours.offAddRow": "Adicionar folga",
   "hours.zoneMoved": "Horários em {zone}. Salvar deste celular muda para {phone}.",
   "hours.zoneMove": "Passar meus horários para {zone}",
+  "hours.zoneSet": "Salvar meus horários em {zone}",
   "hours.zone": "Horários em {zone}",
   "hours.zoneFirst": "Os horários serão salvos em {zone}",
   "hours.saved": "Salvo. Os membros já podem reservar esses horários.",

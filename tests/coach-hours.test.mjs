@@ -106,7 +106,22 @@ test('time inputs: HH:MM both ways, and 23:59 stands for the end of the day', ()
 test('a coach in a new zone can move their hours to it without editing them', async () => {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../mobile-app/src/broadsheet/BSCoachHours.jsx', import.meta.url), 'utf8');
-  assert.match(src, /const zoneMoved = live && load === 'ready' && !!phoneZone && !!zone && phoneZone !== zone;/);
+  // A stored zone that differs, or none at all (hours saved before zones were), with hours to place.
+  assert.match(src, /const zoneMoved = live && load === 'ready' && !!phoneZone && phoneZone !== zone && bsHoursTotal\(seed\) > 0;/);
+  assert.match(src, /tr\('coach:hours\.zoneSet', \{ defaultValue: 'Save my hours in \{zone\}', zone: phoneZone \}\)/);
   assert.match(src, /const save = async \(\{ force = false \} = \{\}\) => \{\n\s+if \(!live \|\| saving \|\| \(!dirty && !force\) \|\| !valid\) return false;/);
-  assert.match(src, /\{zoneMoved && !dirty \? <div[^>]*><Chip t=\{t\} disabled=\{saving\} onClick=\{\(\) => save\(\{ force: true \}\)\}>\{tr\('coach:hours\.zoneMove'/);
+  assert.match(src, /\{zoneMoved && !dirty \? <div[^>]*><Chip t=\{t\} disabled=\{saving\} onClick=\{\(\) => save\(\{ force: true \}\)\}>\{zone\n\s+\? tr\('coach:hours\.zoneMove'/);
+});
+
+// Codex on #2483: a save that landed but lost its answer read back as "partly saved". The catch
+// path now calls it saved when what is stored is what was sent (and, for a zone-only save, the
+// zone moved too), before it compares with what was there before.
+test('a save whose answer was lost, but whose hours were stored, reads as saved', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../mobile-app/src/broadsheet/BSCoachHours.jsx', import.meta.url), 'utf8');
+  const i = src.indexOf('const sentChange = !bsHoursSame(days, seed);');
+  assert.ok(i > 0);
+  const tail = src.slice(i, i + 900);
+  assert.match(tail, /if \(stored && bsHoursSame\(stored, days\) && \(sentChange \|\| \(!!phoneZone && storedZone === phoneZone\)\)\) \{\n\s+setSeed\(bsHoursClone\(days\)\);/);
+  assert.ok(tail.indexOf("coach:hours.saved") < tail.indexOf('bsHoursSame(stored, seed)'), 'the landed save is checked first');
 });
