@@ -193,6 +193,16 @@ export function bsProfileLook(v) {
   return Object.keys(out).length ? out : null;
 }
 
+// The wall photo (`cover`, { image }) loads on the device of everyone who opens the profile, so
+// it is held to the owner's own media like the M1 wall and the film: an upload in community-photos
+// or one of their listing photos in coach-media, in their own folder, with an image extension.
+// Anything else, an outside URL included, is no cover (Codex P1 on #2484).
+export function bsProfileCover(v, ownerUid) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const image = bsOwnMediaUrl(v.image, 'community-photos', ownerUid) || bsOwnMediaUrl(v.image, 'coach-media', ownerUid);
+  return image ? { image } : null;
+}
+
 // The pieces a coach can place (mobile-app/src/services/studioKit.mjs draws each one).
 export const BS_STUDIO_TYPES = [
   'dumbbells', 'bells', 'plates', 'barbells', 'bench', 'adjbench', 'rack', 'platform', 'landmine',

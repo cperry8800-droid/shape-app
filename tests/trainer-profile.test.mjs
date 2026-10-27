@@ -6,7 +6,8 @@
 // What it pins: the words follow the pronouns the coach wrote (never their name), the day shows
 // the times the listing books and only "busy" for the rest, a booking sends what the marketplace
 // sends, the storefront never prints a price the coach did not set, the page is painted in the
-// coach's own colours, and the editor saves its three keys onto the doc as it is at save time.
+// coach's own colours, the wall photo is only the coach's own media, and the editor saves its keys
+// onto the doc as it is at save time, for the account that opened it, or not at all.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -16,6 +17,7 @@ import { dirname, join } from 'node:path';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { bsCoachPronoun } from '../mobile-app/src/services/coachPronoun.mjs';
 import { bsStudioFromTemplate } from '../mobile-app/src/services/studioKit.mjs';
+import { BS_SUPABASE_HOST } from '../public/newdesign/listingMedia.mjs';
 
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -70,7 +72,9 @@ function reset(over = {}) {
     // Open 6:00–22:00 every day, so the next two weeks always hold open times.
     slots: [0, 1, 2, 3, 4, 5, 6].map((wd) => ({ weekday: wd, start_minute: 6 * 60, duration_min: 16 * 60 })),
     busy: [], rules: { consultMin: 20, introsAtCapacity: false }, atCapacity: false, posts: [], canView: true,
-    booked: null, bookError: null, saved: null, stored: null, me: 'u-me',
+    // stored: the profile_custom doc ({} is no row, as the real read answers); readFails: the read
+    // errs; switchOnRead: another account signs in while the read is in flight.
+    booked: null, bookError: null, saved: null, stored: {}, readWith: undefined, readFails: false, switchOnRead: false, me: 'u-me',
     ...over,
   };
 }
@@ -83,7 +87,21 @@ window.ShapeCoachReviews = { forOwner: async () => ({ reviews: [], avg: 0, count
 window.ShapeCoachPlans = { salePlansByUser: async () => [] };
 window.ShapeFollows = { stats: async () => ({ isFollowing: false, isPending: false }), toggle: async () => ({ isFollowing: true }), getCached: () => null };
 window.ShapeCommunity = { listByAuthor: async () => ({ data: world.posts }) };
-window.shapeDb = { getUserGoals: async () => world.stored, saveUserGoals: async (k, d) => { world.saved = { k, d }; return { ok: true }; } };
+// As the real shapeDb: a read or save bound to an account that is no longer signed in gets nothing.
+window.shapeDb = {
+  getUserGoals: async (k, opts) => {
+    world.readWith = opts;
+    if (world.switchOnRead) world.me = 'u-other';
+    if (world.readFails) return null;
+    if (opts && opts.expectedUserId != null && opts.expectedUserId !== world.me) return null;
+    return world.stored;
+  },
+  saveUserGoals: async (k, d, opts) => {
+    if (opts && opts.expectedUserId && opts.expectedUserId !== world.me) return { error: { message: 'Account changed' } };
+    world.saved = { k, d, opts };
+    return { ok: true };
+  },
+};
 window.ShapeBookings = { submitConsultationBooking: async (a) => { if (world.bookError) throw world.bookError; world.booked = a; return { ok: true }; } };
 window.bsProfileCardFromPost = (p) => p;
 // The client module's storefront, as a probe: it records what the page hands it.
@@ -151,7 +169,7 @@ test('the storefront shows only what the coach sells: no monthly price, no packa
   reset({ provider: { ...world.provider, price: null } });
   m = await mount(page());
   await click(button(/^Work with her$/));
-  assert.equal(document.querySelector('[data-coaching-block]'), null);
+  assert.ok(!document.querySelector('[data-coaching-block]'), 'no storefront block without a price');
   assert.match(m.text(), /hasn't listed prices on Shape yet/);
   assert.doesNotMatch(document.querySelector('[role="dialog"]').textContent, /\$/);
   await m.unmount();
@@ -161,8 +179,8 @@ test('a visitor sees a tab only when it has something in it; a private profile s
   reset();
   let m = await mount(page());
   assert.ok(button(/^Her day$/));
-  assert.equal(button(/^The studio$/), undefined);
-  assert.equal(button(/^Replays$/), undefined);
+  assert.ok(!button(/^The studio$/), 'no studio tab without a studio');
+  assert.ok(!button(/^Replays$/), 'no replays tab without replays');
   await m.unmount();
   reset({ custom: { studio: { kind: 'gym', where: 'Fishtown', items: bsStudioFromTemplate('gym') } }, posts: [{ key: 'p1', title: 'Heavy squat day', ago: '2d', statsRow: [], breakdown: { label: 'Sets', rows: [['Set 1', '100 kg × 5', '']] } }] });
   m = await mount(page());
@@ -173,7 +191,7 @@ test('a visitor sees a tab only when it has something in it; a private profile s
   await m.unmount();
   reset({ canView: false });
   m = await mount(page());
-  assert.equal(button(/^Her day$/), undefined);
+  assert.ok(!button(/^Her day$/), 'a private profile shows no tabs');
   assert.match(m.text(), /keeps their profile private/);
   await m.unmount();
 });
@@ -213,6 +231,63 @@ test('Make it yours saves look, cover and studio onto the doc as it is at save t
   assert.equal(doc.studio.items.length, bsStudioFromTemplate('gym').length + 1, 'the layout and the added treadmill');
   assert.ok(doc.studio.items.some((p) => p.st && p.st.title === 'Squat racks'), 'the layout\'s words, in English here');
   assert.equal('cover' in doc, false, 'no wall photo, no cover key');
+  assert.deepEqual(world.readWith, { expectedUserId: 'u-maya' }, 'the read is bound to the account that opened the editor');
+  assert.deepEqual(world.saved.opts, { expectedUserId: 'u-maya' }, 'and so is the save');
+  await m.unmount();
+});
+
+test('Make it yours saves only for the account that opened it, and only onto a doc it could read (Codex P1 ×2 on #2484)', async () => {
+  for (const [name, arm, says] of [
+    ['a failed read', () => { world.readFails = true; }, /Couldn't save\. Nothing changed; try again\./],
+    ['another account signed in mid-read', () => { world.switchOnRead = true; }, /Couldn't save\. Nothing changed; try again\./],
+    ['another account signed in before Save', () => { world.me = 'u-other'; }, /Sign in to save your page\./],
+  ]) {
+    reset({ me: 'u-maya', stored: { bio: 'Saved elsewhere since' } });
+    const m = await mount(page({ isSelf: true }));
+    await click(button(/^Make it yours$/));
+    await click(document.querySelector('[data-paper="sage"]'));
+    arm();
+    await click(document.querySelector('[data-save-mine]'));
+    assert.equal(world.saved, null, `${name}: nothing written, so no stale or foreign doc replaces the stored one`);
+    assert.match(m.text(), says, `${name}: and the coach is told`);
+    assert.ok(document.querySelector('[data-make-it-yours]'), `${name}: the editor stays open with the changes`);
+    await m.unmount();
+  }
+});
+
+test('the wall photo is only the coach\'s own media, on the profile and in the editor (Codex P1 on #2484)', async () => {
+  const own = (bucket, owner, file) => `https://${BS_SUPABASE_HOST}/storage/v1/object/public/${bucket}/${owner}/${file}`;
+  const wallImg = () => document.querySelector('img[alt="Maya\'s wall photo"]');
+  for (const [image, shown] of [
+    [own('community-photos', 'u-maya', 'wall.jpg'), true],
+    [own('coach-media', 'u-maya', 'gym.webp'), true],
+    ['https://tracker.example/pixel.gif', false],
+    [own('community-photos', 'u-other', 'wall.jpg'), false],
+    [own('community-photos', 'u-maya', 'wall.svg'), false],
+  ]) {
+    reset({ custom: { cover: { image } } });
+    const m = await mount(page());
+    assert.equal(wallImg() ? wallImg().getAttribute('src') : null, shown ? image : null, image);
+    await m.unmount();
+  }
+  // In the editor: an outside cover is not offered back, and a save that leaves the wall photo
+  // alone leaves the stored cover alone; picking a listing photo writes that, as the coach's own.
+  const outside = { image: 'https://tracker.example/pixel.gif' };
+  const listing = own('coach-media', 'u-maya', 'gym.webp');
+  reset({ me: 'u-maya', custom: { cover: outside }, stored: { cover: outside }, provider: { ...world.provider, listing_media: { cover: listing, gallery: [] } } });
+  let m = await mount(page({ isSelf: true }));
+  await click(button(/^Make it yours$/));
+  await click(document.querySelector('[data-paper="sage"]'));
+  await click(document.querySelector('[data-save-mine]'));
+  assert.deepEqual(world.saved.d.cover, outside, 'not written by this editor: kept as stored');
+  await m.unmount();
+  reset({ me: 'u-maya', stored: {}, provider: { ...world.provider, listing_media: { cover: listing, gallery: [] } } });
+  m = await mount(page({ isSelf: true }));
+  await click(button(/^Make it yours$/));
+  await click(button(/^Wall photo$/));
+  await click(document.querySelector(`[data-wall-choice] img[src="${listing}"]`).parentElement);
+  await click(document.querySelector('[data-save-mine]'));
+  assert.deepEqual(world.saved.d.cover, { image: listing });
   await m.unmount();
 });
 
@@ -224,6 +299,6 @@ test('on their own page a coach sees their open times as members do, but cannot 
   assert.ok(open.length > 0);
   assert.ok(open.every((b) => b.disabled && !/Take it/.test(b.textContent)));
   assert.ok(button(/^Make it yours$/) && button(/^Your hours$/), 'their own actions instead of Message and Work with');
-  assert.equal(button(/^Message Maya$/), undefined);
+  assert.ok(!button(/^Message Maya$/), 'no Message on their own page');
   await m.unmount();
 });

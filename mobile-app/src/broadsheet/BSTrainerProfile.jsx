@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { bsProfileLook, bsProfileStudio } from '../services/profileCustom.mjs';
+import { bsProfileLook, bsProfileStudio, bsProfileCover } from '../services/profileCustom.mjs';
 import { bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
 import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.mjs';
 import { bsCoachPronoun } from '../services/coachPronoun.mjs';
@@ -104,8 +104,11 @@ export function BSTrainerProfile(props) {
   }, [person.userId]);
   React.useEffect(() => {
     if (!isSelf) return undefined;
+    const uid = signedInUid();
+    if (!uid) return undefined;
     let on = true;
-    (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setOwn(d); } catch (e) {} })();
+    // Bound to the account this page opened for, so a switch mid-read never shows another's doc.
+    (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom', { expectedUserId: uid }); if (on && d) setOwn(d); } catch (e) {} })();
     return () => { on = false; };
   }, [isSelf]);
   const custom = isSelf ? own : (live && live.custom) || null;
@@ -174,7 +177,8 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   }, [person.userId, isSelf]);
   const providerId = (provider && provider.id) || (commerceCoach && (commerceCoach.provider_id || commerceCoach.db_id)) || null;
   const media = (provider && provider.listing_media) || (commerceCoach && commerceCoach.listing_media) || { cover: null, gallery: [] };
-  const wall = (custom && custom.cover && typeof custom.cover.image === 'string' && /^https:\/\//.test(custom.cover.image) ? custom.cover.image : null) || media.cover || null;
+  const cover = bsProfileCover(custom && custom.cover, person.userId || (isSelf ? signedInUid() : null));
+  const wall = (cover && cover.image) || media.cover || null;
   const look = bsProfileLook(custom && custom.look) || {};
   const studio = bsProfileStudio(custom && custom.studio);
   const where = (custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || person.city || '';

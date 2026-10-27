@@ -224,8 +224,20 @@ test('bsNormalizeProfileCustom: P4/P5 keys + film via opts.filmBucket + film pas
 
 // ── The coach profile redesign (2026-10-27): look and studio ───────────────────
 import {
-  bsProfileLook, bsProfileStudio, bsStudioItem, BS_STUDIO_W, BS_STUDIO_H, BS_STUDIO_ITEMS_MAX, BS_STUDIO_STATIONS_MAX,
+  bsProfileLook, bsProfileCover, bsProfileStudio, bsStudioItem, BS_STUDIO_W, BS_STUDIO_H, BS_STUDIO_ITEMS_MAX, BS_STUDIO_STATIONS_MAX,
 } from '../mobile-app/src/services/profileCustom.mjs';
+
+test('cover: only an image in the owner\'s own community-photos or coach-media folder (Codex P1 on #2484)', () => {
+  const at = (bucket, owner, file) => `https://${BS_SUPABASE_HOST}/storage/v1/object/public/${bucket}/${owner}/${file}`;
+  assert.deepEqual(bsProfileCover({ image: at('community-photos', 'u1', 'a.jpg') }, 'u1'), { image: at('community-photos', 'u1', 'a.jpg') });
+  assert.deepEqual(bsProfileCover({ image: at('coach-media', 'u1', 'b.heic'), x: 1 }, 'u1'), { image: at('coach-media', 'u1', 'b.heic') }, 'a listing photo; extra keys dropped');
+  assert.equal(bsProfileCover({ image: 'https://tracker.example/pixel.gif' }, 'u1'), null, 'an outside host');
+  assert.equal(bsProfileCover({ image: at('community-photos', 'u2', 'a.jpg') }, 'u1'), null, 'another member\'s folder');
+  assert.equal(bsProfileCover({ image: at('meal-notes', 'u1', 'a.jpg') }, 'u1'), null, 'another bucket');
+  assert.equal(bsProfileCover({ image: at('community-photos', 'u1', 'a.svg') }, 'u1'), null, 'not an image type the guard keeps');
+  assert.equal(bsProfileCover({ image: at('community-photos', 'u1', 'a.jpg') }, null), null, 'no owner, no cover');
+  assert.equal(bsProfileCover(at('community-photos', 'u1', 'a.jpg'), 'u1'), null, 'a bare string is not the stored shape');
+});
 
 test('look: only Shape\'s own papers, accents and focus words survive', () => {
   assert.deepEqual(bsProfileLook({ paper: 'bone', accent: 'rust', focus: 'top' }), { paper: 'bone', accent: 'rust', focus: 'top' });
