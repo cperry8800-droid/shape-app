@@ -35540,7 +35540,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showPublicProfile) {
     const role = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
     const uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null;
-    const kind = role === 'trainer' ? 'TRAINER' : role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
+    // A dietitian's public profile is the nutrition coach's (Codex on #2483, now that Your practice
+    // shows them this row).
+    const kind = role === 'trainer' ? 'TRAINER' : (role === 'nutritionist' || role === 'dietitian') ? 'NUTRI' : 'CLIENT';
     // ⚠ THROUGH startEdit, NOT setEditing(true): the draft is re-seeded on every entry,
     // or a form cancelled on the root and reopened from here carries the discarded
     // edits back with it.

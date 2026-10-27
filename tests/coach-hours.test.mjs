@@ -125,3 +125,11 @@ test('a save whose answer was lost, but whose hours were stored, reads as saved'
   assert.match(tail, /if \(stored && bsHoursSame\(stored, days\) && \(sentChange \|\| \(!!phoneZone && storedZone === phoneZone\)\)\) \{\n\s+setSeed\(bsHoursClone\(days\)\);/);
   assert.ok(tail.indexOf("coach:hours.saved") < tail.indexOf('bsHoursSame(stored, seed)'), 'the landed save is checked first');
 });
+
+// Codex on #2483: the header's corner opens the profile, which unmounts this page with no ask.
+// With unsaved hours the page has no corner (noCorner also takes the pinned strip's off).
+test('with unsaved hours the page offers no corner that would drop them', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../mobile-app/src/broadsheet/BSCoachHours.jsx', import.meta.url), 'utf8');
+  assert.match(src, /<BSDetailHeader onBack=\{back\} noCorner=\{dirty && live && load === 'ready'\}/);
+});

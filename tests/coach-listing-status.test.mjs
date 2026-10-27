@@ -389,6 +389,7 @@ test('app Your practice: a dietitian gets the practice rows, on the nutritionist
   assert.match(client, /return <BSCoachBusinessPage role=\{coachRole \|\| 'trainer'\}/);
   assert.equal((client.match(/return <Sheet role=\{coachRole\} accent=\{coachRole === 'nutritionist'/g) || []).length, 2, 'the photo and offer sheets');
   assert.match(client, /tweaks\.role === 'dietitian' \? tr\('coach:role\.dietitian'/, 'and the plan line names a dietitian as one');
+  assert.match(client, /const kind = role === 'trainer' \? 'TRAINER' : \(role === 'nutritionist' \|\| role === 'dietitian'\) \? 'NUTRI' : 'CLIENT';/, 'and Public profile opens the coach profile');
 });
 
 test('app Rates: saves through ShapeCoachListing, follows the saved listing, and says when a rate is refused', async () => {
