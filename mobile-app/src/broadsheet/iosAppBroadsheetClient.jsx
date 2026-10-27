@@ -34854,7 +34854,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // non-coach accounts (no provider row), in which case the block is hidden.
   const [capacity, setCapacityState] = useStateBSC(null);
   const [capacityBusy, setCapacityBusy] = useStateBSC(false);
-  const isCoachRole = tweaks.role === 'trainer' || tweaks.role === 'nutritionist';
+  // The practice's role: a dietitian (RD/RDN) is a nutrition coach, whose listing, hours and rates
+  // are the nutritionist ones, as the shell's apps treat them (Codex on #2483: Your hours read a
+  // trainer row for them, and this section hid itself from them).
+  const coachRole = tweaks.role === 'trainer' ? 'trainer' : (tweaks.role === 'nutritionist' || tweaks.role === 'dietitian') ? 'nutritionist' : null;
+  const isCoachRole = !!coachRole;
   // The coach's own listing for the role in use (Your practice: the notice, the Rates row and
   // the rates page). listingRead: 'demo' (signed out, nothing to read), 'live' (read; a null
   // listing is not approved yet) or 'error' (the read failed). Read again after the photo
@@ -34868,7 +34872,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     let on = true;
     get().then((list) => {
       if (!on || !Array.isArray(list)) return;
-      setMyListing(list.find((l) => l.role === tweaks.role) || null);
+      setMyListing(list.find((l) => l.role === coachRole) || null);
       setListingRead('live');
     }).catch(() => { if (on) setListingRead('error'); });
     return () => { on = false; };
@@ -34876,7 +34880,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // Stripe Connect onboarding for the role in use: the listing notice's "Set up payouts" (declared
   // above the early returns, which the rates page is one of).
   const startPayoutSetup = async () => {
-    try { await window.ShapeConnect?.startOnboarding?.({ role: tweaks.role }); }
+    try { await window.ShapeConnect?.startOnboarding?.({ role: coachRole }); }
     catch (error) { window.__bsToast?.(error?.message || tr('settings:practice.payoutsFailed', { defaultValue: 'Could not start Stripe payout setup.' }), 'err'); }
   };
   // Accounts/roles this person actually created — the Profile-mode switcher only
@@ -34911,7 +34915,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     setCapacityState(null);
     if (!isCoachRole) return undefined;
     let cancelled = false;
-    window.ShapeBookings?.getCapacity?.({ role: tweaks.role })
+    window.ShapeBookings?.getCapacity?.({ role: coachRole })
       .then(c => { if (!cancelled && c) setCapacityState(c); })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -35518,18 +35522,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSHealthIntake initial={healthDoc} onBack={() => setShowHealth(false)} onDone={(doc) => { setHealthDoc(doc); setShowHealth(false); }} />;
   }
   if (showLeaderboard) {
-    return <BSLeaderboard onBack={() => setShowLeaderboard(false)} mode={isCoachRole ? 'coach' : 'member'} role={tweaks.role === 'nutritionist' ? 'nutritionist' : 'trainer'} />;
+    return <BSLeaderboard onBack={() => setShowLeaderboard(false)} mode={isCoachRole ? 'coach' : 'member'} role={coachRole || 'trainer'} />;
   }
   if (showBusiness) {
-    return <BSCoachBusinessPage role={tweaks.role === 'nutritionist' ? 'nutritionist' : 'trainer'} tab={showBusiness} onBack={() => setShowBusiness(null)} />;
+    return <BSCoachBusinessPage role={coachRole || 'trainer'} tab={showBusiness} onBack={() => setShowBusiness(null)} />;
   }
   if (showHours) {
-    return <BSCoachHoursPage role={tweaks.role === 'nutritionist' ? 'nutritionist' : 'trainer'} onBack={() => setShowHours(false)}
+    return <BSCoachHoursPage role={coachRole || 'trainer'} onBack={() => setShowHours(false)}
       onOpenCalendar={() => { setShowHours(false); try { window.dispatchEvent(new Event('shape:proAvailability')); } catch (e) {} }} />;
   }
   if (showRates && window.BSCoachRatesPage) {
     const RatesPage = window.BSCoachRatesPage;
-    return <RatesPage role={tweaks.role} listing={myListing} backLabel={tr('settings:section.practice', { defaultValue: 'Your practice' })}
+    return <RatesPage role={coachRole} listing={myListing} backLabel={tr('settings:section.practice', { defaultValue: 'Your practice' })}
       onBack={() => setShowRates(false)} onSaved={setMyListing}
       onPhotos={() => { setShowRates(false); setListingSheet('photos'); }} onPayouts={startPayoutSetup} />;
   }
@@ -36085,11 +36089,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {renderRows(practiceRows)}
         {listingSheet === 'photos' && window.BSProListingMediaSheet && (() => {
           const Sheet = window.BSProListingMediaSheet;
-          return <Sheet role={tweaks.role} accent={tweaks.role === 'nutritionist' ? '#a07a2e' : (t.RUST || '#c0533b')} onClose={() => { setListingSheet(null); setListingReads((n) => n + 1); }} />;
+          return <Sheet role={coachRole} accent={coachRole === 'nutritionist' ? '#a07a2e' : (t.RUST || '#c0533b')} onClose={() => { setListingSheet(null); setListingReads((n) => n + 1); }} />;
         })()}
         {listingSheet === 'offer' && window.BSProMonthlyOfferSheet && (() => {
           const Sheet = window.BSProMonthlyOfferSheet;
-          return <Sheet role={tweaks.role} accent={tweaks.role === 'nutritionist' ? '#a07a2e' : (t.RUST || '#c0533b')} onClose={() => setListingSheet(null)} />;
+          return <Sheet role={coachRole} accent={coachRole === 'nutritionist' ? '#a07a2e' : (t.RUST || '#c0533b')} onClose={() => setListingSheet(null)} />;
         })()}
         {/* Coach-only — taking no new clients (at capacity). Through /api/coach/capacity, for the
             listing of the role in use; at capacity a coach's current clients still book and buy,
@@ -36338,7 +36342,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         // about the session, not about the unread plan.
         const planKnown = plan != null;
         const statusLine = isCoachRole
-          ? (tweaks.role === 'nutritionist' ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:role.trainer', { defaultValue: 'Trainer' }))
+          ? (tweaks.role === 'dietitian' ? tr('coach:role.dietitian', { defaultValue: 'Dietitian' }) : coachRole === 'nutritionist' ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:role.trainer', { defaultValue: 'Trainer' }))
           : !signedIn
             ? tr('settings:plan.notMember', { defaultValue: 'Not a member' })
             : hasSub

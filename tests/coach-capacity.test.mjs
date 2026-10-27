@@ -846,7 +846,7 @@ test('a join that races a reopening is withdrawn and told the coach is open (Cod
 
 test('app Settings: the switch follows the role in use, reopening says who was told, and intros are the coach\'s call', () => {
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  assert.match(client, /window\.ShapeBookings\?\.getCapacity\?\.\(\{ role: tweaks\.role \}\)/);
+  assert.match(client, /window\.ShapeBookings\?\.getCapacity\?\.\(\{ role: coachRole \}\)/);
   assert.match(client, /\}, \[isCoachRole, tweaks\.role\]\);/);
   assert.match(client, /await window\.ShapeBookings\.setCapacity\(\{ role: capacity\.role, atCapacity: next \}\);/);
   assert.match(client, /res\.notified > 0 \? tr\('settings:capacity\.toastReopened', \{ n: res\.notified,/);
