@@ -4987,9 +4987,30 @@ async function saveMyCoachRates({ role, monthly, oneTime }) {
   return payload.listing;
 }
 
+// A coach's PUBLIC listing row, found by their account (the trainer profile, 2026-10-27): the
+// provider id its open times and checkout need, its prices, verified flag, capacity and listing
+// photos. The columns are the anon grant's (2026-10-10 migration, L16), as the marketplace reads
+// them: a `*` read fails the whole row for a visitor. The lowest id when an account owns two, the
+// rule /api/my-availability's resolver follows. null when there is none (or no backend).
+const PUBLIC_PROVIDER_COLUMNS = {
+  trainer: 'id, name, specialty, category, price, rating, subscribers, experience, credential, credential_full, specialty_type, bio, tags, owner_id, stripe_account_status, session_price, at_capacity, capacity_resume_at, verified, monthly_offer, listing_media, timezone, listing_ready',
+  nutritionist: 'id, name, specialty, category, price, rating, subscribers, experience, credential, credential_full, specialty_type, bio, tags, services, owner_id, stripe_account_status, meal_plan_price, at_capacity, capacity_resume_at, verified, monthly_offer, listing_media, timezone, listing_ready',
+};
+async function publicListingByOwner(role, ownerId) {
+  const r = normalizeRole(role) === 'nutritionist' ? 'nutritionist' : 'trainer';
+  if (!supabase || !ownerId) return null;
+  const { data, error } = await supabase.from(r === 'nutritionist' ? 'nutritionists' : 'trainers')
+    .select(PUBLIC_PROVIDER_COLUMNS[r]).eq('owner_id', ownerId).order('id', { ascending: true }).limit(1);
+  if (error) throw error;
+  const row = Array.isArray(data) && data[0] ? data[0] : null;
+  if (!row) return null;
+  return { ...row, listing_media: bsNormalizeListingMedia(row.listing_media || null, ownerId) };
+}
+
 window.ShapeCoachListing = {
   getMine: getMyCoachListings,
   saveRates: saveMyCoachRates,
+  publicByOwner: publicListingByOwner,
 };
 
 // The Shape team's way into the admin console from Settings (/api/me/staff). getLevel answers

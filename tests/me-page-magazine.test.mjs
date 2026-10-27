@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { loadBroadsheet, drive, flatten, textOf, THEME, SRC } from './helpers/broadsheet-mount.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
-const mod = await loadBroadsheet(['BSTerrainProfile', 'BSTerrainTabs', 'BSTStationHead', 'BSTPullQuote', 'BSProfileExtras', 'BSLiveBoostSheet', 'bsDemoMemberCustom', 'BSSignalCoachProfile', 'BSProfileCustomizer']);
+const mod = await loadBroadsheet(['BSTerrainProfile', 'BSTerrainTabs', 'BSTStationHead', 'BSTPullQuote', 'BSProfileExtras', 'BSLiveBoostSheet', 'bsDemoMemberCustom', 'BSSignalCoachProfile', 'BSProfileCustomizer', 'BSCoachCoachingBlock']);
 const named = (name) => (n) => n && typeof n.type === 'function' && n.type.name === name;
 const RED = '#b23a1f';   // bsWsRed on a light paper (the harness THEME is light)
 const INK = '#111';
@@ -289,7 +289,10 @@ test('the coach profile: no quote at the top, the Me page\'s counts and tab stri
   for (const tb of tabsOf().props.tabs) {
     tabsOf().props.onPick(tb.key);
     d.render();
-    const all = d.nodes();
+    // The Coaching tab is the shared storefront block (BSCoachCoachingBlock, 2026-10-27): the
+    // harness draws a child as a node, so the block is driven with the props the profile gave it.
+    const block = d.nodes().find(named('BSCoachCoachingBlock'));
+    const all = block ? drive(mod.BSCoachCoachingBlock, block.props).nodes() : d.nodes();
     assert.deepEqual(oldLook(all).map((n) => n.type), [], `${tb.key} still has a pill or italics`);
     assert.deepEqual(roundButtons(all).map((n) => textOf(n)), [], `${tb.key} has a rounded button`);
     const h = all.filter(named('BSTStationHead'));
@@ -329,9 +332,11 @@ test('the coach\'s About: the philosophy pulled out, the focus on square bars to
 
 test('the coach\'s Coaching tab: square actions, ink for the one to take, and the plan types as the Wall\'s word tabs', () => {
   globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
-  const d = drive(mod.BSSignalCoachProfile, { person: MAYA, onBack() {}, onMessage() {} });
-  d.nodes().find(named('BSTerrainTabs')).props.onPick('coaching');
-  d.render();
+  const p = drive(mod.BSSignalCoachProfile, { person: MAYA, onBack() {}, onMessage() {} });
+  p.nodes().find(named('BSTerrainTabs')).props.onPick('coaching');
+  p.render();
+  // The tab renders the shared storefront block; it is driven with the props the profile passed.
+  const d = drive(mod.BSCoachCoachingBlock, p.nodes().find(named('BSCoachCoachingBlock')).props);
   const btn = (re) => d.nodes().find((n) => n.type === 'button' && re.test(textOf(n)));
   const subscribe = btn(/^Subscribe$/);
   assert.equal(subscribe.props.style.background, THEME.INK);

@@ -103,6 +103,8 @@ dated entry or past 20 KB.
   `BSLeaderboard.jsx` show the pattern: read window globals at call time inside the
   component, keep its own `useShapeTr()`, and never import back into the client
   module.
+- **Coach profiles:** a trainer with an account gets `BSTrainerProfile.jsx` (in their
+  `profile_custom.look`) and its editor `BSMakeItYours.jsx`; others keep `BSSignalCoachProfile`.
 - **Other app modules:** `iosAppBroadsheetPros.jsx` (trainer and nutritionist apps),
   `iosAppBroadsheet.jsx` (shared chrome: `BSPage`, `BSFooter`, `BSPlate`,
   `BSSwapSheet`), `iosAppBroadsheetRadio.jsx` (Shape Radio) and
@@ -178,6 +180,8 @@ The War Room has the full list; this covers what needs the owner and the planned
   `coach_checkouts`) is #2403.
 - Night-before prep, Phase 2: a nutritionist's "prep the night before" tick, a
   reminder time the member chooses, planning tomorrow, and a morning swap.
+- Nutritionist profile in the trainer profile's style (a kitchen tab, no floor plan); then the
+  website's coach profile.
 - Nora as the account-setup assistant: she answers and fills forms today, but setting
   the account up is still to build.
 - Nora as a Shape Radio DJ, Phase 2 onward
@@ -210,10 +214,8 @@ The War Room has the full list; this covers what needs the owner and the planned
 - Eat on a live meal plan reads what was eaten from the plan's day `totals` and meals' `state`,
   not the logs.
 - Signed in, others' profiles show the demo signals and climb (owner: leave it).
-- Heart rate on Session details: the app draws it with no "bpm" (its label says HR), and every
-  Wall demo post carries Avg HR, a PR its PR set HR and each set, interval or split its own. A
-  lift logged live in the app records no HR per set, so its table has no HR column; the
-  website's community feed still prints "bpm".
+- Session details' heart rate has no "bpm" (its label says HR); Wall demo posts carry Avg HR and
+  per-set HR. A lift logged live records no HR per set (no HR column); the website feed prints "bpm".
 - Shape Wire shows the coach's latest note however old; its morning protein line reads only
   today's row.
 - Server notices: the bell, push and notice email say them in the reader's `app_locale` from
@@ -255,8 +257,8 @@ The War Room has the full list; this covers what needs the owner and the planned
 - Not built yet: native mic and camera plugins (including iOS barcode scanning) and on-device
   macro reads from a meal photo.
 - Daily check-in (#2398): saves have no timeout, `hydration_l` rounds an 8 oz glass up, typed
-  hours can be stamped as the watch's, and a clock set behind can date a change into a past
-  week (War Room).
+  hours can be stamped as the watch's, a clock set behind can date a change into a past week (War
+  Room).
 - Sleep points (`award_sleep_points`) trust `sources.sleep_hours` on a row the member can
   write: with a provider connected, a direct write could earn +5 a night for the last 14 days,
   and Apple Health nights and connection are whatever the app posts, so a member can post
@@ -265,20 +267,18 @@ The War Room has the full list; this covers what needs the owner and the planned
   the Daily check-in reminder fires on a day already done (War Room).
 - Morning check-in: a failed water-target read offers "Set a daily target"; with Check-ins off,
   a target never brings "Water is behind"; pushes and bell rows from before part 2, and the
-  website's coach Today draft, keep the "/10". The rest of parts 2 and 3 is in the War Room.
+  website's coach Today draft, keep the "/10". The rest of parts 2 and 3: War Room.
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted `/m/`,
   sheets add no history entry.
-- The booth's LED wall loops (`wallShow.mjs`, `WALL_LOOPS`) stream from Higgsfield's CDN on the
-  owner's account, desktops only (about 13 MB); phones get the drawn looks. Nora's face
-  photo (`scripts/nora-model/nora.json` `face_photo`) is on the same CDN, and rebuilding her needs it.
-  The show, the MakeHuman crowd (`crowdPeople.mjs`) and its rebuilt close-up people, Nora, the room
-  lit by the wall (`wallLookGlow`) with haze on the beams (`beamHaze.mjs`), the stage set (the
-  four-deck booth, its speakers, the barrier, subs and front-of-house desk) and the side rooms
-  (`clubRooms.mjs`: the lounge and the bar) have been seen only in headless Chromium, not on a real
-  GPU or a phone. The crowd pack is 3.6 MB on desktops and 1.1 MB on phones. The old avatar crowd
-  (`crowdAvatars.mjs`) is kept for a v2 pack.
+- The booth's LED wall loops (`wallShow.mjs`, `WALL_LOOPS`) and Nora's face photo
+  (`scripts/nora-model/nora.json` `face_photo`, needed to rebuild her) are on Higgsfield's CDN on the
+  owner's account. The loops play on desktops only (about 13 MB); phones get the drawn looks. The
+  show, the MakeHuman crowd (`crowdPeople.mjs`: 3.6 MB on desktops, 1.1 MB on phones) and its
+  close-up people, Nora, the wall's light (`wallLookGlow`) and haze (`beamHaze.mjs`), the stage set
+  and the side rooms (`clubRooms.mjs`) are seen only in headless Chromium, not on a real GPU or a
+  phone. The old avatar crowd (`crowdAvatars.mjs`) is kept for a v2 pack.
 - Seen only in headless Chromium, not on a phone or in the app: the Split glass mark
-  (#2474) on the homepage, launch and masthead, and Your hours (Settings → Availability).
+  (#2474) on the homepage, launch and masthead, Your hours, the trainer profile and Make it yours.
 
 ## History
 

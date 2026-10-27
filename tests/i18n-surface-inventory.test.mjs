@@ -398,7 +398,11 @@ const PARTIAL = new Set([
   'Client::BSHomeWorkoutPreview', 'Client::BSLiveBoostSheet', 'Client::BSLogActivitySheet',
   'Client::BSMealPreview', 'Client::BSPostCommentsSheet',
   'Client::BSProfileExtras', 'Client::BSProfilePlaylists',
-  'Client::BSShapeKitchenRecipe', 'Client::BSSignalCoachProfile',
+  'Client::BSShapeKitchenRecipe',
+  // The coach storefront lifted out of BSSignalCoachProfile (2026-10-27) took its literal price
+  // words with it ('Listed', the $ prefix), so the profile itself left this list and the block
+  // joined it.
+  'Client::BSCoachCoachingBlock',
   // ⚠ BSSettings IS PARTIAL, TO THIS WALK, OVER A FORMAT EXAMPLE — 388 tr() calls
   // and exactly one string IT CAN SEE: `placeholder={bsInitials(draft.name) || 'AB'}`,
   // the two-letter stand-in on the avatar-initials field. No locale changes it, for
