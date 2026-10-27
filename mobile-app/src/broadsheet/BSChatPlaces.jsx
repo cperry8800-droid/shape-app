@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { bsWsRed, bsWsHead } from './bsMagazine.mjs';
+import { bsWsAccent, bsWsHead } from './bsMagazine.mjs';
 // ─── CHAT · THE TITLE IS THE SWITCH ──────────────────────────────────────────────────────────────
 // Owner, 2026-10-26, on the Chat page's tab rows (Feed / Team / Channels over Wall / Client / Community
 // over the six types): "still dont love the look of this", "give me 3 new ideas", then "go with B". The
@@ -29,7 +29,7 @@ const bsChatReduceMotion = () => {
   try { return !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
 };
 
-// The page's title: the place's name and the red ▾ that says it opens. It stays an h1 for the page's
+// The page's title: the place's name and the teal ▾ that says it opens. It stays an h1 for the page's
 // outline; the button inside it carries the name, so a screen reader hears "Wall, button, collapsed".
 export function BSChatPlaceTitle({ label, open, onOpen, buttonRef }) {
   const t = window.useBS();
@@ -41,7 +41,7 @@ export function BSChatPlaceTitle({ label, open, onOpen, buttonRef }) {
         style={{ display: 'inline-flex', alignItems: 'baseline', gap: 10, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left',
           fontFamily: bsWsHead(t), fontWeight: 500, fontSize: 36, letterSpacing: '0.005em', lineHeight: 1, color: t.INK }}>
         <span>{label}</span>
-        <span aria-hidden style={{ fontSize: 15, color: bsWsRed(t), transform: open ? 'translateY(-6px) rotate(180deg)' : 'translateY(-6px)', transition: 'transform 180ms ease' }}>▾</span>
+        <span aria-hidden style={{ fontSize: 15, color: bsWsAccent(t), transform: open ? 'translateY(-6px) rotate(180deg)' : 'translateY(-6px)', transition: 'transform 180ms ease' }}>▾</span>
       </button>
     </h1>
   );
@@ -52,7 +52,7 @@ export function BSChatPlaceTitle({ label, open, onOpen, buttonRef }) {
 export function BSChatPlacesSheet({ places = [], current, onPick, onClose }) {
   const t = window.useBS();
   const tr = useShapeTr();
-  const red = bsWsRed(t);
+  const accent = bsWsAccent(t);
   const panelRef = React.useRef(null);
   const [shown, setShown] = React.useState(false);
   React.useEffect(() => {
@@ -77,7 +77,7 @@ export function BSChatPlacesSheet({ places = [], current, onPick, onClose }) {
           <button type="button" onClick={onClose} aria-label={tr('feed:places.closeAria', { defaultValue: 'Close' })}
             style={{ position: 'absolute', right: -8, top: -4, width: 44, height: 44, border: 0, background: 'transparent', cursor: 'pointer', color: t.INK50, fontSize: 18, lineHeight: 1 }}>×</button>
         </div>
-        <div style={mono(8.5, { color: red, marginTop: 4 })}>{tr('feed:masthead.eyebrow', { defaultValue: 'Chat' })} · {tr('feed:places.goTo', { defaultValue: 'Go to' })}</div>
+        <div style={mono(8.5, { color: accent, marginTop: 4 })}>{tr('feed:masthead.eyebrow', { defaultValue: 'Chat' })} · {tr('feed:places.goTo', { defaultValue: 'Go to' })}</div>
         <div style={{ marginTop: 6 }}>
           {places.map((p, i) => {
             const on = p.key === current;
@@ -87,15 +87,15 @@ export function BSChatPlacesSheet({ places = [], current, onPick, onClose }) {
                 <div>
                   <button type="button" onClick={() => onPick && onPick(p.key)} aria-current={on ? 'page' : undefined}
                     style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, minHeight: 64, padding: '12px 0', border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: t.INK }}>
-                    <span aria-hidden style={{ width: 3, alignSelf: 'stretch', background: on ? red : 'transparent' }} />
+                    <span aria-hidden style={{ width: 3, alignSelf: 'stretch', background: on ? accent : 'transparent' }} />
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span style={{ display: 'block', fontFamily: bsWsHead(t), fontSize: 21, fontWeight: on ? 600 : 500, lineHeight: 1.1 }}>{p.label}</span>
                       {p.sub && <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.3, color: t.INK50 }}>{p.sub}</span>}
                     </span>
                     {p.badge > 0
-                      ? <span style={mono(9.5, { color: red, letterSpacing: '0.06em', fontVariantNumeric: 'tabular-nums', flexShrink: 0 })}>{tr('feed:places.new', { defaultValue: '{count, number} new', count: p.badge })}</span>
+                      ? <span style={mono(9.5, { color: accent, letterSpacing: '0.06em', fontVariantNumeric: 'tabular-nums', flexShrink: 0 })}>{tr('feed:places.new', { defaultValue: '{count, number} new', count: p.badge })}</span>
                       : on
-                        ? <span style={{ color: red, fontSize: 16, flexShrink: 0 }} aria-label={tr('feed:places.current', { defaultValue: 'You are here' })}>✓</span>
+                        ? <span style={{ color: accent, fontSize: 16, flexShrink: 0 }} aria-label={tr('feed:places.current', { defaultValue: 'You are here' })}>✓</span>
                         : <span aria-hidden style={{ color: t.INK50, flexShrink: 0 }}>→</span>}
                   </button>
                 </div>

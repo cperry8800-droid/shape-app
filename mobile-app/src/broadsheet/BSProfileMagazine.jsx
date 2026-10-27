@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { bsWsRed } from './bsMagazine.mjs';
+import { bsWsAccent } from './bsMagazine.mjs';
 
 // The profiles' pieces in the Wall's magazine look (owner, 2026-10-24: the Me page "needs to get cleaned
 // up", then "Design" for the coach profile to match), carved out of the client module as BSIntegrationsPage
@@ -19,7 +19,7 @@ const inkA = (hex, a) => {
 };
 const reducedMotion = () => { try { return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
 
-// A member's or coach's own words pulled out, as the Wall pulls out a coach's line: the magazine's red quote
+// A member's or coach's own words pulled out, as the Wall pulls out a coach's line: the magazine's teal quote
 // mark, the words in the headline face, and who said it in mono under them. Not a button (BSWallStoryQuote
 // opens a post).
 export function BSTPullQuote({ INK, text, cite, size = 19 }) {
@@ -27,7 +27,7 @@ export function BSTPullQuote({ INK, text, cite, size = 19 }) {
   if (!text) return null;
   return (
     <figure data-bst-quote="" style={{ display: 'grid', gridTemplateColumns: '20px minmax(0, 1fr)', columnGap: 6, margin: 0 }}>
-      <span aria-hidden style={{ fontFamily: SERIF, fontSize: 40, fontWeight: 700, lineHeight: 0.7, color: bsWsRed(t) }}>“</span>
+      <span aria-hidden style={{ fontFamily: SERIF, fontSize: 40, fontWeight: 700, lineHeight: 0.7, color: bsWsAccent(t) }}>“</span>
       <blockquote style={{ margin: 0, fontFamily: SERIF, fontSize: size, fontWeight: 500, lineHeight: 1.2, letterSpacing: '-0.005em', color: INK }}>{text}</blockquote>
       {cite ? <figcaption style={{ gridColumn: 2, marginTop: 6, fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: inkA(INK, 0.5) }}>{cite}</figcaption> : null}
     </figure>
