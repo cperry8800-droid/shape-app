@@ -7,8 +7,8 @@
 //   "Design", on the offer to bring the rest of the coach profile into the same look.
 //
 // The first two now print as the Wall does (#2436, #2438, #2439): heads in the headline face over ink
-// rules, the active tab underlined in the magazine's red, square bars and boxes, and a member's own words
-// pulled out under a red quote mark. The dock slides away while the page scrolls down and comes back as
+// rules, the active tab underlined in the magazine's teal, square bars and boxes, and a member's own words
+// pulled out under a teal quote mark. The dock slides away while the page scrolls down and comes back as
 // it scrolls up. That part is driven with real React in jsdom, since it runs on a scroll listener.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,7 +19,7 @@ import { stripComments } from './helpers/strip-comments.mjs';
 
 const mod = await loadBroadsheet(['BSTerrainProfile', 'BSTerrainTabs', 'BSTStationHead', 'BSTPullQuote', 'BSProfileExtras', 'BSLiveBoostSheet', 'bsDemoMemberCustom', 'BSSignalCoachProfile', 'BSProfileCustomizer', 'BSCoachCoachingBlock']);
 const named = (name) => (n) => n && typeof n.type === 'function' && n.type.name === name;
-const RED = '#b23a1f';   // bsWsRed on a light paper (the harness THEME is light)
+const TEAL = '#0a7a72';   // bsWsAccent on a light paper (the harness THEME is light)
 const INK = '#111';
 
 test('the Me page asks for the Wall\'s heads on every tab: the name, the score, the climb, the signals', () => {
@@ -56,7 +56,7 @@ test('the Me page asks for the Wall\'s heads on every tab: the name, the score, 
   assert.ok(!seen.activity.includes('The wall'), 'the wall has its head back under the Activity tab');
 });
 
-test('the section strip: the names in the headline face between a heavy rule and a hairline, the active one underlined in red', () => {
+test('the section strip: the names in the headline face between a heavy rule and a hairline, the active one underlined in teal', () => {
   const tabs = [{ key: 'activity', label: 'Activity' }, { key: 'signals', label: 'Signals' }, { key: 'climb', label: 'Climb' }];
   const picked = [];
   const d = drive(mod.BSTerrainTabs, { tabs, active: 'signals', onPick: (k) => picked.push(k), heat: '#c0533b', INK, BG: '#fff', pad: 20, top: 57 });
@@ -78,7 +78,7 @@ test('the section strip: the names in the headline face between a heavy rule and
     assert.match(label.props.style.fontFamily, /^'Saira'/, 'the names are set in the headline face');
     assert.equal(label.props.style.textTransform, 'uppercase');
   }
-  assert.equal(buttons[1].props.children.props.style.boxShadow, `inset 0 -2px 0 ${RED}`, 'the active name is underlined in the magazine\'s red');
+  assert.equal(buttons[1].props.children.props.style.boxShadow, `inset 0 -2px 0 ${TEAL}`, 'the active name is underlined in the magazine\'s teal');
   assert.equal(buttons[1].props.children.props.style.color, INK);
   assert.equal(buttons[0].props.children.props.style.boxShadow, 'none');
   assert.notEqual(buttons[0].props.children.props.style.color, INK, 'an inactive name is dimmed');
@@ -99,13 +99,13 @@ test('a station head in the Wall\'s look: the name over a 2px ink rule, its coun
   assert.equal(plain.nodes()[0].props['data-bst-head'], undefined, 'the session pages\' head changed too');
 });
 
-test('a pulled-out line: the red quote mark, the words, and who said it; nothing when there are no words', () => {
+test('a pulled-out line: the teal quote mark, the words, and who said it; nothing when there are no words', () => {
   const d = drive(mod.BSTPullQuote, { INK, text: 'Earn the easy days.', cite: 'Quinn line' });
   const [fig] = d.nodes();
   assert.equal(fig.type, 'figure');
   const [mark, words, cite] = fig.props.children;
   assert.equal(mark.props.children, '“');
-  assert.equal(mark.props.style.color, RED);
+  assert.equal(mark.props.style.color, TEAL);
   assert.equal(words.type, 'blockquote');
   assert.equal(words.props.children, 'Earn the easy days.');
   assert.notEqual(words.props.style.fontStyle, 'italic');
@@ -142,7 +142,7 @@ test('the wall, the shelf and the prompts in the Wall\'s look: square shots to t
 });
 
 // Owner, 2026-10-24, of the profile editor: "also update design and look of this page". The Wall's look:
-// the red kicker over an upright title and a heavy rule, each part under a Saira head on a 2px ink rule
+// the teal kicker over an upright title and a heavy rule, each part under a Saira head on a 2px ink rule
 // (its hint at the right), square fields 44 px tall, square actions in the ink outline, the chosen chips
 // in ink, and Save in ink with the paper's text. Nothing rounded, tinted, dashed or gold.
 test('the profile editor in the Wall\'s look, for a member and for a coach', () => {
@@ -235,9 +235,9 @@ test('the Boost sheet in the Wall\'s look: the flat face, the headline over a he
   const av = nodes.find(named('BSFacetAvatar'));
   assert.equal(av.props.flat, true);
   assert.equal(av.props.c, THEME.INK, 'the face is framed in ink, not the tier\'s colour');
-  // The live line is the magazine's kicker: red mid-workout, with a still dot.
+  // The live line is the magazine's kicker: teal mid-workout, with a still dot.
   const kicker = nodes.find((n) => n.type === 'span' && /^In a workout now/.test(String(n.props.children && n.props.children[0])));
-  assert.equal(kicker.props.style.color, RED);
+  assert.equal(kicker.props.style.color, TEAL);
   const dot = nodes.find((n) => n.type === 'span' && n.props.style && n.props.style.width === 6);
   assert.equal(dot.props.style.animation, undefined, 'the dot no longer breathes');
   const title = nodes.find((n) => n.type === 'div' && n.props.children && n.props.children[0] === 'Boost ');
@@ -350,7 +350,7 @@ test('the coach\'s Coaching tab: square actions, ink for the one to take, and th
   assert.ok(cats.length >= 2, 'the plan types');
   assert.equal(cats.filter((n) => n.props['aria-pressed']).length, 1);
   const on = cats.find((n) => n.props['aria-pressed']).props.children;
-  assert.equal(on.props.style.boxShadow, `inset 0 -2px 0 ${RED}`);
+  assert.equal(on.props.style.boxShadow, `inset 0 -2px 0 ${TEAL}`);
 });
 
 test('the coach\'s Reviews: the average at the head, each review its writer\'s flat face and words pulled out', () => {

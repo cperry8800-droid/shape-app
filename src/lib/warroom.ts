@@ -631,6 +631,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'App: the Wall, chat, tab bar and Me page in Shape\'s teal, not the magazine red — #2485. No migration',
+      items: [
+        { label: 'Owner, 2026-10-27, asked whether the rest of the app\'s magazine red (the Wall, chat, the tab bar\'s dot, the Me page) should go teal: "Those should be shape colors"', status: 'done' },
+        { label: 'bsMagazine.mjs: bsWsRed becomes bsWsAccent, Shape\'s teal (#0a7a72 on light, the deeper teal small text needs at 4.6:1 on cream; #34d6c5 on dark), read at 19 sites; BSWallLive.jsx\'s private copy now imports it, and the Wall\'s over-photo tint is a light teal (#8cebe0) instead of salmon', status: 'done' },
+        { label: 'Kept on purpose: the role colours (trainers\' rust, nutritionists\' gold), the tier colours (Form\'s #e0463c flag on the Me page\'s climb) and the session page\'s intensity scale (HR zones and the RPE dial, grey to red)', status: 'done' },
+        { label: 'Review: Codex clean on 1659184. Checks: npm test 8,662/8,662; five tests moved from the red to the teal, and a sweep keeps #b23a1f, #ff7a5c and #ffb39f out of mobile-app/src (the salmon put back fails it); the built bundle has none of them; the Wall, chat, Home and the Me page rendered in headless Chromium, light and dark', status: 'done' },
+        { label: 'OWNER: open the Wall, chat and the Me page on a phone, signed in. Every render was headless Chromium on demo data', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: coaches set their own hours, booking rules and time off, and every open hour is bookable — #2483. No migration',
       items: [
         { label: 'Owner, 2026-10-27: "make sure coaches calendars/time slots all function properly. Make sure coaches have the ability to edit their time slots and customize their availability as they see fit"', status: 'done' },

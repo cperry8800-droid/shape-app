@@ -1,11 +1,12 @@
 // The masthead's corner in the Wall's magazine look (owner, 2026-10-24: "Yes I want that in new design", on
 // the header's ✦, the search and the corner avatar). The corner's controls are bare glyphs in ink, with no
 // ring, on the corner's full 34px square; ✦ Nora is the theme's teal (owner, 2026-10-27: "make this teal
-// color", from the magazine's red). The corner's last control is the
+// color", from the magazine's red, which became Shape's teal too: "Those should be shape colors"). The
+// corner's last control is the
 // settings gear (owner: "make the settings avatar something different in top right"), the chrome's one
 // BSSettingsCorner on every page's corner: the member app, the profile mastheads, the follow list, the coach
 // apps, the calendar, the marketplace and Radio. The member's face lives on the tab bar's Me tab; it is the
-// flat cut of the facet the chat page uses (an ink frame, no tier gem, glow or pulse), its dot the red in a
+// flat cut of the facet the chat page uses (an ink frame, no tier gem, glow or pulse), its dot the teal in a
 // workout and amber at the stove.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,8 +23,8 @@ const DIR = join(ROOT, 'mobile-app/src/broadsheet');
 const read = (f) => readFileSync(join(DIR, f), 'utf8');
 const CLIENT = read('iosAppBroadsheetClient.jsx');
 
-// The magazine's red on a light paper (bsWsRed); the harness's paper is light.
-const RED = '#b23a1f';
+// The magazine's teal on a light paper (bsWsAccent); the harness's paper is light.
+const ACCENT = '#0a7a72';
 // The theme's teal on a light paper, which ✦ Nora takes.
 const TEAL = '#0a8f87';
 
@@ -71,14 +72,14 @@ test('the corner ends in the settings gear, not the member\'s face, on the masth
   assert.equal(closed, 1);
 });
 
-test('the flat face\'s dot is the magazine\'s red in a workout and amber at the stove', () => {
+test('the flat face\'s dot is the magazine\'s teal in a workout and amber at the stove', () => {
   const dot = (activity) => {
     const api = drive(mod.BSFacetAvatar, { flat: true, size: 34, c: THEME.INK, initial: 'QH', activity });
     const inner = api.nodes().filter((n) => n.type === 'span' && n.props.style && n.props.style.display === 'block' && n.props.style.borderRadius === 999);
     assert.equal(inner.length, 1, 'no dot');
     return inner[0].props.style.background;
   };
-  assert.equal(dot('workout'), RED);
+  assert.equal(dot('workout'), ACCENT);
   assert.equal(dot('cooking'), '#d8a23a');
   // A caller's own dot colour still wins (the chat page's thread screen passes it).
   const api = drive(mod.BSFacetAvatar, { flat: true, size: 34, c: THEME.INK, initial: 'QH', activity: 'workout', dotC: '#123456' });

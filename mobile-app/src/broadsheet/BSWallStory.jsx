@@ -1,6 +1,6 @@
 import React from 'react';
 import { bsSdFigure, bsSdFigureText } from '../services/sessionLedger.mjs';
-import { bsWsRed, bsWsHead } from './bsMagazine.mjs';
+import { bsWsAccent, bsWsHead } from './bsMagazine.mjs';
 // ─── THE WALL · A STORY ──────────────────────────────────────────────────────────────────────────
 // Owner, 2026-10-23: the dark magazine look for the Wall, its headlines in the headline face, and
 // "keep the same likes and comments". A post on the Wall reads as a story: a picture or its route with
@@ -11,11 +11,11 @@ import { bsWsRed, bsWsHead } from './bsMagazine.mjs';
 // Window globals are read at call time and the module never imports back into the client module (the
 // BSIntegrationsPage / BSLeaderboard pattern); the card passes its avatar and handlers in.
 
-// The kicker over a picture: a warm tint that reads on any photo or the route's dark ground.
-const BS_WS_OVER_KICKER = '#ffb39f';
-// The magazine's red and its headline face live in bsMagazine.mjs, which the app's chrome reads too; the
+// The kicker over a picture: a light tint of Shape's teal that reads on any photo or the route's dark ground.
+const BS_WS_OVER_KICKER = '#8cebe0';
+// The magazine's accent and its headline face live in bsMagazine.mjs, which the app's chrome reads too; the
 // client takes them from here with the story pieces.
-export { bsWsRed, bsWsHead };
+export { bsWsAccent, bsWsHead };
 
 
 function BSWsKicker({ children, color }) {
@@ -76,7 +76,7 @@ export function BSWallStoryHead({ kicker, title, photo = null, route = null, ava
         <div role="button" tabIndex={0} onClick={onOpen}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }}
           style={{ display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer', paddingTop: 4 }}>
-          {kicker ? <BSWsKicker color={bsWsRed(t)}>{kicker}</BSWsKicker> : null}
+          {kicker ? <BSWsKicker color={bsWsAccent(t)}>{kicker}</BSWsKicker> : null}
           <BSWsHeadline color={t.INK} size={22}>{title}</BSWsHeadline>
         </div>
       )}
@@ -137,7 +137,7 @@ export function BSWallStoryQuote({ text, cite, onOpen }) {
   if (!text) return null;
   return (
     <button type="button" data-bs-wall-story-quote="" onClick={onOpen} style={{ display: 'grid', gridTemplateColumns: '22px minmax(0, 1fr)', columnGap: 6, width: '100%', padding: '12px 0 2px', margin: 0, border: 0, borderTop: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: 'inherit' }}>
-      <span aria-hidden style={{ fontFamily: bsWsHead(t), fontSize: 42, fontWeight: 700, lineHeight: 0.7, color: bsWsRed(t) }}>“</span>
+      <span aria-hidden style={{ fontFamily: bsWsHead(t), fontSize: 42, fontWeight: 700, lineHeight: 0.7, color: bsWsAccent(t) }}>“</span>
       <span style={{ fontFamily: bsWsHead(t), fontSize: 21, fontWeight: 500, lineHeight: 1.15, color: t.INK }}>{text}</span>
       <span style={{ gridColumn: 2, marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{cite}</span>
     </button>

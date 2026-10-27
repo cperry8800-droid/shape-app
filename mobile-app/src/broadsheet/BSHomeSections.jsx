@@ -2,7 +2,7 @@ import React from 'react';
 import { BSFocusTitle, BSFocusLink } from './BSFocus.jsx';
 import { bsCiDay, bsCiAnswered, bsCiIso, BS_CI_SAVED } from './BSCheckinCard.jsx';
 import { bsHomeWeekSoFar, bsHwPct, bsHomeGoalRead, bsHwRedate, bsHomeNextSession, bsHwDaysBetween, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf, bsHwTrainedDaysOf, bsHwSeriesOf, bsHwGoalData, bsHwOfWeek, bsHwWeekGrid, bsHwShift } from '../services/homeWeek.mjs';
-import { bsWsRed } from './bsMagazine.mjs';
+import { bsWsAccent } from './bsMagazine.mjs';
 // ─── HOME, PART 2: YOUR GOAL · WEEK SO FAR · FROM YOUR COACHES ─────────────────────────────────────
 // Owner, 2026-10-22: "The home page is repetitive of the train and eat pages." Off the mockup the owner
 // approved, Home says what only Home can, under Today's call:
@@ -299,7 +299,7 @@ export function BSHomeWeekView({ w, checkinsOn = true, onTrain, onEat, onProgres
   const t = window.useBS();
   const tr = useShapeTr();
   const teal = bsHsTeal(t);
-  const red = bsWsRed(t);
+  const accent = bsWsAccent(t);
   const locale = bsHsLocale();
   const num = (n) => (n == null ? '—' : Number(n).toLocaleString(locale));
   const g = w.grid || null;
@@ -358,7 +358,7 @@ export function BSHomeWeekView({ w, checkinsOn = true, onTrain, onEat, onProgres
           <span />
           {g.week.map((d, i) => (
             <span key={d} style={{ ...mono, textAlign: 'center', fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: i === g.today ? t.INK : t.INK50 }}>
-              <span style={{ paddingBottom: 2, boxShadow: i === g.today ? `inset 0 -2px 0 ${red}` : 'none' }}>{narrow.format(dayOf(d))}</span>
+              <span style={{ paddingBottom: 2, boxShadow: i === g.today ? `inset 0 -2px 0 ${accent}` : 'none' }}>{narrow.format(dayOf(d))}</span>
             </span>
           ))}
           <span />

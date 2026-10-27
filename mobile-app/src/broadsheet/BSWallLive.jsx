@@ -1,5 +1,6 @@
 import React from 'react';
 import { bsValidLivePayload } from '../services/liveProgress.mjs';
+import { bsWsAccent } from './bsMagazine.mjs';
 // ─── THE WALL · LIVE NOW ─────────────────────────────────────────────────────────────────────────
 // Owner, 2026-10-22, off the Wall mockup: "do photos and training now first". The presence rail above
 // the tabs shows faces; the Wall itself opens on who is training right now, with what they are on
@@ -96,13 +97,11 @@ export function bsWallSetSegments(done, total) {
   return Array.from({ length: n }, (_, i) => (i < d ? 'done' : i === d ? 'now' : 'left'));
 }
 
-// The magazine's red: the kicker, the live dot and the sets done.
-const bsWlRed = (t) => (t.isLight ? '#b23a1f' : '#ff7a5c');
 
 function BSWallLiveStory({ person, sample, avatar, onBoost, onOpenProfile }) {
   const t = window.useBS();
   const tr = useShapeTr();
-  const red = bsWlRed(t);
+  const accent = bsWsAccent(t);
   const HEAD = t.DISPLAY;
   const row = useBSLiveRow(person.userId || null);
   const realMins = useBSLiveMinutes(person.userId || null);
@@ -116,8 +115,8 @@ function BSWallLiveStory({ person, sample, avatar, onBoost, onOpenProfile }) {
   const mono = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' };
   return (
     <article data-bs-wall-live-card="" style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-      <span style={{ ...mono, display: 'inline-flex', alignItems: 'center', gap: 7, color: red, letterSpacing: '0.16em' }}>
-        <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: red }} />
+      <span style={{ ...mono, display: 'inline-flex', alignItems: 'center', gap: 7, color: accent, letterSpacing: '0.16em' }}>
+        <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: accent }} />
         {tr('feed:wallLive.liveNow', { defaultValue: 'Live now' })}
         {mins != null ? <span>· {tr('feed:wallLive.minIn', { defaultValue: '{n, number} min in', n: mins })}</span> : null}
       </span>
@@ -137,7 +136,7 @@ function BSWallLiveStory({ person, sample, avatar, onBoost, onOpenProfile }) {
           {segs.length ? (
             <div aria-hidden style={{ display: 'flex', gap: 3 }}>
               {segs.map((k, i) => (
-                <span key={i} data-seg={k} style={{ flex: 1, height: 7, background: k === 'done' ? red : k === 'now' ? `${red}5c` : t.HAIR }} />
+                <span key={i} data-seg={k} style={{ flex: 1, height: 7, background: k === 'done' ? accent : k === 'now' ? `${accent}5c` : t.HAIR }} />
               ))}
             </div>
           ) : null}

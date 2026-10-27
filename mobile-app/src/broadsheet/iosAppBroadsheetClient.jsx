@@ -68,7 +68,7 @@ import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './B
 import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
-import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsRed, bsWsHead } from './BSWallStory.jsx';
+import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsAccent, bsWsHead } from './BSWallStory.jsx';
 import { BSChatPlaceTitle, BSChatPlacesSheet } from './BSChatPlaces.jsx';
 import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
@@ -14920,7 +14920,7 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
   const t = useBS();
   const tr = useShapeTr();
   const kind = person.activity === 'cooking' ? 'cooking' : 'workout';
-  const accent = kind === 'cooking' ? t.AMBER : bsWsRed(t);
+  const accent = kind === 'cooking' ? t.AMBER : bsWsAccent(t);
   const box = bsTHexA(t.INK, 0.28);
   const first = String(person.name || person.who || 'Member').split(' ')[0];
   const [custom, setCustom] = useStateBSC('');
@@ -15790,8 +15790,8 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
   const COOK = '#d8a23a';
   // `flat` is the magazine's cut of the same gem (owner, 2026-10-24: "keep the same facet shape but … go with
   // the new design"): the frame in the flat colour `c` with no gradient, sheen, glow or pulse, a paper window,
-  // ink initials, and the corner dot in `dotC` (by default the magazine's red, amber at the stove).
-  const dotColor = dotC || (activity === 'cooking' ? COOK : flat ? bsWsRed(t) : '#34d6c5');
+  // ink initials, and the corner dot in `dotC` (by default the magazine's teal, amber at the stove).
+  const dotColor = dotC || (activity === 'cooking' ? COOK : flat ? bsWsAccent(t) : '#34d6c5');
   const showDot = activity ? true : (online === undefined ? live : online);
   const SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
   const inset = Math.max(2, Math.round(size * 0.055));
@@ -16135,7 +16135,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
         {prompts.length > 0 && (
           <div style={{ marginBottom: links.length ? 18 : 0 }}>
             {/* Each answer pulled out as the Wall pulls out a coach's line: the question as its kicker, then the
-                red quote mark and the words in the headline face (owner, 2026-10-24, the Me page "cleaned up"). */}
+                teal quote mark and the words in the headline face (owner, 2026-10-24, the Me page "cleaned up"). */}
             {prompts.map((p, i) => (
               <div key={i} style={{ padding: '12px 0 14px', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
                 <div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginBottom: 8 }}>{bsPromptLabel(p.q, tr)}</div>
@@ -17292,9 +17292,9 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const tTheme = useBS();
   const gutter = bsGutter(tTheme);
   // The Wall's look (owner, 2026-10-24, of this page: "update design and look of this page"): the
-  // magazine's red for the kicker, Saira heads over a 2px ink rule, square fields and actions, and
+  // magazine's teal for the kicker, Saira heads over a 2px ink rule, square fields and actions, and
   // Save in ink with the paper's text (never BG, a gradient on Steel).
-  const RED = bsWsRed(tTheme);
+  const TEAL = bsWsAccent(tTheme);
   const PAPER = tTheme.PAPER;
   const tr = useShapeTr();
   const init = initial || {};
@@ -17527,7 +17527,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '12px 0 0' }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: RED }}>{tr('profile:editor.eyebrow', { defaultValue: 'Your profile · Editor' })}</div>
+            <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: TEAL }}>{tr('profile:editor.eyebrow', { defaultValue: 'Your profile · Editor' })}</div>
             <div style={{ fontFamily: SERIF, fontSize: 34, fontWeight: 600, letterSpacing: '-0.02em', marginTop: 6, lineHeight: 1 }}>{tr('profile:editor.title', { defaultValue: 'Customize' })}</div>
           </div>
           <button data-cust-close="" onClick={onClose} aria-label={tr('profile:editor.closeAria', { defaultValue: 'Close' })} style={{ width: 44, height: 44, marginRight: -10, flex: 'none', borderRadius: 0, border: 0, background: 'transparent', color: INK, fontSize: 22, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', lineHeight: 1 }}>×</button>
@@ -18095,19 +18095,19 @@ function BSTLedgerStat({ INK, label, value, seen, figSize = 30, delay = 0, align
 }
 // Typographic tab index for both profiles, as the chat page's section strip (owner, 2026-10-24, the Me page
 // "cleaned up" to the Wall's look, then the coach profile to match): the names in the headline face, ink when
-// active over the magazine's red, between a heavy rule and a hairline. Spread across the column, and scrolling
+// active over the magazine's teal, between a heavy rule and a hairline. Spread across the column, and scrolling
 // sideways when a language's names run longer (ru "Восхождение"), as the Wall masthead's tabs do. Five names
 // (the coach's) set tighter, so English fits a 375px phone: measured, they need 334px of a 390px phone's 314
 // at the four-name setting and 290 at this one. Sticky on solid paper; real ≥44px buttons.
 function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20, top = 0 }) {
-  const red = bsWsRed(useBS());
+  const accent = bsWsAccent(useBS());
   const five = tabs.length > 4;
   return (
     <div style={{ position: 'sticky', top, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: `0 ${pad}px`, background: BG, borderTop: `3px solid ${INK}`, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` }}>
       <div className="bs-hide-scroll" style={{ display: 'flex', justifyContent: 'space-between', gap: five ? 10 : 14, overflowX: 'auto' }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
           <button key={tb.key} aria-pressed={on} onClick={() => onPick(tb.key)} style={{ flex: 'none', minHeight: 44, display: 'flex', alignItems: 'stretch', background: 'transparent', border: 0, cursor: 'pointer', padding: 0 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', padding: five ? 0 : '0 2px', boxShadow: on ? `inset 0 -2px 0 ${red}` : 'none', color: on ? INK : bsTHexA(INK, 0.5), fontFamily: BST_SERIF, fontSize: five ? 12 : 13.5, fontWeight: 600, letterSpacing: five ? '0.02em' : '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{tb.label}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', padding: five ? 0 : '0 2px', boxShadow: on ? `inset 0 -2px 0 ${accent}` : 'none', color: on ? INK : bsTHexA(INK, 0.5), fontFamily: BST_SERIF, fontSize: five ? 12 : 13.5, fontWeight: 600, letterSpacing: five ? '0.02em' : '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{tb.label}</span>
           </button>
         ); })}
       </div>
@@ -19493,8 +19493,8 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
           )}
           {!isSelf && !atCapacity && (
             <div style={ctaBlock}>
-              <Kick col={bsWsRed(tTheme)}>{tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })}</Kick>
-              <div style={{ fontFamily: SERIF, fontSize: 21, fontWeight: 600, lineHeight: 1.2, marginTop: 8 }}>{monthlyPkg.name} · <span style={{ color: bsWsRed(tTheme) }}>{monthlyPkg.price}{monthlyPkg.unit === '/ month' ? '/mo' : ''}</span></div>
+              <Kick col={bsWsAccent(tTheme)}>{tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })}</Kick>
+              <div style={{ fontFamily: SERIF, fontSize: 21, fontWeight: 600, lineHeight: 1.2, marginTop: 8 }}>{monthlyPkg.name} · <span style={{ color: bsWsAccent(tTheme) }}>{monthlyPkg.price}{monthlyPkg.unit === '/ month' ? '/mo' : ''}</span></div>
               {Array.isArray(monthlyPkg.perks) && <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.6), marginTop: 5 }}>{monthlyPkg.perks.slice(0, 3).join(' · ')}</div>}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 13 }}>
                 <button onClick={doSubscribe} style={ctaInk}>{tr('profile:coach.subscribe', { defaultValue: 'Subscribe' })}</button>
@@ -19509,7 +19509,7 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
             <div style={{ display: 'flex', gap: 18, overflowX: 'auto' }} className="bs-hide-scroll">
               {offerCats.map((ct) => { const on = offerTab === ct; return (
                 <button key={ct} aria-pressed={on} onClick={() => setOfferTab(ct)} style={{ flex: 'none', minHeight: 36, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
-                  <span style={{ display: 'inline-block', padding: '6px 0', boxShadow: on ? `inset 0 -2px 0 ${bsWsRed(tTheme)}` : 'none', color: on ? INK : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{tr('profile:coach.cat.' + String(ct).toLowerCase(), { defaultValue: ct })}</span>
+                  <span style={{ display: 'inline-block', padding: '6px 0', boxShadow: on ? `inset 0 -2px 0 ${bsWsAccent(tTheme)}` : 'none', color: on ? INK : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{tr('profile:coach.cat.' + String(ct).toLowerCase(), { defaultValue: ct })}</span>
                 </button>
               ); })}
             </div>
@@ -19889,7 +19889,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
         <div data-tour="hero-me" style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, padding: '12px 0', borderTop: `2px solid ${INK}`, borderBottom: `1px solid ${hair}` }}>
           <div onClick={isSelf ? onOpenScore : undefined} style={{ flex: 'none', cursor: isSelf ? 'pointer' : 'default' }}><div style={{ fontFamily: SERIF, fontSize: 34, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 0.9, fontVariantNumeric: 'tabular-nums' }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>Shape Score{isSelf ? ' ›' : ''}</div></div>
           <div style={{ width: 1, alignSelf: 'stretch', background: hair }} />
-          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: INK }}>{ratingLabel} · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: bsWsRed(tTheme), textUnderlineOffset: 3 }}>{tr('profile:coach.reviewCount', { count: liveCoach ? reviewCount : (liveReviews && liveReviews.length ? liveReviews.length : reviewCount), defaultValue: '{count, plural, one {# review} other {# reviews}}' })}</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>{tr('profile:coach.respondsWithinHours', { defaultValue: 'Responds within hours' })}</div></div>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: INK }}>{ratingLabel} · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: bsWsAccent(tTheme), textUnderlineOffset: 3 }}>{tr('profile:coach.reviewCount', { count: liveCoach ? reviewCount : (liveReviews && liveReviews.length ? liveReviews.length : reviewCount), defaultValue: '{count, plural, one {# review} other {# reviews}}' })}</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>{tr('profile:coach.respondsWithinHours', { defaultValue: 'Responds within hours' })}</div></div>
         </div>
 
         {/* Business: the coach's own net a month, clients and payouts, opening the full page
@@ -19927,7 +19927,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           {tab === 'about' && (<>
           {/* philosophy — hidden on your own signed-in profile until you write one */}
           {/* Each About station opens on the Me page's head (the name over a 2px ink rule), and words are pulled
-              out under the red quote mark instead of set in italics (owner, 2026-10-24, "Design"). */}
+              out under the teal quote mark instead of set in italics (owner, 2026-10-24, "Design"). */}
           {philosophy ? (
           <div style={{ marginTop: 24 }}>
             <BSTStationHead mag heat={c} INK={INK} label={isNutri ? tr('profile:coach.practicePhilosophy', { defaultValue: 'Practice philosophy' }) : tr('profile:coach.coachingPhilosophy', { defaultValue: 'Coaching philosophy' })} />
@@ -20855,8 +20855,9 @@ function useBSSdInView() {
   }, [seen]);
   return [ref, seen];
 }
-// In the Wall's magazine palette (owner, 2026-10-24): warm grey through sand to the magazine's red, so
-// an easy zone reads quiet and a hard one reads hot on either paper.
+// In the Wall's magazine palette (owner, 2026-10-24): warm grey through sand to red, so an easy zone reads
+// quiet and a hard one reads hot on either paper. The page's accent is Shape's teal (bsWsAccent); this is
+// an intensity scale, so it keeps its heat.
 const BS_SD_ZONES = ['#8c877e', '#b9a189', '#df8d6a', '#e6623c', '#c8321a'];
 // A session headline keeps its " · " with the word before it, so a wrap never starts a line on the dot
 // ("LOWER STRENGTH / · BLOCK 3").
@@ -21477,7 +21478,7 @@ function BSIbTable({ head, rows, heat, t }) {
 // two ways on one page.
 function bsIbRpeDial(rpe, t, size = 13) {
   if (rpe == null) return null;
-  // The zones' magazine ramp (owner, 2026-10-24): an easy set reads quiet, a hard one the magazine's red.
+  // The zones' magazine ramp (owner, 2026-10-24): an easy set reads quiet, a hard one hot.
   const color = rpe >= 9 ? BS_SD_ZONES[4] : rpe >= 8 ? BS_SD_ZONES[3] : BS_SD_ZONES[1];
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" role="img" aria-label={`RPE ${rpe}`}>
@@ -21569,10 +21570,10 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.62), margin: '22px 0 11px', display: 'flex', alignItems: 'center', gap: 8 };
   const tick = <span style={{ width: 14, height: 1.5, background: bsTHexA(t.INK, 0.55), borderRadius: 2 }} />;
   // The page in the Wall's magazine look (owner, 2026-10-24: "the session details page now needs to match
-  // the new wall feed design"): its one accent is the magazine's red, on every session. The "living
+  // the new wall feed design"): its one accent is the magazine's teal, on every session. The "living
   // instrument" temperature (cool teal for a recovery session, ember for a max effort) is retired with
   // the teal; the zones still say how hard it was.
-  const accent = bsWsRed(t);
+  const accent = bsWsAccent(t);
   // Inject before paint (not during render) so an abandoned render can't
   // mutate the document; insertion effects exist for exactly this.
   React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
@@ -24188,9 +24189,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // never looks pinned.
   const PinIcon = ({ filled, size = 18 }) => (
     <svg viewBox="0 0 24 24" width={size} height={size} style={{ display: 'block' }} aria-hidden="true">
-      {/* Flat, in the magazine's red (owner, 2026-10-24): no gloss. */}
+      {/* Flat, in the magazine's teal (owner, 2026-10-24; teal since 2026-10-27): no gloss. */}
       <path d="M10.7 13 L13.3 13 L12 22.5 Z" fill={filled ? t.INK50 : 'none'} stroke={filled ? 'none' : muted} strokeWidth="1.3" strokeLinejoin="round" />
-      <circle cx="12" cy="8" r="6.4" fill={filled ? magRed : 'none'} stroke={filled ? 'none' : muted} strokeWidth="1.5" />
+      <circle cx="12" cy="8" r="6.4" fill={filled ? magAccent : 'none'} stroke={filled ? 'none' : muted} strokeWidth="1.5" />
     </svg>
   );
   const [composerSlot, setComposerSlot] = useStateBSC(null);
@@ -24213,15 +24214,15 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // Feed role chips and the Team Coaches/Friends selector so both match.
   // Typographic underline index — one tab grammar across the whole chat (the feed
   // role chips + the Team Coaches/Friends selector), in the Wall's magazine look (owner,
-  // 2026-10-24): ink when active over the magazine's red underline, a bare red count for
+  // 2026-10-24): ink when active over the magazine's teal underline, a bare teal count for
   // unread, as the Wall masthead's own tabs read.
-  const magRed = bsWsRed(t);
+  const magAccent = bsWsAccent(t);
   const bsSubTab = ({ key, on, onClick, label, badge }) => (
     <button key={key} onClick={onClick} aria-pressed={!!on} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}>
       {/* The underline hugs the word (owner, 2026-10-24: "clean it up"), not the foot of the 44px target. */}
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: on ? t.INK : bsTHexA(t.INK, 0.38), fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
         {label}
-        {badge > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: magRed, fontVariantNumeric: 'tabular-nums' }}>{badge > 9 ? '9+' : badge}</span>}
+        {badge > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: magAccent, fontVariantNumeric: 'tabular-nums' }}>{badge > 9 ? '9+' : badge}</span>}
       </span>
     </button>
   );
@@ -24573,13 +24574,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const AV_OFFSET = 49; // avatar (38) + gap (11), to align meta/reactions under the bubble
     return (
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
-        {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: magRed, marginBottom: 6 }}><PinIcon filled size={13} /> {tr('feed:bubble.pinned', { defaultValue: 'Pinned' })}</div>}
+        {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: magAccent, marginBottom: 6 }}><PinIcon filled size={13} /> {tr('feed:bubble.pinned', { defaultValue: 'Pinned' })}</div>}
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11, maxWidth: '90%' }}>
-          <BSFacetAvatar flat size={38} c={t.INK} dotC={(isMe ? bsMyActivity() : bsUserActivity(p.userId)) === 'cooking' ? (t.AMBER || '#d8a23a') : magRed} BG={t.PAPER} initial={avInit} photo={isMe ? (bsMyPhoto() || undefined) : (p.userId ? (avatarByUser[p.userId] || undefined) : (p.photo || bsDemoFace(p.who)))} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} activity={isMe ? bsMyActivity() : bsUserActivity(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier, photo: (p.userId ? avatarByUser[p.userId] : (p.photo || bsDemoFace(p.who))) }) : undefined} />
+          <BSFacetAvatar flat size={38} c={t.INK} dotC={(isMe ? bsMyActivity() : bsUserActivity(p.userId)) === 'cooking' ? (t.AMBER || '#d8a23a') : magAccent} BG={t.PAPER} initial={avInit} photo={isMe ? (bsMyPhoto() || undefined) : (p.userId ? (avatarByUser[p.userId] || undefined) : (p.photo || bsDemoFace(p.who)))} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} activity={isMe ? bsMyActivity() : bsUserActivity(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier, photo: (p.userId ? avatarByUser[p.userId] : (p.photo || bsDemoFace(p.who))) }) : undefined} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
               <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier, photo: avatarByUser[p.userId] || p.photo })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.BODY, fontWeight: 600, fontSize: 14, color: cardInk }}>{p.who}</button>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: akind === 'TRAINER' || akind === 'NUTRI' ? magRed : muted }}>{roleMeta.label}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: akind === 'TRAINER' || akind === 'NUTRI' ? magAccent : muted }}>{roleMeta.label}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
             </div>
             <div style={{ borderRadius: 0, padding: p.photo && !p.body ? 4 : '11px 14px', background: p.official ? bubbleBg : (right ? bsTHexA(t.INK, 0.05) : 'transparent'), color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${bsTHexA(t.INK, 0.18)}`, fontFamily: t.DISPLAY, fontStyle: 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4, overflow: 'hidden' }}>
@@ -24600,7 +24601,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </div>
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'center', gap: 16, marginTop: 6, padding: right ? `0 ${AV_OFFSET}px 0 0` : `0 0 0 ${AV_OFFSET}px`, fontFamily: t.MONO, fontSize: 11, color: muted }}>
           <button aria-label={tr('feed:action.like', { defaultValue: 'Like' })} onClick={() => like(p)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: p.liked ? (t.isLight ? '#c0392b' : '#ff6b6b') : muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>{bsFeedIcon('heart', 13, !!p.liked)}<span>{p.hearts}</span></button>
-          <button aria-label={tr('feed:action.comment', { defaultValue: 'Comment' })} onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: actCmtOpen === p.id ? magRed : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('comment', 13)}<span>{replyCount}</span></button>
+          <button aria-label={tr('feed:action.comment', { defaultValue: 'Comment' })} onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: actCmtOpen === p.id ? magAccent : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('comment', 13)}<span>{replyCount}</span></button>
           <button aria-label={tr('feed:action.sendPost', { defaultValue: 'Send post' })} onClick={() => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.(tr('feed:toast.samplePost', { defaultValue: 'Sample post — engagement lights up on real posts.' }), 'info'); return; } setSendPostFor({ postId: id, who: p.name, title: p.status, body: p.note }); }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('send', 13)}</button>
           <button aria-label={tr('feed:action.sharePost', { defaultValue: 'Share post' })} onClick={() => bsSharePostExternal({ who: p.name, title: p.status, body: p.note, postId: bsRealPostId(p) })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
           <button aria-label={tr('feed:action.repost', { defaultValue: 'Repost' })} onClick={async () => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.(tr('feed:toast.samplePost', { defaultValue: 'Sample post — engagement lights up on real posts.' }), 'info'); return; } try { await bsRepostPost({ postId: id, who: p.name, title: p.status, body: p.note }); window.__bsToast?.(tr('feed:action.reposted', { defaultValue: 'Reposted to your feed' }), 'ok'); } catch (e) { window.__bsToast?.(tr('feed:action.repostError', { defaultValue: 'Could not repost.' }), 'error'); } }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('repost', 13)}</button>
@@ -24612,7 +24613,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <div style={{ alignSelf: 'stretch', marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
             {[...(p.comments || []), ...(actComments[p.id] || [])].map((c, ci) => (
               <div key={ci} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? magRed : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? magAccent : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
                 <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk, lineHeight: 1.35 }}>{c.body}</span>
               </div>
             ))}
@@ -24794,7 +24795,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </div>
         <div style={{ minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, rowGap: 8 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: magRed, fontWeight: 700 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: magAccent, fontWeight: 700 }}>
               {tr('feed:masthead.eyebrow', { defaultValue: 'Chat' })}
               {/* Unread in a place the page is not showing, so a message is never hidden behind the title. */}
               {unreadElsewhere > 0 && <span style={{ color: t.INK50 }}> · {tr('feed:places.unreadElsewhere', { defaultValue: '{count, number} unread elsewhere', count: unreadElsewhere })}</span>}
@@ -24818,7 +24819,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   <button key={k} onClick={() => switchFeedMode(k)} aria-pressed={on}
                     style={{ position: 'relative', display: 'inline-flex', alignItems: 'flex-end', minHeight: 38, padding: '8px 0 6px', background: 'transparent', border: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: on ? t.INK : t.INK50, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                     {label}
-                    {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: magRed }} />}
+                    {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: magAccent }} />}
                   </button>
                 );
               })}
@@ -24835,7 +24836,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       {railOn && railPeople.length > 0 && (
       <div style={{ padding: `4px ${t.padX}px 0` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
-            <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: magRed }} />
+            <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: magAccent }} />
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tr('feed:rail.onlineNow', { defaultValue: '{count, number} online now', count: liftingNow })}</span>
             {/* Signed-in AND signed-out (owner call, 2026-08-27): the preview is
                 where this is reachable at all — a signed-in member sees no rail
@@ -24863,7 +24864,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     {/* The faceted shape stays, in the magazine's flat cut (owner, 2026-10-24: "keep the same facet
                         shape but … go with the new design"): an ink frame, no glow, and a still dot, red in a
                         workout and amber at the stove. */}
-                    <BSFacetAvatar flat size={40} c={t.INK} dotC={p.activity === 'cooking' ? (t.AMBER || '#d8a23a') : magRed} initial={bsInitials(p.name)} photo={pPhoto} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} />
+                    <BSFacetAvatar flat size={40} c={t.INK} dotC={p.activity === 'cooking' ? (t.AMBER || '#d8a23a') : magAccent} initial={bsInitials(p.name)} photo={pPhoto} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} />
                   </div>
                   <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 11, marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: t.INK70 }}>{p.name.split(' ')[0]}</span>
                 </button>
@@ -24921,25 +24922,25 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             const online = !!f.online || count > 0;
             const isLast = Array.isArray(arr) && i === arr.length - 1;
             // In the Wall's magazine look (owner, 2026-10-24: "make the team list match the new design too"):
-            // the flat face with a still red dot, the role in mono over the name in the headline face, the
-            // last line in the body face, an unread count as a bare red number, a hairline between rows.
+            // the flat face with a still teal dot, the role in mono over the name in the headline face, the
+            // last line in the body face, an unread count as a bare teal number, a hairline between rows.
             return (
               <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', padding: '12px 0', background: 'transparent', border: 0, borderBottom: isLast ? 0 : `1px solid ${t.HAIR}`, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
-                <BSFacetAvatar flat size={44} c={t.INK} initial={bsInitials(f.n) || f.i} photo={f.conversation_id ? undefined : bsDemoFace(f.n)} showRank={false} online={online} dotC={magRed} BG={t.PAPER} />
+                <BSFacetAvatar flat size={44} c={t.INK} initial={bsInitials(f.n) || f.i} photo={f.conversation_id ? undefined : bsDemoFace(f.n)} showRank={false} online={online} dotC={magAccent} BG={t.PAPER} />
                 <span style={{ minWidth: 0, display: 'block' }}>
                   {f.s && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.s}</span>}
                   <span style={{ display: 'block', marginTop: f.s ? 3 : 0, fontFamily: bsWsHead(t), fontWeight: 500, fontSize: 20, lineHeight: 1.05, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
                   {last && <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, color: count > 0 ? t.INK : muted, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{last}</span>}
                 </span>
                 <span style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 7, alignSelf: 'flex-start', marginTop: 2 }}>
-                  {time && <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: count > 0 ? magRed : muted, fontWeight: 700 }}>{time}</span>}
-                  {count > 0 && <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: magRed, fontVariantNumeric: 'tabular-nums' }}>{count > 9 ? '9+' : count}</span>}
+                  {time && <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: count > 0 ? magAccent : muted, fontWeight: 700 }}>{time}</span>}
+                  {count > 0 && <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: magAccent, fontVariantNumeric: 'tabular-nums' }}>{count > 9 ? '9+' : count}</span>}
                 </span>
               </button>
             );
           };
           // The list's masthead, as THE WALL's: the name in the headline face over a heavy rule, then the
-          // thread count (the new ones in red) and New on a hairline.
+          // thread count (the new ones in teal) and New on a hairline.
           const ThreadHead = (rows, label) => {
             const tot = (rows || []).reduce((a, f) => a + ((unread && unread['dm:' + (f.conversation_id || '')]) || 0), 0);
             const n = (rows || []).length;
@@ -24947,8 +24948,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <header data-bs-team-head="">
                 <h2 style={{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid ${t.INK}`, fontFamily: bsWsHead(t), fontSize: 30, fontWeight: 600, lineHeight: 0.95, letterSpacing: '0.012em', textTransform: 'uppercase', color: t.INK }}>{label || tr('feed:team.threads', { defaultValue: 'Threads' })}</h2>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.HAIR}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>
-                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{tr('feed:team.threadCount', { defaultValue: '{count, plural, one {# thread} other {# threads}}', count: n })}{tot > 0 ? <span> · <span style={{ color: magRed, fontWeight: 800 }}>{tr('feed:team.newCount', { defaultValue: '{count} new', count: tot })}</span></span> : null}</span>
-                  <button onClick={() => { setNewDmOpen(true); setDmQuery(''); }} title={tr('feed:team.startConversation', { defaultValue: 'Start a conversation' })} style={{ minHeight: 36, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: magRed, padding: 0 }}>{tr('feed:team.new', { defaultValue: '＋ New' })}</button>
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{tr('feed:team.threadCount', { defaultValue: '{count, plural, one {# thread} other {# threads}}', count: n })}{tot > 0 ? <span> · <span style={{ color: magAccent, fontWeight: 800 }}>{tr('feed:team.newCount', { defaultValue: '{count} new', count: tot })}</span></span> : null}</span>
+                  <button onClick={() => { setNewDmOpen(true); setDmQuery(''); }} title={tr('feed:team.startConversation', { defaultValue: 'Start a conversation' })} style={{ minHeight: 36, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: magAccent, padding: 0 }}>{tr('feed:team.new', { defaultValue: '＋ New' })}</button>
                 </div>
               </header>
             );
@@ -25004,9 +25005,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // live/action (the old pink LIVE/NEW capsules die), one breathing dot per
           // live room, unread as bare teal text. Send/share moved into the thread
           // header (the row keeps only the pin STATE + open/join).
-          // The Channels accent is the magazine's red (owner, 2026-10-24: "everything on chat page should
+          // The Channels accent is the magazine's teal (owner, 2026-10-24: "everything on chat page should
           // match new feed wall design").
-          const tealSig = magRed;
+          const tealSig = magAccent;
           const chReduced = bsSdReduced();
           const chRow = (ch, i) => {
             const isSample = String(ch.id || '').startsWith('sample');
@@ -26132,11 +26133,11 @@ function useBSCanChat() {
 
 function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false, holdToTalk = false, onVoiceComplete, mag = false }) {
   // `mag`: the chat page's composer in the Wall's magazine look (owner, 2026-10-24): square, an ink send
-  // button, the magazine's red, no lock emoji and no floating shadow. Nora's sheet keeps its own.
+  // button, the magazine's teal, no lock emoji and no floating shadow. Nora's sheet keeps its own.
   const t = useBS();
   const canSend = value.trim().length > 0 || (tags && tags.length > 0);
   const canChat = useBSCanChat();
-  const TEALB = mag ? bsWsRed(t) : (t.isLight ? '#0a8f87' : '#34d6c5');
+  const TEALB = mag ? bsWsAccent(t) : (t.isLight ? '#0a8f87' : '#34d6c5');
 
   // ── Voice input (push-to-talk) — only when `voice` (Nora's support composer). ──
   // Produces text into THIS composer's onChange → the SAME onSend, so speaking a
@@ -26576,9 +26577,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     return () => { on = false; };
   }, [thread.conversationId, thread.channelId, thread.userId, allMessages.length]);
   const rx = useBSReactions();
-  // The thread's accent is the magazine's red, as on the chat page (owner, 2026-10-24: "everything on chat
+  // The thread's accent is the magazine's teal, as on the chat page (owner, 2026-10-24: "everything on chat
   // page should match new feed wall design"): the faces are flat, the boxes square, the labels plain mono.
-  const teal = bsWsRed(t);
+  const teal = bsWsAccent(t);
   // Coaches read their own tier ladder (Certified/Pro/Elite/Master/Icon) on the
   // coach color ramp; members read the client ladder. `coachTint` maps a client-
   // tier key → the coach ramp color for the same rung.

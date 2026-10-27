@@ -6,7 +6,7 @@
 // of page", "make sure it doesnt block whats behind it too much", then "It should look like instagram" and a
 // screenshot of Instagram's: "Use as reference", then "make our nav unique to shape, but same floating look"
 // and "Go with B"): a frosted capsule off the screen's edges, icons only. The selected tab sits in an ink gem,
-// its icon filled in the paper; the others are line icons in grey. The Me tab is the member's face. The unread count is a red pill. The capsule keeps its height on a phone with a home
+// its icon filled in the paper; the others are line icons in grey. The Me tab is the member's face. The unread count is a teal pill. The capsule keeps its height on a phone with a home
 // indicator: the gap under it grows instead. The pinned masthead is flat paper over a rule.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -35,7 +35,7 @@ const { act } = React;
 const ReactDOMClient = require_('react-dom/client');
 
 await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), { registry: new Map([['react', React]]) });
-const { bsWsRed } = await import(pathToFileURL(join(ROOT, 'mobile-app/src/broadsheet/bsMagazine.mjs')).href);
+const { bsWsAccent } = await import(pathToFileURL(join(ROOT, 'mobile-app/src/broadsheet/bsMagazine.mjs')).href);
 
 // Three unread messages on the chat tab.
 window.ShapeUnread = { total: () => 3, start() {}, seedDemo() {}, onChange: () => () => {} };
@@ -66,7 +66,7 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
       React.createElement(Probe),
       React.createElement(window.BSTabBar, { tabs: TABS, active: 'chat', onChange() {} })), paperMode);
     assert.equal(theme.isLight, isLight);
-    const red = bsWsRed(theme);
+    const accent = bsWsAccent(theme);
     // The dock holds the capsule 16px off the sides and 6px below the content, and lets taps in its
     // margins through to the page. (Its height is CSS with env(), which jsdom drops: see the next test.)
     const dock = host.querySelector('[data-bs-tabbar-dock]');
@@ -120,10 +120,10 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     assert.equal([...bar.querySelectorAll('span')].filter((x) => x.style.clipPath).length, 0, 'the clipped plate is back');
     // With no face to draw (the client module isn't loaded), the Me tab is its icon.
     assert.ok(bar.querySelector('button[data-tour="tab-me"] svg'), 'the Me icon');
-    // The unread count: a red pill ringed in the paper.
+    // The unread count: a teal pill ringed in the paper.
     const badge = [...bar.querySelectorAll('button[data-tour="tab-chat"] span')].find((x) => x.textContent === '3');
     assert.ok(badge, 'no unread count');
-    assert.ok(sameColor(badge.style.background, red));
+    assert.ok(sameColor(badge.style.background, accent));
     assert.ok(sameColor(badge.style.color, theme.PAPER));
     assert.equal(badge.style.borderRadius, '999px');
     await unmount();

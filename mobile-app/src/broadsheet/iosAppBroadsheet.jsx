@@ -1,7 +1,7 @@
 import React from 'react';
 import { bsSwipeIntent } from '../services/swipeIntent.mjs';
 import { bsSdUnitizeText, bsSdUnitizeStat, bsSdUnitizeLabel, bsSdMeasure } from '../services/sessionLedger.mjs';
-import { bsWsRed } from './bsMagazine.mjs';
+import { bsWsAccent } from './bsMagazine.mjs';
 // iosAppBroadsheet.jsx — Shared tokens, primitives, theme context for the
 // Broadsheet redesign of the Shape iOS app.
 //
@@ -1514,10 +1514,10 @@ function BSTabBar({ tabs, active, onChange }) {
   // capsule floating off the screen's edges, the page softened through it, icons only. The selected
   // tab sits in an ink gem, the facet's rotated, rounded square, that slides to the tab tapped; its
   // icon is filled in the paper. The others are grey line icons. The Me tab is the member's face. The
-  // unread count is a red pill.
+  // unread count is a teal pill (bsWsAccent).
   // ⚠ The dock is BS_TABBAR_CSS tall: the capsule keeps its height on every phone and the gap under
   // it grows to clear a home indicator. The composer slot and every page's scroll reserve clear it.
-  const red = bsWsRed(t);
+  const accent = bsWsAccent(t);
   // A screen that is no tab (Radio, the score, a drill-in) selects none: the gem fades where it last
   // was. It used to fall back to the first slot, so on Radio it sat behind Home's grey icon and read as
   // a black diamond (owner, 2026-10-24: "the home emoji blacks out on nav bar").
@@ -1580,9 +1580,9 @@ function BSTabBar({ tabs, active, onChange }) {
                 : BS_TAB_ICON_KEYS.has(tab.key)
                   ? <BSTabIcon name={tab.key} size={21} weight={1.8} filled={on} cut={on ? t.INK : t.PAPER} />
                   : <span style={{ position: 'relative', fontFamily: t.MONO, fontWeight: on ? 800 : 700, fontSize: 11, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{String(i + 1).padStart(2, '0')}</span>}
-              {/* The unread count: a red pill on the icon's shoulder, ringed in the paper. */}
+              {/* The unread count: a teal pill on the icon's shoulder, ringed in the paper. */}
               {unread && (
-                <span style={{ position: 'absolute', top: 5, left: '55%', minWidth: 15, height: 15, borderRadius: 999, background: red, color: t.PAPER, boxShadow: `0 0 0 2px ${t.PAPER}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', lineHeight: 1 }}>{unread}</span>
+                <span style={{ position: 'absolute', top: 5, left: '55%', minWidth: 15, height: 15, borderRadius: 999, background: accent, color: t.PAPER, boxShadow: `0 0 0 2px ${t.PAPER}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', lineHeight: 1 }}>{unread}</span>
               )}
             </button>
           );
