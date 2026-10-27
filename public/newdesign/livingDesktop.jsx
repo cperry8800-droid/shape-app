@@ -1491,7 +1491,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {wall.map((w, i) => (
                 <div key={w._k} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <div aria-hidden="true" style={{ width: 54, height: 54, flexShrink: 0, borderRadius: 8, border: `1px solid ${dHexA(LV_INK, 0.14)}`, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: dHexA(LV_INK, 0.05) }} />
+                  <div className="dash-photo" aria-hidden="true" style={{ width: 54, height: 54, flexShrink: 0, borderRadius: 8, border: `1px solid ${dHexA(LV_INK, 0.14)}`, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: dHexA(LV_INK, 0.05) }} />
                   <input aria-label={"Photo caption " + (i + 1)} value={w.caption} onChange={(e) => setWallCap(i, e.target.value)} maxLength={CAPM} placeholder="Caption (optional)" style={{ ...field, flex: 1 }} />
                   <button type="button" onClick={() => removeWall(i)} aria-label="Remove photo" style={{ background: "transparent", border: `1px solid ${dHexA(LV_INK, 0.16)}`, borderRadius: 999, color: dHexA(LV_INK, 0.6), width: 34, height: 34, cursor: "pointer", flexShrink: 0, fontSize: 17 }}>×</button>
                 </div>

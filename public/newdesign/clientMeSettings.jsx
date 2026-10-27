@@ -510,13 +510,12 @@ function ClientMeSettings() {
 
         <Card>
           <SectionTitle>Appearance</SectionTitle>
-          <Row label="Paper" value={paperCtl[0] === "dark" ? "Dark — the previous tones" : "Light"}
-            action={paperCtl[1] ? (paperCtl[0] === "dark" ? "USE LIGHT" : "USE DARK") : "LIGHT"}
-            onAction={paperCtl[1] ? () => paperCtl[1](paperCtl[0] === "dark" ? "light" : "dark") : undefined} />
-          <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5, marginTop: 10 }}>
-            Light is the dashboard's paper; dark brings back the previous tones. Signed in, the
-            choice follows your account across devices.
+          <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5, marginBottom: 12 }}>
+            Choose the dashboard's skin. White and Bone are light, the rest dark; Night drops the
+            blue tones for evenings. Signed in, it follows your account across devices, and the app
+            follows its light or dark.
           </div>
+          {typeof DashPaperPicker === "function" && <DashPaperPicker value={paperCtl[0]} onChoose={paperCtl[1]} />}
         </Card>
 
         <PlanBillingCard signedIn={signedIn} />

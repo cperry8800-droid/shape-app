@@ -134,7 +134,10 @@ function paperBlocks() {
     return css.slice(a, b);
   };
   const parse = (s) => new Map([...s.matchAll(/^\s*(--sh-[\w-]+)\s*:\s*([^;]+);/gm)].map(m => [m[1], m[2].trim()]));
-  return { light: parse(block(':root {')), dark: parse(block('html[data-paper="dark"] {')) };
+  // Every skin (owner, 2026-10-27: six of them), keyed by its data-paper value; White is :root.
+  const skins = new Map([['light', parse(block(':root {'))]]);
+  for (const m of css.matchAll(/^html\[data-paper="([a-z]+)"\] \{/gm)) skins.set(m[1], parse(block(m[0])));
+  return { light: skins.get('light'), dark: parse(block('html[data-paper="dark"] {')), skins };
 }
 // The font tokens are not paper-dependent: they are declared once, on :root, and
 // their fallback is the face the shared header keeps on the pages that do not load
@@ -263,13 +266,29 @@ test('every --sh-* token referenced is declared in dash.css', () => {
   // papers: a twin right on the dark block and wrong on :root is a light-paper alpha
   // that follows a different hue than its solid.
   const drift = [];
-  for (const [paper, decl] of [['light', light], ['dark', dark]]) {
+  const { skins } = paperBlocks();
+  assert.ok(skins.size >= 6, `expected the six skins in dash.css, found ${[...skins.keys()].join(', ')}`);
+  // A see-through value (Glass's card, lines, resting fill and tints) has as its twin the
+  // colour it COMPOSITES to — a tint over the card, anything else over the ground — so an
+  // alpha helper handed the token lands on what the eye sees, not on bare white.
+  const rgbOf = (v) => {
+    let m = /^#([0-9a-fA-F]{6})$/.exec(String(v || '').trim());
+    if (m) { const n = parseInt(m[1], 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 1]; }
+    m = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(String(v || '').trim());
+    return m ? [+m[1], +m[2], +m[3], +m[4]] : null;
+  };
+  const over = (fg, bg) => [0, 1, 2].map(i => fg[3] * fg[i] + (1 - fg[3]) * bg[i]).concat(1);
+  for (const [paper, decl] of skins) {
+    const ground = rgbOf(decl.get('--sh-ground'));
+    const cardRaw = rgbOf(decl.get('--sh-card'));
+    const card = cardRaw && ground ? (cardRaw[3] < 1 ? over(cardRaw, ground) : cardRaw) : null;
     for (const t of colour) {
-      const hex = decl.get(t), twin = decl.get(`${t}-rgb`);
-      if (!isHex(hex) || !twin) continue;
-      const n = parseInt(hex.slice(1), 16);
-      const want = `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
-      if (twin.replace(/\s/g, '') !== want) drift.push(`${paper}: ${t}: ${hex} but ${t}-rgb is ${twin} (expected ${want})`);
+      const v = rgbOf(decl.get(t)), twin = decl.get(`${t}-rgb`);
+      if (!v || !twin) continue;
+      if (v[3] < 1) assert.ok(ground && ground[3] === 1, `${paper}: ${t} is see-through over a ground that is not solid`);
+      const solid = v[3] < 1 ? over(v, t.endsWith('-tint') ? card : ground) : v;
+      const want = solid.slice(0, 3).map(Math.round).join(',');
+      if (twin.replace(/\s/g, '') !== want) drift.push(`${paper}: ${t}: ${decl.get(t)} but ${t}-rgb is ${twin} (expected ${want})`);
     }
   }
   assert.deepEqual(drift, [],
@@ -285,6 +304,14 @@ test('every --sh-* token referenced is declared in dash.css', () => {
   const onlyDark = [...dark.keys()].filter(t => !light.has(t)).sort();
   assert.deepEqual({ onlyLight, onlyDark }, { onlyLight: [], onlyDark: [] },
     'every paper token is declared on BOTH :root (light) and html[data-paper="dark"], or the switch leaves it behind');
+  // And every other skin declares exactly the dark block's set, for the same reason: a token
+  // a skin leaves out keeps White's value under it.
+  for (const [paper, decl] of skins) {
+    if (paper === 'light' || paper === 'dark') continue;
+    const missing = [...dark.keys()].filter(t => !decl.has(t)).sort();
+    const extra = [...decl.keys()].filter(t => !dark.has(t)).sort();
+    assert.deepEqual({ missing, extra }, { missing: [], extra: [] }, `html[data-paper="${paper}"] does not declare the paper token set`);
+  }
 
   const undeclared = [...referenced].filter(t => !declared.has(t)).sort();
   assert.deepEqual(undeclared, [],

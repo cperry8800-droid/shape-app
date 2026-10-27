@@ -1089,7 +1089,7 @@ function useRememberedChoices(live) {
 
 // One control's memory, read out of a store opened by `useRememberedChoices`.
 // Returns `[value, choose]` and is a drop-in for the `React.useState` it replaces.
-function useRememberedChoice(store, key, allowed, fallback, persistDefault = false) {
+function useRememberedChoice(store, key, allowed, fallback, persistDefault = false, also = null) {
   // The choice made in THIS session, if any, paired with the account it was made
   // under. Null means "nobody has touched it here"; see the account note below.
   const [chosen, setChosen] = React.useState(null);   // { acct, value } | null
@@ -1155,6 +1155,14 @@ function useRememberedChoice(store, key, allowed, fallback, persistDefault = fal
   // function stored, not React's updater semantics applied to it — and it stamps the
   // account the choice is being made under, which is what the pairing above compares.
   const choose = React.useCallback((next) => { setChosen({ acct: acct, value: next }); }, [acct]);
+  // ⚠ `also` NAMES SIBLING KEYS THAT LAND IN THE SAME WRITE: a function of the choice that
+  // returns `{ key: value }`. Two hooks would take a pair to the document as two separate
+  // whole-document writes, and a failure between them saves half of it: the website skin
+  // without the light/dark the app reads, or the reverse (Codex, #2481). It is the argument
+  // `useRememberedSlots` makes for a strip, for one choice that implies another key.
+  const extra = mine != null && typeof also === "function" ? also(mine) || {} : {};
+  const extraKeys = Object.keys(extra);
+  const extraStored = extraKeys.map((k) => k + "=" + String(extra[k]) + "/" + (Object.prototype.hasOwnProperty.call(doc, k) ? "v" + String(doc[k]) : "-")).join("\u0000");
 
   // ⚠ THE WRITE IS A RECONCILIATION, NOT A CLICK HANDLER, AND THAT IS THE WHOLE
   // REASON IT IS AN EFFECT. A choice made before the document is writable — during the
@@ -1180,7 +1188,7 @@ function useRememberedChoice(store, key, allowed, fallback, persistDefault = fal
     // member's own data, so tomorrow's default could never reach them. Choosing it back
     // means "no preference", which is what an absent key says.
     const want = mine === fallback && !persistDefault ? undefined : mine;
-    if (stored === want) return;                    // the document already says it
+    if (stored === want && extraKeys.every((k) => doc[k] === extra[k])) return;   // the document already says it
     // ⚠ ONE ATTEMPT PER CHOICE, AND THE REF IS WHAT MAKES THAT TRUE. `apply` paints
     // optimistically and rolls the paint back when the write fails, so `stored` moves
     // to the wanted value and then back again — which is a dependency change, which
@@ -1196,6 +1204,7 @@ function useRememberedChoice(store, key, allowed, fallback, persistDefault = fal
     apply((d) => {
       const out = { ...d };
       if (want === undefined) delete out[key]; else out[key] = want;
+      for (const k of extraKeys) out[k] = extra[k];
       return out;
     });
     // eslint-disable-next-line
@@ -1203,7 +1212,7 @@ function useRememberedChoice(store, key, allowed, fallback, persistDefault = fal
     // promotion changes neither `mine` nor `acct`, the effect never re-runs, and the choice
     // is adopted on screen and NEVER WRITTEN. Measured — it fails "the store stays SHUT
     // until the account is known" with saves 0.
-  }, [chosen, mine, acct, kind, stored, key, fallback, allowedKey]);
+  }, [chosen, mine, acct, kind, stored, key, fallback, allowedKey, extraStored]);
 
   return [value, choose];
 }
@@ -1585,21 +1594,54 @@ function dashMilestonesIn(ms, units) {
 }
 
 // ── The paper switch ─────────────────────────────────────────────────────────
-// Two papers in dash.css: `:root` is the light one (the default — the workout
-// builder's own palette) and `html[data-paper="dark"]` is the dashboard's previous
-// dark values. The choice is a remembered per-account preference like every other
-// control on the board, with one addition: a DEVICE mirror in localStorage that the
-// shells' inline <head> script reads before the stylesheet applies, so a member who
-// chose dark never sees a light frame on reload. The document is the truth; the
-// mirror is a cache of it that the cloud read corrects.
-const DASH_PAPERS = ["light", "dark"];
+// Six papers in dash.css, the dashboard's skins (owner, 2026-10-27: "create different
+// dashboard skins for website you can choose from, like on app. Do carbon, white, bone,
+// black, and the eye sensitive one to limit blue light, and also a glass/transparent
+// dashboard look"). `:root` is White, the default (the workout builder's own palette);
+// `html[data-paper="<key>"]` carries each of the others. "dark" is Black, the dashboard's
+// previous dark values, and keeps its key so a member who chose it before keeps it.
+// The choice is a remembered per-account preference like every other control on the
+// board, with one addition: a DEVICE mirror in localStorage that the shells' inline
+// <head> script reads before the stylesheet applies, so a member on any skin but White
+// never sees a White frame on reload. The document is the truth; the mirror is a cache
+// of it that the cloud read corrects.
+//
+// ⚠ TWO KEYS IN THE APP'S DOCUMENT, AND THE APP READS ONLY ONE. `colorMode` is the
+// light/dark choice the app shares (appearanceSync.mjs), so picking Bone turns the app
+// light and Carbon turns it dark, exactly as the old Light/Dark switch did. `webPaper`
+// is the skin itself, which the app never reads. A skin applies only while its own mode
+// is the shared one: the app switching to light under Carbon shows White, and switching
+// back to dark brings Carbon back.
+const DASH_PAPERS = ["light", "bone", "dark", "carbon", "night", "glass"];
+const DASH_PAPER_MODES = ["light", "dark"];
+const DASH_PAPER_LIGHT = ["light", "bone"];
 const DASH_PAPER_MIRROR = "shape.web.paper";
 const DASH_PAPER_EVENT = "shape:paper";
-function dashReadPaperMirror() { try { return localStorage.getItem(DASH_PAPER_MIRROR) === "dark" ? "dark" : "light"; } catch (e) { return "light"; } }
+// The picker's tiles (DashPaperPicker, trainerDashboard.jsx): [key, label, what it is,
+// ground, card, ink, accent]. The colours are each paper's own from dash.css and paint only
+// the tile, so a tile shows its skin whichever skin is on.
+const DASH_PAPER_OPTS = [
+  ["light", "White", "The builder's white", "#f4f6f5", "#ffffff", "#15211e", "#0a7a72"],
+  ["bone", "Bone", "Warm off-white", "#ebe3d2", "#f8f4ec", "#1a160e", "#086b64"],
+  ["dark", "Black", "The previous dark tones", "#1a1612", "#25211d", "#f2ede4", "#2ee0c4"],
+  ["carbon", "Carbon", "True black, steel ink", "#000000", "#0f1114", "#e2e6eb", "#2ee0c4"],
+  ["night", "Night", "Low blue light, for evenings", "#120b05", "#1e150c", "#f0d4a4", "#f2a03d"],
+  ["glass", "Glass", "See-through panels over a lit ground", "#0a1020", "rgba(255,255,255,0.1)", "#eef2f8", "#2ee0c4"],
+];
+function dashPaperKey(p) { return DASH_PAPERS.indexOf(p) >= 0 ? p : "light"; }
+function dashPaperMode(p) { return DASH_PAPER_LIGHT.indexOf(dashPaperKey(p)) >= 0 ? "light" : "dark"; }
+// The skin a document asks for: its own `webPaper` while that agrees with the shared mode,
+// else the mode's plain paper (White or Black).
+function dashResolvePaper(skin, mode) {
+  const m = mode === "light" || mode === "dark" ? mode : null;
+  if (DASH_PAPERS.indexOf(skin) >= 0 && (!m || dashPaperMode(skin) === m)) return skin;
+  return m === "dark" ? "dark" : "light";
+}
+function dashReadPaperMirror() { try { return dashPaperKey(localStorage.getItem(DASH_PAPER_MIRROR)); } catch (e) { return "light"; } }
 function dashApplyPaper(paper) {
-  const p = paper === "dark" ? "dark" : "light";
-  try { const el = document.documentElement; if (p === "dark") el.setAttribute("data-paper", "dark"); else el.removeAttribute("data-paper"); } catch (e) {}
-  try { if (p === "dark") localStorage.setItem(DASH_PAPER_MIRROR, "dark"); else localStorage.removeItem(DASH_PAPER_MIRROR); } catch (e) {}
+  const p = dashPaperKey(paper);
+  try { const el = document.documentElement; if (p !== "light") el.setAttribute("data-paper", p); else el.removeAttribute("data-paper"); } catch (e) {}
+  try { if (p !== "light") localStorage.setItem(DASH_PAPER_MIRROR, p); else localStorage.removeItem(DASH_PAPER_MIRROR); } catch (e) {}
   try { window.dispatchEvent(new CustomEvent(DASH_PAPER_EVENT, { detail: p })); } catch (e) {}
   return p;
 }
@@ -1612,6 +1654,8 @@ function dashApplyPaper(paper) {
 // that made it, so a sign-out and sign-in as someone else in the same tab reads
 // that account's own document rather than inheriting the previous member's tap.
 let dashPaperSession = null; // { acct, paper } | null
+// The shared light/dark a skin implies, written with the skin in one document operation.
+function dashPaperAlso(p) { return { colorMode: dashPaperMode(p) }; }
 function useDashPaper() {
   const legacy = useRememberedChoices(true);
   const accountId = legacy.accountId;
@@ -1620,7 +1664,12 @@ function useDashPaper() {
   // Keep the app's colored papers intact; colorMode is the shared light/dark choice.
   const appPaper = appStore.doc && appStore.doc.paperMode;
   const fallback = appPaper ? (["light","white","manila","steel","bone","sage","rose","mist"].includes(appPaper) ? "light" : "dark") : (legacy.doc && legacy.doc.paper === "dark" ? "dark" : "light");
-  const [remembered, choose] = useRememberedChoice(store, "colorMode", DASH_PAPERS, fallback, true);
+  // Read here and never chosen here: the skin's own write below carries it.
+  const [remembered] = useRememberedChoice(store, "colorMode", DASH_PAPER_MODES, fallback, true);
+  // The skin, with no fallback of its own: an absent one is the mode's plain paper. Its write
+  // takes the shared light/dark along in the SAME document operation (`also`), so a failure
+  // can never save the skin without the mode the app reads, or the mode without the skin.
+  const [rememberedSkin, chooseSkin] = useRememberedChoice(store, "webPaper", DASH_PAPERS, null, true, dashPaperAlso);
   const [paper, setPaper] = React.useState(() => dashReadPaperMirror());
   const kind = store && store.kind;
   const acct = store && store.accountId;
@@ -1638,9 +1687,9 @@ function useDashPaper() {
         if ((await db.getUser())?.id !== acct) return;
         const doc = await db.getUserGoals("app_tweaks");
         if (!active || doc == null || version !== paperReadVersion.current || (await db.getUser())?.id !== acct) return;
-        const next = doc.colorMode === "light" || doc.colorMode === "dark" ? doc.colorMode
+        const mode = doc.colorMode === "light" || doc.colorMode === "dark" ? doc.colorMode
           : doc.paperMode ? (["light","white","manila","steel","bone","sage","rose","mist"].includes(doc.paperMode) ? "light" : "dark") : null;
-        if (next) { dashPaperSession = { acct, paper: next }; dashApplyPaper(next); setPaper(next); }
+        if (mode) { const next = dashResolvePaper(doc.webPaper, mode); dashPaperSession = { acct, paper: next }; dashApplyPaper(next); setPaper(next); }
       } catch (e) { /* Keep the last confirmed appearance when offline. */ }
     };
     window.addEventListener("focus", refresh);
@@ -1648,27 +1697,27 @@ function useDashPaper() {
   }, [acct]);
   // The document, once read, corrects the device mirror — unless this session chose.
   // Only a READ document is trusted: "signedout", "demo" and "unavailable" all leave
-  // the mirror standing, because an absent read is not a preference for light.
+  // the mirror standing, because an absent read is not a preference for White.
   React.useEffect(() => {
     if (kind !== "ready" || sessionChose) return;
-    const next = remembered === "dark" ? "dark" : "light";
+    const next = dashResolvePaper(rememberedSkin, remembered);
     if (next !== paper || next !== dashReadPaperMirror()) { dashApplyPaper(next); setPaper(next); }
-  }, [kind, remembered, sessionChose]);
+  }, [kind, remembered, rememberedSkin, sessionChose]);
   // Every instance on the page follows a choice made in any one of them (the shell
   // and the Settings card are two mounts of this hook).
   React.useEffect(() => {
-    const on = (e) => setPaper(e && e.detail === "dark" ? "dark" : "light");
+    const on = (e) => setPaper(dashPaperKey(e && e.detail));
     window.addEventListener(DASH_PAPER_EVENT, on);
     return () => window.removeEventListener(DASH_PAPER_EVENT, on);
   }, []);
   const setPaperChoice = React.useCallback((next) => {
     paperReadVersion.current += 1;
-    const p = next === "dark" ? "dark" : "light";
+    const p = dashPaperKey(next);
     dashPaperSession = { acct, paper: p };
-    choose(p);           // → the document, through the reconciliation effect
-    dashApplyPaper(p);   // → the page and the device, now
+    chooseSkin(p);            // → the skin and the shared light/dark the app follows, in one write
+    dashApplyPaper(p);        // → the page and the device, now
     setPaper(p);
-  }, [choose, acct]);
+  }, [chooseSkin, acct]);
   return [paper, setPaperChoice, { kind }];
 }
 
@@ -1694,4 +1743,4 @@ function dashCoachingNames(coaching) {
   return [coaching.name || ""];
 }
 
-Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount });
+Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, DASH_PAPER_OPTS, dashPaperMode, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount });

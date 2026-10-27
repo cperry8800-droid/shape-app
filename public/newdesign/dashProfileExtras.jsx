@@ -611,7 +611,7 @@ function CoachListingMediaCard() {
   // A slot is its own upload button: empty, a dashed tile that says what goes in it; filled, the
   // photo, with Replace and Remove under it.
   const tile = (url, w, h, word, onPick) => (
-    <label className="px-tile" title={url ? "Replace" : "Add " + word.toLowerCase()} style={{ position: "relative", width: w, height: h, flex: "none", borderRadius: 12, cursor: off ? "progress" : "pointer", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 4, boxSizing: "border-box", border: url ? "1px solid rgba(242,237,228,0.16)" : "1.5px dashed rgba(242,237,228,0.24)", background: url ? `center/cover no-repeat url("${url}")` : "rgba(242,237,228,0.025)" }}>
+    <label className={url ? "px-tile dash-photo" : "px-tile"} title={url ? "Replace" : "Add " + word.toLowerCase()} style={{ position: "relative", width: w, height: h, flex: "none", borderRadius: 12, cursor: off ? "progress" : "pointer", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 4, boxSizing: "border-box", border: url ? "1px solid rgba(242,237,228,0.16)" : "1.5px dashed rgba(242,237,228,0.24)", background: url ? `center/cover no-repeat url("${url}")` : "rgba(242,237,228,0.025)" }}>
       {url ? null : <>
         <span aria-hidden="true" style={{ fontFamily: PX.sans, fontSize: 20, lineHeight: 1, color: PX.teal }}>＋</span>
         <span style={{ fontFamily: PX.mono, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>{word}</span>
@@ -659,7 +659,7 @@ function CoachListingMediaCard() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
               {gallery.map((g) => (
                 <div key={g.id} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <div aria-hidden="true" style={{ width: 52, height: 52, flex: "none", borderRadius: 10, border: "1px solid rgba(242,237,228,0.16)", background: `center/cover no-repeat url("${g.url}")` }} />
+                  <div className="dash-photo" aria-hidden="true" style={{ width: 52, height: 52, flex: "none", borderRadius: 10, border: "1px solid rgba(242,237,228,0.16)", background: `center/cover no-repeat url("${g.url}")` }} />
                   <input aria-label="Caption" style={{ ...pxInput, flex: 1 }} placeholder="Caption" maxLength={CMAX} value={g.caption} onChange={(e) => setCap(g.id, e.target.value)} />
                   <button aria-label="Remove" style={{ ...linkBtn, fontSize: 16, color: PX.rust, padding: "6px 8px" }} onClick={() => rmGal(g.id)}>×</button>
                 </div>

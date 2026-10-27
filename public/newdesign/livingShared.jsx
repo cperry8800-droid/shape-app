@@ -1188,7 +1188,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
           <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
             {studio.map((g, i) => (
               <figure key={i} style={{ flex: "none", width: 168, margin: 0 }}>
-                <div style={{ width: 168, height: 112, borderRadius: 8, border: `1px solid ${hexA(ink, 0.14)}`, backgroundImage: `url("${g.url}")`, backgroundSize: "cover", backgroundPosition: "center" }} aria-hidden="true" />
+                <div className="dash-photo" style={{ width: 168, height: 112, borderRadius: 8, border: `1px solid ${hexA(ink, 0.14)}`, backgroundImage: `url("${g.url}")`, backgroundSize: "cover", backgroundPosition: "center" }} aria-hidden="true" />
                 {g.caption ? <figcaption style={{ fontFamily: lvMono, fontSize: 9, letterSpacing: "0.04em", color: hexA(ink, 0.5), marginTop: 6, lineHeight: 1.3 }}>{String(g.caption)}</figcaption> : null}
               </figure>
             ))}

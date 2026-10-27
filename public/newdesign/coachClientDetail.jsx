@@ -973,7 +973,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
                   {data.progressPhotos.slice(0, 6).map((p) => (
                     <a key={p.id} href={p.url} target="_blank" rel="noreferrer" style={{ display: "block" }}>
-                      <div style={{ height: 110, borderRadius: 8, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: `url(${p.url}) center/cover` }} />
+                      <div className="dash-photo" style={{ height: 110, borderRadius: 8, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: `url(${p.url}) center/cover` }} />
                       <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.06em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{p.pose} · {String(p.taken_on).slice(5)}</div>
                     </a>
                   ))}

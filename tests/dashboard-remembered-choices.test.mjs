@@ -33,7 +33,7 @@ const CHOICE = region('function useRememberedChoices(', 'Object.assign(window,')
 test('the suite is running the shipped hooks, not an empty string', () => {
   assert.match(HELPERS, /function dashDocSerial\(fn\)/);
   assert.match(STORE, /pendingRef/);
-  assert.match(CHOICE, /function useRememberedChoice\(store, key, allowed, fallback, persistDefault = false\)/);
+  assert.match(CHOICE, /function useRememberedChoice\(store, key, allowed, fallback, persistDefault = false, also = null\)/);
   assert.ok(CHOICE.length > 400, 'the choice hook lifted as a stub');
   assert.match(AUTH, /onAuthStateChange/, 'the account hook lifted as a stub');
 });
@@ -170,7 +170,7 @@ function drivePage(dbState, opts) {
     const prefs = api.useRememberedChoices(ctl.live);
     const out = { kind: prefs.kind, doc: prefs.doc, accountId: prefs.accountId, values: {}, choose: {} };
     for (const k of keys) {
-      const [v, choose] = api.useRememberedChoice(prefs, k.key, k.allowed, k.fallback);
+      const [v, choose] = api.useRememberedChoice(prefs, k.key, k.allowed, k.fallback, k.persistDefault, k.also);
       out.values[k.key] = v; out.choose[k.key] = choose;
     }
     return out;
@@ -278,6 +278,49 @@ test('a choice made before the store is writable is saved once it becomes writab
   assert.equal(db.state.saves, 1, 'the choice was never retried once the store could take it');
   assert.equal(db.state.written[0].val.rosterFilter, 'eyes');
   assert.equal(host.out.values.rosterFilter, 'eyes');
+});
+
+test('a choice with `also` takes its sibling keys in the SAME save, never a second one', async () => {
+  // ⚠ THE WEBSITE SKIN AND THE LIGHT/DARK THE APP READS (Codex, #2481). As two hooks they were
+  // two whole-document writes, so a failure between them saved one without the other.
+  const SKINS = ['light', 'bone', 'dark', 'carbon', 'night', 'glass'];
+  const also = (p) => ({ colorMode: p === 'light' || p === 'bone' ? 'light' : 'dark' });
+  const keys = [{ key: 'webPaper', allowed: SKINS, fallback: null, persistDefault: true, also }];
+  const db = makeDb({ colorMode: 'light', rosterFilter: 'eyes' });
+  const { host } = drivePage(db, { keys });
+  const out = await host.flush();
+  out.choose.webPaper('night');
+  await host.flush();
+  assert.equal(db.state.saves, 1, 'the skin and its mode went to the document as more than one write');
+  assert.deepEqual(db.state.written[0].val, { colorMode: 'dark', rosterFilter: 'eyes', webPaper: 'night' });
+
+  // The skin already stored and its mode not (the app went light under Carbon): picking Carbon
+  // again is still a change, because the sibling is part of what the choice says.
+  const db2 = makeDb({ colorMode: 'light', webPaper: 'carbon' });
+  const p2 = drivePage(db2, { keys });
+  const o2 = await p2.host.flush();
+  o2.choose.webPaper('carbon');
+  await p2.host.flush();
+  assert.equal(db2.state.saves, 1, 'a stored skin hid a sibling the document did not hold');
+  assert.equal(db2.state.doc.colorMode, 'dark');
+
+  // Both already said: nothing to write.
+  const db3 = makeDb({ colorMode: 'dark', webPaper: 'carbon' });
+  const p3 = drivePage(db3, { keys });
+  const o3 = await p3.host.flush();
+  o3.choose.webPaper('carbon');
+  await p3.host.flush();
+  assert.equal(db3.state.saves, 0, 'a choice the document already holds, sibling and all, was written again');
+
+  // A failed save is one attempt, rolled back whole: neither key is left half-applied.
+  const db4 = makeDb({ colorMode: 'light' }, { saveFails: true });
+  const p4 = drivePage(db4, { keys });
+  const o4 = await p4.host.flush();
+  o4.choose.webPaper('glass');
+  await p4.host.flush(25);
+  assert.equal(db4.state.saves, 1, 'a failed paired write retried: ' + db4.state.saves + ' saves');
+  assert.deepEqual(db4.state.doc, { colorMode: 'light' });
+  assert.deepEqual(p4.host.out.doc, { colorMode: 'light' }, 'the failed pair was not rolled back');
 });
 
 test('a FAILED write is attempted once — never retried in a loop', async () => {

@@ -98,6 +98,88 @@ test('the tokens the light paper made reachable clear their contrast floor on bo
   assert.deepEqual(failures, [], failures.join('\n'));
 });
 
+// ── The other four skins (owner, 2026-10-27) ────────────────────────────────
+// Bone, Carbon, Night and Glass are new, so each is held to every floor the light paper
+// holds above, on every surface text sits on. A see-through value (Glass) is measured as
+// what it composites to: a tint over the card, anything else over the ground — and Glass's
+// text again over the brightest glow its ground draws (dash.css), so a stronger glow fails
+// here rather than on the page.
+// A skin's token block is its FIRST `html[data-paper="…"] {`: Glass has a second, its lit
+// ground, further down.
+const SKIN_BLOCKS = new Map([...CSS.matchAll(/^html\[data-paper="([a-z]+)"\] \{/gm)]
+  .filter((m, i, all) => m[1] !== 'dark' && all.findIndex((x) => x[1] === m[1]) === i)
+  .map((m) => { const a = m.index; const b = CSS.indexOf('\n}', a); return [m[1], new Map([...CSS.slice(a, b).matchAll(/^\s*(--sh-[\w-]+)\s*:\s*([^;]+);/gm)].map(x => [x[1], x[2].trim()]))]; }));
+const rgba = (v) => {
+  let m = /^#([0-9a-f]{6})$/i.exec(String(v || '').trim());
+  if (m) return [...rgb(m[1]), 1];
+  m = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(String(v || '').trim());
+  return m ? [+m[1], +m[2], +m[3], +m[4]] : null;
+};
+const over = (fg, bg) => [0, 1, 2].map(i => fg[3] * fg[i] + (1 - fg[3]) * bg[i]).concat(1);
+const hexOf = (c) => '#' + c.slice(0, 3).map(x => Math.round(x).toString(16).padStart(2, '0')).join('');
+
+test('the other four skins clear every floor the light paper clears', () => {
+  assert.deepEqual([...SKIN_BLOCKS.keys()].sort(), ['bone', 'carbon', 'glass', 'night'], 'the skins changed — re-derive this guard');
+  const failures = [];
+  for (const [skin, map] of SKIN_BLOCKS) {
+    const ground = rgba(map.get('--sh-ground'));
+    assert.ok(ground && ground[3] === 1, `${skin}: the ground must be a solid colour — text is measured against it`);
+    const card = ((c) => (c[3] < 1 ? over(c, ground) : c))(rgba(map.get('--sh-card')));
+    const solid = (tok, base) => { const c = rgba(map.get(tok)); assert.ok(c, `${skin}: ${tok} is not a colour`); return hexOf(c[3] < 1 ? over(c, tok.endsWith('-tint') ? card : base) : c); };
+    // `base` is what a see-through surface lies on: the ground, or Glass's brightest glows.
+    const check = (base, where) => {
+      const need = (fg, bgs, floor, why) => {
+        for (const bg of bgs) {
+          const bgHex = bg === '--sh-card' ? hexOf(over(rgba(map.get('--sh-card')), base)) : solid(bg, base);
+          const r = ratio(solid(fg, base), bgHex);
+          if (r < floor) failures.push(`${skin}${where} ${fg} on ${bg} = ${r.toFixed(2)}:1 (< ${floor}, ${why})`);
+        }
+      };
+      const SURFACES = ['--sh-card', '--sh-ground', '--sh-rest'];
+      need('--sh-ink', [...SURFACES, '--sh-ground2'], 7, 'body text');
+      need('--sh-ink2', ['--sh-card', '--sh-ground'], 4.5, 'secondary text');
+      need('--sh-ink3', ['--sh-card', '--sh-ground'], 4.5, 'tertiary labels');
+      need('--sh-cycle-heat', ['--sh-card', '--sh-ground'], 4.5, 'the cycle eyebrow and today are TEXT');
+      need('--sh-cycle-heat-ink', ['--sh-cycle-heat'], 4.5, 'text on the heat fill');
+      need('--sh-chart-teal', ['--sh-ground', '--sh-card'], 3, 'a non-text chart mark');
+      need('--sh-chart-amber', ['--sh-ground', '--sh-card'], 3, 'a non-text chart mark');
+      for (const [fg, tint] of [['--sh-accent', '--sh-accent-tint'], ['--sh-accent2', '--sh-accent-tint'], ['--sh-accent3', '--sh-accent-tint'],
+                                ['--sh-gold', '--sh-gold-tint'], ['--sh-rust', '--sh-rust-tint'], ['--sh-rust2', '--sh-rust-tint'], ['--sh-green', null]]) {
+        need(fg, tint ? [...SURFACES, tint] : SURFACES, 4.5, 'role colour as text');
+        need('--sh-deep', [fg], 4.5, 'button text on a role fill');
+      }
+      for (const [fg, tint] of [['--sh-accent-ink', '--sh-accent-tint'], ['--sh-ember', '--sh-rust-tint'], ['--sh-danger', '--sh-rust-tint'],
+                                ['--sh-sky', null], ['--sh-violet', null], ['--sh-gold2', '--sh-gold-tint'], ['--sh-spotify-ink', null]]) {
+        need(fg, tint ? [...SURFACES, tint] : SURFACES, 4.5, 'text-only token');
+      }
+    };
+    check(ground, '');
+    if (skin === 'glass') {
+      // The glows, read from the stylesheet's own Glass ground, each at its peak.
+      const glassCss = /html\[data-paper="glass"\] \{\s*background-color:[^;]+;\s*background-image:([\s\S]*?);/.exec(CSS);
+      assert.ok(glassCss, 'the Glass ground moved — re-derive its glows');
+      const glows = [...glassCss[1].matchAll(/rgba\((\d+),(\d+),(\d+),([\d.]+)\)/g)].map(m => [+m[1], +m[2], +m[3], +m[4]]);
+      assert.ok(glows.length >= 3, `read ${glows.length} glows — the sweep stopped matching`);
+      for (const g of glows) check(over(g, ground), ` over the glow rgba(${g.join(',')})`);
+    }
+  }
+  assert.deepEqual(failures, [], failures.join('\n'));
+});
+
+test('the Night skin carries little blue', () => {
+  // The eye-sensitive skin: every colour it declares keeps its blue channel under 72% of
+  // its strongest one, apart from a near-black (which emits next to nothing).
+  const night = SKIN_BLOCKS.get('night');
+  const heavy = [];
+  for (const [tok, v] of night) {
+    const c = rgba(v);
+    if (!c || tok.endsWith('-rgb')) continue;
+    if (lum(hexOf(c)) > 0.05 && c[2] > 0.72 * Math.max(c[0], c[1])) heavy.push(`${tok} ${v}`);
+  }
+  assert.deepEqual(heavy, [], 'a blue-heavy colour on the Night skin:\n' + heavy.join('\n'));
+  assert.match(CSS, /html\[data-paper="night"\] img, html\[data-paper="night"\] video, html\[data-paper="night"\] \.dash-photo \{ filter: sepia\(/, 'photos and video lost their warm wash on Night');
+});
+
 // ── Ink / fill pairs, derived over every style object in the tree ───────────
 // Parse every .jsx/.js module, plus the inline <script type="text/babel"> blocks of
 // the .html pages (ClientGrocery's dropdown lives in one).

@@ -14,13 +14,19 @@
    async-only onDone write was killed by the unload → the tour re-showed every login). */
 (function () {
   // The dashboard's paper is stamped on <html data-paper> before first paint
-  // (light is the default; "dark" is the switch). The tour card follows it, and
+  // (White is the default and stamps nothing; Bone is the other light skin, and
+  // every other skin is dark). The tour card follows it, and
   // the client accent is the paper's own teal — the dark paper's bright teal
   // reads at 1.6:1 on white. The light values are dash.css's text tokens
   // (--sh-accent / --sh-gold), which clear 4.5:1 on the card.
-  function isDarkPaper() { try { return document.documentElement.getAttribute('data-paper') === 'dark'; } catch (e) { return false; } }
+  function isDarkPaper() { try { return ['dark', 'carbon', 'night', 'glass'].indexOf(document.documentElement.getAttribute('data-paper')) >= 0; } catch (e) { return false; } }
   var ACCENT_DARK = { client: '#2ee0c4', trainer: '#0a8f87', nutritionist: '#a07a2e' };
   var ACCENT_LIGHT = { client: '#0a7a72', trainer: '#0a7a72', nutritionist: '#86662a' };
+  // Night is the low-blue-light skin, so its tour is too: the card, ink, label and accents
+  // are Night's own tokens from dash.css (--sh-card, --sh-ink, --sh-deep, --sh-accent and
+  // --sh-gold), where any other dark skin's tour keeps the dark teal (Codex, #2481).
+  var NIGHT = { paper: '#1e150c', ink: '#f0d4a4', onAccent: '#1c0f02', accent: { client: '#f2a03d', trainer: '#f2a03d', nutritionist: '#e2c25a' } };
+  function isNightPaper() { try { return document.documentElement.getAttribute('data-paper') === 'night'; } catch (e) { return false; } }
   // Dedicated web keys — NEVER write the app's client_onboarding / coach_onboarding
   // docs from here (replace-semantics would clobber the app tour's own seen flag).
   var GOAL_KEY = { client: 'web_client_onboarding', trainer: 'web_coach_onboarding', nutritionist: 'web_coach_onboarding' };
@@ -100,8 +106,13 @@
 
   function start(role, uid) {
     if (!window.SpotlightTour) return;
-    var dark = isDarkPaper(); var ACCENT = dark ? ACCENT_DARK : ACCENT_LIGHT;
-    window.SpotlightTour.start(stepsFor(role), { root: document.body, accent: ACCENT[role] || ACCENT.client, isLight: !dark, onDone: function () { markSeen(role, uid); } });
+    var dark = isDarkPaper(); var night = isNightPaper();
+    var ACCENT = night ? NIGHT.accent : dark ? ACCENT_DARK : ACCENT_LIGHT;
+    window.SpotlightTour.start(stepsFor(role), {
+      root: document.body, accent: ACCENT[role] || ACCENT.client, isLight: !dark,
+      paper: night ? NIGHT.paper : undefined, ink: night ? NIGHT.ink : undefined, onAccent: night ? NIGHT.onAccent : undefined,
+      onDone: function () { markSeen(role, uid); },
+    });
     // The engine mounts its overlay synchronously, so reaching this line means
     // the tour is ON SCREEN — persist seen NOW, not only in onDone (the second
     // half of the re-show fix: the cloud write gets the whole tour's duration
