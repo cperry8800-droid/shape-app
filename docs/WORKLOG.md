@@ -277,8 +277,8 @@ The War Room has the full list; this covers what needs the owner and the planned
   (`clubRooms.mjs`: the lounge and the bar) have been seen only in headless Chromium, not on a real
   GPU or a phone. The crowd pack is 3.6 MB on desktops and 1.1 MB on phones. The old avatar crowd
   (`crowdAvatars.mjs`) is kept for a v2 pack.
-- The Split glass splash mark (#2474), on the homepage and the app's launch, has been seen only in
-  headless Chromium, not on a phone or in the installed app.
+- The Split glass mark (#2474), on the homepage, the app's launch and its masthead, has been seen
+  only in headless Chromium, not on a phone or in the installed app.
 
 ## History
 

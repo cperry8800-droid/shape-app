@@ -1,6 +1,7 @@
 // The masthead's corner in the Wall's magazine look (owner, 2026-10-24: "Yes I want that in new design", on
 // the header's ✦, the search and the corner avatar). The corner's controls are bare glyphs in ink, with no
-// ring, on the corner's full 34px square; ✦ Nora is the magazine's red. The corner's last control is the
+// ring, on the corner's full 34px square; ✦ Nora is the theme's teal (owner, 2026-10-27: "make this teal
+// color", from the magazine's red). The corner's last control is the
 // settings gear (owner: "make the settings avatar something different in top right"), the chrome's one
 // BSSettingsCorner on every page's corner: the member app, the profile mastheads, the follow list, the coach
 // apps, the calendar, the marketplace and Radio. The member's face lives on the tab bar's Me tab; it is the
@@ -23,8 +24,10 @@ const CLIENT = read('iosAppBroadsheetClient.jsx');
 
 // The magazine's red on a light paper (bsWsRed); the harness's paper is light.
 const RED = '#b23a1f';
+// The theme's teal on a light paper, which ✦ Nora takes.
+const TEAL = '#0a8f87';
 
-test('the corner\'s controls are bare glyphs on the avatar\'s square, and ✦ is the magazine\'s red', () => {
+test('the corner\'s controls are bare glyphs on the avatar\'s square, and ✦ is the theme\'s teal', () => {
   const api = drive(mod.BSSearchCorner, { size: 34 });
   const btns = api.nodes().filter((n) => n.type === 'button');
   assert.equal(btns.length, 2, '✦ and ⌕');
@@ -37,7 +40,7 @@ test('the corner\'s controls are bare glyphs on the avatar\'s square, and ✦ is
   }
   const [nora, search] = btns;
   assert.equal(nora.props['aria-label'], 'Ask Nora');
-  assert.equal(nora.props.style.color, RED);
+  assert.equal(nora.props.style.color, TEAL);
   assert.equal(search.props['aria-label'], 'Search Shape');
   assert.equal(search.props.style.color, THEME.INK);
   // A masthead that sets its own ink (the profile mastheads, Radio) gets it on the corner, and Radio drops ✦.

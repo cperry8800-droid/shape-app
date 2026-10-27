@@ -359,13 +359,14 @@ function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null, nora = true }) {
   // ✦ NORA SITS LEFT OF ⌕ (owner, 2026-10-07: option D). Every header places this
   // corner, so one change puts her on every screen; it covers nothing. A surface
   // with its own Nora controls (the full-screen Radio) passes nora={false}. She is
-  // the magazine's red, the one colour in the corner.
+  // the theme's teal, the one colour in the corner (owner, 2026-10-27: "make this
+  // teal color", from the magazine's red).
   const corner = bsCornerBtn(size, ink || t.INK);
   return (
     <>
       {nora && (
         <button data-nora-corner onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openNora')); } catch (e) {} }} aria-label="Ask Nora"
-          style={{ ...corner, color: bsWsRed(t), fontSize: Math.max(15, Math.round(size * 0.5)), lineHeight: 1 }}>
+          style={{ ...corner, color: t.isLight ? '#0a8f87' : '#34d6c5', fontSize: Math.max(15, Math.round(size * 0.5)), lineHeight: 1 }}>
           <span aria-hidden>✦</span>
         </button>
       )}
