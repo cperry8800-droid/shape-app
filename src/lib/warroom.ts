@@ -615,19 +615,6 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
-      section: 'Support: a reviewer agent for the info@ Outlook inbox, replies signed by Nora — #2479. No migration',
-      items: [
-        { label: 'Owner, 2026-10-27: "how do i create agents to review customer service emails", "email is through outlook", "have the signature say its from Nora", "include shapes logo", "is there a refund button?"', status: 'done' },
-        { label: '.claude/agents/support-reviewer.md: reads info@ through the Microsoft 365 connector, loads each thread\'s whole conversation, sorts it into a Support: category and drafts a reply in Nora\'s voice, signed "Nora, Shape\'s concierge". Its tools can\'t send, forward, delete or move mail. Privacy, legal, health, safety and conduct mail is flagged for the owner with no draft; refunds and credits get a holding reply; an app help request gets a suggested console reply', status: 'done' },
-        { label: 'public/shape-logo-email.png: the light lockup with the lower triangle in teal, on white. Drafts can\'t hold an image, so an Exchange mail flow rule adds it at send time, and each draft drops the quoted original so the logo sits under the signature', status: 'done' },
-        { label: 'Daily support inbox review: a scheduled task (outside the repo) at 7:15 AM Eastern, with this repository and the Microsoft 365 connector', status: 'done' },
-        { label: 'Review: Codex P2 ×2 on 562d92a (a refund step for a membership; a reply read without its thread), fixed in a6995e1 and d58a4c5; Codex P1 on d58a4c5 (the mail flow rule only in the PR), fixed in f906a24. Checks: the agent\'s frontmatter parses; a sample draft made and edited in the mailbox; heavy-assets-referenced 16/16 and worklog-rules 4/4; the preview serves the logo', status: 'done' },
-        { label: 'OWNER: add the Exchange mail flow rule (#2479\'s Owner steps): sender info@theshapecommunity.com, body includes "Shape\'s concierge", append the logo disclaimer. Replies show info@\'s display name, "Chris Perry"', status: 'manual' },
-        { label: 'The reviewer hasn\'t run on real customer mail: info@ has had none yet', status: 'pending' },
-        { label: 'Members have no refund button: requestRefund (src/app/refunds/actions.ts) has no callers, so /dashboard/refunds stays empty and a refund request arrives by email', status: 'pending' },
-      ],
-    },
-    {
       section: 'Booth: a VIP lounge and a cocktail bar off the dance floor, and the people rebuilt close up — #2478. No migration',
       items: [
         { label: 'Owner, 2026-10-26: "i also want to create spearate side rooms/lounges and views of those", "make sure the people have the updated graphics", "the people look horrible"', status: 'done' },
