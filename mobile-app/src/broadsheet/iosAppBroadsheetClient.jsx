@@ -35195,117 +35195,170 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     setEditField(null);
   };
 
+  // ── THE SETTINGS LOOK: A · INDEX (owner, 2026-10-27, from a preview of two options:
+  // "go with A, but make sure these are rounded not so square", "keep the teal coloring",
+  // "dont need the perfect square toggle") ─────────────────────────────────────────────
+  // Every page opens on a headline over a double ink rule; a setting is a ruled row, never
+  // a box; the doors are a numbered index; and what is still a control is rounded: pill
+  // switches, pill pickers and 12px tiles. It replaces the Passport's squared, chamfered
+  // boxes (owner, 2026-09-14: "give the boxes a more square edgy look").
+  // ⚠ THE ONE COLOUR IS THE THEME'S TEAL, NOT `t.ACCENT`. The member's accent defaults to
+  // blue, and the preview the owner chose was teal throughout. Small teal TEXT takes the
+  // deeper teal, because #0a8f87 reads 3.7:1 on the Cream paper and the deeper one 4.6:1;
+  // a selected pill fills with the deeper teal too, so its white label reads 5.2:1.
+  const sTeal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const sTealInk = t.isLight ? '#0a7a72' : '#34d6c5';
+  const sOnTeal = t.isLight ? '#ffffff' : '#04201d';
+
+  // A swatch tile (Paper, Texture, Accent, Ink, weight, size, light colour): the swatch is a
+  // rounded 12px tile with the label under it, and the chosen one carries a teal ring and ✓.
   const OptGrid = ({ children }) => (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7 }}>{children}</div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px 9px' }}>{children}</div>
   );
   const OptCell = ({ on, onClick, label, title, children }) => (
     <button onClick={onClick} aria-pressed={on} title={title || label} style={{
-      position: 'relative', padding: 0, cursor: 'pointer', overflow: 'hidden', textAlign: 'center',
-      borderRadius: t.RADIUS_SM, border: `1px solid ${on ? t.INK : t.RULE}`,
-      boxShadow: on ? `inset 0 0 0 1px ${t.INK}` : 'none',
-      background: 'transparent', display: 'flex', flexDirection: 'column', minWidth: 0,
+      padding: 0, cursor: 'pointer', textAlign: 'left', border: 0, background: 'transparent',
+      display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0,
     }}>
-      <span aria-hidden="true" style={{ position: 'relative', display: 'block', width: '100%', height: 38, background: t.PAPER2, overflow: 'hidden', flexShrink: 0 }}>
+      <span aria-hidden="true" style={{ position: 'relative', display: 'block', width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 12, overflow: 'hidden', flexShrink: 0,
+        border: on ? `2px solid ${sTeal}` : `1px solid ${t.RULE}`, background: t.PAPER2 }}>
         {children}
         {on && (
-          <span style={{ position: 'absolute', top: 4, right: 4, width: 14, height: 14, borderRadius: 999, background: t.ACCENT, color: t.PAPER, fontSize: 9, lineHeight: '14px', fontWeight: 800, fontFamily: t.MONO, textAlign: 'center' }}>✓</span>
+          <span style={{ position: 'absolute', top: 4, right: 4, width: 15, height: 15, borderRadius: 999, background: sTeal, color: sOnTeal, fontSize: 9, lineHeight: '15px', fontWeight: 800, fontFamily: t.MONO, textAlign: 'center' }}>✓</span>
         )}
       </span>
-      <span style={{ display: 'block', width: '100%', padding: '5px 3px 6px', borderTop: `1px solid ${on ? t.INK : t.HAIR}`,
-        fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+      <span style={{ display: 'block', width: '100%', fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
         color: on ? t.INK : t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
     </button>
   );
 
+  // The pill switch, as the app draws it everywhere else: teal when on.
   const Toggle = ({ on, onClick }) => (
-    <button onClick={onClick} style={{
-      width: 38, height: 22, borderRadius: 999, padding: 2.5, cursor: 'pointer', flexShrink: 0,
-      border: 0, background: on ? t.ACCENT : t.RULE,
+    <button onClick={onClick} aria-pressed={!!on} style={{
+      width: 44, height: 26, borderRadius: 999, padding: 3, cursor: 'pointer', flexShrink: 0, boxSizing: 'border-box',
+      border: 0, background: on ? sTeal : bsTHexA(t.INK, 0.18),
       display: 'flex', alignItems: 'center', justifyContent: on ? 'flex-end' : 'flex-start',
       transition: 'background 140ms ease',
     }}>
-      <span style={{ width: 17, height: 17, borderRadius: 999, background: '#fff', display: 'block', boxShadow: '0 1px 3px rgba(0,0,0,0.35)' }} />
+      <span style={{ width: 20, height: 20, borderRadius: 999, background: '#fff', display: 'block', boxShadow: '0 1px 3px rgba(0,0,0,0.35)' }} />
     </button>
   );
 
-  // Lighter, floating section header (no teal bar / no 2px box border) —
-  // matches the Me-page style: big serif title + small right-side meta.
-  const SectionHead = ({ title, meta }) => (
-    <div style={{ padding: `20px ${t.padX}px 4px` }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{title}</div>
-        {meta ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, flexShrink: 0 }}>{meta}</span> : null}
-      </div>
-      <div style={{ marginTop: 7, height: 2, background: `linear-gradient(90deg, ${t.ACCENT}, ${t.ACCENT}33 45%, transparent 85%)` }} />
+  // A pill picker: one rounded track, the chosen option a teal pill inside it.
+  const PillPicker = ({ options, value, onPick, labels }) => (
+    <div role="radiogroup" style={{ display: 'flex', gap: 2, padding: 3, borderRadius: 999, background: bsTHexA(t.INK, 0.07) }}>
+      {options.map((opt, j) => {
+        const on = value === opt;
+        return (
+          <button key={opt} role="radio" aria-checked={on} onClick={() => onPick(opt)} style={{
+            flex: 1, minWidth: 0, minHeight: 32, padding: '7px 10px', borderRadius: 999, border: 0, cursor: 'pointer',
+            background: on ? sTealInk : 'transparent', color: on ? sOnTeal : t.INK70,
+            fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', transition: 'background 140ms ease',
+          }}>{(labels && labels[j]) || opt}</button>
+        );
+      })}
     </div>
   );
 
-  // ⚠ `icon` IS GONE, NOT REPLACED. It was accepted by this component and read by
-  // NOTHING — thirteen call sites passed a glyph name that never rendered. The
-  // Passport is what made it safe to drop: the section cards it named are tiles now,
-  // so the Also list below is this component's only remaining caller. `value` is the
-  // right-hand reading the About row needs for the build number.
-  const HubCard = ({ title, summary, value, onClick, accent, last }) => (
-    // No left spine — rows sit flush at the left margin (owner call 2026-07-14);
-    // the accent survives on the title color (Account actions stays rust).
+  // A section's head inside a page: the display face over a 2px ink rule.
+  const SectionHead = ({ title, meta }) => (
+    <div style={{ padding: `30px ${t.padX}px 0` }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, paddingBottom: 8, borderBottom: `2px solid ${t.INK}` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.1 }}>{title}</div>
+        {meta ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, flexShrink: 0 }}>{meta}</span> : null}
+      </div>
+    </div>
+  );
+
+  // A page's own title: an optional teal kicker, the headline, and the double ink rule.
+  const SettingsTitle = ({ kicker, title }) => (
+    <div style={{ padding: `14px ${t.padX}px 0` }}>
+      {kicker ? <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: sTealInk }}>{kicker}</div> : null}
+      <div role="heading" aria-level={1} style={{ marginTop: kicker ? 6 : 0, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1.02, textWrap: 'balance' }}>{title}</div>
+      <div aria-hidden="true" style={{ marginTop: 12, borderTop: `3px solid ${t.INK}`, paddingTop: 2 }}><div style={{ borderTop: `1px solid ${t.INK}` }} /></div>
+    </div>
+  );
+
+  // A mono label over a rule, opening a group of rows on the root (Quick switches, the
+  // sections, Also).
+  const RootLabel = ({ children, heavy }) => (
+    <div style={{ paddingBottom: 8, borderBottom: `${heavy ? 2 : 1}px solid ${t.INK}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{children}</div>
+  );
+
+  // An Also row: More, About (with the build number as `value`) and Account actions.
+  const HubCard = ({ title, summary, value, onClick, last }) => (
     <button onClick={onClick} style={{
-      width: '100%', display: 'flex', alignItems: 'center', gap: 13,
-      padding: '13px 2px', cursor: 'pointer', textAlign: 'left',
+      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+      padding: '13px 0', cursor: 'pointer', textAlign: 'left',
       border: 0, borderBottom: last ? 0 : `1px solid ${t.HAIR}`,
-      background: 'transparent',
+      background: 'transparent', color: t.INK,
     }}>
       <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: accent || t.INK, letterSpacing: '-0.02em' }}>{title}</span>
-        {summary ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{summary}</span> : null}
+        <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 15.5, fontWeight: 600, color: t.INK }}>{title}</span>
+        {summary ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{summary}</span> : null}
       </span>
-      {value ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{value}</span> : null}
-      <span style={{ flexShrink: 0, color: t.INK50, fontSize: 20, fontFamily: t.DISPLAY, lineHeight: 1 }}>›</span>
+      {value ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{value}</span> : null}
+      <span aria-hidden="true" style={{ flexShrink: 0, color: t.INK50, fontSize: 17, fontFamily: t.DISPLAY, lineHeight: 1 }}>→</span>
     </button>
   );
 
-  // ── THE PASSPORT'S TWO NEW PRIMITIVES ───────────────────────────────────────
-  // Squared and chamfered on the owner's note, 2026-09-14: "give the boxes a more
-  // square edgy look". The chamfer is the house one — the same polygon thirteen
-  // other surfaces already clip with — so the Passport looks like the app rather
-  // than like a new idea.
-  const BS_CHAMFER = 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)';
-
-  // A quick switch: the whole cell is the control, so the tap target is the box
-  // rather than the 26px pill inside it — comfortably past the house floor, which
-  // is WCAG 2.5.8 AA at 24px (never Apple's 44pt suggestion; this repo measured
-  // and recorded the difference).
+  // A quick switch: the whole row is the control, the pill on its right shows the state.
+  // The row is 50px tall, past the house floor (WCAG 2.5.8 AA at 24px).
   const QuickSwitch = ({ label, on, value, onToggle }) => (
     <button onClick={onToggle} aria-pressed={on} style={{
-      flex: 1, minWidth: 0, textAlign: 'left', cursor: 'pointer',
-      padding: '9px 10px 10px', borderRadius: 3, clipPath: BS_CHAMFER,
-      border: `1px solid ${on ? bsTHexA(t.ACCENT, 0.55) : t.RULE}`,
-      background: on ? bsTHexA(t.ACCENT, 0.07) : t.PAPER2, color: t.INK,
+      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      padding: '13px 0', cursor: 'pointer', textAlign: 'left',
+      border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', color: t.INK,
     }}>
-      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-        <span aria-hidden="true" style={{ flexShrink: 0, width: 24, height: 13, borderRadius: 999, background: on ? t.ACCENT : bsTHexA(t.INK, 0.18), position: 'relative', display: 'inline-block' }}>
-          <span style={{ position: 'absolute', top: 2, left: on ? 13 : 2, width: 9, height: 9, borderRadius: 999, background: on ? (t.isLight ? '#fff' : '#06110e') : t.INK50 }} />
-        </span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.15 }}>{label}</span>
+        <span style={{ display: 'block', marginTop: 2, fontFamily: t.BODY, fontSize: 12.5, color: t.INK70 }}>{value}</span>
       </span>
-      <span style={{ display: 'block', marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, letterSpacing: '-0.015em', color: on ? t.ACCENT : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</span>
+      <span aria-hidden="true" style={{ flexShrink: 0, width: 44, height: 26, borderRadius: 999, padding: 3, boxSizing: 'border-box', background: on ? sTeal : bsTHexA(t.INK, 0.18), display: 'flex', alignItems: 'center', justifyContent: on ? 'flex-end' : 'flex-start', transition: 'background 140ms ease' }}>
+        <span style={{ width: 20, height: 20, borderRadius: 999, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.35)', display: 'block' }} />
+      </span>
     </button>
   );
 
-  // A door. The glyph is a typographic symbol, never an emoji — the house rule for
-  // anything added from 2026-09 on. The summary states what is behind the door, so
-  // a member can read their setting without opening it (A · The Index's one idea,
-  // which the owner asked to keep inside B).
-  const PassportTile = ({ glyph, title, summary, onClick, accent }) => (
+  // A door, as a line of the index: its number, its name, and what is behind it. The
+  // summary states what is behind the door, so a member can read their setting without
+  // opening it.
+  const PassportTile = ({ n, title, summary, onClick }) => (
     <button onClick={onClick} style={{
-      textAlign: 'left', cursor: 'pointer', width: '100%',
-      padding: '11px 12px 12px', borderRadius: 3, clipPath: BS_CHAMFER,
-      border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK,
-      display: 'flex', flexDirection: 'column', gap: 6, minHeight: 74,
+      width: '100%', display: 'flex', alignItems: 'flex-start', gap: 14,
+      padding: '15px 0 14px', cursor: 'pointer', textAlign: 'left',
+      border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', color: t.INK,
     }}>
-      <span aria-hidden="true" style={{ fontFamily: t.MONO, fontSize: 13, lineHeight: 1, color: accent || t.ACCENT }}>{glyph}</span>
-      <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.02em', color: accent || t.INK, lineHeight: 1.15 }}>{title}</span>
-      {summary ? <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{summary}</span> : null}
+      <span style={{ width: 22, flexShrink: 0, paddingTop: 5, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: sTealInk, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1.15 }}>{title}</span>
+        {summary ? <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.5 }}>{summary}</span> : null}
+      </span>
+      <span aria-hidden="true" style={{ flexShrink: 0, paddingTop: 3, fontFamily: t.DISPLAY, fontSize: 20, color: t.INK50, lineHeight: 1 }}>→</span>
     </button>
+  );
+
+  // The Edit profile page's Cancel · Save: rounded, Save filled teal. `tall` is the 44px
+  // row, the review's comfortable-row height, above the 24px floor.
+  const PassportBtn = ({ label, onClick, fill, tall, grow = true }) => (
+    <button onClick={onClick} style={{
+      flex: grow ? 1 : '0 0 auto', minWidth: 0, minHeight: tall ? 44 : undefined, padding: tall ? '10px 20px' : '10px 14px',
+      borderRadius: 999, cursor: 'pointer',
+      border: `1.5px solid ${fill ? sTealInk : t.RULE}`, background: fill ? sTealInk : 'transparent',
+      color: fill ? sOnTeal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800,
+      letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    }}>{label}</button>
+  );
+
+  // The byline's two actions, Edit profile and Public profile, as underlined links. The
+  // negative margin keeps the line where it was while the hit area grows to 30px.
+  const PassportLink = ({ label, onClick, strong, out }) => (
+    <button onClick={onClick} style={{
+      padding: '7px 0', margin: '-7px 0', border: 0, background: 'transparent', cursor: 'pointer', color: t.INK,
+      fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 4,
+      textDecorationThickness: 2, textDecorationColor: strong ? sTeal : t.RULE, whiteSpace: 'nowrap',
+    }}>{label}{out ? <span aria-hidden="true"> ↗</span> : null}</button>
   );
 
   // ⚠ `onBack` IS WHERE THE ROW RETURNS TO, AND IT DEFAULTS TO THE SETTINGS ROOT. The
@@ -35313,38 +35366,29 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // is keyed on `editing` (see there for why) and passes cancelEdit. Either way the row
   // reads "← Settings" and lands ON Settings — never on the shell's own onBack, which
   // closes Settings and lands on Home.
-  // The card's two actions and the edit page's Cancel · Save: ONE button, so the page
-  // reads as the card opened up and the two cannot drift. `tall` is the edit page's
-  // 44px row — the review's comfortable-row height, above the 24px floor, which this
-  // repo names separately so neither is mistaken for the other; the card keeps its own.
-  const PassportBtn = ({ label, onClick, fill, tall, grow = true }) => (
-    <button onClick={onClick} style={{
-      flex: grow ? 1 : '0 0 auto', minWidth: 0, minHeight: tall ? 44 : undefined, padding: tall ? '10px 16px' : '10px 8px',
-      borderRadius: 3, clipPath: BS_CHAMFER, cursor: 'pointer',
-      border: `1px solid ${fill ? t.ACCENT : t.RULE}`, background: fill ? bsTHexA(t.ACCENT, 0.1) : 'transparent',
-      color: fill ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800,
-      letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-    }}>{label}</button>
-  );
-
-  const DetailBack = ({ title, onBack: back = () => setDetail('') }) => (
-    <>
-      {/* Masthead row first (the one inset), then ← Settings on its own row,
-          flush left — the house rule for every drill-in pane. */}
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 2px` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
-        {/* ⚠ PADDED INTO A REAL TAP TARGET, MEASURED AT 78x13 ON THE EDIT PAGE — the same
-            13px row the root's own ← Back had until #2085 padded it. The negative margin
-            cancels the padding so the row is pixel-identical; only the hit area grew, to
-            29px, past the house floor (WCAG 2.5.8 AA at 24px). Every pane gets it, because
-            every pane renders this one row. */}
-        <button onClick={back} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 10px', margin: '-8px -10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {tr('settings:head.title', { defaultValue: 'Settings' })}</button>
-      </div>
-      <div style={{ padding: `12px ${t.padX}px 6px` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{title}</div>
-      </div>
-    </>
-  );
+  // The kicker numbers the page as the root's index does ("01 · Settings"); a page the
+  // index does not list (Cycle, Edit profile) reads "Settings".
+  const DetailBack = ({ title, onBack: back = () => setDetail('') }) => {
+    const at = passportTiles.findIndex((p) => p.detail === detail);
+    const settingsWord = tr('settings:head.title', { defaultValue: 'Settings' });
+    return (
+      <>
+        {/* Masthead row first (the one inset), then ← Settings on its own row,
+            flush left — the house rule for every drill-in pane. */}
+        <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 2px` }}>
+          {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
+          {/* ⚠ PADDED INTO A REAL TAP TARGET, MEASURED AT 78x13 ON THE EDIT PAGE — the same
+              13px row the root's own ← Back had until #2085 padded it. The negative margin
+              cancels the padding so the row is pixel-identical; only the hit area grew, to
+              29px, past the house floor (WCAG 2.5.8 AA at 24px). Every pane gets it, because
+              every pane renders this one row. */}
+          <button onClick={back} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 10px', margin: '-8px -10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {settingsWord}</button>
+        </div>
+        <SettingsTitle kicker={at >= 0 ? `${String(at + 1).padStart(2, '0')} · ${settingsWord}` : settingsWord} title={title} />
+        <div style={{ height: 6 }} />
+      </>
+    );
+  };
 
   // Shared row renderer (dropdown / segmented / link rows) for the detail panes.
   const renderRows = (rows) => (
@@ -35354,10 +35398,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         if (s.dropdown) {
           return (
             <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
               <button onClick={(e) => openDropdown(e, s)} style={{
                 maxWidth: '64%', background: 'transparent', border: 0, outline: 'none', padding: 0, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+                display: 'flex', alignItems: 'center', gap: 6, color: sTealInk, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
               }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prefs[s.key]}</span>
                 <span style={{ fontSize: 8, opacity: 0.7, flexShrink: 0 }}>▾</span>
@@ -35368,21 +35412,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         if (s.segmented) {
           return (
             <div key={i} style={{ padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
-              <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                {s.segmented.map((opt, j) => {
-                  const on = (s.value !== undefined ? s.value : prefs[s.key]) === opt;
-                  return (
-                    <button key={opt} onClick={() => (s.onPick ? s.onPick(opt) : setPref(s.key, opt))} style={{ borderRadius: 5,
-                      flex: 1, padding: '9px 8px', cursor: 'pointer',
-                      border: `1px solid ${on ? `${t.ACCENT}66` : t.RULE}`,
-                      borderLeft: on ? `3px solid ${t.ACCENT}` : `1px solid ${t.RULE}`,
-                      background: on ? `${t.ACCENT}1f` : 'transparent',
-                      color: on ? t.INK : t.INK70,
-                      fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
-                    }}>{(s.segLabels && s.segLabels[j]) || opt}</button>
-                  );
-                })}
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
+              <div style={{ marginTop: 10 }}>
+                <PillPicker options={s.segmented} labels={s.segLabels}
+                  value={s.value !== undefined ? s.value : prefs[s.key]}
+                  onPick={(opt) => (s.onPick ? s.onPick(opt) : setPref(s.key, opt))} />
               </div>
               {s.desc && <div style={{ marginTop: 11, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 }}>{s.desc}</div>}
             </div>
@@ -35396,8 +35430,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
               cursor: (s.action || (s.key && !s.segmented && !s.dropdown)) ? 'pointer' : 'default',
             }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
-              {value && <BSEyebrow color={s.key ? t.ACCENT : undefined}>{value}</BSEyebrow>}
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
+              {value && <BSEyebrow color={s.key ? sTealInk : undefined}>{value}</BSEyebrow>}
             </div>
             {s.desc && <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 }}>{s.desc}</div>}
           </div>
@@ -35819,19 +35853,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' });
         const cornerLabel = hasSub ? renewsLabel : (signedIn ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : tr('settings:plan.notMember', { defaultValue: 'Not a member' }));
         const btnLabel = hasSub ? tr('settings:plan.manage', { defaultValue: 'Manage →' }) : (signedIn ? tr('settings:plan.activate', { defaultValue: 'Activate membership →' }) : tr('settings:plan.join', { defaultValue: 'Join now →' }));
+        // The plan as a pulled-out line (the Settings look, owner 2026-10-27): no box, a
+        // teal quote mark, and the action as an underlined link.
         return (
-          <div style={{ padding: `4px ${t.padX}px 14px` }}>
-            <div style={{ border: `1px solid ${t.AMBER}55`, borderRadius: 14, background: `linear-gradient(150deg, ${t.AMBER}26, ${t.AMBER}08 45%, ${t.PAPER2} 85%), ${t.PAPER2}`, padding: '10px 12px' }}>
+          <div style={{ padding: `0 ${t.padX}px` }}>
+            <div style={{ padding: '16px 0 18px', borderBottom: `1px solid ${t.HAIR}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
                 <BSEyebrow color={t.AMBER}>{tr('settings:plan.your', { defaultValue: 'Your plan' })}</BSEyebrow>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{cornerLabel}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{cornerLabel}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 3 }}>
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <span aria-hidden="true" style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 50, fontWeight: 700, lineHeight: 0.8, color: sTeal }}>“</span>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>{hasSub ? tr('settings:plan.member', { defaultValue: 'Member.' }) : tr('settings:plan.membership', { defaultValue: 'Membership.' })}</span></div>
-                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>{hasSub ? tr('settings:plan.subActive', { price: priceLabel, defaultValue: '{price} · Radio · Community · Marketplace' }) : tr('settings:plan.subInactive', { defaultValue: 'Become a member to join the community' })}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 500, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.15 }}>Shape {hasSub ? tr('settings:plan.member', { defaultValue: 'Member.' }) : tr('settings:plan.membership', { defaultValue: 'Membership.' })}</div>
+                  <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>{hasSub ? tr('settings:plan.subActive', { price: priceLabel, defaultValue: '{price} · Radio · Community · Marketplace' }) : tr('settings:plan.subInactive', { defaultValue: 'Become a member to join the community' })}</div>
+                  <button onClick={hasSub ? openBillingPortal : openUpgradeCheckout} style={{ marginTop: 6, padding: '6px 0', border: 0, background: 'transparent', cursor: 'pointer', color: t.INK, fontFamily: t.BODY, fontSize: 14, fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: 4, textDecorationThickness: 2, textDecorationColor: sTeal }}>{btnLabel}</button>
                 </div>
-                <button onClick={hasSub ? openBillingPortal : openUpgradeCheckout} style={{ flex: 'none', padding: '7px 13px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{btnLabel}</button>
               </div>
             </div>
           </div>
@@ -35853,24 +35890,24 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // one below is an EXISTING summary expression, so a tile and the pane behind it
   // cannot come to disagree about what the app is set to.
   const passportTiles = isCoachRole ? [
-    { glyph: '⌂', title: tr('settings:section.account', { defaultValue: 'Account' }),           summary: cardAccountSummary,  detail: 'account' },
-    { glyph: '◔', title: tr('settings:section.notifications', { defaultValue: 'Notifications' }), summary: cardNotifSummary,    detail: 'notifications' },
-    { glyph: '◇', title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,  detail: 'privacy' },
-    { glyph: '◐', title: tr('settings:section.customize', { defaultValue: 'Customize' }),         summary: cardCustomizeSummary, detail: 'customize' },
+    { title: tr('settings:section.account', { defaultValue: 'Account' }),           summary: cardAccountSummary,  detail: 'account' },
+    { title: tr('settings:section.notifications', { defaultValue: 'Notifications' }), summary: cardNotifSummary,    detail: 'notifications' },
+    { title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,  detail: 'privacy' },
+    { title: tr('settings:section.customize', { defaultValue: 'Customize' }),         summary: cardCustomizeSummary, detail: 'customize' },
     // ⚠ A COACH GETS PREFERENCES, NOT "TRAINING & NUTRITION". The coach card list has
     // never carried the Training or Nutrition sections — those are a member's own
     // training and eating preferences — so composing them into a coach's tile would
     // ADD two sections their settings have never had. The tile is named for what it
     // actually opens.
-    { glyph: '⚙', title: tr('settings:section.preferences', { defaultValue: 'Preferences' }),     summary: cardPrefsSummary,    detail: 'preferences' },
-    { glyph: '↯', title: tr('settings:section.health', { defaultValue: 'Health integrations' }),  summary: cardHealthSummary,   detail: 'health' },
-    { glyph: '▲', title: tr('settings:section.practice', { defaultValue: 'Your practice' }),      summary: tr('settings:card.practiceSummary', { defaultValue: 'Listing \u00b7 profile \u00b7 availability \u00b7 payouts \u00b7 soundtracks' }), detail: 'practice' },
+    { title: tr('settings:section.preferences', { defaultValue: 'Preferences' }),     summary: cardPrefsSummary,    detail: 'preferences' },
+    { title: tr('settings:section.health', { defaultValue: 'Health integrations' }),  summary: cardHealthSummary,   detail: 'health' },
+    { title: tr('settings:section.practice', { defaultValue: 'Your practice' }),      summary: tr('settings:card.practiceSummary', { defaultValue: 'Listing \u00b7 profile \u00b7 availability \u00b7 payouts \u00b7 soundtracks' }), detail: 'practice' },
   ] : [
-    { glyph: '⌂', title: tr('settings:section.account', { defaultValue: 'Account' }),           summary: cardAccountSummary,  detail: 'account' },
-    { glyph: '◔', title: tr('settings:section.notifications', { defaultValue: 'Notifications' }), summary: cardNotifSummary,    detail: 'notifications' },
-    { glyph: '◇', title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,  detail: 'privacy' },
-    { glyph: '◐', title: tr('settings:section.customize', { defaultValue: 'Customize' }),         summary: cardCustomizeSummary, detail: 'customize' },
-    { glyph: '▲', title: tr('settings:section.trainNutri', { defaultValue: 'Training & nutrition' }),
+    { title: tr('settings:section.account', { defaultValue: 'Account' }),           summary: cardAccountSummary,  detail: 'account' },
+    { title: tr('settings:section.notifications', { defaultValue: 'Notifications' }), summary: cardNotifSummary,    detail: 'notifications' },
+    { title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,  detail: 'privacy' },
+    { title: tr('settings:section.customize', { defaultValue: 'Customize' }),         summary: cardCustomizeSummary, detail: 'customize' },
+    { title: tr('settings:section.trainNutri', { defaultValue: 'Training & nutrition' }),
       // ⚠ THE VALUES THEY HAVE SET, OR THE NAMES OF WHAT IS INSIDE — NEVER BOTH
       // FALLBACKS CONCATENATED. Joining the two retired cards' "not set yet" lines
       // read "GOAL · EXPERIENCE · EQUIPMENT · DIET · ALLERGIES · MACROS", which is
@@ -35882,7 +35919,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         nutritionPrefs.dietary_style ? bsPrefOptionLabel('dietary_style', nutritionPrefs.dietary_style, tr) : '',
       ].filter(Boolean).join(' · ') || `${tr('settings:section.training', { defaultValue: 'Training' })} · ${tr('settings:section.nutrition', { defaultValue: 'Nutrition' })}`,
       detail: 'trainnutri' },
-    { glyph: '↯', title: tr('settings:section.health', { defaultValue: 'Health integrations' }),  // The cycle's STATE belongs on the row inside; the tile names what is behind the
+    { title: tr('settings:section.health', { defaultValue: 'Health integrations' }),  // The cycle's STATE belongs on the row inside; the tile names what is behind the
       // door. "Apple Health · WHOOP · Strava · Off · phase, patterns & calendar" was
       // the whole cycle summary pasted onto the end of the integrations one.
       summary: `${cardHealthSummary} · ${tr('cycle:settings.card', { defaultValue: 'Cycle' })}`, detail: 'health' },
@@ -35895,7 +35932,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { title: tr('settings:section.more', { defaultValue: 'More' }), summary: isCoachRole ? tr('settings:card.moreSummaryCoach', { defaultValue: 'Public profile · Score · Store · Radio' }) : tr('settings:card.moreSummaryClient', { defaultValue: 'Goals · Habits · Library · Score · Store' }), detail: 'more' },
     { title: tr('settings:section.about', { defaultValue: 'About' }), summary: cardAboutSummary, value: bsBuildLabel(), detail: 'about' },
     ...(staffLevel ? [{ title: tr('settings:section.admin', { defaultValue: 'Shape admin' }), summary: tr('settings:card.adminSummary', { defaultValue: 'The admin console · opens in your browser' }), detail: 'admin' }] : []),
-    { title: tr('settings:section.accountActions', { defaultValue: 'Account actions' }), summary: cardAccountActionsSummary, detail: 'accountactions', accent: t.RUST },
+    { title: tr('settings:section.accountActions', { defaultValue: 'Account actions' }), summary: cardAccountActionsSummary, detail: 'accountactions' },
   ];
 
   return (
@@ -35999,7 +36036,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <button onClick={() => { setDetail(''); onBack && onBack(); try { window.dispatchEvent(new CustomEvent('shape:openCycle')); } catch (e) {} }}
                   style={{ width: '100%', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 24 }}>
                   <span style={rowTitle}>{tr('cycle:settings.openCalendar', { defaultValue: 'Open cycle calendar' })}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('cycle:settings.open', { defaultValue: 'Open' })} →</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: sTealInk }}>{tr('cycle:settings.open', { defaultValue: 'Open' })} →</span>
                 </button>
               </div>
             ) : null}
@@ -36104,7 +36141,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                         <button
                           onClick={() => inviteWaitEntry(e.id)}
                           disabled={waitInviteBusy === e.id}
-                          style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 9, border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: waitInviteBusy === e.id ? 'default' : 'pointer', opacity: waitInviteBusy === e.id ? 0.6 : 1, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
+                          style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 9, border: `1px solid ${bsTHexA(sTeal, 0.5)}`, background: bsTHexA(sTeal, 0.06), color: sTealInk, cursor: waitInviteBusy === e.id ? 'default' : 'pointer', opacity: waitInviteBusy === e.id ? 0.6 : 1, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
                         >
                           {waitInviteBusy === e.id ? tr('settings:waitroom.inviting', { defaultValue: 'Inviting…' }) : tr('settings:waitroom.invite', { defaultValue: 'Invite' })}
                         </button>
@@ -36128,7 +36165,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           <div style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK }}>
             {tr('settings:admin.body', { defaultValue: 'The admin console opens in your browser. Sign in there with your Shape account and the code from your authenticator app.' })}
           </div>
-          <button type="button" onClick={() => window.ShapeStaff && window.ShapeStaff.openConsole()} style={{ borderRadius: 5, width: '100%', minHeight: 44, padding: '14px', background: bsTHexA(t.ACCENT, 0.07), color: t.ACCENT, border: `1px solid ${t.ACCENT}`, cursor: 'pointer',
+          <button type="button" onClick={() => window.ShapeStaff && window.ShapeStaff.openConsole()} style={{ borderRadius: 5, width: '100%', minHeight: 44, padding: '14px', background: bsTHexA(sTeal, 0.07), color: sTealInk, border: `1px solid ${sTeal}`, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
           }}>{tr('settings:admin.open', { defaultValue: 'Open the admin console' })} ↗</button>
         </div>
@@ -36157,18 +36194,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <DetailBack title={tr('settings:passport.edit', { defaultValue: 'Edit profile' })} onBack={cancelEdit} />
         {(() => {
           const acc = bsMyTierColor(); // the avatar follows my Shape Score tier, as on the card
-          // The Passport's own grammar, not the old form's pills: a mono eyebrow over
-          // each field, squared boxes at radius 3, the house chamfer on every cell that
-          // is a control, and the THEME accent for focus and selection — the tier colour
-          // stays on the avatar, where the card keeps it. Values at 16px display; labels
-          // at 70% ink, the review's floor for a form.
+          // The Settings look (A · Index, owner 2026-10-27): a mono eyebrow over each
+          // field, rounded 12px boxes, rounded pill cells for the choices, and the teal
+          // for focus and selection — the tier colour stays on the avatar, where the
+          // byline keeps it. Values at 16px display; labels at 70% ink, the review's
+          // floor for a form.
           const eyebrow = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, marginBottom: 6 };
           const section = (txt, first) => <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, margin: first ? '6px 0 9px' : '20px 0 9px' }}>{txt}</div>;
-          const field = { width: '100%', boxSizing: 'border-box', minHeight: 44, padding: '11px 13px', borderRadius: 3, border: `1px solid ${t.RULE}`, background: t.PAPER2, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none', transition: 'border-color 0.15s' };
-          const onFocus = (e) => { e.target.style.borderColor = t.ACCENT; };
+          const field = { width: '100%', boxSizing: 'border-box', minHeight: 44, padding: '11px 14px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none', transition: 'border-color 0.15s' };
+          const onFocus = (e) => { e.target.style.borderColor = sTeal; };
           const onBlur = (e) => { e.target.style.borderColor = t.RULE; };
           // A cell is the quick switch's box as a radio: the whole cell is the control.
-          const cell = (on) => ({ flex: 1, minWidth: 0, minHeight: 44, padding: '9px 10px', borderRadius: 3, clipPath: BS_CHAMFER, cursor: 'pointer', textAlign: 'left', border: `1px solid ${on ? bsTHexA(t.ACCENT, 0.55) : t.RULE}`, background: on ? bsTHexA(t.ACCENT, 0.07) : t.PAPER2, color: on ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' });
+          const cell = (on) => ({ flex: 1, minWidth: 0, minHeight: 44, padding: '9px 12px', borderRadius: 999, cursor: 'pointer', textAlign: 'center', border: `1.5px solid ${on ? sTeal : t.RULE}`, background: on ? bsTHexA(sTeal, 0.1) : 'transparent', color: on ? sTealInk : t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' });
           const pronounOpts = ['She/Her', 'He/Him', 'They/Them'];
           const bioLen = (draft.bio || '').length;
           return (
@@ -36177,8 +36214,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               {/* The avatar card — the identity card's own box. The ✎ badge is the one
                   control here: a real <button> named "Change photo" inside BSFacetAvatar.
                   The tier line reads the same role-aware `scoreProfile` as the card. */}
-              <div style={{ display: 'flex', gap: 13, alignItems: 'center', padding: '12px 13px', borderRadius: 3, clipPath: BS_CHAMFER, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-                <BSFacetAvatar size={54} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={(draft.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER2} />
+              <div style={{ display: 'flex', gap: 13, alignItems: 'center', padding: '4px 0 14px', borderBottom: `1px solid ${t.HAIR}` }}>
+                <BSFacetAvatar size={54} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={(draft.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{draft.name || identity.name}</div>
                   <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -36229,7 +36266,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <div style={{ display: 'flex', gap: 7 }}>
                   {pronounOpts.map(p => {
                     const on = draft.pronouns === p;
-                    return <button key={p} aria-pressed={on} onClick={() => edit('pronouns', on ? '' : p)} style={{ ...cell(on), textTransform: 'none', letterSpacing: 0, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: on ? t.ACCENT : t.INK }}>{p}</button>;
+                    return <button key={p} aria-pressed={on} onClick={() => edit('pronouns', on ? '' : p)} style={{ ...cell(on), textTransform: 'none', letterSpacing: 0, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: on ? sTealInk : t.INK }}>{p}</button>;
                   })}
                 </div>
               </div>
@@ -36265,6 +36302,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             its EDIT sibling moved onto the identity card. */}
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 10px', margin: '-8px -10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {tr('settings:head.back', { defaultValue: 'Back' })}</button>
       </div>
+      <SettingsTitle title={tr('settings:head.title', { defaultValue: 'Settings' })} />
 
       {/* ── THE IDENTITY CARD ── who you are, first: the Passport's whole argument.
           The page used to open on an "ACCOUNT / Settings." masthead and three chips,
@@ -36307,11 +36345,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         // not a claim; the first line of your own settings is.
         const sub = [handleKnown ? identity.handle : '', locationKnown ? identity.location : ''].filter(Boolean).join(' · ');
         return (
-          <div style={{ padding: `12px ${t.padX}px 0` }}>
-            <div style={{ display: 'flex', gap: 13, alignItems: 'center', padding: '12px 13px', borderRadius: 3, clipPath: BS_CHAMFER, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-              <BSFacetAvatar size={54} c={acc} initial={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name)} name={identity.name} photo={(identity.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} BG={t.PAPER2} />
+          <div style={{ padding: `0 ${t.padX}px` }}>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '18px 0', borderBottom: `1px solid ${t.HAIR}` }}>
+              <BSFacetAvatar size={56} c={acc} initial={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name)} name={identity.name} photo={(identity.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} BG={t.PAPER} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.025em', color: t.INK, lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{identity.name}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 600, letterSpacing: '-0.025em', color: t.INK, lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{identity.name}</div>
                 {sub ? <div style={{ marginTop: 2, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</div> : null}
                 <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   <span aria-hidden="true" style={{ flexShrink: 0, width: 7, height: 7, borderRadius: 999, background: settingsTierC, display: 'inline-block' }} />
@@ -36322,11 +36360,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                       Each locale's value is built from its OWN word for a tier. */}
                   {tr('settings:passport.tierLine', { tier: scoreProfile.tier, defaultValue: '{tier} tier' })}{statusLine ? ' \u00b7 ' + statusLine : ''}
                 </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 18px', marginTop: 10 }}>
+                  <PassportLink label={tr('settings:passport.edit', { defaultValue: 'Edit profile' })} onClick={startEdit} strong />
+                  <PassportLink label={tr('settings:more.publicProfile', { defaultValue: 'Public profile' })} onClick={() => setShowPublicProfile(true)} out />
+                </div>
               </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
-              <PassportBtn label={tr('settings:passport.edit', { defaultValue: 'Edit profile' })} onClick={startEdit} fill />
-              <PassportBtn label={tr('settings:more.publicProfile', { defaultValue: 'Public profile' })} onClick={() => setShowPublicProfile(true)} />
             </div>
           </div>
         );
@@ -36334,7 +36372,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
       {/* The quick switches. The edit form used to swap in here, under the root's own
           ← Back; it is its own page above now. */}
-      <div style={{ padding: `8px ${t.padX}px 16px` }}>
+      <div style={{ padding: `22px ${t.padX}px 6px` }}>
           <div>
             {/* ── QUICK SWITCHES ── the two things members actually flip, on the
                 root instead of two taps down. Each one is a REAL stored setting and
@@ -36353,8 +36391,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 else the board implied and the app does not store is not built.
                 ⚠ NOR A RADIO SWITCH. Shape Radio is always on air and has no off
                 (owner, 2026-10-18); its sound is the speaker on the radio bar. */}
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, margin: '6px 0 8px' }}>{tr('settings:passport.quick', { defaultValue: 'Quick switches' })}</div>
-            <div style={{ display: 'flex', gap: 7 }}>
+            <RootLabel>{tr('settings:passport.quick', { defaultValue: 'Quick switches' })}</RootLabel>
+            <div>
               <QuickSwitch
                 label={tr('settings:quick.online', { defaultValue: 'Online' })}
                 on={prefs.onlineVisible !== 'Off'}
@@ -36379,15 +36417,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
               {tr('settings:preview.profileType', { defaultValue: 'Profile type' })}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div role="radiogroup" style={{ display: 'flex', gap: 2, padding: 3, borderRadius: 999, background: bsTHexA(t.INK, 0.07) }}>
               {[['client', tr('settings:preview.roleClient', { defaultValue: 'Client' })], ['trainer', tr('settings:preview.roleTrainer', { defaultValue: 'Trainer' })], ['nutritionist', tr('settings:preview.roleNutrition', { defaultValue: 'Nutrition' })]].map(([key, label]) => {
                 const on = (tweaks.role || 'client') === key;
                 return (
-                  <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: t.RADIUS_SM,
-                    flex: 1, padding: '9px 9px', cursor: 'pointer',
-                    border: `1px solid ${on ? t.INK : t.RULE}`,
-                    background: on ? t.INK : 'transparent',
-                    color: on ? t.PAPER : t.INK,
+                  <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: 999,
+                    flex: 1, minHeight: 32, padding: '8px 9px', cursor: 'pointer', border: 0,
+                    background: on ? sTealInk : 'transparent',
+                    color: on ? sOnTeal : t.INK70,
                     fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
                   }}>{label}</button>
                 );
@@ -36415,15 +36452,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
                 {tr('settings:profileMode.active', { defaultValue: 'Active profile' })}
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div role="radiogroup" style={{ display: 'flex', gap: 2, padding: 3, borderRadius: 999, background: bsTHexA(t.INK, 0.07) }}>
                 {accountRoles.map(key => {
                   const on = activeRole === key;
                   return (
-                    <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: t.RADIUS_SM,
-                      flex: 1, padding: '9px 9px', cursor: 'pointer',
-                      border: `1px solid ${on ? t.INK : t.RULE}`,
-                      background: on ? t.INK : 'transparent',
-                      color: on ? t.PAPER : t.INK,
+                    <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: 999,
+                      flex: 1, minHeight: 32, padding: '8px 9px', cursor: 'pointer', border: 0,
+                      background: on ? sTealInk : 'transparent',
+                      color: on ? sOnTeal : t.INK70,
                       fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
                     }}>{ROLE_LABELS[key] || key}</button>
                   );
@@ -36457,12 +36493,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, textAlign: 'left',
       }}>
         <div>
-          <BSEyebrow color={t.ACCENT}>{tr('settings:appearance.eyebrow', { defaultValue: 'Appearance' })}</BSEyebrow>
+          <BSEyebrow color={sTealInk}>{tr('settings:appearance.eyebrow', { defaultValue: 'Appearance' })}</BSEyebrow>
           <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:appearance.title', { defaultValue: 'Theme & texture' })}</div>
           <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:appearance.subtitle', { paper: tr('settings:paper.' + (tweaks.paperMode || 'light'), { defaultValue: bsPaperLabel(tweaks.paperMode || 'light') }), accent: tr('settings:accent.' + (tweaks.accentKey || 'blue'), { defaultValue: bsAccentLabel(tweaks.accentKey || 'blue') }), defaultValue: '{paper} · {accent}' })}</div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showAppearance ? tr('settings:appearance.close', { defaultValue: 'Close ▾' }) : tr('settings:appearance.customize', { defaultValue: 'Customize ▸' })}</span>
+          <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${sTeal}`, background: `${sTeal}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showAppearance ? tr('settings:appearance.close', { defaultValue: 'Close ▾' }) : tr('settings:appearance.customize', { defaultValue: 'Customize ▸' })}</span>
         </span>
       </button>
       {showAppearance && (
@@ -36480,7 +36516,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 color: on ? t.INK : t.INK50,
                 fontFamily: t.DISPLAY, fontSize: 16, fontWeight: on ? 700 : 500, letterSpacing: '-0.01em',
               }}>{l}
-                <span style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2.5, borderRadius: 2, background: on ? t.ACCENT : 'transparent' }} />
+                <span style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2.5, borderRadius: 2, background: on ? sTeal : 'transparent' }} />
               </button>
             );
           })}
@@ -36573,7 +36609,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                   <span aria-hidden="true" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: 38, background: paperEntry[2], overflow: 'hidden', flexShrink: 0 }}>
                     <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: customOn ? bsInkPreviewHex(tweaks.inkOverride, paperEntry[2], paperEntry[3]) : paperEntry[3], opacity: customOn ? 1 : 0.45 }}>Aa</span>
                     {customOn && (
-                      <span style={{ position: 'absolute', top: 4, right: 4, width: 14, height: 14, borderRadius: 999, background: t.ACCENT, color: t.PAPER, fontSize: 9, lineHeight: '14px', fontWeight: 800, fontFamily: t.MONO, textAlign: 'center' }}>✓</span>
+                      <span style={{ position: 'absolute', top: 4, right: 4, width: 14, height: 14, borderRadius: 999, background: sTeal, color: t.PAPER, fontSize: 9, lineHeight: '14px', fontWeight: 800, fontFamily: t.MONO, textAlign: 'center' }}>✓</span>
                     )}
                   </span>
                   <span style={{ display: 'block', width: '100%', padding: '5px 3px 6px', borderTop: `1px solid ${customOn ? t.INK : t.HAIR}`,
@@ -36614,7 +36650,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           collapsed Appearance block for discoverability; scales the whole UI via the
           surface `zoom`, so layout stays proportional at every size). */}
       <div style={{ padding: `12px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>{tr('settings:a11y.eyebrow', { defaultValue: 'Accessibility' })}</BSEyebrow>
+        <BSEyebrow color={sTealInk}>{tr('settings:a11y.eyebrow', { defaultValue: 'Accessibility' })}</BSEyebrow>
         <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:a11y.textSize', { defaultValue: 'Text size' })}</div>
         <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:a11y.textSizeSub', { size: tr('settings:textsize.' + (tweaks.textScaleKey || 'medium'), { defaultValue: bsTextSizeLabel(tweaks.textScaleKey) }), defaultValue: 'Scales the whole app · {size}' })}</div>
         <div style={{ marginTop: 12 }}>
@@ -36650,7 +36686,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, textAlign: 'left',
       }}>
         <div>
-          <BSEyebrow color={t.ACCENT}>{tr('settings:fx.eyebrow', { defaultValue: 'Light effects' })}</BSEyebrow>
+          <BSEyebrow color={sTealInk}>{tr('settings:fx.eyebrow', { defaultValue: 'Light effects' })}</BSEyebrow>
           <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:fx.title', { defaultValue: 'Reactive overlay' })}</div>
           <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{(() => {
             // The subtitle interpolates the LOCALIZED mode label (never the raw
@@ -36665,7 +36701,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           })()}</div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showLightFx ? tr('settings:appearance.close', { defaultValue: 'Close ▾' }) : tr('settings:appearance.customize', { defaultValue: 'Customize ▸' })}</span>
+          <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${sTeal}`, background: `${sTeal}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showLightFx ? tr('settings:appearance.close', { defaultValue: 'Close ▾' }) : tr('settings:appearance.customize', { defaultValue: 'Customize ▸' })}</span>
         </span>
       </button>
       {showLightFx && (() => {
@@ -36709,11 +36745,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 background: 'transparent', display: 'flex', flexDirection: 'column', minWidth: 0,
               }}>
                 <span aria-hidden="true" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', height: 38, background: t.PAPER2, padding: '0 10px', boxSizing: 'border-box', flexShrink: 0 }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 14, color: active ? t.ACCENT : t.INK }}>{m.glyph}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 14, color: active ? sTealInk : t.INK }}>{m.glyph}</span>
                   <span style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 16 }}>
                     {[0, 1, 2].map(i => (
                       <span key={i} style={{ width: 4, height: 6 + i * 5, borderRadius: 1, boxSizing: 'border-box',
-                        background: i < m.lvl ? t.ACCENT : 'transparent',
+                        background: i < m.lvl ? sTeal : 'transparent',
                         border: i < m.lvl ? 0 : `1px solid ${t.RULE}` }} />
                     ))}
                   </span>
@@ -36721,7 +36757,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <span style={{ display: 'block', width: '100%', padding: '6px 10px 8px', borderTop: `1px solid ${active ? t.INK : t.HAIR}`, boxSizing: 'border-box' }}>
                   <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
                     <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK }}>{m.title}</span>
-                    {active && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', color: t.ACCENT, flexShrink: 0 }}>{tr('settings:fx.on', { defaultValue: '● ON' })}</span>}
+                    {active && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', color: sTealInk, flexShrink: 0 }}>{tr('settings:fx.on', { defaultValue: '● ON' })}</span>}
                   </span>
                   <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.04em', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.sub}</span>
                 </span>
@@ -36793,7 +36829,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               </div>
               <button onClick={() => tickerMove(key, -1)} disabled={idx === 0} title={tr('settings:ticker.moveUp', { defaultValue: 'Move up' })} style={{ background: 'transparent', border: 0, color: idx === 0 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === 0 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↑</button>
               <button onClick={() => tickerMove(key, 1)} disabled={idx === arr.length - 1} title={tr('settings:ticker.moveDown', { defaultValue: 'Move down' })} style={{ background: 'transparent', border: 0, color: idx === arr.length - 1 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === arr.length - 1 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↓</button>
-              <button onClick={() => tickerToggle(key)} title={shown ? tr('settings:ticker.hide', { defaultValue: 'Hide' }) : tr('settings:ticker.show', { defaultValue: 'Show' })} style={{ width: 34, height: 20, borderRadius: 999, padding: 2, flexShrink: 0, border: 0, background: shown ? t.ACCENT : t.RULE, cursor: 'pointer', display: 'flex', justifyContent: shown ? 'flex-end' : 'flex-start' }}>
+              <button onClick={() => tickerToggle(key)} title={shown ? tr('settings:ticker.hide', { defaultValue: 'Hide' }) : tr('settings:ticker.show', { defaultValue: 'Show' })} style={{ width: 34, height: 20, borderRadius: 999, padding: 2, flexShrink: 0, border: 0, background: shown ? sTeal : t.RULE, cursor: 'pointer', display: 'flex', justifyContent: shown ? 'flex-end' : 'flex-start' }}>
                 <span style={{ width: 14, height: 14, borderRadius: 999, background: shown ? t.PAPER : t.INK50, display: 'block' }} />
               </button>
             </div>
@@ -36804,31 +36840,29 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       </>)}
 
       {!detail && !editing && (<>
-      {/* ── THE DOORS ── a two-column grid of tiles, then the three Also rows.
+      {/* ── THE DOORS ── a numbered index of the sections, then the three Also rows.
           ⚠ THE HEADING IS NO LONGER "More · 12 sections". The 2026-09-14 review's
           sharpest measurement was that the whole settings tree lived under a word
           meaning "the rest", one of whose twelve cards was itself called More. The
           grid is the settings; More is one row in Also, where it belongs. */}
-      <SectionHead title={tr('settings:head.title', { defaultValue: 'Settings' })} meta={tr('settings:more.sectionsMeta', { n: passportTiles.length, defaultValue: '{n} sections' })} />
-      <div style={{ padding: `6px ${t.padX}px 10px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        {passportTiles.map((c) => (
-          <PassportTile key={c.detail} glyph={c.glyph} title={c.title} summary={c.summary} accent={c.accent} onClick={() => setDetail(c.detail)} />
+      <div style={{ padding: `30px ${t.padX}px 0` }}>
+        <RootLabel heavy>{tr('settings:more.sectionsMeta', { n: passportTiles.length, defaultValue: '{n} sections' })}</RootLabel>
+        {passportTiles.map((c, i) => (
+          <PassportTile key={c.detail} n={String(i + 1).padStart(2, '0')} title={c.title} summary={c.summary} onClick={() => setDetail(c.detail)} />
         ))}
       </div>
 
-      <div style={{ padding: `10px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:passport.also', { defaultValue: 'Also' })}</div>
-      </div>
-      <div style={{ padding: `0 ${t.padX}px 10px`, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: `30px ${t.padX}px 10px` }}>
+        <RootLabel>{tr('settings:passport.also', { defaultValue: 'Also' })}</RootLabel>
         {alsoRows.map((c, i) => (
-          <HubCard key={c.detail} title={c.title} summary={c.summary} value={c.value} accent={c.accent} last={i === alsoRows.length - 1} onClick={() => setDetail(c.detail)} />
+          <HubCard key={c.detail} title={c.title} summary={c.summary} value={c.value} last={i === alsoRows.length - 1} onClick={() => setDetail(c.detail)} />
         ))}
       </div>
 
-      {/* Sign out — pushed down with breathing room before the footer */}
+      {/* Sign out — ink over an ink rule, with breathing room before the footer. */}
       <div style={{ padding: `28px ${t.padX}px 32px` }}>
-        <button onClick={onLogout} style={{ borderRadius: 5, borderLeft: `3px solid ${t.RUST}`,
-          width: '100%', padding: '14px', background: `${t.RUST}10`, color: t.RUST, border: `1px solid ${t.RUST}`, cursor: 'pointer',
+        <button onClick={onLogout} style={{
+          width: '100%', padding: '14px 0 4px', background: 'transparent', color: t.INK, border: 0, borderTop: `2px solid ${t.INK}`, cursor: 'pointer', textAlign: 'left',
           fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
         }}>{tr('settings:action.signOut', { defaultValue: 'Sign out' })}</button>
       </div>
@@ -36858,10 +36892,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               return (
                 <button key={opt} onClick={() => { setPref(dropdown.key, opt); setDropdown(null); }} style={{
                   width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                  padding: '12px 12px', border: 0, borderTop: `1px solid ${t.HAIR}`, background: on ? `${t.ACCENT}14` : 'transparent', cursor: 'pointer', textAlign: 'left',
+                  padding: '12px 12px', border: 0, borderTop: `1px solid ${t.HAIR}`, background: on ? `${sTeal}14` : 'transparent', cursor: 'pointer', textAlign: 'left',
                 }}>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK }}>{opt}</span>
-                  {on && <span style={{ color: t.ACCENT, fontSize: 13, fontWeight: 800, flexShrink: 0 }}>✓</span>}
+                  {on && <span style={{ color: sTealInk, fontSize: 13, fontWeight: 800, flexShrink: 0 }}>✓</span>}
                 </button>
               );
             })}
@@ -36877,7 +36911,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             {editField.options && editField.options.length > 0 && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                 {editField.options.map((opt) => { const id = (opt && opt.id != null) ? opt.id : opt; const on = bsPrefOptionToken(editField.key, editField.value, tr) === String(id); return (
-                  <button key={id} onClick={() => setEditField(f => ({ ...f, value: id }))} style={{ padding: '6px 11px', borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}1c` : 'transparent', color: on ? t.ACCENT : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{bsPrefOptionLabel(editField.key, id, tr)}</button>
+                  <button key={id} onClick={() => setEditField(f => ({ ...f, value: id }))} style={{ padding: '6px 11px', borderRadius: 999, border: `1px solid ${on ? sTeal : t.RULE}`, background: on ? `${sTeal}1c` : 'transparent', color: on ? sTealInk : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{bsPrefOptionLabel(editField.key, id, tr)}</button>
                 ); })}
               </div>
             )}

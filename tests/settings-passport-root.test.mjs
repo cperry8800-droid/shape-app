@@ -214,18 +214,49 @@ test('the identity card prints a city only when the member supplied one', () => 
   assert.match(hydrate, /'location' in d/, 'nothing learns whether the saved identity actually carried a location');
 });
 
-test('the tiles are squared and chamfered, on the owner’s note', () => {
-  // Owner, 2026-09-14: "give the boxes a more square edgy look". The chamfer is the
-  // house polygon thirteen other surfaces already clip with, named once here.
-  assert.match(src, /const BS_CHAMFER = 'polygon\(0 0, calc\(100% - 11px\) 0, 100% 11px, 100% 100%, 0 100%\)'/,
-    'the house chamfer is not defined');
-  for (const c of ['PassportTile', 'QuickSwitch', 'PassportBtn']) {
-    const i = src.indexOf(`const ${c} = `);
-    assert.ok(i > 0, `${c} is gone`);
-    const body = src.slice(i, i + 1600);
-    assert.match(body, /clipPath: BS_CHAMFER/, `${c} is not chamfered`);
-    assert.match(body, /borderRadius: 3/, `${c} is not squared — the owner asked for edgy, not rounded`);
+test('Settings is A · Index: ruled rows, rounded controls, one teal (owner, 2026-10-27)', () => {
+  // Owner, 2026-10-27, choosing A from a preview of two: "go with A, but make sure these
+  // are rounded not so square", "keep the teal coloring", "dont need the perfect square
+  // toggle". It replaces the squared, chamfered Passport boxes of 2026-09-14.
+  const clean = stripComments(src);
+  const start = clean.indexOf('function BSSettings(');
+  const settings = clean.slice(start, clean.indexOf('\nfunction ', start + 10));
+  assert.ok(!/BS_CHAMFER|clipPath/.test(settings), 'a chamfered box is back in Settings');
+  // The one colour is the theme's teal, whatever accent the member chose.
+  assert.match(settings, /const sTeal = t\.isLight \? '#0a8f87' : '#34d6c5';/, 'the Settings teal is not the theme teal');
+  assert.match(settings, /const sTealInk = t\.isLight \? '#0a7a72' : '#34d6c5';/, 'small teal text lost its deeper teal');
+  // The one read of the member's accent left is the Light effects "Accent" swatch, which
+  // shows that accent by design.
+  const accents = [...settings.matchAll(/t\.ACCENT/g)].length;
+  assert.equal(accents, 1, `Settings reads the member's accent at ${accents} sites; only the Accent swatch may`);
+  assert.match(settings, /\['accent', tr\('settings:appearance\.tabAccent', \{ defaultValue: 'Accent' \}\), t\.ACCENT\]/, 'the Accent swatch no longer shows the member\'s accent');
+  const body = (c, len = 1400) => { const i = settings.indexOf(`const ${c} = `); assert.ok(i > 0, `${c} is gone`); return settings.slice(i, i + len); };
+  // The rows are ruled, not boxed: no fill, a hairline under each.
+  for (const c of ['PassportTile', 'QuickSwitch', 'HubCard']) {
+    const b = body(c);
+    assert.match(b, /background: 'transparent'/, `${c} is a filled box again`);
+    assert.match(b, /borderBottom: /, `${c} lost its rule`);
+    assert.ok(!/borderRadius: 3\b/.test(b), `${c} is squared again`);
   }
+  // The controls are rounded: the pill switch (in the quick switch and the panes), the
+  // pill picker, Cancel · Save, and the 12px swatch tiles.
+  assert.match(body('Toggle'), /borderRadius: 999/, 'the switch is not a pill');
+  assert.match(body('QuickSwitch'), /borderRadius: 999/, 'the quick switch lost its pill');
+  assert.match(body('PillPicker'), /borderRadius: 999[\s\S]*borderRadius: 999/, 'the picker or its pill is not rounded');
+  assert.match(body('PassportBtn'), /borderRadius: 999/, 'Cancel · Save are not rounded');
+  assert.match(body('OptCell'), /borderRadius: 12/, 'the swatch tile is not rounded');
+  // Segmented rows draw the pill picker, choosing through the same writer as before.
+  assert.match(body('renderRows', 4000), /<PillPicker options=\{s\.segmented\} labels=\{s\.segLabels\}/, 'a segmented row is not a pill picker');
+  assert.match(body('renderRows', 4000), /onPick=\{\(opt\) => \(s\.onPick \? s\.onPick\(opt\) : setPref\(s\.key, opt\)\)\}/, 'the picker no longer writes through setPref');
+  // The doors are a numbered index; every page opens on a headline over the double rule.
+  assert.match(settings, /<PassportTile key=\{c\.detail\} n=\{String\(i \+ 1\)\.padStart\(2, '0'\)\}/, 'the doors are not numbered');
+  assert.match(settings, /<SettingsTitle title=\{tr\('settings:head\.title'/, 'the root lost its headline');
+  assert.match(body('DetailBack', 3000), /<SettingsTitle kicker=\{at >= 0 \?/, 'a pane lost its numbered headline');
+  assert.match(body('SettingsTitle'), /borderTop: `3px solid \$\{t\.INK\}`[\s\S]*borderTop: `1px solid \$\{t\.INK\}`/, 'the double rule is gone');
+  // Nothing on the root is red now: Sign out and Account actions are ink.
+  assert.ok(!/accent: t\.RUST/.test(settings), 'an Also row is rust again');
+  const signOut = settings.slice(settings.lastIndexOf('<button onClick={onLogout}'), settings.indexOf("tr('settings:action.signOut'"));
+  assert.ok(signOut.length > 50 && !/RUST/.test(signOut), 'Sign out is red again');
 });
 
 test('a coach gets Preferences, never a Training & nutrition door they never had', () => {
@@ -439,40 +470,34 @@ test('the root, its own Back and the doors are hidden while editing', () => {
   assert.ok(shellBack > root && shellBack < tiles, 'the shell’s Back (onClick={onBack}) is outside the !editing root fragment');
 });
 
-test('the edit page is squared and chamfered, in the Passport’s own grammar', () => {
+test('the edit page is in the Settings look: rounded fields, pill cells, no box', () => {
   const pane = editPane();
-  // Every control cell in the form is the quick switch's box; every text box is squared.
+  // Every control cell in the form is one pill cell; every text box is rounded.
   const lines = pane.split('\n').filter(l => l.includes('<button '));
   assert.equal(lines.length, 2, `expected the two cell rows (avatar source, pronouns), found ${lines.length} <button> lines`);
-  for (const l of lines) assert.match(l, /style=\{(cell\(on\)|\{ \.\.\.cell\(on\))/, `a control in the form is not a Passport cell: ${l.trim().slice(0, 80)}`);
+  for (const l of lines) assert.match(l, /style=\{(cell\(on\)|\{ \.\.\.cell\(on\))/, `a control in the form is not a Settings cell: ${l.trim().slice(0, 80)}`);
   const cellAt = pane.indexOf('const cell = ');
   assert.ok(cellAt > 0, 'the cell style is gone');
-  assert.match(pane.slice(cellAt, cellAt + 400), /borderRadius: 3, clipPath: BS_CHAMFER/, 'the cell lost its square corner or its chamfer');
+  assert.match(pane.slice(cellAt, cellAt + 400), /borderRadius: 999,/, 'the cell is not a pill');
   const fieldAt = pane.indexOf('const field = ');
   assert.ok(fieldAt > 0, 'the field style is gone');
-  assert.match(pane.slice(fieldAt, fieldAt + 300), /borderRadius: 3,/, 'the text boxes are rounded again');
-  // Every radius in the form is 3 and every clip is the chamfer — the 7px tier dot is
-  // a dot, not a pill, and is the one radius-999 the pane may carry. Stated as "no
-  // other value" rather than "no 999": a cell that spreads cell(on) and then overrides
-  // its clipPath is still a cell(on) by the line check above.
+  assert.match(pane.slice(fieldAt, fieldAt + 300), /borderRadius: 12,/, 'the text boxes are not rounded');
+  // No chamfer and no squared box anywhere in the form. The 7px tier dot is a dot.
   const noDot = pane.replace(/width: 7, height: 7, borderRadius: 999/g, '');
   const radii = [...noDot.matchAll(/borderRadius: ([^,}\n]+)/g)].map(m => m[1].trim());
-  // ⚠ THE FLOOR IS THREE, MEASURED: the field, the cell and the avatar card. A first
-  // draft said four and failed the correct tree — a vacuity floor is a claim too.
-  assert.ok(radii.length >= 3, `expected the field, the cell and the avatar card to set a radius; found ${radii.length}`);
-  assert.deepEqual([...new Set(radii)], ['3'], `a rounded box came back into the form: ${radii.filter(r => r !== '3').join(', ')}`);
-  const clips = [...noDot.matchAll(/clipPath: ([^,}\n]+)/g)].map(m => m[1].trim());
-  assert.ok(clips.length >= 2, 'the form no longer clips its cells and its avatar card');
-  assert.deepEqual([...new Set(clips)], ['BS_CHAMFER'], `a cell overrides the chamfer: ${clips.filter(c => c !== 'BS_CHAMFER').join(', ')}`);
-  // The avatar card is the identity card's box, with the ✎ control on the avatar.
+  assert.ok(radii.length >= 2, `expected the field and the cell to set a radius; found ${radii.length}`);
+  assert.deepEqual([...new Set(radii)].filter(r => r !== '12' && r !== '999'), [], `a squared box came back into the form: ${radii.join(', ')}`);
+  assert.ok(!/clipPath/.test(noDot), 'the form clips a cell again');
+  // The avatar sits on a rule, with the ✎ control on the avatar.
   assert.match(pane, /<BSFacetAvatar [^\n]*editable onEdit=/, 'the avatar lost its ✎ control');
-  // Cancel · Save are the card's own button — the two cannot drift.
-  assert.equal(pane.split('<PassportBtn ').length - 1, 2, 'Cancel and Save are not the card’s own button');
+  // Cancel · Save are the page's two rounded buttons.
+  assert.equal(pane.split('<PassportBtn ').length - 1, 2, 'Cancel and Save are not PassportBtn');
   assert.match(pane, /<PassportBtn label=\{tr\('settings:edit\.saveChanges'[^\n]*onClick=\{saveEdit\} fill tall \/>/, 'Save is not the filled, 44px PassportBtn');
+  // The byline's two actions are links, the same component, so they cannot drift.
   const cardAt = src.indexOf('const sub = [handleKnown ? identity.handle');
-  assert.ok(cardAt > 0, 'the identity card is gone');
-  assert.equal(src.slice(cardAt, cardAt + 3000).split('<PassportBtn ').length - 1, 2, 'the identity card’s two actions no longer use PassportBtn');
-  // And the tier line reads the same role-aware reading as the card, or a coach reads
+  assert.ok(cardAt > 0, 'the byline is gone');
+  assert.equal(src.slice(cardAt, cardAt + 3000).split('<PassportLink ').length - 1, 2, 'the byline’s two actions are not PassportLink');
+  // And the tier line reads the same role-aware reading as the byline, or a coach reads
   // two tiers one tap apart — the Codex P2 from #2085, kept closed.
   assert.match(pane, /tr\('settings:edit\.tierColor', \{ tier: scoreProfile\.tier,/, 'the edit page’s tier line is not the role-aware reading');
 });
