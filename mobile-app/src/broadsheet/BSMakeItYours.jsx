@@ -404,10 +404,11 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel }) {
 }
 
 // ── The editor ──────────────────────────────────────────────────────────────────────────────
-export function BSMakeItYours({ role = 'trainer', initial = null, startTab = 'colors', who = {}, words = null, photos = [], onClose, onSaved }) {
+export function BSMakeItYours({ role = 'trainer', ownerUid = null, initial = null, startTab = 'colors', who = {}, words = null, photos = [], onClose, onSaved }) {
   const tr = useShapeTr();
-  // The account that opened the editor: the only one it reads for or saves to.
-  const [owner] = React.useState(signedInUid);
+  // The account the editor is for (the one its `initial` doc was read for, else the one signed in
+  // when it opened): the only one it reads for or saves to.
+  const [owner] = React.useState(() => ownerUid || signedInUid());
   // What the editor opened on, fixed for its life, so what reads as changed is what the coach
   // changed here. The profile opens it only once their doc is read (Codex P1 on #2484).
   const [seed] = React.useState(() => {

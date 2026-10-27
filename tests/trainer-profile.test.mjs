@@ -74,7 +74,7 @@ function reset(over = {}) {
     busy: [], rules: { consultMin: 20, introsAtCapacity: false }, atCapacity: false, posts: [], canView: true,
     // stored: the profile_custom doc ({} is no row, as the real read answers); readFails: the read
     // errs; switchOnRead: another account signs in while the read is in flight.
-    booked: null, bookError: null, saved: null, stored: {}, readWith: undefined, readFails: false, switchOnRead: false, me: 'u-me',
+    booked: null, bookError: null, saved: null, stored: {}, readWith: undefined, readFails: false, switchOnRead: false, me: 'u-me', availFor: null,
     ...over,
   };
 }
@@ -82,7 +82,7 @@ reset();
 window.ShapeAuth = { getCachedState: () => ({ user: { id: world.me } }) };
 window.ShapeProfiles = { getPublicProfile: async () => ({ name: 'Maya Okafor', pronouns: world.pronouns, bio: 'I teach people to lift well.', points: 6200, custom: world.custom, can_view: world.canView }) };
 window.ShapeCoachListing = { publicByOwner: async () => world.provider };
-window.ShapeCoachAvailability = { get: async () => ({ slots: world.slots, booked: [], busy: world.busy, rules: world.rules, timezone: ZONE, atCapacity: world.atCapacity }) };
+window.ShapeCoachAvailability = { get: async (role, id) => (world.availFor = id, { slots: world.slots, booked: [], busy: world.busy, rules: world.rules, timezone: ZONE, atCapacity: world.atCapacity }) };
 window.ShapeCoachReviews = { forOwner: async () => ({ reviews: [], avg: 0, count: 0 }) };
 window.ShapeCoachPlans = { salePlansByUser: async () => [] };
 window.ShapeFollows = { stats: async () => ({ isFollowing: false, isPending: false }), toggle: async () => ({ isFollowing: true }), getCached: () => null };
@@ -341,4 +341,60 @@ test('on their own page a coach sees their open times as members do, but cannot 
   assert.ok(button(/^Make it yours$/) && button(/^Your hours$/), 'their own actions instead of Message and Work with');
   assert.ok(!button(/^Message Maya$/), 'no Message on their own page');
   await m.unmount();
+});
+
+test('a listing the lookup does not find is not offered from the marketplace snapshot (Codex P1 on #2484)', async () => {
+  // Opened from the marketplace, then taken off it: the snapshot still carries its id, photos and price.
+  const photo = `https://${BS_SUPABASE_HOST}/storage/v1/object/public/coach-media/u-maya/box.webp`;
+  const snapshot = { coach: { provider_id: 7, db_id: 7, listing_media: { cover: photo, gallery: [] } }, packages: [{ type: 'Subscription', name: 'Monthly coaching', price: '$180' }] };
+  reset({ provider: null });
+  const m = await mount(page({ person: { ...maya, commerce: snapshot } }));
+  assert.equal(world.availFor, null, 'no open times are read for it');
+  assert.match(m.text(), /Maya has no open times on Shape yet/);
+  assert.ok(!document.querySelector(`img[src="${photo}"]`), 'nor its photo shown');
+  await click(button(/^Work with her$/));
+  assert.ok(!document.querySelector('[data-coaching-block]'), 'nor its checkout offered');
+  await m.unmount();
+  // Found and listed, the same page reads that listing's times.
+  reset();
+  const m2 = await mount(page({ person: { ...maya, commerce: snapshot } }));
+  assert.equal(world.availFor, 7);
+  await m2.unmount();
+});
+
+test('a private profile shows nothing from the listing either: no wall, specialty, place or Work with (Codex P1 on #2484)', async () => {
+  const photo = `https://${BS_SUPABASE_HOST}/storage/v1/object/public/coach-media/u-maya/box.webp`;
+  reset({ canView: false, provider: { ...world.provider, listing_media: { cover: photo, gallery: [] } } });
+  const m = await mount(page({ person: { ...maya, city: 'Fishtown' } }));
+  assert.match(m.text(), /keeps their profile private/);
+  assert.ok(!document.querySelector(`img[src="${photo}"]`), 'no listing wall photo');
+  assert.doesNotMatch(m.text(), /Strength coach|Fishtown/, 'no specialty or place');
+  assert.ok(!button(/^Work with/), 'no storefront');
+  assert.ok(button(/^Follow$/), 'Follow stays: it is how to ask to see more');
+  await m.unmount();
+});
+
+test('Make it yours opens only for the account its doc was read for (Codex P1 on #2484)', async () => {
+  reset({ me: 'u-maya', stored: { look: { paper: 'bone', accent: 'rust' } } });
+  const m = await mount(page({ isSelf: true }));
+  // Another account signs in while the page stays up; its own doc is different.
+  world.me = 'u-other';
+  world.stored = { look: { paper: 'sage', accent: 'blue' } };
+  await click(button(/^Make it yours$/));
+  assert.ok(!document.querySelector('[data-make-it-yours]'), 'not opened on the first account\'s doc');
+  assert.deepEqual(world.readWith, { expectedUserId: 'u-other' }, 'it reads again, for the account signed in now');
+  await click(button(/^Make it yours$/));
+  assert.equal(document.querySelector('[data-paper="sage"]').getAttribute('aria-pressed'), 'true', 'and opens on that account\'s doc');
+  await click(document.querySelector('[data-accent="green"]'));
+  await click(document.querySelector('[data-save-mine]'));
+  assert.deepEqual(world.saved.opts, { expectedUserId: 'u-other' });
+  assert.deepEqual(world.saved.d.look, { paper: 'sage', accent: 'green', focus: 'center' });
+  await m.unmount();
+});
+
+test('the day runs local midnight to local midnight, so a clock-change day keeps its own hours (Codex P2 on #2484)', () => {
+  // Pinned on the source: whether the strip crosses a clock change depends on the real date.
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), 'utf8');
+  assert.match(src, /const dayEnd = new Date\(picked\.getFullYear\(\), picked\.getMonth\(\), picked\.getDate\(\) \+ 1\)\.getTime\(\);/);
+  assert.doesNotMatch(src, /dayStart \+ 86400000/);
 });

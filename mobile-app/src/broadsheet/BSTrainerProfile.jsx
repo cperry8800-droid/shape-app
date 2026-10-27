@@ -105,6 +105,7 @@ export function BSTrainerProfile(props) {
   // Whether the coach's own doc has been read. Make it yours opens only on that doc, never on the
   // defaults, which a save would write over their look, studio and wall photo (Codex P1 on #2484).
   const [ownState, setOwnState] = React.useState('loading');
+  const [ownFor, setOwnFor] = React.useState(null); // the account `own` was read for
   const [ownEpoch, setOwnEpoch] = React.useState(0);
   React.useEffect(() => {
     if (!isSelf) return undefined;
@@ -117,13 +118,13 @@ export function BSTrainerProfile(props) {
       let d = null;
       try { d = await window.shapeDb?.getUserGoals?.('profile_custom', { expectedUserId: uid }); } catch (e) { d = null; }
       if (!on) return;
-      if (d && typeof d === 'object' && !Array.isArray(d)) { setOwn(d); setOwnState('ready'); } else setOwnState('error');
+      if (d && typeof d === 'object' && !Array.isArray(d)) { setOwn(d); setOwnFor(uid); setOwnState('ready'); } else setOwnState('error');
     })();
     return () => { on = false; };
   }, [isSelf, ownEpoch]);
   const custom = isSelf ? own : (live && live.custom) || null;
   const look = bsProfileLook(custom && custom.look) || {};
-  const page = <TrainerPage {...props} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} onRetryOwn={() => setOwnEpoch((n) => n + 1)} />;
+  const page = <TrainerPage {...props} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} ownFor={ownFor} onRetryOwn={() => setOwnEpoch((n) => n + 1)} />;
   if (!BSProvider) return page;
   return (
     <BSProvider paperMode={look.paper || 'dark'} accentKey={look.accent || 'teal'} densityKey={outer.densityKey} borderKey={outer.borderKey}
@@ -133,7 +134,7 @@ export function BSTrainerProfile(props) {
   );
 }
 
-function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, live, custom, setOwn, ownState = 'ready', onRetryOwn = () => {} }) {
+function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {} }) {
   const W = window;
   const t = W.useBS();
   const tr = useShapeTr();
@@ -171,9 +172,9 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const bio = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || '';
 
   // ── Their listing (provider row): open times, prices, verified, photos ──
-  const commerceCoach = person.commerce && person.commerce.coach;
   const [provider, setProvider] = React.useState(null);
   const [providerState, setProviderState] = React.useState('loading');
+  const [providerEpoch, setProviderEpoch] = React.useState(0);
   React.useEffect(() => {
     setProvider(null);
     const ownerId = person.userId || (isSelf ? signedInUid() : null);
@@ -184,16 +185,22 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
       .then((row) => { if (!on) return; setProvider(row); setProviderState(row ? 'ready' : 'none'); })
       .catch(() => { if (on) setProviderState('error'); });
     return () => { on = false; };
-  }, [person.userId, isSelf]);
-  const providerId = (provider && provider.id) || (commerceCoach && (commerceCoach.provider_id || commerceCoach.db_id)) || null;
-  const media = (provider && provider.listing_media) || (commerceCoach && commerceCoach.listing_media) || { cover: null, gallery: [] };
+  }, [person.userId, isSelf, providerEpoch]);
+  // The listing is what that lookup found, and only that: a marketplace snapshot the profile was
+  // opened with never stands in for it, so a listing taken off the marketplace since offers no
+  // times, photos or checkout here (Codex P1 on #2484).
+  const listed = providerState === 'ready' && !!provider;
+  const providerId = listed ? provider.id : null;
+  const media = (listed && provider.listing_media) || { cover: null, gallery: [] };
   const cover = bsProfileCover(custom && custom.cover, person.userId || (isSelf ? signedInUid() : null));
-  const wall = (cover && cover.image) || media.cover || null;
+  // A private profile shows name, photo and tier only: nothing from the listing either (Codex P1
+  // on #2484).
+  const wall = isPrivate ? null : ((cover && cover.image) || media.cover || null);
   const look = bsProfileLook(custom && custom.look) || {};
   const studio = bsProfileStudio(custom && custom.studio);
-  const where = (custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || person.city || '';
-  const specialty = (provider && (provider.specialty || provider.specialty_type)) || '';
-  const business = custom && custom.bizCard && custom.bizCard.name;
+  const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || person.city || '');
+  const specialty = (!isPrivate && listed && (provider.specialty || provider.specialty_type)) || '';
+  const business = !isPrivate && custom && custom.bizCard && custom.bizCard.name;
   const roleLine = [specialty || tr('profile:trainer.role', { defaultValue: 'Coach' }), business].filter(Boolean).join(' · ');
 
   // ── Their week: the public read the listing books from ──
@@ -219,15 +226,15 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
 
   // ── The storefront: the client module's shared hook, fed this coach's real listing ──
   const [tab, setTab] = React.useState('day');
-  const monthly = provider && Number(provider.price) > 0 ? Number(provider.price) : null;
-  const offer = provider && provider.monthly_offer && typeof provider.monthly_offer === 'object' ? provider.monthly_offer : null;
-  const commerce = person.commerce || (provider ? {
+  const monthly = listed && Number(provider.price) > 0 ? Number(provider.price) : null;
+  const offer = listed && provider.monthly_offer && typeof provider.monthly_offer === 'object' ? provider.monthly_offer : null;
+  const commerce = !listed ? null : (person.commerce || {
     coach: { name, provider_role: 'trainer', provider_id: provider.id, db_id: provider.id, provider_user_id: provider.owner_id, rate: Number(provider.session_price || provider.price || 0), at_capacity: !!provider.at_capacity, capacity_resume_at: provider.capacity_resume_at || null, id: person.userId },
     packages: monthly ? [{ type: 'Subscription', name: tr('profile:trainer.monthly', { defaultValue: 'Monthly coaching' }), price: `$${monthly}`, unit: '/ month', perks: (offer && Array.isArray(offer.includes) ? offer.includes : []).slice(0, 3) }] : [],
     atCapacity: avail.kind === 'ready' && avail.atCapacity != null ? avail.atCapacity : undefined,
     introsAtCapacity: avail.kind === 'ready' ? avail.introsAtCap : false,
     bookIntro: () => { setSheet(null); setTab('day'); },
-  } : null);
+  });
   const cm = W.useBSCoachCommerce ? W.useBSCoachCommerce({ person: { ...person, commerce, providerId }, isSelf, isNutri: false, name, first, city: where }) : null;
   // The storefront shows only what this coach really sells: with no monthly price on their listing
   // the shared block would print its demo package, so the sheet shows the intro and Message instead.
@@ -287,7 +294,13 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const [showLog, setShowLog] = React.useState(false);
   // Every way into Make it yours goes through here, and waits for the coach's doc (ownState).
   const editReady = ownState === 'ready';
-  const openEdit = (tabKey) => { if (!editReady) return; setEditTab(tabKey); setPage('edit'); };
+  // The doc was read for one account. With another signed in now, it is read again for that one
+  // rather than opened under it (Codex P1 on #2484).
+  const openEdit = (tabKey) => {
+    if (!editReady) return;
+    if (isSelf && signedInUid() !== ownFor) { onRetryOwn(); return; }
+    setEditTab(tabKey); setPage('edit');
+  };
 
   // Tabs a visitor sees only when there is something in them; the coach always sees all three.
   const hasStudio = !!(studio || (media.gallery && media.gallery.length));
@@ -300,7 +313,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
 
   if (page === 'edit' && editReady) {
     const photos = [media.cover, ...((media.gallery || []).map((g) => g && g.url))].filter((u) => typeof u === 'string' && /^https:\/\//.test(u));
-    return <BSMakeItYours role="trainer" initial={custom} startTab={editTab} who={{ name, first, photo: avatar, roleLine }} words={words} photos={photos}
+    return <BSMakeItYours role="trainer" ownerUid={ownFor} initial={custom} startTab={editTab} who={{ name, first, photo: avatar, roleLine }} words={words} photos={photos}
       onClose={() => setPage(null)} onSaved={(doc) => { setOwn && setOwn(doc); setPage(null); }} />;
   }
   if (page === 'hours') return <BSCoachHoursPage role="trainer" onBack={() => { setPage(null); setAvailEpoch((n) => n + 1); }} />;
@@ -310,7 +323,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const corner = W.BS_HEADER_AVATAR || 34;
   const wallH = 214;
   const topPad = W.BS_MAST_TOP_CSS || '12px';
-  const verified = provider && provider.verified;
+  const verified = listed && provider.verified;
   const ratingBit = reviews && reviews.count > 0
     ? tr('profile:trainer.rated', { defaultValue: '{rating}/10 from {count, plural, one {# review} other {# reviews}}', rating: (Math.round(reviews.avg * 10) / 10).toFixed(1), count: reviews.count })
     : tr('profile:trainer.newCoach', { defaultValue: 'New on Shape' });
@@ -389,7 +402,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
             ) : (
               <>
                 {hasMessage ? <button type="button" onClick={() => onMessage(person)} style={{ flex: 1.2, minHeight: 46, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.message', { defaultValue: 'Message {name}', name: first })}</button> : null}
-                <button type="button" onClick={() => setSheet({ kind: 'work' })} style={{ flex: 1, minHeight: 46, border: hasMessage ? `1px solid ${ink(0.22)}` : 0, background: hasMessage ? 'transparent' : ACC, color: hasMessage ? INK : ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{words.work}</button>
+                {!isPrivate ? <button type="button" onClick={() => setSheet({ kind: 'work' })} style={{ flex: 1, minHeight: 46, border: hasMessage ? `1px solid ${ink(0.22)}` : 0, background: hasMessage ? 'transparent' : ACC, color: hasMessage ? INK : ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{words.work}</button> : null}
                 {person.userId ? (
                   <button type="button" onClick={toggleFollow} disabled={followBusy} aria-pressed={!!(follow && (follow.isFollowing || follow.isPending))}
                     aria-label={follow && follow.isFollowing ? tr('profile:trainer.following', { defaultValue: 'Following' }) : follow && follow.isPending ? tr('profile:trainer.requested', { defaultValue: 'Requested' }) : tr('profile:trainer.follow', { defaultValue: 'Follow' })}
@@ -422,7 +435,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
             <div style={{ padding: `0 ${gutter}px 30px` }}>
               {tabNow === 'day' ? (
                 <DayTab t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} avail={avail} providerState={providerState} isSelf={isSelf} first={first} words={words}
-                  introClosed={introClosed} onRetry={() => setAvailEpoch((n) => n + 1)} onTake={isSelf ? null : (slot) => setSheet({ kind: 'book', slot })} onWork={() => setSheet({ kind: 'work' })} onHours={() => setPage('hours')} />
+                  introClosed={introClosed} onRetry={() => (providerState === 'error' ? setProviderEpoch : setAvailEpoch)((n) => n + 1)} onTake={isSelf ? null : (slot) => setSheet({ kind: 'book', slot })} onWork={() => setSheet({ kind: 'work' })} onHours={() => setPage('hours')} />
               ) : tabNow === 'studio' ? (
                 <StudioTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} studio={studio} gallery={media.gallery || []} isSelf={isSelf} first={first}
                   onStation={(n, p) => setSheet({ kind: 'station', n, p })} onDraw={() => openEdit('space')} />
@@ -434,7 +447,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
           </>
         ) : null}
         <footer style={{ padding: `8px ${gutter}px 34px`, fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: ink(0.5) }}>
-          {[provider && provider.credential, verified ? tr('profile:trainer.checked', { defaultValue: 'Checked by Shape' }) : null].filter(Boolean).join(' · ')}
+          {[listed && provider.credential, verified ? tr('profile:trainer.checked', { defaultValue: 'Checked by Shape' }) : null].filter(Boolean).join(' · ')}
         </footer>
       </div>
 
@@ -513,8 +526,9 @@ function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, provide
   const fmtTime = (ms) => { try { return new Date(ms).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } };
 
   // The day's rows: open times (to take) and busy time (said only as busy), by time.
+  // Local midnight to local midnight: a day with a clock change is 23 or 25 hours long.
   const dayStart = new Date(picked.getFullYear(), picked.getMonth(), picked.getDate()).getTime();
-  const dayEnd = dayStart + 86400000;
+  const dayEnd = new Date(picked.getFullYear(), picked.getMonth(), picked.getDate() + 1).getTime();
   const rows = [];
   if (avail.kind === 'ready') {
     for (const s of open.filter((x) => x.iso === pick)) rows.push({ kind: 'open', at: s.at, slot: s });
