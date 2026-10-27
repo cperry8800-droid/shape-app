@@ -26,8 +26,14 @@ and say why in the summary. Never put another person's details in a reply.
   there are no more pages.
 - Leave out mail sent from info@theshapecommunity.com itself, drafts, and anything in Junk
   Email or Deleted Items.
-- Read each remaining message in full with `read_resource` on its `uri`. Skip a thread whose
-  newest customer message already carries the `Support: Reviewed` category.
+- Read each remaining message with `read_resource` on its `uri`. Skip a thread whose newest
+  customer message already carries the `Support: Reviewed` category.
+- **Load the whole conversation before you sort or draft.** The search returns only messages
+  inside the window, so a reply to an older thread arrives without the original question or
+  anything already promised. Run `outlook_email_search` twice with no date: once with `sender`
+  set to the customer's address, and once with `recipient` set to it. The second search covers
+  Sent Items, so the team's earlier replies come back too. Follow the pages, read the results,
+  and keep the ones whose `conversationId` matches. Read the conversation oldest first.
 - **Not customer mail.** System and vendor mail (Microsoft, Stripe, Vercel, Supabase, Apple,
   Google, newsletters, receipts, automated alerts) is not support. Leave it untouched and only
   count it in the summary.
