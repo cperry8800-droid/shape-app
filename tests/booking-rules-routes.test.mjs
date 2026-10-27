@@ -109,6 +109,9 @@ async function routes() {
   const registry = () => new Map([
     ['next/server', nextServer],
     ['@/lib/supabase/server', { createClient: async () => current }],
+    // The routes read the caller through request-auth (the website's cookie or the app's Bearer
+    // token); the fake client answers both.
+    ['@/lib/request-auth', { clientForRequest: async () => current, currentUser: async () => (await current.auth.getUser()).data.user }],
     ['@/lib/request-utils', requestUtils],
     ['@/lib/owned-provider', owned],
   ]);

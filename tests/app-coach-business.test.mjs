@@ -865,7 +865,7 @@ test('Me: the card is on the coach\'s own Me tab only, and Settings → Your pra
   assert.match(pros, /me: +<BSPublicProfile person=\{\{ who: 'Jordan Chen', kind: 'TRAINER'[^\n]*isSelf meMode/);
   // Settings: Payouts opens Business on Money (it went straight to Stripe onboarding).
   assert.match(src, /\{ l: tr\('settings:practice\.payouts', \{ defaultValue: 'Payouts' \}\), r: tr\('settings:practice\.payoutsMeta', \{ defaultValue: 'Stripe' \}\), action: \(\) => setShowBusiness\('money'\) \},/);
-  assert.match(src, /if \(showBusiness\) \{\n\s+return <BSCoachBusinessPage role=\{tweaks\.role === 'nutritionist' \? 'nutritionist' : 'trainer'\} tab=\{showBusiness\}/);
+  assert.match(src, /if \(showBusiness\) \{\n\s+return <BSCoachBusinessPage role=\{coachRole \|\| 'trainer'\} tab=\{showBusiness\}/);
 });
 
 // ── The website's second sweep (2026-10-18: 47fe066, 2d59cfa, c4460ff), mirrored ────────────────

@@ -81,6 +81,7 @@ import { BSShortcuts, BSShortcutTile } from './BSShortcuts.jsx';
 import { BSClientGoals } from './BSGoals.jsx';
 import { bsDash, bsDashA, BSDashCard, BSDashRing, BSDashSpark, BSDashSegment } from './BSDash.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
+import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
@@ -34263,6 +34264,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // (owner, 2026-10-17: "Move to Your practice"); the components are the pros module's, read
   // from window at call time.
   const [showRates, setShowRates] = useStateBSC(false);
+  // Your hours (Availability): the coach's weekly hours, booking rules and time off (BSCoachHours.jsx).
+  const [showHours, setShowHours] = useStateBSC(false);
   const [listingSheet, setListingSheet] = useStateBSC(null);
   const [showGoals, setShowGoals] = useStateBSC(false);
   const [showLibrary, setShowLibrary] = useStateBSC(false);
@@ -34310,7 +34313,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       setShowProgress(false); setShowGoals(false); setShowLibrary(false);
       setShowHabits(false); setShowCheckin(false); setShowHealth(false);
       setShowLeaderboard(false); setShowPublicProfile(false); setShowBusiness(null);
-      setShowRates(false); setListingSheet(null);
+      setShowRates(false); setShowHours(false); setListingSheet(null);
     };
     window.addEventListener('shape:openProfile', toRoot);
     window.addEventListener('shape:openProSettings', toRoot);
@@ -34851,7 +34854,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // non-coach accounts (no provider row), in which case the block is hidden.
   const [capacity, setCapacityState] = useStateBSC(null);
   const [capacityBusy, setCapacityBusy] = useStateBSC(false);
-  const isCoachRole = tweaks.role === 'trainer' || tweaks.role === 'nutritionist';
+  // The practice's role: a dietitian (RD/RDN) is a nutrition coach, whose listing, hours and rates
+  // are the nutritionist ones, as the shell's apps treat them (Codex on #2483: Your hours read a
+  // trainer row for them, and this section hid itself from them).
+  const coachRole = tweaks.role === 'trainer' ? 'trainer' : (tweaks.role === 'nutritionist' || tweaks.role === 'dietitian') ? 'nutritionist' : null;
+  const isCoachRole = !!coachRole;
   // The coach's own listing for the role in use (Your practice: the notice, the Rates row and
   // the rates page). listingRead: 'demo' (signed out, nothing to read), 'live' (read; a null
   // listing is not approved yet) or 'error' (the read failed). Read again after the photo
@@ -34865,7 +34872,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     let on = true;
     get().then((list) => {
       if (!on || !Array.isArray(list)) return;
-      setMyListing(list.find((l) => l.role === tweaks.role) || null);
+      setMyListing(list.find((l) => l.role === coachRole) || null);
       setListingRead('live');
     }).catch(() => { if (on) setListingRead('error'); });
     return () => { on = false; };
@@ -34873,7 +34880,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // Stripe Connect onboarding for the role in use: the listing notice's "Set up payouts" (declared
   // above the early returns, which the rates page is one of).
   const startPayoutSetup = async () => {
-    try { await window.ShapeConnect?.startOnboarding?.({ role: tweaks.role }); }
+    try { await window.ShapeConnect?.startOnboarding?.({ role: coachRole }); }
     catch (error) { window.__bsToast?.(error?.message || tr('settings:practice.payoutsFailed', { defaultValue: 'Could not start Stripe payout setup.' }), 'err'); }
   };
   // Accounts/roles this person actually created — the Profile-mode switcher only
@@ -34908,7 +34915,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     setCapacityState(null);
     if (!isCoachRole) return undefined;
     let cancelled = false;
-    window.ShapeBookings?.getCapacity?.({ role: tweaks.role })
+    window.ShapeBookings?.getCapacity?.({ role: coachRole })
       .then(c => { if (!cancelled && c) setCapacityState(c); })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -35515,21 +35522,27 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSHealthIntake initial={healthDoc} onBack={() => setShowHealth(false)} onDone={(doc) => { setHealthDoc(doc); setShowHealth(false); }} />;
   }
   if (showLeaderboard) {
-    return <BSLeaderboard onBack={() => setShowLeaderboard(false)} mode={isCoachRole ? 'coach' : 'member'} role={tweaks.role === 'nutritionist' ? 'nutritionist' : 'trainer'} />;
+    return <BSLeaderboard onBack={() => setShowLeaderboard(false)} mode={isCoachRole ? 'coach' : 'member'} role={coachRole || 'trainer'} />;
   }
   if (showBusiness) {
-    return <BSCoachBusinessPage role={tweaks.role === 'nutritionist' ? 'nutritionist' : 'trainer'} tab={showBusiness} onBack={() => setShowBusiness(null)} />;
+    return <BSCoachBusinessPage role={coachRole || 'trainer'} tab={showBusiness} onBack={() => setShowBusiness(null)} />;
+  }
+  if (showHours) {
+    return <BSCoachHoursPage role={coachRole || 'trainer'} onBack={() => setShowHours(false)}
+      onOpenCalendar={() => { setShowHours(false); try { window.dispatchEvent(new Event('shape:proAvailability')); } catch (e) {} }} />;
   }
   if (showRates && window.BSCoachRatesPage) {
     const RatesPage = window.BSCoachRatesPage;
-    return <RatesPage role={tweaks.role} listing={myListing} backLabel={tr('settings:section.practice', { defaultValue: 'Your practice' })}
+    return <RatesPage role={coachRole} listing={myListing} backLabel={tr('settings:section.practice', { defaultValue: 'Your practice' })}
       onBack={() => setShowRates(false)} onSaved={setMyListing}
       onPhotos={() => { setShowRates(false); setListingSheet('photos'); }} onPayouts={startPayoutSetup} />;
   }
   if (showPublicProfile) {
     const role = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
     const uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null;
-    const kind = role === 'trainer' ? 'TRAINER' : role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
+    // A dietitian's public profile is the nutrition coach's (Codex on #2483, now that Your practice
+    // shows them this row).
+    const kind = role === 'trainer' ? 'TRAINER' : (role === 'nutritionist' || role === 'dietitian') ? 'NUTRI' : 'CLIENT';
     // ⚠ THROUGH startEdit, NOT setEditing(true): the draft is re-seeded on every entry,
     // or a form cancelled on the root and reopened from here carries the discarded
     // edits back with it.
@@ -35555,10 +35568,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { k: 'injuries', l: tr('settings:training.injuries', { defaultValue: 'Injuries & notes' }), placeholder: tr('settings:training.injuriesPh', { defaultValue: 'Left shoulder, knee tracking…' }) },
     { k: 'preferred_times', l: tr('settings:training.preferredTimes', { defaultValue: 'Preferred times' }), options: BS_PREF_OPTIONS.preferred_times },
   ].map((row) => ({ l: row.l, r: bsPrefOptionLabel(row.k, trainingPrefs[row.k], tr) || tr('settings:common.notSet', { defaultValue: 'Not set' }), action: () => openPrefEdit('training', row.k, row.l, { placeholder: row.placeholder, options: row.options }) }));
-  // Coach practice shortcuts (consolidated into Settings). Availability + Soundtracks
-  // are hosted by the coach shell (it owns those screens) via window events; Payouts
-  // opens Business; Rates, Listing photos and Monthly offer open the listing tools; the rest
-  // open the coach's own public profile.
+  // Coach practice shortcuts (consolidated into Settings). Soundtracks is hosted by the coach
+  // shell (it owns that screen) via a window event; Availability opens Your hours here, which
+  // links on to the shell's calendar; Payouts opens Business; Rates, Listing photos and Monthly
+  // offer open the listing tools; the rest open the coach's own public profile.
   const ratesRow = listingRead === 'live'
     ? { l: tr('coach:rates.row', { defaultValue: 'Rates' }), desc: myListing && window.bsRatesLine ? window.bsRatesLine(myListing, tr) : tr('coach:rates.rowSubNoListing', { defaultValue: 'Set once your coach application is approved' }), r: tr('settings:action.edit', { defaultValue: 'Edit' }), action: () => setShowRates(true) }
     : listingRead === 'error'
@@ -35570,7 +35583,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { l: tr('coach:listing.row', { defaultValue: 'Listing photos' }), desc: tr('coach:listing.rowSub', { defaultValue: 'Your box on the marketplace — portrait, cover, studio' }), r: tr('settings:action.edit', { defaultValue: 'Edit' }), action: () => setListingSheet('photos') },
     { l: tr('coach:offer.row', { defaultValue: 'Monthly offer' }), desc: tr('coach:offer.rowSub', { defaultValue: "What's included, shown on your marketplace listing" }), r: tr('settings:action.edit', { defaultValue: 'Edit' }), action: () => setListingSheet('offer') },
     { l: tr('settings:practice.listing', { defaultValue: 'Marketplace listing' }), r: tr('settings:action.view', { defaultValue: 'View' }), action: () => setShowPublicProfile(true) },
-    { l: tr('settings:practice.availability', { defaultValue: 'Availability' }), r: tr('settings:action.set', { defaultValue: 'Set' }), action: () => { try { window.dispatchEvent(new Event('shape:proAvailability')); } catch (e) {} } },
+    // Availability opens Your hours (weekly hours, booking rules, time off), which links on to the
+    // calendar; it used to open the calendar alone, and the app had no way to set hours (owner,
+    // 2026-10-27: "make sure coaches have the ability to edit their time slots").
+    { l: tr('settings:practice.availability', { defaultValue: 'Availability' }), desc: tr('coach:hours.rowSub', { defaultValue: 'Your hours, booking rules and time off' }), r: tr('settings:action.edit', { defaultValue: 'Edit' }), action: () => setShowHours(true) },
     // Payouts is Business → Money: what is on its way, the schedule, renewals, the coach's own
     // Stripe, and "Set up payouts" for one not linked yet (it went straight to Stripe onboarding,
     // which a linked coach does not need).
@@ -36075,11 +36091,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {renderRows(practiceRows)}
         {listingSheet === 'photos' && window.BSProListingMediaSheet && (() => {
           const Sheet = window.BSProListingMediaSheet;
-          return <Sheet role={tweaks.role} accent={tweaks.role === 'nutritionist' ? '#a07a2e' : (t.RUST || '#c0533b')} onClose={() => { setListingSheet(null); setListingReads((n) => n + 1); }} />;
+          return <Sheet role={coachRole} accent={coachRole === 'nutritionist' ? '#a07a2e' : (t.RUST || '#c0533b')} onClose={() => { setListingSheet(null); setListingReads((n) => n + 1); }} />;
         })()}
         {listingSheet === 'offer' && window.BSProMonthlyOfferSheet && (() => {
           const Sheet = window.BSProMonthlyOfferSheet;
-          return <Sheet role={tweaks.role} accent={tweaks.role === 'nutritionist' ? '#a07a2e' : (t.RUST || '#c0533b')} onClose={() => setListingSheet(null)} />;
+          return <Sheet role={coachRole} accent={coachRole === 'nutritionist' ? '#a07a2e' : (t.RUST || '#c0533b')} onClose={() => setListingSheet(null)} />;
         })()}
         {/* Coach-only — taking no new clients (at capacity). Through /api/coach/capacity, for the
             listing of the role in use; at capacity a coach's current clients still book and buy,
@@ -36328,7 +36344,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         // about the session, not about the unread plan.
         const planKnown = plan != null;
         const statusLine = isCoachRole
-          ? (tweaks.role === 'nutritionist' ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:role.trainer', { defaultValue: 'Trainer' }))
+          ? (tweaks.role === 'dietitian' ? tr('coach:role.dietitian', { defaultValue: 'Dietitian' }) : coachRole === 'nutritionist' ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:role.trainer', { defaultValue: 'Trainer' }))
           : !signedIn
             ? tr('settings:plan.notMember', { defaultValue: 'Not a member' })
             : hasSub

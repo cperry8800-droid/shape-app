@@ -368,7 +368,28 @@ test('app Your practice: the notice lists each missing step with the action that
   assert.match(practice, /<Notice listing=\{myListing\} onRates=\{\(\) => setShowRates\(true\)\} onPhotos=\{\(\) => setListingSheet\('photos'\)\} onPayouts=\{startPayoutSetup\} \/>/);
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   assert.match(client, /const get = isCoachRole && window\.ShapeCoachListing && window\.ShapeCoachListing\.getMine;/);
-  assert.match(client, /if \(showRates && window\.BSCoachRatesPage\) \{\n\s+const RatesPage = window\.BSCoachRatesPage;\n\s+return <RatesPage role=\{tweaks\.role\} listing=\{myListing\}/);
+  assert.match(client, /if \(showRates && window\.BSCoachRatesPage\) \{\n\s+const RatesPage = window\.BSCoachRatesPage;\n\s+return <RatesPage role=\{coachRole\} listing=\{myListing\}/);
+});
+
+// ── A dietitian's practice is the nutritionist one (Codex on #2483) ──────────
+test('app Your practice: a dietitian gets the practice rows, on the nutritionist listing, hours and rates', () => {
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const line = client.match(/\n\s+const coachRole = (tweaks\.role === 'trainer'[^\n]+);\n\s+const isCoachRole = !!coachRole;/);
+  assert.ok(line, 'Settings derives one practice role');
+  const coachRole = (role) => new Function('tweaks', `return ${line[1]};`)({ role });
+  assert.equal(coachRole('trainer'), 'trainer');
+  assert.equal(coachRole('nutritionist'), 'nutritionist');
+  assert.equal(coachRole('dietitian'), 'nutritionist');
+  for (const r of ['client', 'shape_radio', undefined]) assert.equal(coachRole(r), null, String(r));
+  // Every practice surface reads that role, never the raw account role.
+  assert.match(client, /setMyListing\(list\.find\(\(l\) => l\.role === coachRole\) \|\| null\);/);
+  assert.match(client, /window\.ShapeConnect\?\.startOnboarding\?\.\(\{ role: coachRole \}\)/);
+  assert.match(client, /window\.ShapeBookings\?\.getCapacity\?\.\(\{ role: coachRole \}\)/);
+  assert.match(client, /return <BSCoachHoursPage role=\{coachRole \|\| 'trainer'\}/);
+  assert.match(client, /return <BSCoachBusinessPage role=\{coachRole \|\| 'trainer'\}/);
+  assert.equal((client.match(/return <Sheet role=\{coachRole\} accent=\{coachRole === 'nutritionist'/g) || []).length, 2, 'the photo and offer sheets');
+  assert.match(client, /tweaks\.role === 'dietitian' \? tr\('coach:role\.dietitian'/, 'and the plan line names a dietitian as one');
+  assert.match(client, /const kind = role === 'trainer' \? 'TRAINER' : \(role === 'nutritionist' \|\| role === 'dietitian'\) \? 'NUTRI' : 'CLIENT';/, 'and Public profile opens the coach profile');
 });
 
 test('app Rates: saves through ShapeCoachListing, follows the saved listing, and says when a rate is refused', async () => {
@@ -442,7 +463,7 @@ test('app Your practice: the listing is read again when the photo sheet closes',
 
 test('app Your practice: a signed-in coach\'s Rates row says what was read, and never a sample rate', () => {
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  assert.match(client, /setMyListing\(list\.find\(\(l\) => l\.role === tweaks\.role\) \|\| null\);\s+setListingRead\('live'\);\s+\}\)\.catch\(\(\) => \{ if \(on\) setListingRead\('error'\); \}\);/);
+  assert.match(client, /setMyListing\(list\.find\(\(l\) => l\.role === coachRole\) \|\| null\);\s+setListingRead\('live'\);\s+\}\)\.catch\(\(\) => \{ if \(on\) setListingRead\('error'\); \}\);/);
   assert.match(client, /const ratesRow = listingRead === 'live'\s+\? \{ l: tr\('coach:rates\.row'[\s\S]{0,80}?desc: myListing && window\.bsRatesLine \? window\.bsRatesLine\(myListing, tr\) : tr\('coach:rates\.rowSubNoListing'/);
   assert.match(client, /: listingRead === 'error'\s+\? \{ l: tr\('coach:rates\.row'[\s\S]{0,200}?tr\('coach:rates\.rowSubError'[\s\S]{0,120}?action: \(\) => setListingReads\(\(n\) => n \+ 1\) \}/);
   // Signed out (a preview), there is nothing to read and no sample rate either: the row opens the

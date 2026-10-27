@@ -269,7 +269,7 @@ The War Room has the full list; this covers what needs the owner and the planned
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted `/m/`,
   sheets add no history entry.
 - The booth's LED wall loops (`wallShow.mjs`, `WALL_LOOPS`) stream from Higgsfield's CDN on the
-  owner's account, desktops only (about 13 MB for the four); phones get the drawn looks. Nora's face
+  owner's account, desktops only (about 13 MB); phones get the drawn looks. Nora's face
   photo (`scripts/nora-model/nora.json` `face_photo`) is on the same CDN, and rebuilding her needs it.
   The show, the MakeHuman crowd (`crowdPeople.mjs`) and its rebuilt close-up people, Nora, the room
   lit by the wall (`wallLookGlow`) with haze on the beams (`beamHaze.mjs`), the stage set (the
@@ -277,8 +277,8 @@ The War Room has the full list; this covers what needs the owner and the planned
   (`clubRooms.mjs`: the lounge and the bar) have been seen only in headless Chromium, not on a real
   GPU or a phone. The crowd pack is 3.6 MB on desktops and 1.1 MB on phones. The old avatar crowd
   (`crowdAvatars.mjs`) is kept for a v2 pack.
-- The Split glass mark (#2474), on the homepage, the app's launch and its masthead, has been seen
-  only in headless Chromium, not on a phone or in the installed app.
+- Seen only in headless Chromium, not on a phone or in the app: the Split glass mark
+  (#2474) on the homepage, launch and masthead, and Your hours (Settings → Availability).
 
 ## History
 

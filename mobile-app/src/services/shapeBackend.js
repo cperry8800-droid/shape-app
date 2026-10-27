@@ -6034,6 +6034,47 @@ async function coachAvailabilityGet(role, id, { fresh = false } = {}) {
 }
 window.ShapeCoachAvailability = { get: coachAvailabilityGet };
 
+// A coach's OWN hours, booking rules and time off (the coach app's "Your hours" page). The same
+// three routes the website's Schedule page writes, so either editor reads what the other saved.
+// Each answers JSON; a refusal throws with the route's own sentence (`detail`) when it sent one,
+// and with `code` (the route's `error`) for the page to tell "not set up yet" from a failure.
+async function coachHoursCall(path, init) {
+  if (!state.user?.id) { const e = new Error('Sign in first.'); e.code = 'unauthorized'; throw e; }
+  const res = await shapeApiFetch(path, init);
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    const code = json && typeof json.error === 'string' ? json.error : null;
+    // Only the route's sentence is shown; a bare code ('save_failed', 'not found') is not words.
+    const e = new Error((json && typeof json.detail === 'string' && json.detail) || '');
+    e.status = res.status; e.code = code;
+    throw e;
+  }
+  return json || {};
+}
+const coachHoursPost = (path, body, method = 'POST') => coachHoursCall(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const coachHoursRole = (role) => (normalizeRole(role) === 'nutritionist' ? 'nutritionist' : 'trainer');
+// This phone's IANA zone: the route stamps it on the coach's row with their hours (it refuses
+// hours it cannot place), exactly as the website's editor sends the browser's.
+function coachHoursZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
+}
+window.ShapeCoachHours = {
+  // { slots, providerId, timezone }
+  get: (role) => coachHoursCall(`/api/my-availability?role=${coachHoursRole(role)}`),
+  // rows: [{ weekday, start_minute, duration_min }] → { ok, count, timezone }
+  save: (role, slots) => coachHoursPost('/api/my-availability', { role: coachHoursRole(role), slots, timezone: coachHoursZone() }),
+  zone: coachHoursZone,
+  // { rules, providerId, timezone, saved, ready }
+  rules: (role) => coachHoursCall(`/api/my-booking-rules?role=${coachHoursRole(role)}`),
+  // Only the fields sent are written (the route upserts exactly those).
+  saveRules: (role, patch) => coachHoursPost('/api/my-booking-rules', { ...(patch || {}), role: coachHoursRole(role) }),
+  // { timeOff: [{ id, startsAt, endsAt, note }], providerId, timezone, capped, ready }
+  timeOff: (role) => coachHoursCall(`/api/my-time-off?role=${coachHoursRole(role)}`),
+  // { fromDate, toDate, note? } whole days, or { startsAt, endsAt, note? } two instants with offsets
+  addTimeOff: (role, body) => coachHoursPost('/api/my-time-off', { ...(body || {}), role: coachHoursRole(role) }),
+  removeTimeOff: (role, id) => coachHoursPost('/api/my-time-off', { role: coachHoursRole(role), id }, 'DELETE'),
+};
+
 // Coach-authored monthly offer (the Listing's WHAT'S INCLUDED sheet): lives on
 // the coach's own provider row (monthly_offer jsonb, migration 2026-07-09).
 // The tables' own-row UPDATE policy covers the write — monthly_offer is not an
