@@ -102,18 +102,28 @@ export function BSTrainerProfile(props) {
     window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (on && d) setLive(d); }).catch(() => {});
     return () => { on = false; };
   }, [person.userId]);
+  // Whether the coach's own doc has been read. Make it yours opens only on that doc, never on the
+  // defaults, which a save would write over their look, studio and wall photo (Codex P1 on #2484).
+  const [ownState, setOwnState] = React.useState('loading');
+  const [ownEpoch, setOwnEpoch] = React.useState(0);
   React.useEffect(() => {
     if (!isSelf) return undefined;
     const uid = signedInUid();
-    if (!uid) return undefined;
+    if (!uid) { setOwnState('error'); return undefined; }
     let on = true;
+    setOwnState('loading');
     // Bound to the account this page opened for, so a switch mid-read never shows another's doc.
-    (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom', { expectedUserId: uid }); if (on && d) setOwn(d); } catch (e) {} })();
+    (async () => {
+      let d = null;
+      try { d = await window.shapeDb?.getUserGoals?.('profile_custom', { expectedUserId: uid }); } catch (e) { d = null; }
+      if (!on) return;
+      if (d && typeof d === 'object' && !Array.isArray(d)) { setOwn(d); setOwnState('ready'); } else setOwnState('error');
+    })();
     return () => { on = false; };
-  }, [isSelf]);
+  }, [isSelf, ownEpoch]);
   const custom = isSelf ? own : (live && live.custom) || null;
   const look = bsProfileLook(custom && custom.look) || {};
-  const page = <TrainerPage {...props} live={live} custom={custom} setOwn={setOwn} />;
+  const page = <TrainerPage {...props} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} onRetryOwn={() => setOwnEpoch((n) => n + 1)} />;
   if (!BSProvider) return page;
   return (
     <BSProvider paperMode={look.paper || 'dark'} accentKey={look.accent || 'teal'} densityKey={outer.densityKey} borderKey={outer.borderKey}
@@ -123,7 +133,7 @@ export function BSTrainerProfile(props) {
   );
 }
 
-function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, live, custom, setOwn }) {
+function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, live, custom, setOwn, ownState = 'ready', onRetryOwn = () => {} }) {
   const W = window;
   const t = W.useBS();
   const tr = useShapeTr();
@@ -275,6 +285,9 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const [page, setPage] = React.useState(null);   // 'edit' | 'hours' | 'business'
   const [editTab, setEditTab] = React.useState('colors');
   const [showLog, setShowLog] = React.useState(false);
+  // Every way into Make it yours goes through here, and waits for the coach's doc (ownState).
+  const editReady = ownState === 'ready';
+  const openEdit = (tabKey) => { if (!editReady) return; setEditTab(tabKey); setPage('edit'); };
 
   // Tabs a visitor sees only when there is something in them; the coach always sees all three.
   const hasStudio = !!(studio || (media.gallery && media.gallery.length));
@@ -285,7 +298,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   ];
   const tabNow = tabs.some(([k]) => k === tab) ? tab : 'day';
 
-  if (page === 'edit') {
+  if (page === 'edit' && editReady) {
     const photos = [media.cover, ...((media.gallery || []).map((g) => g && g.url))].filter((u) => typeof u === 'string' && /^https:\/\//.test(u));
     return <BSMakeItYours role="trainer" initial={custom} startTab={editTab} who={{ name, first, photo: avatar, roleLine }} words={words} photos={photos}
       onClose={() => setPage(null)} onSaved={(doc) => { setOwn && setOwn(doc); setPage(null); }} />;
@@ -322,8 +335,8 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
             <div style={{ display: 'flex', alignItems: 'center', gap: W.BS_CORNER_GAP || 8 }}>
               {W.BSSearchCorner ? <W.BSSearchCorner size={corner} ink="#ffffff" /> : null}
               {isSelf ? (
-                <button type="button" onClick={() => { setEditTab('colors'); setPage('edit'); }} aria-label={tr('profile:trainer.makeItYours', { defaultValue: 'Make it yours' })}
-                  style={{ width: corner, height: corner, borderRadius: 99, border: '1px solid rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.25)', color: '#fff', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+                <button type="button" onClick={() => openEdit('colors')} disabled={!editReady} aria-label={tr('profile:trainer.makeItYours', { defaultValue: 'Make it yours' })}
+                  style={{ width: corner, height: corner, borderRadius: 99, border: '1px solid rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.25)', color: '#fff', display: 'grid', placeItems: 'center', cursor: editReady ? 'pointer' : 'default', opacity: editReady ? 1 : 0.5 }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
               ) : null}
@@ -332,8 +345,8 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
             </div>
           </div>
           {isSelf && !wall ? (
-            <button type="button" onClick={() => { setEditTab('wall'); setPage('edit'); }}
-              style={{ position: 'absolute', right: gutter, bottom: 14, minHeight: 36, padding: '0 12px', borderRadius: 99, border: '1px solid rgba(255,255,255,0.6)', background: 'rgba(0,0,0,0.3)', color: '#fff', fontFamily: DISPLAY, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            <button type="button" onClick={() => openEdit('wall')} disabled={!editReady}
+              style={{ position: 'absolute', right: gutter, bottom: 14, minHeight: 36, padding: '0 12px', borderRadius: 99, border: '1px solid rgba(255,255,255,0.6)', background: 'rgba(0,0,0,0.3)', color: '#fff', fontFamily: DISPLAY, fontSize: 13, fontWeight: 600, cursor: editReady ? 'pointer' : 'default', opacity: editReady ? 1 : 0.5 }}>
               ＋ {tr('profile:trainer.addWall', { defaultValue: 'Add a wall photo' })}
             </button>
           ) : null}
@@ -370,7 +383,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
           <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
             {isSelf ? (
               <>
-                <button type="button" onClick={() => { setEditTab('colors'); setPage('edit'); }} style={{ flex: 1.2, minHeight: 46, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.makeItYours', { defaultValue: 'Make it yours' })}</button>
+                <button type="button" onClick={() => openEdit('colors')} disabled={!editReady} style={{ flex: 1.2, minHeight: 46, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: editReady ? 'pointer' : 'default', opacity: editReady ? 1 : 0.55 }}>{tr('profile:trainer.makeItYours', { defaultValue: 'Make it yours' })}</button>
                 <button type="button" onClick={() => setPage('hours')} style={{ flex: 1, minHeight: 46, border: `1px solid ${ink(0.22)}`, background: 'transparent', color: INK, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.yourHours', { defaultValue: 'Your hours' })}</button>
               </>
             ) : (
@@ -385,6 +398,12 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
               </>
             )}
           </div>
+          {isSelf && ownState === 'error' ? (
+            <div role="status" data-own-error="" style={{ marginTop: 10 }}>
+              <Hint ink={ink}>{tr('profile:trainer.ownError', { defaultValue: "Couldn't read your page just now." })}</Hint>
+              <button type="button" onClick={onRetryOwn} style={linkBtn(ACC, DISPLAY)}>{tr('profile:trainer.retry', { defaultValue: 'Try again' })}</button>
+            </div>
+          ) : null}
           {meMode && isSelf ? <div style={{ marginTop: 16 }}><BSCoachBusinessCard role="trainer" accent={ACC} onOpen={() => setPage('business')} /></div> : null}
         </div>
 
@@ -406,7 +425,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
                   introClosed={introClosed} onRetry={() => setAvailEpoch((n) => n + 1)} onTake={isSelf ? null : (slot) => setSheet({ kind: 'book', slot })} onWork={() => setSheet({ kind: 'work' })} onHours={() => setPage('hours')} />
               ) : tabNow === 'studio' ? (
                 <StudioTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} studio={studio} gallery={media.gallery || []} isSelf={isSelf} first={first}
-                  onStation={(n, p) => setSheet({ kind: 'station', n, p })} onDraw={() => { setEditTab('space'); setPage('edit'); }} />
+                  onStation={(n, p) => setSheet({ kind: 'station', n, p })} onDraw={() => openEdit('space')} />
               ) : (
                 <ReplaysTab t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} replays={replays} isSelf={isSelf} first={first}
                   onOpen={(r) => setSheet({ kind: 'replay', r, i: 0 })} onLog={() => setShowLog(true)} />

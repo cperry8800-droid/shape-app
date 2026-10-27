@@ -399,6 +399,7 @@
   "trainer.dayNoListing": "{name} kişisinin Shape’te henüz boş saati yok. Sormak için mesaj gönder.",
   "trainer.dayLoading": "Hafta okunuyor…",
   "trainer.dayError": "Boş saatler şu an okunamadı.",
+  "trainer.ownError": "Sayfan şu an okunamadı.",
   "trainer.retry": "Tekrar dene",
   "trainer.dayNoHoursSelf": "Saatlerini belirleyene kadar üyeler boş saat görmez.",
   "trainer.setHours": "Saatlerini belirle",

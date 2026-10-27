@@ -399,6 +399,7 @@
   "trainer.dayNoListing": "{name} never get open times for Shape yet. Send message to ask.",
   "trainer.dayLoading": "We dey read di week…",
   "trainer.dayError": "We no fit read di open times now.",
+  "trainer.ownError": "We no fit read your page now.",
   "trainer.retry": "Try again",
   "trainer.dayNoHoursSelf": "Members no go see open times until you set your hours.",
   "trainer.setHours": "Set your hours",

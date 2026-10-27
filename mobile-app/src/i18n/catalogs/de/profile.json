@@ -399,6 +399,7 @@
   "trainer.dayNoListing": "{name} hat noch keine freien Zeiten auf Shape. Schreib eine Nachricht.",
   "trainer.dayLoading": "Woche wird gelesen…",
   "trainer.dayError": "Die freien Zeiten konnten gerade nicht gelesen werden.",
+  "trainer.ownError": "Deine Seite konnte gerade nicht gelesen werden.",
   "trainer.retry": "Erneut versuchen",
   "trainer.dayNoHoursSelf": "Mitglieder sehen keine freien Zeiten, bis du deine Zeiten festlegst.",
   "trainer.setHours": "Zeiten festlegen",

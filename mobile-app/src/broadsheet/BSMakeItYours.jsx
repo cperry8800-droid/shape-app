@@ -20,10 +20,11 @@ import {
 //                turn, copy and remove. A piece made a station gets a number members tap, and
 //                the coach's own title and note for it.
 //
-// What it writes: `look`, `studio` and (when the wall photo changed here) `cover` in the
+// What it writes: whichever of `look`, `studio` and `cover` the coach changed here, in the
 // profile_custom doc, merged onto the doc as it is at save time (re-read for this account, so a
 // key saved elsewhere since this opened is kept; no read, no save), through the same normalizer
-// every surface uses. Nothing is saved until Save.
+// every surface uses. Nothing is saved until Save. The profile opens it only on the coach's doc
+// as read, never on defaults.
 //
 // The editor's own chrome is the app's dark editor (it does not repaint as colours change); the
 // preview card at the top is painted in the colours being picked.
@@ -407,12 +408,14 @@ export function BSMakeItYours({ role = 'trainer', initial = null, startTab = 'co
   const tr = useShapeTr();
   // The account that opened the editor: the only one it reads for or saves to.
   const [owner] = React.useState(signedInUid);
-  const seed = React.useMemo(() => {
+  // What the editor opened on, fixed for its life, so what reads as changed is what the coach
+  // changed here. The profile opens it only once their doc is read (Codex P1 on #2484).
+  const [seed] = React.useState(() => {
     const look = bsProfileLook(initial && initial.look) || {};
     const st = bsProfileStudio(initial && initial.studio);
     const cover = bsProfileCover(initial && initial.cover, owner);
     return { look: { paper: look.paper || 'dark', accent: look.accent || 'teal', focus: look.focus || 'center' }, wall: cover ? cover.image : null, studio: st || { kind: 'blank', where: '', items: [] } };
-  }, [initial]);
+  });
   const [tab, setTab] = React.useState(['colors', 'wall', 'space'].includes(startTab) ? startTab : 'colors');
   const [look, setLook] = React.useState(seed.look);
   const [wall, setWall] = React.useState(seed.wall);
@@ -422,7 +425,10 @@ export function BSMakeItYours({ role = 'trainer', initial = null, startTab = 'co
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState(null);
   const [leaving, setLeaving] = React.useState(false);
-  const dirty = !sameJson(look, seed.look) || wall !== seed.wall || !sameJson(bsProfileStudio(studio), bsProfileStudio(seed.studio)) || studio.where !== seed.studio.where;
+  const lookChanged = !sameJson(look, seed.look);
+  const wallChanged = wall !== seed.wall;
+  const studioChanged = !sameJson(bsProfileStudio(studio), bsProfileStudio(seed.studio)) || studio.where !== seed.studio.where;
+  const dirty = lookChanged || wallChanged || studioChanged;
   const first = who.first || String(who.name || '').split(' ')[0];
   const w = words || { day: tr('profile:trainer.dayName', { defaultValue: "{name}'s day", name: first }), work: tr('profile:trainer.workName', { defaultValue: 'Work with {name}', name: first }) };
 
@@ -459,13 +465,12 @@ export function BSMakeItYours({ role = 'trainer', initial = null, startTab = 'co
       setErr(tr('profile:mine.errSave', { defaultValue: "Couldn't save. Nothing changed; try again." }));
       return;
     }
-    const doc = {
-      ...base,
-      look: { paper: look.paper, accent: look.accent, focus: look.focus },
-      studio: { kind: studio.kind, where: studio.where.trim(), items: studio.items },
-    };
-    // The wall photo is written only when it was changed here, and only as the owner's own media.
-    if (wall !== seed.wall) {
+    // Each key is written only when it was changed here, so one changed elsewhere since this
+    // opened is kept; the wall photo only as the owner's own media.
+    const doc = { ...base };
+    if (lookChanged) doc.look = { paper: look.paper, accent: look.accent, focus: look.focus };
+    if (studioChanged) doc.studio = { kind: studio.kind, where: studio.where.trim(), items: studio.items };
+    if (wallChanged) {
       const cover = wall ? bsProfileCover({ image: wall }, uid) : null;
       if (cover) doc.cover = cover; else delete doc.cover;
     }

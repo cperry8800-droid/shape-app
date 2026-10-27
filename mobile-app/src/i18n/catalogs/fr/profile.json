@@ -399,6 +399,7 @@
   "trainer.dayNoListing": "{name} n’a pas encore de créneaux libres sur Shape. Envoie un message pour demander.",
   "trainer.dayLoading": "Lecture de la semaine…",
   "trainer.dayError": "Impossible de lire les créneaux libres pour le moment.",
+  "trainer.ownError": "Impossible de lire ta page pour le moment.",
   "trainer.retry": "Réessayer",
   "trainer.dayNoHoursSelf": "Les membres ne voient aucun créneau tant que tu n’as pas fixé tes horaires.",
   "trainer.setHours": "Fixer tes horaires",

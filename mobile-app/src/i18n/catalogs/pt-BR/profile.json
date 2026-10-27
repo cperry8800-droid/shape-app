@@ -399,6 +399,7 @@
   "trainer.dayNoListing": "{name} ainda não tem horários livres na Shape. Mande uma mensagem para perguntar.",
   "trainer.dayLoading": "Lendo a semana…",
   "trainer.dayError": "Não foi possível ler os horários livres agora.",
+  "trainer.ownError": "Não foi possível ler sua página agora.",
   "trainer.retry": "Tentar de novo",
   "trainer.dayNoHoursSelf": "Os membros não veem horários livres até você definir seus horários.",
   "trainer.setHours": "Definir seus horários",

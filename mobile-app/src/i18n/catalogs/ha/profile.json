@@ -399,6 +399,7 @@
   "trainer.dayNoListing": "{name} ba shi da lokaci a buɗe a Shape tukuna. Aika saƙo don tambaya.",
   "trainer.dayLoading": "Ana karanta makon…",
   "trainer.dayError": "Ba a iya karanta lokutan da ke buɗe yanzu ba.",
+  "trainer.ownError": "Ba a iya karanta shafinka yanzu ba.",
   "trainer.retry": "Sake gwadawa",
   "trainer.dayNoHoursSelf": "Membobi ba za su ga lokaci a buɗe ba sai ka saita lokutanka.",
   "trainer.setHours": "Saita lokutanka",

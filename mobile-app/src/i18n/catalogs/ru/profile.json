@@ -399,6 +399,7 @@
   "trainer.dayNoListing": "У {name} пока нет свободного времени в Shape. Напишите, чтобы спросить.",
   "trainer.dayLoading": "Читаем неделю…",
   "trainer.dayError": "Не удалось прочитать свободное время.",
+  "trainer.ownError": "Не удалось прочитать вашу страницу.",
   "trainer.retry": "Повторить",
   "trainer.dayNoHoursSelf": "Участники не видят свободного времени, пока вы не зададите часы.",
   "trainer.setHours": "Задать часы",

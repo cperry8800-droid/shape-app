@@ -399,6 +399,7 @@
   "trainer.dayNoListing": "{name} belum punya waktu kosong di Shape. Kirim pesan untuk bertanya.",
   "trainer.dayLoading": "Membaca minggu ini…",
   "trainer.dayError": "Waktu kosong tidak bisa dibaca sekarang.",
+  "trainer.ownError": "Halamanmu tidak bisa dibaca sekarang.",
   "trainer.retry": "Coba lagi",
   "trainer.dayNoHoursSelf": "Anggota tidak melihat waktu kosong sampai kamu mengatur jam.",
   "trainer.setHours": "Atur jam kamu",

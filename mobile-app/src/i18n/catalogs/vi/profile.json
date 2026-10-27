@@ -399,6 +399,7 @@
   "trainer.dayNoListing": "{name} chưa có giờ trống trên Shape. Nhắn tin để hỏi.",
   "trainer.dayLoading": "Đang đọc tuần này…",
   "trainer.dayError": "Hiện không đọc được giờ trống.",
+  "trainer.ownError": "Hiện không đọc được trang của bạn.",
   "trainer.retry": "Thử lại",
   "trainer.dayNoHoursSelf": "Thành viên không thấy giờ trống cho đến khi bạn đặt giờ.",
   "trainer.setHours": "Đặt giờ của bạn",

@@ -91,6 +91,7 @@ window.ShapeCommunity = { listByAuthor: async () => ({ data: world.posts }) };
 window.shapeDb = {
   getUserGoals: async (k, opts) => {
     world.readWith = opts;
+    if (world.readHold) await world.readHold;
     if (world.switchOnRead) world.me = 'u-other';
     if (world.readFails) return null;
     if (opts && opts.expectedUserId != null && opts.expectedUserId !== world.me) return null;
@@ -253,6 +254,45 @@ test('Make it yours saves only for the account that opened it, and only onto a d
     assert.ok(document.querySelector('[data-make-it-yours]'), `${name}: the editor stays open with the changes`);
     await m.unmount();
   }
+});
+
+test('Make it yours opens only on the coach\'s doc as read, and saves only what was changed in it (Codex P1 on #2484)', async () => {
+  const stored = { bio: 'Kept', look: { paper: 'bone', accent: 'rust', focus: 'top' }, studio: { kind: 'gym', where: 'Fishtown', items: bsStudioFromTemplate('gym') } };
+  let release;
+  reset({ me: 'u-maya', stored });
+  world.readHold = new Promise((r) => { release = r; });
+  const m = await mount(page({ isSelf: true }));
+  const opener = () => [...document.querySelectorAll('button')].filter((b) => /^Make it yours$/.test(b.textContent) || b.getAttribute('aria-label') === 'Make it yours');
+  assert.equal(opener().length, 2, 'the corner and the button');
+  assert.ok(opener().every((b) => b.disabled), 'neither opens before the doc is read');
+  await click(opener()[1]);
+  assert.ok(!document.querySelector('[data-make-it-yours]'), 'a tap opens nothing');
+  world.readHold = null;
+  release();
+  await flush();
+  assert.ok(opener().every((b) => !b.disabled), 'both open once it is read');
+  await click(opener()[1]);
+  assert.equal(document.querySelector('[data-paper="bone"]').getAttribute('aria-pressed'), 'true', 'it opens on their look, not the default');
+  // Their studio changes elsewhere while the editor is open; here only the accent changes.
+  world.stored = { ...stored, studio: { kind: 'garage', where: 'Kensington', items: bsStudioFromTemplate('garage') } };
+  await click(document.querySelector('[data-accent="green"]'));
+  await click(document.querySelector('[data-save-mine]'));
+  assert.deepEqual(world.saved.d.look, { paper: 'bone', accent: 'green', focus: 'top' }, 'the look they had, with the one change');
+  assert.equal(world.saved.d.studio.kind, 'garage', 'a key this editor did not change is kept as stored now');
+  assert.equal(world.saved.d.bio, 'Kept');
+  await m.unmount();
+});
+
+test('when the coach\'s doc cannot be read, the page says so and Make it yours waits for Try again', async () => {
+  reset({ me: 'u-maya', readFails: true, stored: { look: { paper: 'sage', accent: 'blue' } } });
+  const m = await mount(page({ isSelf: true }));
+  assert.ok(button(/^Make it yours$/).disabled);
+  assert.match(m.text(), /Couldn't read your page just now\./);
+  world.readFails = false;
+  await click(document.querySelector('[data-own-error] button'));
+  assert.ok(!document.querySelector('[data-own-error]'), 'read on the retry');
+  assert.ok(!button(/^Make it yours$/).disabled);
+  await m.unmount();
 });
 
 test('the wall photo is only the coach\'s own media, on the profile and in the editor (Codex P1 on #2484)', async () => {
