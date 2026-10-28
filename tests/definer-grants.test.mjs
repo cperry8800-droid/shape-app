@@ -1799,6 +1799,10 @@ test('fixedAfterCapture, a pin fix: accepted once the migrations pin it, refused
   // Every item carried now postdates the pin, so the list before it held each as its old entry.
   const restored = { ...structuredClone(ALLOW), fixedAfterCapture: [], registeredPinFindings: [structuredClone(PIN.wasPinFinding)] };
   for (const f of ALLOW.fixedAfterCapture ?? []) if (f.wasEntry) restored.entries[f.name] = structuredClone(f.wasEntry);
+  // A definer created after the pin (coach_review_ratings, 2026-10-28) had no entry in the list as it
+  // stood before it: the tree before the pin has no such function, so its entry would read as stale.
+  const existedBefore = new Set(M.definerRpcFns(before).map((f) => f.name));
+  for (const name of Object.keys(restored.entries)) if (!existedBefore.has(name)) delete restored.entries[name];
   const left = checkAllowlist(before, restored);
   assert.deepEqual(left.filter((m) => /save_workout_session/.test(m)), [], 'the registered pin finding is exactly right for the tree before the pin');
   assert.deepEqual(left.map((m) => /^missing from the allow-list: (\w+) /.exec(m)?.[1] ?? m).sort(), ['get_active_activities', 'get_active_now', 'get_follow_list', 'shape_profile_visibility']);
