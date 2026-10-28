@@ -44,6 +44,9 @@ function fn(src, name) {
  *  `ratingsFn: false` is a database before that migration (the function is missing); `'error'` is
  *  the function failing some other way (a timeout).
  *  `canReadRows: false` is a reader the migration's policy shows no row (a guest, a non-member). */
+// The real sign-in classifier: nobody measured is a guest; an outage is not.
+const authLookup = await loadRealModule(join(ROOT, 'src/lib/auth-lookup.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', createRequire(join(ROOT, 'package.json'))('@supabase/supabase-js')]]) })
+
 function reviewsClient(rows, { ratingsFn = true, canReadRows = true } = {}) {
   return {
     rpc: async (name) => {
@@ -81,13 +84,20 @@ function reviewsClient(rows, { ratingsFn = true, canReadRows = true } = {}) {
 // alone is a signed-in reader who isn't one; neither is a guest. `admin`: a member by the e-mail
 // allow-list, whose lists the route reads with `adminClient` (the service role). `membershipFails`:
 // the membership read errs, which computeMembership throws only when asked to be strict.
-async function loadRoute(client, { member = false, admin = false, signedIn = member || admin, adminClient = null, membershipFails = false, seen = {} } = {}) {
+// `authOutage`: the sign-in check itself fails (getUser answers a null user with a 5xx error).
+async function loadRoute(client, { member = false, admin = false, signedIn = member || admin, adminClient = null, membershipFails = false, authOutage = false, seen = {} } = {}) {
   const require_ = createRequire(join(ROOT, 'package.json'))
   return loadRealModule(join(ROOT, 'src/app/api/coaches/reviews/route.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', require_('next/server')],
-      ['@/lib/request-auth', { currentUser: async () => (signedIn ? { id: 'u-reader', email: 'r@example.invalid', email_confirmed_at: 'x' } : null), clientForRequest: async () => client }],
+      ['@/lib/request-auth', {
+        currentUser: async () => (signedIn ? { id: 'u-reader', email: 'r@example.invalid', email_confirmed_at: 'x' } : null),
+        userLookupForRequest: async () => (authOutage ? { user: null, error: { name: 'AuthRetryableFetchError', status: 503, message: 'auth down' } }
+          : { user: signedIn ? { id: 'u-reader', email: 'r@example.invalid', email_confirmed_at: 'x' } : null, error: null }),
+        clientForRequest: async () => client,
+      }],
+      ['@/lib/auth-lookup', authLookup],
       ['@/lib/request-utils', { readJson: async () => ({ ok: true, data: {} }) }],
       ['@/lib/membership-core', { computeMembership: async (sb, id, email, opts = {}) => {
         seen.strict = opts.strict === true
@@ -164,6 +174,12 @@ test('a failed membership read is unknown, never "not a member" (Codex P2 on #24
     assert.equal(body.reviews, undefined, q)
   }
   assert.equal(seen.strict, true, 'the membership read is strict')
+  // The sign-in check failing (an auth outage) is unknown too, never a guest (Codex P2 on #2492).
+  const outage = await loadRoute(reviewsClient(rows), { authOutage: true })
+  for (const q of [`?owner=${OWNER}`, '?coach=ada-coach', `?ids=${REVIEW}`]) {
+    const res = await outage.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))
+    assert.equal(res.status, 503, `${q}: an auth outage is not a guest`)
+  }
 })
 
 test('an admin on the allow-list reads every review, through the service role (Codex P2 on #2492)', async () => {

@@ -16,7 +16,9 @@ export default {
   mutations: [
     // ── the API ──
     { name: 'api: a guest counts as a member', file: API,
-      find: '  if (!user) return { member: false, admin: false };', replace: '  if (!user) return { member: true, admin: false };' },
+      find: 'isMeasuredSignedOut(error) ? { member: false, admin: false } : null;', replace: 'isMeasuredSignedOut(error) ? { member: true, admin: false } : null;' },
+    { name: 'api: an auth outage counts as a guest', file: API,
+      find: 'isMeasuredSignedOut(error) ? { member: false, admin: false } : null;', replace: '{ member: false, admin: false };' },
     { name: 'api: every signed-in reader counts as a member', file: API,
       find: '    return { member: m.isMember, admin: m.isAdmin };', replace: '    return { member: true, admin: m.isAdmin };' },
     { name: 'api: a failed membership read counts as "not a member" (not strict)', file: API,

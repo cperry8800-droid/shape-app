@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { clientForRequest, currentUser, userLookupForRequest } from '@/lib/request-auth';
+import { isMeasuredSignedOut } from '@/lib/auth-lookup';
 import { readJson } from '@/lib/request-utils';
 import { computeMembership } from '@/lib/membership-core';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -52,12 +53,14 @@ function shape(row: ReviewRow) {
 // holds the same line (2026-10-28-coach-reviews-members.sql): coach_reviews is readable by a
 // member, a review's author and its coach, and every rating comes from coach_review_ratings(),
 // which returns totals and counts only.
-// null: the membership couldn't be read. That is unknown, never "not a member", so a member is
-// never shown the paywall over a failed read (`strict`; Codex P2 on #2492): the answer is a 503.
+// null: the sign-in or the membership couldn't be read. That is unknown, never "not a member", so
+// a member is never shown the paywall over a failed read (Codex P2 ×2 on #2492): the answer is a
+// 503. Only a sign-in check that measured nobody (src/lib/auth-lookup.ts) is a guest; an auth
+// outage answers a null user too.
 type Reader = { member: boolean; admin: boolean } | null;
 async function readReader(request: Request, supabase: SupabaseClient): Promise<Reader> {
-  const user = await currentUser(request);
-  if (!user) return { member: false, admin: false };
+  const { user, error } = await userLookupForRequest(request);
+  if (!user) return isMeasuredSignedOut(error) ? { member: false, admin: false } : null;
   try {
     const m = await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strict: true });
     return { member: m.isMember, admin: m.isAdmin };
