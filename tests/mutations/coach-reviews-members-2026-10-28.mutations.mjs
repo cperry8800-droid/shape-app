@@ -87,6 +87,8 @@ export default {
       find: '        setRevLocked(d.locked === true);', replace: '        setRevLocked(false);' },
     { name: 'listing: an unread list says "No reviews yet"', file: MKT,
       find: '{coach.ratingLive && revRead && !liveReviews.length && (revLocked', replace: '{coach.ratingLive && !liveReviews.length && (revLocked' },
+    { name: 'listing: a read list is never marked read', file: MKT,
+      find: '        setRevRead(true);\n', replace: '' },
     { name: 'signal profile: an unread list says "No reviews yet"', file: APP,
       find: '{!liveList.length && !(liveCoach && liveReviews === null) && (revLocked', replace: '{!liveList.length && (revLocked' },
     { name: 'website: an unread list says "No reviews yet"', file: WEB,
