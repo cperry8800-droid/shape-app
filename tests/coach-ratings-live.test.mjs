@@ -408,6 +408,13 @@ test('locked: each reviews list says members read them, with the rating, and off
   // The app's one membership checkout (its errors, an existing member, a lost session), on window
   // for the marketplace and trainer-profile modules.
   assert.match(read(APP), /Object\.assign\(window, \{[^}]*\bbsStartPlatformCheckout \}\);/)
+  // A list that wasn't read (a failed load, or the API's 503 when it can't check a membership or the
+  // ratings) is no list: none of them says "No reviews yet" over it (Codex P2 on #2492).
+  const mkt = read(APP_MKT)
+  assert.ok(mkt.includes('setLiveReviews(d.reviews);\n        setRevRead(true);'), 'the listing marks a read list')
+  assert.ok(mkt.includes('{coach.ratingLive && revRead && !liveReviews.length && (revLocked'), 'the listing says nothing over an unread list')
+  assert.ok(read(APP).includes('{!liveList.length && !(liveCoach && liveReviews === null) && (revLocked'), 'the Signal profile says nothing over an unread list')
+  assert.ok(read('public/newdesign/livingShared.jsx').includes('{!reviewItems.length && !(d.uid && liveReviews === null) && (revLocked'), 'the website says nothing over an unread list')
   // The website's living profile: the same line, and the membership page.
   const web = read('public/newdesign/livingShared.jsx')
   assert.ok(web.includes('setRevLocked(j.locked === true);'))

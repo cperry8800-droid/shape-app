@@ -20075,7 +20075,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                   out a coach's line, its writer's flat face and name above it (owner, 2026-10-24, "Design"). */}
               <BSTStationHead mag heat={c} INK={INK} label={tr('profile:tab.reviews', { defaultValue: 'Reviews' })} meta={`${liveAvg != null ? liveAvg : (rating != null ? rating : '—')}/10 · ★ ${liveCoach ? reviewCount : (liveReviews && liveReviews.length ? liveReviews.length : reviewCount)}`} />
               <div>
-                {!liveList.length && (revLocked && liveAgg && liveAgg.count > 0 ? (
+                {/* A live coach's list unread (a failed or 503 load) is no list, never "No reviews yet" (Codex P2 on #2492). */}
+                {!liveList.length && !(liveCoach && liveReviews === null) && (revLocked && liveAgg && liveAgg.count > 0 ? (
                   <div data-reviews-locked="" style={{ padding: '12px 0' }}>
                     <div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.75) }}>{tr('marketplace:listing.reviewsMembers', { defaultValue: 'Members read the reviews.' })}</div>
                     <button type="button" onClick={() => { if (window.bsRequireAccount && !window.bsRequireAccount(tr('marketplace:listing.reviewsJoin', { defaultValue: 'read the reviews' }))) return; bsStartPlatformCheckout(); }}

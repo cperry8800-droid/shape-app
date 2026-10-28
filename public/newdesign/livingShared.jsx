@@ -1286,7 +1286,8 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
             </div>
           </div>
         )}
-        {!reviewItems.length && (revLocked && revAgg && revAgg.count > 0 ? (
+        {/* A live coach's list unread (a failed or 503 load) is no list, never "No reviews yet" (Codex P2 on #2492). */}
+        {!reviewItems.length && !(d.uid && liveReviews === null) && (revLocked && revAgg && revAgg.count > 0 ? (
           <div data-reviews-locked="" style={{ padding: "14px 0" }}>
             <div style={{ fontFamily: lvSans, fontSize: 14, color: hexA(ink, 0.75) }}>Members read the reviews.</div>
             <a href="Pricing.html" style={{ display: "inline-block", marginTop: 6, fontFamily: lvMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: c, textDecoration: "none" }}>Join Shape to read them →</a>

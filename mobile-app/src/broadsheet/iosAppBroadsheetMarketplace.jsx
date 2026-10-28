@@ -2173,6 +2173,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const [revLoad, setRevLoad] = useStateBSM2(0);
   // Members read the reviews; anyone else is told so, with the rating (owner, 2026-10-28).
   const [revLocked, setRevLocked] = useStateBSM2(false);
+  // Whether the list has been read: a failed read (a 503 when a membership or the ratings can't
+  // be checked) is no list, never "No reviews yet" (Codex P2 on #2492).
+  const [revRead, setRevRead] = useStateBSM2(false);
   const avgRev = revAgg && revAgg.count > 0 ? revAgg.avg
     : (liveReviews.length ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null);
   useEffectBSM2(() => {
@@ -2183,6 +2186,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       .then(d => {
         if (c || !d || !Array.isArray(d.reviews)) return;
         setLiveReviews(d.reviews);
+        setRevRead(true);
         setRevLocked(d.locked === true);
         setRevAgg(Number.isFinite(Number(d.count)) ? { avg: Number(d.avg) || 0, count: Number(d.count) } : null);
       })
@@ -2770,7 +2774,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
             <button onClick={submitReview} disabled={!revRating || revPosting} style={{ borderRadius: t.RADIUS_SM, padding: '8px 16px', background: revRating ? t.INK : t.SURFACE, color: revRating ? t.PAPER : t.INK50, border: 0, cursor: (revRating && !revPosting) ? 'pointer' : 'default', opacity: revPosting ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{revPosting ? tr('marketplace:listing.posting', { defaultValue: 'Posting…' }) : tr('marketplace:listing.postReview', { defaultValue: 'Post review' })}</button>
           </div>
         </div>}
-        {coach.ratingLive && !liveReviews.length && (revLocked && revAgg && revAgg.count > 0 ? (
+        {coach.ratingLive && revRead && !liveReviews.length && (revLocked && revAgg && revAgg.count > 0 ? (
           <div data-reviews-locked="" style={{ marginTop: 14 }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70 }}>{tr('marketplace:listing.reviewsMembers', { defaultValue: 'Members read the reviews.' })}</div>
             <button onClick={() => { if (window.bsRequireAccount && !window.bsRequireAccount(tr('marketplace:listing.reviewsJoin', { defaultValue: 'read the reviews' }))) return; window.bsStartPlatformCheckout?.(); }} style={{ marginTop: 6, minHeight: 40, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: roleColor }}>{tr('marketplace:listing.reviewsJoinCta', { defaultValue: 'Join to read them' })} →</button>
