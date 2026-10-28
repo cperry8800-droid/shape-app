@@ -46,6 +46,8 @@ export default {
       replace: "r.coach_slug === slug)) : null;\n    if (!reader.member) return NextResponse.json({ reviews: [], locked: true });" },
     { name: 'api: the ratings function is never read', file: API,
       find: '  if (!rpc.error) return ((rpc.data', replace: '  if (false) return ((rpc.data' },
+    { name: "api: a member's rating falls back to the capped page", file: API,
+      find: '    return NextResponse.json({ reviews, ...(rating || {}) });', replace: '    return NextResponse.json({ reviews, ...(rating || { avg: 0, count: reviews.length }) });' },
     { name: 'api: any failure of the ratings function falls back to the rows', file: API,
       find: "  if (code !== 'PGRST202' && code !== '42883') return null;\n", replace: '' },
     // ── the migration ──
