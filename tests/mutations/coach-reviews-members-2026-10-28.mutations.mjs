@@ -30,6 +30,8 @@ export default {
       find: '  if (!reader.admin) return supabase;', replace: '  return supabase;' },
     { name: 'api: everyone reads through the service role', file: API,
       find: '  if (!reader.admin) return supabase;', replace: '  if (false) return supabase;' },
+    { name: 'api: an owner id in capitals matches no rating', file: API,
+      find: "cleanText(url.searchParams.get('owner'), 64).toLowerCase();", replace: "cleanText(url.searchParams.get('owner'), 64);" },
     { name: 'api: ?ids answers a non-member', file: API,
       find: '    if (!reader.member) return NextResponse.json({ reviews: [], locked: true });\n', replace: '' },
     { name: 'api: ?owner answers a non-member', file: API,

@@ -134,7 +134,8 @@ export async function GET(request: Request) {
   // the wins-wall pin picker is independent of any display-name vs provider-name slug
   // mismatch. Members only, as every list; the picker still filters to a MEMBER's review
   // (authorId !== ownerId).
-  const ownerParam = cleanText(url.searchParams.get('owner'), 64);
+  // Lowercase: a uuid comes back from the database lowercase, and the rating rows are matched on it (Codex P2 on #2492).
+  const ownerParam = cleanText(url.searchParams.get('owner'), 64).toLowerCase();
   if (ownerParam) {
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuid.test(ownerParam)) return NextResponse.json({ reviews: [] });

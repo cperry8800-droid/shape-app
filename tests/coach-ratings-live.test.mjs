@@ -242,7 +242,7 @@ test('a ratings function that fails, rather than is missing, gives no rating, ne
 })
 
 test('a profile\'s rating is read for its one coach, never the whole table (Codex P2 on #2492)', async () => {
-  const OWNER = '22222222-2222-4222-8222-222222222222'
+  const OWNER = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
   const rows = [
     { id: 1, coach_slug: 'ada-coach', rating: 9, owner_id: OWNER },
     { id: 2, coach_slug: 'ada-coach', rating: 7, owner_id: OWNER },
@@ -254,6 +254,9 @@ test('a profile\'s rating is read for its one coach, never the whole table (Code
     const byOwner = await (await route.GET(new Request(`https://shape.test/api/coaches/reviews?owner=${OWNER}`))).json()
     assert.deepEqual([byOwner.avg, byOwner.count], [8, 2])
     assert.deepEqual(log[0], ['rpc', { p_owner: OWNER }], `ratings function ${ratingsFn}: asked for the one account`)
+    // An id written in capitals is the same account (the database answers uuids lowercase).
+    const upper = await (await route.GET(new Request(`https://shape.test/api/coaches/reviews?owner=${OWNER.toUpperCase()}`))).json()
+    assert.deepEqual([upper.avg, upper.count], [8, 2], `ratings function ${ratingsFn}: an uppercase id`)
     if (!ratingsFn) assert.ok(log.some((e) => e[0] === 'eq' && e[1] === 'owner_id' && e[2] === OWNER), 'the rows before the migration, for the one account')
     log.length = 0
     const bySlug = await (await route.GET(new Request('https://shape.test/api/coaches/reviews?coach=bo-coach'))).json()
