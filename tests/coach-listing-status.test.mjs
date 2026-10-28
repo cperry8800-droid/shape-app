@@ -425,7 +425,7 @@ test('app Rates: saves through ShapeCoachListing, follows the saved listing, and
 
 test('app: the backend door and the marketplace\'s word for a deep link to a coach who is not listed', () => {
   const backend = read('mobile-app/src/services/shapeBackend.js');
-  assert.match(backend, /window\.ShapeCoachListing = \{\s+getMine: getMyCoachListings,\s+saveRates: saveMyCoachRates,\s+publicByOwner: publicListingByOwner,\s+\};/);
+  assert.match(backend, /window\.ShapeCoachListing = \{\s+getMine: getMyCoachListings,\s+saveRates: saveMyCoachRates,\s+publicByOwner: publicListingByOwner,\s+publicById: publicListingById,\s+\};/);
   assert.match(backend, /fetch\(`\$\{apiBaseUrl\}\/api\/coach\/listing`, \{\s+method: 'POST',/);
   const market = read('mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx');
   assert.match(market, /if \(hit\) \{ setOpen\(hit\); setOpenNo\(null\); setDeepMiss\(false\); \} else setDeepMiss\(true\);\s+if \(onCoachConsumed\) onCoachConsumed\(\);/);
@@ -433,7 +433,7 @@ test('app: the backend door and the marketplace\'s word for a deep link to a coa
   assert.match(market, /onClick=\{\(\) => setDeepMiss\(false\)\}/);
 });
 
-test('app: a profile\'s owner lookup finds only a listed row, the marketplace\'s predicate (Codex P1 on #2484)', async () => {
+test('app: a profile\'s listing lookup, by owner or by id, finds only a listed row, the marketplace\'s predicate (Codex P1 on #2484)', async () => {
   const src = read('mobile-app/src/services/shapeBackend.js');
   const i = src.indexOf('const PUBLIC_PROVIDER_COLUMNS = {');
   const j = src.indexOf('window.ShapeCoachListing = {');
@@ -456,14 +456,23 @@ test('app: a profile\'s owner lookup finds only a listed row, the marketplace\'s
     };
     return b;
   };
-  const lookup = new Function('supabase', 'normalizeRole', 'bsNormalizeListingMedia', `${src.slice(i, j)}\nreturn publicListingByOwner;`)(
-    { from: table }, (r) => r, (m) => m || { cover: null, gallery: [] });
+  const normalizedFor = [];
+  const [lookup, byId] = new Function('supabase', 'normalizeRole', 'bsNormalizeListingMedia', `${src.slice(i, j)}\nreturn [publicListingByOwner, publicListingById];`)(
+    { from: table }, (r) => r, (m, owner) => { normalizedFor.push(owner); return m || { cover: null, gallery: [] }; });
   rows = [{ id: 3, owner_id: 'u1', listing_ready: false }];
   assert.equal(await lookup('trainer', 'u1'), null, 'suspended or unfinished: no listing to offer times or checkout from');
   rows = [{ id: 3, owner_id: 'u1', listing_ready: false }, { id: 9, owner_id: 'u1', listing_ready: true }];
   assert.equal((await lookup('trainer', 'u1')).id, 9, 'the lowest listed row');
   rows = [{ id: 9, owner_id: 'u1', listing_ready: true }, { id: 3, owner_id: 'u1', listing_ready: true }, { id: 1, owner_id: 'u2', listing_ready: true }];
   assert.equal((await lookup('trainer', 'u1')).id, 3, 'the account\'s own lowest id');
+  // By the listing's own id, for a coach with no account (Shape's seeded listings), the same predicate.
+  rows = [{ id: 41, owner_id: null, listing_ready: false }];
+  assert.equal(await byId('trainer', 41), null, 'a listing off the marketplace is not offered');
+  rows = [{ id: 41, owner_id: null, listing_ready: true }, { id: 42, owner_id: null, listing_ready: true }];
+  normalizedFor.length = 0;
+  assert.equal((await byId('trainer', 41)).id, 41);
+  assert.deepEqual(normalizedFor, [null], 'its photos are checked against no owner, so none are shown');
+  for (const bad of [0, -1, 'x', 1.5, null]) assert.equal(await byId('trainer', bad), null, `no read for id ${bad}`);
 });
 
 // ── A photo can be the last step (Codex on #2324) ──────────────────────────
