@@ -39,15 +39,27 @@ function fn(src, name) {
 }
 
 /** A coach_reviews fake that applies eq / order / range / limit and, like the API,
- *  never returns more than 1,000 rows from one read. */
-function reviewsClient(rows) {
+ *  never returns more than 1,000 rows from one read. Its coach_review_ratings() is the
+ *  migration's (2026-10-28-coach-reviews-members.sql): each slug and account's total and count;
+ *  `ratingsFn: false` is a database before that migration (the function is missing). */
+function reviewsClient(rows, { ratingsFn = true } = {}) {
   return {
+    rpc: async (name) => {
+      if (name !== 'coach_review_ratings' || !ratingsFn) return { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } }
+      const groups = new Map()
+      for (const r of rows) {
+        const k = `${r.coach_slug}|${r.owner_id ?? ''}`
+        const g = groups.get(k) || { coach_slug: r.coach_slug, owner_id: r.owner_id ?? null, total: 0, count: 0 }
+        g.total += r.rating || 0; g.count += 1; groups.set(k, g)
+      }
+      return { data: [...groups.values()], error: null }
+    },
     from: () => {
       const st = { filters: [], limit: null, range: null }
       const q = {
         select: () => q,
         eq: (c, v) => { st.filters.push((r) => r[c] === v); return q },
-        in: () => q,
+        in: (c, vals) => { st.filters.push((r) => vals.includes(r[c])); return q },
         order: () => q,
         range: (a, b) => { st.range = [a, b]; return q },
         limit: (n) => { st.limit = n; return q },
@@ -62,19 +74,21 @@ function reviewsClient(rows) {
     },
   }
 }
-async function loadRoute(client) {
+// `member`: the reader is a signed-in member (computeMembership's answer); else signed out.
+async function loadRoute(client, { member = false } = {}) {
   const require_ = createRequire(join(ROOT, 'package.json'))
   return loadRealModule(join(ROOT, 'src/app/api/coaches/reviews/route.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', require_('next/server')],
-      ['@/lib/request-auth', { currentUser: async () => null, clientForRequest: async () => client }],
+      ['@/lib/request-auth', { currentUser: async () => (member ? { id: 'u-reader', email: 'r@example.invalid', email_confirmed_at: 'x' } : null), clientForRequest: async () => client }],
       ['@/lib/request-utils', { readJson: async () => ({ ok: true, data: {} }) }],
+      ['@/lib/membership-core', { computeMembership: async () => ({ isMember: member, isCoach: false, isAdmin: false, isKnownMinor: false }) }],
     ]),
   })
 }
 
-test('the API averages each coach by ACCOUNT as well as by slug', async () => {
+test('the API averages each coach by ACCOUNT as well as by slug, from the ratings function or, before it, the rows', async () => {
   const rows = [
     { id: 1, coach_slug: 'ada-coach', rating: 9, owner_id: 'u-ada' },
     { id: 2, coach_slug: 'ada-coach', rating: 6, owner_id: 'u-ada' },
@@ -82,24 +96,56 @@ test('the API averages each coach by ACCOUNT as well as by slug', async () => {
     { id: 3, coach_slug: 'ada-old-name', rating: 3, owner_id: 'u-ada' },
     { id: 4, coach_slug: 'seeded-coach', rating: 10, owner_id: null },
   ]
-  const route = await loadRoute(reviewsClient(rows))
-  const body = await (await route.GET(new Request('https://shape.test/api/coaches/reviews'))).json()
-  assert.deepEqual(body.owners, { 'u-ada': { avg: 6, count: 3 } })
-  assert.deepEqual(body.summaries['ada-coach'], { avg: 7.5, count: 2 })
-  assert.deepEqual(body.summaries['seeded-coach'], { avg: 10, count: 1 })
+  for (const ratingsFn of [true, false]) {
+    const route = await loadRoute(reviewsClient(rows, { ratingsFn }))
+    const body = await (await route.GET(new Request('https://shape.test/api/coaches/reviews'))).json()
+    assert.deepEqual(body.owners, { 'u-ada': { avg: 6, count: 3 } }, `ratings function: ${ratingsFn}`)
+    assert.deepEqual(body.summaries['ada-coach'], { avg: 7.5, count: 2 })
+    assert.deepEqual(body.summaries['seeded-coach'], { avg: 10, count: 1 })
+  }
+})
+
+test('members read the reviews; everyone else gets the rating and no words (owner, 2026-10-28)', async () => {
+  const OWNER = '22222222-2222-4222-8222-222222222222'
+  const REVIEW = '33333333-3333-4333-8333-333333333333'
+  const rows = [
+    { id: REVIEW, coach_slug: 'ada-coach', rating: 9, owner_id: OWNER, body: 'Clear plans.', author_name: 'Sam R.', created_at: '2026-10-01' },
+    { id: '44444444-4444-4444-8444-444444444444', coach_slug: 'ada-coach', rating: 7, owner_id: OWNER, body: 'Good.', author_name: 'Ana P.', created_at: '2026-10-02' },
+  ]
+  for (const ratingsFn of [true, false]) {
+    const guest = await loadRoute(reviewsClient(rows, { ratingsFn }))
+    for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
+      const body = await (await guest.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()
+      assert.deepEqual(body, { reviews: [], locked: true, avg: 8, count: 2 }, `${q}, ratings function ${ratingsFn}: the rating, no words or authors`)
+    }
+    const pins = await (await guest.GET(new Request(`https://shape.test/api/coaches/reviews?ids=${REVIEW}`))).json()
+    assert.deepEqual(pins, { reviews: [], locked: true }, 'a pinned review is a review: members only')
+    const member = await loadRoute(reviewsClient(rows, { ratingsFn }), { member: true })
+    for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
+      const body = await (await member.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()
+      assert.equal(body.locked, undefined, q)
+      assert.deepEqual(body.reviews.map((r) => [r.author, r.text]).sort(), [['Ana P.', 'Good.'], ['Sam R.', 'Clear plans.']], q)
+      assert.equal(body.avg, 8)
+      assert.equal(body.count, 2)
+    }
+    const memberPins = await (await member.GET(new Request(`https://shape.test/api/coaches/reviews?ids=${REVIEW}`))).json()
+    assert.equal(memberPins.reviews.length, 1)
+  }
 })
 
 test('the averages cover every review, not one read\'s worth (Codex, #2313)', async () => {
   // 2,500 reviews of one coach: 1,000 rated 2 and 1,500 rated 10. One capped read
   // would have seen only the 2s.
   const rows = Array.from({ length: 2500 }, (_, i) => ({ id: i + 1, coach_slug: 'busy', rating: i < 1000 ? 2 : 10, owner_id: 'u-busy', created_at: String(i) }))
-  const route = await loadRoute(reviewsClient(rows))
+  // Before the ratings function, from the rows, paged; after it, from its totals. Read as a member.
+  for (const ratingsFn of [false, true]) {
+  const route = await loadRoute(reviewsClient(rows, { ratingsFn }), { member: true })
   const sum = await (await route.GET(new Request('https://shape.test/api/coaches/reviews'))).json()
   assert.deepEqual(sum.owners['u-busy'], { avg: 6.8, count: 2500 })
   const owner = await (await route.GET(new Request('https://shape.test/api/coaches/reviews?owner=11111111-1111-4111-8111-111111111111'))).json()
   assert.deepEqual(owner, { reviews: [], avg: 0, count: 0 }, 'an unknown account has none')
   const busyRows = rows.map((r) => ({ ...r, owner_id: '11111111-1111-4111-8111-111111111111' }))
-  const route2 = await loadRoute(reviewsClient(busyRows))
+  const route2 = await loadRoute(reviewsClient(busyRows, { ratingsFn }), { member: true })
   const owned = await (await route2.GET(new Request('https://shape.test/api/coaches/reviews?owner=11111111-1111-4111-8111-111111111111'))).json()
   assert.equal(owned.reviews.length, 200, 'the list stays the newest 200')
   assert.equal(owned.count, 2500, 'the count is every review')
@@ -107,6 +153,7 @@ test('the averages cover every review, not one read\'s worth (Codex, #2313)', as
   const bySlug = await (await route2.GET(new Request('https://shape.test/api/coaches/reviews?coach=busy'))).json()
   assert.equal(bySlug.count, 2500)
   assert.equal(bySlug.avg, 6.8)
+  }
 })
 
 test('the app: a live coach is its reviews, on the ten-point scale, never doubled', () => {
@@ -190,4 +237,22 @@ test('the website: cards, profile and the review form', () => {
   assert.match(shared, /if \(!\(prow && prow\.name\)\) \{ setRevMsg\(/, 'no post before the listing name is known (Codex)')
   assert.match(shared, /disabled=\{!revRating \|\| revBusy \|\| !\(prow && prow\.name\)\}/)
   assert.match(shared, /const reviewsCount = revAgg \? revAgg\.count :/, 'the profile shows the server\'s full count')
+})
+
+test('the database holds the same line: members read coach_reviews, everyone reads ratings only', () => {
+  const sql = read('supabase-migrations/2026-10-28-coach-reviews-members.sql')
+  assert.match(sql, /drop policy if exists "read coach reviews" on public\.coach_reviews;/, 'the open read goes')
+  assert.match(sql, /create policy "members read coach reviews" on public\.coach_reviews\s+for select to authenticated\s+using \(user_id = auth\.uid\(\) or owner_id = auth\.uid\(\) or public\.shape_viewer_is_member\(\)\);/)
+  assert.doesNotMatch(sql, /for select to anon/, 'anon reads no rows')
+  // The member check answers for the caller only, as computeMembership does, and anon cannot run it.
+  assert.match(sql, /select auth\.uid\(\) is not null/)
+  assert.match(sql, /p\.role in \('trainer', 'nutritionist', 'dietitian'\)/)
+  assert.match(sql, /newest\.status in \('active', 'trialing', 'past_due'\)/)
+  assert.match(sql, /revoke all on function public\.shape_viewer_is_member\(\) from anon;\ngrant execute on function public\.shape_viewer_is_member\(\) to authenticated;/)
+  // The ratings: totals and counts, never a review's words, author or id.
+  const ratings = sql.slice(sql.indexOf('create or replace function public.coach_review_ratings()'), sql.indexOf('revoke all on function public.coach_review_ratings()'))
+  assert.match(ratings, /returns table \(coach_slug text, owner_id uuid, total bigint, count bigint\)/)
+  assert.doesNotMatch(ratings, /\bbody\b|author_name|user_id|r\.id\b/)
+  assert.match(sql, /grant execute on function public\.coach_review_ratings\(\) to anon, authenticated;/)
+  assert.match(sql, /^begin;[\s\S]*\ncommit;\n$/m)
 })
