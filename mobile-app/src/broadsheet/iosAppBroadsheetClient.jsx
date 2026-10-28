@@ -20078,7 +20078,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                 {!liveList.length && (revLocked && liveAgg && liveAgg.count > 0 ? (
                   <div data-reviews-locked="" style={{ padding: '12px 0' }}>
                     <div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.75) }}>{tr('marketplace:listing.reviewsMembers', { defaultValue: 'Members read the reviews.' })}</div>
-                    <button type="button" onClick={() => { if (window.bsRequireAccount && !window.bsRequireAccount(tr('marketplace:listing.reviewsJoin', { defaultValue: 'read the reviews' }))) return; window.ShapeMembershipApi?.startCheckout?.(); }}
+                    <button type="button" onClick={() => { if (window.bsRequireAccount && !window.bsRequireAccount(tr('marketplace:listing.reviewsJoin', { defaultValue: 'read the reviews' }))) return; bsStartPlatformCheckout(); }}
                       style={{ marginTop: 6, minHeight: 40, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c }}>{tr('marketplace:listing.reviewsJoinCta', { defaultValue: 'Join to read them' })} →</button>
                   </div>
                 ) : (
@@ -38761,7 +38761,7 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
   );
 }
 
-Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
+Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner, bsStartPlatformCheckout });
 // The notification router, for the coach shells' tapped pushes (fix 3a, Codex on #2360).
 Object.assign(window, { bsRouteNotification });
 // The coach app's Notifications page shows the same phone-notifications row (L5).

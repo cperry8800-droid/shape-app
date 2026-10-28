@@ -2773,7 +2773,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         {coach.ratingLive && !liveReviews.length && (revLocked && revAgg && revAgg.count > 0 ? (
           <div data-reviews-locked="" style={{ marginTop: 14 }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70 }}>{tr('marketplace:listing.reviewsMembers', { defaultValue: 'Members read the reviews.' })}</div>
-            <button onClick={() => { if (window.bsRequireAccount && !window.bsRequireAccount(tr('marketplace:listing.reviewsJoin', { defaultValue: 'read the reviews' }))) return; window.ShapeMembershipApi?.startCheckout?.(); }} style={{ marginTop: 6, minHeight: 40, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: roleColor }}>{tr('marketplace:listing.reviewsJoinCta', { defaultValue: 'Join to read them' })} →</button>
+            <button onClick={() => { if (window.bsRequireAccount && !window.bsRequireAccount(tr('marketplace:listing.reviewsJoin', { defaultValue: 'read the reviews' }))) return; window.bsStartPlatformCheckout?.(); }} style={{ marginTop: 6, minHeight: 40, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: roleColor }}>{tr('marketplace:listing.reviewsJoinCta', { defaultValue: 'Join to read them' })} →</button>
           </div>
         ) : (
           <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:listing.noReviews', { defaultValue: 'No reviews yet' })}</div>

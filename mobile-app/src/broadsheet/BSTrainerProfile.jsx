@@ -332,7 +332,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   React.useEffect(() => {
     if (!person.userId || !W.ShapeCoachReviews?.forOwner) return undefined;
     let on = true;
-    W.ShapeCoachReviews.forOwner(person.userId).then((d) => { if (on && d) setReviews({ list: Array.isArray(d.reviews) ? d.reviews : [], avg: Number(d.avg) || 0, count: Number.isFinite(Number(d.count)) ? Number(d.count) : (d.reviews || []).length }); }).catch(() => {});
+    W.ShapeCoachReviews.forOwner(person.userId).then((d) => { if (on && d) setReviews({ list: Array.isArray(d.reviews) ? d.reviews : [], avg: Number(d.avg) || 0, count: Number.isFinite(Number(d.count)) ? Number(d.count) : (d.reviews || []).length, locked: d.locked === true }); }).catch(() => {});
     return () => { on = false; };
   }, [person.userId]);
   // A sample's rating is its listing's, over the sample reviews it shows.
@@ -341,6 +341,14 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
     : liveReviews;
   const reviews = reviewsAll;
   const quotes = reviews && Array.isArray(reviews.list) ? reviews.list.filter((r) => r && String(r.text || '').trim()).slice(0, 6) : [];
+  // Members read the reviews; anyone else gets the rating, and the way in (owner, 2026-10-28:
+  // "anyone with a shape membership can read them", "Rating only"). The server sends a non-member
+  // no review, only `locked` with the average and count. A sample's reviews are the sample's own.
+  const revLocked = !!(reviews && reviews.locked && reviews.count > 0 && !reviews.list.length);
+  const joinToRead = () => {
+    if (W.bsRequireAccount && !W.bsRequireAccount(tr('marketplace:listing.reviewsJoin', { defaultValue: 'read the reviews' }))) return;
+    W.bsStartPlatformCheckout?.();
+  };
 
   // ── Their logged sessions (Replays) ──
   const [posts, setPosts] = React.useState([]);
@@ -507,10 +515,19 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
           {meMode && isSelf ? <div style={{ marginTop: 16 }}><BSCoachBusinessCard role="trainer" accent={ACC} onOpen={() => setPage('business')} /></div> : null}
         </div>
 
-        {/* What clients say: the reviews on the page itself, public as the reviews are (any reader may
-            read them, signed in or out), so shown on a private profile too (owner, 2026-10-28: "i want
-            reviews to be public"). The newest few, each a card; All reviews opens the full list. */}
-        {quotes.length ? (
+        {/* What clients say: the reviews on the page itself, shown on a private profile too: they are
+            the readers', not the coach's to hide. The newest few, each a card; All reviews opens the
+            full list. A reader who isn't a member gets the rating and Join to read them instead. */}
+        {revLocked ? (
+          <section data-reviews-strip="" data-reviews-locked="" aria-label={tr('profile:trainer.reviews', { defaultValue: 'Reviews' })} style={{ margin: `22px ${gutter}px 0` }}>
+            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.clientsSay', { defaultValue: 'What clients say' })}</span>
+            <div style={{ marginTop: 8, padding: '12px 14px', background: t.PAPER2, borderTop: `2px solid ${ACC}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontFamily: MONO, fontSize: 11, color: ACC }}>★ {ratingBit}</span>
+              <span style={{ fontSize: 15, lineHeight: 1.45, color: INK }}>{tr('marketplace:listing.reviewsMembers', { defaultValue: 'Members read the reviews.' })}</span>
+              <button type="button" data-reviews-join="" onClick={joinToRead} style={{ alignSelf: 'flex-start', minHeight: 40, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>{tr('marketplace:listing.reviewsJoinCta', { defaultValue: 'Join to read them' })} →</button>
+            </div>
+          </section>
+        ) : quotes.length ? (
           <section data-reviews-strip="" aria-label={tr('profile:trainer.reviews', { defaultValue: 'Reviews' })} style={{ marginTop: 22 }}>
             <div style={{ padding: `0 ${gutter}px`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
               <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.clientsSay', { defaultValue: 'What clients say' })}</span>
@@ -607,7 +624,12 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
             <CloseX onClose={() => setSheet(null)} color={INK} label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
           </div>
           {reviews && reviews.count > 0 ? <p style={{ margin: '2px 0 8px', fontSize: 13.5, color: ink(0.64) }}>{ratingBit}</p> : null}
-          {reviews && reviews.list.length ? reviews.list.slice(0, 40).map((r) => (
+          {revLocked ? (
+            <div data-reviews-locked="" style={{ padding: '12px 0', borderTop: `1px solid ${ink(0.12)}` }}>
+              <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.5 }}>{tr('marketplace:listing.reviewsMembers', { defaultValue: 'Members read the reviews.' })}</p>
+              <button type="button" data-reviews-join="" onClick={joinToRead} style={{ marginTop: 4, minHeight: 40, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>{tr('marketplace:listing.reviewsJoinCta', { defaultValue: 'Join to read them' })} →</button>
+            </div>
+          ) : reviews && reviews.list.length ? reviews.list.slice(0, 40).map((r) => (
             <div key={r.id || r.text} style={{ padding: '12px 0', borderTop: `1px solid ${ink(0.12)}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 13.5 }}><span style={{ fontWeight: 600 }}>{r.author || tr('profile:role.member', { defaultValue: 'Member' })}</span><span style={{ fontFamily: MONO, fontSize: 11, color: ink(0.7) }}>★ {Math.round(r.rating || 0)}/10</span></div>
               {r.text ? <p style={{ margin: '4px 0 0', fontSize: 14.5, lineHeight: 1.5 }}>{r.text}</p> : null}
