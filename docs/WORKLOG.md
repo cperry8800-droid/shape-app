@@ -103,8 +103,8 @@ dated entry or past 20 KB.
   `BSLeaderboard.jsx` show the pattern: read window globals at call time inside the
   component, keep its own `useShapeTr()`, and never import back into the client
   module.
-- **Coach profiles:** `BSTrainerProfile.jsx` (editor `BSMakeItYours.jsx`) for a trainer with an
-  account or a signed-out trainer Me tab (`trainerDemo.mjs`); else `BSSignalCoachProfile`.
+- **Coach profiles:** `BSTrainerProfile.jsx` (editor `BSMakeItYours.jsx`) for trainers with
+  accounts and their Me tab signed out (`trainerDemo.mjs`); else `BSSignalCoachProfile`.
 - **Other app modules:** `iosAppBroadsheetPros.jsx` (trainer and nutritionist apps),
   `iosAppBroadsheet.jsx` (shared chrome: `BSPage`, `BSFooter`, `BSPlate`,
   `BSSwapSheet`), `iosAppBroadsheetRadio.jsx` (Shape Radio) and
