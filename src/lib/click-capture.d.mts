@@ -1,0 +1,25 @@
+export const LABEL_MAX: number;
+export const PAGE_MAX: number;
+export const BATCH_MAX: number;
+export const COUNT_MAX: number;
+export const FLUSH_MS: number;
+export const UNNAMED: Readonly<{ link: string; tab: string; button: string; row: string }>;
+export type ClickKind = 'link' | 'tab' | 'button' | 'row';
+export type ClickTarget = { el: Element; kind: ClickKind };
+export type ClickRow = { page: string; target: string; n: number };
+export type ClickBatch = { surface: 'web' | 'app'; rows: ClickRow[] };
+export function cleanLabel(value: unknown): string;
+export function cleanPage(value: unknown): string;
+export function controlKind(el: Element | null | undefined): ClickKind | '';
+export function clickTarget(start: EventTarget | Node | null | undefined, isPointer?: (el: Element) => boolean): ClickTarget | null;
+export function controlLabel(target: ClickTarget | null | undefined): string;
+export function addClick(buffer: Map<string, ClickRow>, page: unknown, label: unknown): boolean;
+export function takeBatch(buffer: Map<string, ClickRow>): ClickRow[];
+export function cleanBatch(body: unknown): ClickBatch | null;
+export function startClickCapture(opts: {
+  win: Window;
+  surface: 'web' | 'app';
+  page: () => string;
+  allowed: () => boolean;
+  send: (body: { surface: 'web' | 'app'; clicks: ClickRow[] }) => void;
+}): { flush: () => void } | null;

@@ -1728,6 +1728,8 @@ function BSAppShell({ tweaks, setTweak }) {
   const noraDoor = stage === 'login' || stage === 'apply';
   const [noraSheet, setNoraSheet] = useStateBSM(false);
   useEffectBSM(() => { if (!noraDoor) setNoraSheet(false); }, [noraDoor]);
+  // Where a tap lands before the app, for the click counts (services/analytics.js).
+  useEffectBSM(() => { window.bsClickStage = stage; }, [stage]);
   // The screen's name for her, in English, and for the sheet's chip, in their language.
   const noraWhere = stage === 'apply' ? ['Coach application', tr('nora.pageApply')]
     : ['Sign in or create an account', tr('nora.pageLogin')];

@@ -4,6 +4,8 @@
 // VITE_API_BASE_URL that shapeBackend already configures for fetch; the /m/ web
 // build defaults to same-origin via an empty base → relative URL).
 // Native callers have no cookie session, so events record as anon/null-user in v1.
+// Taps are counted too (src/lib/click-capture.mjs, under the same consent rule): per screen, sent
+// in batches through ShapeApi.fetch, whose Bearer token tells the server a member from a coach.
 // Consent-gated, region-aware (honors the SAME `shape.consent.v1` signal as the
 // web carrier in public/supabase.js): GPC and an explicit opt-out ALWAYS block.
 // With no explicit choice we OPT-IN for EEA/UK (block until 'accept' is recorded —
@@ -13,7 +15,9 @@
 // The EEA and the UK by device time zone: every Europe/* zone (slightly over-inclusive, which
 // fails safe), plus the EEA's zones outside Europe/* (the Canaries, Madeira, the Azores, Ceuta,
 // Cyprus, Iceland, Svalbard, and France's outermost regions; Codex on #2334). One list, written
-// out in four files; tests/consent-region.test.mjs holds them equal.
+// out in five files; tests/consent-region.test.mjs holds them equal.
+import { startClickCapture } from '../../../src/lib/click-capture.mjs';
+
 const CONSENT_REGION_RE = /^(?:Europe\/|(?:Atlantic\/(?:Canary|Madeira|Azores|Reykjavik|Jan_Mayen)|Africa\/Ceuta|Asia\/(?:Nicosia|Famagusta)|Arctic\/Longyearbyen|America\/(?:Guadeloupe|Martinique|Cayenne|Marigot)|Indian\/(?:Reunion|Mayotte))$)/;
 function inEeaOrUk() {
   try {
@@ -30,6 +34,14 @@ function consentBlocked() {
     if (c === 'accept') return false;  // explicit opt-in, anywhere
     return inEeaOrUk();                // no choice yet: block EEA/UK, allow elsewhere
   } catch (e) { return true; }         // consent state unknown → block (fail CLOSED)
+}
+// Where a tap landed: the step before the app (iosAppBroadsheetMain.jsx sets bsClickStage), else
+// the screen Nora is told (bsNoraOpen's English page name, read through bsScreenName).
+const CLICK_STAGES = { beat: 'Launch', lang: 'Language', gate: 'Paywall', daily: 'Shape Daily', login: 'Sign in', apply: 'Coach application' };
+function clickScreen() {
+  const stage = window.bsClickStage;
+  if (stage && stage !== 'app') return CLICK_STAGES[stage] || String(stage);
+  return (typeof window.bsScreenName === 'function' && window.bsScreenName()) || 'App';
 }
 function postEvent(event, props) {
   try {
@@ -49,5 +61,18 @@ if (typeof window !== 'undefined') {
   // mobile funnel event silently no-op'd. Always attach track, never clobber.
   window.ShapeAnalytics = window.ShapeAnalytics || {};
   window.ShapeAnalytics.track = postEvent;
+  try {
+    startClickCapture({
+      win: window,
+      surface: 'app',
+      page: clickScreen,
+      allowed: () => !consentBlocked(),
+      send: (body) => {
+        const init = { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+        const api = window.ShapeApi && window.ShapeApi.fetch;
+        (api ? api('/api/analytics/clicks', init) : fetch(`${(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')}/api/analytics/clicks`, { credentials: 'same-origin', ...init })).catch(() => {});
+      },
+    });
+  } catch (e) {}
 }
 export {};
