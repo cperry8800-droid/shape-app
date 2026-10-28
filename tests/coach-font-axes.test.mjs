@@ -63,7 +63,7 @@ const mainReturn = (body) => body.slice(body.lastIndexOf('\n  return ('));
 
 test('the coach pages and the member Home share the one clean type', () => {
   assert.match(PROS, /import \{[^}]*\buseBSClean\b[^}]*\} from '\.\/bsCleanType\.jsx';/);
-  assert.match(CLIENT, /import \{ useBSClean, BSCleanType \} from '\.\/bsCleanType\.jsx';/);
+  assert.match(CLIENT, /import \{ useBSClean, BSCleanType\b[^}]*\} from '\.\/bsCleanType\.jsx';/);
   const body = fnBody('BSClientHome');
   assert.match(body, /const t = useBSClean\(\);/, 'Home reads the clean theme');
   // The clean area opens below the top bars and closes before the footer, as on the coach's Today.
@@ -88,6 +88,13 @@ test('Train and Eat set their pages in the clean type, under the header, and kee
     assert.ok(open > page.indexOf('<BSPageHeader') && open < page.indexOf('<BSWeekStrip'), `${name}: the clean area starts under the header`);
     assert.ok(close > page.indexOf('<BSCoachPlaylists') && close < page.indexOf('<BSFooter'), `${name}: the clean area ends before the footer`);
     assert.ok(page.indexOf('<BSSwapSheet', close) > close, `${name}: the swap sheet sits outside the clean area`);
+  }
+  // A sheet portalled out of a clean area carries its mark, or its weights step down (Codex on #2488):
+  // the coach playlists' preview on Train and Eat, and Home's check-in and water sheets.
+  assert.match(fnBody('BSPlaylistCard'), /createPortal\(bsCleanSheet\(t,/, "the playlist preview loses the clean weights");
+  for (const f of ['BSCheckinCard', 'BSWaterLine']) {
+    const src = readFileSync(new URL(`../mobile-app/src/broadsheet/${f}.jsx`, import.meta.url), 'utf8');
+    assert.match(src, /createPortal\(bsCleanSheet\(t, sheet\), host\)/, `${f}'s sheet loses the clean weights`);
   }
   // Eat's tabs are the Grocery page's too, so they stay outside with the header.
   const eatPage = mainReturn(eat);

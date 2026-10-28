@@ -64,7 +64,7 @@ import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx'
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
-import { useBSClean, BSCleanType } from './bsCleanType.jsx';
+import { useBSClean, BSCleanType, bsCleanSheet } from './bsCleanType.jsx';
 import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.jsx';
 import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
@@ -5811,7 +5811,9 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider,
   // can say "first 6 of 14" when we only carry a preview.
   const totalTracks = (() => { const m = /(\d+)\s*tracks/i.exec(String(meta || '')); return m ? Number(m[1]) : null; })();
 
-  const sheet = open ? createPortal(
+  // Train's and Eat's coach playlists sit in the clean type; their preview is portalled out of it, so
+  // it carries the clean area's mark for its weights (Codex on #2488). Elsewhere it is as it was.
+  const sheet = open ? createPortal(bsCleanSheet(t,
     <div onClick={() => setOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '82%', overflowY: 'auto', borderTop: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
@@ -5865,7 +5867,7 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider,
         </button>
         <button onClick={() => setOpen(false)} style={{ width: '100%', marginTop: 8, padding: '12px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
       </div>
-    </div>,
+    </div>),
     (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
   ) : null;
 
