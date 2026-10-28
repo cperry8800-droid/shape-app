@@ -2,8 +2,8 @@
 // 3d on the splash pages", then "do split glass" from the preview's options). The mark's two
 // triangles become glass prisms at two depths. They spin in from edge-on, then drift so the
 // pieces slide past each other. It draws on the homepage splash (index.html, #shape-intro), on
-// the app's launch and hold screens (BSShapeMark in iosAppBroadsheetMain.jsx), and, held still,
-// as the app's masthead mark (BSLogo in iosAppBroadsheet.jsx).
+// the app's launch and hold screens (BSShapeMark in iosAppBroadsheetMain.jsx), and, turning
+// slowly, as the app's masthead mark (BSLogo in iosAppBroadsheet.jsx).
 //
 // Loads as a plain <script> on the website (exposes window.SplitGlassMark), as a side-effect
 // import in the app's bundle, and via require() in Node (tests/split-glass-mark.test.mjs).
@@ -87,6 +87,16 @@
   // units, a tenth of a pixel at that size, so the masthead's faces start at 40% and its edges
   // are 3.5 times as wide.
   const MAST = { floor: 0.4, stroke: 3.5 };
+  // Seconds for one turn of the masthead mark (owner, 2026-10-28: "have them slowly rotate/spin
+  // on page while app is open").
+  const TURN = 12;
+
+  /** The masthead mark `e` seconds into its turn: the still pose, turned about the upright, a
+   *  whole turn every TURN seconds. At 0 (and every TURN) it is the still pose. */
+  function turn(e) {
+    const k = (((e % TURN) + TURN) % TURN) / TURN;
+    return { rx: STILL.rx, ry: STILL.ry + TAU * k, sep: STILL.sep, depth: STILL.depth, fill: STILL.fill };
+  }
 
   /** The pose `e` seconds in: 1.25 turns from edge-on that ease out into a slow drift, while
    *  the two triangles part to their depths. */
@@ -229,5 +239,5 @@
     };
   }
 
-  return { SITE, APP, REST, STILL, MAST, SPIN, SETTLE, logo, pose, blend, render, play };
+  return { SITE, APP, REST, STILL, MAST, SPIN, SETTLE, TURN, logo, pose, turn, blend, render, play };
 });
