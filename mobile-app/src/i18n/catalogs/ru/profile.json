@@ -409,6 +409,8 @@
   "trainer.daySample": "Примерное время: у {name} пока нет часов работы в Shape.",
   "trainer.sampleNote": "У {name} ещё нет аккаунта Shape, поэтому студия, повторы, отзывы и время здесь — примеры.",
   "trainer.fullListing": "Планы, цены и коды в полном объявлении",
+  "trainer.clientsSay": "Что говорят клиенты",
+  "trainer.allReviews": "Все отзывы",
   "trainer.dayFull": "У {name} сейчас нет мест. Встаньте в лист ожидания, чтобы быть первыми в очереди.",
   "trainer.open": "Свободно",
   "trainer.introLine": "Бесплатное знакомство, {minutes} мин",

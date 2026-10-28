@@ -409,6 +409,8 @@
   "trainer.daySample": "Orari di esempio: {name} non ha ancora impostato gli orari su Shape.",
   "trainer.sampleNote": "{name} non ha ancora un account Shape, quindi studio, replay, recensioni e orari qui sono esempi.",
   "trainer.fullListing": "Piani, prezzi e codici nell’annuncio completo",
+  "trainer.clientsSay": "Cosa dicono i clienti",
+  "trainer.allReviews": "Tutte le recensioni",
   "trainer.dayFull": "{name} è al completo ora. Iscriviti alla lista d’attesa per avere il primo posto.",
   "trainer.open": "Libero",
   "trainer.introLine": "Una chiamata conoscitiva gratuita di {minutes} minuti",

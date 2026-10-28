@@ -409,6 +409,8 @@
   "trainer.daySample": "Jadwal contoh: {name} belum mengatur jam buka di Shape.",
   "trainer.sampleNote": "{name} belum punya akun Shape, jadi studio, replay, ulasan, dan jadwal di sini adalah contoh.",
   "trainer.fullListing": "Paket, harga, dan kode di listing lengkap",
+  "trainer.clientsSay": "Kata klien",
+  "trainer.allReviews": "Semua ulasan",
   "trainer.dayFull": "{name} sedang penuh. Masuk daftar tunggu supaya dapat giliran pertama.",
   "trainer.open": "Kosong",
   "trainer.introLine": "Perkenalan gratis {minutes} menit",

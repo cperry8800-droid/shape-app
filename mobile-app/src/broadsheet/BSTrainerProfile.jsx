@@ -329,9 +329,11 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
     return () => { on = false; };
   }, [person.userId]);
   // A sample's rating is its listing's, over the sample reviews it shows.
-  const reviews = selfDemo ? selfDemo.reviews
+  const reviewsAll = selfDemo ? selfDemo.reviews
     : sample ? { list: sample.reviews.list, avg: Number(person.rating10) > 0 ? Number(person.rating10) : sample.reviews.avg, count: sample.reviews.list.length }
     : liveReviews;
+  const reviews = reviewsAll;
+  const quotes = reviews && Array.isArray(reviews.list) ? reviews.list.filter((r) => r && String(r.text || '').trim()).slice(0, 6) : [];
 
   // ── Their logged sessions (Replays) ──
   const [posts, setPosts] = React.useState([]);
@@ -497,6 +499,27 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
           ) : null}
           {meMode && isSelf ? <div style={{ marginTop: 16 }}><BSCoachBusinessCard role="trainer" accent={ACC} onOpen={() => setPage('business')} /></div> : null}
         </div>
+
+        {/* What clients say: the reviews on the page itself, public as the reviews are (any reader may
+            read them, signed in or out), so shown on a private profile too (owner, 2026-10-28: "i want
+            reviews to be public"). The newest few, each a card; All reviews opens the full list. */}
+        {quotes.length ? (
+          <section data-reviews-strip="" aria-label={tr('profile:trainer.reviews', { defaultValue: 'Reviews' })} style={{ marginTop: 22 }}>
+            <div style={{ padding: `0 ${gutter}px`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+              <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.clientsSay', { defaultValue: 'What clients say' })}</span>
+              <button type="button" data-all-reviews="" onClick={() => setSheet({ kind: 'reviews' })} style={{ minHeight: 36, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.allReviews', { defaultValue: 'All reviews' })} →</button>
+            </div>
+            <div className="bs-scroll" style={{ marginTop: 8, display: 'flex', gap: 10, overflowX: 'auto', scrollSnapType: 'x mandatory', scrollPaddingLeft: gutter, padding: `0 ${gutter}px 4px` }}>
+              {quotes.map((r) => (
+                <figure key={r.id || r.text} data-review-card="" style={{ margin: 0, flex: quotes.length > 1 ? '0 0 80%' : '1 1 auto', scrollSnapAlign: 'start', boxSizing: 'border-box', padding: '12px 14px', background: t.PAPER2, borderTop: `2px solid ${ACC}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={{ fontFamily: MONO, fontSize: 11, color: ACC }}>★ {Math.round(Number(r.rating) || 0)}/10</span>
+                  <blockquote style={{ margin: 0, fontSize: 15, lineHeight: 1.45, color: INK, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{r.text}</blockquote>
+                  <figcaption style={{ fontSize: 12.5, color: ink(0.64) }}>{r.author || tr('profile:role.member', { defaultValue: 'Member' })}</figcaption>
+                </figure>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {/* Tabs */}
         {!isPrivate ? (

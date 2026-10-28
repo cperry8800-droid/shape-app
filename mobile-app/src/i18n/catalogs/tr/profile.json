@@ -409,6 +409,8 @@
   "trainer.daySample": "Örnek saatler: {name} henüz Shape'te açık saat belirlemedi.",
   "trainer.sampleNote": "{name} henüz bir Shape hesabı açmadı, bu yüzden buradaki stüdyo, tekrarlar, yorumlar ve saatler örnektir.",
   "trainer.fullListing": "Planlar, fiyatlar ve kodlar tam ilanda",
+  "trainer.clientsSay": "Danışanlar ne diyor",
+  "trainer.allReviews": "Tüm yorumlar",
   "trainer.dayFull": "{name} şu an dolu. Sıradaki olmak için bekleme listesine katıl.",
   "trainer.open": "Boş",
   "trainer.introLine": "{minutes} dakikalık ücretsiz tanışma",

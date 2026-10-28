@@ -409,6 +409,8 @@
   "trainer.daySample": "Beispielzeiten: {name} hat noch keine Zeiten auf Shape eingetragen.",
   "trainer.sampleNote": "{name} hat noch kein Shape-Konto, daher sind Studio, Replays, Bewertungen und Zeiten hier Beispiele.",
   "trainer.fullListing": "Pläne, Preise und Codes im vollständigen Eintrag",
+  "trainer.clientsSay": "Was Kund:innen sagen",
+  "trainer.allReviews": "Alle Bewertungen",
   "trainer.dayFull": "{name} ist gerade ausgebucht. Trag dich auf die Warteliste ein, um als Nächstes dran zu sein.",
   "trainer.open": "Frei",
   "trainer.introLine": "Ein kostenloses Kennenlernen, {minutes} Minuten",

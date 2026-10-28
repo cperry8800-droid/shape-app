@@ -409,6 +409,8 @@
   "trainer.daySample": "Sample times: {name} never set open hours for Shape yet.",
   "trainer.sampleNote": "{name} never open Shape account yet, so the studio, replays, reviews and times for here na samples.",
   "trainer.fullListing": "Plans, prices and codes for the full listing",
+  "trainer.clientsSay": "Wetin clients dey talk",
+  "trainer.allReviews": "All reviews",
   "trainer.dayFull": "{name} don full now. Join di waiting list make you be first for line.",
   "trainer.open": "Open",
   "trainer.introLine": "Free {minutes}-minute intro call",
