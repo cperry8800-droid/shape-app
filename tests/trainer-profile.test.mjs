@@ -109,7 +109,7 @@ window.shapeDb = {
 window.ShapeBookings = { submitConsultationBooking: async (a) => { if (world.bookError) throw world.bookError; world.booked = a; return { ok: true }; } };
 window.bsProfileCardFromPost = (p) => p;
 // The client module's storefront, as a probe: it records what the page hands it.
-window.useBSCoachCommerce = ({ person }) => ({ commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: !!(person.commerce && person.commerce.atCapacity), wl: null });
+window.useBSCoachCommerce = ({ person }) => ((world.commerceSeen = person.commerce), { commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: !!(person.commerce && person.commerce.atCapacity), wl: null });
 window.BSCoachCoachingBlock = ({ cm }) => React.createElement('div', { 'data-coaching-block': '' }, cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' '));
 
 const maya = { userId: 'u-maya', who: 'Maya Okafor', kind: 'TRAINER' };
@@ -613,6 +613,31 @@ test('a seeded listing whose hours or listing could not be read says so, never t
   await click(button(/^Try again$/));
   assert.equal(world.byIdFor, 41, 'the listing, read again');
   assert.match(document.querySelector('[data-day-sub]').textContent, /From Leah's Shape calendar/);
+  await m.unmount();
+});
+
+test('a full seeded listing with no hours stays full: only the times are the sample\'s (Codex P2 on #2491)', async () => {
+  reset({ me: 'u-me', byId: leahRow, slots: [], atCapacity: true, rules: { consultMin: 20, introsAtCapacity: true } });
+  let m = await mount(page({ person: leah }));
+  assert.match(document.querySelector('[data-day-sub]').textContent, /Sample times/);
+  assert.equal(world.commerceSeen.atCapacity, true, 'the listing\'s answer: full');
+  assert.equal(world.commerceSeen.introsAtCapacity, true, 'and its intro rule');
+  await m.unmount();
+  // With no answer to go by (no hours read to ask), the storefront reads the listing row, never
+  // the sample's "not full".
+  const get = window.ShapeCoachAvailability.get;
+  delete window.ShapeCoachAvailability.get;
+  try {
+    reset({ me: 'u-me', byId: leahRow });
+    m = await mount(page({ person: leah }));
+    assert.match(document.querySelector('[data-day-sub]').textContent, /Sample times/);
+    assert.equal(world.commerceSeen.atCapacity, undefined, 'the listing row decides');
+    assert.equal(world.commerceSeen.introsAtCapacity, false);
+    await m.unmount();
+  } finally { window.ShapeCoachAvailability.get = get; }
+  reset({ me: 'u-me', byId: leahRow, slots: [], atCapacity: false });
+  m = await mount(page({ person: leah }));
+  assert.equal(world.commerceSeen.atCapacity, false);
   await m.unmount();
 });
 

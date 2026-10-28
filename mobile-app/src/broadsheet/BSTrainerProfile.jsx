@@ -286,16 +286,19 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
       const open = zoneOk ? bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 2, zone: d.timezone, busy: d.busy || [], rules: d.rules || null, sessionMin: introMin }) : [];
       return { kind: 'ready', open, busy: Array.isArray(d.busy) ? d.busy : [], introMin, hasHours: d.slots.length > 0, zoneOk, atCapacity: typeof d.atCapacity === 'boolean' ? d.atCapacity : null, introsAtCap: !!(d.rules && d.rules.introsAtCapacity === true) };
     };
-    // Sample times are shown, never taken (`sample: true`): nothing is booked on a sample.
-    const sampleWeek = () => ({ ...week(sample.availability), sample: true });
+    // Sample times are shown, never taken (`sample: true`): nothing is booked on a sample. Only the
+    // times are the sample's: whether the coach is full and takes intros when full stay what their
+    // listing answered, or, with no answer, the listing row's (Codex P2 on #2491).
+    const sampleWeek = (answered) => ({ ...week(sample.availability), sample: true, atCapacity: answered ? answered.atCapacity : null, introsAtCap: answered ? answered.introsAtCap : false });
     (selfDemo ? Promise.resolve(selfDemo.availability) : real ? W.ShapeCoachAvailability.get('trainer', providerId, availEpoch > 0 ? { fresh: true } : undefined) : Promise.resolve(null))
       .then((d) => {
         if (!on) return;
         const a = week(d);
-        if (sampleOnly || (sample && a && !a.hasHours)) { setAvail(sampleWeek()); return; }
+        if (sampleOnly) { setAvail(sampleWeek(null)); return; }
+        if (sample && a && !a.hasHours) { setAvail(sampleWeek(a)); return; }
         setAvail(a || { kind: 'error' });
       })
-      .catch(() => { if (on) setAvail(sampleOnly ? sampleWeek() : { kind: 'error' }); });
+      .catch(() => { if (on) setAvail(sampleOnly ? sampleWeek(null) : { kind: 'error' }); });
     return () => { on = false; };
   }, [providerId, providerState, availEpoch, demo]);
 
