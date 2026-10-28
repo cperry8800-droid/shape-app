@@ -45,8 +45,11 @@ function useActiveLeadBoost(role) {
 const mkFace = (slug) => `/newdesign/faces/${slug}.jpg`;
 // Coach-chosen background image sitting behind the avatar (the "cover"). Rendered
 // darkened + tinted toward the tier color so the gem still pops and the page stays
-// cohesive. A few demo coaches carry one; real coaches set theirs in the profile
-// customizer (profile_custom.cover.image).
+// cohesive. A few demo coaches carry one (these constants); a real coach's is their
+// listing cover, which mapLiveCoach takes only through bsNormalizeListingMedia (an
+// image in their own coach-media folder). The card reads `cover` and nothing else:
+// never the profile's own cover (profile_custom.cover), which any member can set to
+// any URL and which would then load on every visitor's device.
 const mkBg = (id) => `https://images.unsplash.com/photo-${id}?w=640&h=480&fit=crop&q=68&auto=format`;
 
 const COACHES_FULL = [
@@ -168,8 +171,8 @@ function Spotlight({ tab }) {
             <a href={coachUrl(s.lead)} style={{ background: INK, color: PAPER, borderRadius: 6, overflow: "hidden", display: "grid", gridTemplateColumns: "1fr 1fr", position: "relative", textDecoration: "none", cursor: "pointer" }}>
               <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75, zIndex: 2 }} />
               <div style={{ position: "relative", overflow: "hidden", background: `linear-gradient(165deg, ${mkCoachTier(s.lead).color}45, ${INK} 60%)`, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 380 }}>
-                {(s.lead.cover || s.lead.coverImage) && (<>
-                  <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url('${s.lead.cover || s.lead.coverImage}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                {s.lead.cover && (<>
+                  <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url('${s.lead.cover}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
                   <div aria-hidden style={{ position: "absolute", inset: 0, background: `linear-gradient(165deg, ${mkCoachTier(s.lead).color}82, rgba(11,14,12,0.8) 76%)` }} />
                 </>)}
                 <MkFacet name={s.lead.name} color={mkCoachTier(s.lead).color} photo={s.lead.photo || s.lead.avatar} size={132} />
@@ -347,8 +350,8 @@ function CoachCard({ c }) {
   return (
     <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={c.ownerId ? ("MemberProfile.html?u=" + encodeURIComponent(c.ownerId) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer")) : ("MemberProfile.html?name=" + encodeURIComponent(c.name) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer") + ((c.photo || c.avatar) ? "&avatar=" + encodeURIComponent(c.photo || c.avatar) : ""))} style={{ background: `linear-gradient(160deg, ${tier.color}1c, rgba(11,14,12,0.62) 52%)`, border: `1px solid ${tier.color}3a`, borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
       <div style={{ position: "relative", aspectRatio: "4 / 3", overflow: "hidden", background: `linear-gradient(160deg, ${tier.color}40, rgba(11,14,12,0.5) 62%)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        {(c.cover || c.coverImage) && (<>
-          <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url('${c.cover || c.coverImage}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+        {c.cover && (<>
+          <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url('${c.cover}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
           <div aria-hidden style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${tier.color}80, rgba(11,14,12,0.82) 78%)` }} />
         </>)}
         <MkFacet name={c.name} color={tier.color} photo={c.photo || c.avatar} size={92} />

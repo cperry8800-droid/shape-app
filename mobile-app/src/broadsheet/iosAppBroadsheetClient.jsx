@@ -48,7 +48,7 @@ import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from
 import { bsMakeAheadIndex, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepRecordsFor, bsYmdAdd, bsYmdIn } from '../services/prepAhead.mjs';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
-import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
+import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileCover, bsProfileStartLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsTrackLanes, bsTrackLaneStatus, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
 import { bsCkModalSync, bsCkFocusOwner, bsCkGiveBack } from '../services/cookFocus.mjs';
@@ -17333,7 +17333,11 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const [busy, setBusy] = useStateBSC(false);
   const onCoverFile = async (e) => {
     const file = e?.target?.files?.[0]; if (e?.target) e.target.value = '';
-    if (!file) return; setCoverBusy(true);
+    if (!file) return;
+    // Only the types the cover guard keeps (bsProfileCover): any other upload would be stored and
+    // then never shown. The same allowlist as the wall below and Make it yours.
+    if (!/^image\/(jpe?g|png|webp|gif|heic|heif)$/i.test(file.type || '')) { window.__bsToast?.(tr('profile:editor.err.imageType', { defaultValue: 'Pick a JPG, PNG, WebP, GIF, HEIC or HEIF image.' }), 'err'); return; }
+    setCoverBusy(true);
     try { const url = await window.ShapeCommunity?.uploadPhoto?.(file); if (url) setCoverUrl(url); else throw new Error(tr('profile:editor.err.uploadFailed', { defaultValue: 'Upload failed.' })); }
     catch (err) { window.__bsToast?.(err?.message || tr('profile:editor.err.cover', { defaultValue: 'Could not upload cover.' }), 'err'); }
     finally { setCoverBusy(false); }
@@ -18132,12 +18136,19 @@ function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20, top = 0 
 // wall render takes a demo bypass gated on (demo && no userId), so a REAL
 // profile — which always carries a userId — can never reach it.
 const BS_DEMO_MEDIA = `${import.meta.env.BASE_URL}demo/`;
+// The preview personas' cover photos. A profile hero draws a doc's cover only through
+// bsProfileCover (the owner's own Supabase folder), which these same-origin demo files, with no
+// owner, can never pass. So the heroes read these constants instead, and only while drawing the
+// preview persona (demoFill): no doc, a real one or this demo's own, reaches the hero unguarded.
+const BS_DEMO_MEMBER_COVER = `${BS_DEMO_MEDIA}wall-03.webp`;
+const BS_DEMO_TRAINER_COVER = `${BS_DEMO_MEDIA}studio-01.webp`;
+const BS_DEMO_NUTRI_COVER = `${BS_DEMO_MEDIA}box-cover.webp`;
 function bsDemoMemberCustom() {
   const d = new Date(); d.setDate(d.getDate() + 74);
   const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   return {
     bio: 'Two years in. Slower than most, more stubborn than all of them. Here for the long game.',
-    cover: { image: `${BS_DEMO_MEDIA}wall-03.webp` },
+    cover: { image: BS_DEMO_MEMBER_COVER },
     line: 'Consistency is the only secret — show up on the ordinary days.',
     startLine: { title: 'First half-marathon', date: iso },
     shelf: [
@@ -18164,7 +18175,7 @@ function bsDemoMemberCustom() {
 // id) are left unset. Signed-out preview only — a real coach sees their own doc.
 function bsDemoCoachCustom(isNutri) {
   return isNutri ? {
-    cover: { image: `${BS_DEMO_MEDIA}box-cover.webp` },
+    cover: { image: BS_DEMO_NUTRI_COVER },
     line: 'Food is fuel, not a moral test — specific enough to help, simple enough to repeat.',
     bizCard: { name: 'Rae Lindqvist Nutrition', where: 'Brooklyn, NY · remote', hours: 'Async daily · calls Tue & Thu', handle: '@raeats.rd' },
     prompts: [
@@ -18172,7 +18183,7 @@ function bsDemoCoachCustom(isNutri) {
       { q: 'Who I work best with', a: "Athletes who want to perform, not diet. Endurance, strength, and everything in between." },
     ],
   } : {
-    cover: { image: `${BS_DEMO_MEDIA}studio-01.webp` },
+    cover: { image: BS_DEMO_TRAINER_COVER },
     line: 'Get strong, move well, recover enough to do it again — that is the whole game.',
     bizCard: { name: 'Iron & Ordinary — private studio', where: 'Portland, OR', hours: 'Mon–Sat · by appointment', handle: '@leah.trains' },
     prompts: [
@@ -18701,7 +18712,10 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // ascent block and the ridge/avatar/labels/phase line draw over it (scrimmed,
   // fixed-cream ink). The phase eyebrow rides the cover when both exist, so the
   // coach band below only renders when it still has content.
-  const heroCover = (customEff && customEff.cover && customEff.cover.image) || null;
+  // The cover loads on the device of everyone who opens the profile, so a doc's cover shows only as
+  // the owner's own upload or listing photo (bsProfileCover, bound to the profile's owner): an
+  // outside URL is no cover. The preview persona has no owner and shows its demo cover instead.
+  const heroCover = demoFill ? BS_DEMO_MEMBER_COVER : ((bsProfileCover(customEff && customEff.cover, feedAuthorId) || {}).image || null);
   const phaseLine = showCoachBand && (!signedInSelf || hasRealProgram);
   const phaseOnCover = !!heroCover && phaseLine;
   // ⚠ THE ASCENT BAND AND THE PAD ABOVE IT ARE ONE NUMBER SPLIT IN TWO, and the
@@ -19650,6 +19664,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // moment a coach has a pinned review — a TDZ here would crash the whole profile.
   const coachFilm = bsProfileFilm(customEff && customEff.film, person.userId, 'coach-media');
   const bizCard = bsProfileBizCard(customEff && customEff.bizCard);
+  // The cover photo behind the hero loads on every visitor's device, so a doc's cover shows only as
+  // the coach's own upload or listing photo (bsProfileCover, bound to the profile's owner): an
+  // outside URL is no cover. The preview persona has no owner and shows its demo cover instead.
+  const coverImage = demoFill
+    ? (isNutri ? BS_DEMO_NUTRI_COVER : BS_DEMO_TRAINER_COVER)
+    : ((bsProfileCover(customEff && customEff.cover, sigFeedAuthorId) || {}).image || null);
   // P5 wins wall — resolve pinned ids DIRECTLY by id (not from the 200-row slug
   // list), so a pinned review never vanishes once a coach passes 200 reviews; the
   // results are still filtered to ownerId === the profile owner.
@@ -19807,9 +19827,9 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
             light through the sigil, deepen only once past it, land on BG at the
             very bottom. If BSSignalSigil's `size` ever changes, re-derive this
             height and the 76% stop from it — they are not free numbers. */}
-        {customEff && customEff.cover && customEff.cover.image && (
+        {coverImage && (
           <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 460, zIndex: -1, pointerEvents: 'none' }}>
-            <img src={customEff.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.72 }} />
+            <img src={coverImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.72 }} />
             <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${bsTHexA('#100d0a', 0.3)}, ${bsTHexA(BG, 0.32)} 40%, ${bsTHexA(BG, 0.7)} 76%, ${BG})` }} />
           </div>
         )}
