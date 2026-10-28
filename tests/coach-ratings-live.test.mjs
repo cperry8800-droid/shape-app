@@ -221,8 +221,13 @@ test('a ratings function that fails, rather than is missing, gives no rating, ne
   ]
   const route = await loadRoute(reviewsClient(rows, { ratingsFn: 'error' }))
   for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
-    const body = await (await route.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()
-    assert.deepEqual(body, { reviews: [], locked: true }, `${q}: no rating at all`)
+    // A non-member's answer is the rating, and a locked answer without a count reads as "No reviews
+    // yet" on every screen: unknown, not empty (Codex P2 on #2492).
+    const res = await route.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))
+    assert.equal(res.status, 503, `${q}: the ratings unread is unknown`)
+    const body = await res.json()
+    assert.equal(body.locked, undefined, q)
+    assert.equal(body.count, undefined, q)
   }
   const all = await (await route.GET(new Request('https://shape.test/api/coaches/reviews'))).json()
   assert.deepEqual(all, { summaries: {}, owners: {} })

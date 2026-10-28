@@ -64,6 +64,10 @@ async function readReader(request: Request, supabase: SupabaseClient): Promise<R
   }
 }
 const UNKNOWN = () => NextResponse.json({ error: "Couldn't check your membership just now." }, { status: 503 });
+// A non-member's answer IS the rating: every locked screen offers Join only for a coach with
+// reviews (count > 0), so a locked answer without one would read as "No reviews yet". When the
+// ratings can't be read, that is unknown too (Codex P2 on #2492).
+const RATINGS_UNREAD = () => NextResponse.json({ error: "Couldn't read the ratings just now." }, { status: 503 });
 // The client a member's list is read with. An admin (a confirmed address on the allow-list) is a
 // member here but not to the table's policy, which can't see the allow-list, so their read would
 // come back empty: it goes through the service role (Codex P2 on #2492). Only for a confirmed
@@ -138,7 +142,7 @@ export async function GET(request: Request) {
     if (!reader) return UNKNOWN();
     const ratings = await readRatings(supabase, { owner: ownerParam });
     const rating = ratings ? ratingOf(ratings.filter((r) => r.owner_id === ownerParam)) : null;
-    if (!reader.member) return NextResponse.json({ reviews: [], locked: true, ...(rating || {}) });
+    if (!reader.member) return rating ? NextResponse.json({ reviews: [], locked: true, ...rating }) : RATINGS_UNREAD();
     // The list is the newest 200; the average and count are over every review.
     const { data, error } = await listClient(reader, supabase).from('coach_reviews').select('*').eq('owner_id', ownerParam).order('created_at', { ascending: false }).limit(200);
     if (error) return NextResponse.json({ reviews: [], ...(rating || {}) });
@@ -150,7 +154,7 @@ export async function GET(request: Request) {
     if (!reader) return UNKNOWN();
     const ratings = await readRatings(supabase, { slug });
     const rating = ratings ? ratingOf(ratings.filter((r) => r.coach_slug === slug)) : null;
-    if (!reader.member) return NextResponse.json({ reviews: [], locked: true, ...(rating || {}) });
+    if (!reader.member) return rating ? NextResponse.json({ reviews: [], locked: true, ...rating }) : RATINGS_UNREAD();
     // select('*') keeps this migration-safe — an explicit owner_id column would
     // 400 pre-migration (PostgREST). shape() picks only the fields it needs.
     const { data, error } = await listClient(reader, supabase)
