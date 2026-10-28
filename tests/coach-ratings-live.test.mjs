@@ -256,3 +256,22 @@ test('the database holds the same line: members read coach_reviews, everyone rea
   assert.match(sql, /grant execute on function public\.coach_review_ratings\(\) to anon, authenticated;/)
   assert.match(sql, /^begin;[\s\S]*\ncommit;\n$/m)
 })
+
+test('locked: each reviews list says members read them, with the rating, and offers the way in', () => {
+  // The app's listing and the Signal profile: the answer's `locked`, then a line and a button that
+  // asks a guest for an account and a signed-in non-member for the membership checkout.
+  for (const [file, set] of [[APP_MKT, 'setRevLocked(d.locked === true);'], [APP, 'setRevLocked(d.locked === true);']]) {
+    const src = read(file)
+    assert.ok(src.includes(set), `${file} keeps the answer's locked`)
+    const at = src.indexOf('data-reviews-locked=""')
+    assert.ok(at > 0, `${file} draws the locked line`)
+    const block = src.slice(src.lastIndexOf('revLocked &&', at), at + 1200)
+    assert.match(block, /revLocked && (revAgg|liveAgg) && (revAgg|liveAgg)\.count > 0/, `${file}: only when there are reviews to read`)
+    assert.match(block, /tr\('marketplace:listing\.reviewsMembers'/)
+    assert.match(block, /if \(window\.bsRequireAccount && !window\.bsRequireAccount\(tr\('marketplace:listing\.reviewsJoin'[^)]*\)\)\) return; window\.ShapeMembershipApi\?\.startCheckout\?\.\(\);/)
+  }
+  // The website's living profile: the same line, and the membership page.
+  const web = read('public/newdesign/livingShared.jsx')
+  assert.ok(web.includes('setRevLocked(j.locked === true);'))
+  assert.match(web, /revLocked && revAgg && revAgg\.count > 0 \? \(\s+<div data-reviews-locked=""[\s\S]{0,300}Members read the reviews\.[\s\S]{0,300}href="Pricing\.html"/)
+})
