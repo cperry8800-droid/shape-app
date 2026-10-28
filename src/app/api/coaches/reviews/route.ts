@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
-import { clientForRequest, currentUser } from '@/lib/request-auth';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { clientForRequest, currentUser, userLookupForRequest } from '@/lib/request-auth';
+import { isMeasuredSignedOut } from '@/lib/auth-lookup';
 import { readJson } from '@/lib/request-utils';
+import { computeMembership } from '@/lib/membership-core';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,11 +32,6 @@ async function readAll<T>(page: (from: number, to: number) => PromiseLike<{ data
   }
   return { rows, error: null };
 }
-function aggregate(rows: { rating: number }[]): { avg: number; count: number } {
-  const count = rows.length;
-  const avg = count ? Math.round((rows.reduce((s, r) => s + (r.rating || 0), 0) / count) * 10) / 10 : 0;
-  return { avg, count };
-}
 
 type ReviewRow = { id: string; rating: number; body: string | null; author_name: string | null; user_id?: string | null; owner_id?: string | null; created_at: string };
 function shape(row: ReviewRow) {
@@ -42,7 +41,72 @@ function shape(row: ReviewRow) {
   return { id: row.id, rating: row.rating, text: row.body ?? '', author: row.author_name ?? 'Member', authorId: row.user_id ?? null, ownerId: row.owner_id ?? null, date: row.created_at };
 }
 
-// GET /api/coaches/reviews?coach=<slug>  -> { reviews, avg, count }
+// ⚠ MEMBERS READ THE REVIEWS; EVERYONE SEES THE RATING (owner, 2026-10-28: "anyone with a shape
+// membership can read them", and "Rating only" for everyone else). A review's words and author go
+// only to a member (computeMembership: an approved coach, an admin, or an active subscription);
+// anyone else gets `reviews: []` and `locked: true` with the same average and count. The database
+// holds the same line (2026-10-28-coach-reviews-members.sql): coach_reviews is readable by a
+// member, a review's author and its coach, and every rating comes from coach_review_ratings(),
+// which returns totals and counts only.
+// null: the sign-in or the membership couldn't be read. That is unknown, never "not a member", so
+// a member is never shown the paywall over a failed read (Codex P2 ×2 on #2492): the answer is a
+// 503. Only a sign-in check that measured nobody (src/lib/auth-lookup.ts) is a guest; an auth
+// outage answers a null user too.
+type Reader = { member: boolean; admin: boolean } | null;
+async function readReader(request: Request, supabase: SupabaseClient): Promise<Reader> {
+  const { user, error } = await userLookupForRequest(request);
+  if (!user) return isMeasuredSignedOut(error) ? { member: false, admin: false } : null;
+  try {
+    const m = await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strict: true });
+    return { member: m.isMember, admin: m.isAdmin };
+  } catch {
+    return null;
+  }
+}
+const UNKNOWN = () => NextResponse.json({ error: "Couldn't check your membership just now." }, { status: 503 });
+// A non-member's answer IS the rating: every locked screen offers Join only for a coach with
+// reviews (count > 0), so a locked answer without one would read as "No reviews yet". When the
+// ratings can't be read, that is unknown too (Codex P2 on #2492).
+const RATINGS_UNREAD = () => NextResponse.json({ error: "Couldn't read the ratings just now." }, { status: 503 });
+// The client a member's list is read with. An admin (a confirmed address on the allow-list) is a
+// member here but not to the table's policy, which can't see the allow-list, so their read would
+// come back empty: it goes through the service role (Codex P2 on #2492). Only for a confirmed
+// admin, and only these reads, whose filters are a validated uuid or a cleaned slug.
+function listClient(reader: { admin: boolean }, supabase: SupabaseClient): SupabaseClient {
+  if (!reader.admin) return supabase;
+  try { return createAdminClient(); } catch { return supabase; }
+}
+
+// Rating totals and counts, by slug and by account. From coach_review_ratings(); until that
+// migration has run, from the rows as before (the old policy lets anyone read them). A profile
+// asks for its one coach (`scope`), so it never aggregates the whole table (Codex P2 on #2492);
+// the marketplace's summaries ask for every coach.
+type RatingRow = { coach_slug: string; owner_id: string | null; total: number; count: number };
+type RatingScope = { owner: string } | { slug: string } | null;
+async function readRatings(supabase: SupabaseClient, scope: RatingScope = null): Promise<RatingRow[] | null> {
+  const args = scope ? ('owner' in scope ? { p_owner: scope.owner } : { p_slug: scope.slug }) : {};
+  const rpc = await supabase.rpc('coach_review_ratings', args);
+  if (!rpc.error) return ((rpc.data ?? []) as RatingRow[]).map((r) => ({ coach_slug: r.coach_slug, owner_id: r.owner_id ?? null, total: Number(r.total) || 0, count: Number(r.count) || 0 }));
+  // Only a database without the function (before the migration) is read row by row. Any other
+  // failure is no rating: after the migration a non-member reads no row, or only their own, so
+  // the rows would give an empty or partial average (Codex P2 on #2492).
+  const code = (rpc.error as { code?: string }).code;
+  if (code !== 'PGRST202' && code !== '42883') return null;
+  const { rows, error } = await readAll<{ coach_slug: string; rating: number; owner_id?: string | null }>((from, to) => {
+    const q = supabase.from('coach_reviews').select('coach_slug, rating, owner_id');
+    const scoped = !scope ? q : 'owner' in scope ? q.eq('owner_id', scope.owner) : q.eq('coach_slug', scope.slug);
+    return scoped.order('id', { ascending: true }).range(from, to);
+  });
+  if (error) return null;
+  return rows.map((r) => ({ coach_slug: r.coach_slug, owner_id: r.owner_id ?? null, total: r.rating || 0, count: 1 }));
+}
+function ratingOf(rows: RatingRow[]): { avg: number; count: number } {
+  const total = rows.reduce((s, r) => s + r.total, 0);
+  const count = rows.reduce((s, r) => s + r.count, 0);
+  return { avg: count ? Math.round((total / count) * 10) / 10 : 0, count };
+}
+
+// GET /api/coaches/reviews?coach=<slug>  -> { reviews, avg, count, locked }
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const slug = cleanText(url.searchParams.get('coach'), 160);
@@ -50,7 +114,7 @@ export async function GET(request: Request) {
 
   // ?ids=<uuid,uuid,uuid> — resolve specific reviews by id, INDEPENDENT of the
   // slug list's 200-row page. The wins wall uses this so a pinned testimonial never
-  // vanishes once a popular coach passes 200 reviews. Reviews are public-read; the
+  // vanishes once a popular coach passes 200 reviews. Members only, as every list; the
   // wall still filters the results to ownerId === the profile owner, so requesting
   // arbitrary ids can never surface another coach's review on this wall.
   const idsParam = cleanText(url.searchParams.get('ids'), 200);
@@ -58,68 +122,70 @@ export async function GET(request: Request) {
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const ids = idsParam.split(',').map((x) => x.trim().toLowerCase()).filter((x) => uuid.test(x)).slice(0, 3);
     if (!ids.length) return NextResponse.json({ reviews: [] });
-    const { data, error } = await supabase.from('coach_reviews').select('*').in('id', ids).limit(3);
+    const reader = await readReader(request, supabase);
+    if (!reader) return UNKNOWN();
+    if (!reader.member) return NextResponse.json({ reviews: [], locked: true });
+    const { data, error } = await listClient(reader, supabase).from('coach_reviews').select('*').in('id', ids).limit(3);
     if (error) return NextResponse.json({ reviews: [] });
     return NextResponse.json({ reviews: (data ?? []).map((r) => shape(r as ReviewRow)) });
   }
 
   // ?owner=<uid> — reviews for a specific coach by the trigger-stamped owner_id, so
   // the wins-wall pin picker is independent of any display-name vs provider-name slug
-  // mismatch. Public read; the picker still filters to a MEMBER's review (authorId !== ownerId).
-  const ownerParam = cleanText(url.searchParams.get('owner'), 64);
+  // mismatch. Members only, as every list; the picker still filters to a MEMBER's review
+  // (authorId !== ownerId).
+  // Lowercase: a uuid comes back from the database lowercase, and the rating rows are matched on it (Codex P2 on #2492).
+  const ownerParam = cleanText(url.searchParams.get('owner'), 64).toLowerCase();
   if (ownerParam) {
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuid.test(ownerParam)) return NextResponse.json({ reviews: [] });
-    const { data, error } = await supabase.from('coach_reviews').select('*').eq('owner_id', ownerParam).order('created_at', { ascending: false }).limit(200);
-    if (error) return NextResponse.json({ reviews: [] });
+    const reader = await readReader(request, supabase);
+    if (!reader) return UNKNOWN();
+    const ratings = await readRatings(supabase, { owner: ownerParam });
+    const rating = ratings ? ratingOf(ratings.filter((r) => r.owner_id === ownerParam)) : null;
+    if (!reader.member) return rating ? NextResponse.json({ reviews: [], locked: true, ...rating }) : RATINGS_UNREAD();
     // The list is the newest 200; the average and count are over every review.
-    const all = await readAll<{ rating: number }>((from, to) =>
-      supabase.from('coach_reviews').select('rating').eq('owner_id', ownerParam).order('id', { ascending: true }).range(from, to));
-    const reviews = (data ?? []).map((r) => shape(r as ReviewRow));
-    return NextResponse.json({ reviews, ...(all.error ? {} : aggregate(all.rows)) });
+    const { data, error } = await listClient(reader, supabase).from('coach_reviews').select('*').eq('owner_id', ownerParam).order('created_at', { ascending: false }).limit(200);
+    if (error) return NextResponse.json({ reviews: [], ...(rating || {}) });
+    return NextResponse.json({ reviews: (data ?? []).map((r) => shape(r as ReviewRow)), ...(rating || {}) });
   }
 
   if (slug) {
+    const reader = await readReader(request, supabase);
+    if (!reader) return UNKNOWN();
+    const ratings = await readRatings(supabase, { slug });
+    const rating = ratings ? ratingOf(ratings.filter((r) => r.coach_slug === slug)) : null;
+    if (!reader.member) return rating ? NextResponse.json({ reviews: [], locked: true, ...rating }) : RATINGS_UNREAD();
     // select('*') keeps this migration-safe — an explicit owner_id column would
     // 400 pre-migration (PostgREST). shape() picks only the fields it needs.
-    const { data, error } = await supabase
+    const { data, error } = await listClient(reader, supabase)
       .from('coach_reviews')
       .select('*')
       .eq('coach_slug', slug)
       .order('created_at', { ascending: false })
       .limit(200);
-    if (error) return NextResponse.json({ reviews: [], avg: 0, count: 0 });
+    if (error) return NextResponse.json({ reviews: [], ...(rating || {}) });
     const reviews = (data ?? []).map(shape);
-    const all = await readAll<{ rating: number }>((from, to) =>
-      supabase.from('coach_reviews').select('rating').eq('coach_slug', slug).order('id', { ascending: true }).range(from, to));
-    const { avg, count } = all.error ? aggregate(reviews) : aggregate(all.rows);
-    return NextResponse.json({ reviews, avg, count });
+    // No rating when the ratings couldn't be read: the list is the newest 200, so an average of it
+    // would be partial for a busier coach (Codex P2 on #2492).
+    return NextResponse.json({ reviews, ...(rating || {}) });
   }
 
   // Every coach's average, keyed two ways: by slug (the old shape) and by the coach's
   // account (`owners`). A listing with an owner reads its rating by account, because a
-  // slug is a NAME and the profile name and the listing name can differ.
-  const { rows: data, error } = await readAll<{ coach_slug: string; rating: number; owner_id?: string | null }>((from, to) =>
-    supabase.from('coach_reviews').select('coach_slug, rating, owner_id').order('id', { ascending: true }).range(from, to));
-  if (error) return NextResponse.json({ summaries: {}, owners: {} });
-  const acc: Record<string, { sum: number; count: number }> = {};
-  const byOwner: Record<string, { sum: number; count: number }> = {};
-  for (const row of (data ?? []) as { coach_slug: string; rating: number; owner_id?: string | null }[]) {
-    const s = row.coach_slug;
-    (acc[s] ||= { sum: 0, count: 0 });
-    acc[s].sum += row.rating || 0;
-    acc[s].count += 1;
-    if (row.owner_id) {
-      (byOwner[row.owner_id] ||= { sum: 0, count: 0 });
-      byOwner[row.owner_id].sum += row.rating || 0;
-      byOwner[row.owner_id].count += 1;
-    }
+  // slug is a NAME and the profile name and the listing name can differ. Ratings only: open to all.
+  const ratings = await readRatings(supabase);
+  if (!ratings) return NextResponse.json({ summaries: {}, owners: {} });
+  const bySlug: Record<string, RatingRow[]> = {};
+  const byOwner: Record<string, RatingRow[]> = {};
+  for (const r of ratings) {
+    (bySlug[r.coach_slug] ||= []).push(r);
+    if (r.owner_id) (byOwner[r.owner_id] ||= []).push(r);
   }
-  const avg = (a: { sum: number; count: number }) => ({ avg: Math.round((a.sum / a.count) * 10) / 10, count: a.count });
   const summaries: Record<string, { avg: number; count: number }> = {};
-  for (const s of Object.keys(acc)) summaries[s] = avg(acc[s]);
+  for (const s of Object.keys(bySlug)) summaries[s] = ratingOf(bySlug[s]);
   const owners: Record<string, { avg: number; count: number }> = {};
-  for (const o of Object.keys(byOwner)) owners[o] = avg(byOwner[o]);
+  for (const o of Object.keys(byOwner)) owners[o] = ratingOf(byOwner[o]);
   return NextResponse.json({ summaries, owners });
 }
 

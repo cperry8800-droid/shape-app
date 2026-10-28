@@ -686,6 +686,8 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const [revMsg, setRevMsg] = React.useState("");
   // The server's average and count are over EVERY review; the list is the newest 200.
   const [revAgg, setRevAgg] = React.useState(null);
+  // Members read the reviews; anyone else sees the rating and is told so (owner, 2026-10-28).
+  const [revLocked, setRevLocked] = React.useState(false);
   const [revLoad, setRevLoad] = React.useState(0);
   const revKeyRef = React.useRef("");
   // Coach-authored monthly offer (spec #1632 §5) — the same provider-row
@@ -765,6 +767,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     fetch(`/api/coaches/reviews?${q}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).then((j) => {
       if (!on || !j || !Array.isArray(j.reviews)) return;
       if (d.uid || j.reviews.length) setLiveReviews(j.reviews);
+      setRevLocked(j.locked === true);
       setRevAgg(Number.isFinite(Number(j.count)) ? { avg: Number(j.avg) || 0, count: Number(j.count) } : null);
     }).catch(() => {});
     return () => { on = false; };
@@ -1283,9 +1286,15 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
             </div>
           </div>
         )}
-        {!reviewItems.length && (
+        {/* A live coach's list unread (a failed or 503 load) is no list, never "No reviews yet" (Codex P2 on #2492). */}
+        {!reviewItems.length && !(d.uid && liveReviews === null) && (revLocked && revAgg && revAgg.count > 0 ? (
+          <div data-reviews-locked="" style={{ padding: "14px 0" }}>
+            <div style={{ fontFamily: lvSans, fontSize: 14, color: hexA(ink, 0.75) }}>Members read the reviews.</div>
+            <a href="Pricing.html" style={{ display: "inline-block", marginTop: 6, fontFamily: lvMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: c, textDecoration: "none" }}>Join Shape to read them →</a>
+          </div>
+        ) : (
           <div style={{ padding: "14px 0", fontFamily: lvMono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: hexA(ink, 0.5) }}>No reviews yet</div>
-        )}
+        ))}
         <div style={{ display: "flex", flexDirection: "column" }}>
           {reviewItems.map((r, i) => (
             <div key={i} style={{ padding: "14px 0", borderTop: i ? `1px solid ${hexA(ink, 0.08)}` : "none" }}>

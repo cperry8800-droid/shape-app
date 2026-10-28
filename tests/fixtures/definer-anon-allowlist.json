@@ -73,6 +73,11 @@
       "class": "rate-limit-guard",
       "note": "The search rate-limit primitive (2026-08-29), granted to anon by design because the Edge proxy's anon client must reach it: refuses the reserved `self:` namespace, then delegates to _rate_limit_bump, which no client role can execute. A caller can name any other bucket key."
     },
+    "coach_review_ratings": {
+      "class": "public-by-design",
+      "anonGrant": "explicit",
+      "note": "Each coach's review rating total and count, by slug and by account (owner_id), for the rating every visitor sees on a coach card and profile (2026-10-28-coach-reviews-members.sql). Never a review's words, author or id: those are members-only through the coach_reviews policy and /api/coaches/reviews."
+    },
     "compute_momentum": {
       "class": "self-gated-auth-uid",
       "note": "Computes the caller's own momentum score; returns 0 when auth.uid() is null."
