@@ -4,7 +4,7 @@ import { bsProfileLook, bsProfileStudio, bsProfileCover } from '../services/prof
 import { STUDIO_WORDS, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
 import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.mjs';
 import { bsCoachPronoun } from '../services/coachPronoun.mjs';
-import { bsTrainerDemo } from '../services/trainerDemo.mjs';
+import { bsTrainerDemo, bsTrainerSampleOf } from '../services/trainerDemo.mjs';
 import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSMakeItYours } from './BSMakeItYours.jsx';
@@ -30,8 +30,14 @@ import { BSMakeItYours } from './BSMakeItYours.jsx';
 //
 // Words for the coach follow the pronouns they wrote, or their first name (coachPronoun.mjs).
 //
-// Signed out, the trainer app's own page is this page with sample content (trainerDemo.mjs): it
-// reads nothing from Shape, and Make it yours changes it on this screen only (owner, 2026-10-28).
+// A trainer page with no Shape account behind it has sample content (trainerDemo.mjs, owner,
+// 2026-10-28: "demo environment should show new profile designs"):
+//   · The trainer app's own page signed out (the demo coach) reads nothing from Shape, and Make it
+//     yours changes it on this screen only.
+//   · A coach a member opens with no account (a marketplace listing Shape seeded, a demo person)
+//     shows its listing's own facts, read fresh by the listing's id (name, bio, price, credential,
+//     its open times when it has hours), with a sample wall photo, studio, replays and reviews.
+//     Sample open times are shown but never taken: nothing is booked on a sample.
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME: this module is a static import of the client module
 // and evaluates before that module's body has put them on window.
@@ -99,16 +105,21 @@ export function BSTrainerProfile(props) {
   const { person, isSelf = false } = props;
   const tr = useShapeTr();
   // The demo is the trainer app's own page with nobody signed in, and only that: a page opened for
-  // an account, or with one signed in, is always the real one.
+  // an account, or with one signed in, is always the real one. A sample is another trainer's page
+  // with no account behind it.
   const demoOn = isSelf && !person.userId && !signedInUid();
+  const sampleOn = !isSelf && !person.userId;
   const lb = !!(outer && outer.uMeasure && outer.uMeasure(1, 'kg').unit === 'lb');
   // Built again when the language changes (useShapeTr re-renders this on it), for the stations' names.
   const lang = (() => { try { return window.ShapeLocale?.get?.() || ''; } catch (e) { return ''; } })();
-  const demo = React.useMemo(() => (demoOn ? bsTrainerDemo({
-    media: `${import.meta.env.BASE_URL}demo/`,
-    word: (k) => tr('profile:studio.word.' + k, { defaultValue: STUDIO_WORDS[k] || k }),
-    lb,
-  }) : null), [demoOn, lb, lang]);
+  const sampleKey = sampleOn ? String(person.providerId || person.who || '') : '';
+  const sampleCity = sampleOn && person.city && !/^(remote|online|anywhere)$/i.test(String(person.city).trim()) ? String(person.city) : '';
+  const demo = React.useMemo(() => {
+    if (!demoOn && !sampleOn) return null;
+    const base = { media: `${import.meta.env.BASE_URL}demo/`, word: (k) => tr('profile:studio.word.' + k, { defaultValue: STUDIO_WORDS[k] || k }), lb };
+    if (demoOn) return { ...bsTrainerDemo(base), mode: 'self' };
+    return { ...bsTrainerDemo({ ...base, ...bsTrainerSampleOf({ key: sampleKey, specialty: person.specialty }), where: sampleCity, business: null }), mode: 'sample' };
+  }, [demoOn, sampleOn, sampleKey, sampleCity, person.specialty, lb, lang]);
   // What Make it yours changed on the demo, and only that (a key it changed, or null for a removed
   // wall photo), laid over the sample: the rest stays the sample's, so its station names keep
   // following the language (Codex P2 on #2486).
@@ -148,11 +159,11 @@ export function BSTrainerProfile(props) {
     return () => { on = false; };
   }, [isSelf, ownEpoch, demoOn]);
   const custom = demo
-    ? (() => { const c = { ...demo.custom }; for (const [k, v] of Object.entries(demoOwn || {})) { if (v === null) delete c[k]; else c[k] = v; } return c; })()
+    ? (() => { const c = { ...demo.custom }; if (demo.mode === 'self') for (const [k, v] of Object.entries(demoOwn || {})) { if (v === null) delete c[k]; else c[k] = v; } return c; })()
     : isSelf ? own : (live && live.custom) || null;
   const look = bsProfileLook(custom && custom.look) || {};
   const page = demo
-    ? <TrainerPage {...props} demo={demo} live={demo.live} custom={custom} setOwn={saveDemo} ownState="ready" ownFor={null} />
+    ? <TrainerPage {...props} demo={demo} live={demo.mode === 'self' ? demo.live : null} custom={custom} setOwn={saveDemo} ownState="ready" ownFor={null} />
     : <TrainerPage {...props} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} ownFor={ownFor} onRetryOwn={() => setOwnEpoch((n) => n + 1)} />;
   if (!BSProvider) return page;
   return (
@@ -163,7 +174,7 @@ export function BSTrainerProfile(props) {
   );
 }
 
-function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {}, demo = null }) {
+function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {}, demo = null, onListing = null }) {
   const W = window;
   const t = W.useBS();
   const tr = useShapeTr();
@@ -179,6 +190,9 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const pinnedTop = W.useBSPinnedMastTop ? W.useBSPinnedMastTop() : 0;
   if (W.useBSPresence) W.useBSPresence();
   const hasMessage = typeof onMessage === 'function' && !isSelf;
+  // The demo coach's own page, or a sample of another coach (see the header).
+  const selfDemo = demo && demo.mode === 'self' ? demo : null;
+  const sample = demo && demo.mode === 'sample' ? demo : null;
 
   // ── Who ──
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
@@ -195,9 +209,12 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   // The demo shows the signed-out persona's photo and reads or saves no account's (Codex P2 on
   // #2486): the hook is asked as for a visitor, which reads nothing and offers no picker.
   const photoHook = W.useBSProfilePhoto ? W.useBSProfilePhoto(person, isSelf && !demo) : { photo: person.photo || null, fileRef: null, onPick: null };
-  const avatar = demo ? ((W.bsMyPhoto && W.bsMyPhoto()) || null)
+  const avatar = selfDemo ? ((W.bsMyPhoto && W.bsMyPhoto()) || null)
     : (isSelf && W.ShapeIdentity?.avatarMode === 'initials') ? null : (photoHook.photo || (live && live.avatar) || person.photo || null);
   const canPickPhoto = isSelf && !demo;
+  // A photo that fails to load shows the initials, not an empty circle.
+  const [brokenAvatar, setBrokenAvatar] = React.useState(null);
+  const avatarShown = avatar && avatar !== brokenAvatar ? avatar : null;
   const initials = W.bsInitials ? W.bsInitials(name) : String(name).slice(0, 2).toUpperCase();
   const online = isSelf ? (W.bsAmLive ? W.bsAmLive() : false) : (W.bsIsUserOnline ? W.bsIsUserOnline(person.userId) : false);
   // As members read it (get_public_profile: the line in Settings → Edit profile), as the Signal
@@ -205,38 +222,46 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const bio = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || '';
 
   // ── Their listing (provider row): open times, prices, verified, photos ──
-  const [provider, setProvider] = React.useState(() => (demo ? demo.provider : null));
-  const [providerState, setProviderState] = React.useState(demo ? 'ready' : 'loading');
+  const [provider, setProvider] = React.useState(() => (selfDemo ? selfDemo.provider : null));
+  const [providerState, setProviderState] = React.useState(selfDemo ? 'ready' : 'loading');
   const [providerEpoch, setProviderEpoch] = React.useState(0);
   React.useEffect(() => {
-    if (demo) { setProvider(demo.provider); setProviderState('ready'); return undefined; }
+    if (selfDemo) { setProvider(selfDemo.provider); setProviderState('ready'); return undefined; }
     setProvider(null);
+    // A coach's listing by their account; a sample's by the listing's own id (no account to ask by).
     const ownerId = person.userId || (isSelf ? signedInUid() : null);
-    if (!ownerId || !W.ShapeCoachListing?.publicByOwner) { setProviderState('none'); return undefined; }
+    const read = sample
+      ? (person.providerId && W.ShapeCoachListing?.publicById ? () => W.ShapeCoachListing.publicById('trainer', person.providerId) : null)
+      : (ownerId && W.ShapeCoachListing?.publicByOwner ? () => W.ShapeCoachListing.publicByOwner('trainer', ownerId) : null);
+    if (!read) { setProviderState('none'); return undefined; }
     let on = true;
     setProviderState('loading');
-    W.ShapeCoachListing.publicByOwner('trainer', ownerId)
+    read()
       .then((row) => { if (!on) return; setProvider(row); setProviderState(row ? 'ready' : 'none'); })
       .catch(() => { if (on) setProviderState('error'); });
     return () => { on = false; };
-  }, [person.userId, isSelf, providerEpoch, demo]);
+  }, [person.userId, person.providerId, isSelf, providerEpoch, demo]);
   // The listing is what that lookup found, and only that: a marketplace snapshot the profile was
   // opened with never stands in for it, so a listing taken off the marketplace since offers no
   // times, photos or checkout here (Codex P1 on #2484).
   const listed = providerState === 'ready' && !!provider;
   const providerId = listed ? provider.id : null;
-  const media = (listed && provider.listing_media) || { cover: null, gallery: [] };
+  const listedMedia = (listed && provider.listing_media) || { cover: null, gallery: [] };
+  // A sample shows its listing's own photos when it has any, and the sample's where it has none.
+  const media = sample
+    ? { cover: listedMedia.cover || null, gallery: listedMedia.gallery && listedMedia.gallery.length ? listedMedia.gallery : sample.provider.listing_media.gallery }
+    : listedMedia;
   // The demo's wall photo is one of its own sample photos, and only that.
   const cover = demo
     ? (custom && custom.cover && demo.photos.includes(custom.cover.image) ? { image: custom.cover.image } : null)
     : bsProfileCover(custom && custom.cover, person.userId || (isSelf ? signedInUid() : null));
   // A private profile shows name, photo and tier only: nothing from the listing either (Codex P1
   // on #2484).
-  const wall = isPrivate ? null : ((cover && cover.image) || media.cover || null);
+  const wall = isPrivate ? null : (sample ? (media.cover || (cover && cover.image)) : ((cover && cover.image) || media.cover)) || null;
   const look = bsProfileLook(custom && custom.look) || {};
   const studio = bsProfileStudio(custom && custom.studio);
   const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || person.city || '');
-  const specialty = (!isPrivate && listed && (provider.specialty || provider.specialty_type)) || '';
+  const specialty = (!isPrivate && ((listed && (provider.specialty || provider.specialty_type)) || (sample && person.category))) || '';
   const business = !isPrivate && custom && custom.bizCard && custom.bizCard.name;
   const roleLine = [specialty || tr('profile:trainer.role', { defaultValue: 'Coach' }), business].filter(Boolean).join(' · ');
 
@@ -244,20 +269,29 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const [avail, setAvail] = React.useState({ kind: 'loading' });
   const [availEpoch, setAvailEpoch] = React.useState(0);
   React.useEffect(() => {
-    if (!demo && (!providerId || !W.ShapeCoachAvailability?.get)) { setAvail({ kind: providerState === 'loading' ? 'loading' : 'none' }); return undefined; }
+    const real = !selfDemo && providerId && W.ShapeCoachAvailability?.get;
+    // A sample waits for its listing's read, then shows the listing's own hours or the sample week.
+    if (!selfDemo && !real && !(sample && providerState !== 'loading')) { setAvail({ kind: providerState === 'loading' ? 'loading' : 'none' }); return undefined; }
     let on = true;
     setAvail({ kind: 'loading' });
-    (demo ? Promise.resolve(demo.availability) : W.ShapeCoachAvailability.get('trainer', providerId, availEpoch > 0 ? { fresh: true } : undefined))
+    const week = (d) => {
+      if (!d || !Array.isArray(d.slots)) return null;
+      const len = Number(d.rules && d.rules.consultMin);
+      const introMin = Number.isInteger(len) && len >= 5 && len <= 240 ? len : 15;
+      const zoneOk = !d.slots.length || bsIsZone(d.timezone);
+      const open = zoneOk ? bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 2, zone: d.timezone, busy: d.busy || [], rules: d.rules || null, sessionMin: introMin }) : [];
+      return { kind: 'ready', open, busy: Array.isArray(d.busy) ? d.busy : [], introMin, hasHours: d.slots.length > 0, zoneOk, atCapacity: typeof d.atCapacity === 'boolean' ? d.atCapacity : null, introsAtCap: !!(d.rules && d.rules.introsAtCapacity === true) };
+    };
+    // Sample times are shown, never taken (`sample: true`): nothing is booked on a sample.
+    const sampleWeek = () => ({ ...week(sample.availability), sample: true });
+    (selfDemo ? Promise.resolve(selfDemo.availability) : real ? W.ShapeCoachAvailability.get('trainer', providerId, availEpoch > 0 ? { fresh: true } : undefined) : Promise.resolve(null))
       .then((d) => {
         if (!on) return;
-        if (!d || !Array.isArray(d.slots)) { setAvail({ kind: 'error' }); return; }
-        const len = Number(d.rules && d.rules.consultMin);
-        const introMin = Number.isInteger(len) && len >= 5 && len <= 240 ? len : 15;
-        const zoneOk = !d.slots.length || bsIsZone(d.timezone);
-        const open = zoneOk ? bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 2, zone: d.timezone, busy: d.busy || [], rules: d.rules || null, sessionMin: introMin }) : [];
-        setAvail({ kind: 'ready', open, busy: Array.isArray(d.busy) ? d.busy : [], introMin, hasHours: d.slots.length > 0, zoneOk, atCapacity: typeof d.atCapacity === 'boolean' ? d.atCapacity : null, introsAtCap: !!(d.rules && d.rules.introsAtCapacity === true) });
+        const a = week(d);
+        if (sample && !(a && a.hasHours && a.zoneOk)) { setAvail(sampleWeek()); return; }
+        setAvail(a || { kind: 'error' });
       })
-      .catch(() => { if (on) setAvail({ kind: 'error' }); });
+      .catch(() => { if (on) setAvail(sample ? sampleWeek() : { kind: 'error' }); });
     return () => { on = false; };
   }, [providerId, providerState, availEpoch, demo]);
 
@@ -270,7 +304,8 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
     packages: monthly ? [{ type: 'Subscription', name: tr('profile:trainer.monthly', { defaultValue: 'Monthly coaching' }), price: `$${monthly}`, unit: '/ month', perks: (offer && Array.isArray(offer.includes) ? offer.includes : []).slice(0, 3) }] : [],
     atCapacity: avail.kind === 'ready' && avail.atCapacity != null ? avail.atCapacity : undefined,
     introsAtCapacity: avail.kind === 'ready' ? avail.introsAtCap : false,
-    bookIntro: () => { setSheet(null); setTab('day'); },
+    // On sample times there is no time to take here, so the intro is booked on the full listing.
+    bookIntro: () => { setSheet(null); if (avail.sample && onListing) onListing(); else setTab('day'); },
   });
   const cm = W.useBSCoachCommerce ? W.useBSCoachCommerce({ person: { ...person, commerce, providerId }, isSelf, isNutri: false, name, first, city: where }) : null;
   // The storefront shows only what this coach really sells: with no monthly price on their listing
@@ -293,7 +328,10 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
     W.ShapeCoachReviews.forOwner(person.userId).then((d) => { if (on && d) setReviews({ list: Array.isArray(d.reviews) ? d.reviews : [], avg: Number(d.avg) || 0, count: Number.isFinite(Number(d.count)) ? Number(d.count) : (d.reviews || []).length }); }).catch(() => {});
     return () => { on = false; };
   }, [person.userId]);
-  const reviews = demo ? demo.reviews : liveReviews;
+  // A sample's rating is its listing's, over the sample reviews it shows.
+  const reviews = selfDemo ? selfDemo.reviews
+    : sample ? { list: sample.reviews.list, avg: Number(person.rating10) > 0 ? Number(person.rating10) : sample.reviews.avg, count: sample.reviews.list.length }
+    : liveReviews;
 
   // ── Their logged sessions (Replays) ──
   const [posts, setPosts] = React.useState([]);
@@ -351,7 +389,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
 
   if (page === 'edit' && editReady) {
     const photos = demo ? demo.photos : [media.cover, ...((media.gallery || []).map((g) => g && g.url))].filter((u) => typeof u === 'string' && /^https:\/\//.test(u));
-    return <BSMakeItYours role="trainer" demo={!!demo} ownerUid={ownFor} initial={custom} startTab={editTab} who={{ name, first, photo: avatar, roleLine }} words={words} photos={photos}
+    return <BSMakeItYours role="trainer" demo={!!demo} ownerUid={ownFor} initial={custom} startTab={editTab} who={{ name, first, photo: avatarShown, roleLine }} words={words} photos={photos}
       onClose={() => setPage(null)} onSaved={(doc, changed) => { setOwn && setOwn(doc, changed); setPage(null); }} />;
   }
   if (page === 'hours') return <BSCoachHoursPage role="trainer" onBack={() => { setPage(null); setAvailEpoch((n) => n + 1); }} />;
@@ -391,8 +429,9 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
               ) : null}
-              {isSelf && W.BSSettingsCorner ? <W.BSSettingsCorner size={corner} ink="#ffffff" onClick={onOpenSettings} /> : null}
-              {!isSelf && W.BSMeCorner ? <W.BSMeCorner /> : null}
+              {/* A visitor's ⚙ opens their own profile, as BSMeCorner's does; that corner itself draws a
+                  second ✦ ⌕ and in the page's ink, not white over the photo. */}
+              {W.BSSettingsCorner ? <W.BSSettingsCorner size={corner} ink="#ffffff" onClick={isSelf ? onOpenSettings : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openProfile')); } catch (e) {} }} /> : null}
             </div>
           </div>
           {isSelf && !wall ? (
@@ -408,7 +447,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
           <div style={{ position: 'absolute', left: gutter, top: -58, width: 108, height: 108 }}>
             <button type="button" disabled={!canPickPhoto} onClick={() => { if (canPickPhoto && photoHook.fileRef?.current) photoHook.fileRef.current.click(); }} aria-label={canPickPhoto ? tr('profile:trainer.changePhoto', { defaultValue: 'Change your photo' }) : name}
               style={{ width: 108, height: 108, padding: 0, borderRadius: 99, border: `4px solid ${t.PAPER}`, background: t.PAPER2, overflow: 'hidden', cursor: canPickPhoto ? 'pointer' : 'default', display: 'grid', placeItems: 'center', boxSizing: 'border-box' }}>
-              {avatar ? <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} /> : <span style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 600, color: INK }}>{initials}</span>}
+              {avatarShown ? <img src={avatarShown} alt="" onError={() => setBrokenAvatar(avatarShown)} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} /> : <span style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 600, color: INK }}>{initials}</span>}
             </button>
             {online ? <span aria-label={tr('profile:trainer.online', { defaultValue: 'Online now' })} style={{ position: 'absolute', right: 6, bottom: 6, width: 18, height: 18, borderRadius: 99, background: '#34d6c5', border: `3px solid ${t.PAPER}`, boxSizing: 'border-box' }} /> : null}
           </div>
@@ -428,6 +467,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
                 {verified ? <span style={{ color: ACC }}>✓ </span> : null}
                 {[verified ? tr('profile:trainer.verifiedTier', { defaultValue: 'Verified {tier} coach', tier: tierName }) : tierName, ratingBit].filter(Boolean).join(' · ')}
               </button>
+              {sample ? <p data-sample-note="" style={{ margin: '10px 0 0', padding: '8px 10px', borderLeft: `2px solid ${ACC}`, background: t.PAPER2, fontSize: 12.5, lineHeight: 1.45, color: ink(0.74) }}>{tr('profile:trainer.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the studio, replays, reviews and times here are samples.', name: first })}</p> : null}
               {isSelf && points != null ? <button type="button" onClick={onOpenScore} style={{ display: 'block', margin: '2px 0 0', minHeight: 32, padding: 0, border: 0, background: 'transparent', textAlign: 'left', fontFamily: MONO, fontSize: 11, letterSpacing: '0.06em', color: ink(0.7), cursor: 'pointer' }}>{tr('profile:trainer.score', { defaultValue: 'Shape Score {points} ›', points: points.toLocaleString(locale) })}</button> : null}
             </>
           )}
@@ -472,8 +512,8 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
             </nav>
             <div style={{ padding: `0 ${gutter}px 30px` }}>
               {tabNow === 'day' ? (
-                <DayTab t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} avail={avail} providerState={providerState} isSelf={isSelf} first={first} words={words}
-                  introClosed={introClosed} onRetry={() => (providerState === 'error' ? setProviderEpoch : setAvailEpoch)((n) => n + 1)} onTake={isSelf ? null : (slot) => setSheet({ kind: 'book', slot })} onWork={() => setSheet({ kind: 'work' })} onHours={() => setPage('hours')} />
+                <DayTab t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} avail={avail} providerState={avail.sample ? 'ready' : providerState} isSelf={isSelf} first={first} words={words}
+                  introClosed={introClosed} onRetry={() => (providerState === 'error' ? setProviderEpoch : setAvailEpoch)((n) => n + 1)} onTake={isSelf || avail.sample ? null : (slot) => setSheet({ kind: 'book', slot })} onWork={() => setSheet({ kind: 'work' })} onHours={() => setPage('hours')} />
               ) : tabNow === 'studio' ? (
                 <StudioTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} studio={studio} gallery={media.gallery || []} isSelf={isSelf} first={first}
                   onStation={(n, p) => setSheet({ kind: 'station', n, p })} onDraw={() => openEdit('space')} />
@@ -501,10 +541,11 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
               <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: ink(0.74) }}>{isSelf
                 ? tr('profile:trainer.noPricesSelf', { defaultValue: 'Members see your prices here once your listing has a monthly price.' })
                 : tr('profile:trainer.noPrices', { defaultValue: '{name} hasn\'t listed prices on Shape yet. Book a free intro or send a message to ask.', name: first })}</p>
-              {!isSelf && providerId ? <button type="button" onClick={() => { setSheet(null); setTab('day'); }} style={{ marginTop: 12, width: '100%', minHeight: 50, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.pickIntro', { defaultValue: 'Pick an intro time' })}</button> : null}
+              {!isSelf && providerId && !avail.sample ? <button type="button" onClick={() => { setSheet(null); setTab('day'); }} style={{ marginTop: 12, width: '100%', minHeight: 50, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.pickIntro', { defaultValue: 'Pick an intro time' })}</button> : null}
               {!isSelf && hasMessage ? <button type="button" onClick={() => { setSheet(null); onMessage(person); }} style={{ marginTop: 8, width: '100%', minHeight: 50, border: `1px solid ${ink(0.22)}`, background: 'transparent', color: INK, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.message', { defaultValue: 'Message {name}', name: first })}</button> : null}
             </div>
           )}
+          {onListing ? <button type="button" data-full-listing="" onClick={() => { setSheet(null); onListing(); }} style={{ ...linkBtn(ACC, DISPLAY), marginTop: 12 }}>{tr('profile:trainer.fullListing', { defaultValue: 'Plans, prices and codes on the full listing' })} →</button> : null}
         </Sheet>
       ) : null}
       {sheet && sheet.kind === 'book' ? (
@@ -526,7 +567,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
         </Sheet>
       ) : null}
       {sheet && sheet.kind === 'replay' ? (
-        <ReplaySheet tr={tr} r={sheet.r} i={sheet.i} setI={(i) => setSheet({ ...sheet, i })} ACC={ACC} DISPLAY={DISPLAY} MONO={MONO} first={first} avatar={avatar} isSelf={isSelf}
+        <ReplaySheet tr={tr} r={sheet.r} i={sheet.i} setI={(i) => setSheet({ ...sheet, i })} ACC={ACC} DISPLAY={DISPLAY} MONO={MONO} first={first} avatar={avatarShown} isSelf={isSelf}
           onClose={() => setSheet(null)} onWork={() => setSheet({ kind: 'work' })} t={t} />
       ) : null}
       {sheet && sheet.kind === 'reviews' ? (
@@ -597,7 +638,9 @@ function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, provide
     body = (
       <>
         <h2 style={{ margin: '22px 0 0', fontFamily: DISPLAY, fontWeight: 500, fontSize: 20, color: t.INK }}>{title}<span style={{ color: ACC }}>.</span></h2>
-        <p style={{ margin: '2px 0 0', fontSize: 13, color: ink(0.64) }}>{tr('profile:trainer.daySub', { defaultValue: 'From {name}\'s Shape calendar. Busy time shows only as busy.', name: first })}</p>
+        <p data-day-sub="" style={{ margin: '2px 0 0', fontSize: 13, color: ink(0.64) }}>{avail.sample
+          ? tr('profile:trainer.daySample', { defaultValue: 'Sample times: {name} hasn\'t set open hours on Shape yet.', name: first })
+          : tr('profile:trainer.daySub', { defaultValue: 'From {name}\'s Shape calendar. Busy time shows only as busy.', name: first })}</p>
         {introClosed ? <div style={{ marginTop: 12 }}><Hint ink={ink}>{tr('profile:trainer.dayFull', { defaultValue: '{name} is full right now. Join the waiting list to be first in line.', name: first })}</Hint><button type="button" onClick={onWork} style={linkBtn(ACC, DISPLAY)}>{words.work} →</button></div> : null}
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {rows.length ? rows.map((r, i) => r.kind === 'open' ? (
