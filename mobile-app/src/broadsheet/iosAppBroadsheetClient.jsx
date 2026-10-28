@@ -20108,10 +20108,10 @@ function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false,
     bsRecentSearchPush({ userId: person.userId || null, name: person.who, role, avatar: person.photo || null, tier: person.tier || null, points: null });
   }, []);
   // A trainer with a Shape account opens the trainer profile (BSTrainerProfile.jsx: their colours,
-  // their day, their studio, their replays). A demo trainer (no account) and every nutritionist
+  // their day, their studio, their replays), and so does the trainer app's own page signed out, with
+  // sample content (owner, 2026-10-28). A demo trainer in a list (no account) and every nutritionist
   // keep the Signal profile for now (owner, 2026-10-27: nutritionists get their own design).
-  const signedIn = (() => { try { return !!window.ShapeAuth?.getCachedState?.()?.user?.id; } catch (e) { return false; } })();
-  if (person.kind === 'TRAINER' && (person.userId || (isSelf && signedIn))) {
+  if (person.kind === 'TRAINER' && (person.userId || isSelf)) {
     return <BSTrainerProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
   }
   if (person.kind === 'TRAINER' || person.kind === 'NUTRI') {
