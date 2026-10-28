@@ -1621,6 +1621,9 @@ function BSAppShell({ tweaks, setTweak }) {
       const answer = d ? d.member : null;
       if (d) ageRestricted = d.ageRestricted === true;
       if (answer === true || answer === false) {
+        // A recheck that finds a new member says so, so a screen that was locked (the reviews,
+        // members only) reads again without being reopened (Codex P2 on #2492).
+        if (answer === true && known !== true) { try { window.dispatchEvent(new Event('shape:membership-active')); } catch (e) {} }
         known = answer;
         try { window.ShapeMembership = { active: answer }; localStorage.setItem('shape.member', answer ? '1' : '0'); localStorage.setItem('shape.memberUid', uid); } catch (e) {}
       }

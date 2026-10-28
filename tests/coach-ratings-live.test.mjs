@@ -411,6 +411,13 @@ test('locked: each reviews list says members read them, with the rating, and off
   // The app's one membership checkout (its errors, an existing member, a lost session), on window
   // for the marketplace and trainer-profile modules.
   assert.match(read(APP), /Object\.assign\(window, \{[^}]*\bbsStartPlatformCheckout \}\);/)
+  // A recheck that finds a new member says so, and each locked screen reads its reviews again on it
+  // (Codex P2 on #2492): the app's shell, the listing and the Signal profile (the trainer profile is
+  // mounted in tests/trainer-profile.test.mjs).
+  assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx'), /if \(answer === true && known !== true\) \{ try \{ window\.dispatchEvent\(new Event\('shape:membership-active'\)\); \} catch \(e\) \{\} \}\n\s+known = answer;/)
+  assert.ok(read(APP_MKT).includes("const onMember = () => setRevLoad((n) => n + 1);\n    window.addEventListener('shape:membership-active', onMember);"))
+  assert.ok(read(APP).includes("const onMember = () => setRevEpoch((n) => n + 1);\n    window.addEventListener('shape:membership-active', onMember);"))
+  assert.ok(read(APP).includes('}, [name, liveCoach, person.userId, revEpoch]);'))
   // A list that wasn't read (a failed load, or the API's 503 when it can't check a membership or the
   // ratings) is no list: none of them says "No reviews yet" over it (Codex P2 on #2492).
   const mkt = read(APP_MKT)

@@ -2176,6 +2176,12 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   // Whether the list has been read: a failed read (a 503 when a membership or the ratings can't
   // be checked) is no list, never "No reviews yet" (Codex P2 on #2492).
   const [revRead, setRevRead] = useStateBSM2(false);
+  // A reader who becomes a member here (Join → checkout → back) reads the reviews again.
+  useEffectBSM2(() => {
+    const onMember = () => setRevLoad((n) => n + 1);
+    window.addEventListener('shape:membership-active', onMember);
+    return () => window.removeEventListener('shape:membership-active', onMember);
+  }, []);
   const avgRev = revAgg && revAgg.count > 0 ? revAgg.avg
     : (liveReviews.length ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null);
   useEffectBSM2(() => {

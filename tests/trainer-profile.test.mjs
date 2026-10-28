@@ -786,6 +786,14 @@ test('a reader who isn\'t a member sees the rating and Join to read them, never 
     const dlg = document.querySelector('[role="dialog"]');
     assert.match(dlg.textContent, /Members read the reviews\..*Join to read them/s);
     assert.doesNotMatch(dlg.textContent, /No reviews yet/);
+    await click(dlg.querySelector('button[aria-label="Close"]'));
+    // Joining (checkout, then the shell's recheck finds a member) reads the reviews again with the
+    // page still open (Codex P2 on #2492).
+    window.ShapeCoachReviews.forOwner = async () => ({ reviews: [{ id: 'r1', author: 'Sam R.', rating: 9, text: 'Clear plans, and every set has a reason.' }], avg: 9.4, count: 12 });
+    await act(async () => { window.dispatchEvent(new window.Event('shape:membership-active')); });
+    await flush();
+    assert.ok(!document.querySelector('[data-reviews-locked]'), 'no longer locked');
+    assert.match(document.querySelector('[data-review-card]').textContent, /Clear plans.*Sam R\./s);
     await m.unmount();
     // Locked with no reviews at all is just no reviews.
     window.ShapeCoachReviews.forOwner = async () => ({ reviews: [], locked: true, avg: 0, count: 0 });

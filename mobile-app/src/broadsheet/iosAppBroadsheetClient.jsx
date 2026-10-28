@@ -19728,6 +19728,13 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const [liveAgg, setLiveAgg] = useStateBSC(null);
   // Members read the reviews; anyone else is told so, with the rating (owner, 2026-10-28).
   const [revLocked, setRevLocked] = useStateBSC(false);
+  // A reader who becomes a member here (Join → checkout → back) reads the reviews again.
+  const [revEpoch, setRevEpoch] = useStateBSC(0);
+  React.useEffect(() => {
+    const onMember = () => setRevEpoch((n) => n + 1);
+    window.addEventListener('shape:membership-active', onMember);
+    return () => window.removeEventListener('shape:membership-active', onMember);
+  }, []);
   React.useEffect(() => {
     const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     let on = true;
@@ -19743,7 +19750,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
       })
       .catch(() => {});
     return () => { on = false; };
-  }, [name, liveCoach, person.userId]);
+  }, [name, liveCoach, person.userId, revEpoch]);
   const disLabel = isNutri ? tr('profile:coach.practiceFocus', { defaultValue: 'Practice focus' }) : tr('profile:coach.coachingFocus', { defaultValue: 'Coaching focus' });
   // Own signed-in profile zeroes the demo sub-data (no live source yet); viewing
   // others / signed-out keeps the illustrative example.

@@ -329,12 +329,19 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
 
   // ── Reviews: the verified line, and the sheet it opens ──
   const [liveReviews, setReviews] = React.useState(null);
+  // A reader who becomes a member here (Join → checkout → back) reads the reviews again.
+  const [revEpoch, setRevEpoch] = React.useState(0);
+  React.useEffect(() => {
+    const onMember = () => setRevEpoch((n) => n + 1);
+    window.addEventListener('shape:membership-active', onMember);
+    return () => window.removeEventListener('shape:membership-active', onMember);
+  }, []);
   React.useEffect(() => {
     if (!person.userId || !W.ShapeCoachReviews?.forOwner) return undefined;
     let on = true;
     W.ShapeCoachReviews.forOwner(person.userId).then((d) => { if (on && d) setReviews({ list: Array.isArray(d.reviews) ? d.reviews : [], avg: Number(d.avg) || 0, count: Number.isFinite(Number(d.count)) ? Number(d.count) : (d.reviews || []).length, locked: d.locked === true }); }).catch(() => {});
     return () => { on = false; };
-  }, [person.userId]);
+  }, [person.userId, revEpoch]);
   // A sample's rating is its listing's, over the sample reviews it shows.
   const reviewsAll = selfDemo ? selfDemo.reviews
     : sample ? { list: sample.reviews.list, avg: Number(person.rating10) > 0 ? Number(person.rating10) : sample.reviews.avg, count: sample.reviews.list.length }
