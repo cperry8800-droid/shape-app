@@ -800,29 +800,90 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
 // Logo — two triangles, right + left pointing toward each other with vertical
 // offset (right-triangle sits low, left-triangle sits high). Brand mark.
 // The masthead mark in the splash's Split glass (owner, 2026-10-27: "make the triangles here on
-// app the same design/look as new triangle splash page"): the two prisms held at the splash's
-// still pose, the teal one in front and the ink behind, in public/newdesign/splitGlassMark.js's
-// denser MAST glass so they read at 16px. The teal follows the ink rather than the paper, so a
-// cream mark on Radio's dark ground takes the dark paper's teal. The markup depends only on the
-// ink, so it is drawn once per ink. A colour that is not a hex (currentColor) keeps the flat mark.
+// app the same design/look as new triangle splash page"): the two prisms, first drawn at the
+// splash's still pose and turning from there, the teal one in front, in
+// public/newdesign/splitGlassMark.js's denser MAST glass so they read at 16px. Their colours
+// follow the paper (owner, 2026-10-28: "teal and white for dark papers"): on a dark ground, the
+// splash's teal and white; on a light one, the deep teal and the page's own ink. The ground is dark
+// when the theme's paper is (`dark`; a chosen ink like Blue reads on the Black paper, so the ink
+// alone can't say, Codex on #2490) or when the ink handed in is light (Radio's cream mark on its own
+// dark ground, whatever the paper). The prisms depend only on the ink and the ground, so they and
+// their still markup are made once per pair. A colour that is not a hex (currentColor) keeps the
+// flat mark.
 const _bsLogoGlass = new Map();
-function bsLogoGlass(c) {
+function bsLogoGlass(c, dark = false) {
   const SG = typeof window !== 'undefined' ? window.SplitGlassMark : null;
   const m = /^#([0-9a-f]{6})$/i.exec(String(c || '').trim());
   if (!SG || typeof SG.logo !== 'function' || !m) return null;
-  const key = m[1].toLowerCase();
+  const n = parseInt(m[1], 16);
+  const ink = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const onDark = !!dark || (0.2126 * ink[0] + 0.7152 * ink[1] + 0.0722 * ink[2]) / 255 > 0.5;
+  const key = onDark ? 'dark' : m[1].toLowerCase();
   if (!_bsLogoGlass.has(key)) {
-    const n = parseInt(key, 16);
-    const ink = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-    const light = (0.2126 * ink[0] + 0.7152 * ink[1] + 0.0722 * ink[2]) / 255 > 0.5;
-    _bsLogoGlass.set(key, SG.render(SG.logo(ink, light ? [52, 214, 197] : [10, 143, 135]), SG.STILL, SG.MAST));
+    const spec = onDark ? SG.logo([255, 255, 255], [52, 214, 197]) : SG.logo(ink, [10, 143, 135]);
+    _bsLogoGlass.set(key, { spec, still: SG.render(spec, SG.STILL, SG.MAST) });
   }
   return _bsLogoGlass.get(key);
 }
 
+// The mark turns while the app is open (owner, 2026-10-28: "have them slowly rotate/spin on page
+// while app is open"), a whole turn every SplitGlassMark.TURN seconds. Every mark reads one clock,
+// so the masthead and the pinned bar, and the page before and after a tab change, are at the same
+// angle. One frame loop draws them all, about 30 times a second, and runs only while a mark is on
+// screen; it asks for no frames once none is (and none while the app is in the background).
+// BEGIN bsLogoTurn
+const _bsLogoTurners = new Set();
+let _bsLogoRaf = 0, _bsLogoLast = -Infinity;
+const _bsLogoT0 = typeof performance !== 'undefined' ? performance.now() : 0;
+function _bsLogoTick(now) {
+  _bsLogoRaf = 0;
+  if (!_bsLogoTurners.size) return;
+  if (now - _bsLogoLast >= 32) {
+    _bsLogoLast = now;
+    const e = (now - _bsLogoT0) / 1000;
+    _bsLogoTurners.forEach((draw) => draw(e));
+  }
+  _bsLogoRaf = requestAnimationFrame(_bsLogoTick);
+}
+function bsLogoTurn(draw) {
+  _bsLogoTurners.add(draw);
+  if (!_bsLogoRaf) _bsLogoRaf = requestAnimationFrame(_bsLogoTick);
+  return () => { _bsLogoTurners.delete(draw); };
+}
+// END bsLogoTurn
+
 function BSLogo({ size = 18, color }) {
   const c = color || 'currentColor';
-  const glass = bsLogoGlass(c);
+  const theme = useContextBS(BSContext);
+  const glass = bsLogoGlass(c, !!theme && theme.isLight === false);
+  const gRef = useRefBS(null);
+  // Turn only while on screen (the pinned bar hidden above the page, a tab kept mounted out of
+  // sight, a page scrolled past its masthead) and while reduced motion is off. The setting is
+  // followed while the app stays open (Codex on #2490): turned on, the mark goes back to the still
+  // pose the markup was drawn in; turned off, it turns again.
+  useEffectBS(() => {
+    const g = gRef.current;
+    const SG = typeof window !== 'undefined' ? window.SplitGlassMark : null;
+    if (!g || !glass || !SG || typeof SG.turn !== 'function' || typeof requestAnimationFrame !== 'function') return undefined;
+    const draw = (e) => { g.innerHTML = SG.render(glass.spec, SG.turn(e), SG.MAST); };
+    const mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    let off = null;
+    let onScreen = typeof IntersectionObserver !== 'function';
+    const sync = () => {
+      if (onScreen && !(mq && mq.matches)) { if (!off) off = bsLogoTurn(draw); return; }
+      if (off) { off(); off = null; }
+      if (mq && mq.matches) g.innerHTML = glass.still;
+    };
+    const io = onScreen ? null : new IntersectionObserver((entries) => { onScreen = entries[entries.length - 1].isIntersecting; sync(); });
+    if (io) io.observe(g.ownerSVGElement || g);
+    if (mq) { if (mq.addEventListener) mq.addEventListener('change', sync); else if (mq.addListener) mq.addListener(sync); }
+    sync();
+    return () => {
+      if (io) io.disconnect();
+      if (mq) { if (mq.removeEventListener) mq.removeEventListener('change', sync); else if (mq.removeListener) mq.removeListener(sync); }
+      if (off) { off(); off = null; }
+    };
+  }, [glass]);
   return (
     <svg
       aria-hidden="true"
@@ -836,7 +897,7 @@ function BSLogo({ size = 18, color }) {
         overflow: 'visible',
       }}
     >
-      {glass ? <g dangerouslySetInnerHTML={{ __html: glass }} /> : (
+      {glass ? <g ref={gRef} dangerouslySetInnerHTML={{ __html: glass.still }} /> : (
         <>
           <polygon points="43,39 82,15 82,63" fill={c} />
           <polygon points="17,49 56,73 17,97" fill={c} />

@@ -615,6 +615,27 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the masthead mark turns slowly in Split glass, teal and white on dark papers — #2490. No migration',
+      items: [
+        { label: 'Owner, 2026-10-28, of the triangles at the masthead\'s top left: "have them [match] the split glass look we did for the splash page, and have them slowly rotate/spin on page while app is open", then "teal and white for dark papers"', status: 'done' },
+        { label: 'BSLogo turns the Split glass prisms a whole turn every 12 s (SplitGlassMark.turn, from the still pose), every masthead row through one clock and one frame loop at about 30 frames a second. A mark turns only on screen (IntersectionObserver) and stops under reduced motion, followed live. The homepage splash and the app\'s launch are unchanged', status: 'done' },
+        { label: 'Colours by the paper: on a dark paper (the theme\'s, or a light ink handed in, as Radio\'s cream mark), the splash\'s teal and white whatever the ink; on a light paper, the deep teal and the page\'s ink', status: 'done' },
+        { label: 'Review: Codex P2 ×2 on 9882514 (the ground read from a chosen ink, so Blue on the Black paper came out blue; reduced motion turned on while open left it turning), fixed in 9cec842; Codex clean on 9cec842. Checks: tests/split-glass-mark.test.mjs (16), 361 tests across the suites that load the mark or mount a masthead, the hosted /m/ build; in headless Chromium 31 redraws a second, teal and white on Dark, Carbon, Blueprint and Blue ink on Dark, and reduced motion switched on and off with emulateMedia', status: 'done' },
+        { label: 'OWNER: watch the masthead mark turn on a phone, on a dark and a light paper: smoothness, and battery over a long session. Every render was headless Chromium. One turn is 12 s (SplitGlassMark.TURN)', status: 'manual' },
+      ],
+    },
+    {
+      section: 'App: Train and Eat in the coaches\' type, and Home\'s This week at Week so far\'s size — #2488. No migration',
+      items: [
+        { label: 'Owner, 2026-10-28: "do the same for Train and Eat pages", and "make THIS WEEK on the client/member home page larger"', status: 'done' },
+        { label: 'Train (its page, the Build door and a failed plan read) and Eat (under the header and the Eat · Grocery tabs) set in the clean type of bsCleanType.jsx: Geist heads and Inter Tight words. The clean theme now sets BODY in Inter Tight as well as DISPLAY, which reaches Home and the coach pages\' one BODY line too. Eat keeps its own t for the grocery sheets, with tClean for the page', status: 'done' },
+        { label: 'The swap sheets sit outside the clean area and keep the app\'s type; the coach playlists\' preview carries the clean mark (bsCleanSheet) for its weights, as Home\'s check-in and water sheets do. Every portal the Home, Train and Eat clean areas reach is covered. The pages Train and Eat open keep their own type', status: 'done' },
+        { label: 'Home\'s This week head from 11 px caps to 17 px, Week so far\'s size', status: 'done' },
+        { label: 'Review: Codex P2 on 40cf810 (the empty menu stayed in the system face: BODY was not swapped), fixed at the root in f9ccd3b; P2 on f9ccd3b (the playlist preview lost the clean weights), fixed in abcd316; Codex clean on abcd316. Checks: npm test in the hook on 40cf810, then 1,140 and 182 tests across the suites that mount or read these pages; Train and Eat rendered in headless Chromium before and after', status: 'done' },
+        { label: 'OWNER: open Train and Eat on a phone, signed in with a plan, and the Build door with none; open a swap and a coach playlist. Every render was headless Chromium on demo data', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: the member Home in the coaches\' type, Geist heads and Inter Tight words — #2487. No migration',
       items: [
         { label: 'Owner, 2026-10-28: "Member/client home page font needs to match coaches"', status: 'done' },

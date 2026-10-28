@@ -150,17 +150,103 @@ test('BSLogo draws the glass from the shared module and keeps the flat mark when
   const app = read('mobile-app/src/broadsheet/iosAppBroadsheet.jsx');
   const at = app.indexOf('function bsLogoGlass(');
   assert.ok(at >= 0, 'bsLogoGlass is gone');
-  const fn = app.slice(at, app.indexOf('\nfunction BSLogo(', at));
+  const fn = app.slice(at, app.indexOf('\n// The mark turns while the app is open', at));
   assert.match(fn, /window\.SplitGlassMark/, 'the masthead does not read the shared mark');
-  assert.match(fn, /SG\.render\(SG\.logo\(ink, light \? \[52, 214, 197\] : \[10, 143, 135\]\), SG\.STILL, SG\.MAST\)/,
-    'the masthead is not the still pose in MAST glass, teal by the ink');
+  assert.match(fn, /const spec = onDark \? SG\.logo\(\[255, 255, 255\], \[52, 214, 197\]\) : SG\.logo\(ink, \[10, 143, 135\]\);/, 'the colours do not follow the ground');
+  assert.match(fn, /still: SG\.render\(spec, SG\.STILL, SG\.MAST\)/, 'the first frame is not the still pose in MAST glass');
   assert.match(fn, /if \(!SG \|\| typeof SG\.logo !== 'function' \|\| !m\) return null;/, 'a non-hex colour or a missing module must fall back');
-  // Drive it: a hex ink draws glass, cached per ink; currentColor draws nothing (the flat mark).
+  // Drive it: a hex ink draws glass, cached; currentColor draws nothing (the flat mark).
   const run = new Function('window', `const _bsLogoGlass = new Map();\n${fn}; return bsLogoGlass;`);
   const bsLogoGlass = run({ SplitGlassMark: SG });
+  const tealWhite = SG.logo([255, 255, 255], [52, 214, 197]);
   const dark = bsLogoGlass('#0f0e0c');
-  assert.equal(dark, SG.render(SG.logo([15, 14, 12], [10, 143, 135]), SG.STILL, SG.MAST));
-  assert.equal(bsLogoGlass('#F4EDE0'), SG.render(SG.logo([244, 237, 224], [52, 214, 197]), SG.STILL, SG.MAST), 'a light ink takes the dark paper\'s teal');
+  assert.equal(dark.still, SG.render(SG.logo([15, 14, 12], [10, 143, 135]), SG.STILL, SG.MAST));
+  assert.deepEqual(dark.spec, SG.logo([15, 14, 12], [10, 143, 135]));
+  assert.equal(bsLogoGlass('#0F0E0C'), dark, 'the same ink is not drawn once');
+  // A dark ground takes the splash's teal and white (owner, 2026-10-28: "teal and white for dark
+  // papers"), whatever the ink: a light ink says so on its own (cream, Carbon's grey, Blueprint's
+  // blue, Radio's cream mark)...
+  for (const light of ['#F4EDE0', '#f5f0e6', '#c9cfd6', '#dbe7ff']) {
+    assert.equal(bsLogoGlass(light).still, SG.render(tealWhite, SG.STILL, SG.MAST), `${light} ink is not teal and white`);
+  }
+  // ...and the paper says so for a chosen ink that reads on it, like Blue on the Black paper (Codex on #2490).
+  assert.deepEqual(bsLogoGlass('#1c4ed8', true).spec, tealWhite, 'Blue ink on a dark paper is not teal and white');
+  // A light paper keeps the deep teal and its own ink (Manila's brown, a chosen Blue).
+  assert.deepEqual(bsLogoGlass('#221806').spec, SG.logo([34, 24, 6], [10, 143, 135]));
+  assert.deepEqual(bsLogoGlass('#1c4ed8').spec, SG.logo([28, 78, 216], [10, 143, 135]));
   assert.equal(bsLogoGlass('currentColor'), null);
   assert.equal(run(undefined)('#0f0e0c'), null, 'with no window it must fall back');
+});
+
+// The masthead mark turns while the app is open (owner, 2026-10-28: "have them slowly rotate/spin
+// on page while app is open").
+test('the masthead turn starts and ends each turn on the still pose, and stays glass all the way round', () => {
+  assert.deepEqual(SG.turn(0), SG.STILL);
+  const near = (a, b) => Math.abs(Math.cos(a) - Math.cos(b)) < 1e-9 && Math.abs(Math.sin(a) - Math.sin(b)) < 1e-9;
+  for (const n of [1, 2, 37]) assert.ok(near(SG.turn(n * SG.TURN).ry, SG.STILL.ry), `after ${n} turns it is not back on the still pose`);
+  assert.ok(near(SG.turn(SG.TURN / 2).ry, SG.STILL.ry + Math.PI), 'halfway it has not turned half round');
+  assert.ok(SG.TURN >= 8, `a turn in ${SG.TURN} s is not slow`);
+  const spec = SG.logo([15, 14, 12], [10, 143, 135]);
+  for (let i = 0; i < 48; i++) {
+    const e = (i * SG.TURN) / 48;
+    const p = SG.turn(e);
+    assert.equal(p.rx, SG.STILL.rx);
+    assert.equal(p.sep, SG.STILL.sep);
+    assert.equal(p.fill, 0, `at ${e} s it went solid`);
+    const out = polys(SG.render(spec, p, SG.MAST));
+    assert.equal(out.length, 10, `at ${e} s it drew ${out.length} faces, not 10`);
+    assert.ok(out.every((f) => f.pts.flat().every(Number.isFinite)), `at ${e} s a face has a point that is not a number`);
+  }
+  // Each step of the clock moves it forward the same way: it turns, it does not sway.
+  const steps = [0, 1, 2, 3].map((e) => SG.turn(e).ry);
+  for (let i = 1; i < steps.length; i++) assert.ok(Math.abs(steps[i] - steps[i - 1] - (2 * Math.PI) / SG.TURN) < 1e-9);
+});
+
+test('one clock turns every masthead mark, about 30 frames a second, only while one is on screen', () => {
+  const app = read('mobile-app/src/broadsheet/iosAppBroadsheet.jsx');
+  const block = app.slice(app.indexOf('// BEGIN bsLogoTurn'), app.indexOf('// END bsLogoTurn'));
+  assert.ok(block.length > 100, 'the bsLogoTurn block is gone');
+  const frames = [];
+  const make = new Function('requestAnimationFrame', 'performance', `${block}; return bsLogoTurn;`);
+  const bsLogoTurn = make((f) => { frames.push(f); return frames.length; }, { now: () => 1000 });
+  const seen = { a: [], b: [] };
+  const offA = bsLogoTurn((e) => seen.a.push(e));
+  const offB = bsLogoTurn((e) => seen.b.push(e));
+  assert.equal(frames.length, 1, 'two marks asked for two frame loops');
+  frames.shift()(1500);
+  assert.deepEqual(seen.a, [0.5]);
+  assert.deepEqual(seen.b, [0.5], 'the two marks are not at the same angle');
+  frames.shift()(1510); // 10 ms later: not yet
+  assert.equal(seen.a.length, 1, 'it drew faster than 30 frames a second');
+  frames.shift()(1540);
+  assert.deepEqual(seen.a, [0.5, 0.54]);
+  offA();
+  frames.shift()(1580);
+  assert.equal(seen.a.length, 2, 'a mark off screen was still drawn');
+  assert.equal(seen.b.length, 3);
+  offB();
+  frames.shift()(1620);
+  assert.equal(frames.length, 0, 'with no mark on screen it kept asking for frames');
+  // A mark coming back starts the loop again, on the same clock.
+  bsLogoTurn((e) => seen.a.push(e));
+  assert.equal(frames.length, 1);
+  frames.shift()(3000);
+  assert.equal(seen.a.at(-1), 2);
+});
+
+test('BSLogo reads the ground from the theme, turns only on screen, and follows reduced motion as it changes', () => {
+  const app = read('mobile-app/src/broadsheet/iosAppBroadsheet.jsx');
+  const at = app.indexOf('function BSLogo(');
+  const fn = app.slice(at, app.indexOf('\nfunction BSLogoMask(', at));
+  assert.match(fn, /const glass = bsLogoGlass\(c, !!theme && theme\.isLight === false\);/, 'the ground is not the theme\'s paper');
+  assert.match(fn, /SG\.render\(glass\.spec, SG\.turn\(e\), SG\.MAST\)/, 'it does not draw the turn in MAST glass');
+  assert.match(fn, /new IntersectionObserver\(/, 'it turns off screen too');
+  // Reduced motion is followed while the app stays open (Codex on #2490): a change re-syncs, and
+  // with it on the mark leaves the loop and goes back to the still pose.
+  assert.match(fn, /mq\.addEventListener\('change', sync\)/, 'a change to reduced motion is not heard');
+  assert.match(fn, /mq\.removeEventListener\('change', sync\)/, 'unmounting leaves the listener');
+  assert.match(fn, /if \(onScreen && !\(mq && mq\.matches\)\) \{ if \(!off\) off = bsLogoTurn\(draw\); return; \}/, 'it turns under reduced motion or off screen');
+  assert.match(fn, /if \(mq && mq\.matches\) g\.innerHTML = glass\.still;/, 'reduced motion does not go back to the still pose');
+  assert.match(fn, /if \(io\) io\.disconnect\(\);/, 'unmounting leaves the observer');
+  assert.match(fn, /<g ref=\{gRef\} dangerouslySetInnerHTML=\{\{ __html: glass\.still \}\} \/>/, 'the first frame is not the still pose');
 });
