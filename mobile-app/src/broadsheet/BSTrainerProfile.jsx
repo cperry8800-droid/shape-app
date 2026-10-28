@@ -270,8 +270,12 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const [availEpoch, setAvailEpoch] = React.useState(0);
   React.useEffect(() => {
     const real = !selfDemo && providerId && W.ShapeCoachAvailability?.get;
-    // A sample waits for its listing's read, then shows the listing's own hours or the sample week.
-    if (!selfDemo && !real && !(sample && providerState !== 'loading')) { setAvail({ kind: providerState === 'loading' ? 'loading' : 'none' }); return undefined; }
+    // A sample waits for its listing's read, then shows the listing's own hours or the sample week:
+    // the sample week only when there are no hours to read (no listing, none found, or a listing
+    // that answered with none). A read that failed says so, with Try again, since the listing may
+    // well have hours (Codex P2 on #2491).
+    const sampleOnly = sample && !real && (providerState === 'none' || providerState === 'ready');
+    if (!selfDemo && !real && !sampleOnly) { setAvail({ kind: providerState === 'loading' ? 'loading' : 'none' }); return undefined; }
     let on = true;
     setAvail({ kind: 'loading' });
     const week = (d) => {
@@ -288,10 +292,10 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
       .then((d) => {
         if (!on) return;
         const a = week(d);
-        if (sample && !(a && a.hasHours && a.zoneOk)) { setAvail(sampleWeek()); return; }
+        if (sampleOnly || (sample && a && !a.hasHours)) { setAvail(sampleWeek()); return; }
         setAvail(a || { kind: 'error' });
       })
-      .catch(() => { if (on) setAvail(sample ? sampleWeek() : { kind: 'error' }); });
+      .catch(() => { if (on) setAvail(sampleOnly ? sampleWeek() : { kind: 'error' }); });
     return () => { on = false; };
   }, [providerId, providerState, availEpoch, demo]);
 

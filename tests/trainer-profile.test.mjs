@@ -81,8 +81,11 @@ function reset(over = {}) {
 reset();
 window.ShapeAuth = { getCachedState: () => ({ user: { id: world.me } }) };
 window.ShapeProfiles = { getPublicProfile: async () => ({ name: 'Maya Okafor', pronouns: world.pronouns, bio: 'I teach people to lift well.', points: 6200, custom: world.custom, can_view: world.canView }) };
-window.ShapeCoachListing = { publicByOwner: async () => world.provider, publicById: async (role, id) => { world.byIdFor = id; return world.byId || null; } };
-window.ShapeCoachAvailability = { get: async (role, id) => (world.availFor = id, { slots: world.slots, booked: [], busy: world.busy, rules: world.rules, timezone: ZONE, atCapacity: world.atCapacity }) };
+// byIdFails / availFails: the listing's or the hours' read fails ('null' answers null, as the
+// backend does on a non-2xx; anything else rejects, as a lost connection does).
+const failing = (how) => { if (how === 'null') return null; throw new Error('offline'); };
+window.ShapeCoachListing = { publicByOwner: async () => world.provider, publicById: async (role, id) => { world.byIdFor = id; if (world.byIdFails) return failing(world.byIdFails); return world.byId || null; } };
+window.ShapeCoachAvailability = { get: async (role, id) => { world.availFor = id; if (world.availFails) return failing(world.availFails); return { slots: world.slots, booked: [], busy: world.busy, rules: world.rules, timezone: ZONE, atCapacity: world.atCapacity }; } };
 window.ShapeCoachReviews = { forOwner: async () => ({ reviews: [], avg: 0, count: 0 }) };
 window.ShapeCoachPlans = { salePlansByUser: async () => [] };
 window.ShapeFollows = { stats: async () => ({ isFollowing: false, isPending: false }), toggle: async () => ({ isFollowing: true }), getCached: () => null };
@@ -583,6 +586,33 @@ test('a seeded listing with real hours offers them to take, as its listing does'
   const open = [...document.querySelectorAll('[data-open-time]')];
   assert.ok(open.length > 0 && open.every((b) => !b.disabled && /Take it/.test(b.textContent)));
   assert.equal(world.availFor, 41, 'the listing\'s own hours');
+  await m.unmount();
+});
+
+test('a seeded listing whose hours or listing could not be read says so, never the sample week (Codex P2 on #2491)', async () => {
+  for (const how of ['null', 'reject']) {
+    reset({ me: 'u-me', byId: leahRow, availFails: how });
+    const m = await mount(page({ person: leah }));
+    assert.equal(world.availFor, 41);
+    assert.match(m.text(), /Couldn't read the open times just now\./, `hours read: ${how}`);
+    assert.ok(!document.querySelector('[data-day-sub]'), 'no "Sample times" line');
+    assert.equal(document.querySelectorAll('[data-open-time]').length, 0);
+    // Try again reads the hours again, and the listing's real times can be taken.
+    world.availFails = null;
+    await click(button(/^Try again$/));
+    assert.match(document.querySelector('[data-day-sub]').textContent, /From Leah's Shape calendar/);
+    await m.unmount();
+  }
+  // The listing itself could not be read: the same, and Try again reads the listing again.
+  reset({ me: 'u-me', byId: leahRow, byIdFails: 'reject' });
+  const m = await mount(page({ person: leah }));
+  assert.match(m.text(), /Couldn't read the open times just now\./);
+  assert.ok(!document.querySelector('[data-day-sub]'));
+  world.byIdFails = null;
+  world.byIdFor = undefined;
+  await click(button(/^Try again$/));
+  assert.equal(world.byIdFor, 41, 'the listing, read again');
+  assert.match(document.querySelector('[data-day-sub]').textContent, /From Leah's Shape calendar/);
   await m.unmount();
 });
 
