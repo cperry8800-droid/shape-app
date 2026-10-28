@@ -19726,6 +19726,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // fetch this was reached nothing on the native build.
   const liveCoach = !!person.userId;
   const [liveAgg, setLiveAgg] = useStateBSC(null);
+  // Members read the reviews; anyone else is told so, with the rating (owner, 2026-10-28).
+  const [revLocked, setRevLocked] = useStateBSC(false);
   React.useEffect(() => {
     const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     let on = true;
@@ -19735,6 +19737,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
       .then((d) => {
         if (!on || !d || !Array.isArray(d.reviews)) return;
         if (liveCoach || d.reviews.length) setLiveReviews(d.reviews);
+        setRevLocked(d.locked === true);
         // The server's average and count are over every review; the list is capped at 200.
         setLiveAgg(Number.isFinite(Number(d.count)) ? { avg: Number(d.avg) || 0, count: Number(d.count) } : null);
       })
@@ -20072,9 +20075,15 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                   out a coach's line, its writer's flat face and name above it (owner, 2026-10-24, "Design"). */}
               <BSTStationHead mag heat={c} INK={INK} label={tr('profile:tab.reviews', { defaultValue: 'Reviews' })} meta={`${liveAvg != null ? liveAvg : (rating != null ? rating : '—')}/10 · ★ ${liveCoach ? reviewCount : (liveReviews && liveReviews.length ? liveReviews.length : reviewCount)}`} />
               <div>
-                {!liveList.length && (
+                {!liveList.length && (revLocked && liveAgg && liveAgg.count > 0 ? (
+                  <div data-reviews-locked="" style={{ padding: '12px 0' }}>
+                    <div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.75) }}>{tr('marketplace:listing.reviewsMembers', { defaultValue: 'Members read the reviews.' })}</div>
+                    <button type="button" onClick={() => { if (window.bsRequireAccount && !window.bsRequireAccount(tr('marketplace:listing.reviewsJoin', { defaultValue: 'read the reviews' }))) return; window.ShapeMembershipApi?.startCheckout?.(); }}
+                      style={{ marginTop: 6, minHeight: 40, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c }}>{tr('marketplace:listing.reviewsJoinCta', { defaultValue: 'Join to read them' })} →</button>
+                  </div>
+                ) : (
                   <div style={quiet}>{tr('marketplace:listing.noReviews', { defaultValue: 'No reviews yet' })}</div>
-                )}
+                ))}
                 {liveList.map(([nm, ini, hue, body, stars, authorId], i) => {
                   const open = authorId ? () => setReviewerProfile({ who: nm, kind: 'CLIENT', userId: authorId, public: true }) : null;
                   const who = <><BSFacetAvatar flat size={30} c={INK} initial={ini} showRank={false} BG={BG} INK={INK} /><span style={{ fontFamily: SANS, fontSize: 13.5, fontWeight: 500, color: INK, textDecoration: open ? 'underline' : 'none', textDecorationColor: bsTHexA(INK, 0.35), textUnderlineOffset: 3 }}>{nm}</span></>;
