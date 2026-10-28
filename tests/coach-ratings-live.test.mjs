@@ -41,8 +41,9 @@ function fn(src, name) {
 /** A coach_reviews fake that applies eq / order / range / limit and, like the API,
  *  never returns more than 1,000 rows from one read. Its coach_review_ratings() is the
  *  migration's (2026-10-28-coach-reviews-members.sql): each slug and account's total and count;
- *  `ratingsFn: false` is a database before that migration (the function is missing). */
-function reviewsClient(rows, { ratingsFn = true } = {}) {
+ *  `ratingsFn: false` is a database before that migration (the function is missing).
+ *  `canReadRows: false` is a reader the migration's policy shows no row (a guest, a non-member). */
+function reviewsClient(rows, { ratingsFn = true, canReadRows = true } = {}) {
   return {
     rpc: async (name) => {
       if (name !== 'coach_review_ratings' || !ratingsFn) return { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } }
@@ -64,7 +65,7 @@ function reviewsClient(rows, { ratingsFn = true } = {}) {
         range: (a, b) => { st.range = [a, b]; return q },
         limit: (n) => { st.limit = n; return q },
         then: (res, rej) => {
-          let out = rows.filter((r) => st.filters.every((f) => f(r)))
+          let out = canReadRows ? rows.filter((r) => st.filters.every((f) => f(r))) : []
           if (st.range) out = out.slice(st.range[0], st.range[1] + 1)
           if (st.limit != null) out = out.slice(0, st.limit)
           return Promise.resolve({ data: out.slice(0, 1000), error: null }).then(res, rej)
@@ -74,16 +75,17 @@ function reviewsClient(rows, { ratingsFn = true } = {}) {
     },
   }
 }
-// `member`: the reader is a signed-in member (computeMembership's answer); else signed out.
-async function loadRoute(client, { member = false } = {}) {
+// `member`: the reader is a signed-in member (computeMembership's answer for them); `signedIn`
+// alone is a signed-in reader who isn't one; neither is a guest.
+async function loadRoute(client, { member = false, signedIn = member } = {}) {
   const require_ = createRequire(join(ROOT, 'package.json'))
   return loadRealModule(join(ROOT, 'src/app/api/coaches/reviews/route.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', require_('next/server')],
-      ['@/lib/request-auth', { currentUser: async () => (member ? { id: 'u-reader', email: 'r@example.invalid', email_confirmed_at: 'x' } : null), clientForRequest: async () => client }],
+      ['@/lib/request-auth', { currentUser: async () => (signedIn ? { id: 'u-reader', email: 'r@example.invalid', email_confirmed_at: 'x' } : null), clientForRequest: async () => client }],
       ['@/lib/request-utils', { readJson: async () => ({ ok: true, data: {} }) }],
-      ['@/lib/membership-core', { computeMembership: async () => ({ isMember: member, isCoach: false, isAdmin: false, isKnownMinor: false }) }],
+      ['@/lib/membership-core', { computeMembership: async (sb, id) => ({ isMember: member && id === 'u-reader', isCoach: false, isAdmin: false, isKnownMinor: false }) }],
     ]),
   })
 }
@@ -96,8 +98,10 @@ test('the API averages each coach by ACCOUNT as well as by slug, from the rating
     { id: 3, coach_slug: 'ada-old-name', rating: 3, owner_id: 'u-ada' },
     { id: 4, coach_slug: 'seeded-coach', rating: 10, owner_id: null },
   ]
+  // A guest asks. Once the migration has run, the policy shows them no row, so the averages come
+  // from the ratings function alone; before it, from the rows anyone could read.
   for (const ratingsFn of [true, false]) {
-    const route = await loadRoute(reviewsClient(rows, { ratingsFn }))
+    const route = await loadRoute(reviewsClient(rows, { ratingsFn, canReadRows: !ratingsFn }))
     const body = await (await route.GET(new Request('https://shape.test/api/coaches/reviews'))).json()
     assert.deepEqual(body.owners, { 'u-ada': { avg: 6, count: 3 } }, `ratings function: ${ratingsFn}`)
     assert.deepEqual(body.summaries['ada-coach'], { avg: 7.5, count: 2 })
@@ -113,13 +117,17 @@ test('members read the reviews; everyone else gets the rating and no words (owne
     { id: '44444444-4444-4444-8444-444444444444', coach_slug: 'ada-coach', rating: 7, owner_id: OWNER, body: 'Good.', author_name: 'Ana P.', created_at: '2026-10-02' },
   ]
   for (const ratingsFn of [true, false]) {
-    const guest = await loadRoute(reviewsClient(rows, { ratingsFn }))
-    for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
-      const body = await (await guest.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()
-      assert.deepEqual(body, { reviews: [], locked: true, avg: 8, count: 2 }, `${q}, ratings function ${ratingsFn}: the rating, no words or authors`)
+    // A guest, and a signed-in reader who isn't a member. After the migration neither reads a row.
+    for (const signedIn of [false, true]) {
+      const reader = await loadRoute(reviewsClient(rows, { ratingsFn, canReadRows: !ratingsFn }), { signedIn })
+      const who = `${signedIn ? 'signed-in non-member' : 'guest'}, ratings function ${ratingsFn}`
+      for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
+        const body = await (await reader.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()
+        assert.deepEqual(body, { reviews: [], locked: true, avg: 8, count: 2 }, `${q}, ${who}: the rating, no words or authors`)
+      }
+      const pins = await (await reader.GET(new Request(`https://shape.test/api/coaches/reviews?ids=${REVIEW}`))).json()
+      assert.deepEqual(pins, { reviews: [], locked: true }, `${who}: a pinned review is a review, members only`)
     }
-    const pins = await (await guest.GET(new Request(`https://shape.test/api/coaches/reviews?ids=${REVIEW}`))).json()
-    assert.deepEqual(pins, { reviews: [], locked: true }, 'a pinned review is a review: members only')
     const member = await loadRoute(reviewsClient(rows, { ratingsFn }), { member: true })
     for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
       const body = await (await member.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()

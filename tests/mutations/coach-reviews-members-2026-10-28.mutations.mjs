@@ -1,0 +1,65 @@
+// Mutation spec for members reading coach reviews (owner, 2026-10-28: "anyone with a shape
+// membership can read them", "Rating only" for everyone else): the API, the migration and each
+// screen's locked state. Every mutation must be killed.
+// Run from the repo root:
+//   node scripts/mutate.mjs --spec tests/mutations/coach-reviews-members-2026-10-28.mutations.mjs --fail-on-skipped
+const API = 'src/app/api/coaches/reviews/route.ts';
+const SQL = 'supabase-migrations/2026-10-28-coach-reviews-members.sql';
+const APP = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
+const MKT = 'mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx';
+const TRAINER = 'mobile-app/src/broadsheet/BSTrainerProfile.jsx';
+const WEB = 'public/newdesign/livingShared.jsx';
+
+export default {
+  test: 'node --test tests/coach-ratings-live.test.mjs tests/trainer-profile.test.mjs tests/review-abuse-hardening.test.mjs',
+  timeoutMs: 300_000,
+  mutations: [
+    // ── the API ──
+    { name: 'api: a guest counts as a member', file: API,
+      find: '  if (!user) return false;', replace: '  if (!user) return true;' },
+    { name: 'api: every signed-in reader counts as a member', file: API,
+      find: '    return (await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at })).isMember;',
+      replace: '    return true;' },
+    { name: 'api: ?ids answers a non-member', file: API,
+      find: '    if (!(await readerIsMember(request, supabase))) return NextResponse.json({ reviews: [], locked: true });\n', replace: '' },
+    { name: 'api: ?owner answers a non-member', file: API,
+      find: '    if (!member) return NextResponse.json({ reviews: [], locked: true, ...(rating || {}) });\n', replace: '' },
+    { name: 'api: ?owner hides the reviews without saying so', file: API,
+      find: '    if (!member) return NextResponse.json({ reviews: [], locked: true, ...(rating || {}) });',
+      replace: '    if (!member) return NextResponse.json({ reviews: [], ...(rating || {}) });' },
+    { name: 'api: ?coach answers a non-member', file: API,
+      find: '    if (!member) return NextResponse.json({ reviews: [], locked: true, ...rating });\n', replace: '' },
+    { name: 'api: ?coach gives a non-member no rating', file: API,
+      find: '    if (!member) return NextResponse.json({ reviews: [], locked: true, ...rating });',
+      replace: '    if (!member) return NextResponse.json({ reviews: [], locked: true });' },
+    { name: 'api: the ratings function is never read', file: API,
+      find: '  if (!rpc.error) return ((rpc.data', replace: '  if (false) return ((rpc.data' },
+    // ── the migration ──
+    { name: 'sql: anyone reads every review again', file: SQL,
+      find: '  using (user_id = auth.uid() or owner_id = auth.uid() or public.shape_viewer_is_member());',
+      replace: '  using (true);' },
+    { name: 'sql: the policy opens to anon', file: SQL,
+      find: '  for select to authenticated\n', replace: '  for select to anon, authenticated\n' },
+    { name: 'sql: a canceled newest subscription still counts', file: SQL,
+      find: "         where newest.status in ('active', 'trialing', 'past_due')",
+      replace: "         where newest.status in ('active', 'trialing', 'past_due', 'canceled')" },
+    { name: 'sql: anon may run the membership check', file: SQL,
+      find: 'revoke all on function public.shape_viewer_is_member() from anon;\n', replace: '' },
+    { name: 'sql: the ratings carry the words', file: SQL,
+      find: '  select r.coach_slug, r.owner_id, coalesce(sum(r.rating), 0)::bigint, count(*)::bigint\n',
+      replace: '  select r.coach_slug, r.owner_id, coalesce(sum(r.rating), 0)::bigint, count(*)::bigint, max(r.body)\n' },
+    // ── the screens ──
+    { name: 'trainer profile: a locked answer reads as no reviews', file: TRAINER,
+      find: 'locked: d.locked === true }); }).catch(() => {});', replace: 'locked: false }); }).catch(() => {});' },
+    { name: 'trainer profile: Join skips the account a guest needs', file: TRAINER,
+      find: "    if (W.bsRequireAccount && !W.bsRequireAccount(tr('marketplace:listing.reviewsJoin', { defaultValue: 'read the reviews' }))) return;\n", replace: '' },
+    { name: 'trainer profile: Join calls the backend bare', file: TRAINER,
+      find: '    W.bsStartPlatformCheckout?.();', replace: '    W.ShapeMembershipApi?.startCheckout?.();' },
+    { name: 'listing: a locked answer reads as no reviews', file: MKT,
+      find: '        setRevLocked(d.locked === true);', replace: '        setRevLocked(false);' },
+    { name: 'signal profile: a locked answer reads as no reviews', file: APP,
+      find: '        setRevLocked(d.locked === true);', replace: '        setRevLocked(false);' },
+    { name: 'website: a locked answer reads as no reviews', file: WEB,
+      find: '      setRevLocked(j.locked === true);', replace: '      setRevLocked(false);' },
+  ],
+};
