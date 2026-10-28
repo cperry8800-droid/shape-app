@@ -14464,7 +14464,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
             composer for the member to send. */}
         {effMeals.length === 0 && (eatPlanRead || !bsEatSignedIn) && (
           <div data-eat-empty style={{ padding: `4px ${t.padX}px 2px` }}>
-            <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.45 }}>{tr('nutrition:eat.noMealsPlanned', { defaultValue: 'No meals planned' })}</div>
+            <div style={{ fontFamily: tClean.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.45 }}>{tr('nutrition:eat.noMealsPlanned', { defaultValue: 'No meals planned' })}</div>
             {day === bsWeekdayIdx()
               ? <BSAskNoraLink t={t} label={tr('feed:support.ask.eatTodayLink', { defaultValue: 'Ask Nora what to eat today' })} draft={tr('feed:support.ask.eatToday', { defaultValue: 'What should I eat today?' })} />
               : <BSAskNoraLink t={t} label={tr('feed:support.ask.eatOnDayLink', { defaultValue: 'Ask Nora what to eat on {day}', day: bsWeekdayName(day) })} draft={tr('feed:support.ask.eatOnDay', { defaultValue: 'What should I eat on {day}?', day: bsWeekdayName(day) })} />}

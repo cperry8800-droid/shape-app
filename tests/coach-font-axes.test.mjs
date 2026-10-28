@@ -45,9 +45,11 @@ test('every new face is a real subset, not an empty file', () => {
   }
 });
 
-test('the clean type names the two bundled faces', () => {
+test('the clean type names the two bundled faces, and sets every word in Inter Tight', () => {
   assert.match(CLEAN, /export const BS_CLEAN_HEAD = "'Geist',/);
   assert.match(CLEAN, /export const BS_CLEAN_SANS = "'Inter Tight',/);
+  // The theme's two word faces, DISPLAY and the system BODY a few lines take (Codex on #2488).
+  assert.match(CLEAN, /\{ \.\.\.base, DISPLAY: BS_CLEAN_SANS, BODY: BS_CLEAN_SANS, HEAD: BS_CLEAN_HEAD \}/);
 });
 
 // One top-level function of the client module, by its source.
