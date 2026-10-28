@@ -20124,8 +20124,7 @@ function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false,
   // search screen's "Recent" list — recently viewed, not just recently searched.
   React.useEffect(() => {
     if (isSelf || meMode || !person || !person.who) return;
-    const role = person.kind === 'TRAINER' ? 'trainer' : person.kind === 'NUTRI' ? 'nutritionist' : 'client';
-    bsRecentSearchPush({ userId: person.userId || null, name: person.who, role, avatar: person.photo || null, tier: person.tier || null, points: null });
+    bsRecentSearchPush(bsRecentOfPerson(person));
   }, []);
   // Every trainer opens the trainer profile (BSTrainerProfile.jsx: their colours, their day, their
   // studio, their replays). One with no Shape account (the trainer app's own page signed out, a
@@ -20187,6 +20186,26 @@ function BSNotifiedPerson({ userId, onClose }) {
 // signed-out fallback. Tapping a person opens their living public profile.
 const BS_RECENT_SEARCH_KEY = 'shape.recentSearch';
 function bsRecentSearchRead() { try { const a = JSON.parse(localStorage.getItem(BS_RECENT_SEARCH_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+// A viewed profile as the search screen's Recent keeps it, and the person it reopens. A trainer
+// with no account is their marketplace listing, so its id, specialty, rating, place, bio and tier
+// come along: reopened from Recent, the profile reads that listing again (its price, credential and
+// hours) rather than drawing a different, generic sample (Codex P2 on #2491).
+function bsRecentOfPerson(person) {
+  const role = person.kind === 'TRAINER' ? 'trainer' : person.kind === 'NUTRI' ? 'nutritionist' : 'client';
+  const rec = { userId: person.userId || null, name: person.who, role, avatar: person.photo || null, tier: person.tier || null, points: null };
+  if (role === 'trainer' && !person.userId && person.providerId) {
+    Object.assign(rec, { providerId: person.providerId, specialty: person.specialty || '', category: person.category || '', rating10: Number(person.rating10) > 0 ? Number(person.rating10) : null, city: person.city || '', bio: String(person.bio || '').slice(0, 600) });
+  }
+  return rec;
+}
+function bsPersonOfRecent(p) {
+  const kind = p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
+  const person = { who: p.name, kind, userId: p.userId || undefined, init: bsInitials(p.name), photo: p.avatar || undefined, tier: p.points != null ? bsTierForPoints(p.points) : undefined, public: true };
+  if (kind === 'TRAINER' && !p.userId && p.providerId) {
+    Object.assign(person, { providerId: p.providerId, specialty: p.specialty || '', category: p.category || '', rating10: p.rating10 ?? null, city: p.city || '', bio: p.bio || '', tier: person.tier || p.tier || undefined });
+  }
+  return person;
+}
 function bsRecentSearchPush(p) {
   try {
     const a = bsRecentSearchRead().filter(x => (x.userId || x.name) !== (p.userId || p.name));
@@ -20460,8 +20479,7 @@ function BSUniversalSearch({ onClose }) {
   const open = (p) => {
     // (Recents are recorded centrally when the profile mounts — covers profiles
     // viewed from anywhere, not just searched ones.)
-    const kind = p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
-    setViewPerson({ who: p.name, kind, userId: p.userId || undefined, init: bsInitials(p.name), photo: p.avatar || undefined, tier: p.points != null ? bsTierForPoints(p.points) : undefined, public: true });
+    setViewPerson(bsPersonOfRecent(p));
   };
   React.useEffect(() => {
     const sync = () => setRecents(bsRecentSearchRead());
