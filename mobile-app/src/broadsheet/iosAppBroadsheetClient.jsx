@@ -64,6 +64,7 @@ import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx'
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
+import { useBSClean, BSCleanType } from './bsCleanType.jsx';
 import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.jsx';
 import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
@@ -4435,7 +4436,9 @@ function BSMemberSetupStation({ onGoal, onTrain, onCheckin, onFindCoach }) {
 }
 
 function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {}, checkinOpen = null, onCheckinOpenConsumed = () => {} }) {
-  const t = useBS();
+  // The coach Today's clean type (owner, 2026-10-28: "Member/client home page font needs to match
+  // coaches"): Geist heads and Inter Tight words below the top bars, as the coach's (bsCleanType.jsx).
+  const t = useBSClean();
   const tr = useShapeTr();
   const bsHomeProgram = useBSProgram();
   const prepEntries = useBSPrepEntries();   // PREPPED stamps on slate meal rows (PR C)
@@ -5204,10 +5207,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {/* NOW PLAYING — Shape Radio (above the week calendar) */}
       <BSNowPlaying onOpen={goRadio} />
 
+      {/* Below the top bars, Home is set in the clean type (bsCleanType.jsx), as the coach's Today. The
+          pages Home opens keep their own type: they return above, and the steps history sits outside. */}
+      <BSCleanType t={t}>
       {/* THIS WEEK — calendar preview (directly below the Clients Edition band) */}
       <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ {tr('home:section.thisWeek', { defaultValue: 'This week' })}</span>
+          <span style={{ fontFamily: t.HEAD, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ {tr('home:section.thisWeek', { defaultValue: 'This week' })}</span>
           <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>{tr('home:dateline.wkAbbr', { defaultValue: 'Wk' })} {isoWeek} · {fmtDate(0)}–{weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)}</span>
         </span>
         <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, background: 'transparent', border: 0, padding: '0 2px', color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('home:action.monthView', { defaultValue: 'Month view →' })}</button>
@@ -5311,7 +5317,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {}
         }}
         onMornings={() => setMorningsPage(true)} />
-      {stepsHistory && <BSStepsHistory onClose={() => setStepsHistory(false)} />}
       {/* The coaches' weekly notes, trainers first: a member may pay two coaches of one role (owner,
           2026-10-16), and each keeps one note (coach_focus_banners is one row per coach), signed with
           its coach's name or the role alone. Real notes only, no sample even signed out (owner), and
@@ -5378,7 +5383,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         );
       })()}
 
+      </BSCleanType>
+
       <BSFooter right={tr('home:footer.page', { defaultValue: 'Pg 1 of 1' })} />
+      {stepsHistory && <BSStepsHistory onClose={() => setStepsHistory(false)} />}
       {showLogActivity && <BSLogActivity onClose={() => setShowLogActivity(false)} onSaved={() => { refreshAnalytics(); setTimeout(refreshAnalytics, 700); }} />}
       {showMood && <BSMoodSheet onClose={() => setShowMood(false)} onSaved={() => { refreshAnalytics(); setTimeout(refreshAnalytics, 700); }} />}
     </BSPage>
