@@ -22,6 +22,7 @@ import { BS_LISTING_GALLERY_MAX, BS_LISTING_CAPTION_MAX } from '../services/list
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 import { bsGroceryFromCoachList } from '../services/groceryShare.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
+import { BS_CLEAN_HEAD as BS_PRO_HEAD, BS_CLEAN_SANS as BS_PRO_SANS, useBSClean as useBSProClean, BSCleanType as BSProCleanType } from './bsCleanType.jsx';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -82,40 +83,9 @@ const {
   BSPublicProfile, BSFacetAvatar,
 } = window;
 
-// The coach pages' clean type (owner, 2026-10-25, "Do with clean", the header mockup 3, and "I want
-// both" of the two faces offered): Today, Clients and Programs set their titles and section heads in
-// Geist and their words in Inter Tight, in place of Saira; both are bundled (fonts.css) and draw
-// Cyrillic and Vietnamese. A page swaps the text face in its own theme (useBSProClean) and hands that
-// theme to what it renders (BSProCleanType), so a child's text follows; the masthead and the top bars
-// sit outside and keep theirs.
-const BS_PRO_HEAD = "'Geist', 'Inter Tight', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
-const BS_PRO_SANS = "'Inter Tight', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
-function useBSProClean() {
-  const base = useBS();
-  return React.useMemo(() => ({ ...base, DISPLAY: BS_PRO_SANS }), [base]);
-}
-// ⚠ The app's "regular" weight (tweaks.js, the default) steps every weight down with !important
-// rules that know only 400–800 (BSPhone's bs-weight-css), so a 750 head fell to 300 and an 800 title
-// to 500. The clean area keeps the weights it is written with, as the mockup shows them: its root is
-// 400, a child inherits, and an inline weight is restored (each rule outranks the one it undoes).
-const BS_PRO_CLEAN_WEIGHTS = [300, 400, 500, 600, 650, 700, 750, 800, 900];
-function bsProCleanWeightCss() {
-  if (typeof document === 'undefined' || document.getElementById('bs-pro-clean-css')) return;
-  const s = document.createElement('style');
-  s.id = 'bs-pro-clean-css';
-  s.textContent = [
-    '[data-bs-weight="regular"] [data-bs-clean] { font-weight: 400 !important; }',
-    '[data-bs-weight="regular"] [data-bs-clean] * { font-weight: inherit !important; }',
-    ...BS_PRO_CLEAN_WEIGHTS.map((w) => `[data-bs-weight="regular"] [data-bs-clean] [style*="font-weight: ${w};"] { font-weight: ${w} !important; }`),
-  ].join('\n');
-  document.head.appendChild(s);
-}
-function BSProCleanType({ t, children }) {
-  useEffectBSP(() => { bsProCleanWeightCss(); }, []);
-  const Ctx = typeof window !== 'undefined' ? window.BSContext : null;
-  const body = <div data-bs-clean="" style={{ display: 'contents' }}>{children}</div>;
-  return Ctx ? <Ctx.Provider value={t}>{body}</Ctx.Provider> : body;
-}
+// The coach pages' clean type (Geist heads, Inter Tight words) lives in bsCleanType.jsx, which the
+// member's Home shares. A page swaps the text face in its own theme (useBSProClean) and hands that
+// theme to what it renders (BSProCleanType).
 // The clean header grammar: a 38px title (no period), a 16px line under it with its lead in bold,
 // 20px section heads that carry a count badge, and teal text links.
 const bsProH1 = (t) => ({ margin: 0, minWidth: 0, fontFamily: BS_PRO_HEAD, fontSize: 38, fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1.05, color: t.INK });

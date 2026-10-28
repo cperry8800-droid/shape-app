@@ -350,7 +350,7 @@ export function BSHomeWeekView({ w, checkinsOn = true, onTrain, onEat, onProgres
   return (
     <section data-bs-home-week="" style={{ padding: `${t.sectGap + 6}px ${t.padX}px 0` }}>
       <div data-bs-home-week-head="" style={{ display: 'flex', alignItems: 'baseline', gap: 10, paddingBottom: 6, borderBottom: `2px solid ${t.INK}` }}>
-        <h2 style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, lineHeight: 1, letterSpacing: '0.02em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>{tr('home:week.title', { defaultValue: 'Week so far' })}</h2>
+        <h2 style={{ margin: 0, fontFamily: t.HEAD || t.DISPLAY, fontSize: 17, fontWeight: t.HEAD ? 700 : 600, lineHeight: 1, letterSpacing: '0.02em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>{tr('home:week.title', { defaultValue: 'Week so far' })}</h2>
         <span style={{ ...mono, marginLeft: 'auto', fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('home:week.gridMeta', { defaultValue: 'A square a day' })}</span>
       </div>
       {g ? (

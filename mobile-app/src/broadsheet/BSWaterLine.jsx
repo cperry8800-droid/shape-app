@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { bsCleanSheet } from './bsCleanType.jsx';
 import { saveAccountDocPatch } from '../../../public/newdesign/settingsSync.mjs';
 import { bsCiEnqueue, bsCiSettled, bsCiIso, BS_CI_HYDRATION_SYNCED } from './BSCheckinCard.jsx';
 // ─── WATER ON HOME: ONE LINE, ALL DAY ────────────────────────────────────────────────────────────
@@ -303,7 +304,7 @@ function BSWaterDay({ dayIso }) {
         ) : null}
         {errLine('water')}
       </div>
-      {sheet && host ? createPortal(sheet, host) : sheet}
+      {sheet && host ? createPortal(bsCleanSheet(t, sheet), host) : sheet}
     </>
   );
 }

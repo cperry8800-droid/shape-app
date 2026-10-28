@@ -19,6 +19,10 @@ const hexA = (hex, a) => {
   return `#${m[1]}${Math.round(Math.max(0, Math.min(1, a)) * 255).toString(16).padStart(2, '0')}`;
 };
 
+// A theme with a head face (t.HEAD, the clean type of bsCleanType.jsx: the member's Home) sets the
+// heads below in Geist at the coach pages' head weight; every other page keeps Saira.
+const bsFocusHeadFace = (t, weight) => (t.HEAD ? { fontFamily: t.HEAD, fontWeight: 700 } : { fontFamily: t.DISPLAY, fontWeight: weight });
+
 // A section head in the Home grammar: glyph + caps label, a quiet meta, one
 // action on the right, then the 2px ink→accent rule. `top` is the gap above it
 // (a section's, unless the head sits right under something, as Eat's Fuel left does).
@@ -29,7 +33,7 @@ export function BSFocusHead({ glyph, label, meta, actionLabel, onAction, color, 
     <div data-tour={tour || undefined}>
       <div style={{ padding: `${top ?? t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>{glyph ? `${glyph} ` : ''}{label}</span>
+          <span style={{ ...bsFocusHeadFace(t, 700), fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>{glyph ? `${glyph} ` : ''}{label}</span>
           {meta ? <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>{meta}</span> : null}
         </span>
         {actionLabel && onAction ? (
@@ -54,7 +58,7 @@ export function BSFocusTitle({ title, kicker, meta, color, right }) {
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
           {kicker ? <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: c }}>{kicker}</span> : null}
-          <h2 style={{ margin: kicker ? '3px 0 0' : 0, fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 22, lineHeight: '28px', letterSpacing: '-0.02em', color: t.INK, whiteSpace: 'nowrap' }}>
+          <h2 style={{ margin: kicker ? '3px 0 0' : 0, ...bsFocusHeadFace(t, 300), fontSize: 22, lineHeight: '28px', letterSpacing: t.HEAD ? '-0.025em' : '-0.02em', color: t.INK, whiteSpace: 'nowrap' }}>
             {title}<span style={{ color: c }}>.</span>
           </h2>
         </div>
@@ -127,7 +131,7 @@ export function BSFocusLead({ color, kicker, kickerRight, title, sub, tour, chil
         <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: c }}>{kicker}</span>
         {kickerRight ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{kickerRight}</span> : null}
       </div>
-      <h2 style={{ margin: '7px 0 0', fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: size, lineHeight: 1.06, letterSpacing: '-0.03em', color: t.INK, overflowWrap: 'anywhere' }}>
+      <h2 style={{ margin: '7px 0 0', ...bsFocusHeadFace(t, t.W.display), fontSize: size, lineHeight: 1.06, letterSpacing: '-0.03em', color: t.INK, overflowWrap: 'anywhere' }}>
         {head}{ends ? null : <span style={{ color: c }}>.</span>}
       </h2>
       {sub ? <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', lineHeight: 1.5, color: t.INK50 }}>{sub}</div> : null}
