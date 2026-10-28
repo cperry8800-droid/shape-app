@@ -152,23 +152,28 @@ test('BSLogo draws the glass from the shared module and keeps the flat mark when
   assert.ok(at >= 0, 'bsLogoGlass is gone');
   const fn = app.slice(at, app.indexOf('\n// The mark turns while the app is open', at));
   assert.match(fn, /window\.SplitGlassMark/, 'the masthead does not read the shared mark');
-  assert.match(fn, /const spec = light \? SG\.logo\(\[255, 255, 255\], \[52, 214, 197\]\) : SG\.logo\(ink, \[10, 143, 135\]\);/, 'the colours do not follow the paper');
+  assert.match(fn, /const spec = onDark \? SG\.logo\(\[255, 255, 255\], \[52, 214, 197\]\) : SG\.logo\(ink, \[10, 143, 135\]\);/, 'the colours do not follow the ground');
   assert.match(fn, /still: SG\.render\(spec, SG\.STILL, SG\.MAST\)/, 'the first frame is not the still pose in MAST glass');
   assert.match(fn, /if \(!SG \|\| typeof SG\.logo !== 'function' \|\| !m\) return null;/, 'a non-hex colour or a missing module must fall back');
-  // Drive it: a hex ink draws glass, cached per ink; currentColor draws nothing (the flat mark).
+  // Drive it: a hex ink draws glass, cached; currentColor draws nothing (the flat mark).
   const run = new Function('window', `const _bsLogoGlass = new Map();\n${fn}; return bsLogoGlass;`);
   const bsLogoGlass = run({ SplitGlassMark: SG });
+  const tealWhite = SG.logo([255, 255, 255], [52, 214, 197]);
   const dark = bsLogoGlass('#0f0e0c');
   assert.equal(dark.still, SG.render(SG.logo([15, 14, 12], [10, 143, 135]), SG.STILL, SG.MAST));
   assert.deepEqual(dark.spec, SG.logo([15, 14, 12], [10, 143, 135]));
   assert.equal(bsLogoGlass('#0F0E0C'), dark, 'the same ink is not drawn once');
-  // A dark paper (its light ink says so) takes the splash's teal and white (owner, 2026-10-28: "teal
-  // and white for dark papers"), whatever its ink: cream, Carbon's grey, Blueprint's blue.
+  // A dark ground takes the splash's teal and white (owner, 2026-10-28: "teal and white for dark
+  // papers"), whatever the ink: a light ink says so on its own (cream, Carbon's grey, Blueprint's
+  // blue, Radio's cream mark)...
   for (const light of ['#F4EDE0', '#f5f0e6', '#c9cfd6', '#dbe7ff']) {
-    assert.equal(bsLogoGlass(light).still, SG.render(SG.logo([255, 255, 255], [52, 214, 197]), SG.STILL, SG.MAST), `${light} ink is not teal and white`);
+    assert.equal(bsLogoGlass(light).still, SG.render(tealWhite, SG.STILL, SG.MAST), `${light} ink is not teal and white`);
   }
-  // A light paper keeps the deep teal and its own ink (Manila's brown).
+  // ...and the paper says so for a chosen ink that reads on it, like Blue on the Black paper (Codex on #2490).
+  assert.deepEqual(bsLogoGlass('#1c4ed8', true).spec, tealWhite, 'Blue ink on a dark paper is not teal and white');
+  // A light paper keeps the deep teal and its own ink (Manila's brown, a chosen Blue).
   assert.deepEqual(bsLogoGlass('#221806').spec, SG.logo([34, 24, 6], [10, 143, 135]));
+  assert.deepEqual(bsLogoGlass('#1c4ed8').spec, SG.logo([28, 78, 216], [10, 143, 135]));
   assert.equal(bsLogoGlass('currentColor'), null);
   assert.equal(run(undefined)('#0f0e0c'), null, 'with no window it must fall back');
 });
@@ -229,13 +234,19 @@ test('one clock turns every masthead mark, about 30 frames a second, only while 
   assert.equal(seen.a.at(-1), 2);
 });
 
-test('BSLogo turns its glass only on screen and never under reduced motion', () => {
+test('BSLogo reads the ground from the theme, turns only on screen, and follows reduced motion as it changes', () => {
   const app = read('mobile-app/src/broadsheet/iosAppBroadsheet.jsx');
   const at = app.indexOf('function BSLogo(');
   const fn = app.slice(at, app.indexOf('\nfunction BSLogoMask(', at));
-  assert.match(fn, /prefers-reduced-motion: reduce\)'\)\.matches\) return undefined;/, 'reduced motion must keep the still pose');
+  assert.match(fn, /const glass = bsLogoGlass\(c, !!theme && theme\.isLight === false\);/, 'the ground is not the theme\'s paper');
   assert.match(fn, /SG\.render\(glass\.spec, SG\.turn\(e\), SG\.MAST\)/, 'it does not draw the turn in MAST glass');
   assert.match(fn, /new IntersectionObserver\(/, 'it turns off screen too');
-  assert.match(fn, /return \(\) => \{ io\.disconnect\(\); stop\(\); \};/, 'unmounting leaves it in the loop');
+  // Reduced motion is followed while the app stays open (Codex on #2490): a change re-syncs, and
+  // with it on the mark leaves the loop and goes back to the still pose.
+  assert.match(fn, /mq\.addEventListener\('change', sync\)/, 'a change to reduced motion is not heard');
+  assert.match(fn, /mq\.removeEventListener\('change', sync\)/, 'unmounting leaves the listener');
+  assert.match(fn, /if \(onScreen && !\(mq && mq\.matches\)\) \{ if \(!off\) off = bsLogoTurn\(draw\); return; \}/, 'it turns under reduced motion or off screen');
+  assert.match(fn, /if \(mq && mq\.matches\) g\.innerHTML = glass\.still;/, 'reduced motion does not go back to the still pose');
+  assert.match(fn, /if \(io\) io\.disconnect\(\);/, 'unmounting leaves the observer');
   assert.match(fn, /<g ref=\{gRef\} dangerouslySetInnerHTML=\{\{ __html: glass\.still \}\} \/>/, 'the first frame is not the still pose');
 });
