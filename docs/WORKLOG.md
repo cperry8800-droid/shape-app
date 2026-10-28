@@ -61,12 +61,11 @@ dated entry or past 20 KB.
 - **Staging.** `git push origin <sha>:staging --force` deploys to
   https://shape-app-git-staging-cperry8800-droids-projects.vercel.app. Previews share
   the production Supabase database, so don't test destructive migrations there.
-- **No colored emoji in new work.** Use typographic symbols (⚙ ↗ ✓ → × ♡ ＋ #) or
-  theme-tinted SVG instead. Leave existing emoji as they are.
-- **Generated media (Higgsfield).** Record every clip and track in the Sources table
-  in `marketing/shape-radio-launch-cut.md`, with the job id, file name, verbatim prompt
-  and settings. The container can't download that media, so work on it in
-  `sandbox_exec`.
+- **No colored emoji in new work:** typographic symbols (⚙ ↗ ✓ → × ♡ ＋ #) or
+  theme-tinted SVG. Leave existing emoji.
+- **Generated media (Higgsfield):** record each clip and track in the Sources table of
+  `marketing/shape-radio-launch-cut.md` (job id, file, verbatim prompt, settings). The
+  container can't download it: use `sandbox_exec`.
 
 ## Where the code lives
 
@@ -125,6 +124,8 @@ dated entry or past 20 KB.
   `tests/i18n-surface-inventory.test.mjs` counts the strings that aren't translated
   yet.
 - **Backend touchpoints:**
+  - Reviews: a member reads the words; others get `locked` and the rating
+    (`/api/coaches/reviews`, `coach_review_ratings()`).
   - `src/app/api/nutrition/meal-note/route.ts` sends a meal note, memo or photo to
     linked coaches through the private `meal-notes` bucket.
   - `src/app/api/nutrition/voice/route.ts` does Whisper transcription.
@@ -163,9 +164,8 @@ The War Room has the full list; this covers what needs the owner and the planned
   promise (payout tier, ranking, a verified badge): nothing grants them.
 - Decide whether the coach leaderboard should keep showing every coach each other's
   active-client count and sessions-kept rate.
-- Check `NORA_TTS_VOICE` and `NORA_TTS_INSTRUCTIONS` in Vercel. Nora reads only in a
-  woman's voice now (coral, nova, shimmer or sage), so any other `NORA_TTS_VOICE` is
-  ignored, and her brisk-pace line is added to `NORA_TTS_INSTRUCTIONS`.
+- Check `NORA_TTS_VOICE` and `NORA_TTS_INSTRUCTIONS` in Vercel: a voice other than coral,
+  nova, shimmer or sage is ignored, and her brisk-pace line joins the instructions.
 - Decide the bring-your-clients rules. A client brought to a coach at capacity comes
   through the waiting list and pays 15%. A purchase more than 30 days after the link
   was last opened pays 15%, though the card says brought clients pay no commission. A
@@ -173,6 +173,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   referral.
 - Add the `localhost` hostname to the Turnstile widget.
 - Get a native speaker to read the PAR-Q translations.
+- Run `2026-10-28-coach-reviews-members.sql` (till then anyone reads reviews).
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
@@ -271,12 +272,12 @@ The War Room has the full list; this covers what needs the owner and the planned
 - Android back leaves the native app from any sheet (no `@capacitor/app`); in the hosted `/m/`,
   sheets add no history entry.
 - The booth's LED wall loops (`wallShow.mjs`, `WALL_LOOPS`) and Nora's face photo
-  (`scripts/nora-model/nora.json` `face_photo`, needed to rebuild her) are on Higgsfield's CDN on the
-  owner's account. The loops play on desktops only (about 13 MB); phones get the drawn looks. The
-  show, the MakeHuman crowd (`crowdPeople.mjs`: 3.6 MB on desktops, 1.1 MB on phones) and its
-  close-up people, Nora, the wall's light (`wallLookGlow`) and haze (`beamHaze.mjs`), the stage set
-  and the side rooms (`clubRooms.mjs`) are seen only in headless Chromium, not on a real GPU or a
-  phone. The old avatar crowd (`crowdAvatars.mjs`) is kept for a v2 pack.
+  (`scripts/nora-model/nora.json` `face_photo`, needed to rebuild her) are on the owner's
+  Higgsfield CDN. The loops (13 MB) play on desktops only; phones get drawn looks. The show,
+  the MakeHuman crowd (`crowdPeople.mjs`: 3.6 MB desktop, 1.1 MB phone) and its close-ups, Nora,
+  the wall's light (`wallLookGlow`) and haze (`beamHaze.mjs`), the stage and side rooms
+  (`clubRooms.mjs`) are seen only in headless Chromium. The old avatar crowd
+  (`crowdAvatars.mjs`) is kept for a v2 pack.
 - Seen only in headless Chromium, not on a phone or in the app: the Split glass mark
   (#2474) on the homepage, launch and masthead, Your hours, the trainer profile and Make it yours.
 
