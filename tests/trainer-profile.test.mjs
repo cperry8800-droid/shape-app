@@ -81,8 +81,11 @@ function reset(over = {}) {
 reset();
 window.ShapeAuth = { getCachedState: () => ({ user: { id: world.me } }) };
 window.ShapeProfiles = { getPublicProfile: async () => ({ name: 'Maya Okafor', pronouns: world.pronouns, bio: 'I teach people to lift well.', points: 6200, custom: world.custom, can_view: world.canView }) };
-window.ShapeCoachListing = { publicByOwner: async () => world.provider };
-window.ShapeCoachAvailability = { get: async (role, id) => (world.availFor = id, { slots: world.slots, booked: [], busy: world.busy, rules: world.rules, timezone: ZONE, atCapacity: world.atCapacity }) };
+// byIdFails / availFails: the listing's or the hours' read fails ('null' answers null, as the
+// backend does on a non-2xx; anything else rejects, as a lost connection does).
+const failing = (how) => { if (how === 'null') return null; throw new Error('offline'); };
+window.ShapeCoachListing = { publicByOwner: async () => world.provider, publicById: async (role, id) => { world.byIdFor = id; if (world.byIdFails) return failing(world.byIdFails); return world.byId || null; } };
+window.ShapeCoachAvailability = { get: async (role, id) => { world.availFor = id; if (world.availFails) return failing(world.availFails); return { slots: world.slots, booked: [], busy: world.busy, rules: world.rules, timezone: ZONE, atCapacity: world.atCapacity }; } };
 window.ShapeCoachReviews = { forOwner: async () => ({ reviews: [], avg: 0, count: 0 }) };
 window.ShapeCoachPlans = { salePlansByUser: async () => [] };
 window.ShapeFollows = { stats: async () => ({ isFollowing: false, isPending: false }), toggle: async () => ({ isFollowing: true }), getCached: () => null };
@@ -106,7 +109,7 @@ window.shapeDb = {
 window.ShapeBookings = { submitConsultationBooking: async (a) => { if (world.bookError) throw world.bookError; world.booked = a; return { ok: true }; } };
 window.bsProfileCardFromPost = (p) => p;
 // The client module's storefront, as a probe: it records what the page hands it.
-window.useBSCoachCommerce = ({ person }) => ({ commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: !!(person.commerce && person.commerce.atCapacity), wl: null });
+window.useBSCoachCommerce = ({ person }) => ((world.commerceSeen = person.commerce), { commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: !!(person.commerce && person.commerce.atCapacity), wl: null });
 window.BSCoachCoachingBlock = ({ cm }) => React.createElement('div', { 'data-coaching-block': '' }, cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' '));
 
 const maya = { userId: 'u-maya', who: 'Maya Okafor', kind: 'TRAINER' };
@@ -530,9 +533,169 @@ test('a page opened for an account, or with one signed in, is never the demo', a
   await m.unmount();
 });
 
-test('the trainer app\'s own page opens the trainer profile signed in or out', () => {
+test('every trainer page opens the trainer profile, and a nutritionist\'s the Signal one', () => {
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
-  assert.match(src, /if \(person\.kind === 'TRAINER' && \(person\.userId \|\| isSelf\)\) \{\n\s+return <BSTrainerProfile /);
+  assert.match(src, /if \(person\.kind === 'TRAINER'\) \{\n\s+return <BSTrainerProfile [^\n]*onListing=\{onListing\} \/>;/);
+  assert.match(src, /if \(person\.kind === 'NUTRI'\) \{\n\s+return <BSSignalCoachProfile /);
+});
+
+// ── A coach with no account: a sample (owner, 2026-10-28) ────────────────────────────────────
+// Leah, as the marketplace opens one of Shape's seeded listings: no account, the listing's id.
+const leah = { who: 'Leah Kim', kind: 'TRAINER', providerId: 41, city: 'Remote', bio: 'HIIT built around clear blocks and measurable progress.', specialty: 'HIIT & Conditioning HIIT', rating10: 9.6 };
+const leahRow = { id: 41, owner_id: null, name: 'Leah Kim', price: 120, specialty: 'HIIT', credential: 'ACE-CPT', verified: false, listing_media: { cover: null, gallery: [] }, monthly_offer: null };
+
+test('a seeded listing\'s coach: its own listing, read by id, with a sample studio, replays and reviews', async () => {
+  reset({ me: 'u-me', byId: leahRow, slots: [] });
+  const spy = countCalls();
+  let listed = 0;
+  try {
+    const m = await mount(page({ person: leah, onListing: () => { listed += 1; } }));
+    assert.equal(world.byIdFor, 41, 'the listing, read fresh by its id');
+    assert.ok(/^\/m\/demo\/.+\.webp$/.test(document.querySelector('img[alt="Leah\'s wall photo"]').getAttribute('src')), 'a sample wall photo');
+    assert.match(m.text(), /HIIT built around clear blocks/);
+    assert.match(m.text(), /Leah hasn't set up a Shape account yet, so the studio, replays, reviews and times here are samples\./);
+    assert.match(m.text(), /9\.6\/10 from 4 reviews/, 'the listing\'s rating over the sample reviews');
+    assert.match(m.text(), /ACE-CPT/);
+    assert.doesNotMatch(m.text(), /Iron & Ordinary|NSCA-CSCS/, 'nothing of the demo coach\'s own');
+    // No hours on the listing: sample times, shown and never taken.
+    assert.match(document.querySelector('[data-day-sub]').textContent, /Sample times: Leah hasn't set open hours on Shape yet\./);
+    let open = [];
+    for (const d of document.querySelectorAll('[role="group"] button')) { await click(d); open = open.concat([...document.querySelectorAll('[data-open-time]')]); }
+    assert.ok(open.length > 0, 'sample open times');
+    assert.ok(open.every((b) => b.disabled && !/Take it/.test(b.textContent)), 'none can be taken');
+    await click(button(/^The studio$/));
+    assert.match(m.text(), /Garage gym/, 'a studio that fits HIIT');
+    assert.ok(document.querySelectorAll('[data-station]').length >= 4);
+    await click(button(/^Replays$/));
+    assert.match(document.querySelector('[data-replay]').textContent, /Air bike intervals/, 'conditioning replays for a HIIT coach');
+    await click(button(/^Work with Leah$/));
+    assert.equal(document.querySelector('[data-coaching-block]').textContent, 'Monthly coaching $120', 'the listing\'s own price');
+    await click(document.querySelector('[data-full-listing]'));
+    assert.equal(listed, 1, 'the full listing, one tap away');
+    await m.unmount();
+    assert.equal(world.booked, null, 'nothing booked');
+    assert.deepEqual(spy.calls.filter((c) => c !== 'get'), [], 'no account read: no profile, own doc, reviews, posts or follow');
+  } finally { spy.restore(); }
+});
+
+test('a seeded listing with real hours offers them to take, as its listing does', async () => {
+  reset({ me: 'u-me', byId: leahRow });
+  const m = await mount(page({ person: leah }));
+  await click(document.querySelectorAll('[role="group"] button')[1]);
+  assert.match(document.querySelector('[data-day-sub]').textContent, /From Leah's Shape calendar/);
+  const open = [...document.querySelectorAll('[data-open-time]')];
+  assert.ok(open.length > 0 && open.every((b) => !b.disabled && /Take it/.test(b.textContent)));
+  assert.equal(world.availFor, 41, 'the listing\'s own hours');
+  await m.unmount();
+});
+
+test('a seeded listing whose hours or listing could not be read says so, never the sample week (Codex P2 on #2491)', async () => {
+  for (const how of ['null', 'reject']) {
+    reset({ me: 'u-me', byId: leahRow, availFails: how });
+    const m = await mount(page({ person: leah }));
+    assert.equal(world.availFor, 41);
+    assert.match(m.text(), /Couldn't read the open times just now\./, `hours read: ${how}`);
+    assert.ok(!document.querySelector('[data-day-sub]'), 'no "Sample times" line');
+    assert.equal(document.querySelectorAll('[data-open-time]').length, 0);
+    // Try again reads the hours again, and the listing's real times can be taken.
+    world.availFails = null;
+    await click(button(/^Try again$/));
+    assert.match(document.querySelector('[data-day-sub]').textContent, /From Leah's Shape calendar/);
+    await m.unmount();
+  }
+  // The listing itself could not be read: the same, and Try again reads the listing again.
+  reset({ me: 'u-me', byId: leahRow, byIdFails: 'reject' });
+  const m = await mount(page({ person: leah }));
+  assert.match(m.text(), /Couldn't read the open times just now\./);
+  assert.ok(!document.querySelector('[data-day-sub]'));
+  world.byIdFails = null;
+  world.byIdFor = undefined;
+  await click(button(/^Try again$/));
+  assert.equal(world.byIdFor, 41, 'the listing, read again');
+  assert.match(document.querySelector('[data-day-sub]').textContent, /From Leah's Shape calendar/);
+  await m.unmount();
+});
+
+test('a full seeded listing with no hours stays full: only the times are the sample\'s (Codex P2 on #2491)', async () => {
+  reset({ me: 'u-me', byId: leahRow, slots: [], atCapacity: true, rules: { consultMin: 20, introsAtCapacity: true } });
+  let m = await mount(page({ person: leah }));
+  assert.match(document.querySelector('[data-day-sub]').textContent, /Sample times/);
+  assert.equal(world.commerceSeen.atCapacity, true, 'the listing\'s answer: full');
+  assert.equal(world.commerceSeen.introsAtCapacity, true, 'and its intro rule');
+  await m.unmount();
+  // With no answer to go by (no hours read to ask), the storefront reads the listing row, never
+  // the sample's "not full".
+  const get = window.ShapeCoachAvailability.get;
+  delete window.ShapeCoachAvailability.get;
+  try {
+    reset({ me: 'u-me', byId: leahRow });
+    m = await mount(page({ person: leah }));
+    assert.match(document.querySelector('[data-day-sub]').textContent, /Sample times/);
+    assert.equal(world.commerceSeen.atCapacity, undefined, 'the listing row decides');
+    assert.equal(world.commerceSeen.introsAtCapacity, false);
+    await m.unmount();
+  } finally { window.ShapeCoachAvailability.get = get; }
+  reset({ me: 'u-me', byId: leahRow, slots: [], atCapacity: false });
+  m = await mount(page({ person: leah }));
+  assert.equal(world.commerceSeen.atCapacity, false);
+  await m.unmount();
+});
+
+test('a demo person with no listing is a sample too, with no prices and nothing to take', async () => {
+  reset({ me: null });
+  const m = await mount(page({ person: { who: 'Dana Lewis', kind: 'TRAINER' } }));
+  assert.equal(world.byIdFor, undefined, 'no listing to read');
+  assert.ok(document.querySelector('[data-sample-note]'));
+  assert.ok(document.querySelector('img[alt="Dana\'s wall photo"]'));
+  assert.ok([...document.querySelectorAll('[data-open-time]')].every((b) => b.disabled));
+  await click(button(/^Work with Dana$/));
+  assert.ok(!document.querySelector('[data-coaching-block]'), 'no listing, no storefront');
+  assert.match(m.text(), /Dana hasn't listed prices on Shape yet/);
+  await m.unmount();
+});
+
+test('a coach with an account is never a sample', async () => {
+  reset({ me: null });
+  const m = await mount(page());
+  assert.ok(!document.querySelector('[data-sample-note]'));
+  assert.ok(!document.querySelector('img[src^="/m/demo/"]'));
+  assert.equal(world.byIdFor, undefined, 'read by the account, not by a listing id');
+  await m.unmount();
+});
+
+test('a visitor\'s page draws one search corner, white over the photo, and its ⚙ opens their own profile', async () => {
+  const had = { BSSearchCorner: window.BSSearchCorner, BSMeCorner: window.BSMeCorner, BSSettingsCorner: window.BSSettingsCorner };
+  // The client's corners, as probes: BSMeCorner draws its own search corner and a ⚙.
+  window.BSSearchCorner = ({ ink }) => React.createElement('i', { 'data-search-corner': ink || '' });
+  window.BSSettingsCorner = ({ ink, onClick }) => React.createElement('button', { type: 'button', 'data-settings-corner': ink || '', onClick }, '⚙');
+  window.BSMeCorner = () => React.createElement('span', null, React.createElement(window.BSSearchCorner), React.createElement(window.BSSettingsCorner));
+  let opened = 0;
+  const onOpen = () => { opened += 1; };
+  window.addEventListener('shape:openProfile', onOpen);
+  try {
+    reset();
+    const m = await mount(page());
+    const search = document.querySelectorAll('[data-search-corner]');
+    assert.equal(search.length, 1, 'one ✦ ⌕, not two: BSMeCorner draws its own');
+    assert.equal(search[0].getAttribute('data-search-corner'), '#ffffff');
+    const gear = document.querySelectorAll('[data-settings-corner]');
+    assert.equal(gear.length, 1);
+    assert.equal(gear[0].getAttribute('data-settings-corner'), '#ffffff');
+    await click(gear[0]);
+    assert.equal(opened, 1, 'the visitor\'s own profile');
+    await m.unmount();
+  } finally { window.removeEventListener('shape:openProfile', onOpen); Object.assign(window, had); }
+});
+
+test('a coach photo that fails to load shows the initials', async () => {
+  reset();
+  const m = await mount(page({ person: { ...maya, photo: 'https://cdn.example/broken.jpg' } }));
+  const img = document.querySelector('img[src="https://cdn.example/broken.jpg"]');
+  assert.ok(img, 'the photo first');
+  await act(async () => { img.dispatchEvent(new window.Event('error')); });
+  assert.ok(!document.querySelector('img[src="https://cdn.example/broken.jpg"]'), 'gone once it fails');
+  assert.match(m.text(), /MO/, 'the initials instead');
+  await m.unmount();
 });
 
 test('a demo saved in Make it yours keeps only what was changed, so the studio still follows the language (Codex P2 on #2486)', async () => {
@@ -560,4 +723,38 @@ test('a demo saved in Make it yours keeps only what was changed, so the studio s
     assert.equal(document.querySelector('[data-trainer-profile]').style.background, probe.style.background, 'and the saved paper stays');
     await m.unmount();
   } finally { window.ShapeLocale = hadLocale; window.ShapeI18n.t = hadT; client.restore(); }
+});
+
+test('the reviews are on the page: the newest, each a card, and All reviews opens the list', async () => {
+  // Leah's sample reviews, and a coach with an account's own.
+  reset({ me: 'u-me', byId: leahRow, slots: [] });
+  let m = await mount(page({ person: leah }));
+  const cards = [...document.querySelectorAll('[data-reviews-strip] [data-review-card]')];
+  assert.equal(cards.length, 4, 'every sample review with words in it');
+  assert.match(cards[0].textContent, /★ 10\/10.*\+60 lb on my deadlift.*Priya S\./s);
+  assert.match(document.querySelector('[data-reviews-strip]').textContent, /What clients say/);
+  await click(document.querySelector('[data-all-reviews]'));
+  assert.match(document.querySelector('[role="dialog"]').textContent, /Reviews\..*Marcus L\./s, 'the full list');
+  await m.unmount();
+  const had = window.ShapeCoachReviews.forOwner;
+  window.ShapeCoachReviews.forOwner = async () => ({ reviews: [{ id: 'r1', author: 'Sam R.', rating: 9, text: 'Clear plans, and every set has a reason.' }, { id: 'r2', author: 'Ana P.', rating: 10, text: '' }], avg: 9.5, count: 2 });
+  try {
+    reset();
+    m = await mount(page());
+    const own = [...document.querySelectorAll('[data-review-card]')];
+    assert.equal(own.length, 1, 'a rating with no words is not a card');
+    assert.match(own[0].textContent, /Clear plans.*Sam R\./s);
+    await m.unmount();
+    // A private profile still shows them: reviews are the readers', not the coach's to hide.
+    reset({ canView: false });
+    m = await mount(page());
+    assert.match(m.text(), /keeps their profile private/);
+    assert.equal(document.querySelectorAll('[data-review-card]').length, 1);
+    await m.unmount();
+  } finally { window.ShapeCoachReviews.forOwner = had; }
+  // No reviews, no strip.
+  reset();
+  m = await mount(page());
+  assert.ok(!document.querySelector('[data-reviews-strip]'));
+  await m.unmount();
 });

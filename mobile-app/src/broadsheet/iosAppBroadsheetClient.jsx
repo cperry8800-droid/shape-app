@@ -20137,22 +20137,23 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
 // respects privacy — only reachable when the post isn't marked private.)
 // Member (client) profiles use the Terrain design; coaches use the Signal
 // design; both are immersive living-identity pages (above).
-function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
+function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, onListing = null }) {
   // Every profile you view (from chat, the feed, follows, search…) feeds the
   // search screen's "Recent" list — recently viewed, not just recently searched.
   React.useEffect(() => {
     if (isSelf || meMode || !person || !person.who) return;
-    const role = person.kind === 'TRAINER' ? 'trainer' : person.kind === 'NUTRI' ? 'nutritionist' : 'client';
-    bsRecentSearchPush({ userId: person.userId || null, name: person.who, role, avatar: person.photo || null, tier: person.tier || null, points: null });
+    bsRecentSearchPush(bsRecentOfPerson(person));
   }, []);
-  // A trainer with a Shape account opens the trainer profile (BSTrainerProfile.jsx: their colours,
-  // their day, their studio, their replays), and so does the trainer app's own page signed out, with
-  // sample content (owner, 2026-10-28). A demo trainer in a list (no account) and every nutritionist
-  // keep the Signal profile for now (owner, 2026-10-27: nutritionists get their own design).
-  if (person.kind === 'TRAINER' && (person.userId || isSelf)) {
-    return <BSTrainerProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
+  // Every trainer opens the trainer profile (BSTrainerProfile.jsx: their colours, their day, their
+  // studio, their replays). One with no Shape account (the trainer app's own page signed out, a
+  // listing Shape seeded, a demo person) gets sample content there (owner, 2026-10-28: "demo
+  // environment should show new profile designs"). Nutritionists keep the Signal profile for now
+  // (owner, 2026-10-27: nutritionists get their own design). `onListing` opens the coach's full
+  // marketplace listing, when the profile was opened from it.
+  if (person.kind === 'TRAINER') {
+    return <BSTrainerProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} onListing={onListing} />;
   }
-  if (person.kind === 'TRAINER' || person.kind === 'NUTRI') {
+  if (person.kind === 'NUTRI') {
     return <BSSignalCoachProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
   }
   return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
@@ -20203,6 +20204,26 @@ function BSNotifiedPerson({ userId, onClose }) {
 // signed-out fallback. Tapping a person opens their living public profile.
 const BS_RECENT_SEARCH_KEY = 'shape.recentSearch';
 function bsRecentSearchRead() { try { const a = JSON.parse(localStorage.getItem(BS_RECENT_SEARCH_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+// A viewed profile as the search screen's Recent keeps it, and the person it reopens. A trainer
+// with no account is their marketplace listing, so its id, specialty, rating, place, bio and tier
+// come along: reopened from Recent, the profile reads that listing again (its price, credential and
+// hours) rather than drawing a different, generic sample (Codex P2 on #2491).
+function bsRecentOfPerson(person) {
+  const role = person.kind === 'TRAINER' ? 'trainer' : person.kind === 'NUTRI' ? 'nutritionist' : 'client';
+  const rec = { userId: person.userId || null, name: person.who, role, avatar: person.photo || null, tier: person.tier || null, points: null };
+  if (role === 'trainer' && !person.userId && person.providerId) {
+    Object.assign(rec, { providerId: person.providerId, specialty: person.specialty || '', category: person.category || '', rating10: Number(person.rating10) > 0 ? Number(person.rating10) : null, city: person.city || '', bio: String(person.bio || '').slice(0, 600) });
+  }
+  return rec;
+}
+function bsPersonOfRecent(p) {
+  const kind = p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
+  const person = { who: p.name, kind, userId: p.userId || undefined, init: bsInitials(p.name), photo: p.avatar || undefined, tier: p.points != null ? bsTierForPoints(p.points) : undefined, public: true };
+  if (kind === 'TRAINER' && !p.userId && p.providerId) {
+    Object.assign(person, { providerId: p.providerId, specialty: p.specialty || '', category: p.category || '', rating10: p.rating10 ?? null, city: p.city || '', bio: p.bio || '', tier: person.tier || p.tier || undefined });
+  }
+  return person;
+}
 function bsRecentSearchPush(p) {
   try {
     const a = bsRecentSearchRead().filter(x => (x.userId || x.name) !== (p.userId || p.name));
@@ -20476,8 +20497,7 @@ function BSUniversalSearch({ onClose }) {
   const open = (p) => {
     // (Recents are recorded centrally when the profile mounts — covers profiles
     // viewed from anywhere, not just searched ones.)
-    const kind = p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
-    setViewPerson({ who: p.name, kind, userId: p.userId || undefined, init: bsInitials(p.name), photo: p.avatar || undefined, tier: p.points != null ? bsTierForPoints(p.points) : undefined, public: true });
+    setViewPerson(bsPersonOfRecent(p));
   };
   React.useEffect(() => {
     const sync = () => setRecents(bsRecentSearchRead());

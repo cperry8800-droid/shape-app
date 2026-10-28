@@ -105,6 +105,20 @@ function formatCoachRating10(coachOrRating, tr) {
   if (r == null) return tr ? tr('marketplace:rating.new', { defaultValue: 'New' }) : 'New';
   return `★ ${r.toFixed(1)}/10`;
 }
+// The person the trainer profile opens on, from a marketplace coach (owner, 2026-10-28). The
+// profile reads the coach's listing fresh, by the account (userId) or, with no account, by the
+// listing's own id (providerId), and draws a sample from `specialty` and `rating10`.
+function bsmTrainerPerson(c, photo = null) {
+  return {
+    who: c.name, kind: 'TRAINER', userId: c.provider_user_id || null, providerId: c.provider_id || null,
+    city: c.loc || c.city || 'Remote', bio: c.bio || '', init: c.init || (c.name ? c.name[0] : '?'),
+    // The standing the cards print (from the coach's Shape Score), and the category they file under.
+    photo: photo || null, tier: c.tier || mktCoachTier(c).name || null, category: c.category || '',
+    specialty: [c.category, ...(Array.isArray(c.spec) ? c.spec : [])].filter(Boolean).join(' '),
+    rating10: getCoachRating10(c),
+  };
+}
+
 // The number the sorts rank by: a coach with no reviews ranks below every rated one.
 function bsmRankRating(c) {
   const r = getCoachRating10(c);
@@ -785,6 +799,8 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
   // The tapped coach's 1-based position in the numbered listings (LISTING Nº) —
   // null from the feature/featured/plan-rail doors, which aren't numbered rows.
   const [openNo, setOpenNo] = useStateBSM2(null);
+  // A trainer opens on their profile; this is their full listing, opened from it.
+  const [openListing, setOpenListing] = useStateBSM2(false);
   const [applyRole, setApplyRole] = useStateBSM2(null);
   const [remoteCoaches, setRemoteCoaches] = useStateBSM2(null);
   const [providersLoading, setProvidersLoading] = useStateBSM2(false);
@@ -944,10 +960,21 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
     return <window.BSProviderApplicationScreen initialRole={applyRole} onBack={() => setApplyRole(null)} />;
   }
   if (open) {
-    // Tapping a coach opens THE LISTING (the marketplace conversion page,
-    // spec 2026-07-09). The Signal living profile stays reachable from the
-    // Listing's THE FULL PROFILE → leader — never replaced.
-    return <BSCoachDetailPublic coach={open} no={openNo} photo={coachPhoto(open)} goChat={goChat} onBack={() => { setOpen(null); setOpenNo(null); }} />;
+    const closeOpen = () => { setOpen(null); setOpenNo(null); setOpenListing(false); };
+    // Tapping a trainer opens the trainer profile (owner, 2026-10-28), drawn from this listing:
+    // read fresh by the coach's account, or by the listing's id when it has none (Shape's seeded
+    // listings, which show sample content there). Its Work-with sheet opens THE LISTING below for
+    // plans, prices and codes, and the listing's THE FULL PROFILE leader comes back here.
+    const isTrainer = (open.provider_role || getPublicProfileKind(open)) === 'trainer';
+    if (isTrainer && !openListing && window.BSPublicProfile) {
+      const Profile = window.BSPublicProfile;
+      return <Profile person={bsmTrainerPerson(open, coachPhoto(open))} onBack={closeOpen} onListing={() => setOpenListing(true)}
+        onMessage={(pp) => { if (goChat) goChat((pp && pp.who) || open.name, 'Trainer'); }} />;
+    }
+    // Every nutritionist, and a trainer's full listing: THE LISTING (the marketplace conversion
+    // page, spec 2026-07-09).
+    return <BSCoachDetailPublic coach={open} no={openNo} photo={coachPhoto(open)} goChat={goChat}
+      onProfile={isTrainer ? () => setOpenListing(false) : null} onBack={isTrainer ? () => setOpenListing(false) : closeOpen} />;
   }
 
   return (
@@ -1927,7 +1954,7 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, note = null
 // classified expanded. Role heat line-only; teal = the one commerce action;
 // tier NAMED in the meta; every commerce handler verbatim. The Signal living
 // profile opens from THE FULL PROFILE → leader — never replaced by this page.
-function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = null }) {
+function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = null, onProfile = null }) {
   const t = useBS();
   const tr = useShapeTr();
   const p = buildPublicProfile(coach);
@@ -2417,11 +2444,14 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     return <BSCoachAvailabilityCalendar coach={coach} roleColor={roleColor} open={introClosed ? [] : realAvail != null ? realAvail : (liveTimes ? [] : expandPreviewSlots())} demo={!introClosed && !liveTimes && realAvail == null} note={introClosed ? null : timesNote} onRetry={!introClosed && timesPending && availState === 'failed' ? retryTimes : null} onBack={() => setShowCal(false)} onPick={(s) => { setShowCal(false); const d = new Date(`${s.iso}T00:00:00`); selectSlot(BSM_DAYS3[d.getDay()], String(d.getDate()), s.time, s.iso, BSM_MONTHS3[d.getMonth()], s.at); }} />;
   }
 
-  // THE FULL PROFILE → the Signal living page, byte-identical component —
-  // the person payload moved here from the marketplace routing branch.
+  // THE FULL PROFILE → the coach's profile (BSPublicProfile: the trainer profile for a trainer,
+  // the Signal living page for a nutritionist), when this listing was opened on its own.
   if (showProfile && window.BSPublicProfile) {
     const Living = window.BSPublicProfile;
     const person = {
+      // A trainer's is the marketplace's trainer person: with no account, the profile reads this
+      // listing by its id.
+      ...(isNutriDetail ? {} : bsmTrainerPerson(coach, photo)),
       who: coach.name, kind: isNutriDetail ? 'NUTRI' : 'TRAINER',
       userId: coach.provider_user_id || null, city: coach.loc || coach.city || 'Remote',
       bio: coach.bio || '', init: coach.init || (coach.name ? coach.name[0] : '?'),
@@ -2433,7 +2463,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       // this listing does (Codex on #2375).
       commerce: { coach, role: saleProviderRole, packages: p.packages, atCapacity, introsAtCapacity: introsAtCap, bookIntro: () => { setShowProfile(false); setShowCal(true); } },
     };
-    return <Living person={person} onBack={() => setShowProfile(false)} onMessage={(pp) => { setShowProfile(false); if (goChat) goChat((pp && pp.who) || coach.name, isNutriDetail ? 'Nutritionist' : 'Trainer'); }} />;
+    return <Living person={person} onBack={() => setShowProfile(false)} onListing={isNutriDetail ? null : () => setShowProfile(false)} onMessage={(pp) => { setShowProfile(false); if (goChat) goChat((pp && pp.who) || coach.name, isNutriDetail ? 'Nutritionist' : 'Trainer'); }} />;
   }
 
   const fmtSlot = bsFmtSlot12;
@@ -2771,7 +2801,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       {/* The Signal living profile — the social page, untouched by the Listing. */}
       {window.BSPublicProfile ? (
         <div style={{ padding: `18px ${t.padX}px 0` }}>
-          <button onClick={() => setShowProfile(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}` }}>
+          <button data-full-profile="" onClick={() => (onProfile ? onProfile() : setShowProfile(true))} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}` }}>
             <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{tr('marketplace:listing.fullProfile', { defaultValue: 'The full profile' })}</span>
             <Leader />
             <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>→</span>
