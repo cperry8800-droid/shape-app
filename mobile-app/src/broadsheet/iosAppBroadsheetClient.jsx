@@ -20099,7 +20099,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
 // respects privacy — only reachable when the post isn't marked private.)
 // Member (client) profiles use the Terrain design; coaches use the Signal
 // design; both are immersive living-identity pages (above).
-function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
+function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, onListing = null }) {
   // Every profile you view (from chat, the feed, follows, search…) feeds the
   // search screen's "Recent" list — recently viewed, not just recently searched.
   React.useEffect(() => {
@@ -20107,14 +20107,16 @@ function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false,
     const role = person.kind === 'TRAINER' ? 'trainer' : person.kind === 'NUTRI' ? 'nutritionist' : 'client';
     bsRecentSearchPush({ userId: person.userId || null, name: person.who, role, avatar: person.photo || null, tier: person.tier || null, points: null });
   }, []);
-  // A trainer with a Shape account opens the trainer profile (BSTrainerProfile.jsx: their colours,
-  // their day, their studio, their replays), and so does the trainer app's own page signed out, with
-  // sample content (owner, 2026-10-28). A demo trainer in a list (no account) and every nutritionist
-  // keep the Signal profile for now (owner, 2026-10-27: nutritionists get their own design).
-  if (person.kind === 'TRAINER' && (person.userId || isSelf)) {
-    return <BSTrainerProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
+  // Every trainer opens the trainer profile (BSTrainerProfile.jsx: their colours, their day, their
+  // studio, their replays). One with no Shape account (the trainer app's own page signed out, a
+  // listing Shape seeded, a demo person) gets sample content there (owner, 2026-10-28: "demo
+  // environment should show new profile designs"). Nutritionists keep the Signal profile for now
+  // (owner, 2026-10-27: nutritionists get their own design). `onListing` opens the coach's full
+  // marketplace listing, when the profile was opened from it.
+  if (person.kind === 'TRAINER') {
+    return <BSTrainerProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} onListing={onListing} />;
   }
-  if (person.kind === 'TRAINER' || person.kind === 'NUTRI') {
+  if (person.kind === 'NUTRI') {
     return <BSSignalCoachProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
   }
   return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;

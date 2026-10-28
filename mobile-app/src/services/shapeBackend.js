@@ -5010,10 +5010,25 @@ async function publicListingByOwner(role, ownerId) {
   return { ...row, listing_media: bsNormalizeListingMedia(row.listing_media || null, ownerId) };
 }
 
+// A listing by its own id, for a coach with no Shape account behind it (Shape's seeded listings):
+// read fresh, and only while it is on the marketplace, as publicByOwner reads an account's.
+async function publicListingById(role, id) {
+  const r = normalizeRole(role) === 'nutritionist' ? 'nutritionist' : 'trainer';
+  const n = Number(id);
+  if (!supabase || !Number.isInteger(n) || n <= 0) return null;
+  const { data, error } = await supabase.from(r === 'nutritionist' ? 'nutritionists' : 'trainers')
+    .select(PUBLIC_PROVIDER_COLUMNS[r]).eq('id', n).eq('listing_ready', true).limit(1);
+  if (error) throw error;
+  const row = Array.isArray(data) && data[0] ? data[0] : null;
+  if (!row) return null;
+  return { ...row, listing_media: bsNormalizeListingMedia(row.listing_media || null, row.owner_id || null) };
+}
+
 window.ShapeCoachListing = {
   getMine: getMyCoachListings,
   saveRates: saveMyCoachRates,
   publicByOwner: publicListingByOwner,
+  publicById: publicListingById,
 };
 
 // The Shape team's way into the admin console from Settings (/api/me/staff). getLevel answers
