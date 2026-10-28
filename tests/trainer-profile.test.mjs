@@ -642,3 +642,37 @@ test('a coach photo that fails to load shows the initials', async () => {
   assert.match(m.text(), /MO/, 'the initials instead');
   await m.unmount();
 });
+
+test('the reviews are on the page: the newest, each a card, and All reviews opens the list', async () => {
+  // Leah's sample reviews, and a coach with an account's own.
+  reset({ me: 'u-me', byId: leahRow, slots: [] });
+  let m = await mount(page({ person: leah }));
+  const cards = [...document.querySelectorAll('[data-reviews-strip] [data-review-card]')];
+  assert.equal(cards.length, 4, 'every sample review with words in it');
+  assert.match(cards[0].textContent, /★ 10\/10.*\+60 lb on my deadlift.*Priya S\./s);
+  assert.match(document.querySelector('[data-reviews-strip]').textContent, /What clients say/);
+  await click(document.querySelector('[data-all-reviews]'));
+  assert.match(document.querySelector('[role="dialog"]').textContent, /Reviews\..*Marcus L\./s, 'the full list');
+  await m.unmount();
+  const had = window.ShapeCoachReviews.forOwner;
+  window.ShapeCoachReviews.forOwner = async () => ({ reviews: [{ id: 'r1', author: 'Sam R.', rating: 9, text: 'Clear plans, and every set has a reason.' }, { id: 'r2', author: 'Ana P.', rating: 10, text: '' }], avg: 9.5, count: 2 });
+  try {
+    reset();
+    m = await mount(page());
+    const own = [...document.querySelectorAll('[data-review-card]')];
+    assert.equal(own.length, 1, 'a rating with no words is not a card');
+    assert.match(own[0].textContent, /Clear plans.*Sam R\./s);
+    await m.unmount();
+    // A private profile still shows them: reviews are the readers', not the coach's to hide.
+    reset({ canView: false });
+    m = await mount(page());
+    assert.match(m.text(), /keeps their profile private/);
+    assert.equal(document.querySelectorAll('[data-review-card]').length, 1);
+    await m.unmount();
+  } finally { window.ShapeCoachReviews.forOwner = had; }
+  // No reviews, no strip.
+  reset();
+  m = await mount(page());
+  assert.ok(!document.querySelector('[data-reviews-strip]'));
+  await m.unmount();
+});

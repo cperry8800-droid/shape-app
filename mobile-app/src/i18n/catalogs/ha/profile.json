@@ -409,6 +409,8 @@
   "trainer.daySample": "Lokutan misali: {name} bai saka lokutan aiki a Shape ba tukuna.",
   "trainer.sampleNote": "{name} bai buɗe asusun Shape ba tukuna, don haka situdiyo, maimaitawa, sharhi da lokutan nan misalai ne.",
   "trainer.fullListing": "Tsare-tsare, farashi da lambobi a cikakken jeri",
+  "trainer.clientsSay": "Abin da abokan ciniki ke cewa",
+  "trainer.allReviews": "Duk sharhi",
   "trainer.dayFull": "{name} ya cika yanzu. Shiga jerin jira don zama na farko.",
   "trainer.open": "A buɗe",
   "trainer.introLine": "Gabatarwa kyauta ta mintuna {minutes}",
