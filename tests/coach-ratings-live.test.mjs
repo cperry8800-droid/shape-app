@@ -41,12 +41,14 @@ function fn(src, name) {
 /** A coach_reviews fake that applies eq / order / range / limit and, like the API,
  *  never returns more than 1,000 rows from one read. Its coach_review_ratings() is the
  *  migration's (2026-10-28-coach-reviews-members.sql): each slug and account's total and count;
- *  `ratingsFn: false` is a database before that migration (the function is missing).
+ *  `ratingsFn: false` is a database before that migration (the function is missing); `'error'` is
+ *  the function failing some other way (a timeout).
  *  `canReadRows: false` is a reader the migration's policy shows no row (a guest, a non-member). */
 function reviewsClient(rows, { ratingsFn = true, canReadRows = true } = {}) {
   return {
     rpc: async (name) => {
       if (name !== 'coach_review_ratings' || !ratingsFn) return { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } }
+      if (ratingsFn === 'error') return { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } }
       const groups = new Map()
       for (const r of rows) {
         const k = `${r.coach_slug}|${r.owner_id ?? ''}`
@@ -76,8 +78,10 @@ function reviewsClient(rows, { ratingsFn = true, canReadRows = true } = {}) {
   }
 }
 // `member`: the reader is a signed-in member (computeMembership's answer for them); `signedIn`
-// alone is a signed-in reader who isn't one; neither is a guest.
-async function loadRoute(client, { member = false, signedIn = member } = {}) {
+// alone is a signed-in reader who isn't one; neither is a guest. `admin`: a member by the e-mail
+// allow-list, whose lists the route reads with `adminClient` (the service role). `membershipFails`:
+// the membership read errs, which computeMembership throws only when asked to be strict.
+async function loadRoute(client, { member = false, admin = false, signedIn = member || admin, adminClient = null, membershipFails = false, seen = {} } = {}) {
   const require_ = createRequire(join(ROOT, 'package.json'))
   return loadRealModule(join(ROOT, 'src/app/api/coaches/reviews/route.ts'), {
     typescript: true,
@@ -85,7 +89,12 @@ async function loadRoute(client, { member = false, signedIn = member } = {}) {
       ['next/server', require_('next/server')],
       ['@/lib/request-auth', { currentUser: async () => (signedIn ? { id: 'u-reader', email: 'r@example.invalid', email_confirmed_at: 'x' } : null), clientForRequest: async () => client }],
       ['@/lib/request-utils', { readJson: async () => ({ ok: true, data: {} }) }],
-      ['@/lib/membership-core', { computeMembership: async (sb, id) => ({ isMember: member && id === 'u-reader', isCoach: false, isAdmin: false, isKnownMinor: false }) }],
+      ['@/lib/membership-core', { computeMembership: async (sb, id, email, opts = {}) => {
+        seen.strict = opts.strict === true
+        if (membershipFails) { if (opts.strict) throw new Error('profiles read failed'); return { isMember: false, isCoach: false, isAdmin: false, isKnownMinor: false } }
+        return { isMember: (member || admin) && id === 'u-reader', isCoach: false, isAdmin: admin && id === 'u-reader', isKnownMinor: false }
+      } }],
+      ['@/lib/supabase/admin', { createAdminClient: () => { if (!adminClient) throw new Error('no service key'); seen.adminReads = (seen.adminReads || 0) + 1; return adminClient } }],
     ]),
   })
 }
@@ -139,6 +148,64 @@ test('members read the reviews; everyone else gets the rating and no words (owne
     const memberPins = await (await member.GET(new Request(`https://shape.test/api/coaches/reviews?ids=${REVIEW}`))).json()
     assert.equal(memberPins.reviews.length, 1)
   }
+})
+
+test('a failed membership read is unknown, never "not a member" (Codex P2 on #2492)', async () => {
+  const OWNER = '22222222-2222-4222-8222-222222222222'
+  const REVIEW = '33333333-3333-4333-8333-333333333333'
+  const rows = [{ id: REVIEW, coach_slug: 'ada-coach', rating: 9, owner_id: OWNER, body: 'Clear plans.', author_name: 'Sam R.', created_at: '2026-10-01' }]
+  const seen = {}
+  const route = await loadRoute(reviewsClient(rows), { signedIn: true, membershipFails: true, seen })
+  for (const q of [`?owner=${OWNER}`, '?coach=ada-coach', `?ids=${REVIEW}`]) {
+    const res = await route.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))
+    assert.equal(res.status, 503, `${q}: unknown, not the paywall`)
+    const body = await res.json()
+    assert.equal(body.locked, undefined, q)
+    assert.equal(body.reviews, undefined, q)
+  }
+  assert.equal(seen.strict, true, 'the membership read is strict')
+})
+
+test('an admin on the allow-list reads every review, through the service role (Codex P2 on #2492)', async () => {
+  const OWNER = '22222222-2222-4222-8222-222222222222'
+  const REVIEW = '33333333-3333-4333-8333-333333333333'
+  const rows = [
+    { id: REVIEW, coach_slug: 'ada-coach', rating: 9, owner_id: OWNER, body: 'Clear plans.', author_name: 'Sam R.', created_at: '2026-10-01' },
+    { id: '44444444-4444-4444-8444-444444444444', coach_slug: 'ada-coach', rating: 7, owner_id: OWNER, body: 'Good.', author_name: 'Ana P.', created_at: '2026-10-02' },
+  ]
+  // After the migration the admin's own session reads no row (the policy can't see the allow-list).
+  const seen = {}
+  const route = await loadRoute(reviewsClient(rows, { canReadRows: false }), { admin: true, adminClient: reviewsClient(rows), seen })
+  for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
+    const body = await (await route.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()
+    assert.equal(body.locked, undefined, q)
+    assert.deepEqual(body.reviews.map((r) => r.author).sort(), ['Ana P.', 'Sam R.'], q)
+    assert.equal(body.count, 2)
+  }
+  const pins = await (await route.GET(new Request(`https://shape.test/api/coaches/reviews?ids=${REVIEW}`))).json()
+  assert.equal(pins.reviews.length, 1)
+  assert.equal(seen.adminReads, 3, 'each list through the service role')
+  // A member who isn't an admin reads with their own session.
+  const memberSeen = {}
+  const member = await loadRoute(reviewsClient(rows), { member: true, adminClient: reviewsClient([]), seen: memberSeen })
+  await member.GET(new Request('https://shape.test/api/coaches/reviews?coach=ada-coach'))
+  assert.equal(memberSeen.adminReads, undefined, 'never the service role for anyone else')
+})
+
+test('a ratings function that fails, rather than is missing, gives no rating, never a partial one from the rows (Codex P2 on #2492)', async () => {
+  const OWNER = '22222222-2222-4222-8222-222222222222'
+  // Rows the reader can read, so a fallback to them would show: one review of two.
+  const rows = [
+    { id: 1, coach_slug: 'ada-coach', rating: 9, owner_id: OWNER },
+    { id: 2, coach_slug: 'ada-coach', rating: 3, owner_id: OWNER },
+  ]
+  const route = await loadRoute(reviewsClient(rows, { ratingsFn: 'error' }))
+  for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
+    const body = await (await route.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()
+    assert.deepEqual(body, { reviews: [], locked: true }, `${q}: no rating at all`)
+  }
+  const all = await (await route.GET(new Request('https://shape.test/api/coaches/reviews'))).json()
+  assert.deepEqual(all, { summaries: {}, owners: {} })
 })
 
 test('the averages cover every review, not one read\'s worth (Codex, #2313)', async () => {

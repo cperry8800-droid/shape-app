@@ -201,6 +201,7 @@ async function review(body, { allowed = { data: true, error: null }, write = { d
       ['@/lib/request-auth', { currentUser: async () => ({ id: UID, email: 'a@example.invalid', user_metadata: {} }), clientForRequest: async () => client }],
       ['@/lib/request-utils', requestUtils],
       ['@/lib/membership-core', { computeMembership: async () => ({ isMember: true, isCoach: false, isAdmin: false, isKnownMinor: false }) }],
+      ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('a review is written with the reader\'s own session'); } }],
     ]),
   });
   const res = await route.POST(new Request('https://shape.test/api/coaches/reviews', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
