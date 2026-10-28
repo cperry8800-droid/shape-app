@@ -1,9 +1,10 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { bsProfileLook, bsProfileStudio, bsProfileCover } from '../services/profileCustom.mjs';
-import { bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
+import { STUDIO_WORDS, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
 import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.mjs';
 import { bsCoachPronoun } from '../services/coachPronoun.mjs';
+import { bsTrainerDemo } from '../services/trainerDemo.mjs';
 import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSMakeItYours } from './BSMakeItYours.jsx';
@@ -28,6 +29,9 @@ import { BSMakeItYours } from './BSMakeItYours.jsx';
 // is the shared storefront (BSCoachCoachingBlock with useBSCoachCommerce, the client module's).
 //
 // Words for the coach follow the pronouns they wrote, or their first name (coachPronoun.mjs).
+//
+// Signed out, the trainer app's own page is this page with sample content (trainerDemo.mjs): it
+// reads nothing from Shape, and Make it yours changes it on this screen only (owner, 2026-10-28).
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME: this module is a static import of the client module
 // and evaluates before that module's body has put them on window.
@@ -93,22 +97,35 @@ export function BSTrainerProfile(props) {
   const { useBS, BSProvider } = window;
   const outer = useBS();
   const { person, isSelf = false } = props;
+  const tr = useShapeTr();
+  // The demo is the trainer app's own page with nobody signed in, and only that: a page opened for
+  // an account, or with one signed in, is always the real one.
+  const demoOn = isSelf && !person.userId && !signedInUid();
+  const lb = !!(outer && outer.uMeasure && outer.uMeasure(1, 'kg').unit === 'lb');
+  // Built again when the language changes (useShapeTr re-renders this on it), for the stations' names.
+  const lang = (() => { try { return window.ShapeLocale?.get?.() || ''; } catch (e) { return ''; } })();
+  const demo = React.useMemo(() => (demoOn ? bsTrainerDemo({
+    media: `${import.meta.env.BASE_URL}demo/`,
+    word: (k) => tr('profile:studio.word.' + k, { defaultValue: STUDIO_WORDS[k] || k }),
+    lb,
+  }) : null), [demoOn, lb, lang]);
+  const [demoOwn, setDemoOwn] = React.useState(null);
   const [live, setLive] = React.useState(null);
   const [own, setOwn] = React.useState(null);
   React.useEffect(() => {
     setLive(null);
-    if (!person.userId || !window.ShapeProfiles?.getPublicProfile) return undefined;
+    if (demoOn || !person.userId || !window.ShapeProfiles?.getPublicProfile) return undefined;
     let on = true;
     window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (on && d) setLive(d); }).catch(() => {});
     return () => { on = false; };
-  }, [person.userId]);
+  }, [person.userId, demoOn]);
   // Whether the coach's own doc has been read. Make it yours opens only on that doc, never on the
   // defaults, which a save would write over their look, studio and wall photo (Codex P1 on #2484).
   const [ownState, setOwnState] = React.useState('loading');
   const [ownFor, setOwnFor] = React.useState(null); // the account `own` was read for
   const [ownEpoch, setOwnEpoch] = React.useState(0);
   React.useEffect(() => {
-    if (!isSelf) return undefined;
+    if (!isSelf || demoOn) return undefined;
     const uid = signedInUid();
     if (!uid) { setOwnState('error'); return undefined; }
     let on = true;
@@ -121,10 +138,12 @@ export function BSTrainerProfile(props) {
       if (d && typeof d === 'object' && !Array.isArray(d)) { setOwn(d); setOwnFor(uid); setOwnState('ready'); } else setOwnState('error');
     })();
     return () => { on = false; };
-  }, [isSelf, ownEpoch]);
-  const custom = isSelf ? own : (live && live.custom) || null;
+  }, [isSelf, ownEpoch, demoOn]);
+  const custom = demo ? (demoOwn || demo.custom) : isSelf ? own : (live && live.custom) || null;
   const look = bsProfileLook(custom && custom.look) || {};
-  const page = <TrainerPage {...props} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} ownFor={ownFor} onRetryOwn={() => setOwnEpoch((n) => n + 1)} />;
+  const page = demo
+    ? <TrainerPage {...props} demo={demo} live={demo.live} custom={custom} setOwn={setDemoOwn} ownState="ready" ownFor={null} />
+    : <TrainerPage {...props} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} ownFor={ownFor} onRetryOwn={() => setOwnEpoch((n) => n + 1)} />;
   if (!BSProvider) return page;
   return (
     <BSProvider paperMode={look.paper || 'dark'} accentKey={look.accent || 'teal'} densityKey={outer.densityKey} borderKey={outer.borderKey}
@@ -134,7 +153,7 @@ export function BSTrainerProfile(props) {
   );
 }
 
-function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {} }) {
+function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {}, demo = null }) {
   const W = window;
   const t = W.useBS();
   const tr = useShapeTr();
@@ -172,10 +191,11 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const bio = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || '';
 
   // ── Their listing (provider row): open times, prices, verified, photos ──
-  const [provider, setProvider] = React.useState(null);
-  const [providerState, setProviderState] = React.useState('loading');
+  const [provider, setProvider] = React.useState(() => (demo ? demo.provider : null));
+  const [providerState, setProviderState] = React.useState(demo ? 'ready' : 'loading');
   const [providerEpoch, setProviderEpoch] = React.useState(0);
   React.useEffect(() => {
+    if (demo) { setProvider(demo.provider); setProviderState('ready'); return undefined; }
     setProvider(null);
     const ownerId = person.userId || (isSelf ? signedInUid() : null);
     if (!ownerId || !W.ShapeCoachListing?.publicByOwner) { setProviderState('none'); return undefined; }
@@ -185,14 +205,17 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
       .then((row) => { if (!on) return; setProvider(row); setProviderState(row ? 'ready' : 'none'); })
       .catch(() => { if (on) setProviderState('error'); });
     return () => { on = false; };
-  }, [person.userId, isSelf, providerEpoch]);
+  }, [person.userId, isSelf, providerEpoch, demo]);
   // The listing is what that lookup found, and only that: a marketplace snapshot the profile was
   // opened with never stands in for it, so a listing taken off the marketplace since offers no
   // times, photos or checkout here (Codex P1 on #2484).
   const listed = providerState === 'ready' && !!provider;
   const providerId = listed ? provider.id : null;
   const media = (listed && provider.listing_media) || { cover: null, gallery: [] };
-  const cover = bsProfileCover(custom && custom.cover, person.userId || (isSelf ? signedInUid() : null));
+  // The demo's wall photo is one of its own sample photos, and only that.
+  const cover = demo
+    ? (custom && custom.cover && demo.photos.includes(custom.cover.image) ? { image: custom.cover.image } : null)
+    : bsProfileCover(custom && custom.cover, person.userId || (isSelf ? signedInUid() : null));
   // A private profile shows name, photo and tier only: nothing from the listing either (Codex P1
   // on #2484).
   const wall = isPrivate ? null : ((cover && cover.image) || media.cover || null);
@@ -207,10 +230,10 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const [avail, setAvail] = React.useState({ kind: 'loading' });
   const [availEpoch, setAvailEpoch] = React.useState(0);
   React.useEffect(() => {
-    if (!providerId || !W.ShapeCoachAvailability?.get) { setAvail({ kind: providerState === 'loading' ? 'loading' : 'none' }); return undefined; }
+    if (!demo && (!providerId || !W.ShapeCoachAvailability?.get)) { setAvail({ kind: providerState === 'loading' ? 'loading' : 'none' }); return undefined; }
     let on = true;
     setAvail({ kind: 'loading' });
-    W.ShapeCoachAvailability.get('trainer', providerId, availEpoch > 0 ? { fresh: true } : undefined)
+    (demo ? Promise.resolve(demo.availability) : W.ShapeCoachAvailability.get('trainer', providerId, availEpoch > 0 ? { fresh: true } : undefined))
       .then((d) => {
         if (!on) return;
         if (!d || !Array.isArray(d.slots)) { setAvail({ kind: 'error' }); return; }
@@ -222,7 +245,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
       })
       .catch(() => { if (on) setAvail({ kind: 'error' }); });
     return () => { on = false; };
-  }, [providerId, providerState, availEpoch]);
+  }, [providerId, providerState, availEpoch, demo]);
 
   // ── The storefront: the client module's shared hook, fed this coach's real listing ──
   const [tab, setTab] = React.useState('day');
@@ -249,13 +272,14 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   }, [person.userId]);
 
   // ── Reviews: the verified line, and the sheet it opens ──
-  const [reviews, setReviews] = React.useState(null);
+  const [liveReviews, setReviews] = React.useState(null);
   React.useEffect(() => {
     if (!person.userId || !W.ShapeCoachReviews?.forOwner) return undefined;
     let on = true;
     W.ShapeCoachReviews.forOwner(person.userId).then((d) => { if (on && d) setReviews({ list: Array.isArray(d.reviews) ? d.reviews : [], avg: Number(d.avg) || 0, count: Number.isFinite(Number(d.count)) ? Number(d.count) : (d.reviews || []).length }); }).catch(() => {});
     return () => { on = false; };
   }, [person.userId]);
+  const reviews = demo ? demo.reviews : liveReviews;
 
   // ── Their logged sessions (Replays) ──
   const [posts, setPosts] = React.useState([]);
@@ -267,7 +291,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
     W.ShapeCommunity.listByAuthor(feedAuthor, { withPhotoOnly: false }).then((r) => { if (on) setPosts(Array.isArray(r && r.data) ? r.data : []); }).catch(() => {});
     return () => { on = false; };
   }, [feedAuthor, postsNonce]);
-  const replays = posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Trainer') : null))
+  const replays = demo ? demo.replays : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Trainer') : null))
     .filter((c) => c && c.breakdown && Array.isArray(c.breakdown.rows) && c.breakdown.rows.length);
 
   // ── Follow ──
@@ -312,8 +336,8 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const tabNow = tabs.some(([k]) => k === tab) ? tab : 'day';
 
   if (page === 'edit' && editReady) {
-    const photos = [media.cover, ...((media.gallery || []).map((g) => g && g.url))].filter((u) => typeof u === 'string' && /^https:\/\//.test(u));
-    return <BSMakeItYours role="trainer" ownerUid={ownFor} initial={custom} startTab={editTab} who={{ name, first, photo: avatar, roleLine }} words={words} photos={photos}
+    const photos = demo ? demo.photos : [media.cover, ...((media.gallery || []).map((g) => g && g.url))].filter((u) => typeof u === 'string' && /^https:\/\//.test(u));
+    return <BSMakeItYours role="trainer" demo={!!demo} ownerUid={ownFor} initial={custom} startTab={editTab} who={{ name, first, photo: avatar, roleLine }} words={words} photos={photos}
       onClose={() => setPage(null)} onSaved={(doc) => { setOwn && setOwn(doc); setPage(null); }} />;
   }
   if (page === 'hours') return <BSCoachHoursPage role="trainer" onBack={() => { setPage(null); setAvailEpoch((n) => n + 1); }} />;
@@ -441,7 +465,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
                   onStation={(n, p) => setSheet({ kind: 'station', n, p })} onDraw={() => openEdit('space')} />
               ) : (
                 <ReplaysTab t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} replays={replays} isSelf={isSelf} first={first}
-                  onOpen={(r) => setSheet({ kind: 'replay', r, i: 0 })} onLog={() => setShowLog(true)} />
+                  onOpen={(r) => setSheet({ kind: 'replay', r, i: 0 })} onLog={() => { if (W.bsRequireAccount && !W.bsRequireAccount('log activity')) return; setShowLog(true); }} />
               )}
             </div>
           </>

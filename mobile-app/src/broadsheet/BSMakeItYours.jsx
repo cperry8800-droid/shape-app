@@ -26,6 +26,9 @@ import {
 // every surface uses. Nothing is saved until Save. The profile opens it only on the coach's doc
 // as read, never on defaults.
 //
+// In the signed-out demo (`demo`), Save changes the page on screen and nothing else: no read, no
+// write, and the wall photo is one of the demo's own (`photos`); an upload asks to sign in.
+//
 // The editor's own chrome is the app's dark editor (it does not repaint as colours change); the
 // preview card at the top is painted in the colours being picked.
 //
@@ -188,7 +191,7 @@ function ColorsTab({ tr, look, setLook }) {
 }
 
 // ── Wall photo ──────────────────────────────────────────────────────────────────────────────
-function WallTab({ tr, look, setLook, wall, setWall, choices, uploading, onUpload }) {
+function WallTab({ tr, look, setLook, wall, setWall, choices, uploading, onUpload, noUpload = null }) {
   const fileRef = React.useRef(null);
   const tiles = [];
   const seen = new Set();
@@ -198,7 +201,7 @@ function WallTab({ tr, look, setLook, wall, setWall, choices, uploading, onUploa
       <Eyebrow>{tr('profile:mine.pickPhoto', { defaultValue: 'Pick a photo' })}</Eyebrow>
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif" onChange={onUpload} style={{ display: 'none' }} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-        <button type="button" onClick={() => !uploading && fileRef.current && fileRef.current.click()} disabled={uploading}
+        <button type="button" onClick={() => { if (uploading) return; if (noUpload) { noUpload(); return; } if (fileRef.current) fileRef.current.click(); }} disabled={uploading}
           style={{ height: 84, borderRadius: 10, border: `1.5px dashed ${ea(0.35)}`, background: 'transparent', color: E.INK, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, cursor: uploading ? 'wait' : 'pointer', fontSize: 12.5 }}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>＋</span>{uploading ? tr('profile:mine.uploading', { defaultValue: 'Uploading…' }) : tr('profile:mine.upload', { defaultValue: 'Upload yours' })}
         </button>
@@ -404,17 +407,19 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel }) {
 }
 
 // ── The editor ──────────────────────────────────────────────────────────────────────────────
-export function BSMakeItYours({ role = 'trainer', ownerUid = null, initial = null, startTab = 'colors', who = {}, words = null, photos = [], onClose, onSaved }) {
+export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null, initial = null, startTab = 'colors', who = {}, words = null, photos = [], onClose, onSaved }) {
   const tr = useShapeTr();
   // The account the editor is for (the one its `initial` doc was read for, else the one signed in
   // when it opened): the only one it reads for or saves to.
   const [owner] = React.useState(() => ownerUid || signedInUid());
+  // A wall photo the editor keeps: the owner's own media, or in the demo one of its photos.
+  const coverOf = (image) => (demo ? (photos.includes(image) ? { image } : null) : bsProfileCover({ image }, owner));
   // What the editor opened on, fixed for its life, so what reads as changed is what the coach
   // changed here. The profile opens it only once their doc is read (Codex P1 on #2484).
   const [seed] = React.useState(() => {
     const look = bsProfileLook(initial && initial.look) || {};
     const st = bsProfileStudio(initial && initial.studio);
-    const cover = bsProfileCover(initial && initial.cover, owner);
+    const cover = initial && initial.cover ? coverOf(initial.cover.image) : null;
     return { look: { paper: look.paper || 'dark', accent: look.accent || 'teal', focus: look.focus || 'center' }, wall: cover ? cover.image : null, studio: st || { kind: 'blank', where: '', items: [] } };
   });
   const [tab, setTab] = React.useState(['colors', 'wall', 'space'].includes(startTab) ? startTab : 'colors');
@@ -433,10 +438,12 @@ export function BSMakeItYours({ role = 'trainer', ownerUid = null, initial = nul
   const first = who.first || String(who.name || '').split(' ')[0];
   const w = words || { day: tr('profile:trainer.dayName', { defaultValue: "{name}'s day", name: first }), work: tr('profile:trainer.workName', { defaultValue: 'Work with {name}', name: first }) };
 
+  const demoNoUpload = () => setErr(tr('profile:mine.errDemoUpload', { defaultValue: 'Sign in to upload your own photo.' }));
   const onUpload = async (e) => {
     const file = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!file) return;
+    if (demo) { demoNoUpload(); return; }
     // Only the types the cover guard keeps (bsProfileCover); any other upload would be dropped at save.
     if (!/^image\/(jpe?g|png|webp|gif|heic|heif)$/i.test(file.type || '')) { setErr(tr('profile:mine.errImage', { defaultValue: 'Pick a photo (JPEG, PNG or HEIC).' })); return; }
     setUploading(true); setErr(null);
@@ -449,8 +456,21 @@ export function BSMakeItYours({ role = 'trainer', ownerUid = null, initial = nul
     } finally { setUploading(false); }
   };
 
+  // The doc with what was changed here put on it. Each key is written only when it was changed
+  // here, so one changed elsewhere since this opened is kept; the wall photo only as coverOf keeps it.
+  const withChanges = (base) => {
+    const doc = { ...base };
+    if (lookChanged) doc.look = { paper: look.paper, accent: look.accent, focus: look.focus };
+    if (studioChanged) doc.studio = { kind: studio.kind, where: studio.where.trim(), items: studio.items };
+    if (wallChanged) {
+      const cover = wall ? coverOf(wall) : null;
+      if (cover) doc.cover = cover; else delete doc.cover;
+    }
+    return doc;
+  };
   const save = async () => {
     if (busy) return;
+    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null)); return; }
     const uid = owner;
     if (!uid || signedInUid() !== uid) { setErr(tr('profile:mine.errSignIn', { defaultValue: 'Sign in to save your page.' })); return; }
     if (uploading) { setErr(tr('profile:mine.errBusy', { defaultValue: 'Hang on, your photo is still uploading.' })); return; }
@@ -466,16 +486,7 @@ export function BSMakeItYours({ role = 'trainer', ownerUid = null, initial = nul
       setErr(tr('profile:mine.errSave', { defaultValue: "Couldn't save. Nothing changed; try again." }));
       return;
     }
-    // Each key is written only when it was changed here, so one changed elsewhere since this
-    // opened is kept; the wall photo only as the owner's own media.
-    const doc = { ...base };
-    if (lookChanged) doc.look = { paper: look.paper, accent: look.accent, focus: look.focus };
-    if (studioChanged) doc.studio = { kind: studio.kind, where: studio.where.trim(), items: studio.items };
-    if (wallChanged) {
-      const cover = wall ? bsProfileCover({ image: wall }, uid) : null;
-      if (cover) doc.cover = cover; else delete doc.cover;
-    }
-    const clean = bsNormalizeProfileCustom(doc, uid);
+    const clean = bsNormalizeProfileCustom(withChanges(base), uid);
     let res;
     try { res = await window.shapeDb?.saveUserGoals?.('profile_custom', clean, { expectedUserId: uid }); } catch (ex) { res = { error: ex }; }
     setBusy(false);
@@ -506,13 +517,13 @@ export function BSMakeItYours({ role = 'trainer', ownerUid = null, initial = nul
         <p style={{ margin: '4px 0 0', fontSize: 14, lineHeight: 1.45, color: ea(0.7) }}>{head[1]}</p>
         {tab !== 'space' ? <Preview tr={tr} look={look} wall={wall} who={{ ...who, first }} words={w} /> : null}
         {tab === 'colors' ? <ColorsTab tr={tr} look={look} setLook={setLook} /> : null}
-        {tab === 'wall' ? <WallTab tr={tr} look={look} setLook={setLook} wall={wall} setWall={setWall} choices={photos} uploading={uploading} onUpload={onUpload} /> : null}
+        {tab === 'wall' ? <WallTab tr={tr} look={look} setLook={setLook} wall={wall} setWall={(u) => { setWall(u); setErr(null); }} choices={photos} uploading={uploading} onUpload={onUpload} noUpload={demo ? demoNoUpload : null} /> : null}
         {tab === 'space' ? <SpaceTab tr={tr} look={look} studio={studio} setStudio={setStudio} sel={sel} setSel={setSel} /> : null}
         {err && !dirty ? <p role="alert" style={{ margin: '14px 0 0', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
       </div>
       {dirty ? (
         <div style={{ position: 'sticky', bottom: 0, zIndex: 3, padding: '10px 18px calc(12px + env(safe-area-inset-bottom))', background: E.BG, borderTop: `1px solid ${ea(0.16)}` }}>
-          {leaving ? <p style={{ margin: '0 0 8px', fontSize: 13.5, color: ea(0.8) }}>{tr('profile:mine.leaveAsk', { defaultValue: "You haven't saved these changes." })}</p> : <p style={{ margin: '0 0 8px', fontSize: 12.5, color: ea(0.6) }}>{tr('profile:mine.saveNote', { defaultValue: 'Members see it as soon as you save.' })}</p>}
+          {leaving ? <p style={{ margin: '0 0 8px', fontSize: 13.5, color: ea(0.8) }}>{tr('profile:mine.leaveAsk', { defaultValue: "You haven't saved these changes." })}</p> : <p style={{ margin: '0 0 8px', fontSize: 12.5, color: ea(0.6) }}>{demo ? tr('profile:mine.demoNote', { defaultValue: 'A sample page: your changes show here until you leave. Sign in to save yours.' }) : tr('profile:mine.saveNote', { defaultValue: 'Members see it as soon as you save.' })}</p>}
           {err ? <p role="alert" style={{ margin: '0 0 8px', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
           <div style={{ display: 'flex', gap: 8 }}>
             {leaving ? <button type="button" onClick={() => onClose && onClose()} style={{ ...smallBtn, flex: 1, minHeight: 48, borderRadius: 999 }}>{tr('profile:mine.leave', { defaultValue: 'Leave without saving' })}</button> : null}

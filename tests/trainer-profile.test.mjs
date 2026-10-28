@@ -398,3 +398,118 @@ test('the day runs local midnight to local midnight, so a clock-change day keeps
   assert.match(src, /const dayEnd = new Date\(picked\.getFullYear\(\), picked\.getMonth\(\), picked\.getDate\(\) \+ 1\)\.getTime\(\);/);
   assert.doesNotMatch(src, /dayStart \+ 86400000/);
 });
+
+// ── Signed out: the trainer app's own page is the demo (owner, 2026-10-28) ────────────────────
+// Every backend the page could reach, counted, so the demo is shown to read and write nothing.
+function countCalls() {
+  const calls = [];
+  const undo = [];
+  for (const [obj, names] of [[window.ShapeProfiles, ['getPublicProfile']], [window.ShapeCoachListing, ['publicByOwner']], [window.ShapeCoachAvailability, ['get']],
+    [window.ShapeCoachReviews, ['forOwner']], [window.ShapeCoachPlans, ['salePlansByUser']], [window.ShapeFollows, ['stats', 'toggle']], [window.ShapeCommunity, ['listByAuthor']],
+    [window.shapeDb, ['getUserGoals', 'saveUserGoals']], [window.ShapeBookings, ['submitConsultationBooking']]]) {
+    for (const n of names) {
+      const real = obj[n];
+      obj[n] = (...a) => { calls.push(n); return real(...a); };
+      undo.push(() => { obj[n] = real; });
+    }
+  }
+  return { calls, restore: () => undo.forEach((f) => f()) };
+}
+const demoTrainer = { who: 'Jordan Chen', kind: 'TRAINER' };
+const demoPage = () => page({ person: demoTrainer, isSelf: true });
+
+test('signed out, the trainer\'s own page is the new profile with sample content, and reads nothing from Shape', async () => {
+  reset({ me: null });
+  const spy = countCalls();
+  try {
+    const m = await mount(demoPage());
+    assert.equal(document.querySelector('img[alt="Jordan\'s wall photo"]').getAttribute('src'), '/m/demo/box-cover.webp', 'the wall photo');
+    assert.match(m.text(), /Strength and conditioning · Iron & Ordinary/);
+    assert.match(m.text(), /Portland, OR/);
+    assert.match(m.text(), /Get strong, move well/);
+    assert.match(m.text(), /9\.9\/10 from 284 reviews/);
+    assert.ok(button(/^Jordan's day$/), 'no pronouns: the words go by the first name');
+    // A week of open and busy times: some day in it has both, and none can be taken from here.
+    const days = [...document.querySelectorAll('[role="group"] button')];
+    let both = false;
+    for (const d of days) {
+      await click(d);
+      const open = [...document.querySelectorAll('[data-open-time]')];
+      assert.ok(open.every((b) => b.disabled), 'the coach\'s own times are not to take');
+      if (open.length && document.querySelector('[data-busy-time]')) both = true;
+    }
+    assert.ok(both, 'a day with open and busy times');
+    await click(button(/^Ways to work with Jordan/));
+    assert.equal(document.querySelector('[data-coaching-block]').textContent, 'Monthly coaching $180');
+    await click(button(/^Close$/));
+    await click(button(/^The studio$/));
+    assert.match(m.text(), /Full gym/);
+    const stations = document.querySelectorAll('[data-station]');
+    assert.equal(stations.length, 8, 'the full gym\'s stations');
+    await click(stations[0]);
+    assert.match(document.querySelector('[role="dialog"]').textContent, /Most sessions start here/);
+    await click(button(/^Close$/));
+    await click(button(/^Replays$/));
+    const replays = [...document.querySelectorAll('[data-replay]')];
+    assert.equal(replays.length, 3);
+    assert.match(replays[0].textContent, /Back squat, heavy triples/);
+    assert.match(replays[0].textContent, /285 lb × 3|130 kg × 3/, 'loads in the reader\'s units');
+    assert.match(replays[0].textContent, /^2d/, 'dated as a replay card is');
+    await click(replays[0]);
+    assert.match(m.text(), /Paused the first rep of every set/);
+    await click(button(/^Close$/));
+    await click(button(/9\.9\/10 from 284 reviews/));
+    assert.match(m.text(), /Priya S\./);
+    await m.unmount();
+    assert.deepEqual(spy.calls, [], 'no read or write reached Shape');
+  } finally { spy.restore(); }
+});
+
+test('Make it yours in the demo changes the page on screen, saves nothing, and asks to sign in to upload', async () => {
+  reset({ me: null });
+  const spy = countCalls();
+  try {
+    const m = await mount(demoPage());
+    await click(button(/^Make it yours$/));
+    assert.ok(document.querySelector('[data-make-it-yours]'), 'it opens in the demo');
+    await click(button(/^Wall photo$/));
+    assert.equal(document.querySelector('[data-wall-choice][aria-pressed="true"] img').getAttribute('src'), '/m/demo/box-cover.webp', 'on the demo\'s wall photo');
+    await click(button(/Upload yours/));
+    assert.match(m.text(), /Sign in to upload your own photo\./);
+    await click(document.querySelector('[data-wall-choice] img[src="/m/demo/studio-01.webp"]').parentElement);
+    assert.doesNotMatch(m.text(), /Sign in to upload/, 'a photo picked clears it');
+    await click(button(/^Colors$/));
+    await click(document.querySelector('[data-paper="sage"]'));
+    assert.match(m.text(), /A sample page: your changes show here until you leave\./);
+    await click(document.querySelector('[data-save-mine]'));
+    assert.ok(!document.querySelector('[data-make-it-yours]'), 'Save closes the editor');
+    assert.equal(document.querySelector('img[alt="Jordan\'s wall photo"]').getAttribute('src'), '/m/demo/studio-01.webp', 'the new wall photo');
+    const probe = document.createElement('div'); probe.style.background = window.makePalette({ paperMode: 'sage', accentKey: 'teal' }).PAPER_BG;
+    assert.equal(document.querySelector('[data-trainer-profile]').style.background, probe.style.background, 'and the new paper');
+    await m.unmount();
+    assert.equal(world.saved, null);
+    assert.deepEqual(spy.calls, [], 'nothing read or written');
+  } finally { spy.restore(); }
+});
+
+test('a page opened for an account, or with one signed in, is never the demo', async () => {
+  // Signed in, the own page without an id (as the trainer Me tab can open it) reads that account.
+  reset({ me: 'u-maya', stored: {} });
+  let m = await mount(page({ person: { who: 'Maya Okafor', kind: 'TRAINER' }, isSelf: true }));
+  assert.deepEqual(world.readWith, { expectedUserId: 'u-maya' });
+  assert.ok(!document.querySelector('img[src^="/m/demo/"]'), 'no demo photo');
+  assert.doesNotMatch(m.text(), /Iron & Ordinary|Get strong, move well/);
+  await m.unmount();
+  // Signed out, another coach's page is that coach's.
+  reset({ me: null });
+  m = await mount(page());
+  assert.match(m.text(), /Maya Okafor/);
+  assert.ok(!document.querySelector('img[src^="/m/demo/"]'));
+  assert.doesNotMatch(m.text(), /Iron & Ordinary/);
+  await m.unmount();
+});
+
+test('the trainer app\'s own page opens the trainer profile signed in or out', () => {
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(src, /if \(person\.kind === 'TRAINER' && \(person\.userId \|\| isSelf\)\) \{\n\s+return <BSTrainerProfile /);
+});
