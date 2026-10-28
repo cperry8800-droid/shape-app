@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { bsCleanSheet } from './bsCleanType.jsx';
 import { morningReadiness, mrWatchForDay } from '../services/morningReadiness.mjs';
 import { bsCiWordIndex, bsCiIso, bsCiHM, bsCiWords, bsCiLowerIn, bsLeadReason } from '../services/leadReason.mjs';
 
@@ -1086,7 +1087,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
         )}
         {eveningRow}
       </div>
-      {sheet && host ? createPortal(sheet, host) : sheet}
+      {sheet && host ? createPortal(bsCleanSheet(t, sheet), host) : sheet}
     </>
   );
 }

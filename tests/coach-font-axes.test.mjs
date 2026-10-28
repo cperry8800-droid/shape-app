@@ -1,7 +1,9 @@
 // The coach Today, Clients and Programs pages pair two faces (owner, 2026-10-25, "I want both"):
-// Geist for the titles and section heads, Inter Tight for the words. The app bundles the files, so
-// the proof that they carry the weights the pages set is the files' own `fvar` tables, and the
-// proof that every locale stays in the face is a Cyrillic and a Vietnamese file for each.
+// Geist for the titles and section heads, Inter Tight for the words. The member's Home takes the
+// same type (owner, 2026-10-28: "Member/client home page font needs to match coaches"). The app
+// bundles the files, so the proof that they carry the weights the pages set is the files' own
+// `fvar` tables, and the proof that every locale stays in the face is a Cyrillic and a Vietnamese
+// file for each.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,6 +12,8 @@ import { woff2Table, fvarAxes } from './helpers/woff2-fvar.mjs';
 
 const CSS = readFileSync(new URL('../mobile-app/src/fonts.css', import.meta.url), 'utf8');
 const PROS = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8');
+const CLIENT = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
+const CLEAN = readFileSync(new URL('../mobile-app/src/broadsheet/bsCleanType.jsx', import.meta.url), 'utf8');
 const file = (n) => readFileSync(new URL(`../mobile-app/src/assets/fonts/font-${n}.woff2`, import.meta.url));
 const faces = (family) => CSS.split('@font-face').slice(1)
   .map((b) => b.slice(0, b.indexOf('}')))
@@ -41,7 +45,20 @@ test('every new face is a real subset, not an empty file', () => {
   }
 });
 
-test('the coach pages name the two bundled faces', () => {
-  assert.match(PROS, /const BS_PRO_HEAD = "'Geist',/);
-  assert.match(PROS, /const BS_PRO_SANS = "'Inter Tight',/);
+test('the clean type names the two bundled faces', () => {
+  assert.match(CLEAN, /export const BS_CLEAN_HEAD = "'Geist',/);
+  assert.match(CLEAN, /export const BS_CLEAN_SANS = "'Inter Tight',/);
+});
+
+test('the coach pages and the member Home share the one clean type', () => {
+  assert.match(PROS, /import \{[^}]*\buseBSClean\b[^}]*\} from '\.\/bsCleanType\.jsx';/);
+  const home = CLIENT.slice(CLIENT.indexOf('function BSClientHome('));
+  const body = home.slice(0, home.indexOf('\n}\n'));
+  assert.match(CLIENT, /import \{ useBSClean, BSCleanType \} from '\.\/bsCleanType\.jsx';/);
+  assert.match(body, /const t = useBSClean\(\);/, 'Home reads the clean theme');
+  // The clean area opens below the top bars and closes before the footer, as on the coach's Today.
+  const open = body.indexOf('<BSCleanType t={t}>');
+  const close = body.indexOf('</BSCleanType>');
+  assert.ok(open > body.indexOf('<BSNowPlaying') && open < body.indexOf('<BSHomeGoal'), 'the clean area starts under Shape Radio');
+  assert.ok(close > body.indexOf('<BSShortcuts') && close < body.indexOf('<BSFooter'), 'the clean area ends before the footer');
 });
