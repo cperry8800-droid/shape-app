@@ -615,6 +615,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the member Home in the coaches\' type, Geist heads and Inter Tight words — #2487. No migration',
+      items: [
+        { label: 'Owner, 2026-10-28: "Member/client home page font needs to match coaches"', status: 'done' },
+        { label: 'bsCleanType.jsx: the coach pages\' clean type (Geist heads, Inter Tight words, weights kept as written under the "regular" setting) moved out of iosAppBroadsheetPros.jsx into one module that the coach pages and the member Home share. Home sets everything from This week to its widgets in it; the masthead, dateline, ticker and Shape Radio keep theirs, as on the coach Today', status: 'done' },
+        { label: 'The Focus heads (BSFocusHead, BSFocusTitle, BSFocusLead) and Week so far take Geist at 700 when the theme carries the head face (t.HEAD), so Train and Eat keep Saira. The pages Home opens keep their own type; the check-in and water sheets it portals keep the clean weights (bsCleanSheet)', status: 'done' },
+        { label: 'Review: Codex clean on 62c9556. Checks: npm test 8,691/8,691 and CI\'s four jobs green; tests/coach-font-axes.test.mjs reads the shared module and pins Home\'s clean area between Shape Radio and the footer; Home rendered in headless Chromium before and after, and the coach Today\'s render unchanged but for the clock and the ticker', status: 'done' },
+        { label: 'OWNER: open Home on a phone, signed in, with the check-in card and a coach\'s note showing. Every render was headless Chromium on demo data', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: the trainer profile, in the coach\'s colours, with their day, their studio and their replays, and Make it yours — #2484. No migration',
       items: [
         { label: 'Owner, 2026-10-27, after seven rounds on the design canvas: "ok coach profile looks good, you can build", "trainer profiles are good to go". Along the way: "also make the colors customizable for coaches", "yes add free weights, machines, treadmill, etc", "make this look a little more simple. looks like an engineering blueprint", "her day, or his day"', status: 'done' },
