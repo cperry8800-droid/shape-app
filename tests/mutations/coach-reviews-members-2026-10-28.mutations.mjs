@@ -103,6 +103,8 @@ export default {
       find: "    window.addEventListener('shape:membership-active', onMember);\n    return () => window.removeEventListener('shape:membership-active', onMember);\n  }, []);\n", replace: '  }, []);\n' },
     { name: 'signal profile: a new member reads the locked answer still', file: APP,
       find: '  }, [name, liveCoach, person.userId, revEpoch]);', replace: '  }, [name, liveCoach, person.userId]);' },
+    { name: "signal profile: a new member's wins wall stays empty", file: APP,
+      find: '  }, [pinnedKey, person.userId, revEpoch]);', replace: '  }, [pinnedKey, person.userId]);' },
     { name: 'website: a locked answer reads as no reviews', file: WEB,
       find: '      setRevLocked(j.locked === true);', replace: '      setRevLocked(false);' },
   ],

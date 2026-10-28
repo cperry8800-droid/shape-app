@@ -418,6 +418,12 @@ test('locked: each reviews list says members read them, with the rating, and off
   assert.ok(read(APP_MKT).includes("const onMember = () => setRevLoad((n) => n + 1);\n    window.addEventListener('shape:membership-active', onMember);"))
   assert.ok(read(APP).includes("const onMember = () => setRevEpoch((n) => n + 1);\n    window.addEventListener('shape:membership-active', onMember);"))
   assert.ok(read(APP).includes('}, [name, liveCoach, person.userId, revEpoch]);'))
+  // The Signal profile's pinned wins wall reads again too: a non-member's ?ids= read is empty (Codex
+  // P2 on #2492). revEpoch is declared before that effect reads it, or the profile throws (TDZ).
+  const app = read(APP)
+  const wallDeps = app.indexOf('}, [pinnedKey, person.userId, revEpoch]);')
+  assert.ok(wallDeps > 0, 'the wins wall reads again on a new membership')
+  assert.ok(app.indexOf('const [revEpoch, setRevEpoch] = useStateBSC(0);') < app.lastIndexOf('window.ShapeCoachReviews.byIds(pinnedKey)', wallDeps), 'revEpoch is declared before the wins wall reads it')
   // A list that wasn't read (a failed load, or the API's 503 when it can't check a membership or the
   // ratings) is no list: none of them says "No reviews yet" over it (Codex P2 on #2492).
   const mkt = read(APP_MKT)

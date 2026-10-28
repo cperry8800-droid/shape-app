@@ -19688,6 +19688,14 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const coverImage = demoFill
     ? (isNutri ? BS_DEMO_NUTRI_COVER : BS_DEMO_TRAINER_COVER)
     : ((bsProfileCover(customEff && customEff.cover, sigFeedAuthorId) || {}).image || null);
+  // A reader who becomes a member here (Join → checkout → back) reads the reviews again: the
+  // list below and the pinned wins wall, which a non-member's ?ids= read leaves empty.
+  const [revEpoch, setRevEpoch] = useStateBSC(0);
+  React.useEffect(() => {
+    const onMember = () => setRevEpoch((n) => n + 1);
+    window.addEventListener('shape:membership-active', onMember);
+    return () => window.removeEventListener('shape:membership-active', onMember);
+  }, []);
   // P5 wins wall — resolve pinned ids DIRECTLY by id (not from the 200-row slug
   // list), so a pinned review never vanishes once a coach passes 200 reviews; the
   // results are still filtered to ownerId === the profile owner.
@@ -19704,7 +19712,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
       .then((d) => { if (on && d && Array.isArray(d.reviews)) setPinnedResolved(d.reviews.filter((r) => r && r.ownerId === person.userId && r.authorId !== r.ownerId)); })
       .catch(() => {});
     return () => { on = false; };
-  }, [pinnedKey, person.userId]);
+  }, [pinnedKey, person.userId, revEpoch]);
   const winsWall = pinnedKey ? pinnedKey.split(',').map((id) => pinnedResolved.find((r) => r && r.id === id && r.ownerId === person.userId && r.authorId !== r.ownerId)).filter(Boolean) : [];
   // Local reaction state for the shared BSActivityCard on this coach profile feed
   // (optimistic toggle + best-effort persist via the same backend path as the feed).
@@ -19728,13 +19736,6 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const [liveAgg, setLiveAgg] = useStateBSC(null);
   // Members read the reviews; anyone else is told so, with the rating (owner, 2026-10-28).
   const [revLocked, setRevLocked] = useStateBSC(false);
-  // A reader who becomes a member here (Join → checkout → back) reads the reviews again.
-  const [revEpoch, setRevEpoch] = useStateBSC(0);
-  React.useEffect(() => {
-    const onMember = () => setRevEpoch((n) => n + 1);
-    window.addEventListener('shape:membership-active', onMember);
-    return () => window.removeEventListener('shape:membership-active', onMember);
-  }, []);
   React.useEffect(() => {
     const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     let on = true;
