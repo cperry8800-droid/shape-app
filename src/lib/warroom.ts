@@ -615,6 +615,47 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Reviews: members read them; everyone sees the rating — #2492. One migration, for the owner to run',
+      items: [
+        { label: 'Owner, 2026-10-28: "i want reviews to be public", then "well when i say public i mean anyone with a shape membership can read them"; for everyone else, of the options put to them, "Rating only"', status: 'done' },
+        { label: '/api/coaches/reviews: a review\'s words and author go only to a member (computeMembership, strict: a coach by role, an admin, or an active, trialing or past_due platform subscription; a failed sign-in check or membership read answers 503, never the paywall). ?coach= and ?owner= answer anyone else { reviews: [], locked: true, avg, count }, and ?ids= (the wins wall) { reviews: [], locked: true }. A confirmed admin\'s lists are read with the service role. Every rating, and the marketplace\'s summaries, come from coach_review_ratings(); only a missing function (before the migration) falls back to the rows', status: 'done' },
+        { label: '2026-10-28-coach-reviews-members.sql: shape_viewer_is_member() (the caller only; authenticated, not anon); the policy "members read coach reviews" (a member, the review\'s author or its coach; anon reads none) replaces "read coach reviews" (true for anyone); coach_review_ratings(p_owner, p_slug) returns totals and counts only, to anyone, for one coach on a profile and every coach for the marketplace. Tested on a local PostgreSQL 16 copy; idempotent', status: 'done' },
+        { label: 'Where the answer is locked and the coach has reviews, the trainer profile\'s strip and All reviews sheet, the marketplace listing and the Signal profile say "Members read the reviews." with Join to read them: an account for a guest, then the app\'s membership checkout (bsStartPlatformCheckout, now on window). A reader who joins reads them without reopening the page: the shell\'s membership recheck dispatches shape:membership-active, and each screen (the Signal profile\'s pinned wins wall too) reads again. The website\'s living profile says the same, with a link to Pricing.html. Sample pages keep their sample reviews. Three marketplace:listing strings in 13 locales', status: 'done' },
+        { label: 'Review: Codex P2 ×10 over eight reviews, each fixed: a failed membership read showed the paywall, an admin got an empty list and any ratings error fell back to the rows (on d196ad3, fixed in 62109af); an auth outage made a member a guest (eeb76e1); a member\'s rating came from the capped page (a26a7f2); every profile summed the whole table (d5d9966: the function takes p_owner and p_slug); with the ratings unread a non-member saw "No reviews yet" (43eb83d, and 5d9e5e6 for the screens\' failed loads); an owner id in capitals matched no rating (5703ecd); a reader who joined kept the locked strip (6b3e091) and, on the Signal profile, no wins wall (0709f6a). Codex clean on 0709f6a. CI red on d196ad3 (the definer audit; coach_review_ratings registered as public-by-design in ee4b1fe), green on 0709f6a. Mutation round 40 of 40 killed (tests/mutations/coach-reviews-members-2026-10-28.mutations.mjs)', status: 'done' },
+        { label: 'OWNER: run 2026-10-28-coach-reviews-members.sql on Supabase. Until then the API holds the line, but the table still lets anyone with the anon key read every review', status: 'manual' },
+        { label: 'An admin reading straight from the table (not through the API) is not a member to the policy, which can\'t see the e-mail allow-list; through the API their lists are read with the service role', status: 'pending' },
+      ],
+    },
+    {
+      section: 'App: every trainer opens the new profile, from the marketplace too; coaches with no account get samples; reviews on the page — #2491. No migration',
+      items: [
+        { label: 'Owner, 2026-10-28: "I am not seeing new profile design on app at all", "From marketplace" (a listing\'s screenshot), then, of the options put to them, "Open the new profile"; "demo enviornemnt should show new profile designs"; "keep the reviews, or add them into design"', status: 'done' },
+        { label: 'Every trainer page opens BSTrainerProfile (nutritionists keep the Signal profile). A trainer tapped in the marketplace opens it from the listing (bsmTrainerPerson: the account, the listing id, specialty, rating, tier, category, photo); Work with\'s "Plans, prices and codes on the full listing" opens the Classifieds listing, whose back and "The full profile" return', status: 'done' },
+        { label: 'A coach with no account (every listed trainer in production: 20 listed, 0 with an owner_id; and the app\'s demo people) is a sample: the listing\'s own facts, read again by id (ShapeCoachListing.publicById, listed rows only), with a sample wall photo, a studio that fits the specialty, strength or conditioning replays and the sample reviews (trainerDemo.mjs, bsTrainerSampleOf), and a note saying so. Sample open times are shown and never taken; Book intro goes to the full listing. A listing with hours offers them; a failed read says so, with Try again', status: 'done' },
+        { label: '"What clients say": the newest reviews with words, as cards between the header and the tabs, on every trainer page (a private one too), and All reviews. A visitor\'s masthead draws one search corner and a ⚙ (white), and a photo that fails shows the initials. Search\'s Recent keeps a seeded trainer\'s listing (bsRecentOfPerson / bsPersonOfRecent)', status: 'done' },
+        { label: 'Review: Codex P2 ×3 (Recent lost the listing, on ff0fd3e; a failed hours read showed sample times, on 677a734; the sample week dropped a full listing\'s capacity, on ed399d7), fixed in 677a734, ed399d7 and adea53d; Codex clean on adea53d; CI green on all four jobs there', status: 'done' },
+        { label: 'OWNER: open the marketplace on a phone and tap a trainer, then Work with and the full listing. Every render was headless Chromium, on the marketplace\'s local demo coaches (live listings did not load in the sandbox)', status: 'manual' },
+        { label: 'Every seeded coach shows the same four sample reviews, as the old demo did', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Profiles: the cover photo shows only as the owner\'s own image, on the older surfaces too — #2489. No migration',
+      items: [
+        { label: 'Codex P1 on #2484, carried to every other reader: the app\'s member and coach heroes (bound to the profile\'s owner, never the viewer), the website\'s living profile hero (no cover without the guard library) and the website marketplace card (an unset coverImage fallback removed) all go through bsProfileCover; the preview personas\' covers are constants, read only for the signed-out preview', status: 'done' },
+        { label: 'Both old cover editors refuse anything outside JPEG, PNG, WebP, GIF, HEIC and HEIF before uploading, and a file with no reported type, as the wall and Make it yours do', status: 'done' },
+        { label: 'Review: Codex clean on df09adb; CI green on all four jobs there. That run predated #2486, so the PR was merged into main locally first: 146 test files, 2,022 pass. Mutation round 15 of 15 killed; tests/profile-cover-app (6) and profile-cover-web (6) mount the real code', status: 'done' },
+        { label: 'The website saves through bsNormalizeProfileCustom, which doesn\'t clean cover, so a hand-written cover can still be stored (it never shows)', status: 'pending' },
+      ],
+    },
+    {
+      section: 'App: the trainer Me tab shows the new trainer profile signed out too, with sample content — #2486. No migration',
+      items: [
+        { label: 'Owner, 2026-10-28: the signed-out trainer Me tab still showed the old Signal profile; the demo should show the new one, with sample content, and Make it yours should work in it', status: 'done' },
+        { label: 'trainerDemo.mjs builds the demo coach\'s page for now, in the device\'s zone: the wall photo and listing photos from /m/demo, the full-gym studio with a note per station, a week of hours through bsProjectAvailability, three replays in the reader\'s units, 9.9 from 284 reviews, a $180 monthly offer. In the demo every read takes the sample and nothing reaches Shape; Make it yours changes the page on screen only, keeping just the keys it changed', status: 'done' },
+        { label: 'Review: Codex P1 on 9f682e9 (the demo shows the signed-out persona\'s name, as every signed-out surface does: kept, and the tests now assert it); P2 on 9f682e9 (the demo reached the live photo hook), fixed in bf127a1; P2 on 35f4024 (a demo save froze the station names\' language), fixed in 14657d8; Codex clean on 14657d8; CI green there', status: 'done' },
+      ],
+    },
+    {
       section: 'App: the masthead mark turns slowly in Split glass, teal and white on dark papers — #2490. No migration',
       items: [
         { label: 'Owner, 2026-10-28, of the triangles at the masthead\'s top left: "have them [match] the split glass look we did for the splash page, and have them slowly rotate/spin on page while app is open", then "teal and white for dark papers"', status: 'done' },
@@ -658,7 +699,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'OWNER: open a trainer\'s profile and Make it yours on a phone, signed in; the plan\'s drag on a touch screen especially. Every render was headless Chromium against a scripted backend', status: 'manual' },
         { label: 'Nutritionists keep the Signal profile: their own design (a kitchen tab in place of the floor plan) is next, then the website\'s coach profile', status: 'pending' },
         { label: 'Studio labels and station words are the coach\'s own text, so a member reading in another language sees them as written', status: 'pending' },
-        { label: 'The older surfaces (the Signal profile\'s hero, the website\'s living profile, the marketplace card) still render profile_custom.cover.image without bsProfileCover, so an outside image can load for their visitors (predates #2484)', status: 'pending' },
+        { label: 'The older surfaces (the Signal profile\'s hero, the website\'s living profile, the marketplace card) rendered profile_custom.cover.image without bsProfileCover; they go through it since #2489', status: 'done' },
       ],
     },
     {
