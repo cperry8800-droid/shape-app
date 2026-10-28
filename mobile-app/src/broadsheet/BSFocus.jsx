@@ -19,8 +19,8 @@ const hexA = (hex, a) => {
   return `#${m[1]}${Math.round(Math.max(0, Math.min(1, a)) * 255).toString(16).padStart(2, '0')}`;
 };
 
-// A theme with a head face (t.HEAD, the clean type of bsCleanType.jsx: the member's Home) sets the
-// heads below in Geist at the coach pages' head weight; every other page keeps Saira.
+// A theme with a head face (t.HEAD, the clean type of bsCleanType.jsx: the member's Home, Train and
+// Eat) sets the heads below in Geist at the coach pages' head weight; every other page keeps Saira.
 const bsFocusHeadFace = (t, weight) => (t.HEAD ? { fontFamily: t.HEAD, fontWeight: 700 } : { fontFamily: t.DISPLAY, fontWeight: weight });
 
 // A section head in the Home grammar: glyph + caps label, a quiet meta, one

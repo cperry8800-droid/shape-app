@@ -5213,7 +5213,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {/* THIS WEEK — calendar preview (directly below the Clients Edition band) */}
       <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.HEAD, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ {tr('home:section.thisWeek', { defaultValue: 'This week' })}</span>
+          {/* At Week so far's size (owner, 2026-10-28: "make THIS WEEK on the client/member home page larger"). */}
+          <span style={{ fontFamily: t.HEAD, fontWeight: 700, fontSize: 17, lineHeight: 1, letterSpacing: '0.02em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ {tr('home:section.thisWeek', { defaultValue: 'This week' })}</span>
           <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>{tr('home:dateline.wkAbbr', { defaultValue: 'Wk' })} {isoWeek} · {fmtDate(0)}–{weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)}</span>
         </span>
         <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, background: 'transparent', border: 0, padding: '0 2px', color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('home:action.monthView', { defaultValue: 'Month view →' })}</button>
@@ -5595,7 +5596,7 @@ function BSCoachPreparing({ role, coaching, onOpenSession }) {
   return (
     <div data-coach-preparing={role} style={{ margin: `10px ${t.padX}px 0`, padding: '4px 0 4px 12px', borderLeft: `3px solid ${c}` }}>
       <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>{many ? tr('common:coachPrep.eyebrowMany', { defaultValue: 'Your coaches are on it' }) : tr('common:coachPrep.eyebrow', { defaultValue: 'Your coach is on it' })}</div>
-      <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em', color: t.INK, margin: '5px 0 0', lineHeight: 1.1 }}>
+      <div style={{ fontFamily: t.HEAD || t.DISPLAY, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em', color: t.INK, margin: '5px 0 0', lineHeight: 1.1 }}>
         {many
           ? (trainer ? tr('common:coachPrep.titleMany', { defaultValue: '{coach} are preparing your plan', coach }) : tr('common:coachPrep.titleNutriMany', { defaultValue: '{coach} are preparing your meal plan', coach }))
           : (trainer ? tr('common:coachPrep.title', { defaultValue: '{coach} is preparing your plan', coach }) : tr('common:coachPrep.titleNutri', { defaultValue: '{coach} is preparing your meal plan', coach }))}
@@ -5673,7 +5674,7 @@ function BSTrackHeader({ kicker, title, actionLabel, onAction }) {
     <div style={{ padding: `18px ${t.padX}px 0` }}>
       <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 5 }}>{kicker}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 21, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{title}</div>
+        <div style={{ fontFamily: t.HEAD || t.DISPLAY, fontWeight: t.HEAD ? 700 : t.W.display, fontSize: 21, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{title}</div>
         {actionLabel && <button onClick={onAction} style={{ background: 'transparent', border: 0, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>{actionLabel} →</button>}
       </div>
     </div>
@@ -6288,7 +6289,7 @@ function BSBuildDoor({ onBuild, onOpenSession, onStartTemplate, onStartProgram, 
   return (
     <div style={{ padding: `2px ${t.padX}px 40px` }}>
       <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700, marginTop: 10 }}>{tr('session:train.door.eyebrow', { defaultValue: 'No plan yet' })}</div>
-      <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 26, letterSpacing: '-0.03em', color: t.INK, margin: '5px 0 0', lineHeight: 1.02 }}>{tr('session:train.door.titlePre', { defaultValue: 'Build your' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('session:train.door.titleAccent', { defaultValue: 'week.' })}</span></div>
+      <div style={{ fontFamily: t.HEAD || t.DISPLAY, fontWeight: 700, fontSize: 26, letterSpacing: '-0.03em', color: t.INK, margin: '5px 0 0', lineHeight: 1.02 }}>{tr('session:train.door.titlePre', { defaultValue: 'Build your' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('session:train.door.titleAccent', { defaultValue: 'week.' })}</span></div>
       <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>{tr('session:train.door.body', { defaultValue: 'Start from a template, build your own, or let Shape draft a plan for your goal — no coach required.' })}</div>
       <div aria-hidden style={{ margin: '14px 0 0', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 62%, transparent)` }} />
 
@@ -6323,7 +6324,10 @@ function BSBuildDoor({ onBuild, onOpenSession, onStartTemplate, onStartProgram, 
 // TRAIN — workout-focused page
 // ═══════════════════════════════════════════════════════════
 function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, goMarket = () => {}, autoStart = false, onAutoStartConsumed = () => {} }) {
-  const t = useBS();
+  // Home's clean type (owner, 2026-10-28: "do the same for Train and Eat pages"): Geist heads and
+  // Inter Tight words under the page header (bsCleanType.jsx). The pages Train opens return before
+  // the page and keep their own type, and so does the swap sheet, which sits outside the clean area.
+  const t = useBSClean();
   const tr = useShapeTr();
   const bsTrainProgram = useBSProgram();
   const [day, setDay] = useStateBSC(bsWeekdayIdx()); // default to today (0=Mon..6=Sun)
@@ -6465,8 +6469,10 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     return (
       <BSPage>
         <BSPageHeader kicker={tr('session:train.kickerTrain', { defaultValue: 'Train' })} title={tr('session:train.yourTraining', { defaultValue: 'Your training' })} trailing={<BSHeaderTools onProfile={onProfile} />} />
+        <BSCleanType t={t}>
         {resumeBanner}
         <BSPlanReadFailed part="training" onRetry={retryPlan} busy={planRetrying} />
+        </BSCleanType>
       </BSPage>
     );
   }
@@ -6480,6 +6486,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     return (
       <BSPage>
         <BSPageHeader kicker={tr('session:train.kickerTrain', { defaultValue: 'Train' })} title={tr('session:train.yourTraining', { defaultValue: 'Your training' })} trailing={<BSHeaderTools onProfile={onProfile} />} />
+        <BSCleanType t={t}>
         {resumeBanner}
         {trainCoaching
           ? <BSCoachPreparing role="trainer" coaching={trainCoaching} onOpenSession={() => { setOpenSession(true); setSession(true); }} />
@@ -6493,6 +6500,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
               onDraft={() => setBuilder({ mode: 'program', autoDraft: true })}
             />
           </>}
+        </BSCleanType>
       </BSPage>
     );
   }
@@ -6522,6 +6530,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         title={tr('session:train.yourTraining', { defaultValue: 'Your training' })}
         trailing={<BSHeaderTools onProfile={onProfile} />}
       />
+      <BSCleanType t={t}>
       {resumeBanner}
 
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} onMonth={goCalendar} />
@@ -6605,37 +6614,6 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         </>
       )}
 
-      {/* Exercise swap sheet — pick which move, then a coach-approved alternate. */}
-      {swapIdx != null && (() => {
-        if (swapIdx === 'pick') {
-          return <BSSwapSheet title={tr('session:train.swap', { defaultValue: 'Swap' })} subtitle={tr('session:train.swapPick', { defaultValue: 'Swap an exercise' })} options={effMoves.map((r, i) => ({ label: r.m, sub: r.s, _i: i }))} onPick={(o) => setSwapIdx(o._i)} onClose={() => setSwapIdx(null)} />;
-        }
-        const orig = effMoves[swapIdx];
-        if (!orig) return null;
-        const alts = BS_MOVE_SWAPS[String(orig.m || '').toLowerCase().trim()] || BS_MOVE_SWAPS_FALLBACK;
-        const baseName = (cur.moves[swapIdx] || {}).m;
-        const options = [
-          { label: baseName, sub: (cur.moves[swapIdx] || {}).s, current: true, _keep: true },
-          ...alts.filter(a => a.m !== orig.m).map(a => ({ label: a.m, sub: a.s || orig.s, _alt: a })),
-        ];
-        return <BSSwapSheet title={tr('session:train.swapExercise', { defaultValue: 'Swap exercise' })} subtitle={orig.m} options={options} onClose={() => setSwapIdx(null)}
-          onPick={(o) => {
-            const key = `${day}:${swapIdx}`;
-            const next = { ...moveOverrides };
-            if (o._keep) delete next[key];
-            else next[key] = { m: o._alt.m, s: o._alt.s || orig.s };
-            setMoveOverrides(next);
-            try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_train_swaps', next); } catch (e) {}
-            if (!o._keep) {
-              window.__bsToast && window.__bsToast(tr('session:train.swapToast', { defaultValue: 'Swapped to {to}', to: o._alt.m }), 'ok');
-              // ⚠ WAS `name: 'Jordan Chen'` — the swap note was addressed to a
-              // fabricated trainer for every member. Same fix as the Eat swap note.
-              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: liveTrainCoach || (bsTrainSignedIn ? tr('session:train.yourTrainer', { defaultValue: 'Your trainer' }) : 'Jordan Chen'), provider_role: 'trainer' }, text: tr('session:train.swapMessage', { defaultValue: 'Swapped {from} → {to} · {day}', from: baseName, to: o._alt.m, day: cur.d }) }).catch(() => {}); } catch (e) {}
-            }
-            setSwapIdx(null);
-          }} />;
-      })()}
-
       {/* This week — on deck. Derived from the shared week (PROGRAM): the next few
           days after today, so it matches the calendar + home. Tap to jump there. */}
       <BSFocusTitle kicker={tr('home:section.thisWeek', { defaultValue: 'This week' })} title={tr('session:train.onDeck', { defaultValue: 'On deck' })}
@@ -6690,6 +6668,38 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           : [{ k: 'Jordan Chen · Your trainer', title: 'Pull heavy.', meta: '52m · 95-138 BPM · 14 tracks' }];
         const who = lists.length ? String(lists[0].by || '').split(' ')[0] : 'Jordan';
         return <BSCoachPlaylists role="trainer" signedIn={bsTrainSignedIn} demo={{ who, items }} />;
+      })()}
+      </BSCleanType>
+
+      {/* Exercise swap sheet — pick which move, then a coach-approved alternate. */}
+      {swapIdx != null && (() => {
+        if (swapIdx === 'pick') {
+          return <BSSwapSheet title={tr('session:train.swap', { defaultValue: 'Swap' })} subtitle={tr('session:train.swapPick', { defaultValue: 'Swap an exercise' })} options={effMoves.map((r, i) => ({ label: r.m, sub: r.s, _i: i }))} onPick={(o) => setSwapIdx(o._i)} onClose={() => setSwapIdx(null)} />;
+        }
+        const orig = effMoves[swapIdx];
+        if (!orig) return null;
+        const alts = BS_MOVE_SWAPS[String(orig.m || '').toLowerCase().trim()] || BS_MOVE_SWAPS_FALLBACK;
+        const baseName = (cur.moves[swapIdx] || {}).m;
+        const options = [
+          { label: baseName, sub: (cur.moves[swapIdx] || {}).s, current: true, _keep: true },
+          ...alts.filter(a => a.m !== orig.m).map(a => ({ label: a.m, sub: a.s || orig.s, _alt: a })),
+        ];
+        return <BSSwapSheet title={tr('session:train.swapExercise', { defaultValue: 'Swap exercise' })} subtitle={orig.m} options={options} onClose={() => setSwapIdx(null)}
+          onPick={(o) => {
+            const key = `${day}:${swapIdx}`;
+            const next = { ...moveOverrides };
+            if (o._keep) delete next[key];
+            else next[key] = { m: o._alt.m, s: o._alt.s || orig.s };
+            setMoveOverrides(next);
+            try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_train_swaps', next); } catch (e) {}
+            if (!o._keep) {
+              window.__bsToast && window.__bsToast(tr('session:train.swapToast', { defaultValue: 'Swapped to {to}', to: o._alt.m }), 'ok');
+              // ⚠ WAS `name: 'Jordan Chen'` — the swap note was addressed to a
+              // fabricated trainer for every member. Same fix as the Eat swap note.
+              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: liveTrainCoach || (bsTrainSignedIn ? tr('session:train.yourTrainer', { defaultValue: 'Your trainer' }) : 'Jordan Chen'), provider_role: 'trainer' }, text: tr('session:train.swapMessage', { defaultValue: 'Swapped {from} → {to} · {day}', from: baseName, to: o._alt.m, day: cur.d }) }).catch(() => {}); } catch (e) {}
+            }
+            setSwapIdx(null);
+          }} />;
       })()}
 
       <BSFooter right="Pg 2 of 5" />
@@ -12664,6 +12674,10 @@ const bsHoldStep = (t, min, station) => ({ t, min, passive: true, station });
 
 function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCalendar = () => {}, initialView = '', onStartConsumed = () => {}, cookWith = null, onCookWithConsumed = () => {}, prepTonight = null, onPrepTonightConsumed = () => {} }) {
   const t = useBS();
+  // The page itself is set in Home's clean type (owner, 2026-10-28: "do the same for Train and Eat
+  // pages"), under the header and the Eat · Grocery tabs, which the Grocery page shares. `t` stays the
+  // app's own: the grocery sheets below draw from it and open over the Grocery page.
+  const tClean = useBSClean();
   const tr = useShapeTr();   // cook:prep.* chrome (PR C) — never shadows the theme t
   const prepEntries = useBSPrepEntries();   // PREPPED stamps on the day's courses
   const bsEatProgram = useBSProgram();
@@ -14362,6 +14376,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
 
       <BSNutritionTopTabs active="eat" onChange={setView} />
 
+      <BSCleanType t={tClean}>
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} onMonth={goCalendar} />
 
       <BSCoachAdjustBanner detail={bsEatProgram.detail} kind="nutrition" />
@@ -14464,6 +14479,67 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         </div>
       ))}
 
+      {/* ── FOCUS · LINKS — the rest of Eat, one row each: the shop list (with
+          what is still to get), prep the week, the nutritionist's plan (and the
+          day's note from them, when there is one), and finding a nutritionist. */}
+      {(() => {
+        const aisles = activeGroceryList.aisles || [];
+        const total = activeGroceryCount;
+        const have = aisles.reduce((s, a) => s + a.items.filter(it => it.have).length, 0);
+        const left = Math.max(0, total - have);
+        // ⚠ NO CASE TRANSFORM RUNS OVER TRANSLATED TEXT. This read
+        // `.join(', ').toLowerCase()` while the aisles were English literals;
+        // toLowerCase() is locale-insensitive (the Turkish dotted-i class), and
+        // how an aisle name sits in a meta line is the catalog's call, not a
+        // transform's — the same ruling cut 4 made for the swap-day token.
+        const TA = bsTrainT(tr);
+        const cats = aisles.filter(a => a.items.some(it => !it.have)).map(a => bsAisleLabel(a.aisle, TA)).slice(0, 3).join(', ');
+        // ⚠ `.split(' ')[0]` IS A FIRST-NAME EXTRACTOR, so it may only ever run
+        // over a real person's name. Fed the role noun it produced "From Your ·
+        // this week" — reachable for any signed-in member with no resolved coach.
+        // ⚠ AND 'You' IS NOT A NAME EITHER — a member's own list (`author: 'You'`)
+        // read "From You · this week", and in every other locale an untranslated
+        // English pronoun inside a translated sentence. A member's own list is
+        // credited to nobody; it is theirs.
+        const selfList = bsGroceryIsSelfAuthored(activeGroceryList);
+        const rawWho = selfList ? '' : String(activeGroceryList.author || '').trim();
+        const who = rawWho ? rawWho.replace(/^Dr\.?\s+/i, '').split(' ')[0] : '';
+        const byline = selfList ? tr('nutrition:eat.fromYourList', { defaultValue: 'Your list · this week' }) : who ? tr('nutrition:eat.fromWho', { defaultValue: 'From {who} · this week', who }) : tr('nutrition:eat.fromYourPlan', { defaultValue: 'From your plan · this week' });
+        const toGet = left > 0
+          ? tr('nutrition:eat.itemsToGetTag', { defaultValue: '{n} to get', n: left })
+          : tr('nutrition:eat.allSetTag', { defaultValue: 'All set' });
+        // ⚠ WAS `liveMealCoach || 'Dr. Maya Patel'` — a signed-in member whose
+        // coach name did not resolve read a nutritionist they do not have. The
+        // honest role noun stands in; the signed-out preview keeps the demo name.
+        const coach = liveMealCoach || (bsEatSignedIn ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : 'Dr. Maya Patel');
+        return (
+          <div style={{ marginTop: t.sectGap }}>
+            <BSFocusLink tour="hero-grocery" color={t.GREEN} glyph="◎" label={tr('nutrition:eat.shopList', { defaultValue: 'The shop list' })} tag={total > 0 ? toGet : ''} sub={[byline, cats].filter(Boolean).join(' · ')} onOpen={() => setView('grocery')} />
+            <BSFocusLink data-bsck-door="prep" color={t.isLight ? '#0a8f87' : t.ACCENT} glyph="→" label={tr('cook:prep.door', { defaultValue: 'Prep the week' })} onOpen={() => openPrep()} />
+            <BSFocusLink color="#a07a2e" glyph="✎" label={coach} tag={bsEatFuelUnread && !bsEatCoachSet('calories') ? planGoalLabel : `${planGoalLabel} · ${bsEatCalTgt.toLocaleString()}`} onOpen={() => setPreviewDayBrief(true)} />
+            {cur.coachLine ? (
+              <div style={{ margin: `10px ${t.padX}px 0`, padding: '2px 0 2px 12px', borderLeft: '3px solid #a07a2e', fontFamily: tClean.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>&ldquo;{cur.coachLine}&rdquo;</div>
+            ) : null}
+            {/* A member who pays a nutritionist, or whose coach could not be read, is not sent to find
+                one (Codex on #2378); the signed-out preview keeps the pitch. */}
+            {(!bsEatSignedIn || eatCoaching === null) && <BSFindCoachBar role="nutritionist" onOpen={() => goMarket('nutritionist')} />}
+          </div>
+        );
+      })()}
+
+      {/* From Maya — the nutritionist's cooking playlists. Signed in, the ones the
+          member's own nutritionist sent them; signed out, the preview's sample
+          (BS_COACH_PLAYLISTS is a static constant, so it never reaches a member). */}
+      {(() => {
+        const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
+        const lists = all.filter(p => p.role === 'Nutritionist');
+        const items = lists.length ? lists.map(p => ({ k: tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: p.by }), title: p.name, meta: tr('nutrition:eat.playlistMeta', { defaultValue: '{len} · {bpm} BPM · {tracks, plural, one {# track} other {# tracks}}', len: p.len, bpm: p.bpm, tracks: p.tracks }) + (p.attached ? ` · ${p.attached}` : ''), url: p.url, provider: p.provider, tracks: p.songs }))
+          : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks · Sun prep' }];
+        const who = lists.length ? String(lists[0].by || '').replace(/^Dr\.?\s+/i, '').split(' ')[0] : 'Maya';
+        return <BSCoachPlaylists role="nutritionist" signedIn={bsEatSignedIn} demo={{ who, items }} />;
+      })()}
+      </BSCleanType>
+
       {/* Meal swap sheet — pick which meal, then a coach-approved alternate. */}
       {swapMealId != null && (() => {
         if (swapMealId === 'pick') {
@@ -14505,66 +14581,6 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
             }
             setSwapMealId(null);
           }} />;
-      })()}
-
-      {/* ── FOCUS · LINKS — the rest of Eat, one row each: the shop list (with
-          what is still to get), prep the week, the nutritionist's plan (and the
-          day's note from them, when there is one), and finding a nutritionist. */}
-      {(() => {
-        const aisles = activeGroceryList.aisles || [];
-        const total = activeGroceryCount;
-        const have = aisles.reduce((s, a) => s + a.items.filter(it => it.have).length, 0);
-        const left = Math.max(0, total - have);
-        // ⚠ NO CASE TRANSFORM RUNS OVER TRANSLATED TEXT. This read
-        // `.join(', ').toLowerCase()` while the aisles were English literals;
-        // toLowerCase() is locale-insensitive (the Turkish dotted-i class), and
-        // how an aisle name sits in a meta line is the catalog's call, not a
-        // transform's — the same ruling cut 4 made for the swap-day token.
-        const TA = bsTrainT(tr);
-        const cats = aisles.filter(a => a.items.some(it => !it.have)).map(a => bsAisleLabel(a.aisle, TA)).slice(0, 3).join(', ');
-        // ⚠ `.split(' ')[0]` IS A FIRST-NAME EXTRACTOR, so it may only ever run
-        // over a real person's name. Fed the role noun it produced "From Your ·
-        // this week" — reachable for any signed-in member with no resolved coach.
-        // ⚠ AND 'You' IS NOT A NAME EITHER — a member's own list (`author: 'You'`)
-        // read "From You · this week", and in every other locale an untranslated
-        // English pronoun inside a translated sentence. A member's own list is
-        // credited to nobody; it is theirs.
-        const selfList = bsGroceryIsSelfAuthored(activeGroceryList);
-        const rawWho = selfList ? '' : String(activeGroceryList.author || '').trim();
-        const who = rawWho ? rawWho.replace(/^Dr\.?\s+/i, '').split(' ')[0] : '';
-        const byline = selfList ? tr('nutrition:eat.fromYourList', { defaultValue: 'Your list · this week' }) : who ? tr('nutrition:eat.fromWho', { defaultValue: 'From {who} · this week', who }) : tr('nutrition:eat.fromYourPlan', { defaultValue: 'From your plan · this week' });
-        const toGet = left > 0
-          ? tr('nutrition:eat.itemsToGetTag', { defaultValue: '{n} to get', n: left })
-          : tr('nutrition:eat.allSetTag', { defaultValue: 'All set' });
-        // ⚠ WAS `liveMealCoach || 'Dr. Maya Patel'` — a signed-in member whose
-        // coach name did not resolve read a nutritionist they do not have. The
-        // honest role noun stands in; the signed-out preview keeps the demo name.
-        const coach = liveMealCoach || (bsEatSignedIn ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : 'Dr. Maya Patel');
-        return (
-          <div style={{ marginTop: t.sectGap }}>
-            <BSFocusLink tour="hero-grocery" color={t.GREEN} glyph="◎" label={tr('nutrition:eat.shopList', { defaultValue: 'The shop list' })} tag={total > 0 ? toGet : ''} sub={[byline, cats].filter(Boolean).join(' · ')} onOpen={() => setView('grocery')} />
-            <BSFocusLink data-bsck-door="prep" color={t.isLight ? '#0a8f87' : t.ACCENT} glyph="→" label={tr('cook:prep.door', { defaultValue: 'Prep the week' })} onOpen={() => openPrep()} />
-            <BSFocusLink color="#a07a2e" glyph="✎" label={coach} tag={bsEatFuelUnread && !bsEatCoachSet('calories') ? planGoalLabel : `${planGoalLabel} · ${bsEatCalTgt.toLocaleString()}`} onOpen={() => setPreviewDayBrief(true)} />
-            {cur.coachLine ? (
-              <div style={{ margin: `10px ${t.padX}px 0`, padding: '2px 0 2px 12px', borderLeft: '3px solid #a07a2e', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>&ldquo;{cur.coachLine}&rdquo;</div>
-            ) : null}
-            {/* A member who pays a nutritionist, or whose coach could not be read, is not sent to find
-                one (Codex on #2378); the signed-out preview keeps the pitch. */}
-            {(!bsEatSignedIn || eatCoaching === null) && <BSFindCoachBar role="nutritionist" onOpen={() => goMarket('nutritionist')} />}
-          </div>
-        );
-      })()}
-
-      {/* From Maya — the nutritionist's cooking playlists. Signed in, the ones the
-          member's own nutritionist sent them; signed out, the preview's sample
-          (BS_COACH_PLAYLISTS is a static constant, so it never reaches a member). */}
-      {(() => {
-        const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
-        const lists = all.filter(p => p.role === 'Nutritionist');
-        const items = lists.length ? lists.map(p => ({ k: tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: p.by }), title: p.name, meta: tr('nutrition:eat.playlistMeta', { defaultValue: '{len} · {bpm} BPM · {tracks, plural, one {# track} other {# tracks}}', len: p.len, bpm: p.bpm, tracks: p.tracks }) + (p.attached ? ` · ${p.attached}` : ''), url: p.url, provider: p.provider, tracks: p.songs }))
-          : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks · Sun prep' }];
-        const who = lists.length ? String(lists[0].by || '').replace(/^Dr\.?\s+/i, '').split(' ')[0] : 'Maya';
-        return <BSCoachPlaylists role="nutritionist" signedIn={bsEatSignedIn} demo={{ who, items }} />;
       })()}
 
       <BSFooter right={tr('nutrition:eat.footerPage', { defaultValue: 'Pg 3 of 5' })} />
