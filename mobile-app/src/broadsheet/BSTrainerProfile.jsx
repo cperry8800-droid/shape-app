@@ -109,7 +109,15 @@ export function BSTrainerProfile(props) {
     word: (k) => tr('profile:studio.word.' + k, { defaultValue: STUDIO_WORDS[k] || k }),
     lb,
   }) : null), [demoOn, lb, lang]);
+  // What Make it yours changed on the demo, and only that (a key it changed, or null for a removed
+  // wall photo), laid over the sample: the rest stays the sample's, so its station names keep
+  // following the language (Codex P2 on #2486).
   const [demoOwn, setDemoOwn] = React.useState(null);
+  const saveDemo = (doc, changed) => setDemoOwn((prev) => {
+    const next = { ...(prev || {}) };
+    for (const k of ['look', 'cover', 'studio']) if (changed && changed[k]) next[k] = doc && doc[k] ? doc[k] : null;
+    return next;
+  });
   const [live, setLive] = React.useState(null);
   const [own, setOwn] = React.useState(null);
   React.useEffect(() => {
@@ -139,10 +147,12 @@ export function BSTrainerProfile(props) {
     })();
     return () => { on = false; };
   }, [isSelf, ownEpoch, demoOn]);
-  const custom = demo ? (demoOwn || demo.custom) : isSelf ? own : (live && live.custom) || null;
+  const custom = demo
+    ? (() => { const c = { ...demo.custom }; for (const [k, v] of Object.entries(demoOwn || {})) { if (v === null) delete c[k]; else c[k] = v; } return c; })()
+    : isSelf ? own : (live && live.custom) || null;
   const look = bsProfileLook(custom && custom.look) || {};
   const page = demo
-    ? <TrainerPage {...props} demo={demo} live={demo.live} custom={custom} setOwn={setDemoOwn} ownState="ready" ownFor={null} />
+    ? <TrainerPage {...props} demo={demo} live={demo.live} custom={custom} setOwn={saveDemo} ownState="ready" ownFor={null} />
     : <TrainerPage {...props} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} ownFor={ownFor} onRetryOwn={() => setOwnEpoch((n) => n + 1)} />;
   if (!BSProvider) return page;
   return (
@@ -342,7 +352,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   if (page === 'edit' && editReady) {
     const photos = demo ? demo.photos : [media.cover, ...((media.gallery || []).map((g) => g && g.url))].filter((u) => typeof u === 'string' && /^https:\/\//.test(u));
     return <BSMakeItYours role="trainer" demo={!!demo} ownerUid={ownFor} initial={custom} startTab={editTab} who={{ name, first, photo: avatar, roleLine }} words={words} photos={photos}
-      onClose={() => setPage(null)} onSaved={(doc) => { setOwn && setOwn(doc); setPage(null); }} />;
+      onClose={() => setPage(null)} onSaved={(doc, changed) => { setOwn && setOwn(doc, changed); setPage(null); }} />;
   }
   if (page === 'hours') return <BSCoachHoursPage role="trainer" onBack={() => { setPage(null); setAvailEpoch((n) => n + 1); }} />;
   if (page === 'business') return <BSCoachBusinessPage role="trainer" tab="money" onBack={() => setPage(null)} />;

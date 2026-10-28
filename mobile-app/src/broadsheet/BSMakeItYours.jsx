@@ -470,7 +470,9 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   };
   const save = async () => {
     if (busy) return;
-    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null)); return; }
+    // The demo also says which keys were changed here, so its page keeps only those over its own
+    // sample (whose station names follow the language; Codex P2 on #2486).
+    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null), { look: lookChanged, cover: wallChanged, studio: studioChanged }); return; }
     const uid = owner;
     if (!uid || signedInUid() !== uid) { setErr(tr('profile:mine.errSignIn', { defaultValue: 'Sign in to save your page.' })); return; }
     if (uploading) { setErr(tr('profile:mine.errBusy', { defaultValue: 'Hang on, your photo is still uploading.' })); return; }

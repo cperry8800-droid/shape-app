@@ -534,3 +534,30 @@ test('the trainer app\'s own page opens the trainer profile signed in or out', (
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(src, /if \(person\.kind === 'TRAINER' && \(person\.userId \|\| isSelf\)\) \{\n\s+return <BSTrainerProfile /);
 });
+
+test('a demo saved in Make it yours keeps only what was changed, so the studio still follows the language (Codex P2 on #2486)', async () => {
+  reset({ me: null });
+  const client = asClient();
+  // The language, as ShapeLocale has it: a switch re-renders every page that reads it.
+  let lang = 'en';
+  const subs = new Set();
+  const hadLocale = window.ShapeLocale;
+  const hadT = window.ShapeI18n.t;
+  window.ShapeLocale = { get: () => lang, subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); } };
+  try {
+    const m = await mount(demoPage());
+    await click(button(/^Make it yours$/));
+    await click(document.querySelector('[data-paper="sage"]'));
+    await click(document.querySelector('[data-save-mine]'));
+    // Now Spanish: the station names are the template's, in the reader's language.
+    lang = 'es';
+    window.ShapeI18n.t = (key, opts) => (key === 'profile:studio.word.squatRacks' ? 'Racks de sentadilla' : hadT(key, opts));
+    await act(async () => { for (const fn of subs) fn(); });
+    await flush();
+    await click(button(/^The studio$/));
+    assert.match(m.text(), /Racks de sentadilla/, 'the studio follows the language after a colours-only save');
+    const probe = document.createElement('div'); probe.style.background = window.makePalette({ paperMode: 'sage', accentKey: 'teal' }).PAPER_BG;
+    assert.equal(document.querySelector('[data-trainer-profile]').style.background, probe.style.background, 'and the saved paper stays');
+    await m.unmount();
+  } finally { window.ShapeLocale = hadLocale; window.ShapeI18n.t = hadT; client.restore(); }
+});
