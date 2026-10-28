@@ -38,22 +38,26 @@ function fn(src, name) {
   throw new Error(`could not find the end of ${name}`)
 }
 
-/** A coach_reviews fake that applies eq / order / range / limit and, like the API,
- *  never returns more than 1,000 rows from one read. Its coach_review_ratings() is the
- *  migration's (2026-10-28-coach-reviews-members.sql): each slug and account's total and count;
- *  `ratingsFn: false` is a database before that migration (the function is missing); `'error'` is
- *  the function failing some other way (a timeout).
- *  `canReadRows: false` is a reader the migration's policy shows no row (a guest, a non-member). */
 // The real sign-in classifier: nobody measured is a guest; an outage is not.
 const authLookup = await loadRealModule(join(ROOT, 'src/lib/auth-lookup.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', createRequire(join(ROOT, 'package.json'))('@supabase/supabase-js')]]) })
 
-function reviewsClient(rows, { ratingsFn = true, canReadRows = true } = {}) {
+/** A coach_reviews fake that applies eq / order / range / limit and, like the API,
+ *  never returns more than 1,000 rows from one read. Its coach_review_ratings(p_owner, p_slug) is
+ *  the migration's (2026-10-28-coach-reviews-members.sql): each slug and account's total and count,
+ *  for one coach when either argument is given; `ratingsFn: false` is a database before that
+ *  migration (the function is missing); `'error'` is the function failing some other way (a timeout).
+ *  `canReadRows: false` is a reader the migration's policy shows no row (a guest, a non-member).
+ *  `log` collects what each read asked for: the function's arguments and the rows' filters. */
+function reviewsClient(rows, { ratingsFn = true, canReadRows = true, log = null } = {}) {
   return {
-    rpc: async (name) => {
+    rpc: async (name, args = {}) => {
+      if (log) log.push(['rpc', args])
       if (name !== 'coach_review_ratings' || !ratingsFn) return { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } }
       if (ratingsFn === 'error') return { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } }
       const groups = new Map()
       for (const r of rows) {
+        if (args.p_owner != null && r.owner_id !== args.p_owner) continue
+        if (args.p_slug != null && r.coach_slug !== args.p_slug) continue
         const k = `${r.coach_slug}|${r.owner_id ?? ''}`
         const g = groups.get(k) || { coach_slug: r.coach_slug, owner_id: r.owner_id ?? null, total: 0, count: 0 }
         g.total += r.rating || 0; g.count += 1; groups.set(k, g)
@@ -64,7 +68,7 @@ function reviewsClient(rows, { ratingsFn = true, canReadRows = true } = {}) {
       const st = { filters: [], limit: null, range: null }
       const q = {
         select: () => q,
-        eq: (c, v) => { st.filters.push((r) => r[c] === v); return q },
+        eq: (c, v) => { if (log) log.push(['eq', c, v]); st.filters.push((r) => r[c] === v); return q },
         in: (c, vals) => { st.filters.push((r) => vals.includes(r[c])); return q },
         order: () => q,
         range: (a, b) => { st.range = [a, b]; return q },
@@ -232,6 +236,31 @@ test('a ratings function that fails, rather than is missing, gives no rating, ne
   }
 })
 
+test('a profile\'s rating is read for its one coach, never the whole table (Codex P2 on #2492)', async () => {
+  const OWNER = '22222222-2222-4222-8222-222222222222'
+  const rows = [
+    { id: 1, coach_slug: 'ada-coach', rating: 9, owner_id: OWNER },
+    { id: 2, coach_slug: 'ada-coach', rating: 7, owner_id: OWNER },
+    { id: 3, coach_slug: 'bo-coach', rating: 2, owner_id: null },
+  ]
+  for (const ratingsFn of [true, false]) {
+    const log = []
+    const route = await loadRoute(reviewsClient(rows, { ratingsFn, log }))
+    const byOwner = await (await route.GET(new Request(`https://shape.test/api/coaches/reviews?owner=${OWNER}`))).json()
+    assert.deepEqual([byOwner.avg, byOwner.count], [8, 2])
+    assert.deepEqual(log[0], ['rpc', { p_owner: OWNER }], `ratings function ${ratingsFn}: asked for the one account`)
+    if (!ratingsFn) assert.ok(log.some((e) => e[0] === 'eq' && e[1] === 'owner_id' && e[2] === OWNER), 'the rows before the migration, for the one account')
+    log.length = 0
+    const bySlug = await (await route.GET(new Request('https://shape.test/api/coaches/reviews?coach=bo-coach'))).json()
+    assert.deepEqual([bySlug.avg, bySlug.count], [2, 1])
+    assert.deepEqual(log[0], ['rpc', { p_slug: 'bo-coach' }], `ratings function ${ratingsFn}: asked for the one slug`)
+    if (!ratingsFn) assert.ok(log.some((e) => e[0] === 'eq' && e[1] === 'coach_slug' && e[2] === 'bo-coach'))
+    log.length = 0
+    await route.GET(new Request('https://shape.test/api/coaches/reviews'))
+    assert.deepEqual(log[0], ['rpc', {}], 'the marketplace\'s summaries ask for every coach')
+  }
+})
+
 test('the averages cover every review, not one read\'s worth (Codex, #2313)', async () => {
   // 2,500 reviews of one coach: 1,000 rated 2 and 1,500 rated 10. One capped read
   // would have seen only the 2s.
@@ -349,10 +378,12 @@ test('the database holds the same line: members read coach_reviews, everyone rea
   assert.match(sql, /newest\.status in \('active', 'trialing', 'past_due'\)/)
   assert.match(sql, /revoke all on function public\.shape_viewer_is_member\(\) from anon;\ngrant execute on function public\.shape_viewer_is_member\(\) to authenticated;/)
   // The ratings: totals and counts, never a review's words, author or id.
-  const ratings = sql.slice(sql.indexOf('create or replace function public.coach_review_ratings()'), sql.indexOf('revoke all on function public.coach_review_ratings()'))
-  assert.match(ratings, /returns table \(coach_slug text, owner_id uuid, total bigint, count bigint\)/)
+  const ratings = sql.slice(sql.indexOf('create or replace function public.coach_review_ratings('), sql.indexOf('revoke all on function public.coach_review_ratings('))
+  assert.match(ratings, /coach_review_ratings\(p_owner uuid default null, p_slug text default null\)\nreturns table \(coach_slug text, owner_id uuid, total bigint, count bigint\)/)
+  assert.match(ratings, /where \(p_owner is null or r\.owner_id = p_owner\)\n\s+and \(p_slug is null or r\.coach_slug = p_slug\)/, 'one coach when asked for one')
   assert.doesNotMatch(ratings, /\bbody\b|author_name|user_id|r\.id\b/)
-  assert.match(sql, /grant execute on function public\.coach_review_ratings\(\) to anon, authenticated;/)
+  assert.match(sql, /drop function if exists public\.coach_review_ratings\(\);\ncreate or replace function public\.coach_review_ratings\(/, 'no overload of an earlier draft')
+  assert.match(sql, /grant execute on function public\.coach_review_ratings\(uuid, text\) to anon, authenticated;/)
   assert.match(sql, /^begin;[\s\S]*\ncommit;\n$/m)
 })
 

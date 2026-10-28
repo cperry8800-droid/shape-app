@@ -73,19 +73,26 @@ function listClient(reader: { admin: boolean }, supabase: SupabaseClient): Supab
   try { return createAdminClient(); } catch { return supabase; }
 }
 
-// Every coach's rating total and count, by slug and by account. From coach_review_ratings(); until
-// that migration has run, from the rows as before (the old policy lets anyone read them).
+// Rating totals and counts, by slug and by account. From coach_review_ratings(); until that
+// migration has run, from the rows as before (the old policy lets anyone read them). A profile
+// asks for its one coach (`scope`), so it never aggregates the whole table (Codex P2 on #2492);
+// the marketplace's summaries ask for every coach.
 type RatingRow = { coach_slug: string; owner_id: string | null; total: number; count: number };
-async function readRatings(supabase: SupabaseClient): Promise<RatingRow[] | null> {
-  const rpc = await supabase.rpc('coach_review_ratings');
+type RatingScope = { owner: string } | { slug: string } | null;
+async function readRatings(supabase: SupabaseClient, scope: RatingScope = null): Promise<RatingRow[] | null> {
+  const args = scope ? ('owner' in scope ? { p_owner: scope.owner } : { p_slug: scope.slug }) : {};
+  const rpc = await supabase.rpc('coach_review_ratings', args);
   if (!rpc.error) return ((rpc.data ?? []) as RatingRow[]).map((r) => ({ coach_slug: r.coach_slug, owner_id: r.owner_id ?? null, total: Number(r.total) || 0, count: Number(r.count) || 0 }));
   // Only a database without the function (before the migration) is read row by row. Any other
   // failure is no rating: after the migration a non-member reads no row, or only their own, so
   // the rows would give an empty or partial average (Codex P2 on #2492).
   const code = (rpc.error as { code?: string }).code;
   if (code !== 'PGRST202' && code !== '42883') return null;
-  const { rows, error } = await readAll<{ coach_slug: string; rating: number; owner_id?: string | null }>((from, to) =>
-    supabase.from('coach_reviews').select('coach_slug, rating, owner_id').order('id', { ascending: true }).range(from, to));
+  const { rows, error } = await readAll<{ coach_slug: string; rating: number; owner_id?: string | null }>((from, to) => {
+    const q = supabase.from('coach_reviews').select('coach_slug, rating, owner_id');
+    const scoped = !scope ? q : 'owner' in scope ? q.eq('owner_id', scope.owner) : q.eq('coach_slug', scope.slug);
+    return scoped.order('id', { ascending: true }).range(from, to);
+  });
   if (error) return null;
   return rows.map((r) => ({ coach_slug: r.coach_slug, owner_id: r.owner_id ?? null, total: r.rating || 0, count: 1 }));
 }
@@ -129,7 +136,7 @@ export async function GET(request: Request) {
     if (!uuid.test(ownerParam)) return NextResponse.json({ reviews: [] });
     const reader = await readReader(request, supabase);
     if (!reader) return UNKNOWN();
-    const ratings = await readRatings(supabase);
+    const ratings = await readRatings(supabase, { owner: ownerParam });
     const rating = ratings ? ratingOf(ratings.filter((r) => r.owner_id === ownerParam)) : null;
     if (!reader.member) return NextResponse.json({ reviews: [], locked: true, ...(rating || {}) });
     // The list is the newest 200; the average and count are over every review.
@@ -141,7 +148,7 @@ export async function GET(request: Request) {
   if (slug) {
     const reader = await readReader(request, supabase);
     if (!reader) return UNKNOWN();
-    const ratings = await readRatings(supabase);
+    const ratings = await readRatings(supabase, { slug });
     const rating = ratings ? ratingOf(ratings.filter((r) => r.coach_slug === slug)) : null;
     if (!reader.member) return NextResponse.json({ reviews: [], locked: true, ...(rating || {}) });
     // select('*') keeps this migration-safe — an explicit owner_id column would

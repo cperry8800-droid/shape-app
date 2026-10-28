@@ -16,10 +16,12 @@
 --     the caller, so it says nothing about anyone else. Executable by authenticated.
 --   "members read coach reviews"   SELECT for authenticated: a member, the review's own author,
 --     or the coach it is about. Replaces "read coach reviews"; anon reads no rows.
---   coach_review_ratings()   every coach's rating total and count, by slug and by account
---     (owner_id), and nothing else: never a review's words, author or id. SECURITY DEFINER so a
---     non-member (anon too) still sees "9.6/10 from 12 reviews"; executable by anon and
---     authenticated. /api/coaches/reviews builds every average from it.
+--   coach_review_ratings(p_owner, p_slug)   rating totals and counts, by slug and by account
+--     (owner_id), and nothing else: never a review's words, author or id. A profile asks for one
+--     coach (p_owner or p_slug, each served by its index); the marketplace's summaries pass
+--     neither and get every coach. SECURITY DEFINER so a non-member (anon too) still sees
+--     "9.6/10 from 12 reviews"; executable by anon and authenticated. /api/coaches/reviews builds
+--     every average from it.
 --
 -- Tested on a local PostgreSQL 16 database with these tables as production has them: a member
 -- (subscriber, past_due subscriber, coach by role, coach by roles) reads every review; a
@@ -72,7 +74,9 @@ create policy "members read coach reviews" on public.coach_reviews
   for select to authenticated
   using (user_id = auth.uid() or owner_id = auth.uid() or public.shape_viewer_is_member());
 
-create or replace function public.coach_review_ratings()
+-- An earlier draft of this file had no arguments; the two would be overloads, so it goes first.
+drop function if exists public.coach_review_ratings();
+create or replace function public.coach_review_ratings(p_owner uuid default null, p_slug text default null)
 returns table (coach_slug text, owner_id uuid, total bigint, count bigint)
 language sql
 stable
@@ -81,10 +85,12 @@ set search_path = public, pg_temp
 as $$
   select r.coach_slug, r.owner_id, coalesce(sum(r.rating), 0)::bigint, count(*)::bigint
   from public.coach_reviews r
+  where (p_owner is null or r.owner_id = p_owner)
+    and (p_slug is null or r.coach_slug = p_slug)
   group by r.coach_slug, r.owner_id;
 $$;
 
-revoke all on function public.coach_review_ratings() from public;
-grant execute on function public.coach_review_ratings() to anon, authenticated;
+revoke all on function public.coach_review_ratings(uuid, text) from public;
+grant execute on function public.coach_review_ratings(uuid, text) to anon, authenticated;
 
 commit;

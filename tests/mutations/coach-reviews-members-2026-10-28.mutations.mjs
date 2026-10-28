@@ -48,6 +48,8 @@ export default {
       find: '  if (!rpc.error) return ((rpc.data', replace: '  if (false) return ((rpc.data' },
     { name: "api: a member's rating falls back to the capped page", file: API,
       find: '    return NextResponse.json({ reviews, ...(rating || {}) });', replace: '    return NextResponse.json({ reviews, ...(rating || { avg: 0, count: reviews.length }) });' },
+    { name: "api: a profile's rating reads every coach's", file: API,
+      find: "  const args = scope ? ('owner' in scope ? { p_owner: scope.owner } : { p_slug: scope.slug }) : {};", replace: '  const args = {};' },
     { name: 'api: any failure of the ratings function falls back to the rows', file: API,
       find: "  if (code !== 'PGRST202' && code !== '42883') return null;\n", replace: '' },
     // ── the migration ──
@@ -61,6 +63,8 @@ export default {
       replace: "         where newest.status in ('active', 'trialing', 'past_due', 'canceled')" },
     { name: 'sql: anon may run the membership check', file: SQL,
       find: 'revoke all on function public.shape_viewer_is_member() from anon;\n', replace: '' },
+    { name: 'sql: the ratings ignore the coach asked for', file: SQL,
+      find: '  where (p_owner is null or r.owner_id = p_owner)\n    and (p_slug is null or r.coach_slug = p_slug)\n', replace: '' },
     { name: 'sql: the ratings carry the words', file: SQL,
       find: '  select r.coach_slug, r.owner_id, coalesce(sum(r.rating), 0)::bigint, count(*)::bigint\n',
       replace: '  select r.coach_slug, r.owner_id, coalesce(sum(r.rating), 0)::bigint, count(*)::bigint, max(r.body)\n' },
