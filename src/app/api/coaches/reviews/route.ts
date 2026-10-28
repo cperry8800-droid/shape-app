@@ -32,11 +32,6 @@ async function readAll<T>(page: (from: number, to: number) => PromiseLike<{ data
   }
   return { rows, error: null };
 }
-function aggregate(rows: { rating: number }[]): { avg: number; count: number } {
-  const count = rows.length;
-  const avg = count ? Math.round((rows.reduce((s, r) => s + (r.rating || 0), 0) / count) * 10) / 10 : 0;
-  return { avg, count };
-}
 
 type ReviewRow = { id: string; rating: number; body: string | null; author_name: string | null; user_id?: string | null; owner_id?: string | null; created_at: string };
 function shape(row: ReviewRow) {
@@ -159,7 +154,9 @@ export async function GET(request: Request) {
       .limit(200);
     if (error) return NextResponse.json({ reviews: [], ...(rating || {}) });
     const reviews = (data ?? []).map(shape);
-    return NextResponse.json({ reviews, ...(rating || aggregate(reviews)) });
+    // No rating when the ratings couldn't be read: the list is the newest 200, so an average of it
+    // would be partial for a busier coach (Codex P2 on #2492).
+    return NextResponse.json({ reviews, ...(rating || {}) });
   }
 
   // Every coach's average, keyed two ways: by slug (the old shape) and by the coach's

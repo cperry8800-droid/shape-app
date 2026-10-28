@@ -222,6 +222,14 @@ test('a ratings function that fails, rather than is missing, gives no rating, ne
   }
   const all = await (await route.GET(new Request('https://shape.test/api/coaches/reviews'))).json()
   assert.deepEqual(all, { summaries: {}, owners: {} })
+  // A member's list is the newest 200, so it gives no rating either (Codex P2 on #2492).
+  const member = await loadRoute(reviewsClient(rows, { ratingsFn: 'error' }), { member: true })
+  for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
+    const body = await (await member.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()
+    assert.equal(body.reviews.length, 2, q)
+    assert.equal(body.avg, undefined, `${q}: no average of the capped page`)
+    assert.equal(body.count, undefined, q)
+  }
 })
 
 test('the averages cover every review, not one read\'s worth (Codex, #2313)', async () => {
