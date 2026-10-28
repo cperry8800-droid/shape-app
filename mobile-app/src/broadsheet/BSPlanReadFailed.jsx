@@ -32,7 +32,7 @@ export function BSPlanReadFailed({ part, onRetry, busy = false }) {
       <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>
         {tr('common:planRead.eyebrow', { defaultValue: 'Not loaded' })}
       </div>
-      <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em', color: t.INK, margin: '5px 0 0', lineHeight: 1.1 }}>
+      <div style={{ fontFamily: t.HEAD || t.DISPLAY, fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em', color: t.INK, margin: '5px 0 0', lineHeight: 1.1 }}>
         {part === 'meals'
           ? tr('common:planRead.meals', { defaultValue: 'Couldn’t load your meal plan' })
           : tr('common:planRead.training', { defaultValue: 'Couldn’t load your training' })}

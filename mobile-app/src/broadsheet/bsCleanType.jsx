@@ -3,13 +3,15 @@ import React from 'react';
 // The coach pages' type (owner, 2026-10-25, "Do with clean", the header mockup 3, and "I want both"
 // of the two faces offered): Today, Clients and Programs set their titles and section heads in Geist
 // and their words in Inter Tight, in place of Saira. The member's Home takes the same type (owner,
-// 2026-10-28: "Member/client home page font needs to match coaches"). Both faces are bundled
-// (fonts.css) and draw Cyrillic and Vietnamese.
+// 2026-10-28: "Member/client home page font needs to match coaches"), then Train and Eat ("do the
+// same for Train and Eat pages"). Both faces are bundled (fonts.css) and draw Cyrillic and Vietnamese.
 //
-// A page swaps the text face in its own theme (useBSClean) and hands that theme to what it renders
+// A page swaps the text faces in its own theme (useBSClean) and hands that theme to what it renders
 // (BSCleanType), so a child's text follows; the masthead and the top bars sit outside and keep
-// theirs. The theme also carries HEAD, the head face: a shared head that reads it (BSFocus.jsx) sets
-// itself in Geist on a clean page and in Saira everywhere else.
+// theirs. Both of the theme's word faces become Inter Tight: DISPLAY, and BODY, the system face a
+// few lines take (Fuel left's "kcal left", the check-in's notes, an empty menu; Codex on #2488).
+// The theme also carries HEAD, the head face: a shared head that reads it (BSFocus.jsx) sets itself
+// in Geist on a clean page and in Saira everywhere else.
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP (see BSLeaderboard.jsx).
 
@@ -18,7 +20,7 @@ export const BS_CLEAN_SANS = "'Inter Tight', system-ui, -apple-system, 'Segoe UI
 
 export function useBSClean() {
   const base = window.useBS();
-  return React.useMemo(() => ({ ...base, DISPLAY: BS_CLEAN_SANS, HEAD: BS_CLEAN_HEAD }), [base]);
+  return React.useMemo(() => ({ ...base, DISPLAY: BS_CLEAN_SANS, BODY: BS_CLEAN_SANS, HEAD: BS_CLEAN_HEAD }), [base]);
 }
 
 // ⚠ The app's "regular" weight (tweaks.js, the default) steps every weight down with !important

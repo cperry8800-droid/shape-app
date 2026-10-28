@@ -45,20 +45,58 @@ test('every new face is a real subset, not an empty file', () => {
   }
 });
 
-test('the clean type names the two bundled faces', () => {
+test('the clean type names the two bundled faces, and sets every word in Inter Tight', () => {
   assert.match(CLEAN, /export const BS_CLEAN_HEAD = "'Geist',/);
   assert.match(CLEAN, /export const BS_CLEAN_SANS = "'Inter Tight',/);
+  // The theme's two word faces, DISPLAY and the system BODY a few lines take (Codex on #2488).
+  assert.match(CLEAN, /\{ \.\.\.base, DISPLAY: BS_CLEAN_SANS, BODY: BS_CLEAN_SANS, HEAD: BS_CLEAN_HEAD \}/);
 });
+
+// One top-level function of the client module, by its source.
+const fnBody = (name) => {
+  const from = CLIENT.slice(CLIENT.indexOf(`function ${name}(`));
+  return from.slice(0, from.indexOf('\n}\n'));
+};
+// A page's main return: the clean area opens under its top bars, holds its content and closes
+// before the footer; a shared sheet (BSSwapSheet) sits after it and keeps the app's own type.
+const mainReturn = (body) => body.slice(body.lastIndexOf('\n  return ('));
 
 test('the coach pages and the member Home share the one clean type', () => {
   assert.match(PROS, /import \{[^}]*\buseBSClean\b[^}]*\} from '\.\/bsCleanType\.jsx';/);
-  const home = CLIENT.slice(CLIENT.indexOf('function BSClientHome('));
-  const body = home.slice(0, home.indexOf('\n}\n'));
-  assert.match(CLIENT, /import \{ useBSClean, BSCleanType \} from '\.\/bsCleanType\.jsx';/);
+  assert.match(CLIENT, /import \{ useBSClean, BSCleanType\b[^}]*\} from '\.\/bsCleanType\.jsx';/);
+  const body = fnBody('BSClientHome');
   assert.match(body, /const t = useBSClean\(\);/, 'Home reads the clean theme');
   // The clean area opens below the top bars and closes before the footer, as on the coach's Today.
   const open = body.indexOf('<BSCleanType t={t}>');
   const close = body.indexOf('</BSCleanType>');
   assert.ok(open > body.indexOf('<BSNowPlaying') && open < body.indexOf('<BSHomeGoal'), 'the clean area starts under Shape Radio');
   assert.ok(close > body.indexOf('<BSShortcuts') && close < body.indexOf('<BSFooter'), 'the clean area ends before the footer');
+});
+
+test('Train and Eat set their pages in the clean type, under the header, and keep the swap sheet out', () => {
+  const train = fnBody('BSClientTrain');
+  assert.match(train, /const t = useBSClean\(\);/, 'Train reads the clean theme');
+  // The no-plan door and a failed plan read are Train too.
+  assert.equal(train.split('<BSCleanType t={t}>').length - 1, 3, 'the page, the Build door and the failed read');
+  const eat = fnBody('BSClientEat');
+  assert.match(eat, /const t = useBS\(\);/, "Eat's own t stays the app's: the grocery sheets read it");
+  assert.match(eat, /const tClean = useBSClean\(\);/);
+  for (const [name, body, tag] of [['Train', train, '<BSCleanType t={t}>'], ['Eat', eat, '<BSCleanType t={tClean}>']]) {
+    const page = mainReturn(body);
+    const open = page.indexOf(tag);
+    const close = page.indexOf('</BSCleanType>');
+    assert.ok(open > page.indexOf('<BSPageHeader') && open < page.indexOf('<BSWeekStrip'), `${name}: the clean area starts under the header`);
+    assert.ok(close > page.indexOf('<BSCoachPlaylists') && close < page.indexOf('<BSFooter'), `${name}: the clean area ends before the footer`);
+    assert.ok(page.indexOf('<BSSwapSheet', close) > close, `${name}: the swap sheet sits outside the clean area`);
+  }
+  // A sheet portalled out of a clean area carries its mark, or its weights step down (Codex on #2488):
+  // the coach playlists' preview on Train and Eat, and Home's check-in and water sheets.
+  assert.match(fnBody('BSPlaylistCard'), /createPortal\(bsCleanSheet\(t,/, "the playlist preview loses the clean weights");
+  for (const f of ['BSCheckinCard', 'BSWaterLine']) {
+    const src = readFileSync(new URL(`../mobile-app/src/broadsheet/${f}.jsx`, import.meta.url), 'utf8');
+    assert.match(src, /createPortal\(bsCleanSheet\(t, sheet\), host\)/, `${f}'s sheet loses the clean weights`);
+  }
+  // Eat's tabs are the Grocery page's too, so they stay outside with the header.
+  const eatPage = mainReturn(eat);
+  assert.ok(eatPage.indexOf('<BSNutritionTopTabs') < eatPage.indexOf('<BSCleanType'), "Eat's tabs keep the app's type");
 });
