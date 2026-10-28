@@ -275,7 +275,12 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
   const c = tierOf(d).color;
   const coach = d.role !== "client";
   const Visual = direction === "terrain" ? TerrainVisual : SignalVisual;
-  const cover = d.custom && d.custom.cover && d.custom.cover.image;
+  // The cover loads on the device of everyone who opens the profile, so it shows only as the
+  // owner's own upload or listing photo (bsProfileCover, bound to the profile's owner, d.uid): an
+  // outside URL in the doc is no cover. No guard loaded yet is no cover either.
+  const coverLib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
+  const coverOk = (coverLib && coverLib.bsProfileCover) ? coverLib.bsProfileCover(d.custom && d.custom.cover, d.uid) : null;
+  const cover = coverOk ? coverOk.image : null;
   return (
     <div style={{ position: "relative" }}>
       {cover && (
@@ -944,18 +949,13 @@ function dkLinkHref(key, val) {
   if (host && (low === host || low.startsWith(host + "/"))) return "https://" + v;
   return "https://" + (pre ? pre + v : v);
 }
-// Storage-key extension from the file's MIME type (sanitized), NOT its filename —
-// a JPEG saved as ".jfif" / with no extension would otherwise yield a public URL
-// whose suffix bsOwnMediaUrl's image allowlist rejects, so the wall photo the user
-// just added is SILENTLY dropped at save. Mirrors the canonical community uploader.
-function dkImgExt(file) {
-  return (((file && file.type && file.type.split("/")[1]) || "jpg").replace(/[^a-z0-9]/gi, "") || "jpg");
-}
-// The WALL must land on an extension bsOwnMediaUrl's image allowlist accepts, or
-// the normalizer drops it at save (orphaning the upload). Map the supported image
-// MIME types to their canonical suffix; anything else (svg → "svgxml", avif, bmp…)
-// returns null and is rejected BEFORE upload, so we never orphan a blob the wall
-// would then refuse.
+// The WALL and the COVER must land on an extension bsOwnMediaUrl's image allowlist
+// accepts, or the guard drops them (the wall at save, the cover at render) and the
+// upload is orphaned. The key's extension comes from the file's MIME type, NOT its
+// filename (a JPEG saved as ".jfif" would otherwise be refused): map the supported
+// image MIME types to their canonical suffix; anything else (svg → "svgxml", avif,
+// bmp…) returns null and is rejected BEFORE upload, so we never orphan a blob the
+// profile would then refuse to show.
 const DK_WALL_MIME = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/pjpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "image/heic": "heic", "image/heif": "heif" };
 function dkWallExt(file) { return (file && DK_WALL_MIME[String(file.type || "").toLowerCase()]) || null; }
 function ProfileExtras({ d, owner, coach = false, custom = null, onEdit }) {
@@ -1291,11 +1291,15 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   const [err, setErr] = React.useState("");
   const onCoverFile = async (e) => {
     const file = e && e.target && e.target.files && e.target.files[0]; if (e && e.target) e.target.value = "";
-    if (!file) return; setCoverBusy(true);
+    if (!file) return;
+    // Only the types the cover guard keeps (bsProfileCover), as for the wall.
+    const ext = dkWallExt(file);
+    if (!ext) { alert("Pick a JPG, PNG, WebP, GIF, HEIC or HEIF image."); return; }
+    setCoverBusy(true);
     try {
       const cl = window.shapeDb && window.shapeDb.client;
       const { data: u } = await cl.auth.getUser();
-      const path = `${u.user.id}/cover-${Date.now()}.${dkImgExt(file)}`;
+      const path = `${u.user.id}/cover-${Date.now()}.${ext}`;
       const up = await cl.storage.from("community-photos").upload(path, file, { upsert: true, contentType: file.type });
       if (up.error) throw up.error;
       const { data: pub } = cl.storage.from("community-photos").getPublicUrl(path);
