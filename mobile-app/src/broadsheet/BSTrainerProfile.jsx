@@ -182,8 +182,12 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const points = live && Number.isFinite(live.points) ? live.points : null;
   const tierKey = points != null && W.bsTierForPoints ? W.bsTierForPoints(points) : (person.tier || 'base');
   const tierName = W.bsCoachTier ? W.bsCoachTier(tierKey) : '';
-  const photoHook = W.useBSProfilePhoto ? W.useBSProfilePhoto(person, isSelf) : { photo: person.photo || null, fileRef: null, onPick: null };
-  const avatar = (isSelf && W.ShapeIdentity?.avatarMode === 'initials') ? null : (photoHook.photo || (live && live.avatar) || person.photo || null);
+  // The demo shows the signed-out persona's photo and reads or saves no account's (Codex P2 on
+  // #2486): the hook is asked as for a visitor, which reads nothing and offers no picker.
+  const photoHook = W.useBSProfilePhoto ? W.useBSProfilePhoto(person, isSelf && !demo) : { photo: person.photo || null, fileRef: null, onPick: null };
+  const avatar = demo ? ((W.bsMyPhoto && W.bsMyPhoto()) || null)
+    : (isSelf && W.ShapeIdentity?.avatarMode === 'initials') ? null : (photoHook.photo || (live && live.avatar) || person.photo || null);
+  const canPickPhoto = isSelf && !demo;
   const initials = W.bsInitials ? W.bsInitials(name) : String(name).slice(0, 2).toUpperCase();
   const online = isSelf ? (W.bsAmLive ? W.bsAmLive() : false) : (W.bsIsUserOnline ? W.bsIsUserOnline(person.userId) : false);
   // As members read it (get_public_profile: the line in Settings → Edit profile), as the Signal
@@ -355,7 +359,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   return (
     <BSPage>
       <div data-trainer-profile="" style={{ color: INK, fontFamily: BODY, WebkitFontSmoothing: 'antialiased', minHeight: '100%', background: t.PAPER_BG }}>
-        {isSelf && photoHook.fileRef ? <input ref={photoHook.fileRef} type="file" accept="image/*" onChange={photoHook.onPick} style={{ display: 'none' }} /> : null}
+        {canPickPhoto && photoHook.fileRef ? <input ref={photoHook.fileRef} type="file" accept="image/*" onChange={photoHook.onPick} style={{ display: 'none' }} /> : null}
         {/* The wall: their photo, or their colour until they add one */}
         <div style={{ position: 'relative', height: `calc(${topPad} + ${wallH}px)`, overflow: 'hidden', background: wall ? '#111' : `linear-gradient(135deg, ${hexA(ACC, 0.42)}, ${t.PAPER2} 70%)` }}>
           {wall ? <img src={wall} alt={tr('profile:trainer.wallAlt', { defaultValue: "{name}'s wall photo", name: first })} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: FOCUS_POS[look.focus] || FOCUS_POS.center }} /> : null}
@@ -392,8 +396,8 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
         {/* The avatar over the wall's edge, and who they are */}
         <div style={{ position: 'relative', padding: `0 ${gutter}px` }}>
           <div style={{ position: 'absolute', left: gutter, top: -58, width: 108, height: 108 }}>
-            <button type="button" disabled={!isSelf} onClick={() => { if (isSelf && photoHook.fileRef?.current) photoHook.fileRef.current.click(); }} aria-label={isSelf ? tr('profile:trainer.changePhoto', { defaultValue: 'Change your photo' }) : name}
-              style={{ width: 108, height: 108, padding: 0, borderRadius: 99, border: `4px solid ${t.PAPER}`, background: t.PAPER2, overflow: 'hidden', cursor: isSelf ? 'pointer' : 'default', display: 'grid', placeItems: 'center', boxSizing: 'border-box' }}>
+            <button type="button" disabled={!canPickPhoto} onClick={() => { if (canPickPhoto && photoHook.fileRef?.current) photoHook.fileRef.current.click(); }} aria-label={canPickPhoto ? tr('profile:trainer.changePhoto', { defaultValue: 'Change your photo' }) : name}
+              style={{ width: 108, height: 108, padding: 0, borderRadius: 99, border: `4px solid ${t.PAPER}`, background: t.PAPER2, overflow: 'hidden', cursor: canPickPhoto ? 'pointer' : 'default', display: 'grid', placeItems: 'center', boxSizing: 'border-box' }}>
               {avatar ? <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} /> : <span style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 600, color: INK }}>{initials}</span>}
             </button>
             {online ? <span aria-label={tr('profile:trainer.online', { defaultValue: 'Online now' })} style={{ position: 'absolute', right: 6, bottom: 6, width: 18, height: 18, borderRadius: 99, background: '#34d6c5', border: `3px solid ${t.PAPER}`, boxSizing: 'border-box' }} /> : null}

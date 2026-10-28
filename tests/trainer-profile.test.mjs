@@ -417,18 +417,37 @@ function countCalls() {
 }
 const demoTrainer = { who: 'Jordan Chen', kind: 'TRAINER' };
 const demoPage = () => page({ person: demoTrainer, isSelf: true });
+// The client's own helpers, as the real bundle has them signed out: the signed-out persona's name
+// and photo, and the profile-photo hook, which reads the account's identity when asked for a self
+// page (Codex P1 and P2 on #2486). `photoReads` counts those reads.
+function asClient() {
+  const had = { bsMyName: window.bsMyName, bsMyPhoto: window.bsMyPhoto, useBSProfilePhoto: window.useBSProfilePhoto };
+  const photoReads = [];
+  window.bsMyName = () => (world.me ? 'Maya Okafor' : 'Quinn Harper');
+  window.bsMyPhoto = () => (world.me ? null : '/m/demo-avatar.png');
+  window.useBSProfilePhoto = (person, isSelf) => {
+    React.useEffect(() => { if (isSelf) photoReads.push('client_identity'); }, [isSelf]);
+    return { photo: person.photo || null, fileRef: React.useRef(null), onPick: () => {} };
+  };
+  return { photoReads, restore: () => Object.assign(window, had) };
+}
 
 test('signed out, the trainer\'s own page is the new profile with sample content, and reads nothing from Shape', async () => {
   reset({ me: null });
   const spy = countCalls();
+  const client = asClient();
   try {
     const m = await mount(demoPage());
-    assert.equal(document.querySelector('img[alt="Jordan\'s wall photo"]').getAttribute('src'), '/m/demo/box-cover.webp', 'the wall photo');
+    assert.match(m.text(), /Quinn Harper\./, 'the signed-out persona, as everywhere else in the app');
+    assert.equal(document.querySelector('img[alt="Quinn\'s wall photo"]').getAttribute('src'), '/m/demo/box-cover.webp', 'the wall photo');
+    const avatarBtn = document.querySelector('img[src="/m/demo-avatar.png"]').closest('button');
+    assert.ok(avatarBtn.disabled, 'the persona\'s photo, with no picker');
+    assert.ok(!document.querySelector('input[type="file"]'), 'no photo upload in the demo');
     assert.match(m.text(), /Strength and conditioning · Iron & Ordinary/);
     assert.match(m.text(), /Portland, OR/);
     assert.match(m.text(), /Get strong, move well/);
     assert.match(m.text(), /9\.9\/10 from 284 reviews/);
-    assert.ok(button(/^Jordan's day$/), 'no pronouns: the words go by the first name');
+    assert.ok(button(/^Quinn's day$/), 'no pronouns: the words go by the first name');
     // A week of open and busy times: some day in it has both, and none can be taken from here.
     const days = [...document.querySelectorAll('[role="group"] button')];
     let both = false;
@@ -439,7 +458,7 @@ test('signed out, the trainer\'s own page is the new profile with sample content
       if (open.length && document.querySelector('[data-busy-time]')) both = true;
     }
     assert.ok(both, 'a day with open and busy times');
-    await click(button(/^Ways to work with Jordan/));
+    await click(button(/^Ways to work with Quinn/));
     assert.equal(document.querySelector('[data-coaching-block]').textContent, 'Monthly coaching $180');
     await click(button(/^Close$/));
     await click(button(/^The studio$/));
@@ -462,12 +481,14 @@ test('signed out, the trainer\'s own page is the new profile with sample content
     assert.match(m.text(), /Priya S\./);
     await m.unmount();
     assert.deepEqual(spy.calls, [], 'no read or write reached Shape');
-  } finally { spy.restore(); }
+    assert.deepEqual(client.photoReads, [], 'nor the account\'s photo');
+  } finally { spy.restore(); client.restore(); }
 });
 
 test('Make it yours in the demo changes the page on screen, saves nothing, and asks to sign in to upload', async () => {
   reset({ me: null });
   const spy = countCalls();
+  const client = asClient();
   try {
     const m = await mount(demoPage());
     await click(button(/^Make it yours$/));
@@ -483,13 +504,13 @@ test('Make it yours in the demo changes the page on screen, saves nothing, and a
     assert.match(m.text(), /A sample page: your changes show here until you leave\./);
     await click(document.querySelector('[data-save-mine]'));
     assert.ok(!document.querySelector('[data-make-it-yours]'), 'Save closes the editor');
-    assert.equal(document.querySelector('img[alt="Jordan\'s wall photo"]').getAttribute('src'), '/m/demo/studio-01.webp', 'the new wall photo');
+    assert.equal(document.querySelector('img[alt="Quinn\'s wall photo"]').getAttribute('src'), '/m/demo/studio-01.webp', 'the new wall photo');
     const probe = document.createElement('div'); probe.style.background = window.makePalette({ paperMode: 'sage', accentKey: 'teal' }).PAPER_BG;
     assert.equal(document.querySelector('[data-trainer-profile]').style.background, probe.style.background, 'and the new paper');
     await m.unmount();
     assert.equal(world.saved, null);
     assert.deepEqual(spy.calls, [], 'nothing read or written');
-  } finally { spy.restore(); }
+  } finally { spy.restore(); client.restore(); }
 });
 
 test('a page opened for an account, or with one signed in, is never the demo', async () => {
