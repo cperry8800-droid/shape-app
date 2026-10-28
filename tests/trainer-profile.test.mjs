@@ -703,3 +703,43 @@ test('the reviews are on the page: the newest, each a card, and All reviews open
   assert.ok(!document.querySelector('[data-reviews-strip]'));
   await m.unmount();
 });
+
+test('a reader who isn\'t a member sees the rating and Join to read them, never a review', async () => {
+  // As the server answers a non-member (owner, 2026-10-28: members read the reviews, "Rating only").
+  const had = window.ShapeCoachReviews.forOwner;
+  const hadReq = window.bsRequireAccount, hadCheckout = window.bsStartPlatformCheckout;
+  const calls = [];
+  window.ShapeCoachReviews.forOwner = async () => ({ reviews: [], locked: true, avg: 9.4, count: 12 });
+  window.bsStartPlatformCheckout = () => calls.push('checkout');
+  try {
+    reset();
+    let m = await mount(page());
+    const strip = document.querySelector('[data-reviews-strip][data-reviews-locked]');
+    assert.ok(strip, 'the strip says so');
+    assert.match(strip.textContent, /What clients say.*9\.4\/10 from 12 reviews.*Members read the reviews\..*Join to read them/s);
+    assert.equal(document.querySelectorAll('[data-review-card]').length, 0);
+    // A guest is asked for an account first, and goes no further.
+    window.bsRequireAccount = (label) => { calls.push(`account:${label}`); return false; };
+    await click(strip.querySelector('[data-reviews-join]'));
+    assert.deepEqual(calls, ['account:read the reviews']);
+    // A signed-in non-member goes to the membership checkout.
+    window.bsRequireAccount = () => true;
+    await click(strip.querySelector('[data-reviews-join]'));
+    assert.deepEqual(calls, ['account:read the reviews', 'checkout']);
+    // The full list says the same.
+    await click(button(/9\.4\/10 from 12 reviews/));
+    const dlg = document.querySelector('[role="dialog"]');
+    assert.match(dlg.textContent, /Members read the reviews\..*Join to read them/s);
+    assert.doesNotMatch(dlg.textContent, /No reviews yet/);
+    await m.unmount();
+    // Locked with no reviews at all is just no reviews.
+    window.ShapeCoachReviews.forOwner = async () => ({ reviews: [], locked: true, avg: 0, count: 0 });
+    reset();
+    m = await mount(page());
+    assert.ok(!document.querySelector('[data-reviews-strip]'));
+    await m.unmount();
+  } finally {
+    window.ShapeCoachReviews.forOwner = had;
+    window.bsRequireAccount = hadReq; window.bsStartPlatformCheckout = hadCheckout;
+  }
+});

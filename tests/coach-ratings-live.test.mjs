@@ -268,8 +268,11 @@ test('locked: each reviews list says members read them, with the rating, and off
     const block = src.slice(src.lastIndexOf('revLocked &&', at), at + 1200)
     assert.match(block, /revLocked && (revAgg|liveAgg) && (revAgg|liveAgg)\.count > 0/, `${file}: only when there are reviews to read`)
     assert.match(block, /tr\('marketplace:listing\.reviewsMembers'/)
-    assert.match(block, /if \(window\.bsRequireAccount && !window\.bsRequireAccount\(tr\('marketplace:listing\.reviewsJoin'[^)]*\)\)\) return; window\.ShapeMembershipApi\?\.startCheckout\?\.\(\);/)
+    assert.match(block, /if \(window\.bsRequireAccount && !window\.bsRequireAccount\(tr\('marketplace:listing\.reviewsJoin'[^)]*\)\)\) return; (window\.)?bsStartPlatformCheckout(\?\.)?\(\);/)
   }
+  // The app's one membership checkout (its errors, an existing member, a lost session), on window
+  // for the marketplace and trainer-profile modules.
+  assert.match(read(APP), /Object\.assign\(window, \{[^}]*\bbsStartPlatformCheckout \}\);/)
   // The website's living profile: the same line, and the membership page.
   const web = read('public/newdesign/livingShared.jsx')
   assert.ok(web.includes('setRevLocked(j.locked === true);'))
