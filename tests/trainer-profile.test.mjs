@@ -668,6 +668,8 @@ test('a demo saved in Make it yours keeps only what was changed, so the studio s
     assert.equal(document.querySelector('[data-trainer-profile]').style.background, probe.style.background, 'and the saved paper stays');
     await m.unmount();
   } finally { window.ShapeLocale = hadLocale; window.ShapeI18n.t = hadT; client.restore(); }
+});
+
 test('the reviews are on the page: the newest, each a card, and All reviews opens the list', async () => {
   // Leah's sample reviews, and a coach with an account's own.
   reset({ me: 'u-me', byId: leahRow, slots: [] });
