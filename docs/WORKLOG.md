@@ -119,8 +119,8 @@ dated entry or past 20 KB.
 - **App copy** goes through `useShapeTr()` in all 13 locales;
   `tests/i18n-surface-inventory.test.mjs` counts the untranslated strings.
 - **Backend touchpoints:**
-  - Reviews: a member reads the words; others get `locked` and the rating
-    (`/api/coaches/reviews`, `coach_review_ratings()`).
+  - Reviews: a member reads the words, in the API and the table's policy; others get `locked`
+    and the rating (`/api/coaches/reviews`, `coach_review_ratings()`).
   - `src/app/api/nutrition/meal-note/route.ts` sends a meal note, memo or photo to
     linked coaches through the private `meal-notes` bucket.
   - `src/app/api/nutrition/voice/route.ts` does Whisper transcription.
