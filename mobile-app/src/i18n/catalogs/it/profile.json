@@ -543,6 +543,7 @@
   "mine.add": "Aggiungi",
   "mine.staplesFull": "Fino a {count} scorte.",
   "mine.errRecipeOpen": "Prima finisci la ricetta che stai scrivendo: Fatto o Annulla.",
+  "mine.errRecipeNum": "{field}: inserisci un numero da {min} a {max}.",
   "mine.noRecipes": "Ancora nessuna ricetta. Scrivi quelle che dai ai clienti, o incollane una.",
   "mine.pasteAI": "Impaginata dall’IA dal testo incollato. Controlla ogni riga.",
   "mine.pasteFailed": "Lì dentro non c’è una ricetta. Compilala a mano.",

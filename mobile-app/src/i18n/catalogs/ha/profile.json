@@ -543,6 +543,7 @@
   "mine.add": "Ƙara",
   "mine.staplesFull": "Har zuwa kayan masarufi {count}.",
   "mine.errRecipeOpen": "Ka fara gama girkin da kake rubutawa: An gama ko Soke.",
+  "mine.errRecipeNum": "{field}: shigar da lamba daga {min} zuwa {max}.",
   "mine.noRecipes": "Babu girke-girke tukuna. Rubuta waɗanda kake ba abokan hulɗa, ko ka liƙa ɗaya.",
   "mine.pasteAI": "AI ta tsara shi daga abin da ka liƙa. Duba kowane layi.",
   "mine.pasteFailed": "Ba a sami girki a ciki ba. Cika shi da hannu.",

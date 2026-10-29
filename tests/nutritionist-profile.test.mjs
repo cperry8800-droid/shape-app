@@ -675,6 +675,38 @@ test('Make it yours: a paste read or a photo upload that lands after Cancel chan
   }
 });
 
+test('Make it yours: a recipe number out of its range keeps the form open and says which (Codex P2 on #2497)', async () => {
+  reset({ me: 'u-nadia', stored: {} });
+  const m = await mount(page({ isSelf: true }));
+  try {
+    await click(button(/^Make it yours$/));
+    await click(button(/^Your kitchen$/));
+    await click(document.querySelector('[data-write-recipe]'));
+    await type(document.querySelector('[data-recipe-title]'), 'Big batch chili');
+    await type(document.querySelector('[data-recipe-num="serves"]'), '25');
+    await click(document.querySelector('[data-recipe-done]'));
+    assert.match(m.text(), /Serves: enter a number from 1 to 24\./);
+    assert.ok(document.querySelector('[data-recipe-form]'), 'still open, nothing dropped');
+    await type(document.querySelector('[data-recipe-num="serves"]'), '0.4');
+    await click(document.querySelector('[data-recipe-done]'));
+    assert.match(m.text(), /Serves: enter a number from 1 to 24\./, 'rounds to 0, below the range');
+    await type(document.querySelector('[data-recipe-num="serves"]'), '8');
+    await type(document.querySelector('[data-recipe-num="kcal"]'), '3001');
+    await click(document.querySelector('[data-recipe-done]'));
+    assert.match(m.text(), /kcal: enter a number from 0 to 3000\./);
+    await type(document.querySelector('[data-recipe-num="kcal"]'), '1.2.3');
+    await click(document.querySelector('[data-recipe-done]'));
+    assert.match(m.text(), /kcal: enter a number from 0 to 3000\./, 'not a number either');
+    await type(document.querySelector('[data-recipe-num="kcal"]'), '0');
+    await type(document.querySelector('[data-recipe-num="min"]'), '600');
+    await click(document.querySelector('[data-recipe-done]'));
+    assert.ok(!document.querySelector('[data-recipe-form]'), 'the ends of each range are kept');
+    await click(document.querySelector('[data-save-mine]'));
+    const r = world.saved.d.kitchen.recipes[0];
+    assert.deepEqual([r.t, r.serves, r.kcal, r.min], ['Big batch chili', 8, 0, 600]);
+  } finally { await m.unmount(); }
+});
+
 test('a seeded nutritionist listing is a sample: its listing by id, a sample kitchen and plate notes, times never taken', async () => {
   const rae = { who: 'Rae Lindqvist', kind: 'NUTRI', providerId: 52, city: 'Remote', bio: 'Plant-forward fuelling.', specialty: 'Plant-based nutrition Vegan', rating10: 9.8 };
   reset({ me: 'u-me', byId: { id: 52, owner_id: null, name: 'Rae Lindqvist', price: 110, specialty: 'Plant-based nutrition', credential: 'RD', verified: false, listing_media: { cover: null, gallery: [] }, monthly_offer: null }, slots: [] });

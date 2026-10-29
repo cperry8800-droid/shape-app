@@ -543,6 +543,7 @@
   "mine.add": "Add",
   "mine.staplesFull": "Up to {count} staples.",
   "mine.errRecipeOpen": "Finish the recipe wey you dey write first: Done or Cancel.",
+  "mine.errRecipeNum": "{field}: put number from {min} reach {max}.",
   "mine.noRecipes": "No recipe yet. Write the ones wey you dey give clients, or paste one.",
   "mine.pasteAI": "AI don arrange am from wetin you paste. Check every line.",
   "mine.pasteFailed": "We no see recipe for there. Fill am by hand.",

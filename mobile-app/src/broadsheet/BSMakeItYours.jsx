@@ -4,7 +4,7 @@ import {
   BS_LOOK_PAPERS, BS_LOOK_ACCENTS, BS_STUDIO_ITEMS_MAX, BS_STUDIO_STATIONS_MAX, BS_STUDIO_WHERE_MAX, BS_STUDIO_LABEL_MAX,
   BS_STATION_TITLE_MAX, BS_STATION_NOTE_MAX, bsProfileLook, bsProfileStudio, bsProfileCover, bsNormalizeProfileCustom,
   BS_KITCHEN_RULES_MAX, BS_KITCHEN_RULE_MAX, BS_KITCHEN_STAPLES_MAX, BS_STAPLE_MAX, BS_KITCHEN_RECIPES_MAX, BS_RECIPE_TITLE_MAX, BS_RECIPE_NOTE_MAX,
-  BS_RECIPE_INGS_MAX, BS_RECIPE_ING_MAX, BS_RECIPE_QTY_MAX, BS_RECIPE_STEPS_MAX, BS_RECIPE_STEP_MAX, bsKitchenRecipeItem, bsProfileKitchen,
+  BS_RECIPE_INGS_MAX, BS_RECIPE_ING_MAX, BS_RECIPE_QTY_MAX, BS_RECIPE_STEPS_MAX, BS_RECIPE_STEP_MAX, BS_RECIPE_NUMS, bsKitchenRecipeItem, bsProfileKitchen,
 } from '../services/profileCustom.mjs';
 import { bsSplitPaste } from '../services/clientRecipes.mjs';
 import {
@@ -439,7 +439,7 @@ function nudgePlate(plate, key, by) {
   return owe ? plate : next;
 }
 const KITCHEN_PARTS = [['recipes', 'secRecipes', 'Recipes'], ['plate', 'secPlate', 'Plate'], ['staples', 'secStaples', 'Staples']];
-// A recipe's numbers as the form asks for them: [key, label key, English, max].
+// A recipe's numbers as the form asks for them: [key, label key, English]. Their ranges are BS_RECIPE_NUMS.
 const RECIPE_NUM_FIELDS = [['min', 'profile:mine.recipeMin', 'Minutes'], ['serves', 'nutrition:myRecipe.servings', 'Serves'], ['kcal', 'profile:mine.recipeKcal', 'kcal'], ['p', 'profile:mine.recipeP', 'Protein (g)'], ['c', 'profile:mine.recipeC', 'Carbs (g)'], ['f', 'profile:mine.recipeF', 'Fat (g)']];
 const newRecipeId = () => (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).replace(/[^a-z0-9]/g, '').slice(0, 24);
 // A stored recipe as the form edits it (every number as text), and back.
@@ -521,6 +521,18 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel 
     if (url) set({ photo: url }, forId);
   };
   const done = () => {
+    // The save keeps only a whole number in its range and drops anything else without a
+    // word, so a number it would drop keeps the form open and says which one.
+    const bad = RECIPE_NUM_FIELDS.find(([k]) => {
+      if (!String(draft[k] || '').trim()) return false;
+      const n = wholeOf(draft[k]);
+      return n === undefined || n < BS_RECIPE_NUMS[k][0] || n > BS_RECIPE_NUMS[k][1];
+    });
+    if (bad) {
+      const [k, key, en] = bad;
+      setNote(['err', tr('profile:mine.errRecipeNum', { defaultValue: '{field}: enter a number from {min} to {max}.', field: tr(key, { defaultValue: en }), min: BS_RECIPE_NUMS[k][0], max: BS_RECIPE_NUMS[k][1] })]);
+      return;
+    }
     const r = bsRecipeFromDraft(draft, owner);
     if (!r) { setNote(['err', tr('nutrition:myRecipe.errNoName', { defaultValue: 'Give it a name first.' })]); return; }
     onDone(r);

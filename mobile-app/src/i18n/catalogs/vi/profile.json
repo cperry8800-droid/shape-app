@@ -543,6 +543,7 @@
   "mine.add": "Thêm",
   "mine.staplesFull": "Tối đa {count} đồ dự trữ.",
   "mine.errRecipeOpen": "Hãy hoàn tất công thức bạn đang viết trước: Xong hoặc Hủy.",
+  "mine.errRecipeNum": "{field}: nhập một số từ {min} đến {max}.",
   "mine.noRecipes": "Chưa có công thức nào. Viết những công thức bạn đưa cho khách hàng, hoặc dán một công thức vào.",
   "mine.pasteAI": "AI đã sắp xếp từ nội dung bạn dán. Hãy kiểm tra từng dòng.",
   "mine.pasteFailed": "Không tìm thấy công thức trong đó. Hãy tự điền.",

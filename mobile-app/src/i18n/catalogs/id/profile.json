@@ -543,6 +543,7 @@
   "mine.add": "Tambah",
   "mine.staplesFull": "Hingga {count} bahan pokok.",
   "mine.errRecipeOpen": "Selesaikan dulu resep yang sedang kamu tulis: Selesai atau Batal.",
+  "mine.errRecipeNum": "{field}: masukkan angka dari {min} sampai {max}.",
   "mine.noRecipes": "Belum ada resep. Tulis resep yang kamu berikan ke klien, atau tempel satu.",
   "mine.pasteAI": "Disusun oleh AI dari teks yang kamu tempel. Periksa setiap baris.",
   "mine.pasteFailed": "Tidak ada resep yang ditemukan di situ. Isi secara manual.",

@@ -543,6 +543,7 @@
   "mine.add": "Hinzufügen",
   "mine.staplesFull": "Bis zu {count} Vorräte.",
   "mine.errRecipeOpen": "Schließ erst das Rezept ab, an dem du schreibst: Fertig oder Abbrechen.",
+  "mine.errRecipeNum": "{field}: Gib eine Zahl von {min} bis {max} ein.",
   "mine.noRecipes": "Noch keine Rezepte. Schreib die, die du Klienten gibst, oder füg eins ein.",
   "mine.pasteAI": "Von der KI aus deinem eingefügten Text aufgeteilt. Prüf jede Zeile.",
   "mine.pasteFailed": "Darin war kein Rezept zu finden. Füll es von Hand aus.",

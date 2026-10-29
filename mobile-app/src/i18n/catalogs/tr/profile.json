@@ -543,6 +543,7 @@
   "mine.add": "Ekle",
   "mine.staplesFull": "En fazla {count} temel malzeme.",
   "mine.errRecipeOpen": "Önce yazdığın tarifi bitir: Tamam ya da Vazgeç.",
+  "mine.errRecipeNum": "{field}: {min} ile {max} arasında bir sayı gir.",
   "mine.noRecipes": "Henüz tarif yok. Danışanlarına verdiklerini yaz ya da bir tarif yapıştır.",
   "mine.pasteAI": "Yapıştırdığın metinden yapay zekâ düzenledi. Her satırı kontrol et.",
   "mine.pasteFailed": "Bunda bir tarif bulunamadı. Elle doldur.",

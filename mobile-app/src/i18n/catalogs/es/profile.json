@@ -543,6 +543,7 @@
   "mine.add": "Añadir",
   "mine.staplesFull": "Hasta {count} básicos.",
   "mine.errRecipeOpen": "Termina primero la receta que estás escribiendo: Listo o Cancelar.",
+  "mine.errRecipeNum": "{field}: escribe un número del {min} al {max}.",
   "mine.noRecipes": "Aún no hay recetas. Escribe las que das a tus clientes o pega una.",
   "mine.pasteAI": "Ordenada por IA a partir de lo que pegaste. Revisa cada línea.",
   "mine.pasteFailed": "No encontramos una receta ahí. Rellénala a mano.",
