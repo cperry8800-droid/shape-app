@@ -616,6 +616,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Coaches who share a client see both schedules; existing pairs are told — #2499. One migration, for the owner to run',
+      items: [
+        { label: 'Owner, 2026-10-29: "Have the ability for trainers and nutritionists to see both schedules if they have a shared client", then "Apply to existing pairs as well"', status: 'done' },
+        { label: 'CARE TEAM on the coach\'s client page (app and website) gains See both schedules, shown when a coach of the other discipline is on the client. It opens that client\'s calendar (BSCalendarScreen with clientId; the website\'s CalendarOverlay with clientId), read only: no Add, no actions on the other coach\'s bookings (mine: false), the member\'s own entries not editable, and the other coach\'s items naming them (by)', status: 'done' },
+        { label: '/api/calendar?clientId= (clientView): that client\'s bookings only (it listed every booking the coach has), and the other discipline\'s plan from two definers in 2026-10-29-shared-client-schedules.sql. get_shared_client_workouts answers a nutritionist on the client with the published workouts of trainers who coach them now, with their newest finished runs so a done workout reads done; get_shared_client_meal_plan answers a trainer with the newest published menu of a nutritionist who coaches them now, each meal\'s slot, title, time and kcal (no ingredients, steps or notes)', status: 'done' },
+        { label: 'The same migration tells every pair that already shares a client once (the #2496 notice, dedupe shared:existing:<client>:<other coach>), skipping a pair the code already told. Production on 2026-10-29: no client with two coaches, so it sends nothing yet', status: 'done' },
+        { label: 'Review: Codex clean on 3812fa8. Checks: npm test in the hook 8,778/8,778; tests/shared-client-schedules.test.mjs (9) on the real route, five hand mutations each caught; the migration applied twice on a scratch Postgres 16 with every caller checked; CI\'s four jobs green', status: 'done' },
+        { label: 'OWNER: run supabase-migrations/2026-10-29-shared-client-schedules.sql on Supabase. Until it runs, a shared client\'s calendar shows each coach only their own plan', status: 'manual' },
+        { label: 'OWNER: with a trainer and a nutritionist on one client, open See both schedules on a phone and on the website from each side', status: 'manual' },
+        { label: 'A second coach of the same discipline on a client still sees only their own workouts or menu there (the ask was trainer and nutritionist)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Coaches: both are told when they share a client — #2496. No migration',
       items: [
         { label: 'Owner, 2026-10-29: "Both coaches should be notified if they share a client". Coaches who shared one could already see each other (the Shared clients tab, the dashboard banner, the care team and its coach thread), but nothing told them it had happened', status: 'done' },
@@ -623,7 +636,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'shared_client, in the bell and by push, not by email: "Shared client: {client}" / "{client} now works with you and nutritionist {coach}. You can message each other in the care team on their client page." It opens the client in the app the reader coaches them from (client:<role>:<id>). Its own Shared clients switch on both coach settings screens; copy and switch in all 13 languages', status: 'done' },
         { label: 'Review: Codex clean on 092a23d. Checks: npm test in the hook (8,768/8,769: the one failure, a third hand-written status list, fixed with OPEN_SUB_STATUSES), then coach-thread (34, 4 new), coach-access-past-due and server-notices; CI\'s four jobs green', status: 'done' },
         { label: 'OWNER: on staging, with two coach accounts, have a member hire one and then the other; check both coaches get the notice in the bell and by push, that it opens the client\'s page with the care team, and that the Shared clients switch stops it', status: 'manual' },
-        { label: 'Coaches who already shared a client before this shipped get no notice; it starts with the next hire. The Shared clients tab and banner still list existing pairs', status: 'pending' },
+        { label: 'Coaches who already shared a client before this shipped are told by #2499\'s migration, once it runs', status: 'done' },
       ],
     },
     {
