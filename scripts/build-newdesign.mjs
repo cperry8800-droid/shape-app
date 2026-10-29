@@ -28,6 +28,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildClickVocab } from './click-vocab.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ND = path.join(ROOT, 'public', 'newdesign');
@@ -102,6 +103,14 @@ function withSourceMap(code, map, outName) {
 }
 
 if (!CHECK) fs.mkdirSync(OUT, { recursive: true });
+
+// The site's copy, for the click counts: public/click-capture.js counts a control under its
+// label only when the label is in this list, so data on a page (a name, a habit) never becomes
+// one. Written beside the compiled pages, from the same sources, so it is never stale. ⚠ Read
+// BEFORE the pages below are rewritten: their inline text/babel blocks leave the HTML then.
+const clickVocab = buildClickVocab(ROOT);
+if (!CHECK) fs.writeFileSync(path.join(OUT, 'click-vocab.json'), JSON.stringify(clickVocab));
+console.log(`newdesign click vocab: ${clickVocab.length} labels${CHECK ? ' (check only)' : ' -> nd/click-vocab.json'}`);
 
 // Compile each external .jsx once (several pages share pageShell/chatWidget).
 const compiledExternal = new Map(); // basename.jsx -> { out, v }

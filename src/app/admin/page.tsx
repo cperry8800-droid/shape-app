@@ -1,10 +1,12 @@
 // The admin console's Overview: Shape's numbers, analyst level and up, in views so no page is a
 // wall of numbers. The summary leads with what is waiting on the team, then the key numbers and the
-// last 30 days; Growth, Money, Coaching and Engagement hold the rest (OVERVIEW_VIEWS, ?view=).
+// last 30 days; Growth, Money, Coaching and Engagement hold the rest (OVERVIEW_VIEWS, ?view=), and
+// Clicks shows where people tap on the website and in the app (./ClicksView.tsx).
 //
 // One database call (admin_overview_stats, service role only) returns every number, and the
 // funnel comes from get_funnel, as on the War Room. src/lib/admin-overview.mjs turns both into
-// what this page draws, so the page itself only renders.
+// what this page draws, so the page itself only renders. The Clicks view makes its own call instead
+// (admin_click_stats, also service role only): daily totals of taps, never who tapped.
 //
 // Page views are Vercel Analytics' and payouts, disputes and tax are Stripe's: both are linked,
 // not copied, so the console never holds either service's keys.
@@ -17,6 +19,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { waitingCount } from '@/lib/admin-waiting';
 import { buildFunnel } from '@/lib/funnel.mjs';
 import type { FunnelRow } from '@/lib/funnel';
+import { clickFilters, clickStatsArgs, type ClickFilters } from '@/lib/admin-clicks.mjs';
 import {
   celebrationCounts,
   DAILY_CHARTS,
@@ -38,6 +41,7 @@ import {
   type OverviewSection,
   type OverviewTile,
 } from '@/lib/admin-overview.mjs';
+import ClicksView, { type ClicksResult } from './ClicksView';
 import { ADMIN_TIMEZONE, DISPLAY, EYEBROW, MONO, PAGE_TITLE, PANEL, Period, SectionHead } from './ui';
 
 export const metadata = { title: 'Overview — Shape Admin', robots: { index: false, follow: false } };
@@ -70,6 +74,16 @@ async function loadCelebrations(): Promise<CelebrationCounts | null> {
   }
 }
 
+async function loadClicks(filters: ClickFilters): Promise<ClicksResult> {
+  try {
+    const { data, error } = await createAdminClient().rpc('admin_click_stats', clickStatsArgs(filters, TIMEZONE));
+    const missing = Boolean(error && MISSING_FUNCTION.has(String(error.code)));
+    return { data: error ? null : data, missing, failed: Boolean(error && !missing) };
+  } catch {
+    return { data: null, missing: false, failed: true };
+  }
+}
+
 async function loadFunnel(): Promise<FunnelRow[] | null> {
   try {
     const to = new Date();
@@ -84,23 +98,31 @@ async function loadFunnel(): Promise<FunnelRow[] | null> {
   }
 }
 
-export default async function AdminOverviewPage({ searchParams }: { searchParams?: Promise<{ view?: string }> }) {
+export default async function AdminOverviewPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ view?: string; days?: string; surface?: string; who?: string }>;
+}) {
   let level: StaffLevel = 'analyst';
   try {
     level = (await requireStaff('analyst')).level;
   } catch {
     redirect('/login?next=/admin');
   }
-  const view = overviewView((await searchParams)?.view);
+  const params = await searchParams;
+  const view = overviewView(params?.view);
   const growth = view.key === 'growth';
+  const clicks = view.key === 'clicks';
+  const clickView = clickFilters(params);
 
   // The funnel and this week's birthdays are Growth's alone; the open account requests, the
-  // summary's (the same count as the sidebar's badge).
-  const [{ stats, missing, failed }, funnel, celebrations, accountRequests] = await Promise.all([
-    loadStats(),
+  // summary's (the same count as the sidebar's badge). Clicks reads only its own counts.
+  const [{ stats, missing, failed }, funnel, celebrations, accountRequests, clickResult] = await Promise.all([
+    clicks ? Promise.resolve({ stats: null, missing: false, failed: false }) : loadStats(),
     growth ? loadFunnel() : Promise.resolve(null),
     growth ? loadCelebrations() : Promise.resolve(null),
     view.key === 'summary' ? waitingCount('/admin/requests') : Promise.resolve(null),
+    clicks ? loadClicks(clickView) : Promise.resolve(null),
   ]);
   // A tile links only to a page this level opens ('/admin/members#birthdays' is the Members page).
   const openable = (t: OverviewTile) => (t.href && !canOpen(level, t.href.split(/[?#]/)[0]) ? { ...t, href: '' } : t);
@@ -195,6 +217,8 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
       )}
 
       {stats && view.key === 'engagement' && <ScoreTiers tiers={tierBreakdown(stats)} />}
+
+      {clickResult && <ClicksView filters={clickView} result={clickResult} />}
     </div>
   );
 }
@@ -298,14 +322,14 @@ function ViewCards({ sections }: { sections: OverviewSection[] }) {
   const titles = (keys: ReadonlyArray<string>) =>
     keys.map((k) => sections.find((s) => s.key === k)?.title).filter(Boolean).join(' · ');
   return (
-    <nav aria-label="The views" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <nav aria-label="The views" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {OVERVIEW_VIEWS.filter((v) => v.key !== 'summary').map((v) => (
         <Link key={v.key} href={viewHref(v.key)} className={`${PANEL} ${FOCUS} group flex flex-col gap-1.5 p-4 hover:border-accent/50 transition-colors`}>
           <span className={EYEBROW}>View</span>
           <span className={`${DISPLAY} text-xl font-light text-neutral-50`}>
             {v.label} <span aria-hidden="true" className="text-neutral-600 group-hover:text-accent transition-colors">→</span>
           </span>
-          <span className="text-xs text-neutral-500">{titles(v.sections)}</span>
+          <span className="text-xs text-neutral-500">{v.blurb ?? titles(v.sections)}</span>
         </Link>
       ))}
     </nav>

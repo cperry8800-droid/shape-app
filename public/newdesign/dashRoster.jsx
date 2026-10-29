@@ -862,6 +862,7 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
             role="button"
             tabIndex={0}
             aria-label={"Open " + rec.profile.name + " drilldown"}
+            data-track="Open client drilldown"
             style={{ display: "grid", gridTemplateColumns: view.cols, gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", cursor: "pointer" }}
           >
             {/* The pill WRAPS under the name rather than squeezing it: at the table's

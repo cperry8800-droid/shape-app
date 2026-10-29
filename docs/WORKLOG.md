@@ -84,24 +84,20 @@ dated entry or past 20 KB.
   in `src/app/fonts` (`next/font/local`, Latin only): `next/font/google` fetched at build.
 - **Mobile app: `mobile-app/`** (Capacitor/Vite SPA, served at `/m/`).
   - Build: from `mobile-app/`, run `VITE_BASE=/m/ npm run build`.
-  - `public/m` isn't committed: `scripts/build-m.sh` builds it at deploy (Vercel's
-    `buildCommand`). CI's Mobile job checks only that the bundle builds and its assets
-    resolve.
+  - `public/m` isn't committed: `scripts/build-m.sh` builds it at deploy (Vercel's `buildCommand`).
+    CI's Mobile job checks only that the bundle builds and its assets resolve.
   - Parse-check a JSX file:
     `node -e "require('@babel/parser').parse(require('fs').readFileSync('<file>','utf8'),{sourceType:'module',plugins:['jsx']})"`
-  - Native builds get `VITE_API_BASE_URL=https://theshapecommunity.com` from
-    `android-build.yml` and `codemagic.yaml`. The hosted `/m/` build calls its own
-    origin.
-  - Raise `mobile-app/package.json`'s version for each store release (CI sets the
-    build numbers). `src/lib/app-version.mjs` holds each store's minimum for
-    `BSUpdateGate.jsx`: raise it only in the PR that breaks older builds, once that
-    store has the new version live.
+  - Native builds get `VITE_API_BASE_URL=https://theshapecommunity.com` from `android-build.yml`
+    and `codemagic.yaml`. The hosted `/m/` build calls its own origin.
+  - Raise `mobile-app/package.json`'s version for each store release (CI sets the build numbers).
+    `src/lib/app-version.mjs` holds each store's minimum for `BSUpdateGate.jsx`: raise it only in
+    the PR that breaks older builds, once that store has the new version live.
 - **`iosAppBroadsheetClient.jsx`** is the member app (~38k lines): Home, Eat, Train,
   the logger, chat and settings. When a PR already touches a self-contained screen,
   move that screen into its own ES module. `BSIntegrationsPage.jsx` and
   `BSLeaderboard.jsx` show the pattern: read window globals at call time inside the
-  component, keep its own `useShapeTr()`, and never import back into the client
-  module.
+  component, keep its own `useShapeTr()`, and never import back into the client module.
 - **Coach profiles:** every trainer gets `BSTrainerProfile.jsx` (editor `BSMakeItYours.jsx`), with
   samples if no account (`trainerDemo.mjs`); nutritionists `BSSignalCoachProfile`.
 - **Other app modules:** `iosAppBroadsheetPros.jsx` (trainer and nutritionist apps),
@@ -120,9 +116,8 @@ dated entry or past 20 KB.
 - **Theme:** `useBS()` → `t`. Teal `t.isLight ? '#0a8f87' : '#34d6c5'`; nutritionists gold
   `#a07a2e`, trainers rust `#c0533b`. The Wall, chat and chrome take `bsMagazine.mjs`'s teal.
   Saira; coach Today/Clients/Programs and member Home/Train/Eat: Geist/Inter Tight.
-- **App copy** goes through `useShapeTr()` in all 13 locales.
-  `tests/i18n-surface-inventory.test.mjs` counts the strings that aren't translated
-  yet.
+- **App copy** goes through `useShapeTr()` in all 13 locales;
+  `tests/i18n-surface-inventory.test.mjs` counts the untranslated strings.
 - **Backend touchpoints:**
   - Reviews: a member reads the words; others get `locked` and the rating
     (`/api/coaches/reviews`, `coach_review_ratings()`).
@@ -134,8 +129,7 @@ dated entry or past 20 KB.
     both settings screens. A notice in the person's quiet hours is held for `/api/cron/push-held`.
   - `/api/calendar?activities=1` (member calendar only) adds activities: providers' copies
     within 20 min are one; a logged workout's folds into it; one ticks an open planned
-    workout of its day (undated: its week) and `workoutKind`, unless its title names no
-    kind or two.
+    workout of its day (undated: its week) and `workoutKind`, unless its title names no kind or two.
 
 ## Open items
 
@@ -154,9 +148,9 @@ The War Room has the full list; this covers what needs the owner and the planned
   (closing it means refunds).
 - In-app purchase outside the US (Phase 2) is on hold.
 - Decide how a suspended coach appeals.
-- Have counsel read the 2026-10-13 privacy policy text. The health-data page lists only the weekly
-  check-in, not the Morning check-in, readiness or patterns, and the data export leaves out Nora's
-  conversation and the stored readouts.
+- Have counsel read the 2026-10-13 privacy policy text, and say if §10 lists tap counts. The
+  health-data page lists only the weekly check-in, not the Morning check-in, readiness or patterns,
+  and the data export leaves out Nora's conversation and the stored readouts.
 - Make the direct-charges test purchase (#2403's Owner steps): in Stripe test mode, add the
   Connected accounts destination with `invoice.paid`, set both Connect variables under
   Vercel's Preview (the test-mode `ca_…`), then buy from a test coach on staging.
@@ -169,11 +163,10 @@ The War Room has the full list; this covers what needs the owner and the planned
 - Decide the bring-your-clients rules. A client brought to a coach at capacity comes
   through the waiting list and pays 15%. A purchase more than 30 days after the link
   was last opened pays 15%, though the card says brought clients pay no commission. A
-  private profile can't be opened from the link, and the app's checkout sends no
-  referral.
+  private profile can't be opened from the link, and the app's checkout sends no referral.
 - Add the `localhost` hostname to the Turnstile widget.
 - Get a native speaker to read the PAR-Q translations.
-- Run `2026-10-28-coach-reviews-members.sql` (till then anyone reads reviews).
+- Run `2026-10-29-click-counts-caps.sql`.
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing

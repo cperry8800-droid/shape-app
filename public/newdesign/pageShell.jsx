@@ -3106,6 +3106,20 @@ window.shapeClearLocalUserContent = function (opts) {
   } catch (e) {}
 })();
 
+// Where people tap (owner, 2026-10-28): the shell loads /click-capture.js on every page it renders,
+// so the admin Overview's Clicks tab counts taps on buttons and links (consent-gated, daily totals
+// only; see that file). The pages without the shell load it themselves.
+(function shapeClickCaptureLoader() {
+  if (typeof document === "undefined" || window.shapeClickCapture) return;
+  try {
+    if (document.querySelector('script[src="/click-capture.js"]')) return;
+    var s = document.createElement("script");
+    s.src = "/click-capture.js";
+    s.async = true;
+    document.head.appendChild(s);
+  } catch (e) {}
+})();
+
 (function shapeConsent() {
   if (typeof document === "undefined") return;
   // Resolves true only when a consent_log row was actually written (so callers
@@ -3151,12 +3165,12 @@ window.shapeClearLocalUserContent = function (opts) {
       // The EEA and the UK by device time zone: every Europe/* zone (slightly over-inclusive, which
       // fails safe), plus the EEA's zones outside Europe/* (the Canaries, Madeira, the Azores, Ceuta,
       // Cyprus, Iceland, Svalbard, and France's outermost regions; Codex on #2334). One list, written
-      // out in four files; tests/consent-region.test.mjs holds them equal.
+      // out in five files; tests/consent-region.test.mjs holds them equal.
       var CONSENT_REGION_RE = /^(?:Europe\/|(?:Atlantic\/(?:Canary|Madeira|Azores|Reykjavik|Jan_Mayen)|Africa\/Ceuta|Asia\/(?:Nicosia|Famagusta)|Arctic\/Longyearbyen|America\/(?:Guadeloupe|Martinique|Cayenne|Marigot)|Indian\/(?:Reunion|Mayotte))$)/;
       if (!CONSENT_REGION_RE.test(tz)) return;               // region-aware: show only for EEA/UK
       // ONE copy string, rendered AND recorded — the consent_log row must carry
       // the exact text the visitor was shown (house rule from the cycle wave).
-      var BANNER_COPY = "We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls whether we remember which link brought you to Shape, and the Shape app's first-party usage stats. See our Privacy Policy.";
+      var BANNER_COPY = "We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls whether we remember which link brought you to Shape, and Shape's first-party usage stats on this site and in the app. See our Privacy Policy.";
       function record(choice) {
         try { localStorage.setItem(KEY, choice); } catch (e) {}
         // The choice decides whether the link that brought this visitor is remembered: run the
@@ -3189,14 +3203,15 @@ window.shapeClearLocalUserContent = function (opts) {
       bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:var(--consent-bg,#1a1612);color:var(--consent-fg,#f2ede4);border-top:1px solid rgba(242,237,228,0.15);padding:15px 20px;font-family:'Space Grotesk',sans-serif;font-size:13.5px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;box-shadow:0 -10px 40px rgba(0,0,0,0.5)";
       var txt = document.createElement("span");
       txt.style.cssText = "flex:1;min-width:240px;line-height:1.5";
-      // Copy must describe what we actually do. The website's one consent-gated
-      // use is remembering the first link a visitor came from, for sign-up
-      // attribution (/signup-source.js, 2026-10-13). The Shape app on this same
-      // origin gates its first-party usage stats on the same choice
-      // (mobile-app analytics.js reads shape.consent.v1). Never promise
+      // Copy must describe what we actually do. The website's consent-gated
+      // uses are remembering the first link a visitor came from, for sign-up
+      // attribution (/signup-source.js, 2026-10-13), and counting taps on its
+      // buttons and links as daily totals (/click-capture.js, 2026-10-28). The
+      // Shape app on this same origin gates its first-party usage stats on the
+      // same choice (mobile-app analytics.js reads shape.consent.v1). Never promise
       // analytics a surface doesn't run, and never run one the copy leaves out.
       // KEEP IN SYNC with BANNER_COPY above (rendered text == recorded text).
-      txt.appendChild(document.createTextNode("We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls whether we remember which link brought you to Shape, and the Shape app's first-party usage stats. See our "));
+      txt.appendChild(document.createTextNode("We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls whether we remember which link brought you to Shape, and Shape's first-party usage stats on this site and in the app. See our "));
       var pl = document.createElement("a"); pl.href = "/privacy.html"; pl.textContent = "Privacy Policy"; pl.style.color = "var(--consent-link,#2ee0c4)";
       txt.appendChild(pl); txt.appendChild(document.createTextNode("."));
       bar.appendChild(txt);
