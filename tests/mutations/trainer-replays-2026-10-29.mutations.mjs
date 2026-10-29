@@ -117,6 +117,6 @@ export default {
     { name: 'composer: a new post ignores the kind asked for', file: CLIENT,
       find: ": (['note', 'photo', 'video', 'workout', 'milestone', 'link'].includes(startKind) ? startKind : 'note');", replace: ": 'note';" },
     { name: 'client: the checkout opener is not on window', file: CLIENT,
-      find: "BSSearchCorner, bsStartPlatformCheckout, bsOpenCheckout });", replace: "BSSearchCorner, bsStartPlatformCheckout });" },
+      find: "BSSearchCorner, bsOpenCheckout, bsStartPlatformCheckout });", replace: "BSSearchCorner, bsStartPlatformCheckout });" },
   ],
 };

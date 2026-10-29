@@ -866,7 +866,7 @@ test('Replays: each program with its free video, its weeks and first week, and B
   m = await mount(page({ isSelf: true }));
   await tab('Replays');
   await click(document.querySelector('[data-program]'));
-  assert.equal(document.querySelector('[data-program-buy]'), null);
+  assert.ok(!document.querySelector('[data-program-buy]'), 'no Buy on their own program');
   assert.match(document.querySelector('[data-program-sheet]').textContent, /This is what members see before they buy\./);
   await m.unmount();
 });
@@ -957,7 +957,7 @@ test('a sample coach\'s programs open with no Buy, and the coach\'s own Replays 
   assert.equal(names.length, 2);
   assert.match(names[0], /Engine 8/, 'a HIIT coach\'s sample programs');
   await click(document.querySelector('[data-program]'));
-  assert.equal(document.querySelector('[data-program-buy]'), null, 'nothing is sold on a sample');
+  assert.ok(!document.querySelector('[data-program-buy]'), 'nothing is sold on a sample');
   assert.ok(button(/^Work with Leah$/));
   await m.unmount();
   const had = window.BSLogActivitySheet;
@@ -973,5 +973,5 @@ test('a sample coach\'s programs open with no Buy, and the coach\'s own Replays 
   const client = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(client, /function BSLogActivitySheet\(\{ c, INK, BG, onClose, onPosted, editPost = null, startKind = null \}\)/);
   assert.match(client, /: \(\['note', 'photo', 'video', 'workout', 'milestone', 'link'\]\.includes\(startKind\) \? startKind : 'note'\);/, 'a new post opens on the kind asked for');
-  assert.match(client, /bsStartPlatformCheckout, bsOpenCheckout \}\);/, 'the checkout opener is on window for the profile');
+  assert.match(client, /BSSearchCorner, bsOpenCheckout, bsStartPlatformCheckout \}\);/, 'the checkout opener is on window for the profile');
 });
