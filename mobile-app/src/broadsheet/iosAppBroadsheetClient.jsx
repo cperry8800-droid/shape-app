@@ -59,6 +59,7 @@ import { BS_LEVER_HEADS, bsSleepLeadOk } from '../services/dailyWire.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
+import { BSGroceryBuilder } from './BSGroceryBuilder.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx';
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
@@ -33424,89 +33425,7 @@ const BS_GROCERY_DEFAULT = {
   ],
 };
 
-// "Build a list." — name a custom grocery list, add items by aisle, then create.
-function BSGroceryBuilder({ onCancel, onCreate }) {
-  const t = useBS();
-  const trB = useShapeTr();
-  const TB = bsTrainT(trB);
-  _bsScrollTopOnMount();
-  const rust = t.RUST;
-  const AISLES = ['Produce', 'Protein', 'Pantry', 'Dairy & cold', 'Frozen', 'Bakery', 'Household'];
-  const [name, setName] = useStateBSC('');
-  const [items, setItems] = useStateBSC([]); // { n, q, aisle }
-  const [iName, setIName] = useStateBSC('');
-  const [iQty, setIQty] = useStateBSC('');
-  const [iAisle, setIAisle] = useStateBSC('Produce');
-  const [aisleTouched, setAisleTouched] = useStateBSC(false); // user override of the auto-sort
-  const onNameChange = (v) => { setIName(v); if (!aisleTouched) setIAisle(v.trim() ? bsBuilderAisleFor(v) : 'Produce'); };
-  const addItem = () => { const n = iName.trim(); if (!n) return; setItems(a => [...a, { n, q: iQty.trim() || '1', aisle: iAisle }]); setIName(''); setIQty(''); setIAisle('Produce'); setAisleTouched(false); };
-  const removeItem = (idx) => setItems(a => a.filter((_, j) => j !== idx));
-  const create = () => {
-    const nm = name.trim() || 'New list';
-    const grouped = AISLES
-      .map(al => ({ aisle: al, items: items.map((it, k) => ({ it, k })).filter(x => x.it.aisle === al).map(x => ({ id: `b-${x.k}`, n: x.it.n, q: x.it.q, meals: nm })) }))
-      .filter(a => a.items.length);
-    const aisles = grouped.length ? grouped : [{ aisle: 'Items', items: [] }];
-    onCreate({ name: nm, items: items.map((it, k) => ({ id: `b-${k}`, n: it.n, q: it.q, meals: nm })), aisles });
-  };
-  const line = { width: '100%', border: 0, borderBottom: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 2px', fontFamily: t.DISPLAY, fontSize: 16, outline: 'none' };
-  return (
-    <BSPage>
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={null} />}
-      </div>
-      <div style={{ padding: `12px ${t.padX}px 28px` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button onClick={onCancel} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{trB('nutrition:grocery.build.cancel', { defaultValue: '← CANCEL' })}</button>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: rust }}>{trB('nutrition:grocery.itemCountCaps', { defaultValue: `${items.length} ITEM${items.length === 1 ? '' : 'S'}`, count: items.length })}</span>
-        </div>
-        <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: rust }}>{trB('nutrition:grocery.build.eyebrow', { defaultValue: 'NEW LIST' })}</div>
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>{trB('nutrition:grocery.build.titleA', { defaultValue: 'Build a' })}<br /><span style={{ fontStyle: 'italic', color: rust }}>{trB('nutrition:grocery.build.titleB', { defaultValue: 'list.' })}</span></div>
-
-        <div style={{ marginTop: 22, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: rust, marginBottom: 4 }}>{trB('nutrition:grocery.build.nameLabel', { defaultValue: 'LIST NAME' })}</div>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={trB('nutrition:grocery.build.namePlaceholder', { defaultValue: 'e.g. Sunday staples' })} style={line} />
-
-        {/* Add an item */}
-        <div style={{ marginTop: 22, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: rust }}>{trB('nutrition:grocery.build.addItem', { defaultValue: 'ADD AN ITEM' })}</div>
-          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 72px', gap: 12, alignItems: 'end' }}>
-            <input value={iName} onChange={(e) => onNameChange(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder={trB('nutrition:grocery.build.itemPlaceholder', { defaultValue: 'Item' })} style={line} />
-            <input value={iQty} onChange={(e) => setIQty(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder={trB('nutrition:grocery.build.qtyPlaceholder', { defaultValue: 'Qty' })} style={{ ...line, fontFamily: t.MONO, fontSize: 13, textAlign: 'right' }} />
-          </div>
-          <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 9 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50 }}>{trB('nutrition:grocery.build.aisleLabel', { defaultValue: 'AISLE' })}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: aisleTouched ? t.INK50 : rust }}>{iName.trim() ? (aisleTouched ? trB('nutrition:grocery.build.aisleCustom', { defaultValue: '· custom' }) : trB('nutrition:grocery.build.aisleAuto', { defaultValue: '· auto-sorted — tap to change' })) : ''}</span>
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {AISLES.map(al => { const on = iAisle === al; return <button key={al} onClick={() => { setIAisle(al); setAisleTouched(true); }} style={{ borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{bsAisleLabel(al, TB)}</button>; })}
-          </div>
-          <button onClick={addItem} disabled={!iName.trim()} style={{ width: '100%', marginTop: 16, borderRadius: 12, border: `1px solid ${rust}`, background: iName.trim() ? `${rust}1c` : 'transparent', color: rust, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: iName.trim() ? 'pointer' : 'default', opacity: iName.trim() ? 1 : 0.55 }}>{trB('nutrition:grocery.build.addCta', { defaultValue: '+ Add to list' })}</button>
-        </div>
-
-        {/* Items */}
-        {items.length === 0 ? (
-          <div style={{ marginTop: 22, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK50 }}>{trB('nutrition:grocery.build.emptyItems', { defaultValue: 'No items yet. Add your first above.' })}</div>
-        ) : (
-          <div style={{ marginTop: 18 }}>
-            {items.map((it, idx) => (
-              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, alignItems: 'center', padding: '12px 0', borderTop: idx ? `1px solid ${t.HAIR}` : 0 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>{it.n}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{bsAisleLabel(it.aisle, TB)}</div>
-                </div>
-                <span style={{ fontFamily: t.MONO, fontSize: 11, color: rust, fontWeight: 700 }}>{it.q}</span>
-                <button onClick={() => removeItem(idx)} aria-label={trB('nutrition:log.remove', { defaultValue: 'Remove' })} style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0 }}>×</button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <button onClick={create} disabled={items.length === 0} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: rust, color: '#fff', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: items.length ? 'pointer' : 'default', opacity: items.length ? 1 : 0.5 }}>{trB('nutrition:grocery.build.create', { defaultValue: 'Create list →' })}</button>
-      </div>
-      <BSFooter right={trB('nutrition:grocery.build.footerCount', { defaultValue: `${items.length} item${items.length === 1 ? '' : 's'}`, count: items.length })} />
-    </BSPage>
-  );
-}
+// "Build a list." lives in BSGroceryBuilder.jsx (imported above).
 
 // Item-swap suggestions for a coach-sent grocery item — a keyword map + a
 // category fallback so the member can sub anything for a sensible alternative.
@@ -38776,7 +38695,7 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
   );
 }
 
-Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, bsScreenName, BSUniversalSearch, BSSearchCorner, bsStartPlatformCheckout });
+Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, bsScreenName, bsBuilderAisleFor, bsAisleLabel, BSUniversalSearch, BSSearchCorner, bsStartPlatformCheckout });
 // The notification router, for the coach shells' tapped pushes (fix 3a, Codex on #2360).
 Object.assign(window, { bsRouteNotification });
 // The coach app's Notifications page shows the same phone-notifications row (L5).
