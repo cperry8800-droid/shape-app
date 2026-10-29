@@ -1353,7 +1353,7 @@ function PlateNotesTab({ t, tr, locale, ACC, ink, DISPLAY, MONO, days, isSelf, f
               <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:nutri.dayMeals', { defaultValue: '{count, plural, one {# meal} other {# meals}}', count: day.meals.length })}</span>
               <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 18 }}>{dayName(day)}</span>
               <span style={{ fontSize: 13.5, color: ink(0.74) }}>{day.meals.map((m) => m.title).join(' · ')}</span>
-              <span style={{ fontFamily: MONO, fontSize: 11, color: ink(0.62) }}>{[day.proteinAll ? tr('cook:ck.gProtein', { defaultValue: '{n} g protein', n: fmtN(day.protein) }) : null, day.kcal ? tr('cook:ck.kcal', { defaultValue: '{n} kcal', n: fmtN(day.kcal) }) : null].filter(Boolean).join(' · ')}</span>
+              <span style={{ fontFamily: MONO, fontSize: 11, color: ink(0.62) }}>{[day.proteinAll ? tr('cook:ck.gProtein', { defaultValue: '{n} g protein', n: fmtN(day.protein) }) : null, day.kcal != null ? tr('cook:ck.kcal', { defaultValue: '{n} kcal', n: fmtN(day.kcal) }) : null].filter(Boolean).join(' · ')}</span>
             </button>
           );
         }) : (isSelf ? <Hint ink={ink}>{tr('profile:nutri.plateNotesEmptySelf', { defaultValue: 'Share the meals you log, and each day you share becomes a plate note here.' })}</Hint> : null)}

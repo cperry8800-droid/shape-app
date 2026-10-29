@@ -828,6 +828,16 @@ test('a recipe of hers as a grocery list and for cook mode', () => {
   assert.notEqual(bsShortHash('a'), bsShortHash('b'));
 });
 
+test('a day of plate notes logged at 0 kcal says 0 kcal, not nothing (Codex P3 on #2497)', async () => {
+  reset({ posts: [meal({ key: 'z1', title: 'Black coffee', created_at: at(1, 7), meal: { kcal: 0, p: 0, c: 0, f: 0 } }), meal({ key: 'z2', title: 'Sparkling water', created_at: at(1, 9), meal: { kcal: 0 } })] });
+  const m = await mount(page());
+  await click(button(/^Plate notes$/));
+  const day = document.querySelector('[data-plate-day]').textContent;
+  assert.match(day, /0 kcal/, 'every meal logged its energy, at 0');
+  assert.doesNotMatch(day, /g protein/, 'one meal logged no protein');
+  await m.unmount();
+});
+
 test('where a meal\'s energy came from adds up to 100 in whole percentages, none below 0', () => {
   assert.deepEqual(energySplit({ p: 5, c: 35, f: 0 }), { p: 13, c: 87, f: 0 }, 'no -1% fat (Codex P2 on #2497)');
   assert.deepEqual(energySplit({ p: 38, c: 52, f: 12 }), { p: 33, c: 44, f: 23 }, 'exactly 32.48, 44.44 and 23.08: the largest remainder takes the point');

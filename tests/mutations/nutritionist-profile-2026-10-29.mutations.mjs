@@ -97,6 +97,8 @@ export default {
     { name: 'page: review fix · an energy share can round below 0', file: PAGE,
       find: '  for (let i = 0, left = 100 - out[0] - out[1] - out[2]; i < left; i += 1) out[order[i]] += 1;\n  return { p: out[0], c: out[1], f: out[2] };',
       replace: '  const pp = Math.round(exact[0]), cc = Math.round(exact[1]);\n  return { p: pp, c: cc, f: 100 - pp - cc };' },
+    { name: 'page: review fix · a day logged at 0 kcal shows no energy', file: PAGE,
+      find: "day.kcal != null ? tr('cook:ck.kcal'", replace: "day.kcal ? tr('cook:ck.kcal'" },
     // ── a recipe's list and cook mode ──
     { name: 'recipes: one coach\'s recipe list is another\'s with the same id', file: RECIPES,
       find: "  const id = `kr-${bsShortHash(ownerKey || 'sample')}-${r.id}`;", replace: '  const id = `kr-${r.id}`;' },
