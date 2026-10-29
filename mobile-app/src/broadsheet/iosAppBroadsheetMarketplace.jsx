@@ -1745,6 +1745,13 @@ function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) 
                 {tr('marketplace:preview.locked', { defaultValue: '＋{count} more · unlocked when you buy', count: p.locked })}
               </div>
             )}
+            {/* A program's public preview carries names, weeks and days only
+                (bsProgramReduce); say what buying adds. */}
+            {p.namesOnly && (
+              <div data-preview-names-only="" style={{ marginTop: p.locked > 0 ? 0 : 10, paddingBottom: 4, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+                {tr('marketplace:preview.namesOnly', { defaultValue: 'Sets, loads, cues and exercise videos unlock when you buy' })}
+              </div>
+            )}
           </>
         ) : (
           <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.5, color: t.INK70 }}>

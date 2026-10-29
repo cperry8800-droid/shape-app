@@ -189,6 +189,7 @@
   "preview.outline": "El esquema",
   "preview.perDay": "Los menús varían por día · comidas por día",
   "preview.locked": "＋{count} más · se desbloquean al comprar",
+  "preview.namesOnly": "Series, cargas, indicaciones y vídeos de ejercicios se desbloquean al comprar",
   "preview.noOutline": "Este coach aún no ha publicado un esquema para este.",
   "preview.buy": "Comprar · {price} →",
   "preview.action": "Qué incluye →",

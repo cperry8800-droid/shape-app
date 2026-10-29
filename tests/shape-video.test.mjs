@@ -153,6 +153,27 @@ test('buyer plan preview renders a provider player instead of feeding a page URL
   await React.act(async()=>root.unmount());
 });
 
+test('a program from the public functions previews names and its one free video, and says what buying unlocks',async()=>{
+  globalThis.__VITE_ENV__={};
+  window.useBS=()=>({INK:'#111',INK50:'#777',INK70:'#555',PAPER:'#fff',PAPER2:'#eee',HAIR:'#ccc',RULE:'#999',MONO:'monospace',DISPLAY:'serif',padX:16});
+  const {Preview}=await loadRealModule(fileURLToPath(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx',import.meta.url)),{registry:new Map([['react',React],['react-dom',require('react-dom')]]),appendExports:'exports.Preview=BSPlanPreviewSheet;'});
+  const root=createRoot(document.getElementById('root'));
+  const reduced={preview:true,media:[{type:'video',url:'https://youtu.be/M7lc1UVf-VE'}],blocks:['Bench press','Incline press','Cable fly','Dip'].map((name,i)=>({week:0,day:0,dayName:'Push',name,text:name,...(i?{}:{equipment:'Barbell'})}))};
+  await React.act(async()=>root.render(React.createElement(Preview,{plan:{name:'Rack Strength',price:'$40',detail:reduced},onClose:()=>{},onBuy:()=>{}})));
+  const text=document.body.textContent;
+  assert.match(text,/Bench press/);assert.match(text,/Incline press/);
+  assert.doesNotMatch(text,/Cable fly/,'past the two free rows, a count');
+  assert.match(text,/more · unlocked when you buy/);
+  assert.match(text,/Sets, loads, cues and exercise videos unlock when you buy/);
+  assert.equal(document.querySelectorAll('[data-preview-names-only]').length,1);
+  assert.equal([...document.querySelectorAll('button')].filter(b=>b.textContent.startsWith('▷ Watch')).length,1,'the one free video');
+  // The full outline (a coach's own copy, or the demo) carries schemes and no such line.
+  await React.act(async()=>root.render(React.createElement(Preview,{plan:{name:'Rack Strength',detail:{blocks:['Bench press — 3 × 8 · 60 kg','Dip — 3 × 10']}},onClose:()=>{}})));
+  assert.match(document.body.textContent,/3×8/);
+  assert.equal(document.querySelectorAll('[data-preview-names-only]').length,0);
+  await React.act(async()=>root.unmount());
+});
+
 test('website offer video opens inline without starting the containing plan checkout',async()=>{
   globalThis.React=React;
   let purchases=0;const previousFetch=globalThis.fetch;

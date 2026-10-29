@@ -1,0 +1,5470 @@
+{
+ "_comment": "Programs through sale_plan_preview_detail as the PostgreSQL 16 replica returned them, after 2026-10-09-sale-plan-preview-menus.sql and 2026-10-29-program-preview-names.sql (applied twice), in the 2026-10-29 PR (tests/plan-preview.test.mjs). `sql` is the function's output for `kind` and `detail`; bsPreviewReduce must equal it. The first two details are what the app and the website save for the same program.",
+ "fixtures": [
+  {
+   "name": "a program saved in the app: builder, its outline and its clips",
+   "kind": "program",
+   "detail": {
+    "builder": {
+     "video": "https://video.example/intro.mp4",
+     "weeks": [
+      {
+       "days": [
+        {
+         "name": "Push",
+         "weekday": 0,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Bench press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Bench%20press",
+             "equipment": "Barbell",
+             "muscle": "Chest",
+             "id": "ex-0-0-0-0",
+             "group": null,
+             "perSet": [
+              {
+               "reps": "8",
+               "load": 60
+              },
+              {
+               "reps": "6",
+               "load": 70
+              },
+              {
+               "reps": "4",
+               "load": 80
+              }
+             ]
+            },
+            {
+             "name": "Incline dumbbell press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Incline%20dumbbell%20press",
+             "equipment": "Dumbbells",
+             "id": "ex-0-0-0-1",
+             "group": null
+            }
+           ]
+          },
+          {
+           "kind": "accessory",
+           "rows": [
+            {
+             "name": "Cable fly",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Cable%20fly",
+             "equipment": "Cable station",
+             "muscle": "Chest",
+             "id": "ex-0-0-1-0",
+             "group": null
+            },
+            {
+             "name": "  ",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/%20%20",
+             "id": "ex-0-0-1-1",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-0-0"
+        },
+        {
+         "name": "Pull",
+         "weekday": 2,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Lat pulldown",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Lat%20pulldown",
+             "equipment": "Lat pulldown",
+             "id": "ex-0-1-0-0",
+             "group": null
+            },
+            {
+             "name": "Seated row",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Seated%20row",
+             "equipment": "Cable station",
+             "id": "ex-0-1-0-1",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-0-1"
+        },
+        {
+         "name": "Legs",
+         "weekday": 4,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Back squat",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Back%20squat",
+             "equipment": "Squat rack",
+             "id": "ex-0-2-0-0",
+             "group": null
+            },
+            {
+             "name": "Leg press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Leg%20press",
+             "equipment": "Leg press",
+             "id": "ex-0-2-0-1",
+             "group": null
+            },
+            {
+             "name": "Walking lunge",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Walking%20lunge",
+             "id": "ex-0-2-0-2",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-0-2"
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "name": "Push",
+         "weekday": 0,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Bench press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Bench%20press",
+             "equipment": "Barbell",
+             "muscle": "Chest",
+             "id": "ex-1-0-0-0",
+             "group": null,
+             "perSet": [
+              {
+               "reps": "8",
+               "load": 60
+              },
+              {
+               "reps": "6",
+               "load": 70
+              },
+              {
+               "reps": "4",
+               "load": 80
+              }
+             ]
+            },
+            {
+             "name": "Incline dumbbell press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Incline%20dumbbell%20press",
+             "equipment": "Dumbbells",
+             "id": "ex-1-0-0-1",
+             "group": null
+            }
+           ]
+          },
+          {
+           "kind": "accessory",
+           "rows": [
+            {
+             "name": "Cable fly",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Cable%20fly",
+             "equipment": "Cable station",
+             "muscle": "Chest",
+             "id": "ex-1-0-1-0",
+             "group": null
+            },
+            {
+             "name": "  ",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/%20%20",
+             "id": "ex-1-0-1-1",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-1-0"
+        },
+        {
+         "name": "Pull",
+         "weekday": 2,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Lat pulldown",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Lat%20pulldown",
+             "equipment": "Lat pulldown",
+             "id": "ex-1-1-0-0",
+             "group": null
+            },
+            {
+             "name": "Seated row",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Seated%20row",
+             "equipment": "Cable station",
+             "id": "ex-1-1-0-1",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-1-1"
+        },
+        {
+         "name": "Legs",
+         "weekday": 4,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Back squat",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Back%20squat",
+             "equipment": "Squat rack",
+             "id": "ex-1-2-0-0",
+             "group": null
+            },
+            {
+             "name": "Leg press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Leg%20press",
+             "equipment": "Leg press",
+             "id": "ex-1-2-0-1",
+             "group": null
+            },
+            {
+             "name": "Walking lunge",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Walking%20lunge",
+             "id": "ex-1-2-0-2",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-1-2"
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "name": "Push",
+         "weekday": 0,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Bench press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Bench%20press",
+             "equipment": "Barbell",
+             "muscle": "Chest",
+             "id": "ex-2-0-0-0",
+             "group": null,
+             "perSet": [
+              {
+               "reps": "8",
+               "load": 60
+              },
+              {
+               "reps": "6",
+               "load": 70
+              },
+              {
+               "reps": "4",
+               "load": 80
+              }
+             ]
+            },
+            {
+             "name": "Incline dumbbell press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Incline%20dumbbell%20press",
+             "equipment": "Dumbbells",
+             "id": "ex-2-0-0-1",
+             "group": null
+            }
+           ]
+          },
+          {
+           "kind": "accessory",
+           "rows": [
+            {
+             "name": "Cable fly",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Cable%20fly",
+             "equipment": "Cable station",
+             "muscle": "Chest",
+             "id": "ex-2-0-1-0",
+             "group": null
+            },
+            {
+             "name": "  ",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/%20%20",
+             "id": "ex-2-0-1-1",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-2-0"
+        },
+        {
+         "name": "Pull",
+         "weekday": 2,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Lat pulldown",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Lat%20pulldown",
+             "equipment": "Lat pulldown",
+             "id": "ex-2-1-0-0",
+             "group": null
+            },
+            {
+             "name": "Seated row",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Seated%20row",
+             "equipment": "Cable station",
+             "id": "ex-2-1-0-1",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-2-1"
+        },
+        {
+         "name": "Legs",
+         "weekday": 4,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Back squat",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Back%20squat",
+             "equipment": "Squat rack",
+             "id": "ex-2-2-0-0",
+             "group": null
+            },
+            {
+             "name": "Leg press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Leg%20press",
+             "equipment": "Leg press",
+             "id": "ex-2-2-0-1",
+             "group": null
+            },
+            {
+             "name": "Walking lunge",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Walking%20lunge",
+             "id": "ex-2-2-0-2",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-2-2"
+        }
+       ]
+      }
+     ],
+     "schemaVersion": 1,
+     "version": 1
+    },
+    "note": "Three days, built around the rack.",
+    "buildType": "program",
+    "blocks": [
+     {
+      "name": "Bench press",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Bench%20press",
+      "equipment": "Barbell",
+      "muscle": "Chest",
+      "id": "ex-0-0-0-0",
+      "group": null,
+      "perSet": [
+       {
+        "reps": "8",
+        "load": 60
+       },
+       {
+        "reps": "6",
+        "load": 70
+       },
+       {
+        "reps": "4",
+        "load": 80
+       }
+      ],
+      "week": 0,
+      "day": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "text": "Bench press — 3 × 8/6/4 · 60/70/80 kg"
+     },
+     {
+      "name": "Incline dumbbell press",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Incline%20dumbbell%20press",
+      "equipment": "Dumbbells",
+      "id": "ex-0-0-0-1",
+      "group": null,
+      "week": 0,
+      "day": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "text": "Incline dumbbell press — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Cable fly",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Cable%20fly",
+      "equipment": "Cable station",
+      "muscle": "Chest",
+      "id": "ex-0-0-1-0",
+      "group": null,
+      "week": 0,
+      "day": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "text": "Cable fly — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "  ",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/%20%20",
+      "id": "ex-0-0-1-1",
+      "group": null,
+      "week": 0,
+      "day": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "text": "   — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Lat pulldown",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Lat%20pulldown",
+      "equipment": "Lat pulldown",
+      "id": "ex-0-1-0-0",
+      "group": null,
+      "week": 0,
+      "day": 1,
+      "dayName": "Pull",
+      "weekday": 2,
+      "text": "Lat pulldown — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Seated row",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Seated%20row",
+      "equipment": "Cable station",
+      "id": "ex-0-1-0-1",
+      "group": null,
+      "week": 0,
+      "day": 1,
+      "dayName": "Pull",
+      "weekday": 2,
+      "text": "Seated row — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Back squat",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Back%20squat",
+      "equipment": "Squat rack",
+      "id": "ex-0-2-0-0",
+      "group": null,
+      "week": 0,
+      "day": 2,
+      "dayName": "Legs",
+      "weekday": 4,
+      "text": "Back squat — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Leg press",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Leg%20press",
+      "equipment": "Leg press",
+      "id": "ex-0-2-0-1",
+      "group": null,
+      "week": 0,
+      "day": 2,
+      "dayName": "Legs",
+      "weekday": 4,
+      "text": "Leg press — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Walking lunge",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Walking%20lunge",
+      "id": "ex-0-2-0-2",
+      "group": null,
+      "week": 0,
+      "day": 2,
+      "dayName": "Legs",
+      "weekday": 4,
+      "text": "Walking lunge — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Bench press",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Bench%20press",
+      "equipment": "Barbell",
+      "muscle": "Chest",
+      "id": "ex-1-0-0-0",
+      "group": null,
+      "perSet": [
+       {
+        "reps": "8",
+        "load": 60
+       },
+       {
+        "reps": "6",
+        "load": 70
+       },
+       {
+        "reps": "4",
+        "load": 80
+       }
+      ],
+      "week": 1,
+      "day": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "text": "Bench press — 3 × 8/6/4 · 60/70/80 kg"
+     },
+     {
+      "name": "Incline dumbbell press",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Incline%20dumbbell%20press",
+      "equipment": "Dumbbells",
+      "id": "ex-1-0-0-1",
+      "group": null,
+      "week": 1,
+      "day": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "text": "Incline dumbbell press — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Cable fly",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Cable%20fly",
+      "equipment": "Cable station",
+      "muscle": "Chest",
+      "id": "ex-1-0-1-0",
+      "group": null,
+      "week": 1,
+      "day": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "text": "Cable fly — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "  ",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/%20%20",
+      "id": "ex-1-0-1-1",
+      "group": null,
+      "week": 1,
+      "day": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "text": "   — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Lat pulldown",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Lat%20pulldown",
+      "equipment": "Lat pulldown",
+      "id": "ex-1-1-0-0",
+      "group": null,
+      "week": 1,
+      "day": 1,
+      "dayName": "Pull",
+      "weekday": 2,
+      "text": "Lat pulldown — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Seated row",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Seated%20row",
+      "equipment": "Cable station",
+      "id": "ex-1-1-0-1",
+      "group": null,
+      "week": 1,
+      "day": 1,
+      "dayName": "Pull",
+      "weekday": 2,
+      "text": "Seated row — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Back squat",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Back%20squat",
+      "equipment": "Squat rack",
+      "id": "ex-1-2-0-0",
+      "group": null,
+      "week": 1,
+      "day": 2,
+      "dayName": "Legs",
+      "weekday": 4,
+      "text": "Back squat — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Leg press",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Leg%20press",
+      "equipment": "Leg press",
+      "id": "ex-1-2-0-1",
+      "group": null,
+      "week": 1,
+      "day": 2,
+      "dayName": "Legs",
+      "weekday": 4,
+      "text": "Leg press — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Walking lunge",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Walking%20lunge",
+      "id": "ex-1-2-0-2",
+      "group": null,
+      "week": 1,
+      "day": 2,
+      "dayName": "Legs",
+      "weekday": 4,
+      "text": "Walking lunge — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Bench press",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Bench%20press",
+      "equipment": "Barbell",
+      "muscle": "Chest",
+      "id": "ex-2-0-0-0",
+      "group": null,
+      "perSet": [
+       {
+        "reps": "8",
+        "load": 60
+       },
+       {
+        "reps": "6",
+        "load": 70
+       },
+       {
+        "reps": "4",
+        "load": 80
+       }
+      ],
+      "week": 2,
+      "day": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "text": "Bench press — 3 × 8/6/4 · 60/70/80 kg"
+     },
+     {
+      "name": "Incline dumbbell press",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Incline%20dumbbell%20press",
+      "equipment": "Dumbbells",
+      "id": "ex-2-0-0-1",
+      "group": null,
+      "week": 2,
+      "day": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "text": "Incline dumbbell press — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Cable fly",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Cable%20fly",
+      "equipment": "Cable station",
+      "muscle": "Chest",
+      "id": "ex-2-0-1-0",
+      "group": null,
+      "week": 2,
+      "day": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "text": "Cable fly — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "  ",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/%20%20",
+      "id": "ex-2-0-1-1",
+      "group": null,
+      "week": 2,
+      "day": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "text": "   — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Lat pulldown",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Lat%20pulldown",
+      "equipment": "Lat pulldown",
+      "id": "ex-2-1-0-0",
+      "group": null,
+      "week": 2,
+      "day": 1,
+      "dayName": "Pull",
+      "weekday": 2,
+      "text": "Lat pulldown — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Seated row",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Seated%20row",
+      "equipment": "Cable station",
+      "id": "ex-2-1-0-1",
+      "group": null,
+      "week": 2,
+      "day": 1,
+      "dayName": "Pull",
+      "weekday": 2,
+      "text": "Seated row — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Back squat",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Back%20squat",
+      "equipment": "Squat rack",
+      "id": "ex-2-2-0-0",
+      "group": null,
+      "week": 2,
+      "day": 2,
+      "dayName": "Legs",
+      "weekday": 4,
+      "text": "Back squat — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Leg press",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Leg%20press",
+      "equipment": "Leg press",
+      "id": "ex-2-2-0-1",
+      "group": null,
+      "week": 2,
+      "day": 2,
+      "dayName": "Legs",
+      "weekday": 4,
+      "text": "Leg press — 3 × 8 · 60 kg"
+     },
+     {
+      "name": "Walking lunge",
+      "sets": 3,
+      "reps": "8",
+      "load": 60,
+      "loadType": "kg",
+      "rest": "SECRET 90s",
+      "tempo": "SECRET 3010",
+      "cue": "SECRET brace",
+      "video": "https://clip.example/Walking%20lunge",
+      "id": "ex-2-2-0-2",
+      "group": null,
+      "week": 2,
+      "day": 2,
+      "dayName": "Legs",
+      "weekday": 4,
+      "text": "Walking lunge — 3 × 8 · 60 kg"
+     }
+    ],
+    "media": [
+     {
+      "type": "video",
+      "url": "https://clip.example/workout-1.mp4"
+     },
+     {
+      "type": "image",
+      "url": "https://img.example/cover.jpg"
+     },
+     {
+      "type": "video",
+      "url": "https://clip.example/workout-2.mp4"
+     }
+    ]
+   },
+   "sql": {
+    "note": "Three days, built around the rack.",
+    "media": [
+     {
+      "url": "https://video.example/intro.mp4",
+      "type": "video"
+     },
+     {
+      "url": "https://img.example/cover.jpg",
+      "type": "image"
+     }
+    ],
+    "blocks": [
+     {
+      "day": 0,
+      "name": "Bench press",
+      "text": "Bench press",
+      "week": 0,
+      "muscle": "Chest",
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Barbell"
+     },
+     {
+      "day": 0,
+      "name": "Incline dumbbell press",
+      "text": "Incline dumbbell press",
+      "week": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Dumbbells"
+     },
+     {
+      "day": 0,
+      "name": "Cable fly",
+      "text": "Cable fly",
+      "week": 0,
+      "muscle": "Chest",
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Cable station"
+     },
+     {
+      "day": 1,
+      "name": "Lat pulldown",
+      "text": "Lat pulldown",
+      "week": 0,
+      "dayName": "Pull",
+      "weekday": 2,
+      "equipment": "Lat pulldown"
+     },
+     {
+      "day": 1,
+      "name": "Seated row",
+      "text": "Seated row",
+      "week": 0,
+      "dayName": "Pull",
+      "weekday": 2,
+      "equipment": "Cable station"
+     },
+     {
+      "day": 2,
+      "name": "Back squat",
+      "text": "Back squat",
+      "week": 0,
+      "dayName": "Legs",
+      "weekday": 4,
+      "equipment": "Squat rack"
+     },
+     {
+      "day": 2,
+      "name": "Leg press",
+      "text": "Leg press",
+      "week": 0,
+      "dayName": "Legs",
+      "weekday": 4,
+      "equipment": "Leg press"
+     },
+     {
+      "day": 2,
+      "name": "Walking lunge",
+      "text": "Walking lunge",
+      "week": 0,
+      "dayName": "Legs",
+      "weekday": 4
+     },
+     {
+      "day": 0,
+      "name": "Bench press",
+      "text": "Bench press",
+      "week": 1,
+      "muscle": "Chest",
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Barbell"
+     },
+     {
+      "day": 0,
+      "name": "Incline dumbbell press",
+      "text": "Incline dumbbell press",
+      "week": 1,
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Dumbbells"
+     },
+     {
+      "day": 0,
+      "name": "Cable fly",
+      "text": "Cable fly",
+      "week": 1,
+      "muscle": "Chest",
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Cable station"
+     },
+     {
+      "day": 1,
+      "name": "Lat pulldown",
+      "text": "Lat pulldown",
+      "week": 1,
+      "dayName": "Pull",
+      "weekday": 2,
+      "equipment": "Lat pulldown"
+     },
+     {
+      "day": 1,
+      "name": "Seated row",
+      "text": "Seated row",
+      "week": 1,
+      "dayName": "Pull",
+      "weekday": 2,
+      "equipment": "Cable station"
+     },
+     {
+      "day": 2,
+      "name": "Back squat",
+      "text": "Back squat",
+      "week": 1,
+      "dayName": "Legs",
+      "weekday": 4,
+      "equipment": "Squat rack"
+     },
+     {
+      "day": 2,
+      "name": "Leg press",
+      "text": "Leg press",
+      "week": 1,
+      "dayName": "Legs",
+      "weekday": 4,
+      "equipment": "Leg press"
+     },
+     {
+      "day": 2,
+      "name": "Walking lunge",
+      "text": "Walking lunge",
+      "week": 1,
+      "dayName": "Legs",
+      "weekday": 4
+     },
+     {
+      "day": 0,
+      "name": "Bench press",
+      "text": "Bench press",
+      "week": 2,
+      "muscle": "Chest",
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Barbell"
+     },
+     {
+      "day": 0,
+      "name": "Incline dumbbell press",
+      "text": "Incline dumbbell press",
+      "week": 2,
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Dumbbells"
+     },
+     {
+      "day": 0,
+      "name": "Cable fly",
+      "text": "Cable fly",
+      "week": 2,
+      "muscle": "Chest",
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Cable station"
+     },
+     {
+      "day": 1,
+      "name": "Lat pulldown",
+      "text": "Lat pulldown",
+      "week": 2,
+      "dayName": "Pull",
+      "weekday": 2,
+      "equipment": "Lat pulldown"
+     },
+     {
+      "day": 1,
+      "name": "Seated row",
+      "text": "Seated row",
+      "week": 2,
+      "dayName": "Pull",
+      "weekday": 2,
+      "equipment": "Cable station"
+     },
+     {
+      "day": 2,
+      "name": "Back squat",
+      "text": "Back squat",
+      "week": 2,
+      "dayName": "Legs",
+      "weekday": 4,
+      "equipment": "Squat rack"
+     },
+     {
+      "day": 2,
+      "name": "Leg press",
+      "text": "Leg press",
+      "week": 2,
+      "dayName": "Legs",
+      "weekday": 4,
+      "equipment": "Leg press"
+     },
+     {
+      "day": 2,
+      "name": "Walking lunge",
+      "text": "Walking lunge",
+      "week": 2,
+      "dayName": "Legs",
+      "weekday": 4
+     }
+    ],
+    "preview": true,
+    "buildType": "program"
+   }
+  },
+  {
+   "name": "the same program saved on the website: builder only",
+   "kind": "program",
+   "detail": {
+    "builder": {
+     "video": "https://video.example/intro.mp4",
+     "weeks": [
+      {
+       "days": [
+        {
+         "name": "Push",
+         "weekday": 0,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Bench press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Bench%20press",
+             "equipment": "Barbell",
+             "muscle": "Chest",
+             "id": "ex-0-0-0-0",
+             "group": null,
+             "perSet": [
+              {
+               "reps": "8",
+               "load": 60
+              },
+              {
+               "reps": "6",
+               "load": 70
+              },
+              {
+               "reps": "4",
+               "load": 80
+              }
+             ]
+            },
+            {
+             "name": "Incline dumbbell press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Incline%20dumbbell%20press",
+             "equipment": "Dumbbells",
+             "id": "ex-0-0-0-1",
+             "group": null
+            }
+           ]
+          },
+          {
+           "kind": "accessory",
+           "rows": [
+            {
+             "name": "Cable fly",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Cable%20fly",
+             "equipment": "Cable station",
+             "muscle": "Chest",
+             "id": "ex-0-0-1-0",
+             "group": null
+            },
+            {
+             "name": "  ",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/%20%20",
+             "id": "ex-0-0-1-1",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-0-0"
+        },
+        {
+         "name": "Pull",
+         "weekday": 2,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Lat pulldown",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Lat%20pulldown",
+             "equipment": "Lat pulldown",
+             "id": "ex-0-1-0-0",
+             "group": null
+            },
+            {
+             "name": "Seated row",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Seated%20row",
+             "equipment": "Cable station",
+             "id": "ex-0-1-0-1",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-0-1"
+        },
+        {
+         "name": "Legs",
+         "weekday": 4,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Back squat",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Back%20squat",
+             "equipment": "Squat rack",
+             "id": "ex-0-2-0-0",
+             "group": null
+            },
+            {
+             "name": "Leg press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Leg%20press",
+             "equipment": "Leg press",
+             "id": "ex-0-2-0-1",
+             "group": null
+            },
+            {
+             "name": "Walking lunge",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Walking%20lunge",
+             "id": "ex-0-2-0-2",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-0-2"
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "name": "Push",
+         "weekday": 0,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Bench press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Bench%20press",
+             "equipment": "Barbell",
+             "muscle": "Chest",
+             "id": "ex-1-0-0-0",
+             "group": null,
+             "perSet": [
+              {
+               "reps": "8",
+               "load": 60
+              },
+              {
+               "reps": "6",
+               "load": 70
+              },
+              {
+               "reps": "4",
+               "load": 80
+              }
+             ]
+            },
+            {
+             "name": "Incline dumbbell press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Incline%20dumbbell%20press",
+             "equipment": "Dumbbells",
+             "id": "ex-1-0-0-1",
+             "group": null
+            }
+           ]
+          },
+          {
+           "kind": "accessory",
+           "rows": [
+            {
+             "name": "Cable fly",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Cable%20fly",
+             "equipment": "Cable station",
+             "muscle": "Chest",
+             "id": "ex-1-0-1-0",
+             "group": null
+            },
+            {
+             "name": "  ",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/%20%20",
+             "id": "ex-1-0-1-1",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-1-0"
+        },
+        {
+         "name": "Pull",
+         "weekday": 2,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Lat pulldown",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Lat%20pulldown",
+             "equipment": "Lat pulldown",
+             "id": "ex-1-1-0-0",
+             "group": null
+            },
+            {
+             "name": "Seated row",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Seated%20row",
+             "equipment": "Cable station",
+             "id": "ex-1-1-0-1",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-1-1"
+        },
+        {
+         "name": "Legs",
+         "weekday": 4,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Back squat",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Back%20squat",
+             "equipment": "Squat rack",
+             "id": "ex-1-2-0-0",
+             "group": null
+            },
+            {
+             "name": "Leg press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Leg%20press",
+             "equipment": "Leg press",
+             "id": "ex-1-2-0-1",
+             "group": null
+            },
+            {
+             "name": "Walking lunge",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Walking%20lunge",
+             "id": "ex-1-2-0-2",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-1-2"
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "name": "Push",
+         "weekday": 0,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Bench press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Bench%20press",
+             "equipment": "Barbell",
+             "muscle": "Chest",
+             "id": "ex-2-0-0-0",
+             "group": null,
+             "perSet": [
+              {
+               "reps": "8",
+               "load": 60
+              },
+              {
+               "reps": "6",
+               "load": 70
+              },
+              {
+               "reps": "4",
+               "load": 80
+              }
+             ]
+            },
+            {
+             "name": "Incline dumbbell press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Incline%20dumbbell%20press",
+             "equipment": "Dumbbells",
+             "id": "ex-2-0-0-1",
+             "group": null
+            }
+           ]
+          },
+          {
+           "kind": "accessory",
+           "rows": [
+            {
+             "name": "Cable fly",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Cable%20fly",
+             "equipment": "Cable station",
+             "muscle": "Chest",
+             "id": "ex-2-0-1-0",
+             "group": null
+            },
+            {
+             "name": "  ",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/%20%20",
+             "id": "ex-2-0-1-1",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-2-0"
+        },
+        {
+         "name": "Pull",
+         "weekday": 2,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Lat pulldown",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Lat%20pulldown",
+             "equipment": "Lat pulldown",
+             "id": "ex-2-1-0-0",
+             "group": null
+            },
+            {
+             "name": "Seated row",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Seated%20row",
+             "equipment": "Cable station",
+             "id": "ex-2-1-0-1",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-2-1"
+        },
+        {
+         "name": "Legs",
+         "weekday": 4,
+         "blocks": [
+          {
+           "kind": "main",
+           "rows": [
+            {
+             "name": "Back squat",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Back%20squat",
+             "equipment": "Squat rack",
+             "id": "ex-2-2-0-0",
+             "group": null
+            },
+            {
+             "name": "Leg press",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Leg%20press",
+             "equipment": "Leg press",
+             "id": "ex-2-2-0-1",
+             "group": null
+            },
+            {
+             "name": "Walking lunge",
+             "sets": 3,
+             "reps": "8",
+             "load": 60,
+             "loadType": "kg",
+             "rest": "SECRET 90s",
+             "tempo": "SECRET 3010",
+             "cue": "SECRET brace",
+             "video": "https://clip.example/Walking%20lunge",
+             "id": "ex-2-2-0-2",
+             "group": null
+            }
+           ]
+          }
+         ],
+         "id": "day-2-2"
+        }
+       ]
+      }
+     ],
+     "schemaVersion": 1,
+     "version": 1
+    },
+    "buildType": "program"
+   },
+   "sql": {
+    "media": [
+     {
+      "url": "https://video.example/intro.mp4",
+      "type": "video"
+     }
+    ],
+    "blocks": [
+     {
+      "day": 0,
+      "name": "Bench press",
+      "text": "Bench press",
+      "week": 0,
+      "muscle": "Chest",
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Barbell"
+     },
+     {
+      "day": 0,
+      "name": "Incline dumbbell press",
+      "text": "Incline dumbbell press",
+      "week": 0,
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Dumbbells"
+     },
+     {
+      "day": 0,
+      "name": "Cable fly",
+      "text": "Cable fly",
+      "week": 0,
+      "muscle": "Chest",
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Cable station"
+     },
+     {
+      "day": 1,
+      "name": "Lat pulldown",
+      "text": "Lat pulldown",
+      "week": 0,
+      "dayName": "Pull",
+      "weekday": 2,
+      "equipment": "Lat pulldown"
+     },
+     {
+      "day": 1,
+      "name": "Seated row",
+      "text": "Seated row",
+      "week": 0,
+      "dayName": "Pull",
+      "weekday": 2,
+      "equipment": "Cable station"
+     },
+     {
+      "day": 2,
+      "name": "Back squat",
+      "text": "Back squat",
+      "week": 0,
+      "dayName": "Legs",
+      "weekday": 4,
+      "equipment": "Squat rack"
+     },
+     {
+      "day": 2,
+      "name": "Leg press",
+      "text": "Leg press",
+      "week": 0,
+      "dayName": "Legs",
+      "weekday": 4,
+      "equipment": "Leg press"
+     },
+     {
+      "day": 2,
+      "name": "Walking lunge",
+      "text": "Walking lunge",
+      "week": 0,
+      "dayName": "Legs",
+      "weekday": 4
+     },
+     {
+      "day": 0,
+      "name": "Bench press",
+      "text": "Bench press",
+      "week": 1,
+      "muscle": "Chest",
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Barbell"
+     },
+     {
+      "day": 0,
+      "name": "Incline dumbbell press",
+      "text": "Incline dumbbell press",
+      "week": 1,
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Dumbbells"
+     },
+     {
+      "day": 0,
+      "name": "Cable fly",
+      "text": "Cable fly",
+      "week": 1,
+      "muscle": "Chest",
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Cable station"
+     },
+     {
+      "day": 1,
+      "name": "Lat pulldown",
+      "text": "Lat pulldown",
+      "week": 1,
+      "dayName": "Pull",
+      "weekday": 2,
+      "equipment": "Lat pulldown"
+     },
+     {
+      "day": 1,
+      "name": "Seated row",
+      "text": "Seated row",
+      "week": 1,
+      "dayName": "Pull",
+      "weekday": 2,
+      "equipment": "Cable station"
+     },
+     {
+      "day": 2,
+      "name": "Back squat",
+      "text": "Back squat",
+      "week": 1,
+      "dayName": "Legs",
+      "weekday": 4,
+      "equipment": "Squat rack"
+     },
+     {
+      "day": 2,
+      "name": "Leg press",
+      "text": "Leg press",
+      "week": 1,
+      "dayName": "Legs",
+      "weekday": 4,
+      "equipment": "Leg press"
+     },
+     {
+      "day": 2,
+      "name": "Walking lunge",
+      "text": "Walking lunge",
+      "week": 1,
+      "dayName": "Legs",
+      "weekday": 4
+     },
+     {
+      "day": 0,
+      "name": "Bench press",
+      "text": "Bench press",
+      "week": 2,
+      "muscle": "Chest",
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Barbell"
+     },
+     {
+      "day": 0,
+      "name": "Incline dumbbell press",
+      "text": "Incline dumbbell press",
+      "week": 2,
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Dumbbells"
+     },
+     {
+      "day": 0,
+      "name": "Cable fly",
+      "text": "Cable fly",
+      "week": 2,
+      "muscle": "Chest",
+      "dayName": "Push",
+      "weekday": 0,
+      "equipment": "Cable station"
+     },
+     {
+      "day": 1,
+      "name": "Lat pulldown",
+      "text": "Lat pulldown",
+      "week": 2,
+      "dayName": "Pull",
+      "weekday": 2,
+      "equipment": "Lat pulldown"
+     },
+     {
+      "day": 1,
+      "name": "Seated row",
+      "text": "Seated row",
+      "week": 2,
+      "dayName": "Pull",
+      "weekday": 2,
+      "equipment": "Cable station"
+     },
+     {
+      "day": 2,
+      "name": "Back squat",
+      "text": "Back squat",
+      "week": 2,
+      "dayName": "Legs",
+      "weekday": 4,
+      "equipment": "Squat rack"
+     },
+     {
+      "day": 2,
+      "name": "Leg press",
+      "text": "Leg press",
+      "week": 2,
+      "dayName": "Legs",
+      "weekday": 4,
+      "equipment": "Leg press"
+     },
+     {
+      "day": 2,
+      "name": "Walking lunge",
+      "text": "Walking lunge",
+      "week": 2,
+      "dayName": "Legs",
+      "weekday": 4
+     }
+    ],
+    "preview": true,
+    "buildType": "program"
+   }
+  },
+  {
+   "name": "a weekday split",
+   "kind": "program",
+   "detail": {
+    "blocks": [
+     "Mon — Upper (push)",
+     "Tue — Lower",
+     "Wed — Rest",
+     "Thu — Upper (pull)",
+     "Fri — Lower: squat 5×5"
+    ],
+    "note": "n",
+    "buildType": "program"
+   },
+   "sql": {
+    "note": "n",
+    "media": [],
+    "blocks": [
+     "Mon — Upper (push)",
+     "Tue — Lower",
+     "Wed — Rest",
+     "Thu — Upper (pull)",
+     "Fri — Lower: squat 5×5"
+    ],
+    "preview": true,
+    "buildType": "program"
+   }
+  },
+  {
+   "name": "a week-block outline with a trailing note line",
+   "kind": "program",
+   "detail": {
+    "blocks": [
+     "Week 1 — Accumulation",
+     "Week 2 — Accumulation",
+     "Week 3 — Intensification",
+     "Week 4 — Deload",
+     "Nutrition: eat enough · 2 meals"
+    ]
+   },
+   "sql": {
+    "media": [],
+    "blocks": [
+     "Week 1 — Accumulation",
+     "Week 2 — Accumulation",
+     "Week 3 — Intensification",
+     "Week 4 — Deload",
+     "Nutrition"
+    ],
+    "preview": true
+   }
+  },
+  {
+   "name": "a single session of text lines, every separator",
+   "kind": "workout",
+   "detail": {
+    "buildType": "workout",
+    "blocks": [
+     "Back squat — 4 × 6 · RPE 8",
+     "Romanian deadlift: 3 × 10 · 60 kg",
+     "Hip thrust – 3 × 12",
+     "Plank · 3 × 30s",
+     "Curl · 3x12",
+     "Walk",
+     "Squat · 2 — 3 × 8",
+     "— 3 × 8",
+     "Bench —",
+     "Face pull · light",
+     {
+      "text": "Dip — 3 × AMRAP",
+      "cue": "SECRET lean"
+     }
+    ]
+   },
+   "sql": {
+    "media": [],
+    "blocks": [
+     "Back squat",
+     "Romanian deadlift",
+     "Hip thrust",
+     "Plank",
+     "Curl",
+     "Walk",
+     "Squat · 2",
+     "Bench —",
+     "Face pull · light",
+     "Dip"
+    ],
+    "preview": true,
+    "buildType": "workout"
+   }
+  },
+  {
+   "name": "lines that look like structure and are not",
+   "kind": "program",
+   "detail": {
+    "blocks": [
+     "Monster walk — 3 × 10",
+     "Week 0 — x",
+     "Week 53 — y",
+     "Week 1a — z",
+     "Week1 — z",
+     "weekly check — 1 × 1",
+     "WEEK 12",
+     "Sunrise run: 5 km"
+    ]
+   },
+   "sql": {
+    "media": [],
+    "blocks": [
+     "Monster walk",
+     "Week 0",
+     "Week 53",
+     "Week 1a",
+     "Week1 — z",
+     "weekly check",
+     "WEEK 12",
+     "Sunrise run"
+    ],
+    "preview": true
+   }
+  },
+  {
+   "name": "junk blocks",
+   "kind": "program",
+   "detail": {
+    "blocks": [
+     null,
+     5,
+     true,
+     [],
+     {
+      "text": 5
+     },
+     {
+      "text": null
+     },
+     {
+      "no": "text"
+     },
+     "  ",
+     "a\u0001b — 3 × 5",
+     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     {
+      "text": "  Row — 3 × 10  "
+     }
+    ]
+   },
+   "sql": {
+    "media": [],
+    "blocks": [
+     "ab",
+     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "Row"
+    ],
+    "preview": true
+   }
+  },
+  {
+   "name": "junk builder",
+   "kind": "program",
+   "detail": {
+    "builder": {
+     "video": "ftp://x/y",
+     "weeks": [
+      null,
+      {
+       "days": "x"
+      },
+      {
+       "days": [
+        null,
+        {
+         "blocks": "x"
+        },
+        {
+         "name": 5,
+         "weekday": 7,
+         "blocks": [
+          null,
+          {
+           "rows": "x"
+          },
+          {
+           "rows": [
+            null,
+            {
+             "name": 5
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": "A\u0002",
+             "equipment": 9,
+             "muscle": "  Quads  "
+            },
+            {
+             "name": "B",
+             "weekday": 1
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "name": "  Day  ",
+         "weekday": 1.5,
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "C",
+             "equipment": "  "
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "weekday": -1,
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "D"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    "media": [
+     null,
+     "https://x/a.jpg",
+     {
+      "url": 5
+     },
+     {
+      "type": "video"
+     },
+     {
+      "type": "image",
+      "url": "javascript:alert(1)"
+     },
+     {
+      "type": "VIDEO",
+      "url": "https://img.example/caps.jpg"
+     }
+    ]
+   },
+   "sql": {
+    "media": [
+     {
+      "url": "https://img.example/caps.jpg",
+      "type": "image"
+     }
+    ],
+    "blocks": [
+     {
+      "day": 2,
+      "name": "A",
+      "text": "A",
+      "week": 2,
+      "muscle": "Quads"
+     },
+     {
+      "day": 2,
+      "name": "B",
+      "text": "B",
+      "week": 2
+     },
+     {
+      "day": 3,
+      "name": "C",
+      "text": "C",
+      "week": 2,
+      "dayName": "Day"
+     },
+     {
+      "day": 4,
+      "name": "D",
+      "text": "D",
+      "week": 2
+     }
+    ],
+    "preview": true
+   }
+  },
+  {
+   "name": "45 rows in one block: 40 kept",
+   "kind": "program",
+   "detail": {
+    "builder": {
+     "weeks": [
+      {
+       "days": [
+        {
+         "name": "All",
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "Move 1"
+            },
+            {
+             "name": "Move 2"
+            },
+            {
+             "name": "Move 3"
+            },
+            {
+             "name": "Move 4"
+            },
+            {
+             "name": "Move 5"
+            },
+            {
+             "name": "Move 6"
+            },
+            {
+             "name": "Move 7"
+            },
+            {
+             "name": "Move 8"
+            },
+            {
+             "name": "Move 9"
+            },
+            {
+             "name": "Move 10"
+            },
+            {
+             "name": "Move 11"
+            },
+            {
+             "name": "Move 12"
+            },
+            {
+             "name": "Move 13"
+            },
+            {
+             "name": "Move 14"
+            },
+            {
+             "name": "Move 15"
+            },
+            {
+             "name": "Move 16"
+            },
+            {
+             "name": "Move 17"
+            },
+            {
+             "name": "Move 18"
+            },
+            {
+             "name": "Move 19"
+            },
+            {
+             "name": "Move 20"
+            },
+            {
+             "name": "Move 21"
+            },
+            {
+             "name": "Move 22"
+            },
+            {
+             "name": "Move 23"
+            },
+            {
+             "name": "Move 24"
+            },
+            {
+             "name": "Move 25"
+            },
+            {
+             "name": "Move 26"
+            },
+            {
+             "name": "Move 27"
+            },
+            {
+             "name": "Move 28"
+            },
+            {
+             "name": "Move 29"
+            },
+            {
+             "name": "Move 30"
+            },
+            {
+             "name": "Move 31"
+            },
+            {
+             "name": "Move 32"
+            },
+            {
+             "name": "Move 33"
+            },
+            {
+             "name": "Move 34"
+            },
+            {
+             "name": "Move 35"
+            },
+            {
+             "name": "Move 36"
+            },
+            {
+             "name": "Move 37"
+            },
+            {
+             "name": "Move 38"
+            },
+            {
+             "name": "Move 39"
+            },
+            {
+             "name": "Move 40"
+            },
+            {
+             "name": "Move 41"
+            },
+            {
+             "name": "Move 42"
+            },
+            {
+             "name": "Move 43"
+            },
+            {
+             "name": "Move 44"
+            },
+            {
+             "name": "Move 45"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "sql": {
+    "media": [],
+    "blocks": [
+     {
+      "day": 0,
+      "name": "Move 1",
+      "text": "Move 1",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 2",
+      "text": "Move 2",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 3",
+      "text": "Move 3",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 4",
+      "text": "Move 4",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 5",
+      "text": "Move 5",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 6",
+      "text": "Move 6",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 7",
+      "text": "Move 7",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 8",
+      "text": "Move 8",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 9",
+      "text": "Move 9",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 10",
+      "text": "Move 10",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 11",
+      "text": "Move 11",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 12",
+      "text": "Move 12",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 13",
+      "text": "Move 13",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 14",
+      "text": "Move 14",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 15",
+      "text": "Move 15",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 16",
+      "text": "Move 16",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 17",
+      "text": "Move 17",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 18",
+      "text": "Move 18",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 19",
+      "text": "Move 19",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 20",
+      "text": "Move 20",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 21",
+      "text": "Move 21",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 22",
+      "text": "Move 22",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 23",
+      "text": "Move 23",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 24",
+      "text": "Move 24",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 25",
+      "text": "Move 25",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 26",
+      "text": "Move 26",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 27",
+      "text": "Move 27",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 28",
+      "text": "Move 28",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 29",
+      "text": "Move 29",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 30",
+      "text": "Move 30",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 31",
+      "text": "Move 31",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 32",
+      "text": "Move 32",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 33",
+      "text": "Move 33",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 34",
+      "text": "Move 34",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 35",
+      "text": "Move 35",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 36",
+      "text": "Move 36",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 37",
+      "text": "Move 37",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 38",
+      "text": "Move 38",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 39",
+      "text": "Move 39",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "Move 40",
+      "text": "Move 40",
+      "week": 0,
+      "dayName": "All"
+     }
+    ],
+    "preview": true
+   }
+  },
+  {
+   "name": "50 rows over two blocks: the first 40 kept",
+   "kind": "program",
+   "detail": {
+    "builder": {
+     "weeks": [
+      {
+       "days": [
+        {
+         "name": "All",
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "A1"
+            },
+            {
+             "name": "A2"
+            },
+            {
+             "name": "A3"
+            },
+            {
+             "name": "A4"
+            },
+            {
+             "name": "A5"
+            },
+            {
+             "name": "A6"
+            },
+            {
+             "name": "A7"
+            },
+            {
+             "name": "A8"
+            },
+            {
+             "name": "A9"
+            },
+            {
+             "name": "A10"
+            },
+            {
+             "name": "A11"
+            },
+            {
+             "name": "A12"
+            },
+            {
+             "name": "A13"
+            },
+            {
+             "name": "A14"
+            },
+            {
+             "name": "A15"
+            },
+            {
+             "name": "A16"
+            },
+            {
+             "name": "A17"
+            },
+            {
+             "name": "A18"
+            },
+            {
+             "name": "A19"
+            },
+            {
+             "name": "A20"
+            },
+            {
+             "name": "A21"
+            },
+            {
+             "name": "A22"
+            },
+            {
+             "name": "A23"
+            },
+            {
+             "name": "A24"
+            },
+            {
+             "name": "A25"
+            }
+           ]
+          },
+          {
+           "rows": [
+            {
+             "name": "B1"
+            },
+            {
+             "name": "B2"
+            },
+            {
+             "name": "B3"
+            },
+            {
+             "name": "B4"
+            },
+            {
+             "name": "B5"
+            },
+            {
+             "name": "B6"
+            },
+            {
+             "name": "B7"
+            },
+            {
+             "name": "B8"
+            },
+            {
+             "name": "B9"
+            },
+            {
+             "name": "B10"
+            },
+            {
+             "name": "B11"
+            },
+            {
+             "name": "B12"
+            },
+            {
+             "name": "B13"
+            },
+            {
+             "name": "B14"
+            },
+            {
+             "name": "B15"
+            },
+            {
+             "name": "B16"
+            },
+            {
+             "name": "B17"
+            },
+            {
+             "name": "B18"
+            },
+            {
+             "name": "B19"
+            },
+            {
+             "name": "B20"
+            },
+            {
+             "name": "B21"
+            },
+            {
+             "name": "B22"
+            },
+            {
+             "name": "B23"
+            },
+            {
+             "name": "B24"
+            },
+            {
+             "name": "B25"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "sql": {
+    "media": [],
+    "blocks": [
+     {
+      "day": 0,
+      "name": "A1",
+      "text": "A1",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A2",
+      "text": "A2",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A3",
+      "text": "A3",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A4",
+      "text": "A4",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A5",
+      "text": "A5",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A6",
+      "text": "A6",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A7",
+      "text": "A7",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A8",
+      "text": "A8",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A9",
+      "text": "A9",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A10",
+      "text": "A10",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A11",
+      "text": "A11",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A12",
+      "text": "A12",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A13",
+      "text": "A13",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A14",
+      "text": "A14",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A15",
+      "text": "A15",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A16",
+      "text": "A16",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A17",
+      "text": "A17",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A18",
+      "text": "A18",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A19",
+      "text": "A19",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A20",
+      "text": "A20",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A21",
+      "text": "A21",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A22",
+      "text": "A22",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A23",
+      "text": "A23",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A24",
+      "text": "A24",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "A25",
+      "text": "A25",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B1",
+      "text": "B1",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B2",
+      "text": "B2",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B3",
+      "text": "B3",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B4",
+      "text": "B4",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B5",
+      "text": "B5",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B6",
+      "text": "B6",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B7",
+      "text": "B7",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B8",
+      "text": "B8",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B9",
+      "text": "B9",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B10",
+      "text": "B10",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B11",
+      "text": "B11",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B12",
+      "text": "B12",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B13",
+      "text": "B13",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B14",
+      "text": "B14",
+      "week": 0,
+      "dayName": "All"
+     },
+     {
+      "day": 0,
+      "name": "B15",
+      "text": "B15",
+      "week": 0,
+      "dayName": "All"
+     }
+    ],
+    "preview": true
+   }
+  },
+  {
+   "name": "past the scans: the 15th day, the 13th block, the 41st row",
+   "kind": "program",
+   "detail": {
+    "builder": {
+     "weeks": [
+      {
+       "days": [
+        {
+         "blocks": []
+        },
+        {
+         "blocks": []
+        },
+        {
+         "blocks": []
+        },
+        {
+         "blocks": []
+        },
+        {
+         "blocks": []
+        },
+        {
+         "blocks": []
+        },
+        {
+         "blocks": []
+        },
+        {
+         "blocks": []
+        },
+        {
+         "blocks": []
+        },
+        {
+         "blocks": []
+        },
+        {
+         "blocks": []
+        },
+        {
+         "blocks": []
+        },
+        {
+         "blocks": []
+        },
+        {
+         "blocks": []
+        },
+        {
+         "name": "Day 15",
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "Late day"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": []
+          },
+          {
+           "rows": []
+          },
+          {
+           "rows": []
+          },
+          {
+           "rows": []
+          },
+          {
+           "rows": []
+          },
+          {
+           "rows": []
+          },
+          {
+           "rows": []
+          },
+          {
+           "rows": []
+          },
+          {
+           "rows": []
+          },
+          {
+           "rows": []
+          },
+          {
+           "rows": []
+          },
+          {
+           "rows": []
+          },
+          {
+           "rows": [
+            {
+             "name": "Late block"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {
+             "name": "Late row"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "sql": {
+    "media": [],
+    "blocks": [],
+    "preview": true
+   }
+  },
+  {
+   "name": "past 400 rows looked at",
+   "kind": "program",
+   "detail": {
+    "builder": {
+     "weeks": [
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "Too late"
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": ""
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "sql": {
+    "media": [],
+    "blocks": [],
+    "preview": true
+   }
+  },
+  {
+   "name": "the 53rd week",
+   "kind": "program",
+   "detail": {
+    "builder": {
+     "weeks": [
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": []
+      },
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "Week 53 move"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "sql": {
+    "media": [],
+    "blocks": [],
+    "preview": true
+   }
+  },
+  {
+   "name": "an outline-only builder reads its text",
+   "kind": "program",
+   "detail": {
+    "builder": {
+     "outlineOnly": true,
+     "weeks": [
+      {
+       "days": [
+        {
+         "name": "Mon",
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "Hidden"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    "blocks": [
+     "Mon — Push",
+     "Wed — Pull",
+     "Fri — Legs"
+    ]
+   },
+   "sql": {
+    "media": [],
+    "blocks": [
+     "Mon — Push",
+     "Wed — Pull",
+     "Fri — Legs"
+    ],
+    "preview": true
+   }
+  },
+  {
+   "name": "outlineOnly as text is not outline-only",
+   "kind": "program",
+   "detail": {
+    "builder": {
+     "outlineOnly": "true",
+     "weeks": [
+      {
+       "days": [
+        {
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "Shown"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    "blocks": [
+     "Mon — Push"
+    ]
+   },
+   "sql": {
+    "media": [],
+    "blocks": [
+     {
+      "day": 0,
+      "name": "Shown",
+      "text": "Shown",
+      "week": 0
+     }
+    ],
+    "preview": true
+   }
+  },
+  {
+   "name": "media: the program video trimmed, eight images, a long clip, a clip with no type",
+   "kind": "program",
+   "detail": {
+    "builder": {
+     "video": "  https://video.example/v.mp4  ",
+     "weeks": []
+    },
+    "media": [
+     {
+      "type": "image",
+      "url": "https://img.example/0.jpg"
+     },
+     {
+      "type": "image",
+      "url": "https://img.example/1.jpg"
+     },
+     {
+      "type": "image",
+      "url": "https://img.example/2.jpg"
+     },
+     {
+      "type": "image",
+      "url": "https://img.example/3.jpg"
+     },
+     {
+      "type": "image",
+      "url": "https://img.example/4.jpg"
+     },
+     {
+      "type": "image",
+      "url": "https://img.example/5.jpg"
+     },
+     {
+      "type": "image",
+      "url": "https://img.example/6.jpg"
+     },
+     {
+      "type": "image",
+      "url": "https://img.example/7.jpg"
+     },
+     {
+      "type": "video",
+      "url": "https://clip.example/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+     },
+     {
+      "url": "https://clip.example/untyped.mp4"
+     }
+    ]
+   },
+   "sql": {
+    "media": [
+     {
+      "url": "https://video.example/v.mp4",
+      "type": "video"
+     },
+     {
+      "url": "https://img.example/0.jpg",
+      "type": "image"
+     },
+     {
+      "url": "https://img.example/1.jpg",
+      "type": "image"
+     },
+     {
+      "url": "https://img.example/2.jpg",
+      "type": "image"
+     },
+     {
+      "url": "https://img.example/3.jpg",
+      "type": "image"
+     },
+     {
+      "url": "https://img.example/4.jpg",
+      "type": "image"
+     },
+     {
+      "url": "https://img.example/5.jpg",
+      "type": "image"
+     },
+     {
+      "url": "https://img.example/6.jpg",
+      "type": "image"
+     }
+    ],
+    "blocks": [],
+    "preview": true
+   }
+  },
+  {
+   "name": "media: no program video, a long first clip, then a good one",
+   "kind": "program",
+   "detail": {
+    "builder": {
+     "video": "",
+     "weeks": []
+    },
+    "media": [
+     {
+      "type": "video",
+      "url": "https://clip.example/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+     },
+     {
+      "type": "video",
+      "url": "https://clip.example/ok.mp4"
+     },
+     {
+      "type": "image",
+      "url": "http://img.example/plain.jpg"
+     }
+    ]
+   },
+   "sql": {
+    "media": [
+     {
+      "url": "https://clip.example/ok.mp4",
+      "type": "video"
+     },
+     {
+      "url": "http://img.example/plain.jpg",
+      "type": "image"
+     }
+    ],
+    "blocks": [],
+    "preview": true
+   }
+  },
+  {
+   "name": "a note that is not text, and nothing else",
+   "kind": "program",
+   "detail": {
+    "note": 5,
+    "buildType": null,
+    "days": [
+     {
+      "dow": 0,
+      "blocks": [
+       "x"
+      ]
+     }
+    ],
+    "goal": "secret"
+   },
+   "sql": {
+    "media": [],
+    "blocks": [],
+    "preview": true
+   }
+  },
+  {
+   "name": "nothing at all",
+   "kind": "program",
+   "detail": {},
+   "sql": {
+    "media": [],
+    "blocks": [],
+    "preview": true
+   }
+  },
+  {
+   "name": "a kind with no name",
+   "kind": null,
+   "detail": {
+    "blocks": [
+     "Squat — 5 × 5"
+    ]
+   },
+   "sql": {
+    "media": [],
+    "blocks": [
+     "Squat"
+    ],
+    "preview": true
+   }
+  }
+ ]
+}

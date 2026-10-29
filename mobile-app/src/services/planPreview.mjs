@@ -26,6 +26,12 @@
 // path below reads that shape; bsPreviewReduce is the same rule in JavaScript,
 // kept here as the tests' oracle (the model of a reduced plan must equal the
 // model of the full one), never used by the app itself.
+//
+// A PROGRAM'S HALF (2026-10-29): the same functions handed every caller a
+// program's whole outline: each row's sets, reps, load, rest, tempo, cue and clip.
+// The public preview now keeps names, weeks and days; sets, loads, cues and videos
+// unlock on purchase, with one free preview video (the owner, 2026-10-29). See
+// bsProgramReduce below and 2026-10-29-program-preview-names.sql.
 
 import { bsAssignDayLine, bsAssignExercise, bsAssignMeal, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsPlanWeek, BS_DAY_BLOCK_MAX } from './planOutline.mjs';
 
@@ -124,18 +130,115 @@ function authoredDays(detail) {
   return byDow;
 }
 
+// ── A program's server-reduced shape (2026-10-29) ────────────────────────────
+// sale_plan_program_preview (2026-10-29-program-preview-names.sql) hands out:
+//   preview:   true
+//   blocks:    from the builder, which is what delivery reads, each named row as
+//              { week, day, dayName?, weekday?, name, equipment?, muscle?, text: name }
+//              in delivery order, at most 40. With no builder (or an outline-only one)
+//              the text outline instead: a weekday line (its head a weekday and nothing
+//              more) or week line whole, any other line cut to its exercise name.
+//   media:     one video (the program's own, else the first clip), then up to 7 images
+//   note, buildType: as they are, when they are text
+// and nothing else. The rules below are the SQL's, written to agree with it exactly on
+// any input (its own trim, separators and scans), not the parsers' looser ones.
+const PROGRAM_SCAN = { weeks: 52, days: 14, blocks: 12, rows: 40, visits: 400, media: 40, images: 7 };
+const isPlainObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const spaceTrim = (s) => s.replace(/^ +| +$/g, '');
+const programClean = (s, max) => spaceTrim(String(s).slice(0, 2000).replace(/[\x01-\x1f\x7f]/g, '')).slice(0, max);
+const WEEKDAY_HEAD = /^(mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday|sun|sunday)\.?$/;
+const programUrl = (u) => typeof u === 'string' && u.length <= 2048 && /^https?:\/\//i.test(u);
+
+// A line of a text outline as the preview may show it: a weekday or week line whole,
+// anything else cut to the exercise name before its separator (or before a " · " with a
+// number after it, as bsAssignExercise reads a line with no separator). A weekday line's
+// head is a weekday and nothing more: "Monster walk — 3 × 10" is an exercise and comes out
+// "Monster walk", which bsAssignDayLine still reads as the Monday it always read, so the
+// sheet classes the plan as it did; only the scheme is gone.
+export function bsProgramLine(t) {
+  if (!t) return '';
+  const m = /^([^—–:]*)[—–:][\s\S]/.exec(t);
+  const head = m ? m[1] : null;
+  if (WEEKDAY_HEAD.test(spaceTrim(head == null ? t : head).toLowerCase())) return t;
+  const w = /^ *week *([0-9]{1,2})(?![0-9A-Za-z_])/i.exec(t);
+  if (w && Number(w[1]) >= 1 && Number(w[1]) <= 52) return t;
+  if (head != null) return spaceTrim(head);
+  const dot = t.indexOf('·');
+  return dot >= 0 && /[0-9]/.test(t.slice(dot + 1)) ? spaceTrim(t.slice(0, dot)) : t;
+}
+
+function programOutline(detail) {
+  const b = detail.builder;
+  const out = [];
+  if (isPlainObject(b) && Array.isArray(b.weeks) && b.outlineOnly !== true) {
+    let visits = 0;
+    rows: for (const [wi, w] of b.weeks.slice(0, PROGRAM_SCAN.weeks).entries()) {
+      if (!isPlainObject(w) || !Array.isArray(w.days)) continue;
+      for (const [di, d] of w.days.slice(0, PROGRAM_SCAN.days).entries()) {
+        if (!isPlainObject(d) || !Array.isArray(d.blocks)) continue;
+        const dayName = typeof d.name === 'string' ? programClean(d.name, 80) : '';
+        const weekday = Number.isInteger(d.weekday) && d.weekday >= 0 && d.weekday <= 6 ? d.weekday : null;
+        for (const bl of d.blocks.slice(0, PROGRAM_SCAN.blocks)) {
+          if (!isPlainObject(bl) || !Array.isArray(bl.rows)) continue;
+          for (const r of bl.rows.slice(0, PROGRAM_SCAN.rows)) {
+            visits += 1;
+            if (visits > PROGRAM_SCAN.visits) break rows;
+            if (!isPlainObject(r) || typeof r.name !== 'string') continue;
+            const name = programClean(r.name, TITLE_MAX);
+            if (!name) continue;
+            const equipment = typeof r.equipment === 'string' ? programClean(r.equipment, 60) : '';
+            const muscle = typeof r.muscle === 'string' ? programClean(r.muscle, 60) : '';
+            out.push({ week: wi, day: di, ...(dayName ? { dayName } : {}), ...(weekday != null ? { weekday } : {}), name, ...(equipment ? { equipment } : {}), ...(muscle ? { muscle } : {}), text: name });
+            if (out.length >= BLOCK_SCAN) break rows;
+          }
+        }
+      }
+    }
+    return out;
+  }
+  for (const x of (Array.isArray(detail.blocks) ? detail.blocks : []).slice(0, BLOCK_SCAN)) {
+    const t = programClean(typeof x === 'string' ? x : (isPlainObject(x) && typeof x.text === 'string') ? x.text : '', TITLE_MAX);
+    const line = bsProgramLine(t);
+    if (line) out.push(line);
+  }
+  return out;
+}
+
+function programMedia(detail) {
+  const media = (Array.isArray(detail.media) ? detail.media : []).slice(0, PROGRAM_SCAN.media);
+  const b = detail.builder;
+  const own = isPlainObject(b) && typeof b.video === 'string' ? spaceTrim(b.video) : '';
+  const clip = media.find((m) => isPlainObject(m) && m.type === 'video' && programUrl(m.url));
+  const video = programUrl(own) ? own : clip ? clip.url : null;
+  const images = media.filter((m) => isPlainObject(m) && m.type !== 'video' && programUrl(m.url)).slice(0, PROGRAM_SCAN.images);
+  return [...(video ? [{ type: 'video', url: video }] : []), ...images.map((m) => ({ type: 'image', url: m.url }))];
+}
+
+/** A program's detail as the public sale-plan functions return it (see above). */
+export function bsProgramReduce(detail) {
+  if (!detail || typeof detail !== 'object' || Array.isArray(detail)) return detail;
+  return {
+    preview: true,
+    blocks: programOutline(detail),
+    media: programMedia(detail),
+    ...(typeof detail.note === 'string' ? { note: detail.note } : {}),
+    ...(typeof detail.buildType === 'string' ? { buildType: detail.buildType } : {}),
+  };
+}
+
 /**
  * What the public sale-plan functions return for a plan's detail: the server's
  * rule, in JavaScript, for the tests. A meal plan's menus become counts plus the
- * first two meals of the first day that has any; `builder` goes for every kind;
- * a program's detail is otherwise untouched. Deep-equal to the SQL function's
- * output on the same input (checked on a replica; see the migration's guard).
+ * first two meals of the first day that has any, and `builder` goes; a program
+ * keeps its names, weeks and days (bsProgramReduce). Deep-equal to the SQL
+ * function's output on the same input (checked on a replica; see the migrations'
+ * guards).
  */
 export function bsPreviewReduce(kind, detail) {
   if (!detail || typeof detail !== 'object' || Array.isArray(detail)) return detail;
+  if (kind !== 'meal_plan') return bsProgramReduce(detail);
   const out = { ...detail };
   delete out.builder;
-  if (kind !== 'meal_plan') return out;
   const fallback = Array.isArray(detail.blocks) ? detail.blocks : [];
   const authored = authoredDays(detail);
   const resolved = [];
@@ -203,6 +306,10 @@ export function bsPlanPreview(plan, opts) {
   // A meal plan from the public sale-plan functions carries counts and a sample,
   // not the menus (see the header). Its model is built from those.
   if (isNutri && detail.preview === true) return reducedMenuPreview(detail, { weeks, note, media });
+  // A program from the same functions carries names, weeks and days, the sets and
+  // loads cut (bsProgramReduce). The sheet says what buying unlocks.
+  const namesOnly = !isNutri && detail.preview === true;
+  const cut = namesOnly ? { namesOnly: true } : {};
 
   // C1a — the per-day week has to be resolved BEFORE the empty check, or a
   // per-day plan whose DEFAULT menu is empty (every day authored individually,
@@ -252,6 +359,7 @@ export function bsPlanPreview(plan, opts) {
     }
     return {
       kind: 'split',
+      ...cut,
       weeks,
       sessionsPerWeek: units.filter((u) => !u.rest).length,
       units,
@@ -280,6 +388,7 @@ export function bsPlanPreview(plan, opts) {
     const units = wu.map((w) => ({ label: `WEEK ${w.week}`, title: clean(w.title) }));
     return {
       kind: 'block',
+      ...cut,
       // The outline STATES its own week numbers, so the highest one is stated
       // information — not a guess from the block count (which is what the
       // no-fabrication rule forbids, and which would be wrong here anyway:
@@ -355,7 +464,11 @@ export function bsPlanPreview(plan, opts) {
     };
   }
 
+  // A reduced program's exercise line is the name alone: that line IS the title,
+  // where bsAssignExercise would read "Squat · 2" as Squat with a load of 2. Its
+  // weekday and week lines come whole and read as they always have.
   const units = texts.map((t) => {
+    if (namesOnly && !bsAssignDayLine(t) && !bsAssignWeekLine(t)) return { label: '', title: t, scheme: '', load: '' };
     const e = bsAssignExercise(t);
     if (!e || !e.name) return null;
     const scheme = (e.sets && e.reps) ? `${e.sets}×${e.reps}` : '';
@@ -364,6 +477,7 @@ export function bsPlanPreview(plan, opts) {
 
   return {
     kind: units.length ? 'session' : null,
+    ...cut,
     weeks,
     sessionsPerWeek: null,
     units,
