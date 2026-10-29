@@ -3,7 +3,9 @@ import React from 'react';
 // The masthead's ✦ opens Nora on every screen, but nothing said so (owner, 2026-10-29: "Users may
 // not know that's how to get to Nora"; option C of the mocks, with the ✦ itself left a bare glyph).
 // Home shows this note once, in teal under the ✦: who she is and what to ask her. It goes for good
-// on this device when the member taps Got it, or opens Nora by any door (the ✦, a link, a sheet).
+// on this device when the member taps Got it, or when Nora's sheet opens by any door (the ✦ on any
+// tab, Search, Help, an Ask Nora link, the pre-account door): BSNoraSheet calls bsNoraHintDone as it
+// opens, since every door ends there (Codex P2 ×2 on #2500).
 //
 // It hangs from a zero-height box placed after Home's masthead, and is put under the ✦ by
 // measuring it, so it scrolls away with the page, and any sheet (portaled above the page) covers
@@ -42,23 +44,18 @@ export function bsMarkNoraHintSeen(storage) {
   try { if (storage) storage.setItem(BS_NORA_HINT_KEY, '1'); } catch (e) {}
 }
 
-/** Opening Nora by any door puts the note away for good, wherever the member is when they do it
- * (Codex P2 on #2500): only the active tab is mounted, so the note's own listener goes with Home,
- * and Nora opened from another tab's ✦ would leave the note to come back. This listener lives as
- * long as the app; it is wired once, when the module loads. The try/catch is for the render-test
- * harness, whose window stub has no addEventListener. */
-export function bsWireNoraHintSeen(win) {
-  if (!win || win.__bsNoraHintWired) return;
-  try {
-    win.addEventListener('shape:openNora', () => {
-      let storage = null;
-      try { storage = win.localStorage; } catch (e) {}
-      bsMarkNoraHintSeen(storage);
-    });
-    win.__bsNoraHintWired = true;
-  } catch (e) {}
+export const BS_NORA_HINT_EVENT = 'shape:noraHintSeen';
+
+/** Nora's sheet has opened: the note is put away for good, and one on screen hides. Every door to
+ * her renders BSNoraSheet, which calls this as it opens; a listener on one door's event missed the
+ * others (Search and Help open her by shape:openConversation, the pre-account door by state). */
+export function bsNoraHintDone(win = typeof window !== 'undefined' ? window : null) {
+  if (!win) return;
+  let storage = null;
+  try { storage = win.localStorage; } catch (e) {}
+  bsMarkNoraHintSeen(storage);
+  try { win.dispatchEvent(new win.CustomEvent(BS_NORA_HINT_EVENT)); } catch (e) {}
 }
-if (typeof window !== 'undefined') bsWireNoraHintSeen(window);
 
 /** Where the note goes, from the ✦'s box and the box the note hangs from (viewport rects of the
  * same scroller, so the page's scroll cancels out): its top 8px under the ✦, and how far its
@@ -85,9 +82,10 @@ export function BSNoraHint({ t }) {
 
   React.useEffect(() => {
     if (!shown) return undefined;
-    window.addEventListener('shape:openNora', close);
-    return () => window.removeEventListener('shape:openNora', close);
-  }, [shown, close]);
+    const hide = () => setShown(false);
+    window.addEventListener(BS_NORA_HINT_EVENT, hide);
+    return () => window.removeEventListener(BS_NORA_HINT_EVENT, hide);
+  }, [shown]);
 
   React.useLayoutEffect(() => {
     if (!shown) return undefined;

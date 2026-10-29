@@ -60,7 +60,7 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
 import { BSGroceryBuilder } from './BSGroceryBuilder.jsx';
-import { BSNoraHint } from './BSNoraHint.jsx';
+import { BSNoraHint, bsNoraHintDone } from './BSNoraHint.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx';
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
@@ -25663,6 +25663,8 @@ function _bsNoraLiveSet(text) {
 function BSNoraSheet({ onClose }) {
   const t = useBS();
   const tr = useShapeTr();
+  // Opening her, by any door, puts Home's first-run note about the ✦ away for good (BSNoraHint.jsx).
+  React.useEffect(() => { bsNoraHintDone(); }, []);
   const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
   const cardInk = t.INK;
   const muted = t.INK50;

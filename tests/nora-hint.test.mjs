@@ -59,25 +59,31 @@ test('a new device sees the note until Got it, and never again', () => {
   } finally { globalThis.window = prev; }
 });
 
-test('Nora opened from another tab, with Home unmounted, still puts the note away for good (Codex P2 on #2500)', () => {
+test('Nora\'s sheet opening, by any door, puts the note away for good and hides one on screen (Codex P2 ×2 on #2500)', () => {
   const storage = memoryStorage();
-  const handlers = {};
-  const win = { localStorage: storage, addEventListener: (type, fn) => { (handlers[type] = handlers[type] || []).push(fn); } };
-  mod.bsWireNoraHintSeen(win);
-  mod.bsWireNoraHintSeen(win);
-  assert.equal(handlers['shape:openNora'].length, 1, 'wired once');
-  // No BSNoraHint is mounted here: this is the member on Train or Eat tapping that page's ✦.
-  handlers['shape:openNora'][0]();
+  const sent = [];
+  class CustomEvent { constructor(type) { this.type = type; } }
+  mod.bsNoraHintDone({ localStorage: storage, CustomEvent, dispatchEvent: (e) => sent.push(e.type) });
   assert.equal(storage.m.get(mod.BS_NORA_HINT_KEY), '1');
-  // Storage that throws, or a window with no addEventListener (the test harness's), never throws.
-  assert.doesNotThrow(() => mod.bsWireNoraHintSeen({ get localStorage() { throw new Error('blocked'); }, addEventListener: (t, fn) => fn() }));
-  assert.doesNotThrow(() => mod.bsWireNoraHintSeen({}));
-  // And it is wired when the module loads, which the client module does at startup.
-  assert.match(HINT, /^if \(typeof window !== 'undefined'\) bsWireNoraHintSeen\(window\);$/m);
+  assert.deepEqual(sent, [mod.BS_NORA_HINT_EVENT]);
+  // Storage that throws, or a window that can't dispatch, never throws.
+  assert.doesNotThrow(() => mod.bsNoraHintDone({ get localStorage() { throw new Error('blocked'); } }));
+  assert.doesNotThrow(() => mod.bsNoraHintDone(null));
+  // The sheet calls it as it opens, so the ✦ on any tab, Search and Help (shape:openConversation with
+  // support), an Ask Nora link and the pre-account door all count: every one renders BSNoraSheet.
+  const sheet = CLIENT.slice(CLIENT.indexOf('function BSNoraSheet('), CLIENT.indexOf('\nfunction ', CLIENT.indexOf('function BSNoraSheet(') + 10));
+  assert.match(sheet, /React\.useEffect\(\(\) => \{ bsNoraHintDone\(\); \}, \[\]\);/);
+  assert.match(CLIENT, /if \(d\.support\) \{ setShowSearch\(false\); setShowSettings\(false\); setShowNoraSheet\(true\); return; \}/, 'Search and Help open the sheet');
+  const MAIN = readFileSync(join(DIR, 'iosAppBroadsheetMain.jsx'), 'utf8');
+  const PROS = readFileSync(join(DIR, 'iosAppBroadsheetPros.jsx'), 'utf8');
+  assert.match(MAIN, /<window\.BSNoraSheet onClose=/, 'the pre-account door opens the same sheet');
+  assert.match(PROS, /React\.createElement\(window\.BSNoraSheet, /, 'the coach apps open the same sheet');
+  // The note hides on that event; it no longer listens for one door's event.
+  assert.match(HINT, /window\.addEventListener\(BS_NORA_HINT_EVENT, hide\)/);
+  assert.doesNotMatch(HINT.replace(/\/\/.*$/gm, ''), /shape:openNora/);
 });
 
-test('opening Nora by any door puts the note away; it is placed by measuring the page\'s own ✦', () => {
-  assert.match(HINT, /window\.addEventListener\('shape:openNora', close\)/);
+test('Got it puts the note away; it is placed by measuring the page\'s own ✦', () => {
   assert.match(HINT, /const close = React\.useCallback\(\(\) => \{\s*bsMarkNoraHintSeen\(deviceStorage\(\)\);\s*setShown\(false\);/);
   // The page's masthead ✦, inside the scroller; the pinned bar's sits outside it.
   assert.match(HINT, /box\.closest\('\.bs-scroll'\)/);
@@ -91,7 +97,7 @@ test('Home places the note right under its masthead', () => {
   const hint = home.indexOf('<BSNoraHint t={t} />');
   const dateline = home.indexOf('{/* DATELINE');
   assert.ok(mast > 0 && hint > mast && hint < dateline, 'between the masthead and the dateline');
-  assert.match(CLIENT, /^import \{ BSNoraHint \} from '\.\/BSNoraHint\.jsx';$/m);
+  assert.match(CLIENT, /^import \{ BSNoraHint, bsNoraHintDone \} from '\.\/BSNoraHint\.jsx';$/m);
 });
 
 test('the note\'s words are in all 13 languages, each naming the ✦', () => {
