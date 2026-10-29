@@ -504,7 +504,7 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel 
     if (!ing.length && !steps.length) { setNote(['err', tr('profile:mine.pasteFailed', { defaultValue: "Couldn't find a recipe in that. Fill it in by hand." })]); return; }
     setDraft((cur) => (cur && cur.id === forId ? {
       ...cur,
-      t: cur.t.trim() ? cur.t : title.slice(0, BS_RECIPE_TITLE_MAX),
+      t: cur.t.trim() ? cur.t : title,
       serves: cur.serves || (Number.isInteger(got.servings) && got.servings > 0 ? String(got.servings) : ''),
       ing: ing.length ? ing : cur.ing,
       steps: steps.length ? steps : cur.steps,
@@ -538,6 +538,7 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel 
     }
     // So is text longer than its field: a paste can set it past the box's own limit.
     const longer = (v, max) => bsCleanText(v).length > max;
+    if (longer(draft.t, BS_RECIPE_TITLE_MAX)) { setNote(['err', tr('profile:mine.errTitleLong', { defaultValue: 'The name is too long: {max} characters at most.', max: BS_RECIPE_TITLE_MAX })]); return; }
     const ingAt = draft.ing.findIndex((g) => g.m.trim() && longer(g.m, BS_RECIPE_ING_MAX));
     if (ingAt >= 0) { setNote(['err', tr('profile:mine.errIngLong', { defaultValue: 'Ingredient {n} is too long: {max} characters at most.', n: ingAt + 1, max: BS_RECIPE_ING_MAX })]); return; }
     const qtyAt = draft.ing.findIndex((g) => g.m.trim() && longer(g.n, BS_RECIPE_QTY_MAX));

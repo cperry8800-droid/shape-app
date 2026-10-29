@@ -544,6 +544,7 @@
   "mine.staplesFull": "Jusqu’à {count} indispensables.",
   "mine.errRecipeOpen": "Termine d’abord la recette que tu écris : OK ou Annuler.",
   "mine.errRecipeNum": "{field} : saisis un nombre de {min} à {max}.",
+  "mine.errTitleLong": "Le nom est trop long : {max} caractères au maximum.",
   "mine.errIngLong": "L’ingrédient {n} est trop long : {max} caractères au maximum.",
   "mine.errQtyLong": "La quantité de l’ingrédient {n} est trop longue : {max} caractères au maximum.",
   "mine.errStepLong": "L’étape {n} est trop longue : {max} caractères au maximum. Coupe-la en deux.",

@@ -711,7 +711,8 @@ test('Make it yours: a recipe number out of its range keeps the form open and sa
 test('Make it yours: a paste longer than a field holds is split or said, never clipped on save (Codex P2 on #2497)', async () => {
   reset({ me: 'u-nadia', stored: {} });
   const longStep = 'Heat the oil in a large pot over medium heat. '.repeat(9) + 'Serve.';
-  window.ShapeRecipeImport = { parse: async () => ({ ok: true, draft: { title: 'Long soup', ingredients: [{ n: '2 large handfuls, roughly', m: 'chicken thighs, boneless and skinless, cut into bite-sized pieces' }, { n: '1', m: 'onion' }], steps: [longStep, ...Array.from({ length: 15 }, (_, i) => `Step ${i + 2}.`)] } }) };
+  const longTitle = 'Long soup with chicken thighs, red lentils, onion, garlic, cumin and a squeeze of lemon';
+  window.ShapeRecipeImport = { parse: async () => ({ ok: true, draft: { title: longTitle, ingredients: [{ n: '2 large handfuls, roughly', m: 'chicken thighs, boneless and skinless, cut into bite-sized pieces' }, { n: '1', m: 'onion' }], steps: [longStep, ...Array.from({ length: 15 }, (_, i) => `Step ${i + 2}.`)] } }) };
   const m = await mount(page({ isSelf: true }));
   try {
     await click(button(/^Make it yours$/));
@@ -725,6 +726,10 @@ test('Make it yours: a paste longer than a field holds is split or said, never c
     assert.equal(steps().length, 16);
     assert.match(m.text(), /Only the first 20 ingredients and 16 steps fit\. Check what was left out\./, 'the 17th step is said, not dropped quietly');
     // Done names what is too long; nothing is clipped on the way to the save.
+    assert.equal(document.querySelector('[data-recipe-title]').value, longTitle, 'the whole name, not cut to 80 (Codex P2 on #2497)');
+    await click(document.querySelector('[data-recipe-done]'));
+    assert.match(m.text(), /The name is too long: 80 characters at most\./);
+    await type(document.querySelector('[data-recipe-title]'), 'Long soup');
     const ing = () => document.querySelectorAll('[data-recipe-ing]')[0].querySelectorAll('input');
     await click(document.querySelector('[data-recipe-done]'));
     assert.match(m.text(), /Ingredient 1 is too long: 60 characters at most\./);
@@ -741,6 +746,7 @@ test('Make it yours: a paste longer than a field holds is split or said, never c
     assert.ok(!document.querySelector('[data-recipe-form]'), 'at the limit, kept');
     await click(document.querySelector('[data-save-mine]'));
     const r = world.saved.d.kitchen.recipes[0];
+    assert.equal(r.t, 'Long soup');
     assert.deepEqual(r.ing[0], { n: '2 handfuls', m: 'chicken thighs, boneless, bite-sized' });
     assert.deepEqual(r.steps.slice(0, 3), [...bsSplitLongStep(longStep, 300), 'y'.repeat(300)], 'saved as shown');
   } finally { delete window.ShapeRecipeImport; await m.unmount(); }

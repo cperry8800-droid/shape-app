@@ -544,6 +544,7 @@
   "mine.staplesFull": "Fino a {count} scorte.",
   "mine.errRecipeOpen": "Prima finisci la ricetta che stai scrivendo: Fatto o Annulla.",
   "mine.errRecipeNum": "{field}: inserisci un numero da {min} a {max}.",
+  "mine.errTitleLong": "Il nome è troppo lungo: al massimo {max} caratteri.",
   "mine.errIngLong": "L’ingrediente {n} è troppo lungo: al massimo {max} caratteri.",
   "mine.errQtyLong": "La quantità dell’ingrediente {n} è troppo lunga: al massimo {max} caratteri.",
   "mine.errStepLong": "Il passaggio {n} è troppo lungo: al massimo {max} caratteri. Dividilo in due.",

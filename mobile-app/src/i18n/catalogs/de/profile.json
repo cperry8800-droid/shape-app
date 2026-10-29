@@ -544,6 +544,7 @@
   "mine.staplesFull": "Bis zu {count} Vorräte.",
   "mine.errRecipeOpen": "Schließ erst das Rezept ab, an dem du schreibst: Fertig oder Abbrechen.",
   "mine.errRecipeNum": "{field}: Gib eine Zahl von {min} bis {max} ein.",
+  "mine.errTitleLong": "Der Name ist zu lang: höchstens {max} Zeichen.",
   "mine.errIngLong": "Zutat {n} ist zu lang: höchstens {max} Zeichen.",
   "mine.errQtyLong": "Die Menge für Zutat {n} ist zu lang: höchstens {max} Zeichen.",
   "mine.errStepLong": "Schritt {n} ist zu lang: höchstens {max} Zeichen. Teil ihn in zwei.",

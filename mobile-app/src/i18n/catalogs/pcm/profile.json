@@ -544,6 +544,7 @@
   "mine.staplesFull": "Up to {count} staples.",
   "mine.errRecipeOpen": "Finish the recipe wey you dey write first: Done or Cancel.",
   "mine.errRecipeNum": "{field}: put number from {min} reach {max}.",
+  "mine.errTitleLong": "The name too long: {max} characters na the most.",
   "mine.errIngLong": "Ingredient {n} too long: {max} characters na the most.",
   "mine.errQtyLong": "The amount for ingredient {n} too long: {max} characters na the most.",
   "mine.errStepLong": "Step {n} too long: {max} characters na the most. Divide am into two.",

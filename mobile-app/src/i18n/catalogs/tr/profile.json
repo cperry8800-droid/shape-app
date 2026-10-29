@@ -544,6 +544,7 @@
   "mine.staplesFull": "En fazla {count} temel malzeme.",
   "mine.errRecipeOpen": "Önce yazdığın tarifi bitir: Tamam ya da Vazgeç.",
   "mine.errRecipeNum": "{field}: {min} ile {max} arasında bir sayı gir.",
+  "mine.errTitleLong": "Ad çok uzun: en fazla {max} karakter.",
   "mine.errIngLong": "{n}. malzeme çok uzun: en fazla {max} karakter.",
   "mine.errQtyLong": "{n}. malzemenin miktarı çok uzun: en fazla {max} karakter.",
   "mine.errStepLong": "{n}. adım çok uzun: en fazla {max} karakter. İkiye böl.",

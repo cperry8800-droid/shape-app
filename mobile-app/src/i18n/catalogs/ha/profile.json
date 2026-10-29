@@ -544,6 +544,7 @@
   "mine.staplesFull": "Har zuwa kayan masarufi {count}.",
   "mine.errRecipeOpen": "Ka fara gama girkin da kake rubutawa: An gama ko Soke.",
   "mine.errRecipeNum": "{field}: shigar da lamba daga {min} zuwa {max}.",
+  "mine.errTitleLong": "Sunan ya yi tsawo: haruffa {max} ne iyaka.",
   "mine.errIngLong": "Kayan haɗi na {n} ya yi tsawo: haruffa {max} ne iyaka.",
   "mine.errQtyLong": "Yawan kayan haɗi na {n} ya yi tsawo: haruffa {max} ne iyaka.",
   "mine.errStepLong": "Mataki na {n} ya yi tsawo: haruffa {max} ne iyaka. Raba shi gida biyu.",

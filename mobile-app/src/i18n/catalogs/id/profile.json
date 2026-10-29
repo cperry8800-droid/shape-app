@@ -544,6 +544,7 @@
   "mine.staplesFull": "Hingga {count} bahan pokok.",
   "mine.errRecipeOpen": "Selesaikan dulu resep yang sedang kamu tulis: Selesai atau Batal.",
   "mine.errRecipeNum": "{field}: masukkan angka dari {min} sampai {max}.",
+  "mine.errTitleLong": "Namanya terlalu panjang: maksimal {max} karakter.",
   "mine.errIngLong": "Bahan {n} terlalu panjang: maksimal {max} karakter.",
   "mine.errQtyLong": "Takaran bahan {n} terlalu panjang: maksimal {max} karakter.",
   "mine.errStepLong": "Langkah {n} terlalu panjang: maksimal {max} karakter. Pecah jadi dua.",

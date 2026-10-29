@@ -544,6 +544,7 @@
   "mine.staplesFull": "Tối đa {count} đồ dự trữ.",
   "mine.errRecipeOpen": "Hãy hoàn tất công thức bạn đang viết trước: Xong hoặc Hủy.",
   "mine.errRecipeNum": "{field}: nhập một số từ {min} đến {max}.",
+  "mine.errTitleLong": "Tên quá dài: tối đa {max} ký tự.",
   "mine.errIngLong": "Nguyên liệu {n} quá dài: tối đa {max} ký tự.",
   "mine.errQtyLong": "Lượng của nguyên liệu {n} quá dài: tối đa {max} ký tự.",
   "mine.errStepLong": "Bước {n} quá dài: tối đa {max} ký tự. Hãy tách làm hai.",
