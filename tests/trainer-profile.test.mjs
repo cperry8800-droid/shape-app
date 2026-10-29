@@ -84,7 +84,7 @@ function reset(over = {}) {
     // stored: the profile_custom doc ({} is no row, as the real read answers); readFails: the read
     // errs; switchOnRead: another account signs in while the read is in flight.
     booked: null, bookError: null, saved: null, stored: {}, readWith: undefined, readFails: false, switchOnRead: false, me: 'u-me', availFor: null,
-    asked: null, askError: null, asks: null, asksFor: null,
+    asked: null, askError: null, asks: null, asksTotal: null, asksFor: null,
     ...over,
   };
 }
@@ -119,7 +119,7 @@ window.shapeDb = {
 window.ShapeBookings = { submitConsultationBooking: async (a) => { if (world.bookError) throw world.bookError; world.booked = a; return { ok: true }; } };
 window.ShapeListingAsks = {
   ask: async (a) => { if (world.askError) throw world.askError; world.asked = a; return { already: false }; },
-  forListing: async (role, id) => { world.asksFor = [role, id]; return world.asks || []; },
+  forListing: async (role, id) => { world.asksFor = [role, id]; return { rows: world.asks || [], total: world.asksTotal ?? (world.asks || []).length }; },
 };
 window.bsProfileCardFromPost = (p) => p;
 // The client module's storefront, as a probe: it records what the page hands it.
@@ -648,6 +648,11 @@ test('the coach\'s own page lists what members asked of the listing before they 
   assert.match(rows[1].textContent, /A member.*passed/, 'unnamed, and gone by');
   await click(button(/^Set your hours so they can book →$/));
   await m.unmount();
+  // The count is every ask on the listing, not only the ones the list shows (Codex on 126c626).
+  reset({ me: 'u-maya', slots: [], asks: [{ id: 'a1', memberId: 'm1', name: 'Sam', at: Date.now() + DAY, durationMin: 20, note: '' }], asksTotal: 140 });
+  const many = await mount(page({ isSelf: true }));
+  assert.match(document.querySelector('[data-asks]').textContent, /140 times were asked of your listing/);
+  await many.unmount();
   // Nobody else's page reads them, and none show when there are none.
   reset({ me: 'u-me', asks: [{ id: 'a1', memberId: 'm1', name: 'Sam', at: Date.now() + DAY, durationMin: 20, note: '' }] });
   const other = await mount(page());

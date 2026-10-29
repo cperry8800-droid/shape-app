@@ -278,7 +278,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     setAsks(null);
     if (!isSelf || sample || demo || !providerId || !W.ShapeListingAsks?.forListing) return undefined;
     let on = true;
-    W.ShapeListingAsks.forListing(role, providerId).then((rows) => { if (on) setAsks(rows || []); }).catch(() => { if (on) setAsks([]); });
+    W.ShapeListingAsks.forListing(role, providerId).then((r) => { if (on) setAsks(r && Array.isArray(r.rows) ? r : null); }).catch(() => { if (on) setAsks(null); });
     return () => { on = false; };
   }, [isSelf, providerId, role, demo]);
   const listedMedia = (listed && provider.listing_media) || { cover: null, gallery: [] };
@@ -833,7 +833,7 @@ function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, provide
   }
   return (
     <section style={{ paddingTop: 16 }}>
-      {isSelf && asks && asks.length ? <AsksList t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} asks={asks} onHours={avail.kind === 'ready' && !avail.hasHours ? onHours : null} /> : null}
+      {isSelf && asks && asks.rows.length ? <AsksList t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} asks={asks.rows} total={asks.total} onHours={avail.kind === 'ready' && !avail.hasHours ? onHours : null} /> : null}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.thisWeek', { defaultValue: 'This week · open times' })}</span>
         <span style={{ fontSize: 12, color: ink(0.6) }}>{tr('profile:trainer.tapDay', { defaultValue: 'Tap a day' })}</span>
@@ -867,13 +867,13 @@ function Hint({ ink, children }) {
 // ── Times asked before the coach was on Shape ───────────────────────────────────────────────
 // On the coach's own page: what members asked of their listing while it was a sample, by time. They
 // were told the coach is on Shape when the listing became theirs (listing-requests.ts tellAskers).
-function AsksList({ t, tr, locale, ACC, ink, DISPLAY, MONO, asks, onHours }) {
+function AsksList({ t, tr, locale, ACC, ink, DISPLAY, MONO, asks, total, onHours }) {
   const now = Date.now();
   const when = (ms) => { try { return new Date(ms).toLocaleString(locale, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } };
   return (
     <div data-asks="" style={{ marginBottom: 18, padding: '12px 14px', border: `1px solid ${ink(0.18)}`, borderLeft: `3px solid ${ACC}` }}>
       <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.asksTitle', { defaultValue: 'Asked for before you joined' })}</span>
-      <p style={{ margin: '6px 0 0', fontSize: 13.5, lineHeight: 1.45, color: ink(0.74) }}>{tr('profile:trainer.asksSub', { defaultValue: '{count, plural, one {# time was} other {# times were}} asked of your listing while you weren\'t on Shape. Each member who asked has been told you\'re here now.', count: asks.length })}</p>
+      <p style={{ margin: '6px 0 0', fontSize: 13.5, lineHeight: 1.45, color: ink(0.74) }}>{tr('profile:trainer.asksSub', { defaultValue: '{count, plural, one {# time was} other {# times were}} asked of your listing while you weren\'t on Shape. Each member who asked has been told you\'re here now.', count: Math.max(total || 0, asks.length) })}</p>
       <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column' }}>
         {asks.map((a) => (
           <div key={a.id} data-ask="" style={{ padding: '8px 0', borderTop: `1px solid ${ink(0.1)}`, opacity: a.at < now ? 0.55 : 1 }}>

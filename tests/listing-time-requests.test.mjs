@@ -47,13 +47,19 @@ function world({ trainers = [], nutritionists = [], asks = [], profiles = [], fa
     tables.listing_time_requests.push(row);
     return out('added', row.id);
   }
+  const reads = [];
   function from(table) {
     const filters = [];
-    let op = 'select';
-    const rows = () => (tables[table] || []).filter((r) => filters.every((f) => f(r)));
+    let op = 'select', sort = null, span = null;
+    const rows = () => {
+      const found = (tables[table] || []).filter((r) => filters.every((f) => f(r)));
+      if (sort) found.sort((a, b) => (a[sort] < b[sort] ? -1 : a[sort] > b[sort] ? 1 : 0));
+      return span ? found.slice(span[0], span[1] + 1) : found;
+    };
     const run = () => {
       if (op !== 'select') return { data: null, error: { message: `an ask is stored only through add_listing_time_request, not a ${op} on ${table}` } };
-      if (fail[table]) return { data: null, error: { message: `${table} failed` } };
+      reads.push({ table, span });
+      if (fail[table] || (span && fail[`${table}:from${span[0]}`])) return { data: null, error: { message: `${table} failed` } };
       return { data: rows(), error: null };
     };
     const chain = {
@@ -61,13 +67,15 @@ function world({ trainers = [], nutritionists = [], asks = [], profiles = [], fa
       insert() { op = 'insert'; return chain; },
       upsert() { op = 'upsert'; return chain; },
       eq(k, v) { filters.push((r) => r[k] === v); return chain; },
+      order(k) { sort = k; return chain; },
+      range(a, b) { span = [a, b]; return chain; },
       limit() { return chain; },
       async maybeSingle() { const r = run(); return { data: r.data ? r.data[0] || null : null, error: r.error }; },
       then(res, rej) { return Promise.resolve(run()).then(res, rej); },
     };
     return chain;
   }
-  return { from, rpc, tables, notes, calls };
+  return { from, rpc, tables, notes, calls, reads };
 }
 
 let mods = null;
@@ -230,6 +238,76 @@ test('when the listing is claimed, each member who asked is told once, in their 
   assert.deepEqual(n.copy, { title: ['listingJoined.title', { coach: 'Leah Okafor' }], body: ['listingJoined.body', { coach: 'Leah Okafor' }] });
   current = world({ fail: { listing_time_requests: true } });
   assert.equal(await asks.tellAskers(current, 'trainer', 7), 0, 'a failed read tells nobody and throws nothing');
+});
+
+test('Codex on 126c626: a claim tells every member who asked, however many asks there are', async () => {
+  const { asks } = await load();
+  assert.equal(asks.ASKER_PAGE, 1000);
+  // 2,500 asks from 1,250 members, two each, in id order so each member's pair spans the pages.
+  const many = Array.from({ length: 2500 }, (_, i) => ({ id: `ask-${String(i).padStart(5, '0')}`, provider_role: 'trainer', provider_id: 7, member_id: `m${i % 1250}` }));
+  current = world({ trainers: [LEAH], asks: [...many, { id: 'zz', provider_role: 'trainer', provider_id: 8, member_id: 'other' }] });
+  assert.equal(await asks.tellAskers(current, 'trainer', 7), 1250);
+  assert.equal(new Set(current.notes.map((n) => n.userId)).size, 1250, 'each member once');
+  assert.ok(!current.notes.some((n) => n.userId === 'other'), 'only this listing\'s');
+  assert.deepEqual(current.reads.filter((r) => r.table === 'listing_time_requests').map((r) => r.span), [[0, 999], [1000, 1999], [2000, 2999]], 'a page at a time, until a short one');
+  // Exactly a page: one more read finds nothing, and stops.
+  current = world({ trainers: [LEAH], asks: many.slice(0, 1000) });
+  assert.equal(await asks.tellAskers(current, 'trainer', 7), 1000);
+  assert.equal(current.reads.filter((r) => r.table === 'listing_time_requests').length, 2);
+  // A later page that fails tells nobody, not just the first page's members.
+  current = world({ trainers: [LEAH], asks: many, fail: { 'listing_time_requests:from1000': true } });
+  assert.equal(await asks.tellAskers(current, 'trainer', 7), 0);
+  assert.equal(current.notes.length, 0);
+});
+
+test('Codex on 126c626: the coach\'s list is the times to come first, then the passed ones newest first, and the count is all of them', async () => {
+  const src = read('mobile-app/src/services/shapeBackend.js');
+  const body = src.slice(src.indexOf('const ASKS_SHOWN = 100;'), src.indexOf('window.ShapeListingAsks = {'));
+  assert.ok(body.includes('async function listingAsks('), 'the function');
+  const NOW = Date.now();
+  const iso = (ms) => new Date(ms).toISOString();
+  const mk = (i, ms) => ({ id: `r${i}`, member_id: `m${i}`, slot_start: iso(ms), duration_min: 20, note: i === 0 ? 'Knee' : null, created_at: iso(NOW - DAY), provider_role: 'trainer', provider_id: 7 });
+  const rows = [
+    ...Array.from({ length: 150 }, (_, i) => mk(i, NOW - (i + 1) * 3_600_000)),
+    mk(900, NOW + 3 * DAY), mk(901, NOW + DAY), mk(902, NOW + 2 * DAY),
+    { ...mk(999, NOW + DAY), provider_id: 8 },
+  ];
+  const supabase = {
+    from(table) {
+      assert.equal(table, 'listing_time_requests');
+      const f = [];
+      let head = false, sort = null, n = Infinity;
+      const q = {
+        select(_c, opts) { head = !!(opts && opts.head); return q; },
+        eq(k, v) { f.push((r) => r[k] === v); return q; },
+        gte(k, v) { f.push((r) => r[k] >= v); return q; },
+        lt(k, v) { f.push((r) => r[k] < v); return q; },
+        order(k, o) { sort = [k, o && o.ascending === false ? -1 : 1]; return q; },
+        limit(x) { n = x; return q; },
+        then(res, rej) {
+          let out = rows.filter((r) => f.every((g) => g(r)));
+          if (sort) out.sort((a, b) => (a[sort[0]] < b[sort[0]] ? -sort[1] : a[sort[0]] > b[sort[0]] ? sort[1] : 0));
+          const r = head ? { data: null, error: null, count: out.length } : { data: out.slice(0, n), error: null };
+          return Promise.resolve(r).then(res, rej);
+        },
+      };
+      return q;
+    },
+    async rpc(name, p) { assert.equal(name, 'get_display_names'); return { data: p.p_ids.filter((id) => id === 'm901').map((id) => ({ user_id: id, full_name: 'Sam Rivera' })), error: null }; },
+  };
+  const listingAsks = new Function('supabase', 'state', `${body}\nreturn listingAsks;`)(supabase, { user: { id: 'u-coach' } });
+  const out = await listingAsks('trainer', 7);
+  assert.equal(out.total, 153, 'every ask on the listing, not the 100 shown');
+  assert.equal(out.rows.length, 100);
+  assert.deepEqual(out.rows.slice(0, 3).map((r) => r.id), ['r901', 'r902', 'r900'], 'the times to come, soonest first');
+  assert.deepEqual(out.rows.slice(3, 6).map((r) => r.id), ['r0', 'r1', 'r2'], 'then the passed ones, newest first');
+  assert.equal(out.rows[0].name, 'Sam Rivera');
+  assert.equal(out.rows[3].note, 'Knee');
+  // Nothing to come: the 100 newest passed.
+  rows.splice(150);
+  const past = await listingAsks('trainer', 7);
+  assert.deepEqual([past.total, past.rows.length, past.rows[0].id, past.rows[99].id], [150, 100, 'r0', 'r99']);
+  assert.deepEqual(await new Function('supabase', 'state', `${body}\nreturn listingAsks;`)(supabase, { user: null })('trainer', 7), { rows: [], total: 0 }, 'signed out, nothing');
 });
 
 test('the claim tells the askers, and the app asks through the route with its token', () => {

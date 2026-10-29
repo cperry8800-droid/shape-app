@@ -6005,15 +6005,30 @@ async function askListingTime({ role, providerId, at, durationMin, note = '' }) 
 
 // The asks on a listing this account owns, with the members' names (get_display_names). The table's
 // policy hands them to the listing's owner only, once the listing is theirs.
+// The coach's list of what was asked of their listing: the times still to come, soonest first, then
+// those already passed, newest first, ASKS_SHOWN in all; and how many were asked in all (Codex on
+// 126c626: the first 100 by time alone could all be long past, and the count stopped at 100).
+const ASKS_SHOWN = 100;
 async function listingAsks(role, providerId) {
-  if (!supabase || !state.user?.id || !Number(providerId)) return [];
-  const { data, error } = await supabase.from('listing_time_requests')
-    .select('id, member_id, slot_start, duration_min, note, created_at')
-    .eq('provider_role', role).eq('provider_id', Number(providerId))
-    .order('slot_start', { ascending: true }).limit(100);
-  if (error) throw error;
-  const rows = data || [];
-  const ids = [...new Set(rows.map((r) => r.member_id).filter(Boolean))].slice(0, 200);
+  if (!supabase || !state.user?.id || !Number(providerId)) return { rows: [], total: 0 };
+  const id = Number(providerId);
+  const nowIso = new Date().toISOString();
+  const ofListing = (cols, opts) => supabase.from('listing_time_requests').select(cols, opts)
+    .eq('provider_role', role).eq('provider_id', id);
+  const COLS = 'id, member_id, slot_start, duration_min, note, created_at';
+  const [ahead, all] = await Promise.all([
+    ofListing(COLS).gte('slot_start', nowIso).order('slot_start', { ascending: true }).limit(ASKS_SHOWN),
+    ofListing('id', { count: 'exact', head: true }),
+  ]);
+  if (ahead.error) throw ahead.error;
+  if (all.error) throw all.error;
+  let rows = ahead.data || [];
+  if (rows.length < ASKS_SHOWN) {
+    const past = await ofListing(COLS).lt('slot_start', nowIso).order('slot_start', { ascending: false }).limit(ASKS_SHOWN - rows.length);
+    if (past.error) throw past.error;
+    rows = rows.concat(past.data || []);
+  }
+  const ids = [...new Set(rows.map((r) => r.member_id).filter(Boolean))];
   let names = {};
   if (ids.length) {
     try {
@@ -6021,7 +6036,10 @@ async function listingAsks(role, providerId) {
       if (!namesError) names = (found || []).reduce((acc, r) => { if (r && r.user_id && r.full_name) acc[r.user_id] = r.full_name; return acc; }, {});
     } catch { /* unnamed: the list says "A member" */ }
   }
-  return rows.map((r) => ({ id: r.id, memberId: r.member_id, name: names[r.member_id] || '', at: Date.parse(r.slot_start), durationMin: r.duration_min, note: r.note || '' }));
+  return {
+    rows: rows.map((r) => ({ id: r.id, memberId: r.member_id, name: names[r.member_id] || '', at: Date.parse(r.slot_start), durationMin: r.duration_min, note: r.note || '' })),
+    total: Math.max(Number(all.count) || 0, rows.length),
+  };
 }
 
 window.ShapeListingAsks = { ask: askListingTime, forListing: listingAsks };

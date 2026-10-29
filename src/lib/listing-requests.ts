@@ -100,21 +100,34 @@ export function joinedNotice(coach: string): { title: string; body: string; copy
   };
 }
 
+/** Asks read a page at a time when a claim tells the askers; ASKER_PAGES pages at most. */
+export const ASKER_PAGE = 1000;
+const ASKER_PAGES = 50;
+
 /**
  * The listing has just been claimed for its coach: tell each member who asked for a time. Once per
- * member and listing (data.dedupe). Best effort: the claim is done. Returns how many were told.
+ * member and listing (data.dedupe). Every ask is read, a page at a time (Codex on 126c626: a single
+ * page of 500 left out the members past it, and a claim tells them only once). Best effort: the
+ * claim is done, and a read that fails tells nobody (the dedupe keys keep a second call to one notice
+ * each). Returns how many were told.
  */
 export async function tellAskers(admin: SupabaseClient, role: CoachRole, providerId: number): Promise<number> {
   try {
-    const [{ data: asks, error }, { data: listing }] = await Promise.all([
-      admin.from('listing_time_requests').select('member_id').eq('provider_role', role).eq('provider_id', providerId).limit(500),
-      admin.from(role === 'nutritionist' ? 'nutritionists' : 'trainers').select('name').eq('id', providerId).maybeSingle(),
-    ]);
-    if (error) {
-      console.error('[listing-requests] asks not read:', error.message);
-      return 0;
+    const members = new Set<string>();
+    for (let page = 0; page < ASKER_PAGES; page += 1) {
+      const from = page * ASKER_PAGE;
+      const { data: asks, error } = await admin.from('listing_time_requests').select('member_id')
+        .eq('provider_role', role).eq('provider_id', providerId)
+        .order('id', { ascending: true }).range(from, from + ASKER_PAGE - 1);
+      if (error) {
+        console.error('[listing-requests] asks not read:', error.message);
+        return 0;
+      }
+      const rows = (asks || []) as { member_id?: string | null }[];
+      for (const a of rows) if (a.member_id) members.add(a.member_id);
+      if (rows.length < ASKER_PAGE) break;
     }
-    const members = [...new Set(((asks || []) as { member_id?: string | null }[]).map((a) => a.member_id).filter((id): id is string => !!id))];
+    const { data: listing } = await admin.from(role === 'nutritionist' ? 'nutritionists' : 'trainers').select('name').eq('id', providerId).maybeSingle();
     const coach = String((listing as { name?: string | null } | null)?.name || '').trim();
     const { copy, ...notice } = joinedNotice(coach);
     let told = 0;
