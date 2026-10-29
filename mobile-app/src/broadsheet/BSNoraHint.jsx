@@ -42,6 +42,24 @@ export function bsMarkNoraHintSeen(storage) {
   try { if (storage) storage.setItem(BS_NORA_HINT_KEY, '1'); } catch (e) {}
 }
 
+/** Opening Nora by any door puts the note away for good, wherever the member is when they do it
+ * (Codex P2 on #2500): only the active tab is mounted, so the note's own listener goes with Home,
+ * and Nora opened from another tab's ✦ would leave the note to come back. This listener lives as
+ * long as the app; it is wired once, when the module loads. The try/catch is for the render-test
+ * harness, whose window stub has no addEventListener. */
+export function bsWireNoraHintSeen(win) {
+  if (!win || win.__bsNoraHintWired) return;
+  try {
+    win.addEventListener('shape:openNora', () => {
+      let storage = null;
+      try { storage = win.localStorage; } catch (e) {}
+      bsMarkNoraHintSeen(storage);
+    });
+    win.__bsNoraHintWired = true;
+  } catch (e) {}
+}
+if (typeof window !== 'undefined') bsWireNoraHintSeen(window);
+
 /** Where the note goes, from the ✦'s box and the box the note hangs from (viewport rects of the
  * same scroller, so the page's scroll cancels out): its top 8px under the ✦, and how far its
  * arrow sits from the note's right edge (which is at the page's gutter) to point at the ✦'s

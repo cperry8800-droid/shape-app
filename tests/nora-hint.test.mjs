@@ -59,6 +59,23 @@ test('a new device sees the note until Got it, and never again', () => {
   } finally { globalThis.window = prev; }
 });
 
+test('Nora opened from another tab, with Home unmounted, still puts the note away for good (Codex P2 on #2500)', () => {
+  const storage = memoryStorage();
+  const handlers = {};
+  const win = { localStorage: storage, addEventListener: (type, fn) => { (handlers[type] = handlers[type] || []).push(fn); } };
+  mod.bsWireNoraHintSeen(win);
+  mod.bsWireNoraHintSeen(win);
+  assert.equal(handlers['shape:openNora'].length, 1, 'wired once');
+  // No BSNoraHint is mounted here: this is the member on Train or Eat tapping that page's ✦.
+  handlers['shape:openNora'][0]();
+  assert.equal(storage.m.get(mod.BS_NORA_HINT_KEY), '1');
+  // Storage that throws, or a window with no addEventListener (the test harness's), never throws.
+  assert.doesNotThrow(() => mod.bsWireNoraHintSeen({ get localStorage() { throw new Error('blocked'); }, addEventListener: (t, fn) => fn() }));
+  assert.doesNotThrow(() => mod.bsWireNoraHintSeen({}));
+  // And it is wired when the module loads, which the client module does at startup.
+  assert.match(HINT, /^if \(typeof window !== 'undefined'\) bsWireNoraHintSeen\(window\);$/m);
+});
+
 test('opening Nora by any door puts the note away; it is placed by measuring the page\'s own ✦', () => {
   assert.match(HINT, /window\.addEventListener\('shape:openNora', close\)/);
   assert.match(HINT, /const close = React\.useCallback\(\(\) => \{\s*bsMarkNoraHintSeen\(deviceStorage\(\)\);\s*setShown\(false\);/);
