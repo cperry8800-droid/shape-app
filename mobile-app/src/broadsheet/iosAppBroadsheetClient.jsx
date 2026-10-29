@@ -59,6 +59,7 @@ import { BS_LEVER_HEADS, bsSleepLeadOk } from '../services/dailyWire.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
+import { BSNoraHint } from './BSNoraHint.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx';
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
@@ -5138,6 +5139,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         showDotTexture={false}
         noTopRule
       />
+      {/* Once per device: a note under the ✦ saying it opens Nora (BSNoraHint.jsx). */}
+      <BSNoraHint t={t} />
 
       {/* DATELINE — the same one-row band both coach Todays carry (BSProToday
           §A.2): edition label in the accent, then day/date in ink-80, with the

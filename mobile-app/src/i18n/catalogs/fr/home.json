@@ -472,5 +472,8 @@
   "shortcut.groceryList": "Liste de courses",
   "shortcut.grocerySub": "Les courses de la semaine",
   "shortcut.devices": "Montre et applis",
-  "shortcut.devicesSub": "Connectez vos pas et votre sommeil"
+  "shortcut.devicesSub": "Connectez vos pas et votre sommeil",
+  "noraHint.title": "Voici Nora.",
+  "noraHint.body": "Touchez ✦ à tout moment pour l'interroger sur votre programme, vos repas ou l'app.",
+  "noraHint.gotIt": "Compris"
 }

@@ -472,5 +472,8 @@
   "shortcut.groceryList": "Alışveriş listesi",
   "shortcut.grocerySub": "Bu haftanın alışverişi",
   "shortcut.devices": "Saat ve uygulamalar",
-  "shortcut.devicesSub": "Adımlarını ve uykunu bağla"
+  "shortcut.devicesSub": "Adımlarını ve uykunu bağla",
+  "noraHint.title": "Nora ile tanış.",
+  "noraHint.body": "Planın, yemeğin ya da uygulama hakkında sormak için istediğin zaman ✦ simgesine dokun.",
+  "noraHint.gotIt": "Anladım"
 }

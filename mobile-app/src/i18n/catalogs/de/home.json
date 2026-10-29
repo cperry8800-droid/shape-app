@@ -472,5 +472,8 @@
   "shortcut.groceryList": "Einkaufsliste",
   "shortcut.grocerySub": "Der Einkauf dieser Woche",
   "shortcut.devices": "Uhr & Apps",
-  "shortcut.devicesSub": "Schritte und Schlaf verbinden"
+  "shortcut.devicesSub": "Schritte und Schlaf verbinden",
+  "noraHint.title": "Das ist Nora.",
+  "noraHint.body": "Tippe jederzeit auf ✦, um sie zu deinem Plan, deinem Essen oder der App zu fragen.",
+  "noraHint.gotIt": "Verstanden"
 }

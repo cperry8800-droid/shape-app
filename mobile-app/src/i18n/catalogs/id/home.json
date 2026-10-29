@@ -472,5 +472,8 @@
   "shortcut.groceryList": "Daftar belanja",
   "shortcut.grocerySub": "Belanja minggu ini",
   "shortcut.devices": "Jam & aplikasi",
-  "shortcut.devicesSub": "Hubungkan langkah dan tidurmu"
+  "shortcut.devicesSub": "Hubungkan langkah dan tidurmu",
+  "noraHint.title": "Kenalan dengan Nora.",
+  "noraHint.body": "Ketuk ✦ kapan saja untuk bertanya soal rencanamu, makananmu, atau aplikasinya.",
+  "noraHint.gotIt": "Mengerti"
 }
