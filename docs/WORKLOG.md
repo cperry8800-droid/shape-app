@@ -166,7 +166,6 @@ The War Room has the full list; this covers what needs the owner and the planned
   private profile can't be opened from the link, and the app's checkout sends no referral.
 - Add the `localhost` hostname to the Turnstile widget.
 - Get a native speaker to read the PAR-Q translations.
-- Run `2026-10-29-click-counts-caps.sql`.
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
