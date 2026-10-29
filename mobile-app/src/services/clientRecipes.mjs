@@ -552,3 +552,20 @@ export function bsSplitPaste(text) {
     steps: method.length > 1 ? method : (method.length === 1 ? (bsSplitMethodProse(method[0]) || method) : []),
   };
 }
+
+// A step longer than `max` becomes several, cut after a sentence that ends in reach, else at
+// the last space, else at `max`, so a pasted method is kept whole where a save would clip it.
+export function bsSplitLongStep(text, max) {
+  const out = [];
+  let rest = String(text || '').trim();
+  while (rest.length > max) {
+    const head = rest.slice(0, max + 1);
+    const end = Math.max(head.lastIndexOf('. '), head.lastIndexOf('! '), head.lastIndexOf('? '));
+    let cut = end > 0 ? end + 1 : head.lastIndexOf(' ');
+    if (cut <= 0) cut = max;
+    out.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if (rest) out.push(rest);
+  return out;
+}

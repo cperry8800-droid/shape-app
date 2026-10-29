@@ -105,12 +105,13 @@ function formatCoachRating10(coachOrRating, tr) {
   if (r == null) return tr ? tr('marketplace:rating.new', { defaultValue: 'New' }) : 'New';
   return `★ ${r.toFixed(1)}/10`;
 }
-// The person the trainer profile opens on, from a marketplace coach (owner, 2026-10-28). The
-// profile reads the coach's listing fresh, by the account (userId) or, with no account, by the
-// listing's own id (providerId), and draws a sample from `specialty` and `rating10`.
-function bsmTrainerPerson(c, photo = null) {
+// The person the coach profile opens on, from a marketplace coach (owner, 2026-10-28: trainers;
+// nutritionists since they got the profile too). The profile reads the coach's listing fresh, by
+// the account (userId) or, with no account, by the listing's own id (providerId), and draws a
+// sample from `specialty` and `rating10`.
+function bsmCoachPerson(c, photo = null, nutri = false) {
   return {
-    who: c.name, kind: 'TRAINER', userId: c.provider_user_id || null, providerId: c.provider_id || null,
+    who: c.name, kind: nutri ? 'NUTRI' : 'TRAINER', userId: c.provider_user_id || null, providerId: c.provider_id || null,
     city: c.loc || c.city || 'Remote', bio: c.bio || '', init: c.init || (c.name ? c.name[0] : '?'),
     // The standing the cards print (from the coach's Shape Score), and the category they file under.
     photo: photo || null, tier: c.tier || mktCoachTier(c).name || null, category: c.category || '',
@@ -961,20 +962,22 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
   }
   if (open) {
     const closeOpen = () => { setOpen(null); setOpenNo(null); setOpenListing(false); };
-    // Tapping a trainer opens the trainer profile (owner, 2026-10-28), drawn from this listing:
-    // read fresh by the coach's account, or by the listing's id when it has none (Shape's seeded
-    // listings, which show sample content there). Its Work-with sheet opens THE LISTING below for
-    // plans, prices and codes, and the listing's THE FULL PROFILE leader comes back here.
-    const isTrainer = (open.provider_role || getPublicProfileKind(open)) === 'trainer';
-    if (isTrainer && !openListing && window.BSPublicProfile) {
+    // Tapping a coach opens the coach profile (owner, 2026-10-28, for trainers; nutritionists
+    // since they got it too), drawn from this listing: read fresh by the coach's account, or by the
+    // listing's id when it has none (Shape's seeded listings, which show sample content there). Its
+    // Work-with sheet opens THE LISTING below for plans, prices and codes, and the listing's THE
+    // FULL PROFILE leader comes back here.
+    const openRole = open.provider_role || getPublicProfileKind(open);
+    const isCoach = openRole === 'trainer' || openRole === 'nutritionist';
+    if (isCoach && !openListing && window.BSPublicProfile) {
       const Profile = window.BSPublicProfile;
-      return <Profile person={bsmTrainerPerson(open, coachPhoto(open))} onBack={closeOpen} onListing={() => setOpenListing(true)}
-        onMessage={(pp) => { if (goChat) goChat((pp && pp.who) || open.name, 'Trainer'); }} />;
+      const nutri = openRole === 'nutritionist';
+      return <Profile person={bsmCoachPerson(open, coachPhoto(open), nutri)} onBack={closeOpen} onListing={() => setOpenListing(true)}
+        onMessage={(pp) => { if (goChat) goChat((pp && pp.who) || open.name, nutri ? 'Nutritionist' : 'Trainer'); }} />;
     }
-    // Every nutritionist, and a trainer's full listing: THE LISTING (the marketplace conversion
-    // page, spec 2026-07-09).
+    // A coach's full listing: THE LISTING (the marketplace conversion page, spec 2026-07-09).
     return <BSCoachDetailPublic coach={open} no={openNo} photo={coachPhoto(open)} goChat={goChat}
-      onProfile={isTrainer ? () => setOpenListing(false) : null} onBack={isTrainer ? () => setOpenListing(false) : closeOpen} />;
+      onProfile={isCoach ? () => setOpenListing(false) : null} onBack={isCoach ? () => setOpenListing(false) : closeOpen} />;
   }
 
   return (
@@ -2457,14 +2460,13 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     return <BSCoachAvailabilityCalendar coach={coach} roleColor={roleColor} open={introClosed ? [] : realAvail != null ? realAvail : (liveTimes ? [] : expandPreviewSlots())} demo={!introClosed && !liveTimes && realAvail == null} note={introClosed ? null : timesNote} onRetry={!introClosed && timesPending && availState === 'failed' ? retryTimes : null} onBack={() => setShowCal(false)} onPick={(s) => { setShowCal(false); const d = new Date(`${s.iso}T00:00:00`); selectSlot(BSM_DAYS3[d.getDay()], String(d.getDate()), s.time, s.iso, BSM_MONTHS3[d.getMonth()], s.at); }} />;
   }
 
-  // THE FULL PROFILE → the coach's profile (BSPublicProfile: the trainer profile for a trainer,
-  // the Signal living page for a nutritionist), when this listing was opened on its own.
+  // THE FULL PROFILE → the coach's profile (BSPublicProfile: the coach profile, a trainer's or a
+  // nutritionist's), when this listing was opened on its own.
   if (showProfile && window.BSPublicProfile) {
     const Living = window.BSPublicProfile;
     const person = {
-      // A trainer's is the marketplace's trainer person: with no account, the profile reads this
-      // listing by its id.
-      ...(isNutriDetail ? {} : bsmTrainerPerson(coach, photo)),
+      // The marketplace's coach person: with no account, the profile reads this listing by its id.
+      ...bsmCoachPerson(coach, photo, isNutriDetail),
       who: coach.name, kind: isNutriDetail ? 'NUTRI' : 'TRAINER',
       userId: coach.provider_user_id || null, city: coach.loc || coach.city || 'Remote',
       bio: coach.bio || '', init: coach.init || (coach.name ? coach.name[0] : '?'),
@@ -2476,7 +2478,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       // this listing does (Codex on #2375).
       commerce: { coach, role: saleProviderRole, packages: p.packages, atCapacity, introsAtCapacity: introsAtCap, bookIntro: () => { setShowProfile(false); setShowCal(true); } },
     };
-    return <Living person={person} onBack={() => setShowProfile(false)} onListing={isNutriDetail ? null : () => setShowProfile(false)} onMessage={(pp) => { setShowProfile(false); if (goChat) goChat((pp && pp.who) || coach.name, isNutriDetail ? 'Nutritionist' : 'Trainer'); }} />;
+    return <Living person={person} onBack={() => setShowProfile(false)} onListing={() => setShowProfile(false)} onMessage={(pp) => { setShowProfile(false); if (goChat) goChat((pp && pp.who) || coach.name, isNutriDetail ? 'Nutritionist' : 'Trainer'); }} />;
   }
 
   const fmtSlot = bsFmtSlot12;

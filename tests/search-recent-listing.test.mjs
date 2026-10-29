@@ -11,7 +11,7 @@ import { loadBroadsheet, drive, SRC } from './helpers/broadsheet-mount.mjs';
 
 const mod = await loadBroadsheet(['bsRecentOfPerson', 'bsPersonOfRecent', 'BSUniversalSearch', 'BSPublicProfile']);
 
-// As the marketplace hands a seeded listing's coach to the profile (bsmTrainerPerson).
+// As the marketplace hands a seeded listing's coach to the profile (bsmCoachPerson).
 const leah = {
   who: 'Leah Kim', kind: 'TRAINER', userId: null, providerId: 41, city: 'Austin, TX', bio: 'Conditioning for busy people.',
   init: 'L', photo: 'https://example.test/leah.jpg', tier: 'Master', category: 'HIIT & Conditioning', specialty: 'HIIT & Conditioning Intervals', rating10: 9.6,
@@ -29,6 +29,17 @@ test('a seeded trainer goes into Recent with their listing, and comes back out a
     assert.deepEqual(back[k], leah[k], `${k} survives the round trip`);
   }
   assert.equal(back.userId, undefined);
+});
+
+test('a seeded nutritionist goes into Recent with their listing too, and comes back a nutritionist', () => {
+  const rae = { ...leah, who: 'Rae Lindqvist', kind: 'NUTRI', providerId: 52, category: 'Sports nutrition', specialty: 'Sports nutrition Endurance' };
+  const rec = mod.bsRecentOfPerson(rae);
+  assert.equal(rec.role, 'nutritionist');
+  assert.equal(rec.providerId, 52);
+  const back = mod.bsPersonOfRecent(JSON.parse(JSON.stringify(rec)));
+  for (const k of ['who', 'kind', 'providerId', 'specialty', 'category', 'rating10', 'city', 'bio']) {
+    assert.deepEqual(back[k], rae[k], `${k} survives the round trip`);
+  }
 });
 
 test('anyone with an account goes into Recent by their account alone, as before', () => {

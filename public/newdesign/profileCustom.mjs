@@ -278,6 +278,113 @@ export function bsProfileStudio(v) {
   };
 }
 
+// `kitchen`: a nutritionist's kitchen tab (owner, 2026-10-27: "lets do something different for
+// nutritionists", agreeing to a kitchen with no floor plan; 2026-10-29: "It will be their own
+// recipes", and all of it organized): the plate they teach (how a plate splits between vegetables,
+// protein and carbs, with their portion rules), the staples always in their kitchen (each in the
+// fridge, the pantry or the freezer), and up to six recipes of their own, written in Make it yours.
+// The doc is public through get_public_profile, so a recipe is rebuilt field by field: cleaned
+// text, bounded whole numbers, and a photo only from the owner's own upload folder.
+export const BS_KITCHEN_RULES_MAX = 4;
+export const BS_KITCHEN_RULE_MAX = 60;
+export const BS_KITCHEN_STAPLES_MAX = 12;
+export const BS_STAPLE_MAX = 40;
+export const BS_STAPLE_GROUPS = ['fridge', 'pantry', 'freezer'];
+export const BS_KITCHEN_RECIPES_MAX = 6;
+export const BS_RECIPE_TITLE_MAX = 80;
+export const BS_RECIPE_NOTE_MAX = 160;
+export const BS_RECIPE_INGS_MAX = 20;
+export const BS_RECIPE_ING_MAX = 60;   // an ingredient's name
+export const BS_RECIPE_QTY_MAX = 24;   // its amount ("1/2 cup")
+export const BS_RECIPE_STEPS_MAX = 16;
+export const BS_RECIPE_STEP_MAX = 300;
+// A recipe's numbers: minutes, servings, then kcal and grams of protein, carbs and fat a serving.
+export const BS_RECIPE_NUMS = { min: [1, 600], serves: [1, 24], kcal: [0, 3000], p: [0, 400], c: [0, 400], f: [0, 400] };
+const BS_KITCHEN_SCAN = 24;
+const RECIPE_ID_RE = /^[a-z0-9]{1,24}$/;
+
+// The plate: whole percentages in steps of five that add up to 100, or no plate.
+export function bsKitchenPlate(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const parts = ['veg', 'protein', 'carbs'].map((k) => v[k]);
+  if (!parts.every((n) => Number.isInteger(n) && n >= 0 && n <= 100 && n % 5 === 0)) return null;
+  if (parts[0] + parts[1] + parts[2] !== 100) return null;
+  return { veg: parts[0], protein: parts[1], carbs: parts[2] };
+}
+
+const scan = (a) => (Array.isArray(a) ? (a.length > BS_KITCHEN_SCAN ? a.slice(0, BS_KITCHEN_SCAN) : a) : []);
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+
+// One of their recipes: { id, t, note?, min?, serves?, kcal?, p?, c?, f?, ing?: [{ n?, m }], steps?,
+// photo? }, or null without an id and a name. `ing` is the Shape Kitchen's own ingredient grammar
+// (n the amount, m the ingredient), so the app's grocery lists and cook mode take it as it is.
+export function bsKitchenRecipeItem(v, ownerUid) {
+  if (!isObj(v)) return null;
+  const id = typeof v.id === 'string' && RECIPE_ID_RE.test(v.id) ? v.id : null;
+  const t = bsCleanText(v.t, BS_RECIPE_TITLE_MAX);
+  if (!id || !t) return null;
+  const out = { id, t };
+  const note = bsCleanText(v.note, BS_RECIPE_NOTE_MAX);
+  if (note) out.note = note;
+  for (const [k, [lo, hi]] of Object.entries(BS_RECIPE_NUMS)) {
+    if (Number.isInteger(v[k]) && v[k] >= lo && v[k] <= hi) out[k] = v[k];
+  }
+  const ing = [];
+  for (const g of scan(v.ing)) {
+    if (ing.length >= BS_RECIPE_INGS_MAX) break;
+    if (!isObj(g)) continue;
+    const m = bsCleanText(g.m, BS_RECIPE_ING_MAX);
+    if (!m) continue;
+    const n = bsCleanText(g.n, BS_RECIPE_QTY_MAX);
+    ing.push(n ? { n, m } : { m });
+  }
+  if (ing.length) out.ing = ing;
+  const steps = [];
+  for (const x of scan(v.steps)) {
+    if (steps.length >= BS_RECIPE_STEPS_MAX) break;
+    const st = bsCleanText(x, BS_RECIPE_STEP_MAX);
+    if (st) steps.push(st);
+  }
+  if (steps.length) out.steps = steps;
+  const photo = bsOwnMediaUrl(v.photo, 'community-photos', ownerUid) || bsOwnMediaUrl(v.photo, 'coach-media', ownerUid);
+  if (photo) out.photo = photo;
+  return out;
+}
+
+// Null when it holds nothing to show, so an empty doc key drops. `ownerUid` is the account the doc
+// belongs to: a recipe photo is kept only from that account's own folder.
+export function bsProfileKitchen(v, ownerUid) {
+  if (!isObj(v)) return null;
+  const plate = bsKitchenPlate(v.plate);
+  const rules = [];
+  for (const r of scan(v.rules)) {
+    if (rules.length >= BS_KITCHEN_RULES_MAX) break;
+    const t = bsCleanText(r, BS_KITCHEN_RULE_MAX);
+    if (t) rules.push(t);
+  }
+  const staples = [];
+  const seenStaple = new Set();
+  for (const it of scan(v.staples)) {
+    if (staples.length >= BS_KITCHEN_STAPLES_MAX) break;
+    if (!isObj(it)) continue;
+    const n = bsCleanText(it.n, BS_STAPLE_MAX);
+    if (!n || seenStaple.has(n.toLowerCase())) continue;
+    seenStaple.add(n.toLowerCase());
+    staples.push({ n, g: BS_STAPLE_GROUPS.includes(it.g) ? it.g : 'pantry' });
+  }
+  const recipes = [];
+  const seen = new Set();
+  for (const x of scan(v.recipes)) {
+    if (recipes.length >= BS_KITCHEN_RECIPES_MAX) break;
+    const r = bsKitchenRecipeItem(x, ownerUid);
+    if (!r || seen.has(r.id)) continue;
+    seen.add(r.id);
+    recipes.push(r);
+  }
+  if (!plate && !rules.length && !staples.length && !recipes.length) return null;
+  return { plate, rules, staples, recipes };
+}
+
 // The trusted save wrapper's core: normalize THIS WAVE's keys on a copy of the
 // doc, dropping a key entirely when it's empty/invalid (never an empty-string
 // tombstone), and passing EVERY other key through byte-identical (AC 9). Junk
@@ -305,6 +412,8 @@ export function bsNormalizeProfileCustom(doc, ownerUid, opts) {
   if (look) base.look = look; else delete base.look;
   const studio = bsProfileStudio(base.studio);
   if (studio) base.studio = studio; else delete base.studio;
+  const kitchen = bsProfileKitchen(base.kitchen, ownerUid);
+  if (kitchen) base.kitchen = kitchen; else delete base.kitchen;
   const filmBucket = (opts && typeof opts.filmBucket === 'string') ? opts.filmBucket : null;
   const filmKey = (opts && typeof opts.filmKey === 'string') ? opts.filmKey : 'film';
   if (filmBucket) {
