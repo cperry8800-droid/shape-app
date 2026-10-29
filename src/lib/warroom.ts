@@ -636,6 +636,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Shared clients: every coach sees every other coach\'s schedule, whatever their discipline — #2506. One migration, for the owner to run',
+      items: [
+        { label: 'Owner, 2026-10-29: "Let two trainers on one client see each other\'s schedules too", then "any shared client for any trainer or nutritionist should be shared"', status: 'done' },
+        { label: '2026-10-29-shared-schedules-any-coach.sql re-creates the two reads: get_shared_client_workouts answers any coach on the client (is_coach_on_client) with every other trainer\'s published workouts, get_shared_client_meal_plan with each other nutritionist\'s newest published menu (one per nutritionist), never the caller\'s own rows, with the same projection (no sets, ingredients, steps or notes)', status: 'done' },
+        { label: '/api/calendar\'s client view shows the coach\'s own menu and every other nutritionist\'s, each named (by), each with its own 250-meal ceiling. The care team\'s door shows for any co-coach and reads See all schedules; the calendar\'s note reads Every coach\'s plans (13 languages). The definer audit carries a same-day ruling for the two 2026-10-29 files (REVIEWED_SAME_DAY_PAIRS)', status: 'done' },
+        { label: 'Review: Codex P1 on 0d32616 (the door would not show for two coaches of one discipline, as get_my_shared_clients leaves them out): does not reproduce, as the care team also reads get_client_coaches (live), which tests/onboarding-board.test.mjs covers; answered on the thread. Checks: npm test in the hook 8,825/8,828, the three failures the same-day guard, ruled and passing (413); tests/shared-client-schedules.test.mjs (11), four hand mutations each caught; the migration on a scratch Postgres 16 with two trainers and two nutritionists on one client; CI\'s four jobs green', status: 'done' },
+        { label: 'OWNER: run supabase-migrations/2026-10-29-shared-schedules-any-coach.sql on Supabase. Until it runs, two coaches of one discipline see nothing of each other\'s plans', status: 'manual' },
+        { label: 'The member\'s own calendar still shows only the newest menu when they have two nutritionists (the worklog\'s known gap); their coaches now see each one', status: 'pending' },
+      ],
+    },
+    {
       section: 'Coaches who share a client see both schedules; existing pairs are told — #2499. One migration, for the owner to run',
       items: [
         { label: 'Owner, 2026-10-29: "Have the ability for trainers and nutritionists to see both schedules if they have a shared client", then "Apply to existing pairs as well"', status: 'done' },
@@ -643,9 +654,9 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '/api/calendar?clientId= (clientView): that client\'s bookings only (it listed every booking the coach has), and the other discipline\'s plan from two definers in 2026-10-29-shared-client-schedules.sql. get_shared_client_workouts answers a nutritionist on the client with the published workouts of trainers who coach them now, with their newest finished runs so a done workout reads done; get_shared_client_meal_plan answers a trainer with the newest published menu of a nutritionist who coaches them now, each meal\'s slot, title, time and kcal (no ingredients, steps or notes)', status: 'done' },
         { label: 'The same migration tells every pair that already shares a client once (the #2496 notice, dedupe shared:existing:<client>:<other coach>), skipping a pair the code already told. Production on 2026-10-29: no client with two coaches, so it sends nothing yet', status: 'done' },
         { label: 'Review: Codex clean on 3812fa8. Checks: npm test in the hook 8,778/8,778; tests/shared-client-schedules.test.mjs (9) on the real route, five hand mutations each caught; the migration applied twice on a scratch Postgres 16 with every caller checked; CI\'s four jobs green', status: 'done' },
-        { label: 'OWNER: run supabase-migrations/2026-10-29-shared-client-schedules.sql on Supabase. Until it runs, a shared client\'s calendar shows each coach only their own plan', status: 'manual' },
-        { label: 'OWNER: with a trainer and a nutritionist on one client, open See both schedules on a phone and on the website from each side', status: 'manual' },
-        { label: 'A second coach of the same discipline on a client still sees only their own workouts or menu there (the ask was trainer and nutritionist)', status: 'pending' },
+        { label: 'OWNER: run supabase-migrations/2026-10-29-shared-client-schedules.sql on Supabase. Ran (owner, 2026-10-29: "Ran it"); checked live: both reads are definers with a pinned search_path that authenticated can run and anon cannot, signed out they answer nothing, and with no client on two coaches the backfill sent nothing', status: 'done' },
+        { label: 'OWNER: with a trainer and a nutritionist on one client, open See both schedules (now See all schedules, #2506) on a phone and on the website from each side', status: 'manual' },
+        { label: 'A second coach of the same discipline on a client sees the first\'s workouts or menu too: #2506', status: 'done' },
       ],
     },
     {
