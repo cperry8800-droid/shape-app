@@ -98,8 +98,8 @@ dated entry or past 20 KB.
   move that screen into its own ES module. `BSIntegrationsPage.jsx` and
   `BSLeaderboard.jsx` show the pattern: read window globals at call time inside the
   component, keep its own `useShapeTr()`, and never import back into the client module.
-- **Coach profiles:** every coach gets `BSTrainerProfile.jsx` (editor `BSMakeItYours.jsx`): a
-  trainer's studio, a nutritionist's kitchen. No account: samples (`trainerDemo`, `nutritionistDemo`).
+- **Coach profiles:** `BSTrainerProfile.jsx` (editor `BSMakeItYours.jsx`): a trainer's studio and
+  replays (`coachWork.mjs`), a nutritionist's kitchen. No account: samples (`trainerDemo`, etc.).
 - **Other app modules:** `iosAppBroadsheetPros.jsx` (trainer and nutritionist apps),
   `iosAppBroadsheet.jsx` (shared chrome: `BSPage`, `BSFooter`, `BSPlate`,
   `BSSwapSheet`), `iosAppBroadsheetRadio.jsx` (Shape Radio) and

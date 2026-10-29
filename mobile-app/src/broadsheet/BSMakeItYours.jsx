@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import {
   BS_LOOK_PAPERS, BS_LOOK_ACCENTS, BS_STUDIO_ITEMS_MAX, BS_STUDIO_STATIONS_MAX, BS_STUDIO_WHERE_MAX, BS_STUDIO_LABEL_MAX,
-  BS_STATION_TITLE_MAX, BS_STATION_NOTE_MAX, bsProfileLook, bsProfileStudio, bsProfileCover, bsNormalizeProfileCustom,
+  BS_STATION_TITLE_MAX, BS_STATION_NOTE_MAX, BS_STATION_PINS_MAX, bsProfileLook, bsProfileStudio, bsProfileCover, bsNormalizeProfileCustom,
   BS_KITCHEN_RULES_MAX, BS_KITCHEN_RULE_MAX, BS_KITCHEN_STAPLES_MAX, BS_STAPLE_MAX, BS_KITCHEN_RECIPES_MAX, BS_RECIPE_TITLE_MAX, BS_RECIPE_NOTE_MAX,
   BS_RECIPE_INGS_MAX, BS_RECIPE_ING_MAX, BS_RECIPE_QTY_MAX, BS_RECIPE_STEPS_MAX, BS_RECIPE_STEP_MAX, BS_RECIPE_NUMS, bsKitchenRecipeItem, bsProfileKitchen, bsCleanText,
 } from '../services/profileCustom.mjs';
@@ -232,7 +232,35 @@ function WallTab({ tr, look, setLook, wall, setWall, choices, uploading, onUploa
 }
 
 // ── Your space ──────────────────────────────────────────────────────────────────────────────
-function SpaceTab({ tr, look, studio, setStudio, sel, setSel }) {
+// A station's programs (owner, 2026-10-29, the studio showing the coach's workouts by machine:
+// "Both", the moves' own equipment and the coach's pins). Their published programs, up to
+// BS_STATION_PINS_MAX pinned; members see them on the station.
+function PinPicker({ tr, programs, pins, onChange }) {
+  const [msg, setMsg] = React.useState(null);
+  return (
+    <div data-pins="" style={{ marginTop: 10 }}>
+      <span style={{ display: 'block', fontSize: 13, color: ea(0.66) }}>{tr('profile:mine.pinsTitle', { defaultValue: 'Programs you run here' })}</span>
+      {programs.length ? (
+        <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {programs.map((pr) => {
+            const on = pins.includes(pr.id);
+            return (
+              <button key={pr.id} type="button" data-pin={pr.id} aria-pressed={on} onClick={() => {
+                setMsg(null);
+                if (on) { onChange(pins.filter((x) => x !== pr.id)); return; }
+                if (pins.length >= BS_STATION_PINS_MAX) { setMsg(tr('profile:mine.pinsMax', { defaultValue: 'Up to {count} programs on a station.', count: BS_STATION_PINS_MAX })); return; }
+                onChange([...pins, pr.id]);
+              }} style={{ minHeight: 38, padding: '0 12px', borderRadius: 999, border: `1px solid ${on ? E.ED : ea(0.22)}`, background: on ? hexA(E.ED, 0.14) : 'transparent', color: E.INK, fontSize: 13.5, cursor: 'pointer' }}>{on ? '✓ ' : ''}{pr.name}</button>
+            );
+          })}
+        </div>
+      ) : <span style={{ display: 'block', marginTop: 4, fontSize: 12.5, color: ea(0.55) }}>{tr('profile:mine.pinsNone', { defaultValue: 'Publish a program to pin it here.' })}</span>}
+      {msg ? <p role="alert" style={{ margin: '6px 0 0', fontSize: 13, color: E.WARN }}>{msg}</p> : null}
+    </div>
+  );
+}
+
+function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [] }) {
   const P = paletteOf(look.paper, look.accent);
   const ACC = P.ACCENT;
   const ink = (n) => `rgba(${P.inkRGB},${n})`;
@@ -369,6 +397,7 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel }) {
             <>
               <input value={cur.st.title} maxLength={BS_STATION_TITLE_MAX} onChange={(e) => update(sel, { st: { ...cur.st, title: e.target.value } })} aria-label={tr('profile:mine.stationTitle', { defaultValue: 'What you call it' })} placeholder={tr('profile:mine.stationTitle', { defaultValue: 'What you call it' })} style={{ ...field, marginTop: 8 }} />
               <textarea value={cur.st.note} maxLength={BS_STATION_NOTE_MAX} rows={3} onChange={(e) => update(sel, { st: { ...cur.st, note: e.target.value } })} aria-label={tr('profile:mine.stationNote', { defaultValue: 'What you do here' })} placeholder={tr('profile:mine.stationNotePh', { defaultValue: 'What you do here, and what a client gets from it.' })} style={{ ...field, marginTop: 8, padding: '10px 12px', minHeight: 84, resize: 'vertical', lineHeight: 1.45 }} />
+              <PinPicker tr={tr} programs={programs} pins={Array.isArray(cur.st.pins) ? cur.st.pins : []} onChange={(pins) => { const { pins: was, ...st } = cur.st; update(sel, { st: pins.length ? { ...st, pins } : st }); }} />
             </>
           ) : null}
           <input value={cur.t === 'zone' ? (cur.tag || '') : (cur.label || '')} maxLength={BS_STUDIO_LABEL_MAX} onChange={(e) => update(sel, cur.t === 'zone' ? { tag: e.target.value } : { label: e.target.value })}
@@ -774,7 +803,7 @@ function KitchenTab({ tr, look, kitchen, setKitchen, startSection = null, owner,
 }
 
 // ── The editor ──────────────────────────────────────────────────────────────────────────────
-export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null, initial = null, startTab = 'colors', startSection = null, who = {}, words = null, photos = [], onClose, onSaved }) {
+export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null, initial = null, startTab = 'colors', startSection = null, who = {}, words = null, photos = [], programs = [], onClose, onSaved }) {
   const tr = useShapeTr();
   const nutri = role === 'nutritionist';
   // The third tab: a trainer's space, a nutritionist's kitchen.
@@ -926,7 +955,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         {tab !== 'space' && tab !== 'kitchen' ? <Preview tr={tr} look={look} wall={wall} who={{ ...who, first }} words={w} nutri={nutri} /> : null}
         {tab === 'colors' ? <ColorsTab tr={tr} look={look} setLook={setLook} /> : null}
         {tab === 'wall' ? <WallTab tr={tr} look={look} setLook={setLook} wall={wall} setWall={(u) => { setWall(u); setErr(null); }} choices={photos} uploading={uploading} onUpload={onUpload} noUpload={demo ? demoNoUpload : null} /> : null}
-        {tab === 'space' ? <SpaceTab tr={tr} look={look} studio={studio} setStudio={setStudio} sel={sel} setSel={setSel} /> : null}
+        {tab === 'space' ? <SpaceTab tr={tr} look={look} studio={studio} setStudio={setStudio} sel={sel} setSel={setSel} programs={programs} /> : null}
         {tab === 'kitchen' ? <KitchenTab tr={tr} look={look} kitchen={kitchen} setKitchen={setKitchen} startSection={startSection} owner={owner} uploadPhoto={uploadRecipePhoto} draft={recipeDraft} setDraft={setRecipeDraft} /> : null}
         {err && !unsaved ? <p role="alert" style={{ margin: '14px 0 0', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
       </div>

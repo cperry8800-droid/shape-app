@@ -223,6 +223,11 @@ export const BS_STUDIO_WHERE_MAX = 80;
 export const BS_STUDIO_LABEL_MAX = 24;
 export const BS_STATION_TITLE_MAX = 60;
 export const BS_STATION_NOTE_MAX = 280;
+// A station's pins: programs of the coach's own that they set there (owner, 2026-10-29, the studio
+// showing their workouts by machine, "Both": from the moves' equipment and the coach's own pins).
+// Plan ids only; the profile shows a pin only while that program is published.
+export const BS_STATION_PINS_MAX = 3;
+const BS_PLAN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const BS_STUDIO_SCAN = BS_STUDIO_ITEMS_MAX * 4;
 
 const bsInt = (v, lo, hi) => {
@@ -230,8 +235,9 @@ const bsInt = (v, lo, hi) => {
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : null;
 };
 
-// One piece: { t, x, y, w, h, label?, tag?, spot?: [dx, dy], st?: { title, note } }. A piece is
-// kept inside the plan (its size first, then its corner). A station keeps the coach's words.
+// One piece: { t, x, y, w, h, label?, tag?, spot?: [dx, dy], st?: { title, note, pins? } }. A piece
+// is kept inside the plan (its size first, then its corner). A station keeps the coach's words and
+// up to BS_STATION_PINS_MAX program ids, lower-cased, once each.
 export function bsStudioItem(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   if (!BS_STUDIO_TYPES.includes(v.t)) return null;
@@ -250,6 +256,15 @@ export function bsStudioItem(v) {
   }
   if (v.st && typeof v.st === 'object' && !Array.isArray(v.st)) {
     out.st = { title: bsCleanText(v.st.title, BS_STATION_TITLE_MAX), note: bsCleanText(v.st.note, BS_STATION_NOTE_MAX) };
+    if (Array.isArray(v.st.pins)) {
+      const pins = [];
+      for (const id of v.st.pins.slice(0, BS_STATION_PINS_MAX * 4)) {
+        const k = typeof id === 'string' ? id.toLowerCase() : '';
+        if (BS_PLAN_ID.test(k) && !pins.includes(k)) pins.push(k);
+        if (pins.length >= BS_STATION_PINS_MAX) break;
+      }
+      if (pins.length) out.st.pins = pins;
+    }
   }
   return out;
 }

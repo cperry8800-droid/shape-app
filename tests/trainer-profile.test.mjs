@@ -87,7 +87,8 @@ const failing = (how) => { if (how === 'null') return null; throw new Error('off
 window.ShapeCoachListing = { publicByOwner: async () => world.provider, publicById: async (role, id) => { world.byIdFor = id; if (world.byIdFails) return failing(world.byIdFails); return world.byId || null; } };
 window.ShapeCoachAvailability = { get: async (role, id) => { world.availFor = id; if (world.availFails) return failing(world.availFails); return { slots: world.slots, booked: [], busy: world.busy, rules: world.rules, timezone: ZONE, atCapacity: world.atCapacity }; } };
 window.ShapeCoachReviews = { forOwner: async () => ({ reviews: [], avg: 0, count: 0 }) };
-window.ShapeCoachPlans = { salePlansByUser: async () => [] };
+window.ShapeCoachPlans = { salePlansByUser: async () => world.salePlans || [], buy: async (a) => { world.bought = a; return 'https://checkout.stripe.test/c/1'; } };
+window.bsOpenCheckout = (u) => { world.checkout = u; };
 window.ShapeFollows = { stats: async () => ({ isFollowing: false, isPending: false }), toggle: async () => ({ isFollowing: true }), getCached: () => null };
 window.ShapeCommunity = { listByAuthor: async () => ({ data: world.posts }) };
 // As the real shapeDb: a read or save bound to an account that is no longer signed in gets nothing.
@@ -805,4 +806,171 @@ test('a reader who isn\'t a member sees the rating and Join to read them, never 
     window.ShapeCoachReviews.forOwner = had;
     window.bsRequireAccount = hadReq; window.bsStartPlatformCheckout = hadCheckout;
   }
+});
+
+
+// ── Replays: programs with their free video, workouts on video, sessions; the studio's work ─────
+// Owner, 2026-10-29: "There needs to be videos in replays of specific workouts or programs. The
+// layout of the gym floor needs to include coaches workouts based on those machines."
+const CLIP = 'https://abcd.supabase.co/storage/v1/object/public/coach-media/u-maya/intro.mp4';
+const row = (day, weekday, dayName, name, equipment) => ({ week: 0, day, weekday, dayName, name, equipment, muscle: 'x', text: name });
+const STRONG = { id: '11111111-2222-4333-8444-555555555555', kind: 'program', name: 'Strong in 12', price: 79, meta: '12 weeks', providerId: 7, providerRole: 'trainer', detail: {
+  preview: true, weeks: 12,
+  blocks: [row(0, 0, 'Squat', 'Back squat', 'Barbell'), row(0, 0, 'Squat', 'Dumbbell row', 'Dumbbell'), row(1, 2, 'Press', 'Bench press', 'Barbell'), row(1, 2, 'Press', 'Face pull', 'Cable')],
+  firstWeek: [{ week: 0, day: 0, weekday: 0, dayName: 'Squat', moves: 2 }, { week: 0, day: 1, weekday: 2, dayName: 'Press', moves: 3 }],
+  media: [{ url: CLIP, type: 'video', name: 'Intro' }, { url: 'https://abcd.supabase.co/storage/v1/object/public/coach-media/u-maya/a.jpg', type: 'image' }],
+} };
+const ROWER = { id: '66666666-2222-4333-8444-555555555555', kind: 'program', name: 'Engine 8', price: null, providerId: 7, providerRole: 'trainer', detail: { preview: true, blocks: [row(0, 0, 'Intervals', 'Rower', 'Rower')], weeks: 8, media: [] } };
+const MEAL = { id: '77777777-2222-4333-8444-555555555555', kind: 'meal_plan', name: 'A cut', price: 20, providerId: 7, providerRole: 'trainer', detail: { preview: true } };
+const tab = async (name) => click(button(new RegExp(`^${name}$`)));
+
+test('Replays: each program with its free video, its weeks and first week, and Buy through the storefront\'s checkout', async () => {
+  reset({ salePlans: [STRONG, MEAL, ROWER] });
+  let m = await mount(page());
+  await tab('Replays');
+  const cards = [...document.querySelectorAll('[data-program]')];
+  assert.equal(cards.length, 2, 'programs only, never a meal plan');
+  assert.match(cards[0].textContent, /\$79/);
+  assert.match(cards[0].textContent, /Strong in 12/);
+  assert.match(cards[0].textContent, /12 weeks · 2 days a week · Preview video/);
+  assert.match(cards[0].textContent, /MON Squat · WED Press/);
+  assert.match(cards[1].textContent, /8 weeks/, 'no video and no poster: the weeks in its place');
+  await click(cards[0]);
+  const sheet = document.querySelector('[data-program-sheet]');
+  assert.ok(sheet);
+  const video = sheet.querySelector('[data-program-video] video');
+  assert.ok(video, 'the free video plays in the sheet');
+  assert.equal(video.getAttribute('src'), CLIP);
+  assert.match(sheet.textContent, /The first week/);
+  assert.match(sheet.textContent, /Back squat · Dumbbell row/);
+  assert.match(sheet.textContent, /Bench press · Face pull · ＋1/, 'a day\'s moves past the names kept say how many');
+  assert.match(sheet.textContent, /Sets, loads, cues and exercise videos unlock when you buy/);
+  await click(sheet.querySelector('[data-program-buy]'));
+  assert.deepEqual(world.bought, { plan: { id: STRONG.id, name: 'Strong in 12', price: 79 }, providerRole: 'trainer', providerId: 7 });
+  assert.equal(world.checkout, 'https://checkout.stripe.test/c/1');
+  await m.unmount();
+  // A guest is asked for an account first, and nothing is bought.
+  reset({ salePlans: [STRONG] });
+  window.bsRequireAccount = () => false;
+  try {
+    m = await mount(page());
+    await tab('Replays');
+    await click(document.querySelector('[data-program]'));
+    await click(document.querySelector('[data-program-buy]'));
+    assert.equal(world.bought, undefined);
+    await m.unmount();
+  } finally { delete window.bsRequireAccount; }
+  // The coach on their own page sees what members see, with no Buy.
+  reset({ me: 'u-maya', salePlans: [STRONG] });
+  m = await mount(page({ isSelf: true }));
+  await tab('Replays');
+  await click(document.querySelector('[data-program]'));
+  assert.equal(document.querySelector('[data-program-buy]'), null);
+  assert.match(document.querySelector('[data-program-sheet]').textContent, /This is what members see before they buy\./);
+  await m.unmount();
+});
+
+test('Replays: workouts posted on video play in the sheet; sessions keep their sets', async () => {
+  const V2 = 'https://abcd.supabase.co/storage/v1/object/public/coach-media/u-maya/v2.mp4';
+  reset({ posts: [
+    { key: 'v1', title: 'Squat walkthrough', body: 'Brace, then sit between the hips.', video: CLIP, ago: '2d' },
+    { key: 's1', title: 'Heavy triples', breakdown: { label: 'Working sets', rows: [['Set 1', '100 kg × 3', 'RPE 6']] }, ago: '3d' },
+    { key: 's2', title: 'Pulls on film', video: V2, breakdown: { label: 'Sets', rows: [['Set 1', '150 kg × 3', 'RPE 7'], ['Set 2', '160 kg × 3', 'RPE 8']] }, ago: '4d' },
+    { key: 'x1', title: 'Insecure link', video: 'http://example.com/v.mp4', ago: '5d' },
+  ] });
+  const m = await mount(page());
+  await tab('Replays');
+  const workouts = [...document.querySelectorAll('[data-workout]')];
+  assert.deepEqual(workouts.map((w) => w.textContent.includes('Squat walkthrough') ? 'v1' : w.textContent.includes('Pulls on film') ? 's2' : '?'), ['v1', 's2'], 'https videos only');
+  assert.equal(document.querySelectorAll('[data-replay]').length, 1, 'a session with a video is a workout, not listed twice');
+  await click(workouts[0]);
+  assert.equal(document.querySelector('[data-replay-video] video').getAttribute('src'), CLIP);
+  assert.match(document.body.textContent, /Workout · 2d/);
+  assert.ok(!button(/^Next →$/), 'no sets, no stepper');
+  await click(button(/^Close$/));
+  await click(workouts[1]);
+  assert.equal(document.querySelector('[data-replay-video] video').getAttribute('src'), V2);
+  assert.ok(button(/^Next →$/), 'its sets step through');
+  await m.unmount();
+});
+
+test('the studio: each piece shows the moves of the coach\'s programs done on it, and the programs pinned to a station', async () => {
+  const studio = { kind: 'gym', where: 'Portland', items: [
+    { t: 'rack', x: 20, y: 40, w: 78, h: 46, st: { title: 'Squat rack', note: 'Heavy sets.', pins: [STRONG.id, '99999999-2222-4333-8444-555555555555'] } },
+    { t: 'dumbbells', x: 20, y: 200, w: 120, h: 16 },
+    { t: 'dumbbells', x: 20, y: 230, w: 120, h: 16 },
+    { t: 'speaker', x: 200, y: 20, w: 22, h: 22 },
+    { t: 'rower', x: 260, y: 300, w: 18, h: 76 },
+  ] };
+  reset({ custom: { studio }, salePlans: [STRONG, ROWER] });
+  const m = await mount(page());
+  await tab('The studio');
+  assert.equal(document.querySelectorAll('[data-station]').length, 1);
+  const marks = [...document.querySelectorAll('[data-piece]')];
+  assert.equal(marks.length, 3, 'both dumbbell racks and the rower; never the speaker');
+  assert.match(marks[0].getAttribute('aria-label'), /Dumbbell rack: 1 move from the programs/);
+  const rows = [...document.querySelectorAll('[data-floor-row]')];
+  assert.equal(rows.length, 2, 'the two dumbbell racks are one row');
+  assert.match(rows[0].textContent, /Dumbbell rack ×2/);
+  assert.match(rows[0].textContent, /1 move · Strong in 12/);
+  assert.match(rows[1].textContent, /Rower/);
+  await click(document.querySelector('[data-station]'));
+  const pinned = document.querySelector('[data-pinned]');
+  assert.ok(pinned);
+  assert.equal(pinned.querySelectorAll('[data-piece-program]').length, 1, 'a pin to a program no longer published is left out');
+  assert.match(document.querySelector('[data-piece-moves]').textContent, /Strong in 12.*Back squat · Bench press/);
+  await click(document.querySelector('[data-piece-moves] [data-piece-program]'));
+  const sheet = document.querySelector('[data-program-sheet]');
+  assert.ok(sheet, 'a program opens from the studio');
+  assert.match(sheet.querySelector('[data-program-where]').textContent, /On Maya's floor.*Squat rack · Dumbbell rack/);
+  await m.unmount();
+});
+
+test('Make it yours pins the coach\'s published programs to a station, three at most', async () => {
+  const PROGS = [0, 1, 2, 3].map((i) => ({ ...STRONG, id: `1111111${i}-2222-4333-8444-555555555555`, name: `Program ${i + 1}` }));
+  const studio = { kind: 'gym', items: [{ t: 'rack', x: 20, y: 40, w: 78, h: 46, st: { title: 'Squat rack', note: '' } }] };
+  reset({ me: 'u-maya', custom: null, stored: { studio }, salePlans: PROGS });
+  const m = await mount(page({ isSelf: true }));
+  await click(button(/^Make it yours$/));
+  await click(button(/^Your space$/));
+  const piece = document.querySelector('g[role="button"]');
+  await act(async () => { piece.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+  await flush();
+  const pins = () => [...document.querySelectorAll('[data-pin]')];
+  assert.deepEqual(pins().map((b) => b.textContent), ['Program 1', 'Program 2', 'Program 3', 'Program 4']);
+  for (const i of [0, 1, 2, 3]) await click(pins()[i]);
+  assert.match(m.text(), /Up to 3 programs on a station\./);
+  assert.deepEqual(pins().map((b) => b.getAttribute('aria-pressed')), ['true', 'true', 'true', 'false']);
+  await click(pins()[1]);
+  await click(button(/^Done$/));
+  await click(document.querySelector('[data-save-mine]'));
+  assert.deepEqual(world.saved.d.studio.items[0].st.pins, [PROGS[0].id, PROGS[2].id]);
+  await m.unmount();
+});
+
+test('a sample coach\'s programs open with no Buy, and the coach\'s own Replays post a workout video in the composer\'s Video', async () => {
+  reset({ me: 'u-me', byId: leahRow, slots: [] });
+  let m = await mount(page({ person: leah }));
+  await tab('Replays');
+  const names = [...document.querySelectorAll('[data-program]')].map((b) => b.textContent);
+  assert.equal(names.length, 2);
+  assert.match(names[0], /Engine 8/, 'a HIIT coach\'s sample programs');
+  await click(document.querySelector('[data-program]'));
+  assert.equal(document.querySelector('[data-program-buy]'), null, 'nothing is sold on a sample');
+  assert.ok(button(/^Work with Leah$/));
+  await m.unmount();
+  const had = window.BSLogActivitySheet;
+  window.BSLogActivitySheet = (props) => ((world.composer = props.startKind || null), React.createElement('div', { 'data-composer': '' }));
+  try {
+    reset({ me: 'u-maya' });
+    m = await mount(page({ isSelf: true }));
+    await tab('Replays');
+    await click(document.querySelector('[data-post-video]'));
+    assert.equal(world.composer, 'video');
+    await m.unmount();
+  } finally { window.BSLogActivitySheet = had; }
+  const client = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(client, /function BSLogActivitySheet\(\{ c, INK, BG, onClose, onPosted, editPost = null, startKind = null \}\)/);
+  assert.match(client, /: \(\['note', 'photo', 'video', 'workout', 'milestone', 'link'\]\.includes\(startKind\) \? startKind : 'note'\);/, 'a new post opens on the kind asked for');
+  assert.match(client, /bsStartPlatformCheckout, bsOpenCheckout \}\);/, 'the checkout opener is on window for the profile');
 });
