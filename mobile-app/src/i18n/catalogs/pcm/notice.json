@@ -165,5 +165,7 @@
   "tier.body": "Your {tier} rewards dey wait for you for di Shape Store.",
   "email.open": "Open Shape: {site}",
   "email.link": "Open Shape",
-  "email.manage": "Change di emails wey you dey get for Settings → Notifications."
+  "email.manage": "Change di emails wey you dey get for Settings → Notifications.",
+  "listingJoined.title": "{coach} don dey Shape now",
+  "listingJoined.body": "You ask {coach} for time before dem join. Book one for dem listing."
 }

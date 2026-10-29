@@ -766,7 +766,7 @@ test('a long step splits after a sentence, else at a space, else at the limit, e
   assert.deepEqual(bsSplitLongStep('a'.repeat(300), 300), ['a'.repeat(300)], 'at the limit: one step');
 });
 
-test('a seeded nutritionist listing is a sample: its listing by id, a sample kitchen and plate notes, times never taken', async () => {
+test('a seeded nutritionist listing is a sample: its listing by id, a sample kitchen and plate notes, times asked for', async () => {
   const rae = { who: 'Rae Lindqvist', kind: 'NUTRI', providerId: 52, city: 'Remote', bio: 'Plant-forward fuelling.', specialty: 'Plant-based nutrition Vegan', rating10: 9.8 };
   reset({ me: 'u-me', byId: { id: 52, owner_id: null, name: 'Rae Lindqvist', price: 110, specialty: 'Plant-based nutrition', credential: 'RD', verified: false, listing_media: { cover: null, gallery: [] }, monthly_offer: null }, slots: [] });
   const m = await mount(page({ person: rae }));
@@ -787,7 +787,7 @@ test('a seeded nutritionist listing is a sample: its listing by id, a sample kit
   assert.equal(document.querySelectorAll('[data-plate-day]').length, 2);
   await click(button(/^Rae's day$/));
   assert.match(m.text(), /Sample times: Rae hasn't set open hours on Shape yet\./);
-  assert.ok([...document.querySelectorAll('[data-open-time]')].every((b) => b.disabled), 'sample times are not to take');
+  assert.ok([...document.querySelectorAll('[data-open-time]')].every((b) => !b.disabled && /Ask for it/.test(b.textContent)), 'sample times are asked for, not taken');
   await m.unmount();
 });
 

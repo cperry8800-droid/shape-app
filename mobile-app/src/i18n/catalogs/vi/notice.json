@@ -165,5 +165,7 @@
   "tier.body": "Phần thưởng hạng {tier} đang chờ bạn tại Shape Store.",
   "email.open": "Mở Shape: {site}",
   "email.link": "Mở Shape",
-  "email.manage": "Thay đổi loại email bạn nhận trong Cài đặt → Thông báo."
+  "email.manage": "Thay đổi loại email bạn nhận trong Cài đặt → Thông báo.",
+  "listingJoined.title": "{coach} đã có trên Shape",
+  "listingJoined.body": "Bạn đã yêu cầu {coach} một giờ trước khi họ tham gia. Hãy đặt một giờ trên trang của họ."
 }

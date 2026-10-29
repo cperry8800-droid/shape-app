@@ -174,7 +174,7 @@ const WRITERS = [
   'src/lib/refund-session.ts', 'src/lib/payment-notices.ts', 'src/lib/coach-thread.ts', 'src/lib/session-emails.ts',
   'src/app/api/cron/score-accountability/route.ts', 'src/app/dashboard/credentials/actions.ts', 'src/app/api/cron/credential-expiry/route.ts',
   'src/lib/workout-share.ts', 'src/app/api/nutritionist/meal-plan/route.ts', 'src/lib/ai/notifications.mjs', 'src/app/api/push/dispatch/route.ts',
-  'mobile-app/src/services/noticeCopy.mjs',
+  'mobile-app/src/services/noticeCopy.mjs', 'src/lib/listing-requests.ts',
 ];
 const BUILT = [
   ...['weighIn', 'checkin', 'morning', 'water', 'photo', 'custom'].flatMap((k) => [`reminder.${k}.title`, `reminder.${k}.body`]),

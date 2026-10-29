@@ -165,5 +165,7 @@
   "tier.body": "Deine Prämien der Stufe {tier} warten im Shape Store.",
   "email.open": "Shape öffnen: {site}",
   "email.link": "Shape öffnen",
-  "email.manage": "Welche E-Mails du bekommst, änderst du unter Einstellungen → Benachrichtigungen."
+  "email.manage": "Welche E-Mails du bekommst, änderst du unter Einstellungen → Benachrichtigungen.",
+  "listingJoined.title": "{coach} ist jetzt bei Shape",
+  "listingJoined.body": "Du hast {coach} noch vor dem Start auf Shape um eine Zeit gebeten. Buch eine über das Profil."
 }

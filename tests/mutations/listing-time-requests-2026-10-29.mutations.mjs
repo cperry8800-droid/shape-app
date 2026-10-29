@@ -1,0 +1,111 @@
+// Mutation spec for a time asked of a coach who isn't on Shape yet (2026-10-29): the route, its
+// rules, the claim's notices, the app's ask and the coach's list, and the migration's text. The
+// tests named below must notice every one. The Postgres half (the policies' behaviour) is not
+// mutated here: the runner does not run Postgres; the replica probes in the PR are its test.
+// Run from the repo root:
+//   node scripts/mutate.mjs --spec tests/mutations/listing-time-requests-2026-10-29.mutations.mjs --fail-on-skipped
+const ROUTE = 'src/app/api/listing-requests/route.ts';
+const LIB = 'src/lib/listing-requests.ts';
+const CLAIM = 'src/app/dashboard/claim/actions.ts';
+const PAGE = 'mobile-app/src/broadsheet/BSTrainerProfile.jsx';
+const BACKEND = 'mobile-app/src/services/shapeBackend.js';
+const SURFACES = 'public/newdesign/notificationSurfaces.mjs';
+const MIG = 'supabase-migrations/2026-10-29-listing-time-requests.sql';
+
+export default {
+  test: 'node --test tests/listing-time-requests.test.mjs tests/trainer-profile.test.mjs tests/nutritionist-profile.test.mjs tests/notification-switches.test.mjs',
+  timeoutMs: 600_000,
+  mutations: [
+    // ── the route ──
+    { name: 'route: a signed-out caller may ask', file: ROUTE,
+      find: "  if (!user) return NextResponse.json({ error: 'Sign in to ask for a time.', code: 'signed_out' }, { status: 401 });\n", replace: "" },
+    { name: 'route: a listing on Shape is asked of as if it weren\'t', file: ROUTE,
+      find: "  if (row.owner_id) {", replace: "  if (false) {" },
+    { name: 'route: a gone listing is asked of', file: ROUTE,
+      find: "  if (!row) return NextResponse.json({ error: 'That coach is no longer listed.', code: 'no_listing' }, { status: 404 });\n", replace: "  if (!row) return NextResponse.json({ ok: true });\n" },
+    { name: 'route: no daily cap', file: ROUTE,
+      find: "  if ((today.count ?? 0) >= ASKS_PER_DAY) {", replace: "  if (false) {" },
+    { name: 'route: no cap per listing', file: ROUTE,
+      find: "  if ((waiting.count ?? 0) >= ASKS_PER_LISTING) {", replace: "  if (false) {" },
+    { name: 'route: a past time counts as waiting', file: ROUTE,
+      find: ".eq('provider_id', ask.providerId).gte('slot_start', new Date(now).toISOString()),", replace: ".eq('provider_id', ask.providerId)," },
+    { name: 'route: a cap that can\'t be read is passed', file: ROUTE,
+      find: "  if (today.error || waiting.error) return dbError(today.error || waiting.error, 'listing-requests caps read');\n", replace: "" },
+    { name: 'route: the same time twice is an error', file: ROUTE,
+      find: "    if ((insertError as { code?: string }).code === '23505') return NextResponse.json({ ok: true, already: true });\n", replace: "" },
+    { name: 'route: the owners are never told', file: ROUTE,
+      find: "  await tellOwnersOfAsk(admin, String((inserted as { id: string }).id), ask, user.id, member, coach);\n", replace: "" },
+    { name: 'route: the body says who asked', file: ROUTE,
+      find: "provider_id: ask.providerId, member_id: user.id,", replace: "provider_id: ask.providerId, member_id: String((parsed.data as Record<string, unknown>).memberId || user.id)," },
+    // ── the rules ──
+    { name: 'rules: a gym is a coach to ask', file: LIB,
+      find: "  if (role !== 'trainer' && role !== 'nutritionist') return bad('role', 'Choose a coach to ask.');", replace: "" },
+    { name: 'rules: a listing id as text is read', file: LIB,
+      find: "if (typeof providerId !== 'number' || !Number.isInteger(providerId) || providerId <= 0)", replace: "if (!(Number(providerId) > 0))" },
+    { name: 'rules: a time about to start is fine', file: LIB,
+      find: "  if (at < now + ASK_LEAD_MIN * 60_000)", replace: "  if (at < now)" },
+    { name: 'rules: no limit on how far ahead', file: LIB,
+      find: "  if (at > now + ASK_AHEAD_DAYS * 86_400_000) return bad('time_far', 'Pick a time in the next two months.');\n", replace: "" },
+    { name: 'rules: a call of any length', file: LIB,
+      find: "durationMin < 5 || durationMin > 240) return bad('length'", replace: "durationMin < 0) return bad('length'" },
+    { name: 'rules: a call of part minutes', file: LIB,
+      find: "if (typeof durationMin !== 'number' || !Number.isInteger(durationMin) ||", replace: "if (typeof durationMin !== 'number' ||" },
+    { name: 'rules: a note of any length', file: LIB,
+      find: "  if (note.length > ASK_NOTE_MAX) return bad('note_long', `Keep the note to ${ASK_NOTE_MAX} characters.`);\n", replace: "" },
+    { name: 'rules: a note that isn\'t text is stored', file: LIB,
+      find: "  if (b.note != null && typeof b.note !== 'string') return bad('note', 'Write the note as text.');\n", replace: "" },
+    { name: 'rules: the owners\' notice drops the note', file: LIB,
+      find: "  const note = ask.note ? ` Their note:", replace: "  const note = false ? ` Their note:" },
+    { name: 'rules: the owners\' notice has no dedupe key', file: LIB,
+      find: "data: { dedupe: `ask:${askId}`,", replace: "data: {" },
+    { name: 'rules: a member who asked twice is told twice', file: LIB,
+      find: "const members = [...new Set(((asks || []) as { member_id?: string | null }[]).map((a) => a.member_id).filter((id): id is string => !!id))];",
+      replace: "const members = ((asks || []) as { member_id?: string | null }[]).map((a) => a.member_id).filter((id): id is string => !!id);" },
+    { name: 'rules: the askers of every listing are told', file: LIB,
+      find: "select('member_id').eq('provider_role', role).eq('provider_id', providerId).limit(500)", replace: "select('member_id').limit(500)" },
+    { name: 'rules: the joined notice opens nothing', file: LIB,
+      find: "        route: `coach:${role}:${providerId}`,", replace: "        route: 'home'," },
+    { name: 'rules: the joined notice has no copy for the app', file: LIB,
+      find: "      }, copy);\n      if (stored) told += 1;", replace: "      });\n      if (stored) told += 1;" },
+    { name: 'claim: the askers are never told', file: CLAIM,
+      find: "  if (role === 'trainer' || role === 'nutritionist') await tellAskers(admin, role, providerId);\n", replace: "" },
+    // ── the app ──
+    { name: 'app: a sample time is not to take or ask', file: PAGE,
+      find: "onTake={isSelf ? null : avail.sample ? (providerId ? (slot) => setSheet({ kind: 'ask', slot }) : null) : (slot) => setSheet({ kind: 'book', slot })}",
+      replace: "onTake={isSelf || avail.sample ? null : (slot) => setSheet({ kind: 'book', slot })}" },
+    { name: 'app: a sample time is booked', file: PAGE,
+      find: "onTake={isSelf ? null : avail.sample ? (providerId ? (slot) => setSheet({ kind: 'ask', slot }) : null) : (slot) => setSheet({ kind: 'book', slot })}",
+      replace: "onTake={isSelf ? null : (slot) => setSheet({ kind: 'book', slot })}" },
+    { name: 'app: a sample time reads "Take it"', file: PAGE,
+      find: "{avail.sample ? tr('profile:trainer.ask', { defaultValue: 'Ask for it →' }) : tr('profile:trainer.take', { defaultValue: 'Take it →' })}", replace: "{tr('profile:trainer.take', { defaultValue: 'Take it →' })}" },
+    { name: 'app: the ask drops the note', file: PAGE,
+      find: "await window.ShapeListingAsks.ask({ role, providerId, at: slot.at, durationMin: introMin, note: note.trim() });", replace: "await window.ShapeListingAsks.ask({ role, providerId, at: slot.at, durationMin: introMin });" },
+    { name: 'app: a guest\'s ask is sent', file: PAGE,
+      find: "    if (window.bsRequireAccount && !window.bsRequireAccount('ask for a time')) return;\n", replace: "" },
+    { name: 'app: a refusal says the route\'s English', file: PAGE,
+      find: "setState({ kind: 'err', message: known ? tr(known[0], { defaultValue: known[1], name: first }) : tr('profile:trainer.askFailed', { defaultValue: \"Couldn't send your ask. Try again.\" }) });",
+      replace: "setState({ kind: 'err', message: error.message });" },
+    { name: 'app: a visitor reads the listing\'s asks', file: PAGE,
+      find: "    if (!isSelf || sample || demo || !providerId || !W.ShapeListingAsks?.forListing) return undefined;", replace: "    if (sample || demo || !providerId || !W.ShapeListingAsks?.forListing) return undefined;" },
+    { name: 'app: the coach never sees the asks', file: PAGE,
+      find: "      {isSelf && asks && asks.length ? <AsksList", replace: "      {false && asks && asks.length ? <AsksList" },
+    { name: 'app: a passed time is not marked', file: PAGE,
+      find: "{when(a.at)}{a.at < now ? ` · ${tr('profile:trainer.askPassed', { defaultValue: 'passed' })}` : ''}", replace: "{when(a.at)}" },
+    { name: 'app: the ask goes without the account\'s token', file: BACKEND,
+      find: "    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },\n    body: JSON.stringify({ role, providerId: Number(providerId),",
+      replace: "    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({ role, providerId: Number(providerId)," },
+    { name: 'switches: an owners\' ask notice has no switch', file: SURFACES,
+      find: "  listing_request: 'sessions',\n", replace: "" },
+    // ── the migration's text ──
+    { name: 'migration: members may write their own asks', file: MIG,
+      find: "grant select on table public.listing_time_requests to authenticated;", replace: "grant select, insert on table public.listing_time_requests to authenticated;" },
+    { name: 'migration: anon keeps its grants', file: MIG,
+      find: "revoke all on table public.listing_time_requests from anon;\n", replace: "" },
+    { name: 'migration: a member reads every ask', file: MIG,
+      find: "  using (member_id = (select auth.uid()));", replace: "  using (true);" },
+    { name: 'migration: the coach reads any trainer\'s asks', file: MIG,
+      find: "t.id = provider_id and t.owner_id = (select auth.uid())", replace: "t.id = provider_id" },
+    { name: 'migration: a member gone leaves their asks', file: MIG,
+      find: "member_id uuid not null references auth.users(id) on delete cascade,", replace: "member_id uuid not null references auth.users(id)," },
+  ],
+};

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
+import { tellAskers } from '@/lib/listing-requests';
 
 /**
  * Server action invoked by the claim page. Calls the `claim_provider_row`
@@ -53,6 +54,10 @@ export async function claimProviderRow(formData: FormData): Promise<void> {
     console.error('[shape-app] claimProviderRow error', error);
     throw new Error(error.message);
   }
+
+  // Members who asked this listing for a time before its coach was on Shape hear that they are
+  // now (listing-requests.ts). Best effort, once per member and listing: the claim is done.
+  if (role === 'trainer' || role === 'nutritionist') await tellAskers(admin, role, providerId);
 
   // Also add the corresponding role to the user's profile so the dashboard
   // tabs flip on immediately.

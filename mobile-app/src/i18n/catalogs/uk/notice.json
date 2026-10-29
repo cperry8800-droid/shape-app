@@ -165,5 +165,7 @@
   "tier.body": "Нагороди рівня {tier} чекають на вас у Shape Store.",
   "email.open": "Відкрити Shape: {site}",
   "email.link": "Відкрити Shape",
-  "email.manage": "Обрати, які листи отримувати, можна в розділі Налаштування → Сповіщення."
+  "email.manage": "Обрати, які листи отримувати, можна в розділі Налаштування → Сповіщення.",
+  "listingJoined.title": "{coach} тепер у Shape",
+  "listingJoined.body": "Ви просили в {coach} час ще до появи в Shape. Забронюйте час у профілі."
 }

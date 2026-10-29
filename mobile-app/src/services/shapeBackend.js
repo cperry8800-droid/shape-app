@@ -5986,6 +5986,46 @@ window.ShapeBookings = {
   setCapacity: setProviderCapacity,
 };
 
+// A time asked of a coach who isn't on Shape yet: a seeded listing's sample time (src/lib/listing-requests.ts).
+// The route takes the account from the Bearer token, as a booking does. A refusal carries the
+// route's code (claimed, too_many, daily_cap, time_past…) for the sheet to say in the member's language.
+async function askListingTime({ role, providerId, at, durationMin, note = '' }) {
+  const token = state.user?.id ? await liveAccessToken() : null;
+  if (!token) throw Object.assign(new Error('Sign in to ask for a time.'), { code: 'signed_out' });
+  const res = await fetch(`${apiBaseUrl || ''}/api/listing-requests`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ role, providerId: Number(providerId), at: new Date(Number(at)).toISOString(), durationMin, note: String(note || '') }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok || !d?.ok) throw Object.assign(new Error(d?.error || 'Could not ask for that time.'), { code: d?.code || null });
+  return { already: !!d.already };
+}
+
+// The asks on a listing this account owns, with the members' names (get_display_names). The table's
+// policy hands them to the listing's owner only, once the listing is theirs.
+async function listingAsks(role, providerId) {
+  if (!supabase || !state.user?.id || !Number(providerId)) return [];
+  const { data, error } = await supabase.from('listing_time_requests')
+    .select('id, member_id, slot_start, duration_min, note, created_at')
+    .eq('provider_role', role).eq('provider_id', Number(providerId))
+    .order('slot_start', { ascending: true }).limit(100);
+  if (error) throw error;
+  const rows = data || [];
+  const ids = [...new Set(rows.map((r) => r.member_id).filter(Boolean))].slice(0, 200);
+  let names = {};
+  if (ids.length) {
+    try {
+      const { data: found, error: namesError } = await supabase.rpc('get_display_names', { p_ids: ids });
+      if (!namesError) names = (found || []).reduce((acc, r) => { if (r && r.user_id && r.full_name) acc[r.user_id] = r.full_name; return acc; }, {});
+    } catch { /* unnamed: the list says "A member" */ }
+  }
+  return rows.map((r) => ({ id: r.id, memberId: r.member_id, name: names[r.member_id] || '', at: Date.parse(r.slot_start), durationMin: r.duration_min, note: r.note || '' }));
+}
+
+window.ShapeListingAsks = { ask: askListingTime, forListing: listingAsks };
+
 // Coaches have Standard Stripe accounts, so payouts, schedule and statements are in their own
 // Stripe dashboard (the website's Business page links the same place).
 window.ShapeCoachBusiness = {
