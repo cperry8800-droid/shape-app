@@ -1,4 +1,5 @@
 import React from 'react';
+import { useBSClean, BSCleanType } from './bsCleanType.jsx';
 // ─── GROCERY LIBRARY (Eat → Library: saved carts) ───────────────────────────
 // The member's saved grocery lists, the meal-plan and recipe lists, and the built-in ones: open a list
 // to read it, then Load, Edit, Duplicate, Delete or Send it to a member (owner, 2026-10-24: "there
@@ -75,6 +76,9 @@ function bsGroceryLibCount(l) {
 export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreate = () => {}, onEdit = () => {}, onDuplicate = () => {}, onDelete = () => {}, deletedIds = [], onChangeView = null }) {
   const { useBS, BSPage, BSDetailHeader, BSNutritionTopTabs, BSFooter, BSPostSendSheet, _bsScrollTopOnMount, bsGroceryHues, bsDateLocale, bsGroceryListEyebrow } = window;
   const t = useBS();
+  // Under the Eat · Library tabs, the clean type, as Day and Grocery (owner, 2026-10-29: "Yes", to moving
+  // Grocery and the Library off Saira). The header, the tabs and Send to a member keep the app's own type.
+  const tc = useBSClean();
   const tr = useShapeTr();
   _bsScrollTopOnMount();
   // Client surface: teal leads; nutritionist-sent plans tag gold, recipes amber, custom purple.
@@ -115,6 +119,8 @@ export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], 
 
       {onChangeView && <BSNutritionTopTabs active="library" onChange={onChangeView} />}
 
+      <BSCleanType t={tc}>
+
       {/* New list */}
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <button onClick={onCreate} style={{ width: '100%', minHeight: 46, borderRadius: 10,
@@ -127,7 +133,7 @@ export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], 
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, borderBottom: `1px solid ${t.RULE}`, padding: '8px 2px' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tr('nutrition:grocery.lib.searchPlaceholder', { defaultValue: 'Search saved lists…' })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14 }} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tr('nutrition:grocery.lib.searchPlaceholder', { defaultValue: 'Search saved lists…' })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: tc.DISPLAY, fontSize: 14 }} />
           {query && <button onClick={() => setQuery('')} style={{ border: 0, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>{tr('nutrition:grocery.lib.clear', { defaultValue: 'CLEAR' })}</button>}
         </div>
       </div>
@@ -193,23 +199,23 @@ export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], 
               }}>
                 <span style={{ width: 52, height: 52, flex: 'none', borderRadius: 12, background: t.PAPER2 || t.PAPER, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                   {countBefore ? countWord(countBefore, false) : null}
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: countFigure.length > 3 ? 15 : 19, fontWeight: 500, lineHeight: 1, color: figure, fontVariantNumeric: 'tabular-nums' }}>{countFigure}</span>
+                  <span style={{ fontFamily: tc.DISPLAY, fontSize: countFigure.length > 3 ? 15 : 19, fontWeight: 500, lineHeight: 1, color: figure, fontVariantNumeric: 'tabular-nums' }}>{countFigure}</span>
                   {countAfter ? countWord(countAfter, true) : null}
                 </span>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1.2, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
+                  <span style={{ display: 'block', fontFamily: tc.DISPLAY, fontSize: 16.5, fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1.2, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
                   {/* ⚠ THE EMPTY STATE LIVES HERE NOW, not in the record. Moving it
                       makes it visible to the inventory walk for the first time — a
                       string written into a saved list is a string the measurement
                       cannot see, which is the BSWeekStrip blind spot in reverse. */}
-                  <span style={{ display: 'block', marginTop: 2, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.preview || tr('nutrition:grocery.lib.emptyList', { defaultValue: 'Empty list' })}</span>
+                  <span style={{ display: 'block', marginTop: 2, fontFamily: tc.BODY, fontSize: 12.5, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.preview || tr('nutrition:grocery.lib.emptyList', { defaultValue: 'Empty list' })}</span>
                 </span>
                 <span aria-hidden style={{ flex: 'none', width: 20, textAlign: 'center', fontSize: 20, lineHeight: 1, color: t.INK50, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
               </button>
               {open && (
                 <div style={{ padding: '0 0 14px 64px' }}>
                   {/* What kind of list and how often it is used, one line that wraps as words. */}
-                  <div style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.4, color: t.INK50 }}>
+                  <div style={{ fontFamily: tc.BODY, fontSize: 12.5, lineHeight: 1.4, color: t.INK50 }}>
                     <span style={{ color }}>{bsGroceryListEyebrow(l, tr)}</span>
                     {' · '}{tr('nutrition:grocery.lib.uses', { defaultValue: `${l.usedCount} use${l.usedCount === 1 ? '' : 's'}`, count: l.usedCount })}
                   </div>
@@ -217,7 +223,7 @@ export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], 
                     <div style={{ margin: '8px 0 2px' }}>
                       {previewItems.map((it, i2) => (
                         <div key={it.id || i2} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '7px 0', borderTop: i2 ? `1px solid ${t.HAIR}` : 0 }}>
-                          <span style={{ flex: 1, minWidth: 0, fontFamily: t.BODY, fontSize: 14, color: t.INK }}>{it.n}</span>
+                          <span style={{ flex: 1, minWidth: 0, fontFamily: tc.BODY, fontSize: 14, color: t.INK }}>{it.n}</span>
                           <span style={{ flex: 'none', fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.04em' }}>{it.q}</span>
                         </div>
                       ))}
@@ -247,6 +253,7 @@ export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], 
           );
         })}
       </div>
+      </BSCleanType>
 
       <BSFooter right={tr('nutrition:grocery.lib.footer', { defaultValue: 'Library' })} />
       {sendFor && <BSPostSendSheet post={{ grocery: sendFor }} onClose={() => setSendFor(null)} />}
