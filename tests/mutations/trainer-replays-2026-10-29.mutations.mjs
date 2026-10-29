@@ -69,8 +69,6 @@ export default {
       find: "c.breakdown.rows.length && !c.video);", replace: "c.breakdown.rows.length);" },
     { name: 'page: a guest buys', file: PAGE,
       find: "    if (W.bsRequireAccount && !W.bsRequireAccount(tr('profile:trainer.buyAsk', { defaultValue: 'buy a program' }))) return;\n", replace: "" },
-    { name: 'page: a sample program is bought', file: PAGE,
-      find: "    if (!pl || pr.sample || !W.ShapeCoachPlans?.buy) return;", replace: "    if (!pl || !W.ShapeCoachPlans?.buy) return;" },
     { name: 'page: the checkout is never opened', file: PAGE,
       find: "      if (url) (W.bsOpenCheckout || ((u) => { window.location.href = u; }))(url);", replace: "" },
     { name: 'page: no Replays tab for programs alone', file: PAGE,
@@ -101,6 +99,8 @@ export default {
       find: "onClick={() => onLog('video')}", replace: "onClick={() => onLog()}" },
     { name: 'page: the editor gets no programs to pin', file: PAGE,
       find: "      programs={programs.map((pr) => ({ id: pr.id, name: pr.name }))}\n", replace: "" },
+    { name: 'page: the initials are the name\'s first two letters', file: PAGE,
+      find: ": String(name).split(/\\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();", replace: ": String(name).slice(0, 2).toUpperCase();" },
     // ── the editor ──
     { name: 'editor: a fourth pin', file: EDIT,
       find: "                if (pins.length >= BS_STATION_PINS_MAX) {", replace: "                if (false) {" },

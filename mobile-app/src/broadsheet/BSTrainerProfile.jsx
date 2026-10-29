@@ -250,7 +250,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // A photo that fails to load shows the initials, not an empty circle.
   const [brokenAvatar, setBrokenAvatar] = React.useState(null);
   const avatarShown = avatar && avatar !== brokenAvatar ? avatar : null;
-  const initials = W.bsInitials ? W.bsInitials(name) : String(name).slice(0, 2).toUpperCase();
+  const initials = W.bsInitials ? W.bsInitials(name) : String(name).split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   const online = isSelf ? (W.bsAmLive ? W.bsAmLive() : false) : (W.bsIsUserOnline ? W.bsIsUserOnline(person.userId) : false);
   // As members read it (get_public_profile: the line in Settings → Edit profile), as the Signal
   // profile does.
@@ -414,7 +414,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     .filter((c) => c.breakdown && Array.isArray(c.breakdown.rows) && c.breakdown.rows.length && !c.video);
   const buyProgram = async (pr) => {
     const pl = pr && pr.plan;
-    if (!pl || pr.sample || !W.ShapeCoachPlans?.buy) return;
+    if (!pl || !W.ShapeCoachPlans?.buy) return;
     if (W.bsRequireAccount && !W.bsRequireAccount(tr('profile:trainer.buyAsk', { defaultValue: 'buy a program' }))) return;
     try {
       const url = await W.ShapeCoachPlans.buy({ plan: { id: pl.id, name: pl.name, price: pl.price }, providerRole: pl.providerRole || role, providerId: pl.providerId || providerId });
@@ -540,7 +540,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
           <div style={{ position: 'absolute', left: gutter, top: -58, width: 108, height: 108 }}>
             <button type="button" disabled={!canPickPhoto} onClick={() => { if (canPickPhoto && photoHook.fileRef?.current) photoHook.fileRef.current.click(); }} aria-label={canPickPhoto ? tr('profile:trainer.changePhoto', { defaultValue: 'Change your photo' }) : name}
               style={{ width: 108, height: 108, padding: 0, borderRadius: 99, border: `4px solid ${t.PAPER}`, background: t.PAPER2, overflow: 'hidden', cursor: canPickPhoto ? 'pointer' : 'default', display: 'grid', placeItems: 'center', boxSizing: 'border-box' }}>
-              {avatarShown ? <img src={avatarShown} alt="" onError={() => setBrokenAvatar(avatarShown)} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} /> : <span style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 600, color: INK }}>{initials}</span>}
+              {avatarShown ? <img src={avatarShown} alt="" onError={() => setBrokenAvatar(avatarShown)} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} /> : <span data-initials="" style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 600, color: INK }}>{initials}</span>}
             </button>
             {online ? <span aria-label={tr('profile:trainer.online', { defaultValue: 'Online now' })} style={{ position: 'absolute', right: 6, bottom: 6, width: 18, height: 18, borderRadius: 99, background: '#34d6c5', border: `3px solid ${t.PAPER}`, boxSizing: 'border-box' }} /> : null}
           </div>

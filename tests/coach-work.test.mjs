@@ -134,6 +134,7 @@ test('a station keeps up to three program ids as pins, lower-cased, once each', 
   const id = (n) => `aaaaaaa${n}-bbbb-4ccc-8ddd-eeeeeeeeeeee`;
   const piece = (pins) => bsStudioItem({ t: 'rack', x: 0, y: 0, w: 40, h: 40, st: { title: 'Rack', note: '', pins } });
   assert.deepEqual(piece([id(1).toUpperCase(), id(1), 'not-an-id', 7, id(2), id(3), id(4)]).st.pins, [id(1), id(2), id(3)]);
+  assert.deepEqual(piece([id(9).toUpperCase()]).st.pins, [id(9)], 'an id given in capitals is kept, lower-cased');
   assert.equal(BS_STATION_PINS_MAX, 3);
   assert.equal('pins' in piece([]).st, false, 'no pins, no key');
   assert.equal('pins' in piece(['nope']).st, false);
