@@ -63,13 +63,27 @@ export function useBSHideOnScrollDown(ref, { slack = 8, top = 64 } = {}) {
 // Message, ink for Work with. A member's has Message alone, in the outline, since messaging is no purchase.
 // BG is the page's background (PAPER_BG: a gradient on the Steel paper); text on the ink fill takes PAPER, the
 // solid colour (Codex, P1 on #2441).
+//
+// ⚠ IT RESTS ON THE TAB BAR, AND ON A PHONE WITH A HOME INDICATOR THAT TAKES AN OFFSET (owner, 2026-10-29, a
+// screenshot of "Message Priya" ~75px over the tab bar: "message button still appearing near middle of screen").
+// A sticky box stops at the scroller's bottom PADDING, and BSPage pads by its reserve plus the home indicator
+// (BS_TABBAR_H + 2 + the inset: 104px on an iPhone) while the tab bar covers BS_TABBAR_CSS (80px there). The
+// dock also padded itself by the inset again. Headless Chromium has no inset, so it looked right there. Now the
+// dock's own padding has no inset (the tab bar under it clears the indicator), and `bottom` takes it down by the
+// difference, onto the tab bar's top: -24px on that iPhone, -2px on a phone without an indicator.
+function bsDockRest() {
+  const w = typeof window !== 'undefined' ? window : {};
+  if (!w.BS_TABBAR_CSS || !w.BS_TABBAR_H) return 0;
+  return `calc(${w.BS_TABBAR_CSS} - ${w.BS_TABBAR_H + 2}px - env(safe-area-inset-bottom, 0px))`;
+}
+
 export function BSProfileDock({ INK, BG, PAPER, onMessage, messageLabel, onWorkWith = null, workLabel = '' }) {
   const ref = React.useRef(null);
   const hidden = useBSHideOnScrollDown(ref);
   const label = { cursor: 'pointer', fontFamily: MONO, fontSize: 11, textTransform: 'uppercase', fontWeight: 800 };
   const line = { ...label, flex: 1, minHeight: 48, borderRadius: 0, background: 'transparent', color: INK, border: `1px solid ${INK}`, letterSpacing: '0.14em' };
   return (
-    <div ref={ref} data-profile-dock="" inert={hidden} style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '12px 18px calc(14px + env(safe-area-inset-bottom, 0px))', background: BG, borderTop: `1px solid ${inkA(INK, 0.12)}`, transform: hidden ? 'translateY(40%)' : 'none', opacity: hidden ? 0 : 1, transition: reducedMotion() ? 'none' : 'transform 220ms cubic-bezier(.4,0,.2,1), opacity 180ms ease' }}>
+    <div ref={ref} data-profile-dock="" inert={hidden} style={{ position: 'sticky', bottom: bsDockRest(), flex: '0 0 auto', padding: '12px 18px', background: BG, borderTop: `1px solid ${inkA(INK, 0.12)}`, transform: hidden ? 'translateY(40%)' : 'none', opacity: hidden ? 0 : 1, transition: reducedMotion() ? 'none' : 'transform 220ms cubic-bezier(.4,0,.2,1), opacity 180ms ease' }}>
       <div style={{ display: 'flex', gap: 10 }}>
         {onWorkWith ? (
           <>
