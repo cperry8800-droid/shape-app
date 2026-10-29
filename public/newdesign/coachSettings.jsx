@@ -68,6 +68,8 @@ const CST_COACH_TYPES = [
   ["client_message", "Client messages", "When a client or their care team writes"],
   ["direct_message", "Messages", "When a member writes to you"],
   ["new_client", "New clients", "When someone signs up with you"],
+  // A client of yours hired another coach, or you were hired by one who has (coach-thread.ts tellSharedCoaches).
+  ["shared_client", "Shared clients", "When a client of yours also hires another coach"],
   ["sessions", "Sessions", "Requests, payments and cancellations"],
   ["payments", "Payments", "Sales and monthly renewals"],
   ["credentials", "Credentials", "Verified, a fix needed, or a renewal due"],

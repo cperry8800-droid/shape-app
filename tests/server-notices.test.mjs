@@ -180,6 +180,7 @@ const BUILT = [
   ...['weighIn', 'checkin', 'morning', 'water', 'photo', 'custom'].flatMap((k) => [`reminder.${k}.title`, `reminder.${k}.body`]),
   ...['confirmed', 'declined', 'moved', 'cancelled'].flatMap((k) => [`session.${k}.title`, `session.${k}.body`]),
   ...['bodyThread', 'bodyThreadPay', 'bodyNoThread', 'bodyNoThreadPay'].map((k) => `client.new.${k}`),
+  ...['Trainer', 'Nutritionist', 'TrainerAnon', 'NutritionistAnon'].map((k) => `client.shared.body${k}`),
   ...['FirstAnon', 'First', 'RenewalAnon', 'Renewal'].map((k) => `receipt.coaching${k}`), 'receipt.product', 'receipt.productAnon',
   ...['workout', 'checkin', 'habit'].map((k) => `score.reason.${k}`),
   ...['breakfast', 'lunch', 'snack', 'dinner', 'meal', 'meals'].map((k) => `prep.slot.${k}`),
@@ -217,7 +218,7 @@ test('each writer stores its copy beside the English it writes', () => {
   // coach-thread's notices take their copy as createNotification's third argument, so the data the
   // coach-thread tests pin stays as it was.
   const thread = read('src/lib/coach-thread.ts');
-  for (const k of ['client.new.title', 'welcome.title', 'payment.product.title', 'session.paidCoach.title', 'session.paid.title', 'session.paid.titleAnon']) {
+  for (const k of ['client.new.title', 'client.shared.title', 'welcome.title', 'payment.product.title', 'session.paidCoach.title', 'session.paid.title', 'session.paid.titleAnon']) {
     assert.match(thread, new RegExp(`np\\('${k.replace(/\./g, '\\.')}'`), k);
   }
   assert.doesNotMatch(thread, /data: \{[^\n]*\bcopy:/);

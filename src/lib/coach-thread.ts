@@ -12,7 +12,8 @@
 // - alerts the coach with the client's name and links to the thread and the client page, and
 //   emails them the same. The alert carries data.dedupe = hire:<subscription>, so a redelivered
 //   event stores no second row and sends no second email;
-// - emails the member once, when this call is the one that posted the welcome.
+// - emails the member once, when this call is the one that posted the welcome;
+// - tells both sides when the client already has another coach (tellSharedCoaches).
 //
 // welcomeMember(), called when the $5 membership is saved: one welcome per member, ever (dedupe
 // "membership-welcome"), in the app and by email.
@@ -32,6 +33,7 @@ import { sendEmail } from '@/lib/email';
 import { WRAP_OPEN, SIGN_OFF_HTML, SIGN_OFF_TEXT, button, escapeHtml, siteUrl } from '@/lib/coach-application-emails';
 import { shapeFirstName, shapeWelcomeText } from '../../mobile-app/src/services/shapeWelcome.mjs';
 import { np, phrase, usdOf } from '../../mobile-app/src/services/noticeCopy.mjs';
+import { OPEN_SUB_STATUSES } from './coach-trajectory.mjs';
 
 export type CoachRole = 'trainer' | 'nutritionist';
 type BuiltEmail = { subject: string; html: string; text: string };
@@ -298,10 +300,98 @@ export async function startCoaching(
       const to = await emailOf(admin, a.clientId);
       if (to) await sendEmail({ to, ...memberHireEmail({ coachName, role: a.providerRole, firstName: first }) });
     }
+
+    await tellSharedCoaches(admin, { clientId: a.clientId, clientName, providerRole: a.providerRole, providerId: a.providerId, coachName, ownerId, subscriptionKey: a.subscriptionKey });
   } catch (err) {
     console.error('[coach-thread] startCoaching failed:', err instanceof Error ? err.message : err);
   }
   return out;
+}
+
+type CoCoach = { role: CoachRole; name: string; ownerId: string };
+
+/**
+ * A client who already has a coach hired another (owner, 2026-10-29: "Both coaches should be
+ * notified if they share a client"). Each side is told who the other is, in the bell and by push,
+ * and the notice opens the client's page, where the care team and its private coach thread are.
+ *
+ * The other coaches are every listing with an open subscription from this member (OPEN_SUB_STATUSES,
+ * as is_coach_on_client counts it for the care team), one per owner, never the coach just hired. A coach of the same role is told too: the care team
+ * lists them since get_client_coaches (2026-10-16).
+ *
+ * One notice per pair and side, keyed on the new subscription, so a redelivered event sends none.
+ * Never throws. Returns how many notices were stored.
+ */
+export async function tellSharedCoaches(
+  admin: SupabaseClient,
+  a: { clientId: string; clientName: string; providerRole: CoachRole; providerId: number; coachName: string; ownerId: string | null; subscriptionKey: string },
+): Promise<number> {
+  let told = 0;
+  try {
+    if (!a.ownerId) return 0;
+    const { data: subs, error } = await admin
+      .from('subscriptions')
+      .select('provider_role, provider_id')
+      .eq('client_id', a.clientId)
+      .in('status', OPEN_SUB_STATUSES);
+    if (error) {
+      console.warn('[coach-thread] co-coach read failed:', error.message);
+      return 0;
+    }
+    const ids: Record<CoachRole, Set<number>> = { trainer: new Set(), nutritionist: new Set() };
+    for (const s of (subs ?? []) as { provider_role?: string | null; provider_id?: number | string | null }[]) {
+      const role = s.provider_role;
+      const id = Number(s.provider_id);
+      if ((role !== 'trainer' && role !== 'nutritionist') || !Number.isFinite(id)) continue;
+      if (role === a.providerRole && id === a.providerId) continue;
+      ids[role].add(id);
+    }
+    const others: CoCoach[] = [];
+    for (const role of ['trainer', 'nutritionist'] as const) {
+      if (!ids[role].size) continue;
+      const { data, error: listErr } = await admin
+        .from(role === 'nutritionist' ? 'nutritionists' : 'trainers')
+        .select('id, name, owner_id')
+        .in('id', [...ids[role]]);
+      if (listErr) {
+        console.warn('[coach-thread] co-coach listing read failed:', listErr.message);
+        continue;
+      }
+      for (const p of (data ?? []) as { name?: string | null; owner_id?: string | null }[]) {
+        const ownerId = p.owner_id || null;
+        // A coach with both listings is one person, and the coach just hired is never their own co-coach.
+        if (!ownerId || ownerId === a.ownerId || others.some((o) => o.ownerId === ownerId)) continue;
+        others.push({ role, name: String(p.name || '').trim(), ownerId });
+      }
+    }
+
+    const shown = a.clientName || 'A client';
+    const client = a.clientName || phrase('word.aClient');
+    const tell = (to: { ownerId: string; role: CoachRole }, about: CoCoach) => {
+      const kind = about.role === 'nutritionist' ? 'nutritionist' : 'trainer';
+      const lead = about.name ? `${kind} ${about.name}` : `a ${kind}`;
+      const key = `client.shared.body${kind === 'nutritionist' ? 'Nutritionist' : 'Trainer'}${about.name ? '' : 'Anon'}`;
+      return createNotification(admin, {
+        userId: to.ownerId,
+        type: 'shared_client',
+        title: `Shared client: ${shown}`,
+        body: `${shown} now works with you and ${lead}. You can message each other in the care team on their client page.`,
+        // "client" with the recipient's own role opens this client in the app they coach them from.
+        route: 'client',
+        data: { dedupe: `shared:${a.subscriptionKey}:${about.ownerId}`, clientId: a.clientId, providerRole: to.role, counterpartUserId: about.ownerId, counterpartRole: about.role },
+      }, {
+        title: np('client.shared.title', { client }),
+        body: np(key, about.name ? { client, coach: about.name } : { client }),
+      });
+    };
+    for (const other of others) {
+      if (await tell({ ownerId: a.ownerId, role: a.providerRole }, other)) told++;
+      if (await tell({ ownerId: other.ownerId, role: other.role }, { role: a.providerRole, name: a.coachName, ownerId: a.ownerId })) told++;
+    }
+  } catch (err) {
+    console.error('[coach-thread] tellSharedCoaches failed:', err instanceof Error ? err.message : err);
+  }
+  return told;
 }
 
 /** The $5 membership was saved: welcome the member once, in the app and by email. Never throws. */

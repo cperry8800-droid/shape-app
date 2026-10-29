@@ -551,6 +551,8 @@
   "notifyPrefs.coach.direct_message.sub": "Cuando un miembro te escribe",
   "notifyPrefs.coach.new_client": "Clientes nuevos",
   "notifyPrefs.coach.new_client.sub": "Cuando alguien se apunta contigo",
+  "notifyPrefs.coach.shared_client": "Clientes compartidos",
+  "notifyPrefs.coach.shared_client.sub": "Cuando un cliente tuyo contrata también a otro coach",
   "notifyPrefs.coach.sessions": "Sesiones",
   "notifyPrefs.coach.sessions.sub": "Solicitudes, pagos y cancelaciones",
   "notifyPrefs.coach.payments": "Pagos",

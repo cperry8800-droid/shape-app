@@ -243,7 +243,8 @@ The War Room has the full list; this covers what needs the owner and the planned
   right edge.
 - No signed-in pass in a browser or on a phone yet: client onboarding, the dashboard frame and
   skins, `/admin`, Business (website and app), coach application uploads, the Wall's live story
-  with a real set, the coach Today, Clients and Programs redesign (#2458).
+  with a real set, the coach Today, Clients and Programs redesign (#2458),
+  the shared-client notice (#2496).
 - The Wall's old card (`variant="wall"`) is unused in the app; the website chat bubble still
   draws its copy. Grocery lists are sent and saved in the app only; old builds' grocery writes
   go unmerged.

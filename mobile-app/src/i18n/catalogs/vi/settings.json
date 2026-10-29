@@ -551,6 +551,8 @@
   "notifyPrefs.coach.direct_message.sub": "Khi một thành viên nhắn cho bạn",
   "notifyPrefs.coach.new_client": "Khách hàng mới",
   "notifyPrefs.coach.new_client.sub": "Khi có người đăng ký với bạn",
+  "notifyPrefs.coach.shared_client": "Khách hàng chung",
+  "notifyPrefs.coach.shared_client.sub": "Khi khách hàng của bạn thuê thêm một huấn luyện viên khác",
   "notifyPrefs.coach.sessions": "Buổi tập",
   "notifyPrefs.coach.sessions.sub": "Yêu cầu, thanh toán và hủy",
   "notifyPrefs.coach.payments": "Thanh toán",

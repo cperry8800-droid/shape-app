@@ -551,6 +551,8 @@
   "notifyPrefs.coach.direct_message.sub": "Bir üye sana yazdığında",
   "notifyPrefs.coach.new_client": "Yeni danışanlar",
   "notifyPrefs.coach.new_client.sub": "Biri seninle kaydolduğunda",
+  "notifyPrefs.coach.shared_client": "Ortak danışanlar",
+  "notifyPrefs.coach.shared_client.sub": "Danışanın başka bir koçla da çalışmaya başladığında",
   "notifyPrefs.coach.sessions": "Seanslar",
   "notifyPrefs.coach.sessions.sub": "Talepler, ödemeler ve iptaller",
   "notifyPrefs.coach.payments": "Ödemeler",

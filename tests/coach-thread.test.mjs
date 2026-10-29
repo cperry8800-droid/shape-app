@@ -154,12 +154,12 @@ function fakeAdmin({ provider = { name: 'Tom Trainer', owner_id: 'coach-1' }, cl
 }
 
 async function loadCoachThread({ stored = true } = {}) {
-  const sent = { notifications: [], emails: [] };
+  const sent = { notifications: [], copies: [], emails: [] };
   const emails = await loadRealModule(join(ROOT, 'src/lib/coach-application-emails.ts'), { typescript: true });
   const mod = await loadRealModule(join(ROOT, 'src/lib/coach-thread.ts'), {
     typescript: true,
     registry: new Map([
-      ['@/lib/notify', { createNotification: async (_c, n) => { sent.notifications.push(n); return typeof stored === 'function' ? stored(n) : stored; } }],
+      ['@/lib/notify', { createNotification: async (_c, n, copy) => { sent.notifications.push(n); sent.copies.push(copy); return typeof stored === 'function' ? stored(n) : stored; } }],
       ['@/lib/email', { sendEmail: async (e) => { sent.emails.push(e); return { ok: true }; } }],
       ['@/lib/coach-application-emails', emails],
     ]),
@@ -253,6 +253,158 @@ test('startCoaching sends each part once: a redelivered event, an existing welco
     const out = await mod.startCoaching(admin, { clientId: 'client-1', providerRole: 'trainer', providerId: 7, subscriptionKey: 'x' });
     assert.deepEqual(out, { conversationId: null, welcomed: false, coachAlerted: false });
   }
+});
+
+// ── Shared clients: both coaches are told (owner, 2026-10-29: "Both coaches should be notified if
+// they share a client") ─────────────────────────────────────────────────────────────────────────
+// An admin that also answers the co-coach reads: the member's live subscriptions, then each role's
+// listings by id. Every call is recorded with its filters.
+function sharedAdmin({ subs = [], listings = {}, subsError = null, provider = { name: 'Tom Trainer', owner_id: 'coach-1' } } = {}) {
+  const calls = [];
+  const admin = {
+    from(table) {
+      const q = { table, ops: [] };
+      calls.push(q);
+      const chain = {
+        select: (...a) => { q.ops.push(['select', ...a]); return chain; },
+        eq: (...a) => { q.ops.push(['eq', ...a]); return chain; },
+        in: (...a) => { q.ops.push(['in', ...a]); return chain; },
+        maybeSingle: async () => ({ data: table === 'profiles' ? { full_name: 'Cara Diaz' } : provider, error: null }),
+        then: (res, rej) => {
+          const ids = (q.ops.find((o) => o[0] === 'in' && o[1] === 'id') || [])[2] || [];
+          const out = table === 'subscriptions'
+            ? { data: subsError ? null : subs, error: subsError }
+            : { data: (listings[table] || []).filter((p) => ids.includes(p.id)), error: null };
+          return Promise.resolve(out).then(res, rej);
+        },
+      };
+      return chain;
+    },
+    async rpc() { return { data: [{ thread_id: 'conv-1', welcomed: true }], error: null }; },
+    auth: { admin: { getUserById: async () => ({ data: { user: null } }) } },
+  };
+  return { admin, calls };
+}
+const HIRE = { clientId: 'client-1', providerRole: 'trainer', providerId: 7, subscriptionKey: 'sub_123' };
+const NIA = { id: 4, name: 'Nia Nutri', owner_id: 'coach-2' };
+const sharedOf = (sent) => sent.notifications.filter((n) => n.type === 'shared_client');
+
+test('a client who has a nutritionist hires a trainer: both coaches are told who the other is', async () => {
+  const { mod, sent } = await loadCoachThread();
+  const { admin, calls } = sharedAdmin({
+    // The trainer just hired is among the member's live subscriptions: never their own co-coach.
+    subs: [{ provider_role: 'trainer', provider_id: 7 }, { provider_role: 'nutritionist', provider_id: 4 }],
+    listings: { nutritionists: [NIA] },
+  });
+  await mod.startCoaching(admin, HIRE);
+  assert.deepEqual(sent.notifications.map((n) => [n.userId, n.type]), [['coach-1', 'new_client'], ['coach-1', 'shared_client'], ['coach-2', 'shared_client']]);
+  const [toNew, toOld] = sharedOf(sent);
+  assert.equal(toNew.title, 'Shared client: Cara Diaz');
+  assert.equal(toNew.body, 'Cara Diaz now works with you and nutritionist Nia Nutri. You can message each other in the care team on their client page.');
+  assert.deepEqual(toNew.data, { dedupe: 'shared:sub_123:coach-2', clientId: 'client-1', providerRole: 'trainer', counterpartUserId: 'coach-2', counterpartRole: 'nutritionist' });
+  assert.equal(toOld.body, 'Cara Diaz now works with you and trainer Tom Trainer. You can message each other in the care team on their client page.');
+  assert.deepEqual(toOld.data, { dedupe: 'shared:sub_123:coach-1', clientId: 'client-1', providerRole: 'nutritionist', counterpartUserId: 'coach-1', counterpartRole: 'trainer' });
+  // Each opens the client in the app the reader coaches them from, where the care team is.
+  assert.equal(ROUTES.canonicalRoute(toNew.route, toNew.data), 'client:trainer:client-1');
+  assert.equal(ROUTES.canonicalRoute(toOld.route, toOld.data), 'client:nutritionist:client-1');
+  // Live means what the care team counts: active, trialing or past_due, for this member.
+  const subsCall = calls.find((c) => c.table === 'subscriptions');
+  assert.deepEqual(subsCall.ops.filter((o) => o[0] !== 'select'), [['eq', 'client_id', 'client-1'], ['in', 'status', ['active', 'trialing', 'past_due']]]);
+  assert.ok(!calls.some((c) => c.table === 'trainers' && c.ops.some((o) => o[0] === 'in')), 'no other trainer to read');
+});
+
+test('shared clients: nobody else, the same person, a redelivery, a failed read, an unclaimed listing', async () => {
+  // The first coach: nothing beyond the new-client alert.
+  {
+    const { mod, sent } = await loadCoachThread();
+    const { admin } = sharedAdmin({ subs: [{ provider_role: 'trainer', provider_id: 7 }] });
+    await mod.startCoaching(admin, HIRE);
+    assert.deepEqual(sent.notifications.map((n) => n.type), ['new_client']);
+  }
+  // A coach with both listings, hired for the second: one person, no notice to themselves.
+  {
+    const { mod, sent } = await loadCoachThread();
+    const { admin } = sharedAdmin({ subs: [{ provider_role: 'trainer', provider_id: 7 }, { provider_role: 'nutritionist', provider_id: 4 }], listings: { nutritionists: [{ ...NIA, owner_id: 'coach-1' }] } });
+    await mod.startCoaching(admin, HIRE);
+    assert.equal(sharedOf(sent).length, 0);
+  }
+  // A redelivered event: the dedupe rows exist, so nothing is stored or counted.
+  {
+    const { mod, sent } = await loadCoachThread({ stored: (n) => n.type !== 'shared_client' });
+    const { admin } = sharedAdmin({ subs: [{ provider_role: 'nutritionist', provider_id: 4 }], listings: { nutritionists: [NIA] } });
+    const told = await mod.tellSharedCoaches(admin, { ...HIRE, clientName: 'Cara Diaz', coachName: 'Tom Trainer', ownerId: 'coach-1' });
+    assert.equal(told, 0);
+    assert.equal(sharedOf(sent).length, 2, 'both asked, both refused by the dedupe index');
+  }
+  // The subscriptions read fails: no notice, and the hire's own alert and emails are untouched.
+  {
+    const { mod, sent } = await loadCoachThread();
+    const { admin } = sharedAdmin({ subsError: { message: 'boom' } });
+    const out = await mod.startCoaching(admin, HIRE);
+    assert.deepEqual(out, { conversationId: 'conv-1', welcomed: true, coachAlerted: true });
+    assert.deepEqual(sent.notifications.map((n) => n.type), ['new_client']);
+  }
+  // A listing nobody has claimed was hired: there is no coach to tell either side about.
+  {
+    const { mod, sent } = await loadCoachThread();
+    const { admin } = sharedAdmin({ provider: { name: 'Unclaimed', owner_id: null }, subs: [{ provider_role: 'nutritionist', provider_id: 4 }], listings: { nutritionists: [NIA] } });
+    await mod.startCoaching(admin, HIRE);
+    assert.equal(sent.notifications.length, 0);
+  }
+  // A co-coach whose listing has no owner yet is skipped; a nameless one is "a nutritionist".
+  {
+    const { mod, sent } = await loadCoachThread();
+    const { admin } = sharedAdmin({
+      subs: [{ provider_role: 'nutritionist', provider_id: 4 }, { provider_role: 'nutritionist', provider_id: 5 }],
+      listings: { nutritionists: [{ id: 4, name: '', owner_id: 'coach-2' }, { id: 5, name: 'Nobody', owner_id: null }] },
+    });
+    await mod.startCoaching(admin, HIRE);
+    const shared = sharedOf(sent);
+    assert.deepEqual(shared.map((n) => n.userId), ['coach-1', 'coach-2']);
+    assert.equal(shared[0].body, 'Cara Diaz now works with you and a nutritionist. You can message each other in the care team on their client page.');
+    assert.deepEqual(sent.copies[sent.notifications.indexOf(shared[0])].body, ['client.shared.bodyNutritionistAnon', { client: 'Cara Diaz' }]);
+  }
+});
+
+test('a second trainer and a nutritionist already on the client: each pair is told, once per side', async () => {
+  const { mod, sent } = await loadCoachThread();
+  const { admin } = sharedAdmin({
+    subs: [{ provider_role: 'nutritionist', provider_id: 4 }, { provider_role: 'trainer', provider_id: 8 }, { provider_role: 'trainer', provider_id: 7 }],
+    listings: { nutritionists: [NIA], trainers: [{ id: 8, name: 'Tara Lift', owner_id: 'coach-3' }] },
+  });
+  await mod.startCoaching(admin, HIRE);
+  assert.deepEqual(sharedOf(sent).map((n) => [n.userId, n.data.counterpartUserId]), [
+    ['coach-1', 'coach-3'], ['coach-3', 'coach-1'], ['coach-1', 'coach-2'], ['coach-2', 'coach-1'],
+  ]);
+  assert.match(sharedOf(sent)[0].body, /and trainer Tara Lift\. /);
+});
+
+test('the shared-client notice says its English in English, and reads in every language with both names', async () => {
+  const { ACTIVE_LOCALES } = await import('../mobile-app/src/i18n/locales.mjs');
+  const Translator = await import('../src/lib/ai/memberTranslator.mjs');
+  const { sayPart } = await import('../mobile-app/src/services/noticeCopy.mjs');
+  const cat = (loc, ns) => JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/${ns}.json`));
+  const copyFor = Translator.makeMemberCopy(Object.fromEntries(ACTIVE_LOCALES.map((l) => [l, { home: cat(l, 'home'), notice: cat(l, 'notice') }])));
+  const { mod, sent } = await loadCoachThread();
+  const { admin } = sharedAdmin({ subs: [{ provider_role: 'nutritionist', provider_id: 4 }], listings: { nutritionists: [NIA] } });
+  await mod.startCoaching(admin, HIRE);
+  const rows = sent.notifications.map((n, i) => [n, sent.copies[i]]).filter(([n]) => n.type === 'shared_client');
+  assert.equal(rows.length, 2);
+  for (const [n, copy] of rows) {
+    const en = copyFor('en', false);
+    assert.equal(sayPart(copy.title, en.tr, en.locale), n.title);
+    assert.equal(sayPart(copy.body, en.tr, en.locale), n.body);
+    for (const loc of ACTIVE_LOCALES) {
+      const c = copyFor(loc, false);
+      const title = sayPart(copy.title, c.tr, c.locale);
+      const body = sayPart(copy.body, c.tr, c.locale);
+      assert.ok(title && title.includes('Cara Diaz'), `${loc}: title`);
+      assert.ok(body && body.includes('Cara Diaz') && body.includes(n.data.counterpartUserId === 'coach-2' ? 'Nia Nutri' : 'Tom Trainer'), `${loc}: body`);
+    }
+  }
+  // The coach's own switch, beside New clients, in the app and on the website.
+  assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), /\['new_client', 'New clients', 'When someone signs up with you'\], \['shared_client', 'Shared clients', 'When a client of yours also hires another coach'\]/);
+  assert.match(read('public/newdesign/coachSettings.jsx'), /\["shared_client", "Shared clients", "When a client of yours also hires another coach"\]/);
 });
 
 test('welcomeMember: once per member, in the app and by email', async () => {
