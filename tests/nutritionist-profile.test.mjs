@@ -81,7 +81,7 @@ const type = async (el, text) => {
 
 await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), { registry: new Map([['react', React]]) });
 window.BSDetailHeader = ({ kicker, title, onBack }) => React.createElement('header', null, React.createElement('button', { type: 'button', onClick: onBack }, '← Back'), kicker, ' ', title);
-const { BSTrainerProfile, bsPlateNoteDays } = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), { registry: new Map([['react', React], ['react-dom', require_('react-dom')]]) });
+const { BSTrainerProfile, bsPlateNoteDays, energySplit } = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), { registry: new Map([['react', React], ['react-dom', require_('react-dom')]]) });
 // Shape's cook mode and the Kitchen's recipe page (the client module's), as probes.
 window.BSCookMode = ({ cookable, onClose }) => React.createElement('div', { 'data-cook-mode': '' }, `${cookable.title} · ${cookable.steps.length} steps · ${cookable.ingredients.length} ingredients`,
   React.createElement('button', { type: 'button', onClick: onClose }, 'Leave cook mode'));
@@ -112,7 +112,7 @@ window.ShapeCoachAvailability = { get: async (role) => { world.roles.push(['hour
 window.ShapeCoachReviews = { forOwner: async () => ({ reviews: [], avg: 0, count: 0 }) };
 window.ShapeCoachPlans = { salePlansByUser: async () => [] };
 window.ShapeFollows = { stats: async () => ({ isFollowing: false, isPending: false }), toggle: async () => ({ isFollowing: true }), getCached: () => null };
-window.ShapeCommunity = { listByAuthor: async () => ({ data: world.posts }), uploadPhoto: async (f) => { world.uploaded = f; return world.uploadUrl; } };
+window.ShapeCommunity = { listByAuthor: async () => ({ data: world.posts }), uploadPhoto: async (f) => { world.uploaded = f; if (world.uploadGate) await world.uploadGate; return world.uploadUrl; } };
 window.shapeDb = {
   getUserGoals: async (k, opts) => { world.readWith = opts; if (opts && opts.expectedUserId != null && opts.expectedUserId !== world.me) return null; return world.stored; },
   saveUserGoals: async (k, d, opts) => { if (opts && opts.expectedUserId && opts.expectedUserId !== world.me) return { error: { message: 'Account changed' } }; world.saved = { k, d, opts }; return { ok: true }; },
@@ -120,7 +120,7 @@ window.shapeDb = {
 window.ShapeBookings = { submitConsultationBooking: async (a) => { world.booked = a; return { ok: true }; } };
 window.bsProfileCardFromPost = (p) => p;
 window.useBSCoachCommerce = ({ person, isNutri }) => ((world.commerceSeen = person.commerce), (world.isNutriSeen = isNutri), { commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: false, wl: null });
-window.BSCoachCoachingBlock = ({ cm }) => React.createElement('div', { 'data-coaching-block': '' }, cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' '));
+window.BSCoachCoachingBlock = ({ cm, isNutri }) => (world.blockNutri = isNutri, React.createElement('div', { 'data-coaching-block': '' }, cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' ')));
 
 
 const nadia = { userId: 'u-nadia', who: 'Nadia Rahman', kind: 'NUTRI' };
@@ -184,6 +184,7 @@ test('a nutritionist\'s page reads, sells and books as a nutritionist, and start
   assert.ok(button(/^Her day$/));
   await click(button(/^Work with her$/));
   assert.equal(document.querySelector('[data-coaching-block]').textContent, 'Monthly nutrition coaching $140');
+  assert.equal(world.blockNutri, true, 'the storefront block files plans as a nutritionist\'s (Codex P1 on #2497)');
   await click(button(/^Close$/));
   await click(document.querySelectorAll('[role="group"] button')[1]);
   assert.match(document.querySelector('[data-busy-time]').textContent, /With a client/, 'busy time, said as a nutritionist\'s');
@@ -440,7 +441,7 @@ test('plate notes: shared meals by day, newest first, stepped through with the p
     assert.match(step(), /38 g protein/);
     assert.match(step(), /480 kcal · 38 g protein · 52 g carbs · 12 g fat/);
     assert.match(step(), /Protein so far: 38 g/);
-    assert.ok(document.querySelector('[data-plate-step] [role="img"]').getAttribute('aria-label').match(/Energy: 32% protein, 44% carbs, 24% fat/), 'where the meal\'s energy came from');
+    assert.ok(document.querySelector('[data-plate-step] [role="img"]').getAttribute('aria-label').match(/Energy: 33% protein, 44% carbs, 23% fat/), 'where the meal\'s energy came from');
     assert.match(m.text(), /Nadia's note.*Before a 7 am lift\./);
     await click(button(/^Next →$/));
     assert.match(step(), /Rice bowl/);
@@ -493,9 +494,17 @@ test('Make it yours: a nutritionist writes a recipe from a paste with a photo of
     assert.equal(document.querySelector('[data-recipe-num="serves"]').value, '4');
     assert.equal(document.querySelectorAll('[data-recipe-ing]').length, 2);
     assert.equal(document.querySelectorAll('[data-recipe-step]').length, 2);
-    // Her photo, her note, the numbers.
+    // Her photo, her note, the numbers. Edits made while the photo uploads are kept when it lands
+    // (Codex P2 on #2497).
+    let land;
+    world.uploadGate = new Promise((r) => { land = r; });
     await pickFile(document.querySelector('[data-recipe-form] input[type="file"]'), new window.File(['x'], 'soup.jpg', { type: 'image/jpeg' }));
     assert.equal(world.uploaded.name, 'soup.jpg');
+    await type(document.querySelector('[data-recipe-num="c"]'), '60');
+    await act(async () => { land(); });
+    await flush();
+    world.uploadGate = null;
+    assert.equal(document.querySelector('[data-recipe-num="c"]').value, '60', 'typed while it uploaded, kept');
     assert.equal(document.querySelector('[data-recipe-form] img').getAttribute('src'), own('u-nadia', 'lentils.jpg'));
     await type(document.querySelector('input[aria-label="Why you give it to clients"]'), 'The cheapest high-protein lunch I know.');
     await type(document.querySelector('[data-recipe-num="min"]'), '35');
@@ -551,7 +560,7 @@ test('Make it yours: a nutritionist writes a recipe from a paste with a photo of
     const soup = k.recipes[0];
     assert.match(soup.id, /^[a-z0-9]{1,24}$/);
     assert.deepEqual({ ...soup, id: undefined }, {
-      id: undefined, t: 'Red lentil soup', note: 'The cheapest high-protein lunch I know.', min: 35, serves: 4, kcal: 380, p: 22,
+      id: undefined, t: 'Red lentil soup', note: 'The cheapest high-protein lunch I know.', min: 35, serves: 4, kcal: 380, p: 22, c: 60,
       ing: [{ n: '1 cup', m: 'red lentils' }, { n: '1', m: 'onion' }, { m: 'lemon' }],
       steps: ['Soften the onion.', 'Add the lentils and water and simmer for 20 minutes.'],
       photo: own('u-nadia', 'lentils.jpg'),
@@ -583,6 +592,10 @@ test('Make it yours: a paste the AI can\'t read is laid out on the phone; a reci
     assert.equal(document.querySelectorAll('[data-recipe-step]').length, 2);
     await type(document.querySelector('[data-recipe-num="min"]'), '10');
     assert.match(m.text(), /Laid out from your paste\. Check every line\./, 'the note stays while she checks');
+    // A recipe being written is unsaved work: leaving asks first (Codex P2 on #2497).
+    await click(button(/^← Profile$/));
+    assert.match(m.text(), /You haven't saved these changes\./);
+    assert.ok(document.querySelector('[data-recipe-form]'), 'still open');
     await click(document.querySelector('[data-recipe-cancel]'));
     assert.equal(document.querySelectorAll('[data-mine-recipe]').length, 1, 'cancelled, not kept');
     // Emptied: the recipe and the rule removed, and the key is not stored.
@@ -760,6 +773,18 @@ test('a recipe of hers as a grocery list and for cook mode', () => {
   assert.equal(c.mealId, l.id, 'resumes per coach and recipe');
   assert.equal(bsShortHash('a'), bsShortHash('a'));
   assert.notEqual(bsShortHash('a'), bsShortHash('b'));
+});
+
+test('where a meal\'s energy came from adds up to 100 in whole percentages, none below 0', () => {
+  assert.deepEqual(energySplit({ p: 5, c: 35, f: 0 }), { p: 13, c: 87, f: 0 }, 'no -1% fat (Codex P2 on #2497)');
+  assert.deepEqual(energySplit({ p: 38, c: 52, f: 12 }), { p: 33, c: 44, f: 23 }, 'exactly 32.48, 44.44 and 23.08: the largest remainder takes the point');
+  for (const [p, c, f] of [[1, 1, 1], [0, 0, 1], [7, 3, 2], [33, 33, 15], [5, 35, 0], [0, 50, 0]]) {
+    const s = energySplit({ p, c, f });
+    assert.equal(s.p + s.c + s.f, 100, `${p}/${c}/${f}`);
+    assert.ok(s.p >= 0 && s.c >= 0 && s.f >= 0, `${p}/${c}/${f}`);
+  }
+  assert.equal(energySplit({ p: 0, c: 0, f: 0 }), null);
+  assert.equal(energySplit({ p: 10, c: null, f: 2 }), null);
 });
 
 test('a day of plate notes totals protein and energy only when every meal carried them', () => {

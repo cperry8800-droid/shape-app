@@ -639,7 +639,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
             <CloseX onClose={() => setSheet(null)} color={INK} label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
           </div>
           <p style={{ margin: '2px 0 0', fontSize: 13.5, color: ink(0.64) }}>{(offer && offer.blurb) || tr('profile:trainer.workSub', { defaultValue: 'Start with a free intro call. Everything runs in the Shape app.' })}</p>
-          {cm && sells && W.BSCoachCoachingBlock ? <W.BSCoachCoachingBlock cm={cm} isSelf={isSelf} isNutri={false} first={first} ownZero salePlans={salePlans} c={ACC} /> : (
+          {cm && sells && W.BSCoachCoachingBlock ? <W.BSCoachCoachingBlock cm={cm} isSelf={isSelf} isNutri={nutri} first={first} ownZero salePlans={salePlans} c={ACC} /> : (
             <div style={{ marginTop: 14 }}>
               <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: ink(0.74) }}>{isSelf
                 ? tr('profile:trainer.noPricesSelf', { defaultValue: 'Members see your prices here once your listing has a monthly price.' })
@@ -1316,13 +1316,18 @@ export function bsPlateNoteDays(plates) {
 }
 // Where a meal's energy came from: protein and carbs at 4 kcal a gram, fat at 9. Null unless all three
 // were logged.
-function energySplit(m) {
+export function energySplit(m) {
   const p = num(m.p), c = num(m.c), f = num(m.f);
   if (p == null || c == null || f == null) return null;
   const e = [p * 4, c * 4, f * 9], tot = e[0] + e[1] + e[2];
   if (!tot) return null;
-  const pp = Math.round((e[0] / tot) * 100), cc = Math.round((e[1] / tot) * 100);
-  return { p: pp, c: cc, f: 100 - pp - cc };
+  // Whole percentages that add up to 100: each share rounded down, then the points left over go to
+  // the largest remainders, so none is ever below 0 or above its share by more than one.
+  const exact = e.map((x) => (x / tot) * 100);
+  const out = exact.map(Math.floor);
+  const order = [0, 1, 2].sort((a, b) => (exact[b] - out[b]) - (exact[a] - out[a]));
+  for (let i = 0, left = 100 - out[0] - out[1] - out[2]; i < left; i += 1) out[order[i]] += 1;
+  return { p: out[0], c: out[1], f: out[2] };
 }
 function plateMacros(tr, m) {
   return [

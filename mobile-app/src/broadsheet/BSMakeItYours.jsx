@@ -464,7 +464,9 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel 
   const [note, setNote] = React.useState(null);
   const [photoBusy, setPhotoBusy] = React.useState(false);
   // A layout note stays while the form is open; an error goes once the coach changes something.
-  const set = (patch) => { setNote((n) => (n && n[0] === 'err' ? null : n)); setDraft({ ...draft, ...patch }); };
+  // Every change merges into the draft as it is then, so a photo that finishes uploading after
+  // other edits never puts back the draft it started from (Codex P2 on #2497).
+  const set = (patch) => { setNote((n) => (n && n[0] === 'err' ? null : n)); setDraft((cur) => ({ ...cur, ...patch })); };
   const fromPaste = async () => {
     const text = String(paste || '').trim();
     if (!text || reading) return;
@@ -489,13 +491,13 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel 
     ing = ing.slice(0, BS_RECIPE_INGS_MAX);
     steps = steps.slice(0, BS_RECIPE_STEPS_MAX);
     if (!ing.length && !steps.length) { setNote(['err', tr('profile:mine.pasteFailed', { defaultValue: "Couldn't find a recipe in that. Fill it in by hand." })]); return; }
-    setDraft({
-      ...draft,
-      t: draft.t.trim() ? draft.t : title.slice(0, BS_RECIPE_TITLE_MAX),
-      serves: draft.serves || (Number.isInteger(got.servings) && got.servings > 0 ? String(got.servings) : ''),
-      ing: ing.length ? ing : draft.ing,
-      steps: steps.length ? steps : draft.steps,
-    });
+    setDraft((cur) => ({
+      ...cur,
+      t: cur.t.trim() ? cur.t : title.slice(0, BS_RECIPE_TITLE_MAX),
+      serves: cur.serves || (Number.isInteger(got.servings) && got.servings > 0 ? String(got.servings) : ''),
+      ing: ing.length ? ing : cur.ing,
+      steps: steps.length ? steps : cur.steps,
+    }));
     setPaste(null);
     setNote(['ok', ai ? tr('profile:mine.pasteAI', { defaultValue: 'Laid out from your paste by AI. Check every line.' }) : tr('profile:mine.pasteLocal', { defaultValue: 'Laid out from your paste. Check every line.' })]);
   };
@@ -862,7 +864,9 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     if (!res || res.error) { setErr((res && res.error && res.error.message) || tr('profile:mine.errSave', { defaultValue: "Couldn't save. Nothing changed; try again." })); return; }
     onSaved && onSaved(clean);
   };
-  const back = () => { if (dirty) setLeaving(true); else onClose && onClose(); };
+  // A recipe still being written is unsaved work too (Codex P2 on #2497): leaving asks first.
+  const unsaved = dirty || recipeOpen;
+  const back = () => { if (unsaved) setLeaving(true); else onClose && onClose(); };
 
   const head = {
     colors: [tr('profile:mine.colorsTitle', { defaultValue: 'Your colors' }), tr('profile:mine.colorsSub', { defaultValue: 'Pick from Shape’s papers and accents. Your whole page follows.' })],
@@ -890,9 +894,9 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         {tab === 'wall' ? <WallTab tr={tr} look={look} setLook={setLook} wall={wall} setWall={(u) => { setWall(u); setErr(null); }} choices={photos} uploading={uploading} onUpload={onUpload} noUpload={demo ? demoNoUpload : null} /> : null}
         {tab === 'space' ? <SpaceTab tr={tr} look={look} studio={studio} setStudio={setStudio} sel={sel} setSel={setSel} /> : null}
         {tab === 'kitchen' ? <KitchenTab tr={tr} look={look} kitchen={kitchen} setKitchen={setKitchen} startSection={startSection} owner={owner} uploadPhoto={uploadRecipePhoto} draft={recipeDraft} setDraft={setRecipeDraft} /> : null}
-        {err && !dirty ? <p role="alert" style={{ margin: '14px 0 0', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
+        {err && !unsaved ? <p role="alert" style={{ margin: '14px 0 0', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
       </div>
-      {dirty ? (
+      {unsaved ? (
         <div style={{ position: 'sticky', bottom: 0, zIndex: 3, padding: '10px 18px calc(12px + env(safe-area-inset-bottom))', background: E.BG, borderTop: `1px solid ${ea(0.16)}` }}>
           {leaving ? <p style={{ margin: '0 0 8px', fontSize: 13.5, color: ea(0.8) }}>{tr('profile:mine.leaveAsk', { defaultValue: "You haven't saved these changes." })}</p> : <p style={{ margin: '0 0 8px', fontSize: 12.5, color: ea(0.6) }}>{demo ? tr('profile:mine.demoNote', { defaultValue: 'A sample page: your changes show here until you leave. Sign in to save yours.' }) : tr('profile:mine.saveNote', { defaultValue: 'Members see it as soon as you save.' })}</p>}
           {err ? <p role="alert" style={{ margin: '0 0 8px', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
