@@ -124,8 +124,8 @@ dated entry or past 20 KB.
   `tests/i18n-surface-inventory.test.mjs` counts the strings that aren't translated
   yet.
 - **Backend touchpoints:**
-  - Reviews: a member reads the words; others get `locked` and the rating
-    (`/api/coaches/reviews`, `coach_review_ratings()`).
+  - Reviews: a member reads the words, in the API and the table's policy; others get `locked`
+    and the rating (`/api/coaches/reviews`, `coach_review_ratings()`).
   - `src/app/api/nutrition/meal-note/route.ts` sends a meal note, memo or photo to
     linked coaches through the private `meal-notes` bucket.
   - `src/app/api/nutrition/voice/route.ts` does Whisper transcription.
@@ -173,7 +173,6 @@ The War Room has the full list; this covers what needs the owner and the planned
   referral.
 - Add the `localhost` hostname to the Turnstile widget.
 - Get a native speaker to read the PAR-Q translations.
-- Run `2026-10-28-coach-reviews-members.sql` (till then anyone reads reviews).
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
