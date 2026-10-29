@@ -473,7 +473,7 @@
   "shortcut.grocerySub": "Покупки на эту неделю",
   "shortcut.devices": "Часы и приложения",
   "shortcut.devicesSub": "Подключите шаги и сон",
-  "noraHint.title": "Знакомьтесь: Нора.",
-  "noraHint.body": "Нажмите ✦ в любой момент, чтобы спросить её о плане, питании или приложении.",
+  "noraHint.title": "Спросите Нору о чём угодно в Shape.",
+  "noraHint.body": "Нажмите ✦ в любой момент.",
   "noraHint.gotIt": "Понятно"
 }

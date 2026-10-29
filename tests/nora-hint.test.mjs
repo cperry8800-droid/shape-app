@@ -47,8 +47,9 @@ test('a new device sees the note until Got it, and never again', () => {
   globalThis.window = Object.assign(prev || {}, { localStorage: storage });
   try {
     const api = drive(mod.BSNoraHint, { t: THEME });
-    assert.match(api.text, /Meet Nora\./);
-    assert.match(api.text, /Tap ✦ any time to ask her about your plan, your food or the app\./);
+    // Owner, 2026-10-29: "this should something like 'ask nora anything about shape'".
+    assert.match(api.text, /Ask Nora anything about Shape\./);
+    assert.match(api.text, /Tap ✦ any time\./);
     const note = api.nodes().find((n) => n.props && n.props.role === 'note');
     assert.equal(note.props.style.visibility, 'hidden', 'not shown before it has found the ✦');
     assert.equal(note.props.style.background, '#0a8f87', 'the light paper\'s teal');
