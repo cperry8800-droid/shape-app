@@ -148,7 +148,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   (closing it means refunds).
 - In-app purchase outside the US (Phase 2) is on hold.
 - Decide how a suspended coach appeals.
-- Have counsel read the privacy policy (its 2026-10-13 text, and 2026-10-29's tap counts in §10). The
+- Have counsel read the privacy policy (with 2026-10-29's §10 tap counts). The
   health-data page lists only the weekly check-in, not the Morning check-in, readiness or patterns,
   and the data export leaves out Nora's conversation and the stored readouts.
 - Make the direct-charges test purchase (#2403's Owner steps): in Stripe test mode, add the
@@ -156,7 +156,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   Vercel's Preview (the test-mode `ca_…`), then buy from a test coach on staging.
 - Decide the perks the website's "What Master unlocks" card and `leaderboards.jsx`
   promise (payout tier, ranking, a verified badge): nothing grants them.
-- Decide whether the coach leaderboard should keep showing every coach each other's
+- Decide whether the coach leaderboard should keep showing coaches each other's
   active-client count and sessions-kept rate.
 - Check `NORA_TTS_VOICE` and `NORA_TTS_INSTRUCTIONS` in Vercel: a voice other than coral,
   nova, shimmer or sage is ignored, and her brisk-pace line joins the instructions.
@@ -165,7 +165,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   was last opened pays 15%, though the card says brought clients pay no commission. A
   private profile can't be opened from the link, and the app's checkout sends no referral.
 - Add the `localhost` hostname to the Turnstile widget.
-- Get a native speaker to read the PAR-Q translations.
+- Have a native speaker read the PAR-Q and Nora hint translations.
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
@@ -185,11 +185,11 @@ The War Room has the full list; this covers what needs the owner and the planned
 - `get_display_names` gives any caller a full name and photo for any id.
 - The app's notification list reads a failed load as "You're all caught up". Email covers only
   coach messages, waitlist invites, tier-ups and a coach's waiting list (#2387); red and amber
-  client alerts are app and push only, and a failed email is dropped (no retry).
+  client alerts are app and push only, and a failed email isn't retried.
 - A member may pay two coaches of one role, sharing one section per discipline (#2384), but
   Nora's member read, the calendar and the prep-reminder cron read only the newest published
   meal plan (War Room).
-- A subscription to a coach who is later suspended keeps renewing.
+- A subscription to a coach later suspended keeps renewing.
 - The `?error=` redirects from `/purchase` and `/subscribe` are never shown.
 - A referral sign-up's confirmation email opens a bare `Login.html`, so confirming on another
   device loses the way back to the coach (War Room).
@@ -272,7 +272,8 @@ The War Room has the full list; this covers what needs the owner and the planned
   (`clubRooms.mjs`) are seen only in headless Chromium. The old avatar crowd
   (`crowdAvatars.mjs`) is kept for a v2 pack.
 - Seen only in headless Chromium, not on a phone or in the app: the Split glass mark
-  (#2474) on the homepage, launch and masthead, Your hours, the trainer profile and Make it yours.
+  (#2474), Your hours, the trainer profile, Make it yours, Nora's ✦ and hint, Build a list and
+  the profile dock (#2498–#2503).
 
 ## History
 
