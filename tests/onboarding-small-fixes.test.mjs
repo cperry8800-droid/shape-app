@@ -368,19 +368,48 @@ test('M4: the versions recorded are the pages\' own "Last updated" dates', () =>
   assert.equal(legal.TERMS_VERSIONS.at(-1), pageDate('public/terms.html'), 'a new Terms date needs a new entry in TERMS_VERSIONS');
   assert.equal(legal.PRIVACY_VERSIONS.at(-1), pageDate('public/privacy.html'), 'a new privacy date needs a new entry in PRIVACY_VERSIONS');
   assert.equal(legal.versionInForce(['2026-06-22', '2026-11-01'], '2026-10-15'), '2026-06-22');
-  assert.equal(legal.versionInForce(['2026-06-22', '2026-11-01'], '2026-11-01'), '2026-11-01');
+  assert.equal(legal.versionInForce(['2026-06-22', '2026-11-01'], '2026-11-01'), '2026-06-22', 'on its own day a page is not yet in force: the deploy lands hours in');
+  assert.equal(legal.versionInForce(['2026-06-22', '2026-11-01'], '2026-11-02'), '2026-11-01', 'from the next day it is');
   assert.equal(legal.versionInForce(['2026-06-22'], '2026-01-01'), '2026-06-22', 'before the first: the first');
+  // The privacy policy that lists the tap counts (#2493's follow-up), dated 2026-10-29: an account
+  // made that day (before or after the deploy) keeps the 2026-10-13 version, one made later the new.
+  assert.equal(legal.versionInForce(legal.PRIVACY_VERSIONS, '2026-10-28'), '2026-10-13');
+  assert.equal(legal.versionInForce(legal.PRIVACY_VERSIONS, '2026-10-29'), '2026-10-13');
+  assert.equal(legal.versionInForce(legal.PRIVACY_VERSIONS, '2026-10-30'), '2026-10-29');
+  // No version an account already holds moves: every earlier day reads as it did.
+  assert.equal(legal.versionInForce(legal.PRIVACY_VERSIONS, '2026-10-13'), '2026-10-13');
+  assert.equal(legal.versionInForce(legal.TERMS_VERSIONS, '2026-06-22'), '2026-06-22');
+});
+
+test('M4: an account made on a new page\'s own day, before it deployed, is never recorded twice (Codex on #2495)', async () => {
+  // Made the morning the 2026-10-29 policy went up, first signed in on the old deploy: recorded with
+  // the 2026-10-13 version and marked so. The new deploy reads the same version for that day, so the
+  // marker matches and nothing claims it accepted the text it never saw.
+  const created = '2026-10-29T08:00:00.000Z';
+  const marker = `${legal.versionInForce(legal.TERMS_VERSIONS, '2026-10-28')}|2026-10-13`;
+  const db = acceptDb();
+  const user = { id: 'u-9', created_at: created, user_metadata: {}, app_metadata: { terms_accepted_at: created, terms_recorded: marker } };
+  assert.equal(await legal.recordLegalAcceptance(db.client, user), 'none');
+  assert.deepEqual([db.rows, db.marks], [[], []]);
+  // Its first sign-in, on the new deploy: still the version it was shown.
+  const first = acceptDb();
+  await legal.recordLegalAcceptance(first.client, { ...user, app_metadata: { terms_accepted_at: created } });
+  assert.equal(first.rows[0][0].privacy_version, '2026-10-13');
 });
 
 test('M4: an account that accepted at sign-up gets one record, at the account\'s own time, never the browser\'s', async () => {
   const created = new Date(Date.now() - 2 * 86_400_000).toISOString();
+  // The versions in force the day the account was made, not the newest: a page dated after it
+  // (the 2026-10-29 privacy policy, for an account made on the 27th) is not what it accepted.
+  const terms = legal.versionInForce(legal.TERMS_VERSIONS, created.slice(0, 10));
+  const privacy = legal.versionInForce(legal.PRIVACY_VERSIONS, created.slice(0, 10));
   // What the migration's trigger leaves in app_metadata as the account is created.
   const captured = { provider: 'phone', terms_accepted_at: created, terms_surface: 'app' };
   const user = { id: 'u-1', created_at: created, user_metadata: { terms_accepted_at: '1999-01-01T00:00:00Z', signup_source: { surface: 'website' } }, app_metadata: captured };
   const db = acceptDb();
   assert.equal(await legal.recordLegalAcceptance(db.client, user), 'recorded');
   assert.deepEqual(db.rows, [[
-    { user_id: 'u-1', terms_version: legal.TERMS_VERSIONS.at(-1), privacy_version: legal.PRIVACY_VERSIONS.at(-1), surface: 'app', accepted_at: created },
+    { user_id: 'u-1', terms_version: terms, privacy_version: privacy, surface: 'app', accepted_at: created },
     { onConflict: 'user_id,terms_version,privacy_version', ignoreDuplicates: true },
   ]], 'a repeat sign-in writes nothing new');
   const web = acceptDb();
@@ -399,7 +428,7 @@ test('M4: an account that accepted at sign-up gets one record, at the account\'s
     assert.equal(none.rows.length, 0);
   }
   // Recorded once, whenever the first sign-in is (Fable: a 30-day window lost a late first sign-in).
-  const key = `${legal.TERMS_VERSIONS.at(-1)}|${legal.PRIVACY_VERSIONS.at(-1)}`;
+  const key = `${terms}|${privacy}`;
   assert.deepEqual(db.marks, [['u-1', { app_metadata: { ...captured, terms_recorded: key } }]], 'the marker, which only the service role can write');
   const late = acceptDb();
   assert.equal(await legal.recordLegalAcceptance(late.client, { ...user, created_at: new Date(Date.now() - 400 * 86_400_000).toISOString() }), 'recorded', 'a first sign-in a year later is still recorded');

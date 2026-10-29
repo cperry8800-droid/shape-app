@@ -616,15 +616,25 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
-      section: 'Admin: the Overview\'s Clicks tab, where people tap on the website and in the app — #2493. Two migrations, one run, one for the owner',
+      section: 'Privacy policy: §10 lists the tap counts, §7 says how GPC is honored, and a version is in force from the day after its date — #2495. No migration',
+      items: [
+        { label: 'Owner, 2026-10-29: "It prob should right?", then "Ok add it": §10 gains "Analytics — tap counts" beside Vercel Analytics (daily totals, no account, device or address kept with a count, nothing typed read, Shape\'s own wording only, the consent rule, 12 months). "Last updated" October 29, 2026; PRIVACY_VERSIONS gains 2026-10-29', status: 'done' },
+        { label: '§7\'s GPC paragraph said honoring "is being wired in"; it now says what the code does: the website and app keep no record of the link that brought you, count no taps and send none of Shape\'s own usage stats with GPC on. POST /api/analytics/clicks refuses Sec-GPC: 1 (src/lib/gpc.ts, unused until now)', status: 'done' },
+        { label: 'versionInForce: a page dated D is in force for accounts made from D+1, so one made on the day (before the deploy) keeps the version it was shown and is never recorded twice. No account\'s version moved. A new date must deploy before the next UTC midnight', status: 'done' },
+        { label: 'Review: Codex P1 (a same-day account recorded twice, on f2ef48e, fixed in 6384247) and P2 (§7 contradicted §10 on GPC, on 6384247, fixed in 9d7662c); Codex clean on 9d7662c', status: 'done' },
+        { label: 'OWNER/counsel: read the privacy policy, the 2026-10-29 §10 bullet and §7 GPC paragraph with it; and confirm it was not a "material change" needing 30 days\' notice (judged not: aggregate stats already covered as basic analytics, GPC honoring already in place)', status: 'manual' },
+      ],
+    },
+    {
+      section: 'Admin: the Overview\'s Clicks tab, where people tap on the website and in the app — #2493. Two migrations, both run and checked live',
       items: [
         { label: 'Owner, 2026-10-28: "Add to admin page where user/members click on website/app", then "The admin page is already built": a Clicks tab on the Overview (/admin?view=clicks, analyst and up, totals only), not a page of its own. Period (7, 30, 90 days), website or app, visitors, members or coaches; total taps and their splits, taps a day, the 25 pages and the 100 controls tapped most', status: 'done' },
         { label: 'Capture: src/lib/click-capture.mjs (the app) and public/click-capture.js (the website, held equal by tests/click-capture.test.mjs), loaded by pageShell.jsx and by every page without it, the nine standalone pages included. A tap on a button, link, tab or pointer row adds one to (page, label) for the day; fields and [data-no-track] never count. Sent in batches (15 s, page hidden or left, or 60 taps / 40 controls / 50 on one) to POST /api/analytics/clicks, under the sign-up source\'s consent rule (GPC and Reject stop it; the EEA and UK wait for Accept). The banner now says its choice covers the usage stats on the site too', status: 'done' },
         { label: 'A label is only ever Shape\'s own copy: data-track, else an aria-label, title or text the page was written with. The app\'s catalogs (copyIndex, counted in English); the website\'s source (scripts/click-vocab.mjs, written at deploy to nd/click-vocab.json, ~11,600 labels, never committed; checked on the preview). A name, a habit or a message counts by the control\'s kind, a row or card as "[row]"; digits read as #', status: 'done' },
         { label: '2026-10-28-click-counts.sql (run, checked live read-only): ui_click_counts (daily totals; no account, device or address; RLS, service role only), record_ui_clicks, admin_click_stats. 2026-10-29-click-counts-caps.sql: a batch over 60 taps refused, 20 batches a minute per caller, dietitians counted as coaches. Both tested on a local PostgreSQL 16; idempotent. The analytics purge drops counts after 12 months', status: 'done' },
         { label: 'Review: Codex P1 ×3 and P2 ×2 over three reviews: unbounded made-up taps, the standalone pages, dietitians as members (on 42ecc4f, fixed in 5383a0d); data in accessible names and the missing RAW_ROUTES entry (on 5383a0d, fixed in f939133 and this commit). Codex clean on f939133. CI green on 42ecc4f and 5383a0d', status: 'done' },
-        { label: 'OWNER: run 2026-10-29-click-counts-caps.sql on Supabase. Until then the first function stands: 40 rows of up to 50 taps a batch, 30 batches a minute, dietitians as members', status: 'manual' },
-        { label: 'OWNER/counsel: decide whether the privacy policy\'s §10 lists the tap counts (it covers them as basic analytics; a new date needs a PRIVACY_VERSIONS entry)', status: 'manual' },
+        { label: '2026-10-29-click-counts-caps.sql run by the owner and checked live (read-only): the 60-tap cap, 20 batches a minute, dietitians as coaches; service role only. Production serves the final click-capture.js', status: 'done' },
+        { label: 'The privacy policy\'s §10 lists the tap counts (owner, 2026-10-29: "Ok add it"; #2495)', status: 'done' },
         { label: 'App copy still hard-coded (not in the catalogs) counts by its kind until it is translated; a website page without the cookie session counts as a visitor; the app has no consent banner, so it counts nothing in the EEA and UK', status: 'pending' },
       ],
     },

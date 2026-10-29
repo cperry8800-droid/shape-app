@@ -148,7 +148,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   (closing it means refunds).
 - In-app purchase outside the US (Phase 2) is on hold.
 - Decide how a suspended coach appeals.
-- Have counsel read the 2026-10-13 privacy policy text, and say if §10 lists tap counts. The
+- Have counsel read the privacy policy (its 2026-10-13 text, and 2026-10-29's tap counts in §10). The
   health-data page lists only the weekly check-in, not the Morning check-in, readiness or patterns,
   and the data export leaves out Nora's conversation and the stored readouts.
 - Make the direct-charges test purchase (#2403's Owner steps): in Stripe test mode, add the
@@ -166,7 +166,6 @@ The War Room has the full list; this covers what needs the owner and the planned
   private profile can't be opened from the link, and the app's checkout sends no referral.
 - Add the `localhost` hostname to the Turnstile widget.
 - Get a native speaker to read the PAR-Q translations.
-- Run `2026-10-29-click-counts-caps.sql`.
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
