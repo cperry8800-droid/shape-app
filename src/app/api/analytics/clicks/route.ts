@@ -3,11 +3,11 @@
 // (mobile-app/src/services/analytics.js), for the admin Overview's Clicks tab. Fire-and-forget:
 // it always answers 204, so a page never waits on it or sees an error.
 //
-// The batch is cleaned again here (cleanBatch, src/lib/click-capture.mjs) and once more in SQL
-// (record_ui_clicks), which caps each caller at 30 batches a minute. The caller is read from the
-// request's own session (a Bearer token from the installed app, else the cookie), only to count
-// the taps as a visitor's, a member's or a coach's: the table keeps daily totals and never the
-// account or the address.
+// The batch is cleaned again here (cleanBatch, src/lib/click-capture.mjs: at most 60 taps) and once
+// more in SQL (record_ui_clicks), which refuses a bigger one and caps each caller at 20 batches a
+// minute (2026-10-29-click-counts-caps.sql). The caller is read from the request's own session (a
+// Bearer token from the installed app, else the cookie), only to count the taps as a visitor's, a
+// member's or a coach's: the table keeps daily totals and never the account or the address.
 import { NextResponse } from 'next/server';
 import { cleanBatch } from '@/lib/click-capture.mjs';
 import { currentUser } from '@/lib/request-auth';

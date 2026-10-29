@@ -18,6 +18,7 @@
   var PAGE_MAX = 80;
   var BATCH_MAX = 40;
   var COUNT_MAX = 50;
+  var TAPS_MAX = 60;
   var FLUSH_MS = 15000;
   var MAX_DEPTH = 8;
   var MAX_TEXT_NODES = 200;
@@ -176,10 +177,31 @@
     return true;
   }
 
+  function tapsIn(buffer) {
+    var taps = 0;
+    buffer.forEach(function (r) { taps += r.n; });
+    return taps;
+  }
+
+  function batchFull(buffer) {
+    if (buffer.size >= BATCH_MAX) return true;
+    var taps = 0;
+    var full = false;
+    buffer.forEach(function (r) {
+      if (r.n >= COUNT_MAX) full = true;
+      taps += r.n;
+    });
+    return full || taps >= TAPS_MAX;
+  }
+
   function takeBatch(buffer) {
     var rows = [];
+    var left = TAPS_MAX;
     buffer.forEach(function (r) {
-      if (rows.length < BATCH_MAX) rows.push({ page: r.page, target: r.target, n: r.n });
+      if (rows.length >= BATCH_MAX || left <= 0) return;
+      var n = Math.min(r.n, left);
+      rows.push({ page: r.page, target: r.target, n: n });
+      left -= n;
     });
     buffer.clear();
     return rows;
@@ -195,9 +217,9 @@
   }
 
   var rules = {
-    LABEL_MAX: LABEL_MAX, PAGE_MAX: PAGE_MAX, BATCH_MAX: BATCH_MAX, COUNT_MAX: COUNT_MAX, UNNAMED: UNNAMED,
+    LABEL_MAX: LABEL_MAX, PAGE_MAX: PAGE_MAX, BATCH_MAX: BATCH_MAX, COUNT_MAX: COUNT_MAX, TAPS_MAX: TAPS_MAX, UNNAMED: UNNAMED,
     cleanLabel: cleanLabel, cleanPage: cleanPage, controlKind: controlKind, clickTarget: clickTarget,
-    controlLabel: controlLabel, addClick: addClick, takeBatch: takeBatch, trackingAllowed: trackingAllowed
+    controlLabel: controlLabel, addClick: addClick, tapsIn: tapsIn, batchFull: batchFull, takeBatch: takeBatch, trackingAllowed: trackingAllowed
   };
   root.shapeClickCapture = rules;
 
@@ -237,7 +259,7 @@
         if (!allowedHere()) return;
         var target = clickTarget(e.target, isPointer);
         if (!target || !addClick(buffer, root.location.pathname, controlLabel(target))) return;
-        if (buffer.size >= BATCH_MAX) flush();
+        if (batchFull(buffer)) flush();
         else if (!timer) timer = root.setTimeout(flush, FLUSH_MS);
       } catch (err) {}
     }, { capture: true, passive: true });

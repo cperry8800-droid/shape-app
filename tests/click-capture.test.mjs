@@ -151,6 +151,10 @@ test('rules: a buffer counts taps per page and label, and a batch carries them o
     { page: '/c', target: 'Spam', n: C.COUNT_MAX },
   ]);
   assert.equal(buf.size, 0, 'taking a batch empties the buffer');
+  // A batch carries at most TAPS_MAX taps in all (Codex on #2493).
+  for (const page of ['/x', '/y']) for (let i = 0; i < 40; i += 1) C.addClick(buf, page, 'Go');
+  assert.equal(C.tapsIn(buf), 80);
+  assert.deepEqual(C.takeBatch(buf), [{ page: '/x', target: 'Go', n: 40 }, { page: '/y', target: 'Go', n: C.TAPS_MAX - 40 }]);
 });
 
 test('rules: the server keeps only a clean batch', () => {
@@ -177,10 +181,14 @@ test('rules: the server keeps only a clean batch', () => {
       rows: [
         { page: '/a', target: 'Pay #', n: C.COUNT_MAX },
         { page: '/b', target: 'Go', n: 3 },
-        { page: '/c', target: 'Go', n: C.COUNT_MAX },
+        { page: '/c', target: 'Go', n: C.TAPS_MAX - 2 - 49 - 3 },
       ],
     },
+    'one row holds at most COUNT_MAX taps, and the batch at most TAPS_MAX in all',
   );
+  // A script claiming 40 rows of 50 taps gets TAPS_MAX in all (Codex on #2493).
+  const claimed = C.cleanBatch({ surface: 'web', clicks: Array.from({ length: 40 }, (_, i) => ({ page: '/x', target: `Item ${'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP'[i]}`, n: 50 })) });
+  assert.equal(claimed.rows.reduce((t, r) => t + r.n, 0), C.TAPS_MAX);
 });
 
 // ── The website's copy ────────────────────────────────────────────────────────────────────
@@ -216,7 +224,7 @@ test('copy: public/click-capture.js counts exactly as the module does', () => {
   const { win } = loadCopy();
   const copy = win.shapeClickCapture;
   assert.deepEqual(runCases(copy), runCases(C), 'every case, the same label');
-  for (const k of ['LABEL_MAX', 'PAGE_MAX', 'BATCH_MAX', 'COUNT_MAX']) assert.equal(copy[k], C[k], k);
+  for (const k of ['LABEL_MAX', 'PAGE_MAX', 'BATCH_MAX', 'COUNT_MAX', 'TAPS_MAX']) assert.equal(copy[k], C[k], k);
   assert.deepEqual({ ...copy.UNNAMED }, { ...C.UNNAMED });
   for (const v of ['  Save\n now ', 'x'.repeat(100), 'Book 12:30 · $1,200.50', 'mail a@b.co', null]) assert.equal(copy.cleanLabel(v), C.cleanLabel(v), String(v));
   for (const v of ['/a?b#c', '/coach/0f9c7a52-8a3e-4b1d-9c55-1d2e3f4a5b6c/x', '/u/12', 'x'.repeat(200), null]) assert.equal(copy.cleanPage(v), C.cleanPage(v), String(v));
@@ -226,6 +234,13 @@ test('copy: public/click-capture.js counts exactly as the module does', () => {
     assert.equal(copy.addClick(a, p, l), C.addClick(b, p, l));
   }
   assert.deepEqual(JSON.parse(JSON.stringify(copy.takeBatch(a))), C.takeBatch(b));
+  for (let i = 0; i < 70; i += 1) {
+    copy.addClick(a, `/p${i % 3}`, 'Go');
+    C.addClick(b, `/p${i % 3}`, 'Go');
+  }
+  assert.equal(copy.tapsIn(a), C.tapsIn(b));
+  assert.equal(copy.batchFull(a), C.batchFull(b));
+  assert.deepEqual(JSON.parse(JSON.stringify(copy.takeBatch(a))), C.takeBatch(b), 'the same TAPS_MAX trim');
 });
 
 test('copy: taps on a page are sent together, with the page and the session cookie, and only with consent', async () => {
@@ -306,6 +321,20 @@ test('app: the starter counts per screen, asks consent at each tap and sends whe
   for (let i = 0; i < C.BATCH_MAX; i += 1) l2.click({ target: el('button', {}, `Item ${'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP'[i]}`) });
   assert.equal(out.length, 1, 'a full buffer goes at once');
   assert.equal(out[0].clicks.length, C.BATCH_MAX);
+  const busy = { ...win, __shapeClickCapture: false };
+  const got = [];
+  const l3 = {};
+  busy.document = { visibilityState: 'visible', addEventListener: (t, fn) => { l3[t] = fn; } };
+  C.startClickCapture({ win: busy, surface: 'app', page: () => 'Home', allowed: () => true, send: (b) => got.push(b) });
+  for (let i = 0; i < C.TAPS_MAX; i += 1) l3.click({ target: el('button', {}, 'Next') });
+  assert.deepEqual(got, [{ surface: 'app', clicks: [{ page: 'Home', target: 'Next', n: C.COUNT_MAX }] }], 'one control at COUNT_MAX goes at once, so no tap is lost');
+  busy.document.visibilityState = 'hidden';
+  l3.visibilitychange();
+  assert.deepEqual(got[1], { surface: 'app', clicks: [{ page: 'Home', target: 'Next', n: C.TAPS_MAX - C.COUNT_MAX }] }, 'the rest follow');
+  got.length = 0;
+  for (let i = 0; i < C.TAPS_MAX; i += 1) l3.click({ target: el('button', {}, `Item ${'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP'[i % 30]}`) });
+  assert.equal(got.length, 1, 'TAPS_MAX taps across controls go at once');
+  assert.equal(got[0].clicks.reduce((t, r) => t + r.n, 0), C.TAPS_MAX);
 });
 
 // ── The route ─────────────────────────────────────────────────────────────────────────────
@@ -488,11 +517,25 @@ test('migration: daily totals only, the service role’s alone, one transaction,
   assert.match(read('src/app/api/cron/analytics-purge/route.ts'), /from\('ui_click_counts'\)\.delete\(\)\.lt\('day', cutoff\.slice\(0, 10\)\)/);
 });
 
+test('migration: the follow-up caps a batch at TAPS_MAX taps and 20 a minute, and counts dietitians as coaches', () => {
+  const code = read('supabase-migrations/2026-10-29-click-counts-caps.sql').replace(/--.*$/gm, '');
+  assert.match(code, /^\s*begin;/m);
+  assert.match(code, /commit;\s*$/);
+  assert.match(code, /where total\.taps <= 60\n/, 'a batch over 60 taps is refused whole');
+  assert.equal(C.TAPS_MAX, 60, 'the route trims to what SQL accepts, so a real batch is never refused');
+  assert.match(code, /_rate_limit_bump\(\s*'fn:ui_clicks:'[^;]*\), 20, 60\s*\)/);
+  assert.match(code, /array\['trainer', 'nutritionist', 'dietitian'\]/);
+  assert.match(code, /p\.role in \('trainer', 'nutritionist', 'dietitian'\)/);
+  assert.match(code, /revoke all on function public\.record_ui_clicks\(uuid, text, text, jsonb, text\) from public, anon, authenticated;/);
+  assert.match(code, /do \$guard\$[\s\S]*raise exception/);
+});
+
 // ── The wiring ────────────────────────────────────────────────────────────────────────────
 test('wiring: every website page counts taps, and the app does, both behind the consent rule', () => {
   const shell = read('public/newdesign/pageShell.jsx');
   assert.match(shell, /\(function shapeClickCaptureLoader\(\) \{[\s\S]*?s\.src = "\/click-capture\.js";/);
-  for (const f of ['public/newdesign/ClientPlaylists.html', 'public/newdesign/consultation.html']) {
+  const standalone = ['privacy', 'terms', 'help', 'contact', 'privacy-request', 'code-of-conduct', 'health-data-privacy', 'data-compliance', 'subprocessors'];
+  for (const f of ['public/newdesign/ClientPlaylists.html', 'public/newdesign/consultation.html', ...standalone.map((n) => `public/${n}.html`)]) {
     assert.match(read(f), /<script defer src="\/click-capture\.js"><\/script>/, `${f} has no shell, so loads it itself`);
   }
   const app = stripComments(read('mobile-app/src/services/analytics.js'));

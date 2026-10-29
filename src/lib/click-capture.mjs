@@ -22,6 +22,12 @@ export const PAGE_MAX = 80;
 export const BATCH_MAX = 40;
 /** Taps one pair counts in one batch. */
 export const COUNT_MAX = 50;
+/**
+ * Taps one batch carries in all, a quarter-minute of steady tapping; a buffer that reaches it is
+ * sent at once. The server holds every batch to it, so a script can't claim a pile of taps in one
+ * (Codex on #2493).
+ */
+export const TAPS_MAX = 60;
 /** How long taps wait to be sent together (they go sooner when the page is hidden or left). */
 export const FLUSH_MS = 15000;
 /** How far up from the tapped element a control is looked for. */
@@ -206,9 +212,37 @@ export function addClick(buffer, page, label) {
   return true;
 }
 
-/** The buffer's taps as a batch's rows, emptying it. */
+/** How many taps a buffer holds. */
+export function tapsIn(buffer) {
+  let taps = 0;
+  for (const r of buffer.values()) taps += r.n;
+  return taps;
+}
+
+/**
+ * Whether a buffer should go now: BATCH_MAX pairs, TAPS_MAX taps, or one pair at COUNT_MAX (a tap
+ * past it would be lost).
+ */
+export function batchFull(buffer) {
+  if (buffer.size >= BATCH_MAX) return true;
+  let taps = 0;
+  for (const r of buffer.values()) {
+    if (r.n >= COUNT_MAX) return true;
+    taps += r.n;
+  }
+  return taps >= TAPS_MAX;
+}
+
+/** The buffer's taps as a batch's rows (at most BATCH_MAX rows and TAPS_MAX taps), emptying it. */
 export function takeBatch(buffer) {
-  const rows = [...buffer.values()].slice(0, BATCH_MAX).map((r) => ({ page: r.page, target: r.target, n: r.n }));
+  const rows = [];
+  let left = TAPS_MAX;
+  for (const r of buffer.values()) {
+    if (rows.length >= BATCH_MAX || left <= 0) break;
+    const n = Math.min(r.n, left);
+    rows.push({ page: r.page, target: r.target, n });
+    left -= n;
+  }
   buffer.clear();
   return rows;
 }
@@ -219,12 +253,14 @@ export function cleanBatch(body) {
   const surface = b.surface === 'web' || b.surface === 'app' ? b.surface : '';
   if (!surface || !Array.isArray(b.clicks)) return null;
   const merged = new Map();
+  let left = TAPS_MAX;
   for (const raw of b.clicks.slice(0, BATCH_MAX)) {
     const r = raw && typeof raw === 'object' ? raw : {};
     const page = cleanPage(r.page);
     const target = cleanLabel(r.target);
-    const n = Math.min(COUNT_MAX, Math.max(0, Math.floor(Number(r.n) || 0)));
+    const n = Math.min(COUNT_MAX, left, Math.max(0, Math.floor(Number(r.n) || 0)));
     if (!page || !target || !n) continue;
+    left -= n;
     const key = `${page}\u0001${target}`;
     const row = merged.get(key);
     if (row) row.n = Math.min(COUNT_MAX, row.n + n);
@@ -264,7 +300,7 @@ export function startClickCapture({ win, surface, page, allowed, send }) {
         if (!allowed()) return;
         const target = clickTarget(e.target, isPointer);
         if (!target || !addClick(buffer, page(), controlLabel(target))) return;
-        if (buffer.size >= BATCH_MAX) flush();
+        if (batchFull(buffer)) flush();
         else if (!timer) timer = win.setTimeout(flush, FLUSH_MS);
       } catch {
         // Counting never gets in the way of the page.

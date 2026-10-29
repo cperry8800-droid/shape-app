@@ -2,6 +2,7 @@ export const LABEL_MAX: number;
 export const PAGE_MAX: number;
 export const BATCH_MAX: number;
 export const COUNT_MAX: number;
+export const TAPS_MAX: number;
 export const FLUSH_MS: number;
 export const UNNAMED: Readonly<{ link: string; tab: string; button: string; row: string }>;
 export type ClickKind = 'link' | 'tab' | 'button' | 'row';
@@ -14,6 +15,8 @@ export function controlKind(el: Element | null | undefined): ClickKind | '';
 export function clickTarget(start: EventTarget | Node | null | undefined, isPointer?: (el: Element) => boolean): ClickTarget | null;
 export function controlLabel(target: ClickTarget | null | undefined): string;
 export function addClick(buffer: Map<string, ClickRow>, page: unknown, label: unknown): boolean;
+export function tapsIn(buffer: Map<string, ClickRow>): number;
+export function batchFull(buffer: Map<string, ClickRow>): boolean;
 export function takeBatch(buffer: Map<string, ClickRow>): ClickRow[];
 export function cleanBatch(body: unknown): ClickBatch | null;
 export function startClickCapture(opts: {
