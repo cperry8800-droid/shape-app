@@ -4,9 +4,9 @@ import {
   BS_LOOK_PAPERS, BS_LOOK_ACCENTS, BS_STUDIO_ITEMS_MAX, BS_STUDIO_STATIONS_MAX, BS_STUDIO_WHERE_MAX, BS_STUDIO_LABEL_MAX,
   BS_STATION_TITLE_MAX, BS_STATION_NOTE_MAX, bsProfileLook, bsProfileStudio, bsProfileCover, bsNormalizeProfileCustom,
   BS_KITCHEN_RULES_MAX, BS_KITCHEN_RULE_MAX, BS_KITCHEN_STAPLES_MAX, BS_STAPLE_MAX, BS_KITCHEN_RECIPES_MAX, BS_RECIPE_TITLE_MAX, BS_RECIPE_NOTE_MAX,
-  BS_RECIPE_INGS_MAX, BS_RECIPE_ING_MAX, BS_RECIPE_QTY_MAX, BS_RECIPE_STEPS_MAX, BS_RECIPE_STEP_MAX, BS_RECIPE_NUMS, bsKitchenRecipeItem, bsProfileKitchen,
+  BS_RECIPE_INGS_MAX, BS_RECIPE_ING_MAX, BS_RECIPE_QTY_MAX, BS_RECIPE_STEPS_MAX, BS_RECIPE_STEP_MAX, BS_RECIPE_NUMS, bsKitchenRecipeItem, bsProfileKitchen, bsCleanText,
 } from '../services/profileCustom.mjs';
-import { bsSplitPaste } from '../services/clientRecipes.mjs';
+import { bsSplitPaste, bsSplitLongStep } from '../services/clientRecipes.mjs';
 import {
   STUDIO_KIT, STUDIO_GROUPS, STUDIO_COACH_KINDS, STUDIO_WORDS, BS_STUDIO_W, BS_STUDIO_H,
   bsStudioTypesIn, bsStudioRoom, bsStudioSvg, bsStudioSpot, bsStudioDrawOrder, bsStudioFromTemplate,
@@ -488,7 +488,7 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel 
     if (!got) got = bsSplitPaste(text);
     setReading(false);
     let ing = (got.ingredients || []).map((g) => ({ n: String((g && g.n) || ''), m: String((g && g.m) || '') })).filter((g) => g.m.trim());
-    let steps = (got.steps || []).map((x) => String(typeof x === 'string' ? x : (x && x.t) || '')).filter((x) => x.trim());
+    let steps = (got.steps || []).map((x) => String(typeof x === 'string' ? x : (x && x.t) || '')).filter((x) => x.trim()).flatMap((x) => bsSplitLongStep(x, BS_RECIPE_STEP_MAX));
     // A pasted recipe starts with its name: the phone's own split files that line as an ingredient
     // or a step, so with no name read, the first line is the name.
     let title = String(got.title || '').trim();
@@ -497,6 +497,8 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel 
       if (ing[0] && !ing[0].n && ing[0].m.trim() === firstLine) { title = firstLine; ing = ing.slice(1); }
       else if (steps[0] && steps[0].trim() === firstLine) { title = firstLine; steps = steps.slice(1); }
     }
+    // More than the recipe holds is said, not dropped quietly.
+    const over = ing.length > BS_RECIPE_INGS_MAX || steps.length > BS_RECIPE_STEPS_MAX;
     ing = ing.slice(0, BS_RECIPE_INGS_MAX);
     steps = steps.slice(0, BS_RECIPE_STEPS_MAX);
     if (!ing.length && !steps.length) { setNote(['err', tr('profile:mine.pasteFailed', { defaultValue: "Couldn't find a recipe in that. Fill it in by hand." })]); return; }
@@ -508,6 +510,7 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel 
       steps: steps.length ? steps : cur.steps,
     } : cur));
     setPaste(null);
+    if (over) { setNote(['err', tr('profile:mine.pasteOver', { defaultValue: 'Only the first {ing} ingredients and {steps} steps fit. Check what was left out.', ing: BS_RECIPE_INGS_MAX, steps: BS_RECIPE_STEPS_MAX })]); return; }
     setNote(['ok', ai ? tr('profile:mine.pasteAI', { defaultValue: 'Laid out from your paste by AI. Check every line.' }) : tr('profile:mine.pasteLocal', { defaultValue: 'Laid out from your paste. Check every line.' })]);
   };
   const onPhoto = async (e) => {
@@ -533,6 +536,14 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel 
       setNote(['err', tr('profile:mine.errRecipeNum', { defaultValue: '{field}: enter a number from {min} to {max}.', field: tr(key, { defaultValue: en }), min: BS_RECIPE_NUMS[k][0], max: BS_RECIPE_NUMS[k][1] })]);
       return;
     }
+    // So is text longer than its field: a paste can set it past the box's own limit.
+    const longer = (v, max) => bsCleanText(v).length > max;
+    const ingAt = draft.ing.findIndex((g) => g.m.trim() && longer(g.m, BS_RECIPE_ING_MAX));
+    if (ingAt >= 0) { setNote(['err', tr('profile:mine.errIngLong', { defaultValue: 'Ingredient {n} is too long: {max} characters at most.', n: ingAt + 1, max: BS_RECIPE_ING_MAX })]); return; }
+    const qtyAt = draft.ing.findIndex((g) => g.m.trim() && longer(g.n, BS_RECIPE_QTY_MAX));
+    if (qtyAt >= 0) { setNote(['err', tr('profile:mine.errQtyLong', { defaultValue: 'The amount for ingredient {n} is too long: {max} characters at most.', n: qtyAt + 1, max: BS_RECIPE_QTY_MAX })]); return; }
+    const stepAt = draft.steps.findIndex((x) => longer(x, BS_RECIPE_STEP_MAX));
+    if (stepAt >= 0) { setNote(['err', tr('profile:mine.errStepLong', { defaultValue: 'Step {n} is too long: {max} characters at most. Split it in two.', n: stepAt + 1, max: BS_RECIPE_STEP_MAX })]); return; }
     const r = bsRecipeFromDraft(draft, owner);
     if (!r) { setNote(['err', tr('nutrition:myRecipe.errNoName', { defaultValue: 'Give it a name first.' })]); return; }
     onDone(r);

@@ -13,6 +13,8 @@ const RECIPES = 'mobile-app/src/broadsheet/kitchenRecipes.js';
 const APP = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const MKT = 'mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx';
 
+const RECIPES_SVC = 'mobile-app/src/services/clientRecipes.mjs';
+
 export default {
   test: 'node --test tests/nutritionist-profile.test.mjs tests/marketplace-trainer-profile.test.mjs tests/search-recent-listing.test.mjs tests/trainer-profile.test.mjs',
   timeoutMs: 300_000,
@@ -137,6 +139,24 @@ export default {
       find: "return n === undefined || n < BS_RECIPE_NUMS", replace: "return n < BS_RECIPE_NUMS" },
     { name: 'mine: review fix · the end of a range is refused', file: MINE,
       find: "n < BS_RECIPE_NUMS[k][0] || n > BS_RECIPE_NUMS[k][1];", replace: "n <= BS_RECIPE_NUMS[k][0] || n >= BS_RECIPE_NUMS[k][1];" },
+    { name: 'mine: review fix · a pasted step is not split', file: MINE,
+      find: ".filter((x) => x.trim()).flatMap((x) => bsSplitLongStep(x, BS_RECIPE_STEP_MAX));", replace: ".filter((x) => x.trim());" },
+    { name: 'mine: review fix · steps past 16 are dropped quietly', file: MINE,
+      find: "    if (over) { setNote(", replace: "    if (false) { setNote(" },
+    { name: 'mine: review fix · a long ingredient is let through', file: MINE,
+      find: "    if (ingAt >= 0) { setNote(", replace: "    if (false) { setNote(" },
+    { name: 'mine: review fix · a long amount is let through', file: MINE,
+      find: "    if (qtyAt >= 0) { setNote(", replace: "    if (false) { setNote(" },
+    { name: 'mine: review fix · a long step is let through', file: MINE,
+      find: "    if (stepAt >= 0) { setNote(", replace: "    if (false) { setNote(" },
+    { name: 'mine: review fix · a field at its limit is refused', file: MINE,
+      find: "const longer = (v, max) => bsCleanText(v).length > max;", replace: "const longer = (v, max) => bsCleanText(v).length >= max;" },
+    { name: 'recipes: review fix · a step is cut at the limit, never after a sentence', file: RECIPES_SVC,
+      find: "    let cut = end > 0 ? end + 1 : head.lastIndexOf(' ');", replace: "    let cut = max;" },
+    { name: 'recipes: review fix · a split step is longer than the limit', file: RECIPES_SVC,
+      find: "    const head = rest.slice(0, max + 1);", replace: "    const head = rest.slice(0, max + 40);" },
+    { name: 'recipes: review fix · the rest of a long step is dropped', file: RECIPES_SVC,
+      find: "  if (rest) out.push(rest);\n  return out;\n}", replace: "  return out;\n}" },
     { name: 'mine: review fix · leaving with a recipe open asks nothing', file: MINE,
       find: '  const unsaved = dirty || recipeOpen;', replace: '  const unsaved = dirty;' },
     { name: 'mine: review fix · a late result lands in whatever draft is open', file: MINE,

@@ -26,6 +26,7 @@ import { bsProfileKitchen, bsKitchenPlate, bsKitchenRecipeItem, bsNormalizeProfi
 import { BS_SUPABASE_HOST } from '../public/newdesign/listingMedia.mjs';
 import { bsNutritionistDemo, bsNutritionistSampleOf, BS_NUTRI_SAMPLE_KINDS, BS_NUTRI_SAMPLE_RECIPES } from '../mobile-app/src/services/nutritionistDemo.mjs';
 import { bsKitchenRecipe, bsKitchenMinutes, bsOwnRecipeGroceryList, bsOwnRecipeCookable, bsShortHash } from '../mobile-app/src/broadsheet/kitchenRecipes.js';
+import { bsSplitLongStep } from '../mobile-app/src/services/clientRecipes.mjs';
 
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -705,6 +706,58 @@ test('Make it yours: a recipe number out of its range keeps the form open and sa
     const r = world.saved.d.kitchen.recipes[0];
     assert.deepEqual([r.t, r.serves, r.kcal, r.min], ['Big batch chili', 8, 0, 600]);
   } finally { await m.unmount(); }
+});
+
+test('Make it yours: a paste longer than a field holds is split or said, never clipped on save (Codex P2 on #2497)', async () => {
+  reset({ me: 'u-nadia', stored: {} });
+  const longStep = 'Heat the oil in a large pot over medium heat. '.repeat(9) + 'Serve.';
+  window.ShapeRecipeImport = { parse: async () => ({ ok: true, draft: { title: 'Long soup', ingredients: [{ n: '2 large handfuls, roughly', m: 'chicken thighs, boneless and skinless, cut into bite-sized pieces' }, { n: '1', m: 'onion' }], steps: [longStep, ...Array.from({ length: 15 }, (_, i) => `Step ${i + 2}.`)] } }) };
+  const m = await mount(page({ isSelf: true }));
+  try {
+    await click(button(/^Make it yours$/));
+    await click(button(/^Your kitchen$/));
+    await click(document.querySelector('[data-write-recipe]'));
+    await click(document.querySelector('[data-recipe-paste]'));
+    await type(document.querySelector('[data-recipe-form] textarea'), 'Long soup ...');
+    await click(document.querySelector('[data-paste-fill]'));
+    const steps = () => [...document.querySelectorAll('[data-recipe-step] textarea')].map((x) => x.value);
+    assert.deepEqual(steps().slice(0, 2), bsSplitLongStep(longStep, 300), 'the long step is two, every word kept');
+    assert.equal(steps().length, 16);
+    assert.match(m.text(), /Only the first 20 ingredients and 16 steps fit\. Check what was left out\./, 'the 17th step is said, not dropped quietly');
+    // Done names what is too long; nothing is clipped on the way to the save.
+    const ing = () => document.querySelectorAll('[data-recipe-ing]')[0].querySelectorAll('input');
+    await click(document.querySelector('[data-recipe-done]'));
+    assert.match(m.text(), /Ingredient 1 is too long: 60 characters at most\./);
+    await type(ing()[1], 'chicken thighs, boneless, bite-sized');
+    await click(document.querySelector('[data-recipe-done]'));
+    assert.match(m.text(), /The amount for ingredient 1 is too long: 24 characters at most\./);
+    await type(ing()[0], '2 handfuls');
+    await type(document.querySelectorAll('[data-recipe-step] textarea')[2], 'y'.repeat(301));
+    await click(document.querySelector('[data-recipe-done]'));
+    assert.match(m.text(), /Step 3 is too long: 300 characters at most\. Split it in two\./);
+    assert.ok(document.querySelector('[data-recipe-form]'), 'still open');
+    await type(document.querySelectorAll('[data-recipe-step] textarea')[2], 'y'.repeat(300));
+    await click(document.querySelector('[data-recipe-done]'));
+    assert.ok(!document.querySelector('[data-recipe-form]'), 'at the limit, kept');
+    await click(document.querySelector('[data-save-mine]'));
+    const r = world.saved.d.kitchen.recipes[0];
+    assert.deepEqual(r.ing[0], { n: '2 handfuls', m: 'chicken thighs, boneless, bite-sized' });
+    assert.deepEqual(r.steps.slice(0, 3), [...bsSplitLongStep(longStep, 300), 'y'.repeat(300)], 'saved as shown');
+  } finally { delete window.ShapeRecipeImport; await m.unmount(); }
+});
+
+test('a long step splits after a sentence, else at a space, else at the limit, every word kept', () => {
+  const sentences = 'Heat the oil in a large pot over medium heat. '.repeat(9) + 'Serve.';
+  const a = bsSplitLongStep(sentences, 300);
+  assert.equal(a.join(' '), sentences.trim());
+  assert.ok(a.every((x) => x.length <= 300) && a[0].endsWith('.'), a.map((x) => x.length).join());
+  const words = bsSplitLongStep('word '.repeat(80), 300);
+  assert.equal(words.join(' '), 'word '.repeat(80).trim());
+  assert.ok(words.every((x) => x.length <= 300 && !x.startsWith(' ') && !x.endsWith(' ')));
+  assert.deepEqual(bsSplitLongStep('x'.repeat(650), 300).map((x) => x.length), [300, 300, 50], 'no space at all: cut at the limit');
+  assert.deepEqual(bsSplitLongStep('  Short.  ', 300), ['Short.']);
+  assert.deepEqual(bsSplitLongStep('', 300), []);
+  assert.deepEqual(bsSplitLongStep('a'.repeat(300), 300), ['a'.repeat(300)], 'at the limit: one step');
 });
 
 test('a seeded nutritionist listing is a sample: its listing by id, a sample kitchen and plate notes, times never taken', async () => {
