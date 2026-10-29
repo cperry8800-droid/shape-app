@@ -472,5 +472,8 @@
   "shortcut.groceryList": "Market list",
   "shortcut.grocerySub": "Dis week market",
   "shortcut.devices": "Watch & apps",
-  "shortcut.devicesSub": "Connect your steps and sleep"
+  "shortcut.devicesSub": "Connect your steps and sleep",
+  "noraHint.title": "Meet Nora.",
+  "noraHint.body": "Tap ✦ anytime make you ask am about your plan, your food or di app.",
+  "noraHint.gotIt": "I don hear"
 }

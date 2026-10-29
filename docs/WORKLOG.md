@@ -165,7 +165,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   was last opened pays 15%, though the card says brought clients pay no commission. A
   private profile can't be opened from the link, and the app's checkout sends no referral.
 - Add the `localhost` hostname to the Turnstile widget.
-- Get a native speaker to read the PAR-Q translations.
+- Have a native speaker read the PAR-Q and Nora hint translations.
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
@@ -271,7 +271,8 @@ The War Room has the full list; this covers what needs the owner and the planned
   (`clubRooms.mjs`) are seen only in headless Chromium. The old avatar crowd
   (`crowdAvatars.mjs`) is kept for a v2 pack.
 - Seen only in headless Chromium, not on a phone or in the app: the Split glass mark
-  (#2474) on the homepage, launch and masthead, Your hours, the coach profiles and Make it yours.
+  (#2474), Your hours, the coach profiles, Make it yours, Nora's ✦ and hint, Build a list and
+  the profile dock (#2498–#2503).
 
 ## History
 
