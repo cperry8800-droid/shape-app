@@ -132,6 +132,10 @@ test('a member asks a sample time: kept against the listing, and each owner told
   assert.equal(again.body.already, true);
   assert.equal(current.tables.listing_time_requests.length, 1);
   assert.equal(current.notes.length, 2);
+  // The time goes to the store as the instant the route checked, whatever form the body wrote it in.
+  const offset = new Date(Date.parse(when) + DAY).toISOString().replace('Z', '+00:00');
+  assert.equal((await post(ask({ at: offset }))).status, 200);
+  assert.equal(current.calls.at(-1).params.p_slot_start, new Date(offset).toISOString());
 });
 
 test('signed out, a listing on Shape or gone, and a bad ask are refused, and nothing is stored', async () => {
