@@ -382,7 +382,7 @@ test('program: the JavaScript rule is the replica\'s, on every fixture', () => {
 test('program: names, weeks, days, equipment and one video come out; the prescription, cues and clips stay in', () => {
   for (const f of REPLICA) {
     const out = f.sql;
-    assert.deepEqual(Object.keys(out).filter((k) => !['preview', 'blocks', 'media', 'note', 'buildType', 'weeks'].includes(k)), [], `${f.name}: no other key`);
+    assert.deepEqual(Object.keys(out).filter((k) => !['preview', 'blocks', 'media', 'note', 'buildType', 'weeks', 'firstWeek'].includes(k)), [], `${f.name}: no other key`);
     assert.equal(out.preview, true);
     assert.ok(!JSON.stringify(out).includes('SECRET'), `${f.name}: no rest, tempo or cue`);
     assert.ok(out.blocks.length <= 40);
@@ -402,6 +402,10 @@ test('program: names, weeks, days, equipment and one video come out; the prescri
   assert.ok(!JSON.stringify(app).includes('clip.example'));
   assert.deepEqual(fixture('the same program saved on the website').sql.blocks, app.blocks, 'the app and the website preview one program alike');
   assert.equal(app.weeks, 3, 'how many weeks the builder holds, past the 40 rows');
+  assert.deepEqual(app.firstWeek, [{ week: 0, day: 0, dayName: 'Push', weekday: 0, moves: 3 }, { week: 0, day: 1, dayName: 'Pull', weekday: 2, moves: 2 }, { week: 0, day: 2, dayName: 'Legs', weekday: 4, moves: 3 }]);
+  const long = fixture('a first day of 45 moves').sql;
+  assert.deepEqual(long.firstWeek.map((d) => [d.dayName, d.moves]), [['Long', 45], ['Short', 5], ['Shorter', 3]], 'counted past the 40 names (Codex P2 on #2501)');
+  assert.equal(long.blocks.length, 40);
   assert.equal(fixture('the 53rd week').sql.weeks, 52);
   assert.equal('weeks' in fixture('a weekday split').sql, false, 'a text outline states its own weeks');
   assert.deepEqual(fixture('media: no program video').sql.media, [{ type: 'video', url: 'https://clip.example/ok.mp4' }, { type: 'image', url: 'http://img.example/plain.jpg' }], 'no program video: the first usable clip');
@@ -486,6 +490,15 @@ test('program: a builder\'s program previews its first week\'s days with their m
   assert.equal(one.kind, 'session');
   assert.equal(one.units.length, 40);
   assert.deepEqual(one.free.map((u) => [u.title, u.scheme, u.load]), [['A1', '', ''], ['A2', '', '']]);
+  // A first day of 45 moves fills the 40 names; its later days still come, with their counts
+  // (Codex P2 on #2501).
+  const long = bsPlanPreview({ detail: fixture('a first day of 45 moves').sql }, { isNutri: false });
+  assert.equal(long.kind, 'program');
+  assert.equal(long.weeks, 2);
+  assert.deepEqual(long.units.map((u) => [u.label, u.title, u.moves.length, u.more]), [['MON', 'Long', 40, 5], ['WED', 'Short', 0, 5], ['FRI', 'Shorter', 0, 3]]);
+  // A crafted first week: a day missing its week or day is no day of it.
+  const odd = bsPlanPreview({ detail: { preview: true, blocks: [{ week: 0, day: 0, text: 'A' }], firstWeek: [{ week: 0, day: 0, moves: 1 }, { week: '0', day: 1, moves: 2 }, null] } }, { isNutri: false });
+  assert.equal(odd.kind, 'session');
   // A crafted week or day is no row of a program.
   const crafted = bsPlanPreview({ detail: { preview: true, blocks: [{ week: '0', day: 0, text: 'A' }, { week: 0, day: 1.5, text: 'B' }, { week: 0, day: 0, text: 'C' }] } }, { isNutri: false });
   assert.equal(crafted.kind, 'session');
@@ -510,9 +523,10 @@ test('program: the migration routes a program through the cut, keeps a meal plan
   assert.match(sql, /where n <= 14 order by n loop/);
   assert.match(sql, /where n <= 12 order by n loop/);
   assert.match(sql, /exit rows when v_visits > 400;/);
-  assert.match(sql, /exit rows when v_count >= 40;/);
+  assert.match(sql, /exit rows when v_count >= 40 and v_first is not null;/);
+  assert.match(sql, /            continue when v_count >= 40;\n/);
   assert.match(sql, /    v_weeks := least\(jsonb_array_length\(v_builder->'weeks'\), 52\);\n/, 'a builder\'s weeks, counted');
-  assert.match(sql, /if v_weeks is not null then v_out := v_out \|\| jsonb_build_object\('weeks', v_weeks\); end if;/);
+  assert.match(sql, /if v_weeks is not null then v_out := v_out \|\| jsonb_build_object\('weeks', v_weeks, 'firstWeek', v_first_week\); end if;/);
   assert.match(sql, /\nbegin;\nset local lock_timeout = '10s';\n/);
   assert.match(sql, /\$guard\$;\n\ncommit;\n$/);
   const guard = sql.slice(sql.indexOf('do $guard$'), sql.lastIndexOf('$guard$;'));

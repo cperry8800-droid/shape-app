@@ -15,9 +15,11 @@
 --   preview:   true
 --   blocks:    from `builder` (what delivery reads, planOutline.mjs), each named row as
 --              { week, day, dayName?, weekday?, name, equipment?, muscle?, text: name }, in
---              delivery order, at most 40, and `weeks`, how many weeks the builder holds (at
---              most 52), since 40 rows rarely reach the last one. With no builder, or an
---              outline-only one, the text
+--              delivery order, at most 40; `weeks`, how many weeks the builder holds (at most
+--              52), since 40 rows rarely reach the last one; and `firstWeek`, the first week
+--              with a named row as its days { week, day, dayName?, weekday?, moves }, counted
+--              past the 40 (so a first day of 40 moves still leaves its later days), within the
+--              same 400-row scan. With no builder, or an outline-only one, the text
 --              outline instead (`detail.blocks`, the first 40): a weekday line ("Mon — Push",
 --              its head a weekday and nothing else) or week line ("Week 3 — Peak") whole, as
 --              the structure; any other line cut to the exercise name before its separator.
@@ -104,6 +106,9 @@ declare
   v_muscle text;
   v_line text;
   v_weeks integer;
+  v_first integer;
+  v_last_day integer;
+  v_first_week jsonb := '[]'::jsonb;
   w record;
   d record;
   b record;
@@ -118,6 +123,8 @@ begin
     v_weeks := least(jsonb_array_length(v_builder->'weeks'), 52);
     <<rows>>
     for w in select e, n from jsonb_array_elements(v_builder->'weeks') with ordinality as x(e, n) where n <= 52 order by n loop
+      -- Past the first week with 40 rows kept, there is nothing left to keep or count.
+      exit rows when v_count >= 40 and v_first is not null;
       continue when jsonb_typeof(w.e) <> 'object' or jsonb_typeof(w.e->'days') <> 'array';
       for d in select e, n from jsonb_array_elements(w.e->'days') with ordinality as x(e, n) where n <= 14 order by n loop
         continue when jsonb_typeof(d.e) <> 'object' or jsonb_typeof(d.e->'blocks') <> 'array';
@@ -136,11 +143,23 @@ begin
             continue when v_name = '';
             v_equipment := case when jsonb_typeof(r.e->'equipment') = 'string' then public.sale_plan_program_clean(r.e->>'equipment', 60) else '' end;
             v_muscle := case when jsonb_typeof(r.e->'muscle') = 'string' then public.sale_plan_program_clean(r.e->>'muscle', 60) else '' end;
+            -- The first week's days, each with how many named moves it has.
+            if v_first is null then v_first := w.n - 1; end if;
+            if w.n - 1 = v_first then
+              if v_last_day is distinct from d.n - 1 then
+                v_first_week := v_first_week || jsonb_build_array(jsonb_strip_nulls(jsonb_build_object(
+                  'week', w.n - 1, 'day', d.n - 1, 'dayName', nullif(v_day_name, ''), 'weekday', v_weekday, 'moves', 1)));
+                v_last_day := d.n - 1;
+              else
+                v_first_week := jsonb_set(v_first_week, array[(jsonb_array_length(v_first_week) - 1)::text, 'moves'],
+                  to_jsonb((v_first_week->-1->>'moves')::integer + 1));
+              end if;
+            end if;
+            continue when v_count >= 40;
             v_blocks := v_blocks || jsonb_build_array(jsonb_strip_nulls(jsonb_build_object(
               'week', w.n - 1, 'day', d.n - 1, 'dayName', nullif(v_day_name, ''), 'weekday', v_weekday,
               'name', v_name, 'equipment', nullif(v_equipment, ''), 'muscle', nullif(v_muscle, ''), 'text', v_name)));
             v_count := v_count + 1;
-            exit rows when v_count >= 40;
           end loop;
         end loop;
       end loop;
@@ -186,7 +205,7 @@ begin
     'preview', true,
     'blocks', v_blocks,
     'media', case when v_video is null then '[]'::jsonb else jsonb_build_array(jsonb_build_object('type', 'video', 'url', v_video)) end || v_images);
-  if v_weeks is not null then v_out := v_out || jsonb_build_object('weeks', v_weeks); end if;
+  if v_weeks is not null then v_out := v_out || jsonb_build_object('weeks', v_weeks, 'firstWeek', v_first_week); end if;
   if jsonb_typeof(p_detail->'note') = 'string' then v_out := v_out || jsonb_build_object('note', p_detail->'note'); end if;
   if jsonb_typeof(p_detail->'buildType') = 'string' then v_out := v_out || jsonb_build_object('buildType', p_detail->'buildType'); end if;
   return v_out;
@@ -364,6 +383,7 @@ begin
     "blocks": [{"name": "Bench press", "sets": 3, "load": 61, "cue": "secret cue", "text": "Bench press — 3 × 8 · 61 kg"}],
     "media": [{"type": "video", "url": "https://clip.example/2"}, {"type": "image", "url": "https://img.example/1.jpg"}, {"url": "javascript:alert(1)"}]}'::jsonb);
   if v <> '{"preview": true, "buildType": "program", "note": "n", "weeks": 2,
+      "firstWeek": [{"week": 0, "day": 0, "dayName": "Push", "weekday": 0, "moves": 1}],
       "blocks": [{"week": 0, "day": 0, "dayName": "Push", "weekday": 0, "name": "Bench press", "equipment": "Barbell", "muscle": "Chest", "text": "Bench press"},
                  {"week": 1, "day": 0, "dayName": "Pull", "weekday": 2, "name": "Row: chest-supported", "text": "Row: chest-supported"}],
       "media": [{"type": "video", "url": "https://v.example/intro.mp4"}, {"type": "image", "url": "https://img.example/1.jpg"}]}'::jsonb then

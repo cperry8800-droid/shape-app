@@ -1660,7 +1660,7 @@ function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) 
         <span style={{ flexShrink: 0, minWidth: 46, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{u.label}</span>
         <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{u.title}</span>
       </div>
-      <div style={{ marginTop: 3, paddingLeft: 54, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.45, color: t.INK70 }}>{u.moves.join(' · ')}</div>
+      <div style={{ marginTop: 3, paddingLeft: 54, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.45, color: t.INK70 }}>{u.moves.concat(u.more > 0 ? [`＋${u.more}`] : []).join(' · ')}</div>
     </div>
   );
   const row = (u, i) => (Array.isArray(u.moves) ? dayRow(u, i) :

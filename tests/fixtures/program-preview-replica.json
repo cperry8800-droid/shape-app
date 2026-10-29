@@ -1376,7 +1376,30 @@
      }
     ],
     "preview": true,
-    "buildType": "program"
+    "buildType": "program",
+    "firstWeek": [
+     {
+      "day": 0,
+      "week": 0,
+      "moves": 3,
+      "dayName": "Push",
+      "weekday": 0
+     },
+     {
+      "day": 1,
+      "week": 0,
+      "moves": 2,
+      "dayName": "Pull",
+      "weekday": 2
+     },
+     {
+      "day": 2,
+      "week": 0,
+      "moves": 3,
+      "dayName": "Legs",
+      "weekday": 4
+     }
+    ]
    }
   },
   {
@@ -2177,7 +2200,30 @@
      }
     ],
     "preview": true,
-    "buildType": "program"
+    "buildType": "program",
+    "firstWeek": [
+     {
+      "day": 0,
+      "week": 0,
+      "moves": 3,
+      "dayName": "Push",
+      "weekday": 0
+     },
+     {
+      "day": 1,
+      "week": 0,
+      "moves": 2,
+      "dayName": "Pull",
+      "weekday": 2
+     },
+     {
+      "day": 2,
+      "week": 0,
+      "moves": 3,
+      "dayName": "Legs",
+      "weekday": 4
+     }
+    ]
    }
   },
   {
@@ -2470,7 +2516,25 @@
       "week": 2
      }
     ],
-    "preview": true
+    "preview": true,
+    "firstWeek": [
+     {
+      "day": 2,
+      "week": 2,
+      "moves": 2
+     },
+     {
+      "day": 3,
+      "week": 2,
+      "moves": 1,
+      "dayName": "Day"
+     },
+     {
+      "day": 4,
+      "week": 2,
+      "moves": 1
+     }
+    ]
    }
   },
   {
@@ -2915,7 +2979,15 @@
       "dayName": "All"
      }
     ],
-    "preview": true
+    "preview": true,
+    "firstWeek": [
+     {
+      "day": 0,
+      "week": 0,
+      "moves": 40,
+      "dayName": "All"
+     }
+    ]
    }
   },
   {
@@ -3379,7 +3451,775 @@
       "dayName": "All"
      }
     ],
-    "preview": true
+    "preview": true,
+    "firstWeek": [
+     {
+      "day": 0,
+      "week": 0,
+      "moves": 50,
+      "dayName": "All"
+     }
+    ]
+   }
+  },
+  {
+   "name": "a first day of 45 moves, then two shorter days, two weeks",
+   "kind": "program",
+   "detail": {
+    "builder": {
+     "weeks": [
+      {
+       "days": [
+        {
+         "name": "Long",
+         "weekday": 0,
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "L1"
+            },
+            {
+             "name": "L2"
+            },
+            {
+             "name": "L3"
+            },
+            {
+             "name": "L4"
+            },
+            {
+             "name": "L5"
+            },
+            {
+             "name": "L6"
+            },
+            {
+             "name": "L7"
+            },
+            {
+             "name": "L8"
+            },
+            {
+             "name": "L9"
+            },
+            {
+             "name": "L10"
+            },
+            {
+             "name": "L11"
+            },
+            {
+             "name": "L12"
+            },
+            {
+             "name": "L13"
+            },
+            {
+             "name": "L14"
+            },
+            {
+             "name": "L15"
+            },
+            {
+             "name": "L16"
+            },
+            {
+             "name": "L17"
+            },
+            {
+             "name": "L18"
+            },
+            {
+             "name": "L19"
+            },
+            {
+             "name": "L20"
+            },
+            {
+             "name": "L21"
+            },
+            {
+             "name": "L22"
+            },
+            {
+             "name": "L23"
+            },
+            {
+             "name": "L24"
+            },
+            {
+             "name": "L25"
+            }
+           ]
+          },
+          {
+           "rows": [
+            {
+             "name": "M1"
+            },
+            {
+             "name": "M2"
+            },
+            {
+             "name": "M3"
+            },
+            {
+             "name": "M4"
+            },
+            {
+             "name": "M5"
+            },
+            {
+             "name": "M6"
+            },
+            {
+             "name": "M7"
+            },
+            {
+             "name": "M8"
+            },
+            {
+             "name": "M9"
+            },
+            {
+             "name": "M10"
+            },
+            {
+             "name": "M11"
+            },
+            {
+             "name": "M12"
+            },
+            {
+             "name": "M13"
+            },
+            {
+             "name": "M14"
+            },
+            {
+             "name": "M15"
+            },
+            {
+             "name": "M16"
+            },
+            {
+             "name": "M17"
+            },
+            {
+             "name": "M18"
+            },
+            {
+             "name": "M19"
+            },
+            {
+             "name": "M20"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "name": "Short",
+         "weekday": 2,
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "S1"
+            },
+            {
+             "name": "S2"
+            },
+            {
+             "name": "S3"
+            },
+            {
+             "name": "S4"
+            },
+            {
+             "name": "S5"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "name": "Shorter",
+         "weekday": 4,
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "T1"
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": "T2"
+            },
+            {
+             "name": "T3"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "days": [
+        {
+         "name": "Long",
+         "weekday": 0,
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "L1"
+            },
+            {
+             "name": "L2"
+            },
+            {
+             "name": "L3"
+            },
+            {
+             "name": "L4"
+            },
+            {
+             "name": "L5"
+            },
+            {
+             "name": "L6"
+            },
+            {
+             "name": "L7"
+            },
+            {
+             "name": "L8"
+            },
+            {
+             "name": "L9"
+            },
+            {
+             "name": "L10"
+            },
+            {
+             "name": "L11"
+            },
+            {
+             "name": "L12"
+            },
+            {
+             "name": "L13"
+            },
+            {
+             "name": "L14"
+            },
+            {
+             "name": "L15"
+            },
+            {
+             "name": "L16"
+            },
+            {
+             "name": "L17"
+            },
+            {
+             "name": "L18"
+            },
+            {
+             "name": "L19"
+            },
+            {
+             "name": "L20"
+            },
+            {
+             "name": "L21"
+            },
+            {
+             "name": "L22"
+            },
+            {
+             "name": "L23"
+            },
+            {
+             "name": "L24"
+            },
+            {
+             "name": "L25"
+            }
+           ]
+          },
+          {
+           "rows": [
+            {
+             "name": "M1"
+            },
+            {
+             "name": "M2"
+            },
+            {
+             "name": "M3"
+            },
+            {
+             "name": "M4"
+            },
+            {
+             "name": "M5"
+            },
+            {
+             "name": "M6"
+            },
+            {
+             "name": "M7"
+            },
+            {
+             "name": "M8"
+            },
+            {
+             "name": "M9"
+            },
+            {
+             "name": "M10"
+            },
+            {
+             "name": "M11"
+            },
+            {
+             "name": "M12"
+            },
+            {
+             "name": "M13"
+            },
+            {
+             "name": "M14"
+            },
+            {
+             "name": "M15"
+            },
+            {
+             "name": "M16"
+            },
+            {
+             "name": "M17"
+            },
+            {
+             "name": "M18"
+            },
+            {
+             "name": "M19"
+            },
+            {
+             "name": "M20"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "name": "Short",
+         "weekday": 2,
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "S1"
+            },
+            {
+             "name": "S2"
+            },
+            {
+             "name": "S3"
+            },
+            {
+             "name": "S4"
+            },
+            {
+             "name": "S5"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "name": "Shorter",
+         "weekday": 4,
+         "blocks": [
+          {
+           "rows": [
+            {
+             "name": "T1"
+            },
+            {
+             "name": ""
+            },
+            {
+             "name": "T2"
+            },
+            {
+             "name": "T3"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "sql": {
+    "media": [],
+    "weeks": 2,
+    "blocks": [
+     {
+      "day": 0,
+      "name": "L1",
+      "text": "L1",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L2",
+      "text": "L2",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L3",
+      "text": "L3",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L4",
+      "text": "L4",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L5",
+      "text": "L5",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L6",
+      "text": "L6",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L7",
+      "text": "L7",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L8",
+      "text": "L8",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L9",
+      "text": "L9",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L10",
+      "text": "L10",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L11",
+      "text": "L11",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L12",
+      "text": "L12",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L13",
+      "text": "L13",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L14",
+      "text": "L14",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L15",
+      "text": "L15",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L16",
+      "text": "L16",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L17",
+      "text": "L17",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L18",
+      "text": "L18",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L19",
+      "text": "L19",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L20",
+      "text": "L20",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L21",
+      "text": "L21",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L22",
+      "text": "L22",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L23",
+      "text": "L23",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L24",
+      "text": "L24",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "L25",
+      "text": "L25",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M1",
+      "text": "M1",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M2",
+      "text": "M2",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M3",
+      "text": "M3",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M4",
+      "text": "M4",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M5",
+      "text": "M5",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M6",
+      "text": "M6",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M7",
+      "text": "M7",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M8",
+      "text": "M8",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M9",
+      "text": "M9",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M10",
+      "text": "M10",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M11",
+      "text": "M11",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M12",
+      "text": "M12",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M13",
+      "text": "M13",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M14",
+      "text": "M14",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 0,
+      "name": "M15",
+      "text": "M15",
+      "week": 0,
+      "dayName": "Long",
+      "weekday": 0
+     }
+    ],
+    "preview": true,
+    "firstWeek": [
+     {
+      "day": 0,
+      "week": 0,
+      "moves": 45,
+      "dayName": "Long",
+      "weekday": 0
+     },
+     {
+      "day": 1,
+      "week": 0,
+      "moves": 5,
+      "dayName": "Short",
+      "weekday": 2
+     },
+     {
+      "day": 2,
+      "week": 0,
+      "moves": 3,
+      "dayName": "Shorter",
+      "weekday": 4
+     }
+    ]
    }
   },
   {
@@ -3559,7 +4399,8 @@
     "media": [],
     "weeks": 3,
     "blocks": [],
-    "preview": true
+    "preview": true,
+    "firstWeek": []
    }
   },
   {
@@ -5027,7 +5868,8 @@
     "media": [],
     "weeks": 11,
     "blocks": [],
-    "preview": true
+    "preview": true,
+    "firstWeek": []
    }
   },
   {
@@ -5214,7 +6056,8 @@
     "media": [],
     "weeks": 52,
     "blocks": [],
-    "preview": true
+    "preview": true,
+    "firstWeek": []
    }
   },
   {
@@ -5297,7 +6140,14 @@
       "week": 0
      }
     ],
-    "preview": true
+    "preview": true,
+    "firstWeek": [
+     {
+      "day": 0,
+      "week": 0,
+      "moves": 1
+     }
+    ]
    }
   },
   {
@@ -5387,7 +6237,8 @@
     ],
     "weeks": 0,
     "blocks": [],
-    "preview": true
+    "preview": true,
+    "firstWeek": []
    }
   },
   {
@@ -5426,7 +6277,8 @@
     ],
     "weeks": 0,
     "blocks": [],
-    "preview": true
+    "preview": true,
+    "firstWeek": []
    }
   },
   {
