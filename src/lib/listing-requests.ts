@@ -103,6 +103,9 @@ export function joinedNotice(coach: string): { title: string; body: string; copy
 /** Asks read a page at a time when a claim tells the askers; ASKER_PAGES pages at most. */
 export const ASKER_PAGE = 1000;
 const ASKER_PAGES = 50;
+/** Notices written at once when a claim tells the askers (Codex on 78a478b: one at a time could
+ * outrun the claim's time with a few thousand askers). */
+export const ASKER_NOTICES_AT_ONCE = 10;
 
 /**
  * The listing has just been claimed for its coach: tell each member who asked for a time. Once per
@@ -130,16 +133,18 @@ export async function tellAskers(admin: SupabaseClient, role: CoachRole, provide
     const { data: listing } = await admin.from(role === 'nutritionist' ? 'nutritionists' : 'trainers').select('name').eq('id', providerId).maybeSingle();
     const coach = String((listing as { name?: string | null } | null)?.name || '').trim();
     const { copy, ...notice } = joinedNotice(coach);
+    const ids = [...members];
     let told = 0;
-    for (const memberId of members) {
-      const stored = await createNotification(admin, {
+    // ASKER_NOTICES_AT_ONCE at a time; a notice that fails doesn't stop the others.
+    for (let k = 0; k < ids.length; k += ASKER_NOTICES_AT_ONCE) {
+      const sent = await Promise.allSettled(ids.slice(k, k + ASKER_NOTICES_AT_ONCE).map((memberId) => createNotification(admin, {
         userId: memberId,
         type: 'listing_joined',
         ...notice,
         route: `coach:${role}:${providerId}`,
         data: { dedupe: `joined:${role}:${providerId}:${memberId}`, providerRole: role, providerId, side: 'client' },
-      }, copy);
-      if (stored) told += 1;
+      }, copy)));
+      told += sent.filter((r) => r.status === 'fulfilled' && r.value).length;
     }
     return told;
   } catch (err) {

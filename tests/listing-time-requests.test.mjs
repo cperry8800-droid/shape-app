@@ -86,7 +86,17 @@ async function load() {
   const nextServer = require('next/server');
   const ts = (f, registry = new Map()) => loadRealModule(join(ROOT, f), { typescript: true, registry });
   const requestUtils = await ts('src/lib/request-utils.ts', new Map([['next/server', nextServer]]));
-  const notify = { createNotification: async (_c, n, copy) => { current.notes.push({ ...n, copy: copy || null }); return true; } };
+  // A notice takes a tick to write; `current.sending` counts those in flight, `current.failFor` makes
+  // one member's notice throw.
+  const notify = { createNotification: async (_c, n, copy) => {
+    current.sending = (current.sending || 0) + 1;
+    current.mostAtOnce = Math.max(current.mostAtOnce || 0, current.sending);
+    await new Promise((r) => setTimeout(r, 0));
+    current.sending -= 1;
+    if (current.failFor && n.userId === current.failFor) throw new Error('insert failed');
+    current.notes.push({ ...n, copy: copy || null });
+    return true;
+  } };
   const asks = await ts('src/lib/listing-requests.ts', new Map([
     ['@/lib/notify', notify],
     ['@/lib/payment-notices', { ownerAccountIds: async () => OWNERS }],
@@ -254,6 +264,14 @@ test('Codex on 126c626: a claim tells every member who asked, however many asks 
   current = world({ trainers: [LEAH], asks: many.slice(0, 1000) });
   assert.equal(await asks.tellAskers(current, 'trainer', 7), 1000);
   assert.equal(current.reads.filter((r) => r.table === 'listing_time_requests').length, 2);
+  // Ten notices are written at once, never one by one or all at once (Codex on 78a478b), and a
+  // notice that throws doesn't stop the rest.
+  current = world({ trainers: [LEAH], asks: many.slice(0, 1000) });
+  current.failFor = 'm3';
+  assert.equal(await asks.tellAskers(current, 'trainer', 7), 999);
+  assert.equal(asks.ASKER_NOTICES_AT_ONCE, 10);
+  assert.equal(current.mostAtOnce, 10);
+  assert.ok(!current.notes.some((n) => n.userId === 'm3'));
   // A later page that fails tells nobody, not just the first page's members.
   current = world({ trainers: [LEAH], asks: many, fail: { 'listing_time_requests:from1000': true } });
   assert.equal(await asks.tellAskers(current, 'trainer', 7), 0);
