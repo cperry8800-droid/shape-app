@@ -11,7 +11,9 @@
 //           forward) — so a coach "push to client" shows up on the client's
 //           calendar automatically, no duplicate event rows to drift.
 //      RLS scopes all of it: a coach may pass ?clientId to view a client's
-//      calendar (and sees only the plan rows they authored).
+//      calendar: that client's bookings, the plan rows they authored, and, on a
+//      client they share with a coach of the other discipline, that coach's
+//      workouts or menu too (`by` names the coach; see `clientView`).
 //
 //      ⚠ A BOOKING'S `date` AND `time` ARE A WALL CLOCK IN `zone`, AND THE RESPONSE NAMES IT.
 //      Sessions are stored as real instants; until 2026-10-07 this route read them back with
@@ -98,6 +100,20 @@ async function calendarZone(supabase: Supa, userId: string, sentTz: string | nul
   return normalizeZone(sentTz) ?? 'UTC';
 }
 
+// The caller's own listings, as "<role>:<id>": in a client's view, a booking that is not one of
+// these belongs to the other coach on the client, and /api/sessions/manage would refuse its move.
+// A failed read owns nothing, so no booking is offered to move.
+async function callerListings(supabase: Supa, userId: string): Promise<Set<string>> {
+  const [trainers, nutritionists] = await Promise.all([
+    supabase.from('trainers').select('id').eq('owner_id', userId),
+    supabase.from('nutritionists').select('id').eq('owner_id', userId),
+  ]);
+  const own = new Set<string>();
+  for (const r of (trainers.data ?? []) as { id: number }[]) own.add(`trainer:${r.id}`);
+  for (const r of (nutritionists.data ?? []) as { id: number }[]) own.add(`nutritionist:${r.id}`);
+  return own;
+}
+
 // A calendar date `days` away, by the calendar rather than by 24-hour steps.
 function shiftDate(iso: string, days: number): string {
   const [y, m, d] = iso.split('-').map(Number);
@@ -138,6 +154,12 @@ export async function GET(request: Request) {
   const to = clean(url.searchParams.get('to'), 10);
   const clientId = clean(url.searchParams.get('clientId'), 64);
   const targetUserId = clientId || user.id;
+  // A coach's view of one client's calendar. A trainer and a nutritionist who share the client
+  // each see both schedules here (owner, 2026-10-29): RLS gives a coach only the workouts or menu
+  // they wrote, so the other discipline's come from get_shared_client_workouts and
+  // get_shared_client_meal_plan (2026-10-29-shared-client-schedules.sql), definers that answer only
+  // a coach of the other discipline on this client, and only with what the calendar draws.
+  const clientView = !!clientId && clientId !== user.id;
 
   // Wide default window if not provided: ±60 days around today.
   const today = new Date();
@@ -153,7 +175,9 @@ export async function GET(request: Request) {
     .lte('event_date', dTo)
     .order('event_date', { ascending: true });
 
-  const events = ((evRows ?? []) as EventRow[]).map(shape);
+  // In a coach's view of a client, the member's own entries and the other coach's are shown, not
+  // moved or deleted: only what this coach put on the calendar stays editable.
+  const events = ((evRows ?? []) as EventRow[]).map((r) => (clientView && r.created_by !== user.id ? { ...shape(r), editable: false } : shape(r)));
 
   // 2) sessions (coaching bookings) merged read-only.
   // ⚠ THE WINDOW IS A RANGE OF THE ZONE'S DATES, NOT OF UTC ONES. A UTC-bounded read drops a
@@ -181,12 +205,17 @@ export async function GET(request: Request) {
     if (providerError || !provider) return NextResponse.json({ error: 'Working hours unavailable.' }, { status: 503 });
     sessionQuery = sessionQuery.eq('provider_role', capacityRole).eq('provider_id', provider.id).limit(1000);
   }
+  // A client's calendar holds that client's bookings. RLS hands a coach every booking they have,
+  // with every client, so without this a coach's view of one client listed all of them.
+  if (clientId && !capacityRole) sessionQuery = sessionQuery.eq('client_id', clientId);
   const { data: sessRows, error: sessionsError } = await sessionQuery;
   if (capacityRole && sessionsError) return NextResponse.json({ error: 'Bookings could not be read.' }, { status: 503 });
   if (capacityRole && sessRows && sessRows.length >= 1000) return NextResponse.json({ error: 'Booking window is too large to measure capacity.' }, { status: 503 });
+  // The other coach's bookings on this client (shared_coach_reads_sessions) are shown, not acted on.
+  const ownListings = clientView ? await callerListings(supabase, user.id) : null;
 
   type SessRow = {
-    id: string; client_id: string | null; provider_role: string; type: string; scheduled_at: string;
+    id: string; client_id: string | null; provider_role: string; provider_id?: number | null; type: string; scheduled_at: string;
     duration_min: number | null; status: string; topic: string | null; meeting_url: string | null;
     series_id?: string | null;
   };
@@ -217,6 +246,9 @@ export async function GET(request: Request) {
   }
 
   const sessions = placed.map(({ s, wall: { date, time } }) => {
+    // In a client's view, a booking with the other coach on the client: shown, never confirmed,
+    // completed or moved from here (`mine: false`), as /api/sessions/manage would refuse it.
+    const mine = !ownListings || ownListings.has(`${s.provider_role}:${s.provider_id}`);
     return {
       id: `session:${s.id}`,
       sessionId: s.id,
@@ -239,7 +271,8 @@ export async function GET(request: Request) {
       // ONLY while the session is still active/upcoming. A completed (or
       // declined/cancelled) booking is never draggable.
       editable: false,
-      reschedulable: isSessionReschedulable(s.status),
+      reschedulable: isSessionReschedulable(s.status) && mine,
+      ...(mine ? {} : { mine: false }),
       // ⚠ THE CALLER IS THE CLIENT ON THIS ONE. RLS returns a session to its client as well as
       // to its coach, so a coach who is also somebody else's member gets their own bookings in
       // this list. The Schedule answers requests and moves bookings from here (2026-10-07), and
@@ -261,7 +294,11 @@ export async function GET(request: Request) {
   //    so they show on the calendar exactly as they do on Home. (The old
   //    `scheduled_date IS NOT NULL` filter hid every undated workout — the cause
   //    of "Home shows my plan but the calendar is empty".) Read-only here.
-  type CwRow = { id: string; title: string; description: string | null; payload: Record<string, unknown> | null; scheduled_date: string | null };
+  // `exerciseCount` and `by` ride on a row from the other discipline's coach: its payload is not
+  // read whole, and the calendar names the trainer who planned it.
+  type CwRow = { id: string; title: string; description: string | null; payload: Record<string, unknown> | null; scheduled_date: string | null; exerciseCount?: number; by?: string | null };
+  // A finished run of an assigned workout (workout_sessions), read below.
+  type WsRow = { client_workout_id: string | null; duration_seconds: number | null; started_at: string | null; ended_at: string | null; created_at: string | null; local_day: string | null };
   const { data: cwRows } = await supabase
     .from('client_workouts')
     .select('id, title, description, payload, scheduled_date')
@@ -276,9 +313,35 @@ export async function GET(request: Request) {
     .order('scheduled_date', { ascending: false, nullsFirst: true })
     .limit(PLAN_CAP);
 
+  // The trainer's workouts for a nutritionist on this client, with each one's finished runs (a
+  // nutritionist can't read workout_sessions). A failed read, or a database without the function,
+  // shows the calendar as before.
+  const workoutRows: CwRow[] = ((cwRows ?? []) as CwRow[]).slice();
+  const sharedRuns: WsRow[] = [];
+  if (clientView) {
+    type SharedWorkout = {
+      id: string; title: string; description: string | null; scheduled_date: string | null;
+      duration: string | null; plan_time: string | null; exercise_count: number | null; trainer_name: string | null; runs: unknown;
+    };
+    const { data: shared, error: sharedError } = await supabase.rpc('get_shared_client_workouts', { p_client_id: clientId });
+    if (sharedError) console.warn('[calendar] the other coach\'s workouts were not read:', sharedError.message);
+    const seen = new Set(workoutRows.map((w) => w.id));
+    for (const r of (shared ?? []) as SharedWorkout[]) {
+      if (!r?.id || seen.has(r.id)) continue;
+      seen.add(r.id);
+      workoutRows.push({
+        id: r.id, title: r.title, description: r.description, scheduled_date: r.scheduled_date,
+        payload: { duration: r.duration, time: r.plan_time },
+        exerciseCount: Number(r.exercise_count) || 0,
+        by: r.trainer_name || null,
+      });
+      for (const run of (Array.isArray(r.runs) ? r.runs : []) as Omit<WsRow, 'client_workout_id'>[]) sharedRuns.push({ ...run, client_workout_id: r.id });
+    }
+  }
+
   const mkWorkout = (w: CwRow, dateStr: string) => {
     const payload = (w.payload && typeof w.payload === 'object') ? w.payload : null;
-    const exCount = Array.isArray(payload?.exercises) ? (payload!.exercises as unknown[]).length : 0;
+    const exCount = Array.isArray(payload?.exercises) ? (payload!.exercises as unknown[]).length : (w.exerciseCount ?? 0);
     const durMatch = payload?.duration != null ? String(payload.duration).match(/\d+/) : null;
     const timeRaw = payload?.time != null ? String(payload.time) : '';
     return {
@@ -294,6 +357,7 @@ export async function GET(request: Request) {
       status: 'planned',
       createdByRole: 'trainer',
       editable: false,
+      ...(w.by ? { by: w.by } : {}),
     };
   };
 
@@ -311,7 +375,7 @@ export async function GET(request: Request) {
   const undatedW: CwRow[] = [];
   // Back to the order the slotting below was written for: dated ascending, undated last
   // in read order (the sort is stable, so equal keys keep it).
-  const planRows = ((cwRows ?? []) as CwRow[]).slice().sort((a, b) => {
+  const planRows = workoutRows.slice().sort((a, b) => {
     if (!a.scheduled_date && !b.scheduled_date) return 0;
     if (!a.scheduled_date) return 1;
     if (!b.scheduled_date) return -1;
@@ -348,7 +412,6 @@ export async function GET(request: Request) {
   // When each finished workout's session started: a synced copy of it folds into its card (3b).
   const doneAt: DoneWorkout[] = [];
   if (planIds.length) {
-    type WsRow = { client_workout_id: string | null; duration_seconds: number | null; started_at: string | null; ended_at: string | null; created_at: string | null; local_day: string | null };
     const { data: wsRows } = await supabase
       .from('workout_sessions')
       .select('client_workout_id, duration_seconds, started_at, ended_at, created_at, local_day:summary->>snapshotDate')
@@ -359,8 +422,15 @@ export async function GET(request: Request) {
       // #2457). Reaching it takes years of one undated workout repeated.
       .order('created_at', { ascending: false })
       .limit(1000);
+    // The other trainer's workouts bring their runs with them (sharedRuns, above); merged back into
+    // one newest-first list, so the rule below reads them as it reads the coach's own.
+    const planned = new Set(planIds);
+    const runs = sharedRuns.length
+      ? [...((wsRows ?? []) as WsRow[]), ...sharedRuns.filter((r) => planned.has(String(r.client_workout_id)))]
+        .sort((a, b) => (Date.parse(String(b.created_at ?? '')) || 0) - (Date.parse(String(a.created_at ?? '')) || 0))
+      : (wsRows ?? []) as WsRow[];
     const doneSec = new Map<string, number>();
-    for (const r of (wsRows ?? []) as WsRow[]) {
+    for (const r of runs) {
       const id = r.client_workout_id;
       if (!id) continue;
       const at = Date.parse(String(r.started_at || r.ended_at || r.created_at || ''));
@@ -435,7 +505,21 @@ export async function GET(request: Request) {
 
   type MenuMeal = { slot?: unknown; title?: unknown; time?: unknown; kcal?: unknown };
   type MenuDay = { dow?: unknown; meals?: MenuMeal[] };
-  const mp = (mpRows ?? [])[0] ?? null;
+  type MpRow = { id: string; title: string; week_start: string | null; payload: unknown };
+  let mp: MpRow | null = ((mpRows ?? []) as MpRow[])[0] ?? null;
+  // The nutritionist's menu for a trainer on this client: the newest published one of a
+  // nutritionist who coaches them now, each meal's slot, title, time and kcal (no ingredients,
+  // steps or notes). A failed read shows no menu, as before.
+  let menuBy: string | null = null;
+  if (!mp && clientView) {
+    const { data: sharedMenu, error: menuError } = await supabase.rpc('get_shared_client_meal_plan', { p_client_id: clientId });
+    if (menuError) console.warn('[calendar] the other coach\'s menu was not read:', menuError.message);
+    const row = ((sharedMenu ?? []) as Array<MpRow & { nutritionist_name: string | null }>)[0];
+    if (row?.id) {
+      mp = { id: row.id, title: row.title, week_start: row.week_start, payload: row.payload };
+      menuBy = row.nutritionist_name || null;
+    }
+  }
   const menuDays: MenuDay[] = mp && mp.payload && Array.isArray((mp.payload as Record<string, unknown>).days)
     ? ((mp.payload as Record<string, unknown>).days as MenuDay[])
     : [];
@@ -476,6 +560,7 @@ export async function GET(request: Request) {
           status: 'planned',
           createdByRole: 'nutritionist',
           editable: false,
+          ...(menuBy ? { by: menuBy } : {}),
         });
       });
       cursor.setUTCDate(cursor.getUTCDate() + 1);

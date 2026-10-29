@@ -330,7 +330,8 @@ test('the website\'s member calendar overlay sends its zone too', () => {
   // The fourth reader of /api/calendar. It only displays, so the zone it sends is the whole fix.
   const shell = readFileSync(join(ROOT, 'public/newdesign/pageShell.jsx'), 'utf8');
   const overlay = between(shell, 'function CalendarOverlay(', 'React.useEffect(() => { reload(); }, [reload]);');
-  assert.match(overlay, /fetch\(`\/api\/calendar\?from=\$\{from\}&to=\$\{to\}&tz=\$\{encodeURIComponent\(tz\)\}\$\{coachRole\}`/,
+  // (`forClient` is a coach's view of one client, 2026-10-29: the zone rides along all the same.)
+  assert.match(overlay, /fetch\(`\/api\/calendar\?from=\$\{from\}&to=\$\{to\}&tz=\$\{encodeURIComponent\(tz\)\}\$\{coachRole\}\$\{forClient\}`/,
     'the overlay reads the calendar without a zone, so it gets UTC');
   assert.match(overlay, /tz = Intl\.DateTimeFormat\(\)\.resolvedOptions\(\)\.timeZone/, 'the overlay no longer sends the browser zone');
 });

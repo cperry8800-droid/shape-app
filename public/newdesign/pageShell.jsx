@@ -2249,7 +2249,10 @@ function fmtWeekRange(s) {
   return `${sm} – ${em}, ${e.getFullYear()}`;
 }
 
-function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDate = null }) {
+// With `clientId`, a coach's view of one client's calendar (the coach client page's "See both
+// schedules"): that client's bookings, the plan rows this coach wrote and, on a client shared with a
+// coach of the other discipline, that coach's workouts or menu too (/api/calendar). Read only.
+function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDate = null, clientId = null, clientName = null }) {
   // Anchor to the real today unless an explicit anchorDate is passed (kept for
   // demos/tests). Normalize to local midnight so the "today" highlight is exact.
   const today = React.useMemo(() => {
@@ -2277,11 +2280,12 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
     let tz = "";
     try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) { tz = ""; }
     const coachRole = role === "trainer" || role === "nutritionist" ? `&role=${role}` : "";
-    fetch(`/api/calendar?from=${from}&to=${to}&tz=${encodeURIComponent(tz)}${coachRole}`, { credentials: "same-origin" })
+    const forClient = clientId ? `&clientId=${encodeURIComponent(clientId)}` : "";
+    fetch(`/api/calendar?from=${from}&to=${to}&tz=${encodeURIComponent(tz)}${coachRole}${forClient}`, { credentials: "same-origin" })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (d && Array.isArray(d.events)) setServerEvents(d.events); })
       .catch(() => {});
-  }, [open, monthKey, role]);
+  }, [open, monthKey, role, clientId]);
   React.useEffect(() => { reload(); }, [reload]);
 
   // Server events win when present; otherwise the static prop events show.
@@ -2305,7 +2309,9 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
   const setViewAndClose = (v) => { setSelected(null); setView(v); };
   const goToday = () => { setSelected(null); setCursor(today); };
 
-  const roleLabel = { client: "My calendar", trainer: "Coaching calendar", nutritionist: "Nutrition calendar" }[role] || "Calendar";
+  const roleLabel = clientId
+    ? `Calendar · ${clientName || "Client"}`
+    : ({ client: "My calendar", trainer: "Coaching calendar", nutritionist: "Nutrition calendar" }[role] || "Calendar");
 
   return (
     <div role="dialog" aria-modal="true"
@@ -2342,7 +2348,7 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
               <button onClick={() => shift(-1)} style={navArrowStyle}>‹</button>
               <button onClick={() => shift(1)} style={navArrowStyle}>›</button>
             </div>
-            {live && (
+            {live && !clientId && (
               <button onClick={() => setAdding(true)} style={{ background: TEAL, color: "var(--sh-deep, #06231f)", border: 0, padding: "7px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.02em" }}>+ Add</button>
             )}
             <button onClick={onClose} aria-label="Close" style={{ background: "transparent", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", border: 0, fontSize: 22, padding: "2px 10px", cursor: "pointer", marginLeft: 6 }}>×</button>
@@ -2351,7 +2357,7 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
 
         {/* Legend */}
         <div style={{ display: "flex", gap: 18, padding: "12px 28px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", flexWrap: "wrap" }}>
-          {legendForRole(role).map(k => (
+          {(clientId ? ["WORKOUT", "MEAL", "SESSION", "CONSULT"] : legendForRole(role)).map(k => (
             <div key={k} style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11.5, fontFamily: sans, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.65)" }}>
               <span style={{ width: 9, height: 9, borderRadius: 2, background: KIND_COLORS[k] }} />
               {KIND_LABEL[k]}
@@ -2362,7 +2368,8 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
         {/* Body */}
         {view === "week" ? <WeekView start={startOfWeek(cursor)} byDate={byDate} today={today} onSelect={setSelected} /> : <MonthView cursor={cursor} byDate={byDate} today={today} onSelect={setSelected} />}
 
-        {selected && <EventPopover selection={selected} role={role} onClose={() => setSelected(null)} onChanged={reload} />}
+        {/* A client's calendar offers no role actions: the other coach's items are theirs. */}
+        {selected && <EventPopover selection={selected} role={clientId ? "viewer" : role} onClose={() => setSelected(null)} onChanged={reload} />}
         {adding && <CalAddForm defaultDate={ymd(cursor)} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); reload(); }} />}
       </div>
     </div>
@@ -2636,8 +2643,14 @@ function EventPopover({ selection, role, onClose, onChanged }) {
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{fmtTimeRange(e.time, e.duration != null ? e.duration : e.durationMin)}</div>
       </div>
 
-      {(e.sub || e.with || e.location) && (
+      {(e.sub || e.with || e.location || e.by) && (
         <div style={{ padding: "12px 18px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "grid", gap: 6 }}>
+          {e.by && (
+            <div style={{ display: "flex", gap: 10, fontSize: 12.5 }}>
+              <span style={{ color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", width: 56, flexShrink: 0 }}>By</span>
+              <span>{e.by}</span>
+            </div>
+          )}
           {e.with && (
             <div style={{ display: "flex", gap: 10, fontSize: 12.5 }}>
               <span style={{ color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", width: 56, flexShrink: 0 }}>With</span>

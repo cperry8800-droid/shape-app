@@ -4870,6 +4870,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [showAdjustPage, setShowAdjustPage] = useStateBSP(false);
   const [showWorkoutWatch, setShowWorkoutWatch] = useStateBSP(false);
   const [showSchedulePage, setShowSchedulePage] = useStateBSP(false);
+  // The client's calendar with both coaches' plans (CARE TEAM's "See both schedules").
+  const [showClientCalendar, setShowClientCalendar] = useStateBSP(false);
   const [showAssignPage, setShowAssignPage] = useStateBSP(false);
   const [showDraft, setShowDraft] = useStateBSP(false);
   const [showReconcile, setShowReconcile] = useStateBSP(false);
@@ -5128,6 +5130,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   if (showWorkoutWatch) return <BSProLiveWatch key={clientUid} client={client.n} clientId={clientUid} role={role} onBack={()=>setShowWorkoutWatch(false)} />;
   if (showAdjustPage) return <BSProAdjustProgram client={client} role={role} clientUid={clientUid} onBack={() => setShowAdjustPage(false)} />;
   if (showSchedulePage) return <BSProScheduleSession client={client} role={role} clientUid={clientUid} onBack={() => setShowSchedulePage(false)} />;
+  if (showClientCalendar && clientUid && BSCalendarScreen) return <BSCalendarScreen role={role} clientId={clientUid} clientName={client.n || null} onBack={() => setShowClientCalendar(false)} />;
   if (showAssignPage) return <BSProAssignPage role={role} client={client} clientUid={clientUid} onBack={() => setShowAssignPage(false)} onDone={() => setShowAssignPage(false)} />;
   // Source reconciliation for THIS client (data-quality check) — the shared
   // client-bundle view, scoped to the client's id (RLS re-checks is_coach_on_client).
@@ -6014,6 +6017,13 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             );
           })}
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.coordinatePlan', { defaultValue: "Coordinate {name}'s plan with the rest of the care team", name: first })}</div>
+          {/* Both schedules (owner, 2026-10-29): with a coach of the other discipline on the client,
+              the client's calendar carries that coach's workouts or menu beside this coach's own. */}
+          {careTeam.some((c) => c.role && c.role !== role) && (
+            <button type="button" onClick={() => setShowClientCalendar(true)} style={{ marginTop: 10, minHeight: 44, width: '100%', background: 'transparent', border: `1px solid ${t.INK}`, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>
+              {tr('coach:case.seeBothSchedules', { defaultValue: 'See both schedules →' })}
+            </button>
+          )}
         </div>
       )}
 
