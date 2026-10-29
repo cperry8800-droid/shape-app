@@ -137,7 +137,9 @@ test('BS_AISLE_KEY covers every aisle token the code can produce', () => {
   // 2. The builder's own table + the pill list it renders.
   const buildTable = region(/^const BS_BUILDER_AISLE_RE/, /^\];/);
   for (const m of buildTable.matchAll(/\['([^']+)'\s*,/g)) emitted.add(m[1]);
-  const pills = code.match(/const AISLES = \[([^\]]+)\]/);
+  // The builder itself moved to its own module when it was redesigned (2026-10-29), its keys with it.
+  const builder = stripComments(fs.readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/BSGroceryBuilder.jsx'), 'utf8'));
+  const pills = builder.match(/const AISLES = \[([^\]]+)\]/);
   assert.ok(pills, 'the builder AISLES pill list is gone — re-point this guard');
   for (const m of pills[1].matchAll(/'([^']+)'/g)) emitted.add(m[1]);
   // 3. The two the normalizer stamps on a recipe / library list.
@@ -229,17 +231,23 @@ test('nothing that STORES or KEYS an aisle stores a label', () => {
 test('every place a member READS an aisle routes through bsAisleLabel', () => {
   // The render sites: Shop by aisle's strip (each stop, and so its aria-label), the
   // aisle being walked and the next one (2026-10-11 — these replaced the old
-  // collapsible checklist headers), the builder's pills and its per-item line, and
-  // the Eat door's meta line.
+  // collapsible checklist headers), the Eat door's meta line, and the builder's keys
+  // and aisle heads.
   const sites = [
     [/const name = bsAisleLabel\(list\.aisles\[s\.ai\]\.aisle, TG\)/, "Shop by aisle's strip of aisles"],
     [/const label = bsAisleLabel\(list\.aisles\[cur\.ai\]\.aisle, TG\)/, 'the aisle being walked'],
     [/>\{bsAisleLabel\(list\.aisles\[next\.ai\]\.aisle, TG\)\}</, 'the next aisle'],
-    [/>\{bsAisleLabel\(al, TB\)\}</, "the builder's aisle pills"],
-    [/>\{bsAisleLabel\(it\.aisle, TB\)\}</, "the builder's per-item aisle line"],
     [/map\(a => bsAisleLabel\(a\.aisle, TA\)\)/, "the Eat tab's shop-list door"],
   ];
   for (const [re, what] of sites) assert.match(code, re, `${what} renders the raw token instead of the label`);
+  // The builder (BSGroceryBuilder.jsx since its redesign, 2026-10-29): its aisle keys, and the head of
+  // each aisle its items are listed under (which replaced the per-item aisle line).
+  const builder = stripComments(fs.readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/BSGroceryBuilder.jsx'), 'utf8'));
+  for (const [re, what] of [
+    [/>\{bsAisleLabel\(al, TB\)\}</, "the builder's aisle keys"],
+    [/>\{bsAisleLabel\(g\.al, TB\)\}</, "the builder's aisle heads"],
+  ]) assert.match(builder, re, `${what} renders the raw token instead of the label`);
+  assert.doesNotMatch(builder, />\{(?:al|g\.al|it\.aisle)\}</, 'the builder renders a raw aisle token');
 });
 
 // ── No case transform runs over translated text ─────────────────────────────
