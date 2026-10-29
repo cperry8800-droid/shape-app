@@ -275,7 +275,9 @@ function _bsMapServerCalEvent(ev, t, zone = null) {
     title: ev.title || '',
     // false: the title is only the provider's type, said in the member's language on screen.
     named: typeof ev.named === 'boolean' ? ev.named : null,
-    sub: ev.sub || '',
+    // A coach's view of a shared client: the other coach's workout or meal names who planned it.
+    sub: [ev.sub, typeof ev.by === 'string' ? ev.by : ''].filter(Boolean).join(' · '),
+    by: typeof ev.by === 'string' && ev.by ? ev.by : null,
     accent: accents[ev.kind] || t.RUST,
     state: ev.status === 'done' || ev.status === 'completed' ? 'done' : undefined,
     // A finished assigned workout carries the time it took (the Weeks view reads it).
@@ -295,6 +297,8 @@ function _bsMapServerCalEvent(ev, t, zone = null) {
     sessionId: ev.sessionId || null,
     status: ev.status || null,
     reschedulable: ev.reschedulable !== false,
+    // false: another coach's booking with this client, shown in a shared client's calendar only.
+    mine: ev.mine !== false,
     // The zone the route placed `date`/`time` in (its response names it). A reschedule
     // hands it back, so the wall clock it keeps is read on the clock it was shown on.
     zone: zone || null,
@@ -322,9 +326,13 @@ function bsCalViewPref() {
   try { return localStorage.getItem(_BS_CAL_VIEW_KEY) === 'weeks' ? 'weeks' : 'month'; } catch (e) { return 'month'; }
 }
 
-function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', onBack, clientId = null, initialDate = null }) {
+// With `clientId`, a coach's view of one client's calendar (the client page's "See both schedules"):
+// that client's bookings, the plan rows this coach wrote and, on a client shared with a coach of the
+// other discipline, theirs too (/api/calendar). Read only: nothing is added from here.
+function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', onBack, clientId = null, clientName = null, initialDate = null }) {
   const t = useBSCal();
   const tr = useShapeTr();
+  const forClient = !!clientId;
   const isLoggedInNow = () => !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
   const [loggedIn, setLoggedIn] = useStateBSCal(isLoggedInNow);
   // The day to open on: a day tapped in Home's week (initialDate), else today.
@@ -440,10 +448,17 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   return (
     <BSPageCal>
       <BSPageHeaderCal
-        kicker={tr('calendar:view.kicker', { defaultValue: 'Section · Calendar' })}
+        kicker={forClient
+          ? tr('calendar:client.kicker', { defaultValue: 'Calendar · {name}', name: clientName || tr('calendar:client.fallbackName', { defaultValue: 'Client' }) })
+          : tr('calendar:view.kicker', { defaultValue: 'Section · Calendar' })}
         trailing={trailing}
         onBack={onBack}
       />
+      {forClient && (
+        <div style={{ padding: `4px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>
+          {tr('calendar:client.note', { defaultValue: 'Both coaches’ plans: training, meals and bookings. Read only.' })}
+        </div>
+      )}
 
       {/* Month | Weeks — the house's pill switch (as on the leaderboards). */}
       <div style={{ padding: `10px ${t.padX}px ${useServer && view === 'month' ? 0 : 10}px` }}>
@@ -461,8 +476,9 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         </div>
       </div>
 
-      {/* In Weeks, each day from today on carries its own ＋ Add. */}
-      {useServer && view === 'month' && (
+      {/* In Weeks, each day from today on carries its own ＋ Add. A client's calendar adds nothing:
+          an event added here would land on the coach's own calendar. */}
+      {useServer && view === 'month' && !forClient && (
         <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
           <button onClick={() => { setAddOn(null); setShowAdd(true); }} style={{
             width: '100%', padding: '11px 0', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
@@ -483,7 +499,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
           timeLabel={bsCalTimeLabel}
           onOpen={openEvent}
           onOpenDay={(d) => sheet && sheet.open(<BSCalDaySheet date={d} events={weekEvents.filter((e) => e.date === bsCalIso(d))} onOpen={openEvent} />)}
-          onAdd={useServer ? (d) => { setAddOn(d); setShowAdd(true); } : null}
+          onAdd={useServer && !forClient ? (d) => { setAddOn(d); setShowAdd(true); } : null}
         />
       ) : (
       <BSCalendarMonth
@@ -841,8 +857,9 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
   // complete/reschedule actions write through /api/sessions/manage (the route
   // re-checks coach ownership server-side). The accountability cron reads
   // status='completed' (award_session_kept), so Mark complete is a real signal.
+  // Not the other coach's booking on a shared client (`mine` false): /api/sessions/manage refuses it.
   const coachSession = live && event.source === 'session' && !!event.sessionId
-    && (role === 'trainer' || role === 'nutritionist');
+    && (role === 'trainer' || role === 'nutritionist') && event.mine !== false;
   // Done is a fact about the past: Mark complete waits for the session to start, as the website's
   // Mark done does and /api/sessions/manage requires (Codex on #2370).
   const sessionStarted = Number.isFinite(Date.parse(event.scheduledAt)) && Date.parse(event.scheduledAt) <= Date.now();

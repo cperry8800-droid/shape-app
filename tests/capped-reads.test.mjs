@@ -152,7 +152,11 @@ test('the reads that were flipped re-sort for their consumers rather than return
   assert.match(client, /const bookedRows = \(bookedAll \?\? \[\]\)\s*\n\s*\.slice\(\)\s*\n\s*\.sort\(/);
   assert.match(client, /weighIns: \(weighRows \?\? \[\]\)\.slice\(\)\.reverse\(\)/);
   assert.match(reads('sessions/manage/route.ts'), /const rows = \(\(data \?\? \[\]\) as SessionRow\[\]\)\s*\n\s*\.slice\(\)\s*\n\s*\.sort\(/);
-  assert.match(reads('calendar/route.ts'), /const planRows = \(\(cwRows \?\? \[\]\) as CwRow\[\]\)\.slice\(\)\.sort\(/);
+  // The newest-first read, with the other trainer's workouts on a shared client added to it
+  // (2026-10-29), is copied and re-sorted before the slotting.
+  const calendar = reads('calendar/route.ts');
+  assert.match(calendar, /const workoutRows: CwRow\[\] = \(\(cwRows \?\? \[\]\) as CwRow\[\]\)\.slice\(\);/);
+  assert.match(calendar, /const planRows = workoutRows\.slice\(\)\.sort\(/);
   // the message route reverses ONLY the cold load — an incremental poll is already ascending
   assert.match(reads('conversations/[id]/messages/route.ts'), /const messages = incremental \? \(data \?\? \[\]\) : \(data \?\? \[\]\)\.slice\(\)\.reverse\(\);/);
 });
