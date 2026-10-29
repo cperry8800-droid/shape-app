@@ -1153,6 +1153,7 @@
       "type": "image"
      }
     ],
+    "weeks": 3,
     "blocks": [
      {
       "day": 0,
@@ -1953,6 +1954,7 @@
       "type": "video"
      }
     ],
+    "weeks": 3,
     "blocks": [
      {
       "day": 0,
@@ -2439,6 +2441,7 @@
       "type": "image"
      }
     ],
+    "weeks": 3,
     "blocks": [
      {
       "day": 2,
@@ -2629,6 +2632,7 @@
    },
    "sql": {
     "media": [],
+    "weeks": 1,
     "blocks": [
      {
       "day": 0,
@@ -3092,6 +3096,7 @@
    },
    "sql": {
     "media": [],
+    "weeks": 1,
     "blocks": [
      {
       "day": 0,
@@ -3552,6 +3557,7 @@
    },
    "sql": {
     "media": [],
+    "weeks": 3,
     "blocks": [],
     "preview": true
    }
@@ -5019,6 +5025,7 @@
    },
    "sql": {
     "media": [],
+    "weeks": 11,
     "blocks": [],
     "preview": true
    }
@@ -5205,6 +5212,7 @@
    },
    "sql": {
     "media": [],
+    "weeks": 52,
     "blocks": [],
     "preview": true
    }
@@ -5280,6 +5288,7 @@
    },
    "sql": {
     "media": [],
+    "weeks": 1,
     "blocks": [
      {
       "day": 0,
@@ -5376,6 +5385,7 @@
       "type": "image"
      }
     ],
+    "weeks": 0,
     "blocks": [],
     "preview": true
    }
@@ -5414,6 +5424,7 @@
       "type": "image"
      }
     ],
+    "weeks": 0,
     "blocks": [],
     "preview": true
    }

@@ -1637,7 +1637,7 @@ function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) 
     || (isNutri ? 'menu' : (isSinglePlan ? 'session' : 'split'));
   // 'block' (a Week 1..N outline) reads as a Program — same as a weekday split.
   // Both are multi-session products; only the unit shape differs.
-  const eyebrow = (eyebrowKind === 'split' || eyebrowKind === 'block')
+  const eyebrow = (eyebrowKind === 'split' || eyebrowKind === 'block' || eyebrowKind === 'program')
     ? tr('marketplace:preview.eyebrowProgram', { defaultValue: 'Program' })
     : eyebrowKind === 'menu'
       ? tr('marketplace:preview.eyebrowMenu', { defaultValue: 'Meal plan' })
@@ -1646,12 +1646,24 @@ function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) 
   const register = [];
   if (p.weeks) register.push([tr('marketplace:preview.weeks', { defaultValue: 'Weeks' }), String(p.weeks)]);
   if (p.sessionsPerWeek) register.push([tr('marketplace:preview.perWeek', { defaultValue: 'Days / wk' }), String(p.sessionsPerWeek)]);
-  if (p.units.length) register.push([
+  // A program's units are its days, which Days / wk already counts.
+  if (p.units.length && p.kind !== 'program') register.push([
     p.kind === 'menu' ? tr('marketplace:preview.meals', { defaultValue: 'Meals' }) : tr('marketplace:preview.moves', { defaultValue: 'Entries' }),
     String(p.units.length),
   ]);
 
-  const row = (u, i) => (
+  // A program's day carries its moves' names (a public preview's whole content): the day,
+  // then its moves on a line under it.
+  const dayRow = (u, i) => (
+    <div key={i} data-preview-day="" style={{ padding: '9px 0', borderBottom: `1px solid ${t.HAIR}` }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ flexShrink: 0, minWidth: 46, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{u.label}</span>
+        <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{u.title}</span>
+      </div>
+      <div style={{ marginTop: 3, paddingLeft: 54, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.45, color: t.INK70 }}>{u.moves.join(' · ')}</div>
+    </div>
+  );
+  const row = (u, i) => (Array.isArray(u.moves) ? dayRow(u, i) :
     <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '9px 0', borderBottom: `1px solid ${t.HAIR}`, opacity: u.rest ? 0.55 : 1 }}>
       {u.label ? <span style={{ flexShrink: 0, minWidth: 46, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{u.label}</span> : null}
       <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{u.title}</span>

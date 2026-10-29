@@ -167,6 +167,14 @@ test('a program from the public functions previews names and its one free video,
   assert.match(text,/Sets, loads, cues and exercise videos unlock when you buy/);
   assert.equal(document.querySelectorAll('[data-preview-names-only]').length,1);
   assert.equal([...document.querySelectorAll('button')].filter(b=>b.textContent.startsWith('▷ Watch')).length,1,'the one free video');
+  // A builder's program: its first week's days, each with its moves, and Program, not Single session.
+  const days={preview:true,weeks:4,media:[],blocks:[['Push',0,'Bench press'],['Push',0,'Dip'],['Pull',2,'Row'],['Push',0,'Fly']].map(([dayName,weekday,name],i)=>({week:i===3?1:0,day:weekday?1:0,dayName,weekday,name,text:name}))};
+  await React.act(async()=>root.render(React.createElement(Preview,{plan:{name:'Rack Strength',detail:days},onClose:()=>{}})));
+  const t2=document.body.textContent;
+  assert.match(t2,/^Program/);assert.doesNotMatch(t2,/Single session|Entries/);
+  assert.deepEqual([...document.querySelectorAll('[data-preview-day]')].map(d=>d.textContent),['MONPushBench press · Dip','WEDPullRow']);
+  assert.match(t2,/Weeks4/);assert.match(t2,/Days \/ wk2/);
+  assert.equal(document.querySelectorAll('[data-preview-names-only]').length,1);
   // The full outline (a coach's own copy, or the demo) carries schemes and no such line.
   await React.act(async()=>root.render(React.createElement(Preview,{plan:{name:'Rack Strength',detail:{blocks:['Bench press — 3 × 8 · 60 kg','Dip — 3 × 10']}},onClose:()=>{}})));
   assert.match(document.body.textContent,/3×8/);

@@ -135,7 +135,8 @@ function authoredDays(detail) {
 //   preview:   true
 //   blocks:    from the builder, which is what delivery reads, each named row as
 //              { week, day, dayName?, weekday?, name, equipment?, muscle?, text: name }
-//              in delivery order, at most 40. With no builder (or an outline-only one)
+//              in delivery order, at most 40, and `weeks`, how many weeks it holds (at
+//              most 52). With no builder (or an outline-only one)
 //              the text outline instead: a weekday line (its head a weekday and nothing
 //              more) or week line whole, any other line cut to its exercise name.
 //   media:     one video (the program's own, else the first clip), then up to 7 images
@@ -217,10 +218,13 @@ function programMedia(detail) {
 /** A program's detail as the public sale-plan functions return it (see above). */
 export function bsProgramReduce(detail) {
   if (!detail || typeof detail !== 'object' || Array.isArray(detail)) return detail;
+  const b = detail.builder;
+  const fromBuilder = isPlainObject(b) && Array.isArray(b.weeks) && b.outlineOnly !== true;
   return {
     preview: true,
     blocks: programOutline(detail),
     media: programMedia(detail),
+    ...(fromBuilder ? { weeks: Math.min(b.weeks.length, PROGRAM_SCAN.weeks) } : {}),
     ...(typeof detail.note === 'string' ? { note: detail.note } : {}),
     ...(typeof detail.buildType === 'string' ? { buildType: detail.buildType } : {}),
   };
@@ -310,6 +314,27 @@ export function bsPlanPreview(plan, opts) {
   // loads cut (bsProgramReduce). The sheet says what buying unlocks.
   const namesOnly = !isNutri && detail.preview === true;
   const cut = namesOnly ? { namesOnly: true } : {};
+  // Its rows from a builder carry their week and day. More than one day is a program:
+  // the first week's days are the outline, each with its moves' names, free (names and
+  // structure are public). One day is a single session and reads as one below.
+  if (namesOnly) {
+    const days = new Map();
+    for (const b of rawBlocks) {
+      if (!b || typeof b !== 'object' || Array.isArray(b) || !Number.isInteger(b.week) || !Number.isInteger(b.day)) continue;
+      const move = blockText(b);
+      if (!move) continue;
+      const key = `${b.week}:${b.day}`;
+      if (!days.has(key)) days.set(key, { week: b.week, day: b.day, name: clean(b.dayName), weekday: validDow(b.weekday) ? b.weekday : null, moves: [] });
+      days.get(key).moves.push(move);
+    }
+    if (days.size > 1) {
+      const all = [...days.values()];
+      const first = Math.min(...all.map((d) => d.week));
+      const units = all.filter((d) => d.week === first).map((d) => ({ label: d.weekday != null ? DOW_LABELS[d.weekday] : `DAY ${d.day + 1}`, title: d.name, moves: d.moves }));
+      const held = Number.isInteger(detail.weeks) && detail.weeks > 0 && detail.weeks <= 52 ? detail.weeks : null;
+      return { kind: 'program', ...cut, weeks: weeks || held || Math.max(...all.map((d) => d.week)) + 1, sessionsPerWeek: units.length, units, free: units, locked: 0, note, media };
+    }
+  }
 
   // C1a — the per-day week has to be resolved BEFORE the empty check, or a
   // per-day plan whose DEFAULT menu is empty (every day authored individually,
