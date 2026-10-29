@@ -20570,7 +20570,7 @@ function BSUniversalSearch({ onClose }) {
         </button>
         {actionable ? <BSSearchFollowBtn uid={p.userId} teal={teal} /> : null}
         {actionable ? <BSSearchMsgBtn uid={p.userId} name={p.name} /> : null}
-        {!actionable ? <button onClick={() => open(p)} aria-label={tr('common:search.openProfileAria', { name: p.name, defaultValue: "Open {name}'s profile" })} style={{ background: 'transparent', border: 0, padding: '0 2px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>›</button> : null}
+        {!actionable ? <button onClick={() => open(p)} data-track="Open profile" aria-label={tr('common:search.openProfileAria', { name: p.name, defaultValue: "Open {name}'s profile" })} style={{ background: 'transparent', border: 0, padding: '0 2px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>›</button> : null}
       </div>
     );
   };
@@ -25489,6 +25489,8 @@ function bsNoraOpen(patch, owner) {
 }
 const BS_NORA_PAGES = { home: 'Home', train: 'Train', eat: 'Eat', chat: 'Chat', me: 'Me', today: 'Today', clients: 'Clients', plans: 'Plans', programs: 'Plans' };
 function bsNoraPage(tab) { return BS_NORA_PAGES[tab] || String(tab || '').replace(/[-_]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase()); }
+// The screen a tap lands on, for the click counts (services/analytics.js): Nora's English page name.
+function bsScreenName() { return _bsNoraOpen.page ? String(_bsNoraOpen.page) : ''; }
 // ⚠ AN ERROR CAN RIDE ALONG (the Ask Nora plan, step 5). "Ask Nora what happened" on an
 // error passes its kind and words; they go with the member's questions for ten minutes, so a
 // retry or a follow-up keeps them, and the sheet's screen chip says so (taking the chip off
@@ -38770,7 +38772,7 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
   );
 }
 
-Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner, bsStartPlatformCheckout });
+Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, bsScreenName, BSUniversalSearch, BSSearchCorner, bsStartPlatformCheckout });
 // The notification router, for the coach shells' tapped pushes (fix 3a, Codex on #2360).
 Object.assign(window, { bsRouteNotification });
 // The coach app's Notifications page shows the same phone-notifications row (L5).

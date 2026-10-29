@@ -14,6 +14,7 @@ const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 const levels = await import(pathToFileURL(join(ROOT, 'src/lib/staff-levels.mjs')).href);
 const overview = await import(pathToFileURL(join(ROOT, 'src/lib/admin-overview.mjs')).href);
 const activity = await import(pathToFileURL(join(ROOT, 'src/lib/admin-activity.mjs')).href);
+const clicks = await import(pathToFileURL(join(ROOT, 'src/lib/admin-clicks.mjs')).href);
 
 const OWNER = 'cperry8800@gmail.com';
 const U1 = '11111111-1111-4111-8111-111111111111';
@@ -482,6 +483,10 @@ async function renderPage(rel, { rpc, level = 'owner', searchParams = {}, tables
     }),
   };
   const waiting = await loadRealModule(join(ROOT, 'src/lib/admin-waiting.ts'), { typescript: true, registry: new Map([['@/lib/supabase/admin', admin], ['@/lib/staff-levels.mjs', levels]]) });
+  const clicksView = await loadRealModule(join(ROOT, 'src/app/admin/ClicksView.tsx'), {
+    typescript: true,
+    registry: new Map([['next/link', { __esModule: true, default: link }], ['@/lib/admin-overview.mjs', overview], ['@/lib/admin-clicks.mjs', clicks], ['./ui', ui]]),
+  });
   const page = await loadRealModule(join(ROOT, rel), {
     typescript: true,
     registry: new Map([
@@ -494,6 +499,8 @@ async function renderPage(rel, { rpc, level = 'owner', searchParams = {}, tables
       ['@/lib/admin-overview.mjs', overview],
       ['@/lib/funnel.mjs', funnel],
       ['@/lib/funnel', {}],
+      ['@/lib/admin-clicks.mjs', clicks],
+      ['./ClicksView', clicksView],
       ['./ui', ui],
       ['../ui', ui],
     ]),
@@ -543,6 +550,30 @@ test('render: the Overview is in views, and between them shows every section, th
   }
   assert.ok(views.money.includes('href="/admin?view=money" aria-current="page"'));
   assert.equal((await overviewOf('drop table')).html, html, 'an unknown view is the summary');
+});
+
+test('render: the Clicks view reads only the tap counts, for its filters, at the Overview’s level', async () => {
+  const CLICKS = {
+    from: '2026-10-22', to: '2026-10-28', days: 7, total: 20,
+    by_surface: { web: 15, app: 5 }, by_audience: { visitor: 8, member: 12 },
+    daily: [{ day: '2026-10-28', clicks: 20 }],
+    pages: [{ surface: 'web', page: '/newdesign/Coaches.html', clicks: 15 }],
+    targets: [{ surface: 'web', page: '/newdesign/Coaches.html', target: 'Find a coach', clicks: 15 }],
+  };
+  const asked = [];
+  const rpc = (name, args) => { asked.push([name, args]); return name === 'admin_click_stats' ? { data: CLICKS, error: null } : answers(name, args); };
+  const { html, calls } = await renderPage('src/app/admin/page.tsx', { rpc, level: 'analyst', searchParams: { view: 'clicks', days: '7', who: 'member' } });
+  assert.equal(calls[0], 'analyst', 'an analyst opens it: it is totals, never one person');
+  assert.deepEqual(calls.slice(1), ['rpc:admin_click_stats'], 'not the Overview’s own numbers');
+  assert.deepEqual(asked[0][1], { p_days: 7, p_surface: null, p_audience: 'member', p_tz: 'America/New_York' });
+  assert.ok(html.includes('href="/admin?view=clicks" aria-current="page"'), 'the Clicks tab is open');
+  assert.deepEqual(h3s(html), ['Where people tap', 'Pages with the most taps', 'Buttons and links with the most taps']);
+  assert.ok(html.includes('Find a coach'));
+  assert.ok(html.includes('href="/admin?view=clicks&amp;who=member"'), 'the 30-day link keeps the view and the other filter');
+  assert.ok(!/NaN|undefined/.test(html));
+  const missing = await renderPage('src/app/admin/page.tsx', { rpc: answers, level: 'analyst', searchParams: { view: 'clicks' } });
+  assert.ok(missing.html.includes('Not set up yet: run supabase-migrations/2026-10-28-click-counts.sql'));
+  assert.ok((await overviewOf('')).html.includes('Where people tap, on the website and in the app'), 'the summary’s cards open it');
 });
 
 test('render: the summary says how much is waiting on the team, and its key numbers open their views', async () => {

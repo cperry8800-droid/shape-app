@@ -207,6 +207,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/cron/nora-sets', 'GET,POST'],
   ['/api/cron/habit-watch', 'GET'],
   ['/api/analytics/track', 'POST'],
+  ['/api/analytics/clicks', 'POST'],
   ['/api/auth/password-reset', 'POST'],
   ['/api/auth/resolve-username', 'POST'],
   ['/api/cron/analytics-purge', 'GET'],
@@ -614,6 +615,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
   const auto = (ok: boolean): 'done' | 'pending' => (ok ? 'done' : 'pending');
 
   return [
+    {
+      section: 'Admin: the Overview\'s Clicks tab, where people tap on the website and in the app — #2493. Two migrations, one run, one for the owner',
+      items: [
+        { label: 'Owner, 2026-10-28: "Add to admin page where user/members click on website/app", then "The admin page is already built": a Clicks tab on the Overview (/admin?view=clicks, analyst and up, totals only), not a page of its own. Period (7, 30, 90 days), website or app, visitors, members or coaches; total taps and their splits, taps a day, the 25 pages and the 100 controls tapped most', status: 'done' },
+        { label: 'Capture: src/lib/click-capture.mjs (the app) and public/click-capture.js (the website, held equal by tests/click-capture.test.mjs), loaded by pageShell.jsx and by every page without it, the nine standalone pages included. A tap on a button, link, tab or pointer row adds one to (page, label) for the day; fields and [data-no-track] never count. Sent in batches (15 s, page hidden or left, or 60 taps / 40 controls / 50 on one) to POST /api/analytics/clicks, under the sign-up source\'s consent rule (GPC and Reject stop it; the EEA and UK wait for Accept). The banner now says its choice covers the usage stats on the site too', status: 'done' },
+        { label: 'A label is only ever Shape\'s own copy: data-track, else an aria-label, title or text the page was written with. The app\'s catalogs (copyIndex, counted in English); the website\'s source (scripts/click-vocab.mjs, written at deploy to nd/click-vocab.json, ~11,600 labels, never committed; checked on the preview). A name, a habit or a message counts by the control\'s kind, a row or card as "[row]"; digits read as #', status: 'done' },
+        { label: '2026-10-28-click-counts.sql (run, checked live read-only): ui_click_counts (daily totals; no account, device or address; RLS, service role only), record_ui_clicks, admin_click_stats. 2026-10-29-click-counts-caps.sql: a batch over 60 taps refused, 20 batches a minute per caller, dietitians counted as coaches. Both tested on a local PostgreSQL 16; idempotent. The analytics purge drops counts after 12 months', status: 'done' },
+        { label: 'Review: Codex P1 ×3 and P2 ×2 over three reviews: unbounded made-up taps, the standalone pages, dietitians as members (on 42ecc4f, fixed in 5383a0d); data in accessible names and the missing RAW_ROUTES entry (on 5383a0d, fixed in f939133 and this commit). Codex clean on f939133. CI green on 42ecc4f and 5383a0d', status: 'done' },
+        { label: 'OWNER: run 2026-10-29-click-counts-caps.sql on Supabase. Until then the first function stands: 40 rows of up to 50 taps a batch, 30 batches a minute, dietitians as members', status: 'manual' },
+        { label: 'OWNER/counsel: decide whether the privacy policy\'s §10 lists the tap counts (it covers them as basic analytics; a new date needs a PRIVACY_VERSIONS entry)', status: 'manual' },
+        { label: 'App copy still hard-coded (not in the catalogs) counts by its kind until it is translated; a website page without the cookie session counts as a visitor; the app has no consent banner, so it counts nothing in the EEA and UK', status: 'pending' },
+      ],
+    },
     {
       section: 'Reviews: members read them; everyone sees the rating — #2492. One migration, for the owner to run',
       items: [

@@ -241,6 +241,9 @@ export const OVERVIEW_VIEWS = [
   { key: 'money', label: 'Money', sections: ['money'] },
   { key: 'coaching', label: 'Coaching', sections: ['applications', 'coaches', 'consultations'] },
   { key: 'engagement', label: 'Engagement', sections: ['activity', 'score'] },
+  // Where people tap on the website and in the app: its own call (admin_click_stats), drawn by
+  // src/app/admin/ClicksView.tsx, so it holds none of admin_overview_stats's sections.
+  { key: 'clicks', label: 'Clicks', sections: [], blurb: 'Where people tap, on the website and in the app' },
 ];
 
 export function overviewView(raw) {

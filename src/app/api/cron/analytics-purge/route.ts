@@ -1,4 +1,5 @@
-// Daily: delete analytics_events older than 12 months (bounded retention).
+// Daily: delete analytics_events, and the daily tap counts (ui_click_counts), older than 12 months
+// (bounded retention). A failure on one is reported and never stops the other.
 // Auth: x-cron-secret: <CRON_SECRET> OR Authorization: Bearer <CRON_SECRET>.
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
@@ -7,6 +8,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+const MISSING_TABLE = new Set(['42P01', 'PGRST205']);
 
 function safeEqual(a: string, b: string): boolean {
   const x = Buffer.from(String(a || '')); const y = Buffer.from(String(b || ''));
@@ -25,7 +28,11 @@ export async function GET(request: Request) {
     const cutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
     const admin = createAdminClient();
     const { error } = await admin.from('analytics_events').delete().lt('ts', cutoff);
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 200 });
+    const clicks = await admin.from('ui_click_counts').delete().lt('day', cutoff.slice(0, 10));
+    // Before 2026-10-28-click-counts.sql runs there is no table to purge, which is no failure.
+    const clicksError = clicks.error && !MISSING_TABLE.has(String(clicks.error.code)) ? clicks.error.message : '';
+    const failed = [error?.message, clicksError].filter(Boolean);
+    if (failed.length) return NextResponse.json({ ok: false, error: failed.join('; '), cutoff }, { status: 200 });
     return NextResponse.json({ ok: true, cutoff });
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 200 });

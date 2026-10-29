@@ -219,7 +219,7 @@ function BSApplyDocuments({ docs, onChange }) {
             {files.map((file, i) => (
               <div key={`${file.name}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontFamily: t.DISPLAY, fontSize: 12.5, color: AP_C70 }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name} - {kb(file.size || 0)}</span>
-                <button type="button" aria-label={`Remove ${file.name}`} onClick={() => onChange(k.kind, files.filter((_, j) => j !== i))} style={{ background: 'transparent', border: 0, color: AP_C70, fontFamily: t.MONO, fontSize: 13, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                <button type="button" data-track="Remove file" aria-label={`Remove ${file.name}`} onClick={() => onChange(k.kind, files.filter((_, j) => j !== i))} style={{ background: 'transparent', border: 0, color: AP_C70, fontFamily: t.MONO, fontSize: 13, cursor: 'pointer', padding: '0 4px' }}>×</button>
               </div>
             ))}
             {files.length < k.max && (
