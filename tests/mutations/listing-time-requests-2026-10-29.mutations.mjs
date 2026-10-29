@@ -1,7 +1,8 @@
 // Mutation spec for a time asked of a coach who isn't on Shape yet (2026-10-29): the route, its
-// rules, the claim's notices, the app's ask and the coach's list, and the migration's text. The
-// tests named below must notice every one. The Postgres half (the policies' behaviour) is not
-// mutated here: the runner does not run Postgres; the replica probes in the PR are its test.
+// rules, the claim's notices, the app's ask and the coach's list, and the migration's text (its
+// policies and add_listing_time_request). The tests named below must notice every one. The runner
+// does not run Postgres, so what the SQL does (the policies, the function's checks and its locks
+// under a race) is the replica probes' to show, in the PR; here its text is pinned.
 // Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/listing-time-requests-2026-10-29.mutations.mjs --fail-on-skipped
 const ROUTE = 'src/app/api/listing-requests/route.ts';
@@ -19,24 +20,33 @@ export default {
     // ── the route ──
     { name: 'route: a signed-out caller may ask', file: ROUTE,
       find: "  if (!user) return NextResponse.json({ error: 'Sign in to ask for a time.', code: 'signed_out' }, { status: 401 });\n", replace: "" },
-    { name: 'route: a listing on Shape is asked of as if it weren\'t', file: ROUTE,
-      find: "  if (row.owner_id) {", replace: "  if (false) {" },
-    { name: 'route: a gone listing is asked of', file: ROUTE,
-      find: "  if (!row) return NextResponse.json({ error: 'That coach is no longer listed.', code: 'no_listing' }, { status: 404 });\n", replace: "  if (!row) return NextResponse.json({ ok: true });\n" },
-    { name: 'route: no daily cap', file: ROUTE,
-      find: "  if ((today.count ?? 0) >= ASKS_PER_DAY) {", replace: "  if (false) {" },
-    { name: 'route: no cap per listing', file: ROUTE,
-      find: "  if ((waiting.count ?? 0) >= ASKS_PER_LISTING) {", replace: "  if (false) {" },
-    { name: 'route: a past time counts as waiting', file: ROUTE,
-      find: ".eq('provider_id', ask.providerId).gte('slot_start', new Date(now).toISOString()),", replace: ".eq('provider_id', ask.providerId)," },
-    { name: 'route: a cap that can\'t be read is passed', file: ROUTE,
-      find: "  if (today.error || waiting.error) return dbError(today.error || waiting.error, 'listing-requests caps read');\n", replace: "" },
+    { name: 'route: a listing on Shape is not refused as claimed', file: ROUTE,
+      find: "    case 'claimed':\n", replace: "    case 'claimed-not':\n" },
+    { name: 'route: a gone listing is not refused as gone', file: ROUTE,
+      find: "    case 'no_listing':\n", replace: "    case 'no_listing-not':\n" },
+    { name: 'route: the daily cap is not answered', file: ROUTE,
+      find: "    case 'daily_cap':\n", replace: "    case 'daily_cap-not':\n" },
+    { name: 'route: the cap per listing is not answered', file: ROUTE,
+      find: "    case 'too_many':\n", replace: "    case 'too_many-not':\n" },
     { name: 'route: the same time twice is an error', file: ROUTE,
-      find: "    if ((insertError as { code?: string }).code === '23505') return NextResponse.json({ ok: true, already: true });\n", replace: "" },
+      find: "    case 'already':\n      return NextResponse.json({ ok: true, already: true });\n", replace: "" },
+    { name: 'route: an outcome it doesn\'t know is a success', file: ROUTE,
+      find: "    default:\n      return dbError({ message: `unexpected outcome", replace: "    default:\n      if (false) return dbError({ message: `unexpected outcome" },
+    { name: 'route: an ask stored with no id tells the owners', file: ROUTE,
+      find: "  if (!stored.ask_id) return dbError({ message: 'no ask id' }, 'listing-requests store');\n", replace: "" },
+    { name: 'route: a failed store is read as no outcome', file: ROUTE,
+      find: "  if (error) return dbError(error, 'listing-requests store');\n", replace: "",
+      expectSurvive: true }, // proven no-op: data is null on an error, so the default branch answers the same 500
     { name: 'route: the owners are never told', file: ROUTE,
-      find: "  await tellOwnersOfAsk(admin, String((inserted as { id: string }).id), ask, user.id, member, coach);\n", replace: "" },
+      find: "  await tellOwnersOfAsk(admin, String(stored.ask_id), ask, user.id, member, coach);\n", replace: "" },
     { name: 'route: the body says who asked', file: ROUTE,
-      find: "provider_id: ask.providerId, member_id: user.id,", replace: "provider_id: ask.providerId, member_id: String((parsed.data as Record<string, unknown>).memberId || user.id)," },
+      find: "    p_member_id: user.id,", replace: "    p_member_id: String((parsed.data as Record<string, unknown>).memberId || user.id)," },
+    { name: 'route: no daily cap is handed over', file: ROUTE,
+      find: "    p_per_day: ASKS_PER_DAY,", replace: "    p_per_day: 1000," },
+    { name: 'route: no cap per listing is handed over', file: ROUTE,
+      find: "    p_per_listing: ASKS_PER_LISTING,", replace: "    p_per_listing: 1000," },
+    { name: 'route: the time as the body wrote it', file: ROUTE,
+      find: "    p_slot_start: ask.slotStart,", replace: "    p_slot_start: String((parsed.data as Record<string, unknown>).at)," },
     // ── the rules ──
     { name: 'rules: a gym is a coach to ask', file: LIB,
       find: "  if (role !== 'trainer' && role !== 'nutritionist') return bad('role', 'Choose a coach to ask.');", replace: "" },
@@ -107,5 +117,29 @@ export default {
       find: "t.id = provider_id and t.owner_id = (select auth.uid())", replace: "t.id = provider_id" },
     { name: 'migration: a member gone leaves their asks', file: MIG,
       find: "member_id uuid not null references auth.users(id) on delete cascade,", replace: "member_id uuid not null references auth.users(id)," },
+    // add_listing_time_request (Codex on b45850a). Its behaviour, the races included, was probed on
+    // a local Postgres 16 (the PR); these pin the text that behaviour rests on.
+    { name: 'function: asks sent together are counted apart', file: MIG,
+      find: "  perform pg_advisory_xact_lock(hashtextextended('listing_time_requests:' || p_member_id::text, 0));\n", replace: "" },
+    { name: 'function: a trainer\'s claim doesn\'t wait for an ask', file: MIG,
+      find: "from public.trainers t where t.id = p_provider_id for share;", replace: "from public.trainers t where t.id = p_provider_id;" },
+    { name: 'function: a nutritionist\'s claim doesn\'t wait for an ask', file: MIG,
+      find: "from public.nutritionists n where n.id = p_provider_id for share;", replace: "from public.nutritionists n where n.id = p_provider_id;" },
+    { name: 'function: a claimed listing is asked of', file: MIG,
+      find: "  if v_owner is not null then\n", replace: "  if false then\n" },
+    { name: 'function: the same time again meets the caps', file: MIG,
+      find: "      and r.member_id = p_member_id and r.slot_start = p_slot_start\n  ) then\n    return query select 'already'::text, null::uuid, v_coach;\n    return;\n  end if;\n",
+      replace: "      and r.member_id = p_member_id and r.slot_start = p_slot_start\n  ) and false then\n    return query select 'already'::text, null::uuid, v_coach;\n    return;\n  end if;\n" },
+    { name: 'function: a day is a week', file: MIG,
+      find: "r.created_at >= now() - interval '1 day') >= p_per_day", replace: "r.created_at >= now() - interval '7 days') >= p_per_day" },
+    { name: 'function: a passed time counts as waiting', file: MIG,
+      find: "\n        and r.slot_start >= now()) >= p_per_listing", replace: ") >= p_per_listing" },
+    { name: 'function: the API may call it', file: MIG,
+      find: "from public, anon, authenticated;\ngrant execute on function public.add_listing_time_request(text, bigint, uuid, timestamptz, integer, text, integer, integer) to service_role;",
+      replace: "from public, anon;\ngrant execute on function public.add_listing_time_request(text, bigint, uuid, timestamptz, integer, text, integer, integer) to service_role, authenticated;" },
+    { name: 'function: runs as its owner', file: MIG,
+      find: "language plpgsql\nset search_path = public, pg_temp\nas $$\ndeclare\n  v_found boolean;", replace: "language plpgsql\nsecurity definer\nset search_path = public, pg_temp\nas $$\ndeclare\n  v_found boolean;" },
+    { name: 'guard: the locks are not checked', file: MIG,
+      find: "v_src not like '%pg_advisory_xact_lock%' or v_src not like '%for share%'", replace: "false" },
   ],
 };

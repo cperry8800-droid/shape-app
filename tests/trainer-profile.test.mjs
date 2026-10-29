@@ -652,11 +652,11 @@ test('the coach\'s own page lists what members asked of the listing before they 
   reset({ me: 'u-me', asks: [{ id: 'a1', memberId: 'm1', name: 'Sam', at: Date.now() + DAY, durationMin: 20, note: '' }] });
   const other = await mount(page());
   assert.equal(world.asksFor, null, 'a visitor never reads a listing\'s asks');
-  assert.equal(document.querySelector('[data-asks]'), null);
+  assert.ok(!document.querySelector('[data-asks]'), 'and sees none');
   await other.unmount();
   reset({ me: 'u-maya', asks: [] });
   const none = await mount(page({ isSelf: true }));
-  assert.equal(document.querySelector('[data-asks]'), null);
+  assert.ok(!document.querySelector('[data-asks]'), 'no list with no asks');
   await none.unmount();
 });
 

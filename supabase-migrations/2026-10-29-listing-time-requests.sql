@@ -11,9 +11,11 @@
 -- Who reads a row (RLS):
 --   - the member who asked it;
 --   - the account that owns the listing, once it does (trainers / nutritionists owner_id).
--- Nobody writes one through the API: the route inserts it with the service role, after checking
--- the account, the listing (it exists and has no owner), the time (in the next 60 days) and the
--- member's caps. A member's account going removes their asks (on delete cascade).
+-- Nobody writes one through the API. The route checks the account and the ask (the time in the
+-- next 60 days), then stores it through add_listing_time_request with the service role, which
+-- checks the listing (it exists and has no owner), the same time asked before, and the member's
+-- caps in the one transaction that inserts (below). A member's account going removes their asks
+-- (on delete cascade).
 --
 -- One transaction; re-runnable.
 -- =====================================================================================
@@ -61,11 +63,96 @@ create policy listing_time_requests_coach_read on public.listing_time_requests
   );
 
 -- =====================================================================================
+-- add_listing_time_request: the one way an ask is stored (/api/listing-requests, service role).
+-- Each check holds until the insert commits:
+--   - One member's asks go one at a time (a transaction advisory lock on the member), so two asks
+--     sent together can't both find room under a cap.
+--   - The listing's row is held FOR SHARE. A claim (claim_provider_row's UPDATE) waits for the ask
+--     to commit, so the claim's notice to the askers reads it; or the ask waits for the claim, then
+--     reads the owner and is refused.
+--   - The same time asked again is the ask already stored, whatever the caps say.
+-- Outcomes: no_listing, claimed, already, daily_cap, too_many, added (with the new ask's id). The
+-- listing's name comes back for the route's messages.
+create or replace function public.add_listing_time_request(
+  p_role text,
+  p_provider_id bigint,
+  p_member_id uuid,
+  p_slot_start timestamptz,
+  p_duration_min integer,
+  p_note text,
+  p_per_day integer,
+  p_per_listing integer
+)
+returns table (outcome text, ask_id uuid, coach text)
+language plpgsql
+set search_path = public, pg_temp
+as $$
+declare
+  v_found boolean;
+  v_owner uuid;
+  v_coach text;
+  v_id uuid;
+begin
+  if p_member_id is null then
+    raise exception 'member required' using errcode = '22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended('listing_time_requests:' || p_member_id::text, 0));
+
+  if p_role = 'trainer' then
+    select true, t.owner_id, t.name into v_found, v_owner, v_coach
+    from public.trainers t where t.id = p_provider_id for share;
+  elsif p_role = 'nutritionist' then
+    select true, n.owner_id, n.name into v_found, v_owner, v_coach
+    from public.nutritionists n where n.id = p_provider_id for share;
+  else
+    raise exception 'invalid role %', p_role using errcode = '22023';
+  end if;
+  if v_found is not true then
+    return query select 'no_listing'::text, null::uuid, null::text;
+    return;
+  end if;
+  if v_owner is not null then
+    return query select 'claimed'::text, null::uuid, v_coach;
+    return;
+  end if;
+
+  if exists (
+    select 1 from public.listing_time_requests r
+    where r.provider_role = p_role and r.provider_id = p_provider_id
+      and r.member_id = p_member_id and r.slot_start = p_slot_start
+  ) then
+    return query select 'already'::text, null::uuid, v_coach;
+    return;
+  end if;
+  if (select count(*) from public.listing_time_requests r
+      where r.member_id = p_member_id and r.created_at >= now() - interval '1 day') >= p_per_day then
+    return query select 'daily_cap'::text, null::uuid, v_coach;
+    return;
+  end if;
+  if (select count(*) from public.listing_time_requests r
+      where r.member_id = p_member_id and r.provider_role = p_role and r.provider_id = p_provider_id
+        and r.slot_start >= now()) >= p_per_listing then
+    return query select 'too_many'::text, null::uuid, v_coach;
+    return;
+  end if;
+
+  insert into public.listing_time_requests (provider_role, provider_id, member_id, slot_start, duration_min, note)
+  values (p_role, p_provider_id, p_member_id, p_slot_start, p_duration_min, p_note)
+  returning id into v_id;
+  return query select 'added'::text, v_id, v_coach;
+end;
+$$;
+
+revoke all on function public.add_listing_time_request(text, bigint, uuid, timestamptz, integer, text, integer, integer) from public, anon, authenticated;
+grant execute on function public.add_listing_time_request(text, bigint, uuid, timestamptz, integer, text, integer, integer) to service_role;
+
+-- =====================================================================================
 -- Guard: the end state, asserted. Every RAISE takes exactly the arguments its format names.
 do $guard$
 declare
   v_policies text[];
   v_rls boolean;
+  v_src text;
 begin
   select relrowsecurity into v_rls from pg_class where oid = 'public.listing_time_requests'::regclass;
   if v_rls is not true then
@@ -89,6 +176,17 @@ begin
   end if;
   if not has_table_privilege('authenticated', 'public.listing_time_requests', 'SELECT') then
     raise exception 'listing_time_requests: authenticated cannot read its own rows';
+  end if;
+  select p.prosrc into v_src from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+  where ns.nspname = 'public' and p.proname = 'add_listing_time_request'
+    and pg_get_function_identity_arguments(p.oid) = 'p_role text, p_provider_id bigint, p_member_id uuid, p_slot_start timestamp with time zone, p_duration_min integer, p_note text, p_per_day integer, p_per_listing integer';
+  if v_src is null or v_src not like '%pg_advisory_xact_lock%' or v_src not like '%for share%' then
+    raise exception 'add_listing_time_request is missing, or stores an ask without its locks';
+  end if;
+  if has_function_privilege('anon', 'public.add_listing_time_request(text, bigint, uuid, timestamptz, integer, text, integer, integer)', 'execute')
+     or has_function_privilege('authenticated', 'public.add_listing_time_request(text, bigint, uuid, timestamptz, integer, text, integer, integer)', 'execute')
+     or not has_function_privilege('service_role', 'public.add_listing_time_request(text, bigint, uuid, timestamptz, integer, text, integer, integer)', 'execute') then
+    raise exception 'add_listing_time_request must be the service role''s alone';
   end if;
 end
 $guard$;

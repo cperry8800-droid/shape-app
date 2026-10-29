@@ -1,7 +1,7 @@
 // A time asked of a coach who isn't on Shape yet (the owner, 2026-10-29: sample times "need to be
 // clickable"; "Request, saved for her"). The SHIPPED route and module (loadRealModule compiles the
-// real files) against a Supabase stand-in that applies the filters it is given and keeps what it is
-// told to write; the migration's text; and the copy.
+// real files) against a Supabase stand-in that applies the filters it is given and stores an ask only
+// through add_listing_time_request; the migration's text; and the copy.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -19,40 +19,55 @@ const MEMBER = { id: '00000000-0000-0000-0000-0000000000aa' };
 const OWNERS = ['owner-1', 'owner-2'];
 
 // ── the Supabase stand-in ─────────────────────────────────────────────────────────────────
+// add_listing_time_request is the migration's function, in its order: the listing, the same time
+// again, the day's asks, the times waiting on the listing, then the insert. Its locks (one member at
+// a time; the listing's row held against a claim) were probed on a local Postgres 16 (the PR); the
+// migration's text test below pins them.
 function world({ trainers = [], nutritionists = [], asks = [], profiles = [], fail = {} } = {}) {
   const tables = { trainers: [...trainers], nutritionists: [...nutritionists], listing_time_requests: [...asks], profiles: [...profiles] };
   const notes = [];
+  const calls = [];
   let seq = 0;
+  async function rpc(name, p) {
+    calls.push({ name, params: p });
+    if (fail.rpc) return { data: null, error: { message: 'rpc failed' } };
+    if (fail.outcome) return { data: [{ outcome: fail.outcome, ask_id: fail.askId ?? null, coach: null }], error: null };
+    if (name !== 'add_listing_time_request') return { data: null, error: { message: `no function ${name}` } };
+    const listing = tables[p.p_role === 'nutritionist' ? 'nutritionists' : 'trainers'].find((r) => r.id === p.p_provider_id);
+    const out = (outcome, id = null) => ({ data: [{ outcome, ask_id: id, coach: listing ? listing.name : null }], error: null });
+    if (!listing) return out('no_listing');
+    if (listing.owner_id) return out('claimed');
+    const mine = tables.listing_time_requests.filter((r) => r.member_id === p.p_member_id);
+    const here = (r) => r.provider_role === p.p_role && r.provider_id === p.p_provider_id;
+    if (mine.some((r) => here(r) && Date.parse(r.slot_start) === Date.parse(p.p_slot_start))) return out('already');
+    const now = Date.now();
+    if (mine.filter((r) => Date.parse(r.created_at) >= now - DAY).length >= p.p_per_day) return out('daily_cap');
+    if (mine.filter((r) => here(r) && Date.parse(r.slot_start) >= now).length >= p.p_per_listing) return out('too_many');
+    const row = { id: `ask-${++seq}`, created_at: new Date().toISOString(), provider_role: p.p_role, provider_id: p.p_provider_id, member_id: p.p_member_id, slot_start: p.p_slot_start, duration_min: p.p_duration_min, note: p.p_note };
+    tables.listing_time_requests.push(row);
+    return out('added', row.id);
+  }
   function from(table) {
     const filters = [];
-    let head = false, op = 'select', payload = null;
+    let op = 'select';
     const rows = () => (tables[table] || []).filter((r) => filters.every((f) => f(r)));
     const run = () => {
-      if (fail[table] || (head && fail[`${table}:count`])) return { data: null, error: { message: `${table} failed` }, count: null };
-      if (op === 'insert') {
-        const dup = (tables[table] || []).some((r) => r.provider_role === payload.provider_role && r.provider_id === payload.provider_id && r.member_id === payload.member_id && r.slot_start === payload.slot_start);
-        if (dup) return { data: null, error: { code: '23505', message: 'duplicate key' } };
-        const row = { id: `ask-${++seq}`, created_at: new Date().toISOString(), ...payload };
-        tables[table].push(row);
-        return { data: row, error: null };
-      }
-      const found = rows();
-      return head ? { data: null, error: null, count: found.length } : { data: found, error: null };
+      if (op !== 'select') return { data: null, error: { message: `an ask is stored only through add_listing_time_request, not a ${op} on ${table}` } };
+      if (fail[table]) return { data: null, error: { message: `${table} failed` } };
+      return { data: rows(), error: null };
     };
     const chain = {
-      select(cols, opts) { if (op !== 'insert') op = 'select'; head = !!(opts && opts.head); return chain; },
-      insert(row) { op = 'insert'; payload = row; return chain; },
+      select() { return chain; },
+      insert() { op = 'insert'; return chain; },
+      upsert() { op = 'upsert'; return chain; },
       eq(k, v) { filters.push((r) => r[k] === v); return chain; },
-      gte(k, v) { filters.push((r) => r[k] >= v); return chain; },
       limit() { return chain; },
-      order() { return chain; },
-      async maybeSingle() { const r = run(); return { data: r.data ? (Array.isArray(r.data) ? r.data[0] || null : r.data) : null, error: r.error }; },
-      async single() { const r = run(); return { data: Array.isArray(r.data) ? r.data[0] : r.data, error: r.error }; },
+      async maybeSingle() { const r = run(); return { data: r.data ? r.data[0] || null : null, error: r.error }; },
       then(res, rej) { return Promise.resolve(run()).then(res, rej); },
     };
     return chain;
   }
-  return { from, tables, notes };
+  return { from, rpc, tables, notes, calls };
 }
 
 let mods = null;
@@ -97,6 +112,10 @@ test('a member asks a sample time: kept against the listing, and each owner told
   assert.deepEqual(r.body, { ok: true });
   const [row] = current.tables.listing_time_requests;
   assert.equal(row.member_id, MEMBER.id, 'the account, not the body, says who asked');
+  assert.deepEqual(current.calls.map((c) => c.name), ['add_listing_time_request']);
+  assert.deepEqual(current.calls[0].params, {
+    p_role: 'trainer', p_provider_id: 7, p_member_id: MEMBER.id, p_slot_start: when, p_duration_min: 15, p_note: 'Knee rehab', p_per_day: 10, p_per_listing: 3,
+  }, 'the checked ask, the account and the caps');
   assert.deepEqual([row.provider_role, row.provider_id, row.duration_min, row.note], ['trainer', 7, 15, 'Knee rehab']);
   assert.equal(current.notes.length, 2);
   for (const [i, n] of current.notes.entries()) {
@@ -159,9 +178,32 @@ test('a member waits on 3 times per listing and asks 10 a day; past times don\'t
   assert.equal(capped.body.code, 'daily_cap');
   current = world({ trainers: [LEAH], asks: today.slice(0, 9) });
   assert.equal((await post(ask())).status, 200, 'the tenth of the day is fine');
-  current = world({ trainers: [LEAH], fail: { 'listing_time_requests:count': true } });
-  assert.equal((await post(ask())).status, 500, 'a cap that can\'t be read is not passed');
+  current = world({ trainers: [LEAH], fail: { rpc: true } });
+  assert.equal((await post(ask())).status, 500, 'a store that fails is not passed');
   assert.equal(current.tables.listing_time_requests.length, 0, 'and nothing is stored');
+  assert.equal(current.notes.length, 0, 'and nobody is told');
+  for (const [outcome, askId] of [['maybe', 'x-1'], ['added', null]]) {
+    current = world({ trainers: [LEAH], fail: { outcome, askId } });
+    assert.equal((await post(ask())).status, 500, `${outcome} with ask ${askId} is an error, not a success`);
+    assert.equal(current.notes.length, 0);
+  }
+});
+
+test('Codex on b45850a: the same time asked again is done even at a cap', async () => {
+  const when = at(3 * DAY);
+  const stored = { id: 'old', provider_role: 'trainer', provider_id: 7, member_id: MEMBER.id, slot_start: when, duration_min: 15, created_at: new Date().toISOString() };
+  const others = Array.from({ length: 9 }, (_, i) => ({ ...stored, id: `t-${i}`, provider_id: 100 + i }));
+  caller = MEMBER;
+  current = world({ trainers: [LEAH], asks: [stored, ...others] });
+  const again = await post(ask({ at: when }));
+  assert.equal(again.status, 200, 'at the daily cap');
+  assert.deepEqual(again.body, { ok: true, already: true });
+  const waiting = [stored, { ...stored, id: 'w2', slot_start: at(4 * DAY), created_at: new Date(Date.now() - 2 * DAY).toISOString() }, { ...stored, id: 'w3', slot_start: at(5 * DAY), created_at: new Date(Date.now() - 2 * DAY).toISOString() }];
+  current = world({ trainers: [LEAH], asks: waiting });
+  assert.deepEqual((await post(ask({ at: when }))).body, { ok: true, already: true }, 'with 3 times waiting on the listing');
+  assert.equal((await post(ask({ at: at(6 * DAY) }))).body.code, 'too_many', 'a new time is still refused');
+  assert.equal(current.tables.listing_time_requests.length, 3);
+  assert.equal(current.notes.length, 0, 'nobody is told again');
 });
 
 test('when the listing is claimed, each member who asked is told once, in their own language', async () => {
@@ -217,7 +259,39 @@ test('the migration: members read their own asks, the coach reads theirs once th
   assert.match(sql, /using \(member_id = \(select auth\.uid\(\)\)\)/);
   assert.match(sql, /t\.id = provider_id and t\.owner_id = \(select auth\.uid\(\)\)/);
   assert.match(sql, /n\.id = provider_id and n\.owner_id = \(select auth\.uid\(\)\)/);
+  // add_listing_time_request (Codex on b45850a): the service role's alone, run as its caller, and
+  // every check made after the locks and in the order that keeps the same time asked again done.
+  const start = sql.indexOf('create or replace function public.add_listing_time_request(');
+  const fn = sql.slice(start, sql.indexOf('\n$$;\n', start));
+  assert.ok(start > 0 && fn.length > 500, 'the function');
+  assert.match(fn, /\nreturns table \(outcome text, ask_id uuid, coach text\)\nlanguage plpgsql\nset search_path = public, pg_temp\nas \$\$\n/);
+  assert.doesNotMatch(fn, /security definer/i);
+  const SIG = 'public.add_listing_time_request(text, bigint, uuid, timestamptz, integer, text, integer, integer)';
+  assert.ok(sql.includes(`revoke all on function ${SIG} from public, anon, authenticated;`));
+  assert.ok(sql.includes(`grant execute on function ${SIG} to service_role;`));
+  assert.equal((sql.match(/grant execute on function/g) || []).length, 1, 'to nobody else');
+  const order = [
+    "perform pg_advisory_xact_lock(hashtextextended('listing_time_requests:' || p_member_id::text, 0));",
+    'from public.trainers t where t.id = p_provider_id for share;',
+    'from public.nutritionists n where n.id = p_provider_id for share;',
+    "return query select 'no_listing'::text",
+    "if v_owner is not null then\n    return query select 'claimed'::text",
+    "and r.member_id = p_member_id and r.slot_start = p_slot_start\n  ) then\n    return query select 'already'::text",
+    "where r.member_id = p_member_id and r.created_at >= now() - interval '1 day') >= p_per_day then\n    return query select 'daily_cap'::text",
+    "and r.slot_start >= now()) >= p_per_listing then\n    return query select 'too_many'::text",
+    'insert into public.listing_time_requests (provider_role, provider_id, member_id, slot_start, duration_min, note)',
+    "return query select 'added'::text, v_id, v_coach;",
+  ];
+  let after = 0;
+  for (const step of order) {
+    const i = fn.indexOf(step, after);
+    assert.ok(i >= 0, `in order: ${step}`);
+    after = i + step.length;
+  }
+  assert.equal((fn.match(/insert into /g) || []).length, 1, 'one insert, after every check');
   const guard = sql.slice(sql.indexOf('do $guard$'), sql.lastIndexOf('$guard$;'));
+  assert.match(guard, /v_src not like '%pg_advisory_xact_lock%' or v_src not like '%for share%'/);
+  assert.match(guard, /'add_listing_time_request must be the service role''s alone'/);
   for (const m of guard.matchAll(/raise exception '((?:[^']|'')*)'((?:,\s*[\w.()':]+)*)\s*;/g)) {
     const pct = (m[1].match(/%/g) ?? []).length;
     const args = m[2].trim() ? m[2].split(',').filter((x) => x.trim()).length : 0;
