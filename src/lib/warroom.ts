@@ -616,6 +616,13 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Eat: Grocery and the Library in the clean type, as Day and Build a list — #2505. No migration',
+      items: [
+        { label: 'Owner, 2026-10-29: "Yes", to moving Grocery and the Library off Saira. Under the Eat tabs both pages set their words in Inter Tight and the aisle being walked in Geist (BSCleanType, useBSClean), with the weights each line is written with; the header (Food list., Saved carts.), the tabs and the sheets (the list picker, Send to a member) keep the app\'s type, as on Day. Codex clean on 776cb6c; 8,826 of 8,826 tests locally', status: 'done' },
+        { label: 'See Grocery and the Library on a phone and in the installed app: seen only in headless Chromium', status: 'pending' },
+      ],
+    },
+    {
       section: 'App fixes from the owner\'s screenshots: Nora\'s ✦ larger, a first hint that it opens her, Build a list redesigned, the profile dock on the tab bar — #2498, #2500, #2502, #2503. No migration',
       items: [
         { label: 'Owner, 2026-10-29: "Need to make the Nora teal little symbol on mast head more noticeable": of three mocks, A. The ✦ is 24px (was 17) in a soft teal glow, fainter on a light paper; still a bare glyph on the 34px square, so the corner\'s look and target hold (BSSearchCorner; #2498)', status: 'done' },
@@ -625,7 +632,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Owner: "message button still appearing near middle of screen": on an iPhone the profile\'s Message dock rested ~75px over the tab bar, because BSPage\'s bottom padding and the dock both counted the home indicator. The dock now pads without it and rests on the tab bar (bottom: BS_TABBAR_CSS − the reserve − the inset), measured in Chromium with a 34px inset emulated; a coach\'s Message + Work with too. Codex clean on cf5daea (#2503)', status: 'done' },
         { label: 'See all four on a phone and in the installed app: they were seen only in headless Chromium, the dock with an emulated inset', status: 'pending' },
         { label: 'OWNER: have a native speaker read the hint\'s 12 translations (written by Claude), with the PAR-Q\'s', status: 'manual' },
-        { label: 'The Grocery and Library pages are still in Saira: only Day and Build a list are in the clean type. Put to the owner; not yet decided', status: 'pending' },
+        { label: 'The Grocery and Library pages moved to the clean type too (owner: "Yes"; #2505)', status: 'done' },
       ],
     },
     {
