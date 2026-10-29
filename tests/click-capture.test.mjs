@@ -421,6 +421,7 @@ async function loadRoute({ user = null, rpcError = null } = {}) {
     typescript: true,
     registry: new Map([
       ['@/lib/click-capture.mjs', C],
+      ['@/lib/gpc', await loadRealModule(join(ROOT, 'src/lib/gpc.ts'), { typescript: true })],
       ['@/lib/request-auth', { currentUser: async () => user }],
       ['@/lib/request-utils', await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true })],
       ['@/lib/supabase/admin', { createAdminClient: () => ({ rpc: async (name, args) => { calls.push({ name, args }); return { data: 1, error: rpcError }; } }) }],
@@ -464,6 +465,16 @@ test('route: junk is answered 204 and stores nothing; a failed store is still 20
     console.warn = warn;
   }
   assert.match(warned.join('\n'), /record_ui_clicks does not exist/, 'a dead pipeline is logged');
+});
+
+test('route: a request carrying Global Privacy Control is never recorded', async () => {
+  const { route, calls } = await loadRoute({ user: { id: 'u-1' } });
+  const res = await route.POST(post({ surface: 'web', clicks: [{ page: '/', target: 'Go', n: 1 }] }, { 'sec-gpc': '1' }));
+  assert.equal(res.status, 204);
+  assert.equal(calls.length, 0);
+  const privacy = read('public/privacy.html');
+  assert.match(privacy, /our website and app honor it automatically: with GPC on, they keep no record of the link that brought you, count no taps/);
+  assert.doesNotMatch(privacy, /being wired in/, 'no longer described as pending');
 });
 
 test('route: it reads the caller through request-auth, so the installed app’s Bearer token counts', () => {

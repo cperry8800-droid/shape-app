@@ -10,6 +10,7 @@
 // member's or a coach's: the table keeps daily totals and never the account or the address.
 import { NextResponse } from 'next/server';
 import { cleanBatch } from '@/lib/click-capture.mjs';
+import { gpcOptOut } from '@/lib/gpc';
 import { currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -23,6 +24,9 @@ const BODY_LIMIT = 16 * 1024;
 
 export async function POST(request: Request) {
   try {
+    // A browser sending Global Privacy Control never counts taps (public/click-capture.js); a request
+    // that carries it anyway is not recorded, as the privacy policy's §7 says.
+    if (gpcOptOut(request)) return new NextResponse(null, { status: 204 });
     const parsed = await readJson<unknown>(request, { maxBytes: BODY_LIMIT });
     const batch = parsed.ok ? cleanBatch(parsed.data) : null;
     if (!batch) return new NextResponse(null, { status: 204 });
