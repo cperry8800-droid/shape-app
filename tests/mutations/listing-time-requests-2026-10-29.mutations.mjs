@@ -1,13 +1,13 @@
 // Mutation spec for a time asked of a coach who isn't on Shape yet (2026-10-29): the route, its
-// rules, the claim's notices, the app's ask and the coach's list, and the migration's text (its
-// policies and add_listing_time_request). The tests named below must notice every one. The runner
-// does not run Postgres, so what the SQL does (the policies, the function's checks and its locks
-// under a race) is the replica probes' to show, in the PR; here its text is pinned.
+// rules, the app's ask and the coach's list, and the migration's text (its policies,
+// add_listing_time_request, and the trigger that tells the askers). The tests named below must
+// notice every one. The runner does not run Postgres, so what the SQL does (the policies, the
+// function's checks, its locks under a race, the trigger's firing) is the replica probes' to show,
+// in the PR; here its text is pinned.
 // Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/listing-time-requests-2026-10-29.mutations.mjs --fail-on-skipped
 const ROUTE = 'src/app/api/listing-requests/route.ts';
 const LIB = 'src/lib/listing-requests.ts';
-const CLAIM = 'src/app/dashboard/claim/actions.ts';
 const PAGE = 'mobile-app/src/broadsheet/BSTrainerProfile.jsx';
 const BACKEND = 'mobile-app/src/services/shapeBackend.js';
 const SURFACES = 'public/newdesign/notificationSurfaces.mjs';
@@ -68,28 +68,6 @@ export default {
       find: "  const note = ask.note ? ` Their note:", replace: "  const note = false ? ` Their note:" },
     { name: 'rules: the owners\' notice has no dedupe key', file: LIB,
       find: "data: { dedupe: `ask:${askId}`,", replace: "data: {" },
-    { name: 'rules: a member who asked twice is told twice', file: LIB,
-      find: "    const members = new Set<string>();\n", replace: "    const members: string[] = [];\n    (members as unknown as { add: (x: string) => void }).add = (x: string) => { members.push(x); };\n" },
-    { name: 'rules: the askers of every listing are told', file: LIB,
-      find: "select('member_id')\n        .eq('provider_role', role).eq('provider_id', providerId)\n", replace: "select('member_id')\n" },
-    { name: 'rules: the joined notice opens nothing', file: LIB,
-      find: "        route: `coach:${role}:${providerId}`,", replace: "        route: 'home'," },
-    { name: 'rules: the joined notice has no copy for the app', file: LIB,
-      find: "side: 'client' },\n      }, copy)));", replace: "side: 'client' },\n      })));" },
-    { name: 'rules: the claim reads one page of asks', file: LIB,
-      find: "      if (rows.length < ASKER_PAGE) break;", replace: "      break;" },
-    { name: 'rules: the claim reads the first page over and over', file: LIB,
-      find: ".range(from, from + ASKER_PAGE - 1);", replace: ".range(0, ASKER_PAGE - 1);" },
-    { name: 'rules: a later page that fails tells the earlier pages\' askers', file: LIB,
-      find: "        console.error('[listing-requests] asks not read:', error.message);\n        return 0;", replace: "        console.error('[listing-requests] asks not read:', error.message);\n        break;" },
-    { name: 'rules: the askers are told one at a time', file: LIB,
-      find: "export const ASKER_NOTICES_AT_ONCE = 10;", replace: "export const ASKER_NOTICES_AT_ONCE = 1;" },
-    { name: 'rules: a notice that throws stops the rest', file: LIB,
-      find: "      const sent = await Promise.allSettled(", replace: "      const sent = await Promise.all(" },
-    { name: 'rules: every asker at once', file: LIB,
-      find: "ids.slice(k, k + ASKER_NOTICES_AT_ONCE).map(", replace: "ids.slice(k).map(" },
-    { name: 'claim: the askers are never told', file: CLAIM,
-      find: "  if (role === 'trainer' || role === 'nutritionist') await tellAskers(admin, role, providerId);\n", replace: "" },
     // ── the app ──
     { name: 'app: a sample time is not to take or ask', file: PAGE,
       find: "onTake={isSelf ? null : avail.sample ? (providerId ? (slot) => setSheet({ kind: 'ask', slot }) : null) : (slot) => setSheet({ kind: 'book', slot })}",
@@ -127,6 +105,8 @@ export default {
       replace: "    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({ role, providerId: Number(providerId)," },
     { name: 'switches: an owners\' ask notice has no switch', file: SURFACES,
       find: "  listing_request: 'sessions',\n", replace: "" },
+    { name: 'app: the initials are the name\'s first two letters', file: PAGE,
+      find: ": String(name).split(/\\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();", replace: ": String(name).slice(0, 2).toUpperCase();" },
     // ── the migration's text ──
     { name: 'migration: members may write their own asks', file: MIG,
       find: "grant select on table public.listing_time_requests to authenticated;", replace: "grant select, insert on table public.listing_time_requests to authenticated;" },
@@ -160,6 +140,25 @@ export default {
       replace: "from public, anon;\ngrant execute on function public.add_listing_time_request(text, bigint, uuid, timestamptz, integer, text, integer, integer) to service_role, authenticated;" },
     { name: 'function: runs as its owner', file: MIG,
       find: "language plpgsql\nset search_path = public, pg_temp\nas $$\ndeclare\n  v_found boolean;", replace: "language plpgsql\nsecurity definer\nset search_path = public, pg_temp\nas $$\ndeclare\n  v_found boolean;" },
+    { name: 'function: an ask of a listing off the market', file: MIG,
+      find: "  if v_ready is not true then\n    return query select 'no_listing'::text, null::uuid, null::text;", replace: "  if false then\n    return query select 'no_listing'::text, null::uuid, null::text;" },
+    { name: 'tell: the askers are told at the claim, ready or not', file: MIG,
+      find: "  when (new.owner_id is not null and new.listing_ready and not (old.owner_id is not null and old.listing_ready))\n  execute function public.listing_time_requests_tell('trainer');",
+      replace: "  when (new.owner_id is not null and old.owner_id is null)\n  execute function public.listing_time_requests_tell('trainer');" },
+    { name: 'tell: a nutritionist\'s askers are never told', file: MIG,
+      find: "  execute function public.listing_time_requests_tell('nutritionist');", replace: "  execute function public.listing_time_requests_tell('trainer');" },
+    { name: 'tell: every listing\'s askers are told', file: MIG,
+      find: "        where r.provider_role = v_role and r.provider_id = new.id) a", replace: "        where r.provider_role = v_role) a" },
+    { name: 'tell: a member who asked twice is told twice', file: MIG,
+      find: "  from (select distinct r.member_id from public.listing_time_requests r", replace: "  from (select r.member_id from public.listing_time_requests r" },
+    { name: 'tell: the notice opens nothing', file: MIG,
+      find: "         'coach:' || v_role || ':' || new.id::text,\n", replace: "         null,\n" },
+    { name: 'tell: no copy for the app', file: MIG,
+      find: "           'copy', jsonb_build_object(", replace: "           'nocopy', jsonb_build_object(" },
+    { name: 'tell: a second firing tells again', file: MIG,
+      find: "  on conflict (user_id, type, (data->>'dedupe')) where data ? 'dedupe' do nothing;\n", replace: "  ;\n" },
+    { name: 'tell: runs as the coach who updated', file: MIG,
+      find: "returns trigger\nlanguage plpgsql\nsecurity definer\nset search_path = public, pg_temp", replace: "returns trigger\nlanguage plpgsql\nset search_path = public, pg_temp" },
     { name: 'guard: the locks are not checked', file: MIG,
       find: "v_src not like '%pg_advisory_xact_lock%' or v_src not like '%for share%'", replace: "false" },
   ],

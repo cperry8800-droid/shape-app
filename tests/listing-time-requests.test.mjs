@@ -37,6 +37,7 @@ function world({ trainers = [], nutritionists = [], asks = [], profiles = [], fa
     const out = (outcome, id = null) => ({ data: [{ outcome, ask_id: id, coach: listing ? listing.name : null }], error: null });
     if (!listing) return out('no_listing');
     if (listing.owner_id) return out('claimed');
+    if (listing.listing_ready === false) return { data: [{ outcome: 'no_listing', ask_id: null, coach: null }], error: null };
     const mine = tables.listing_time_requests.filter((r) => r.member_id === p.p_member_id);
     const here = (r) => r.provider_role === p.p_role && r.provider_id === p.p_provider_id;
     if (mine.some((r) => here(r) && Date.parse(r.slot_start) === Date.parse(p.p_slot_start))) return out('already');
@@ -167,6 +168,9 @@ test('signed out, a listing on Shape or gone, and a bad ask are refused, and not
   const gone = await post(ask({ providerId: 99 }));
   assert.equal(gone.status, 404);
   assert.equal(gone.body.code, 'no_listing');
+  // Off the market (suspended): no listing to ask of (Codex on 6cc407d).
+  current.tables.trainers.push({ id: 9, name: 'Off', owner_id: null, listing_ready: false });
+  assert.equal((await post(ask({ providerId: 9 }))).body.code, 'no_listing');
   for (const [over, code] of [
     [{ role: 'gym' }, 'role'], [{ providerId: '7' }, 'listing'], [{ providerId: 0 }, 'listing'], [{ at: 'soon' }, 'time'],
     [{ at: at(5 * 60_000) }, 'time_past'], [{ at: at(-DAY) }, 'time_past'], [{ at: at(61 * DAY) }, 'time_far'],
@@ -228,56 +232,6 @@ test('Codex on b45850a: the same time asked again is done even at a cap', async 
   assert.equal(current.notes.length, 0, 'nobody is told again');
 });
 
-test('when the listing is claimed, each member who asked is told once, in their own language', async () => {
-  const { asks } = await load();
-  current = world({ trainers: [LEAH], asks: [
-    { id: 'a', provider_role: 'trainer', provider_id: 7, member_id: 'm1' },
-    { id: 'b', provider_role: 'trainer', provider_id: 7, member_id: 'm1' },
-    { id: 'c', provider_role: 'trainer', provider_id: 7, member_id: 'm2' },
-    { id: 'd', provider_role: 'nutritionist', provider_id: 7, member_id: 'm3' },
-    { id: 'e', provider_role: 'trainer', provider_id: 8, member_id: 'm4' },
-  ] });
-  assert.equal(await asks.tellAskers(current, 'trainer', 7), 2);
-  assert.deepEqual(current.notes.map((n) => n.userId), ['m1', 'm2'], 'once per member, this listing only');
-  const [n] = current.notes;
-  assert.equal(n.type, 'listing_joined');
-  assert.equal(n.route, 'coach:trainer:7', 'opens their listing');
-  assert.equal(n.title, 'Leah Okafor is on Shape now');
-  assert.equal(n.body, 'You asked Leah Okafor for a time before they joined. Book one on their listing.');
-  assert.equal(n.data.dedupe, 'joined:trainer:7:m1');
-  assert.deepEqual(n.copy, { title: ['listingJoined.title', { coach: 'Leah Okafor' }], body: ['listingJoined.body', { coach: 'Leah Okafor' }] });
-  current = world({ fail: { listing_time_requests: true } });
-  assert.equal(await asks.tellAskers(current, 'trainer', 7), 0, 'a failed read tells nobody and throws nothing');
-});
-
-test('Codex on 126c626: a claim tells every member who asked, however many asks there are', async () => {
-  const { asks } = await load();
-  assert.equal(asks.ASKER_PAGE, 1000);
-  // 2,500 asks from 1,250 members, two each, in id order so each member's pair spans the pages.
-  const many = Array.from({ length: 2500 }, (_, i) => ({ id: `ask-${String(i).padStart(5, '0')}`, provider_role: 'trainer', provider_id: 7, member_id: `m${i % 1250}` }));
-  current = world({ trainers: [LEAH], asks: [...many, { id: 'zz', provider_role: 'trainer', provider_id: 8, member_id: 'other' }] });
-  assert.equal(await asks.tellAskers(current, 'trainer', 7), 1250);
-  assert.equal(new Set(current.notes.map((n) => n.userId)).size, 1250, 'each member once');
-  assert.ok(!current.notes.some((n) => n.userId === 'other'), 'only this listing\'s');
-  assert.deepEqual(current.reads.filter((r) => r.table === 'listing_time_requests').map((r) => r.span), [[0, 999], [1000, 1999], [2000, 2999]], 'a page at a time, until a short one');
-  // Exactly a page: one more read finds nothing, and stops.
-  current = world({ trainers: [LEAH], asks: many.slice(0, 1000) });
-  assert.equal(await asks.tellAskers(current, 'trainer', 7), 1000);
-  assert.equal(current.reads.filter((r) => r.table === 'listing_time_requests').length, 2);
-  // Ten notices are written at once, never one by one or all at once (Codex on 78a478b), and a
-  // notice that throws doesn't stop the rest.
-  current = world({ trainers: [LEAH], asks: many.slice(0, 1000) });
-  current.failFor = 'm3';
-  assert.equal(await asks.tellAskers(current, 'trainer', 7), 999);
-  assert.equal(asks.ASKER_NOTICES_AT_ONCE, 10);
-  assert.equal(current.mostAtOnce, 10);
-  assert.ok(!current.notes.some((n) => n.userId === 'm3'));
-  // A later page that fails tells nobody, not just the first page's members.
-  current = world({ trainers: [LEAH], asks: many, fail: { 'listing_time_requests:from1000': true } });
-  assert.equal(await asks.tellAskers(current, 'trainer', 7), 0);
-  assert.equal(current.notes.length, 0);
-});
-
 test('Codex on 126c626: the coach\'s list is the times to come first, then the passed ones newest first, and the count is all of them', async () => {
   const src = read('mobile-app/src/services/shapeBackend.js');
   const body = src.slice(src.indexOf('const ASKS_SHOWN = 100;'), src.indexOf('window.ShapeListingAsks = {'));
@@ -328,10 +282,11 @@ test('Codex on 126c626: the coach\'s list is the times to come first, then the p
   assert.deepEqual(await new Function('supabase', 'state', `${body}\nreturn listingAsks;`)(supabase, { user: null })('trainer', 7), { rows: [], total: 0 }, 'signed out, nothing');
 });
 
-test('the claim tells the askers, and the app asks through the route with its token', () => {
-  const claim = read('src/app/dashboard/claim/actions.ts');
-  const call = claim.indexOf("await tellAskers(admin, role, providerId)");
-  assert.ok(call > claim.indexOf("admin.rpc('claim_provider_row'") && call > claim.indexOf("throw new Error(error.message);"), 'after the claim, never before it or on its failure');
+test('the app asks through the route with its token; the claim itself tells nobody', () => {
+  // The askers hear when the claimed listing is ready to book: the migration's trigger, not the claim
+  // (Codex on 6cc407d: told at the claim, the notice opened a listing the app can't show yet).
+  assert.doesNotMatch(read('src/app/dashboard/claim/actions.ts'), /listing-requests|tellAskers/);
+  assert.doesNotMatch(read('src/lib/listing-requests.ts'), /listing_joined|tellAskers/);
   const backend = read('mobile-app/src/services/shapeBackend.js');
   const askFn = backend.slice(backend.indexOf('async function askListingTime('), backend.indexOf('async function listingAsks('));
   assert.ok(askFn.length > 100, 'the ask function');
@@ -397,6 +352,44 @@ test('the migration: members read their own asks, the coach reads theirs once th
     const args = m[2].trim() ? m[2].split(',').filter((x) => x.trim()).length : 0;
     assert.equal(pct, args, m[1]);
   }
+});
+
+test('the migration: each member who asked is told once the claimed listing is ready to book, and an off-market listing takes no asks', () => {
+  const sql = read('supabase-migrations/2026-10-29-listing-time-requests.sql');
+  const fn = sql.slice(sql.indexOf('create or replace function public.listing_time_requests_tell()'), sql.indexOf('\n$$;\n', sql.indexOf('create or replace function public.listing_time_requests_tell()')));
+  assert.ok(fn.length > 400, 'the trigger function');
+  assert.match(fn, /\nreturns trigger\nlanguage plpgsql\nsecurity definer\nset search_path = public, pg_temp\nas \$\$\n/);
+  assert.ok(sql.includes('revoke all on function public.listing_time_requests_tell() from public, anon, authenticated;'));
+  for (const [table, role] of [['trainers', 'trainer'], ['nutritionists', 'nutritionist']]) {
+    assert.ok(sql.includes(`create trigger listing_time_requests_tell
+  after update on public.${table}
+  for each row
+  when (new.owner_id is not null and new.listing_ready and not (old.owner_id is not null and old.listing_ready))
+  execute function public.listing_time_requests_tell('${role}');`), `on ${table}: only the change to owned and ready`);
+  }
+  // The row the app's notices carry: its English, route, dedupe and copy.
+  for (const piece of [
+    "'listing_joined',",
+    "coalesce(v_coach, 'The coach you asked') || ' is on Shape now',",
+    "'You asked ' || coalesce(v_coach, 'them') || ' for a time before they joined. Book one on their listing.',",
+    "'coach:' || v_role || ':' || new.id::text,",
+    "'dedupe', 'joined:' || v_role || ':' || new.id::text || ':' || a.member_id::text,",
+    "'copy', jsonb_build_object(\n             'title', jsonb_build_array('listingJoined.title', jsonb_build_object('coach', coalesce(v_coach, 'The coach you asked'))),",
+    "'body', jsonb_build_array('listingJoined.body', jsonb_build_object('coach', coalesce(v_coach, 'them')))))",
+    "from (select distinct r.member_id from public.listing_time_requests r\n        where r.provider_role = v_role and r.provider_id = new.id) a",
+    "on conflict (user_id, type, (data->>'dedupe')) where data ? 'dedupe' do nothing;",
+  ]) assert.ok(fn.includes(piece), piece);
+  // The English is what the notice catalog's English says, so the bell reads the copy, not the text.
+  const notice = JSON.parse(read('mobile-app/src/i18n/catalogs/en/notice.json'));
+  assert.equal(notice['listingJoined.title'].replace('{coach}', 'Leah'), 'Leah is on Shape now');
+  assert.equal(notice['listingJoined.body'].replace('{coach}', 'Leah'), 'You asked Leah for a time before they joined. Book one on their listing.');
+  // The store refuses a listing off the market, after the claim check.
+  const store = sql.slice(sql.indexOf('create or replace function public.add_listing_time_request('));
+  const claimed = store.indexOf("return query select 'claimed'::text");
+  const ready = store.indexOf("  if v_ready is not true then\n    return query select 'no_listing'::text, null::uuid, null::text;");
+  assert.ok(claimed > 0 && ready > claimed, 'off the market: no listing');
+  assert.ok(store.includes('select true, t.owner_id, t.name, t.listing_ready into v_found, v_owner, v_coach, v_ready'));
+  assert.ok(store.includes('select true, n.owner_id, n.name, n.listing_ready into v_found, v_owner, v_coach, v_ready'));
 });
 
 test('the copy: every locale says the ask, the coach\'s list and the joined notice', () => {

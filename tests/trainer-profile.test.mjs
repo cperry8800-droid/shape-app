@@ -781,7 +781,8 @@ test('a coach photo that fails to load shows the initials', async () => {
   assert.ok(img, 'the photo first');
   await act(async () => { img.dispatchEvent(new window.Event('error')); });
   assert.ok(!document.querySelector('img[src="https://cdn.example/broken.jpg"]'), 'gone once it fails');
-  assert.match(m.text(), /MO/, 'the initials instead');
+  // The avatar's own text (the page's text held "MO" by chance at some hours, in "TOMORROW").
+  assert.equal(document.querySelector('[data-initials]').textContent, 'MO', 'the initials instead');
   await m.unmount();
 });
 

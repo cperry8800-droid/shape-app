@@ -4,17 +4,17 @@
 --
 -- A seeded listing (a trainer or nutritionist row with no owner_id) shows sample open times on its
 -- profile. A member taps one and asks for it; the ask is kept here against the listing. Shape's
--- owners hear of each ask (/api/listing-requests). When the listing is claimed (claim_provider_row,
--- /dashboard/claim), the coach reads the asks on their own page and every member who asked is told
--- the coach is on Shape now.
+-- owners hear of each ask (/api/listing-requests). Once the listing is claimed (claim_provider_row,
+-- /dashboard/claim), the coach reads the asks on their own page; and when it is ready to book
+-- (listing_ready), every member who asked is told the coach is on Shape now (the trigger below).
 --
 -- Who reads a row (RLS):
 --   - the member who asked it;
 --   - the account that owns the listing, once it does (trainers / nutritionists owner_id).
 -- Nobody writes one through the API. The route checks the account and the ask (the time in the
 -- next 60 days), then stores it through add_listing_time_request with the service role, which
--- checks the listing (it exists and has no owner), the same time asked before, and the member's
--- caps in the one transaction that inserts (below). A member's account going removes their asks
+-- checks the listing (it exists, has no owner, and is on the market), the same time asked before,
+-- and the member's caps in the one transaction that inserts (below). A member's account going removes their asks
 -- (on delete cascade).
 --
 -- One transaction; re-runnable.
@@ -71,8 +71,8 @@ create policy listing_time_requests_coach_read on public.listing_time_requests
 --     to commit, so the claim's notice to the askers reads it; or the ask waits for the claim, then
 --     reads the owner and is refused.
 --   - The same time asked again is the ask already stored, whatever the caps say.
--- Outcomes: no_listing, claimed, already, daily_cap, too_many, added (with the new ask's id). The
--- listing's name comes back for the route's messages.
+-- Outcomes: no_listing (gone, or off the market), claimed, already, daily_cap, too_many, added
+-- (with the new ask's id). The listing's name comes back for the route's messages.
 create or replace function public.add_listing_time_request(
   p_role text,
   p_provider_id bigint,
@@ -91,6 +91,7 @@ declare
   v_found boolean;
   v_owner uuid;
   v_coach text;
+  v_ready boolean;
   v_id uuid;
 begin
   if p_member_id is null then
@@ -99,10 +100,10 @@ begin
   perform pg_advisory_xact_lock(hashtextextended('listing_time_requests:' || p_member_id::text, 0));
 
   if p_role = 'trainer' then
-    select true, t.owner_id, t.name into v_found, v_owner, v_coach
+    select true, t.owner_id, t.name, t.listing_ready into v_found, v_owner, v_coach, v_ready
     from public.trainers t where t.id = p_provider_id for share;
   elsif p_role = 'nutritionist' then
-    select true, n.owner_id, n.name into v_found, v_owner, v_coach
+    select true, n.owner_id, n.name, n.listing_ready into v_found, v_owner, v_coach, v_ready
     from public.nutritionists n where n.id = p_provider_id for share;
   else
     raise exception 'invalid role %', p_role using errcode = '22023';
@@ -113,6 +114,11 @@ begin
   end if;
   if v_owner is not null then
     return query select 'claimed'::text, null::uuid, v_coach;
+    return;
+  end if;
+  -- Off the market (suspended): the app shows no such listing, so it takes no asks (Codex on 6cc407d).
+  if v_ready is not true then
+    return query select 'no_listing'::text, null::uuid, null::text;
     return;
   end if;
 
@@ -145,6 +151,63 @@ $$;
 
 revoke all on function public.add_listing_time_request(text, bigint, uuid, timestamptz, integer, text, integer, integer) from public, anon, authenticated;
 grant execute on function public.add_listing_time_request(text, bigint, uuid, timestamptz, integer, text, integer, integer) to service_role;
+
+-- =====================================================================================
+-- listing_time_requests_tell: the members who asked are told once the listing is its coach's and
+-- ready to book (Codex on 6cc407d: told at the claim, the notice opened a listing the app can't show,
+-- as a claimed listing is ready only with a price, payouts on and a photo; provider_listing_ready_row,
+-- 2026-10-12-coach-listing-ready.sql). An AFTER UPDATE trigger on each listing table sees the row as
+-- provider_listing_ready_row left it, whichever change makes it ready (the claim itself, payouts, a
+-- price, a photo, an unsuspension), and fires only on the change to owned and ready. One notice per
+-- member and listing: the same row and copy the app's notices carry (listingJoined in the notice
+-- catalog), its dedupe key making a second firing write nothing (notifications_dedupe_uidx). A
+-- definer, as the coach's own update fires it and the notices are other accounts'.
+create or replace function public.listing_time_requests_tell()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_role text := tg_argv[0];
+  v_coach text := nullif(btrim(coalesce(new.name, '')), '');
+begin
+  insert into public.notifications (user_id, type, title, body, route, data)
+  select a.member_id,
+         'listing_joined',
+         coalesce(v_coach, 'The coach you asked') || ' is on Shape now',
+         'You asked ' || coalesce(v_coach, 'them') || ' for a time before they joined. Book one on their listing.',
+         'coach:' || v_role || ':' || new.id::text,
+         jsonb_build_object(
+           'dedupe', 'joined:' || v_role || ':' || new.id::text || ':' || a.member_id::text,
+           'providerRole', v_role,
+           'providerId', new.id,
+           'side', 'client',
+           'copy', jsonb_build_object(
+             'title', jsonb_build_array('listingJoined.title', jsonb_build_object('coach', coalesce(v_coach, 'The coach you asked'))),
+             'body', jsonb_build_array('listingJoined.body', jsonb_build_object('coach', coalesce(v_coach, 'them')))))
+  from (select distinct r.member_id from public.listing_time_requests r
+        where r.provider_role = v_role and r.provider_id = new.id) a
+  on conflict (user_id, type, (data->>'dedupe')) where data ? 'dedupe' do nothing;
+  return null;
+end;
+$$;
+
+revoke all on function public.listing_time_requests_tell() from public, anon, authenticated;
+
+drop trigger if exists listing_time_requests_tell on public.trainers;
+create trigger listing_time_requests_tell
+  after update on public.trainers
+  for each row
+  when (new.owner_id is not null and new.listing_ready and not (old.owner_id is not null and old.listing_ready))
+  execute function public.listing_time_requests_tell('trainer');
+
+drop trigger if exists listing_time_requests_tell on public.nutritionists;
+create trigger listing_time_requests_tell
+  after update on public.nutritionists
+  for each row
+  when (new.owner_id is not null and new.listing_ready and not (old.owner_id is not null and old.listing_ready))
+  execute function public.listing_time_requests_tell('nutritionist');
 
 -- =====================================================================================
 -- Guard: the end state, asserted. Every RAISE takes exactly the arguments its format names.
@@ -187,6 +250,18 @@ begin
      or has_function_privilege('authenticated', 'public.add_listing_time_request(text, bigint, uuid, timestamptz, integer, text, integer, integer)', 'execute')
      or not has_function_privilege('service_role', 'public.add_listing_time_request(text, bigint, uuid, timestamptz, integer, text, integer, integer)', 'execute') then
     raise exception 'add_listing_time_request must be the service role''s alone';
+  end if;
+  if v_src not like '%v_ready is not true%' then
+    raise exception 'add_listing_time_request takes asks for a listing off the market';
+  end if;
+  if (select count(*) from pg_trigger tg join pg_class c on c.oid = tg.tgrelid join pg_namespace ns on ns.oid = c.relnamespace
+      where ns.nspname = 'public' and c.relname in ('trainers', 'nutritionists') and tg.tgname = 'listing_time_requests_tell' and not tg.tgisinternal) <> 2 then
+    raise exception 'listing_time_requests_tell is not on both listing tables';
+  end if;
+  if not exists (select 1 from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+      where ns.nspname = 'public' and p.proname = 'listing_time_requests_tell' and p.prosecdef
+        and p.proconfig is not null and array_to_string(p.proconfig, ',') like '%pg_temp%') then
+    raise exception 'listing_time_requests_tell is not a definer pinned to pg_temp';
   end if;
 end
 $guard$;

@@ -2,14 +2,14 @@
 //
 // A seeded listing (a trainer or nutritionist row with no owner_id) shows sample open times. A member
 // taps one and asks for it: /api/listing-requests keeps the ask against the listing
-// (listing_time_requests, 2026-10-29-listing-time-requests.sql) and tells Shape's owners. When an
-// admin claims the listing for its coach (/dashboard/claim), tellAskers tells every member who asked
-// that the coach is on Shape now, and the coach reads the asks on their own page.
+// (listing_time_requests, 2026-10-29-listing-time-requests.sql) and tells Shape's owners. Once the
+// listing is claimed for its coach (/dashboard/claim), the coach reads the asks on their own page;
+// when it is ready to book, the migration's trigger (listing_time_requests_tell) tells every member
+// who asked that the coach is on Shape now.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createNotification } from '@/lib/notify';
 import { ownerAccountIds } from '@/lib/payment-notices';
-import { np } from '../../mobile-app/src/services/noticeCopy.mjs';
 
 export type CoachRole = 'trainer' | 'nutritionist';
 export type ListingAsk = { role: CoachRole; providerId: number; slotStart: string; durationMin: number; note: string | null };
@@ -86,69 +86,6 @@ export async function tellOwnersOfAsk(admin: SupabaseClient, askId: string, ask:
     return told;
   } catch (err) {
     console.error('[listing-requests] owners not told:', err);
-    return 0;
-  }
-}
-
-/** The member's notice when the coach they asked is on Shape: English for the website, and copy for the app. */
-export function joinedNotice(coach: string): { title: string; body: string; copy: { title: unknown; body: unknown } } {
-  const name = coach || 'The coach you asked';
-  return {
-    title: `${name} is on Shape now`,
-    body: `You asked ${coach || 'them'} for a time before they joined. Book one on their listing.`,
-    copy: { title: np('listingJoined.title', { coach: name }), body: np('listingJoined.body', { coach: coach || '' }) },
-  };
-}
-
-/** Asks read a page at a time when a claim tells the askers; ASKER_PAGES pages at most. */
-export const ASKER_PAGE = 1000;
-const ASKER_PAGES = 50;
-/** Notices written at once when a claim tells the askers (Codex on 78a478b: one at a time could
- * outrun the claim's time with a few thousand askers). */
-export const ASKER_NOTICES_AT_ONCE = 10;
-
-/**
- * The listing has just been claimed for its coach: tell each member who asked for a time. Once per
- * member and listing (data.dedupe). Every ask is read, a page at a time (Codex on 126c626: a single
- * page of 500 left out the members past it, and a claim tells them only once). Best effort: the
- * claim is done, and a read that fails tells nobody (the dedupe keys keep a second call to one notice
- * each). Returns how many were told.
- */
-export async function tellAskers(admin: SupabaseClient, role: CoachRole, providerId: number): Promise<number> {
-  try {
-    const members = new Set<string>();
-    for (let page = 0; page < ASKER_PAGES; page += 1) {
-      const from = page * ASKER_PAGE;
-      const { data: asks, error } = await admin.from('listing_time_requests').select('member_id')
-        .eq('provider_role', role).eq('provider_id', providerId)
-        .order('id', { ascending: true }).range(from, from + ASKER_PAGE - 1);
-      if (error) {
-        console.error('[listing-requests] asks not read:', error.message);
-        return 0;
-      }
-      const rows = (asks || []) as { member_id?: string | null }[];
-      for (const a of rows) if (a.member_id) members.add(a.member_id);
-      if (rows.length < ASKER_PAGE) break;
-    }
-    const { data: listing } = await admin.from(role === 'nutritionist' ? 'nutritionists' : 'trainers').select('name').eq('id', providerId).maybeSingle();
-    const coach = String((listing as { name?: string | null } | null)?.name || '').trim();
-    const { copy, ...notice } = joinedNotice(coach);
-    const ids = [...members];
-    let told = 0;
-    // ASKER_NOTICES_AT_ONCE at a time; a notice that fails doesn't stop the others.
-    for (let k = 0; k < ids.length; k += ASKER_NOTICES_AT_ONCE) {
-      const sent = await Promise.allSettled(ids.slice(k, k + ASKER_NOTICES_AT_ONCE).map((memberId) => createNotification(admin, {
-        userId: memberId,
-        type: 'listing_joined',
-        ...notice,
-        route: `coach:${role}:${providerId}`,
-        data: { dedupe: `joined:${role}:${providerId}:${memberId}`, providerRole: role, providerId, side: 'client' },
-      }, copy)));
-      told += sent.filter((r) => r.status === 'fulfilled' && r.value).length;
-    }
-    return told;
-  } catch (err) {
-    console.error('[listing-requests] askers not told:', err);
     return 0;
   }
 }

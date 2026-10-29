@@ -174,7 +174,7 @@ const WRITERS = [
   'src/lib/refund-session.ts', 'src/lib/payment-notices.ts', 'src/lib/coach-thread.ts', 'src/lib/session-emails.ts',
   'src/app/api/cron/score-accountability/route.ts', 'src/app/dashboard/credentials/actions.ts', 'src/app/api/cron/credential-expiry/route.ts',
   'src/lib/workout-share.ts', 'src/app/api/nutritionist/meal-plan/route.ts', 'src/lib/ai/notifications.mjs', 'src/app/api/push/dispatch/route.ts',
-  'mobile-app/src/services/noticeCopy.mjs', 'src/lib/listing-requests.ts',
+  'mobile-app/src/services/noticeCopy.mjs',
 ];
 const BUILT = [
   ...['weighIn', 'checkin', 'morning', 'water', 'photo', 'custom'].flatMap((k) => [`reminder.${k}.title`, `reminder.${k}.body`]),
@@ -188,6 +188,8 @@ const BUILT = [
   ...['red', 'amber'].flatMap((k) => [`coach.${k}.title`, `coach.${k}.titleAnon`, `coach.${k}.body`]),
   'session.cancelledMany.title', 'session.cancelledMany.body', 'session.movedMany.title', 'session.movedMany.body',
   ...['body', 'bodyAnon', 'bodyList', 'bodyListAnon'].map((k) => `grocery.ready.${k}`),
+  // Written by a migration's trigger (listing_time_requests_tell, 2026-10-29-listing-time-requests.sql).
+  'listingJoined.title', 'listingJoined.body',
 ];
 
 test('every key a writer names is in the catalog, and every catalog key is named', () => {
