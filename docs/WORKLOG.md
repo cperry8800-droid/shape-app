@@ -148,9 +148,9 @@ The War Room has the full list; this covers what needs the owner and the planned
   (closing it means refunds).
 - In-app purchase outside the US (Phase 2) is on hold.
 - Decide how a suspended coach appeals.
-- Have counsel read the 2026-10-13 privacy policy text. The health-data page lists only the weekly
-  check-in, not the Morning check-in, readiness or patterns, and the data export leaves out Nora's
-  conversation and the stored readouts.
+- Have counsel read the 2026-10-13 privacy policy text, and say if §10 lists tap counts. The
+  health-data page lists only the weekly check-in, not the Morning check-in, readiness or patterns,
+  and the data export leaves out Nora's conversation and the stored readouts.
 - Make the direct-charges test purchase (#2403's Owner steps): in Stripe test mode, add the
   Connected accounts destination with `invoice.paid`, set both Connect variables under
   Vercel's Preview (the test-mode `ca_…`), then buy from a test coach on staging.
