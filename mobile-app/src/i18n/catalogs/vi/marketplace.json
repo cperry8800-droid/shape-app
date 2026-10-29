@@ -189,6 +189,7 @@
   "preview.outline": "Bố cục",
   "preview.perDay": "Thực đơn thay đổi theo ngày · bữa mỗi ngày",
   "preview.locked": "＋{count} nữa · mở khóa khi bạn mua",
+  "preview.namesOnly": "Hiệp, mức tạ, lưu ý và video bài tập sẽ mở khóa khi bạn mua",
   "preview.noOutline": "Huấn luyện viên này chưa đăng bố cục cho mục này.",
   "preview.buy": "Mua · {price} →",
   "preview.action": "Xem bên trong →",

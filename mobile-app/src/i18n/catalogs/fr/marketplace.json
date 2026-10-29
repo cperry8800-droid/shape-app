@@ -189,6 +189,7 @@
   "preview.outline": "Le déroulé",
   "preview.perDay": "Les menus varient selon le jour · repas par jour",
   "preview.locked": "＋{count} de plus · débloqués à l'achat",
+  "preview.namesOnly": "Séries, charges, consignes et vidéos d'exercices débloquées à l'achat",
   "preview.noOutline": "Ce coach n'a pas encore publié de déroulé pour celui-ci.",
   "preview.buy": "Acheter · {price} →",
   "preview.action": "Voir le contenu →",

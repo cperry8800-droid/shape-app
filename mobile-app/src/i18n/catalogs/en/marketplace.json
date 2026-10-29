@@ -189,6 +189,7 @@
   "preview.outline": "The outline",
   "preview.perDay": "Menus vary by day · meals per day",
   "preview.locked": "＋{count} more · unlocked when you buy",
+  "preview.namesOnly": "Sets, loads, cues and exercise videos unlock when you buy",
   "preview.noOutline": "This coach hasn't published an outline for this one yet.",
   "preview.buy": "Buy · {price} →",
   "preview.action": "What's inside →",

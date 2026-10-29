@@ -189,6 +189,7 @@
   "preview.outline": "Akış",
   "preview.perDay": "Menüler güne göre değişir · günlük öğün",
   "preview.locked": "＋{count} tane daha · satın alınca açılır",
+  "preview.namesOnly": "Setler, ağırlıklar, ipuçları ve egzersiz videoları satın alınca açılır",
   "preview.noOutline": "Bu koç bunun için henüz bir akış yayınlamadı.",
   "preview.buy": "Satın al · {price} →",
   "preview.action": "İçinde ne var →",

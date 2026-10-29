@@ -283,7 +283,7 @@ test('reduced: the model of a reduced meal plan equals the model of the full one
   }
 });
 
-test('reduced: the shape carries no meal text beyond the two meals the sheet shows, and a program is untouched', () => {
+test('reduced: the shape carries no meal text beyond the two meals the sheet shows', () => {
   const texts = (d) => {
     const out = [];
     const take = (b) => { const t = (b && b.text != null) ? b.text : b; const s = String(t || '').trim(); if (s) out.push(s); };
@@ -309,8 +309,6 @@ test('reduced: the shape carries no meal text beyond the two meals the sheet sho
   const uniform = bsPreviewReduce('meal_plan', MEAL_FIXTURES[2].detail);
   assert.equal('days' in uniform, false, 'no days key stays no days key');
   assert.equal(uniform.perDay, false);
-  const program = bsPreviewReduce('program', { builder: { weeks: [] }, blocks: ['Mon — Push', 'Wed — Pull', 'Fri — Legs'], days: [{ dow: 0, blocks: ['x'] }] });
-  assert.deepEqual(program, { blocks: ['Mon — Push', 'Wed — Pull', 'Fri — Legs'], days: [{ dow: 0, blocks: ['x'] }] });
   assert.equal(bsPreviewReduce('meal_plan', null), null);
 });
 
@@ -337,7 +335,7 @@ test('reduced: the counts are the server\'s, and a reduced plan never reads a lo
   assert.equal(empty.kind, null);
   assert.deepEqual(empty.units, []);
   const notNutri = bsPlanPreview({ detail: { preview: true, blocks: ['Mon — Push', 'Tue — Pull', 'Thu — Legs'] } }, { isNutri: false });
-  assert.equal(notNutri.kind, 'split', 'the reduced path is the nutrition preview\'s only');
+  assert.equal(notNutri.kind, 'split', 'the counted path is the nutrition preview\'s only');
 });
 
 test('reduced: the migration applies the rule inside both public functions and keeps the helpers private', () => {
@@ -362,4 +360,181 @@ test('reduced: the migration applies the rule inside both public functions and k
     const args = m[2].trim() ? m[2].split(',').filter((s) => s.trim()).length : 0;
     assert.equal(pct, args, `RAISE "${m[1].slice(0, 60)}": ${pct} placeholder(s), ${args} argument(s)`);
   }
+});
+
+// ── A program's server-reduced shape (2026-10-29) ────────────────────────────
+// The public sale-plan functions hand out a program's names, weeks and days, and one
+// video (sale_plan_program_preview). bsProgramReduce is that rule in JavaScript; the
+// fixture file holds what the PostgreSQL 16 replica returned for each detail.
+import { bsProgramReduce, bsProgramLine } from '../mobile-app/src/services/planPreview.mjs';
+
+const REPLICA = JSON.parse(fs.readFileSync(new URL('./fixtures/program-preview-replica.json', import.meta.url), 'utf8')).fixtures;
+const fixture = (name) => REPLICA.find((f) => f.name.startsWith(name));
+const BLOCK_KEYS = ['week', 'day', 'dayName', 'weekday', 'name', 'equipment', 'muscle', 'text'];
+
+test('program: the JavaScript rule is the replica\'s, on every fixture', () => {
+  assert.ok(REPLICA.length >= 20);
+  for (const f of REPLICA) assert.deepEqual(bsPreviewReduce(f.kind, f.detail), f.sql, f.name);
+  assert.equal(bsProgramReduce(null), null);
+  assert.deepEqual(bsProgramReduce([1]), [1]);
+});
+
+test('program: names, weeks, days, equipment and one video come out; the prescription, cues and clips stay in', () => {
+  for (const f of REPLICA) {
+    const out = f.sql;
+    assert.deepEqual(Object.keys(out).filter((k) => !['preview', 'blocks', 'media', 'note', 'buildType', 'weeks', 'firstWeek'].includes(k)), [], `${f.name}: no other key`);
+    assert.equal(out.preview, true);
+    assert.ok(!JSON.stringify(out).includes('SECRET'), `${f.name}: no rest, tempo or cue`);
+    assert.ok(out.blocks.length <= 40);
+    for (const b of out.blocks) {
+      if (typeof b === 'string') continue;
+      assert.deepEqual(Object.keys(b).filter((k) => !BLOCK_KEYS.includes(k)), [], `${f.name}: a row keeps names only`);
+      assert.equal(b.text, b.name);
+    }
+    assert.ok(out.media.filter((m) => m.type === 'video').length <= 1, `${f.name}: one video at most`);
+    assert.ok(out.media.length <= 8);
+  }
+  const app = fixture('a program saved in the app').sql;
+  assert.equal(app.blocks.length, 24, '3 weeks of 8 named moves; the unnamed row is skipped');
+  assert.deepEqual(app.blocks[0], { week: 0, day: 0, dayName: 'Push', weekday: 0, name: 'Bench press', equipment: 'Barbell', muscle: 'Chest', text: 'Bench press' });
+  assert.deepEqual(app.blocks.at(-1), { week: 2, day: 2, dayName: 'Legs', weekday: 4, name: 'Walking lunge', text: 'Walking lunge' });
+  assert.deepEqual(app.media, [{ type: 'video', url: 'https://video.example/intro.mp4' }, { type: 'image', url: 'https://img.example/cover.jpg' }], 'the program video is the free one; the workout clips are kept for buyers');
+  assert.ok(!JSON.stringify(app).includes('clip.example'));
+  assert.deepEqual(fixture('the same program saved on the website').sql.blocks, app.blocks, 'the app and the website preview one program alike');
+  assert.equal(app.weeks, 3, 'how many weeks the builder holds, past the 40 rows');
+  assert.deepEqual(app.firstWeek, [{ week: 0, day: 0, dayName: 'Push', weekday: 0, moves: 3 }, { week: 0, day: 1, dayName: 'Pull', weekday: 2, moves: 2 }, { week: 0, day: 2, dayName: 'Legs', weekday: 4, moves: 3 }]);
+  const long = fixture('a first day of 45 moves').sql;
+  assert.deepEqual(long.firstWeek.map((d) => [d.dayName, d.moves]), [['Long', 45], ['Short', 5], ['Shorter', 3]], 'counted past the 40 names (Codex P2 on #2501)');
+  assert.equal(long.blocks.length, 40);
+  assert.equal(fixture('the 53rd week').sql.weeks, 52);
+  assert.equal('weeks' in fixture('a weekday split').sql, false, 'a text outline states its own weeks');
+  assert.deepEqual(fixture('media: no program video').sql.media, [{ type: 'video', url: 'https://clip.example/ok.mp4' }, { type: 'image', url: 'http://img.example/plain.jpg' }], 'no program video: the first usable clip');
+  assert.deepEqual(fixture('a single session of text lines').sql.blocks, ['Back squat', 'Romanian deadlift', 'Hip thrust', 'Plank', 'Curl', 'Walk', 'Squat · 2', 'Bench —', 'Face pull · light', 'Dip']);
+  assert.deepEqual(fixture('a weekday split').sql.blocks, ['Mon — Upper (push)', 'Tue — Lower', 'Wed — Rest', 'Thu — Upper (pull)', 'Fri — Lower: squat 5×5'], 'a split\'s days are its structure, whole');
+  assert.deepEqual(fixture('an outline-only builder').sql.blocks, ['Mon — Push', 'Wed — Pull', 'Fri — Legs']);
+  assert.deepEqual(fixture('outlineOnly as text').sql.blocks.map((b) => b.name), ['Shown']);
+  assert.deepEqual(fixture('past the scans').sql.blocks, [], 'the 15th day, the 13th block and the 41st row are past the scans');
+  assert.deepEqual(fixture('past 400 rows').sql.blocks, []);
+  assert.deepEqual(fixture('the 53rd week').sql.blocks, []);
+  assert.equal(fixture('45 rows').sql.blocks.length, 40);
+  assert.deepEqual(fixture('50 rows over two blocks').sql.blocks.map((b) => b.name).slice(-2), ['B14', 'B15'], 'forty in all, across blocks');
+});
+
+test('program: a line keeps its weekday or week whole and loses its scheme otherwise', () => {
+  assert.equal(bsProgramLine('Mon — Push'), 'Mon — Push');
+  assert.equal(bsProgramLine('Thurs: Lower 5×5'), 'Thurs: Lower 5×5');
+  assert.equal(bsProgramLine('sunday. — Long run 12 km'), 'sunday. — Long run 12 km');
+  assert.equal(bsProgramLine('Week 12 — Peak 3×3 @ 90%'), 'Week 12 — Peak 3×3 @ 90%');
+  assert.equal(bsProgramLine('Monster walk — 3 × 10'), 'Monster walk', 'an exercise that starts like a weekday');
+  assert.equal(bsProgramLine('Sunrise run: 5 km'), 'Sunrise run');
+  assert.equal(bsProgramLine('Week 53 — x'), 'Week 53');
+  assert.equal(bsProgramLine('Back squat – 4 × 6'), 'Back squat', 'an en dash');
+  assert.equal(bsProgramLine('Plank · 3 × 30s'), 'Plank');
+  assert.equal(bsProgramLine('Face pull · light'), 'Face pull · light', 'no number after the dot: nothing to cut');
+  assert.equal(bsProgramLine('Bench —'), 'Bench —', 'a separator with nothing after it');
+  assert.equal(bsProgramLine('— 3 × 8'), '');
+  assert.equal(bsProgramLine(''), '');
+});
+
+test('program: the sheet classes a reduced outline as it classed the full one, with names alone', () => {
+  const view = (m) => canon({ kind: m.kind, weeks: m.weeks, sessionsPerWeek: m.sessionsPerWeek, units: m.units.map((u) => [u.label, u.title, !!u.rest]), free: m.free.map((u) => [u.label, u.title]), locked: m.locked, note: m.note });
+  // Crafted: a block's text of 5, and a note of 5, read "5" in full and nothing reduced; only less shows.
+  const crafted = ['junk blocks', 'a note that is not text', 'the same program saved on the website'];
+  const compared = [];
+  for (const f of REPLICA.filter((x) => !crafted.some((c) => x.name.startsWith(c)))) {
+    const plan = { name: 'P', meta: '6 weeks', detail: f.detail };
+    const full = bsPlanPreview(plan, { isNutri: false });
+    const red = bsPlanPreview({ ...plan, detail: f.sql }, { isNutri: false });
+    // The server reads a builder where there is one, as delivery does, and its rows carry
+    // their week and day, which the full path never had: those preview as a program (below).
+    const b = f.detail.builder;
+    if (b && typeof b === 'object' && Array.isArray(b.weeks) && b.outlineOnly !== true) continue;
+    assert.equal(view(red), view(full), f.name);
+    compared.push(f.name);
+    if (red.kind) assert.equal(red.namesOnly, true, `${f.name}: the sheet says what buying unlocks`);
+    for (const u of red.units) if (!u.rest && u.label === '') assert.ok(!u.scheme && !u.load || /^(mon|tue|wed|thu|fri|sat|sun)/i.test(u.title), `${f.name}: ${u.title} carries no scheme`);
+  }
+  assert.ok(['a weekday split', 'a week-block outline', 'a single session', 'lines that look like structure', 'an outline-only builder'].every((n) => compared.some((c) => c.startsWith(n))), compared.join(' | '));
+  // "Squat · 2" is the name as the coach wrote it, not Squat with a load of 2.
+  const session = bsPlanPreview({ detail: fixture('a single session of text lines').sql }, { isNutri: false });
+  assert.deepEqual(session.units.map((u) => u.title).slice(6, 8), ['Squat · 2', 'Bench —']);
+  assert.ok(session.units.every((u) => u.scheme === '' && u.load === ''));
+  // A meal plan's full path, and the nutrition path, never take the flag.
+  assert.equal('namesOnly' in bsPlanPreview({ detail: { blocks: ['Mon — A', 'Tue — B', 'Wed — C'] } }, { isNutri: false }), false);
+});
+
+test('program: a builder\'s program previews its first week\'s days with their moves; one day is a session (Codex P1 on #2501)', () => {
+  for (const name of ['a program saved in the app', 'the same program saved on the website']) {
+    const p = bsPlanPreview({ name: 'Rack Strength', detail: fixture(name).sql }, { isNutri: false });
+    assert.equal(p.kind, 'program', `${name}: a program, not a single session`);
+    assert.equal(p.namesOnly, true);
+    assert.equal(p.weeks, 3, 'the builder\'s weeks, with nothing stated');
+    assert.equal(p.sessionsPerWeek, 3);
+    assert.deepEqual(p.units.map((u) => [u.label, u.title, u.moves]), [
+      ['MON', 'Push', ['Bench press', 'Incline dumbbell press', 'Cable fly']],
+      ['WED', 'Pull', ['Lat pulldown', 'Seated row']],
+      ['FRI', 'Legs', ['Back squat', 'Leg press', 'Walking lunge']],
+    ]);
+    assert.deepEqual(p.free, p.units, 'names and days are free');
+    assert.equal(p.locked, 0);
+  }
+  assert.equal(bsPlanPreview({ name: 'P', detail: fixture('the same program saved on the website').detail }, { isNutri: false }).kind, null, 'the website save had no outline at all before');
+  assert.equal(bsPlanPreview({ meta: '6 weeks', detail: fixture('a program saved in the app').sql }, { isNutri: false }).weeks, 6, 'stated weeks still win');
+  // Days with no weekday read DAY n; the first week with moves is the one shown.
+  const junk = bsPlanPreview({ detail: fixture('junk builder').sql }, { isNutri: false });
+  assert.equal(junk.kind, 'program');
+  assert.deepEqual(junk.units.map((u) => [u.label, u.title, u.moves]), [['DAY 3', '', ['A', 'B']], ['DAY 4', 'Day', ['C']], ['DAY 5', '', ['D']]]);
+  assert.equal(junk.weeks, 3);
+  // One day of moves is a single session of names.
+  const one = bsPlanPreview({ detail: fixture('50 rows over two blocks').sql }, { isNutri: false });
+  assert.equal(one.kind, 'session');
+  assert.equal(one.units.length, 40);
+  assert.deepEqual(one.free.map((u) => [u.title, u.scheme, u.load]), [['A1', '', ''], ['A2', '', '']]);
+  // A first day of 45 moves fills the 40 names; its later days still come, with their counts
+  // (Codex P2 on #2501).
+  const long = bsPlanPreview({ detail: fixture('a first day of 45 moves').sql }, { isNutri: false });
+  assert.equal(long.kind, 'program');
+  assert.equal(long.weeks, 2);
+  assert.deepEqual(long.units.map((u) => [u.label, u.title, u.moves.length, u.more]), [['MON', 'Long', 40, 5], ['WED', 'Short', 0, 5], ['FRI', 'Shorter', 0, 3]]);
+  // A crafted first week: a day missing its week or day is no day of it.
+  const odd = bsPlanPreview({ detail: { preview: true, blocks: [{ week: 0, day: 0, text: 'A' }], firstWeek: [{ week: 0, day: 0, moves: 1 }, { week: '0', day: 1, moves: 2 }, null] } }, { isNutri: false });
+  assert.equal(odd.kind, 'session');
+  // A crafted week or day is no row of a program.
+  const crafted = bsPlanPreview({ detail: { preview: true, blocks: [{ week: '0', day: 0, text: 'A' }, { week: 0, day: 1.5, text: 'B' }, { week: 0, day: 0, text: 'C' }] } }, { isNutri: false });
+  assert.equal(crafted.kind, 'session');
+});
+
+test('program: the migration routes a program through the cut, keeps a meal plan\'s body and keeps every helper private', () => {
+  const sql = fs.readFileSync(new URL('../supabase-migrations/2026-10-29-program-preview-names.sql', import.meta.url), 'utf8');
+  const before = fs.readFileSync(new URL('../supabase-migrations/2026-10-09-sale-plan-preview-menus.sql', import.meta.url), 'utf8');
+  const body = (text) => text.slice(text.indexOf('create or replace function public.sale_plan_preview_detail('), text.indexOf('$$;', text.indexOf('create or replace function public.sale_plan_preview_detail(')));
+  const was = body(before).replace("  v := v - 'builder';\n  if p_kind is distinct from 'meal_plan' then return v; end if;\n", '');
+  const now = body(sql).replace("  if p_kind is distinct from 'meal_plan' then return public.sale_plan_program_preview(v); end if;\n  v := v - 'builder';\n", '');
+  assert.notEqual(was, body(before), 'the old program branch was found');
+  assert.notEqual(now, body(sql), 'the new program branch was found');
+  assert.equal(now, was, 'a meal plan runs the 2026-10-09 body, line for line');
+  for (const fn of ['sale_plan_program_clean(text, integer)', 'sale_plan_program_line(text)', 'sale_plan_program_preview(jsonb)', 'sale_plan_preview_detail(text, jsonb)']) {
+    for (const role of ['public', 'anon', 'authenticated']) assert.ok(sql.includes(`revoke all on function public.${fn} from ${role};`), `${fn} revoked from ${role}`);
+  }
+  assert.equal((sql.match(/^set search_path = public, pg_temp$/gm) ?? []).length, 4, 'every function pinned');
+  assert.doesNotMatch(sql, /^\s*(?:stable |immutable )?security definer\s*$/im, 'the helpers run as the caller: only the two public functions are definers');
+  assert.equal((sql.match(/^immutable$/gm) ?? []).length, 4);
+  assert.match(sql, /where n <= 52 order by n loop/);
+  assert.match(sql, /where n <= 14 order by n loop/);
+  assert.match(sql, /where n <= 12 order by n loop/);
+  assert.match(sql, /exit rows when v_visits > 400;/);
+  assert.match(sql, /exit rows when v_count >= 40 and v_first is not null;/);
+  assert.match(sql, /            continue when v_count >= 40;\n/);
+  assert.match(sql, /    v_weeks := least\(jsonb_array_length\(v_builder->'weeks'\), 52\);\n/, 'a builder\'s weeks, counted');
+  assert.match(sql, /if v_weeks is not null then v_out := v_out \|\| jsonb_build_object\('weeks', v_weeks, 'firstWeek', v_first_week\); end if;/);
+  assert.match(sql, /\nbegin;\nset local lock_timeout = '10s';\n/);
+  assert.match(sql, /\$guard\$;\n\ncommit;\n$/);
+  const guard = sql.slice(sql.indexOf('do $guard$'), sql.lastIndexOf('$guard$;'));
+  assert.doesNotMatch(guard, /\bexecute\b/);
+  for (const m of guard.matchAll(/raise exception '((?:[^']|'')*)'((?:,\s*[\w.()':]+)*)\s*;/g)) {
+    const pct = (m[1].match(/%/g) ?? []).length;
+    const args = m[2].trim() ? m[2].split(',').filter((x) => x.trim()).length : 0;
+    assert.equal(pct, args, `RAISE "${m[1].slice(0, 60)}": ${pct} placeholder(s), ${args} argument(s)`);
+  }
+  assert.ok([...guard.matchAll(/raise exception/g)].length >= 10);
 });

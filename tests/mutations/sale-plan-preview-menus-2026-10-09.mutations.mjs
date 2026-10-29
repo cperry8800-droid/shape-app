@@ -37,8 +37,8 @@ export default {
     { name: 'the mirror leaves builder in', file: PREVIEW,
       find: "  const out = { ...detail };\n  delete out.builder;",
       replace: "  const out = { ...detail };" },
-    { name: 'the mirror reduces a program too', file: PREVIEW,
-      find: "  if (kind !== 'meal_plan') return out;\n",
+    { name: 'the mirror reduces a program as a meal plan', file: PREVIEW,
+      find: "  if (kind !== 'meal_plan') return bsProgramReduce(detail);\n",
       replace: "" },
     // ── the preview's reading of the reduced shape ──
     { name: 'a uniform week counts the whole week', file: PREVIEW,
