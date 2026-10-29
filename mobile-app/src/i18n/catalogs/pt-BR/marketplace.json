@@ -189,6 +189,7 @@
   "preview.outline": "O roteiro",
   "preview.perDay": "Os cardápios variam por dia · refeições por dia",
   "preview.locked": "＋{count} a mais · liberados na compra",
+  "preview.namesOnly": "Séries, cargas, dicas e vídeos dos exercícios liberados na compra",
   "preview.noOutline": "Este coach ainda não publicou um roteiro para este.",
   "preview.buy": "Comprar · {price} →",
   "preview.action": "O que tem dentro →",
