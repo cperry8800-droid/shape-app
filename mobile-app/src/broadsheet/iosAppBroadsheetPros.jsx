@@ -4870,7 +4870,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [showAdjustPage, setShowAdjustPage] = useStateBSP(false);
   const [showWorkoutWatch, setShowWorkoutWatch] = useStateBSP(false);
   const [showSchedulePage, setShowSchedulePage] = useStateBSP(false);
-  // The client's calendar with both coaches' plans (CARE TEAM's "See both schedules").
+  // The client's calendar with every coach's plans (CARE TEAM's "See all schedules").
   const [showClientCalendar, setShowClientCalendar] = useStateBSP(false);
   const [showAssignPage, setShowAssignPage] = useStateBSP(false);
   const [showDraft, setShowDraft] = useStateBSP(false);
@@ -6017,11 +6017,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             );
           })}
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.coordinatePlan', { defaultValue: "Coordinate {name}'s plan with the rest of the care team", name: first })}</div>
-          {/* Both schedules (owner, 2026-10-29): with a coach of the other discipline on the client,
-              the client's calendar carries that coach's workouts or menu beside this coach's own. */}
-          {careTeam.some((c) => c.role && c.role !== role) && (
+          {/* Both schedules (owner, 2026-10-29: "any shared client for any trainer or nutritionist
+              should be shared"): the client's calendar carries every other coach's workouts or menu
+              beside this coach's own, whatever their discipline. */}
+          {careTeam.length > 0 && (
             <button type="button" onClick={() => setShowClientCalendar(true)} style={{ marginTop: 10, minHeight: 44, width: '100%', background: 'transparent', border: `1px solid ${t.INK}`, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>
-              {tr('coach:case.seeBothSchedules', { defaultValue: 'See both schedules →' })}
+              {tr('coach:case.seeBothSchedules', { defaultValue: 'See all schedules →' })}
             </button>
           )}
         </div>

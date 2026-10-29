@@ -326,9 +326,9 @@ function bsCalViewPref() {
   try { return localStorage.getItem(_BS_CAL_VIEW_KEY) === 'weeks' ? 'weeks' : 'month'; } catch (e) { return 'month'; }
 }
 
-// With `clientId`, a coach's view of one client's calendar (the client page's "See both schedules"):
-// that client's bookings, the plan rows this coach wrote and, on a client shared with a coach of the
-// other discipline, theirs too (/api/calendar). Read only: nothing is added from here.
+// With `clientId`, a coach's view of one client's calendar (the client page's "See all schedules"):
+// that client's bookings, the plan rows this coach wrote and, on a client shared with other coaches,
+// theirs too (/api/calendar). Read only: nothing is added from here.
 function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', onBack, clientId = null, clientName = null, initialDate = null }) {
   const t = useBSCal();
   const tr = useShapeTr();
@@ -456,7 +456,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
       />
       {forClient && (
         <div style={{ padding: `4px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>
-          {tr('calendar:client.note', { defaultValue: 'Both coaches’ plans: training, meals and bookings. Read only.' })}
+          {tr('calendar:client.note', { defaultValue: 'Every coach’s plans: training, meals and bookings. Read only.' })}
         </div>
       )}
 

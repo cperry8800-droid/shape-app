@@ -380,7 +380,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
   const [memberAge, setMemberAge] = React.useState(null);
   const [err, setErr] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
-  // CARE TEAM's "See both schedules": the client's calendar with both coaches' plans (pageShell.jsx).
+  // CARE TEAM's "See all schedules": the client's calendar with every coach's plans (pageShell.jsx).
   const bothSchedules = (typeof useCalendarOverlay === "function") ? useCalendarOverlay() : null;
   // Weights, lifts and girths read in the coach's own units (Settings → Units).
   const units = useDashUnits();
@@ -672,12 +672,13 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                   </div>
                 ))}
               </div>
-              {/* Both schedules (owner, 2026-10-29): with a coach of the other discipline on the
-                  client, their workouts or menu sit beside this coach's own on the client's calendar. */}
-              {bothSchedules && typeof CalendarOverlay === "function" && counterparts.some((c) => c.role && c.role !== myRole) && (
+              {/* Both schedules (owner, 2026-10-29: "any shared client for any trainer or nutritionist
+                  should be shared"): every other coach's workouts or menu sit beside this coach's own
+                  on the client's calendar, whatever their discipline. */}
+              {bothSchedules && typeof CalendarOverlay === "function" && counterparts.length > 0 && (
                 <button onClick={bothSchedules.open}
                   style={{ marginTop: 14, width: "100%", background: "transparent", color: "var(--sh-ink, #f2ede4)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 16px", borderRadius: 999, fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 12, fontWeight: 500, cursor: "pointer" }}>
-                  See both schedules →
+                  See all schedules →
                 </button>
               )}
             </Card>

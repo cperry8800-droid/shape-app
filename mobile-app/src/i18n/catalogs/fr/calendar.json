@@ -113,7 +113,7 @@
   "view.kicker": "Rubrique · Calendrier",
   "client.kicker": "Calendrier · {name}",
   "client.fallbackName": "Client",
-  "client.note": "Les plans des deux coachs : entraînement, repas et rendez-vous. Lecture seule.",
+  "client.note": "Les plans de tous les coachs : entraînement, repas et rendez-vous. Lecture seule.",
   "view.label": "Vue du calendrier",
   "view.month": "Mois",
   "view.weeks": "Semaines",

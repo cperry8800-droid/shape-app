@@ -113,7 +113,7 @@
   "view.kicker": "Bagian · Kalender",
   "client.kicker": "Kalender · {name}",
   "client.fallbackName": "Klien",
-  "client.note": "Rencana kedua pelatih: latihan, makanan, dan jadwal sesi. Hanya baca.",
+  "client.note": "Rencana semua pelatih: latihan, makanan, dan jadwal sesi. Hanya baca.",
   "view.label": "Tampilan kalender",
   "view.month": "Bulan",
   "view.weeks": "Minggu",

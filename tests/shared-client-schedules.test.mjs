@@ -1,14 +1,15 @@
-// A trainer and a nutritionist who share a client see both schedules (owner, 2026-10-29: "Have the
-// ability for trainers and nutritionists to see both schedules if they have a shared client"), and
-// coaches who already shared a client are told ("Apply to existing pairs as well").
+// Coaches who share a client see each other's schedules (owner, 2026-10-29: "Have the ability for
+// trainers and nutritionists to see both schedules if they have a shared client", "Apply to existing
+// pairs as well", then "any shared client for any trainer or nutritionist should be shared").
 //
-// - The calendar a coach opens for one client (/api/calendar?clientId=) adds the other discipline's
-//   workouts or menu from two definers (2026-10-29-shared-client-schedules.sql), names the coach who
+// - The calendar a coach opens for one client (/api/calendar?clientId=) adds every other coach's
+//   workouts and menus, whatever their discipline, from two definers (2026-10-29-shared-client-
+//   schedules.sql, widened by 2026-10-29-shared-schedules-any-coach.sql), names the coach who
 //   planned them (`by`), keeps to that client's bookings, and marks what is not this coach's to act
 //   on: the other coach's bookings (`mine: false`), the member's own entries.
-// - The app's client page (CARE TEAM) and the website's open that calendar: "See both schedules".
-// - The migration's reads answer only a coach of the other discipline who coaches the client now,
-//   with only what the calendar draws, and it tells every existing pair once.
+// - The app's client page (CARE TEAM) and the website's open that calendar: "See all schedules".
+// - The reads answer only a coach who coaches the client now, never with their own rows, with only
+//   what the calendar draws; the first migration also tells every existing pair once.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -91,6 +92,11 @@ const TRAINER_WORKOUT = {
   runs: [{ duration_seconds: 2700, started_at: `${TODAY}T11:30:00Z`, ended_at: `${TODAY}T12:15:00Z`, created_at: `${TODAY}T12:15:00Z`, local_day: TODAY }],
 };
 const MENU_PAYLOAD = { days: [{ dow: DOW, title: 'Training day', tag: 'High carb', meals: [{ slot: 'Breakfast', title: 'Overnight oats', time: '07:00', kcal: 520 }] }] };
+// A second nutritionist's menu, as get_shared_client_meal_plan hands it over.
+const OTHER_NUTRITIONIST_MENU = {
+  id: 'mp-nell', title: 'Nell menu', week_start: null, nutritionist_name: 'Nell Second',
+  payload: { days: [{ dow: DOW, meals: [{ slot: 'Dinner', title: 'Salmon bowl', time: '19:00', kcal: 700 }] }] },
+};
 
 const byId = (body, id) => body.events.find((e) => e.id === id);
 
@@ -102,7 +108,7 @@ test('a nutritionist sees the trainer\'s workouts, done when the client finished
       client_workouts: [], workout_sessions: [],
       client_meal_plans: [{ id: 'mp-own', client_id: 'member-1', status: 'published', title: 'Menu', week_start: null, payload: MENU_PAYLOAD, created_at: '2026-10-01T00:00:00Z' }],
     },
-    rpcs: { get_shared_client_workouts: () => [TRAINER_WORKOUT], get_shared_client_meal_plan: () => { throw new Error('not asked: the nutritionist has their own menu'); } },
+    rpcs: { get_shared_client_workouts: () => [TRAINER_WORKOUT], get_shared_client_meal_plan: () => [OTHER_NUTRITIONIST_MENU] },
   });
   const { status, body } = await getCalendar(db, 'coach-n', `${QS}&clientId=member-1&role=nutritionist`);
   assert.equal(status, 200);
@@ -116,12 +122,46 @@ test('a nutritionist sees the trainer\'s workouts, done when the client finished
   assert.equal(w.status, 'completed', 'its finished run marks it done');
   assert.equal(w.doneSeconds, 2700);
   assert.equal(w.editable, false);
-  // Their own menu, with no `by`.
-  const meal = body.events.find((e) => e.source === 'meal' && e.date === TODAY);
-  assert.equal(meal.title, 'Overnight oats');
-  assert.equal(meal.by, undefined);
+  // Their own menu, with no `by`, and a second nutritionist's beside it, named.
+  const meals = body.events.filter((e) => e.source === 'meal' && e.date === TODAY);
+  const own = meals.find((m) => m.title === 'Overnight oats');
+  assert.equal(own.by, undefined);
+  const theirs = meals.find((m) => m.title === 'Salmon bowl');
+  assert.ok(theirs, 'the other nutritionist\'s meal is on today too');
+  assert.equal(theirs.by, 'Nell Second');
+  assert.notEqual(own.id, theirs.id);
   const rpcs = db._calls.filter((c) => c.rpc && c.rpc.startsWith('get_shared_'));
-  assert.deepEqual(rpcs.map((c) => [c.rpc, c.args]), [['get_shared_client_workouts', { p_client_id: 'member-1' }]]);
+  assert.deepEqual(rpcs.map((c) => [c.rpc, c.args]), [
+    ['get_shared_client_workouts', { p_client_id: 'member-1' }],
+    ['get_shared_client_meal_plan', { p_client_id: 'member-1' }],
+  ]);
+});
+
+test('two trainers see each other\'s workouts, and every nutritionist\'s menu shows, each named', async () => {
+  const db = fakeSupabase({
+    tables: {
+      ...COACHES, sessions: SESSIONS, calendar_events: EVENTS, workout_sessions: [],
+      // Tom's own workout, through RLS.
+      client_workouts: [{ id: 'w1', trainer_id: 7, client_id: 'member-1', title: 'Upper Push', description: null, payload: { exercises: [{}, {}] }, status: 'published', scheduled_date: TODAY }],
+      client_meal_plans: [],
+    },
+    rpcs: {
+      get_shared_client_workouts: () => [{ ...TRAINER_WORKOUT, id: 'w2', title: 'Lower Pull', trainer_name: 'Tia Second', runs: [] }],
+      get_shared_client_meal_plan: () => [
+        { id: 'mp-1', title: 'Menu', week_start: null, payload: MENU_PAYLOAD, nutritionist_name: 'Nia Nutri' },
+        OTHER_NUTRITIONIST_MENU,
+      ],
+    },
+  });
+  const { status, body } = await getCalendar(db, 'coach-t', `${QS}&clientId=member-1&role=trainer`);
+  assert.equal(status, 200);
+  assert.equal(byId(body, 'plan:w1').by, undefined, 'Tom\'s own workout names nobody');
+  const tia = byId(body, 'plan:w2');
+  assert.ok(tia, 'the other trainer\'s workout is on the calendar');
+  assert.equal(tia.by, 'Tia Second');
+  assert.equal(tia.status, 'planned');
+  const meals = body.events.filter((e) => e.source === 'meal' && e.date === TODAY);
+  assert.deepEqual(meals.map((m) => [m.title, m.by]).sort(), [['Overnight oats', 'Nia Nutri'], ['Salmon bowl', 'Nell Second']]);
 });
 
 test('a trainer sees the nutritionist\'s menu by day, each meal\'s time and kcal, named by the nutritionist', async () => {
@@ -198,7 +238,7 @@ const fn = (name) => {
   return CODE.slice(at, CODE.indexOf('$$;', at));
 };
 
-test('migration: each read answers only a coach of the other discipline who coaches the client now', () => {
+test('first migration: each read answered only a coach of the other discipline who coaches the client now', () => {
   for (const [name, caller, author, authorCol] of [
     ['get_shared_client_workouts', 'nutritionist', 'trainer', 'w.trainer_id'],
     ['get_shared_client_meal_plan', 'trainer', 'nutritionist', 'm.nutritionist_id'],
@@ -220,6 +260,39 @@ test('migration: each read answers only a coach of the other discipline who coac
   // The guard proves it before the commit.
   assert.match(CODE, /has_function_privilege\('anon', f, 'execute'\)/);
   assert.ok(CODE.indexOf('do $guard$') < CODE.lastIndexOf('commit;'));
+});
+
+test('any-coach migration: each read answers any coach on the client, with every other coach\'s plan and never their own', () => {
+  const sql = read('supabase-migrations/2026-10-29-shared-schedules-any-coach.sql').replace(/--[^\n]*/g, '');
+  const body = (name) => {
+    const at = sql.indexOf(`create or replace function public.${name}(`);
+    assert.ok(at >= 0, name);
+    return sql.slice(at, sql.indexOf('$$;', at));
+  };
+  for (const [name, table, author, authorCol] of [
+    ['get_shared_client_workouts', 't', 'trainer', 'w.trainer_id'],
+    ['get_shared_client_meal_plan', 'n', 'nutritionist', 'm.nutritionist_id'],
+  ]) {
+    const b = body(name);
+    assert.match(b, /security definer\s+set search_path = public, pg_temp/, `${name}: a definer with a pinned search_path`);
+    assert.match(b, /auth\.uid\(\) is not null/, `${name}: signed out answers nothing`);
+    assert.match(b, /public\.is_coach_on_client\(p_client_id\)/, `${name}: any coach on the client`);
+    assert.doesNotMatch(b, /is_discipline_coach_on_client/, `${name}: no longer one discipline only`);
+    assert.match(b, new RegExp(`and ${table}\\.owner_id is distinct from auth\\.uid\\(\\)`), `${name}: never the caller's own rows`);
+    assert.match(b, new RegExp(`s\\.provider_role = '${author}'\\s+and s\\.provider_id = ${authorCol.replace('.', '\\.')}\\s+and s\\.status in \\('active', 'trialing', 'past_due'\\)`), `${name}: only a ${author} who coaches the client now`);
+    assert.match(b, /status = 'published'/);
+    assert.match(sql, new RegExp(`revoke all on function public\\.${name}\\(uuid\\) from public, anon;`));
+    assert.match(sql, new RegExp(`grant execute on function public\\.${name}\\(uuid\\) to authenticated, service_role;`));
+  }
+  // One menu per nutritionist (their newest), and the same projection: never ingredients, steps or notes.
+  const menu = body('get_shared_client_meal_plan');
+  assert.match(menu, /select distinct on \(m\.nutritionist_id\)/);
+  assert.match(menu, /order by m\.nutritionist_id, m\.created_at desc/);
+  assert.match(menu, /jsonb_build_object\('slot', x\.meal->'slot', 'title', x\.meal->'title', 'time', x\.meal->'time', 'kcal', x\.meal->'kcal'\)/);
+  assert.doesNotMatch(menu, /ingredients|steps|coachNote|coachLine/);
+  assert.doesNotMatch(body('get_shared_client_workouts'), /w\.payload\s*,|w\.payload\s+as/);
+  assert.match(sql, /has_function_privilege\('anon', f, 'execute'\)/);
+  assert.ok(sql.indexOf('do $guard$') < sql.lastIndexOf('commit;'));
 });
 
 test('migration: every pair that already shares a client is told once, in the reader\'s language', () => {
@@ -246,9 +319,10 @@ test('migration: every pair that already shares a client is told once, in the re
 });
 
 // ── the doors ────────────────────────────────────────────────────────────────────────────────────
-test('app: CARE TEAM opens the client\'s calendar when a coach of the other discipline is on it, read only', () => {
+test('app: CARE TEAM opens the client\'s calendar whenever another coach is on it, read only', () => {
   const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
-  assert.match(pros, /careTeam\.some\(\(c\) => c\.role && c\.role !== role\) && \(\s*<button type="button" onClick=\{\(\) => setShowClientCalendar\(true\)\}/);
+  assert.match(pros, /\{careTeam\.length > 0 && \(\s*<button type="button" onClick=\{\(\) => setShowClientCalendar\(true\)\}/);
+  assert.match(pros, /tr\('coach:case\.seeBothSchedules', \{ defaultValue: 'See all schedules →' \}\)/);
   assert.match(pros, /if \(showClientCalendar && clientUid && BSCalendarScreen\) return <BSCalendarScreen role=\{role\} clientId=\{clientUid\} clientName=\{client\.n \|\| null\} onBack=\{\(\) => setShowClientCalendar\(false\)\} \/>;/);
   const cal = read('mobile-app/src/broadsheet/iosAppBroadsheetCalendar.jsx');
   assert.match(cal, /function BSCalendarScreen\(\{ role = 'client', onProfile, initialMode = 'week', onBack, clientId = null, clientName = null, initialDate = null \}\)/);
@@ -261,7 +335,8 @@ test('app: CARE TEAM opens the client\'s calendar when a coach of the other disc
 
 test('website: CARE TEAM opens the same calendar in the overlay, with the client named and nothing to add', () => {
   const page = read('public/newdesign/coachClientDetail.jsx');
-  assert.match(page, /counterparts\.some\(\(c\) => c\.role && c\.role !== myRole\) && \(\s*<button onClick=\{bothSchedules\.open\}/);
+  assert.match(page, /counterparts\.length > 0 && \(\s*<button onClick=\{bothSchedules\.open\}/);
+  assert.match(page, /\n\s*See all schedules →\n/);
   assert.match(page, /<CalendarOverlay \{\.\.\.bothSchedules\.props\} role=\{myRole\} clientId=\{clientId\} clientName=\{data\.client\.name\} \/>/);
   const shell = read('public/newdesign/pageShell.jsx');
   assert.match(shell, /const forClient = clientId \? `&clientId=\$\{encodeURIComponent\(clientId\)\}` : "";/);
@@ -282,4 +357,8 @@ test('the new app strings are in all 13 catalogs, placeholders kept', () => {
     for (const k of ['client.fallbackName', 'client.note']) assert.ok(typeof cal[k] === 'string' && cal[k].trim(), `${loc} ${k}`);
     assert.ok(typeof coach['case.seeBothSchedules'] === 'string' && coach['case.seeBothSchedules'].trim(), `${loc} door`);
   }
+  // Every coach on the client, not two: the English says so.
+  const en = JSON.parse(read('mobile-app/src/i18n/catalogs/en/calendar.json'));
+  assert.equal(en['client.note'], 'Every coach’s plans: training, meals and bookings. Read only.');
+  assert.equal(JSON.parse(read('mobile-app/src/i18n/catalogs/en/coach.json'))['case.seeBothSchedules'], 'See all schedules →');
 });
