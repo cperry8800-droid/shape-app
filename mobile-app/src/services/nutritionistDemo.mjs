@@ -4,20 +4,23 @@
 // app's own page signed out (the demo coach), and any nutritionist a member opens who has no
 // account: the marketplace's seeded listings and the app's demo people. The page runs it
 // through the same code a real nutritionist's runs (the availability through
-// bsProjectAvailability, the recipes through the Shape Kitchen catalog, the plate notes as
-// shared-meal cards grouped by day), and the sample itself reads nothing from Shape and writes
-// nothing to it.
+// bsProjectAvailability, the kitchen through the doc's own cleaner, the plate notes as shared-meal
+// cards grouped by day), and the sample itself reads nothing from Shape and writes nothing to it.
 //
 // What a sample nutritionist has is what an account would give it: a kitchen (the plate they
-// teach and their portion rules, their staples, six go-to recipes from the Shape Kitchen with a note
-// on each), a week of open and busy times, two days of shared meals and reviews. Each coach gets its
-// own from a seed (its listing id or name): a kitchen that fits its specialty. What its listing says
+// teach and their portion rules, their staples, and six recipes of their own with a note on each:
+// Shape Kitchen recipes by Shape's own recipe writers, written out as the coach's), a week of open
+// and busy times, two days of shared meals and reviews. Each coach gets its own from a seed (its
+// listing id or name): a kitchen that fits its specialty. What its listing says
 // (name, bio, credential, price, rating) stays its listing's. There is no sample wall photo: the
 // page shows the coach's colours until they add one.
 //
 // The sample words (the bio, the notes, the meals, the reviews) are content, as a coach's own words
 // are, so they stay in English like the rest of the demo's. No pronouns: the sample coach's words
 // go by their first name.
+
+import { bsKitchenRecipeItem } from './profileCustom.mjs';
+import { bsKitchenRecipe, bsKitchenMinutes } from '../broadsheet/kitchenRecipes.js';
 
 // A recipe's own name and macros per serving (kcal, protein, carbs, fat), for the meals made from
 // it. tests/nutritionist-profile.test.mjs checks each against the Shape Kitchen catalog.
@@ -45,8 +48,8 @@ const R = {
 };
 export const BS_NUTRI_SAMPLE_RECIPES = R;
 
-// Each kind of practice: the plate and its rules, the staples, the go-to recipes (by slug, with the
-// note a nutritionist would put on each) and two days of shared meals. A meal is [hour, minute,
+// Each kind of practice: the plate and its rules, the staples, the recipes (by the catalog recipe's
+// slug they are written from, with the note a nutritionist would put on each) and two days of shared meals. A meal is [hour, minute,
 // recipe slug] for one made from a recipe, or [hour, minute, null, name, kcal, protein, carbs, fat];
 // then the note.
 const KITCHENS = {
@@ -152,6 +155,19 @@ const DAYS = {
   5: { sessions: [[8, 45], [10, 45], [12, 45]] },
 };
 
+// A sample recipe, written out from the catalog recipe it is made from (its name, time, servings,
+// a serving's macros, ingredients and method) with the coach's note, through the doc's own cleaner.
+function sampleRecipe(slug, note, i) {
+  const r = bsKitchenRecipe(slug);
+  if (!r) return null;
+  const m = r.macros || {};
+  return bsKitchenRecipeItem({
+    id: `s${i + 1}`, t: r.title, note, min: bsKitchenMinutes(r) ?? undefined, serves: r.servings, kcal: r.kcal, p: m.p, c: m.c, f: m.f,
+    ing: (r.ingredients || []).map((g) => ({ n: g.n, m: g.m })),
+    steps: (r.steps || []).map((x) => (typeof x === 'string' ? x : x && x.t)),
+  }, null);
+}
+
 const hash = (s) => { let h = 7; for (const ch of String(s || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
 
 /** The kinds of practice a sample can have, for the tests. */
@@ -228,7 +244,7 @@ export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'perf
         plate: { ...k.plate },
         rules: k.rules.slice(),
         staples: k.staples.map(([n, g]) => ({ n, g })),
-        dishes: k.dishes.map((d) => ({ ...d })),
+        recipes: k.dishes.map((d, i) => sampleRecipe(d.r, d.note, i)).filter(Boolean),
       },
       ...(business ? { bizCard: { name: business, where: where || '' } } : {}),
     },

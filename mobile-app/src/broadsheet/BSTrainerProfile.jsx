@@ -6,7 +6,7 @@ import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.m
 import { bsCoachPronoun } from '../services/coachPronoun.mjs';
 import { bsTrainerDemo, bsTrainerSampleOf } from '../services/trainerDemo.mjs';
 import { bsNutritionistDemo, bsNutritionistSampleOf } from '../services/nutritionistDemo.mjs';
-import { bsKitchenRecipe, bsKitchenMinutes, bsKitchenCredit, bsKitchenGroceryList } from './kitchenDishes.js';
+import { bsKitchenRecipe, bsKitchenGroceryList, bsOwnRecipeGroceryList, bsOwnRecipeCookable, bsShortHash } from './kitchenRecipes.js';
 import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSMakeItYours } from './BSMakeItYours.jsx';
@@ -39,10 +39,11 @@ import { bsSaveReceivedGroceryList } from './BSGroceryShare.jsx';
 // A nutritionist (person.kind 'NUTRI') reads and books as a nutritionist (their listing, hours and
 // intro calls), is painted amber until they pick their colours (Shape's nutritionist gold), and has
 // two tabs of their own (owner, 2026-10-27: "lets do something different for nutritionists"):
-//   Her kitchen  no floor plan: the plate they teach and their portion rules, the staples always in
-//                their kitchen (a member taps the ones they want onto their own grocery list), and
-//                their go-to recipes from the Shape Kitchen, each with their note, opening in Shape
-//                (profile_custom.kitchen, set in Make it yours → Your kitchen). Listing photos under it.
+//   Her kitchen  no floor plan, in three parts shown one at a time: their own recipes (cooked in
+//                Shape's cook mode, or sent to the member's grocery list), the plate they teach and
+//                their portion rules, and the staples always in their kitchen (a member taps the ones
+//                they want onto their own grocery list). profile_custom.kitchen, set in Make it yours
+//                → Your kitchen. Listing photos under it.
 //   Plate notes  the meals they logged and shared, a day to a note, stepped through meal by meal with
 //                the protein so far and their note on each.
 //
@@ -283,10 +284,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // on #2484).
   const wall = isPrivate ? null : (sample ? (media.cover || (cover && cover.image)) : ((cover && cover.image) || media.cover)) || null;
   const look = bsProfileLook(custom && custom.look) || {};
-  // A trainer's studio; a nutritionist's kitchen (their dishes, only those the catalog still has).
+  // A trainer's studio; a nutritionist's kitchen (a recipe photo only from the coach's own uploads,
+  // as the wall photo).
   const studio = nutri ? null : bsProfileStudio(custom && custom.studio);
-  const kitchen = nutri ? bsProfileKitchen(custom && custom.kitchen) : null;
-  const dishes = kitchen ? kitchen.dishes.map((d) => ({ ...d, recipe: bsKitchenRecipe(d.r) })).filter((d) => d.recipe) : [];
+  const kitchen = nutri ? bsProfileKitchen(custom && custom.kitchen, person.userId || (isSelf ? signedInUid() : null)) : null;
   const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || person.city || '');
   const specialty = (!isPrivate && ((listed && (provider.specialty || provider.specialty_type)) || (sample && person.category))) || '';
   const business = !isPrivate && custom && custom.bizCard && custom.bizCard.name;
@@ -421,23 +422,26 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // ── Overlays ──
   const [sheet, setSheet] = React.useState(null); // { kind: 'work'|'book'|'station'|'replay'|'reviews', ... }
   const [page, setPage] = React.useState(null);   // 'edit' | 'hours' | 'business'
-  const [recipe, setRecipe] = React.useState(null); // a Shape Kitchen recipe a dish or plate opened
+  const [recipe, setRecipe] = React.useState(null); // a Shape Kitchen recipe a plate note opened
+  const [ownRecipe, setOwnRecipe] = React.useState(null); // one of a nutritionist's own recipes
+  const [cooking, setCooking] = React.useState(null); // the cookable cook mode runs
   const [editTab, setEditTab] = React.useState('colors');
+  const [editSection, setEditSection] = React.useState(null); // the kitchen part Make it yours opens on
   const [showLog, setShowLog] = React.useState(false);
   // Every way into Make it yours goes through here, and waits for the coach's doc (ownState).
   const editReady = ownState === 'ready';
   // The doc was read for one account. With another signed in now, it is read again for that one
   // rather than opened under it (Codex P1 on #2484).
-  const openEdit = (tabKey) => {
+  const openEdit = (tabKey, section = null) => {
     if (!editReady) return;
     if (isSelf && signedInUid() !== ownFor) { onRetryOwn(); return; }
-    setEditTab(tabKey); setPage('edit');
+    setEditTab(tabKey); setEditSection(section); setPage('edit');
   };
 
   // Tabs a visitor sees only when there is something in them; the coach always sees all three.
   const gallery = media.gallery || [];
   const hasStudio = !!(studio || gallery.length);
-  const hasKitchen = !!((kitchen && (kitchen.plate || kitchen.rules.length || kitchen.staples.length)) || dishes.length || gallery.length);
+  const hasKitchen = !!(kitchen || gallery.length);
   const tabs = nutri ? [
     ['day', words.day],
     ...(isSelf || hasKitchen ? [['kitchen', words.kitchen]] : []),
@@ -451,7 +455,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
 
   if (page === 'edit' && editReady) {
     const photos = demo ? demo.photos : [media.cover, ...(gallery.map((g) => g && g.url))].filter((u) => typeof u === 'string' && /^https:\/\//.test(u));
-    return <BSMakeItYours role={role} demo={!!demo} ownerUid={ownFor} initial={custom} startTab={editTab} who={{ name, first, photo: avatarShown, roleLine }} words={words} photos={photos}
+    return <BSMakeItYours role={role} demo={!!demo} ownerUid={ownFor} initial={custom} startTab={editTab} startSection={editSection} who={{ name, first, photo: avatarShown, roleLine }} words={words} photos={photos}
       onClose={() => setPage(null)} onSaved={(doc, changed) => { setOwn && setOwn(doc, changed); setPage(null); }} />;
   }
   if (page === 'hours') return <BSCoachHoursPage role={role} onBack={() => { setPage(null); setAvailEpoch((n) => n + 1); }} />;
@@ -612,8 +616,8 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                 <StudioTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} studio={studio} gallery={gallery} isSelf={isSelf} first={first}
                   onStation={(n, p) => setSheet({ kind: 'station', n, p })} onDraw={() => openEdit('space')} />
               ) : tabNow === 'kitchen' ? (
-                <KitchenTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} kitchen={kitchen} dishes={dishes} gallery={gallery} isSelf={isSelf} first={first}
-                  ownerKey={person.userId || person.providerId || null} onOpen={(r) => setRecipe(r)} onFill={() => openEdit('kitchen')} />
+                <KitchenTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} kitchen={kitchen} gallery={gallery} isSelf={isSelf} first={first}
+                  ownerKey={person.userId || person.providerId || null} onRecipe={(r) => setOwnRecipe(r)} onFill={(section) => openEdit('kitchen', section)} />
               ) : tabNow === 'plates' ? (
                 <PlateNotesTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} days={plateDays} isSelf={isSelf} first={first} onOpen={(day) => setSheet({ kind: 'plateDay', day, i: 0 })} />
               ) : (
@@ -695,15 +699,11 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
       ) : null}
       {showLog && W.BSLogActivitySheet ? <W.BSLogActivitySheet c={ACC} INK={INK} BG={t.PAPER_BG} onClose={() => setShowLog(false)} onPosted={() => { setShowLog(false); setPostsNonce((n) => n + 1); }} /> : null}
       {recipe ? <RecipeOverlay t={t} tr={tr} recipe={recipe} onClose={() => setRecipe(null)} /> : null}
+      {ownRecipe ? <OwnRecipePage t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} recipe={ownRecipe} first={first} avatar={avatarShown} isSelf={isSelf}
+        ownerKey={person.userId || person.providerId || null} onClose={() => setOwnRecipe(null)} onCook={(r) => setCooking(bsOwnRecipeCookable(r, person.userId || person.providerId || null))} /> : null}
+      {cooking ? <CookOverlay t={t} cookable={cooking} onClose={() => setCooking(null)} /> : null}
     </BSPage>
   );
-}
-
-// A short, stable hash of a string (32-bit FNV-1a, base 36), for list ids.
-function shortHash(s) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
-  return (h >>> 0).toString(36);
 }
 
 // A Shape Kitchen recipe over the page: the Kitchen's own recipe page (the client module's). Back
@@ -973,11 +973,12 @@ function StudioTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, studio, gallery, is
 }
 
 // ── Her kitchen (a nutritionist's) ──────────────────────────────────────────────────────────
-// Owner, 2026-10-27 ("lets do something different for nutritionists"): no floor plan. The plate they
-// teach (a picture of how a plate splits, with their portion rules), the staples always in their
-// kitchen (tap what you want and add it to your own grocery list), and their go-to recipes from the
-// Shape Kitchen, each with their note, credited to whoever the recipe is by (bsRecipeAttribution: an
-// author, or the source of a public-domain one) and opening in Shape. Their listing photos under it.
+// Owner, 2026-10-27 ("lets do something different for nutritionists"): no floor plan; 2026-10-29:
+// "It will be their own recipes", and the plate, the staples and the recipes all kept and organized.
+// Three parts, one on screen at a time: their recipes (their own, written in Make it yours: opened,
+// a member cooks one in Shape's cook mode or sends its ingredients to their grocery list), the plate
+// they teach (a picture of how a plate splits, with their portion rules), and the staples always in
+// their kitchen (tap what you want and add it to your own grocery list). Listing photos under it.
 const eyebrow = (ink, MONO, color) => ({ display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: color || ink(0.64) });
 const VEG = '#5fb16e', CARB = '#e3a544';
 // The plate's three colours: vegetables green, protein the coach's accent, carbs amber; a part whose
@@ -994,25 +995,36 @@ function PlatePicture({ plate, colors, size = 132, t }) {
     </span>
   );
 }
-function dishMeta(tr, r) {
-  const min = bsKitchenMinutes(r);
-  const p = r && r.macros && Number.isFinite(Number(r.macros.p)) ? Math.round(Number(r.macros.p)) : null;
+// A recipe's time, energy and protein: the parts it has.
+function recipeMeta(tr, r) {
   return [
-    min != null ? tr('cook:ck.mins', { defaultValue: '{n} min', n: min }) : null,
-    Number.isFinite(Number(r && r.kcal)) ? tr('cook:ck.kcal', { defaultValue: '{n} kcal', n: Math.round(Number(r.kcal)) }) : null,
-    p != null ? tr('cook:ck.gProtein', { defaultValue: '{n} g protein', n: p }) : null,
+    Number.isFinite(r.min) ? tr('cook:ck.mins', { defaultValue: '{n} min', n: r.min }) : null,
+    Number.isFinite(r.kcal) ? tr('cook:ck.kcal', { defaultValue: '{n} kcal', n: r.kcal }) : null,
+    Number.isFinite(r.p) ? tr('cook:ck.gProtein', { defaultValue: '{n} g protein', n: r.p }) : null,
   ].filter(Boolean).join(' · ');
 }
-function creditLine(tr, r) {
-  const c = bsKitchenCredit(r);
-  if (!c) return '';
-  return c.kind === 'authored' ? tr('profile:nutri.recipeBy', { defaultValue: 'Recipe by {name}', name: c.name }) : tr('profile:nutri.recipeFrom', { defaultValue: 'Recipe from {name}', name: c.name });
+// A recipe with no photo: the coach's colour, with the recipe's first letter.
+function RecipeSwatch({ r, ACC, t, size = 76, font = 30 }) {
+  if (r.photo) return <img src={r.photo} alt="" style={{ flex: 'none', width: size, height: size, objectFit: 'cover' }} />;
+  return (
+    <span aria-hidden style={{ flex: 'none', width: size, height: size, display: 'grid', placeItems: 'center', background: `linear-gradient(135deg, ${hexA(ACC, 0.55)}, ${t.PAPER2})`, color: t.INK, fontSize: font, fontWeight: 600 }}>
+      {String(r.t || '?').trim().charAt(0).toUpperCase()}
+    </span>
+  );
 }
 const STAPLE_GROUP_KEYS = { fridge: ['groupFridge', 'Fridge'], pantry: ['groupPantry', 'Pantry'], freezer: ['groupFreezer', 'Freezer'] };
-function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, dishes, gallery, isSelf, first, ownerKey, onOpen, onFill }) {
+// The kitchen's three parts, in the order a member uses them: what to cook, how to plate it, what to
+// keep in. A visitor sees the parts that have something in them; the coach sees all three.
+export const KITCHEN_SECTIONS = [['recipes', 'secRecipes', 'Recipes'], ['plate', 'secPlate', 'Plate'], ['staples', 'secStaples', 'Staples']];
+function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, isSelf, first, ownerKey, onRecipe, onFill }) {
   const plate = kitchen ? kitchen.plate : null;
   const rules = kitchen ? kitchen.rules : [];
   const staples = kitchen ? kitchen.staples : [];
+  const recipes = kitchen ? kitchen.recipes : [];
+  const count = { recipes: recipes.length, plate: plate || rules.length ? 1 : 0, staples: staples.length };
+  const shown = KITCHEN_SECTIONS.filter(([k]) => isSelf || count[k] > 0);
+  const [sec, setSec] = React.useState(null);
+  const now = shown.some(([k]) => k === sec) ? sec : (shown[0] ? shown[0][0] : null);
   const colors = plateColors(ACC, ink);
   const part = (k) => tr('profile:nutri.part' + k, { defaultValue: { Veg: 'Vegetables', Protein: 'Protein', Carbs: 'Carbs' }[k] });
   // Staples a visitor picked, added to their own grocery lists as one list.
@@ -1025,103 +1037,138 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, dishes, g
     const items = staples.filter((s) => picked.has(s.n)).map((s) => ({ n: s.n, q: '1' }));
     // One list per coach and set of staples, so adding the same ones again keeps one copy. Hashed:
     // the list's id keeps 64 characters, so names cut short there could make a bigger pick the same.
-    const id = `kitchen-${shortHash(ownerKey || 'sample')}-${shortHash(items.map((i) => i.n.toLowerCase()).sort().join('\n'))}`;
+    const id = `kitchen-${bsShortHash(ownerKey || 'sample')}-${bsShortHash(items.map((i) => i.n.toLowerCase()).sort().join('\n'))}`;
     const list = bsReceivedGroceryList({ name: tr('profile:nutri.staplesList', { defaultValue: "{name}'s staples", name: first }), items }, { messageId: id, from: first });
     if (!list) return;
     setSaving('busy');
     try { await bsSaveReceivedGroceryList(list); setSaving('done'); setPicked(new Set()); } catch (e) { setSaving('err'); }
   };
-  const nothing = !plate && !rules.length && !staples.length && !dishes.length;
+  const fill = (key, en, section) => (
+    <button type="button" data-kitchen-fill={section} onClick={() => onFill(section)} style={{ marginTop: 12, minHeight: 46, padding: '0 16px', border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:nutri.' + key, { defaultValue: en })}</button>
+  );
+
+  const recipesPart = recipes.length ? (
+    <div data-kitchen-recipes="" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {recipes.map((r) => (
+        <button key={r.id} type="button" data-recipe={r.id} onClick={() => onRecipe(r)}
+          style={{ width: '100%', padding: '10px 0 0', border: 0, borderTop: `1px solid ${ink(0.12)}`, background: 'transparent', color: t.INK, display: 'flex', gap: 12, alignItems: 'stretch', textAlign: 'left', cursor: 'pointer' }}>
+          <RecipeSwatch r={r} ACC={ACC} t={t} />
+          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3, lineHeight: 1.35 }}>
+            <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 16 }}>{r.t}</span>
+            {recipeMeta(tr, r) ? <span style={{ fontFamily: MONO, fontSize: 11, color: ink(0.62) }}>{recipeMeta(tr, r)}</span> : null}
+            {r.note ? <span style={{ fontSize: 14, color: ink(0.86) }}>{r.note}</span> : null}
+            <span style={{ marginTop: 2, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, color: ACC }}>{tr('profile:nutri.tryIt', { defaultValue: 'Try it in Shape' })} →</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  ) : isSelf ? (
+    <div>
+      <Hint ink={ink}>{tr('profile:nutri.recipesEmptySelf', { defaultValue: 'Write the recipes you give clients. Members can cook them in Shape and send the ingredients to their grocery list.' })}</Hint>
+      {fill('writeRecipe', 'Write a recipe', 'recipes')}
+    </div>
+  ) : null;
+
+  const platePart = plate || rules.length ? (
+    <div data-kitchen-plate="">
+      <span style={eyebrow(ink, MONO, ACC)}>{tr('profile:nutri.plateTitle', { defaultValue: 'The plate {name} teaches', name: first })}</span>
+      <div style={{ marginTop: 12, display: 'flex', gap: 18, alignItems: 'center' }}>
+        {plate ? <PlatePicture plate={plate} colors={colors} t={t} /> : null}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {plate ? [['Veg', plate.veg, colors.veg], ['Protein', plate.protein, colors.protein], ['Carbs', plate.carbs, colors.carbs]].filter(([, n]) => n > 0).map(([k, n, c]) => (
+            <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+              <span aria-hidden style={{ width: 10, height: 10, borderRadius: 99, background: c }} />
+              <span style={{ flex: 1 }}>{part(k)}</span>
+              <span style={{ fontFamily: MONO, fontSize: 12, color: ink(0.7) }}>{tr('profile:nutri.pct', { defaultValue: '{n}%', n })}</span>
+            </span>
+          )) : null}
+        </div>
+      </div>
+      {rules.length ? (
+        <ul style={{ margin: '14px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {rules.map((r, i) => <li key={i} style={{ display: 'flex', gap: 10, fontSize: 14.5, lineHeight: 1.4 }}><span aria-hidden style={{ color: ACC, fontFamily: MONO }}>—</span>{r}</li>)}
+        </ul>
+      ) : null}
+    </div>
+  ) : isSelf ? (
+    <div>
+      <Hint ink={ink}>{tr('profile:nutri.plateEmptySelf', { defaultValue: 'Show members how you build a plate, and the portion rules you teach.' })}</Hint>
+      {fill('setPlate', 'Set your plate', 'plate')}
+    </div>
+  ) : null;
+
+  const staplesPart = staples.length ? (
+    <div data-kitchen-staples="">
+      <span style={eyebrow(ink, MONO)}>{tr('profile:nutri.staples', { defaultValue: 'Always in the kitchen' })}</span>
+      {!isSelf ? <p style={{ margin: '2px 0 0', fontSize: 13.5, color: ink(0.7) }}>{tr('profile:nutri.staplesSub', { defaultValue: 'Tap what you want, then add it to your grocery list.' })}</p> : null}
+      {['fridge', 'pantry', 'freezer'].map((g) => {
+        const inG = staples.filter((x) => x.g === g);
+        if (!inG.length) return null;
+        return (
+          <div key={g} style={{ marginTop: 10 }}>
+            <span style={{ fontSize: 12, color: ink(0.6) }}>{tr('profile:nutri.' + STAPLE_GROUP_KEYS[g][0], { defaultValue: STAPLE_GROUP_KEYS[g][1] })}</span>
+            <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {inG.map((x) => {
+                const on = picked.has(x.n);
+                return isSelf ? (
+                  <span key={x.n} data-staple="" style={{ minHeight: 36, padding: '0 12px', display: 'inline-flex', alignItems: 'center', border: `1px solid ${ink(0.22)}`, fontSize: 14 }}>{x.n}</span>
+                ) : (
+                  <button key={x.n} type="button" data-staple="" aria-pressed={on} onClick={() => toggle(x.n)}
+                    style={{ minHeight: 40, padding: '0 12px', border: `1px solid ${on ? ACC : ink(0.22)}`, background: on ? hexA(ACC, 0.16) : 'transparent', color: t.INK, fontSize: 14, cursor: 'pointer' }}>{on ? '✓ ' : ''}{x.n}</button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      {!isSelf ? (
+        <div style={{ marginTop: 12 }}>
+          <button type="button" data-add-staples="" onClick={addPicked} disabled={!picked.size || saving === 'busy'}
+            style={{ width: '100%', minHeight: 48, border: 0, background: picked.size ? ACC : t.PAPER2, color: picked.size ? ON_ACC : ink(0.5), fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: picked.size ? 'pointer' : 'default' }}>
+            {saving === 'busy' ? tr('profile:nutri.staplesAdding', { defaultValue: 'Adding…' }) : tr('profile:nutri.addStaples', { defaultValue: '{count, plural, =0 {Pick what to add} one {Add # to my grocery list} other {Add # to my grocery list}}', count: picked.size })}
+          </button>
+          {saving === 'done' ? <p role="status" style={{ margin: '8px 0 0', fontSize: 13.5, color: ACC }}>{tr('profile:nutri.staplesSaved', { defaultValue: 'Added to your grocery lists, under Eat.' })}</p> : null}
+          {saving === 'err' ? <p role="alert" style={{ margin: '8px 0 0', fontSize: 13.5, color: t.RUST || '#c0533b' }}>{tr('profile:nutri.staplesFailed', { defaultValue: "Couldn't add them just now. Try again." })}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  ) : isSelf ? (
+    <div>
+      <Hint ink={ink}>{tr('profile:nutri.staplesEmptySelf', { defaultValue: 'List what is always in your fridge, pantry and freezer. Members add what they want to their grocery list.' })}</Hint>
+      {fill('addYourStaples', 'Add your staples', 'staples')}
+    </div>
+  ) : null;
+
+  const nothing = !count.recipes && !count.plate && !count.staples;
   return (
     <section style={{ paddingTop: 16 }}>
-      {plate || rules.length ? (
-        <div data-kitchen-plate="">
-          <span style={eyebrow(ink, MONO, ACC)}>{tr('profile:nutri.plateTitle', { defaultValue: 'The plate {name} teaches', name: first })}</span>
-          <div style={{ marginTop: 12, display: 'flex', gap: 18, alignItems: 'center' }}>
-            {plate ? <PlatePicture plate={plate} colors={colors} t={t} /> : null}
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {plate ? [['Veg', plate.veg, colors.veg], ['Protein', plate.protein, colors.protein], ['Carbs', plate.carbs, colors.carbs]].filter(([, n]) => n > 0).map(([k, n, c]) => (
-                <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
-                  <span aria-hidden style={{ width: 10, height: 10, borderRadius: 99, background: c }} />
-                  <span style={{ flex: 1 }}>{part(k)}</span>
-                  <span style={{ fontFamily: MONO, fontSize: 12, color: ink(0.7) }}>{tr('profile:nutri.pct', { defaultValue: '{n}%', n })}</span>
-                </span>
-              )) : null}
-            </div>
-          </div>
-          {rules.length ? (
-            <ul style={{ margin: '14px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {rules.map((r, i) => <li key={i} style={{ display: 'flex', gap: 10, fontSize: 14.5, lineHeight: 1.4 }}><span aria-hidden style={{ color: ACC, fontFamily: MONO }}>—</span>{r}</li>)}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
-      {staples.length ? (
-        <div data-kitchen-staples="" style={{ marginTop: plate || rules.length ? 24 : 0 }}>
-          <span style={eyebrow(ink, MONO)}>{tr('profile:nutri.staples', { defaultValue: 'Always in the kitchen' })}</span>
-          {!isSelf ? <p style={{ margin: '2px 0 0', fontSize: 13.5, color: ink(0.7) }}>{tr('profile:nutri.staplesSub', { defaultValue: 'Tap what you want, then add it to your grocery list.' })}</p> : null}
-          {['fridge', 'pantry', 'freezer'].map((g) => {
-            const inG = staples.filter((s) => s.g === g);
-            if (!inG.length) return null;
-            return (
-              <div key={g} style={{ marginTop: 10 }}>
-                <span style={{ fontSize: 12, color: ink(0.6) }}>{tr('profile:nutri.' + STAPLE_GROUP_KEYS[g][0], { defaultValue: STAPLE_GROUP_KEYS[g][1] })}</span>
-                <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {inG.map((s) => {
-                    const on = picked.has(s.n);
-                    return isSelf ? (
-                      <span key={s.n} data-staple="" style={{ minHeight: 36, padding: '0 12px', display: 'inline-flex', alignItems: 'center', border: `1px solid ${ink(0.22)}`, fontSize: 14 }}>{s.n}</span>
-                    ) : (
-                      <button key={s.n} type="button" data-staple="" aria-pressed={on} onClick={() => toggle(s.n)}
-                        style={{ minHeight: 40, padding: '0 12px', border: `1px solid ${on ? ACC : ink(0.22)}`, background: on ? hexA(ACC, 0.16) : 'transparent', color: t.INK, fontSize: 14, cursor: 'pointer' }}>{on ? '✓ ' : ''}{s.n}</button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-          {!isSelf ? (
-            <div style={{ marginTop: 12 }}>
-              <button type="button" data-add-staples="" onClick={addPicked} disabled={!picked.size || saving === 'busy'}
-                style={{ width: '100%', minHeight: 48, border: 0, background: picked.size ? ACC : t.PAPER2, color: picked.size ? ON_ACC : ink(0.5), fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: picked.size ? 'pointer' : 'default' }}>
-                {saving === 'busy' ? tr('profile:nutri.staplesAdding', { defaultValue: 'Adding…' }) : tr('profile:nutri.addStaples', { defaultValue: '{count, plural, =0 {Pick what to add} one {Add # to my grocery list} other {Add # to my grocery list}}', count: picked.size })}
-              </button>
-              {saving === 'done' ? <p role="status" style={{ margin: '8px 0 0', fontSize: 13.5, color: ACC }}>{tr('profile:nutri.staplesSaved', { defaultValue: 'Added to your grocery lists, under Eat.' })}</p> : null}
-              {saving === 'err' ? <p role="alert" style={{ margin: '8px 0 0', fontSize: 13.5, color: t.RUST || '#c0533b' }}>{tr('profile:nutri.staplesFailed', { defaultValue: "Couldn't add them just now. Try again." })}</p> : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      {dishes.length ? (
-        <div style={{ marginTop: plate || rules.length || staples.length ? 24 : 0 }}>
-          <span style={eyebrow(ink, MONO)}>{tr('profile:nutri.recipes', { defaultValue: 'Go-to recipes' })}</span>
-          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {dishes.map((d) => {
-              const r = d.recipe;
-              const credit = creditLine(tr, r);
-              return (
-                <button key={d.r} type="button" data-dish={d.r} onClick={() => onOpen(r)}
-                  style={{ width: '100%', padding: 0, border: 0, borderTop: `1px solid ${ink(0.12)}`, background: 'transparent', color: t.INK, display: 'flex', gap: 12, alignItems: 'stretch', textAlign: 'left', cursor: 'pointer', paddingTop: 10 }}>
-                  <span aria-hidden style={{ flex: 'none', width: 76, minHeight: 76, background: (typeof r.hero === 'string' && r.hero) || `linear-gradient(135deg, ${hexA(ACC, 0.5)}, ${t.PAPER2})` }} />
-                  <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3, lineHeight: 1.35 }}>
-                    <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 16 }}>{r.title}</span>
-                    <span style={{ fontFamily: MONO, fontSize: 11, color: ink(0.62) }}>{dishMeta(tr, r)}</span>
-                    {d.note ? <span style={{ fontSize: 14, color: ink(0.86) }}>{d.note}</span> : null}
-                    {credit ? <span style={{ fontSize: 11.5, color: ink(0.52) }}>{credit}</span> : null}
-                    <span style={{ marginTop: 2, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, color: ACC }}>{tr('profile:nutri.tryIt', { defaultValue: 'Try it in Shape' })} →</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
       {isSelf && nothing ? (
         <div>
-          <Hint ink={ink}>{tr('profile:nutri.kitchenEmptySelf', { defaultValue: 'Show members the plate you teach, what is always in your kitchen and your go-to recipes from the Shape Kitchen.' })}</Hint>
-          <button type="button" onClick={onFill} style={{ marginTop: 12, minHeight: 46, padding: '0 16px', border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:nutri.fillKitchen', { defaultValue: 'Fill your kitchen' })}</button>
+          <Hint ink={ink}>{tr('profile:nutri.kitchenEmptySelf', { defaultValue: 'Show members your recipes, the plate you teach and what is always in your kitchen.' })}</Hint>
+          {fill('fillKitchen', 'Fill your kitchen', 'recipes')}
         </div>
-      ) : isSelf ? <button type="button" onClick={onFill} style={{ ...linkBtn(ACC, DISPLAY), marginTop: 14 }}>{tr('profile:nutri.editKitchen', { defaultValue: 'Edit your kitchen' })} →</button> : null}
+      ) : now ? (
+        <>
+          {shown.length > 1 ? (
+            <div role="group" aria-label={tr('profile:nutri.sections', { defaultValue: 'In the kitchen' })} style={{ display: 'flex', gap: 6 }}>
+              {shown.map(([k, key, en]) => {
+                const on = k === now;
+                return (
+                  <button key={k} type="button" data-kitchen-section={k} aria-pressed={on} onClick={() => setSec(k)}
+                    style={{ flex: 1, minHeight: 44, padding: '0 8px', border: `1px solid ${on ? ACC : ink(0.22)}`, background: on ? hexA(ACC, 0.14) : 'transparent', color: t.INK, fontFamily: DISPLAY, fontSize: 14, fontWeight: on ? 600 : 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    {tr('profile:nutri.' + key, { defaultValue: en })}
+                    {k !== 'plate' && count[k] ? <span style={{ fontFamily: MONO, fontSize: 11, color: ink(0.6) }}>{count[k]}</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          ) : now === 'recipes' ? <span style={eyebrow(ink, MONO, ACC)}>{tr('profile:nutri.secRecipes', { defaultValue: 'Recipes' })}</span> : null}
+          <div style={{ marginTop: shown.length > 1 || now === 'recipes' ? 14 : 0 }}>
+            {now === 'recipes' ? recipesPart : now === 'plate' ? platePart : staplesPart}
+          </div>
+          {isSelf && count[now] ? <button type="button" onClick={() => onFill(now)} style={{ ...linkBtn(ACC, DISPLAY), marginTop: 14 }}>{tr('profile:nutri.editKitchen', { defaultValue: 'Edit your kitchen' })} →</button> : null}
+        </>
+      ) : null}
       {gallery.length ? (
         <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
           {gallery.slice(0, 6).map((g, i) => <img key={i} src={g.url} alt={g.caption || ''} style={{ width: '100%', height: 96, objectFit: 'cover' }} />)}
@@ -1129,6 +1176,114 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, dishes, g
       ) : null}
     </section>
   );
+}
+
+// One of their recipes, over the page: the photo, the numbers a serving carries, their note, the
+// ingredients and the method. A member cooks it in Shape's cook mode, or sends its ingredients to
+// their grocery lists as one list (the same list each time).
+function OwnRecipePage({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, recipe: r, first, avatar, isSelf, ownerKey, onClose, onCook }) {
+  const [list, setList] = React.useState(null); // null | 'busy' | 'done' | 'err'
+  const addList = async () => {
+    if (list === 'busy' || list === 'done') return;
+    if (window.bsRequireAccount && !window.bsRequireAccount(tr('profile:nutri.staplesAsk', { defaultValue: 'add to your grocery list' }))) return;
+    const l = bsOwnRecipeGroceryList(r, { ownerKey, name: r.t, from: tr('profile:nutri.kitchenName', { defaultValue: "{name}'s kitchen", name: first }) });
+    if (!l) return;
+    setList('busy');
+    try { await bsSaveReceivedGroceryList(l); setList('done'); } catch (e) { setList('err'); }
+  };
+  const ings = r.ing || [];
+  const steps = r.steps || [];
+  const macros = [
+    Number.isFinite(r.kcal) ? [tr('cook:ck.kcal', { defaultValue: '{n} kcal', n: r.kcal }), null] : null,
+    Number.isFinite(r.p) ? [tr('profile:nutri.grams', { defaultValue: '{n} g', n: r.p }), tr('profile:nutri.partProtein', { defaultValue: 'Protein' })] : null,
+    Number.isFinite(r.c) ? [tr('profile:nutri.grams', { defaultValue: '{n} g', n: r.c }), tr('profile:nutri.partCarbs', { defaultValue: 'Carbs' })] : null,
+    Number.isFinite(r.f) ? [tr('profile:nutri.grams', { defaultValue: '{n} g', n: r.f }), tr('profile:nutri.partFat', { defaultValue: 'Fat' })] : null,
+  ].filter(Boolean);
+  const canCook = !!window.BSCookMode && (steps.length > 0 || ings.length > 0);
+  const host = sheetHost();
+  const el = (
+    <div role="dialog" aria-label={r.t} data-own-recipe={r.id} style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, color: t.INK, overflowY: 'auto', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
+      <div style={{ position: 'relative' }}>
+        {r.photo ? <img src={r.photo} alt="" style={{ display: 'block', width: '100%', height: 240, objectFit: 'cover' }} />
+          : <div aria-hidden style={{ height: 120, background: `linear-gradient(135deg, ${hexA(ACC, 0.6)}, ${t.PAPER2})` }} />}
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: 'calc(6px + env(safe-area-inset-top)) 10px 0 8px', display: 'flex', justifyContent: 'space-between' }}>
+          <button type="button" data-recipe-back="" onClick={onClose} style={{ minHeight: 44, padding: '0 10px', border: 0, background: 'transparent', color: '#fff', fontFamily: MONO, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>← {tr('profile:trainer.back', { defaultValue: 'Back' })}</button>
+        </div>
+      </div>
+      <div style={{ padding: '16px 18px calc(32px + env(safe-area-inset-bottom))' }}>
+        <span style={eyebrow(ink, MONO, ACC)}>{tr('profile:nutri.kitchenName', { defaultValue: "{name}'s kitchen", name: first })}</span>
+        <h2 style={{ margin: '6px 0 0', fontFamily: DISPLAY, fontWeight: 600, fontSize: 26, lineHeight: 1.12 }}>{r.t}</h2>
+        {[Number.isFinite(r.min) ? tr('cook:ck.mins', { defaultValue: '{n} min', n: r.min }) : null, Number.isFinite(r.serves) ? tr('profile:nutri.serves', { defaultValue: '{count, plural, one {Serves #} other {Serves #}}', count: r.serves }) : null].filter(Boolean).length ? (
+          <p style={{ margin: '6px 0 0', fontFamily: MONO, fontSize: 12, color: ink(0.64) }}>{[Number.isFinite(r.min) ? tr('cook:ck.mins', { defaultValue: '{n} min', n: r.min }) : null, Number.isFinite(r.serves) ? tr('profile:nutri.serves', { defaultValue: '{count, plural, one {Serves #} other {Serves #}}', count: r.serves }) : null].filter(Boolean).join(' · ')}</p>
+        ) : null}
+        {macros.length ? (
+          <div data-recipe-macros="" style={{ marginTop: 14, display: 'grid', gridTemplateColumns: `repeat(${macros.length}, minmax(0, 1fr))`, gap: 6 }}>
+            {macros.map(([v, label], i) => (
+              <div key={i} style={{ padding: '10px 8px', background: t.PAPER2, textAlign: 'center' }}>
+                <span style={{ display: 'block', fontFamily: DISPLAY, fontWeight: 600, fontSize: 16 }}>{v}</span>
+                {label ? <span style={{ display: 'block', marginTop: 2, fontSize: 11.5, color: ink(0.6) }}>{label}</span> : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {r.note ? (
+          <div style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            {avatar ? <img src={avatar} alt="" style={{ width: 30, height: 30, borderRadius: 99, objectFit: 'cover' }} /> : null}
+            <div style={{ flex: 1, padding: '10px 12px', background: t.PAPER2, borderRadius: '4px 14px 14px 14px', fontSize: 14.5, lineHeight: 1.45 }}>
+              <span style={{ display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: ACC }}>{tr('profile:trainer.theirNote', { defaultValue: "{name}'s note", name: first })}</span>{r.note}
+            </div>
+          </div>
+        ) : null}
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {canCook ? <button type="button" data-cook-recipe="" onClick={() => onCook(r)} style={{ width: '100%', minHeight: 50, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:nutri.cookIt', { defaultValue: 'Cook it in Shape' })}</button> : null}
+          {!isSelf && ings.length ? (
+            <button type="button" data-recipe-list="" onClick={addList} disabled={list === 'busy'} style={{ width: '100%', minHeight: 48, border: `1px solid ${ink(0.3)}`, background: 'transparent', color: t.INK, fontFamily: DISPLAY, fontSize: 14.5, fontWeight: 600, cursor: 'pointer' }}>
+              {list === 'busy' ? tr('profile:nutri.staplesAdding', { defaultValue: 'Adding…' }) : list === 'done' ? `✓ ${tr('profile:nutri.ingredientsAdded', { defaultValue: 'On your grocery list, under Eat' })}` : tr('profile:nutri.addIngredients', { defaultValue: 'Add the ingredients to my grocery list' })}
+            </button>
+          ) : null}
+          {list === 'err' ? <p role="alert" style={{ margin: 0, fontSize: 13.5, color: t.RUST || '#c0533b' }}>{tr('profile:nutri.staplesFailed', { defaultValue: "Couldn't add them just now. Try again." })}</p> : null}
+        </div>
+        {ings.length ? (
+          <div data-recipe-ingredients="" style={{ marginTop: 22 }}>
+            <span style={eyebrow(ink, MONO)}>{tr('nutrition:myRecipe.ingredients', { defaultValue: 'Ingredients' })}</span>
+            <ul style={{ margin: '8px 0 0', padding: 0, listStyle: 'none' }}>
+              {ings.map((g, i) => (
+                <li key={i} style={{ display: 'flex', gap: 12, padding: '8px 0', borderBottom: `1px solid ${ink(0.1)}`, fontSize: 14.5 }}>
+                  <span style={{ width: 76, flex: 'none', fontFamily: MONO, fontSize: 12.5, color: ink(0.7) }}>{g.n || ''}</span><span style={{ flex: 1 }}>{g.m}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {steps.length ? (
+          <div data-recipe-method="" style={{ marginTop: 22 }}>
+            <span style={eyebrow(ink, MONO)}>{tr('nutrition:myRecipe.method', { defaultValue: 'Method' })}</span>
+            <ol style={{ margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {steps.map((x, i) => (
+                <li key={i} style={{ display: 'flex', gap: 12, fontSize: 14.5, lineHeight: 1.5 }}>
+                  <span style={{ width: 24, flex: 'none', fontFamily: MONO, fontSize: 12, color: ACC, paddingTop: 2 }}>{i + 1}</span><span style={{ flex: 1 }}>{x}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+  return host ? createPortal(el, host) : el;
+}
+
+// Shape's cook mode (the client module's BSCookMode) over everything, for one of their recipes.
+function CookOverlay({ t, cookable, onClose }) {
+  const Cook = window.BSCookMode;
+  if (!Cook || !cookable) return null;
+  const host = sheetHost();
+  const el = (
+    <div data-cook-overlay="" style={{ position: 'absolute', inset: 0, zIndex: 240, background: t.PAPER_BG || t.PAPER, overflowY: 'auto' }}>
+      <Cook cookable={cookable} onClose={onClose} />
+    </div>
+  );
+  return host ? createPortal(el, host) : el;
 }
 
 // ── Plate notes (a nutritionist's) ──────────────────────────────────────────────────────────
