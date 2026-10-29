@@ -98,8 +98,8 @@ dated entry or past 20 KB.
   move that screen into its own ES module. `BSIntegrationsPage.jsx` and
   `BSLeaderboard.jsx` show the pattern: read window globals at call time inside the
   component, keep its own `useShapeTr()`, and never import back into the client module.
-- **Coach profiles:** every trainer gets `BSTrainerProfile.jsx` (editor `BSMakeItYours.jsx`), with
-  samples if no account (`trainerDemo.mjs`); nutritionists `BSSignalCoachProfile`.
+- **Coach profiles:** every coach gets `BSTrainerProfile.jsx` (editor `BSMakeItYours.jsx`): a
+  trainer's studio, a nutritionist's kitchen. No account: samples (`trainerDemo`, `nutritionistDemo`).
 - **Other app modules:** `iosAppBroadsheetPros.jsx` (trainer and nutritionist apps),
   `iosAppBroadsheet.jsx` (shared chrome: `BSPage`, `BSFooter`, `BSPlate`,
   `BSSwapSheet`), `iosAppBroadsheetRadio.jsx` (Shape Radio) and
@@ -148,7 +148,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   (closing it means refunds).
 - In-app purchase outside the US (Phase 2) is on hold.
 - Decide how a suspended coach appeals.
-- Have counsel read the privacy policy (with 2026-10-29's §10 tap counts). The
+- Have counsel read the privacy policy (its 2026-10-13 text, and 2026-10-29's tap counts in §10). The
   health-data page lists only the weekly check-in, not the Morning check-in, readiness or patterns,
   and the data export leaves out Nora's conversation and the stored readouts.
 - Make the direct-charges test purchase (#2403's Owner steps): in Stripe test mode, add the
@@ -156,7 +156,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   Vercel's Preview (the test-mode `ca_…`), then buy from a test coach on staging.
 - Decide the perks the website's "What Master unlocks" card and `leaderboards.jsx`
   promise (payout tier, ranking, a verified badge): nothing grants them.
-- Decide whether the coach leaderboard should keep showing coaches each other's
+- Decide whether the coach leaderboard should keep showing every coach each other's
   active-client count and sessions-kept rate.
 - Check `NORA_TTS_VOICE` and `NORA_TTS_INSTRUCTIONS` in Vercel: a voice other than coral,
   nova, shimmer or sage is ignored, and her brisk-pace line joins the instructions.
@@ -173,8 +173,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   `coach_checkouts`) is #2403.
 - Night-before prep, Phase 2: a nutritionist's "prep the night before" tick, a
   reminder time the member chooses, planning tomorrow, and a morning swap.
-- Nutritionist profile in the trainer profile's style (a kitchen tab, no floor plan); then the
-  website's coach profile.
+- The website's coach profile in the app profile's design.
 - Nora as the account-setup assistant: she answers and fills forms today, but setting
   the account up is still to build.
 - Nora as a Shape Radio DJ, Phase 2 onward
@@ -185,11 +184,11 @@ The War Room has the full list; this covers what needs the owner and the planned
 - `get_display_names` gives any caller a full name and photo for any id.
 - The app's notification list reads a failed load as "You're all caught up". Email covers only
   coach messages, waitlist invites, tier-ups and a coach's waiting list (#2387); red and amber
-  client alerts are app and push only, and a failed email isn't retried.
+  client alerts are app and push only, and a failed email is dropped (no retry).
 - A member may pay two coaches of one role, sharing one section per discipline (#2384), but
   Nora's member read, the calendar and the prep-reminder cron read only the newest published
   meal plan (War Room).
-- A subscription to a coach later suspended keeps renewing.
+- A subscription to a coach who is later suspended keeps renewing.
 - The `?error=` redirects from `/purchase` and `/subscribe` are never shown.
 - A referral sign-up's confirmation email opens a bare `Login.html`, so confirming on another
   device loses the way back to the coach (War Room).
@@ -272,7 +271,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   (`clubRooms.mjs`) are seen only in headless Chromium. The old avatar crowd
   (`crowdAvatars.mjs`) is kept for a v2 pack.
 - Seen only in headless Chromium, not on a phone or in the app: the Split glass mark
-  (#2474), Your hours, the trainer profile, Make it yours, Nora's ✦ and hint, Build a list and
+  (#2474), Your hours, the coach profiles, Make it yours, Nora's ✦ and hint, Build a list and
   the profile dock (#2498–#2503).
 
 ## History
