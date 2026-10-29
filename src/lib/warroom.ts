@@ -616,6 +616,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Coaches: both are told when they share a client — #2496. No migration',
+      items: [
+        { label: 'Owner, 2026-10-29: "Both coaches should be notified if they share a client". Coaches who shared one could already see each other (the Shared clients tab, the dashboard banner, the care team and its coach thread), but nothing told them it had happened', status: 'done' },
+        { label: 'coach-thread.ts tellSharedCoaches, called last in startCoaching (the Stripe webhook, once the subscription is saved): the coach just hired hears of each coach already on the client, and each of them hears of the new one. Co-coaches are every listing with an open subscription (OPEN_SUB_STATUSES) from that member, one per owner, never the coach just hired; a second coach of the same role too. One notice per pair and side (dedupe shared:<subscription>:<other coach>)', status: 'done' },
+        { label: 'shared_client, in the bell and by push, not by email: "Shared client: {client}" / "{client} now works with you and nutritionist {coach}. You can message each other in the care team on their client page." It opens the client in the app the reader coaches them from (client:<role>:<id>). Its own Shared clients switch on both coach settings screens; copy and switch in all 13 languages', status: 'done' },
+        { label: 'Review: Codex clean on 092a23d. Checks: npm test in the hook (8,768/8,769: the one failure, a third hand-written status list, fixed with OPEN_SUB_STATUSES), then coach-thread (34, 4 new), coach-access-past-due and server-notices; CI\'s four jobs green', status: 'done' },
+        { label: 'OWNER: on staging, with two coach accounts, have a member hire one and then the other; check both coaches get the notice in the bell and by push, that it opens the client\'s page with the care team, and that the Shared clients switch stops it', status: 'manual' },
+        { label: 'Coaches who already shared a client before this shipped get no notice; it starts with the next hire. The Shared clients tab and banner still list existing pairs', status: 'pending' },
+      ],
+    },
+    {
       section: 'Privacy policy: §10 lists the tap counts, §7 says how GPC is honored, and a version is in force from the day after its date — #2495. No migration',
       items: [
         { label: 'Owner, 2026-10-29: "It prob should right?", then "Ok add it": §10 gains "Analytics — tap counts" beside Vercel Analytics (daily totals, no account, device or address kept with a count, nothing typed read, Shape\'s own wording only, the consent rule, 12 months). "Last updated" October 29, 2026; PRIVACY_VERSIONS gains 2026-10-29', status: 'done' },
