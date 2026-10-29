@@ -657,8 +657,15 @@ test('wiring: a control whose name is a person’s is counted by a fixed label',
   assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetProviderApply.jsx'), /data-track="Remove file" aria-label=\{`Remove \$\{file\.name\}`\}/);
 });
 
-test('wiring: the banner says its choice covers the website’s usage stats too', () => {
+test('wiring: the banner and the privacy policy say the website counts taps too', () => {
   const shell = read('public/newdesign/pageShell.jsx');
   const recorded = /var BANNER_COPY = "([^"]+)";/.exec(shell)[1];
   assert.match(recorded, /Shape's first-party usage stats on this site and in the app\./);
+  // §10 lists them beside Vercel Analytics, as the banner's link promises (owner, 2026-10-29).
+  const privacy = read('public/privacy.html');
+  const s10 = privacy.slice(privacy.indexOf('<section class="section" id="s6">'), privacy.indexOf('</section>', privacy.indexOf('id="s6"')));
+  assert.match(s10, /<strong>Analytics — tap counts:<\/strong> on this website and in the Shape app/);
+  for (const promise of ['No account, device identifier or IP address is kept with a count', 'nothing you type is read', 'never under names or messages shown on it', 'Global Privacy Control', 'not until you accept our cookie banner', 'kept for 12 months']) {
+    assert.ok(s10.includes(promise), promise);
+  }
 });
