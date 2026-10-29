@@ -100,3 +100,40 @@ test('Train and Eat set their pages in the clean type, under the header, and kee
   const eatPage = mainReturn(eat);
   assert.ok(eatPage.indexOf('<BSNutritionTopTabs') < eatPage.indexOf('<BSCleanType'), "Eat's tabs keep the app's type");
 });
+
+test('Grocery and the Library set their pages in the clean type under the Eat tabs; the header and the sheets keep the app\'s', () => {
+  // Owner, 2026-10-29: "Yes", to moving Grocery and the Library off Saira, as Day and Build a list are.
+  const grocery = fnBody('BSGrocery');
+  assert.match(grocery, /const t = useBS\(\);/, "Grocery's own t stays the app's: the header and the list picker read it");
+  assert.match(grocery, /const tc = useBSClean\(\);/);
+  const page = mainReturn(grocery);
+  const open = page.indexOf('<BSCleanType t={tc}>');
+  const close = page.indexOf('</BSCleanType>');
+  assert.ok(open > page.indexOf('<BSNutritionTopTabs'), 'Grocery: the clean area starts under the header and the tabs');
+  assert.ok(close > open && close < page.indexOf('<BSFooter'), 'Grocery: the clean area ends before the footer');
+  assert.doesNotMatch(page.slice(0, open), /\btc\./, "Grocery's header (Food list.) keeps the app's face");
+  // Send to a member is a portalled sheet: it sits after the clean area. The list picker portals from
+  // inside it but sets its own text from the app's t.
+  assert.ok(page.indexOf('<BSPostSendSheet', close) > close, 'Send to a member sits outside the clean area');
+  const clean = page.slice(open, close);
+  const pickAt = clean.indexOf('{pickerOpen && createPortal(');
+  const picker = clean.slice(pickAt, clean.indexOf("document.getElementById('bs-phone-surface')) || document.body", pickAt));
+  assert.ok(picker.length > 200, 'the list picker is gone — re-point this guard');
+  assert.doesNotMatch(picker, /\btc\./, 'the list picker keeps the app\'s type');
+  // The page's own words in the clean faces, and the aisle being walked a Geist head.
+  assert.match(clean, /fontFamily: tc\.HEAD, fontSize: 28, fontWeight: 600/);
+  assert.equal((clean.replace(picker, '').match(/fontFamily: t\.(DISPLAY|BODY)\b/g) || []).length, 0, 'a Saira line left in the Grocery body');
+  assert.match(clean, /<BSCoachGroceryReview t=\{tc\}/, 'the coach\'s sent list reads the clean theme');
+  // The rows are drawn by a helper above the return; it reads the clean face too.
+  assert.equal((grocery.slice(0, grocery.lastIndexOf('\n  return (')).match(/fontFamily: t\.(DISPLAY|BODY)\b/g) || []).length, 0);
+
+  const LIB = readFileSync(new URL('../mobile-app/src/broadsheet/BSGroceryLibrary.jsx', import.meta.url), 'utf8');
+  assert.match(LIB, /^import \{ useBSClean, BSCleanType \} from '\.\/bsCleanType\.jsx';$/m);
+  assert.match(LIB, /const t = useBS\(\);\n[\s\S]{0,400}const tc = useBSClean\(\);/);
+  const lib = LIB.slice(LIB.lastIndexOf('\n  return ('));
+  const lOpen = lib.indexOf('<BSCleanType t={tc}>');
+  const lClose = lib.indexOf('</BSCleanType>');
+  assert.ok(lOpen > lib.indexOf('<BSNutritionTopTabs') && lClose < lib.indexOf('<BSFooter'), 'the Library: under the header and the tabs, before the footer');
+  assert.ok(lib.indexOf('<BSPostSendSheet') > lClose, "the Library's Send to a member sits outside the clean area");
+  assert.equal((lib.slice(lOpen, lClose).match(/fontFamily: t\.(DISPLAY|BODY)\b/g) || []).length, 0, 'a Saira line left in the Library body');
+});

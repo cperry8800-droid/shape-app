@@ -271,8 +271,8 @@ The War Room has the full list; this covers what needs the owner and the planned
   (`clubRooms.mjs`) are seen only in headless Chromium. The old avatar crowd
   (`crowdAvatars.mjs`) is kept for a v2 pack.
 - Seen only in headless Chromium, not on a phone or in the app: the Split glass mark
-  (#2474), Your hours, the coach profiles, Make it yours, Nora's ✦ and hint, Build a list and
-  the profile dock (#2498–#2503).
+  (#2474), Your hours, the coach profiles, Make it yours, Nora's hint, Build a list, Grocery,
+  the Library and the profile dock (War Room).
 
 ## History
 
