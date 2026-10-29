@@ -2,13 +2,16 @@
  *
  * A classic-script COPY of src/lib/click-capture.mjs (the website's pages are classic scripts and
  * cannot import an ES module); tests/click-capture.test.mjs runs both over the same cases and
- * fails on any difference. Change a rule there and here together. What is counted, and why a row's
- * text never becomes a label, is written out in that file.
+ * fails on any difference. Change a rule there and here together. What is counted, and why a
+ * label is only ever the site's own copy, is written out in that file.
  *
  * pageShell.jsx loads this on every page it draws; the pages without it load it themselves. Taps
  * are counted per page and sent together to /api/analytics/clicks, only when the visitor's consent
  * allows it (the same rule as the sign-up source: GPC and a Reject always stop it, and in the EEA
- * and the UK nothing is counted until the banner is accepted).
+ * and the UK nothing is counted until the banner is accepted). A label is vouched for by the
+ * site's copy, /newdesign/nd/click-vocab.json, written at deploy (scripts/click-vocab.mjs) and
+ * fetched once consent allows; until it arrives, or where it is missing (a local checkout), a
+ * control is counted by its kind.
  */
 (function (root) {
   'use strict';
@@ -33,6 +36,7 @@
   var EMAIL_G = /[^\s@]+@[^\s@]+\.[^\s@]+/g;
   var NUMBER_G = /\d+(?:[.,:]\d+)*/g;
   var LETTER = /\p{L}/u;
+  var BARE = /^[^\p{L}\p{N}#@]+|[^\p{L}\p{N}#@]+$/gu;
   // The EEA and the UK by device time zone: every Europe/* zone (slightly over-inclusive, which
   // fails safe), plus the EEA's zones outside Europe/* (the Canaries, Madeira, the Azores, Ceuta,
   // Cyprus, Iceland, Svalbard, and France's outermost regions; Codex on #2334). One list, written
@@ -147,23 +151,35 @@
     return raw.length > LABEL_MAX ? null : cleanLabel(raw);
   }
 
-  function controlLabel(target) {
+  function controlLabel(target, known) {
     if (!target || !target.el) return '';
     var el = target.el;
-    var names = ['data-track', 'aria-label', 'title'];
+    var track = cleanLabel(attr(el, 'data-track'));
+    if (track) return track;
+    function copy(value) {
+      var label = cleanLabel(value);
+      if (!label || typeof known !== 'function') return '';
+      var bare = label.replace(BARE, '');
+      var tries = bare && bare !== label ? [label, bare] : [label];
+      for (var j = 0; j < tries.length; j++) {
+        try { var k = cleanLabel(known(tries[j])); if (k) return k; } catch (e) {}
+      }
+      return '';
+    }
+    var names = ['aria-label', 'title'];
     for (var i = 0; i < names.length; i++) {
-      var v = cleanLabel(attr(el, names[i]));
+      var v = copy(attr(el, names[i]));
       if (v) return v;
     }
     if (tagOf(el) === 'INPUT') {
       var type = String(attr(el, 'type') || '').toLowerCase();
-      if (type !== 'checkbox' && type !== 'radio') return cleanLabel(attr(el, 'value')) || UNNAMED.button;
+      if (type !== 'checkbox' && type !== 'radio') return copy(attr(el, 'value')) || UNNAMED.button;
       var label = el.labels && el.labels[0];
-      return (label && ownText(label)) || UNNAMED.button;
+      return (label && copy(ownText(label))) || UNNAMED.button;
     }
     var text = ownText(el);
     if (text === null) return UNNAMED.row;
-    return text || UNNAMED[target.kind] || UNNAMED.button;
+    return copy(text) || UNNAMED[target.kind] || UNNAMED.button;
   }
 
   function addClick(buffer, page, label) {
@@ -245,6 +261,23 @@
     } catch (e) {}
   }
 
+  // The site's copy: every string its pages are written with, as counted labels. Fetched once,
+  // only when consent allows counting; a control tapped before it arrives counts by its kind.
+  var VOCAB_URL = '/newdesign/nd/click-vocab.json';
+  var vocab = null;
+  var vocabAsked = false;
+  function loadVocab() {
+    if (vocabAsked) return;
+    vocabAsked = true;
+    try {
+      root.fetch(VOCAB_URL, { credentials: 'omit' })
+        .then(function (r) { return r && r.ok ? r.json() : null; })
+        .then(function (list) { if (Array.isArray(list)) vocab = new Set(list); })
+        .catch(function () {});
+    } catch (e) {}
+  }
+  function known(label) { return vocab && vocab.has(label) ? label : null; }
+
   var buffer = new Map();
   var timer = null;
   function isPointer(el) { return root.getComputedStyle(el).cursor === 'pointer'; }
@@ -257,8 +290,9 @@
     root.document.addEventListener('click', function (e) {
       try {
         if (!allowedHere()) return;
+        loadVocab();
         var target = clickTarget(e.target, isPointer);
-        if (!target || !addClick(buffer, root.location.pathname, controlLabel(target))) return;
+        if (!target || !addClick(buffer, root.location.pathname, controlLabel(target, known))) return;
         if (batchFull(buffer)) flush();
         else if (!timer) timer = root.setTimeout(flush, FLUSH_MS);
       } catch (err) {}
@@ -267,5 +301,9 @@
       if (root.document.visibilityState === 'hidden') flush();
     });
     root.addEventListener('pagehide', flush);
+    // Fetched once the page has loaded, so the first taps have it; never before consent allows.
+    var early = function () { if (allowedHere()) loadVocab(); };
+    if (root.document.readyState === 'complete') root.setTimeout(early, 0);
+    else root.addEventListener('load', early);
   } catch (e) {}
 })(typeof window !== 'undefined' ? window : null);

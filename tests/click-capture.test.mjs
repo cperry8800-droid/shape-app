@@ -52,6 +52,16 @@ const pointer = (e) => {
   return false;
 };
 
+// Shape's own copy, as `known` vouches for it: the app's catalogs (a translation counts under its
+// English words) or the website's list. Anything else on a control is data, never a label.
+const COPY = new Map([
+  ['Start session', 'Start session'], ['Coaches', 'Coaches'], ['Close', 'Close'], ['Settings', 'Settings'],
+  ['# new messages', '# new messages'], ['Book # · $#', 'Book # · $#'], ['Train', 'Train'], ['Entrenar', 'Train'],
+  ['Send #', 'Send #'], ['Breakfast', 'Breakfast'], ['Email me news', 'Email me news'], ['Message', 'Message'],
+  ['Log meal', 'Log meal'],
+]);
+const known = (label) => COPY.get(label) || null;
+
 // Each case: a tree, the node the tap lands on, and what it is counted as ('' for nothing).
 function cases() {
   const out = [];
@@ -59,7 +69,7 @@ function cases() {
   {
     const arrow = el('span', { 'aria-hidden': 'true' }, '→');
     const b = el('button', {}, 'Start session ', arrow);
-    add('a button’s text, its arrow with it', b, arrow, 'Start session →');
+    add('copy written without the arrow still names the button', b, arrow, 'Start session');
   }
   {
     const s = el('span', {}, 'Coaches');
@@ -70,7 +80,12 @@ function cases() {
   add('title when there is no other name', el('button', { title: 'Settings' }, el('svg', {}, el('title', {}, 'gear'))), null, 'Settings');
   add('digits read as #', el('button', {}, '3 new messages'), null, '# new messages');
   add('a time and a price read as #', el('button', {}, 'Book 12:30 · $1,200.50'), null, 'Book # · $#');
-  add('an email address reads as @', el('button', { 'aria-label': 'Email jane@example.com' }, '✉'), null, 'Email @');
+  add('a name with an address in it is data: the kind', el('button', { 'aria-label': 'Email jane@example.com' }, '✉'), null, '[button]');
+  add('a habit in an aria-label is data: the kind (Codex on #2493)', el('button', { 'aria-label': 'Options for Call mom' }, '⋯'), null, '[button]');
+  add('a client’s name in a title is passed over for the copy under it', el('button', { title: 'Message Jane Smith' }, 'Message'), null, 'Message');
+  add('a button showing only a name is the kind', el('button', {}, 'Jane Smith'), null, '[button]');
+  add('a link showing only data is the kind', el('a', { href: '/x' }, 'My PR: 140 kg'), null, '[link]');
+  add('a translation counts under its English words', el('button', {}, 'Entrenar'), null, 'Train');
   add('a row’s text in two places is the row, never the name in it', el('button', {}, el('div', {}, 'Jane Smith'), el('div', {}, 'See you at 6')), null, '[row]');
   add('text past the label limit is a card', el('a', { href: '/x' }, 'A long paragraph of text that is far too long to be the name of any button'), null, '[row]');
   add('a button with no text is counted by its kind', el('button', {}, el('svg', {}, el('path', {}))), null, '[button]');
@@ -115,12 +130,34 @@ function cases() {
 function runCases(rules) {
   return cases().map(({ name, root, start, want }) => {
     const t = rules.clickTarget(start || root, pointer);
-    return { name, got: t ? rules.controlLabel(t) : '', want };
+    return { name, got: t ? rules.controlLabel(t, known) : '', want };
   });
 }
 
 test('rules: what a tap is counted as', () => {
   for (const { name, got, want } of runCases(C)) assert.equal(got, want, name);
+});
+
+test('rules: with no copy to vouch, only data-track names a control', () => {
+  const t = (node) => C.clickTarget(node, pointer);
+  assert.equal(C.controlLabel(t(el('button', {}, 'Coaches'))), '[button]');
+  assert.equal(C.controlLabel(t(el('button', { 'aria-label': 'Close' }, '×')), () => { throw new Error('x'); }), '[button]', 'a broken list vouches for nothing');
+  assert.equal(C.controlLabel(t(el('button', { 'data-track': 'Open profile' }, 'Jane'))), 'Open profile');
+});
+
+test('rules: the app’s copy is its catalogs, each string to its English words, never a placeholder', () => {
+  const resources = {
+    en: { common: { 'nav.train': 'Train', 'nav.home': 'Home', greet: 'Hi {name}', count: '{n, plural, one {# day} other {# days}}', long: 'Start session' } },
+    es: { common: { 'nav.train': 'Entrenar', 'nav.home': 'Inicio', greet: 'Hola {name}', only: 'Solo aquí' } },
+  };
+  const es = C.copyIndex(resources, 'es');
+  assert.equal(es.get('Entrenar'), 'Train');
+  assert.equal(es.get('Inicio'), 'Home');
+  assert.equal(es.get('Train'), 'Train', 'English is read too, in any language');
+  assert.equal(es.get('Solo aquí'), 'Solo aquí', 'a string English lacks keeps its own words');
+  assert.ok(![...es.keys()].some((k) => k.includes('{') || k.startsWith('Hola') || k.startsWith('Hi')), 'a placeholder’s words come from data');
+  assert.equal(C.copyIndex(null, 'en').size, 0);
+  assert.equal(C.copyIndex({ en: { x: null, y: { k: 3 } } }, 'en').size, 0);
 });
 
 test('rules: labels and pages are cleaned the same way every time', () => {
@@ -192,10 +229,13 @@ test('rules: the server keeps only a clean batch', () => {
 });
 
 // ── The website's copy ────────────────────────────────────────────────────────────────────
-function loadCopy({ consent = null, gpc = false, timeZone = 'America/New_York' } = {}) {
+// The website's copy list, as the deploy writes it to /newdesign/nd/click-vocab.json.
+const SITE_COPY = ['Coaches', 'Find a coach', 'Go', 'Pricing'];
+function loadCopy({ consent = null, gpc = false, timeZone = 'America/New_York', vocab = SITE_COPY } = {}) {
   const listeners = {};
   const winListeners = {};
   const sent = [];
+  const asked = [];
   const timers = [];
   const store = { 'shape.consent.v1': consent };
   const win = {
@@ -210,14 +250,26 @@ function loadCopy({ consent = null, gpc = false, timeZone = 'America/New_York' }
     getComputedStyle: (e) => ({ cursor: pointer(e) ? 'pointer' : 'auto' }),
     setTimeout: (fn) => { timers.push(fn); return timers.length; },
     clearTimeout: () => {},
-    fetch: (url, init) => { sent.push({ url, init, body: JSON.parse(init.body) }); return Promise.resolve({ ok: true }); },
+    fetch: (url, init) => {
+      if (url === '/newdesign/nd/click-vocab.json') {
+        asked.push({ url, init });
+        return Promise.resolve(vocab ? { ok: true, json: async () => vocab } : { ok: false });
+      }
+      sent.push({ url, init, body: JSON.parse(init.body) });
+      return Promise.resolve({ ok: true });
+    },
     Intl: { DateTimeFormat: () => ({ resolvedOptions: () => ({ timeZone }) }) },
     Map,
   };
   win.window = win;
   vm.createContext(win);
   vm.runInContext(read('public/click-capture.js'), win);
-  return { win, listeners, winListeners, sent, timers, tap: (target) => listeners.click.fn({ target }) };
+  // The page finishes loading: the copy list is fetched (consent allowing) and read.
+  const loaded = async () => {
+    if (winListeners.load) winListeners.load();
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+  };
+  return { win, listeners, winListeners, sent, asked, timers, loaded, tap: (target) => listeners.click.fn({ target }) };
 }
 
 test('copy: public/click-capture.js counts exactly as the module does', () => {
@@ -245,6 +297,8 @@ test('copy: public/click-capture.js counts exactly as the module does', () => {
 
 test('copy: taps on a page are sent together, with the page and the session cookie, and only with consent', async () => {
   const site = loadCopy();
+  await site.loaded();
+  assert.deepEqual(site.asked.map((a) => [a.url, a.init.credentials]), [['/newdesign/nd/click-vocab.json', 'omit']], 'the copy list, once, with no cookie');
   assert.deepEqual({ ...site.listeners.click.opts }, { capture: true, passive: true }, 'it listens without getting in the way');
   const b = el('button', {}, 'Find a coach');
   site.tap(b);
@@ -271,14 +325,37 @@ test('copy: taps on a page are sent together, with the page and the session cook
     [{ timeZone: '' }, 'an unknown region'],
   ]) {
     const s = loadCopy(opts);
+    await s.loaded();
     s.tap(el('button', {}, 'Go'));
     s.winListeners.pagehide();
     assert.equal(s.sent.length, 0, `nothing counted with ${why}`);
+    assert.equal(s.asked.length, 0, `nothing fetched with ${why}`);
   }
   const accepted = loadCopy({ consent: 'accept', timeZone: 'Europe/Paris' });
+  await accepted.loaded();
   accepted.tap(el('button', {}, 'Go'));
   accepted.winListeners.pagehide();
   assert.equal(accepted.sent.length, 1, 'the EEA after an Accept');
+});
+
+test('copy: a label is the site’s copy or the control’s kind; before the list arrives, the kind', async () => {
+  const site = loadCopy();
+  site.tap(el('button', {}, 'Find a coach'));
+  await site.loaded();
+  site.tap(el('button', {}, 'Find a coach'));
+  site.tap(el('button', { 'aria-label': 'Open Jane Smith drilldown' }, 'Jane Smith'));
+  site.tap(el('a', { href: '/x' }, 'Call mom'));
+  site.winListeners.pagehide();
+  assert.deepEqual(site.sent[0].body.clicks, [
+    { page: '/newdesign/Coaches.html', target: '[button]', n: 2 },
+    { page: '/newdesign/Coaches.html', target: 'Find a coach', n: 1 },
+    { page: '/newdesign/Coaches.html', target: '[link]', n: 1 },
+  ]);
+  const local = loadCopy({ vocab: null });
+  await local.loaded();
+  local.tap(el('button', {}, 'Find a coach'));
+  local.winListeners.pagehide();
+  assert.deepEqual(local.sent[0].body.clicks, [{ page: '/newdesign/Coaches.html', target: '[button]', n: 1 }], 'no list (a local checkout): kinds only');
 });
 
 test('copy: loading twice starts one listener', () => {
@@ -302,7 +379,7 @@ test('app: the starter counts per screen, asks consent at each tap and sends whe
     setTimeout: () => 1,
     clearTimeout: () => {},
   };
-  const started = C.startClickCapture({ win, surface: 'app', page: () => screen, allowed: () => allowed, send: (b) => sent.push(b) });
+  const started = C.startClickCapture({ win, surface: 'app', page: () => screen, allowed: () => allowed, known, send: (b) => sent.push(b) });
   assert.ok(started);
   assert.equal(C.startClickCapture({ win, surface: 'app', page: () => '', allowed: () => true, send: () => {} }), null, 'once per window');
   listeners.click({ target: el('button', {}, 'Log meal') });
@@ -317,7 +394,7 @@ test('app: the starter counts per screen, asks consent at each tap and sends whe
   const out = [];
   const l2 = {};
   many.document = { visibilityState: 'visible', addEventListener: (t, fn) => { l2[t] = fn; } };
-  C.startClickCapture({ win: many, surface: 'app', page: () => 'Home', allowed: () => true, send: (b) => out.push(b) });
+  C.startClickCapture({ win: many, surface: 'app', page: () => 'Home', allowed: () => true, known: (l) => l, send: (b) => out.push(b) });
   for (let i = 0; i < C.BATCH_MAX; i += 1) l2.click({ target: el('button', {}, `Item ${'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP'[i]}`) });
   assert.equal(out.length, 1, 'a full buffer goes at once');
   assert.equal(out[0].clicks.length, C.BATCH_MAX);
@@ -325,7 +402,7 @@ test('app: the starter counts per screen, asks consent at each tap and sends whe
   const got = [];
   const l3 = {};
   busy.document = { visibilityState: 'visible', addEventListener: (t, fn) => { l3[t] = fn; } };
-  C.startClickCapture({ win: busy, surface: 'app', page: () => 'Home', allowed: () => true, send: (b) => got.push(b) });
+  C.startClickCapture({ win: busy, surface: 'app', page: () => 'Home', allowed: () => true, known: (l) => l, send: (b) => got.push(b) });
   for (let i = 0; i < C.TAPS_MAX; i += 1) l3.click({ target: el('button', {}, 'Next') });
   assert.deepEqual(got, [{ surface: 'app', clicks: [{ page: 'Home', target: 'Next', n: C.COUNT_MAX }] }], 'one control at COUNT_MAX goes at once, so no tap is lost');
   busy.document.visibilityState = 'hidden';
@@ -414,7 +491,7 @@ test('admin-clicks: pages and controls are named for people', () => {
   assert.equal(A.pageName('app', 'Your mornings'), 'Your mornings');
   assert.equal(A.pageName('app', ''), 'App');
   assert.deepEqual(A.targetName('[row]'), { text: 'A row or card', unnamed: true });
-  assert.deepEqual(A.targetName('[button]'), { text: 'A button with no name', unnamed: true });
+  assert.deepEqual(A.targetName('[button]'), { text: 'A button without a fixed label', unnamed: true });
   assert.deepEqual(A.targetName('Find a coach'), { text: 'Find a coach', unnamed: false });
   assert.equal(A.shareOf(1, 3), '33%');
   assert.equal(A.shareOf(1, 0), '');
@@ -530,6 +607,28 @@ test('migration: the follow-up caps a batch at TAPS_MAX taps and 20 a minute, an
   assert.match(code, /do \$guard\$[\s\S]*raise exception/);
 });
 
+// ── The website's copy list ───────────────────────────────────────────────────────────────
+test('copy list: the site’s own strings, cleaned as labels; never data, code or colours', async () => {
+  const { buildClickVocab } = await import('../scripts/click-vocab.mjs');
+  const list = buildClickVocab();
+  assert.deepEqual(list, [...new Set(list)].sort(), 'sorted, each once');
+  assert.ok(list.every((l) => l === C.cleanLabel(l) && /\p{L}/u.test(l)), 'each is a label as a tap reads it');
+  const has = new Set(list);
+  for (const want of ['Coaches', 'Pricing', 'Privacy Policy', 'Accept', 'Open client drilldown']) assert.ok(has.has(want), want);
+  for (const never of ['Jane Smith', 'Call mom', '#0a8f87', 'flex-start', 'shape.consent.v1', 'bsMagazine']) assert.ok(!has.has(C.cleanLabel(never)), never);
+  assert.ok(list.length > 5000 && JSON.stringify(list).length < 400_000, `${list.length} labels: the whole site, at a size a page can fetch once`);
+});
+
+test('copy list: written at deploy beside the compiled pages, read before they are rewritten', () => {
+  const build = read('scripts/build-newdesign.mjs');
+  assert.match(build, /import \{ buildClickVocab \} from '\.\/click-vocab\.mjs';/);
+  const at = build.indexOf('const clickVocab = buildClickVocab(ROOT);');
+  assert.ok(at > 0 && at < build.indexOf('const pages = fs.readdirSync(ND)'), 'before the pages’ inline blocks leave the HTML');
+  assert.match(build, /if \(!CHECK\) fs\.writeFileSync\(path\.join\(OUT, 'click-vocab\.json'\), JSON\.stringify\(clickVocab\)\);/);
+  assert.match(read('.gitignore'), /^\/public\/newdesign\/nd$/m, 'never committed');
+  assert.match(read('public/click-capture.js'), /var VOCAB_URL = '\/newdesign\/nd\/click-vocab\.json';/);
+});
+
 // ── The wiring ────────────────────────────────────────────────────────────────────────────
 test('wiring: every website page counts taps, and the app does, both behind the consent rule', () => {
   const shell = read('public/newdesign/pageShell.jsx');
@@ -541,6 +640,10 @@ test('wiring: every website page counts taps, and the app does, both behind the 
   const app = stripComments(read('mobile-app/src/services/analytics.js'));
   assert.match(app, /import \{ startClickCapture \} from '\.\.\/\.\.\/\.\.\/src\/lib\/click-capture\.mjs';/);
   assert.match(app, /surface: 'app',\s+page: clickScreen,\s+allowed: \(\) => !consentBlocked\(\),/);
+  assert.match(app, /known: \(label\) => \(typeof window\.bsClickCopy === 'function' \? window\.bsClickCopy\(label\) : null\),/, 'the app’s copy vouches for a label');
+  const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
+  assert.match(main, /import \{ copyIndex \} from '\.\.\/\.\.\/\.\.\/src\/lib\/click-capture\.mjs';/);
+  assert.match(main, /window\.bsClickCopy = \(label\) => \{\n\s+const lng = bsI18n\.language \|\| 'en';\n\s+if \(!bsClickCopyIndex \|\| bsClickCopyIndex\.lng !== lng\) bsClickCopyIndex = \{ lng, map: copyIndex\(bsI18n\.store && bsI18n\.store\.data, lng\) \};/, 'from the loaded catalogs, again on a language change');
   assert.match(app, /api\('\/api\/analytics\/clicks', init\)/, 'through ShapeApi.fetch: the API base and the Bearer token');
   assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx'), /useEffectBSM\(\(\) => \{ window\.bsClickStage = stage; \}, \[stage\]\);/);
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');

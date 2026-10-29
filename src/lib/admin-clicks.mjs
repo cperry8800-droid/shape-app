@@ -74,9 +74,9 @@ export function pageName(surface, page) {
 }
 
 const UNNAMED_NAMES = {
-  [UNNAMED.button]: 'A button with no name',
-  [UNNAMED.link]: 'A link with no name',
-  [UNNAMED.tab]: 'A tab with no name',
+  [UNNAMED.button]: 'A button without a fixed label',
+  [UNNAMED.link]: 'A link without a fixed label',
+  [UNNAMED.tab]: 'A tab without a fixed label',
   [UNNAMED.row]: 'A row or card',
 };
 

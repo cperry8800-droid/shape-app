@@ -9,12 +9,16 @@
 // member or a coach) and keeps daily totals only (ui_click_counts): no account, device or address
 // is stored with a count, and nothing typed is ever read.
 //
-// THE LABEL is the control's own name: data-track, else aria-label, else title, else its text.
-// Digits become # ("3 new" and "12 new" are one button) and an email address becomes @. Text is
-// used only when it is short and sits in one place: a row or a card (a name over a last message,
-// a client over a status) has text in several, and is counted by its kind alone ("[row]"), so a
-// person's name or words in a list never become a label. Anything inside [data-no-track], and any
-// field a person types in, is not counted at all.
+// THE LABEL is the control's own name, and only ever Shape's own copy. data-track names a control
+// outright. Otherwise its aria-label, title or text counts only when `known` says it is copy the
+// page was written with: in the app, a string from the translation catalogs (counted in English,
+// so every language adds to one label, copyIndex below); on the website, a string in the site's
+// source (nd/click-vocab.json, written at deploy by scripts/click-vocab.mjs). A habit's name, a
+// client's name or a message is no catalog string, so its control is counted by its kind alone
+// ("[button]") however it carries the words (Codex on #2493). Digits become # ("3 new" and
+// "12 new" are one button) and an email address becomes @. A row or a card (text in more than one
+// place) is "[row]". Anything inside [data-no-track], and any field a person types in, is not
+// counted at all.
 
 export const LABEL_MAX = 48;
 export const PAGE_MAX = 80;
@@ -48,6 +52,8 @@ const UUID_G = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const EMAIL_G = /[^\s@]+@[^\s@]+\.[^\s@]+/g;
 const NUMBER_G = /\d+(?:[.,:]\d+)*/g;
 const LETTER = /\p{L}/u;
+// The symbols around a label ("Start session →"), which copy is often written without.
+const BARE = /^[^\p{L}\p{N}#@]+|[^\p{L}\p{N}#@]+$/gu;
 
 function attr(el, name) {
   try {
@@ -179,25 +185,68 @@ function ownText(el) {
 }
 
 /**
- * What a control is counted as: its own name, else its short text, else its kind ("[button]");
- * a control with more text than a name (a row or a card) is "[row]".
+ * What a control is counted as: its data-track, else the first of its aria-label, title and short
+ * text that `known` vouches for as Shape's own copy (it returns the label to count, or null), else
+ * its kind ("[button]"). A control with more text than a name (a row or a card) is "[row]".
  */
-export function controlLabel(target) {
+export function controlLabel(target, known) {
   if (!target || !target.el) return '';
   const { el, kind } = target;
-  for (const name of ['data-track', 'aria-label', 'title']) {
-    const v = cleanLabel(attr(el, name));
+  const track = cleanLabel(attr(el, 'data-track'));
+  if (track) return track;
+  const copy = (value) => {
+    const label = cleanLabel(value);
+    if (!label || typeof known !== 'function') return '';
+    const bare = label.replace(BARE, '');
+    for (const t of bare && bare !== label ? [label, bare] : [label]) {
+      try {
+        const k = cleanLabel(known(t));
+        if (k) return k;
+      } catch {
+        // An unreadable copy list vouches for nothing.
+      }
+    }
+    return '';
+  };
+  for (const name of ['aria-label', 'title']) {
+    const v = copy(attr(el, name));
     if (v) return v;
   }
   if (tagOf(el) === 'INPUT') {
     const type = String(attr(el, 'type') || '').toLowerCase();
-    if (type !== 'checkbox' && type !== 'radio') return cleanLabel(attr(el, 'value')) || UNNAMED.button;
+    if (type !== 'checkbox' && type !== 'radio') return copy(attr(el, 'value')) || UNNAMED.button;
     const label = el.labels && el.labels[0];
-    return (label && ownText(label)) || UNNAMED.button;
+    return (label && copy(ownText(label))) || UNNAMED.button;
   }
   const text = ownText(el);
   if (text === null) return UNNAMED.row;
-  return text || UNNAMED[kind] || UNNAMED.button;
+  return copy(text) || UNNAMED[kind] || UNNAMED.button;
+}
+
+/**
+ * The app's copy as `known` reads it: each catalog string in `lng` and in English, keyed by its
+ * label, to its English label. `resources` is i18next's store ({ en: { common: { key: text } } }).
+ * A string with a placeholder ("{name}", a plural) is left out: its words come from data.
+ */
+export function copyIndex(resources, lng) {
+  const map = new Map();
+  const data = resources && typeof resources === 'object' ? resources : {};
+  const en = data.en && typeof data.en === 'object' ? data.en : {};
+  for (const loc of [lng, 'en']) {
+    const cats = data[loc];
+    if (!cats || typeof cats !== 'object') continue;
+    for (const [ns, cat] of Object.entries(cats)) {
+      if (!cat || typeof cat !== 'object') continue;
+      for (const [key, value] of Object.entries(cat)) {
+        if (typeof value !== 'string' || value.includes('{')) continue;
+        const label = cleanLabel(value);
+        if (!label || !LETTER.test(label) || map.has(label)) continue;
+        const english = en[ns] && typeof en[ns][key] === 'string' && !en[ns][key].includes('{') ? cleanLabel(en[ns][key]) : '';
+        map.set(label, english || label);
+      }
+    }
+  }
+  return map;
 }
 
 /** Adds one tap on (page, label) to a buffer (a Map). */
@@ -272,9 +321,10 @@ export function cleanBatch(body) {
 /**
  * Starts counting taps on a page. `surface` is 'web' or 'app'; `page()` names where the tap
  * landed; `allowed()` is the consent rule, asked at each tap so a choice made on the banner holds
- * at once; `send(body)` posts a batch and never throws. Once per window; returns { flush }.
+ * at once; `known(label)` vouches for a label as Shape's own copy (controlLabel); `send(body)`
+ * posts a batch and never throws. Once per window; returns { flush }.
  */
-export function startClickCapture({ win, surface, page, allowed, send }) {
+export function startClickCapture({ win, surface, page, allowed, known, send }) {
   if (!win || !win.document || win.__shapeClickCapture) return null;
   win.__shapeClickCapture = true;
   const buffer = new Map();
@@ -299,7 +349,7 @@ export function startClickCapture({ win, surface, page, allowed, send }) {
       try {
         if (!allowed()) return;
         const target = clickTarget(e.target, isPointer);
-        if (!target || !addClick(buffer, page(), controlLabel(target))) return;
+        if (!target || !addClick(buffer, page(), controlLabel(target, known))) return;
         if (batchFull(buffer)) flush();
         else if (!timer) timer = win.setTimeout(flush, FLUSH_MS);
       } catch {

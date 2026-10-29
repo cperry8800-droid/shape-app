@@ -209,7 +209,7 @@ function TopTargets({ s }: { s: ClickSummary }) {
     <section className="flex flex-col gap-4">
       <SectionHead
         title="Buttons and links with the most taps"
-        note="Each control on its page, the top 100. A control is named by its label; a row or a card is counted by its kind, so the people and words in a list never become a label."
+        note="Each control on its page, the top 100. A control is named only by Shape’s own copy; one carrying a person’s words, and any row or card, is counted by its kind."
       />
       <div className={`${PANEL} overflow-x-auto`}>
         <table className="w-full text-sm tabular-nums">
@@ -249,8 +249,9 @@ function HowCounted() {
       <ul className="mt-3 flex flex-col gap-2 text-sm text-neutral-400 max-w-3xl list-disc pl-5">
         <li>A tap on a button, a link, a tab or anything drawn to be tapped adds one to that control on its page for the day. Nothing typed is read.</li>
         <li>
-          A control is named by its label, its accessible name, or its text when that is short and in one place. Numbers read as # and an
-          email address as @. A row or a card is counted by its kind alone.
+          A control is named only by Shape&apos;s own copy: its words as written in the site or the app (the app&apos;s in English, so every
+          language adds up). A name, a habit or a message on a control is never a label; that control is counted as a button, link or
+          tab without a fixed label, and a row or a card by its kind alone. Numbers read as #.
         </li>
         <li>
           Only where consent allows: never with Global Privacy Control or after a Reject, and in the EEA and the UK not until the banner

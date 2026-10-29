@@ -13,7 +13,9 @@ export function cleanLabel(value: unknown): string;
 export function cleanPage(value: unknown): string;
 export function controlKind(el: Element | null | undefined): ClickKind | '';
 export function clickTarget(start: EventTarget | Node | null | undefined, isPointer?: (el: Element) => boolean): ClickTarget | null;
-export function controlLabel(target: ClickTarget | null | undefined): string;
+export type KnownCopy = (label: string) => string | null | undefined;
+export function controlLabel(target: ClickTarget | null | undefined, known?: KnownCopy): string;
+export function copyIndex(resources: unknown, lng: string): Map<string, string>;
 export function addClick(buffer: Map<string, ClickRow>, page: unknown, label: unknown): boolean;
 export function tapsIn(buffer: Map<string, ClickRow>): number;
 export function batchFull(buffer: Map<string, ClickRow>): boolean;
@@ -24,5 +26,6 @@ export function startClickCapture(opts: {
   surface: 'web' | 'app';
   page: () => string;
   allowed: () => boolean;
+  known?: KnownCopy;
   send: (body: { surface: 'web' | 'app'; clicks: ClickRow[] }) => void;
 }): { flush: () => void } | null;

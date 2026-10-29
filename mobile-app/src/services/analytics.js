@@ -4,8 +4,9 @@
 // VITE_API_BASE_URL that shapeBackend already configures for fetch; the /m/ web
 // build defaults to same-origin via an empty base → relative URL).
 // Native callers have no cookie session, so events record as anon/null-user in v1.
-// Taps are counted too (src/lib/click-capture.mjs, under the same consent rule): per screen, sent
-// in batches through ShapeApi.fetch, whose Bearer token tells the server a member from a coach.
+// Taps are counted too (src/lib/click-capture.mjs, under the same consent rule): per screen, under
+// the app's own copy only, sent in batches through ShapeApi.fetch, whose Bearer token tells the
+// server a member from a coach.
 // Consent-gated, region-aware (honors the SAME `shape.consent.v1` signal as the
 // web carrier in public/supabase.js): GPC and an explicit opt-out ALWAYS block.
 // With no explicit choice we OPT-IN for EEA/UK (block until 'accept' is recorded —
@@ -67,6 +68,9 @@ if (typeof window !== 'undefined') {
       surface: 'app',
       page: clickScreen,
       allowed: () => !consentBlocked(),
+      // The app's own copy vouches for a label (iosAppBroadsheetMain.jsx sets bsClickCopy); until
+      // it is set, a control is counted by its kind.
+      known: (label) => (typeof window.bsClickCopy === 'function' ? window.bsClickCopy(label) : null),
       send: (body) => {
         const init = { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
         const api = window.ShapeApi && window.ShapeApi.fetch;

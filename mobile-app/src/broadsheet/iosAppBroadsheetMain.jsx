@@ -15,6 +15,7 @@ import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
 import { bumpSignOutGen } from '../services/signOutGen.mjs';
 import { preferenceTypeFor } from '../../../public/newdesign/notificationSurfaces.mjs';
+import { copyIndex } from '../../../src/lib/click-capture.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -24,6 +25,18 @@ const bsApi = { fetch: (path, init) => (window.ShapeApi ? window.ShapeApi.fetch(
 
 initI18n(); // idempotent — sets the initial locale + text direction from the stored
             // preference / device language before the first render.
+
+// The app's copy, for the click counts (services/analytics.js): a tap counts under a label only
+// when the label is a catalog string, and then under its English words, so a name or a habit on a
+// control is counted by the control's kind. Built while the app is idle (some 50 ms of work, kept
+// out of a tap), and again on the next tap after a language change.
+let bsClickCopyIndex = null;
+window.bsClickCopy = (label) => {
+  const lng = bsI18n.language || 'en';
+  if (!bsClickCopyIndex || bsClickCopyIndex.lng !== lng) bsClickCopyIndex = { lng, map: copyIndex(bsI18n.store && bsI18n.store.data, lng) };
+  return bsClickCopyIndex.map.get(label) || null;
+};
+try { (window.requestIdleCallback || ((fn) => setTimeout(fn, 3000)))(() => window.bsClickCopy('')); } catch (e) {}
 
 const { useState: useStateBSM, useEffect: useEffectBSM } = React;
 const {
