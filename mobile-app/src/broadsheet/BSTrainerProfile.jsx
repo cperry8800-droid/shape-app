@@ -1,17 +1,23 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { bsProfileLook, bsProfileStudio, bsProfileCover } from '../services/profileCustom.mjs';
+import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen } from '../services/profileCustom.mjs';
 import { STUDIO_WORDS, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
 import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.mjs';
 import { bsCoachPronoun } from '../services/coachPronoun.mjs';
 import { bsTrainerDemo, bsTrainerSampleOf } from '../services/trainerDemo.mjs';
+import { bsNutritionistDemo, bsNutritionistSampleOf } from '../services/nutritionistDemo.mjs';
+import { bsKitchenRecipe, bsKitchenMinutes, bsKitchenCredit, bsKitchenGroceryList } from './kitchenDishes.js';
 import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSMakeItYours } from './BSMakeItYours.jsx';
+import { bsReceivedGroceryList } from '../services/groceryShare.mjs';
+import { bsSaveReceivedGroceryList } from './BSGroceryShare.jsx';
 
-// ─── THE TRAINER PROFILE ─────────────────────────────────────────────────────────────────────
+// ─── THE COACH PROFILE: TRAINERS AND NUTRITIONISTS ───────────────────────────────────────────
 // Owner, 2026-10-27, after seven rounds on the canvas ("Show, don't sell · Quiet and premium ·
-// Feels like the Shape app"): one profile, three tabs.
+// Feels like the Shape app"): one profile, three tabs. A nutritionist's page is the same page with
+// a kitchen in place of the studio and plate notes in place of replays (the plan: "a kitchen tab, no
+// floor plan"; see the end of this note).
 //
 //   Header      the coach's wall photo with their round avatar over its edge, name, what they
 //               do and where, their bio, the verified line, Message · Work with · Follow.
@@ -29,6 +35,16 @@ import { BSMakeItYours } from './BSMakeItYours.jsx';
 // is the shared storefront (BSCoachCoachingBlock with useBSCoachCommerce, the client module's).
 //
 // Words for the coach follow the pronouns they wrote, or their first name (coachPronoun.mjs).
+//
+// A nutritionist (person.kind 'NUTRI') reads and books as a nutritionist (their listing, hours and
+// intro calls), is painted amber until they pick their colours (Shape's nutritionist gold), and has
+// two tabs of their own (owner, 2026-10-27: "lets do something different for nutritionists"):
+//   Her kitchen  no floor plan: the plate they teach and their portion rules, the staples always in
+//                their kitchen (a member taps the ones they want onto their own grocery list), and
+//                their go-to recipes from the Shape Kitchen, each with their note, opening in Shape
+//                (profile_custom.kitchen, set in Make it yours → Your kitchen). Listing photos under it.
+//   Plate notes  the meals they logged and shared, a day to a note, stepped through meal by meal with
+//                the protein so far and their note on each.
 //
 // A trainer page with no Shape account behind it has sample content (trainerDemo.mjs, owner,
 // 2026-10-28: "demo environment should show new profile designs"):
@@ -104,8 +120,10 @@ export function BSTrainerProfile(props) {
   const outer = useBS();
   const { person, isSelf = false } = props;
   const tr = useShapeTr();
-  // The demo is the trainer app's own page with nobody signed in, and only that: a page opened for
-  // an account, or with one signed in, is always the real one. A sample is another trainer's page
+  const role = person.kind === 'NUTRI' ? 'nutritionist' : 'trainer';
+  const nutri = role === 'nutritionist';
+  // The demo is the coach app's own page with nobody signed in, and only that: a page opened for
+  // an account, or with one signed in, is always the real one. A sample is another coach's page
   // with no account behind it.
   const demoOn = isSelf && !person.userId && !signedInUid();
   const sampleOn = !isSelf && !person.userId;
@@ -116,17 +134,21 @@ export function BSTrainerProfile(props) {
   const sampleCity = sampleOn && person.city && !/^(remote|online|anywhere)$/i.test(String(person.city).trim()) ? String(person.city) : '';
   const demo = React.useMemo(() => {
     if (!demoOn && !sampleOn) return null;
+    if (nutri) {
+      if (demoOn) return { ...bsNutritionistDemo(), mode: 'self' };
+      return { ...bsNutritionistDemo({ ...bsNutritionistSampleOf({ key: sampleKey, specialty: person.specialty }), where: sampleCity, business: null }), mode: 'sample' };
+    }
     const base = { media: `${import.meta.env.BASE_URL}demo/`, word: (k) => tr('profile:studio.word.' + k, { defaultValue: STUDIO_WORDS[k] || k }), lb };
     if (demoOn) return { ...bsTrainerDemo(base), mode: 'self' };
     return { ...bsTrainerDemo({ ...base, ...bsTrainerSampleOf({ key: sampleKey, specialty: person.specialty }), where: sampleCity, business: null }), mode: 'sample' };
-  }, [demoOn, sampleOn, sampleKey, sampleCity, person.specialty, lb, lang]);
+  }, [nutri, demoOn, sampleOn, sampleKey, sampleCity, person.specialty, lb, lang]);
   // What Make it yours changed on the demo, and only that (a key it changed, or null for a removed
   // wall photo), laid over the sample: the rest stays the sample's, so its station names keep
   // following the language (Codex P2 on #2486).
   const [demoOwn, setDemoOwn] = React.useState(null);
   const saveDemo = (doc, changed) => setDemoOwn((prev) => {
     const next = { ...(prev || {}) };
-    for (const k of ['look', 'cover', 'studio']) if (changed && changed[k]) next[k] = doc && doc[k] ? doc[k] : null;
+    for (const k of ['look', 'cover', 'studio', 'kitchen']) if (changed && changed[k]) next[k] = doc && doc[k] ? doc[k] : null;
     return next;
   });
   const [live, setLive] = React.useState(null);
@@ -163,21 +185,22 @@ export function BSTrainerProfile(props) {
     : isSelf ? own : (live && live.custom) || null;
   const look = bsProfileLook(custom && custom.look) || {};
   const page = demo
-    ? <TrainerPage {...props} demo={demo} live={demo.mode === 'self' ? demo.live : null} custom={custom} setOwn={saveDemo} ownState="ready" ownFor={null} />
-    : <TrainerPage {...props} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} ownFor={ownFor} onRetryOwn={() => setOwnEpoch((n) => n + 1)} />;
+    ? <TrainerPage {...props} role={role} demo={demo} live={demo.mode === 'self' ? demo.live : null} custom={custom} setOwn={saveDemo} ownState="ready" ownFor={null} />
+    : <TrainerPage {...props} role={role} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} ownFor={ownFor} onRetryOwn={() => setOwnEpoch((n) => n + 1)} />;
   if (!BSProvider) return page;
   return (
-    <BSProvider paperMode={look.paper || 'dark'} accentKey={look.accent || 'teal'} densityKey={outer.densityKey} borderKey={outer.borderKey}
+    <BSProvider paperMode={look.paper || 'dark'} accentKey={look.accent || (nutri ? 'amber' : 'teal')} densityKey={outer.densityKey} borderKey={outer.borderKey}
       weightKey={outer.weightKey} textScaleKey={outer.textScaleKey} textureKey={outer.textureKey} textureColor={outer.textureColor}>
       {page}
     </BSProvider>
   );
 }
 
-function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {}, demo = null, onListing = null }) {
+function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {}, demo = null, onListing = null }) {
   const W = window;
   const t = W.useBS();
   const tr = useShapeTr();
+  const nutri = role === 'nutritionist';
   const locale = intlLocale();
   const ACC = t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5');
   const ON_ACC = onColor(ACC);
@@ -202,6 +225,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const words = {
     day: pron === 'her' ? tr('profile:trainer.dayHer', { defaultValue: 'Her day' }) : pron === 'him' ? tr('profile:trainer.dayHim', { defaultValue: 'His day' }) : pron === 'them' ? tr('profile:trainer.dayThem', { defaultValue: 'Their day' }) : tr('profile:trainer.dayName', { defaultValue: "{name}'s day", name: first }),
     work: pron === 'her' ? tr('profile:trainer.workHer', { defaultValue: 'Work with her' }) : pron === 'him' ? tr('profile:trainer.workHim', { defaultValue: 'Work with him' }) : pron === 'them' ? tr('profile:trainer.workThem', { defaultValue: 'Work with them' }) : tr('profile:trainer.workName', { defaultValue: 'Work with {name}', name: first }),
+    kitchen: pron === 'her' ? tr('profile:nutri.kitchenHer', { defaultValue: 'Her kitchen' }) : pron === 'him' ? tr('profile:nutri.kitchenHim', { defaultValue: 'His kitchen' }) : pron === 'them' ? tr('profile:nutri.kitchenThem', { defaultValue: 'Their kitchen' }) : tr('profile:nutri.kitchenName', { defaultValue: "{name}'s kitchen", name: first }),
   };
   const points = live && Number.isFinite(live.points) ? live.points : null;
   const tierKey = points != null && W.bsTierForPoints ? W.bsTierForPoints(points) : (person.tier || 'base');
@@ -231,8 +255,8 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
     // A coach's listing by their account; a sample's by the listing's own id (no account to ask by).
     const ownerId = person.userId || (isSelf ? signedInUid() : null);
     const read = sample
-      ? (person.providerId && W.ShapeCoachListing?.publicById ? () => W.ShapeCoachListing.publicById('trainer', person.providerId) : null)
-      : (ownerId && W.ShapeCoachListing?.publicByOwner ? () => W.ShapeCoachListing.publicByOwner('trainer', ownerId) : null);
+      ? (person.providerId && W.ShapeCoachListing?.publicById ? () => W.ShapeCoachListing.publicById(role, person.providerId) : null)
+      : (ownerId && W.ShapeCoachListing?.publicByOwner ? () => W.ShapeCoachListing.publicByOwner(role, ownerId) : null);
     if (!read) { setProviderState('none'); return undefined; }
     let on = true;
     setProviderState('loading');
@@ -240,7 +264,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
       .then((row) => { if (!on) return; setProvider(row); setProviderState(row ? 'ready' : 'none'); })
       .catch(() => { if (on) setProviderState('error'); });
     return () => { on = false; };
-  }, [person.userId, person.providerId, isSelf, providerEpoch, demo]);
+  }, [person.userId, person.providerId, isSelf, providerEpoch, demo, role]);
   // The listing is what that lookup found, and only that: a marketplace snapshot the profile was
   // opened with never stands in for it, so a listing taken off the marketplace since offers no
   // times, photos or checkout here (Codex P1 on #2484).
@@ -259,11 +283,14 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   // on #2484).
   const wall = isPrivate ? null : (sample ? (media.cover || (cover && cover.image)) : ((cover && cover.image) || media.cover)) || null;
   const look = bsProfileLook(custom && custom.look) || {};
-  const studio = bsProfileStudio(custom && custom.studio);
+  // A trainer's studio; a nutritionist's kitchen (their dishes, only those the catalog still has).
+  const studio = nutri ? null : bsProfileStudio(custom && custom.studio);
+  const kitchen = nutri ? bsProfileKitchen(custom && custom.kitchen) : null;
+  const dishes = kitchen ? kitchen.dishes.map((d) => ({ ...d, recipe: bsKitchenRecipe(d.r) })).filter((d) => d.recipe) : [];
   const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || person.city || '');
   const specialty = (!isPrivate && ((listed && (provider.specialty || provider.specialty_type)) || (sample && person.category))) || '';
   const business = !isPrivate && custom && custom.bizCard && custom.bizCard.name;
-  const roleLine = [specialty || tr('profile:trainer.role', { defaultValue: 'Coach' }), business].filter(Boolean).join(' · ');
+  const roleLine = [specialty || (nutri ? tr('profile:nutri.role', { defaultValue: 'Nutritionist' }) : tr('profile:trainer.role', { defaultValue: 'Coach' })), business].filter(Boolean).join(' · ');
 
   // ── Their week: the public read the listing books from ──
   const [avail, setAvail] = React.useState({ kind: 'loading' });
@@ -290,7 +317,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
     // times are the sample's: whether the coach is full and takes intros when full stay what their
     // listing answered, or, with no answer, the listing row's (Codex P2 on #2491).
     const sampleWeek = (answered) => ({ ...week(sample.availability), sample: true, atCapacity: answered ? answered.atCapacity : null, introsAtCap: answered ? answered.introsAtCap : false });
-    (selfDemo ? Promise.resolve(selfDemo.availability) : real ? W.ShapeCoachAvailability.get('trainer', providerId, availEpoch > 0 ? { fresh: true } : undefined) : Promise.resolve(null))
+    (selfDemo ? Promise.resolve(selfDemo.availability) : real ? W.ShapeCoachAvailability.get(role, providerId, availEpoch > 0 ? { fresh: true } : undefined) : Promise.resolve(null))
       .then((d) => {
         if (!on) return;
         const a = week(d);
@@ -300,21 +327,21 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
       })
       .catch(() => { if (on) setAvail(sampleOnly ? sampleWeek(null) : { kind: 'error' }); });
     return () => { on = false; };
-  }, [providerId, providerState, availEpoch, demo]);
+  }, [providerId, providerState, availEpoch, demo, role]);
 
   // ── The storefront: the client module's shared hook, fed this coach's real listing ──
   const [tab, setTab] = React.useState('day');
   const monthly = listed && Number(provider.price) > 0 ? Number(provider.price) : null;
   const offer = listed && provider.monthly_offer && typeof provider.monthly_offer === 'object' ? provider.monthly_offer : null;
   const commerce = !listed ? null : (person.commerce || {
-    coach: { name, provider_role: 'trainer', provider_id: provider.id, db_id: provider.id, provider_user_id: provider.owner_id, rate: Number(provider.session_price || provider.price || 0), at_capacity: !!provider.at_capacity, capacity_resume_at: provider.capacity_resume_at || null, id: person.userId },
-    packages: monthly ? [{ type: 'Subscription', name: tr('profile:trainer.monthly', { defaultValue: 'Monthly coaching' }), price: `$${monthly}`, unit: '/ month', perks: (offer && Array.isArray(offer.includes) ? offer.includes : []).slice(0, 3) }] : [],
+    coach: { name, provider_role: role, provider_id: provider.id, db_id: provider.id, provider_user_id: provider.owner_id, rate: Number(provider.session_price || provider.price || 0), at_capacity: !!provider.at_capacity, capacity_resume_at: provider.capacity_resume_at || null, id: person.userId },
+    packages: monthly ? [{ type: 'Subscription', name: nutri ? tr('profile:nutri.monthly', { defaultValue: 'Monthly nutrition coaching' }) : tr('profile:trainer.monthly', { defaultValue: 'Monthly coaching' }), price: `$${monthly}`, unit: '/ month', perks: (offer && Array.isArray(offer.includes) ? offer.includes : []).slice(0, 3) }] : [],
     atCapacity: avail.kind === 'ready' && avail.atCapacity != null ? avail.atCapacity : undefined,
     introsAtCapacity: avail.kind === 'ready' ? avail.introsAtCap : false,
     // On sample times there is no time to take here, so the intro is booked on the full listing.
     bookIntro: () => { setSheet(null); if (avail.sample && onListing) onListing(); else setTab('day'); },
   });
-  const cm = W.useBSCoachCommerce ? W.useBSCoachCommerce({ person: { ...person, commerce, providerId }, isSelf, isNutri: false, name, first, city: where }) : null;
+  const cm = W.useBSCoachCommerce ? W.useBSCoachCommerce({ person: { ...person, commerce, providerId }, isSelf, isNutri: nutri, name, first, city: where }) : null;
   // The storefront shows only what this coach really sells: with no monthly price on their listing
   // the shared block would print its demo package, so the sheet shows the intro and Message instead.
   const sells = !!(commerce && Array.isArray(commerce.packages) && commerce.packages.some((p) => p && p.type === 'Subscription'));
@@ -367,8 +394,12 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
     W.ShapeCommunity.listByAuthor(feedAuthor, { withPhotoOnly: false }).then((r) => { if (on) setPosts(Array.isArray(r && r.data) ? r.data : []); }).catch(() => {});
     return () => { on = false; };
   }, [feedAuthor, postsNonce]);
-  const replays = demo ? demo.replays : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Trainer') : null))
+  const replays = nutri ? [] : demo ? demo.replays : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Trainer') : null))
     .filter((c) => c && c.breakdown && Array.isArray(c.breakdown.rows) && c.breakdown.rows.length);
+  // A nutritionist's shared meals (the cards that carry a plate), a day to a plate note.
+  const plates = !nutri ? [] : demo ? demo.plates : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Nutritionist') : null))
+    .filter((c) => c && c.meal && typeof c.meal === 'object');
+  const plateDays = bsPlateNoteDays(plates);
 
   // ── Follow ──
   const [follow, setFollow] = React.useState(() => (person.userId && W.ShapeFollows?.getCached?.(person.userId)) || null);
@@ -390,6 +421,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   // ── Overlays ──
   const [sheet, setSheet] = React.useState(null); // { kind: 'work'|'book'|'station'|'replay'|'reviews', ... }
   const [page, setPage] = React.useState(null);   // 'edit' | 'hours' | 'business'
+  const [recipe, setRecipe] = React.useState(null); // a Shape Kitchen recipe a dish or plate opened
   const [editTab, setEditTab] = React.useState('colors');
   const [showLog, setShowLog] = React.useState(false);
   // Every way into Make it yours goes through here, and waits for the coach's doc (ownState).
@@ -403,8 +435,14 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   };
 
   // Tabs a visitor sees only when there is something in them; the coach always sees all three.
-  const hasStudio = !!(studio || (media.gallery && media.gallery.length));
-  const tabs = [
+  const gallery = media.gallery || [];
+  const hasStudio = !!(studio || gallery.length);
+  const hasKitchen = !!((kitchen && (kitchen.plate || kitchen.rules.length || kitchen.staples.length)) || dishes.length || gallery.length);
+  const tabs = nutri ? [
+    ['day', words.day],
+    ...(isSelf || hasKitchen ? [['kitchen', words.kitchen]] : []),
+    ...(isSelf || plateDays.length ? [['plates', tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' })]] : []),
+  ] : [
     ['day', words.day],
     ...(isSelf || hasStudio ? [['studio', tr('profile:trainer.tabStudio', { defaultValue: 'The studio' })]] : []),
     ...(isSelf || replays.length ? [['replays', tr('profile:trainer.tabReplays', { defaultValue: 'Replays' })]] : []),
@@ -412,12 +450,12 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
   const tabNow = tabs.some(([k]) => k === tab) ? tab : 'day';
 
   if (page === 'edit' && editReady) {
-    const photos = demo ? demo.photos : [media.cover, ...((media.gallery || []).map((g) => g && g.url))].filter((u) => typeof u === 'string' && /^https:\/\//.test(u));
-    return <BSMakeItYours role="trainer" demo={!!demo} ownerUid={ownFor} initial={custom} startTab={editTab} who={{ name, first, photo: avatarShown, roleLine }} words={words} photos={photos}
+    const photos = demo ? demo.photos : [media.cover, ...(gallery.map((g) => g && g.url))].filter((u) => typeof u === 'string' && /^https:\/\//.test(u));
+    return <BSMakeItYours role={role} demo={!!demo} ownerUid={ownFor} initial={custom} startTab={editTab} who={{ name, first, photo: avatarShown, roleLine }} words={words} photos={photos}
       onClose={() => setPage(null)} onSaved={(doc, changed) => { setOwn && setOwn(doc, changed); setPage(null); }} />;
   }
-  if (page === 'hours') return <BSCoachHoursPage role="trainer" onBack={() => { setPage(null); setAvailEpoch((n) => n + 1); }} />;
-  if (page === 'business') return <BSCoachBusinessPage role="trainer" tab="money" onBack={() => setPage(null)} />;
+  if (page === 'hours') return <BSCoachHoursPage role={role} onBack={() => { setPage(null); setAvailEpoch((n) => n + 1); }} />;
+  if (page === 'business') return <BSCoachBusinessPage role={role} tab="money" onBack={() => setPage(null)} />;
 
   const BSPage = W.BSPage;
   const corner = W.BS_HEADER_AVATAR || 34;
@@ -491,7 +529,9 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
                 {verified ? <span style={{ color: ACC }}>✓ </span> : null}
                 {[verified ? tr('profile:trainer.verifiedTier', { defaultValue: 'Verified {tier} coach', tier: tierName }) : tierName, ratingBit].filter(Boolean).join(' · ')}
               </button>
-              {sample ? <p data-sample-note="" style={{ margin: '10px 0 0', padding: '8px 10px', borderLeft: `2px solid ${ACC}`, background: t.PAPER2, fontSize: 12.5, lineHeight: 1.45, color: ink(0.74) }}>{tr('profile:trainer.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the studio, replays, reviews and times here are samples.', name: first })}</p> : null}
+              {sample ? <p data-sample-note="" style={{ margin: '10px 0 0', padding: '8px 10px', borderLeft: `2px solid ${ACC}`, background: t.PAPER2, fontSize: 12.5, lineHeight: 1.45, color: ink(0.74) }}>{nutri
+                ? tr('profile:nutri.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the kitchen, plate notes, reviews and times here are samples.', name: first })
+                : tr('profile:trainer.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the studio, replays, reviews and times here are samples.', name: first })}</p> : null}
               {isSelf && points != null ? <button type="button" onClick={onOpenScore} style={{ display: 'block', margin: '2px 0 0', minHeight: 32, padding: 0, border: 0, background: 'transparent', textAlign: 'left', fontFamily: MONO, fontSize: 11, letterSpacing: '0.06em', color: ink(0.7), cursor: 'pointer' }}>{tr('profile:trainer.score', { defaultValue: 'Shape Score {points} ›', points: points.toLocaleString(locale) })}</button> : null}
             </>
           )}
@@ -519,7 +559,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
               <button type="button" onClick={onRetryOwn} style={linkBtn(ACC, DISPLAY)}>{tr('profile:trainer.retry', { defaultValue: 'Try again' })}</button>
             </div>
           ) : null}
-          {meMode && isSelf ? <div style={{ marginTop: 16 }}><BSCoachBusinessCard role="trainer" accent={ACC} onOpen={() => setPage('business')} /></div> : null}
+          {meMode && isSelf ? <div style={{ marginTop: 16 }}><BSCoachBusinessCard role={role} accent={ACC} onOpen={() => setPage('business')} /></div> : null}
         </div>
 
         {/* What clients say: the reviews on the page itself, shown on a private profile too: they are
@@ -566,11 +606,16 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
             </nav>
             <div style={{ padding: `0 ${gutter}px 30px` }}>
               {tabNow === 'day' ? (
-                <DayTab t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} avail={avail} providerState={avail.sample ? 'ready' : providerState} isSelf={isSelf} first={first} words={words}
+                <DayTab t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} avail={avail} providerState={avail.sample ? 'ready' : providerState} isSelf={isSelf} first={first} words={words} nutri={nutri}
                   introClosed={introClosed} onRetry={() => (providerState === 'error' ? setProviderEpoch : setAvailEpoch)((n) => n + 1)} onTake={isSelf || avail.sample ? null : (slot) => setSheet({ kind: 'book', slot })} onWork={() => setSheet({ kind: 'work' })} onHours={() => setPage('hours')} />
               ) : tabNow === 'studio' ? (
-                <StudioTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} studio={studio} gallery={media.gallery || []} isSelf={isSelf} first={first}
+                <StudioTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} studio={studio} gallery={gallery} isSelf={isSelf} first={first}
                   onStation={(n, p) => setSheet({ kind: 'station', n, p })} onDraw={() => openEdit('space')} />
+              ) : tabNow === 'kitchen' ? (
+                <KitchenTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} kitchen={kitchen} dishes={dishes} gallery={gallery} isSelf={isSelf} first={first}
+                  ownerKey={person.userId || person.providerId || null} onOpen={(r) => setRecipe(r)} onFill={() => openEdit('kitchen')} />
+              ) : tabNow === 'plates' ? (
+                <PlateNotesTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} days={plateDays} isSelf={isSelf} first={first} onOpen={(day) => setSheet({ kind: 'plateDay', day, i: 0 })} />
               ) : (
                 <ReplaysTab t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} replays={replays} isSelf={isSelf} first={first}
                   onOpen={(r) => setSheet({ kind: 'replay', r, i: 0 })} onLog={() => { if (W.bsRequireAccount && !W.bsRequireAccount('log activity')) return; setShowLog(true); }} />
@@ -603,7 +648,7 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
         </Sheet>
       ) : null}
       {sheet && sheet.kind === 'book' ? (
-        <BookSheet t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} slot={sheet.slot} introMin={avail.introMin || 15} first={first} name={name}
+        <BookSheet t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} slot={sheet.slot} introMin={avail.introMin || 15} first={first} name={name} role={role}
           coach={cm && cm.commerceCoach} onClose={() => setSheet(null)} onRefresh={() => setAvailEpoch((n) => n + 1)} />
       ) : null}
       {sheet && sheet.kind === 'station' ? (
@@ -623,6 +668,10 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
       {sheet && sheet.kind === 'replay' ? (
         <ReplaySheet tr={tr} r={sheet.r} i={sheet.i} setI={(i) => setSheet({ ...sheet, i })} ACC={ACC} DISPLAY={DISPLAY} MONO={MONO} first={first} avatar={avatarShown} isSelf={isSelf}
           onClose={() => setSheet(null)} onWork={() => setSheet({ kind: 'work' })} t={t} />
+      ) : null}
+      {sheet && sheet.kind === 'plateDay' ? (
+        <PlateNotesSheet t={t} tr={tr} locale={locale} day={sheet.day} i={sheet.i} setI={(i) => setSheet({ ...sheet, i })} ACC={ACC} DISPLAY={DISPLAY} MONO={MONO} first={first} avatar={avatarShown} isSelf={isSelf}
+          onClose={() => setSheet(null)} onWork={() => setSheet({ kind: 'work' })} onRecipe={(r) => { setSheet(null); setRecipe(r); }} />
       ) : null}
       {sheet && sheet.kind === 'reviews' ? (
         <Sheet t={t} label={tr('profile:trainer.reviews', { defaultValue: 'Reviews' })} onClose={() => setSheet(null)}>
@@ -645,12 +694,51 @@ function TrainerPage({ person, onBack, onMessage, isSelf = false, meMode = false
         </Sheet>
       ) : null}
       {showLog && W.BSLogActivitySheet ? <W.BSLogActivitySheet c={ACC} INK={INK} BG={t.PAPER_BG} onClose={() => setShowLog(false)} onPosted={() => { setShowLog(false); setPostsNonce((n) => n + 1); }} /> : null}
+      {recipe ? <RecipeOverlay t={t} tr={tr} recipe={recipe} onClose={() => setRecipe(null)} /> : null}
     </BSPage>
   );
 }
 
+// A short, stable hash of a string (32-bit FNV-1a, base 36), for list ids.
+function shortHash(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(36);
+}
+
+// A Shape Kitchen recipe over the page: the Kitchen's own recipe page (the client module's). Back
+// closes it; its grocery button puts the recipe's own list on the member's lists, the list Eat makes
+// from the same recipe.
+function RecipeOverlay({ t, tr, recipe, onClose }) {
+  const [added, setAdded] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const Page = window.BSShapeKitchenRecipe;
+  if (!Page) return null;
+  const addGrocery = async () => {
+    if (added || busy) return;
+    if (window.bsRequireAccount && !window.bsRequireAccount(tr('profile:nutri.staplesAsk', { defaultValue: 'add to your grocery list' }))) return;
+    const list = bsKitchenGroceryList(recipe);
+    if (!list) return;
+    setBusy(true);
+    try {
+      await bsSaveReceivedGroceryList(list);
+      setAdded(true);
+      window.__bsToast?.(tr('nutrition:eat.toastItemAdded', { defaultValue: 'Added to grocery list' }), 'ok');
+    } catch (e) {
+      window.__bsToast?.(tr('nutrition:grocery.share.saveFail', { defaultValue: 'Could not save the list. Try again.' }), 'err');
+    } finally { setBusy(false); }
+  };
+  const host = sheetHost();
+  const el = (
+    <div data-recipe-overlay="" style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, overflowY: 'auto' }}>
+      <Page recipe={recipe} onBack={onClose} onAddGrocery={addGrocery} groceryAdded={added} />
+    </div>
+  );
+  return host ? createPortal(el, host) : el;
+}
+
 // ── Her day ─────────────────────────────────────────────────────────────────────────────────
-function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, providerState, isSelf, first, words, introClosed, onRetry, onTake, onWork, onHours }) {
+function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, providerState, isSelf, first, words, nutri = false, introClosed, onRetry, onTake, onWork, onHours }) {
   const today = new Date();
   const days = Array.from({ length: 7 }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + i));
   const [pick, setPick] = React.useState(isoDay(today));
@@ -716,7 +804,7 @@ function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, provide
           ) : (
             <div key={'b' + i} data-busy-time="" style={{ minHeight: 48, padding: '8px 12px', background: t.PAPER2, display: 'flex', alignItems: 'center', gap: 12, borderLeft: r.at <= now && (r.end || 0) > now ? `3px solid ${ACC}` : '3px solid transparent' }}>
               <span style={{ width: 62, flex: 'none', fontFamily: MONO, fontSize: 12, color: ink(0.6) }}>{fmtTime(r.at)}</span>
-              <span style={{ flex: 1, fontSize: 14.5, color: ink(0.78) }}>{r.kind === 'away' ? tr('profile:trainer.away', { defaultValue: 'Away' }) : tr('profile:trainer.busy', { defaultValue: 'In a session' })}</span>
+              <span style={{ flex: 1, fontSize: 14.5, color: ink(0.78) }}>{r.kind === 'away' ? tr('profile:trainer.away', { defaultValue: 'Away' }) : nutri ? tr('profile:nutri.busy', { defaultValue: 'With a client' }) : tr('profile:trainer.busy', { defaultValue: 'In a session' })}</span>
               <span style={{ fontFamily: MONO, fontSize: 11, color: ink(0.5) }}>{tr('profile:trainer.until', { defaultValue: 'until {time}', time: fmtTime(r.end) })}</span>
             </div>
           )) : <Hint ink={ink}>{isoDay(picked) === isoDay(today) && !introClosed ? tr('profile:trainer.noneToday', { defaultValue: 'No open times left today. Pick another day above.' }) : tr('profile:trainer.noneThisDay', { defaultValue: 'No open times this day.' })}</Hint>}
@@ -758,7 +846,7 @@ function Hint({ ink, children }) {
 }
 
 // ── Book an open time ───────────────────────────────────────────────────────────────────────
-function BookSheet({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, slot, introMin, first, name, coach, onClose, onRefresh }) {
+function BookSheet({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, slot, introMin, first, name, role = 'trainer', coach, onClose, onRefresh }) {
   const [state, setState] = React.useState({ kind: 'ask' });
   const when = (() => { try { return new Date(slot.at).toLocaleString(locale, { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } })();
   const book = async () => {
@@ -766,7 +854,7 @@ function BookSheet({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, slot, introMin, f
     if (window.bsRequireAccount && !window.bsRequireAccount('book a session')) return;
     setState({ kind: 'busy' });
     try {
-      await window.ShapeBookings.submitConsultationBooking({ coach, role: 'trainer', slot, topic: 'Free intro call', durationMin: introMin });
+      await window.ShapeBookings.submitConsultationBooking({ coach, role, slot, topic: 'Free intro call', durationMin: introMin });
       setState({ kind: 'done' });
       onRefresh();
     } catch (error) {
@@ -796,7 +884,9 @@ function BookSheet({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, slot, introMin, f
       ) : (
         <>
           <p style={{ margin: '4px 0 0', fontSize: 15 }}>{when}</p>
-          <p style={{ margin: '4px 0 0', fontSize: 13.5, color: ink(0.64) }}>{tr('profile:trainer.bookSub', { defaultValue: '{minutes} minutes on video, free. Tell {name} what you are training for.', minutes: introMin, name: first })}</p>
+          <p style={{ margin: '4px 0 0', fontSize: 13.5, color: ink(0.64) }}>{role === 'nutritionist'
+            ? tr('profile:nutri.bookSub', { defaultValue: '{minutes} minutes on video, free. Tell {name} what you want from your food.', minutes: introMin, name: first })
+            : tr('profile:trainer.bookSub', { defaultValue: '{minutes} minutes on video, free. Tell {name} what you are training for.', minutes: introMin, name: first })}</p>
           {state.kind === 'err' ? <p role="alert" style={{ margin: '10px 0 0', fontSize: 13.5, color: t.RUST || '#c0533b' }}>{state.message}</p> : null}
           <button type="button" data-book-intro="" onClick={book} disabled={state.kind === 'busy' || !coach} style={{ marginTop: 16, width: '100%', minHeight: 52, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: state.kind === 'busy' ? 'default' : 'pointer', opacity: state.kind === 'busy' ? 0.6 : 1 }}>
             {state.kind === 'busy' ? tr('profile:trainer.booking', { defaultValue: 'Booking…' }) : tr('profile:trainer.bookCta', { defaultValue: 'Request this time' })}
@@ -880,6 +970,315 @@ function StudioTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, studio, gallery, is
       ) : null}
     </section>
   );
+}
+
+// ── Her kitchen (a nutritionist's) ──────────────────────────────────────────────────────────
+// Owner, 2026-10-27 ("lets do something different for nutritionists"): no floor plan. The plate they
+// teach (a picture of how a plate splits, with their portion rules), the staples always in their
+// kitchen (tap what you want and add it to your own grocery list), and their go-to recipes from the
+// Shape Kitchen, each with their note, credited to whoever the recipe is by (bsRecipeAttribution: an
+// author, or the source of a public-domain one) and opening in Shape. Their listing photos under it.
+const eyebrow = (ink, MONO, color) => ({ display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: color || ink(0.64) });
+const VEG = '#5fb16e', CARB = '#e3a544';
+// The plate's three colours: vegetables green, protein the coach's accent, carbs amber; a part whose
+// colour the accent already is takes the page's ink instead, so the three always read apart.
+function plateColors(ACC, ink) {
+  const same = (x) => String(ACC).toLowerCase() === x;
+  return { veg: same(VEG) ? ink(0.4) : VEG, protein: ACC, carbs: same(CARB) || same('#c8881a') ? ink(0.4) : CARB };
+}
+function PlatePicture({ plate, colors, size = 132, t }) {
+  const a = plate.veg, b = plate.veg + plate.protein;
+  return (
+    <span aria-hidden style={{ flex: 'none', width: size, height: size, borderRadius: 99, background: `conic-gradient(${colors.veg} 0 ${a}%, ${colors.protein} ${a}% ${b}%, ${colors.carbs} ${b}% 100%)`, display: 'grid', placeItems: 'center', boxShadow: `0 0 0 6px ${t.PAPER2}` }}>
+      <span style={{ width: size * 0.36, height: size * 0.36, borderRadius: 99, background: t.PAPER }} />
+    </span>
+  );
+}
+function dishMeta(tr, r) {
+  const min = bsKitchenMinutes(r);
+  const p = r && r.macros && Number.isFinite(Number(r.macros.p)) ? Math.round(Number(r.macros.p)) : null;
+  return [
+    min != null ? tr('cook:ck.mins', { defaultValue: '{n} min', n: min }) : null,
+    Number.isFinite(Number(r && r.kcal)) ? tr('cook:ck.kcal', { defaultValue: '{n} kcal', n: Math.round(Number(r.kcal)) }) : null,
+    p != null ? tr('cook:ck.gProtein', { defaultValue: '{n} g protein', n: p }) : null,
+  ].filter(Boolean).join(' · ');
+}
+function creditLine(tr, r) {
+  const c = bsKitchenCredit(r);
+  if (!c) return '';
+  return c.kind === 'authored' ? tr('profile:nutri.recipeBy', { defaultValue: 'Recipe by {name}', name: c.name }) : tr('profile:nutri.recipeFrom', { defaultValue: 'Recipe from {name}', name: c.name });
+}
+const STAPLE_GROUP_KEYS = { fridge: ['groupFridge', 'Fridge'], pantry: ['groupPantry', 'Pantry'], freezer: ['groupFreezer', 'Freezer'] };
+function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, dishes, gallery, isSelf, first, ownerKey, onOpen, onFill }) {
+  const plate = kitchen ? kitchen.plate : null;
+  const rules = kitchen ? kitchen.rules : [];
+  const staples = kitchen ? kitchen.staples : [];
+  const colors = plateColors(ACC, ink);
+  const part = (k) => tr('profile:nutri.part' + k, { defaultValue: { Veg: 'Vegetables', Protein: 'Protein', Carbs: 'Carbs' }[k] });
+  // Staples a visitor picked, added to their own grocery lists as one list.
+  const [picked, setPicked] = React.useState(() => new Set());
+  const [saving, setSaving] = React.useState(null); // null | 'busy' | 'done' | 'err'
+  const toggle = (n) => { setSaving(null); setPicked((prev) => { const next = new Set(prev); if (next.has(n)) next.delete(n); else next.add(n); return next; }); };
+  const addPicked = async () => {
+    if (!picked.size || saving === 'busy') return;
+    if (window.bsRequireAccount && !window.bsRequireAccount(tr('profile:nutri.staplesAsk', { defaultValue: 'add to your grocery list' }))) return;
+    const items = staples.filter((s) => picked.has(s.n)).map((s) => ({ n: s.n, q: '1' }));
+    // One list per coach and set of staples, so adding the same ones again keeps one copy. Hashed:
+    // the list's id keeps 64 characters, so names cut short there could make a bigger pick the same.
+    const id = `kitchen-${shortHash(ownerKey || 'sample')}-${shortHash(items.map((i) => i.n.toLowerCase()).sort().join('\n'))}`;
+    const list = bsReceivedGroceryList({ name: tr('profile:nutri.staplesList', { defaultValue: "{name}'s staples", name: first }), items }, { messageId: id, from: first });
+    if (!list) return;
+    setSaving('busy');
+    try { await bsSaveReceivedGroceryList(list); setSaving('done'); setPicked(new Set()); } catch (e) { setSaving('err'); }
+  };
+  const nothing = !plate && !rules.length && !staples.length && !dishes.length;
+  return (
+    <section style={{ paddingTop: 16 }}>
+      {plate || rules.length ? (
+        <div data-kitchen-plate="">
+          <span style={eyebrow(ink, MONO, ACC)}>{tr('profile:nutri.plateTitle', { defaultValue: 'The plate {name} teaches', name: first })}</span>
+          <div style={{ marginTop: 12, display: 'flex', gap: 18, alignItems: 'center' }}>
+            {plate ? <PlatePicture plate={plate} colors={colors} t={t} /> : null}
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {plate ? [['Veg', plate.veg, colors.veg], ['Protein', plate.protein, colors.protein], ['Carbs', plate.carbs, colors.carbs]].filter(([, n]) => n > 0).map(([k, n, c]) => (
+                <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                  <span aria-hidden style={{ width: 10, height: 10, borderRadius: 99, background: c }} />
+                  <span style={{ flex: 1 }}>{part(k)}</span>
+                  <span style={{ fontFamily: MONO, fontSize: 12, color: ink(0.7) }}>{tr('profile:nutri.pct', { defaultValue: '{n}%', n })}</span>
+                </span>
+              )) : null}
+            </div>
+          </div>
+          {rules.length ? (
+            <ul style={{ margin: '14px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {rules.map((r, i) => <li key={i} style={{ display: 'flex', gap: 10, fontSize: 14.5, lineHeight: 1.4 }}><span aria-hidden style={{ color: ACC, fontFamily: MONO }}>—</span>{r}</li>)}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+      {staples.length ? (
+        <div data-kitchen-staples="" style={{ marginTop: plate || rules.length ? 24 : 0 }}>
+          <span style={eyebrow(ink, MONO)}>{tr('profile:nutri.staples', { defaultValue: 'Always in the kitchen' })}</span>
+          {!isSelf ? <p style={{ margin: '2px 0 0', fontSize: 13.5, color: ink(0.7) }}>{tr('profile:nutri.staplesSub', { defaultValue: 'Tap what you want, then add it to your grocery list.' })}</p> : null}
+          {['fridge', 'pantry', 'freezer'].map((g) => {
+            const inG = staples.filter((s) => s.g === g);
+            if (!inG.length) return null;
+            return (
+              <div key={g} style={{ marginTop: 10 }}>
+                <span style={{ fontSize: 12, color: ink(0.6) }}>{tr('profile:nutri.' + STAPLE_GROUP_KEYS[g][0], { defaultValue: STAPLE_GROUP_KEYS[g][1] })}</span>
+                <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {inG.map((s) => {
+                    const on = picked.has(s.n);
+                    return isSelf ? (
+                      <span key={s.n} data-staple="" style={{ minHeight: 36, padding: '0 12px', display: 'inline-flex', alignItems: 'center', border: `1px solid ${ink(0.22)}`, fontSize: 14 }}>{s.n}</span>
+                    ) : (
+                      <button key={s.n} type="button" data-staple="" aria-pressed={on} onClick={() => toggle(s.n)}
+                        style={{ minHeight: 40, padding: '0 12px', border: `1px solid ${on ? ACC : ink(0.22)}`, background: on ? hexA(ACC, 0.16) : 'transparent', color: t.INK, fontSize: 14, cursor: 'pointer' }}>{on ? '✓ ' : ''}{s.n}</button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {!isSelf ? (
+            <div style={{ marginTop: 12 }}>
+              <button type="button" data-add-staples="" onClick={addPicked} disabled={!picked.size || saving === 'busy'}
+                style={{ width: '100%', minHeight: 48, border: 0, background: picked.size ? ACC : t.PAPER2, color: picked.size ? ON_ACC : ink(0.5), fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: picked.size ? 'pointer' : 'default' }}>
+                {saving === 'busy' ? tr('profile:nutri.staplesAdding', { defaultValue: 'Adding…' }) : tr('profile:nutri.addStaples', { defaultValue: '{count, plural, =0 {Pick what to add} one {Add # to my grocery list} other {Add # to my grocery list}}', count: picked.size })}
+              </button>
+              {saving === 'done' ? <p role="status" style={{ margin: '8px 0 0', fontSize: 13.5, color: ACC }}>{tr('profile:nutri.staplesSaved', { defaultValue: 'Added to your grocery lists, under Eat.' })}</p> : null}
+              {saving === 'err' ? <p role="alert" style={{ margin: '8px 0 0', fontSize: 13.5, color: t.RUST || '#c0533b' }}>{tr('profile:nutri.staplesFailed', { defaultValue: "Couldn't add them just now. Try again." })}</p> : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {dishes.length ? (
+        <div style={{ marginTop: plate || rules.length || staples.length ? 24 : 0 }}>
+          <span style={eyebrow(ink, MONO)}>{tr('profile:nutri.recipes', { defaultValue: 'Go-to recipes' })}</span>
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {dishes.map((d) => {
+              const r = d.recipe;
+              const credit = creditLine(tr, r);
+              return (
+                <button key={d.r} type="button" data-dish={d.r} onClick={() => onOpen(r)}
+                  style={{ width: '100%', padding: 0, border: 0, borderTop: `1px solid ${ink(0.12)}`, background: 'transparent', color: t.INK, display: 'flex', gap: 12, alignItems: 'stretch', textAlign: 'left', cursor: 'pointer', paddingTop: 10 }}>
+                  <span aria-hidden style={{ flex: 'none', width: 76, minHeight: 76, background: (typeof r.hero === 'string' && r.hero) || `linear-gradient(135deg, ${hexA(ACC, 0.5)}, ${t.PAPER2})` }} />
+                  <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3, lineHeight: 1.35 }}>
+                    <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 16 }}>{r.title}</span>
+                    <span style={{ fontFamily: MONO, fontSize: 11, color: ink(0.62) }}>{dishMeta(tr, r)}</span>
+                    {d.note ? <span style={{ fontSize: 14, color: ink(0.86) }}>{d.note}</span> : null}
+                    {credit ? <span style={{ fontSize: 11.5, color: ink(0.52) }}>{credit}</span> : null}
+                    <span style={{ marginTop: 2, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, color: ACC }}>{tr('profile:nutri.tryIt', { defaultValue: 'Try it in Shape' })} →</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+      {isSelf && nothing ? (
+        <div>
+          <Hint ink={ink}>{tr('profile:nutri.kitchenEmptySelf', { defaultValue: 'Show members the plate you teach, what is always in your kitchen and your go-to recipes from the Shape Kitchen.' })}</Hint>
+          <button type="button" onClick={onFill} style={{ marginTop: 12, minHeight: 46, padding: '0 16px', border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:nutri.fillKitchen', { defaultValue: 'Fill your kitchen' })}</button>
+        </div>
+      ) : isSelf ? <button type="button" onClick={onFill} style={{ ...linkBtn(ACC, DISPLAY), marginTop: 14 }}>{tr('profile:nutri.editKitchen', { defaultValue: 'Edit your kitchen' })} →</button> : null}
+      {gallery.length ? (
+        <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
+          {gallery.slice(0, 6).map((g, i) => <img key={i} src={g.url} alt={g.caption || ''} style={{ width: '100%', height: 96, objectFit: 'cover' }} />)}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+// ── Plate notes (a nutritionist's) ──────────────────────────────────────────────────────────
+// The meals they logged and shared, a day to a note: step through the day meal by meal, with the
+// protein so far, where the meal's energy came from (protein, carbs, fat) and their note on it. A
+// macro the meal did not carry is left out, never shown as 0; a meal cooked from a Shape Kitchen
+// recipe opens it.
+const num = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Math.round(Number(v)));
+// Plate cards grouped by the local day they were shared on, newest day first, each day in the order
+// it was eaten.
+export function bsPlateNoteDays(plates) {
+  const days = new Map();
+  for (const pl of plates) {
+    const at = Date.parse(pl && pl.created_at);
+    const d = Number.isFinite(at) ? new Date(at) : null;
+    const key = d ? isoDay(d) : 'undated';
+    if (!days.has(key)) days.set(key, { key, at: d ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() : -Infinity, meals: [] });
+    days.get(key).meals.push({ ...pl, at: d ? d.getTime() : null });
+  }
+  return [...days.values()].sort((a, b) => b.at - a.at).map((day) => {
+    const meals = day.meals.slice().sort((a, b) => (a.at || 0) - (b.at || 0));
+    // A day's protein and energy, each only when every meal of the day carried it.
+    let so = 0, all = true, kcal = 0, kcalAll = true;
+    for (const m of meals) {
+      const p = num(m.meal && m.meal.p); if (p == null) all = false; else so += p;
+      const k = num(m.meal && m.meal.kcal); if (k == null) kcalAll = false; else kcal += k;
+    }
+    return { ...day, meals, protein: so, proteinAll: all, kcal: kcalAll ? kcal : null };
+  });
+}
+// Where a meal's energy came from: protein and carbs at 4 kcal a gram, fat at 9. Null unless all three
+// were logged.
+function energySplit(m) {
+  const p = num(m.p), c = num(m.c), f = num(m.f);
+  if (p == null || c == null || f == null) return null;
+  const e = [p * 4, c * 4, f * 9], tot = e[0] + e[1] + e[2];
+  if (!tot) return null;
+  const pp = Math.round((e[0] / tot) * 100), cc = Math.round((e[1] / tot) * 100);
+  return { p: pp, c: cc, f: 100 - pp - cc };
+}
+function plateMacros(tr, m) {
+  return [
+    num(m.p) != null ? tr('cook:ck.gProtein', { defaultValue: '{n} g protein', n: num(m.p) }) : null,
+    num(m.c) != null ? tr('profile:nutri.carbs', { defaultValue: '{n} g carbs', n: num(m.c) }) : null,
+    num(m.f) != null ? tr('profile:nutri.fat', { defaultValue: '{n} g fat', n: num(m.f) }) : null,
+  ].filter(Boolean).join(' · ');
+}
+function PlateNotesTab({ t, tr, locale, ACC, ink, DISPLAY, MONO, days, isSelf, first, onOpen }) {
+  const fmtN = (n) => { try { return n.toLocaleString(locale); } catch (e) { return String(n); } };
+  const dayName = (day) => {
+    if (!Number.isFinite(day.at)) return tr('profile:nutri.someDay', { defaultValue: 'A day of meals' });
+    try { return new Date(day.at).toLocaleDateString(locale, { weekday: 'long', month: 'short', day: 'numeric' }); } catch (e) { return day.key; }
+  };
+  return (
+    <section style={{ paddingTop: 16 }}>
+      <p style={{ margin: 0, fontSize: 14, color: ink(0.74) }}>{tr('profile:nutri.plateNotesSub', { defaultValue: 'Days of meals {name} logged and shared. Step through each one.', name: first })}</p>
+      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {days.length ? days.map((day) => {
+          return (
+            <button key={day.key} type="button" data-plate-day="" onClick={() => onOpen(day)}
+              style={{ padding: '12px 14px', border: 0, borderTop: `2px solid ${ACC}`, background: t.PAPER2, color: t.INK, textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:nutri.dayMeals', { defaultValue: '{count, plural, one {# meal} other {# meals}}', count: day.meals.length })}</span>
+              <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 18 }}>{dayName(day)}</span>
+              <span style={{ fontSize: 13.5, color: ink(0.74) }}>{day.meals.map((m) => m.title).join(' · ')}</span>
+              <span style={{ fontFamily: MONO, fontSize: 11, color: ink(0.62) }}>{[day.proteinAll ? tr('cook:ck.gProtein', { defaultValue: '{n} g protein', n: fmtN(day.protein) }) : null, day.kcal ? tr('cook:ck.kcal', { defaultValue: '{n} kcal', n: fmtN(day.kcal) }) : null].filter(Boolean).join(' · ')}</span>
+            </button>
+          );
+        }) : (isSelf ? <Hint ink={ink}>{tr('profile:nutri.plateNotesEmptySelf', { defaultValue: 'Share the meals you log, and each day you share becomes a plate note here.' })}</Hint> : null)}
+      </div>
+    </section>
+  );
+}
+function PlateNotesSheet({ t, tr, locale, day, i, setI, ACC, DISPLAY, MONO, first, avatar, isSelf, onClose, onWork, onRecipe }) {
+  const meals = day.meals;
+  const at = Math.max(0, Math.min(meals.length - 1, i));
+  const cur = meals[at] || {};
+  const m = cur.meal || {};
+  const muted = 'rgba(232,235,239,0.6)';
+  const fmt = (ms) => { try { return new Date(ms).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } };
+  // Protein so far: only while every meal up to this one carried its protein.
+  let so = 0, known = true;
+  for (const x of meals.slice(0, at + 1)) { const p = num(x.meal && x.meal.p); if (p == null) known = false; else so += p; }
+  const split = energySplit(m);
+  // Protein in the coach's accent, carbs amber (or light ink when the accent is amber), fat dim ink.
+  const amberAcc = ['#e3a544', '#c8881a'].includes(String(ACC).toLowerCase());
+  const splitColors = { p: ACC, c: amberAcc ? 'rgba(232,235,239,0.85)' : CARB, f: 'rgba(232,235,239,0.4)' };
+  const recipe = bsKitchenRecipe(m.recipeId);
+  const host = sheetHost();
+  const el = (
+    <div role="dialog" aria-label={tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' })} style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
+      <div style={{ padding: 'calc(10px + env(safe-area-inset-top)) 8px 0 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' })} · {(() => { try { return Number.isFinite(day.at) ? new Date(day.at).toLocaleDateString(locale, { weekday: 'long' }) : ''; } catch (e) { return ''; } })()}</span>
+        <CloseX onClose={onClose} color="#e8ebef" label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
+      </div>
+      <div style={{ margin: '16px 18px 0' }}>
+        <div style={{ position: 'relative', height: 22 }}>
+          <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: 10, height: 2, background: 'rgba(232,235,239,0.2)' }} />
+          <span aria-hidden style={{ position: 'absolute', left: 0, width: meals.length > 1 ? `${(at / (meals.length - 1)) * 100}%` : '100%', top: 10, height: 2, background: ACC }} />
+          {meals.map((x, k) => (
+            <button key={k} type="button" onClick={() => setI(k)} aria-label={[x.at ? fmt(x.at) : '', x.title].filter(Boolean).join(', ')}
+              style={{ position: 'absolute', left: meals.length > 1 ? `${(k / (meals.length - 1)) * 100}%` : '50%', top: -11, width: 44, height: 44, marginLeft: -22, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
+              <span style={{ position: 'absolute', left: '50%', top: '50%', width: k === at ? 14 : 8, height: k === at ? 14 : 8, transform: 'translate(-50%, -50%)', borderRadius: 99, background: k <= at ? ACC : 'rgba(232,235,239,0.35)' }} />
+            </button>
+          ))}
+        </div>
+      </div>
+      <div data-plate-step="" style={{ margin: '14px 18px 0', padding: 14, background: '#181a1e', display: 'flex', gap: 14, alignItems: 'center' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{[cur.at ? fmt(cur.at) : '', cur.title].filter(Boolean).join(' · ')}</span>
+          <span style={{ display: 'block', marginTop: 6, fontFamily: DISPLAY, fontWeight: 600, fontSize: 28 }}>{num(m.p) != null ? tr('cook:ck.gProtein', { defaultValue: '{n} g protein', n: num(m.p) }) : (num(m.kcal) != null ? tr('cook:ck.kcal', { defaultValue: '{n} kcal', n: num(m.kcal) }) : cur.title)}</span>
+          <span style={{ display: 'block', marginTop: 4, fontFamily: MONO, fontSize: 11, color: muted }}>{[num(m.kcal) != null ? tr('cook:ck.kcal', { defaultValue: '{n} kcal', n: num(m.kcal) }) : null, plateMacros(tr, m)].filter(Boolean).join(' · ')}</span>
+          {known ? <span data-protein-so-far="" style={{ display: 'block', marginTop: 8, fontSize: 13, color: '#e8ebef' }}>{tr('profile:nutri.proteinSoFar', { defaultValue: 'Protein so far: {n} g', n: so })}</span> : null}
+          {split ? (
+            <span aria-hidden data-energy-legend="" style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: '4px 10px', fontSize: 11.5, color: muted }}>
+              {[['p', 'partProtein', 'Protein'], ['c', 'partCarbs', 'Carbs'], ['f', 'partFat', 'Fat']].map(([k, key, en]) => (
+                <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: splitColors[k] }} />{tr('profile:nutri.' + key, { defaultValue: en })} {tr('profile:nutri.pct', { defaultValue: '{n}%', n: split[k] })}</span>
+              ))}
+            </span>
+          ) : null}
+        </div>
+        {split ? (
+          <span role="img" aria-label={tr('profile:nutri.energySplit', { defaultValue: 'Energy: {p}% protein, {c}% carbs, {f}% fat', p: split.p, c: split.c, f: split.f })}
+            style={{ flex: 'none', width: 74, height: 74, borderRadius: 99, background: `conic-gradient(${splitColors.p} 0 ${split.p}%, ${splitColors.c} ${split.p}% ${split.p + split.c}%, ${splitColors.f} ${split.p + split.c}% 100%)`, display: 'grid', placeItems: 'center' }}>
+            <span style={{ width: 30, height: 30, borderRadius: 99, background: '#181a1e' }} />
+          </span>
+        ) : null}
+      </div>
+      {cur.body ? (
+        <div style={{ margin: '12px 18px 0', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          {avatar ? <img src={avatar} alt="" style={{ width: 30, height: 30, borderRadius: 99, objectFit: 'cover' }} /> : null}
+          <div style={{ flex: 1, padding: '10px 12px', background: '#181a1e', borderRadius: '4px 14px 14px 14px', fontSize: 14.5, lineHeight: 1.45 }}><span style={{ display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: ACC }}>{tr('profile:trainer.theirNote', { defaultValue: "{name}'s note", name: first })}</span>{cur.body}</div>
+        </div>
+      ) : null}
+      {recipe ? <button type="button" data-plate-recipe="" onClick={() => onRecipe(recipe)} style={{ ...linkBtn(ACC, DISPLAY), margin: '10px 18px 0', display: 'block' }}>{tr('profile:nutri.theRecipe', { defaultValue: 'The recipe' })} →</button> : null}
+      <div style={{ margin: '12px 18px 0', display: 'flex', gap: 8 }}>
+        <button type="button" onClick={() => setI(Math.max(0, at - 1))} disabled={at === 0} style={{ flex: 1, minHeight: 46, border: '1px solid rgba(232,235,239,0.25)', background: 'transparent', color: '#e8ebef', fontWeight: 600, cursor: 'pointer', opacity: at === 0 ? 0.4 : 1 }}>← {tr('profile:trainer.prev', { defaultValue: 'Previous' })}</button>
+        <button type="button" onClick={() => setI(Math.min(meals.length - 1, at + 1))} disabled={at === meals.length - 1} style={{ flex: 1, minHeight: 46, border: '1px solid rgba(232,235,239,0.25)', background: 'transparent', color: '#e8ebef', fontWeight: 600, cursor: 'pointer', opacity: at === meals.length - 1 ? 0.4 : 1 }}>{tr('profile:trainer.next', { defaultValue: 'Next' })} →</button>
+      </div>
+      <div style={{ margin: '22px 18px calc(28px + env(safe-area-inset-bottom))', paddingTop: 14, borderTop: '1px solid rgba(232,235,239,0.15)' }}>
+        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{tr('profile:nutri.dayMeals', { defaultValue: '{count, plural, one {# meal} other {# meals}}', count: meals.length })}</span>
+        {meals.map((x, k) => (
+          <button key={k} type="button" onClick={() => setI(k)} style={{ width: '100%', display: 'flex', gap: 12, padding: '10px 0', border: 0, borderBottom: '1px solid rgba(232,235,239,0.1)', background: 'transparent', color: k === at ? '#e8ebef' : 'rgba(232,235,239,0.75)', fontSize: 14, textAlign: 'left', cursor: 'pointer' }}>
+            <span style={{ width: 62, flex: 'none', fontFamily: MONO, fontSize: 12 }}>{x.at ? fmt(x.at) : ''}</span><span style={{ flex: 1 }}>{x.title}</span><span style={{ fontFamily: MONO, fontSize: 12 }}>{num(x.meal && x.meal.p) != null ? tr('profile:nutri.grams', { defaultValue: '{n} g', n: num(x.meal.p) }) : ''}</span>
+          </button>
+        ))}
+        {!isSelf ? <button type="button" onClick={onWork} style={{ marginTop: 16, width: '100%', minHeight: 50, border: 0, background: ACC, color: onColor(ACC), fontWeight: 600, cursor: 'pointer' }}>{tr('profile:nutri.getNotes', { defaultValue: 'Get notes like these on your meals' })}</button> : null}
+      </div>
+    </div>
+  );
+  return host ? createPortal(el, host) : el;
 }
 
 // ── Replays ─────────────────────────────────────────────────────────────────────────────────

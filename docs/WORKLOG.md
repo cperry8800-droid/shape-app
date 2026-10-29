@@ -98,8 +98,8 @@ dated entry or past 20 KB.
   move that screen into its own ES module. `BSIntegrationsPage.jsx` and
   `BSLeaderboard.jsx` show the pattern: read window globals at call time inside the
   component, keep its own `useShapeTr()`, and never import back into the client module.
-- **Coach profiles:** every trainer gets `BSTrainerProfile.jsx` (editor `BSMakeItYours.jsx`), with
-  samples if no account (`trainerDemo.mjs`); nutritionists `BSSignalCoachProfile`.
+- **Coach profiles:** every coach gets `BSTrainerProfile.jsx` (editor `BSMakeItYours.jsx`): a
+  trainer's studio, a nutritionist's kitchen. No account: samples (`trainerDemo`, `nutritionistDemo`).
 - **Other app modules:** `iosAppBroadsheetPros.jsx` (trainer and nutritionist apps),
   `iosAppBroadsheet.jsx` (shared chrome: `BSPage`, `BSFooter`, `BSPlate`,
   `BSSwapSheet`), `iosAppBroadsheetRadio.jsx` (Shape Radio) and
@@ -173,8 +173,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   `coach_checkouts`) is #2403.
 - Night-before prep, Phase 2: a nutritionist's "prep the night before" tick, a
   reminder time the member chooses, planning tomorrow, and a morning swap.
-- Nutritionist profile in the trainer profile's style (a kitchen tab, no floor plan); then the
-  website's coach profile.
+- The website's coach profile in the app profile's design.
 - Nora as the account-setup assistant: she answers and fills forms today, but setting
   the account up is still to build.
 - Nora as a Shape Radio DJ, Phase 2 onward
@@ -271,7 +270,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   (`clubRooms.mjs`) are seen only in headless Chromium. The old avatar crowd
   (`crowdAvatars.mjs`) is kept for a v2 pack.
 - Seen only in headless Chromium, not on a phone or in the app: the Split glass mark
-  (#2474) on the homepage, launch and masthead, Your hours, the trainer profile and Make it yours.
+  (#2474) on the homepage, launch and masthead, Your hours, the coach profiles and Make it yours.
 
 ## History
 

@@ -3,7 +3,9 @@ import { createPortal } from 'react-dom';
 import {
   BS_LOOK_PAPERS, BS_LOOK_ACCENTS, BS_STUDIO_ITEMS_MAX, BS_STUDIO_STATIONS_MAX, BS_STUDIO_WHERE_MAX, BS_STUDIO_LABEL_MAX,
   BS_STATION_TITLE_MAX, BS_STATION_NOTE_MAX, bsProfileLook, bsProfileStudio, bsProfileCover, bsNormalizeProfileCustom,
+  BS_KITCHEN_RULES_MAX, BS_KITCHEN_RULE_MAX, BS_KITCHEN_STAPLES_MAX, BS_STAPLE_MAX, BS_KITCHEN_DISHES_MAX, BS_DISH_NOTE_MAX, bsProfileKitchen,
 } from '../services/profileCustom.mjs';
+import { bsKitchenRecipe, bsKitchenSearch, bsKitchenSlug, bsKitchenMinutes } from './kitchenDishes.js';
 import {
   STUDIO_KIT, STUDIO_GROUPS, STUDIO_COACH_KINDS, STUDIO_WORDS, BS_STUDIO_W, BS_STUDIO_H,
   bsStudioTypesIn, bsStudioRoom, bsStudioSvg, bsStudioSpot, bsStudioDrawOrder, bsStudioFromTemplate,
@@ -19,8 +21,11 @@ import {
 //   Your space   the studio plan: a starting layout per kind of space, then pieces to add, move,
 //                turn, copy and remove. A piece made a station gets a number members tap, and
 //                the coach's own title and note for it.
+//   Your kitchen (a nutritionist's, in place of Your space; no floor plan) the plate they teach and
+//                their portion rules, their staples, and up to six go-to recipes from the Shape
+//                Kitchen, each with their note, in the order they put them.
 //
-// What it writes: whichever of `look`, `studio` and `cover` the coach changed here, in the
+// What it writes: whichever of `look`, `studio`, `kitchen` and `cover` the coach changed here, in the
 // profile_custom doc, merged onto the doc as it is at save time (re-read for this account, so a
 // key saved elsewhere since this opened is kept; no read, no save), through the same normalizer
 // every surface uses. Nothing is saved until Save. The profile opens it only on the coach's doc
@@ -97,7 +102,7 @@ const field = { width: '100%', boxSizing: 'border-box', minHeight: 44, padding: 
 const smallBtn = { minHeight: 40, padding: '0 12px', borderRadius: 10, border: `1px solid ${ea(0.22)}`, background: 'transparent', color: E.INK, fontFamily: DISPLAY, fontSize: 14, fontWeight: 600, cursor: 'pointer' };
 
 // ── The preview: the top of the profile, painted in the look being picked ──────────────────
-function Preview({ tr, look, wall, who, words }) {
+function Preview({ tr, look, wall, who, words, nutri = false }) {
   const P = paletteOf(look.paper, look.accent);
   const ACC = P.ACCENT;
   const ink = (n) => `rgba(${P.inkRGB},${n})`;
@@ -119,7 +124,7 @@ function Preview({ tr, look, wall, who, words }) {
           <span style={{ flex: 1, minHeight: 32, display: 'grid', placeItems: 'center', border: `1px solid ${ink(0.22)}`, fontFamily: DISPLAY, fontSize: 12.5, fontWeight: 600 }}>{words.work}</span>
         </div>
         <div style={{ marginTop: 10, display: 'flex', borderBottom: `1px solid ${ink(0.16)}`, fontFamily: DISPLAY, fontSize: 12.5 }}>
-          {[words.day, tr('profile:trainer.tabStudio', { defaultValue: 'The studio' }), tr('profile:trainer.tabReplays', { defaultValue: 'Replays' })].map((l, i) => (
+          {[words.day, nutri ? (words.kitchen || tr('profile:nutri.kitchenName', { defaultValue: "{name}'s kitchen", name: who.first })) : tr('profile:trainer.tabStudio', { defaultValue: 'The studio' }), nutri ? tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' }) : tr('profile:trainer.tabReplays', { defaultValue: 'Replays' })].map((l, i) => (
             <span key={i} style={{ flex: 1, textAlign: 'center', padding: '6px 0', borderBottom: `2px solid ${i === 0 ? ACC : 'transparent'}`, marginBottom: -1, color: i === 0 ? P.INK : ink(0.55), fontWeight: i === 0 ? 600 : 400 }}>{l}</span>
           ))}
         </div>
@@ -406,9 +411,185 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel }) {
   );
 }
 
+// ── Your kitchen (a nutritionist's) ─────────────────────────────────────────────────────────
+// The plate they teach (a starting split, then vegetables, protein and carbs in steps of five that
+// always add up to 100), their portion rules, their staples (each in the fridge, the pantry or the
+// freezer) and their go-to recipes from the Shape Kitchen (search by name, diet or tag), each with
+// their note, moved up and down into the order members read them.
+const PLATE_PRESETS = [['everyday', { veg: 50, protein: 25, carbs: 25 }], ['training', { veg: 35, protein: 30, carbs: 35 }], ['lighter', { veg: 50, protein: 35, carbs: 15 }]];
+const PLATE_PARTS = [['veg', 'partVeg', 'Vegetables'], ['protein', 'partProtein', 'Protein'], ['carbs', 'partCarbs', 'Carbs']];
+// One part up or down by five, balanced against the rest of the plate so it always adds up to 100:
+// vegetables are the rest, so protein and carbs move against them (then each other), and vegetables
+// move against carbs, then protein.
+const PLATE_BALANCE = { veg: ['carbs', 'protein'], protein: ['veg', 'carbs'], carbs: ['veg', 'protein'] };
+function nudgePlate(plate, key, by) {
+  const next = { ...plate };
+  const v = next[key] + by;
+  if (v < 0 || v > 100) return plate;
+  next[key] = v;
+  let owe = by;
+  for (const k of PLATE_BALANCE[key]) {
+    if (!owe) break;
+    const take = by > 0 ? Math.min(owe, next[k]) : Math.max(owe, next[k] - 100);
+    next[k] -= take; owe -= take;
+  }
+  return owe ? plate : next;
+}
+function KitchenTab({ tr, look, kitchen, setKitchen }) {
+  const [q, setQ] = React.useState('');
+  const [msg, setMsg] = React.useState(null);
+  const [staple, setStaple] = React.useState('');
+  const [group, setGroup] = React.useState('fridge');
+  const { plate, rules, staples, dishes } = kitchen;
+  // The plate in the page's colours: protein in the accent being picked, vegetables green and carbs
+  // amber unless the accent already is that colour (the page's plateColors).
+  const ACC = paletteOf(look.paper, look.accent).ACCENT;
+  const near = (x) => String(ACC).toLowerCase() === x;
+  const colorOf = { veg: near('#5fb16e') || near('#2f6b3a') ? ea(0.4) : '#5fb16e', protein: ACC, carbs: near('#e3a544') || near('#c8881a') ? ea(0.4) : '#e3a544' };
+  const chosen = new Set(dishes.map((d) => d.r));
+  const part = (k) => tr('profile:nutri.' + PLATE_PARTS.find((x) => x[0] === k)[1], { defaultValue: PLATE_PARTS.find((x) => x[0] === k)[2] });
+  const meta = (r) => {
+    const min = bsKitchenMinutes(r);
+    return [min != null ? tr('cook:ck.mins', { defaultValue: '{n} min', n: min }) : null, Number.isFinite(Number(r.kcal)) ? tr('cook:ck.kcal', { defaultValue: '{n} kcal', n: Math.round(Number(r.kcal)) }) : null].filter(Boolean).join(' · ');
+  };
+  const swatch = (r) => <span aria-hidden style={{ flex: 'none', width: 40, height: 40, borderRadius: 8, background: (r && typeof r.hero === 'string' && r.hero) || E.BG3 }} />;
+  const set = (patch) => { setMsg(null); setKitchen({ ...kitchen, ...patch }); };
+  const addDish = (r) => {
+    const slug = bsKitchenSlug(r);
+    if (!slug || chosen.has(slug)) return;
+    if (dishes.length >= BS_KITCHEN_DISHES_MAX) { setMsg(tr('profile:mine.dishesFull', { defaultValue: 'Up to {count} recipes.', count: BS_KITCHEN_DISHES_MAX })); return; }
+    set({ dishes: [...dishes, { r: slug, note: '' }] });
+  };
+  const move = (i, by) => {
+    const j = i + by;
+    if (j < 0 || j >= dishes.length) return;
+    const next = dishes.slice();
+    [next[i], next[j]] = [next[j], next[i]];
+    set({ dishes: next });
+  };
+  const addStaple = () => {
+    const n = staple.trim();
+    if (!n) return;
+    if (staples.length >= BS_KITCHEN_STAPLES_MAX) { setMsg(tr('profile:mine.staplesFull', { defaultValue: 'Up to {count} staples.', count: BS_KITCHEN_STAPLES_MAX })); return; }
+    if (staples.some((x) => x.n.toLowerCase() === n.toLowerCase())) { setStaple(''); return; }
+    set({ staples: [...staples, { n: n.slice(0, BS_STAPLE_MAX), g: group }] });
+    setStaple('');
+  };
+  const found = bsKitchenSearch(q, 24);
+  return (
+    <div>
+      <Eyebrow>{tr('profile:mine.plate', { defaultValue: 'The plate you teach' })}</Eyebrow>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {PLATE_PRESETS.map(([k, pl]) => {
+          const on = !!plate && plate.veg === pl.veg && plate.protein === pl.protein && plate.carbs === pl.carbs;
+          return <button key={k} type="button" data-plate-preset={k} aria-pressed={on} onClick={() => set({ plate: { ...pl } })}
+            style={{ minHeight: 38, padding: '0 12px', borderRadius: 999, border: `1px solid ${on ? E.ED : ea(0.22)}`, background: on ? hexA(E.ED, 0.14) : 'transparent', color: E.INK, fontSize: 13.5, cursor: 'pointer' }}>{tr('profile:mine.preset' + k.charAt(0).toUpperCase() + k.slice(1), { defaultValue: { everyday: 'Everyday', training: 'Training day', lighter: 'Lighter' }[k] })}</button>;
+        })}
+        {plate ? <button type="button" onClick={() => set({ plate: null })} style={{ ...smallBtn, minHeight: 38, border: 0, color: ea(0.7) }}>{tr('profile:mine.noPlate', { defaultValue: 'No plate' })}</button> : null}
+      </div>
+      {plate ? (
+        <div style={{ marginTop: 10, display: 'flex', gap: 14, alignItems: 'center' }}>
+          <span aria-hidden data-mine-plate="" style={{ flex: 'none', width: 84, height: 84, borderRadius: 99, background: `conic-gradient(${colorOf.veg} 0 ${plate.veg}%, ${colorOf.protein} ${plate.veg}% ${plate.veg + plate.protein}%, ${colorOf.carbs} ${plate.veg + plate.protein}% 100%)` }} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {PLATE_PARTS.map(([k]) => (
+              <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span aria-hidden style={{ width: 10, height: 10, borderRadius: 99, background: colorOf[k] }} />
+                <span style={{ flex: 1, fontSize: 14 }}>{part(k)}</span>
+                <button type="button" aria-label={tr('profile:mine.less', { defaultValue: 'Less {part}', part: part(k) })} onClick={() => set({ plate: nudgePlate(plate, k, -5) })} style={{ ...smallBtn, width: 40, padding: 0 }}>−</button>
+                <span data-plate-part={k} style={{ width: 42, textAlign: 'center', fontFamily: MONO, fontSize: 13 }}>{tr('profile:nutri.pct', { defaultValue: '{n}%', n: plate[k] })}</span>
+                <button type="button" aria-label={tr('profile:mine.more', { defaultValue: 'More {part}', part: part(k) })} onClick={() => set({ plate: nudgePlate(plate, k, 5) })} style={{ ...smallBtn, width: 40, padding: 0 }}>＋</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <Eyebrow right={tr('profile:mine.dishesCount', { defaultValue: '{count} of {max}', count: rules.length, max: BS_KITCHEN_RULES_MAX })}>{tr('profile:mine.rules', { defaultValue: 'Your portion rules' })}</Eyebrow>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {rules.map((r, i) => (
+          <div key={i} style={{ display: 'flex', gap: 6 }}>
+            <input value={r} maxLength={BS_KITCHEN_RULE_MAX} onChange={(e) => set({ rules: rules.map((x, k) => (k === i ? e.target.value : x)) })} aria-label={tr('profile:mine.rules', { defaultValue: 'Your portion rules' })} style={{ ...field, flex: 1 }} />
+            <button type="button" aria-label={tr('profile:mine.remove', { defaultValue: 'Remove' })} onClick={() => set({ rules: rules.filter((x, k) => k !== i) })} style={{ ...smallBtn, width: 44, padding: 0, color: E.ERR, borderColor: hexA(E.ERR, 0.5) }}>×</button>
+          </div>
+        ))}
+        {rules.length < BS_KITCHEN_RULES_MAX ? <button type="button" data-add-rule="" onClick={() => set({ rules: [...rules, ''] })} style={{ ...smallBtn, alignSelf: 'flex-start' }}>＋ {tr('profile:mine.addRule', { defaultValue: 'Add a rule, like "A palm of protein at every meal"' })}</button> : null}
+      </div>
+
+      <Eyebrow right={tr('profile:mine.dishesCount', { defaultValue: '{count} of {max}', count: staples.length, max: BS_KITCHEN_STAPLES_MAX })}>{tr('profile:mine.staples', { defaultValue: 'Always in your kitchen' })}</Eyebrow>
+      {staples.length ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+          {staples.map((x, i) => (
+            <span key={x.n} data-mine-staple="" style={{ minHeight: 36, padding: '0 4px 0 12px', borderRadius: 999, border: `1px solid ${ea(0.22)}`, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5 }}>
+              {x.n}<span style={{ fontSize: 11.5, color: ea(0.55) }}>· {tr('profile:nutri.' + { fridge: 'groupFridge', pantry: 'groupPantry', freezer: 'groupFreezer' }[x.g], { defaultValue: x.g })}</span>
+              <button type="button" aria-label={tr('profile:mine.remove', { defaultValue: 'Remove' })} onClick={() => set({ staples: staples.filter((y, k) => k !== i) })} style={{ width: 32, height: 32, border: 0, background: 'transparent', color: ea(0.7), cursor: 'pointer', fontSize: 15 }}>×</button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <Seg label={tr('profile:mine.stapleWhere', { defaultValue: 'Where it lives' })} value={group} onChange={setGroup}
+        options={[['fridge', tr('profile:nutri.groupFridge', { defaultValue: 'Fridge' })], ['pantry', tr('profile:nutri.groupPantry', { defaultValue: 'Pantry' })], ['freezer', tr('profile:nutri.groupFreezer', { defaultValue: 'Freezer' })]]} />
+      <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+        <input value={staple} maxLength={BS_STAPLE_MAX} onChange={(e) => setStaple(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addStaple(); } }}
+          aria-label={tr('profile:mine.stapleName', { defaultValue: 'A staple' })} placeholder={tr('profile:mine.staplePh', { defaultValue: 'Greek yogurt' })} style={{ ...field, flex: 1 }} />
+        <button type="button" data-add-staple="" onClick={addStaple} disabled={!staple.trim()} style={{ ...smallBtn, minHeight: 44, opacity: staple.trim() ? 1 : 0.5 }}>{tr('profile:mine.add', { defaultValue: 'Add' })}</button>
+      </div>
+
+      <Eyebrow right={tr('profile:mine.dishesCount', { defaultValue: '{count} of {max}', count: dishes.length, max: BS_KITCHEN_DISHES_MAX })}>{tr('profile:mine.yourDishes', { defaultValue: 'Your go-to recipes' })}</Eyebrow>
+      {dishes.length ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {dishes.map((d, i) => {
+            const r = bsKitchenRecipe(d.r);
+            return (
+              <div key={d.r} data-mine-dish={d.r} style={{ padding: 10, borderRadius: 12, background: E.BG2, border: `1px solid ${ea(0.12)}` }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  {swatch(r)}
+                  <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.3 }}>
+                    <span style={{ fontFamily: DISPLAY, fontSize: 15, fontWeight: 600 }}>{r ? r.title : d.r}</span>
+                    <span style={{ fontSize: 12, color: ea(0.6) }}>{r ? meta(r) : tr('profile:mine.dishGone', { defaultValue: 'No longer in the Shape Kitchen' })}</span>
+                  </span>
+                </div>
+                <input value={d.note || ''} maxLength={BS_DISH_NOTE_MAX} onChange={(e) => set({ dishes: dishes.map((x, k) => (k === i ? { ...x, note: e.target.value } : x)) })}
+                  aria-label={tr('profile:mine.dishNote', { defaultValue: 'Why you give it to clients' })} placeholder={tr('profile:mine.dishNote', { defaultValue: 'Why you give it to clients' })} style={{ ...field, marginTop: 8 }} />
+                <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+                  <button type="button" aria-label={tr('profile:mine.moveUp', { defaultValue: 'Move up' })} disabled={i === 0} onClick={() => move(i, -1)} style={{ ...smallBtn, width: 44, padding: 0, opacity: i === 0 ? 0.4 : 1 }}>↑</button>
+                  <button type="button" aria-label={tr('profile:mine.moveDown', { defaultValue: 'Move down' })} disabled={i === dishes.length - 1} onClick={() => move(i, 1)} style={{ ...smallBtn, width: 44, padding: 0, opacity: i === dishes.length - 1 ? 0.4 : 1 }}>↓</button>
+                  <button type="button" data-remove-dish="" onClick={() => set({ dishes: dishes.filter((x, k) => k !== i) })} style={{ ...smallBtn, color: E.ERR, borderColor: hexA(E.ERR, 0.5) }}>{tr('profile:mine.remove', { defaultValue: 'Remove' })}</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: ea(0.66) }}>{tr('profile:mine.noDishes', { defaultValue: 'No recipes yet. Add the ones you give clients from the Shape Kitchen below.' })}</p>}
+      {msg ? <p role="alert" style={{ margin: '10px 0 0', fontSize: 13.5, color: E.WARN }}>{msg}</p> : null}
+
+      <Eyebrow>{tr('profile:mine.addDish', { defaultValue: 'Add from the Shape Kitchen' })}</Eyebrow>
+      <input value={q} onChange={(e) => setQ(e.target.value)} type="search" aria-label={tr('profile:mine.searchDishes', { defaultValue: 'Search the recipes' })} placeholder={tr('profile:mine.searchDishes', { defaultValue: 'Search the recipes' })} style={field} />
+      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column' }}>
+        {found.length ? found.map((r) => {
+          const slug = bsKitchenSlug(r), on = chosen.has(slug);
+          return (
+            <button key={slug} type="button" data-kitchen-pick={slug} aria-pressed={on} disabled={on} onClick={() => addDish(r)}
+              style={{ minHeight: 56, padding: '8px 0', border: 0, borderBottom: `1px solid ${ea(0.1)}`, background: 'transparent', color: E.INK, display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', cursor: on ? 'default' : 'pointer' }}>
+              {swatch(r)}
+              <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.3 }}>
+                <span style={{ fontSize: 14.5, fontWeight: 600 }}>{r.title}</span>
+                <span style={{ fontSize: 12, color: ea(0.6) }}>{meta(r)}</span>
+              </span>
+              <span style={{ flex: 'none', fontSize: on ? 13 : 20, color: on ? ea(0.6) : E.ED }}>{on ? `✓ ${tr('profile:mine.added', { defaultValue: 'Added' })}` : '＋'}</span>
+            </button>
+          );
+        }) : <p style={{ margin: '6px 0 0', fontSize: 13.5, color: ea(0.66) }}>{tr('profile:mine.noDishMatch', { defaultValue: 'No recipe matches that.' })}</p>}
+      </div>
+    </div>
+  );
+}
+
 // ── The editor ──────────────────────────────────────────────────────────────────────────────
 export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null, initial = null, startTab = 'colors', who = {}, words = null, photos = [], onClose, onSaved }) {
   const tr = useShapeTr();
+  const nutri = role === 'nutritionist';
+  // The third tab: a trainer's space, a nutritionist's kitchen.
+  const third = nutri ? 'kitchen' : 'space';
   // The account the editor is for (the one its `initial` doc was read for, else the one signed in
   // when it opened): the only one it reads for or saves to.
   const [owner] = React.useState(() => ownerUid || signedInUid());
@@ -420,12 +601,21 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     const look = bsProfileLook(initial && initial.look) || {};
     const st = bsProfileStudio(initial && initial.studio);
     const cover = initial && initial.cover ? coverOf(initial.cover.image) : null;
-    return { look: { paper: look.paper || 'dark', accent: look.accent || 'teal', focus: look.focus || 'center' }, wall: cover ? cover.image : null, studio: st || { kind: 'blank', where: '', items: [] } };
+    const kt = bsProfileKitchen(initial && initial.kitchen);
+    return {
+      // A nutritionist starts amber (Shape's nutritionist gold), as their page does.
+      look: { paper: look.paper || 'dark', accent: look.accent || (nutri ? 'amber' : 'teal'), focus: look.focus || 'center' }, wall: cover ? cover.image : null,
+      studio: st || { kind: 'blank', where: '', items: [] },
+      kitchen: kt
+        ? { plate: kt.plate, rules: kt.rules.slice(), staples: kt.staples.map((x) => ({ ...x })), dishes: kt.dishes.map((d) => ({ r: d.r, note: d.note || '' })) }
+        : { plate: null, rules: [], staples: [], dishes: [] },
+    };
   });
-  const [tab, setTab] = React.useState(['colors', 'wall', 'space'].includes(startTab) ? startTab : 'colors');
+  const [tab, setTab] = React.useState(['colors', 'wall', third].includes(startTab) ? startTab : 'colors');
   const [look, setLook] = React.useState(seed.look);
   const [wall, setWall] = React.useState(seed.wall);
   const [studio, setStudio] = React.useState(seed.studio);
+  const [kitchen, setKitchen] = React.useState(seed.kitchen);
   const [sel, setSel] = React.useState(null);
   const [uploading, setUploading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -433,8 +623,9 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const [leaving, setLeaving] = React.useState(false);
   const lookChanged = !sameJson(look, seed.look);
   const wallChanged = wall !== seed.wall;
-  const studioChanged = !sameJson(bsProfileStudio(studio), bsProfileStudio(seed.studio)) || studio.where !== seed.studio.where;
-  const dirty = lookChanged || wallChanged || studioChanged;
+  const studioChanged = !nutri && (!sameJson(bsProfileStudio(studio), bsProfileStudio(seed.studio)) || studio.where !== seed.studio.where);
+  const kitchenChanged = nutri && !sameJson(bsProfileKitchen(kitchen), bsProfileKitchen(seed.kitchen));
+  const dirty = lookChanged || wallChanged || studioChanged || kitchenChanged;
   const first = who.first || String(who.name || '').split(' ')[0];
   const w = words || { day: tr('profile:trainer.dayName', { defaultValue: "{name}'s day", name: first }), work: tr('profile:trainer.workName', { defaultValue: 'Work with {name}', name: first }) };
 
@@ -462,6 +653,8 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     const doc = { ...base };
     if (lookChanged) doc.look = { paper: look.paper, accent: look.accent, focus: look.focus };
     if (studioChanged) doc.studio = { kind: studio.kind, where: studio.where.trim(), items: studio.items };
+    // An emptied kitchen drops the key (the normalizer keeps none with nothing in it).
+    if (kitchenChanged) doc.kitchen = { plate: kitchen.plate, rules: kitchen.rules, staples: kitchen.staples, dishes: kitchen.dishes };
     if (wallChanged) {
       const cover = wall ? coverOf(wall) : null;
       if (cover) doc.cover = cover; else delete doc.cover;
@@ -472,7 +665,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     if (busy) return;
     // The demo also says which keys were changed here, so its page keeps only those over its own
     // sample (whose station names follow the language; Codex P2 on #2486).
-    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null), { look: lookChanged, cover: wallChanged, studio: studioChanged }); return; }
+    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null), { look: lookChanged, cover: wallChanged, studio: studioChanged, kitchen: kitchenChanged }); return; }
     const uid = owner;
     if (!uid || signedInUid() !== uid) { setErr(tr('profile:mine.errSignIn', { defaultValue: 'Sign in to save your page.' })); return; }
     if (uploading) { setErr(tr('profile:mine.errBusy', { defaultValue: 'Hang on, your photo is still uploading.' })); return; }
@@ -501,6 +694,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     colors: [tr('profile:mine.colorsTitle', { defaultValue: 'Your colors' }), tr('profile:mine.colorsSub', { defaultValue: 'Pick from Shape’s papers and accents. Your whole page follows.' })],
     wall: [tr('profile:mine.wallTitle', { defaultValue: 'Your wall photo' }), tr('profile:mine.wallSub', { defaultValue: 'The big photo behind your avatar. Your gym, your platform, your view.' })],
     space: [tr('profile:mine.spaceTitle', { defaultValue: 'Your space' }), tr('profile:mine.spaceSub', { defaultValue: 'Draw where you coach: a studio, a garage, a full gym or a park.' })],
+    kitchen: [tr('profile:mine.kitchenTitle', { defaultValue: 'Your kitchen' }), tr('profile:mine.kitchenSub', { defaultValue: 'The plate you teach, your staples and your go-to recipes.' })],
   }[tab];
 
   const host = typeof document !== 'undefined' ? (document.getElementById('bs-phone-surface') || document.body) : null;
@@ -513,14 +707,15 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         </div>
         <div style={{ marginTop: 8 }}>
           <Seg label={tr('profile:mine.sections', { defaultValue: 'What to change' })} value={tab} onChange={(k) => { setTab(k); setSel(null); }}
-            options={[['colors', tr('profile:mine.tabColors', { defaultValue: 'Colors' })], ['wall', tr('profile:mine.tabWall', { defaultValue: 'Wall photo' })], ['space', tr('profile:mine.tabSpace', { defaultValue: 'Your space' })]]} />
+            options={[['colors', tr('profile:mine.tabColors', { defaultValue: 'Colors' })], ['wall', tr('profile:mine.tabWall', { defaultValue: 'Wall photo' })], nutri ? ['kitchen', tr('profile:mine.tabKitchen', { defaultValue: 'Your kitchen' })] : ['space', tr('profile:mine.tabSpace', { defaultValue: 'Your space' })]]} />
         </div>
         <h1 style={{ margin: '18px 0 0', fontFamily: DISPLAY, fontWeight: 600, fontSize: 28, lineHeight: 1.05 }}>{head[0]}<span style={{ color: E.ED }}>.</span></h1>
         <p style={{ margin: '4px 0 0', fontSize: 14, lineHeight: 1.45, color: ea(0.7) }}>{head[1]}</p>
-        {tab !== 'space' ? <Preview tr={tr} look={look} wall={wall} who={{ ...who, first }} words={w} /> : null}
+        {tab !== 'space' && tab !== 'kitchen' ? <Preview tr={tr} look={look} wall={wall} who={{ ...who, first }} words={w} nutri={nutri} /> : null}
         {tab === 'colors' ? <ColorsTab tr={tr} look={look} setLook={setLook} /> : null}
         {tab === 'wall' ? <WallTab tr={tr} look={look} setLook={setLook} wall={wall} setWall={(u) => { setWall(u); setErr(null); }} choices={photos} uploading={uploading} onUpload={onUpload} noUpload={demo ? demoNoUpload : null} /> : null}
         {tab === 'space' ? <SpaceTab tr={tr} look={look} studio={studio} setStudio={setStudio} sel={sel} setSel={setSel} /> : null}
+        {tab === 'kitchen' ? <KitchenTab tr={tr} look={look} kitchen={kitchen} setKitchen={setKitchen} /> : null}
         {err && !dirty ? <p role="alert" style={{ margin: '14px 0 0', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
       </div>
       {dirty ? (

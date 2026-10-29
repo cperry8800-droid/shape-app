@@ -533,10 +533,10 @@ test('a page opened for an account, or with one signed in, is never the demo', a
   await m.unmount();
 });
 
-test('every trainer page opens the trainer profile, and a nutritionist\'s the Signal one', () => {
+test('every coach page opens the coach profile: a trainer\'s and a nutritionist\'s', () => {
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
-  assert.match(src, /if \(person\.kind === 'TRAINER'\) \{\n\s+return <BSTrainerProfile [^\n]*onListing=\{onListing\} \/>;/);
-  assert.match(src, /if \(person\.kind === 'NUTRI'\) \{\n\s+return <BSSignalCoachProfile /);
+  assert.match(src, /if \(person\.kind === 'TRAINER' \|\| person\.kind === 'NUTRI'\) \{\n\s+return <BSTrainerProfile [^\n]*onListing=\{onListing\} \/>;/);
+  assert.doesNotMatch(src, /return <BSSignalCoachProfile /, 'no coach opens the Signal page any more');
 });
 
 // ── A coach with no account: a sample (owner, 2026-10-28) ────────────────────────────────────

@@ -278,6 +278,69 @@ export function bsProfileStudio(v) {
   };
 }
 
+// `kitchen`: a nutritionist's kitchen tab (owner, 2026-10-27: "lets do something different for
+// nutritionists", agreeing to a kitchen with no floor plan): the plate they teach (how a plate splits
+// between vegetables, protein and carbs, with their portion rules), the staples always in their
+// kitchen (each in the fridge, the pantry or the freezer), and up to six go-to recipes from the Shape
+// Kitchen, each by its recipe's slug (bsCookSlug of its title) with their own note on it. A slug is
+// only a shape here: the page shows a recipe only when it names one in the catalog.
+export const BS_KITCHEN_RULES_MAX = 4;
+export const BS_KITCHEN_RULE_MAX = 60;
+export const BS_KITCHEN_STAPLES_MAX = 12;
+export const BS_STAPLE_MAX = 40;
+export const BS_STAPLE_GROUPS = ['fridge', 'pantry', 'freezer'];
+export const BS_KITCHEN_DISHES_MAX = 6;
+export const BS_DISH_NOTE_MAX = 160;
+export const BS_DISH_SLUG_MAX = 80;
+const BS_KITCHEN_SCAN = 24;
+const DISH_SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+// The plate: whole percentages in steps of five that add up to 100, or no plate.
+export function bsKitchenPlate(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const parts = ['veg', 'protein', 'carbs'].map((k) => v[k]);
+  if (!parts.every((n) => Number.isInteger(n) && n >= 0 && n <= 100 && n % 5 === 0)) return null;
+  if (parts[0] + parts[1] + parts[2] !== 100) return null;
+  return { veg: parts[0], protein: parts[1], carbs: parts[2] };
+}
+
+const scan = (a) => (Array.isArray(a) ? (a.length > BS_KITCHEN_SCAN ? a.slice(0, BS_KITCHEN_SCAN) : a) : []);
+
+// Null when it holds nothing to show, so an empty doc key drops.
+export function bsProfileKitchen(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const plate = bsKitchenPlate(v.plate);
+  const rules = [];
+  for (const r of scan(v.rules)) {
+    if (rules.length >= BS_KITCHEN_RULES_MAX) break;
+    const t = bsCleanText(r, BS_KITCHEN_RULE_MAX);
+    if (t) rules.push(t);
+  }
+  const staples = [];
+  const seenStaple = new Set();
+  for (const it of scan(v.staples)) {
+    if (staples.length >= BS_KITCHEN_STAPLES_MAX) break;
+    if (!it || typeof it !== 'object' || Array.isArray(it)) continue;
+    const n = bsCleanText(it.n, BS_STAPLE_MAX);
+    if (!n || seenStaple.has(n.toLowerCase())) continue;
+    seenStaple.add(n.toLowerCase());
+    staples.push({ n, g: BS_STAPLE_GROUPS.includes(it.g) ? it.g : 'pantry' });
+  }
+  const dishes = [];
+  const seen = new Set();
+  for (const d of scan(v.dishes)) {
+    if (dishes.length >= BS_KITCHEN_DISHES_MAX) break;
+    if (!d || typeof d !== 'object' || Array.isArray(d) || typeof d.r !== 'string') continue;
+    const r = d.r.trim().toLowerCase();
+    if (!r || r.length > BS_DISH_SLUG_MAX || !DISH_SLUG_RE.test(r) || seen.has(r)) continue;
+    seen.add(r);
+    const dn = bsCleanText(d.note, BS_DISH_NOTE_MAX);
+    dishes.push(dn ? { r, note: dn } : { r });
+  }
+  if (!plate && !rules.length && !staples.length && !dishes.length) return null;
+  return { plate, rules, staples, dishes };
+}
+
 // The trusted save wrapper's core: normalize THIS WAVE's keys on a copy of the
 // doc, dropping a key entirely when it's empty/invalid (never an empty-string
 // tombstone), and passing EVERY other key through byte-identical (AC 9). Junk
@@ -305,6 +368,8 @@ export function bsNormalizeProfileCustom(doc, ownerUid, opts) {
   if (look) base.look = look; else delete base.look;
   const studio = bsProfileStudio(base.studio);
   if (studio) base.studio = studio; else delete base.studio;
+  const kitchen = bsProfileKitchen(base.kitchen);
+  if (kitchen) base.kitchen = kitchen; else delete base.kitchen;
   const filmBucket = (opts && typeof opts.filmBucket === 'string') ? opts.filmBucket : null;
   const filmKey = (opts && typeof opts.filmKey === 'string') ? opts.filmKey : 'film';
   if (filmBucket) {
