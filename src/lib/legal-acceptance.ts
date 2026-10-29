@@ -13,10 +13,18 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 export const TERMS_VERSIONS: readonly string[] = ['2026-06-22'];
 export const PRIVACY_VERSIONS: readonly string[] = ['2026-10-13', '2026-10-29'];
 
-/** The version in force on a day: the newest whose date is on or before it (the oldest before any). */
+/**
+ * The version an account made on `day` accepted: the newest dated BEFORE it (the oldest before any).
+ * ⚠ A PAGE DATED D IS IN FORCE FROM D+1 (Codex on #2495, P1). A page changes on the day of its date,
+ * but the deploy lands some hours in, so an account made earlier that day saw the old text. Read on
+ * the day itself, it was given the new version, its first record's marker no longer matched, and its
+ * next sign-in recorded a second acceptance, of a text it never saw. From the next day on, every
+ * sign-up has the new page; one made on the day keeps the old version, whose words the new page
+ * still holds. So a new date must deploy before the next UTC midnight.
+ */
 export function versionInForce(versions: readonly string[], day: string): string {
   let pick = versions[0];
-  for (const v of versions) if (v <= day) pick = v;
+  for (const v of versions) if (v < day) pick = v;
   return pick;
 }
 

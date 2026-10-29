@@ -368,12 +368,33 @@ test('M4: the versions recorded are the pages\' own "Last updated" dates', () =>
   assert.equal(legal.TERMS_VERSIONS.at(-1), pageDate('public/terms.html'), 'a new Terms date needs a new entry in TERMS_VERSIONS');
   assert.equal(legal.PRIVACY_VERSIONS.at(-1), pageDate('public/privacy.html'), 'a new privacy date needs a new entry in PRIVACY_VERSIONS');
   assert.equal(legal.versionInForce(['2026-06-22', '2026-11-01'], '2026-10-15'), '2026-06-22');
-  assert.equal(legal.versionInForce(['2026-06-22', '2026-11-01'], '2026-11-01'), '2026-11-01');
+  assert.equal(legal.versionInForce(['2026-06-22', '2026-11-01'], '2026-11-01'), '2026-06-22', 'on its own day a page is not yet in force: the deploy lands hours in');
+  assert.equal(legal.versionInForce(['2026-06-22', '2026-11-01'], '2026-11-02'), '2026-11-01', 'from the next day it is');
   assert.equal(legal.versionInForce(['2026-06-22'], '2026-01-01'), '2026-06-22', 'before the first: the first');
-  // The privacy policy that lists the tap counts (#2493's follow-up): an account made the day before
-  // accepted the 2026-10-13 text, one made that day or later the new one.
+  // The privacy policy that lists the tap counts (#2493's follow-up), dated 2026-10-29: an account
+  // made that day (before or after the deploy) keeps the 2026-10-13 version, one made later the new.
   assert.equal(legal.versionInForce(legal.PRIVACY_VERSIONS, '2026-10-28'), '2026-10-13');
-  assert.equal(legal.versionInForce(legal.PRIVACY_VERSIONS, '2026-10-29'), '2026-10-29');
+  assert.equal(legal.versionInForce(legal.PRIVACY_VERSIONS, '2026-10-29'), '2026-10-13');
+  assert.equal(legal.versionInForce(legal.PRIVACY_VERSIONS, '2026-10-30'), '2026-10-29');
+  // No version an account already holds moves: every earlier day reads as it did.
+  assert.equal(legal.versionInForce(legal.PRIVACY_VERSIONS, '2026-10-13'), '2026-10-13');
+  assert.equal(legal.versionInForce(legal.TERMS_VERSIONS, '2026-06-22'), '2026-06-22');
+});
+
+test('M4: an account made on a new page\'s own day, before it deployed, is never recorded twice (Codex on #2495)', async () => {
+  // Made the morning the 2026-10-29 policy went up, first signed in on the old deploy: recorded with
+  // the 2026-10-13 version and marked so. The new deploy reads the same version for that day, so the
+  // marker matches and nothing claims it accepted the text it never saw.
+  const created = '2026-10-29T08:00:00.000Z';
+  const marker = `${legal.versionInForce(legal.TERMS_VERSIONS, '2026-10-28')}|2026-10-13`;
+  const db = acceptDb();
+  const user = { id: 'u-9', created_at: created, user_metadata: {}, app_metadata: { terms_accepted_at: created, terms_recorded: marker } };
+  assert.equal(await legal.recordLegalAcceptance(db.client, user), 'none');
+  assert.deepEqual([db.rows, db.marks], [[], []]);
+  // Its first sign-in, on the new deploy: still the version it was shown.
+  const first = acceptDb();
+  await legal.recordLegalAcceptance(first.client, { ...user, app_metadata: { terms_accepted_at: created } });
+  assert.equal(first.rows[0][0].privacy_version, '2026-10-13');
 });
 
 test('M4: an account that accepted at sign-up gets one record, at the account\'s own time, never the browser\'s', async () => {
