@@ -12,8 +12,8 @@
 //           calendar automatically, no duplicate event rows to drift.
 //      RLS scopes all of it: a coach may pass ?clientId to view a client's
 //      calendar: that client's bookings, the plan rows they authored, and, on a
-//      client they share with a coach of the other discipline, that coach's
-//      workouts or menu too (`by` names the coach; see `clientView`).
+//      client they share with other coaches, those coaches' workouts and menus
+//      too (`by` names the coach; see `clientView`).
 //
 //      ⚠ A BOOKING'S `date` AND `time` ARE A WALL CLOCK IN `zone`, AND THE RESPONSE NAMES IT.
 //      Sessions are stored as real instants; until 2026-10-07 this route read them back with
@@ -154,11 +154,12 @@ export async function GET(request: Request) {
   const to = clean(url.searchParams.get('to'), 10);
   const clientId = clean(url.searchParams.get('clientId'), 64);
   const targetUserId = clientId || user.id;
-  // A coach's view of one client's calendar. A trainer and a nutritionist who share the client
-  // each see both schedules here (owner, 2026-10-29): RLS gives a coach only the workouts or menu
-  // they wrote, so the other discipline's come from get_shared_client_workouts and
-  // get_shared_client_meal_plan (2026-10-29-shared-client-schedules.sql), definers that answer only
-  // a coach of the other discipline on this client, and only with what the calendar draws.
+  // A coach's view of one client's calendar. Every coach on the client sees every other coach's
+  // schedule here, whatever their discipline (owner, 2026-10-29: "any shared client for any trainer
+  // or nutritionist should be shared"): RLS gives a coach only the workouts or menu they wrote, so
+  // the others' come from get_shared_client_workouts and get_shared_client_meal_plan
+  // (2026-10-29-shared-schedules-any-coach.sql), definers that answer only a coach on this client,
+  // never with their own rows, and only with what the calendar draws.
   const clientView = !!clientId && clientId !== user.id;
 
   // Wide default window if not provided: ±60 days around today.
@@ -313,9 +314,10 @@ export async function GET(request: Request) {
     .order('scheduled_date', { ascending: false, nullsFirst: true })
     .limit(PLAN_CAP);
 
-  // The trainer's workouts for a nutritionist on this client, with each one's finished runs (a
-  // nutritionist can't read workout_sessions). A failed read, or a database without the function,
-  // shows the calendar as before.
+  // The other trainers' workouts on this client, for any coach of theirs (a nutritionist, or
+  // another trainer), with each one's finished runs: workout_sessions is the client's and their
+  // own trainer's to read. A failed read, or a database without the function, shows the calendar
+  // as before.
   const workoutRows: CwRow[] = ((cwRows ?? []) as CwRow[]).slice();
   const sharedRuns: WsRow[] = [];
   if (clientView) {
@@ -506,40 +508,46 @@ export async function GET(request: Request) {
   type MenuMeal = { slot?: unknown; title?: unknown; time?: unknown; kcal?: unknown };
   type MenuDay = { dow?: unknown; meals?: MenuMeal[] };
   type MpRow = { id: string; title: string; week_start: string | null; payload: unknown };
-  let mp: MpRow | null = ((mpRows ?? []) as MpRow[])[0] ?? null;
-  // The nutritionist's menu for a trainer on this client: the newest published one of a
-  // nutritionist who coaches them now, each meal's slot, title, time and kcal (no ingredients,
-  // steps or notes). A failed read shows no menu, as before.
-  let menuBy: string | null = null;
-  if (!mp && clientView) {
-    const { data: sharedMenu, error: menuError } = await supabase.rpc('get_shared_client_meal_plan', { p_client_id: clientId });
-    if (menuError) console.warn('[calendar] the other coach\'s menu was not read:', menuError.message);
-    const row = ((sharedMenu ?? []) as Array<MpRow & { nutritionist_name: string | null }>)[0];
-    if (row?.id) {
-      mp = { id: row.id, title: row.title, week_start: row.week_start, payload: row.payload };
-      menuBy = row.nutritionist_name || null;
+  // The menus on this calendar: the reader's own newest (RLS) and, in a coach's view of a client,
+  // the newest published menu of each OTHER nutritionist who coaches them now (any coach on the
+  // client sees every other coach's plan: owner, 2026-10-29), each meal's slot, title, time and
+  // kcal (no ingredients, steps or notes), named by its nutritionist. A failed read shows the
+  // reader's own menu only, as before.
+  const menus: Array<{ mp: MpRow; by: string | null }> = [];
+  const ownMenu = ((mpRows ?? []) as MpRow[])[0] ?? null;
+  if (ownMenu) menus.push({ mp: ownMenu, by: null });
+  if (clientView) {
+    const { data: sharedMenus, error: menuError } = await supabase.rpc('get_shared_client_meal_plan', { p_client_id: clientId });
+    if (menuError) console.warn('[calendar] the other coaches\' menus were not read:', menuError.message);
+    for (const row of (sharedMenus ?? []) as Array<MpRow & { nutritionist_name: string | null }>) {
+      if (!row?.id || menus.some((m) => m.mp.id === row.id)) continue;
+      menus.push({ mp: { id: row.id, title: row.title, week_start: row.week_start, payload: row.payload }, by: row.nutritionist_name || null });
     }
   }
-  const menuDays: MenuDay[] = mp && mp.payload && Array.isArray((mp.payload as Record<string, unknown>).days)
-    ? ((mp.payload as Record<string, unknown>).days as MenuDay[])
-    : [];
-  const byDow: (MenuDay | null)[] = [null, null, null, null, null, null, null];
-  const seq: MenuDay[] = [];
-  for (const d of menuDays) {
-    const dow = Number(d?.dow);
-    if (Number.isInteger(dow) && dow >= 0 && dow <= 6 && !byDow[dow]) byDow[dow] = d;
-    else if (d) seq.push(d);
-  }
-  for (let i = 0; i < 7 && seq.length; i++) if (!byDow[i]) byDow[i] = seq.shift()!;
 
   const planMeals: Array<Record<string, unknown>> = [];
-  if (menuDays.length) {
-    const monday = new Date(today); monday.setHours(0, 0, 0, 0);
-    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-    const startISO = monday.toISOString().slice(0, 10);
+  const monday = new Date(today); monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const startISO = monday.toISOString().slice(0, 10);
+  for (const { mp, by: menuBy } of menus) {
+    const menuDays: MenuDay[] = mp.payload && Array.isArray((mp.payload as Record<string, unknown>).days)
+      ? ((mp.payload as Record<string, unknown>).days as MenuDay[])
+      : [];
+    if (!menuDays.length) continue;
+    const byDow: (MenuDay | null)[] = [null, null, null, null, null, null, null];
+    const seq: MenuDay[] = [];
+    for (const d of menuDays) {
+      const dow = Number(d?.dow);
+      if (Number.isInteger(dow) && dow >= 0 && dow <= 6 && !byDow[dow]) byDow[dow] = d;
+      else if (d) seq.push(d);
+    }
+    for (let i = 0; i < 7 && seq.length; i++) if (!byDow[i]) byDow[i] = seq.shift()!;
+
+    // Each menu keeps its own 250-meal ceiling, so a second menu is never cut short by the first.
+    const first = planMeals.length;
     const cursor = new Date(`${dFrom < startISO ? startISO : dFrom}T00:00:00Z`);
     const end = new Date(`${dTo}T00:00:00Z`);
-    while (cursor <= end && planMeals.length < 250) {
+    while (cursor <= end && planMeals.length - first < 250) {
       const date = cursor.toISOString().slice(0, 10);
       const dow = (cursor.getUTCDay() + 6) % 7; // Mon=0..Sun=6
       const day = byDow[dow];
@@ -548,7 +556,7 @@ export async function GET(request: Request) {
         const slot = meal.slot != null ? String(meal.slot) : 'Meal';
         const kcal = Number(meal.kcal);
         planMeals.push({
-          id: `meal:${mp!.id}:${date}:${j}`,
+          id: `meal:${mp.id}:${date}:${j}`,
           source: 'meal' as const,
           kind: 'MEAL',
           title: String(meal.title),

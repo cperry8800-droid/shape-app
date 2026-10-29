@@ -2249,9 +2249,9 @@ function fmtWeekRange(s) {
   return `${sm} – ${em}, ${e.getFullYear()}`;
 }
 
-// With `clientId`, a coach's view of one client's calendar (the coach client page's "See both
-// schedules"): that client's bookings, the plan rows this coach wrote and, on a client shared with a
-// coach of the other discipline, that coach's workouts or menu too (/api/calendar). Read only.
+// With `clientId`, a coach's view of one client's calendar (the coach client page's "See all
+// schedules"): that client's bookings, the plan rows this coach wrote and, on a client shared with
+// other coaches, their workouts and menus too (/api/calendar). Read only.
 function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDate = null, clientId = null, clientName = null }) {
   // Anchor to the real today unless an explicit anchorDate is passed (kept for
   // demos/tests). Normalize to local midnight so the "today" highlight is exact.
