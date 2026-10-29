@@ -622,6 +622,59 @@ test('Make it yours: a paste the AI can\'t read is laid out on the phone; a reci
   } finally { delete window.ShapeRecipeImport; await m.unmount(); }
 });
 
+test('Make it yours: a paste read or a photo upload that lands after Cancel changes nothing (Codex P2 on #2497)', async () => {
+  reset({ me: 'u-nadia', uploadUrl: own('u-nadia', 'late.jpg'), stored: { kitchen: { recipes: [BOWL] } } });
+  let release;
+  const gate = () => new Promise((r) => { release = r; });
+  window.ShapeRecipeImport = { parse: async () => { await gate(); return { ok: true, draft: { title: 'Late soup', servings: 2, ingredients: [{ n: '1', m: 'onion' }], steps: ['Cook it.'] } }; } };
+  const errors = [];
+  const onErr = (e) => errors.push(e.error || e.message);
+  window.addEventListener('error', onErr);
+  const m = await mount(page({ isSelf: true }));
+  try {
+    await click(button(/^Make it yours$/));
+    await click(button(/^Your kitchen$/));
+    // The recipe cancelled while the AI read is out.
+    await click(document.querySelector('[data-write-recipe]'));
+    await click(document.querySelector('[data-recipe-paste]'));
+    await type(document.querySelector('[data-recipe-form] textarea'), 'Late soup\n1 onion\nCook it.');
+    await click(document.querySelector('[data-paste-fill]'));
+    await click(document.querySelector('[data-recipe-cancel]'));
+    await act(async () => { release(); });
+    await flush();
+    assert.ok(!document.querySelector('[data-recipe-form]'), 'the cancelled recipe stays cancelled');
+    assert.equal(document.querySelectorAll('[data-mine-recipe]').length, 1);
+    // The paste box closed while its read is out: the form stays as it was.
+    await click(document.querySelector('[data-write-recipe]'));
+    await click(document.querySelector('[data-recipe-paste]'));
+    await type(document.querySelector('[data-recipe-form] textarea'), 'Late soup\n1 onion\nCook it.');
+    await click(document.querySelector('[data-paste-fill]'));
+    await click(document.querySelector('[data-paste-cancel]'));
+    await act(async () => { release(); });
+    await flush();
+    assert.equal(document.querySelector('[data-recipe-title]').value, '', 'nothing laid out after the paste box closed');
+    assert.equal(document.querySelectorAll('[data-recipe-step]').length, 1);
+    await click(document.querySelector('[data-recipe-cancel]'));
+    // The recipe cancelled while its photo uploads: no draft comes back.
+    world.uploadGate = gate();
+    const landPhoto = release;
+    await click(document.querySelector('[data-write-recipe]'));
+    await pickFile(document.querySelector('[data-recipe-form] input[type="file"]'), new window.File(['x'], 'late.jpg', { type: 'image/jpeg' }));
+    await click(document.querySelector('[data-recipe-cancel]'));
+    await act(async () => { landPhoto(); });
+    await flush();
+    world.uploadGate = null;
+    assert.ok(!document.querySelector('[data-recipe-form]'), 'no draft made of the late photo');
+    await click(document.querySelector('[data-write-recipe]'));
+    assert.ok(!document.querySelector('[data-recipe-form] img'), 'and the next recipe starts without it');
+    assert.deepEqual(errors, [], 'nothing threw');
+  } finally {
+    window.removeEventListener('error', onErr);
+    delete window.ShapeRecipeImport;
+    await m.unmount();
+  }
+});
+
 test('a seeded nutritionist listing is a sample: its listing by id, a sample kitchen and plate notes, times never taken', async () => {
   const rae = { who: 'Rae Lindqvist', kind: 'NUTRI', providerId: 52, city: 'Remote', bio: 'Plant-forward fuelling.', specialty: 'Plant-based nutrition Vegan', rating10: 9.8 };
   reset({ me: 'u-me', byId: { id: 52, owner_id: null, name: 'Rae Lindqvist', price: 110, specialty: 'Plant-based nutrition', credential: 'RD', verified: false, listing_media: { cover: null, gallery: [] }, monthly_offer: null }, slots: [] });

@@ -465,17 +465,26 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel 
   const [photoBusy, setPhotoBusy] = React.useState(false);
   // A layout note stays while the form is open; an error goes once the coach changes something.
   // Every change merges into the draft as it is then, so a photo that finishes uploading after
-  // other edits never puts back the draft it started from (Codex P2 on #2497).
-  const set = (patch) => { setNote((n) => (n && n[0] === 'err' ? null : n)); setDraft((cur) => ({ ...cur, ...patch })); };
+  // other edits never puts back the draft it started from; and only into the draft it was made
+  // for, so a read or an upload that lands after Cancel changes nothing (Codex P2 ×2 on #2497).
+  const set = (patch, forId = draft.id) => {
+    setNote((n) => (n && n[0] === 'err' ? null : n));
+    setDraft((cur) => (cur && cur.id === forId ? { ...cur, ...patch } : cur));
+  };
+  // Each paste read is numbered; closing the paste box makes a read still out stale.
+  const pasteRun = React.useRef(0);
   const fromPaste = async () => {
     const text = String(paste || '').trim();
     if (!text || reading) return;
+    const forId = draft.id;
+    const run = ++pasteRun.current;
     setReading(true); setNote(null);
     let got = null, ai = false;
     try {
       const res = window.ShapeRecipeImport && window.ShapeRecipeImport.parse ? await window.ShapeRecipeImport.parse(text) : null;
       if (res && res.ok && res.draft) { got = res.draft; ai = true; }
     } catch (e) { /* the phone's own split below */ }
+    if (run !== pasteRun.current) return;
     if (!got) got = bsSplitPaste(text);
     setReading(false);
     let ing = (got.ingredients || []).map((g) => ({ n: String((g && g.n) || ''), m: String((g && g.m) || '') })).filter((g) => g.m.trim());
@@ -491,13 +500,13 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel 
     ing = ing.slice(0, BS_RECIPE_INGS_MAX);
     steps = steps.slice(0, BS_RECIPE_STEPS_MAX);
     if (!ing.length && !steps.length) { setNote(['err', tr('profile:mine.pasteFailed', { defaultValue: "Couldn't find a recipe in that. Fill it in by hand." })]); return; }
-    setDraft((cur) => ({
+    setDraft((cur) => (cur && cur.id === forId ? {
       ...cur,
       t: cur.t.trim() ? cur.t : title.slice(0, BS_RECIPE_TITLE_MAX),
       serves: cur.serves || (Number.isInteger(got.servings) && got.servings > 0 ? String(got.servings) : ''),
       ing: ing.length ? ing : cur.ing,
       steps: steps.length ? steps : cur.steps,
-    }));
+    } : cur));
     setPaste(null);
     setNote(['ok', ai ? tr('profile:mine.pasteAI', { defaultValue: 'Laid out from your paste by AI. Check every line.' }) : tr('profile:mine.pasteLocal', { defaultValue: 'Laid out from your paste. Check every line.' })]);
   };
@@ -505,10 +514,11 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel 
     const file = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!file || photoBusy) return;
+    const forId = draft.id;
     setPhotoBusy(true);
     const url = await uploadPhoto(file);
     setPhotoBusy(false);
-    if (url) set({ photo: url });
+    if (url) set({ photo: url }, forId);
   };
   const done = () => {
     const r = bsRecipeFromDraft(draft, owner);
@@ -527,7 +537,7 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel 
             placeholder={tr('nutrition:myRecipe.pastePlaceholder', { defaultValue: 'Ingredients and method — paste it however it comes.' })} style={{ ...field, minHeight: 120, padding: 12, lineHeight: 1.4, resize: 'vertical' }} />
           <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
             <button type="button" data-paste-fill="" onClick={fromPaste} disabled={reading || !String(paste).trim()} style={{ ...smallBtn, flex: 1, background: E.ED, color: E.ON_ED, border: 0, opacity: reading || !String(paste).trim() ? 0.6 : 1 }}>{reading ? tr('nutrition:myRecipe.reading', { defaultValue: 'Reading…' }) : tr('profile:mine.pasteFill', { defaultValue: 'Lay it out' })}</button>
-            <button type="button" onClick={() => setPaste(null)} style={smallBtn}>{tr('profile:mine.cancel', { defaultValue: 'Cancel' })}</button>
+            <button type="button" data-paste-cancel="" onClick={() => { pasteRun.current += 1; setReading(false); setPaste(null); }} style={smallBtn}>{tr('profile:mine.cancel', { defaultValue: 'Cancel' })}</button>
           </div>
         </div>
       )}
