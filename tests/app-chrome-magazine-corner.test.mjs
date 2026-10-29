@@ -42,6 +42,10 @@ test('the corner\'s controls are bare glyphs on the avatar\'s square, and ✦ is
   const [nora, search] = btns;
   assert.equal(nora.props['aria-label'], 'Ask Nora');
   assert.equal(nora.props.style.color, TEAL);
+  // ✦ is the larger glyph in a soft teal glow, so it reads first in the corner (owner, 2026-10-29: "make the
+  // Nora teal little symbol on mast head more noticeable", option A: no ring, still on the bare square).
+  assert.equal(nora.props.style.fontSize, 24, '✦ at 24px, to ⌕\'s 17');
+  assert.equal(nora.props.style.textShadow, `0 0 10px ${TEAL}66`, 'the light paper\'s fainter teal glow');
   assert.equal(search.props['aria-label'], 'Search Shape');
   assert.equal(search.props.style.color, THEME.INK);
   // A masthead that sets its own ink (the profile mastheads, Radio) gets it on the corner, and Radio drops ✦.

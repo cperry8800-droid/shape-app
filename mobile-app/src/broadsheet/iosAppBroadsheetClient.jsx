@@ -363,13 +363,17 @@ function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null, nora = true }) {
   // corner, so one change puts her on every screen; it covers nothing. A surface
   // with its own Nora controls (the full-screen Radio) passes nora={false}. She is
   // the theme's teal, the one colour in the corner (owner, 2026-10-27: "make this
-  // teal color", from the magazine's red).
+  // teal color", from the magazine's red). She is also the larger glyph, 24px to ⌕'s
+  // 17, in a soft teal glow, still with no ring (owner, 2026-10-29: "make the Nora
+  // teal little symbol on mast head more noticeable", option A). The glow is fainter
+  // on a light paper, where a strong one muddies the ink around it.
   const corner = bsCornerBtn(size, ink || t.INK);
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   return (
     <>
       {nora && (
         <button data-nora-corner onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openNora')); } catch (e) {} }} aria-label="Ask Nora"
-          style={{ ...corner, color: t.isLight ? '#0a8f87' : '#34d6c5', fontSize: Math.max(15, Math.round(size * 0.5)), lineHeight: 1 }}>
+          style={{ ...corner, color: teal, fontSize: Math.max(18, Math.round(size * 0.7)), lineHeight: 1, textShadow: `0 0 10px ${teal}${t.isLight ? '66' : 'aa'}` }}>
           <span aria-hidden>✦</span>
         </button>
       )}
