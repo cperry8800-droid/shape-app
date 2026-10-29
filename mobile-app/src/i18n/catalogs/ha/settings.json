@@ -551,6 +551,8 @@
   "notifyPrefs.coach.direct_message.sub": "Idan wani memba ya rubuto maka",
   "notifyPrefs.coach.new_client": "Sabbin abokan ciniki",
   "notifyPrefs.coach.new_client.sub": "Idan wani ya yi rajista tare da kai",
+  "notifyPrefs.coach.shared_client": "Abokan ciniki na tare",
+  "notifyPrefs.coach.shared_client.sub": "Idan abokin cinikinka ya ɗauki wani koci kuma",
   "notifyPrefs.coach.sessions": "Zama",
   "notifyPrefs.coach.sessions.sub": "Buƙatu, biyan kuɗi da sokewa",
   "notifyPrefs.coach.payments": "Biyan kuɗi",

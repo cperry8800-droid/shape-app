@@ -551,6 +551,8 @@
   "notifyPrefs.coach.direct_message.sub": "Saat anggota menulis kepadamu",
   "notifyPrefs.coach.new_client": "Klien baru",
   "notifyPrefs.coach.new_client.sub": "Saat seseorang mendaftar denganmu",
+  "notifyPrefs.coach.shared_client": "Klien bersama",
+  "notifyPrefs.coach.shared_client.sub": "Saat klienmu juga menyewa pelatih lain",
   "notifyPrefs.coach.sessions": "Sesi",
   "notifyPrefs.coach.sessions.sub": "Permintaan, pembayaran, dan pembatalan",
   "notifyPrefs.coach.payments": "Pembayaran",
