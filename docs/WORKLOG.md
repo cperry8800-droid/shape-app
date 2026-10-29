@@ -152,7 +152,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   and the data export leaves out Nora's conversation and the stored readouts.
 - Make the direct-charges test purchase on staging, as #2403's Owner steps set out (Stripe
   test mode and Vercel's Preview variables).
-- Decide how a seeded listing becomes its coach's. Members' asks for its sample times
+- Decide how a seeded listing becomes its coach's. Asks for its sample times
   (`listing_time_requests`) reach the coach on a claim, and `/dashboard/claim` gives it to the admin.
 - Decide the perks the website's "What Master unlocks" card and `leaderboards.jsx`
   promise (payout tier, ranking, a verified badge): nothing grants them.
