@@ -472,5 +472,8 @@
   "shortcut.groceryList": "Jerin sayayya",
   "shortcut.grocerySub": "Sayayyar wannan mako",
   "shortcut.devices": "Agogo da manhajoji",
-  "shortcut.devicesSub": "Haɗa matakanka da barcinka"
+  "shortcut.devicesSub": "Haɗa matakanka da barcinka",
+  "noraHint.title": "Ga Nora.",
+  "noraHint.body": "Taɓa ✦ a kowane lokaci don tambayar ta game da shirinka, abincinka ko manhajar.",
+  "noraHint.gotIt": "Na gane"
 }

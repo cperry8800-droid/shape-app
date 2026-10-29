@@ -472,5 +472,8 @@
   "shortcut.groceryList": "Lista de compras",
   "shortcut.grocerySub": "As compras da semana",
   "shortcut.devices": "Relógio e apps",
-  "shortcut.devicesSub": "Conecte seus passos e seu sono"
+  "shortcut.devicesSub": "Conecte seus passos e seu sono",
+  "noraHint.title": "Conheça a Nora.",
+  "noraHint.body": "Toque em ✦ quando quiser para perguntar a ela sobre seu plano, sua alimentação ou o app.",
+  "noraHint.gotIt": "Entendi"
 }
