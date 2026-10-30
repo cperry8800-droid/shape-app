@@ -173,9 +173,10 @@
   // ⚠ A WHOLE NUMBER'S TIME UNIT READS EXACTLY AS IT ALWAYS HAS: the longest unit word
   // that follows, with nothing checked after it, so "30s/side", "30s/45s" and
   // "30 min/km" keep their readings. That needs the longer spellings tried first, so
-  // the list is sorted here rather than rewritten out of the parser's order. ⚠ It still
-  // reads a word that starts with a unit as one ("3 × 10 sets" is "10 s" and a load of
-  // "ets"), as it did before this list came here. Registered, not changed here.
+  // the list is sorted here rather than rewritten out of the parser's order. ⚠ A WORD THAT
+  // STARTS WITH A UNIT IS NOT ONE (#2159's open item): "3 × 10 sets" read "10 s" and a
+  // load of "ets", and "3 × 10 steps" "10 s" and "teps". No letter may follow the unit,
+  // which those three keep: a slash follows it.
   // A decimal part is the parser's, and new here ("1.5 min"), so it takes one check: no
   // letter may follow the unit. That keeps it from changing another reading ("1.5 sets"
   // is still 1 and a load of ".5 sets"), and it is also what lets this branch keep the
@@ -188,11 +189,13 @@
   // ("10 m / s") is 10 m and a load of "/ s", in the parser as here: the unit ends the
   // value, which is all the rule can see.
   const TIME_LONGEST_FIRST = TIME_UNITS.split('|').sort((a, b) => b.length - a.length).join('|');
-  const REP_UNIT = String.raw`(?:\s*(?:${TIME_LONGEST_FIRST})|\.\d+\s*(?:${TIME_UNITS})(?![a-z])|(?:\.\d+)?\s*(?:${DISTANCE_UNITS})(?=$|[\s·,;]|\/\s*(?:side|leg)\b))`;
+  const REP_UNIT = String.raw`(?:\s*(?:${TIME_LONGEST_FIRST})(?![a-z])|\.\d+\s*(?:${TIME_UNITS})(?![a-z])|(?:\.\d+)?\s*(?:${DISTANCE_UNITS})(?=$|[\s·,;]|\/\s*(?:side|leg)\b))`;
   // Repetitions can be timed, a distance or effort-based. Preserve the authored token;
   // parsing only its numeric prefix changed "30s" into 30 repetitions and moved
-  // "AMRAP" into the load field.
-  const SCHEME = new RegExp(String.raw`(\d+)\s*[×x]\s*((?:\d+(?:[–-]\d+)?${REP_UNIT}?|AMRAP|to\s+failure|max)(?:\s*(?:ea(?:ch)?|per\s+(?:side|leg)|\/\s*(?:side|leg)))?)`, 'i');
+  // "AMRAP" into the load field. A "reps" or "sets" written after the count belongs to
+  // the scheme, not the reps: "3 × 10 reps · 20 kg" is reps 10 and a load of 20 kg (it
+  // was a load text of "reps · 20 kg", so the 20 kg was lost), as the player reads it.
+  const SCHEME = new RegExp(String.raw`(\d+)\s*[×x]\s*((?:\d+(?:[–-]\d+)?${REP_UNIT}?|AMRAP|to\s+failure|max)(?:\s*(?:ea(?:ch)?|per\s+(?:side|leg)|\/\s*(?:side|leg)))?)(?:\s+(?:reps?|sets?)(?![a-z]))?`, 'i');
   function rowFromBlock(block, id) {
     const b = typeof block === 'object' && block ? block : {text:block};
     const raw = text(b.text).trim();
