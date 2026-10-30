@@ -107,6 +107,10 @@ export default {
       find: 'BS_PRIVACY_RANK[shownAudience] > BS_PRIVACY_RANK[resolvedPrivacy]', replace: 'BS_PRIVACY_RANK[shownAudience] < BS_PRIVACY_RANK[resolvedPrivacy]' },
     { name: 'app: the player never names the audience it showed', file: APP,
       find: 'shownAudience: shareToFeed ? shareAudience : null,', replace: 'shownAudience: null,' },
+    { name: 'server: the first-share notice ignores friends', file: 'src/lib/workout-share.ts',
+      find: "const friends = privacy === 'friends';", replace: 'const friends = false;' },
+    { name: 'app: the first-share toast ignores friends', file: BACKEND,
+      find: "window.__bsToast?.(resolvedPrivacy === 'friends'", replace: "window.__bsToast?.(resolvedPrivacy === 'never'" },
     { name: 'feed: Following never shows friends posts', file: FEED_MODE,
       find: "    privacyIn: ['public', 'community', 'followers', 'friends'],", replace: "    privacyIn: ['public', 'community', 'followers']," },
 

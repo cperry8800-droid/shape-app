@@ -3465,7 +3465,9 @@ async function saveWorkoutSessionLog({
         await supabase.from('user_goals').upsert(
           { user_id: state.user.id, kind: 'auto_share_flag', data: { at: new Date().toISOString() } },
           { onConflict: 'user_id,kind' });
-        window.__bsToast?.('Workouts now share to your profile + feed · Settings → Share workout data', 'ok');
+        window.__bsToast?.(resolvedPrivacy === 'friends'
+          ? 'Workouts now share with your friends · Settings → Share workout data'
+          : 'Workouts now share to your profile + feed · Settings → Share workout data', 'ok');
       }
     } catch (e) {}
   }

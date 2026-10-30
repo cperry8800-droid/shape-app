@@ -241,6 +241,18 @@ test('a session never posts wider than the audience its toggle named', () => {
   assert.equal(cap(R, 'public', 'public'), 'public');
 });
 
+test('the first-share notice and toast say friends when that is the audience', () => {
+  // Codex P2 on #2511: both said "the community feed" to a member who picked Friends.
+  const SHARE = read('src/lib/workout-share.ts');
+  assert.match(SHARE, /const friends = privacy === 'friends';/);
+  assert.match(SHARE, /np\(friends \? 'workoutShare\.friendsTitle' : 'workoutShare\.title'\)/);
+  assert.match(SHARE, /np\(friends \? 'workoutShare\.friendsBody' : 'workoutShare\.body'\)/);
+  assert.match(SHARE, /title: friends \? 'Your workouts now share with your friends'/);
+  const en = JSON.parse(read('mobile-app/src/i18n/catalogs/en/notice.json'));
+  assert.doesNotMatch(en['workoutShare.friendsBody'], /community/i, 'the friends copy never names the community feed');
+  assert.match(BACKEND, /resolvedPrivacy === 'friends'\n\s*\? 'Workouts now share with your friends/);
+});
+
 test('the session player says who a shared session goes to', () => {
   assert.match(CLIENT, /shareAudience === 'friends' \? tr\('session:player\.shareToggleFriends'\) : tr\('session:player\.shareToggle'\)/);
   assert.match(CLIENT, /shareAudience === 'friends' \? tr\('session:player\.shareSubFriends'\) : tr\('session:player\.shareSub'\)/);

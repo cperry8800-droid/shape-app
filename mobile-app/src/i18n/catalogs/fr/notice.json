@@ -116,6 +116,8 @@
   "score.reason.habit": "une série d’habitude interrompue",
   "workoutShare.title": "Vos séances sont désormais partagées automatiquement",
   "workoutShare.body": "Les séances enregistrées et synchronisées apparaissent sur votre profil et dans le fil de la communauté. Gérez cela dans Réglages → Partager les données d’entraînement.",
+  "workoutShare.friendsTitle": "Vos séances sont désormais partagées avec vos amis",
+  "workoutShare.friendsBody": "Les séances enregistrées et synchronisées sont visibles par les personnes que vous suivez et qui vous suivent en retour. Gérez cela dans Réglages → Partager les données d’entraînement.",
   "mealPlan.title": "Nouveau plan de repas de votre coach",
   "credential.verified.title": "Profil vérifié ✓",
   "credential.verified.body": "Vos diplômes ont été validés — le badge « Vérifié » s’affiche désormais sur votre profil de la place de marché.",

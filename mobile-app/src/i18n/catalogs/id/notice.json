@@ -116,6 +116,8 @@
   "score.reason.habit": "rentetan kebiasaan yang terputus",
   "workoutShare.title": "Latihanmu kini dibagikan otomatis",
   "workoutShare.body": "Latihan yang dicatat dan disinkronkan tampil di profilmu dan feed komunitas. Atur ini di Pengaturan → Bagikan data latihan.",
+  "workoutShare.friendsTitle": "Latihanmu kini dibagikan ke temanmu",
+  "workoutShare.friendsBody": "Latihan yang dicatat dan disinkronkan terlihat oleh orang yang kamu ikuti dan mengikutimu kembali. Atur ini di Pengaturan → Bagikan data latihan.",
   "mealPlan.title": "Rencana makan baru dari coach-mu",
   "credential.verified.title": "Kamu terverifikasi ✓",
   "credential.verified.body": "Kredensialmu sudah lolos pemeriksaan — lencana Terverifikasi kini tampil di profil marketplace-mu.",
