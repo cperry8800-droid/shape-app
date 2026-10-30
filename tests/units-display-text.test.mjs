@@ -301,3 +301,22 @@ test('the elevation trace follows its figure, and the reader when there is none'
   // A figure wins over the setting.
   assert.equal(bsSdElevTraceIn([100], '540 ft', true).unit, 'ft');
 });
+
+// ⚠ A FRACTION OF A DISTANCE IS ONE VALUE (#2152's open item). Only the denominator, which the unit
+// touches, used to convert: "1/2 mi" read "1/3.2 km" on a metric reader's screen.
+test('a fraction of a distance converts as the number it is', () => {
+  assert.equal(bsSdUnitizeText('1/2 mi', KG), '0.8 km');
+  assert.equal(bsSdUnitizeText('Run 1/2 mi easy', KG), 'Run 0.8 km easy');
+  assert.equal(bsSdUnitizeText('3 × 1/4 mi', KG), '3 × 0.4 km');
+  assert.equal(bsSdUnitizeText('1 1/2 mi', KG), '2.4 km', 'a whole number and a fraction');
+  assert.equal(bsSdUnitizeText('1 1/2mi', KG), '2.4km', 'unspaced stays unspaced');
+  assert.equal(bsSdUnitizeText('1/2 km', LB), '0.3 mi', 'and the other way');
+  // In the reader's own unit nothing moves.
+  assert.equal(bsSdUnitizeText('1 1/2 mi', LB), '1 1/2 mi');
+  assert.equal(bsSdUnitizeText('1/2 km', KG), '1/2 km');
+  // What the rule leaves to the others: a pace's denominator, a ladder of weights, a plain distance.
+  assert.equal(bsSdUnitizeText('9:30/mi', KG), '5:54/km');
+  assert.equal(bsSdUnitizeText('60/70/80 kg', LB), '132/154/176 lb');
+  assert.equal(bsSdUnitizeText('2 mi', KG), '3.2 km');
+  assert.equal(bsSdUnitizeText('Ran 3.1 mi in 28:40', KG), 'Ran 5 km in 28:40');
+});

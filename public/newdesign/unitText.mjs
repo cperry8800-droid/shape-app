@@ -252,6 +252,19 @@ export function bsSdUnitizeText(text, prefs, opts) {
     return `${parts.join('/')}${gap ? ' ' : ''}${target}`;
   });
 
+  // ⚠ A FRACTION OF A DISTANCE IS ONE VALUE (#2152's open item). Left to the rule below, "1/2 mi"
+  // read "1/3.2 km": only the denominator, which the unit touches, was converted. A fraction, or a
+  // whole number and a fraction ("1 1/2 mi"), converts as the number it is, "0.8 km" and "2.4 km".
+  // A zero denominator is no fraction, and is left to the rule below.
+  out = out.replace(/(?<![\w/.,:])(?:(\d+)\s+)?(\d+)\s*\/\s*(\d+)(\s*)(mi|km)(?![\w/-])/gi, (m, whole, top, bottom, gap, unit) => {
+    const src = sdUnitKind(unit).key;
+    if (!want.distance || want.distance === src || Number(bottom) === 0) return m;
+    const n = Number(whole || 0) + Number(top) / Number(bottom);
+    const conv = bsSdConvertValue(n, src, want.distance);
+    if (conv == null) return m;
+    return `${sdFormatNumber(conv, false, 1)}${gap ? ' ' : ''}${want.distance}`;
+  });
+
   out = out.replace(/(\d[\d,]*(?:\.\d+)?)\s*(lbs?|kg|mi|km)(?![\w-])/gi, (m, num, unit) => {
     const src = sdUnitKind(unit);
     const target = src.kind === 'weight' ? want.weight : want.distance;
