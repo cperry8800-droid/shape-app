@@ -3244,6 +3244,104 @@ window.shapeClearLocalUserContent = function (opts) {
   else start();
 })();
 
+// ── Checkout notices ─────────────────────────────────────────────────────────
+// ⚠ A CHECKOUT THAT DIDN'T START SAID NOTHING. /purchase, /subscribe and the membership detour
+// (src/lib/membership-detour.ts) send the visitor back to the coach's profile with `&error=<code>`,
+// Stripe's Cancel comes back the same way, and the membership checkout's Cancel lands on Pricing
+// with `?error=subscribe_cancelled`. No page read the code, so a visitor whose coach was full, or
+// whose code was refused, was put back on the profile without a word. The shell shows the code's
+// line on every page it renders, once: the code leaves the address, so a reload or a shared link
+// doesn't show it again. Only these codes are read; any other `error` (an auth return's, say) is
+// left where it is.
+const SHAPE_CHECKOUT_FAILED = "Checkout couldn't start. Nothing was charged. Try again in a moment.";
+const SHAPE_CHECKOUT_NOTICES = {
+  purchase_cancelled: ["info", "Checkout cancelled. Nothing was charged."],
+  subscribe_cancelled: ["info", "Checkout cancelled. Nothing was charged."],
+  already_subscribed: ["info", "You already subscribe to this coach, so nothing new was charged."],
+  checkout_in_progress: ["info", "Another checkout for this is still starting. Nothing was charged. Try again in a moment."],
+  provider_at_capacity: ["error", "This coach is full right now, so checkout didn't start. Nothing was charged."],
+  provider_suspended: ["error", "This coach isn't taking payments right now. Nothing was charged."],
+  provider_not_found: ["error", "We couldn't find this coach's listing. Nothing was charged."],
+  price_not_set: ["error", "This coach hasn't set a price yet, so checkout didn't start. Nothing was charged."],
+  provider_not_onboarded: ["error", "This coach can't take payments yet. Nothing was charged."],
+  stripe_not_onboarded: ["error", "This coach can't take payments yet. Nothing was charged."],
+  coach_disconnected: ["error", "This coach can't take payments yet. Nothing was charged."],
+  code_invalid: ["error", "That code isn't valid. Check it and try again. Nothing was charged."],
+  code_not_here: ["error", "That code can't be used with this coach. Try again without it. Nothing was charged."],
+  code_check_failed: ["error", "We couldn't check that code. Nothing was charged. Try again in a moment."],
+  payment_pending: ["error", "A recent checkout with this coach is still being confirmed, so a new one can't start yet. Nothing was charged. If this lasts more than a few days, contact support."],
+  membership_required: ["error", "Coaching needs a Shape membership, and it couldn't be started from here. Nothing was charged. Start one on the Pricing page."],
+  membership_check_failed: ["error", "We couldn't check your Shape membership. Nothing was charged. Try again in a moment."],
+  age_restricted: ["error", "Shape is for adults 18 and over."],
+  checkout_failed: ["error", SHAPE_CHECKOUT_FAILED],
+  waitlist_check_failed: ["error", SHAPE_CHECKOUT_FAILED],
+  screening_check_failed: ["error", SHAPE_CHECKOUT_FAILED],
+  subscription_check_failed: ["error", SHAPE_CHECKOUT_FAILED],
+};
+function shapeCheckoutNotice(code) {
+  if (typeof code !== "string" || !code) return null;
+  if (Object.prototype.hasOwnProperty.call(SHAPE_CHECKOUT_NOTICES, code)) {
+    return { tone: SHAPE_CHECKOUT_NOTICES[code][0], text: SHAPE_CHECKOUT_NOTICES[code][1] };
+  }
+  // A database or Stripe failure carries that system's own message after its prefix. The
+  // visitor gets the plain line, never the message.
+  if (/^(?:db_[\w-]*|stripe|stripe_setup): /.test(code)) return { tone: "error", text: SHAPE_CHECKOUT_FAILED };
+  return null;
+}
+// The query without `key`, cut out as text so every other parameter keeps its exact encoding
+// (URLSearchParams would write a name's %20 back as +).
+function shapeQueryWithout(search, key) {
+  const kept = String(search || "").replace(/^\?/, "").split("&").filter(function (p) { return p && p.split("=")[0] !== key; });
+  return kept.length ? "?" + kept.join("&") : "";
+}
+(function shapeCheckoutNoticeMount() {
+  if (typeof document === "undefined" || typeof location === "undefined") return;
+  var notice = null;
+  try { notice = shapeCheckoutNotice(new URLSearchParams(location.search).get("error")); } catch (e) {}
+  if (!notice) return;
+  try { history.replaceState(history.state, "", location.pathname + shapeQueryWithout(location.search, "error") + location.hash); } catch (e) {}
+  function start() {
+    try {
+      if (document.getElementById("shape-checkout-notice")) return;
+      var error = notice.tone === "error";
+      // The paper's tokens, so a dashboard on a light paper gets a light card; a page without
+      // dash.css gets the fallbacks, the dark card. Only the spine is coloured: the eyebrow is
+      // ink2, which holds 4.5:1 on every paper where teal or rust wouldn't. Under the drawer
+      // (9000), which covers it while open; over every page layer (the highest is 3000).
+      var box = document.createElement("div");
+      box.id = "shape-checkout-notice";
+      box.setAttribute("role", error ? "alert" : "status");
+      box.style.cssText = "position:fixed;top:16px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:520px;z-index:8000;display:flex;align-items:flex-start;gap:8px;background:var(--sh-card, #25211d);color:var(--sh-ink, #f2ede4);border:1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.15);border-left:3px solid " + (error ? "#d2693f" : "var(--sh-accent2, #0ac5a8)") + ";border-radius:9px;padding:4px 4px 4px 16px;font-family:'Space Grotesk',sans-serif;font-size:14px;line-height:1.5;box-shadow:0 10px 40px rgba(0,0,0,0.5)";
+      var body = document.createElement("div");
+      body.style.cssText = "flex:1;min-width:0;padding:8px 0";
+      var eyebrow = document.createElement("div");
+      eyebrow.textContent = "Checkout";
+      eyebrow.style.cssText = "font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.16em;text-transform:uppercase;margin-bottom:2px;color:var(--sh-ink2, #a09b94)";
+      var text = document.createElement("div");
+      text.textContent = notice.text;
+      body.appendChild(eyebrow);
+      body.appendChild(text);
+      var close = document.createElement("button");
+      close.type = "button";
+      close.setAttribute("aria-label", "Dismiss");
+      close.textContent = "×";
+      close.style.cssText = "flex:none;width:44px;height:44px;border:0;border-radius:7px;background:transparent;color:inherit;font-size:22px;line-height:1;cursor:pointer";
+      function dismiss() {
+        if (box.parentNode) box.parentNode.removeChild(box);
+        document.removeEventListener("keydown", onKey);
+      }
+      function onKey(e) { if (e.key === "Escape") dismiss(); }
+      close.onclick = dismiss;
+      document.addEventListener("keydown", onKey);
+      box.appendChild(body);
+      box.appendChild(close);
+      document.body.appendChild(box);
+    } catch (e) {}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
+  else start();
+})();
+
 // ── Per-day key garbage collection ───────────────────────────────────────────
 // Four families write one localStorage key per day/week and nothing ever
 // removed them: shape.habits.<date>, shape.dashMealLog.<date>,
