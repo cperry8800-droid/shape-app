@@ -900,6 +900,8 @@ test('the studio: each piece shows the moves of the coach\'s programs done on it
     { t: 'rack', x: 20, y: 40, w: 78, h: 46, st: { title: 'Squat rack', note: 'Heavy sets.', pins: [STRONG.id, '99999999-2222-4333-8444-555555555555'] } },
     { t: 'dumbbells', x: 20, y: 200, w: 120, h: 16 },
     { t: 'dumbbells', x: 20, y: 230, w: 120, h: 16 },
+    // A zone round both racks holds their moves, but is not a piece to tap.
+    { t: 'zone', x: 10, y: 190, w: 150, h: 70, tag: 'Free weights' },
     { t: 'speaker', x: 200, y: 20, w: 22, h: 22 },
     { t: 'rower', x: 260, y: 300, w: 18, h: 76 },
   ] };
@@ -908,7 +910,7 @@ test('the studio: each piece shows the moves of the coach\'s programs done on it
   await tab('The studio');
   assert.equal(document.querySelectorAll('[data-station]').length, 1);
   const marks = [...document.querySelectorAll('[data-piece]')];
-  assert.equal(marks.length, 3, 'both dumbbell racks and the rower; never the speaker');
+  assert.equal(marks.length, 3, 'both dumbbell racks and the rower; never the speaker or the zone');
   assert.match(marks[0].getAttribute('aria-label'), /Dumbbell rack: 1 move from the programs/);
   const rows = [...document.querySelectorAll('[data-floor-row]')];
   assert.equal(rows.length, 2, 'the two dumbbell racks are one row');
