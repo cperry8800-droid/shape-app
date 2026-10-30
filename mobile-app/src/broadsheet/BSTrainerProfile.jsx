@@ -502,7 +502,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
 
   // ── Overlays ──
   const [sheet, setSheet] = React.useState(null); // { kind: 'work'|'book'|'station'|'replay'|'reviews', ... }
-  const [page, setPage] = React.useState(null);   // 'edit' | 'hours' | 'business'
+  const [page, setPage] = React.useState(null);   // 'edit' | 'hours' | 'business' | 'person'
   const [recipe, setRecipe] = React.useState(null); // a Shape Kitchen recipe a plate note opened
   const [ownRecipe, setOwnRecipe] = React.useState(null); // one of a nutritionist's own recipes
   const [cooking, setCooking] = React.useState(null); // the cookable cook mode runs
@@ -517,6 +517,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const pageRef = React.useRef(null);
   const scrollerOf = () => (pageRef.current && pageRef.current.closest ? pageRef.current.closest('.bs-scroll') : null);
   const [showLog, setShowLog] = React.useState(false);
+  // A person tapped in an activity card's likers sheet opens their profile over this page, and Back
+  // returns to the same spot here, as the member profile does with its followers (the coach page
+  // passed a no-op, so the row did nothing).
+  const [personFor, setPersonFor] = React.useState(null);
   // Every way into Make it yours goes through here, and waits for the coach's doc (ownState).
   const editReady = ownState === 'ready';
   // The doc was read for one account. With another signed in now, it is read again for that one
@@ -527,6 +531,12 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     const sc = scrollerOf();
     leftAt.current = sc ? sc.scrollTop : null;
     setEditTab(tabKey); setEditSection(section); setPage('edit');
+  };
+  const openPerson = (p) => {
+    if (!p || !W.BSPublicProfile) return;
+    const sc = scrollerOf();
+    leftAt.current = sc ? sc.scrollTop : null;
+    setPersonFor(p); setPage('person');
   };
   React.useLayoutEffect(() => {
     if (page !== null || leftAt.current == null) return undefined;
@@ -562,6 +572,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   }
   if (page === 'hours') return <BSCoachHoursPage role={role} onBack={() => { setPage(null); setAvailEpoch((n) => n + 1); }} />;
   if (page === 'business') return <BSCoachBusinessPage role={role} tab="money" onBack={() => setPage(null)} />;
+  if (page === 'person' && personFor && W.BSPublicProfile) return <W.BSPublicProfile person={personFor} onBack={() => { setPersonFor(null); setPage(null); }} onMessage={onMessage} />;
 
   const BSPage = W.BSPage;
   const corner = W.BS_HEADER_AVATAR || 34;
@@ -713,7 +724,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
               actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr, exprOpenKey: exprOpen, setExprOpenKey: setExprOpen, lpTimerRef, lpFiredRef,
               tierByUser: person.userId ? { [person.userId]: tierKey } : {}, avatarByUser: {}, feedAvatars: {},
               myRole: (W.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client', coachClientIds: new Set(), myFollowingSet: null,
-              setOpenProfile: () => {}, feedApplyReaction: applyReaction,
+              setOpenProfile: openPerson, feedApplyReaction: applyReaction,
               // The coach edits a post of their own from its card, in the same composer.
               onEdit: isSelf && !demo ? (a) => { if (a.postId && BS_UUID.test(String(a.postId))) setEditingPost({ postId: a.postId, title: a.title || '', body: a.body || '', photo: a.photo || null, video: a.video || null, link: a.link || null, kind: a.editKind || null, privacy: a.privacy || 'public' }); } : undefined,
               ...cardSheets.ctx,
@@ -826,7 +837,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
         </Sheet>
       ) : null}
       {editingPost && W.BSLogActivitySheet ? <W.BSLogActivitySheet c={ACC} INK={INK} BG={t.PAPER_BG} editPost={editingPost} onClose={() => setEditingPost(null)} onPosted={() => { setEditingPost(null); setPostsNonce((n) => n + 1); }} /> : null}
-      {cardSheets ? cardSheets.renderSheets({ applyReaction, setOpenProfile: () => {}, actLikes, actExpr }) : null}
+      {cardSheets ? cardSheets.renderSheets({ applyReaction, setOpenProfile: openPerson, actLikes, actExpr }) : null}
       {showLog && W.BSLogActivitySheet ? <W.BSLogActivitySheet c={ACC} INK={INK} BG={t.PAPER_BG} startKind={typeof showLog === 'string' ? showLog : undefined} onClose={() => setShowLog(false)} onPosted={() => { setShowLog(false); setPostsNonce((n) => n + 1); }} /> : null}
       {recipe ? <RecipeOverlay t={t} tr={tr} recipe={recipe} onClose={() => setRecipe(null)} /> : null}
       {ownRecipe ? <OwnRecipePage t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} recipe={ownRecipe} first={first} avatar={avatarShown} isSelf={isSelf}

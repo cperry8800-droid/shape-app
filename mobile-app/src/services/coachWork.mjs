@@ -243,8 +243,8 @@ export function bsStudioWork(studio, programs) {
 // program's moves onto the pieces they use, the kitchen reads a recipe's method onto the spots it
 // uses: a recipe that roasts lights the oven, one that sears lights the stove, an overnight one the
 // fridge. Read from the recipe's own words (its name, note, method and ingredients), so a coach's
-// recipe lands on their plan with nothing more to set. English words only: a recipe written in
-// another language lights nothing, and its spots still show the coach's own note.
+// recipe lands on their plan with nothing more to set, in English (KITCHEN_USES) or in any of the
+// app's other twelve languages (KITCHEN_WORDS_INTL).
 const KITCHEN_USES = [
   ['oven', /\b(oven|bake[ds]?|baking|roast(s|ed|ing)?|sheet[- ]pans?|broil(s|ed|ing)?|traybake)\b/i],
   // Sheet-pan is the oven's, so it is taken out before the stove looks for a pan.
@@ -258,23 +258,230 @@ const KITCHEN_USES = [
 // What the pantry and the herb shelf hold, read from the ingredients alone.
 const PANTRY_WORDS = /\b(rice|oats?|lentils?|beans?|chickpeas?|pasta|noodles|quinoa|couscous|tinned|canned|flour|tortillas?|stock|broth)\b/i;
 const HERB_WORDS = /\b(basil|parsley|cilantro|coriander|mint|dill|thyme|rosemary|chives|oregano|sage)\b/i;
+
+// ⚠ THE SAME USES IN THE APP'S OTHER TWELVE LANGUAGES (#2516's open item: a recipe written in
+// German or Vietnamese lit nothing), one block per language. Three rules hold every word here:
+//   · A word ending in * is a stem and matches any word that starts with it, so an inflected verb
+//     still lands ("anbraten", "обжарьте", "doğrayın"); any other word matches whole. Word edges are
+//     Unicode letters (JS's \b knows only ASCII ones, so Cyrillic and Vietnamese never matched).
+//   · A word that also means something else in a recipe is left out, not guessed: fr "four" is
+//     inside "fourchette", es "horno" next to "hornilla" (a burner), it "forn-" also "fornello" (the
+//     stove), vi "cân" is "cân bằng" (balance), tr "kes-" is "kesinlikle". A spot that stays dark
+//     is better than one lit by the wrong word.
+//   · ⚠ A line is read only with its own language's words (Codex on #2518): a stem of one language
+//     begins words of another, as id "iris*" begins the English "Irish", it "trit*" "Triticale",
+//     and fr "laver" is a seaweed. So a word two languages share is in both blocks.
+// Pidgin (pcm) recipes are written with English cooking words, which KITCHEN_USES already reads.
+const KITCHEN_WORDS_INTL = {
+  de: {
+    oven: ['backofen', 'ofen*', 'backen', 'gebacken*', 'backblech*', 'röst*', 'geröstet*', 'überbacken*'],
+    range: ['pfanne*', 'topf', 'kochtopf', 'anbrat*', 'brat*', 'köchel*', 'dünst*', 'sautier*', 'herd', 'schmor*', 'wok'],
+    blender: ['mixer', 'stabmixer', 'pürier*', 'smoothie*'],
+    board: ['hack*', 'gehackt*', 'schneid*', 'geschnitten*', 'würfel*', 'gewürfelt*', 'schneidebrett'],
+    fridge: ['kühlschrank', 'kühl*', 'gekühlt*', 'über nacht', 'marinier*'],
+    sink: ['abspül*', 'abtropf*', 'abgieß*', 'abgiess*', 'wasch*', 'gewaschen*'],
+    scale: ['wieg*', 'abwieg*', 'waage'],
+    pantry: ['reis', 'hafer*', 'linsen', 'bohnen', 'kichererbsen', 'nudeln', 'pasta', 'quinoa', 'couscous', 'mehl', 'brühe'],
+    herbs: ['basilikum', 'petersilie', 'koriander', 'minze', 'dill', 'thymian', 'rosmarin', 'schnittlauch', 'oregano', 'salbei'],
+  },
+  es: {
+    oven: ['horno', 'hornea*', 'hornee*', 'hornear', 'horneado*', 'horneada*', 'asado*', 'asada*', 'asar', 'gratin*'],
+    range: ['sartén', 'olla', 'cacerola', 'salte*', 'sofr*', 'freír', 'fríe', 'frit*', 'herv*', 'hierv*', 'fuego', 'wok'],
+    blender: ['licua*', 'batidora', 'tritur*', 'smoothie*'],
+    board: ['picar', 'pique', 'picado*', 'picada*', 'cortar', 'corte', 'cortado*', 'cortada*', 'trocea*', 'troce*', 'dados', 'cubos', 'rebana*', 'tabla de cortar'],
+    fridge: ['nevera', 'refriger*', 'frigor*', 'enfri*', 'toda la noche', 'marinar', 'marinado*', 'marinada*'],
+    sink: ['enjuag*', 'escurr*', 'lavar', 'lave', 'lavado*', 'lavada*'],
+    scale: ['pesar', 'pese', 'báscula'],
+    pantry: ['arroz', 'avena', 'lentejas', 'frijoles', 'judías', 'alubias', 'garbanzos', 'fideos', 'pasta', 'quinoa', 'cuscús', 'harina', 'caldo'],
+    herbs: ['albahaca', 'perejil', 'cilantro', 'menta', 'hierbabuena', 'eneldo', 'tomillo', 'romero', 'cebollino', 'orégano', 'salvia'],
+  },
+  fr: {
+    oven: ['enfourn*', 'rôti*', 'au four', 'gratin*'],
+    range: ['poêl*', 'casserole', 'sauteuse', 'revenir', 'saisi*', 'mijot*', 'frire', 'bouill*', 'ébullition', 'feu', 'wok'],
+    blender: ['mixez', 'mixer', 'mixé*', 'mixeur', 'blender', 'smoothie*'],
+    board: ['hach*', 'émin*', 'coupe', 'coupez', 'couper', 'coupé*', 'découp*', 'dés', 'tranch*', 'cisel*', 'planche à découper'],
+    fridge: ['frigo*', 'réfrigér*', 'au frais', 'toute la nuit', 'mariner', 'marinez', 'mariné*'],
+    sink: ['rinc*', 'égoutt*', 'laver', 'lavez'],
+    scale: ['peser', 'pesez', 'pèse'],
+    pantry: ['riz', 'avoine', 'lentilles', 'haricots', 'pois chiches', 'pâtes', 'nouilles', 'quinoa', 'couscous', 'farine', 'bouillon'],
+    herbs: ['basilic', 'persil', 'coriandre', 'menthe', 'aneth', 'thym', 'romarin', 'ciboulette', 'origan', 'sauge'],
+  },
+  it: {
+    oven: ['forno', 'inforn*', 'arrost*', 'teglia', 'gratin*'],
+    range: ['padell*', 'pentol*', 'tegame', 'rosol*', 'soffri*', 'frigg*', 'fritt*', 'boll*', 'sobboll*', 'fuoco', 'fornell*', 'wok'],
+    blender: ['frull*', 'mixer', 'smoothie*'],
+    board: ['trit*', 'sminuzz*', 'tagliare', 'tagliate', 'tagliato*', 'tagliata*', 'cubett*', 'dadin*', 'affett*', 'tagliere'],
+    fridge: ['frigo*', 'tutta la notte', 'marinare', 'marinato*', 'marinata*'],
+    sink: ['sciacqu*', 'scol*', 'lavare', 'lavate'],
+    scale: ['pesare', 'pesate', 'bilancia'],
+    pantry: ['riso', 'avena', 'lenticchie', 'fagioli', 'ceci', 'pasta', 'quinoa', 'couscous', 'farina', 'brodo'],
+    herbs: ['basilico', 'prezzemolo', 'coriandolo', 'menta', 'aneto', 'timo', 'rosmarino', 'erba cipollina', 'origano', 'salvia'],
+  },
+  pt: {
+    oven: ['forno', 'assar', 'assado*', 'assada*', 'asse', 'assadeira*', 'gratin*'],
+    range: ['frigideir*', 'panela', 'refog*', 'salte*', 'frit*', 'ferv*', 'fogo', 'wok'],
+    blender: ['liquidific*', 'processador', 'tritur*', 'smoothie*'],
+    board: ['picar', 'pique', 'picado*', 'picada*', 'cortar', 'corte', 'cortado*', 'cortada*', 'fati*', 'cubos', 'cubinhos', 'tábua'],
+    fridge: ['geladeira', 'refriger*', 'durante a noite', 'noite toda', 'marinar', 'marinado*', 'marinada*'],
+    sink: ['enxágu*', 'enxagu*', 'escorr*', 'lavar', 'lave', 'lavado*', 'lavada*'],
+    scale: ['pesar', 'pese', 'balança'],
+    pantry: ['arroz', 'aveia', 'lentilha*', 'feijão', 'feijões', 'grão-de-bico', 'macarrão', 'quinoa', 'cuscuz', 'farinha', 'caldo'],
+    herbs: ['manjericão', 'salsinha', 'coentro', 'hortelã', 'endro', 'tomilho', 'alecrim', 'cebolinha', 'orégano', 'sálvia'],
+  },
+  id: {
+    oven: ['oven', 'panggang', 'dipanggang', 'memanggang'],
+    range: ['wajan', 'panci', 'wok', 'tumis', 'menumis', 'goreng', 'menggoreng', 'rebus', 'merebus', 'didih*', 'mendidih', 'kompor'],
+    blender: ['blender', 'diblender', 'haluskan', 'smoothie*'],
+    board: ['potong*', 'dipotong', 'iris*', 'diiris', 'cincang', 'dicincang', 'talenan'],
+    fridge: ['kulkas', 'lemari es', 'dinginkan', 'semalam*', 'marinasi'],
+    sink: ['bilas', 'dibilas', 'tiriskan', 'cuci', 'dicuci'],
+    scale: ['timbang', 'ditimbang', 'timbangan'],
+    pantry: ['beras', 'nasi', 'oat', 'kacang', 'mie', 'bihun', 'quinoa', 'pasta', 'tepung', 'kaldu'],
+    herbs: ['kemangi', 'peterseli', 'ketumbar', 'daun mint', 'adas', 'daun bawang', 'oregano'],
+  },
+  ha: {
+    oven: ['gasa*'],
+    range: ['soya*', 'tafas*', 'tukunya', 'murhu'],
+    blender: ['markad*'],
+    board: ['yank*', 'yayyank*'],
+    fridge: ['firij*', 'firji'],
+    sink: ['wank*', 'tsiyay*'],
+    scale: ['auna'],
+    pantry: ['shinkafa', 'wake', 'alkama', 'fulawa', 'taliya'],
+    herbs: ["na'a na'a", 'daddoya'],
+  },
+  ru: {
+    oven: ['духовк*', 'запек*', 'запеч*', 'выпек*', 'противн*'],
+    range: ['сковород*', 'кастрюл*', 'обжар*', 'жар*', 'туши*', 'тушен*', 'варит*', 'свари*', 'отвари*', 'кипя*', 'закип*', 'плит*'],
+    blender: ['блендер*', 'смузи', 'пюрир*'],
+    board: ['нареж*', 'нарез*', 'порез*', 'измельч*', 'шинк*', 'кубик*', 'рубит*', 'доск*'],
+    fridge: ['холодильник*', 'охлад*', 'на ночь', 'маринов*', 'маринад*'],
+    sink: ['промо*', 'промыв*', 'сполосн*', 'слить', 'слейте', 'дуршлаг*'],
+    scale: ['взвес*', 'весы', 'весах'],
+    pantry: ['рис', 'овсян*', 'геркулес', 'чечевиц*', 'фасол*', 'нут', 'макарон*', 'лапш*', 'киноа', 'кускус', 'мук*', 'бульон*', 'консерв*'],
+    herbs: ['базилик*', 'петрушк*', 'кинз*', 'мят*', 'укроп*', 'тимьян*', 'розмарин*', 'шалфе*', 'орегано'],
+  },
+  uk: {
+    oven: ['духовк*', 'запік*', 'запеч*', 'випік*', 'деко'],
+    range: ['сковород*', 'сковорід*', 'каструл*', 'обсмаж*', 'смаж*', 'тушк*', 'вари*', 'звари*', 'відвар*', 'кип\'ят*', 'кипʼят*', 'кип’ят*', 'плит*'],
+    blender: ['блендер*', 'смузі'],
+    board: ['наріж*', 'наріз*', 'поріж*', 'поріз*', 'подрібн*', 'шатк*', 'кубик*', 'дошк*'],
+    fridge: ['холодильник*', 'охолод*', 'на ніч', 'маринув*', 'маринад*'],
+    sink: ['промий*', 'промив*', 'злий*', 'злити', 'друшляк*'],
+    scale: ['зваж*', 'ваги', 'вагах'],
+    pantry: ['рис', 'вівсян*', 'геркулес', 'сочевиц*', 'квасол*', 'нут', 'макарон*', 'локшин*', 'кіноа', 'кускус', 'борошн*', 'бульйон*', 'консерв*'],
+    herbs: ['базилік*', 'петрушк*', 'кінз*', "м'ят*", 'мʼят*', 'м’ят*', 'кріп', 'кроп*', 'чебрец*', 'чебрець', 'розмарин*', 'шавлі*', 'орегано'],
+  },
+  tr: {
+    oven: ['fırın*'],
+    range: ['tava*', 'tencere*', 'kızart*', 'kavur*', 'haşla*', 'kaynat*', 'sote*', 'ocak*', 'wok'],
+    blender: ['blender*', 'rondo*', 'smoothie*'],
+    board: ['doğra*', 'dilimle*', 'küp', 'rendele*'],
+    fridge: ['buzdolab*', 'soğut*', 'gece boyunca', 'bir gece', 'marine'],
+    sink: ['durula*', 'süz*', 'yıka*'],
+    scale: ['tartın', 'tartılı*', 'terazi'],
+    pantry: ['pirinç', 'yulaf', 'mercimek', 'fasulye', 'nohut', 'makarna', 'şehriye', 'kinoa', 'kuskus', 'et suyu', 'tavuk suyu', 'konserve'],
+    herbs: ['fesleğen', 'maydanoz', 'kişniş', 'nane', 'dereotu', 'kekik', 'biberiye', 'frenk soğanı', 'adaçayı'],
+  },
+  vi: {
+    oven: ['lò nướng', 'nướng'],
+    range: ['chảo', 'nồi', 'xào', 'chiên', 'rán', 'luộc', 'đun', 'hầm'],
+    blender: ['máy xay', 'xay', 'sinh tố'],
+    board: ['băm', 'cắt', 'xắt', 'thái lát', 'thái nhỏ', 'thái mỏng', 'thái sợi', 'thái hạt lựu', 'thớt'],
+    fridge: ['tủ lạnh', 'ướp', 'qua đêm', 'làm lạnh'],
+    sink: ['rửa', 'xả', 'để ráo', 'ráo'],
+    pantry: ['gạo', 'cơm', 'yến mạch', 'đậu lăng', 'đậu', 'mì', 'bún', 'phở', 'bột', 'nước dùng', 'đồ hộp'],
+    herbs: ['húng quế', 'rau mùi', 'ngò', 'bạc hà', 'thì là', 'hương thảo', 'hẹ', 'kinh giới'],
+  },
+};
+// Which language a line is in, from its little words and the letters only that language writes: a
+// point for each such word, and one for each letter class a word shows. Cyrillic counts for Russian
+// and Ukrainian alike until a letter tells them apart. Pidgin is read with the English words, so its
+// little words are English's signs too (after the |): "Put di rice for pot, make e boil" is not Italian.
+const KITCHEN_LANG_SIGNS = {
+  en: ['the and with until into then of to your from it is or on at each while when before after over add for make small | dey wey una dem don wetin abeg sabi pikin wan di am na'],
+  de: ['der die das und mit den dem des im auf ein eine einen einem einer zu zum zur von vom für bei beim aus nach oder ist sie dann bis etwa über minuten', /[äß]/u, /[öü]/u],
+  es: ['el los las y del al con en por para hasta luego unos unas una sin después muy más minutos', /ñ/u],
+  fr: ['le les et avec des du dans une pour puis aux au sur est en ou à jusqu pendant environ votre vos chaque sans très', /[œîûëïÿ]/u],
+  it: ['il lo gli le della delle dei degli nel nella nei alla allo alle poi fino minuti che per con del al una e di da è sono circa ogni dopo più oppure sul sulla', /[ìò]/u],
+  pt: ['o os e com do da dos das em no na nos nas um uma até depois ao aos à minutos por para ou mais sem também', /[ãõ]/u],
+  id: ['dan di ke dengan yang hingga sampai lalu kemudian selama menit dalam atau untuk dari ini itu agar setelah sebelum sambil secukupnya'],
+  ha: ['sannan kuma cikin har minti zuwa akan tare wannan kafin bayan ka ki da na ta shi ita ko idan', /[ɓɗƙƴ]/u],
+  ru: ['и в на с до по из для минут затем или не а что к со под пока после перед потом', /[\u0400-\u04ff]/u, /[ыэъё]/u],
+  uk: ['і й та з із зі у в на до для не а по хвилин потім або після поки що', /[\u0400-\u04ff]/u, /[іїєґ]/u],
+  tr: ['ve ile bir için kadar sonra dakika iyice olarak veya üzerine içine daha gibi her', /[ışğ]/u, /[öü]/u],
+  vi: ['và trong cho với rồi của khi phút một các những là có để sau trước đến vào', /[ăđơư\u1ea0-\u1ef9]/u],
+};
+const LANG_SIGNS = Object.entries(KITCHEN_LANG_SIGNS).map(([lang, [words, ...letters]]) => [lang, new Set(words.split(' ').filter((w) => w !== '|')), letters]);
+
+const langSigns = (text) => {
+  const score = new Map();
+  for (const w of String(text || '').normalize('NFC').toLowerCase().match(/[\p{L}\p{M}]+/gu) || []) {
+    for (const [lang, words, letters] of LANG_SIGNS) {
+      let n = words.has(w) ? 1 : 0;
+      for (const re of letters) if (re.test(w)) n++;
+      if (n) score.set(lang, (score.get(lang) || 0) + n);
+    }
+  }
+  return score;
+};
+const mostSigns = (score, none) => {
+  const top = Math.max(0, ...score.values());
+  return top ? [...score.keys()].filter((l) => score.get(l) === top) : none;
+};
+/**
+ * The languages a line of text is written in: the one with the most signs, or each tied for the
+ * most; `none` (English) when it shows no sign of any.
+ */
+export function bsTextLanguages(text, none = ['en']) {
+  return mostSigns(langSigns(text), none);
+}
+
+const reEscape = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// A word list as one regex: a stem's word starts with it, any other word is whole; edges are letters.
+const wordsRe = (list) => new RegExp('(?<![\\p{L}\\p{M}\\p{N}])(?:' + list.map((w) => (w.endsWith('*')
+  ? reEscape(w.slice(0, -1).normalize('NFC'))
+  : reEscape(w.normalize('NFC')) + '(?![\\p{L}\\p{M}\\p{N}])')).join('|') + ')', 'iu');
+const KITCHEN_INTL_RE = Object.fromEntries(Object.entries(KITCHEN_WORDS_INTL).map(([lang, spots]) => [lang,
+  Object.fromEntries(Object.entries(spots).filter(([, list]) => list.length).map(([type, list]) => [type, wordsRe(list)]))]));
 // Where a use lands when the plan has no piece for it: an oven's on the stove, the board's on the
 // island or a counter.
 const KITCHEN_FALLBACK = { oven: ['range'], board: ['island', 'counter'], scale: ['island', 'counter'], blender: ['counter', 'island'] };
 const RECIPE_SCAN = 40;
-const recipeWords = (r) => [r.t, r.note, ...(Array.isArray(r.steps) ? r.steps.slice(0, RECIPE_SCAN) : [])].map((x) => clean(x, 600)).join(' \n ');
-const recipeIngs = (r) => (Array.isArray(r.ing) ? r.ing.slice(0, RECIPE_SCAN) : []).map((g) => (isObj(g) ? clean(g.m, 120) : '')).join(' \n ');
+const recipeLines = (r) => [r.t, r.note, ...(Array.isArray(r.steps) ? r.steps.slice(0, RECIPE_SCAN) : [])].map((x) => clean(x, 600).normalize('NFC')).filter(Boolean);
+const recipeIngs = (r) => (Array.isArray(r.ing) ? r.ing.slice(0, RECIPE_SCAN) : []).map((g) => (isObj(g) ? clean(g.m, 120).normalize('NFC') : '')).filter(Boolean);
+const KITCHEN_USE_ORDER = [...KITCHEN_USES.map(([type]) => type), 'pantry', 'herbs'];
 
 /** The kitchen pieces one recipe uses, by type, from its words: e.g. ['oven', 'board', 'pantry']. */
 export function bsRecipeKitchenUses(r) {
   if (!isObj(r)) return [];
-  const text = recipeWords(r);
-  const ings = recipeIngs(r);
-  const out = [];
-  for (const [type, re, prep] of KITCHEN_USES) if (re.test(prep ? prep(text) : text)) out.push(type);
-  if (PANTRY_WORDS.test(ings)) out.push('pantry');
-  if (HERB_WORDS.test(ings)) out.push('herbs');
-  return out;
+  const lines = recipeLines(r).map((s) => [s, langSigns(s)]);
+  const ings = recipeIngs(r).map((s) => [s, langSigns(s)]);
+  // Each line is read in its own language, or in the recipe's when the line shows no sign of one:
+  // a catalog recipe's English method with the coach's own note in Turkish reads each in its own.
+  const all = new Map();
+  for (const [, score] of [...lines, ...ings]) for (const [lang, n] of score) all.set(lang, (all.get(lang) || 0) + n);
+  const whole = mostSigns(all, ['en']);
+  const byLang = (list) => {
+    const by = new Map();
+    for (const [s, score] of list) {
+      for (const lang of mostSigns(score, whole)) by.set(lang, (by.has(lang) ? by.get(lang) + ' \n ' : '') + s);
+    }
+    return by;
+  };
+  const used = new Set();
+  for (const [lang, text] of byLang(lines)) {
+    if (lang === 'en') {
+      for (const [type, re, prep] of KITCHEN_USES) if (re.test(prep ? prep(text) : text)) used.add(type);
+    } else {
+      for (const [type] of KITCHEN_USES) if (KITCHEN_INTL_RE[lang][type] && KITCHEN_INTL_RE[lang][type].test(text)) used.add(type);
+    }
+  }
+  for (const [lang, text] of byLang(ings)) {
+    if (lang === 'en' ? PANTRY_WORDS.test(text) : KITCHEN_INTL_RE[lang].pantry.test(text)) used.add('pantry');
+    if (lang === 'en' ? HERB_WORDS.test(text) : KITCHEN_INTL_RE[lang].herbs.test(text)) used.add('herbs');
+  }
+  return KITCHEN_USE_ORDER.filter((type) => used.has(type));
 }
 
 // Surfaces: what stands on one is used there too (the board on the island makes it the prep spot).

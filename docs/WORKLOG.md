@@ -267,7 +267,6 @@ The War Room has the full list; this covers what needs the owner and the planned
   the wall's light (`wallLookGlow`) and haze (`beamHaze.mjs`), the stage and side rooms
   (`clubRooms.mjs`) are seen only in headless Chromium. The old avatar crowd
   (`crowdAvatars.mjs`) is kept for a v2 pack.
-- Coach profile: 2 small gaps (War Room).
 - Seen only in headless Chromium, not on a phone or in the app: the Split glass mark
   (#2474), Your hours, the coach profiles, Make it yours, Nora's hint, Build a list, Grocery,
   the Library and the profile dock (War Room).

@@ -865,6 +865,37 @@ test('their activity: what they posted that the tabs do not already show, newest
   await m.unmount();
 });
 
+test('a person tapped in the activity opens their profile, and Back returns to the coach page', async () => {
+  // The coach page handed the card and its likers sheet a no-op, so tapping a liker did nothing
+  // (#2516's open item). The client module's card, sheets and public profile, as probes.
+  const had = { card: window.BSActivityCard, sheets: window.useBSCardSheets, pub: window.BSPublicProfile };
+  const sam = { who: 'Sam Lee', kind: 'CLIENT', userId: 'u-sam', public: true };
+  window.BSActivityCard = ({ a, ctx }) => React.createElement('button', { type: 'button', 'data-card-name': '', onClick: () => ctx.setOpenProfile(sam) }, a.title);
+  window.useBSCardSheets = () => ({ ctx: {}, renderSheets: ({ setOpenProfile }) => React.createElement('button', { type: 'button', 'data-liker': '', onClick: () => setOpenProfile(sam) }, 'Sam Lee liked this') });
+  window.BSPublicProfile = ({ person, onBack, onMessage }) => React.createElement('div', { 'data-public-profile': person.userId },
+    React.createElement('button', { type: 'button', 'data-public-back': '', onClick: onBack }, '← Back'),
+    React.createElement('button', { type: 'button', 'data-public-message': '', onClick: () => onMessage(person) }, 'Message'));
+  try {
+    const messaged = [];
+    reset({ posts: [{ key: 'n1', title: 'Note 1', typeLabel: 'Note', ago: '1d', body: 'Body', statsRow: [], breakdown: null }] });
+    const m = await mount(page({ onMessage: (p) => messaged.push(p.userId) }));
+    // From the likers sheet.
+    await click(document.querySelector('[data-liker]'));
+    assert.equal(document.querySelector('[data-public-profile]')?.getAttribute('data-public-profile'), 'u-sam', 'the liker\'s profile');
+    assert.ok(!document.querySelector('[data-activity]'), 'over the coach page');
+    await click(document.querySelector('[data-public-message]'));
+    assert.deepEqual(messaged, ['u-sam'], 'Message on their profile messages them');
+    await click(document.querySelector('[data-public-back]'));
+    assert.ok(document.querySelector('[data-activity]') && !document.querySelector('[data-public-profile]'), 'Back to the coach page');
+    // From a name on the card itself.
+    await click(document.querySelector('[data-card-name]'));
+    assert.ok(document.querySelector('[data-public-profile="u-sam"]'));
+    await m.unmount();
+  } finally {
+    window.BSActivityCard = had.card; window.useBSCardSheets = had.sheets; window.BSPublicProfile = had.pub;
+  }
+});
+
 test('the reviews are on the page: the newest, each a card, and All reviews opens the list', async () => {
   // Leah's sample reviews, and a coach with an account's own.
   reset({ me: 'u-me', byId: leahRow, slots: [] });
