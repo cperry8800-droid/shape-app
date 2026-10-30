@@ -82,6 +82,7 @@
   "player.addMove": "＋ Ƙara motsi",
   "player.logSetCta": "Rubuta saiti {n}",
   "player.logSetCtaReps": "Rubuta saiti {n} · maimaici {reps}",
+  "player.logSetCtaValue": "Rubuta saiti {n} · {value}",
   "player.startSetCta": "Fara saiti {n}",
   "player.nextExercise": "Motsi na gaba →",
   "player.finishWorkout": "Gama motsa jiki ✓",

@@ -82,6 +82,7 @@
   "player.addMove": "＋ Ajouter un mouvement",
   "player.logSetCta": "Enregistrer la série {n}",
   "player.logSetCtaReps": "Enregistrer la série {n} · {reps} reps",
+  "player.logSetCtaValue": "Enregistrer la série {n} · {value}",
   "player.startSetCta": "Démarrer la série {n}",
   "player.nextExercise": "Exercice suivant →",
   "player.finishWorkout": "Terminer la séance ✓",

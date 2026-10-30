@@ -82,6 +82,7 @@
   "player.addMove": "＋ Tambah gerakan",
   "player.logSetCta": "Catat set {n}",
   "player.logSetCtaReps": "Catat set {n} · {reps} rep",
+  "player.logSetCtaValue": "Catat set {n} · {value}",
   "player.startSetCta": "Mulai set {n}",
   "player.nextExercise": "Gerakan berikutnya →",
   "player.finishWorkout": "Selesaikan latihan ✓",

@@ -82,6 +82,7 @@
   "player.addMove": "＋ Hareket ekle",
   "player.logSetCta": "{n}. seti kaydet",
   "player.logSetCtaReps": "{n}. seti kaydet · {reps} tekrar",
+  "player.logSetCtaValue": "{n}. seti kaydet · {value}",
   "player.startSetCta": "{n}. seti başlat",
   "player.nextExercise": "Sonraki egzersiz →",
   "player.finishWorkout": "Antrenmanı bitir ✓",

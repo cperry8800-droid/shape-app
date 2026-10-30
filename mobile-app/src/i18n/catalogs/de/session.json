@@ -82,6 +82,7 @@
   "player.addMove": "＋ Übung hinzufügen",
   "player.logSetCta": "Satz {n} erfassen",
   "player.logSetCtaReps": "Satz {n} erfassen · {reps} Wdh.",
+  "player.logSetCtaValue": "Satz {n} erfassen · {value}",
   "player.startSetCta": "Satz {n} starten",
   "player.nextExercise": "Nächste Übung →",
   "player.finishWorkout": "Workout abschließen ✓",

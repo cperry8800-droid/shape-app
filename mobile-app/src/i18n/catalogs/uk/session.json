@@ -82,6 +82,7 @@
   "player.addMove": "＋ Додати вправу",
   "player.logSetCta": "Записати підхід {n}",
   "player.logSetCtaReps": "Записати підхід {n} · {reps} повт.",
+  "player.logSetCtaValue": "Записати підхід {n} · {value}",
   "player.startSetCta": "Почати підхід {n}",
   "player.nextExercise": "Наступна вправа →",
   "player.finishWorkout": "Завершити тренування ✓",

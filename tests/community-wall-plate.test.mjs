@@ -453,6 +453,8 @@ function wallModel() {
     ${lift(FEED, 'buildZonesFromDurations')}
     ${lift(FEED, 'cfHeroStatIndex')}
     ${lift(FEED, 'cfWallStats')}
+    ${lift(FEED, 'cfSplitUnit')}
+    ${lift(FEED, 'cfFigureText')}
     ${lift(FEED, 'cfWallModel')}
     S.model = cfWallModel;
   `)(scope);
@@ -463,12 +465,18 @@ test('a post with no record still carries a pill — the measure and its figure'
   // ⚠ THE APP PILLS EVERY CARD. This shipped suppressed: the pill was treated as
   // a RECORD claim, so an ordinary workout drew none at all. Reversed on the
   // owner's call.
-  assert.match(APP, /return `\$\{measure\}\$\{heroStat\[1\] \? ` · \$\{heroStat\[1\]\}` : ''\}\$\{tail\}`;/,
+  // The figure goes through the heart-rate rule on both (Codex on #2524), so an Avg HR hero's pill
+  // reads "Avg HR · 156" as the plate under it does.
+  assert.match(APP, /return `\$\{measure\}\$\{heroStat\[1\] \? ` · \$\{bsSdFigureText\(heroStat\[1\]\)\}` : ''\}\$\{tail\}`;/,
     "the app's wallPill no longer falls back to measure · figure — re-derive the web rule");
   const model = wallModel();
   // The demo workout, field for field.
   const w = model({ kind: 'workout', role: 'Peak · 6,108', duration: '52 min', exercises: 6, rpe: 8.5 });
   assert.equal(w.pill, 'Time · 52 min', 'a workout with no record draws no pill');
+  // A post whose lead stat is a heart rate: the pill says it as the plate does (Codex on #2524).
+  const hr = model({ kind: 'workout', role: 'Peak · 6,108', session: { stats: [['Avg HR', '156 bpm'], ['Time', '40 min']] } });
+  assert.deepEqual(hr.heroStat, ['Avg HR', '156 bpm'], 'the stored value keeps its unit');
+  assert.equal(hr.pill, 'Avg HR · 156', 'the pill printed "bpm" over a bare figure');
   // And a first-record PR still leads with New PR rather than the measure.
   const pr = model({ kind: 'pr', role: 'Tempo · 1,412', lift: 'Bench Press', load: '225 lb', reps: '5 × 5', delta: '+10 lb' });
   assert.equal(pr.pill, 'New PR · Bench Press · +10 lb', 'the PR pill lost its lift or its gain');

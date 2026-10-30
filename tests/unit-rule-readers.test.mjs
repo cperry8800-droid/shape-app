@@ -61,8 +61,8 @@ test('the load after a hold or a distance stays the load, in all three', () => {
 
 // What the rule does not claim: a count, a range with no unit, an effort token, a word
 // that starts with a unit's letters, a weight, a unit that does not end the value, and
-// a per-side value. (A per-side hold typed by a coach, "30s/side", still reads
-// "Log set 1 · 30s/side reps" as it did on main: registered, not this rule.)
+// a per-side value. (A per-side hold typed by a coach, "30s/side", is not this rule's either:
+// the Log set button names it as written, "Log set 1 · 30s/side" — tests/log-set-label.test.mjs.)
 test('a value the rule does not claim is not a hold or a distance', () => {
   for (const v of ['8', '8-10', '8–10', '8 reps', '12 ea', 'AMRAP', 'max', 'to failure', '10 sets', '12 steps', '5 kg', '1.5', '1:30', '10 m/s', '30s/45s', '30s/side', '40 m each', '', ' ']) {
     assert.equal(bsIsTimedReps(v), false, JSON.stringify(v));
@@ -105,8 +105,12 @@ const BUILDER = [
   ["Squat — 3 × 5 · RPE 8", { sets: 3, reps: "5", loadType: "rpe", load: 8 }],
   ["Squat — 3 × 5 · 100 kg · RPE 8", { sets: 3, reps: "5", loadType: "kg", load: 0, loadText: "100 kg · RPE 8" }],
   // words that start with a unit's letters, and effort tokens
-  ["Squat — 3 × 10 sets", { sets: 3, reps: "10 s", loadType: "kg", load: 0, loadText: "ets" }],
-  ["Walk — 3 × 12 steps", { sets: 3, reps: "12 s", loadType: "kg", load: 0, loadText: "teps" }],
+  // ⚠ THESE FOUR CHANGED, AND NOT AS A HOLD OR A DISTANCE (#2159's open item): a word that
+  // starts with a unit is not one, and a "reps" or "sets" after the count belongs to the scheme.
+  ["Squat — 3 × 10 sets", { sets: 3, reps: "10 s", loadType: "kg", load: 0, loadText: "ets" }, { sets: 3, reps: "10", loadType: "kg", load: 0, loadText: "" }],
+  ["Walk — 3 × 12 steps", { sets: 3, reps: "12 s", loadType: "kg", load: 0, loadText: "teps" }, { sets: 3, reps: "12", loadType: "kg", load: 0, loadText: "steps" }],
+  ["Squat — 3 × 10 sets · 20 kg", { sets: 3, reps: "10 s", loadType: "kg", load: 0, loadText: "ets · 20 kg" }, { sets: 3, reps: "10", loadType: "kg", load: 20 }],
+  ["Squat — 3 × 10 reps · 20 kg", { sets: 3, reps: "10", loadType: "kg", load: 0, loadText: "reps · 20 kg" }, { sets: 3, reps: "10", loadType: "kg", load: 20 }],
   ["Burpee — 3 × 10 max", { sets: 3, reps: "10", loadType: "kg", load: 0, loadText: "max" }],
   ["Bike — 3 × 20 mph", { sets: 3, reps: "20", loadType: "kg", load: 0, loadText: "mph" }],
   ["Squat — 3 × max", { sets: 3, reps: "max", loadType: "kg", load: 0, loadText: "" }],
@@ -198,8 +202,11 @@ const BUILDER = [
   [{"text":"Carry — 3 × 40 m","sets":4}, { sets: 4, reps: "40", loadType: "kg", load: 0, loadText: "m" }, { sets: 4, reps: "40 m", loadType: "kg", load: 0, loadText: "" }],
 ];
 
-test('the builder reads every line as main did, except a hold or a distance', () => {
-  assert.ok(BUILDER.length >= 103, 'the table is shorter than the one main was recorded over');
+// The lines that changed without being a hold or a distance: a word after the count (#2159).
+const WORD_AFTER_COUNT = new Set(['Squat — 3 × 10 sets', 'Walk — 3 × 12 steps', 'Squat — 3 × 10 sets · 20 kg', 'Squat — 3 × 10 reps · 20 kg']);
+
+test('the builder reads every line as main did, except a hold or a distance, and a word after the count', () => {
+  assert.ok(BUILDER.length >= 105, 'the table is shorter than the one main was recorded over');
   let changed = 0;
   for (const [input, main, now] of BUILDER) {
     const got = pickRow(rowFromBlock(input, 'x'));
@@ -207,10 +214,16 @@ test('the builder reads every line as main did, except a hold or a distance', ()
     if (now) {
       changed++;
       assert.notDeepEqual(now, main, `${JSON.stringify(input)} carries a reading equal to main's`);
-      assert.ok(bsIsTimedReps(now.reps.replace(PER_SIDE, '')), `${JSON.stringify(input)} changed, and "${now.reps}" is not a hold or a distance`);
+      if (WORD_AFTER_COUNT.has(input)) {
+        // The count the player reads, and no unit letters left behind in the load.
+        assert.match(now.reps, /^\d+$/, `${JSON.stringify(input)}: the count`);
+        assert.ok(!/^(?:ets|teps)\b/.test(now.loadText || ''), `${JSON.stringify(input)}: a word cut in two`);
+      } else {
+        assert.ok(bsIsTimedReps(now.reps.replace(PER_SIDE, '')), `${JSON.stringify(input)} changed, and "${now.reps}" is not a hold or a distance`);
+      }
     }
   }
-  assert.equal(changed, 23, 'the number of lines the builder now reads differently');
+  assert.equal(changed, 27, 'the number of lines the builder now reads differently');
 });
 
 // [scheme or move, what main read, what it reads now: only where it changed]
@@ -373,7 +386,7 @@ test('a timed swap keeps its hold whole, and the original\'s rest does not survi
   const carry = { n: '04', m: 'Farmer carry', s: '3 × 40 m · 1:30', sets: '3', reps: '40 m', rest: '1:30', restSeconds: 90, l: '32 kg' };
   const [hold] = bsSessionMoves([bsApplyMoveSwap(carry, { m: 'Trap-bar hold', s: '3 × 30 s · 1:00' })]);
   assert.deepEqual([hold.sets, hold.reps, hold.restSeconds], [3, '30 s', 60]);
-  assert.equal(bsIsTimedReps(bsSetPrefill(hold, 0).reps), true, 'the button says "Log set", not "30 s reps"');
+  assert.equal(bsIsTimedReps(bsSetPrefill(hold, 0).reps), true, 'a hold, which the Log set button names as written, never as reps');
 });
 
 test('a generic variant keeps the move\'s own scheme and everything it prescribes', () => {
