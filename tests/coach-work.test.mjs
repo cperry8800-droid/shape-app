@@ -159,10 +159,20 @@ test('the sample trainer: two programs per kind of coach, the main station pins 
     assert.ok(pins.includes(pinned), `${kind}: a station pins ${pinned}`);
     const w = bsStudioWork(studio, d.programs);
     assert.ok(w.filter(Boolean).length >= 3, `${kind}: the programs light the floor`);
-    assert.deepEqual(d.workouts, [], 'no clip yet, no workout');
-    assert.ok(d.programs.every((p) => p.video === null));
+    // Each sample program plays its clip, and each clip is a workout posted on video.
+    assert.ok(d.programs.every((p) => p.video && Object.values(BS_SAMPLE_CLIPS).includes(p.video.url) && p.video.type === 'video'), `${kind}: every program has its clip`);
+    assert.equal(d.workouts.length, 2, `${kind}: a workout per clip`);
+    assert.ok(d.workouts.every((w) => w.video && Object.values(BS_SAMPLE_CLIPS).includes(w.video.url)), `${kind}: the workouts play the clips`);
+    assert.deepEqual(new Set(d.workouts.map((w) => w.video.url)), new Set(d.programs.map((p) => p.video.url)), `${kind}: its two clips, each once`);
   }
   assert.deepEqual(Object.keys(BS_SAMPLE_CLIPS), ['squat', 'deadlift', 'row', 'swings']);
+  // The clips are the owner's generated ones on Higgsfield's CDN (marketing/shape-radio-launch-cut.md's
+  // Sources), each an mp4 the player plays in the page, and no two the same.
+  const urls = Object.values(BS_SAMPLE_CLIPS);
+  assert.ok(urls.every((u) => /^https:\/\/d8j0ntlcm91z4\.cloudfront\.net\/user_3E30hta4RMpS2cDML3JnB5dGPnY\/hf_\d{8}_\d{6}_[0-9a-f-]{36}\.mp4$/.test(u)), 'the CDN mp4s');
+  assert.equal(new Set(urls).size, 4);
+  const sources = readFileSync(join(ROOT, 'marketing/shape-radio-launch-cut.md'), 'utf8');
+  for (const u of urls) assert.ok(sources.includes(u.split('/').pop()), `recorded in Sources: ${u.split('/').pop()}`);
   // Every sample move is the library's, with its equipment.
   const lib = new Map(LIBRARY.map((m) => [m.name, m.equipment]));
   for (const family of ['strength', 'conditioning']) {
