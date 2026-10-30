@@ -165,5 +165,7 @@
   "tier.body": "Suas recompensas do nível {tier} estão esperando na Shape Store.",
   "email.open": "Abra o Shape: {site}",
   "email.link": "Abra o Shape",
-  "email.manage": "Escolha quais e-mails você recebe em Configurações → Notificações."
+  "email.manage": "Escolha quais e-mails você recebe em Configurações → Notificações.",
+  "listingJoined.title": "{coach} já está na Shape",
+  "listingJoined.body": "Você pediu um horário para {coach} antes de entrar. Mande uma mensagem ou veja o que oferece no perfil."
 }

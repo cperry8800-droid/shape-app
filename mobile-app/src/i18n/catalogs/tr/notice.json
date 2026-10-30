@@ -165,5 +165,7 @@
   "tier.body": "{tier} ödüllerin Shape Store içinde seni bekliyor.",
   "email.open": "Shape’i aç: {site}",
   "email.link": "Shape’i aç",
-  "email.manage": "Hangi e-postaları alacağını Ayarlar → Bildirimler bölümünden değiştir."
+  "email.manage": "Hangi e-postaları alacağını Ayarlar → Bildirimler bölümünden değiştir.",
+  "listingJoined.title": "{coach} artık Shape’te",
+  "listingJoined.body": "{coach} katılmadan önce ondan bir saat istedin. Mesaj gönder ya da profilinde neler sunduğuna bak."
 }

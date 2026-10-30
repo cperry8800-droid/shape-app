@@ -165,5 +165,7 @@
   "tier.body": "Hadiah tingkat {tier} menunggumu di Shape Store.",
   "email.open": "Buka Shape: {site}",
   "email.link": "Buka Shape",
-  "email.manage": "Ubah email yang kamu terima di Pengaturan → Notifikasi."
+  "email.manage": "Ubah email yang kamu terima di Pengaturan → Notifikasi.",
+  "listingJoined.title": "{coach} sudah ada di Shape",
+  "listingJoined.body": "Kamu meminta waktu ke {coach} sebelum mereka bergabung. Kirim pesan atau lihat apa yang mereka tawarkan di profilnya."
 }

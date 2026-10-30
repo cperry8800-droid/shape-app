@@ -104,11 +104,10 @@ dated entry or past 20 KB.
   `iosAppBroadsheet.jsx` (shared chrome: `BSPage`, `BSFooter`, `BSPlate`,
   `BSSwapSheet`), `iosAppBroadsheetRadio.jsx` (Shape Radio) and
   `services/shapeBackend.js` (the Supabase data layer).
-- **Window globals.** Modules expose components with `Object.assign(window, {...})`.
-  A role module that reads a global before the feature module defines it causes React
-  error #130. `iosAppBroadsheetMain.jsx` loads feature modules before role modules.
-  ⚠ `iosAppBroadsheetPros.jsx` reads the client module's globals at load, so
-  `loadProsBundle` loads the whole client bundle first.
+- **Window globals.** Modules expose components with `Object.assign(window, {...})`; reading
+  one before its module defines it is React error #130, so `iosAppBroadsheetMain.jsx` loads
+  feature modules before role modules, and ⚠ `loadProsBundle` the whole client bundle first
+  (`iosAppBroadsheetPros.jsx` reads its globals at load).
 - **Sheets** use `createPortal` into `#bs-phone-surface`.
 - **Pages** render inside `BSPage`, which pins a condensed masthead once the page's own
   scrolls away (none if the page scrolls itself); past a `BSDetailHeader`'s title it reads
@@ -151,9 +150,10 @@ The War Room has the full list; this covers what needs the owner and the planned
 - Have counsel read the privacy policy (its 2026-10-13 text, and 2026-10-29's tap counts in §10). The
   health-data page lists only the weekly check-in, not the Morning check-in, readiness or patterns,
   and the data export leaves out Nora's conversation and the stored readouts.
-- Make the direct-charges test purchase (#2403's Owner steps): in Stripe test mode, add the
-  Connected accounts destination with `invoice.paid`, set both Connect variables under
-  Vercel's Preview (the test-mode `ca_…`), then buy from a test coach on staging.
+- Make the direct-charges test purchase on staging, as #2403's Owner steps set out (Stripe
+  test mode and Vercel's Preview variables).
+- Decide how a seeded listing becomes its coach's. Asks for its sample times
+  (`listing_time_requests`) reach the coach on a claim, and `/dashboard/claim` gives it to the admin.
 - Decide the perks the website's "What Master unlocks" card and `leaderboards.jsx`
   promise (payout tier, ranking, a verified badge): nothing grants them.
 - Decide whether the coach leaderboard should keep showing every coach each other's

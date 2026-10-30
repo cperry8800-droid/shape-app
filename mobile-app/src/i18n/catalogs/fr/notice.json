@@ -165,5 +165,7 @@
   "tier.body": "Vos récompenses du palier {tier} vous attendent dans le Shape Store.",
   "email.open": "Ouvrir Shape : {site}",
   "email.link": "Ouvrir Shape",
-  "email.manage": "Choisissez les e-mails que vous recevez dans Réglages → Notifications."
+  "email.manage": "Choisissez les e-mails que vous recevez dans Réglages → Notifications.",
+  "listingJoined.title": "{coach} est sur Shape maintenant",
+  "listingJoined.body": "Tu as demandé un créneau à {coach} avant son arrivée. Écris-lui ou regarde ce qu’il propose sur son profil."
 }
