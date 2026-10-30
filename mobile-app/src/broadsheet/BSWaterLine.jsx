@@ -179,9 +179,19 @@ function BSWaterDay({ dayIso }) {
       // read left unknown (Codex P2 on #2398).
       if (alive.current && d && d.ok) setWater((w) => ({ ...w, l: round((Number(d.hydrationL) || 0) + pending.current), target: bsWaterTargetOf(d) ?? w.target, unknown: false }));
       afterGlass();
-    }).catch(() => {
+    }).catch((e) => {
       pending.current -= deltaL;
       inFlight.current -= 1; landed.current += 1;
+      // ⚠ A GLASS PAST ITS DEADLINE IS NOT TAKEN BACK (`timedOut`, shapeBackend.js). It may have
+      // landed, and a glass is added on the server, so taking it off the screen and having it
+      // tapped again could count it twice. The day's total is read again once no glass is on its
+      // way, and the line says that glass couldn't be confirmed.
+      if (e && e.timedOut) {
+        resync.current = true;
+        afterGlass();
+        if (alive.current) setErr('unconfirmed');
+        return;
+      }
       afterGlass();
       if (!alive.current) return;
       setWater((w) => ({ ...w, l: round(w.l - deltaL) }));
@@ -215,7 +225,8 @@ function BSWaterDay({ dayIso }) {
   const errLine = (which) => (err === which ? (
     <div role="alert" style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: t.RUST }}>
       {which === 'water' ? tr('home:today.waterFailed', { defaultValue: 'Could not log water — try again' })
-        : tr('home:water.targetFailed', { defaultValue: 'Could not save your target — try again' })}
+        : which === 'unconfirmed' ? tr('home:today.waterUnconfirmed', { defaultValue: 'Could not confirm that glass — the total shows what is saved' })
+          : tr('home:water.targetFailed', { defaultValue: 'Could not save your target — try again' })}
     </div>
   ) : null);
   const share = known && water.deviceL && water.l > 0 ? Math.min(water.deviceL, water.l) : null;
@@ -302,7 +313,7 @@ function BSWaterDay({ dayIso }) {
         {signedIn && known && !target ? (
           <button type="button" onClick={openPick} style={{ alignSelf: 'flex-start', minHeight: 32, margin: '-2px 0 -6px 40px', padding: '4px 0', border: 0, background: 'transparent', color: sky, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>{tr('home:water.setTarget', { defaultValue: 'Set a daily target' })}<span aria-hidden> ›</span></button>
         ) : null}
-        {errLine('water')}
+        {errLine('water')}{errLine('unconfirmed')}
       </div>
       {sheet && host ? createPortal(bsCleanSheet(t, sheet), host) : sheet}
     </>

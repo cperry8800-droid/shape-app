@@ -272,6 +272,65 @@ test('two quick glasses save in order, and a failed one takes back only its own 
   } finally { failFirst?.(new Error('cleanup')); m.unmount(); }   // a held glass would hold the shared queue for later tests
 });
 
+// shapeBackend.js abandons a save the network holds and rejects with `timedOut`: it may have landed.
+const lateGlass = () => { const e = new Error('No answer in time.'); e.timedOut = true; return e; };
+
+test('a glass past its deadline is not taken back: the day is read again, and the line says it could not confirm it', async () => {
+  // Both ways the abandoned glass can have gone: it landed on the server, or it never arrived.
+  for (const landedOnServer of [true, false]) {
+    env();
+    let server = 0.5;
+    let gets = 0;
+    const adds = [];
+    dom.window.ShapeHydration = {
+      get: async () => { gets += 1; return { ok: true, hydrationL: server, targetL: 3, targetStoredL: 3 }; },
+      add: async (d) => {
+        adds.push(d);
+        if (adds.length === 1) { if (landedOnServer) server = Math.round((server + d) * 10000) / 10000; throw lateGlass(); }
+        server = Math.round((server + d) * 10000) / 10000;
+        return { ok: true, hydrationL: server };
+      },
+    };
+    const m = await mount();
+    try {
+      assert.equal(gets, 1);
+      await m.click(/\+ Glass/);
+      await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+      await m.flush();
+      await m.flush();
+      assert.equal(gets, 2, `landed ${landedOnServer}: the day's water was not read again`);
+      // The screen shows what the server holds: the glass if it landed, without it if not.
+      assert.match(m.text(), landedOnServer ? /25 oz of 101 oz/ : /17 oz of 101 oz/, `landed ${landedOnServer}: ${m.text()}`);
+      assert.match(m.text(), /Could not confirm that glass — the total shows what is saved/);
+      assert.doesNotMatch(m.text(), /Could not log water/, 'a glass that may have landed was called failed');
+      // The line goes on: the next glass is sent, and clears the note.
+      await m.click(/\+ Glass/);
+      await m.flush();
+      assert.equal(adds.length, 2, 'the line stopped after the late glass');
+      assert.doesNotMatch(m.text(), /Could not confirm/);
+    } finally { m.unmount(); }
+  }
+});
+
+test('a late glass is never taken off the screen while the day is read again', async () => {
+  // Taken back first and read after, a glass that had landed would blink off and on; one whose read
+  // fails would stay off though the server may hold it.
+  env();
+  dom.window.ShapeHydration = {
+    get: (() => { let n = 0; return async () => { n += 1; if (n > 1) throw new Error('offline'); return { ok: true, hydrationL: 0.5, targetL: 3, targetStoredL: 3 }; }; })(),
+    add: async () => { throw lateGlass(); },
+  };
+  const m = await mount();
+  try {
+    await m.click(/\+ Glass/);
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    await m.flush();
+    await m.flush();
+    assert.match(m.text(), /25 oz of 101 oz/, 'the late glass was taken off when the day could not be read');
+    assert.match(m.text(), /Could not confirm that glass/);
+  } finally { m.unmount(); }
+});
+
 test('a glass that saves keeps the ones still on their way, and a failed last one takes back only itself', async () => {
   let releaseFirst;
   let failSecond;
