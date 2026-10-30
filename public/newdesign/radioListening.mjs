@@ -43,54 +43,72 @@ export function newListenId(c = globalThis.crypto) {
 
 /** The beats for one player. `send(body)` posts one ({ surface, listen, played, end? }) and never
  * throws back; `allowed()` is asked as a listen starts and before every beat, the end included, so a
- * Reject mid-listen stops the beats there (Codex P1 on #2527: the server can't see a Reject). */
+ * Reject mid-listen stops the beats there (Codex P1 on #2527: the server can't see a Reject).
+ * `played` counts only time the stream is heard: `buffering()` stops the count while it waits for
+ * data, and `playing()` starts it again (Codex P2 on #2527). */
 export function createRadioListening({ surface, send, allowed, now = () => Date.now(), timers = globalThis, newId = newListenId }) {
-  let begun = 0; // when this listen began; 0 while nothing plays
-  let listen = '';
+  let listen = ''; // '' while nothing plays
+  let heard = 0; // ms heard before the current stretch
+  let since = 0; // when the current stretch began; 0 while it buffers
   let timer = null;
 
   function post(body) {
     try { send(body); } catch (e) {}
   }
   function played() {
-    return Math.max(0, Math.round((now() - begun) / 1000));
+    return Math.max(0, Math.round((heard + (since ? now() - since : 0)) / 1000));
   }
   function quit() {
     if (timer !== null) { timers.clearInterval(timer); timer = null; }
-    begun = 0;
+    listen = '';
+    heard = 0;
+    since = 0;
   }
   function playing() {
-    if (begun || !allowed()) return;
-    begun = now() || 1;
+    if (listen) {
+      // The same listen playing again after it buffered.
+      if (!since) since = now();
+      return;
+    }
+    if (!allowed()) return;
     listen = newId();
+    heard = 0;
+    since = now();
     post({ surface, listen, played: 0 });
     timer = timers.setInterval(tick, RADIO_BEAT_MS);
   }
+  function buffering() {
+    if (!listen || !since) return;
+    heard += now() - since;
+    since = 0;
+  }
   function tick() {
-    if (!begun) return;
+    if (!listen) return;
     // Consent withdrawn while it plays: nothing more is sent, not even the end.
     if (!allowed()) { quit(); return; }
     post({ surface, listen, played: played() });
   }
   function stopped() {
-    if (!begun) return;
+    if (!listen) return;
     const total = played();
     const id = listen;
     const ok = allowed();
     quit();
     if (ok) post({ surface, listen: id, played: total, end: true });
   }
-  return { playing, stopped, tick, listening: () => begun !== 0 };
+  return { playing, buffering, stopped, tick, listening: () => listen !== '' };
 }
 
-/** Counts `audio`'s listening: a start when it plays, an end when it pauses, ends, fails or loses
- * its source, or when the page goes away (and a start again if a page comes back from the
- * back-forward cache still playing). Returns the beats, for a test to drive. */
+/** Counts `audio`'s listening: a start when it plays, a pause in the count while it waits for data,
+ * an end when it pauses, ends, fails or loses its source, or when the page goes away (and a start
+ * again if a page comes back from the back-forward cache still playing). Returns the beats, for a
+ * test to drive. */
 export function attachRadioListening(audio, opts, win) {
   const beats = createRadioListening(opts);
   const start = () => beats.playing();
   const stop = () => beats.stopped();
   audio.addEventListener('playing', start);
+  audio.addEventListener('waiting', () => beats.buffering());
   for (const type of STOPS) audio.addEventListener(type, stop);
   if (win && typeof win.addEventListener === 'function') {
     win.addEventListener('pagehide', stop);

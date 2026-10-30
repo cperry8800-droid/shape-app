@@ -74,6 +74,28 @@ test('a listen: a start beat, one a minute, an end, each with its running total,
   assert.deepEqual(sent.at(-1), { surface: 'app', listen: 'listen-2', played: 0 }, 'playing again is a new listen, with a new id, from 0');
 });
 
+test('buffering: time the stream waits for data is not counted, and the same listen goes on after it (Codex P2 on #2527)', () => {
+  const { b, c, sent } = beats();
+  b.buffering();
+  assert.equal(sent.length, 0, 'buffering before any listen does nothing');
+  b.playing();
+  c.advance(30_000);
+  b.buffering();
+  b.buffering();
+  c.advance(120_000);
+  c.fire();
+  assert.deepEqual(sent.at(-1), { surface: 'app', listen: 'listen-1', played: 30 }, 'two minutes of buffering add nothing');
+  b.playing();
+  c.advance(30_000);
+  c.fire();
+  assert.deepEqual(sent.at(-1), { surface: 'app', listen: 'listen-1', played: 60 }, 'playing again counts on, in the same listen');
+  b.buffering();
+  c.advance(10_000);
+  b.stopped();
+  assert.deepEqual(sent.at(-1), { surface: 'app', listen: 'listen-1', played: 60, end: true }, 'an end while buffering adds the wait to nothing');
+  assert.equal(sent.filter((x) => x.played === 0).length, 1, 'one tune-in for the whole listen');
+});
+
 test('a listen\'s id: a random version 4 uuid, from randomUUID or the random bytes', () => {
   const UUID4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
   const a = L.newListenId();
@@ -144,6 +166,21 @@ test('an audio element: a start when it plays; an end when it pauses, ends, fail
     c.advance(30_000);
     (stop === 'pagehide' ? win : audio).dispatchEvent(new Event(stop));
     assert.deepEqual(sent, [{ surface: 'web', listen: 'listen-1', played: 0 }, { surface: 'web', listen: 'listen-1', played: 30, end: true }], stop);
+  }
+  // `waiting` (the stream has run out of data) stops the count until it plays again.
+  {
+    const audio = new EventTarget();
+    const c = clock();
+    const sent = [];
+    L.attachRadioListening(audio, { surface: 'web', send: (b) => sent.push(b), allowed: () => true, now: c.now, timers: c.timers, newId: ids() }, new EventTarget());
+    audio.dispatchEvent(new Event('playing'));
+    c.advance(20_000);
+    audio.dispatchEvent(new Event('waiting'));
+    c.advance(40_000);
+    audio.dispatchEvent(new Event('playing'));
+    c.advance(5_000);
+    audio.dispatchEvent(new Event('pause'));
+    assert.deepEqual(sent, [{ surface: 'web', listen: 'listen-1', played: 0 }, { surface: 'web', listen: 'listen-1', played: 25, end: true }]);
   }
   // A page restored from the back-forward cache, still playing, starts a listen again.
   const audio = new EventTarget();
