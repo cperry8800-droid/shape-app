@@ -1043,7 +1043,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: WIRE_BG }}>
       <BSWireGround dim />
       {onBack && (
-        <button onClick={onBack} style={{ position: 'absolute', zIndex: 3, top: 'max(16px, calc(env(safe-area-inset-top, 0px) + 10px))', left: 18, background: 'transparent', border: 0, color: C70, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '6px 4px' }}>{tr('login.back')}</button>
+        <button data-bs-back="" onClick={onBack} style={{ position: 'absolute', zIndex: 3, top: 'max(16px, calc(env(safe-area-inset-top, 0px) + 10px))', left: 18, background: 'transparent', border: 0, color: C70, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '6px 4px' }}>{tr('login.back')}</button>
       )}
       <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(52px, calc(env(safe-area-inset-top, 0px) + 40px)) 22px calc(20px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 5 }}>
         {/* Logo lockup — top-left. marginTop:auto (+ the footer's marginBottom:auto)

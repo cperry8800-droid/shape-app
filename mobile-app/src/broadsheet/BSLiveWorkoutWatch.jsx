@@ -108,7 +108,7 @@ export default function BSLiveWorkoutWatch({ client = 'Alex Rivera', clientId = 
   return <Page>
     <div style={{ padding: `${mastTop} ${t.padX}px 0` }}>{masthead}</div>
     <div style={{ ...section, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-      <button type="button" onClick={onBack} style={button}>{tr('coach:live.close', { defaultValue: '✕ Close' })}</button>
+      <button data-bs-back="" type="button" onClick={onBack} style={button}>{tr('coach:live.close', { defaultValue: '✕ Close' })}</button>
       <div style={{ ...mono, color: status === 'live' ? teal : t.INK70 }}>
         <span role="status">{statusLabel}</span>{elapsed != null ? ` · ${fmt(elapsed)}` : ''}
       </div>
@@ -170,6 +170,6 @@ export default function BSLiveWorkoutWatch({ client = 'Alex Rivera', clientId = 
         <span style={mono}>{m.done}/{m.total}</span>
       </div>)}
     </section>}
-    <div style={{ ...section, paddingBottom: 24 }}><button type="button" onClick={onBack} style={{ ...button, width: '100%' }}>{tr('coach:live.stopWatching', { defaultValue: 'Stop watching' })}</button></div>
+    <div style={{ ...section, paddingBottom: 24 }}><button data-bs-back="" type="button" onClick={onBack} style={{ ...button, width: '100%' }}>{tr('coach:live.stopWatching', { defaultValue: 'Stop watching' })}</button></div>
   </Page>;
 }

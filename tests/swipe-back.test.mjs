@@ -85,7 +85,8 @@ globalThis.Element = class Element {};
 class El extends globalThis.Element {
   constructor({ tag = 'div', id = '', attrs = {}, parent = null, hidden = false, style = {} } = {}) {
     super();
-    Object.assign(this, { tagName: tag.toUpperCase(), id, attrs, parentElement: parent, hidden, cs: style });
+    Object.assign(this, { tagName: tag.toUpperCase(), id, attrs, parentElement: parent, hidden, cs: style, children: [], disabled: false, onclick: null });
+    if (parent) parent.children.push(this);
     this.style = {};
     this.classList = { add() {}, remove() {} };
     this.listeners = {};
@@ -99,6 +100,14 @@ class El extends globalThis.Element {
     return null;
   }
   getClientRects() { return this.hidden ? [] : [{}]; }
+  querySelectorAll(sel) {
+    assert.equal(sel, '[data-bs-back]');
+    const out = [];
+    const walkDom = (el) => { for (const c of el.children) { if (c.hasAttribute('data-bs-back')) out.push(c); walkDom(c); } };
+    walkDom(this);
+    return out;
+  }
+  click() { if (this.onclick) this.onclick(); }
   getBoundingClientRect() { return { left: 0, top: 0 }; }
   addEventListener(type, fn) { this.listeners[type] = fn; }
   removeEventListener() {}
@@ -329,4 +338,68 @@ test('an edge touch that set off as a scroll stays a scroll, however it ends', a
   await sleep(260);
   assert.equal(backs, 0);
   assert.deepEqual(dispatched, []);
+});
+
+// Codex on #2520: pages that draw their own Back as a plain button (the marketplace's directory,
+// calendar and listing, the radio, Settings, the person and activity screens) were skipped, and a
+// full-screen view drawn as a layer (Make it yours, the calendar) blocked every swipe. A plain Back
+// carries data-bs-back; the swipe calls the Back nearest the finger; a layer with a Back is a page.
+test('a page whose Back is a plain marked button goes back by it', () => {
+  const { content } = mountPage();
+  let backs = 0;
+  const btn = new El({ tag: 'button', attrs: { 'data-bs-back': '' }, parent: content });
+  btn.onclick = () => { backs++; };
+  const hidden = new El({ tag: 'button', attrs: { 'data-bs-back': '' }, parent: content, hidden: true });
+  hidden.onclick = () => { throw new Error('a hidden Back was clicked'); };
+  const row = new El({ parent: content });
+  dispatched.length = 0;
+  touch('touchstart', row, 140, 400);
+  touch('touchend', row, 300, 405);
+  assert.equal(backs, 1);
+  assert.deepEqual(dispatched, []);
+});
+
+test('the Back nearest the finger wins: a view drawn over the page goes back, not the page', () => {
+  const { scroller, channel } = mountPage();
+  let pageBacks = 0;
+  let viewBacks = 0;
+  channel.add({ fn: { current: () => { pageBacks++; } }, el: { current: new El() } });
+  const view = new El({ parent: scroller, style: { zIndex: '225', position: 'absolute' } });
+  const back = new El({ tag: 'button', attrs: { 'data-bs-back': '' }, parent: view });
+  back.onclick = () => { viewBacks++; };
+  const inView = new El({ parent: view });
+  dispatched.length = 0;
+  touch('touchstart', inView, 140, 400);
+  touch('touchend', inView, 300, 405);
+  assert.equal(viewBacks, 1, 'the layer with its own Back took the swipe');
+  assert.equal(pageBacks, 0, 'the page behind it did not');
+  assert.deepEqual(dispatched, []);
+});
+
+test('a layer with no Back of its own (a sheet) still keeps every swipe', () => {
+  const { scroller, channel } = mountPage();
+  let backs = 0;
+  channel.add({ fn: { current: () => { backs++; } }, el: { current: new El() } });
+  const sheet = new El({ parent: scroller, style: { zIndex: '60', position: 'absolute' } });
+  const inSheet = new El({ parent: sheet });
+  dispatched.length = 0;
+  touch('touchstart', inSheet, 140, 400);
+  touch('touchend', inSheet, 300, 405);
+  touch('touchstart', inSheet, 6, 400);
+  touch('touchend', inSheet, 200, 404);
+  assert.equal(backs, 0);
+  assert.deepEqual(dispatched, []);
+});
+
+test('every plain button that calls onBack is marked as its page\'s Back', async () => {
+  const { readdirSync } = await import('node:fs');
+  const dir = join(ROOT, 'mobile-app', 'src', 'broadsheet');
+  const missing = [];
+  for (const f of readdirSync(dir).filter((x) => x.endsWith('.jsx'))) {
+    const src = readFileSync(join(dir, f), 'utf8');
+    for (const m of src.matchAll(/<button\b[^>]*?onClick=\{(?:onBack|\(\) => onBack\(\)|props\.onBack)\}/g)) {
+      if (!/data-bs-back/.test(m[0])) missing.push(`${f}:${src.slice(0, m.index).split('\n').length}`);
+    }
+  }
+  assert.deepEqual(missing, [], 'add data-bs-back="" to these Back buttons');
 });

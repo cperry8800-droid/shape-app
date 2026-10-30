@@ -1066,7 +1066,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     <div className="bs-scroll" data-make-it-yours="" style={{ position: 'absolute', inset: 0, zIndex: 225, background: E.BG, color: E.INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: BODY, WebkitFontSmoothing: 'antialiased' }}>
       <div style={{ padding: `calc(${window.BS_MAST_TOP_CSS || '12px'}) 18px ${dirty ? 120 : 40}px` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button type="button" onClick={back} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: E.INK, fontFamily: MONO, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>← {tr('profile:mine.backToProfile', { defaultValue: 'Profile' })}</button>
+          <button data-bs-back="" type="button" onClick={back} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: E.INK, fontFamily: MONO, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>← {tr('profile:mine.backToProfile', { defaultValue: 'Profile' })}</button>
           <span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: E.ED }}>{tr('profile:mine.eyebrow', { defaultValue: 'Your page' })}</span>
         </div>
         <div style={{ marginTop: 8 }}>

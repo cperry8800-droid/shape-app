@@ -598,7 +598,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                 <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>Vol. 1 · No. 1</span>
               </span>
             ) : (
-              <button type="button" onClick={onBack} aria-label={tr('profile:trainer.back', { defaultValue: 'Back' })} style={{ minHeight: 44, padding: '0 10px', border: 0, background: 'transparent', color: '#fff', fontFamily: MONO, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>← {tr('profile:trainer.back', { defaultValue: 'Back' })}</button>
+              <button data-bs-back="" type="button" onClick={onBack} aria-label={tr('profile:trainer.back', { defaultValue: 'Back' })} style={{ minHeight: 44, padding: '0 10px', border: 0, background: 'transparent', color: '#fff', fontFamily: MONO, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>← {tr('profile:trainer.back', { defaultValue: 'Back' })}</button>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: W.BS_CORNER_GAP || 8 }}>
               {W.BSSearchCorner ? <W.BSSearchCorner size={corner} ink="#ffffff" /> : null}
@@ -1708,7 +1708,7 @@ function OwnRecipePage({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, recipe: r, firs
         {r.photo ? <img src={r.photo} alt="" style={{ display: 'block', width: '100%', height: 240, objectFit: 'cover' }} />
           : <div aria-hidden style={{ height: 120, background: `linear-gradient(135deg, ${hexA(ACC, 0.6)}, ${t.PAPER2})` }} />}
         <div style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: 'calc(6px + env(safe-area-inset-top)) 10px 0 8px', display: 'flex', justifyContent: 'space-between' }}>
-          <button type="button" data-recipe-back="" onClick={onClose} style={{ minHeight: 44, padding: '0 10px', border: 0, background: 'transparent', color: '#fff', fontFamily: MONO, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>← {tr('profile:trainer.back', { defaultValue: 'Back' })}</button>
+          <button data-bs-back="" type="button" data-recipe-back="" onClick={onClose} style={{ minHeight: 44, padding: '0 10px', border: 0, background: 'transparent', color: '#fff', fontFamily: MONO, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>← {tr('profile:trainer.back', { defaultValue: 'Back' })}</button>
         </div>
       </div>
       <div style={{ padding: '16px 18px calc(32px + env(safe-area-inset-bottom))' }}>

@@ -563,17 +563,49 @@ const BSDetailBarCtx = React.createContext(null);
 
 // A page's own Back, for the swipe (owner, 2026-10-30: "if im on one page and want to go back, i
 // can swipe right and it will bring me back to previous page"). Every BSPage knows the Back it
-// shows: its detail header's (useBSDetailBar) or else the newest Back button inside it that is on
-// screen (BSBackButton registers through BSPageBackCtx). The gesture layer finds the page under
-// the finger ([data-bs-page], BS_PAGE_BACKS) and calls that Back, so a swipe does what the page's
-// ← does, on every page that has one, with nothing for a page to wire.
+// shows: the newest BSBackButton inside it that is on screen (registered through BSPageBackCtx)
+// or its detail header's (useBSDetailBar). ⚠ A Back drawn as a plain button says so with
+// `data-bs-back` (Codex on #2520: the marketplace's directory, calendar and listing drew their
+// own, so a swipe there skipped them); tests/swipe-back.test.mjs checks every `onClick={onBack}`
+// button carries it. The swipe calls the Back nearest the finger, so it does what the ← in front
+// of the reader does, on every page and full-screen view that has one.
 const BSPageBackCtx = React.createContext(null);
 const BS_PAGE_BACKS = new WeakMap();
-// The page under a touch and its Back (a function, or null when it shows none).
-function bsPageBackFor(target) {
-  const page = target && target.closest ? target.closest('[data-bs-page]') : null;
-  const get = page && BS_PAGE_BACKS.get(page);
-  return { page, back: get ? get() : null };
+// A layer over the phone: a sheet or a takeover portalled in at z ≥ 10, nearly full height.
+function bsIsLayer(el, s, surfH) {
+  const z = parseInt(s.zIndex, 10);
+  return !Number.isNaN(z) && z >= 10 && (s.position === 'absolute' || s.position === 'fixed') && el.offsetHeight >= surfH * 0.85;
+}
+// The newest marked Back inside el that is on screen, or null.
+function bsMarkedBackIn(el) {
+  const list = el.querySelectorAll ? el.querySelectorAll('[data-bs-back]') : [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const b = list[i];
+    if (!b.disabled && b.getClientRects().length && getComputedStyle(b).visibility !== 'hidden') return b;
+  }
+  return null;
+}
+// The Back nearest a touch and what to slide with the finger: walking out from the touch, a page's
+// registered Back or a marked Back, whichever comes first. The walk ends at the page or layer the
+// touch is in, so nothing behind it answers. { page, back }: back is a function or null.
+function bsPageBackFor(target, surf) {
+  const stop = surf || document.getElementById('bs-phone-surface');
+  const surfH = (stop && stop.clientHeight) || (typeof window !== 'undefined' ? window.innerHeight : 0);
+  let layer = null;
+  for (let el = target instanceof Element ? target : null; el && el !== stop && el !== document.body; el = el.parentElement) {
+    const isPage = el.hasAttribute('data-bs-page');
+    if (isPage) {
+      const get = BS_PAGE_BACKS.get(el);
+      const back = get ? get() : null;
+      if (back) return { page: layer || bsPageOuter(el), back };
+    }
+    const isLayer = !layer && bsIsLayer(el, getComputedStyle(el), surfH);
+    if (isLayer) layer = el;
+    const b = bsMarkedBackIn(el);
+    if (b) return { page: layer || bsPageOuter(el.closest('[data-bs-page]')), back: () => b.click() };
+    if (isLayer || (isPage && bsPageOuter(el) === el)) break;
+  }
+  return { page: layer || bsPageOuter(target && target.closest ? target.closest('[data-bs-page]') : null), back: null };
 }
 // The page's outermost element (its wrapper, when its pinned masthead sits beside the scroller):
 // the one that slides under the finger.
@@ -2079,7 +2111,7 @@ function BSBackButton({ onClick, label = null, style }) {
   const elRef = useRefBS(null);
   useEffectBS(() => (pageBacks && pageBacks.add ? pageBacks.add({ fn: fnRef, el: elRef }) : undefined), [pageBacks]);
   return (
-    <button ref={elRef} type="button" onClick={onClick} aria-label={lbl} style={{
+    <button ref={elRef} type="button" data-bs-back="" onClick={onClick} aria-label={lbl} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
       background: 'transparent', border: 0,
       padding: '8px 2px', cursor: 'pointer', color: t.INK,
@@ -2147,8 +2179,9 @@ function bsSwipeBlocked(target, surf) {
     // does: FULL-HEIGHT coverage plus a real stacking order (z ≥ 10 skips
     // BSPage's z-0/1 backdrop wrappers; the coverage test skips the pinned
     // mast / tab bar / composer slot, all short strips).
-    const z = parseInt(s.zIndex, 10);
-    if (!Number.isNaN(z) && z >= 10 && (s.position === 'absolute' || s.position === 'fixed') && el.offsetHeight >= surfH * 0.85) return true;
+    // ⚠ A layer with its own Back (a full-screen view drawn over the page: Make it yours, the
+    // calendar) is a page: the swipe is its, and goes back the way its Back does.
+    if (bsIsLayer(el, s, surfH)) return !bsMarkedBackIn(el);
     el = el.parentElement;
   }
   return false;
@@ -2264,9 +2297,9 @@ function BSNavGestures() {
       // An edge touch that set off as a scroll stays one, however it ends (Codex on #2520).
       if (f !== 'follow') { start.scroll = true; return; }
       if (reduced() || bsSwipeBlocked(start.target, surf)) return;
-      const { page, back } = bsPageBackFor(start.target);
+      const { page, back } = bsPageBackFor(start.target, surf);
       if (!back && !(window.ShapeNav && window.ShapeNav.canPop && window.ShapeNav.canPop())) return;
-      drag = { el: bsPageOuter(page), back, x: t1.clientX, y: t1.clientY };
+      drag = { el: page, back, x: t1.clientX, y: t1.clientY };
       if (drag.el) drag.el.style.willChange = 'transform';
       place(drag.el, Math.max(0, dx), 0);
     };
@@ -2293,7 +2326,7 @@ function BSNavGestures() {
       if (!intent) return;
       if (bsSwipeBlocked(st.target, surf)) return;
       // A page with its own Back goes back the way that Back does (bsSwipeBackRoute).
-      const { back } = bsPageBackFor(st.target);
+      const { back } = bsPageBackFor(st.target, surf);
       if (bsSwipeBackRoute({ intent, hasPageBack: !!back }) === 'page') {
         back();
         settleIn(st.cx + 60, st.y0);
