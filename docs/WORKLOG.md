@@ -150,8 +150,7 @@ The War Room has the full list; this covers what needs the owner and the planned
 - Have counsel read the privacy policy (its 2026-10-13 text, and 2026-10-29's tap counts in §10). The
   health-data page lists only the weekly check-in, not the Morning check-in, readiness or patterns,
   and the data export leaves out Nora's conversation and the stored readouts.
-- Make the direct-charges test purchase on staging, as #2403's Owner steps set out (Stripe
-  test mode and Vercel's Preview variables).
+- Make the direct-charges test purchase on staging, as #2403's Owner steps set out.
 - Decide how a seeded listing becomes its coach's. Asks for its sample times
   (`listing_time_requests`) reach the coach on a claim, and `/dashboard/claim` gives it to the admin.
 - Decide the perks the website's "What Master unlocks" card and `leaderboards.jsx`
@@ -165,7 +164,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   was last opened pays 15%, though the card says brought clients pay no commission. A
   private profile can't be opened from the link, and the app's checkout sends no referral.
 - Add the `localhost` hostname to the Turnstile widget.
-- Have a native speaker read the PAR-Q and Nora hint translations.
+- Have a native speaker read the PAR-Q, Nora hint and sample trainer translations (Hausa and Pidgin first).
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing

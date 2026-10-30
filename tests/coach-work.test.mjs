@@ -13,7 +13,7 @@ import {
   BS_WORK_PROGRAMS_MAX, BS_WORK_VIDEOS_MAX, BS_WORK_MOVES_MAX,
 } from '../mobile-app/src/services/coachWork.mjs';
 import { bsStudioItem, bsProfileStudio, BS_STATION_PINS_MAX } from '../mobile-app/src/services/profileCustom.mjs';
-import { bsTrainerDemo, BS_SAMPLE_CLIPS, BS_SAMPLE_PROGRAM_IDS } from '../mobile-app/src/services/trainerDemo.mjs';
+import { bsTrainerDemo, bsSampleEnglish, BS_SAMPLE_CLIPS, BS_SAMPLE_PROGRAM_IDS } from '../mobile-app/src/services/trainerDemo.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const VIDEO = 'https://abcd.supabase.co/storage/v1/object/public/coach-media/u1/intro.mp4';
@@ -178,4 +178,46 @@ test('the sample trainer: two programs per kind of coach, the main station pins 
   for (const family of ['strength', 'conditioning']) {
     for (const p of bsTrainerDemo({ family }).programs) for (const m of p.moves) assert.equal(lib.get(m.name), m.equipment, `${p.name}: ${m.name}`);
   }
+});
+
+// Owner, 2026-10-30: "Translate all sample text". Every word on a sample trainer's page that the
+// sample writes goes through `say` under profile:sample.*, with the English catalog's text as its
+// default; exercise names stay the library's.
+test('the sample trainer\'s words all go through say, each with the English catalog\'s text', () => {
+  const en = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/en/profile.json'), 'utf8'));
+  const asked = new Map();
+  const say = (key, english, values) => {
+    assert.match(key, /^profile:sample\./, key);
+    assert.equal(en[key.slice('profile:'.length)], english, `${key}: the English catalog's text`);
+    asked.set(key, english);
+    return '«' + bsSampleEnglish(key, english, values) + '»';
+  };
+  const said = (v) => typeof v === 'string' && v.startsWith('«') && v.endsWith('»');
+  for (const kind of ['gym', 'private', 'garage', 'pilates', 'boxing', 'outdoor']) {
+    for (const family of ['strength', 'conditioning']) {
+      const d = bsTrainerDemo({ kind, family, say });
+      const where = `${kind}/${family}`;
+      for (const p of d.custom.studio.items) if (p.st && p.st.note) assert.ok(said(p.st.note), `${where}: a station note`);
+      for (const r of d.replays) {
+        for (const v of [r.typeLabel, r.title, r.body, r.breakdown.label, ...r.statsRow.map((x) => x[0]), ...r.breakdown.rows.map((x) => x[0])]) assert.ok(said(v), `${where}: replay ${r.key}: ${v}`);
+        for (const x of r.breakdown.rows) assert.match(x[2], /^RPE \d( · «[^»]+»)?$/, `${where}: ${x[2]}`);
+      }
+      for (const pr of d.programs) {
+        assert.ok(said(pr.name) && said(pr.plan.detail.note), `${where}: program ${pr.name}`);
+        for (const day of pr.plan.detail.firstWeek) assert.ok(said(day.dayName), `${where}: ${pr.name}: a day`);
+        assert.ok(pr.moves.every((m) => !said(m.name)), 'exercise names stay the library\'s');
+      }
+      for (const w of d.workouts) for (const v of [w.title, w.body, w.typeLabel]) assert.ok(said(v), `${where}: workout ${w.key}`);
+      assert.ok(said(d.live.goal) && said(d.provider.specialty), `${where}: the bio and specialty`);
+      assert.ok(d.provider.monthly_offer.includes.every(said), `${where}: the offer`);
+      assert.ok(d.reviews.list.every((r) => said(r.text) && !said(r.author)), `${where}: the reviews' words, not their names`);
+    }
+  }
+  // Every sample key the English catalog has is one the sample asks for, so none is left over.
+  const keys = Object.keys(en).filter((k) => k.startsWith('sample.')).map((k) => 'profile:' + k);
+  assert.deepEqual([...asked.keys()].sort(), keys.sort());
+  // With no translator, the English as before.
+  const plain = bsTrainerDemo({ kind: 'garage', family: 'conditioning' });
+  assert.deepEqual(plain.workouts.map((w) => w.title), ['Rower pacing', 'Kettlebell swings']);
+  assert.equal(plain.replays[0].breakdown.rows[4][2], 'RPE 9 · best round');
 });
