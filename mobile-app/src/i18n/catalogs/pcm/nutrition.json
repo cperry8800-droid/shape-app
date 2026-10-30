@@ -400,6 +400,7 @@
   "grocery.shop.byMeal": "Meal",
   "grocery.shop.byMealHint": "Each ingredient dey under the meal wey e dey for. Skip one meal and e things go comot from the list.",
   "grocery.shop.inCart": "{count} dey inside cart",
+  "grocery.shop.inCartOf": "{done} of {total} don enter cart",
   "grocery.shop.itemsGot": "{count, plural, one {# item} other {# items}} · {got} don carry",
   "grocery.shop.mealKicker": "Meal",
   "grocery.shop.mealsItems": "{meals, plural, one {# meal} other {# meals}} · {items, plural, one {# item} other {# items}}.",
@@ -423,11 +424,16 @@
   "eat.shop.tagAria": "Shopping for {meal}: {status}",
   "eat.shop.alsoMany": "{count, plural, one {also # other meal} other {also # other meals}}",
   "grocery.shop.sendMember": "Send am give member →",
+  "grocery.shop.switchList": "Change list",
   "grocery.share.meta": "Market list · {count, plural, one {# thing} other {# things}}",
   "grocery.share.save": "Save am for my lists",
   "grocery.share.saved": "✓ E don enter your lists",
   "grocery.share.savedToast": "E don enter your market lists",
   "grocery.share.saveFail": "We no fit save the list. Try again.",
   "eat.libReceivedToday": "Shared · You get am today",
-  "eat.libReceivedOn": "Shared · You get am {date}"
+  "eat.libReceivedOn": "Shared · You get am {date}",
+  "tabs.day": "Day",
+  "tabs.grocery": "Market",
+  "tabs.library": "Library",
+  "tabs.recipes": "Recipes"
 }

@@ -89,6 +89,7 @@
   "prep.pauseOverdue": "Jeda yang direncanakan telah terlewati: {titles}. Periksa hidangan ini sebelum melanjutkan.",
   "prep.pauseUpcoming": "{title} perlu diperhatikan sebelum {time}. Jadwal yang diperbarui melewati batas waktu jeda ini.",
   "prep.invalidTiming": "Durasi resep ini terlalu lama untuk dijadwalkan. Periksa durasi resep sebelum memulai.",
+  "prep.doorSub": "Pilih hidangannya dan masak sekaligus",
   "ck.readyAria": "Siap sekitar pukul {time}. Tampilkan semua langkah",
   "ck.readyAround": "Siap sekitar",
   "ck.readsAria": "Nora membacakan setiap langkah",

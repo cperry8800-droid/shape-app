@@ -400,6 +400,7 @@
   "grocery.shop.byMeal": "Öğün",
   "grocery.shop.byMealHint": "Her malzeme ait olduğu öğünün altında durur. Bir öğünü atlarsan malzemeleri listeden çıkar.",
   "grocery.shop.inCart": "{count} sepette",
+  "grocery.shop.inCartOf": "{total} üründen {done} tanesi sepette",
   "grocery.shop.itemsGot": "{count, plural, other {# ürün}} · {got} alındı",
   "grocery.shop.mealKicker": "Öğün",
   "grocery.shop.mealsItems": "{meals, plural, other {# öğün}} · {items, plural, other {# ürün}}.",
@@ -423,11 +424,16 @@
   "eat.shop.tagAria": "{meal} için alışveriş: {status}",
   "eat.shop.alsoMany": "{count, plural, other {ayrıca # başka öğün}}",
   "grocery.shop.sendMember": "Bir üyeye gönder →",
+  "grocery.shop.switchList": "Listeyi değiştir",
   "grocery.share.meta": "Alışveriş listesi · {count, plural, one {# ürün} other {# ürün}}",
   "grocery.share.save": "Listelerime kaydet",
   "grocery.share.saved": "✓ Listelerine kaydedildi",
   "grocery.share.savedToast": "Alışveriş listelerine kaydedildi",
   "grocery.share.saveFail": "Liste kaydedilemedi. Tekrar dene.",
   "eat.libReceivedToday": "Paylaşılan · Bugün alındı",
-  "eat.libReceivedOn": "Paylaşılan · {date} tarihinde alındı"
+  "eat.libReceivedOn": "Paylaşılan · {date} tarihinde alındı",
+  "tabs.day": "Gün",
+  "tabs.grocery": "Market",
+  "tabs.library": "Kitaplık",
+  "tabs.recipes": "Tarifler"
 }

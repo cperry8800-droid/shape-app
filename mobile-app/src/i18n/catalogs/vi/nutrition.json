@@ -400,6 +400,7 @@
   "grocery.shop.byMeal": "Bữa ăn",
   "grocery.shop.byMealHint": "Mỗi nguyên liệu nằm dưới bữa ăn cần nó. Bỏ qua một bữa thì các món của bữa đó rời khỏi danh sách.",
   "grocery.shop.inCart": "{count} trong giỏ",
+  "grocery.shop.inCartOf": "{done}/{total} món đã vào giỏ",
   "grocery.shop.itemsGot": "{count, plural, other {# món}} · đã lấy {got}",
   "grocery.shop.mealKicker": "Bữa ăn",
   "grocery.shop.mealsItems": "{meals, plural, other {# bữa}} · {items, plural, other {# món}}.",
@@ -423,11 +424,16 @@
   "eat.shop.tagAria": "Mua cho {meal}: {status}",
   "eat.shop.alsoMany": "{count, plural, other {cả # bữa khác}}",
   "grocery.shop.sendMember": "Gửi cho thành viên →",
+  "grocery.shop.switchList": "Đổi danh sách",
   "grocery.share.meta": "Danh sách đi chợ · {count, plural, other {# món}}",
   "grocery.share.save": "Lưu vào danh sách của tôi",
   "grocery.share.saved": "✓ Đã lưu vào danh sách của bạn",
   "grocery.share.savedToast": "Đã lưu vào danh sách đi chợ của bạn",
   "grocery.share.saveFail": "Không lưu được danh sách. Hãy thử lại.",
   "eat.libReceivedToday": "Được chia sẻ · Nhận hôm nay",
-  "eat.libReceivedOn": "Được chia sẻ · Nhận ngày {date}"
+  "eat.libReceivedOn": "Được chia sẻ · Nhận ngày {date}",
+  "tabs.day": "Ngày",
+  "tabs.grocery": "Đi chợ",
+  "tabs.library": "Thư viện",
+  "tabs.recipes": "Công thức"
 }

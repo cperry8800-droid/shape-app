@@ -400,6 +400,7 @@
   "grocery.shop.byMeal": "Abinci",
   "grocery.shop.byMealHint": "Kowane sinadari yana ƙarƙashin abincin da yake domin sa. Idan ka tsallake abinci, kayansa za su fita daga jerin.",
   "grocery.shop.inCart": "{count} a cikin keken",
+  "grocery.shop.inCartOf": "{done} cikin {total} suna cikin kwando",
   "grocery.shop.itemsGot": "{count, plural, one {kaya # tak} other {kaya #}} · an ɗauko {got}",
   "grocery.shop.mealKicker": "Abinci",
   "grocery.shop.mealsItems": "{meals, plural, one {abinci # tak} other {abinci #}} · {items, plural, one {kaya # tak} other {kaya #}}.",
@@ -423,11 +424,16 @@
   "eat.shop.tagAria": "Siyayya don {meal}: {status}",
   "eat.shop.alsoMany": "{count, plural, other {har da wasu abinci #}}",
   "grocery.shop.sendMember": "Aika wa memba →",
+  "grocery.shop.switchList": "Canza jeri",
   "grocery.share.meta": "Jerin sayayya · {count, plural, one {kaya #} other {kayayyaki #}}",
   "grocery.share.save": "Ajiye a jerina",
   "grocery.share.saved": "✓ An ajiye a jerinka",
   "grocery.share.savedToast": "An ajiye a jerin sayayyarka",
   "grocery.share.saveFail": "Ba a iya ajiye jerin ba. Sake gwadawa.",
   "eat.libReceivedToday": "An raba · An karɓa yau",
-  "eat.libReceivedOn": "An raba · An karɓa {date}"
+  "eat.libReceivedOn": "An raba · An karɓa {date}",
+  "tabs.day": "Rana",
+  "tabs.grocery": "Kasuwa",
+  "tabs.library": "Ɗakin karatu",
+  "tabs.recipes": "Girke-girke"
 }

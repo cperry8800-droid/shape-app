@@ -7610,26 +7610,32 @@ function bsRecipeListId(recipe, dayLabel) {
   return `recipe-${dayLabel}-${title}`.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
 }
 
+// The Eat section's four views. They spread across the whole row (owner, 2026-10-30: "redesign
+// look of these"), so the four read as one control instead of a short list stranded on the left.
+// The lit view takes ink and a 2px accent bar that grows in on the rule; the others sit at INK70,
+// not INK50, so an unlit label still reads. Each tab is as wide as its own label, so a long word
+// (fr "Bibliothèque") pushes its neighbours over instead of being cut.
 function BSNutritionTopTabs({ active, onChange }) {
   const t = useBS();
+  const tr = useShapeTr();
   const tabs = [
-    ['eat', 'Day'],
-    ['grocery', 'Grocery'],
-    ['library', 'Library'],
-    ['recipes', 'Recipes'],
+    ['eat', tr('nutrition:tabs.day', { defaultValue: 'Day' })],
+    ['grocery', tr('nutrition:tabs.grocery', { defaultValue: 'Grocery' })],
+    ['library', tr('nutrition:tabs.library', { defaultValue: 'Library' })],
+    ['recipes', tr('nutrition:tabs.recipes', { defaultValue: 'Recipes' })],
   ];
   return (
-    <div style={{ padding: `2px ${t.padX}px 0`, display: 'flex', gap: 18, borderBottom: `1px solid ${t.RULE}` }}>
+    <nav aria-label={tr('common:nav.eat', { defaultValue: 'Eat' })} style={{ margin: `2px ${t.padX}px 0`, display: 'flex', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.RULE}` }}>
       {tabs.map(([key, label]) => {
         const on = active === key;
         return (
-          <button type="button" key={key} onClick={() => onChange(key)} aria-current={on ? 'page' : undefined} style={{ position: 'relative', minHeight: 44, padding: '12px 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: on ? 800 : 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>
+          <button type="button" key={key} onClick={() => onChange(key)} aria-current={on ? 'page' : undefined} style={{ position: 'relative', minHeight: 46, padding: '14px 2px 12px', background: 'transparent', border: 0, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 10.5, fontWeight: on ? 800 : 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? t.INK : t.INK70, transition: 'color 160ms ease' }}>
             {label}
-            {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, background: t.ACCENT }} />}
+            <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, borderRadius: 2, background: t.ACCENT, transform: on ? 'scaleX(1)' : 'scaleX(0)', transition: 'transform 220ms cubic-bezier(0.2,0.8,0.2,1)' }} />
           </button>
         );
       })}
-    </div>
+    </nav>
   );
 }
 
@@ -7670,12 +7676,6 @@ function bsSkParseIngredient(s) {
 // serifs. No script." (iosAppBroadsheet.jsx:10-14) and Doto here is the Radio
 // page's own instrument face (the 2026-09-14 §12 default, "Doto on Radio
 // only"). Same grammar — a label, then a figure — in each house's own face.
-//
-// ⚠ REGISTERED, NOT FIXED: `BSNutritionTopTabs` — the Day / Grocery / Library /
-// Recipes row this page renders under its masthead — carries four hardcoded
-// English labels, and after this cut they are the only English left on the
-// screen. It is a shared component with three other consumers, so keying it is
-// its own change rather than a side effect of the Kitchen's.
 //
 // ⚠ AND THE COLOURS ARE TOKENS, NEVER THE WEBSITE'S BONE/TERRACOTTA LITERALS.
 // The app has 18 papers; the website's page-local palette would read as one of
@@ -33782,17 +33782,48 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
 
       <BSCleanType t={tc}>
 
-      {/* Which list is showing — a slim name selector; tap to switch lists */}
+      {/* THE LIST CARD (owner, 2026-10-30: "this part, looks confusing"). One card answers, in
+          order: which list this is, with a Switch button that says what it does (the old row was
+          a name, an unexplained coloured dot, "89 ITEMS" and a ▾ that read as a filter); then how
+          far the shop has got, in words. The dot's meaning is now said: the list's source, named.
+          ⚠ THE "~$44 TO GO" FIGURE IS GONE ON PURPOSE. It was a fixed $48 for every list scaled by
+          the ticks, so it priced no list at all; a cost comes back only from real prices. */}
       {(() => {
-        const src = list.kind === 'recipe' ? { c: t.AMBER } : list.kind === 'custom' ? { c: '#8a5cf6' } : { c: gold };
+        const src = list.kind === 'recipe' ? { c: t.AMBER, l: TG('nutrition:grocery.shop.srcRecipe', 'Recipe') }
+          : list.kind === 'custom' ? { c: '#8a5cf6', l: TG('nutrition:grocery.shop.srcCustom', 'Custom') }
+            : list.kind === 'mealplan' ? { c: gold, l: TG('nutrition:grocery.shop.srcMealPlan', 'Meal plan') }
+              : { c: gold, l: TG('nutrition:grocery.shop.srcPlan', 'Nutri plan') };
+        const left = total - done;
         return (
-          <div style={{ padding: `12px ${t.padX}px 0` }}>
-            <button onClick={() => setPickerOpen(true)} aria-label={TG('nutrition:grocery.shop.pickAria', 'Choose a grocery list')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 2px', background: 'transparent', border: 0, borderBottom: `1px solid ${t.RULE}` }}>
-              <span style={{ flexShrink: 0, width: 9, height: 9, borderRadius: 999, background: src.c }} />
-              <span style={{ flex: 1, minWidth: 0, fontFamily: tc.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name}</span>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, letterSpacing: '0.08em' }}>{TG('nutrition:grocery.itemCountCaps', `${total} ITEM${total === 1 ? '' : 'S'}`, { count: total })}</span>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 13, fontWeight: 800, color: src.c, lineHeight: 1 }}>▾</span>
+          <div data-grocery-list-card="" style={{ margin: `14px ${t.padX}px 0`, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${src.c}`, borderRadius: 10, background: t.PAPER2, overflow: 'hidden' }}>
+            <button type="button" onClick={() => setPickerOpen(true)} aria-haspopup="dialog" aria-label={TG('nutrition:grocery.shop.pickAria', 'Choose a grocery list')} style={{ width: '100%', minHeight: 60, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px 11px 13px', background: 'transparent', border: 0, color: t.INK }}>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: src.c, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {src.l}<span style={{ color: t.INK50, fontWeight: 700 }}> · {trG('nutrition:grocery.itemCount', { defaultValue: '{count, plural, one {# item} other {# items}}', count: total })}</span>
+                </span>
+                <span style={{ display: 'block', marginTop: 3, fontFamily: tc.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name}</span>
+              </span>
+              <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 32, padding: '0 11px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>
+                {trG('nutrition:grocery.shop.switchList', { defaultValue: 'Switch list' })}
+                <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3.5 5 6.5 8 3.5" /></svg>
+              </span>
             </button>
+            {total > 0 && (
+              <div style={{ padding: '10px 13px 12px', borderTop: `1px solid ${t.HAIR}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+                  <span style={{ fontFamily: tc.BODY, fontSize: 14, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+                    {trG('nutrition:grocery.shop.inCartOf', { defaultValue: '{done} of {total} in the cart', done, total })}
+                  </span>
+                  <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: left > 0 ? accent : t.INK50 }}>
+                    {left > 0 ? trG('nutrition:grocery.shop.toGetCount', { defaultValue: '{count} to get', count: left }) : trG('nutrition:grocery.shop.aisleDone', { defaultValue: 'All got ✓' })}
+                  </span>
+                </div>
+                <div role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-label={trG('nutrition:grocery.shop.inCartOf', { defaultValue: '{done} of {total} in the cart', done, total })} style={{ marginTop: 8, height: 6, borderRadius: 3, background: t.HAIR, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pct}%`, minWidth: done > 0 ? 6 : 0, background: accent, borderRadius: 3, transition: 'width 0.2s ease' }} />
+                </div>
+                {offCount > 0 ? <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: gold }}>{trG('nutrition:grocery.shop.offCount', { defaultValue: '{count} skipped', count: offCount })}</div> : null}
+              </div>
+            )}
           </div>
         );
       })()}
@@ -33843,24 +33874,19 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
       }} />
 
       <div style={{ padding: `0 ${t.padX}px 24px` }}>
-        {/* Slim progress strip — one line + a thin fill (replaces the heavy plate) */}
-        {total > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{TG('nutrition:grocery.shop.gotCount', `${done}/${total} got`, { done, total })} · <span style={{ color: accent }}>{done < total ? TG('nutrition:grocery.shop.toGo', `~$${estLeft} to go`, { amount: estLeft }) : TG('nutrition:grocery.shop.allSet', 'all set')}</span>{offCount > 0 ? <span style={{ color: gold }}> · {trG('nutrition:grocery.shop.offCount', { defaultValue: '{count} skipped', count: offCount })}</span> : null}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: accent }}>{pct}%</span>
-            </div>
-            <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct}%`, background: accent, borderRadius: 2, transition: 'width 0.2s ease' }} /></div>
-          </div>
-        )}
-
         {/* PREP THE WEEK door (PR C) — shopping done, cooking next. Optional
-            always; renders only where the host wired the session. */}
+            always; renders only where the host wired the session. It says what it
+            opens (the dotted-leader row it replaces named a ritual and nothing more). */}
         {onPrep && (
-          <button type="button" data-bsck-door="prep" onClick={onPrep} style={{ marginTop: 12, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', textAlign: 'left' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>{trG('cook:prep.door', { defaultValue: 'Prep the week' })}</span>
-            <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
-            <span style={{ color: accent, fontWeight: 700, fontSize: 13 }}>→</span>
+          <button type="button" data-bsck-door="prep" onClick={onPrep} style={{ marginTop: 10, width: '100%', minHeight: 58, display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 10, cursor: 'pointer', padding: '10px 13px', textAlign: 'left', color: t.INK }}>
+            <span aria-hidden style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, display: 'grid', placeItems: 'center', background: bsTHexA(accent, 0.12), color: accent }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 11h16v3a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z" /><path d="M2 11h2M20 11h2M9 7.5c0-1 .8-1.4.8-2.5M14 7.5c0-1 .8-1.4.8-2.5" /></svg>
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontFamily: tc.HEAD, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{trG('cook:prep.door', { defaultValue: 'Prep the week' })}</span>
+              <span style={{ display: 'block', marginTop: 1, fontFamily: tc.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.3 }}>{trG('cook:prep.doorSub', { defaultValue: 'Pick the dishes and cook them in one go' })}</span>
+            </span>
+            <span aria-hidden style={{ flexShrink: 0, color: accent, fontWeight: 700, fontSize: 15 }}>→</span>
           </button>
         )}
 

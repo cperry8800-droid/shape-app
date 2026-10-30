@@ -89,6 +89,7 @@
   "prep.pauseOverdue": "Đã vượt quá thời gian nghỉ dự kiến: {titles}. Kiểm tra các món này trước khi tiếp tục.",
   "prep.pauseUpcoming": "Cần chú ý đến {title} trước {time}. Lịch trình cập nhật vượt quá thời hạn của khoảng nghỉ này.",
   "prep.invalidTiming": "Thời gian của các công thức này quá dài để lập lịch. Hãy kiểm tra thời lượng trước khi bắt đầu.",
+  "prep.doorSub": "Chọn món rồi nấu một lượt",
   "ck.readyAria": "Xong khoảng {time}. Hiện tất cả các bước",
   "ck.readyAround": "Xong khoảng",
   "ck.readsAria": "Nora đọc to từng bước",

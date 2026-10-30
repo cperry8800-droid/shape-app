@@ -400,6 +400,7 @@
   "grocery.shop.byMeal": "Meal",
   "grocery.shop.byMealHint": "Each ingredient sits under the meal it’s for. Skip a meal and its items come off the list.",
   "grocery.shop.inCart": "{count} in the cart",
+  "grocery.shop.inCartOf": "{done} of {total} in the cart",
   "grocery.shop.itemsGot": "{count, plural, one {# item} other {# items}} · {got} got",
   "grocery.shop.mealKicker": "Meal",
   "grocery.shop.mealsItems": "{meals, plural, one {# meal} other {# meals}} · {items, plural, one {# item} other {# items}}.",
@@ -423,11 +424,16 @@
   "eat.shop.tagAria": "Shopping for {meal}: {status}",
   "eat.shop.alsoMany": "{count, plural, one {also # other meal} other {also # other meals}}",
   "grocery.shop.sendMember": "Send to a member →",
+  "grocery.shop.switchList": "Switch list",
   "grocery.share.meta": "Grocery list · {count, plural, one {# item} other {# items}}",
   "grocery.share.save": "Save to my lists",
   "grocery.share.saved": "✓ Saved to your lists",
   "grocery.share.savedToast": "Saved to your grocery lists",
   "grocery.share.saveFail": "Could not save the list. Try again.",
   "eat.libReceivedToday": "Shared · Received today",
-  "eat.libReceivedOn": "Shared · Received {date}"
+  "eat.libReceivedOn": "Shared · Received {date}",
+  "tabs.day": "Day",
+  "tabs.grocery": "Grocery",
+  "tabs.library": "Library",
+  "tabs.recipes": "Recipes"
 }

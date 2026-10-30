@@ -400,6 +400,7 @@
   "grocery.shop.byMeal": "Makanan",
   "grocery.shop.byMealHint": "Setiap bahan ada di bawah makanannya. Lewati makanan dan bahannya keluar dari daftar.",
   "grocery.shop.inCart": "{count} di keranjang",
+  "grocery.shop.inCartOf": "{done} dari {total} di keranjang",
   "grocery.shop.itemsGot": "{count, plural, other {# barang}} · {got} diambil",
   "grocery.shop.mealKicker": "Makanan",
   "grocery.shop.mealsItems": "{meals, plural, other {# makanan}} · {items, plural, other {# barang}}.",
@@ -423,11 +424,16 @@
   "eat.shop.tagAria": "Belanja untuk {meal}: {status}",
   "eat.shop.alsoMany": "{count, plural, other {juga # makanan lain}}",
   "grocery.shop.sendMember": "Kirim ke anggota →",
+  "grocery.shop.switchList": "Ganti daftar",
   "grocery.share.meta": "Daftar belanja · {count, plural, other {# item}}",
   "grocery.share.save": "Simpan ke daftar saya",
   "grocery.share.saved": "✓ Disimpan ke daftarmu",
   "grocery.share.savedToast": "Disimpan ke daftar belanjamu",
   "grocery.share.saveFail": "Daftar tidak bisa disimpan. Coba lagi.",
   "eat.libReceivedToday": "Dibagikan · Diterima hari ini",
-  "eat.libReceivedOn": "Dibagikan · Diterima {date}"
+  "eat.libReceivedOn": "Dibagikan · Diterima {date}",
+  "tabs.day": "Hari",
+  "tabs.grocery": "Belanja",
+  "tabs.library": "Pustaka",
+  "tabs.recipes": "Resep"
 }

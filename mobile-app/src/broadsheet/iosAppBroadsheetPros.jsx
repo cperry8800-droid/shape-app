@@ -86,17 +86,21 @@ const {
 // The coach pages' clean type (Geist heads, Inter Tight words) lives in bsCleanType.jsx, which the
 // member's Home shares. A page swaps the text face in its own theme (useBSProClean) and hands that
 // theme to what it renders (BSProCleanType).
-// The clean header grammar: a 38px title (no period), a 16px line under it with its lead in bold,
-// 20px section heads that carry a count badge, and teal text links.
-const bsProH1 = (t) => ({ margin: 0, minWidth: 0, fontFamily: BS_PRO_HEAD, fontSize: 38, fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1.05, color: t.INK });
-const bsProLede = (t) => ({ margin: '6px 0 0', fontFamily: BS_PRO_SANS, fontSize: 16, fontWeight: 500, lineHeight: 1.45, color: t.INK70 });
-const bsProH2 = (t) => ({ margin: 0, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: BS_PRO_HEAD, fontSize: 20, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.2, color: t.INK });
-const bsProLink = (t) => ({ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 650, color: t.isLight ? '#07706a' : '#34d6c5', whiteSpace: 'nowrap' });
+// The clean header grammar: a 32px title (no period), a 14.5px line under it with its lead in bold,
+// 17px section heads that carry a count badge, and teal text links.
+// ⚠ ONE STEP DOWN FROM THE FIRST CUT (owner, 2026-10-30: "make the coaches fonting a little
+// smaller", after "font sizing not matching on client account and coaches"). The coach pages were
+// set at 38 / 16 / 20 / 14 and read a size larger than the member's Home, whose section heads are
+// 17px and page titles 34px; these sizes put the two accounts on one scale.
+const bsProH1 = (t) => ({ margin: 0, minWidth: 0, fontFamily: BS_PRO_HEAD, fontSize: 32, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.05, color: t.INK });
+const bsProLede = (t) => ({ margin: '5px 0 0', fontFamily: BS_PRO_SANS, fontSize: 14.5, fontWeight: 500, lineHeight: 1.45, color: t.INK70 });
+const bsProH2 = (t) => ({ margin: 0, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK });
+const bsProLink = (t) => ({ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, color: t.isLight ? '#07706a' : '#34d6c5', whiteSpace: 'nowrap' });
 // A count on a section head. `bg` is a deep tone on light papers and a light one on dark, so the
 // figure is white on light and ink on dark.
 function bsProCount(t, n, bg) {
   if (!n) return null;
-  return <span style={{ display: 'inline-grid', placeItems: 'center', minWidth: 22, height: 22, padding: '0 6px', boxSizing: 'border-box', borderRadius: 999, background: bg, color: t.isLight ? '#ffffff' : '#0f0e0c', fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 800, letterSpacing: 0, fontVariantNumeric: 'tabular-nums' }}>{n}</span>;
+  return <span style={{ display: 'inline-grid', placeItems: 'center', minWidth: 20, height: 20, padding: '0 6px', boxSizing: 'border-box', borderRadius: 999, background: bg, color: t.isLight ? '#ffffff' : '#0f0e0c', fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 800, letterSpacing: 0, fontVariantNumeric: 'tabular-nums' }}>{n}</span>;
 }
 
 // The components above from BSClientChat on, and these identity/tier helpers,
@@ -1090,9 +1094,9 @@ function BSProWeekStrip({ goCalendar, dots, heat, label, selDay: selDayProp, onS
           return (
             <button key={idx} type="button" aria-pressed={on} onClick={() => setSelDay(d.getDate())}
               aria-label={`${dayWord(d, { weekday: 'long', month: 'long', day: 'numeric' })}${today ? `, ${tr('coach:rail.todayAria', { defaultValue: 'today' })}` : ''}`}
-              style={{ minWidth: 0, height: 66, boxSizing: 'border-box', border: today && !on ? `1.5px solid ${t.RULE}` : 0, borderRadius: 12, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: 0, cursor: 'pointer' }}>
-              <span style={{ maxWidth: '100%', overflow: 'hidden', fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, color: on ? t.PAPER : t.INK70, opacity: on ? 0.8 : 1, whiteSpace: 'nowrap' }}>{dayWord(d, { weekday: 'short' })}</span>
-              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{d.getDate()}</span>
+              style={{ minWidth: 0, height: 58, boxSizing: 'border-box', border: today && !on ? `1.5px solid ${t.RULE}` : 0, borderRadius: 11, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: 0, cursor: 'pointer' }}>
+              <span style={{ maxWidth: '100%', overflow: 'hidden', fontFamily: BS_PRO_SANS, fontSize: 10, fontWeight: 650, color: on ? t.PAPER : t.INK70, opacity: on ? 0.8 : 1, whiteSpace: 'nowrap' }}>{dayWord(d, { weekday: 'short' })}</span>
+              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{d.getDate()}</span>
               <span aria-hidden style={{ display: 'flex', gap: 3, height: 5 }}>
                 {Array.from({ length: n }).map((_, k) => <span key={k} style={{ width: 5, height: 5, borderRadius: 999, background: on ? heatC : t.INK70 }} />)}
               </span>
@@ -1993,7 +1997,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       <div data-tour="hero-today" style={{ padding: `20px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <h1 style={bsProH1(t)}>{tr('coach:today.title', { defaultValue: 'Today' })}</h1>
-          <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 999, background: t.PAPER2, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap' }}>
+          <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 11px', borderRadius: 999, background: t.PAPER2, fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap' }}>
             <span aria-hidden style={{ width: 7, height: 7, borderRadius: 999, background: heat }} />{dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' })}
           </span>
         </div>
@@ -2048,18 +2052,18 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
 
       {/* UP NEXT — today's next booking, with what the coach does about it. */}
       {upB && (
-        <div data-up-next="" style={{ margin: `16px ${t.padX}px 0`, borderRadius: 16, background: t.INK, color: t.PAPER, padding: 18 }}>
+        <div data-up-next="" style={{ margin: `16px ${t.padX}px 0`, borderRadius: 14, background: t.INK, color: t.PAPER, padding: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span aria-hidden style={{ width: 8, height: 8, borderRadius: 999, background: upAccent, flexShrink: 0 }} />
-            <span style={{ fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 750, color: upAccent }}>
+            <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 750, color: upAccent }}>
               {tr('coach:today.upNextAt', { defaultValue: 'Up next · {time}', time: fmtAt(upB.time) })}{upIn != null ? ` · ${tr('coach:today.inDur', { defaultValue: 'in {dur}', dur: fmtFor(upIn) })}` : ''}
             </span>
           </div>
-          <div style={{ marginTop: 8, fontFamily: BS_PRO_HEAD, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.15 }}>{upB.title}</div>
-          <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.35, opacity: 0.85 }}>{lineOf(upB)}</div>
-          <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 10 }}>
-            <button type="button" onClick={upPrimary[1]} style={{ minHeight: 48, borderRadius: 12, border: 0, background: t.PAPER, color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{upPrimary[0]}</button>
-            {upIsPerson && <button type="button" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ minHeight: 48, borderRadius: 12, border: `1.5px solid ${t.PAPER}80`, background: 'transparent', color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{tr('coach:today.message', { defaultValue: 'Message' })}</button>}
+          <div style={{ marginTop: 7, fontFamily: BS_PRO_HEAD, fontSize: 20, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.15 }}>{upB.title}</div>
+          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.35, opacity: 0.85 }}>{lineOf(upB)}</div>
+          <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 10 }}>
+            <button type="button" onClick={upPrimary[1]} style={{ minHeight: 44, borderRadius: 11, border: 0, background: t.PAPER, color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{upPrimary[0]}</button>
+            {upIsPerson && <button type="button" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ minHeight: 44, borderRadius: 11, border: `1.5px solid ${t.PAPER}80`, background: 'transparent', color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{tr('coach:today.message', { defaultValue: 'Message' })}</button>}
           </div>
         </div>
       )}
@@ -2108,7 +2112,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
               <div key={p.purchaseId} data-paid={p.purchaseId} style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
                 <span aria-hidden style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 999, border: `2.5px solid ${heat}`, boxSizing: 'border-box' }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.clientName}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.clientName}</div>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, marginTop: 2 }}>
                     {tr('coach:today.toSchedulePaid', { defaultValue: 'Paid {date}', date: new Date(p.paidAt).toLocaleDateString(loc, { month: 'short', day: 'numeric' }) })}
                   </div>
@@ -2128,7 +2132,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
             <button type="button" onClick={() => openClientFile(w.clientId)} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10, minHeight: 60, padding: '10px 0', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: t.INK }}>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK }}>{w.name}</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>{w.name}</span>
                   {chip(FLAG_WORDS[w.severity], SEV_HUE[w.severity] || t.INK70, sevText(w.severity))}
                 </span>
                 <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.35, color: t.INK70 }}>{w.directive}</span>
@@ -2188,7 +2192,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                         <span style={{ paddingTop: 14, textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: isNext ? t.INK : t.INK70 }}>{fmtAt(b.time)}</span>
                         <div style={{ padding: '12px 0 12px 14px', borderLeft: isNext ? `3px solid ${heat}` : `2px solid ${t.RULE}` }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: isNext ? 700 : 600, color: done ? t.INK70 : t.INK }}>{done ? '✓ ' : ''}{b.title}</span>
+                            <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: isNext ? 700 : 600, color: done ? t.INK70 : t.INK }}>{done ? '✓ ' : ''}{b.title}</span>
                             {isNext && chip(tr('coach:rail.nextTag', { defaultValue: 'Next' }), heat, heatText)}
                             {flagHit && FLAG_WORDS[flagHit.severity] && chip(FLAG_WORDS[flagHit.severity], SEV_HUE[flagHit.severity], sevText(flagHit.severity))}
                           </div>
