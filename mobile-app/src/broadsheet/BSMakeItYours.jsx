@@ -7,6 +7,7 @@ import {
   BS_RECIPE_INGS_MAX, BS_RECIPE_ING_MAX, BS_RECIPE_QTY_MAX, BS_RECIPE_STEPS_MAX, BS_RECIPE_STEP_MAX, BS_RECIPE_NUMS, bsKitchenRecipeItem, bsProfileKitchen, bsCleanText,
 } from '../services/profileCustom.mjs';
 import { bsSplitPaste, bsSplitLongStep } from '../services/clientRecipes.mjs';
+import { bsCoachFirstName } from '../services/coachPronoun.mjs';
 import {
   STUDIO_KIT, STUDIO_GROUPS, STUDIO_COACH_KINDS, KITCHEN_GROUPS, KITCHEN_COACH_KINDS, STUDIO_WORDS, BS_STUDIO_W, BS_STUDIO_H,
   bsStudioTypesIn, bsStudioRoom, bsStudioSvg, bsStudioSpot, bsStudioDrawOrder, bsStudioFromTemplate,
@@ -962,7 +963,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const [recipeDraft, setRecipeDraft] = React.useState(null);
   const recipeOpen = !!recipeDraft;
   const dirty = lookChanged || wallChanged || studioChanged || kitchenChanged;
-  const first = who.first || String(who.name || '').split(' ')[0];
+  const first = who.first || bsCoachFirstName(who.name);
   const w = words || { day: tr('profile:trainer.dayName', { defaultValue: "{name}'s day", name: first }), work: tr('profile:trainer.workName', { defaultValue: 'Work with {name}', name: first }) };
 
   const demoNoUpload = () => setErr(tr('profile:mine.errDemoUpload', { defaultValue: 'Sign in to upload your own photo.' }));

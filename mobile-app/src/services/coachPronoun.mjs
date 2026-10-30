@@ -13,3 +13,15 @@ export function bsCoachPronoun(pronouns) {
   if (first === 'they' || first === 'them') return 'them';
   return null;
 }
+
+// A title before the name is not the first name: "Dr. Maya Patel" reads "Maya's day", never
+// "Dr.'s day" (the sample nutritionist did). Matched without its dot and in any case; a name that
+// is only a title keeps it.
+const BS_NAME_TITLES = new Set(['dr', 'dra', 'prof', 'mr', 'mrs', 'ms', 'mx', 'miss', 'sr', 'sra', 'srta', 'dott', 'dottssa', 'coach', 'chef']);
+/** The first name a profile addresses the coach by, from their display name. */
+export function bsCoachFirstName(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  while (parts.length > 1 && BS_NAME_TITLES.has(parts[0].replace(/\.$/, '').toLowerCase())) parts.shift();
+  return parts[0] || '';
+}
+

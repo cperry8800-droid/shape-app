@@ -5,7 +5,7 @@ import { STUDIO_WORDS, STUDIO_KIT, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsSt
 import { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsKitchenWork } from '../services/coachWork.mjs';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.mjs';
-import { bsCoachPronoun } from '../services/coachPronoun.mjs';
+import { bsCoachPronoun, bsCoachFirstName } from '../services/coachPronoun.mjs';
 import { bsShortAge } from '../services/shortAge.mjs';
 import { bsTrainerDemo, bsTrainerSampleOf } from '../services/trainerDemo.mjs';
 import { bsNutritionistDemo, bsNutritionistSampleOf } from '../services/nutritionistDemo.mjs';
@@ -243,7 +243,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // ── Who ──
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
   const name = (isSelf && W.bsMyName && W.bsMyName()) || person.who || (live && live.name) || tr('profile:trainer.coach', { defaultValue: 'Coach' });
-  const first = String(name).split(' ')[0];
+  const first = bsCoachFirstName(name);
   const pron = bsCoachPronoun(!isPrivate && live ? live.pronouns : '');
   const words = {
     day: pron === 'her' ? tr('profile:trainer.dayHer', { defaultValue: 'Her day' }) : pron === 'him' ? tr('profile:trainer.dayHim', { defaultValue: 'His day' }) : pron === 'them' ? tr('profile:trainer.dayThem', { defaultValue: 'Their day' }) : tr('profile:trainer.dayName', { defaultValue: "{name}'s day", name: first }),

@@ -15,7 +15,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadRealModule } from './helpers/load-real-module.mjs';
-import { bsCoachPronoun } from '../mobile-app/src/services/coachPronoun.mjs';
+import { bsCoachPronoun, bsCoachFirstName } from '../mobile-app/src/services/coachPronoun.mjs';
 import { bsStudioFromTemplate } from '../mobile-app/src/services/studioKit.mjs';
 import { BS_SUPABASE_HOST } from '../public/newdesign/listingMedia.mjs';
 
@@ -136,6 +136,13 @@ test('the words follow the pronouns the coach wrote, else their first name', asy
   assert.equal(bsCoachPronoun('He / him'), 'him');
   assert.equal(bsCoachPronoun('they/them'), 'them');
   for (const v of ['', null, 'ze/zir', 'any', 'shee']) assert.equal(bsCoachPronoun(v), null, String(v));
+  // A title is not the first name: the sample "Dr. Maya Patel" read "Dr.'s day".
+  assert.equal(bsCoachFirstName('Dr. Maya Patel'), 'Maya');
+  assert.equal(bsCoachFirstName('coach  Jordan Chen'), 'Jordan');
+  assert.equal(bsCoachFirstName('Prof Dra. Ana Ruiz'), 'Ana');
+  assert.equal(bsCoachFirstName('Maya Okafor'), 'Maya');
+  assert.equal(bsCoachFirstName('Dr.'), 'Dr.', 'a name that is only a title keeps it');
+  assert.equal(bsCoachFirstName(''), '');
   for (const [pronouns, day, work] of [['she/her', 'Her day', 'Work with her'], ['he/him', 'His day', 'Work with him'], ['they', 'Their day', 'Work with them'], ['', "Maya's day", 'Work with Maya'], ['xe/xem', "Maya's day", 'Work with Maya']]) {
     reset({ pronouns });
     const m = await mount(page());
