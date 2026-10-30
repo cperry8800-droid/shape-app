@@ -91,5 +91,10 @@
   "update.noStoreAndroid": "Google Play’i aç ve Shape’i güncelle.",
   "update.recommendedTitle": "Shape’in yeni bir sürümü çıktı.",
   "update.recommendedBody": "En son düzeltmeler ve özellikler için güncelle.",
-  "update.later": "Şimdi değil"
+  "update.later": "Şimdi değil",
+  "age.m": "{n} dk",
+  "age.h": "{n} sa",
+  "age.d": "{n} g",
+  "age.w": "{n} hf",
+  "age.now": "şimdi"
 }

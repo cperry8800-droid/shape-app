@@ -17,6 +17,7 @@ import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs
 import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsValidLivePayload } from '../services/liveProgress.mjs';
 import { createLiveWorkoutPublisher } from '../services/liveWorkoutPublisher.mjs';
+import { bsShortAge } from '../services/shortAge.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // The ONE ceiling. The prompt must ask at exactly the load the core refuses to
 // admit unconsidered — a local copy of 150 that drifted would leave the screen
@@ -18484,7 +18485,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       if (m < 60) return `${m || 1}m`;
       const h = Math.round(m / 60); if (h < 24) return `${h}h`;
       const days = Math.round(h / 24); if (days < 7) return `${days}d`;
-      const w = Math.round(days / 7); return w < 5 ? `${w}w` : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      const w = Math.round(days / 7); return w < 5 ? `${w}w` : d.toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' });
     };
     const cap = (s) => String(s || 'Workout').replace(/[_-]+/g, ' ').replace(/\b\w/g, (x) => x.toUpperCase());
     (async () => {
@@ -21860,7 +21861,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
               <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, color: t.INK }}>{d.who}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{d.tierDisplay}</span>
             </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, marginTop: 3, letterSpacing: '0.04em' }}>{tr('session:detail.ago', { defaultValue: '{time} ago', time: d.ago })}{d.city ? ` · ${d.city}` : ''}{d.role ? ` · ${d.role}` : ''}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, marginTop: 3, letterSpacing: '0.04em' }}>{tr('session:detail.ago', { defaultValue: '{time} ago', time: bsShortAge(d.ago, tr) })}{d.city ? ` · ${d.city}` : ''}{d.role ? ` · ${d.role}` : ''}</div>
           </div>
         </div>
         {/* author hairline — a hard "filed-by" cut between the byline and the
@@ -22200,7 +22201,7 @@ function BSSplitsPage({ d, paceData, heat, t, onClose }) {
       </div>
       <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 24px' }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{d.title || tr('session:splits.sessionFallback', { defaultValue: 'Session' })}<span style={{ color: accent }}>.</span></div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, margin: '4px 0 16px' }}>{d.who}{d.ago ? ` · ${tr('session:detail.ago', { defaultValue: '{time} ago', time: d.ago })}` : ''}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, margin: '4px 0 16px' }}>{d.who}{d.ago ? ` · ${tr('session:detail.ago', { defaultValue: '{time} ago', time: bsShortAge(d.ago, tr) })}` : ''}</div>
         <BSSdPaceBars data={paceData} t={t} muted={muted} heat={accent} big />
         <div style={{ marginTop: 22, display: 'grid', gridTemplateColumns: gridCols, columnGap: 12, alignItems: 'center' }}>
           <span style={{ ...col, textAlign: 'left' }}>{tr('session:splits.colSplit', { defaultValue: 'Split' })}</span>
@@ -22595,7 +22596,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               const kicker = [isPR ? tr('feed:card.newPR', { defaultValue: 'New PR' }) : typeLabel, a.city].filter(Boolean).join(' · ');
               // On a profile (hideAuthor) the page is already theirs: the byline is the time alone, with the
               // owner's edit beside it.
-              const meta = [hideAuthor ? null : tierDisplay, a.ago ? tr('feed:card.ago', { defaultValue: '{time} ago', time: a.ago }) : null].filter(Boolean).join(' · ');
+              const meta = [hideAuthor ? null : tierDisplay, a.ago ? tr('feed:card.ago', { defaultValue: '{time} ago', time: bsShortAge(a.ago, tr) }) : null].filter(Boolean).join(' · ');
               // The hero figure, then the session-details ranking's lead (pace, time, heart rate), so a
               // run with a dozen stats says distance, pace and time rather than its first three. It ranks
               // the full list: a real post's `stats` is the card's first three (Codex P2 on #2431).
@@ -22620,7 +22621,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
             })()}
             {isMag ? null : hideAuthor ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, color: muted, letterSpacing: '0.04em' }}>{a.ago}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, color: muted, letterSpacing: '0.04em' }}>{bsShortAge(a.ago, tr)}</span>
                 {/* owner edit — only when the host supplies onEdit (profile) AND the
                     card is a real published post; the community feed passes no onEdit,
                     and demo/PR cards have no postId, so this stays profile-own-posts.
@@ -22637,7 +22638,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                   <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, color: t.INK, whiteSpace: 'nowrap' }}>{a.who}</button>
                   <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), lineHeight: 1, whiteSpace: 'nowrap' }}>{tierDisplay} · {(a.role || 'Client').toUpperCase()}</span>
                 </div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, color: muted, marginTop: 3, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('feed:card.ago', { defaultValue: '{time} ago', time: a.ago })} · {a.city}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, color: muted, marginTop: 3, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('feed:card.ago', { defaultValue: '{time} ago', time: bsShortAge(a.ago, tr) })} · {a.city}</div>
               </div>
               <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
             </div>
@@ -23908,7 +23909,7 @@ function BSWallYourBest({ loggedIn, onLogActivity, onPostedRecord }) {
                       : tr('feed:wall.notOnWall', { defaultValue: 'not on the wall yet' })}
                   </span>
                 ) : (
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>{bsAgoShort(m.postedAt) || ''}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>{bsShortAge(bsAgoShort(m.postedAt), tr)}</span>
                 )}
               </div>
             </div>
@@ -24672,7 +24673,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
               <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier, photo: avatarByUser[p.userId] || p.photo })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.BODY, fontWeight: 600, fontSize: 14, color: cardInk }}>{p.who}</button>
               <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: akind === 'TRAINER' || akind === 'NUTRI' ? magAccent : muted }}>{roleMeta.label}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsShortAge(p.time, tr)}</span>
             </div>
             <div style={{ borderRadius: 0, padding: p.photo && !p.body ? 4 : '11px 14px', background: p.official ? bubbleBg : (right ? bsTHexA(t.INK, 0.05) : 'transparent'), color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${bsTHexA(t.INK, 0.18)}`, fontFamily: t.DISPLAY, fontStyle: 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4, overflow: 'hidden' }}>
               {p.body && <div style={{ padding: p.photo ? '7px 10px 9px' : 0 }}>{p.body}</div>}
@@ -25024,7 +25025,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   {last && <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, color: count > 0 ? t.INK : muted, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{last}</span>}
                 </span>
                 <span style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 7, alignSelf: 'flex-start', marginTop: 2 }}>
-                  {time && <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: count > 0 ? magAccent : muted, fontWeight: 700 }}>{time}</span>}
+                  {time && <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: count > 0 ? magAccent : muted, fontWeight: 700 }}>{bsShortAge(time, tr)}</span>}
                   {count > 0 && <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: magAccent, fontVariantNumeric: 'tabular-nums' }}>{count > 9 ? '9+' : count}</span>}
                 </span>
               </button>
@@ -25046,10 +25047,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             );
           };
 
-          // Friends — now a sub-tab INSIDE Team (rendered in the Team body below).
+          // Friends — now a sub-tab INSIDE Team (rendered in the Team body below). The signed-out
+          // sample rows say when each was last on in the reader's language.
+          const sNow = tr('feed:thread.activeNow', { defaultValue: 'Active now' });
+          const sYday = tr('home:when.yesterday', { defaultValue: 'Yesterday' });
+          const sAgo = (ago) => tr('feed:card.ago', { defaultValue: '{time} ago', time: bsShortAge(ago, tr) });
           const friends = friendRows.length ? friendRows : (loggedIn ? [] : (isCoach
-            ? [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Dev Patel', s: '2h ago', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: 'Yesterday', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]
-            : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J', messages: BS_SAMPLE_DMS['Jordan Chen'] }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M', messages: BS_SAMPLE_DMS['Maya Okafor'] }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]));
+            ? [{ n: 'Sofia Martinez', s: sNow, c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Dev Patel', s: sAgo('2h'), c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: sYday, c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]
+            : [{ n: 'Sofia Martinez', s: sNow, c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Jordan Chen', s: sAgo('2h'), c: '#c0533b', i: 'J', messages: BS_SAMPLE_DMS['Jordan Chen'] }, { n: 'Maya Okafor', s: sNow, c: '#a07a2e', i: 'M', messages: BS_SAMPLE_DMS['Maya Okafor'] }, { n: 'Dev Patel', s: sYday, c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: sAgo('3h'), c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]));
 
           // Teams: Channels / Coaches / Support selector. Support is its own
           // continuous AI-backed thread (rendered inline below), not a channel.
@@ -26864,7 +26869,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                 </div>
                 {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
                 {myR && <BSReactionPill t={t} emoji={myR} anchorRight={me} onClick={() => rx.toggle(rKey, myR)} />}
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 10 : 4, textAlign: me ? 'right' : 'left' }}>{m.time}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 10 : 4, textAlign: me ? 'right' : 'left' }}>{bsShortAge(m.time, tr)}</div>
               </div>
                 </div>
               </div>

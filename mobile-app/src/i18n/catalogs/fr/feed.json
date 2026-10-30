@@ -320,5 +320,6 @@
   "wallLive.resting": "Récup",
   "wallLive.sendBoost": "Encourager →",
   "wallLive.alsoTraining": "S’entraînent aussi :",
-  "card.you": "Toi"
+  "card.you": "Toi",
+  "thread.activeNow": "En ligne"
 }

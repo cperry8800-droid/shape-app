@@ -91,5 +91,10 @@
   "update.noStoreAndroid": "Hãy mở Google Play và cập nhật Shape.",
   "update.recommendedTitle": "Đã có phiên bản Shape mới.",
   "update.recommendedBody": "Cập nhật để có các bản sửa lỗi và tính năng mới nhất.",
-  "update.later": "Để sau"
+  "update.later": "Để sau",
+  "age.m": "{n} phút",
+  "age.h": "{n} giờ",
+  "age.d": "{n} ngày",
+  "age.w": "{n} tuần",
+  "age.now": "bây giờ"
 }
