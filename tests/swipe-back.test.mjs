@@ -260,3 +260,57 @@ test('a swipe that starts in a text field is the field\'s, not a back', () => {
   assert.equal(backs, 0);
   assert.deepEqual(dispatched, []);
 });
+
+// Codex on #2520: a spring-back cleared the page's styles 200 ms later, so a second drag begun in
+// that window had its page snapped out from under the finger; and a touch during a committed
+// slide-out could start another drag or flick the page's Back a second time.
+test('a drag begun while the last one springs back keeps its page under the finger', async () => {
+  const { wrap, content, channel } = mountPage();
+  channel.add({ fn: { current: () => {} }, el: { current: new El() } });
+  touch('touchstart', content, 6, 400);
+  touch('touchmove', content, 30, 401);
+  await sleep(300); // slow, so the release springs back
+  touch('touchend', content, 40, 401);
+  touch('touchstart', content, 6, 400);
+  touch('touchmove', content, 30, 401);
+  touch('touchmove', content, 90, 402);
+  await sleep(260);
+  assert.equal(wrap.style.transform, 'translateX(84px)', 'the first drag\'s cleanup cleared the second drag');
+  touch('touchend', content, 90, 402);
+  await sleep(260);
+});
+
+test('a touch while a committed back slides away is ignored: Back runs once', async () => {
+  const { content, channel } = mountPage();
+  let backs = 0;
+  channel.add({ fn: { current: () => { backs++; } }, el: { current: new El() } });
+  dispatched.length = 0;
+  touch('touchstart', content, 6, 400);
+  touch('touchmove', content, 30, 401);
+  touch('touchmove', content, 226, 404);
+  touch('touchend', content, 226, 404);
+  touch('touchstart', content, 140, 400);
+  touch('touchend', content, 300, 405);
+  await sleep(300);
+  assert.equal(backs, 1);
+  assert.deepEqual(dispatched, []);
+});
+
+test('an edge retry that lands beside a page still springing back belongs to that page', async () => {
+  const { wrap, content, channel } = mountPage();
+  let backs = 0;
+  channel.add({ fn: { current: () => { backs++; } }, el: { current: new El() } });
+  touch('touchstart', content, 6, 400);
+  touch('touchmove', content, 30, 401);
+  await sleep(300);
+  touch('touchend', content, 40, 401);
+  // The page is still moving home, so the edge touch lands on the surface beside it.
+  touch('touchstart', surface, 6, 400);
+  assert.equal(wrap.style.transform, '', 'the page snaps home under the new touch');
+  touch('touchmove', surface, 30, 401);
+  assert.equal(wrap.style.transform, 'translateX(24px)', 'and follows the finger');
+  touch('touchmove', surface, 226, 404);
+  touch('touchend', surface, 226, 404);
+  await sleep(260);
+  assert.equal(backs, 1);
+});

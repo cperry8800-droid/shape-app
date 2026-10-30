@@ -2202,19 +2202,42 @@ function BSNavGestures() {
     // An edge drag the page follows: { el, back, x, y }. el may be null (no page element to
     // move); back is the page's own Back, or null for the shell's.
     let drag = null;
-    const springBack = (d) => { place(d.el, 0, 180); setTimeout(() => clear(d.el), 200); };
+    // ⚠ The next touch ends a spring-back, and touches wait while a committed back slides away
+    // (Codex on #2520): a late cleanup snapped a new drag's page from under the finger, and a touch
+    // mid-slide could start another drag or run the Back twice. The page snaps home under the new
+    // touch, and an edge touch that landed beside it, while it was still moving, is the page's.
+    let settling = null;
+    let settlingEl = null;
+    let leaving = false;
+    const springBack = (d) => {
+      place(d.el, 0, 180);
+      clearTimeout(settling);
+      settlingEl = d.el;
+      settling = setTimeout(() => { settling = null; settlingEl = null; clear(d.el); }, 200);
+    };
     const goBack = (d) => {
       const w = surf.clientWidth || window.innerWidth;
+      leaving = true;
       place(d.el, w, 170);
       setTimeout(() => {
         try { if (d.back) d.back(); else dispatch('back'); } finally {
-          requestAnimationFrame(() => requestAnimationFrame(() => clear(d.el)));
+          requestAnimationFrame(() => requestAnimationFrame(() => { clear(d.el); leaving = false; }));
           settleIn(d.x, d.y);
         }
       }, d.el ? 170 : 0);
     };
     const onStart = (e) => {
+      if (leaving) { start = null; return; }
       if (drag) { springBack(drag); drag = null; }
+      let target = e.target;
+      if (settling) {
+        const el = settlingEl;
+        clearTimeout(settling);
+        settling = null;
+        settlingEl = null;
+        clear(el);
+        if (el && !(target && target.closest && target.closest('[data-bs-page]'))) target = el;
+      }
       if (e.touches.length !== 1) { start = null; return; }
       const t0 = e.touches[0];
       // Normalize x to the SURFACE's left edge — in the desktop preview the
@@ -2224,7 +2247,7 @@ function BSNavGestures() {
       // (taps stay style/layout-read-free).
       const left = surf.getBoundingClientRect().left;
       const x0 = t0.clientX - left;
-      start = { x0, y0: t0.clientY, cx: t0.clientX, t: Date.now(), target: e.target, edge: x0 <= BS_SWIPE.EDGE_PX, decided: false };
+      start = { x0, y0: t0.clientY, cx: t0.clientX, t: Date.now(), target: x0 <= BS_SWIPE.EDGE_PX ? target : e.target, edge: x0 <= BS_SWIPE.EDGE_PX, decided: false };
     };
     const onMove = (e) => {
       if (!start) return;
