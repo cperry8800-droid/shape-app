@@ -314,3 +314,19 @@ test('an edge retry that lands beside a page still springing back belongs to tha
   await sleep(260);
   assert.equal(backs, 1);
 });
+
+// Codex on #2520: an edge touch that set off as a scroll (down past the slop) and then curved right
+// still read as Back on release, while the page was scrolling.
+test('an edge touch that set off as a scroll stays a scroll, however it ends', async () => {
+  const { content, channel } = mountPage();
+  let backs = 0;
+  channel.add({ fn: { current: () => { backs++; } }, el: { current: new El() } });
+  dispatched.length = 0;
+  touch('touchstart', content, 6, 400);
+  touch('touchmove', content, 8, 412);
+  touch('touchmove', content, 86, 420);
+  touch('touchend', content, 86, 420);
+  await sleep(260);
+  assert.equal(backs, 0);
+  assert.deepEqual(dispatched, []);
+});

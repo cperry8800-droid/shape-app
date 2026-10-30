@@ -2261,7 +2261,9 @@ function BSNavGestures() {
       const f = bsSwipeFollow({ dx, dy });
       if (!f) return;
       start.decided = true;
-      if (f !== 'follow' || reduced() || bsSwipeBlocked(start.target, surf)) return;
+      // An edge touch that set off as a scroll stays one, however it ends (Codex on #2520).
+      if (f !== 'follow') { start.scroll = true; return; }
+      if (reduced() || bsSwipeBlocked(start.target, surf)) return;
       const { page, back } = bsPageBackFor(start.target);
       if (!back && !(window.ShapeNav && window.ShapeNav.canPop && window.ShapeNav.canPop())) return;
       drag = { el: bsPageOuter(page), back, x: t1.clientX, y: t1.clientY };
@@ -2282,6 +2284,7 @@ function BSNavGestures() {
         else springBack(d);
         return;
       }
+      if (st.scroll) return;
       const intent = bsSwipeIntent({
         x0: st.x0, y0: st.y0,
         x1: t1.clientX - left, y1: t1.clientY,
