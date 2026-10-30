@@ -1,5 +1,6 @@
 // The app and website share the same account documents and option tokens.
-function Row({ label, value, action, onAction }) {
+// `desc` (optional) is a full-width line under the row saying what the setting does.
+function Row({ label, value, action, onAction, desc }) {
   const chipStyle = { fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer", background: "transparent", border: 0, padding: "4px 8px", margin: "-4px -8px", borderRadius: 6 };
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "14px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
@@ -8,6 +9,7 @@ function Row({ label, value, action, onAction }) {
       {action && (onAction
         ? <button onClick={onAction} onMouseOver={e => e.currentTarget.style.background = "rgba(var(--sh-accent-rgb, 46,224,196),0.08)"} onMouseOut={e => e.currentTarget.style.background = "transparent"} style={chipStyle}>{action}</button>
         : <span style={{ ...chipStyle, cursor: "default", opacity: 0.5 }}>{action}</span>)}
+      {desc && <div style={{ gridColumn: "1 / -1", marginTop: -4, fontSize: 12.5, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)", opacity: 0.85 }}>{desc}</div>}
     </div>
   );
 }
@@ -53,7 +55,7 @@ const SAMPLE_PROFILE = {
   garmin: false
 };
 
-function SingleFieldModal({ label, fieldKey, initialValue, onClose, onSaved, options, accountId }) {
+function SingleFieldModal({ label, fieldKey, initialValue, onClose, onSaved, options, accountId, desc }) {
   const [ownerId] = React.useState(accountId);
   const [val, setVal] = React.useState(initialValue == null ? "" : String(initialValue));
   const [saving, setSaving] = React.useState(false);
@@ -66,7 +68,8 @@ function SingleFieldModal({ label, fieldKey, initialValue, onClose, onSaved, opt
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.7)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 480 }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>EDIT · {label.toUpperCase()}</div>
-        <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", margin: "6px 0 20px", color: INK }}>{label}.</div>
+        <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", margin: desc ? "6px 0 10px" : "6px 0 20px", color: INK }}>{label}.</div>
+        {desc && <p style={{ margin: "0 0 18px", fontFamily: sans, fontSize: 13, lineHeight: 1.55, color: "var(--sh-ink2, #a09b94)" }}>{desc}</p>}
         {options ? <select aria-label={label} value={val} onChange={e => setVal(e.target.value)} style={{ width:"100%", minHeight:44, background:PAPER, color:INK, border:"1px solid var(--sh-line, #302c27)", borderRadius:8, padding:10 }}>
           {!options.includes(val) && <option value={val}>{val || "Choose…"}</option>}
           {options.map(option => <option key={option} value={option}>{option}</option>)}
@@ -549,7 +552,7 @@ function ClientMeSettings() {
         <Card>
           <SectionTitle>Privacy</SectionTitle>
           <Row label="Profile visibility" value={p.profileVisibility || "—"} action="CHANGE" onAction={() => openField("profileVisibility", "Profile visibility")} />
-          <Row label="Share workout data" value={p.shareWorkoutData || "On"} action="CHANGE" onAction={() => openField("shareWorkoutData", "Share workout data")} />
+          <Row label="Share workout data" value={p.shareWorkoutData || "On"} action="CHANGE" onAction={() => openField("shareWorkoutData", "Share workout data")} desc={sync?.settingDescription?.("shareWorkoutData")} />
           <Row label="Show when I'm online" value={onlineVisible ? "On" : "Off"} action="TOGGLE" onAction={toggleOnlineVisible} />
           {/* Your coaches always see your age for the clients they work with —
               that is the server's rule (member_dobs_for_viewer), not this row's. */}
@@ -609,6 +612,7 @@ function ClientMeSettings() {
           key={accountId + ":" + fieldEdit.key}
           accountId={accountId}
           options={sync?.settingOptions(fieldEdit.key)}
+          desc={sync?.settingDescription?.(fieldEdit.key)}
           label={fieldEdit.label}
           fieldKey={fieldEdit.key}
           initialValue={profile[fieldEdit.key]}
