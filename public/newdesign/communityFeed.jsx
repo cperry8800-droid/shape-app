@@ -165,7 +165,7 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
         <div style={{ fontFamily: mono, fontSize: 10.5, color: "var(--sh-ink2, #a09b94)", marginTop: 5 }}>{p.who} · {typeLabel}</div>
         {heroStat && (
           <div style={{ marginTop: 14 }}>
-            <div style={{ fontFamily: serif, fontSize: 42, fontWeight: 600, color: INK, lineHeight: 1, letterSpacing: "-0.02em" }}>{heroStat[1]}</div>
+            <div style={{ fontFamily: serif, fontSize: 42, fontWeight: 600, color: INK, lineHeight: 1, letterSpacing: "-0.02em" }}>{cfFigureText(heroStat[1])}</div>
             <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)", marginTop: 6 }}>{heroStat[0]}</div>
           </div>
         )}
@@ -175,7 +175,7 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
             {summaryStats.map((st, i) => (
               <div key={i}>
                 <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>{st[0]}</div>
-                <div style={{ fontFamily: serif, fontSize: 23, fontWeight: 600, color: INK, marginTop: 4 }}>{st[1]}</div>
+                <div style={{ fontFamily: serif, fontSize: 23, fontWeight: 600, color: INK, marginTop: 4 }}>{cfFigureText(st[1])}</div>
               </div>
             ))}
           </div>
@@ -249,7 +249,7 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
               {rows.map((r, i) => (
                 <div key={i} style={{ flex: 1, textAlign: "center", minWidth: 0 }}>
                   <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r[0]}</div>
-                  {r[2] && <div style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 600, textTransform: "uppercase", color: i === bestIdx ? TEAL_BRIGHT : "var(--sh-ink3, #75706a)", marginTop: 3, whiteSpace: "nowrap" }}>{r[2]}</div>}
+                  {r[2] && <div style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 600, textTransform: "uppercase", color: i === bestIdx ? TEAL_BRIGHT : "var(--sh-ink3, #75706a)", marginTop: 3, whiteSpace: "nowrap" }}>{cfFigureText(r[2])}</div>}
                 </div>
               ))}
             </div>
@@ -270,7 +270,7 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
             {outputStats.map((st, i) => (
               <div key={i} style={{ padding: "12px 0", borderTop: i >= 3 ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : 0 }}>
                 <div style={{ fontFamily: mono, fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>{st[0]}</div>
-                <div style={{ fontFamily: serif, fontSize: 18, fontWeight: 600, color: INK, marginTop: 4 }}>{st[1]}</div>
+                <div style={{ fontFamily: serif, fontSize: 18, fontWeight: 600, color: INK, marginTop: 4 }}>{cfFigureText(st[1])}</div>
               </div>
             ))}
           </div>
@@ -484,6 +484,20 @@ function cfSplitUnit(text) {
   return m ? { num: m[1], unit: m[2] } : { num: s, unit: "" };
 }
 
+// The app's `bsSdFigure` and `bsSdFigureText` (services/sessionLedger.mjs), verbatim. A figure as
+// the page DRAWS it: a heart rate is a bare number, because its label already says HR (owner,
+// 2026-10-26: "this should say HR no BPM, make sure that is showing correctly for all activities").
+// The stored value keeps its "bpm". The website printed "156 bpm" where the app reads "156".
+function cfFigure(text) {
+  const u = cfSplitUnit(text);
+  return /^bpm$/i.test(u.unit) ? { num: u.num, unit: "" } : u;
+}
+function cfFigureText(text) {
+  const s = String(text == null ? "" : text).trim();
+  const u = cfSplitUnit(s);
+  return /^bpm$/i.test(u.unit) ? u.num : s;
+}
+
 // The ONE hero-promotion rule both surfaces share — copied from
 // `shareCard.mjs:59` rather than re-derived, so the wall's figure and the share
 // card's are the same stat. Runs lead with distance, lifts with load; else the
@@ -601,7 +615,7 @@ function cfWallModel(p) {
 // (iosAppBroadsheetClient.jsx:19156-19222).
 function CfWallPlate({ p, model, title }) {
   const { heat, heroStat, facts, pill } = model;
-  const u = heroStat ? cfSplitUnit(heroStat[1]) : null;
+  const u = heroStat ? cfFigure(heroStat[1]) : null;
   return (
     <div style={{ marginBottom: 12 }}>
       {/* THE RECORD PILL — what this plate is a record of, stated before the
@@ -637,7 +651,7 @@ function CfWallPlate({ p, model, title }) {
                 {facts.map(([k, v]) => (
                   <div key={k} style={{ display: "flex", alignItems: "baseline", gap: 5, whiteSpace: "nowrap" }}>
                     <span style={{ fontFamily: mono, fontSize: 7.5, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: cfHexA(INK, 0.45) }}>{k}</span>
-                    <span style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, color: cfHexA(INK, 0.8), fontVariantNumeric: "tabular-nums" }}>{v}</span>
+                    <span style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, color: cfHexA(INK, 0.8), fontVariantNumeric: "tabular-nums" }}>{cfFigureText(v)}</span>
                   </div>
                 ))}
               </div>
@@ -665,7 +679,7 @@ function CfWallEvidence({ model, onOpen }) {
           {detail.map(([k, v], i) => (
             <div key={`${k}-${i}`} style={{ minWidth: 0 }}>
               <div style={{ fontFamily: mono, fontSize: 7, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: cfHexA(INK, 0.45), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k}</div>
-              <div style={{ marginTop: 2, fontFamily: mono, fontSize: 12, fontWeight: 700, color: cfHexA(INK, 0.85), fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v}</div>
+              <div style={{ marginTop: 2, fontFamily: mono, fontSize: 12, fontWeight: 700, color: cfHexA(INK, 0.85), fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cfFigureText(v)}</div>
             </div>
           ))}
         </div>
