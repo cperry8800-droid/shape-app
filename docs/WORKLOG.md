@@ -164,7 +164,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   was last opened pays 15%, though the card says brought clients pay no commission. A
   private profile can't be opened from the link, and the app's checkout sends no referral.
 - Add the `localhost` hostname to the Turnstile widget.
-- Have a native speaker read the PAR-Q, Nora hint and sample trainer translations (Hausa and Pidgin first).
+- Have a native speaker read the PAR-Q, Nora hint and sample coach translations (Hausa and Pidgin first).
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
