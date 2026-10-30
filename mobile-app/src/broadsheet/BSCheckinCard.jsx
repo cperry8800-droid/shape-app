@@ -597,7 +597,10 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
       setErr(msg);
     };
     if (!window.ShapeCheckin?.log) { undo('unavailable'); return; }
-    bsCiSave(patch, uid).then(landed, () => { if (alive.current) undo('failed'); });
+    // A save past its deadline (`timedOut`, shapeBackend.js) may have landed. An answer saved twice
+    // is the same answer, so it goes back the same way and asks for the tap again, without saying
+    // it failed.
+    bsCiSave(patch, uid).then(landed, (e) => { if (alive.current) undo(e && e.timedOut ? 'unconfirmed' : 'failed'); });
   };
   const streak = streakBefore + (bsCiAnswered(today) ? 1 : 0);
 
@@ -702,7 +705,8 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   const errLine = err ? (
     <div role="alert" style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: t.RUST }}>
       {err === 'unavailable' ? tr('home:today.checkinUnavailable', { defaultValue: 'Check-in is unavailable — try again' })
-        : tr('home:today.checkinFailed', { defaultValue: 'Could not save check-in — try again' })}
+        : err === 'unconfirmed' ? tr('home:today.checkinUnconfirmed', { defaultValue: 'Could not confirm that answer — tap it again' })
+          : tr('home:today.checkinFailed', { defaultValue: 'Could not save check-in — try again' })}
     </div>
   ) : null;
   // Your mornings → (§3.5), on the done line and the summary, wherever Home gives the door; signed out

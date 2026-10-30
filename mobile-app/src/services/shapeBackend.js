@@ -5814,14 +5814,44 @@ window.ShapeActivities = {
   log: logActivity,
 };
 
+// ⚠ A SAVE THE NETWORK HOLDS ENDS. The check-in and water saves go through Home's one-at-a-time
+// lines (bsCiEnqueue, BSCheckinCard.jsx), and they had no deadline: a request that never answered
+// held every later answer and glass behind it for good. Past the deadline the save is abandoned
+// and rejects with `timedOut`. It may still have landed, so a caller must not take it as failed:
+// a glass is added on the server, and adding it again would count it twice. The deadline is
+// armed with or without AbortController (an older WebView has none), and it covers the body too.
+const SAVE_DEADLINE_MS = 15000;
+async function postWithDeadline(url, init, ms = SAVE_DEADLINE_MS) {
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  let timer = null;
+  const late = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      // Rejected before the abort, so the race takes this answer and not the fetch's AbortError.
+      const e = new Error('No answer in time.');
+      e.timedOut = true;
+      reject(e);
+      if (controller) { try { controller.abort(); } catch (x) { /* the deadline still holds */ } }
+    }, ms);
+  });
+  const answer = (async () => {
+    const res = await fetch(url, { ...init, ...(controller ? { signal: controller.signal } : {}) });
+    const d = await res.json().catch(() => ({}));
+    return { res, d };
+  })();
+  try {
+    return await Promise.race([answer, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Daily check-in (mood) → /api/client/checkin (upserts today's snapshot).
 async function logCheckin({ mood, energy, hunger, stress, soreness, sleepHours, sleepQuality, sleepSkipped } = {}) {
-  const res = await fetch(`${apiBaseUrl || ''}/api/client/checkin`, {
+  const { res, d } = await postWithDeadline(`${apiBaseUrl || ''}/api/client/checkin`, {
     method: 'POST', credentials: 'same-origin',
     headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ mood, energy, hunger, stress, soreness, sleepHours, sleepQuality, sleepSkipped, date: _localDate() }),
   });
-  const d = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(d.error || 'Could not save check-in.');
   invalidateClientMetrics();
   return d;
@@ -7124,14 +7154,15 @@ async function getHydration() {
   // row near local midnight.
   return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/hydration?date=${_localDate()}`, null);
 }
+// The deadline's `timedOut` reaches the water line (BSWaterLine.jsx), which reads the day's total
+// again rather than taking the glass back.
 async function addHydration(deltaL) {
-  const res = await fetch(`${apiBaseUrl || ''}/api/client/hydration`, {
+  const { res, d } = await postWithDeadline(`${apiBaseUrl || ''}/api/client/hydration`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
     body: JSON.stringify({ deltaL, date: _localDate() }),
   });
-  const d = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(d.error || 'Could not log hydration.');
   invalidateClientMetrics();
   return d;

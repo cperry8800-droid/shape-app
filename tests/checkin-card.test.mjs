@@ -668,6 +668,27 @@ test('a failed save puts the answer back and says so on screen', async () => {
   } finally { m.unmount(); }
 });
 
+test('a save past its deadline puts the answer back and asks for the tap again, without saying it failed', async () => {
+  // shapeBackend.js abandons a save the network holds (`timedOut`). It may have landed, and an answer
+  // saved twice is the same answer, so it goes back like a failure but never claims one.
+  let late = true;
+  const calls = env({ log: async () => { if (late) { const e = new Error('No answer in time.'); e.timedOut = true; throw e; } return { ok: true }; } });
+  const m = await mount();
+  try {
+    await m.click(/Start check-in/);
+    await m.click(/^Next/);
+    assert.match(m.text(), /Could not confirm that answer — tap it again/);
+    assert.doesNotMatch(m.text(), /Could not save check-in/, 'a save that may have landed was called failed');
+    await m.click(/Back/);
+    assert.match(m.text(), /Your usual night/, 'the answer was not put back');
+    // The line goes on: the tap again is sent.
+    late = false;
+    await m.click(/^Next/);
+    assert.equal(calls.log.length, 2, 'the tap again was never written');
+    assert.doesNotMatch(m.text(), /Could not confirm/, 'the note outlived the answer that confirmed it');
+  } finally { m.unmount(); }
+});
+
 test('a failed save puts back only its own answer, not one given after it (Codex P2 on #2398)', async () => {
   // The night is still saving when energy is answered; then the night's save fails and the energy
   // save, queued behind it, succeeds. The screen must still hold the energy answer.
