@@ -3,13 +3,16 @@
 // (public/newdesign/radioListening.mjs), for the admin Overview's Radio tab. Fire-and-forget: it
 // always answers 204, so the player never waits on it or sees an error.
 //
-// The stream is members only, so a beat counts only with an account, read from the request's own
-// session (a Bearer token from the installed app, else the cookie). record_radio_listen
+// The stream is members only, so a beat counts only from an account that may hear it: one read from
+// the request's own session (a Bearer token from the installed app, else the cookie) that the station
+// route's membership check passes (Codex P2 on #2527: a free account could otherwise post beats for
+// a stream it cannot get). record_radio_listen
 // (2026-10-30-radio-listening.sql) keeps that account only while it listens, to count it once and
 // to credit no more seconds than have passed; the daily totals never hold it.
 import { NextResponse } from 'next/server';
 import { gpcOptOut } from '@/lib/gpc';
-import { currentUser } from '@/lib/request-auth';
+import { computeMembership } from '@/lib/membership-core';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -45,6 +48,11 @@ export async function POST(request: Request) {
     if (!beat) return new NextResponse(null, { status: 204 });
     const user = await currentUser(request).catch(() => null);
     if (!user) return new NextResponse(null, { status: 204 });
+    // As src/app/api/radio/station/route.ts asks it; a check that fails counts nothing.
+    const membership = await computeMembership(await clientForRequest(request), user.id, user.email ?? null, {
+      emailConfirmed: !!user.email_confirmed_at,
+    }).catch(() => null);
+    if (!membership?.isMember) return new NextResponse(null, { status: 204 });
     const { error } = await createAdminClient().rpc('record_radio_listen', {
       p_user: user.id,
       p_listen: beat.listen,

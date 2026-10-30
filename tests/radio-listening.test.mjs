@@ -225,18 +225,28 @@ test('both players count: the app on its radio audio, the website on its own, ea
 });
 
 // ── The route ────────────────────────────────────────────────────────────────────────────
-async function loadRoute({ user = null, rpcError = null } = {}) {
+// `member` is what computeMembership answers (true, false, or 'throws'); `asked` records its call.
+async function loadRoute({ user = null, rpcError = null, member = true } = {}) {
   const calls = [];
+  const asked = [];
+  const client = { session: 'the request\'s own' };
   const route = await loadRealModule(join(ROOT, 'src/app/api/analytics/radio-listen/route.ts'), {
     typescript: true,
     registry: new Map([
       ['@/lib/gpc', await loadRealModule(join(ROOT, 'src/lib/gpc.ts'), { typescript: true })],
-      ['@/lib/request-auth', { currentUser: async () => user }],
+      ['@/lib/request-auth', { currentUser: async () => user, clientForRequest: async () => client }],
+      ['@/lib/membership-core', {
+        computeMembership: async (c, id, email, opts) => {
+          asked.push({ client: c === client, id, email, opts });
+          if (member === 'throws') throw new Error('membership read failed');
+          return { isMember: member === true };
+        },
+      }],
       ['@/lib/request-utils', await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true })],
       ['@/lib/supabase/admin', { createAdminClient: () => ({ rpc: async (name, args) => { calls.push({ name, args }); return { data: 60, error: rpcError }; } }) }],
     ]),
   });
-  return { route, calls };
+  return { route, calls, asked };
 }
 const post = (body, headers = {}) =>
   new Request('https://theshapecommunity.com/api/analytics/radio-listen', {
@@ -280,9 +290,23 @@ test('route: no account, Global Privacy Control or junk records nothing; a faile
   assert.equal(calls[0].args.p_end, false);
 });
 
+test('route: only an account that may hear the stream counts, as the station route decides it (Codex P2 on #2527)', async () => {
+  const LISTEN2 = '3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b';
+  const free = await loadRoute({ user: { id: 'u-2', email: 'free@example.com', email_confirmed_at: '2026-01-01' }, member: false });
+  assert.equal((await free.route.POST(post({ surface: 'app', listen: LISTEN2, played: 0 }))).status, 204);
+  assert.equal(free.calls.length, 0, 'a free account records nothing');
+  assert.deepEqual(free.asked, [{ client: true, id: 'u-2', email: 'free@example.com', opts: { emailConfirmed: true } }], 'asked with the request\'s own client');
+  const broken = await loadRoute({ user: { id: 'u-3' }, member: 'throws' });
+  assert.equal((await broken.route.POST(post({ surface: 'app', listen: LISTEN2, played: 0 }))).status, 204);
+  assert.equal(broken.calls.length, 0, 'a membership read that fails counts nothing');
+  assert.deepEqual(broken.asked[0].opts, { emailConfirmed: false });
+  const station = stripComments(read('src/app/api/radio/station/route.ts'));
+  assert.match(station, /computeMembership\(supabase, user\.id, user\.email \?\? null, \{ emailConfirmed: !!user\.email_confirmed_at \}\)/, 'the station route asks the same question');
+});
+
 test('route: it reads the caller through request-auth, so the installed app\'s Bearer token counts', () => {
   const src = stripComments(read('src/app/api/analytics/radio-listen/route.ts'));
-  assert.match(src, /import \{ currentUser \} from '@\/lib\/request-auth';/);
+  assert.match(src, /import \{ clientForRequest, currentUser \} from '@\/lib\/request-auth';/);
   assert.doesNotMatch(src, /@\/lib\/supabase\/server/);
   assert.match(read('src/lib/warroom.ts'), /\['\/api\/analytics\/radio-listen', 'POST'\],/);
 });
@@ -338,6 +362,8 @@ test('migration: a listener counts once, and never for more time than has passed
   assert.doesNotMatch(fn, /delete from public\.radio_listen_live where listen/, 'an end is kept as a marker, not deleted');
   // A trainer, a nutritionist or a dietitian is a coach, as src/lib/roles.mjs's COACH_ROLES and the tap counts have it (Codex P2 on #2527).
   assert.match(fn, /when coalesce\(p\.roles, '\{\}'\) && array\['trainer', 'nutritionist', 'dietitian'\]\s+or p\.role in \('trainer', 'nutritionist', 'dietitian'\) then 'coach'\s+else 'member'/);
+  // Beats take turns at the count, so of two starts at once the second sees both (Codex P2 on #2527).
+  assert.match(fn, /perform pg_advisory_xact_lock\(hashtext\('radio_listen_peak'\)\);\s+select count\(distinct listener\) into v_now/);
   assert.match(fn, /select count\(distinct listener\) into v_now\s+from public\.radio_listen_live where last_beat > now\(\) - interval '150 seconds' and not ended;/, 'an account counts once, however many listens; an ended one not at all');
   assert.match(fn, /where excluded\.listeners > pk\.listeners;/, 'a peak only ever rises');
   const stats = code.slice(code.indexOf('create or replace function public.admin_radio_stats('));

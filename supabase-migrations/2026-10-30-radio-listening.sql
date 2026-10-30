@@ -198,7 +198,10 @@ begin
   end if;
 
   -- Listening now: every account with a beat in the last 150 seconds (a beat a minute, with room
-  -- for a phone that runs its timers late), counted once however many listens it has.
+  -- for a phone that runs its timers late), counted once however many listens it has. Beats take
+  -- turns here, so of two that start at once the second counts after the first has committed and
+  -- sees both (Codex P2 on #2527); the lock goes with the transaction.
+  perform pg_advisory_xact_lock(hashtext('radio_listen_peak'));
   select count(distinct listener) into v_now
   from public.radio_listen_live where last_beat > now() - interval '150 seconds' and not ended;
   if v_now > 0 then
