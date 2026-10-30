@@ -454,6 +454,32 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const plates = !nutri ? [] : demo ? demo.plates : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Nutritionist') : null))
     .filter((c) => c && c.meal && typeof c.meal === 'object');
   const plateDays = bsPlateNoteDays(plates);
+  // Their activity (owner, 2026-10-30: "there is also no activity feed on coaches profile"): what
+  // they published that the tabs don't already show (notes, photos, links, their own runs and rides)
+  // as the member profile's activity cards, newest first. Sessions and workout videos stay in
+  // Replays and shared meals in Plate notes, so nothing is listed twice. Their real posts only; a
+  // sample's are its own (trainerDemo.mjs, nutritionistDemo.mjs).
+  const ownerRole = nutri ? 'Nutritionist' : 'Trainer';
+  const shownKeys = new Set([...replays, ...workouts, ...plates].map((c) => c && c.key).filter(Boolean));
+  const activity = demo
+    ? (demo.activity || []).map((a) => ({ ...a, who: name, role: ownerRole, tier: tierKey, userId: null }))
+    : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, ownerRole) : null)).filter((c) => c && !shownKeys.has(c.key));
+  // The activity card's own reactions and sheets, as the member profile hosts them.
+  const cardSheets = W.useBSCardSheets ? W.useBSCardSheets() : null;
+  const [actLikes, setActLikes] = React.useState({});
+  const [actExpr, setActExpr] = React.useState({});
+  const [exprOpen, setExprOpen] = React.useState(null);
+  const lpTimerRef = React.useRef(null);
+  const lpFiredRef = React.useRef(false);
+  const [actAll, setActAll] = React.useState(false);
+  const [editingPost, setEditingPost] = React.useState(null);
+  const applyReaction = (a, key, _coach, expr) => {
+    const was = actLikes[key] != null ? actLikes[key] : a.liked;
+    const will = expr != null ? true : !was;
+    setActLikes((prev) => ({ ...prev, [key]: will }));
+    setActExpr((prev) => { const next = { ...prev }; if (will && expr != null) next[key] = expr; else if (!will) delete next[key]; return next; });
+    if (a.postId && will !== was) { const lk = W.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); }
+  };
 
   // ── Follow ──
   const [follow, setFollow] = React.useState(() => (person.userId && W.ShapeFollows?.getCached?.(person.userId)) || null);
@@ -677,6 +703,21 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
             </div>
           </>
         ) : null}
+        {!isPrivate && (activity.length || isSelf) ? (
+          <ActivityFeed t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={gutter} cards={activity} isSelf={isSelf} first={first} all={actAll} setAll={setActAll}
+            onLog={() => { if (W.bsRequireAccount && !W.bsRequireAccount('log activity')) return; setShowLog(true); }}
+            ctx={cardSheets && W.BSActivityCard ? {
+              t, cardInk: INK, muted: ink(0.55), hair: ink(0.1), card: t.isLight ? t.PAPER2 : ink(0.05),
+              actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr, exprOpenKey: exprOpen, setExprOpenKey: setExprOpen, lpTimerRef, lpFiredRef,
+              tierByUser: person.userId ? { [person.userId]: tierKey } : {}, avatarByUser: {}, feedAvatars: {},
+              myRole: (W.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client', coachClientIds: new Set(), myFollowingSet: null,
+              setOpenProfile: () => {}, feedApplyReaction: applyReaction,
+              // The coach edits a post of their own from its card, in the same composer.
+              onEdit: isSelf && !demo ? (a) => { if (a.postId && BS_UUID.test(String(a.postId))) setEditingPost({ postId: a.postId, title: a.title || '', body: a.body || '', photo: a.photo || null, video: a.video || null, link: a.link || null, kind: a.editKind || null, privacy: a.privacy || 'public' }); } : undefined,
+              ...cardSheets.ctx,
+            } : null} />
+        ) : null}
+
         {/* What clients say: the reviews on the page itself, shown on a private profile too: they are
             the readers', not the coach's to hide. The newest few, each a card; All reviews opens the
             full list. A reader who isn't a member gets the rating and Join to read them instead.
@@ -782,6 +823,8 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
           )) : <p style={{ margin: '10px 0 0', fontSize: 14, color: ink(0.64) }}>{tr('marketplace:listing.noReviews', { defaultValue: 'No reviews yet' })}</p>}
         </Sheet>
       ) : null}
+      {editingPost && W.BSLogActivitySheet ? <W.BSLogActivitySheet c={ACC} INK={INK} BG={t.PAPER_BG} editPost={editingPost} onClose={() => setEditingPost(null)} onPosted={() => { setEditingPost(null); setPostsNonce((n) => n + 1); }} /> : null}
+      {cardSheets ? cardSheets.renderSheets({ applyReaction, setOpenProfile: () => {}, actLikes, actExpr }) : null}
       {showLog && W.BSLogActivitySheet ? <W.BSLogActivitySheet c={ACC} INK={INK} BG={t.PAPER_BG} startKind={typeof showLog === 'string' ? showLog : undefined} onClose={() => setShowLog(false)} onPosted={() => { setShowLog(false); setPostsNonce((n) => n + 1); }} /> : null}
       {recipe ? <RecipeOverlay t={t} tr={tr} recipe={recipe} onClose={() => setRecipe(null)} /> : null}
       {ownRecipe ? <OwnRecipePage t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} recipe={ownRecipe} first={first} avatar={avatarShown} isSelf={isSelf}
@@ -1575,6 +1618,51 @@ function SpotSheet({ t, tr, ACC, ink, DISPLAY, MONO, INK, plan, i, work, recipes
       ) : (isSelf ? <p style={{ margin: '12px 0 0', fontSize: 13.5, lineHeight: 1.45, color: ink(0.6) }}>{tr('profile:nutri.madeHereSelf', { defaultValue: 'Your recipes show here when their method uses this spot: roasting lights the oven, searing the stove.' })}</p> : null)}
       {!isSelf ? <button type="button" onClick={onWork} style={{ marginTop: 16, width: '100%', minHeight: 50, padding: '0 14px', border: `1px solid ${ink(0.22)}`, background: 'transparent', color: INK, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{words.work}<span style={{ color: ACC }}>→</span></button> : null}
     </Sheet>
+  );
+}
+
+// ── Their activity ──────────────────────────────────────────────────────────────────────────
+// The newest three of what the coach posted, with See all for the rest, drawn by the member
+// profile's activity card (BSActivityCard, a window global of the client module) so a coach's
+// feed reads like a member's. Without that card (the module not loaded) a plain row stands in.
+// On their own page: Log activity, and with nothing yet, what it is for.
+const BS_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ACTIVITY_FIRST = 3;
+function ActivityFeed({ t, tr, ACC, ink, DISPLAY, MONO, gutter, cards, isSelf, first, all, setAll, onLog, ctx }) {
+  const Card = ctx ? window.BSActivityCard : null;
+  const list = all ? cards.slice(0, 30) : cards.slice(0, ACTIVITY_FIRST);
+  return (
+    <section data-activity="" aria-label={tr('profile:tab.activity', { defaultValue: 'Activity' })} style={{ margin: `6px 0 22px` }}>
+      <div style={{ padding: `0 ${gutter}px`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+        <span style={eyebrow(ink, MONO)}>{tr('profile:trainer.activityTitle', { defaultValue: '{name}\'s activity', name: first })}</span>
+        {isSelf ? <button type="button" data-log-activity="" onClick={onLog} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>＋ {tr('profile:trainer.logActivity', { defaultValue: 'Log activity' })}</button> : null}
+      </div>
+      {cards.length ? (
+        <div style={{ marginTop: 6 }}>
+          {list.map((a, i) => (Card ? (
+            <div key={a.key || i} data-activity-card="">
+              <Card a={a} ctx={ctx} hideAuthor isLast={i === list.length - 1} pagePad={0} variant="magazine" />
+            </div>
+          ) : (
+            <div key={a.key || i} data-activity-card="" style={{ margin: `0 ${gutter}px`, padding: '12px 0', borderTop: `1px solid ${ink(0.12)}` }}>
+              <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: ACC }}>{[a.typeLabel, a.ago].filter(Boolean).join(' · ')}</span>
+              {a.title ? <span style={{ display: 'block', marginTop: 3, fontFamily: DISPLAY, fontWeight: 600, fontSize: 16 }}>{a.title}</span> : null}
+              {a.body ? <span style={{ display: 'block', marginTop: 2, fontSize: 14, lineHeight: 1.45, color: ink(0.78) }}>{a.body}</span> : null}
+            </div>
+          )))}
+          {cards.length > ACTIVITY_FIRST ? (
+            <button type="button" data-activity-all="" aria-expanded={all} onClick={() => setAll(!all)}
+              style={{ display: 'block', margin: `4px ${gutter}px 0`, minHeight: 44, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+              {all ? tr('profile:trainer.activityFewer', { defaultValue: 'Show fewer' }) : tr('profile:trainer.activityAll', { defaultValue: 'See all {count}', count: cards.length })}
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <div style={{ padding: `4px ${gutter}px 0` }}>
+          <Hint ink={ink}>{tr('profile:trainer.activityEmptySelf', { defaultValue: 'Nothing posted yet. Log a run, a note or a photo, and members see it here.' })}</Hint>
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -438,6 +438,21 @@ test('her kitchen as she drew it heads the tab: numbered spots, the ones her rec
   await m.unmount();
 });
 
+test('her activity: her posts that are not plate notes; on her own page, Log activity and what the feed is for', async () => {
+  reset({ posts: [meal(), { key: 'n1', title: 'Sunday prep', typeLabel: 'Note', ago: '1d', body: 'Twelve boxes.', statsRow: [], breakdown: null }] });
+  let m = await mount(page());
+  const feed = document.querySelector('[data-activity]');
+  assert.match(feed.textContent, /Nadia's activity.*Sunday prep/s);
+  assert.ok(!/Greek yogurt power bowl/.test(feed.textContent), 'the shared meal stays in Plate notes');
+  await m.unmount();
+  reset({ me: 'u-nadia', stored: {}, posts: [] });
+  m = await mount(page({ isSelf: true }));
+  const own = document.querySelector('[data-activity]');
+  assert.match(own.textContent, /Nothing posted yet\. Log a run, a note or a photo, and members see it here\./);
+  assert.ok(own.querySelector('[data-log-activity]'), 'Log activity');
+  await m.unmount();
+});
+
 test('staples: a card per place they live; Pick all picks the group, then clears it', async () => {
   const g = groceryWorld();
   try {

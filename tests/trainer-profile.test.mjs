@@ -824,6 +824,40 @@ test('a demo saved in Make it yours keeps only what was changed, so the studio s
   } finally { window.ShapeLocale = hadLocale; window.ShapeI18n.t = hadT; client.restore(); }
 });
 
+test('their activity: what they posted that the tabs do not already show, newest three then See all; a sample has its own', async () => {
+  // Owner, 2026-10-30: "there is also no activity feed on coaches profile".
+  const note = (i) => ({ key: `n${i}`, title: `Note ${i}`, typeLabel: 'Note', ago: `${i}d`, body: `Body ${i}`, statsRow: [], breakdown: null });
+  reset({ posts: [note(1), { key: 'p1', title: 'Heavy squat day', ago: '2d', statsRow: [], breakdown: { label: 'Sets', rows: [['Set 1', '100 kg × 5', '']] } }, note(2), note(3), note(4)] });
+  let m = await mount(page());
+  const feed = document.querySelector('[data-activity]');
+  assert.ok(feed, 'the feed');
+  assert.match(feed.textContent, /Maya's activity/);
+  const titles = () => [...feed.querySelectorAll('[data-activity-card]')].map((c) => (c.textContent.match(/Note \d/) || [''])[0]);
+  assert.deepEqual(titles(), ['Note 1', 'Note 2', 'Note 3'], 'newest three; the logged session stays in Replays');
+  assert.ok(!/Heavy squat day/.test(feed.textContent));
+  await click(feed.querySelector('[data-activity-all]'));
+  assert.deepEqual(titles(), ['Note 1', 'Note 2', 'Note 3', 'Note 4']);
+  assert.ok(!feed.querySelector('[data-log-activity]'), 'no Log activity on another coach\'s page');
+  const reviews = document.querySelector('[data-reviews-strip]');
+  if (reviews) assert.ok(feed.compareDocumentPosition(reviews) & window.Node.DOCUMENT_POSITION_FOLLOWING, 'above the reviews');
+  await m.unmount();
+  // Nothing posted: no feed for a visitor.
+  reset({ posts: [] });
+  m = await mount(page());
+  assert.ok(!document.querySelector('[data-activity]'));
+  await m.unmount();
+  // A private profile shows none.
+  reset({ posts: [note(1)], canView: false });
+  m = await mount(page());
+  assert.ok(!document.querySelector('[data-activity]'));
+  await m.unmount();
+  // A sample coach: its own run and note.
+  reset({ me: 'u-me', byId: leahRow, slots: [] });
+  m = await mount(page({ person: leah }));
+  assert.match(document.querySelector('[data-activity]').textContent, /Easy run, zone 2.*Deload week/s);
+  await m.unmount();
+});
+
 test('the reviews are on the page: the newest, each a card, and All reviews opens the list', async () => {
   // Leah's sample reviews, and a coach with an account's own.
   reset({ me: 'u-me', byId: leahRow, slots: [] });

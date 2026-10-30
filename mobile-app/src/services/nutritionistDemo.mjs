@@ -316,5 +316,22 @@ export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'perf
       ],
     },
     plates,
+    // What the sample posted besides plate notes, for the page's activity feed (owner, 2026-10-30:
+    // "there is also no activity feed on coaches profile"): a note on Sunday prep and a walk, as
+    // the member profile's activity cards. The page puts the coach's name and tier on them.
+    activity: [
+      {
+        real: false, key: 'demo-act-prep', postId: null, hot: false, kind: 'note', activityType: 'note', typeLabel: S('type.note', 'Note'),
+        title: S('activity.prep.title', 'Sunday prep'), body: S('activity.prep.body', 'Twelve boxes in ninety minutes: two proteins, three grains, a tray of roast vegetables. The plan only works when the food is ready.'),
+        ago: '1d', city: '', statsRow: [], fullStats: [], stats: [], breakdown: null, zones: null, trace: null, kudos: 0, replies: 0, postComments: [], likers: [], comments: [],
+      },
+      {
+        real: false, key: 'demo-act-walk', postId: null, hot: false, kind: 'workout', activityType: 'walk', typeLabel: S('type.walk', 'Walk'),
+        title: S('activity.walk.title', 'Walk after dinner'), body: S('activity.walk.body', 'Thirty minutes on foot after the evening meal. Better for blood sugar than most supplements.'),
+        ago: '2d', city: '', duration: '32:10', kudos: 0, replies: 0,
+        stats: [[S('stat.time', 'Time'), '32:10'], [S('stat.steps', 'Steps'), '3,940']],
+        breakdown: null, zones: null, trace: null, likers: [], comments: [],
+      },
+    ],
   };
 }

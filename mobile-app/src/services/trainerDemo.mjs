@@ -214,6 +214,28 @@ function workoutsFor(family, S) {
   return list.filter((w) => w[4]).map(([key, title, body, ago, url]) => ({ key, title, body, ago, typeLabel, video: { url, type: 'video', name: title }, breakdown: null }));
 }
 
+// What a sample coach posted besides their sessions and videos, for the page's activity feed
+// (owner, 2026-10-30: "there is also no activity feed on coaches profile"): their own easy run and
+// a note to their clients, as the activity cards the member profile draws (BSActivityCard).
+// The page puts the coach's name and tier on them.
+export function bsSampleActivity(lb, S) {
+  const dist = lb ? '5.2 mi' : '8.4 km', pace = lb ? '8:44/mi' : '5:26/km';
+  return [
+    {
+      real: false, key: 'demo-act-run', postId: null, hot: false, kind: 'workout', activityType: 'run', typeLabel: S('type.run', 'Run'),
+      title: S('activity.run.title', 'Easy run, zone 2'), body: S('activity.run.body', 'Practising what I preach: conversational pace the whole way.'),
+      ago: '1d', city: '', distance: dist, pace, duration: '45:24', kudos: 0, replies: 0,
+      stats: [[S('stat.distance', 'Distance'), dist], [S('stat.pace', 'Avg pace'), pace], [S('stat.time', 'Time'), '45:24']],
+      breakdown: null, zones: null, trace: null, likers: [], comments: [],
+    },
+    {
+      real: false, key: 'demo-act-note', postId: null, hot: false, kind: 'note', activityType: 'note', typeLabel: S('type.note', 'Note'),
+      title: S('activity.note.title', 'Deload week'), body: S('activity.note.body', 'Everyone drops to two-thirds of their top sets this week. Recovery is part of the program, not a break from it.'),
+      ago: '3d', city: '', statsRow: [], fullStats: [], stats: [], breakdown: null, zones: null, trace: null, kudos: 0, replies: 0, postComments: [], likers: [], comments: [],
+    },
+  ];
+}
+
 // A stable number from a coach's listing id or name, so the same coach always gets the same page.
 const hash = (s) => { let h = 7; for (const ch of String(s || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
 
@@ -316,5 +338,6 @@ export function bsTrainerDemo({ media = '/demo/', now = Date.now(), zone = null,
     replays: replaysFor(family, lb, photo, S),
     programs: programsFor(family, S),
     workouts: workoutsFor(family, S),
+    activity: bsSampleActivity(lb, S),
   };
 }
