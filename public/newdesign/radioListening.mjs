@@ -4,11 +4,13 @@
 // the app imports it across the tree (mobile-app/src/services/shapeBackend.js).
 //
 // A player sends a beat as the stream starts playing, one a minute while it plays, and one as it
-// stops, each saying how many seconds played since the last. Nothing else goes: no track, no device
-// and no account (the server reads the account from the request's own session, only to count a
-// member or a coach once). Nothing is sent unless the consent rule allows it, the sign-up source's
-// (trackingAllowed in src/lib/signup-source.mjs, and its copy in public/click-capture.js): Global
-// Privacy Control and a Reject stop it, and in the EEA and the UK it waits for Accept.
+// stops, each saying how many seconds played since the last, and the listen's own random id, so an
+// end closes that listen and no other (a resume's start can reach the server before the pause's end;
+// Codex P2 on #2527). Nothing else goes: no track, no device and no account (the server reads the
+// account from the request's own session, only to count a member or a coach once). Nothing is
+// sent unless the consent rule allows it, the sign-up source's (trackingAllowed in
+// src/lib/signup-source.mjs, and its copy in public/click-capture.js): Global Privacy Control and
+// a Reject stop it, and in the EEA and the UK it waits for Accept.
 
 export const RADIO_BEAT_MS = 60_000;
 export const RADIO_LISTEN_PATH = '/api/analytics/radio-listen';
@@ -27,11 +29,23 @@ export function listeningAllowed(win, rule) {
   try { return rule({ consent, gpc, timeZone }) === true; } catch (e) { return false; }
 }
 
-/** The beats for one player. `send(body)` posts one ({ surface, seconds, end? }) and never throws
- * back; `allowed()` is asked as a listen starts and at every beat, so a Reject mid-listen stops the
- * beats there. */
-export function createRadioListening({ surface, send, allowed, now = () => Date.now(), timers = globalThis }) {
+/** A random id for one listen (a version 4 uuid), from the device's random source. */
+export function newListenId(c = globalThis.crypto) {
+  try { if (c && typeof c.randomUUID === 'function') return c.randomUUID(); } catch (e) {}
+  const b = new Uint8Array(16);
+  try { c.getRandomValues(b); } catch (e) { for (let i = 0; i < 16; i += 1) b[i] = Math.floor(Math.random() * 256); }
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+/** The beats for one player. `send(body)` posts one ({ surface, listen, seconds, end? }) and never
+ * throws back; `allowed()` is asked as a listen starts and before every beat, the end included, so a
+ * Reject mid-listen stops the beats there (Codex P1 on #2527: the server can't see a Reject). */
+export function createRadioListening({ surface, send, allowed, now = () => Date.now(), timers = globalThis, newId = newListenId }) {
   let last = 0; // when the last beat went; 0 while nothing plays
+  let listen = '';
   let timer = null;
 
   function post(body) {
@@ -47,7 +61,8 @@ export function createRadioListening({ surface, send, allowed, now = () => Date.
   function playing() {
     if (last || !allowed()) return;
     last = now() || 1;
-    post({ surface, seconds: 0 });
+    listen = newId();
+    post({ surface, listen, seconds: 0 });
     timer = timers.setInterval(tick, RADIO_BEAT_MS);
   }
   function tick() {
@@ -55,14 +70,16 @@ export function createRadioListening({ surface, send, allowed, now = () => Date.
     // Consent withdrawn while it plays: nothing more is sent, not even the end.
     if (!allowed()) { quit(); return; }
     const t = now();
-    post({ surface, seconds: since(t) });
+    post({ surface, listen, seconds: since(t) });
     last = t;
   }
   function stopped() {
     if (!last) return;
     const seconds = since(now());
+    const id = listen;
+    const ok = allowed();
     quit();
-    post({ surface, seconds, end: true });
+    if (ok) post({ surface, listen: id, seconds, end: true });
   }
   return { playing, stopped, tick, listening: () => last !== 0 };
 }

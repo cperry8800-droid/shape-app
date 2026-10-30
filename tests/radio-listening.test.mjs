@@ -38,17 +38,21 @@ function clock() {
     fire() { for (const { fn } of [...intervals.values()]) fn(); },
   };
 }
+function ids() {
+  let n = 0;
+  return () => `listen-${(n += 1)}`;
+}
 function beats({ allowed = () => true, send } = {}) {
   const c = clock();
   const sent = [];
-  const b = L.createRadioListening({ surface: 'app', send: send || ((body) => sent.push(body)), allowed, now: c.now, timers: c.timers });
+  const b = L.createRadioListening({ surface: 'app', send: send || ((body) => sent.push(body)), allowed, now: c.now, timers: c.timers, newId: ids() });
   return { b, c, sent };
 }
 
-test('a listen: a start beat, one a minute, an end with what played since the last', () => {
+test('a listen: a start beat, one a minute, an end with what played since the last, all under its own id', () => {
   const { b, c, sent } = beats();
   b.playing();
-  assert.deepEqual(sent, [{ surface: 'app', seconds: 0 }], 'the start counts the tune-in, with no time yet');
+  assert.deepEqual(sent, [{ surface: 'app', listen: 'listen-1', seconds: 0 }], 'the start counts the tune-in, with no time yet');
   assert.equal([...c.intervals.values()][0].ms, L.RADIO_BEAT_MS);
   assert.equal(L.RADIO_BEAT_MS, 60_000);
   b.playing();
@@ -57,13 +61,28 @@ test('a listen: a start beat, one a minute, an end with what played since the la
   c.advance(61_400); c.fire();
   c.advance(20_000);
   b.stopped();
-  assert.deepEqual(sent.slice(1), [{ surface: 'app', seconds: 60 }, { surface: 'app', seconds: 61 }, { surface: 'app', seconds: 20, end: true }]);
+  assert.deepEqual(sent.slice(1), [
+    { surface: 'app', listen: 'listen-1', seconds: 60 },
+    { surface: 'app', listen: 'listen-1', seconds: 61 },
+    { surface: 'app', listen: 'listen-1', seconds: 20, end: true },
+  ]);
   assert.equal(c.intervals.size, 0, 'the minute beat stops with the stream');
   b.stopped(); c.fire();
   assert.equal(sent.length, 4, 'nothing more once stopped');
   assert.equal(b.listening(), false);
   b.playing();
-  assert.deepEqual(sent.at(-1), { surface: 'app', seconds: 0 }, 'playing again is a new tune-in');
+  assert.deepEqual(sent.at(-1), { surface: 'app', listen: 'listen-2', seconds: 0 }, 'playing again is a new listen, with a new id');
+});
+
+test('a listen\'s id: a random version 4 uuid, from randomUUID or the random bytes', () => {
+  const UUID4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  const a = L.newListenId();
+  assert.match(a, UUID4);
+  assert.notEqual(L.newListenId(), a);
+  // A WebView without randomUUID (not a secure context) still gets one from getRandomValues.
+  const bytes = { getRandomValues: (b) => { b.fill(0xff); return b; } };
+  assert.equal(L.newListenId(bytes), 'ffffffff-ffff-4fff-bfff-ffffffffffff');
+  assert.match(L.newListenId(null), UUID4, 'no random source at all');
 });
 
 test('consent: nothing is sent without it, and a Reject mid-listen stops the beats, the end included', () => {
@@ -78,8 +97,19 @@ test('consent: nothing is sent without it, and a Reject mid-listen stops the bea
   ok = false;
   mid.c.advance(60_000); mid.c.fire();
   mid.c.advance(5_000); mid.b.stopped();
-  assert.deepEqual(mid.sent, [{ surface: 'app', seconds: 0 }]);
+  assert.deepEqual(mid.sent, [{ surface: 'app', listen: 'listen-1', seconds: 0 }]);
   assert.equal(mid.c.intervals.size, 0);
+  // A Reject and then a pause before the next minute beat: the end is not sent either, since the
+  // server can't see a Reject (Codex P1 on #2527).
+  let yes = true;
+  const quick = beats({ allowed: () => yes });
+  quick.b.playing();
+  quick.c.advance(20_000);
+  yes = false;
+  quick.b.stopped();
+  assert.deepEqual(quick.sent, [{ surface: 'app', listen: 'listen-1', seconds: 0 }]);
+  assert.equal(quick.c.intervals.size, 0);
+  assert.equal(quick.b.listening(), false);
   // A send that throws never stops the player's own handlers.
   const bad = beats({ send: () => { throw new Error('offline'); } });
   assert.doesNotThrow(() => { bad.b.playing(); bad.c.fire(); bad.b.stopped(); });
@@ -109,11 +139,11 @@ test('an audio element: a start when it plays; an end when it pauses, ends, fail
     const win = new EventTarget();
     const c = clock();
     const sent = [];
-    L.attachRadioListening(audio, { surface: 'web', send: (b) => sent.push(b), allowed: () => true, now: c.now, timers: c.timers }, win);
+    L.attachRadioListening(audio, { surface: 'web', send: (b) => sent.push(b), allowed: () => true, now: c.now, timers: c.timers, newId: ids() }, win);
     audio.dispatchEvent(new Event('playing'));
     c.advance(30_000);
     (stop === 'pagehide' ? win : audio).dispatchEvent(new Event(stop));
-    assert.deepEqual(sent, [{ surface: 'web', seconds: 0 }, { surface: 'web', seconds: 30, end: true }], stop);
+    assert.deepEqual(sent, [{ surface: 'web', listen: 'listen-1', seconds: 0 }, { surface: 'web', listen: 'listen-1', seconds: 30, end: true }], stop);
   }
   // A page restored from the back-forward cache, still playing, starts a listen again.
   const audio = new EventTarget();
@@ -178,33 +208,37 @@ const post = (body, headers = {}) =>
     body: typeof body === 'string' ? body : JSON.stringify(body),
   });
 
-test('route: a beat is recorded with the account; the answer is always 204', async () => {
+const LISTEN = '3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b';
+
+test('route: a beat is recorded with the account and its listen; the answer is always 204', async () => {
   const { route, calls } = await loadRoute({ user: { id: 'u-1' } });
-  assert.equal((await route.POST(post({ surface: 'app', seconds: 59.6 }))).status, 204);
-  assert.equal((await route.POST(post({ surface: 'web', seconds: 12, end: true }))).status, 204);
+  assert.equal((await route.POST(post({ surface: 'app', listen: LISTEN, seconds: 59.6 }))).status, 204);
+  assert.equal((await route.POST(post({ surface: 'web', listen: LISTEN.toUpperCase(), seconds: 12, end: true }))).status, 204);
   const tz = process.env.ADMIN_TIMEZONE || 'America/New_York';
   assert.deepEqual(calls, [
-    { name: 'record_radio_listen', args: { p_user: 'u-1', p_surface: 'app', p_seconds: 60, p_end: false, p_tz: tz } },
-    { name: 'record_radio_listen', args: { p_user: 'u-1', p_surface: 'web', p_seconds: 12, p_end: true, p_tz: tz } },
+    { name: 'record_radio_listen', args: { p_user: 'u-1', p_listen: LISTEN, p_surface: 'app', p_seconds: 60, p_end: false, p_tz: tz } },
+    { name: 'record_radio_listen', args: { p_user: 'u-1', p_listen: LISTEN, p_surface: 'web', p_seconds: 12, p_end: true, p_tz: tz } },
   ]);
 });
 
 test('route: no account, Global Privacy Control or junk records nothing; a failed store is still 204', async () => {
   const visitor = await loadRoute();
-  assert.equal((await visitor.route.POST(post({ surface: 'web', seconds: 0 }))).status, 204);
+  assert.equal((await visitor.route.POST(post({ surface: 'web', listen: LISTEN, seconds: 0 }))).status, 204);
   assert.equal(visitor.calls.length, 0, 'the stream is members only: a beat with no account is not a listener');
   const { route, calls } = await loadRoute({ user: { id: 'u-1' } });
-  assert.equal((await route.POST(post({ surface: 'app', seconds: 0 }, { 'sec-gpc': '1' }))).status, 204);
-  for (const body of ['not json', [], null, { surface: 'tv', seconds: 1 }, { surface: 'app' }, { surface: 'app', seconds: -1 },
-    { surface: 'app', seconds: 86401 }, { surface: 'app', seconds: '60' }, { surface: 'app', seconds: null }, `{"surface":"app","seconds":1,"x":"${'y'.repeat(2000)}"}`]) {
+  assert.equal((await route.POST(post({ surface: 'app', listen: LISTEN, seconds: 0 }, { 'sec-gpc': '1' }))).status, 204);
+  const ok = { surface: 'app', listen: LISTEN, seconds: 1 };
+  for (const body of ['not json', [], null, { ...ok, surface: 'tv' }, { surface: 'app', listen: LISTEN }, { ...ok, seconds: -1 },
+    { ...ok, seconds: 86401 }, { ...ok, seconds: '60' }, { ...ok, seconds: null }, { surface: 'app', seconds: 1 }, { ...ok, listen: 'listen-1' },
+    { ...ok, listen: `${LISTEN}0` }, { ...ok, listen: 7 }, `{"surface":"app","listen":"${LISTEN}","seconds":1,"x":"${'y'.repeat(2000)}"}`]) {
     assert.equal((await route.POST(post(body))).status, 204);
   }
-  assert.equal(calls.length, 0);
+  assert.equal(calls.length, 0, 'no listen id, or one that is not a uuid, records nothing');
   const failing = await loadRoute({ user: { id: 'u-1' }, rpcError: { message: 'function record_radio_listen does not exist' } });
-  assert.equal((await failing.route.POST(post({ surface: 'app', seconds: 0 }))).status, 204);
+  assert.equal((await failing.route.POST(post(ok))).status, 204);
   assert.equal(failing.calls.length, 1);
   // Only `true` ends a listen.
-  await route.POST(post({ surface: 'app', seconds: 5, end: 'yes' }));
+  await route.POST(post({ ...ok, end: 'yes' }));
   assert.equal(calls[0].args.p_end, false);
 });
 
@@ -216,21 +250,22 @@ test('route: it reads the caller through request-auth, so the installed app\'s B
 });
 
 // ── The migration ────────────────────────────────────────────────────────────────────────
-test('migration: daily totals hold no account; the live note does, and only while listening', () => {
+test('migration: daily totals hold no account; the live note does, one per listen, only while it plays', () => {
   const code = read('supabase-migrations/2026-10-30-radio-listening.sql').replace(/--.*$/gm, '');
   assert.match(code, /^\s*begin;/m);
   assert.match(code, /commit;\s*$/);
   const cols = (t) => [...(new RegExp(`create table if not exists public\\.${t} \\(([\\s\\S]*?)\\n\\);`).exec(code)[1]).matchAll(/^\s+(\w+)\s/gm)].map((m) => m[1]);
   assert.deepEqual(cols('radio_listen_days'), ['day', 'surface', 'audience', 'tune_ins', 'seconds', 'primary']);
   assert.deepEqual(cols('radio_listen_peaks'), ['day', 'listeners', 'at']);
-  assert.deepEqual(cols('radio_listen_live'), ['listener', 'surface', 'audience', 'last_beat']);
-  assert.match(code, /listener\s+uuid\s+primary key references auth\.users \(id\) on delete cascade/, 'a deleted account takes its note with it');
+  assert.deepEqual(cols('radio_listen_live'), ['listen', 'listener', 'surface', 'audience', 'last_beat', 'credited_to']);
+  assert.match(code, /listen\s+uuid\s+primary key,/);
+  assert.match(code, /listener\s+uuid\s+not null references auth\.users \(id\) on delete cascade/, 'a deleted account takes its note with it');
   for (const t of ['radio_listen_days', 'radio_listen_peaks', 'radio_listen_live']) {
     assert.match(code, new RegExp(`alter table public\\.${t} enable row level security;`), t);
     assert.match(code, new RegExp(`revoke all on table public\\.${t} from public, anon, authenticated;`), t);
   }
   assert.doesNotMatch(code, /create policy/, 'no policy: nobody reads it through the API');
-  for (const sig of ['record_radio_listen\\(uuid, text, integer, boolean, text\\)', 'admin_radio_stats\\(integer, text\\)']) {
+  for (const sig of ['record_radio_listen\\(uuid, uuid, text, integer, boolean, text\\)', 'admin_radio_stats\\(integer, text\\)']) {
     assert.match(code, new RegExp(`revoke all on function public\\.${sig} from public, anon, authenticated;`), sig);
     assert.match(code, new RegExp(`grant execute on function public\\.${sig} to service_role;`), sig);
   }
@@ -241,24 +276,31 @@ test('migration: daily totals hold no account; the live note does, and only whil
 test('migration: a listener counts once, and never for more time than has passed', () => {
   const code = read('supabase-migrations/2026-10-30-radio-listening.sql').replace(/--.*$/gm, '');
   const fn = code.slice(code.indexOf('create or replace function public.record_radio_listen('), code.indexOf('create or replace function public.admin_radio_stats('));
-  assert.match(fn, /if p_user is null or p_surface is null or p_surface not in \('web', 'app'\) then\s+return 0;/);
+  assert.match(fn, /if p_user is null or p_listen is null or p_surface is null or p_surface not in \('web', 'app'\) then\s+return 0;/);
   assert.match(fn, /_rate_limit_bump\('fn:radio_listen:' \|\| p_user::text, 6, 60\)/);
   assert.match(fn, /delete from public\.radio_listen_live where last_beat < now\(\) - interval '30 minutes';/);
-  // The first beat is the tune-in, and only when this account's note is new.
-  assert.match(fn, /on conflict \(listener\) do nothing;\s+get diagnostics v_tune_in = row_count;/);
+  // A listen's first beat is its tune-in; it takes the account's credited mark.
+  assert.match(fn, /values \(p_listen, p_user, p_surface, v_audience, now\(\), v_credited\)\s+on conflict \(listen\) do nothing;\s+get diagnostics v_tune_in = row_count;/);
+  // The account's listens are locked, and its mark read, before the listen is looked up.
+  assert.match(fn, /perform 1 from public\.radio_listen_live where listener = p_user for update;\s+select max\(l\.credited_to\) into v_credited from public\.radio_listen_live l where l\.listener = p_user;/);
+  assert.match(fn, /if v_owner is not null and v_owner <> p_user then\s+return 0;/, 'another account\'s listen is never touched');
   assert.match(fn, /if coalesce\(p_end, false\) then\s+return 0;\s+end if;/, 'an end for a listen never seen adds nothing');
   assert.match(fn, /if v_audience is null then\s+return 0;/, 'no profile, no count');
-  // A later beat: what the player says, never more than the time since this account's last beat (+2 s) or 10 minutes.
-  assert.match(fn, /v_credit := least\(\s+greatest\(coalesce\(p_seconds, 0\), 0\),\s+floor\(extract\(epoch from \(now\(\) - v_last\)\)\)::integer \+ 2,\s+600\s+\);/);
-  assert.match(fn, /if coalesce\(p_end, false\) then\s+delete from public\.radio_listen_live where listener = p_user;/, 'the note goes when the listen ends');
-  // A trainer or a nutritionist is a coach (dietitians are nutritionists), as the tap counts read them.
-  assert.match(fn, /when 'trainer' = any\(coalesce\(p\.roles, '\{\}'\)\) or 'nutritionist' = any\(coalesce\(p\.roles, '\{\}'\)\)\s+or p\.role in \('trainer', 'nutritionist'\) then 'coach'\s+else 'member'/);
-  assert.match(fn, /where last_beat > now\(\) - interval '150 seconds'/);
+  // A later beat: what the player says, never more than the time since the account was last credited
+  // or this listen began (+2 s), or 10 minutes; then the account's mark moves on, on all its listens.
+  assert.match(fn, /v_credit := least\(\s+greatest\(coalesce\(p_seconds, 0\), 0\),\s+floor\(extract\(epoch from \(now\(\) - greatest\(v_credited, v_last\)\)\)\)::integer \+ 2,\s+600\s+\);/);
+  assert.match(fn, /update public\.radio_listen_live set credited_to = now\(\) where listener = p_user;/);
+  // An end closes its own listen and no other (Codex P2 on #2527).
+  assert.match(fn, /if coalesce\(p_end, false\) then\s+delete from public\.radio_listen_live where listen = p_listen;/);
+  assert.match(fn, /update public\.radio_listen_live set last_beat = now\(\), surface = p_surface where listen = p_listen;/);
+  // A trainer, a nutritionist or a dietitian is a coach, as src/lib/roles.mjs's COACH_ROLES and the tap counts have it (Codex P2 on #2527).
+  assert.match(fn, /when coalesce\(p\.roles, '\{\}'\) && array\['trainer', 'nutritionist', 'dietitian'\]\s+or p\.role in \('trainer', 'nutritionist', 'dietitian'\) then 'coach'\s+else 'member'/);
+  assert.match(fn, /select count\(distinct listener\) into v_now\s+from public\.radio_listen_live where last_beat > now\(\) - interval '150 seconds';/, 'an account counts once, however many listens');
   assert.match(fn, /where excluded\.listeners > pk\.listeners;/, 'a peak only ever rises');
   const stats = code.slice(code.indexOf('create or replace function public.admin_radio_stats('));
   assert.match(stats, /least\(greatest\(coalesce\(p_days, 30\), 1\), 365\)/);
-  assert.match(stats, /l\.last_beat > now\(\) - interval '150 seconds'/, 'listening now is the same window');
-  assert.doesNotMatch(stats, /listener[^s_]/, 'the console never reads an account');
+  assert.match(stats, /select distinct on \(l\.listener\) l\.surface\s+from public\.radio_listen_live l\s+where l\.last_beat > now\(\) - interval '150 seconds'\s+order by l\.listener, l\.last_beat desc/, 'listening now: the same window, an account once, and only its surface leaves');
+  assert.doesNotMatch(stats, /'listener'|'listen'/, 'the console never gets an account or a listen');
 });
 
 test('purge: the daily rows after 12 months, a quiet note after 30 minutes', () => {

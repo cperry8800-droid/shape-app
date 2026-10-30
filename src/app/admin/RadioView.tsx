@@ -159,11 +159,11 @@ function HowCounted() {
       <ul className="mt-3 flex flex-col gap-2 text-sm text-neutral-400 max-w-3xl list-disc pl-5">
         <li>
           The player on the website and in the app sends a beat as the stream starts playing, one a minute while it plays, and one as it
-          stops. A tune-in is a start; the time listened is what the beats say played, never more than the time between them.
+          stops. A tune-in is each time the stream starts; the time listened is what the beats say played, never more than has passed.
         </li>
         <li>
-          One account counts once: a second device on the same account adds no tune-in and no extra time. A listen that stops without
-          saying so (the app closed, the tab killed) loses at most its last minute.
+          An account is one listener: a second device on the same account adds its tune-in but no extra time, and counts once in
+          listening now. A listen that stops without saying so (the app closed, the tab killed) loses at most its last minute.
         </li>
         <li>
           Listening now is every account whose last beat came in the last two and a half minutes; most at once is the highest that

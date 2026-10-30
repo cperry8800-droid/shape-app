@@ -6,10 +6,11 @@
 --      holding the day's tune-ins and seconds listened. Daily totals only: no account, device or
 --      address is kept with a count.
 --   2. radio_listen_peaks: one row per day, the most accounts listening at once and when.
---   3. radio_listen_live: the accounts listening right now, one row each, so a listener is counted
---      once and the seconds credited can't run ahead of the clock. A row goes when its listen ends.
---      One left quiet for 30 minutes (the app or the tab closed without saying so) goes at the next
---      beat from anyone, or at the nightly purge. It is the "listening now" figure, not a history.
+--   3. radio_listen_live: the listens playing right now, one row each with its account, so a
+--      listener is counted once and the seconds credited can't run ahead of the clock. A row goes
+--      when its listen ends. One left quiet for 30 minutes (the app or the tab closed without saying
+--      so) goes at the next beat from anyone, or at the nightly purge. It is the "listening now"
+--      figure, not a history.
 --   4. record_radio_listen(): a player's beat (POST /api/analytics/radio-listen, with the service
 --      role). The player sends one as the stream starts, one a minute while it plays, and one as it
 --      stops (public/newdesign/radioListening.mjs).
@@ -54,12 +55,19 @@ create table if not exists public.radio_listen_peaks (
   at        timestamptz not null default now()
 );
 
+-- One row per listen: `listen` is the player's random id for it, so an end closes that listen and no
+-- other (a resume's start can reach the server before the pause's end, and one of two devices can
+-- stop while the other plays; Codex P2 on #2527). `credited_to` is how far this account's listening
+-- has been credited, the same on all its rows, so two listens at once never count a second twice.
 create table if not exists public.radio_listen_live (
-  listener  uuid        primary key references auth.users (id) on delete cascade,
-  surface   text        not null check (surface in ('web', 'app')),
-  audience  text        not null check (audience in ('member', 'coach')),
-  last_beat timestamptz not null default now()
+  listen      uuid        primary key,
+  listener    uuid        not null references auth.users (id) on delete cascade,
+  surface     text        not null check (surface in ('web', 'app')),
+  audience    text        not null check (audience in ('member', 'coach')),
+  last_beat   timestamptz not null default now(),
+  credited_to timestamptz
 );
+create index if not exists radio_listen_live_listener on public.radio_listen_live (listener);
 create index if not exists radio_listen_live_last_beat on public.radio_listen_live (last_beat);
 
 alter table public.radio_listen_days enable row level security;
@@ -72,14 +80,16 @@ grant select, insert, update, delete on table public.radio_listen_days to servic
 grant select, insert, update, delete on table public.radio_listen_peaks to service_role;
 grant select, insert, update, delete on table public.radio_listen_live to service_role;
 
--- A beat. p_user is the account the route read from the request's own session; p_seconds is how
--- long the player says it played since its last beat; p_end says the stream stopped. The first
--- beat of a listen is its tune-in. A later one is credited what the player says, but never more
--- than the time since this account's last beat (plus 2 seconds for the network) or 10 minutes, so
--- a second device on the same account, or a player that claims too much, can't add listening that
--- didn't happen. Each account gets 6 beats a minute. Returns the seconds credited.
+-- A beat. p_user is the account the route read from the request's own session; p_listen is the
+-- player's random id for this listen; p_seconds is how long it says it played since its last beat;
+-- p_end says the stream stopped. A listen's first beat is a tune-in. A later one is credited what the
+-- player says, but never more than the time since this account was last credited, or since this
+-- listen began (plus 2 seconds for the network), or 10 minutes, so a second device on the same
+-- account, or a player that claims too much, can't add listening that didn't happen. Each account
+-- gets 6 beats a minute. Returns the seconds credited.
 create or replace function public.record_radio_listen(
   p_user uuid,
+  p_listen uuid,
   p_surface text,
   p_seconds integer,
   p_end boolean default false,
@@ -92,14 +102,16 @@ set search_path = public, pg_temp
 as $$
 declare
   v_allowed boolean;
+  v_owner uuid;
   v_audience text;
   v_last timestamptz;
+  v_credited timestamptz;
   v_day date;
   v_tune_in integer := 0;
   v_credit integer := 0;
   v_now integer;
 begin
-  if p_user is null or p_surface is null or p_surface not in ('web', 'app') then
+  if p_user is null or p_listen is null or p_surface is null or p_surface not in ('web', 'app') then
     return 0;
   end if;
 
@@ -112,19 +124,26 @@ begin
   -- A listen that went quiet without an end (the app closed, the tab was killed) is forgotten.
   delete from public.radio_listen_live where last_beat < now() - interval '30 minutes';
 
-  select l.last_beat, l.audience into v_last, v_audience
+  -- This account's listens, locked so its beats are credited one after another.
+  perform 1 from public.radio_listen_live where listener = p_user for update;
+  select max(l.credited_to) into v_credited from public.radio_listen_live l where l.listener = p_user;
+  select l.listener, l.audience, l.last_beat into v_owner, v_audience, v_last
   from public.radio_listen_live l
-  where l.listener = p_user
-  for update;
+  where l.listen = p_listen;
 
-  if not found then
+  if v_owner is not null and v_owner <> p_user then
+    return 0; -- another account's listen
+  end if;
+
+  if v_owner is null then
     -- An end for a listen this never saw, or one already closed, adds nothing.
     if coalesce(p_end, false) then
       return 0;
     end if;
+    -- A trainer, a nutritionist or a dietitian is a coach (src/lib/roles.mjs's COACH_ROLES).
     select case
-             when 'trainer' = any(coalesce(p.roles, '{}')) or 'nutritionist' = any(coalesce(p.roles, '{}'))
-                  or p.role in ('trainer', 'nutritionist') then 'coach'
+             when coalesce(p.roles, '{}') && array['trainer', 'nutritionist', 'dietitian']
+                  or p.role in ('trainer', 'nutritionist', 'dietitian') then 'coach'
              else 'member'
            end
       into v_audience
@@ -133,21 +152,26 @@ begin
     if v_audience is null then
       return 0;
     end if;
-    insert into public.radio_listen_live (listener, surface, audience, last_beat)
-    values (p_user, p_surface, v_audience, now())
-    on conflict (listener) do nothing;
-    -- 0 when the same account's other device started a moment before: one listener, one tune-in.
+    -- It takes the account's credited mark, so a listen started while another plays (a second
+    -- device, or a resume whose start overtook its pause's end) credits nothing twice.
+    insert into public.radio_listen_live (listen, listener, surface, audience, last_beat, credited_to)
+    values (p_listen, p_user, p_surface, v_audience, now(), v_credited)
+    on conflict (listen) do nothing;
     get diagnostics v_tune_in = row_count;
+    if v_tune_in = 0 then
+      return 0;
+    end if;
   else
     v_credit := least(
       greatest(coalesce(p_seconds, 0), 0),
-      floor(extract(epoch from (now() - v_last)))::integer + 2,
+      floor(extract(epoch from (now() - greatest(v_credited, v_last))))::integer + 2,
       600
     );
+    update public.radio_listen_live set credited_to = now() where listener = p_user;
     if coalesce(p_end, false) then
-      delete from public.radio_listen_live where listener = p_user;
+      delete from public.radio_listen_live where listen = p_listen;
     else
-      update public.radio_listen_live set last_beat = now(), surface = p_surface where listener = p_user;
+      update public.radio_listen_live set last_beat = now(), surface = p_surface where listen = p_listen;
     end if;
   end if;
 
@@ -159,9 +183,10 @@ begin
     do update set tune_ins = d.tune_ins + excluded.tune_ins, seconds = d.seconds + excluded.seconds;
   end if;
 
-  -- Listening now: every account whose last beat came in the last 150 seconds (a beat a minute,
-  -- with room for a phone that runs its timers late).
-  select count(*) into v_now from public.radio_listen_live where last_beat > now() - interval '150 seconds';
+  -- Listening now: every account with a beat in the last 150 seconds (a beat a minute, with room
+  -- for a phone that runs its timers late), counted once however many listens it has.
+  select count(distinct listener) into v_now
+  from public.radio_listen_live where last_beat > now() - interval '150 seconds';
   if v_now > 0 then
     insert into public.radio_listen_peaks as pk (day, listeners, at)
     values (v_day, v_now, now())
@@ -174,8 +199,8 @@ begin
 end;
 $$;
 
-revoke all on function public.record_radio_listen(uuid, text, integer, boolean, text) from public, anon, authenticated;
-grant execute on function public.record_radio_listen(uuid, text, integer, boolean, text) to service_role;
+revoke all on function public.record_radio_listen(uuid, uuid, text, integer, boolean, text) from public, anon, authenticated;
+grant execute on function public.record_radio_listen(uuid, uuid, text, integer, boolean, text) to service_role;
 
 -- The Radio tab: the last p_days days (1 to 365) up to today in p_tz. Tune-ins and seconds in all,
 -- by surface and by audience, every day's figures with its peak, the period's peak, and who is
@@ -202,7 +227,11 @@ begin
     where d.day between v_from and v_to
   ),
   live as (
-    select l.surface from public.radio_listen_live l where l.last_beat > now() - interval '150 seconds'
+    -- One per account, on the surface of its latest beat.
+    select distinct on (l.listener) l.surface
+    from public.radio_listen_live l
+    where l.last_beat > now() - interval '150 seconds'
+    order by l.listener, l.last_beat desc
   )
   select jsonb_build_object(
     'generated_at', now(),
@@ -266,7 +295,7 @@ begin
     end if;
   end loop;
   foreach f in array array[
-    'public.record_radio_listen(uuid, text, integer, boolean, text)',
+    'public.record_radio_listen(uuid, uuid, text, integer, boolean, text)',
     'public.admin_radio_stats(integer, text)'
   ] loop
     if has_function_privilege('anon', f, 'execute') or has_function_privilege('authenticated', f, 'execute') then
