@@ -335,3 +335,16 @@ test('Next app: askNora names the account and reads a refusal; the button keeps 
   assert.match(send, /if \(refused\) \{\n(?:\s+\/\/[^\n]*\n)+\s+accountRef\.current = null;\n\s+setMessages\(\[next\[0\], \{ from: 'shape', text: NORA_SWITCHED \}\]\);\n\s+setDraft\(value\);\n\s+setBusy\(false\);\n\s+return;\n\s+\}\n\s+if \(account && !accountRef\.current\) accountRef\.current = account;/);
   assert.match(src, new RegExp(`const NORA_SWITCHED = "${SWITCHED.replace(/[.?]/g, '\\$&')}";`));
 });
+
+// The /connect pages are the installed app's in-app browser for a music sign-in (War Room: "the
+// site's floating Ask Nora button shows on the /connect pages").
+test('Next app: the floating button stays off the homepage and the /connect sign-in pages', () => {
+  for (const p of ['/', '/intro-preview', '/connect', '/connect/spotify', '/connect/apple-music', '/connect/done']) {
+    assert.equal(nextBtn.noraButtonHidden(p), true, p);
+  }
+  for (const p of ['/dashboard', '/login', '/purchase', '/connected', '/connections', '/dashboard/connect', null, undefined, '']) {
+    assert.equal(nextBtn.noraButtonHidden(p), false, String(p));
+  }
+  const src = readFileSync(join(ROOT, 'src/components/GlobalChatButton.tsx'), 'utf8');
+  assert.match(src, /if \(noraButtonHidden\(pathname\)\) \{\n\s+return null;/, 'the component asks the rule');
+});
