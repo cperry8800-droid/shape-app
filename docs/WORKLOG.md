@@ -236,8 +236,6 @@ The War Room has the full list; this covers what needs the owner and the planned
   `@sentry/nextjs/config`.
 - Nothing opens the chat panel from a URL; `TrainerNewProgram.html` and `get-started.html` are
   linked from nowhere.
-- The website's Kitchen (`recipesPage.jsx`) runs its filter toggles and jump row off a phone's
-  right edge.
 - No signed-in pass (browser or phone) yet: client onboarding, the dashboard frame and skins,
   `/admin`, Business (web and app), coach application uploads, the Wall's live story with a
   real set, the coach Today/Clients/Programs redesign (#2458), shared clients (#2496, #2499),
