@@ -274,14 +274,17 @@ html[data-paper="dark"] {
   --sh-heat-client-rgb: 52,214,197;
   --sh-accent-ink: #2ee0c4;
   --sh-accent-ink-rgb: 46,224,196;
-  --sh-ember: #d2693f;
-  --sh-ember-rgb: 210,105,63;
+  /* Ember and violet are text (warnings, readiness and goal-phase labels): lifted from
+     #d2693f and #8a5cf6, which read 4.44 and 3.76:1 on this card, to clear 4.5:1 on the
+     card, ground, resting fill and (ember) its rust tint. */
+  --sh-ember: #d47149;
+  --sh-ember-rgb: 212,113,73;
   --sh-danger: #e07856;
   --sh-danger-rgb: 224,120,86;
   --sh-sky: #7ed4ff;
   --sh-sky-rgb: 126,212,255;
-  --sh-violet: #8a5cf6;
-  --sh-violet-rgb: 138,92,246;
+  --sh-violet: #9a72f7;
+  --sh-violet-rgb: 154,114,247;
   --sh-gold2: #d8b25a;
   --sh-gold2-rgb: 216,178,90;
   --sh-spotify-ink: #1db954;

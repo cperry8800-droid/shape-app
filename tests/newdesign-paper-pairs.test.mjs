@@ -88,12 +88,13 @@ test('the tokens the light paper made reachable clear their contrast floor on bo
   // is the teal set ON a teal wash, ember/danger the warnings, sky/violet/gold2 the
   // readiness, goal-phase and coach-file labels. Each is text and nothing else, so
   // each gets the text floor on every surface and on the tint it is set over.
-  // ⚠ The DARK values are the literals these tokens replaced, unchanged — ember
-  // (#d2693f) and violet (#8a5cf6) read under 4.5:1 on the dark card and did before;
-  // that is the dark paper's pre-existing state, not this floor's.
+  // The dark paper is held to the same floor. Its ember (#d2693f) and violet (#8a5cf6) were
+  // the literals these tokens replaced and read 4.44 and 3.76:1 on its card; they were
+  // lifted (#d47149, #9a72f7) to clear it, so they are measured here too.
   for (const [fg, tint] of [['--sh-accent-ink', '--sh-accent-tint'], ['--sh-ember', '--sh-rust-tint'], ['--sh-danger', '--sh-rust-tint'],
                             ['--sh-sky', null], ['--sh-violet', null], ['--sh-gold2', '--sh-gold-tint'], ['--sh-spotify-ink', null]]) {
     need('light', light, fg, tint ? [...SURFACES, tint] : SURFACES, 4.5, 'text-only token');
+    need('dark', dark, fg, tint ? [...SURFACES, tint] : SURFACES, 4.5, 'text-only token');
   }
   assert.deepEqual(failures, [], failures.join('\n'));
 });

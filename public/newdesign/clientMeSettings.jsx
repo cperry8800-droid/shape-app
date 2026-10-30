@@ -769,7 +769,7 @@ function HealthProfileCard() {
       ) : null}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <SectionTitle>Health profile</SectionTitle>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: doc ? (doc.flagged ? "var(--sh-ember, #d2693f)" : "var(--sh-accent2, #0ac5a8)") : "var(--sh-ink2, #a09b94)" }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: doc ? (doc.flagged ? "var(--sh-ember, #d47149)" : "var(--sh-accent2, #0ac5a8)") : "var(--sh-ink2, #a09b94)" }}>
           {doc ? (doc.flagged ? "PAR-Q · flagged" : "PAR-Q · all clear") : "Not completed yet"}
         </span>
       </div>

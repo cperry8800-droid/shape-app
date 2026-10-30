@@ -383,12 +383,12 @@ function ClientNutritionPage() {
 
         // Grocery — auto-built from the plan's ingredients
         { key: "grocery", title: "Grocery", size: "half", render: () => (
-          <div data-tour="hero-grocery" className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "var(--sh-violet, #8a5cf6)", paddingLeft: 24 }}>
+          <div data-tour="hero-grocery" className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "var(--sh-violet, #9a72f7)", paddingLeft: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-              <span className="dash-eyebrow" style={{ color: "var(--sh-violet, #8a5cf6)" }}>Grocery · auto-built from your plan</span>
+              <span className="dash-eyebrow" style={{ color: "var(--sh-violet, #9a72f7)" }}>Grocery · auto-built from your plan</span>
               <a href="ClientGrocery.html" style={{ fontFamily: DNU_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_INK50, textDecoration: "none" }}>Full list →</a>
             </div>
-            <div className="dash-ledger" style={{ "--dac": "var(--sh-violet, #8a5cf6)", marginTop: 9 }} />
+            <div className="dash-ledger" style={{ "--dac": "var(--sh-violet, #9a72f7)", marginTop: 9 }} />
             {grocery.length ? grocery.slice(0, 10).map((g, i) => (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "7px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none" }}>
                 <div style={{ minWidth: 0 }}>
