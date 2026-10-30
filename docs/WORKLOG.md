@@ -98,7 +98,8 @@ dated entry or past 20 KB.
   `BSLeaderboard.jsx` show the pattern: read window globals at call time inside the
   component, keep its own `useShapeTr()`, and never import back into the client module.
 - **Coach profiles:** `BSTrainerProfile.jsx` (editor `BSMakeItYours.jsx`): a trainer's studio and
-  replays (`coachWork.mjs`), a nutritionist's kitchen. No account: samples (`trainerDemo`, etc.).
+  replays (`coachWork.mjs`), a nutritionist's kitchen (plan: `studio` kind `kitchen`). No
+  account: samples (`trainerDemo`, etc.).
 - **Other app modules:** `iosAppBroadsheetPros.jsx` (trainer and nutritionist apps),
   `iosAppBroadsheet.jsx` (shared chrome: `BSPage`, `BSFooter`, `BSPlate`,
   `BSSwapSheet`), `iosAppBroadsheetRadio.jsx` (Shape Radio) and
@@ -226,14 +227,13 @@ The War Room has the full list; this covers what needs the owner and the planned
   leaves it past_due keeps it open.
 - Hosted `/m/`, signed out in its own client: a Nora load spanning an account switch in another
   tab shows the first account's conversation (every write is refused). Not to be fixed (owner).
-- 52 mutations in 17 older specs anchor on removed code, so `--fail-on-skipped` fails on those
-  specs.
+- 52 mutations in 17 older specs anchor on removed code: `--fail-on-skipped` fails them.
 - Apple Music playlists in the installed app still run MusicKit in the WebView.
 - Staff two-factor has no recovery codes, and reloading `/staff-verify` during set-up makes a
   new key (#2388). The Radio page can ask for the code again.
 - The website's usage stats don't wait for the consent banner in the EEA and UK.
-- `next.config.ts` imports `withSentryConfig` from `@sentry/nextjs`, which stops working in Sentry
-  v11 (`@sentry/nextjs/config`).
+- `next.config.ts` imports `withSentryConfig` from `@sentry/nextjs`; Sentry v11 moves it to
+  `@sentry/nextjs/config`.
 - Nothing opens the chat panel from a URL; `TrainerNewProgram.html` and `get-started.html` are
   linked from nowhere.
 - The website's Kitchen (`recipesPage.jsx`) runs its filter toggles and jump row off a phone's
@@ -252,8 +252,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   Room).
 - Sleep points (`award_sleep_points`) trust `sources.sleep_hours` on a row the member can
   write: with a provider connected, a direct write could earn +5 a night for the last 14 days,
-  and Apple Health nights and connection are whatever the app posts, so a member can post
-  made-up nights (as for Shape Steps).
+  and Apple Health nights and connection are whatever the app posts (as for Shape Steps).
 - Apple Health water double-counts a drink that two apps, or Health and Shape, both log, and
   the Daily check-in reminder fires on a day already done (War Room).
 - Morning check-in: a failed water-target read offers "Set a daily target"; with Check-ins off,
@@ -268,6 +267,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   the wall's light (`wallLookGlow`) and haze (`beamHaze.mjs`), the stage and side rooms
   (`clubRooms.mjs`) are seen only in headless Chromium. The old avatar crowd
   (`crowdAvatars.mjs`) is kept for a v2 pack.
+- Coach profile: two small gaps (War Room).
 - Seen only in headless Chromium, not on a phone or in the app: the Split glass mark
   (#2474), Your hours, the coach profiles, Make it yours, Nora's hint, Build a list, Grocery,
   the Library and the profile dock (War Room).
