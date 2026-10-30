@@ -24806,7 +24806,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <>
         <BSChatThread
           key={openChat.conversation_id || (openChat.channelId != null ? 'ch:' + openChat.channelId : 'n:' + (openChat.n || ''))}
-          thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
+          thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', at: openChat.at || null, messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
           eyebrow={openChat.channelId ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : openChat.dm ? tr('feed:thread.privateThread', { defaultValue: 'Private thread' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })}
           onBack={() => setOpenChat(null)}
           onOpenProfile={(person) => setOpenProfile(person)}

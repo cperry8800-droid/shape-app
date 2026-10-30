@@ -109,6 +109,22 @@ test('a channel opened in German says each message\'s time in German', async () 
   } finally { globalThis.ShapeI18n = had; }
 });
 
+// Codex P2 on 671fa08: the one place that opens a thread built it without the row's stamp, so a thread
+// opened before its history loaded (or whose history failed) showed its preview as "now".
+test('a thread opened on its preview alone says the preview\'s time', () => {
+  const client = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
+  const open = client.slice(client.indexOf('<BSChatThread'), client.indexOf('<BSChatThread') + 900);
+  assert.match(open, /last: openChat\.last, time: '', at: openChat\.at \|\| null,/);
+  const stamp = ROWS[0].created_at;
+  const had = globalThis.ShapeI18n;
+  globalThis.ShapeI18n = { intlLocale: () => 'de-DE', current: () => 'de', t: () => undefined };
+  try {
+    const text = drive(BSChatThread, { thread: { who: 'Ana', last: 'Six tomorrow?', time: '', at: stamp, messages: [], conversationId: 'c-9' }, eyebrow: 'DM', onBack() {} }).text;
+    assert.ok(text.includes('Six tomorrow?') && text.includes(bsChatStamp(stamp, 'de-DE')), text.slice(0, 160));
+    assert.ok(!/now/i.test(text.slice(text.indexOf('Six tomorrow?'))), 'not "now"');
+  } finally { globalThis.ShapeI18n = had; }
+});
+
 test('the team list and a live message use the stamp too', () => {
   const client = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
   // The row's time is the last message's (the thread's, with none loaded), in the list's shorter form.
