@@ -821,7 +821,7 @@ const STRONG = { id: '11111111-2222-4333-8444-555555555555', kind: 'program', na
   firstWeek: [{ week: 0, day: 0, weekday: 0, dayName: 'Squat', moves: 2 }, { week: 0, day: 1, weekday: 2, dayName: 'Press', moves: 3 }],
   media: [{ url: CLIP, type: 'video', name: 'Intro' }, { url: 'https://abcd.supabase.co/storage/v1/object/public/coach-media/u-maya/a.jpg', type: 'image' }],
 } };
-const ROWER = { id: '66666666-2222-4333-8444-555555555555', kind: 'program', name: 'Engine 8', price: null, providerId: 7, providerRole: 'trainer', detail: { preview: true, blocks: [row(0, 0, 'Intervals', 'Rower', 'Rower')], weeks: 8, media: [] } };
+const ROWER = { id: '66666666-2222-4333-8444-555555555555', kind: 'program', name: 'Engine 8', price: 'Free', providerId: 7, providerRole: 'trainer', detail: { preview: true, blocks: [row(0, 0, 'Intervals', 'Rower', 'Rower')], weeks: 8, media: [] } };
 const MEAL = { id: '77777777-2222-4333-8444-555555555555', kind: 'meal_plan', name: 'A cut', price: 20, providerId: 7, providerRole: 'trainer', detail: { preview: true } };
 const tab = async (name) => click(button(new RegExp(`^${name}$`)));
 
@@ -836,6 +836,11 @@ test('Replays: each program with its free video, its weeks and first week, and B
   assert.match(cards[0].textContent, /12 weeks · 2 days a week · Preview video/);
   assert.match(cards[0].textContent, /MON Squat · WED Press/);
   assert.match(cards[1].textContent, /8 weeks/, 'no video and no poster: the weeks in its place');
+  // A free program has no checkout (Codex on #2508): Work with in place of Buy.
+  await click(cards[1]);
+  assert.ok(!document.querySelector('[data-program-buy]'), 'no Buy · Free');
+  assert.ok(button(/^Work with Maya$/));
+  await click(button(/^Close$/));
   await click(cards[0]);
   const sheet = document.querySelector('[data-program-sheet]');
   assert.ok(sheet);

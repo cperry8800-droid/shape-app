@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  bsCoachPrograms, bsProgramMoves, bsWorkoutVideos, bsPieceMoves, bsMovePieces, bsStudioWork, bsWorkPrice,
+  bsCoachPrograms, bsProgramMoves, bsWorkoutVideos, bsPieceMoves, bsMovePieces, bsStudioWork, bsWorkPrice, bsWorkPaid,
   BS_WORK_PROGRAMS_MAX, BS_WORK_VIDEOS_MAX, BS_WORK_MOVES_MAX,
 } from '../mobile-app/src/services/coachWork.mjs';
 import { bsStudioItem, bsProfileStudio, BS_STATION_PINS_MAX } from '../mobile-app/src/services/profileCustom.mjs';
@@ -88,10 +88,12 @@ test('the coach\'s programs: never a meal plan, the one free video, its poster, 
   assert.deepEqual(a.moves, [{ name: 'Back squat', equipment: 'Barbell', muscle: 'x' }]);
   assert.equal(a.plan.id, 7, 'the row the storefront buys');
   assert.equal(b.price, 'Free');
+  assert.deepEqual([a.paid, b.paid], [true, false], 'a free program is not sold');
   assert.equal(b.video, null);
   assert.equal(bsCoachPrograms(Array.from({ length: 40 }, (_, i) => plan({ id: i }))).length, BS_WORK_PROGRAMS_MAX);
   assert.deepEqual(bsCoachPrograms(null), []);
   assert.deepEqual([bsWorkPrice(null), bsWorkPrice(0), bsWorkPrice(''), bsWorkPrice(29), bsWorkPrice('$29')], [null, null, null, '$29', '$29']);
+  assert.deepEqual(['Free', 0, '0', '', null, 29, '$29', '12.50'].map(bsWorkPaid), [false, false, false, false, false, true, true, true]);
 });
 
 test('the workouts on video: https only, a session\'s sets kept, a dozen at most', () => {

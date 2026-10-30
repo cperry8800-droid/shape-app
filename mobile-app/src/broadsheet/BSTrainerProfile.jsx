@@ -1731,7 +1731,7 @@ function ProgramSheet({ t, tr, pr, ACC, DISPLAY, MONO, first, isSelf, studio, wo
       <div style={{ margin: '20px 18px calc(28px + env(safe-area-inset-bottom))' }}>
         {isSelf ? <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: muted }}>{tr('profile:trainer.programSelf', { defaultValue: 'This is what members see before they buy.' })}</p>
           : pr.sample ? <button type="button" onClick={onWork} style={{ width: '100%', minHeight: 50, border: '1px solid rgba(232,235,239,0.25)', background: 'transparent', color: '#e8ebef', fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.workTitle', { defaultValue: 'Work with {name}', name: first })}</button>
-            : pr.price ? <button type="button" data-program-buy="" onClick={onBuy} style={{ width: '100%', minHeight: 50, border: 0, background: ACC, color: onColor(ACC), fontWeight: 700, cursor: 'pointer' }}>{tr('marketplace:preview.buy', { defaultValue: 'Buy · {price} →', price: pr.price })}</button>
+            : pr.paid ? <button type="button" data-program-buy="" onClick={onBuy} style={{ width: '100%', minHeight: 50, border: 0, background: ACC, color: onColor(ACC), fontWeight: 700, cursor: 'pointer' }}>{tr('marketplace:preview.buy', { defaultValue: 'Buy · {price} →', price: pr.price })}</button>
               : <button type="button" onClick={onWork} style={{ width: '100%', minHeight: 50, border: '1px solid rgba(232,235,239,0.25)', background: 'transparent', color: '#e8ebef', fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.workTitle', { defaultValue: 'Work with {name}', name: first })}</button>}
       </div>
     </div>

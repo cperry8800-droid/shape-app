@@ -24,6 +24,9 @@ const clean = (s, max) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u00
 const httpsUrl = (u) => typeof u === 'string' && u.length <= 2048 && /^https:\/\/[^\s]+$/i.test(u);
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
+/** Whether a plan is sold for money: a price above zero ("Free" and 0 are not; checkout charges cents). */
+export const bsWorkPaid = (price) => { const n = Number(String(price == null ? '' : price).replace(/[^0-9.]/g, '')); return Number.isFinite(n) && n > 0; };
+
 /** The price as the storefront prints it: "$49", "Free", or null when the plan names none. */
 export function bsWorkPrice(price) {
   if (price == null || price === '' || price === 0) return null;
@@ -68,7 +71,7 @@ export function bsProgramMoves(detail) {
 
 /**
  * The coach's programs: every published plan that isn't a meal plan, in their order, each with
- * { id, name, price, plan, preview, video, poster, weeks, perWeek, moves }. `video` is the one the
+ * { id, name, price, paid, plan, preview, video, poster, weeks, perWeek, moves }. `video` is the one the
  * preview gives free ({ url, type: 'video' }), `poster` its first image, `preview` bsPlanPreview's
  * model (the days and moves the program sheet lists), `plan` the row the storefront buys.
  */
@@ -85,6 +88,8 @@ export function bsCoachPrograms(plans) {
       id: String(pl.id),
       name,
       price: bsWorkPrice(pl.price),
+      // A free program has no checkout to go through (Codex on #2508: "Buy · Free" failed there).
+      paid: bsWorkPaid(pl.price),
       plan: pl,
       preview,
       video: v ? { url: v.url, type: 'video', name: clean(v.name, 80) || name } : null,
