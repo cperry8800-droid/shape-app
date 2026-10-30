@@ -1264,19 +1264,21 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, 
   const now = shown.some(([k]) => k === sec) ? sec : (shown[0] ? shown[0][0] : null);
   const colors = plateColors(ACC, ink);
   const part = (k) => tr('profile:nutri.part' + k, { defaultValue: { Veg: 'Vegetables', Protein: 'Protein', Carbs: 'Carbs' }[k] });
-  // Staples a visitor picked, added to their own grocery lists as one list.
+  // Staples a visitor picked, added to their own grocery lists as one list. A sample's staples are
+  // said in the reader's language, so a pick is kept by its English name (stapleKeys) and read back
+  // against the staples as they are now: a language switch keeps the picks, and the list is the
+  // same list in every language (Codex on #2512). A real coach's staples are their own names.
+  const stable = (n) => (stapleKeys && Object.prototype.hasOwnProperty.call(stapleKeys, n) ? stapleKeys[n] : n);
   const [picked, setPicked] = React.useState(() => new Set());
+  const chosen = staples.filter((s) => picked.has(stable(s.n)));
   const [saving, setSaving] = React.useState(null); // null | 'busy' | 'done' | 'err'
   const toggle = (n) => { setSaving(null); setPicked((prev) => { const next = new Set(prev); if (next.has(n)) next.delete(n); else next.add(n); return next; }); };
   const addPicked = async () => {
-    if (!picked.size || saving === 'busy') return;
+    if (!chosen.length || saving === 'busy') return;
     if (window.bsRequireAccount && !window.bsRequireAccount(tr('profile:nutri.staplesAsk', { defaultValue: 'add to your grocery list' }))) return;
-    const items = staples.filter((s) => picked.has(s.n)).map((s) => ({ n: s.n, q: '1' }));
+    const items = chosen.map((s) => ({ n: s.n, q: '1' }));
     // One list per coach and set of staples, so adding the same ones again keeps one copy. Hashed:
     // the list's id keeps 64 characters, so names cut short there could make a bigger pick the same.
-    // A sample's staples are said in the reader's language, so its list goes by their English names
-    // (stapleKeys), the same list in every language (Codex on #2512).
-    const stable = (n) => (stapleKeys && Object.prototype.hasOwnProperty.call(stapleKeys, n) ? stapleKeys[n] : n);
     const id = `kitchen-${bsShortHash(ownerKey || 'sample')}-${bsShortHash(items.map((i) => stable(i.n).toLowerCase()).sort().join('\n'))}`;
     const list = bsReceivedGroceryList({ name: tr('profile:nutri.staplesList', { defaultValue: "{name}'s staples", name: first }), items }, { messageId: id, from: first });
     if (!list) return;
@@ -1349,11 +1351,11 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, 
             <span style={{ fontSize: 12, color: ink(0.6) }}>{tr('profile:nutri.' + STAPLE_GROUP_KEYS[g][0], { defaultValue: STAPLE_GROUP_KEYS[g][1] })}</span>
             <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {inG.map((x) => {
-                const on = picked.has(x.n);
+                const on = picked.has(stable(x.n));
                 return isSelf ? (
                   <span key={x.n} data-staple="" style={{ minHeight: 36, padding: '0 12px', display: 'inline-flex', alignItems: 'center', border: `1px solid ${ink(0.22)}`, fontSize: 14 }}>{x.n}</span>
                 ) : (
-                  <button key={x.n} type="button" data-staple="" aria-pressed={on} onClick={() => toggle(x.n)}
+                  <button key={x.n} type="button" data-staple="" aria-pressed={on} onClick={() => toggle(stable(x.n))}
                     style={{ minHeight: 40, padding: '0 12px', border: `1px solid ${on ? ACC : ink(0.22)}`, background: on ? hexA(ACC, 0.16) : 'transparent', color: t.INK, fontSize: 14, cursor: 'pointer' }}>{on ? '✓ ' : ''}{x.n}</button>
                 );
               })}
@@ -1363,9 +1365,9 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, 
       })}
       {!isSelf ? (
         <div style={{ marginTop: 12 }}>
-          <button type="button" data-add-staples="" onClick={addPicked} disabled={!picked.size || saving === 'busy'}
-            style={{ width: '100%', minHeight: 48, border: 0, background: picked.size ? ACC : t.PAPER2, color: picked.size ? ON_ACC : ink(0.5), fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: picked.size ? 'pointer' : 'default' }}>
-            {saving === 'busy' ? tr('profile:nutri.staplesAdding', { defaultValue: 'Adding…' }) : tr('profile:nutri.addStaples', { defaultValue: '{count, plural, =0 {Pick what to add} one {Add # to my grocery list} other {Add # to my grocery list}}', count: picked.size })}
+          <button type="button" data-add-staples="" onClick={addPicked} disabled={!chosen.length || saving === 'busy'}
+            style={{ width: '100%', minHeight: 48, border: 0, background: chosen.length ? ACC : t.PAPER2, color: chosen.length ? ON_ACC : ink(0.5), fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: chosen.length ? 'pointer' : 'default' }}>
+            {saving === 'busy' ? tr('profile:nutri.staplesAdding', { defaultValue: 'Adding…' }) : tr('profile:nutri.addStaples', { defaultValue: '{count, plural, =0 {Pick what to add} one {Add # to my grocery list} other {Add # to my grocery list}}', count: chosen.length })}
           </button>
           {saving === 'done' ? <p role="status" style={{ margin: '8px 0 0', fontSize: 13.5, color: ACC }}>{tr('profile:nutri.staplesSaved', { defaultValue: 'Added to your grocery lists, under Eat.' })}</p> : null}
           {saving === 'err' ? <p role="alert" style={{ margin: '8px 0 0', fontSize: 13.5, color: t.RUST || '#c0533b' }}>{tr('profile:nutri.staplesFailed', { defaultValue: "Couldn't add them just now. Try again." })}</p> : null}

@@ -847,6 +847,42 @@ test('a sample\'s staples added in German and in English make the same grocery l
   } finally { window.ShapeI18n.t = hadT; g.done(); }
 });
 
+// Staples picked in one language and added after a switch to another are still the ones picked
+// (Codex on #2512): a pick is kept by the staple's English name, not its shown one.
+test('a sample\'s staples picked in German and added after a switch to English are still picked', async () => {
+  const de = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/profile.json'), 'utf8'));
+  const hadT = window.ShapeI18n.t;
+  const hadLocale = window.ShapeLocale;
+  const g = groceryWorld();
+  let lang = 'de';
+  const subs = new Set();
+  window.ShapeLocale = { get: () => lang, subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); } };
+  const german = (key, opts = {}) => (key.startsWith('profile:sample.') ? new IntlMessageFormat(de[key.slice('profile:'.length)], 'de-DE').format(opts) : hadT(key, opts));
+  try {
+    window.ShapeI18n.t = german;
+    const rae = { who: 'Rae Lindqvist', kind: 'NUTRI', providerId: 52, city: 'Remote', bio: 'Plant-forward fuelling.', specialty: 'Plant-based nutrition Vegan', rating10: 9.8 };
+    reset({ me: 'u-me', byId: { id: 52, owner_id: null, name: 'Rae Lindqvist', price: 110, specialty: 'Plant-based nutrition', credential: 'RD', verified: false, listing_media: { cover: null, gallery: [] }, monthly_offer: null }, slots: [] });
+    const m = await mount(page({ person: rae }));
+    await click(button(/^Rae's kitchen$/));
+    await click(section('staples'));
+    const chips = [...document.querySelectorAll('[data-staple]')];
+    await click(chips[0]);
+    await click(chips[3]);
+    assert.match(document.querySelector('[data-add-staples]').textContent, /Add 2 to my grocery list/);
+    // Now English: the page is said again, the picks stay.
+    lang = 'en';
+    window.ShapeI18n.t = hadT;
+    await act(async () => { for (const fn of subs) fn(); });
+    await flush();
+    assert.deepEqual([...document.querySelectorAll('[data-staple][aria-pressed="true"]')].map((b) => b.textContent.replace(/^✓ /, '')), ['Firm tofu', 'Kale'], 'the same two, now in English');
+    assert.match(document.querySelector('[data-add-staples]').textContent, /Add 2 to my grocery list/);
+    await click(document.querySelector('[data-add-staples]'));
+    assert.equal(g.received.length, 1, 'saved');
+    assert.deepEqual(g.received[0].items.map((i) => i.n), ['Firm tofu', 'Kale']);
+    await m.unmount();
+  } finally { window.ShapeI18n.t = hadT; window.ShapeLocale = hadLocale; g.done(); }
+});
+
 test('signed out, the nutritionist app\'s own page is the sample, and Make it yours changes it on screen only', async () => {
   reset({ me: null });
   const m = await mount(page({ person: { who: 'Dr. Maya Patel', kind: 'NUTRI' }, isSelf: true }));
