@@ -121,8 +121,18 @@ test('the live row reads for mutual follows while it is live', () => {
   assert.ok(pol);
   const leg = pol[1].match(/\(visibility = 'friends' (.*?)\)\s*\)\s*\)/);
   assertMutual(leg && leg[1], 'user_activity_live.user_id', 'live read');
-  // The friends leg sits inside the expiry test, like every non-owner leg.
-  assert.ok(pol[1].indexOf('expires_at > now()') < pol[1].indexOf("visibility = 'friends'"));
+  // The friends leg sits INSIDE the expiry test's parentheses, like every non-owner leg:
+  // an expired row must not read for a friend before cleanup runs.
+  const open = pol[1].indexOf('(expires_at > now() and (');
+  assert.ok(open >= 0, 'the expiry group');
+  let depth = 0, close = -1;
+  for (let i = open; i < pol[1].length; i++) {
+    if (pol[1][i] === '(') depth++;
+    else if (pol[1][i] === ')' && --depth === 0) { close = i; break; }
+  }
+  const at = pol[1].indexOf("visibility = 'friends'");
+  assert.ok(open < at && at < close, 'the friends leg is inside the expiry group');
+  assert.equal(pol[1].slice(close + 1).trim(), '', 'nothing follows the expiry group');
   assert.match(CODE, /drop policy if exists "live read" on public\.user_activity_live; create policy "live read"/);
 });
 
