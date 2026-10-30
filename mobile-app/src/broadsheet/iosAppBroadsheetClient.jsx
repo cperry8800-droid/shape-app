@@ -22509,7 +22509,8 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       if (isPR) {
         return `${tr('feed:card.newPR', { defaultValue: 'New PR' })}${lift ? ` · ${lift}` : (measure ? ` · ${measure}` : '')}${tail}`;
       }
-      return `${measure}${heroStat[1] ? ` · ${heroStat[1]}` : ''}${tail}`;
+      // A heart rate reads as a bare number here too (bsSdFigureText), as on the plate under it.
+      return `${measure}${heroStat[1] ? ` · ${bsSdFigureText(heroStat[1])}` : ''}${tail}`;
     })();
     // The two facts that QUALIFY the figure. Demo records carry the lift's own
     // (`topset`, `e1rm`); everything else takes the next two real stats. Both

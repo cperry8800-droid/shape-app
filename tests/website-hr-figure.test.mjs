@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
 import { bsSdFigure, bsSdFigureText } from '../mobile-app/src/services/sessionLedger.mjs';
+import { bsShareFigureText, bsShareCardModel } from '../public/newdesign/shareCard.mjs';
 
 const FEED = readFileSync(new URL('../public/newdesign/communityFeed.jsx', import.meta.url), 'utf8');
 const CLEAN = stripComments(FEED);
@@ -48,7 +49,9 @@ test('every place the feed draws a stat value draws it through the rule', () => 
   assert.match(CLEAN, />\{cfFigureText\(heroStat\[1\]\)\}</);
   assert.equal((CLEAN.match(/>\{cfFigureText\(st\[1\]\)\}</g) || []).length, 2, 'the summary and the output tiles');
   assert.match(CLEAN, />\{cfFigureText\(r\[2\]\)\}</);
-  // The Wall plate: its hero is split by the rule, and its facts and preview grid drawn by it.
+  // The Wall plate: its hero is split by the rule, and its facts and preview grid drawn by it, and
+  // its pill too (Codex on #2524: an Avg HR hero read "AVG HR · 156 bpm" over a bare "156").
+  assert.match(CLEAN, /: `\$\{measure\}\$\{heroStat\[1\] \? ` · \$\{cfFigureText\(heroStat\[1\]\)\}` : ""\}\$\{tail\}`;/);
   assert.match(CLEAN, /const u = heroStat \? cfFigure\(heroStat\[1\]\) : null;/);
   assert.equal((CLEAN.match(/>\{cfFigureText\(v\)\}</g) || []).length, 2, 'the facts and the preview grid');
   // And none of them is drawn raw any more.
@@ -60,4 +63,16 @@ test('the stored value keeps its "bpm": it is how a reader tells a heart rate fr
   // The split table cut from a trace stores its HR with the unit, and the demo run's stats do too.
   assert.match(CLEAN, /x\.hr != null \? x\.hr \+ " bpm" : ""/);
   assert.match(CLEAN, /\["Avg HR", "156 bpm"\]/);
+});
+
+test('the app\'s pill and the share card say a heart rate the same way', () => {
+  // The app's own pill had the same raw value (iosAppBroadsheetClient.jsx wallPill).
+  const app = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
+  assert.match(app, /return `\$\{measure\}\$\{heroStat\[1\] \? ` · \$\{bsSdFigureText\(heroStat\[1\]\)\}` : ''\}\$\{tail\}`;/);
+  assert.doesNotMatch(app, /\$\{heroStat\[1\] \? ` · \$\{heroStat\[1\]\}`/);
+  // The share card (an image shared off the app) keeps a copy of the rule; it is the app's.
+  for (const v of CASES) assert.equal(bsShareFigureText(v), bsSdFigureText(v), `bsShareFigureText(${JSON.stringify(v)})`);
+  const card = bsShareCardModel({ heroStat: ['Avg HR', '156 bpm'], stats: [['Distance', '8.4 mi'], ['Max HR', '174 BPM'], ['Avg HR', '156 bpm']] });
+  assert.deepEqual(card.heroStat, ['Avg HR', '156']);
+  assert.deepEqual(card.stats, [['Distance', '8.4 mi'], ['Max HR', '174']], 'the hero still never repeats in the rows');
 });

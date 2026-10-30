@@ -602,7 +602,7 @@ function cfWallModel(p) {
   const lift = (p.lift || "").trim();
   const pill = !heroStat ? ""
     : isPR ? `New PR${lift ? ` · ${lift}` : (measure ? ` · ${measure}` : "")}${tail}`
-    : `${measure}${heroStat[1] ? ` · ${heroStat[1]}` : ""}${tail}`;
+    : `${measure}${heroStat[1] ? ` · ${cfFigureText(heroStat[1])}` : ""}${tail}`;
   const m = (p.session && p.session.metrics) || null;
   const zones = (p.session && Array.isArray(p.session.zones) && p.session.zones.length)
     ? p.session.zones : (m ? buildZonesFromDurations(m) : null);

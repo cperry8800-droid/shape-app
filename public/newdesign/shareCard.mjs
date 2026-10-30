@@ -23,12 +23,21 @@ import { bsMealMenuLines } from './mealShare.mjs';
 // ── Pure: the card model ─────────────────────────────────────────────────────
 // Trims + validates what the card/detail page already computed. Never invents:
 // absent fields stay absent; stat rows with an empty value are dropped.
+// A heart rate is drawn as a bare number, its label already saying HR (owner, 2026-10-26: "this
+// should say HR no BPM"): the app's bsSdFigureText (sessionLedger.mjs), which this module cannot
+// import, for the one unit it changes. tests/website-hr-figure.test.mjs holds the two equal.
+export function bsShareFigureText(text) {
+  const s = String(text == null ? '' : text).trim();
+  const m = s.match(/^([\d.,:]+)\s*bpm$/i);
+  return m ? m[1] : s;
+}
+
 export function bsShareCardModel({
   who = '', tierLine = '', title = '', heroStat = null, stats = [],
   delta = '', meal = null, routePoints = null, dateLine = '',
 } = {}) {
   const cleanRow = (r) => Array.isArray(r) && String(r[1] ?? '').trim()
-    ? [String(r[0] ?? '').trim(), String(r[1]).trim()] : null;
+    ? [String(r[0] ?? '').trim(), bsShareFigureText(r[1])] : null;
   const hero = cleanRow(heroStat);
   const rows = (Array.isArray(stats) ? stats : []).map(cleanRow).filter(Boolean)
     // The hero never repeats in the small rows.

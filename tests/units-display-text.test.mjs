@@ -320,3 +320,17 @@ test('a fraction of a distance converts as the number it is', () => {
   assert.equal(bsSdUnitizeText('2 mi', KG), '3.2 km');
   assert.equal(bsSdUnitizeText('Ran 3.1 mi in 28:40', KG), 'Ran 5 km in 28:40');
 });
+
+// ⚠ A SWIM'S FRACTION READS IN THE POOL UNIT (Codex on #2524), as the swim rule reads a whole
+// distance: metres or yards, never "0.8 km".
+test('a fraction of a swim distance reads in the pool unit', () => {
+  const swim = { sport: 'swim' };
+  assert.equal(bsSdUnitizeText('1/2 mi', KG, swim), '805 m');
+  assert.equal(bsSdUnitizeText('1 1/2 mi', KG, swim), '2,414 m');
+  assert.equal(bsSdUnitizeText('1/2 km', KG, swim), '500 m', 'a metric swimmer reads a km fraction in metres too');
+  assert.equal(bsSdUnitizeText('1/2 km', LB, swim), '547 yd');
+  assert.equal(bsSdUnitizeText('1/2 mi', LB, swim), '880 yd');
+  // The same as a whole distance in a swim, and the same fraction outside one.
+  assert.equal(bsSdUnitizeText('1 km', KG, swim), '1,000 m');
+  assert.equal(bsSdUnitizeText('1/2 mi', KG), '0.8 km');
+});
