@@ -936,7 +936,9 @@ test('the studio: each piece shows the moves of the coach\'s programs done on it
 
 test('Make it yours pins the coach\'s published programs to a station, three at most', async () => {
   const PROGS = [0, 1, 2, 3].map((i) => ({ ...STRONG, id: `1111111${i}-2222-4333-8444-555555555555`, name: `Program ${i + 1}` }));
-  const studio = { kind: 'gym', items: [{ t: 'rack', x: 20, y: 40, w: 78, h: 46, st: { title: 'Squat rack', note: '' } }] };
+  // Two pins to programs no longer published: they don't fill the station, and go at the next change.
+  const GONE = ['99999990-2222-4333-8444-555555555555', '99999991-2222-4333-8444-555555555555'];
+  const studio = { kind: 'gym', items: [{ t: 'rack', x: 20, y: 40, w: 78, h: 46, st: { title: 'Squat rack', note: '', pins: GONE } }] };
   reset({ me: 'u-maya', custom: null, stored: { studio }, salePlans: PROGS });
   const m = await mount(page({ isSelf: true }));
   await click(button(/^Make it yours$/));

@@ -235,8 +235,11 @@ function WallTab({ tr, look, setLook, wall, setWall, choices, uploading, onUploa
 // A station's programs (owner, 2026-10-29, the studio showing the coach's workouts by machine:
 // "Both", the moves' own equipment and the coach's pins). Their published programs, up to
 // BS_STATION_PINS_MAX pinned; members see them on the station.
-function PinPicker({ tr, programs, pins, onChange }) {
+function PinPicker({ tr, programs, pins: stored, onChange }) {
   const [msg, setMsg] = React.useState(null);
+  // A pin to a program no longer published is never shown to members, so it neither counts against
+  // the limit nor survives the next change here (Codex on #2508: a full station stayed full).
+  const pins = stored.filter((id) => programs.some((pr) => pr.id === id));
   return (
     <div data-pins="" style={{ marginTop: 10 }}>
       <span style={{ display: 'block', fontSize: 13, color: ea(0.66) }}>{tr('profile:mine.pinsTitle', { defaultValue: 'Programs you run here' })}</span>

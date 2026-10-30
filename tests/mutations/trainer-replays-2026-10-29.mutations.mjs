@@ -108,6 +108,8 @@ export default {
     // ── the editor ──
     { name: 'editor: a fourth pin', file: EDIT,
       find: "                if (pins.length >= BS_STATION_PINS_MAX) {", replace: "                if (false) {" },
+    { name: 'editor: a pin to an unpublished program fills the station', file: EDIT,
+      find: "  const pins = stored.filter((id) => programs.some((pr) => pr.id === id));", replace: "  const pins = stored;" },
     { name: 'editor: a pin cannot be taken off', file: EDIT,
       find: "                if (on) { onChange(pins.filter((x) => x !== pr.id)); return; }", replace: "                if (on) return;" },
     // ── the samples ──
