@@ -1062,7 +1062,13 @@ test('a sample coach\'s programs open with no Buy, and the coach\'s own Replays 
   const names = [...document.querySelectorAll('[data-program]')].map((b) => b.textContent);
   assert.equal(names.length, 2);
   assert.match(names[0], /Engine 8/, 'a HIIT coach\'s sample programs');
+  // The generated sample clips: two workouts on video, and each program plays one.
+  const workouts = [...document.querySelectorAll('[data-workout]')].map((b) => b.textContent);
+  assert.equal(workouts.length, 2);
+  assert.match(workouts.join(' '), /Rower pacing/);
+  assert.match(workouts.join(' '), /Kettlebell swings/);
   await click(document.querySelector('[data-program]'));
+  assert.ok(document.querySelector('[data-program-video]'), 'the sample program plays its clip');
   assert.ok(!document.querySelector('[data-program-buy]'), 'nothing is sold on a sample');
   assert.ok(button(/^Work with Leah$/));
   await m.unmount();

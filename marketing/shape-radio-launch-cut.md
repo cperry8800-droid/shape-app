@@ -1329,6 +1329,43 @@ Their prompts, verbatim:
 Submitted in the same batch, `55b2b625-df38-4866-8eba-fe201e6e34a5` failed and delivered nothing;
 its prompt, verbatim: *Photorealistic head-and-shoulders portrait of a woman around 28, looking straight into the camera, face perfectly front-on and level, symmetrical framing, the whole face visible from hairline to chin. Long dark brown hair with soft waves, parted slightly off-centre and tucked behind both ears so the ears, cheeks and jawline are clear. Fair skin with a warm undertone, natural skin texture and pores, light natural makeup, brown eyes, full well-defined dark brows, a gentle closed-mouth smile. Slim oval face, defined cheekbones, straight nose, full lips. Plain black camisole top. Even, soft, shadowless frontal studio lighting with no colour cast, plain neutral light-grey background, sharp focus across the face, 85mm lens, high resolution. No jewellery, no text, no logos.*
 
+### The sample coach's clips (2026-10-30) — not part of the cut
+
+Owner: *"There needs to be videos in replays of specific workouts or programs"*; of the samples,
+generated clips (2026-10-29), then *"Go ahead and generate the sample clips"* and *"have some
+females in the video"* (2026-10-30). A trainer with no account shows them as their programs'
+preview videos and their workouts on video: `BS_SAMPLE_CLIPS` in
+`mobile-app/src/services/trainerDemo.mjs`. A strength sample gets the squat and the deadlift, a
+conditioning one the row and the swings, so each page has one man and one woman. Same cloudfront
+prefix as above; the CDN answers `content-type: video/mp4`, `access-control-allow-origin: *` and
+`cache-control: public, max-age=31536000, immutable`.
+
+All six by `seedance_2_0` (`aspect_ratio 16:9 · duration 5 · resolution 720p · generate_audio
+false`), delivered 1280×720 h264 High, 24 fps, 121 frames, 5.042 s, no audio. The squat's first
+submission returned a style-preset suggestion ("IN THE DARK") and no job; it was resubmitted
+unchanged with that preset declined.
+
+| clip | job · file | bytes · md5 | in `BS_SAMPLE_CLIPS` |
+| --- | --- | --- | --- |
+| back squat (a man) | `55d786bb-08b2-4e98-8f9d-6fded4403464` · `hf_20261030_113851_55d786bb-08b2-4e98-8f9d-6fded4403464.mp4` | 2,211,861 · `ea8e297ca99bbfcce0cc4cdd66bec8d5` | `squat` |
+| deadlift (a woman) | `13866220-30f3-494e-a35b-bd8e71ff6102` · `hf_20261030_115819_13866220-30f3-494e-a35b-bd8e71ff6102.mp4` | 1,254,586 · `7b29f96db6abf2f5927f685adbb1d12b` | `deadlift` |
+| rower (a man) | `ef9cb577-f0d4-4e01-ad20-1d1ad9a72aad` · `hf_20261030_113835_ef9cb577-f0d4-4e01-ad20-1d1ad9a72aad.mp4` | 1,809,926 · `17ab69d56a695a6185d9b7ef69842ca9` | `row` |
+| kettlebell swings (a woman) | `55363eed-6d1d-499e-9726-6735b83e5bd7` · `hf_20261030_115818_55363eed-6d1d-499e-9726-6735b83e5bd7.mp4` | 1,517,507 · `10217e6980157acfc816dc7d6cbf0865` | `swings` |
+| deadlift (a man) | `67d1c4df-f387-4989-a088-fa67c59e95fe` · `hf_20261030_113833_67d1c4df-f387-4989-a088-fa67c59e95fe.mp4` | 1,116,532 · `345a1f731ebe6ad9aa6479135c30327a` | **no**: recast with a woman; also dark, the plates hiding the lifter |
+| kettlebell swings (a man) | `8f8d7c9f-493d-421c-96f3-5d1c250a0ffa` · `hf_20261030_113832_8f8d7c9f-493d-421c-96f3-5d1c250a0ffa.mp4` | 1,441,877 · `105bc96416933e66701d0ec06cdef9d7` | **no**: recast with a woman |
+
+Checked by frames 10, 60 and 110 of each: the move as asked, no text or logos. The rower has a
+small monitor with no legible numbers.
+
+Prompts, verbatim:
+
+- **Back squat:** *16:9. A strength coach's private gym in warm practical light. An athlete in plain dark training clothes performs a controlled barbell back squat inside a steel squat rack: bar across the upper back, sits to full depth, stands up smoothly. Camera at hip height, slow lateral dolly. Realistic skin and fabric, faint chalk dust in the air, black rubber floor, iron plates on the rack. No text, no logos, no brand marks, no on-screen graphics.*
+- **Deadlift (a woman):** *16:9. Side-on view of a woman lifter on a wooden lifting platform in a gym with warm light. Her whole body stays in frame from head to feet, with space around her. She sets her grip, braces, and pulls a conventional barbell deadlift: the bar leaves the floor, she locks out tall, then lowers it under control. Static camera at hip height, a few metres back, so the plates never hide her. Realistic, plain dark training clothes, iron plates, chalk on her hands. No text, no logos, no brand marks, no on-screen graphics.*
+- **Rower:** *16:9. A conditioning session in a garage gym at dusk, the garage door open to a cool blue evening. An athlete in plain dark training clothes rows hard on an indoor rowing machine: long smooth strokes, legs then back then arms, sweat on the skin. Low camera slowly pushing in. Realistic, rubber floor, a few kettlebells by the wall. No text, no logos, no brand marks, no screens with numbers, no on-screen graphics.*
+- **Kettlebell swings (a woman):** *16:9. Kettlebell swings on a green turf lane in a functional gym. A woman athlete in plain dark training clothes hinges at the hips and drives a single kettlebell to chest height, steady rhythmic reps, breath and effort visible. Side view, camera steady at waist height, her whole body in frame. Realistic, daylight through high windows. No text, no logos, no brand marks, no on-screen graphics.*
+- **Deadlift (a man, unused):** *16:9. Side-on view of a lifter on a wooden lifting platform in a dim gym with warm light. They set their grip, brace, and pull a conventional barbell deadlift: the bar leaves the floor, they lock out tall, then lower it under control. Static camera at knee height. Realistic, plain dark training clothes, iron plates, chalk on the hands. No text, no logos, no brand marks, no on-screen graphics.*
+- **Kettlebell swings (a man, unused):** *16:9. Kettlebell swings on a green turf lane in a functional gym. An athlete in plain dark training clothes hinges at the hips and drives a single kettlebell to chest height, steady rhythmic reps, breath and effort visible. Side view, camera steady at waist height. Realistic, daylight through high windows. No text, no logos, no brand marks, no on-screen graphics.*
+
 ## The track pick (measured, not assumed)
 
 Three generations were made for the owner's *"deeper and darker"* note; each was decoded

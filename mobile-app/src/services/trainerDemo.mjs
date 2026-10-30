@@ -145,10 +145,17 @@ function replaysFor(family, lb, photo) {
 // exercise library's (dashBuilderCore.js EXERCISES), with its equipment.
 //
 // The clips: sample videos generated for the samples (the owner chose generated clips,
-// 2026-10-29), recorded in marketing/shape-radio-launch-cut.md's Sources table. Until a clip is
-// there its slot is null, and the program shows its weeks in place of a video and the workout
-// is not listed.
-export const BS_SAMPLE_CLIPS = Object.freeze({ squat: null, deadlift: null, row: null, swings: null });
+// 2026-10-29, and asked for women in them, 2026-10-30), recorded in
+// marketing/shape-radio-launch-cut.md's Sources table. They are on the owner's Higgsfield CDN, as
+// the booth's wall loops are. A null slot shows the program's weeks in place of a video and lists
+// no workout.
+const CLIP_CDN = 'https://d8j0ntlcm91z4.cloudfront.net/user_3E30hta4RMpS2cDML3JnB5dGPnY/';
+export const BS_SAMPLE_CLIPS = Object.freeze({
+  squat: CLIP_CDN + 'hf_20261030_113851_55d786bb-08b2-4e98-8f9d-6fded4403464.mp4',
+  deadlift: CLIP_CDN + 'hf_20261030_115819_13866220-30f3-494e-a35b-bd8e71ff6102.mp4',
+  row: CLIP_CDN + 'hf_20261030_113835_ef9cb577-f0d4-4e01-ad20-1d1ad9a72aad.mp4',
+  swings: CLIP_CDN + 'hf_20261030_115818_55363eed-6d1d-499e-9726-6735b83e5bd7.mp4',
+});
 const DOW = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 };
 function samplePlan(id, name, price, weeks, days, clip, note) {
   const blocks = [], firstWeek = [];
