@@ -69,7 +69,7 @@
   "privacy.onlineDesc": "Saat aktif, titik langsung muncul di avatar Anda agar orang lain tahu Anda sedang aktif di aplikasi sekarang. Matikan untuk menjelajah secara privat: kehadiran Anda tidak pernah ditampilkan.",
   "privacy.shareWorkout": "Bagikan data latihan",
   "privacy.shareFriends": "Teman",
-  "privacy.shareWorkoutDesc": "Siapa yang melihat latihan yang dicatat dan disinkronkan, rekor, dan aktivitas Anda, serta bisa membuka latihan untuk melihat pace, split, detak jantung, dan rutenya. Aktif: siapa pun yang bisa melihat profil Anda, dan feed komunitas. Teman: hanya orang yang Anda ikuti dan mengikuti Anda kembali. Nonaktif: hanya Anda dan pelatih yang terhubung.",
+  "privacy.shareWorkoutDesc": "Siapa yang melihat latihan yang dicatat dan disinkronkan, rekor, dan aktivitas Anda, serta bisa membuka latihan untuk melihat pace, split, detak jantung, dan rutenya. Aktif: semua orang, di feed komunitas dan profil Anda; hanya pengikut Anda jika profil Anda Hanya teman. Teman: hanya orang yang Anda ikuti dan mengikuti Anda kembali. Nonaktif: hanya Anda dan pelatih yang terhubung. Profil Pribadi menjaganya hanya untuk Anda dan pelatih Anda, apa pun pilihan Anda di sini.",
   "privacy.agePublic": "Tampilkan usia saya di profil",
   "privacy.agePublicDesc": "Nonaktif secara bawaan. Saat aktif, usia Anda — bukan tanggal lahir — tampil di profil Anda. Pelatih Anda selalu melihat usia klien yang mereka tangani, karena hal itu memengaruhi cara mereka menyusun program untuk Anda.",
   "about.pricing": "Harga",

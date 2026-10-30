@@ -32875,6 +32875,10 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
         durationAnswer: !askDuration ? 'not_prompted' : (answered ? 'confirmed' : 'declined'),
         setLogs, hr, sensorSamples, summary: { prescription: identity.prescription, reviewFeel, startedAt: identity.startedAt, endedAt: endedAtRef.current },
         privacy: shareToFeed ? null : 'private',
+        // The audience the toggle named. The save re-reads the setting and never goes
+        // wider than this (CodeRabbit on #2511): a change on another device mid-session
+        // can narrow the post, never widen it past what the member was shown.
+        shownAudience: shareToFeed ? shareAudience : null,
       };
       setSubmissionPending(true);
       draftRef.current?.();
@@ -35795,7 +35799,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: tr('settings:privacy.online', { defaultValue: 'Show when I’m online' }), key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible, desc: tr('settings:privacy.onlineDesc', { defaultValue: 'When on, a live dot shows on your avatar so others can see you’re active in the app right now. Turn it off to browse privately — your presence is never shown.' }) },
         { l: tr('settings:privacy.shareWorkout', { defaultValue: 'Share workout data' }), key: 'shareWorkoutData', segmented: PREF_OPTIONS.shareWorkoutData,
           segLabels: [tr('settings:common.on', { defaultValue: 'On' }), tr('settings:privacy.shareFriends', { defaultValue: 'Friends' }), tr('settings:common.off', { defaultValue: 'Off' })],
-          desc: tr('settings:privacy.shareWorkoutDesc', { defaultValue: 'Who sees your logged and synced workouts, PRs and activity, and can open a workout for its pace, splits, heart rate and route. On: whoever can see your profile, and the community feed. Friends: only people you follow who follow you back. Off: only you and your linked coach(es).' }) },
+          desc: tr('settings:privacy.shareWorkoutDesc', { defaultValue: 'Who sees your logged and synced workouts, PRs and activity, and can open a workout for its pace, splits, heart rate and route. On: everyone, in the community feed and on your profile; only your followers if your profile is Just friends. Friends: only people you follow who follow you back. Off: only you and your linked coach(es). A Private profile keeps them to you and your coach(es) whatever you pick here.' }) },
         { l: tr('settings:privacy.agePublic', { defaultValue: 'Show my age on my profile' }), key: 'agePublic', segmented: PREF_OPTIONS.agePublic, desc: tr('settings:privacy.agePublicDesc', { defaultValue: 'Off by default. When on, your age — never your date of birth — shows on your profile. Your coaches always see your age for the clients they work with, because it changes how they program for you.' }) },
         // The leaderboard switches live in their own document (client_privacy_prefs), so these two
         // rows carry their value and their write instead of a key into `prefs`.

@@ -223,6 +223,24 @@ test('records stay off the public Wall unless workouts are shared publicly', () 
   assert.match(CLIENT.slice(friends, off), /tr\('feed:wall\.friendsOnly'/);
 });
 
+test('a session never posts wider than the audience its toggle named', () => {
+  // CodeRabbit on #2511: the label is read when the session opens, the rule again at save.
+  // Friends switched to On on another device mid-session must not post publicly under
+  // "Share with your friends"; a setting that narrowed since must still narrow the post.
+  assert.match(CLIENT, /shownAudience: shareToFeed \? shareAudience : null,/);
+  assert.match(BACKEND, /shownAudience = null, \/\/ the audience the player's toggle named/);
+  const m = BACKEND.match(/\n {2}if \((resolvedPrivacy && BS_PRIVACY_RANK\[shownAudience\] > BS_PRIVACY_RANK\[resolvedPrivacy\])\) resolvedPrivacy = shownAudience;\n {2}\/\/ Cross-source guard/);
+  assert.ok(m, 'the cap sits after the rule is resolved and before anything posts');
+  const cap = new Function('BS_PRIVACY_RANK', 'resolvedPrivacy', 'shownAudience', `if (${m[1]}) resolvedPrivacy = shownAudience; return resolvedPrivacy;`);
+  const R = BS_PRIVACY_RANK;
+  assert.equal(cap(R, 'public', 'friends'), 'friends', 'widened elsewhere: the shown audience holds');
+  assert.equal(cap(R, 'followers', 'friends'), 'friends');
+  assert.equal(cap(R, 'private', 'friends'), 'private', 'narrowed elsewhere: the narrower setting wins');
+  assert.equal(cap(R, 'friends', 'public'), 'friends');
+  assert.equal(cap(R, 'public', null), 'public', 'no label read: the rule alone decides, as before');
+  assert.equal(cap(R, 'public', 'public'), 'public');
+});
+
 test('the session player says who a shared session goes to', () => {
   assert.match(CLIENT, /shareAudience === 'friends' \? tr\('session:player\.shareToggleFriends'\) : tr\('session:player\.shareToggle'\)/);
   assert.match(CLIENT, /shareAudience === 'friends' \? tr\('session:player\.shareSubFriends'\) : tr\('session:player\.shareSub'\)/);

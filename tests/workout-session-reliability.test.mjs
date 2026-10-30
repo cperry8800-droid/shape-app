@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { bsDurationFacts } from '../public/newdesign/progressionGuardrail.mjs';
+import { BS_PRIVACY_RANK } from '../mobile-app/src/services/workoutShare.mjs';
 import { bsSdUnitizeText } from '../mobile-app/src/services/sessionLedger.mjs';
 import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsRestSeconds, bsSessionMoves, bsPreviewSession, bsNextSessionMove, bsApplyRemainingLoad, bsLoggedSet } from '../mobile-app/src/services/workoutSession.mjs';
 
@@ -100,7 +101,7 @@ function writer({ rpcError = null, postError = null, local = false } = {}) {
     return { data: { session: payload?.p_session || {}, set_logs: payload?.p_sets || [], sensor_samples: [] } };
   }, from() { throw Error('no duplicate post'); } };
   const context = { Date, Number, String, Math, JSON, crypto: webcrypto, state: { user: { id: 'a' } }, supabase: local ? null : api,
-    bsDurationFacts, normalizeRole: x => x, _localDate: d => d.toISOString().slice(0, 10),
+    bsDurationFacts, BS_PRIVACY_RANK, normalizeRole: x => x, _localDate: d => d.toISOString().slice(0, 10),
     saveLocalRecord: (_key, data) => data, createCommunityPost: async () => { if (postError) throw postError; return { stored: 'supabase' }; },
     invalidateClientMetrics() {}, announcePRsFromSetLogs() {}, bsIsDuplicateWorkoutPost: () => false,
     window: { ShapeAnalytics: { track() {} } }, };

@@ -101,6 +101,12 @@ export default {
       find: ".concat(BS_EDIT_ONLY_TIERS[edTier] ? [[edTier, BS_EDIT_ONLY_TIERS[edTier]]] : [])", replace: ".concat([])" },
     { name: 'app: a friends post is described as "Only you"', file: APP,
       find: "              : vis === 'friends' ? tr('profile:log.vis.friendsDesc', { defaultValue: 'Shows to your friends: people you follow who follow you back' })\n", replace: '' },
+    { name: 'app: the save is not capped by the audience shown', file: BACKEND,
+      find: "  if (resolvedPrivacy && BS_PRIVACY_RANK[shownAudience] > BS_PRIVACY_RANK[resolvedPrivacy]) resolvedPrivacy = shownAudience;\n", replace: '' },
+    { name: 'app: the cap takes the wider of the two', file: BACKEND,
+      find: 'BS_PRIVACY_RANK[shownAudience] > BS_PRIVACY_RANK[resolvedPrivacy]', replace: 'BS_PRIVACY_RANK[shownAudience] < BS_PRIVACY_RANK[resolvedPrivacy]' },
+    { name: 'app: the player never names the audience it showed', file: APP,
+      find: 'shownAudience: shareToFeed ? shareAudience : null,', replace: 'shownAudience: null,' },
     { name: 'feed: Following never shows friends posts', file: FEED_MODE,
       find: "    privacyIn: ['public', 'community', 'followers', 'friends'],", replace: "    privacyIn: ['public', 'community', 'followers']," },
 

@@ -3282,6 +3282,7 @@ async function saveWorkoutSessionLog({
   sensorSamples = [],
   hr = null, // { avg, max, samples } from a worn Bluetooth monitor during the session
   privacy = null, // null = auto-share: the member's own share rule decides
+  shownAudience = null, // the audience the player's toggle named; the post never goes wider
   clientWorkoutId = null,
   providerId = null,
   providerRole = null,
@@ -3348,6 +3349,11 @@ async function saveWorkoutSessionLog({
       resolvedPrivacy = 'private';
     }
   }
+  // ⚠ NEVER WIDER THAN THE PLAYER SHOWED (CodeRabbit on #2511). The toggle's label is
+  // read when the session opens and the rule above is read now, so Friends switched to
+  // On on another device mid-session would post publicly under "Share with your friends".
+  // The narrower of the two wins: a setting that narrowed since still narrows the post.
+  if (resolvedPrivacy && BS_PRIVACY_RANK[shownAudience] > BS_PRIVACY_RANK[resolvedPrivacy]) resolvedPrivacy = shownAudience;
   // Cross-source guard: a device (watch) post for this same workout within
   // ±20 min of the session start → skip the social post (the session itself
   // persisted above; first-writer-wins, silent). Best-effort — never blocks.

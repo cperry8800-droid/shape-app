@@ -69,7 +69,7 @@
   "privacy.onlineDesc": "Quando è attivo, un pallino live appare sul tuo avatar così gli altri vedono che sei attivo nell'app in questo momento. Disattivalo per navigare in privato: la tua presenza non viene mai mostrata.",
   "privacy.shareWorkout": "Condividi i dati di allenamento",
   "privacy.shareFriends": "Amici",
-  "privacy.shareWorkoutDesc": "Chi vede i tuoi allenamenti registrati e sincronizzati, i record e l'attività, e può aprire un allenamento per vederne passo, parziali, frequenza cardiaca e percorso. Attivo: chiunque possa vedere il tuo profilo, e il feed della community. Amici: solo le persone che segui e che ti seguono a loro volta. Disattivo: solo tu e i tuoi coach collegati.",
+  "privacy.shareWorkoutDesc": "Chi vede i tuoi allenamenti registrati e sincronizzati, i record e l'attività, e può aprire un allenamento per vederne passo, parziali, frequenza cardiaca e percorso. Attivo: tutti, nel feed della community e sul tuo profilo; solo i tuoi follower se il tuo profilo è Solo amici. Amici: solo le persone che segui e che ti seguono a loro volta. Disattivo: solo tu e i tuoi coach collegati. Un profilo privato li tiene per te e i tuoi coach, qualunque cosa scegli qui.",
   "privacy.agePublic": "Mostra la mia età sul profilo",
   "privacy.agePublicDesc": "Disattivato per impostazione predefinita. Quando è attivo, la tua età — mai la data di nascita — compare sul tuo profilo. I tuoi coach vedono sempre l'età dei clienti che seguono, perché cambia il modo in cui programmano per te.",
   "about.pricing": "Prezzi",
