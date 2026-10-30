@@ -389,7 +389,7 @@ function ClientTeamPage() {
         </div>
       ) : state === "error" ? (
         <CtNotice
-          accent="var(--sh-ember, #d2693f)"
+          accent="var(--sh-ember, #d47149)"
           eyebrow="COULDN'T LOAD"
           title="Your team didn't load."
           body="Something went wrong reaching your coaches. Give it another try."

@@ -491,7 +491,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
   // a suffix is not a colour; both compose through ssAlpha now. As literals they were
   // dark-paper colours on the light card — the teal read 1.8:1 as text. Each fallback
   // is the literal it replaces, so the dark paper does not move.
-  const teal = "var(--sh-accent, #2ee0c4)", rust = "var(--sh-ember, #d2693f)", gold = "var(--sh-gold2, #d8b25a)";
+  const teal = "var(--sh-accent, #2ee0c4)", rust = "var(--sh-ember, #d47149)", gold = "var(--sh-gold2, #d8b25a)";
   const accent = isNutri ? gold : teal;
   const firstName = data.client.name.split(/\s+/)[0];
 
@@ -1080,7 +1080,7 @@ function SessionRow({ s, first, mine }) {
   const d = new Date(s.at);
   const dateLabel = d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
   const timeLabel = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const tone = s.providerRole === "trainer" ? "var(--sh-accent, #2ee0c4)" : "var(--sh-ember, #d2693f)";
+  const tone = s.providerRole === "trainer" ? "var(--sh-accent, #2ee0c4)" : "var(--sh-ember, #d47149)";
   return (
     <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center", padding: "12px 0", borderTop: first ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
       <div style={{ width: 6, height: 36, borderRadius: 3, background: tone, opacity: mine ? 1 : 0.45 }} />
