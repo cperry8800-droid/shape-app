@@ -972,14 +972,14 @@ test('drive: straight sets pre-fill and record exactly as before', async () => {
   assert.deepEqual(h.saved[0].setLogs.map((s) => [s.targetReps, s.targetLoad]), [['5', '100 kg · RPE 8'], ['5', '100 kg · RPE 8']]);
 });
 // ⚠ A HOLD IS NOT A REP COUNT ON THE BUTTON. The scheme fallback keeps "30 s" whole now,
-// and "Log set {n} · {reps} reps" would print "30 s reps" (and in Russian put "30 s"
-// through a plural, which renders a value that is not a number as "не число"). A hold
-// takes the plain "Log set {n}", and the reps box holds the hold as written.
+// and "Log set {n} · {reps} reps" would print "30 s reps". A hold is named as written,
+// "Log set {n} · 30 s" (bsLogSetLabel, tests/log-set-label.test.mjs), and the reps box
+// holds it as written.
 test('the call to action never calls a hold reps, and the reps box holds it whole', async () => {
   const { bsSessionMoves } = await import('../mobile-app/src/services/workoutSession.mjs');
   const plank = render(session({ moves: bsSessionMoves([{ m: 'Plank', s: '3 × 30 s · 1:00', l: '—' }]) }));
   assert.equal(plank.warnings.length, 0, plank.warnings.join('\n'));
-  assert.match(plank.html, />Log set 1<\/button>/);
+  assert.match(plank.html, />Log set 1 · 30 s<\/button>/);
   assert.doesNotMatch(plank.html, /reps<\/button>/);
   assert.match(plank.html, /value="30 s"/);
   // The control: a count still names its reps on the button.

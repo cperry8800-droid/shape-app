@@ -241,12 +241,27 @@ export function bsMoveTotalReps(move) {
 }
 // A rep value that is a hold or a distance by the same rule: a number, or the parser's
 // own range characters, with a unit from its list after it that ends the value ("30 s",
-// "1.5 km", "30-45s"). The player's "Log set · N reps" button names a COUNT, so it
-// leaves one of these out rather than print "30 s reps" (and, in Russian, a plural of
-// a value that is not a number).
+// "1.5 km", "30-45s"). The player's Log set button reads bsLogSetLabel below, which
+// names one of these as written ("Log set 1 · 30 s"), never as reps.
 const BS_TIMED_REPS = new RegExp(String.raw`^\d[\d–-]*${BS_TIME_DISTANCE_SUFFIX}$`, 'i');
 export function bsIsTimedReps(value) {
   return BS_TIMED_REPS.test(String(value ?? '').trim());
+}
+// What the player's Log set button says of a set's reps. ⚠ "· N REPS" ONLY FOR A COUNT (#2159's
+// open item): it said "8 each reps", "AMRAP reps" and "30s/side reps", and Russian, which put the
+// reps through a plural, said "не число" for anything but a bare number, a range included (its
+// string now says "повт.", as Ukrainian's does, so no plural reads the value).
+// - 'count': a whole number or a range of them, as the coach wrote it, a trailing "reps" dropped
+//   ("8", "8-10", "8 reps").
+// - 'value': any other value, named as written with no unit word ("8 each", "AMRAP", "30s/side",
+//   "30 s").
+// - 'none': no value, so the button says just "Log set N".
+const BS_REP_COUNT = /^\d+(?:\s*[-–]\s*\d+)?(?:\s*reps?)?$/i;
+export function bsLogSetLabel(value) {
+  const v = String(value ?? '').trim();
+  if (!v) return { kind: 'none' };
+  if (BS_REP_COUNT.test(v)) return { kind: 'count', reps: v.replace(/\s*reps?$/i, '') };
+  return { kind: 'value', value: v };
 }
 // Two moves are one superset when their keys match under the document's own
 // rule. ⚠ NAVIGATION AND REST MUST ASK THE SAME QUESTION: this compared a

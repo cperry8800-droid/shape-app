@@ -82,6 +82,7 @@
   "player.addMove": "＋ Add move",
   "player.logSetCta": "Log set {n}",
   "player.logSetCtaReps": "Log set {n} · {reps} reps",
+  "player.logSetCtaValue": "Log set {n} · {value}",
   "player.startSetCta": "Start set {n}",
   "player.nextExercise": "Next exercise →",
   "player.finishWorkout": "Finish di workout ✓",

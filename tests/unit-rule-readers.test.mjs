@@ -61,8 +61,8 @@ test('the load after a hold or a distance stays the load, in all three', () => {
 
 // What the rule does not claim: a count, a range with no unit, an effort token, a word
 // that starts with a unit's letters, a weight, a unit that does not end the value, and
-// a per-side value. (A per-side hold typed by a coach, "30s/side", still reads
-// "Log set 1 · 30s/side reps" as it did on main: registered, not this rule.)
+// a per-side value. (A per-side hold typed by a coach, "30s/side", is not this rule's either:
+// the Log set button names it as written, "Log set 1 · 30s/side" — tests/log-set-label.test.mjs.)
 test('a value the rule does not claim is not a hold or a distance', () => {
   for (const v of ['8', '8-10', '8–10', '8 reps', '12 ea', 'AMRAP', 'max', 'to failure', '10 sets', '12 steps', '5 kg', '1.5', '1:30', '10 m/s', '30s/45s', '30s/side', '40 m each', '', ' ']) {
     assert.equal(bsIsTimedReps(v), false, JSON.stringify(v));
@@ -373,7 +373,7 @@ test('a timed swap keeps its hold whole, and the original\'s rest does not survi
   const carry = { n: '04', m: 'Farmer carry', s: '3 × 40 m · 1:30', sets: '3', reps: '40 m', rest: '1:30', restSeconds: 90, l: '32 kg' };
   const [hold] = bsSessionMoves([bsApplyMoveSwap(carry, { m: 'Trap-bar hold', s: '3 × 30 s · 1:00' })]);
   assert.deepEqual([hold.sets, hold.reps, hold.restSeconds], [3, '30 s', 60]);
-  assert.equal(bsIsTimedReps(bsSetPrefill(hold, 0).reps), true, 'the button says "Log set", not "30 s reps"');
+  assert.equal(bsIsTimedReps(bsSetPrefill(hold, 0).reps), true, 'a hold, which the Log set button names as written, never as reps');
 });
 
 test('a generic variant keeps the move\'s own scheme and everything it prescribes', () => {

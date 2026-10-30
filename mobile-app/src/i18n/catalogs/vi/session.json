@@ -82,6 +82,7 @@
   "player.addMove": "＋ Thêm động tác",
   "player.logSetCta": "Ghi hiệp {n}",
   "player.logSetCtaReps": "Ghi hiệp {n} · {reps} lần",
+  "player.logSetCtaValue": "Ghi hiệp {n} · {value}",
   "player.startSetCta": "Bắt đầu hiệp {n}",
   "player.nextExercise": "Bài tập tiếp theo →",
   "player.finishWorkout": "Kết thúc buổi tập ✓",

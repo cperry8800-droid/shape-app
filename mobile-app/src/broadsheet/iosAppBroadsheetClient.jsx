@@ -8,7 +8,7 @@ import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM,
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
-import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsMoveBlocks, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey, bsPerSetLabels, bsHasLadder, bsSetPrefill, bsLadderRemoveSet, bsMoveTotalReps, bsApplyMoveSwap, bsIsTimedReps } from '../services/workoutSession.mjs';
+import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsMoveBlocks, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey, bsPerSetLabels, bsHasLadder, bsSetPrefill, bsLadderRemoveSet, bsMoveTotalReps, bsApplyMoveSwap, bsLogSetLabel } from '../services/workoutSession.mjs';
 import { BS_WORKOUT_VIEWS, bsWorkoutView, bsReadWorkoutView, bsSaveWorkoutView, bsHrFresh, bsCollectHr, bsCloseHr, bsRestoreHr, bsHrSummary, bsHrSensorSamples } from '../services/workoutExperience.mjs';
 import { bsSdSplitUnit, bsSdFigure, bsSdFigureText, bsSdNeedle, bsSdPaceTraceIn, bsSdElevTraceIn, bsSdUnitizeStat, bsSdRankStats } from '../services/sessionLedger.mjs';
 import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
@@ -33351,10 +33351,13 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
         {activeIdx != null ? (
           <button onClick={primarySetAction} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
             {restLeft > 0 ? tr('session:player.skipRest') : guidePrepare ? tr('session:player.view.begin') : !timedMode || activeRunning
-              // A hold or a distance is not a rep count, so it never reads "30 s reps".
-              ? (bsSetPrefill(move, activeIdx).reps && !bsIsTimedReps(bsSetPrefill(move, activeIdx).reps)
-                  ? tr('session:player.logSetCtaReps', { n: activeIdx + 1, reps: bsSetPrefill(move, activeIdx).reps })
-                  : tr('session:player.logSetCta', { n: activeIdx + 1 }))
+              // "· N reps" only for a count; any other value as written, with no unit word (bsLogSetLabel).
+              ? (() => {
+                  const lbl = bsLogSetLabel(bsSetPrefill(move, activeIdx).reps);
+                  return lbl.kind === 'count' ? tr('session:player.logSetCtaReps', { n: activeIdx + 1, reps: lbl.reps })
+                    : lbl.kind === 'value' ? tr('session:player.logSetCtaValue', { n: activeIdx + 1, value: lbl.value })
+                      : tr('session:player.logSetCta', { n: activeIdx + 1 });
+                })()
               : tr('session:player.startSetCta', { n: activeIdx + 1 })}
           </button>
         ) : (
