@@ -116,6 +116,8 @@
   "score.reason.habit": "một chuỗi thói quen bị đứt",
   "workoutShare.title": "Buổi tập của bạn giờ được chia sẻ tự động",
   "workoutShare.body": "Các buổi tập đã ghi và đồng bộ sẽ hiển thị trên hồ sơ của bạn và bảng tin cộng đồng. Quản lý trong Cài đặt → Chia sẻ dữ liệu tập luyện.",
+  "workoutShare.friendsTitle": "Buổi tập của bạn giờ được chia sẻ với bạn bè",
+  "workoutShare.friendsBody": "Các buổi tập đã ghi và đồng bộ sẽ hiển thị với những người bạn theo dõi và cũng theo dõi lại bạn. Quản lý trong Cài đặt → Chia sẻ dữ liệu tập luyện.",
   "mealPlan.title": "Thực đơn mới từ HLV của bạn",
   "credential.verified.title": "Bạn đã được xác minh ✓",
   "credential.verified.body": "Chứng chỉ của bạn đã hợp lệ — huy hiệu Đã xác minh giờ hiển thị trên hồ sơ chợ dịch vụ của bạn.",

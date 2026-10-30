@@ -17004,16 +17004,25 @@ const bsMilestoneStampLabel = (s) => String(BS_MILESTONE_STAMPS.includes(s) ? s 
 // gated to the people that setting names, so the rung's own description —
 // "shows on your profile" — is exactly what happens.
 //
+// ⚠ 'friends' (Share workout data → Friends) LANDS ON 'private'. The picker has
+// no friends rung either, and 'profile' would be wider than the setting: on a
+// Public profile anyone who opens it reads a profile post. Just me is the one
+// rung inside "my friends"; widening it is one visible click.
+//
 // ⚠ null IS "WE COULD NOT READ IT" AND {} IS "NO ROW YET, SO THE On · Public
 // DEFAULTS APPLY". Only the second may leave the audience open: a failed read
 // must not publish. It costs a member one visible click to widen it again,
 // where the other direction costs them a post they never meant to share.
 function bsComposerVisFor(doc) {
   const rule = doc == null ? 'private' : (window.ShapeWorkoutShare && window.ShapeWorkoutShare.rule ? window.ShapeWorkoutShare.rule(doc) : 'private');
-  if (rule === 'private') return 'private';
+  if (rule === 'private' || rule === 'friends') return 'private';
   if (rule === 'followers') return 'profile';
   return 'public';
 }
+
+// Stored audiences the composer's three rungs don't offer. A post being edited that
+// already has one shows it as a fourth rung, so the sheet reads its real audience.
+const BS_EDIT_ONLY_TIERS = { friends: 'Friends', followers: 'Followers', community: 'Community' };
 
 function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null, startKind = null }) {
   const tr = useShapeTr();
@@ -17040,7 +17049,13 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null, st
   const [upBusy, setUpBusy] = useStateBSC(false);
   const [delBusy, setDelBusy] = useStateBSC(false);
   // Visibility: 'public' (profile + feed) · 'profile' (profile only, everyone) · 'private' (just me)
-  const [vis, setVis] = useStateBSC(ed ? (ed.privacy || 'public') : 'public');
+  // ⚠ AN EDIT IS SEEDED WITH THE STORED TIER, LOWERCASE. The post models hand over a
+  // display label ('Public', 'Friends'), which matched no rung, so every edit opened
+  // with nothing lit over "Only you can see this" (Codex P1 on #2511). A tier the
+  // three rungs don't offer (friends, followers, community) gets a rung of its own
+  // below, so the sheet shows the audience the post really has and can keep it.
+  const edTier = ed ? String(ed.privacy || 'public').toLowerCase() : null;
+  const [vis, setVis] = useStateBSC(ed ? edTier : 'public');
   // Set the moment the member uses the control, so a settings read landing a
   // beat later can never overrule a choice they have already made.
   const visTouched = React.useRef(false);
@@ -17077,7 +17092,8 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null, st
   //
   // 'followers' has no rung on this three-way control, and 'profile' is the
   // honest one to land on — the post stays off the open feed, and their profile
-  // is already gated to the people the setting names. NOT 'public'.
+  // is already gated to the people the setting names. NOT 'public'. 'friends'
+  // has none either and lands on 'private' (see bsComposerVisFor).
   //
   // ⚠ SEEDED OPTIMISTIC AND TIGHTENED ON READ, never the other way round: a
   // sharing member — the defaults, and most members — sees no movement at all,
@@ -17300,12 +17316,17 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null, st
         <div style={{ marginTop: 16 }}>
           <span style={label}>{tr('profile:log.field.visibility', { defaultValue: 'Visibility' })}</span>
           <div style={{ display: 'flex', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.16)}`, overflow: 'hidden' }}>
-            {[['public', 'Public'], ['profile', 'Profile'], ['private', 'Just me']].map(([val, lab], i) => { const on = vis === val; return (
+            {[['public', 'Public'], ['profile', 'Profile'], ['private', 'Just me']].concat(BS_EDIT_ONLY_TIERS[edTier] ? [[edTier, BS_EDIT_ONLY_TIERS[edTier]]] : []).map(([val, lab], i) => { const on = vis === val; return (
               <button key={val} onClick={() => { visTouched.current = true; setVisResolved(true); setVis(val); }} style={{ flex: 1, padding: '9px 6px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(INK, 0.12)}` : 0, cursor: 'pointer', background: on ? bsTHexA(TEAL, 0.16) : 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tr('profile:log.vis.' + val, { defaultValue: lab })}</button>
             ); })}
           </div>
           <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, letterSpacing: '0.04em', color: bsTHexA(INK, 0.5) }}>
-            {vis === 'public' ? tr('profile:log.vis.publicDesc', { defaultValue: 'Shows on your profile + the community feed' }) : vis === 'profile' ? tr('profile:log.vis.profileDesc', { defaultValue: 'Shows on your profile to everyone — not in the feed' }) : tr('profile:log.vis.privateDesc', { defaultValue: 'Only you can see this' })}
+            {vis === 'public' ? tr('profile:log.vis.publicDesc', { defaultValue: 'Shows on your profile + the community feed' })
+              : vis === 'profile' ? tr('profile:log.vis.profileDesc', { defaultValue: 'Shows on your profile to everyone — not in the feed' })
+              : vis === 'friends' ? tr('profile:log.vis.friendsDesc', { defaultValue: 'Shows to your friends: people you follow who follow you back' })
+              : vis === 'followers' ? tr('profile:log.vis.followersDesc', { defaultValue: 'Shows to your followers' })
+              : vis === 'community' ? tr('profile:log.vis.communityDesc', { defaultValue: 'Shows to Shape members in the community feed' })
+              : tr('profile:log.vis.privateDesc', { defaultValue: 'Only you can see this' })}
           </div>
         </div>
 
@@ -23634,6 +23655,9 @@ function BSWallPostSheet({ onClose, onPosted, seed = null }) {
       // like any other failure, while a read that DID resolve gets the sentence
       // naming the setting that kept the record off.
       if (share.privacy == null) { setBusy(false); window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error'); return; }
+      // Shared with friends is a choice the Wall can't honour either (it is read by everyone),
+      // and naming it "off" would state a setting the member didn't pick.
+      if (share.privacy === 'friends') { setBusy(false); window.__bsToast?.(tr('feed:wall.friendsOnly', { defaultValue: 'Your workouts are shared with friends only, so records stay off the wall. Settings → Privacy.' }), 'info'); return; }
       if (share.privacy !== 'public') { setBusy(false); window.__bsToast?.(tr('feed:wall.notShared', { defaultValue: 'Sharing workout data is off, so records stay off the wall. Settings → Privacy.' }), 'info'); return; }
       priv = share.privacy;
       prior = await bsWallPriorBest(name);
@@ -32418,6 +32442,9 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   // that is wrong is not a small error.
   const [manualMinutes, setManualMinutes] = useStateBSC(draft?.manualMinutes ?? null);
   const [shareToFeed, setShareToFeed] = useStateBSC(draft?.shareToFeed ?? false);
+  // Whom the toggle shares with, so a member who shares with friends isn't told
+  // "the community". Only labels the toggle: the save resolves its own audience.
+  const [shareAudience, setShareAudience] = useStateBSC(null);
   // Seed the share toggle from the member's own share rule (Settings → Share
   // workout data × profile visibility) — auto-share is the DEFAULT for a
   // sharing member; the toggle stays their per-workout override. Signed-out
@@ -32425,9 +32452,12 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   React.useEffect(() => {
     let on = true;
     try {
-      if (draft?.shareToFeed != null || !window.ShapeAuth?.getCachedState?.()?.user?.id || !window.ShapeWorkoutShare?.rule) return undefined;
+      if (!window.ShapeAuth?.getCachedState?.()?.user?.id || !window.ShapeWorkoutShare?.rule) return undefined;
       window.shapeDb?.getUserGoals?.('client_settings').then((s) => {
-        if (on) setShareToFeed(window.ShapeWorkoutShare.rule(s || null) !== 'private');
+        if (!on) return;
+        const rule = window.ShapeWorkoutShare.rule(s || null);
+        setShareAudience(rule);
+        if (draft?.shareToFeed == null) setShareToFeed(rule !== 'private');
       }).catch(() => {});
     } catch (e) {}
     return () => { on = false; };
@@ -32857,6 +32887,10 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
         durationAnswer: !askDuration ? 'not_prompted' : (answered ? 'confirmed' : 'declined'),
         setLogs, hr, sensorSamples, summary: { prescription: identity.prescription, reviewFeel, startedAt: identity.startedAt, endedAt: endedAtRef.current },
         privacy: shareToFeed ? null : 'private',
+        // The audience the toggle named. The save re-reads the setting and never goes
+        // wider than this (CodeRabbit on #2511): a change on another device mid-session
+        // can narrow the post, never widen it past what the member was shown.
+        shownAudience: shareToFeed ? shareAudience : null,
       };
       setSubmissionPending(true);
       draftRef.current?.();
@@ -33058,8 +33092,8 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px', borderRadius: 5, border: `1px solid ${shareToFeed ? bandHeat : BAND.hair}`, borderLeft: shareToFeed ? `3px solid ${bandHeat}` : `1px solid ${BAND.hair}`, background: shareToFeed ? bsTHexA(bandHeat, 0.1) : 'transparent', cursor: 'pointer', textAlign: 'left', minHeight: 44 }}
             >
               <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: BAND.cream }}>{tr('session:player.shareToggle')}</span>
-                <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: BAND.dim35 }}>{tr('session:player.shareSub')}</span>
+                <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: BAND.cream }}>{shareAudience === 'friends' ? tr('session:player.shareToggleFriends') : tr('session:player.shareToggle')}</span>
+                <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: BAND.dim35 }}>{shareAudience === 'friends' ? tr('session:player.shareSubFriends') : tr('session:player.shareSub')}</span>
               </span>
               <span aria-hidden style={{ flexShrink: 0, width: 44, height: 26, borderRadius: 999, background: shareToFeed ? bandHeat : BAND.hair, position: 'relative', transition: 'background 0.15s' }}>
                 <span style={{ position: 'absolute', top: 3, left: shareToFeed ? 21 : 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.15s' }} />
@@ -34498,7 +34532,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     profileVisibility: ['Public', 'Just friends', 'Private'],
     agePublic: ['Off', 'On'],
     onlineVisible:     ['On', 'Off'],
-    shareWorkoutData:  ['On', 'Off'],
+    // 'Friends' shares with mutual follows only (2026-10-30-workout-friends-audience.sql).
+    shareWorkoutData:  ['On', 'Friends', 'Off'],
     dailyCheckin:      ['On', 'Off'],
     onlineRail:        ['On', 'Off'],
     mealBreakfast:     BS_MEAL_TIME_OPTS,
@@ -35800,7 +35835,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       rows: [
         { l: tr('settings:privacy.visibility', { defaultValue: 'Profile visibility' }), key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility, desc: tr('settings:privacy.visibilityDesc', { defaultValue: 'Who can open your full profile — your activity, climb, and stats. Public: anyone on Shape. Just friends: only members you share a chat with. Private: hidden, so others see just your name and tier.' }) },
         { l: tr('settings:privacy.online', { defaultValue: 'Show when I’m online' }), key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible, desc: tr('settings:privacy.onlineDesc', { defaultValue: 'When on, a live dot shows on your avatar so others can see you’re active in the app right now. Turn it off to browse privately — your presence is never shown.' }) },
-        { l: tr('settings:privacy.shareWorkout', { defaultValue: 'Share workout data' }), key: 'shareWorkoutData', desc: tr('settings:privacy.shareWorkoutDesc', { defaultValue: 'When on, your logged workouts, PRs, and activity can appear on your profile and in the community feed. Off keeps your training visible only to you and your linked coach(es).' }) },
+        { l: tr('settings:privacy.shareWorkout', { defaultValue: 'Share workout data' }), key: 'shareWorkoutData', segmented: PREF_OPTIONS.shareWorkoutData,
+          segLabels: [tr('settings:common.on', { defaultValue: 'On' }), tr('settings:privacy.shareFriends', { defaultValue: 'Friends' }), tr('settings:common.off', { defaultValue: 'Off' })],
+          desc: tr('settings:privacy.shareWorkoutDesc', { defaultValue: 'Who sees your logged and synced workouts, PRs and activity, and can open a workout for its pace, splits, heart rate and route. On: everyone, in the community feed and on your profile; only your followers if your profile is Just friends. Friends: only people you follow who follow you back. Off: only you and your linked coach(es). A Private profile keeps them to you and your coach(es) whatever you pick here.' }) },
         { l: tr('settings:privacy.agePublic', { defaultValue: 'Show my age on my profile' }), key: 'agePublic', segmented: PREF_OPTIONS.agePublic, desc: tr('settings:privacy.agePublicDesc', { defaultValue: 'Off by default. When on, your age — never your date of birth — shows on your profile. Your coaches always see your age for the clients they work with, because it changes how they program for you.' }) },
         // The leaderboard switches live in their own document (client_privacy_prefs), so these two
         // rows carry their value and their write instead of a key into `prefs`.

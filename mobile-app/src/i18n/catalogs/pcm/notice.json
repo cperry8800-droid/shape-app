@@ -116,6 +116,8 @@
   "score.reason.habit": "one habit streak wey break",
   "workoutShare.title": "Your workouts dey share by demself now",
   "workoutShare.body": "Workouts wey you log and sync dey show for your profile and for di community feed. Manage am for Settings → Share training data.",
+  "workoutShare.friendsTitle": "Your workouts dey share with your friends now",
+  "workoutShare.friendsBody": "Workouts wey you log and sync dey show for people wey you follow wey follow you back. Manage am for Settings → Share training data.",
   "mealPlan.title": "New meal plan from your coach",
   "credential.verified.title": "Dem don verify you ✓",
   "credential.verified.body": "Your credentials check out — Verified badge dey show now for your marketplace profile.",

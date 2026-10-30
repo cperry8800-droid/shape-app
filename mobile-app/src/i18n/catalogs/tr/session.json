@@ -115,6 +115,8 @@
   "player.vibe.nope": "Bana göre değil",
   "player.shareToggle": "Toplulukla paylaş",
   "player.shareSub": "Setlerini + dökümünü akışa gönderir",
+  "player.shareToggleFriends": "Arkadaşlarınla paylaş",
+  "player.shareSubFriends": "Arkadaşların setlerini + dökümünü görür",
   "player.saveFinish": "Kaydet ve bitir ✓",
   "player.fieldLoad": "Yük",
   "player.effortAria": "10 üzerinden {n} efor",

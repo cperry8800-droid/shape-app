@@ -21,7 +21,8 @@ export const SETTINGS_FIELDS = {
 const has=(o,k)=>Object.prototype.hasOwnProperty.call(o||{},k);
 export function settingOptions(key) {
   if(key==='profileVisibility') return ['Public','Just friends','Private'];
-  if(key==='shareWorkoutData') return ['On','Off'];
+  // Friends: mutual follows only (2026-10-30-workout-friends-audience.sql).
+  if(key==='shareWorkoutData') return ['On','Friends','Off'];
   if(key==='units') return ['Imperial · lb / mi','Metric · kg / km'];
   const spec=SETTINGS_FIELDS[key];
   return spec && BS_PREF_OPTIONS[spec[1]]?.map(o=>o.en);

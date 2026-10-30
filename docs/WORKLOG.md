@@ -163,7 +163,7 @@ The War Room has the full list; this covers what needs the owner and the planned
   was last opened pays 15%, though the card says brought clients pay no commission. A
   private profile can't be opened from the link, and the app's checkout sends no referral.
 - Add the `localhost` hostname to the Turnstile widget.
-- Have a native speaker read the PAR-Q, Nora hint and sample coach translations (Hausa and Pidgin first).
+- Have a native speaker read the PAR-Q, Nora hint, sample coach and Friends translations (Hausa and Pidgin first).
 
 **Planned next**
 - Coach payments, direct charges part C: the coach pages' copy and a labelled processing
@@ -238,10 +238,10 @@ The War Room has the full list; this covers what needs the owner and the planned
   linked from nowhere.
 - The website's Kitchen (`recipesPage.jsx`) runs its filter toggles and jump row off a phone's
   right edge.
-- No signed-in pass in a browser or on a phone yet: client onboarding, the dashboard frame and
-  skins, `/admin`, Business (website and app), coach application uploads, the Wall's live story
-  with a real set, the coach Today, Clients and Programs redesign (#2458),
-  shared clients (#2496, #2499).
+- No signed-in pass (browser or phone) yet: client onboarding, the dashboard frame and skins,
+  `/admin`, Business (web and app), coach application uploads, the Wall's live story with a
+  real set, the coach Today/Clients/Programs redesign (#2458), shared clients (#2496, #2499),
+  friends' workouts.
 - The Wall's old card (`variant="wall"`) is unused in the app; the website chat bubble still
   draws its copy. Grocery lists are sent and saved in the app only; old builds' grocery writes
   go unmerged.

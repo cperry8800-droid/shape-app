@@ -1333,10 +1333,11 @@ const LV_FEED = {
 // Owner sees everything. RLS is the security authority — a post that reached the
 // client is already one this viewer may see — so the profile feed shows the tiers
 // meant to appear as this person's activity: `public` (everywhere), `profile`
-// (on the profile, not the community feed — the 2026-06-09 tier), and `followers`
-// (only ever returned to an accepted follower). `community` stays feed-scoped and
-// `private` is owner-only, so both count as hidden for a non-owner viewer.
-function lvFeedVisible(vis, owner) { return owner ? true : (vis === "public" || vis === "profile" || vis === "followers"); }
+// (on the profile, not the community feed — the 2026-06-09 tier), `followers`
+// (only ever returned to an accepted follower) and `friends` (only ever returned to
+// a mutual follow). `community` stays feed-scoped and `private` is owner-only, so
+// both count as hidden for a non-owner viewer.
+function lvFeedVisible(vis, owner) { return owner ? true : (vis === "public" || vis === "profile" || vis === "followers" || vis === "friends"); }
 
 // Owner-cycle hook: per-item visibility state with a cycle fn.
 function useLvFeed(items) {

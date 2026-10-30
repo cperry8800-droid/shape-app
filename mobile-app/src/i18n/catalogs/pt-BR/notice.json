@@ -116,6 +116,8 @@
   "score.reason.habit": "uma sequência de hábito interrompida",
   "workoutShare.title": "Seus treinos agora são compartilhados automaticamente",
   "workoutShare.body": "Treinos registrados e sincronizados aparecem no seu perfil e no feed da comunidade. Gerencie isso em Configurações → Compartilhar dados de treino.",
+  "workoutShare.friendsTitle": "Seus treinos agora são compartilhados com seus amigos",
+  "workoutShare.friendsBody": "Treinos registrados e sincronizados aparecem para as pessoas que você segue e que seguem você de volta. Gerencie isso em Configurações → Compartilhar dados de treino.",
   "mealPlan.title": "Novo plano alimentar do seu coach",
   "credential.verified.title": "Verificação concluída ✓",
   "credential.verified.body": "Suas credenciais foram aprovadas — o selo Verificado agora aparece no seu perfil do marketplace.",

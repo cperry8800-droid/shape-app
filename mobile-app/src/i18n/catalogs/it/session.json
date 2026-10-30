@@ -115,6 +115,8 @@
   "player.vibe.nope": "Non fa per me",
   "player.shareToggle": "Condividi con la community",
   "player.shareSub": "Pubblica le tue serie + il dettaglio nel feed",
+  "player.shareToggleFriends": "Condividi con i tuoi amici",
+  "player.shareSubFriends": "I tuoi amici vedono le tue serie + il dettaglio",
   "player.saveFinish": "Salva e concludi ✓",
   "player.fieldLoad": "Carico",
   "player.effortAria": "Sforzo {n} su 10",
