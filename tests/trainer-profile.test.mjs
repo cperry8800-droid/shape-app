@@ -832,6 +832,12 @@ test('the reviews are on the page: the newest, each a card, and All reviews open
   assert.equal(cards.length, 4, 'every sample review with words in it');
   assert.match(cards[0].textContent, /★ 10\/10.*\+60 lb on my deadlift.*Priya S\./s);
   assert.match(document.querySelector('[data-reviews-strip]').textContent, /What clients say/);
+  // At the foot of the page, after the tabs and what they hold (owner, 2026-10-30: "move reviews to
+  // bottom of page"), and before the footer.
+  const nav = document.querySelector('nav[aria-label="Profile sections"]');
+  const strip = document.querySelector('[data-reviews-strip]');
+  assert.ok(nav.compareDocumentPosition(strip) & window.Node.DOCUMENT_POSITION_FOLLOWING, 'after the tabs');
+  assert.equal(strip.nextElementSibling.tagName, 'FOOTER', 'the last thing before the footer');
   await click(document.querySelector('[data-all-reviews]'));
   assert.match(document.querySelector('[role="dialog"]').textContent, /Reviews\..*Marcus L\./s, 'the full list');
   await m.unmount();

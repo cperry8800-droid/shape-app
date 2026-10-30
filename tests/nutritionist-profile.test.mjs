@@ -259,7 +259,8 @@ test('her kitchen: one part at a time, her recipes first, then her plate and her
   await click(section('staples'));
   const staples = document.querySelector('[data-kitchen-staples]').textContent;
   assert.match(staples, /Always in the kitchen/);
-  assert.match(staples, /Fridge\s*Greek yogurt.*Pantry\s*Oats.*Freezer\s*Frozen berries/, 'grouped where they live');
+  assert.match(staples, /Fridge\s*1\s*＋\s*Greek yogurt.*Pantry\s*1\s*＋\s*Oats.*Freezer\s*1\s*＋\s*Frozen berries/, 'grouped where they live, each card with its count, each chip with its ＋');
+  assert.deepEqual([...document.querySelectorAll('[data-staple-group]')].map((g) => g.getAttribute('data-staple-group')), ['fridge', 'pantry', 'freezer']);
   await m.unmount();
   // Only staples: no parts to pick from, the staples straight away.
   reset({ custom: { kitchen: { staples: KITCHEN.staples } } });
@@ -405,6 +406,74 @@ test('a bigger pick of long staple names is its own list', async () => {
   } finally { g.done(); }
 });
 
+test('her kitchen as she drew it heads the tab: numbered spots, the ones her recipes use lit, each opening what she makes there', async () => {
+  // Owner, 2026-10-30: "lets show a kitchen layout, like we did for trainers". It rides in `studio`.
+  const studio = {
+    kind: 'kitchen', where: 'The test kitchen',
+    items: [
+      { t: 'range', x: 192, y: 22, w: 36, h: 34, st: { title: 'Stove', note: 'One pan most nights.' } },
+      { t: 'fridge', x: 22, y: 22, w: 36, h: 40, st: { title: 'Fridge', note: '' } },
+      { t: 'sink', x: 98, y: 22, w: 52, h: 28 },
+      { t: 'table', x: 172, y: 218, w: 124, h: 72 },
+    ],
+  };
+  reset({ custom: { kitchen: KITCHEN, studio } });
+  const m = await mount(page());
+  await click(button(/^Her kitchen$/));
+  const plan = document.querySelector('[data-kitchen-plan]');
+  assert.ok(plan, 'the layout');
+  assert.match(plan.textContent, /Kitchen.*The test kitchen\..*Tap a number, or a lit spot, to see what Nadia makes there\./);
+  assert.deepEqual([...plan.querySelectorAll('[data-station]')].map((b) => b.getAttribute('aria-label')), ['1. Stove', '2. Fridge']);
+  // The bowl's method rinses and sears: the stove holds it, and the sink is lit and tappable; the
+  // table holds nothing and is not.
+  assert.deepEqual([...plan.querySelectorAll('[data-piece]')].map((b) => b.getAttribute('aria-label')), ['Sink: 1 recipe made here']);
+  assert.match([...plan.querySelectorAll('[data-spot-row]')].map((b) => b.textContent).join('|'), /^1Stove1 recipe\|2Fridge1 recipe$/, 'overnight oats in the fridge');
+  assert.ok(section('recipes'), 'the three parts follow');
+  await click(plan.querySelector('[data-station]'));
+  const sheet = document.querySelector('[data-spot-recipes]');
+  assert.match(document.body.textContent, /One pan most nights\./, 'her words for it');
+  assert.deepEqual([...sheet.querySelectorAll('[data-spot-recipe]')].map((b) => b.getAttribute('data-spot-recipe')), ['r1']);
+  await click(sheet.querySelector('[data-spot-recipe]'));
+  assert.ok(document.querySelector('[data-own-recipe="r1"]'), 'opens the recipe');
+  await m.unmount();
+});
+
+test('staples: a card per place they live; Pick all picks the group, then clears it', async () => {
+  const g = groceryWorld();
+  try {
+    reset({ custom: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }, { n: 'Spinach', g: 'fridge' }, { n: 'Oats', g: 'pantry' }] } } });
+    const m = await mount(page());
+    await click(button(/^Her kitchen$/));
+    assert.deepEqual([...document.querySelectorAll('[data-staple-group-pick]')].map((b) => b.getAttribute('data-staple-group-pick')), ['fridge'], 'only a group of more than one');
+    await click(document.querySelector('[data-staple-group-pick="fridge"]'));
+    assert.match(document.querySelector('[data-add-staples]').textContent, /Add 2 to my grocery list/);
+    assert.equal(document.querySelector('[data-staple-group-pick="fridge"]').textContent, 'Clear');
+    await click(document.querySelector('[data-staple-group-pick="fridge"]'));
+    assert.match(document.querySelector('[data-add-staples]').textContent, /Pick what to add/);
+    await m.unmount();
+  } finally { g.done(); }
+});
+
+test('on her own page with no layout, Draw your kitchen opens the Layout part; the kitchen she starts from is saved in studio', async () => {
+  reset({ me: 'u-nadia', stored: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }] } } });
+  const m = await mount(page({ isSelf: true }));
+  await click(button(/^Her kitchen$/));
+  assert.match(document.querySelector('[data-kitchen-plan-empty]').textContent, /Draw your kitchen: the fridge, the stove, where you prep\./);
+  await click(document.querySelector('[data-kitchen-fill="layout"]'));
+  assert.ok(document.querySelector('[data-mine-part="layout"]'), 'Make it yours, on the layout');
+  assert.deepEqual([...document.querySelectorAll('[data-kind]')].map((b) => b.getAttribute('data-kind')), ['kitchen', 'blank'], 'a kitchen\'s kinds, not a gym\'s');
+  assert.ok(!document.querySelector('[data-pins]'), 'no program pins');
+  await click(document.querySelector('[data-kind="kitchen"]'));
+  assert.ok(document.querySelector('[data-studio-plan]'), 'the plan to draw on');
+  assert.ok(document.querySelector('[data-kit="oven"]') && !document.querySelector('[data-kit="rack"]'), 'the kitchen\'s pieces');
+  await click(document.querySelector('[data-save-mine]'));
+  assert.ok(world.saved, 'saved');
+  assert.equal(world.saved.d.studio.kind, 'kitchen');
+  assert.equal(world.saved.d.studio.items.filter((p) => p.st).length, 6);
+  assert.deepEqual(world.saved.d.kitchen.staples, [{ n: 'Eggs', g: 'fridge' }], 'her kitchen kept as it was');
+  await m.unmount();
+});
+
 test('on her own page each empty part says what goes there and opens Make it yours on it', async () => {
   reset({ me: 'u-nadia', stored: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }] } } });
   const m = await mount(page({ isSelf: true }));
@@ -416,7 +485,10 @@ test('on her own page each empty part says what goes there and opens Make it you
   await click(document.querySelector('[data-kitchen-fill="plate"]'));
   assert.ok(document.querySelector('[data-mine-part="plate"]'), 'Make it yours, on the plate');
   await click(button(/^← Profile$/));
-  await click(button(/^Her kitchen$/));
+  // Back lands where she left: her kitchen, on the plate (owner, 2026-10-30).
+  assert.equal(button(/^Her kitchen$/).getAttribute('aria-pressed'), 'true', 'still on her kitchen');
+  assert.equal(section('plate').getAttribute('aria-pressed'), 'true', 'still on the plate');
+  await click(section('recipes'));
   await click(document.querySelector('[data-kitchen-fill="recipes"]'));
   assert.ok(document.querySelector('[data-mine-part="recipes"]'), 'and on the recipes');
   await m.unmount();
@@ -529,9 +601,12 @@ test('Make it yours: a nutritionist writes a recipe from a paste with a photo of
     assert.deepEqual(parts(), ['45%', '30%', '25%']);
     await click(button(/^Less Carbs$/));
     assert.deepEqual(parts(), ['50%', '30%', '20%']);
-    await type(document.querySelector('input[value="Old rule"]'), 'A palm of protein');
+    // Each rule a row of its own that wraps (a growing text box), with a quiet × (owner, 2026-10-30).
+    await type([...document.querySelectorAll('[data-rule]')].find((x) => x.value === 'Old rule'), 'A palm of protein');
     await click(document.querySelector('[data-add-rule]'));
-    const ruleInputs = [...document.querySelectorAll('input')].filter((i) => i.getAttribute('aria-label') === 'Your portion rules');
+    const ruleInputs = [...document.querySelectorAll('[data-rule]')];
+    assert.deepEqual(ruleInputs.map((x) => x.tagName), ['TEXTAREA', 'TEXTAREA']);
+    assert.equal(ruleInputs[1].getAttribute('aria-label'), 'Rule 2');
     await type(ruleInputs[1], 'A fist of carbs');
     // A staple in the pantry.
     await click(button(/^Staples$/));
@@ -599,10 +674,16 @@ test('Make it yours: a paste the AI can\'t read is laid out on the phone; a reci
     assert.ok(document.querySelector('[data-recipe-form]'), 'still open');
     await click(document.querySelector('[data-recipe-cancel]'));
     assert.equal(document.querySelectorAll('[data-mine-recipe]').length, 1, 'cancelled, not kept');
-    // Emptied: the recipe and the rule removed, and the key is not stored.
+    // Emptied: the recipe and the rule removed, and the key is not stored. A recipe is removed from
+    // its own screen, after a confirm (owner, 2026-10-30: the list reads as recipes, not buttons).
+    assert.ok(!document.querySelector('[data-mine-recipe] [data-remove-recipe]'), 'no Remove on the list');
+    await click(document.querySelector('[data-edit-recipe]'));
+    assert.ok(!document.querySelector('[data-remove-recipe]'), 'asked first');
+    await click(document.querySelector('[data-remove-start]'));
     await click(document.querySelector('[data-remove-recipe]'));
+    assert.equal(document.querySelectorAll('[data-mine-recipe]').length, 0, 'removed');
     await click(button(/^Plate$/));
-    await click(document.querySelector('button[aria-label="Remove"]'));
+    await click(document.querySelector('button[aria-label="Remove rule 1"]'));
     await click(document.querySelector('[data-save-mine]'));
     assert.equal('kitchen' in world.saved.d, false, 'no empty kitchen is stored');
     await m.unmount();
@@ -874,7 +955,7 @@ test('a sample\'s staples picked in German and added after a switch to English a
     window.ShapeI18n.t = hadT;
     await act(async () => { for (const fn of subs) fn(); });
     await flush();
-    assert.deepEqual([...document.querySelectorAll('[data-staple][aria-pressed="true"]')].map((b) => b.textContent.replace(/^✓ /, '')), ['Firm tofu', 'Kale'], 'the same two, now in English');
+    assert.deepEqual([...document.querySelectorAll('[data-staple][aria-pressed="true"]')].map((b) => b.textContent.replace(/^[✓＋]\s*/, '')), ['Firm tofu', 'Kale'], 'the same two, now in English');
     assert.match(document.querySelector('[data-add-staples]').textContent, /Add 2 to my grocery list/);
     await click(document.querySelector('[data-add-staples]'));
     assert.equal(g.received.length, 1, 'saved');

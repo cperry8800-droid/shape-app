@@ -237,3 +237,71 @@ export function bsStudioWork(studio, programs) {
     return count || pinned.length ? { programs: held, count, pinned } : null;
   });
 }
+
+// ── A nutritionist's kitchen layout and their recipes ──────────────────────────────────────────
+// Owner, 2026-10-30: "lets show a kitchen layout, like we did for trainers". As the studio reads a
+// program's moves onto the pieces they use, the kitchen reads a recipe's method onto the spots it
+// uses: a recipe that roasts lights the oven, one that sears lights the stove, an overnight one the
+// fridge. Read from the recipe's own words (its name, note, method and ingredients), so a coach's
+// recipe lands on their plan with nothing more to set. English words only: a recipe written in
+// another language lights nothing, and its spots still show the coach's own note.
+const KITCHEN_USES = [
+  ['oven', /\b(oven|bake[ds]?|baking|roast(s|ed|ing)?|sheet[- ]pans?|broil(s|ed|ing)?|traybake)\b/i],
+  // Sheet-pan is the oven's, so it is taken out before the stove looks for a pan.
+  ['range', /\b(pans?|skillet|wok|saucepan|pot|sear(s|ed|ing)?|saut[eé](s|ed|ing)?|simmer(s|ed|ing)?|boil(s|ed|ing)?|fry|fries|fried|frying|stir[- ]fr\w*|poach(es|ed|ing)?|scrambl\w*|stovetop|stove)\b/i, (s) => s.replace(/sheet[- ]pans?/gi, ' ')],
+  ['blender', /\b(blend(s|ed|er|ing)?|blitz\w*|smoothies?|pur[eé]e[ds]?)\b/i],
+  ['board', /\b(chop(s|ped|ping)?|dic(e|ed|es|ing)|slic(e|ed|es|ing)|minc(e|ed|es|ing)|julienne)\b/i],
+  ['fridge', /\b(fridge|refrigerat\w*|chill(s|ed|ing)?|overnight|marinat\w*)\b/i],
+  ['sink', /\b(rins(e|ed|es|ing)|drain(s|ed|ing)?)\b/i],
+  ['scale', /\b(weigh(s|ed|ing)?)\b/i],
+];
+// What the pantry and the herb shelf hold, read from the ingredients alone.
+const PANTRY_WORDS = /\b(rice|oats?|lentils?|beans?|chickpeas?|pasta|noodles|quinoa|couscous|tinned|canned|flour|tortillas?|stock|broth)\b/i;
+const HERB_WORDS = /\b(basil|parsley|cilantro|coriander|mint|dill|thyme|rosemary|chives|oregano|sage)\b/i;
+// Where a use lands when the plan has no piece for it: an oven's on the stove, the board's on the
+// island or a counter.
+const KITCHEN_FALLBACK = { oven: ['range'], board: ['island', 'counter'], scale: ['island', 'counter'], blender: ['counter', 'island'] };
+const RECIPE_SCAN = 40;
+const recipeWords = (r) => [r.t, r.note, ...(Array.isArray(r.steps) ? r.steps.slice(0, RECIPE_SCAN) : [])].map((x) => clean(x, 600)).join(' \n ');
+const recipeIngs = (r) => (Array.isArray(r.ing) ? r.ing.slice(0, RECIPE_SCAN) : []).map((g) => (isObj(g) ? clean(g.m, 120) : '')).join(' \n ');
+
+/** The kitchen pieces one recipe uses, by type, from its words: e.g. ['oven', 'board', 'pantry']. */
+export function bsRecipeKitchenUses(r) {
+  if (!isObj(r)) return [];
+  const text = recipeWords(r);
+  const ings = recipeIngs(r);
+  const out = [];
+  for (const [type, re, prep] of KITCHEN_USES) if (re.test(prep ? prep(text) : text)) out.push(type);
+  if (PANTRY_WORDS.test(ings)) out.push('pantry');
+  if (HERB_WORDS.test(ings)) out.push('herbs');
+  return out;
+}
+
+// Surfaces: what stands on one is used there too (the board on the island makes it the prep spot).
+const KITCHEN_SURFACES = new Set(['island', 'counter', 'table']);
+
+/**
+ * Each piece of a kitchen layout's share of the coach's recipes, by index: { recipes: [{ id, t }],
+ * count } for a piece some recipe uses, else null. A use with no piece of its own on the plan goes
+ * to KITCHEN_FALLBACK's; a zone, and a surface, also hold the recipes of the pieces inside them.
+ */
+export function bsKitchenWork(studio, recipes) {
+  const items = isObj(studio) && Array.isArray(studio.items) ? studio.items : [];
+  const list = (Array.isArray(recipes) ? recipes : []).filter((r) => isObj(r) && r.id);
+  const has = new Set(items.filter(isObj).map((p) => p.t));
+  const land = (type) => (has.has(type) ? type : (KITCHEN_FALLBACK[type] || []).find((x) => has.has(x)) || null);
+  const usesOf = list.map((r) => new Set(bsRecipeKitchenUses(r).map(land).filter(Boolean)));
+  const own = items.map((p) => (isObj(p) && p.t !== 'zone' ? list.filter((r, k) => usesOf[k].has(p.t)) : []));
+  return items.map((p, i) => {
+    if (!isObj(p)) return null;
+    const ids = new Set(own[i].map((r) => r.id));
+    if (p.t === 'zone' || KITCHEN_SURFACES.has(p.t)) {
+      items.forEach((q, j) => {
+        if (j === i || !isObj(q) || q.t === 'zone' || (p.t !== 'zone' && KITCHEN_SURFACES.has(q.t)) || !inside(q, p)) return;
+        for (const r of own[j]) ids.add(r.id);
+      });
+    }
+    const held = list.filter((r) => ids.has(r.id));
+    return held.length ? { recipes: held.map((r) => ({ id: r.id, t: r.t })), count: held.length } : null;
+  });
+}
