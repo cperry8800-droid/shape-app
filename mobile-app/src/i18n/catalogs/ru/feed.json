@@ -321,5 +321,6 @@
   "wallLive.resting": "Отдых",
   "wallLive.sendBoost": "Поддержать →",
   "wallLive.alsoTraining": "Ещё тренируются:",
-  "card.you": "Вы"
+  "card.you": "Вы",
+  "thread.activeNow": "В сети"
 }

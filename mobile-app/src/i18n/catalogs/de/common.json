@@ -91,5 +91,10 @@
   "update.noStoreAndroid": "Öffne Google Play und aktualisiere Shape.",
   "update.recommendedTitle": "Eine neue Version von Shape ist da.",
   "update.recommendedBody": "Aktualisiere für die neuesten Fehlerbehebungen und Funktionen.",
-  "update.later": "Nicht jetzt"
+  "update.later": "Nicht jetzt",
+  "age.m": "{n} Min.",
+  "age.h": "{n} Std.",
+  "age.d": "{n} T.",
+  "age.w": "{n} Wo.",
+  "age.now": "jetzt"
 }

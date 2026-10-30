@@ -8,8 +8,8 @@ dated entry or past 20 KB.
 
 ## How we work
 
-- ⛔️ **Check for a stale base before any edit.** The web container sometimes resets
-  to an older commit. Run `git fetch origin main && git rev-parse HEAD origin/main`;
+- ⛔️ **Check for a stale base before any edit.** The container can reset to an
+  older commit: run `git fetch origin main && git rev-parse HEAD origin/main`;
   if the two differ, `git reset --hard origin/main` first. Don't add `--short`:
   with two refs it fails.
 - **Branch and merge.** Work on the session's `claude/*` branch. For each change:
@@ -45,10 +45,9 @@ dated entry or past 20 KB.
     rides in the PR it records, pushed after that PR opens. Never open a PR that only
     updates the War Room; if one would be needed, carry it in the next code PR instead.
 - **Pre-commit hook** (`.githooks/pre-commit` → `scripts/verify-staged.sh`). It runs
-  the checks a staged change can break. For a small commit, run the tests that touch
-  the change and commit with `SKIP_VERIFY=1` (~4 min saved), then say in the PR what
-  ran. CI still runs everything. On a local machine, enable the hook once with
-  `git config core.hooksPath .githooks`.
+  the checks a staged change can break. For a small commit, run the tests the change
+  touches, commit with `SKIP_VERIFY=1` (~4 min saved) and say in the PR what ran.
+  CI still runs everything. Locally, enable it with `git config core.hooksPath .githooks`.
 - **Mutation rounds** are for changes involving money, data or a migration. Always use
   the one runner:
   `node scripts/mutate.mjs --spec tests/mutations/<subject>.mutations.mjs --fail-on-skipped`.
@@ -108,7 +107,7 @@ dated entry or past 20 KB.
   one before its module defines it is React error #130, so `iosAppBroadsheetMain.jsx` loads
   feature modules before role modules, and ⚠ `loadProsBundle` the whole client bundle first
   (`iosAppBroadsheetPros.jsx` reads its globals at load).
-- **Sheets** use `createPortal` into `#bs-phone-surface`.
+- **Sheets** use `createPortal` into `#bs-phone-surface`. No visible scroll bars (owner; `index.html`).
 - **Pages** render inside `BSPage`, which pins a condensed masthead once the page's own
   scrolls away (none if the page scrolls itself); past a `BSDetailHeader`'s title it reads
   ← and the title. A sticky row in a `BSPage` takes `top: useBSPinnedMastTop()`.

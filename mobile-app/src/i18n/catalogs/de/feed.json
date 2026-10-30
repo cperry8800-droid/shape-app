@@ -321,5 +321,6 @@
   "wallLive.resting": "Pause",
   "wallLive.sendBoost": "Anfeuern →",
   "wallLive.alsoTraining": "Trainiert auch:",
-  "card.you": "Du"
+  "card.you": "Du",
+  "thread.activeNow": "Jetzt aktiv"
 }

@@ -1056,11 +1056,15 @@ test('Make it yours pins the coach\'s published programs to a station, three at 
 });
 
 // Owner, 2026-10-30: "Translate all sample text". A sample read in German: its programs, workouts,
-// replays and station notes in the German catalog's words, and nothing left in the English.
+// replays and station notes in the German catalog's words, and nothing left in the English. Their
+// ages too (owner, 2026-10-30: "Yes, translate the short ages too").
 test('a sample trainer\'s page reads in the reader\'s language: programs, workouts, replays and the studio\'s notes', async () => {
   const de = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/profile.json'), 'utf8'));
+  const deCommon = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/common.json'), 'utf8'));
   const hadT = window.ShapeI18n.t;
-  window.ShapeI18n.t = (key, opts = {}) => (key.startsWith('profile:sample.') ? new IntlMessageFormat(de[key.slice('profile:'.length)], 'de-DE').format(opts) : hadT(key, opts));
+  window.ShapeI18n.t = (key, opts = {}) => (key.startsWith('profile:sample.') ? new IntlMessageFormat(de[key.slice('profile:'.length)], 'de-DE').format(opts)
+    : key.startsWith('common:age.') ? new IntlMessageFormat(deCommon[key.slice('common:'.length)], 'de-DE').format(opts)
+    : hadT(key, opts));
   try {
     reset({ me: 'u-me', byId: leahRow, slots: [] });
     const m = await mount(page({ person: leah }));
@@ -1072,6 +1076,8 @@ test('a sample trainer\'s page reads in the reader\'s language: programs, workou
     for (const english of ['Engine 8', 'Bike and bells', 'Rower pacing', 'Air bike intervals', 'Sled, carries and burpees']) {
       if (!Object.values(de).includes(english)) assert.ok(!text.includes(english), `no English left: ${english}`);
     }
+    for (const age of ['2 T.', '4 T.']) assert.ok(text.includes(age), `the replays' age in German: ${age}`);
+    assert.doesNotMatch(text, /\b[2-6]d\b/, 'no English short age left');
     await m.unmount();
   } finally { window.ShapeI18n.t = hadT; }
 });

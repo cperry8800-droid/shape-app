@@ -400,6 +400,7 @@
   "grocery.shop.byMeal": "Repas",
   "grocery.shop.byMealHint": "Chaque ingrédient figure sous le repas auquel il sert. Sautez un repas et ses ingrédients quittent la liste.",
   "grocery.shop.inCart": "{count} dans le panier",
+  "grocery.shop.inCartOf": "{done} sur {total} dans le panier",
   "grocery.shop.itemsGot": "{count, plural, one {# article} other {# articles}} · {got} pris",
   "grocery.shop.mealKicker": "Repas",
   "grocery.shop.mealsItems": "{meals, plural, one {# repas} other {# repas}} · {items, plural, one {# article} other {# articles}}.",
@@ -423,11 +424,16 @@
   "eat.shop.tagAria": "Courses pour {meal} : {status}",
   "eat.shop.alsoMany": "{count, plural, one {aussi # autre repas} other {aussi # autres repas}}",
   "grocery.shop.sendMember": "Envoyer à un membre →",
+  "grocery.shop.switchList": "Changer de liste",
   "grocery.share.meta": "Liste de courses · {count, plural, one {# article} other {# articles}}",
   "grocery.share.save": "Enregistrer dans mes listes",
   "grocery.share.saved": "✓ Enregistrée dans tes listes",
   "grocery.share.savedToast": "Enregistrée dans tes listes de courses",
   "grocery.share.saveFail": "Impossible d’enregistrer la liste. Réessaie.",
   "eat.libReceivedToday": "Partagée · Reçue aujourd’hui",
-  "eat.libReceivedOn": "Partagée · Reçue le {date}"
+  "eat.libReceivedOn": "Partagée · Reçue le {date}",
+  "tabs.day": "Jour",
+  "tabs.grocery": "Courses",
+  "tabs.library": "Bibliothèque",
+  "tabs.recipes": "Recettes"
 }

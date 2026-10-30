@@ -20,6 +20,7 @@ import { isNoraStream, readNoraStream } from '../../../public/newdesign/noraStre
 import { bsFeedQuerySpec } from './feedMode.mjs';
 import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, bsFetchDuplicateCandidates, bsActivityStartISO, bsPostActivityStart, BS_PRIVACY_RANK } from './workoutShare.mjs';
 import { bsLiveAudience } from './liveProgress.mjs';
+import { bsChatStamp } from './chatTime.mjs';
 import { watchLiveWorkout } from '../../../public/newdesign/liveWatch.mjs';
 import { bsMaterializeProgram, bsRepeatSpec } from './trainingBuilder.mjs';
 import { bsMaterializeOutline } from './planOutline.mjs';
@@ -2207,6 +2208,14 @@ function resolveCoachProvider(coach = {}) {
   return { providerRole, providerId };
 }
 
+// A message's time as a chat prints it, in the app's language ('now' with no stamp). The message
+// keeps its stamp as `at` too, so the bubble says it again after a language switch (chatTime.mjs).
+function chatTimeOf(iso) {
+  let locale;
+  try { locale = window.ShapeI18n?.intlLocale?.(); } catch (e) { locale = undefined; }
+  return bsChatStamp(iso, locale) || 'now';
+}
+
 // A coach thread is one row seen from two sides. The client reads it under the coach's name (the
 // row's title); the coach reads it under the CLIENT's name, which the caller passes in `names`
 // (client_id → full name). Before this (client-onboarding review, fix 3a) the coach read every
@@ -2228,7 +2237,8 @@ function conversationToThread(conversation, messages = [], names = {}) {
     who: counterpart,
     role: asCoach ? `Client - ${providerRole}` : `${providerRole} - Shape coach`,
     last: conversation.last_message || ordered.at(-1)?.body || 'New conversation',
-    time: conversation.last_message_at ? 'synced' : 'now',
+    time: chatTimeOf(conversation.last_message_at),
+    at: conversation.last_message_at || null,
     unread: 0,
     bucket: asCoach ? 'CLIENT' : 'COACH',
     messages: ordered.map(message => ({
@@ -2236,7 +2246,8 @@ function conversationToThread(conversation, messages = [], names = {}) {
       // Shape's welcome (sender_id null, metadata.shape = 'welcome') is from neither side.
       who: isShapeWelcome(message) ? 'Shape' : message.sender_id === myId ? 'You' : counterpart,
       t: message.body,
-      time: message.created_at ? new Date(message.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'now',
+      time: chatTimeOf(message.created_at),
+      at: message.created_at || null,
       me: !isShapeWelcome(message) && message.sender_id === myId,
       coach: !asCoach && !isShapeWelcome(message) && message.sender_id !== myId,
       shape: isShapeWelcome(message) ? { body: message.body, sender_id: null, metadata: message.metadata } : null,
@@ -2274,7 +2285,8 @@ function memberThreadFromRow(row, messages = []) {
     who: other,
     role: 'Direct message',
     last: row.last_message || ordered.at(-1)?.body || 'New conversation',
-    time: row.last_message_at ? 'synced' : 'now',
+    time: chatTimeOf(row.last_message_at),
+    at: row.last_message_at || null,
     unread: 0,
     bucket: 'DM',
     messages: ordered.map(message => ({
@@ -2283,7 +2295,8 @@ function memberThreadFromRow(row, messages = []) {
       id: message.id || null,
       who: message.sender_id === state.user?.id ? 'You' : other,
       t: message.body,
-      time: message.created_at ? new Date(message.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'now',
+      time: chatTimeOf(message.created_at),
+      at: message.created_at || null,
       me: message.sender_id === state.user?.id,
       audio: message.metadata && message.metadata.audio ? message.metadata.audio.url : null,
       photo: message.metadata && message.metadata.photo ? message.metadata.photo.url : null,
@@ -8247,7 +8260,7 @@ async function listChannelMessages(channelId) {
     stored: 'supabase',
     data: (data || []).map(m => ({
       who: m.sender_id === state.user.id ? 'You' : (m.author_name || 'Member'),
-      t: m.body, time: 'synced', me: m.sender_id === state.user.id,
+      t: m.body, time: chatTimeOf(m.created_at), at: m.created_at || null, me: m.sender_id === state.user.id,
     })),
   };
 }

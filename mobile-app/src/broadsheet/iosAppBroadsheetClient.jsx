@@ -17,6 +17,8 @@ import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs
 import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsValidLivePayload } from '../services/liveProgress.mjs';
 import { createLiveWorkoutPublisher } from '../services/liveWorkoutPublisher.mjs';
+import { bsShortAge } from '../services/shortAge.mjs';
+import { bsChatStamp } from '../services/chatTime.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // The ONE ceiling. The prompt must ask at exactly the load the core refuses to
 // admit unconsidered — a local copy of 150 that drifted would leave the screen
@@ -7608,26 +7610,32 @@ function bsRecipeListId(recipe, dayLabel) {
   return `recipe-${dayLabel}-${title}`.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
 }
 
+// The Eat section's four views. They spread across the whole row (owner, 2026-10-30: "redesign
+// look of these"), so the four read as one control instead of a short list stranded on the left.
+// The lit view takes ink and a 2px accent bar that grows in on the rule; the others sit at INK70,
+// not INK50, so an unlit label still reads. Each tab is as wide as its own label, so a long word
+// (fr "Bibliothèque") pushes its neighbours over instead of being cut.
 function BSNutritionTopTabs({ active, onChange }) {
   const t = useBS();
+  const tr = useShapeTr();
   const tabs = [
-    ['eat', 'Day'],
-    ['grocery', 'Grocery'],
-    ['library', 'Library'],
-    ['recipes', 'Recipes'],
+    ['eat', tr('nutrition:tabs.day', { defaultValue: 'Day' })],
+    ['grocery', tr('nutrition:tabs.grocery', { defaultValue: 'Grocery' })],
+    ['library', tr('nutrition:tabs.library', { defaultValue: 'Library' })],
+    ['recipes', tr('nutrition:tabs.recipes', { defaultValue: 'Recipes' })],
   ];
   return (
-    <div style={{ padding: `2px ${t.padX}px 0`, display: 'flex', gap: 18, borderBottom: `1px solid ${t.RULE}` }}>
+    <nav aria-label={tr('common:nav.eat', { defaultValue: 'Eat' })} style={{ margin: `2px ${t.padX}px 0`, display: 'flex', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.RULE}` }}>
       {tabs.map(([key, label]) => {
         const on = active === key;
         return (
-          <button type="button" key={key} onClick={() => onChange(key)} aria-current={on ? 'page' : undefined} style={{ position: 'relative', minHeight: 44, padding: '12px 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: on ? 800 : 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>
+          <button type="button" key={key} onClick={() => onChange(key)} aria-current={on ? 'page' : undefined} style={{ position: 'relative', minHeight: 46, padding: '14px 2px 12px', background: 'transparent', border: 0, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 10.5, fontWeight: on ? 800 : 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? t.INK : t.INK70, transition: 'color 160ms ease' }}>
             {label}
-            {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, background: t.ACCENT }} />}
+            <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, borderRadius: 2, background: t.ACCENT, transform: on ? 'scaleX(1)' : 'scaleX(0)', transition: 'transform 220ms cubic-bezier(0.2,0.8,0.2,1)' }} />
           </button>
         );
       })}
-    </div>
+    </nav>
   );
 }
 
@@ -7668,12 +7676,6 @@ function bsSkParseIngredient(s) {
 // serifs. No script." (iosAppBroadsheet.jsx:10-14) and Doto here is the Radio
 // page's own instrument face (the 2026-09-14 §12 default, "Doto on Radio
 // only"). Same grammar — a label, then a figure — in each house's own face.
-//
-// ⚠ REGISTERED, NOT FIXED: `BSNutritionTopTabs` — the Day / Grocery / Library /
-// Recipes row this page renders under its masthead — carries four hardcoded
-// English labels, and after this cut they are the only English left on the
-// screen. It is a shared component with three other consumers, so keying it is
-// its own change rather than a side effect of the Kitchen's.
 //
 // ⚠ AND THE COLOURS ARE TOKENS, NEVER THE WEBSITE'S BONE/TERRACOTTA LITERALS.
 // The app has 18 papers; the website's page-local palette would read as one of
@@ -18505,7 +18507,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       if (m < 60) return `${m || 1}m`;
       const h = Math.round(m / 60); if (h < 24) return `${h}h`;
       const days = Math.round(h / 24); if (days < 7) return `${days}d`;
-      const w = Math.round(days / 7); return w < 5 ? `${w}w` : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      const w = Math.round(days / 7); return w < 5 ? `${w}w` : d.toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' });
     };
     const cap = (s) => String(s || 'Workout').replace(/[_-]+/g, ' ').replace(/\b\w/g, (x) => x.toUpperCase());
     (async () => {
@@ -21881,7 +21883,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
               <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, color: t.INK }}>{d.who}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{d.tierDisplay}</span>
             </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, marginTop: 3, letterSpacing: '0.04em' }}>{tr('session:detail.ago', { defaultValue: '{time} ago', time: d.ago })}{d.city ? ` · ${d.city}` : ''}{d.role ? ` · ${d.role}` : ''}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, marginTop: 3, letterSpacing: '0.04em' }}>{tr('session:detail.ago', { defaultValue: '{time} ago', time: bsShortAge(d.ago, tr) })}{d.city ? ` · ${d.city}` : ''}{d.role ? ` · ${d.role}` : ''}</div>
           </div>
         </div>
         {/* author hairline — a hard "filed-by" cut between the byline and the
@@ -22221,7 +22223,7 @@ function BSSplitsPage({ d, paceData, heat, t, onClose }) {
       </div>
       <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 24px' }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{d.title || tr('session:splits.sessionFallback', { defaultValue: 'Session' })}<span style={{ color: accent }}>.</span></div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, margin: '4px 0 16px' }}>{d.who}{d.ago ? ` · ${tr('session:detail.ago', { defaultValue: '{time} ago', time: d.ago })}` : ''}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, margin: '4px 0 16px' }}>{d.who}{d.ago ? ` · ${tr('session:detail.ago', { defaultValue: '{time} ago', time: bsShortAge(d.ago, tr) })}` : ''}</div>
         <BSSdPaceBars data={paceData} t={t} muted={muted} heat={accent} big />
         <div style={{ marginTop: 22, display: 'grid', gridTemplateColumns: gridCols, columnGap: 12, alignItems: 'center' }}>
           <span style={{ ...col, textAlign: 'left' }}>{tr('session:splits.colSplit', { defaultValue: 'Split' })}</span>
@@ -22616,7 +22618,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               const kicker = [isPR ? tr('feed:card.newPR', { defaultValue: 'New PR' }) : typeLabel, a.city].filter(Boolean).join(' · ');
               // On a profile (hideAuthor) the page is already theirs: the byline is the time alone, with the
               // owner's edit beside it.
-              const meta = [hideAuthor ? null : tierDisplay, a.ago ? tr('feed:card.ago', { defaultValue: '{time} ago', time: a.ago }) : null].filter(Boolean).join(' · ');
+              const meta = [hideAuthor ? null : tierDisplay, a.ago ? tr('feed:card.ago', { defaultValue: '{time} ago', time: bsShortAge(a.ago, tr) }) : null].filter(Boolean).join(' · ');
               // The hero figure, then the session-details ranking's lead (pace, time, heart rate), so a
               // run with a dozen stats says distance, pace and time rather than its first three. It ranks
               // the full list: a real post's `stats` is the card's first three (Codex P2 on #2431).
@@ -22641,7 +22643,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
             })()}
             {isMag ? null : hideAuthor ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, color: muted, letterSpacing: '0.04em' }}>{a.ago}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, color: muted, letterSpacing: '0.04em' }}>{bsShortAge(a.ago, tr)}</span>
                 {/* owner edit — only when the host supplies onEdit (profile) AND the
                     card is a real published post; the community feed passes no onEdit,
                     and demo/PR cards have no postId, so this stays profile-own-posts.
@@ -22658,7 +22660,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                   <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, color: t.INK, whiteSpace: 'nowrap' }}>{a.who}</button>
                   <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), lineHeight: 1, whiteSpace: 'nowrap' }}>{tierDisplay} · {(a.role || 'Client').toUpperCase()}</span>
                 </div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, color: muted, marginTop: 3, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('feed:card.ago', { defaultValue: '{time} ago', time: a.ago })} · {a.city}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, color: muted, marginTop: 3, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('feed:card.ago', { defaultValue: '{time} ago', time: bsShortAge(a.ago, tr) })} · {a.city}</div>
               </div>
               <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
             </div>
@@ -23932,7 +23934,7 @@ function BSWallYourBest({ loggedIn, onLogActivity, onPostedRecord }) {
                       : tr('feed:wall.notOnWall', { defaultValue: 'not on the wall yet' })}
                   </span>
                 ) : (
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>{bsAgoShort(m.postedAt) || ''}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>{bsShortAge(bsAgoShort(m.postedAt), tr)}</span>
                 )}
               </div>
             </div>
@@ -24111,8 +24113,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     c: _threadPalette[i % _threadPalette.length],
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
+    at: th.at || null,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ id: m.id || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null, grocery: m.grocery || null })),
+    messages: (th.messages || []).map(m => ({ id: m.id || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', at: m.at || null, me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null, grocery: m.grocery || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land
@@ -24214,6 +24217,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     c: _threadPalette[i % _threadPalette.length],
     i: (th.who || 'M').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
+    at: th.at || null,
     conversation_id: th.conversation_id,
     messages: th.messages || [],
   }));
@@ -24696,7 +24700,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
               <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier, photo: avatarByUser[p.userId] || p.photo })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.BODY, fontWeight: 600, fontSize: 14, color: cardInk }}>{p.who}</button>
               <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: akind === 'TRAINER' || akind === 'NUTRI' ? magAccent : muted }}>{roleMeta.label}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsShortAge(p.time, tr)}</span>
             </div>
             <div style={{ borderRadius: 0, padding: p.photo && !p.body ? 4 : '11px 14px', background: p.official ? bubbleBg : (right ? bsTHexA(t.INK, 0.05) : 'transparent'), color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${bsTHexA(t.INK, 0.18)}`, fontFamily: t.DISPLAY, fontStyle: 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4, overflow: 'hidden' }}>
               {p.body && <div style={{ padding: p.photo ? '7px 10px 9px' : 0 }}>{p.body}</div>}
@@ -24826,7 +24830,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <>
         <BSChatThread
           key={openChat.conversation_id || (openChat.channelId != null ? 'ch:' + openChat.channelId : 'n:' + (openChat.n || ''))}
-          thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
+          thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', at: openChat.at || null, messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
           eyebrow={openChat.channelId ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : openChat.dm ? tr('feed:thread.privateThread', { defaultValue: 'Private thread' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })}
           onBack={() => setOpenChat(null)}
           onOpenProfile={(person) => setOpenProfile(person)}
@@ -25033,7 +25037,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           const Row = (f, i, arr) => {
             const count = (unread && unread['dm:' + (f.conversation_id || '')]) || 0;
             const last = f.last || (f.messages && f.messages.length ? (f.messages[f.messages.length - 1].t || '') : '');
-            const time = f.time || (f.messages && f.messages.length ? (f.messages[f.messages.length - 1].time || '') : '');
+            // The last message's time (the thread's, with none loaded), said in the app's language from its
+            // stamp when it has one.
+            const lastM = f.messages && f.messages.length ? f.messages[f.messages.length - 1] : null;
+            const stampAt = (lastM ? lastM.at : f.at) || null;
+            const time = f.time || (stampAt && bsChatStamp(stampAt, bsDateLocale(), { list: true })) || (lastM && lastM.time) || '';
             const online = !!f.online || count > 0;
             const isLast = Array.isArray(arr) && i === arr.length - 1;
             // In the Wall's magazine look (owner, 2026-10-24: "make the team list match the new design too"):
@@ -25048,7 +25056,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   {last && <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, color: count > 0 ? t.INK : muted, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{last}</span>}
                 </span>
                 <span style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 7, alignSelf: 'flex-start', marginTop: 2 }}>
-                  {time && <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: count > 0 ? magAccent : muted, fontWeight: 700 }}>{time}</span>}
+                  {time && <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: count > 0 ? magAccent : muted, fontWeight: 700 }}>{bsShortAge(time, tr)}</span>}
                   {count > 0 && <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: magAccent, fontVariantNumeric: 'tabular-nums' }}>{count > 9 ? '9+' : count}</span>}
                 </span>
               </button>
@@ -25070,10 +25078,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             );
           };
 
-          // Friends — now a sub-tab INSIDE Team (rendered in the Team body below).
+          // Friends — now a sub-tab INSIDE Team (rendered in the Team body below). The signed-out
+          // sample rows say when each was last on in the reader's language.
+          const sNow = tr('feed:thread.activeNow', { defaultValue: 'Active now' });
+          const sYday = tr('home:when.yesterday', { defaultValue: 'Yesterday' });
+          const sAgo = (ago) => tr('feed:card.ago', { defaultValue: '{time} ago', time: bsShortAge(ago, tr) });
           const friends = friendRows.length ? friendRows : (loggedIn ? [] : (isCoach
-            ? [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Dev Patel', s: '2h ago', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: 'Yesterday', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]
-            : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J', messages: BS_SAMPLE_DMS['Jordan Chen'] }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M', messages: BS_SAMPLE_DMS['Maya Okafor'] }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]));
+            ? [{ n: 'Sofia Martinez', s: sNow, c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Dev Patel', s: sAgo('2h'), c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: sYday, c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]
+            : [{ n: 'Sofia Martinez', s: sNow, c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Jordan Chen', s: sAgo('2h'), c: '#c0533b', i: 'J', messages: BS_SAMPLE_DMS['Jordan Chen'] }, { n: 'Maya Okafor', s: sNow, c: '#a07a2e', i: 'M', messages: BS_SAMPLE_DMS['Maya Okafor'] }, { n: 'Dev Patel', s: sYday, c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: sAgo('3h'), c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]));
 
           // Teams: Channels / Coaches / Support selector. Support is its own
           // continuous AI-backed thread (rendered inline below), not a channel.
@@ -26680,7 +26692,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   const seed = (thread.messages && thread.messages.length)
     ? thread.messages
     : (historyHere && historyHere.length) ? historyHere
-    : (thread.last ? [{ who: thread.who, t: thread.last, time: thread.time || 'now', me: false }] : []);
+    : (thread.last ? [{ who: thread.who, t: thread.last, time: thread.time || 'now', at: thread.at || null, me: false }] : []);
   // ⚠ MERGED BY MESSAGE ID (Codex on #2360): a message that arrives, or that this view sends,
   // while the history is loading can be in both the snapshot and `extras`. A sent message gets its
   // id when the insert answers (send, below); one still in flight has none and is shown.
@@ -26710,7 +26722,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     if (!text.trim()) return;
     const body = text.trim();
     const tmpId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
-    setExtras(e => [...e, { tmpId, who: 'You', t: body, time: 'now', me: true }]);
+    setExtras(e => [...e, { tmpId, who: 'You', t: body, time: 'now', at: new Date().toISOString(), me: true }]);
     setText('');
     // Persist to the backend: direct conversation or community channel.
     const sent = thread.conversationId ? window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body })
@@ -26728,7 +26740,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     if (thread.channelId && window.ShapeChannels?.subscribeMessages) {
       unsub = window.ShapeChannels.subscribeMessages((row) => {
         if (!row || row.channel_id !== thread.channelId || row.sender_id === myId) return;
-        setExtras(e => [...e, { who: row.author_name || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null }]);
+        setExtras(e => [...e, { who: row.author_name || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null }]);
         window.ShapeUnread?.markChannelRead?.(thread.channelId);  // it's open → keep it read
       });
     } else if (thread.conversationId && window.ShapeMessages?.subscribeMessages) {
@@ -26736,11 +26748,11 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         if (!row || row.conversation_id !== thread.conversationId || row.sender_id === myId) return;
         // Shape's welcome is shown as a note, and the thread is open, so it is read like any other
         // message (dm_unread counts it: it is not the viewer's).
-        if (isShapeWelcome(row)) { setExtras(e => [...e, { id: row.id || null, who: 'Shape', t: row.body, time: 'now', me: false, shape: { body: row.body, sender_id: null, metadata: row.metadata } }]); window.ShapeUnread?.markConversationRead?.(thread.conversationId); return; }
+        if (isShapeWelcome(row)) { setExtras(e => [...e, { id: row.id || null, who: 'Shape', t: row.body, time: 'now', at: row.created_at || null, me: false, shape: { body: row.body, sender_id: null, metadata: row.metadata } }]); window.ShapeUnread?.markConversationRead?.(thread.conversationId); return; }
         // Carry the live-boost stamp on realtime appends too — a boost landing
         // while this thread is OPEN (the time-sensitive case) must render with
         // its eyebrow immediately, not only after a reload re-maps metadata.
-        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null, grocery: bsGroceryFromMetadata(row.metadata) }]);
+        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null, grocery: bsGroceryFromMetadata(row.metadata) }]);
         window.ShapeUnread?.markConversationRead?.(thread.conversationId);
       });
     }
@@ -26888,7 +26900,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                 </div>
                 {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
                 {myR && <BSReactionPill t={t} emoji={myR} anchorRight={me} onClick={() => rx.toggle(rKey, myR)} />}
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 10 : 4, textAlign: me ? 'right' : 'left' }}>{m.time}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 10 : 4, textAlign: me ? 'right' : 'left' }}>{(m.at && bsChatStamp(m.at, bsDateLocale())) || bsShortAge(m.time, tr)}</div>
               </div>
                 </div>
               </div>
@@ -33804,17 +33816,48 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
 
       <BSCleanType t={tc}>
 
-      {/* Which list is showing — a slim name selector; tap to switch lists */}
+      {/* THE LIST CARD (owner, 2026-10-30: "this part, looks confusing"). One card answers, in
+          order: which list this is, with a Switch button that says what it does (the old row was
+          a name, an unexplained coloured dot, "89 ITEMS" and a ▾ that read as a filter); then how
+          far the shop has got, in words. The dot's meaning is now said: the list's source, named.
+          ⚠ THE "~$44 TO GO" FIGURE IS GONE ON PURPOSE. It was a fixed $48 for every list scaled by
+          the ticks, so it priced no list at all; a cost comes back only from real prices. */}
       {(() => {
-        const src = list.kind === 'recipe' ? { c: t.AMBER } : list.kind === 'custom' ? { c: '#8a5cf6' } : { c: gold };
+        const src = list.kind === 'recipe' ? { c: t.AMBER, l: TG('nutrition:grocery.shop.srcRecipe', 'Recipe') }
+          : list.kind === 'custom' ? { c: '#8a5cf6', l: TG('nutrition:grocery.shop.srcCustom', 'Custom') }
+            : list.kind === 'mealplan' ? { c: gold, l: TG('nutrition:grocery.shop.srcMealPlan', 'Meal plan') }
+              : { c: gold, l: TG('nutrition:grocery.shop.srcPlan', 'Nutri plan') };
+        const left = total - done;
         return (
-          <div style={{ padding: `12px ${t.padX}px 0` }}>
-            <button onClick={() => setPickerOpen(true)} aria-label={TG('nutrition:grocery.shop.pickAria', 'Choose a grocery list')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 2px', background: 'transparent', border: 0, borderBottom: `1px solid ${t.RULE}` }}>
-              <span style={{ flexShrink: 0, width: 9, height: 9, borderRadius: 999, background: src.c }} />
-              <span style={{ flex: 1, minWidth: 0, fontFamily: tc.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name}</span>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, letterSpacing: '0.08em' }}>{TG('nutrition:grocery.itemCountCaps', `${total} ITEM${total === 1 ? '' : 'S'}`, { count: total })}</span>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 13, fontWeight: 800, color: src.c, lineHeight: 1 }}>▾</span>
+          <div data-grocery-list-card="" style={{ margin: `14px ${t.padX}px 0`, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${src.c}`, borderRadius: 10, background: t.PAPER2, overflow: 'hidden' }}>
+            <button type="button" onClick={() => setPickerOpen(true)} aria-haspopup="dialog" aria-label={TG('nutrition:grocery.shop.pickAria', 'Choose a grocery list')} style={{ width: '100%', minHeight: 60, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px 11px 13px', background: 'transparent', border: 0, color: t.INK }}>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: src.c, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {src.l}<span style={{ color: t.INK50, fontWeight: 700 }}> · {trG('nutrition:grocery.itemCount', { defaultValue: '{count, plural, one {# item} other {# items}}', count: total })}</span>
+                </span>
+                <span style={{ display: 'block', marginTop: 3, fontFamily: tc.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name}</span>
+              </span>
+              <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 32, padding: '0 11px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>
+                {trG('nutrition:grocery.shop.switchList', { defaultValue: 'Switch list' })}
+                <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3.5 5 6.5 8 3.5" /></svg>
+              </span>
             </button>
+            {total > 0 && (
+              <div style={{ padding: '10px 13px 12px', borderTop: `1px solid ${t.HAIR}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+                  <span style={{ fontFamily: tc.BODY, fontSize: 14, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+                    {trG('nutrition:grocery.shop.inCartOf', { defaultValue: '{done} of {total} in the cart', done, total })}
+                  </span>
+                  <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: left > 0 ? accent : t.INK50 }}>
+                    {left > 0 ? trG('nutrition:grocery.shop.toGetCount', { defaultValue: '{count} to get', count: left }) : trG('nutrition:grocery.shop.aisleDone', { defaultValue: 'All got ✓' })}
+                  </span>
+                </div>
+                <div role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-label={trG('nutrition:grocery.shop.inCartOf', { defaultValue: '{done} of {total} in the cart', done, total })} style={{ marginTop: 8, height: 6, borderRadius: 3, background: t.HAIR, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pct}%`, minWidth: done > 0 ? 6 : 0, background: accent, borderRadius: 3, transition: 'width 0.2s ease' }} />
+                </div>
+                {offCount > 0 ? <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: gold }}>{trG('nutrition:grocery.shop.offCount', { defaultValue: '{count} skipped', count: offCount })}</div> : null}
+              </div>
+            )}
           </div>
         );
       })()}
@@ -33865,24 +33908,19 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
       }} />
 
       <div style={{ padding: `0 ${t.padX}px 24px` }}>
-        {/* Slim progress strip — one line + a thin fill (replaces the heavy plate) */}
-        {total > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{TG('nutrition:grocery.shop.gotCount', `${done}/${total} got`, { done, total })} · <span style={{ color: accent }}>{done < total ? TG('nutrition:grocery.shop.toGo', `~$${estLeft} to go`, { amount: estLeft }) : TG('nutrition:grocery.shop.allSet', 'all set')}</span>{offCount > 0 ? <span style={{ color: gold }}> · {trG('nutrition:grocery.shop.offCount', { defaultValue: '{count} skipped', count: offCount })}</span> : null}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: accent }}>{pct}%</span>
-            </div>
-            <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct}%`, background: accent, borderRadius: 2, transition: 'width 0.2s ease' }} /></div>
-          </div>
-        )}
-
         {/* PREP THE WEEK door (PR C) — shopping done, cooking next. Optional
-            always; renders only where the host wired the session. */}
+            always; renders only where the host wired the session. It says what it
+            opens (the dotted-leader row it replaces named a ritual and nothing more). */}
         {onPrep && (
-          <button type="button" data-bsck-door="prep" onClick={onPrep} style={{ marginTop: 12, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', textAlign: 'left' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>{trG('cook:prep.door', { defaultValue: 'Prep the week' })}</span>
-            <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
-            <span style={{ color: accent, fontWeight: 700, fontSize: 13 }}>→</span>
+          <button type="button" data-bsck-door="prep" onClick={onPrep} style={{ marginTop: 10, width: '100%', minHeight: 58, display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 10, cursor: 'pointer', padding: '10px 13px', textAlign: 'left', color: t.INK }}>
+            <span aria-hidden style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, display: 'grid', placeItems: 'center', background: bsTHexA(accent, 0.12), color: accent }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 11h16v3a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z" /><path d="M2 11h2M20 11h2M9 7.5c0-1 .8-1.4.8-2.5M14 7.5c0-1 .8-1.4.8-2.5" /></svg>
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontFamily: tc.HEAD, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{trG('cook:prep.door', { defaultValue: 'Prep the week' })}</span>
+              <span style={{ display: 'block', marginTop: 1, fontFamily: tc.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.3 }}>{trG('cook:prep.doorSub', { defaultValue: 'Pick the dishes and cook them in one go' })}</span>
+            </span>
+            <span aria-hidden style={{ flexShrink: 0, color: accent, fontWeight: 700, fontSize: 15 }}>→</span>
           </button>
         )}
 

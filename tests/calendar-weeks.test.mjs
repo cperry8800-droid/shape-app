@@ -152,7 +152,7 @@ const sheet = { opened: [], open(n) { this.opened.push(n); }, close() {} };
 const EFFECTS = { ...SHIM, useEffect: (fn) => { fn(); }, useContext: () => sheet };
 const CAL = await loadRealModule(join(BROADSHEET, 'iosAppBroadsheetCalendar.jsx'), {
   registry: new Map([['react', EFFECTS], ['react-dom', { createPortal: (n) => n }]]),
-  appendExports: 'export { BSCalendarScreen, BSCalDaySheet, BSEventSheet, BSEventActivityBody, BSEventWorkoutBody };',
+  appendExports: 'export { BSCalendarScreen, BSCalendarMonth, BSCalDaySheet, BSEventSheet, BSEventActivityBody, BSEventWorkoutBody };',
 });
 const named = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
 
@@ -459,4 +459,19 @@ test('a finished workout reads Completed; one still to do offers to start it', (
   assert.deepEqual(buttonsOf(done).filter((b) => /Start session|Completed/.test(b)), ['Completed ✓']);
   const open = sheetOf({ id: 'plan:w2', source: 'plan', kind: 'WORKOUT', title: 'Easy Run' });
   assert.deepEqual(buttonsOf(open).filter((b) => /Start session|Completed/.test(b)), ['Start session →']);
+});
+
+test('Month rings the calendar zone\'s today and quiets the days before it, not the device\'s (Codex on #2514)', () => {
+  // The device is New York (TZ above). UTC+14 and UTC-12 are 26 hours apart, so at any instant
+  // at least one of them is on another date than New York: the test reads the month in that one.
+  const isoIn = (zone) => new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const zone = ['Etc/GMT-14', 'Etc/GMT+12'].find((z) => isoIn(z) !== isoIn('America/New_York'));
+  const [y, m, day] = isoIn(zone).split('-').map(Number);
+  const month = drive(CAL.BSCalendarMonth, { events: [], viewYear: y, viewMonth: m - 1, monthName: 'M', isDemoMonth: false, selDay: 0, setSelDay() {}, sheet, role: 'client', live: true, zone });
+  const days = month.nodes().filter((n) => n.type === 'button' && /^M \d+/.test(n.props['aria-label'] || ''));
+  assert.deepEqual(days.filter((n) => /today/.test(n.props['aria-label'])).map((n) => n.props['aria-label']), [`M ${day}, today`], 'the ring is on the device\'s day');
+  // The numeral's colour: the days before the zone's today are quieter than the ones after it.
+  const ink = (d) => { const b = days.find((n) => n.props['aria-label'].startsWith(`M ${d}`)); return b && [].concat(b.props.children)[0].props.style.color; };
+  const last = new Date(y, m, 0).getDate();
+  if (day > 1 && day < last) assert.notEqual(ink(day - 1), ink(day + 1), 'the day before today reads like the day after it');
 });

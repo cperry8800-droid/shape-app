@@ -91,5 +91,10 @@
   "update.noStoreAndroid": "Відкрий Google Play і онови Shape.",
   "update.recommendedTitle": "Вийшла нова версія Shape.",
   "update.recommendedBody": "Онови, щоб отримати останні виправлення та функції.",
-  "update.later": "Не зараз"
+  "update.later": "Не зараз",
+  "age.m": "{n} хв",
+  "age.h": "{n} год",
+  "age.d": "{n} дн.",
+  "age.w": "{n} тиж.",
+  "age.now": "зараз"
 }

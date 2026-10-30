@@ -323,14 +323,17 @@ export function BSFocusRoute({ stops, flush = false }) {
   );
 }
 
-// Shop by: aisle | meal — a two-way switch.
+// Shop by: aisle | meal — a two-way switch. The same quiet segmented track as the calendar's
+// Month | Weeks (owner, 2026-10-30): the lit side raised on a faint ink wash, not an accent box
+// inside an outlined one, so it reads as a view choice under the list card and not a second card.
 export function BSShopBySwitch({ value, onChange, label, aisleLabel, mealLabel }) {
   const t = window.useBS();
+  const rgb = t.inkRGB || '127,127,127';
   const opt = (key, text, icon) => {
     const on = value === key;
     return (
       <button type="button" key={key} onClick={() => onChange(key)} aria-pressed={on}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 40, borderRadius: 4, border: 0, background: on ? hexA(t.ACCENT, 0.12) : 'transparent', boxShadow: on ? `inset 0 0 0 1px ${t.ACCENT}` : 'none', color: on ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 38, borderRadius: 8, border: 0, background: on ? (t.isLight ? t.PAPER : `rgba(${rgb},0.16)`) : 'transparent', boxShadow: on && t.isLight ? `inset 0 0 0 1px ${t.RULE}, 0 1px 3px rgba(0,0,0,0.08)` : 'none', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 160ms ease, color 160ms ease' }}>
         {icon}{text}
       </button>
     );
@@ -340,7 +343,7 @@ export function BSShopBySwitch({ value, onChange, label, aisleLabel, mealLabel }
   return (
     <div role="group" aria-label={label} style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 14 }}>
       <span aria-hidden style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{label}</span>
-      <span style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, padding: 3, border: `1px solid ${t.RULE}`, borderRadius: 6 }}>
+      <span style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, padding: 3, borderRadius: 11, background: `rgba(${rgb},${t.isLight ? 0.06 : 0.08})` }}>
         {opt('aisle', aisleLabel, aisleIcon)}
         {opt('meal', mealLabel, mealIcon)}
       </span>

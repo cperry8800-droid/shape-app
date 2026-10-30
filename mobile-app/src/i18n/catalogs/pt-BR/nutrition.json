@@ -400,6 +400,7 @@
   "grocery.shop.byMeal": "Refeição",
   "grocery.shop.byMealHint": "Cada ingrediente fica sob a refeição a que pertence. Pule uma refeição e os itens dela saem da lista.",
   "grocery.shop.inCart": "{count} no carrinho",
+  "grocery.shop.inCartOf": "{done} de {total} no carrinho",
   "grocery.shop.itemsGot": "{count, plural, one {# item} other {# itens}} · {got} pegos",
   "grocery.shop.mealKicker": "Refeição",
   "grocery.shop.mealsItems": "{meals, plural, one {# refeição} other {# refeições}} · {items, plural, one {# item} other {# itens}}.",
@@ -423,11 +424,16 @@
   "eat.shop.tagAria": "Compras para {meal}: {status}",
   "eat.shop.alsoMany": "{count, plural, one {também # outra refeição} other {também # outras refeições}}",
   "grocery.shop.sendMember": "Enviar para um membro →",
+  "grocery.shop.switchList": "Trocar lista",
   "grocery.share.meta": "Lista de compras · {count, plural, one {# item} other {# itens}}",
   "grocery.share.save": "Salvar nas minhas listas",
   "grocery.share.saved": "✓ Salva nas suas listas",
   "grocery.share.savedToast": "Salva nas suas listas de compras",
   "grocery.share.saveFail": "Não foi possível salvar a lista. Tente de novo.",
   "eat.libReceivedToday": "Compartilhada · Recebida hoje",
-  "eat.libReceivedOn": "Compartilhada · Recebida em {date}"
+  "eat.libReceivedOn": "Compartilhada · Recebida em {date}",
+  "tabs.day": "Dia",
+  "tabs.grocery": "Mercado",
+  "tabs.library": "Biblioteca",
+  "tabs.recipes": "Receitas"
 }

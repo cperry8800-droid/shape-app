@@ -400,6 +400,7 @@
   "grocery.shop.byMeal": "Блюда",
   "grocery.shop.byMealHint": "Каждый продукт стоит под блюдом, для которого он нужен. Пропустите блюдо — его продукты уйдут из списка.",
   "grocery.shop.inCart": "{count} в корзине",
+  "grocery.shop.inCartOf": "{done} из {total} в корзине",
   "grocery.shop.itemsGot": "{count, plural, one {# продукт} few {# продукта} many {# продуктов} other {# продукта}} · собрано {got}",
   "grocery.shop.mealKicker": "Блюдо",
   "grocery.shop.mealsItems": "{meals, plural, one {# блюдо} few {# блюда} many {# блюд} other {# блюда}} · {items, plural, one {# продукт} few {# продукта} many {# продуктов} other {# продукта}}.",
@@ -423,11 +424,16 @@
   "eat.shop.tagAria": "Покупки для «{meal}»: {status}",
   "eat.shop.alsoMany": "{count, plural, one {ещё # блюдо} few {ещё # блюда} many {ещё # блюд} other {ещё # блюда}}",
   "grocery.shop.sendMember": "Отправить участнику →",
+  "grocery.shop.switchList": "Сменить список",
   "grocery.share.meta": "Список покупок · {count, plural, one {# позиция} few {# позиции} many {# позиций} other {# позиции}}",
   "grocery.share.save": "Сохранить в мои списки",
   "grocery.share.saved": "✓ Сохранено в ваши списки",
   "grocery.share.savedToast": "Сохранено в ваши списки покупок",
   "grocery.share.saveFail": "Не удалось сохранить список. Попробуйте ещё раз.",
   "eat.libReceivedToday": "Общий · Получен сегодня",
-  "eat.libReceivedOn": "Общий · Получен {date}"
+  "eat.libReceivedOn": "Общий · Получен {date}",
+  "tabs.day": "День",
+  "tabs.grocery": "Покупки",
+  "tabs.library": "Библиотека",
+  "tabs.recipes": "Рецепты"
 }

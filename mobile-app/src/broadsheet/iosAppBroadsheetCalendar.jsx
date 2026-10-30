@@ -460,17 +460,28 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         </div>
       )}
 
-      {/* Month | Weeks — the house's pill switch (as on the leaderboards). */}
+      {/* Month | Weeks — a quiet segmented switch (owner, 2026-10-30: "redesign look of
+          these"). The solid ink pill it replaces was the loudest thing on the page, louder than
+          the month it switches; now the lit view is a raised paper tab on a faint track, with a
+          small grid or list mark so the two read apart at a glance. */}
       <div style={{ padding: `10px ${t.padX}px ${useServer && view === 'month' ? 0 : 10}px` }}>
-        <div role="tablist" aria-label={tr('calendar:view.label', { defaultValue: 'Calendar view' })} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 3, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: 3 }}>
-          {[['month', tr('calendar:view.month', { defaultValue: 'Month' })], ['weeks', tr('calendar:view.weeks', { defaultValue: 'Weeks' })]].map(([k, l]) => {
+        <div role="tablist" aria-label={tr('calendar:view.label', { defaultValue: 'Calendar view' })} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 3, padding: 3, borderRadius: 11, background: `rgba(${t.inkRGB || '127,127,127'},${t.isLight ? 0.06 : 0.08})` }}>
+          {[['month', tr('calendar:view.month', { defaultValue: 'Month' }), 'M3.5 5.5h17M3.5 5.5v14h17v-14M3.5 10.5h17M3.5 15h17M9 10.5v9M15 10.5v9'], ['weeks', tr('calendar:view.weeks', { defaultValue: 'Weeks' }), 'M4 6h16M4 12h16M4 18h16']].map(([k, l, d]) => {
             const on = view === k;
             return (
               <button key={k} type="button" role="tab" aria-selected={on} onClick={() => setView(k)} style={{
-                minHeight: 38, padding: '0 4px', borderRadius: 999, border: 0, cursor: 'pointer',
-                background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70,
+                minHeight: 38, padding: '0 4px', borderRadius: 8, border: 0, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                // Light papers raise the lit tab in paper; dark ones in a lighter ink wash, so the
+                // lit tab always sits above its track rather than sinking below it.
+                background: on ? (t.isLight ? t.PAPER : `rgba(${t.inkRGB || '127,127,127'},0.16)`) : 'transparent', color: on ? t.INK : t.INK70,
+                boxShadow: on && t.isLight ? `inset 0 0 0 1px ${t.RULE}, 0 1px 3px rgba(0,0,0,0.08)` : 'none',
                 fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-              }}>{l}</button>
+                transition: 'background 160ms ease, color 160ms ease',
+              }}>
+                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+                {l}
+              </button>
             );
           })}
         </div>
@@ -624,16 +635,24 @@ function BSCalMonthHead({ viewYear, viewMonth, monthName, zone = null, onPrev = 
   const monthAbbr = (m) => new Date(viewYear, ((m % 12) + 12) % 12, 1).toLocaleDateString(calLocale(), { month: 'short' });
   const prevAbbr = monthAbbr(viewMonth + 11);
   const nextAbbr = monthAbbr(viewMonth + 1);
+  // Prev / next are real buttons now: a 44-point square each, the neighbouring month's short name
+  // under its chevron, so the tap target is a control and not a 9-point word.
+  const navBtn = (onClick, label, abbr, d) => (
+    <button type="button" onClick={onClick} aria-label={label} style={{ width: 44, height: 44, padding: 0, borderRadius: 10, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+      <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1 }}>{abbr}</span>
+    </button>
+  );
   return (
     <>
-      {/* Month headline — serif month (teal italic) + inline prev/next nav */}
-      <div style={{ padding: `18px ${t.padX}px 10px`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, letterSpacing: '-0.035em', lineHeight: 1, color: t.INK }}>
+      {/* Month headline — the month (teal italic) and year, with prev / next squares */}
+      <div style={{ padding: `16px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ minWidth: 0, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, letterSpacing: '-0.035em', lineHeight: 1, color: t.INK }}>
           <span style={{ fontStyle: 'italic', color: teal }}>{monthName}</span> <span>{viewYear}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <button onClick={onPrev} aria-label={tr('calendar:nav.prevMonth', { defaultValue: 'Previous month' })} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>‹ {prevAbbr}</button>
-          <button onClick={onNext} aria-label={tr('calendar:nav.nextMonth', { defaultValue: 'Next month' })} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{nextAbbr} ›</button>
+        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {navBtn(onPrev, tr('calendar:nav.prevMonth', { defaultValue: 'Previous month' }), prevAbbr, 'M15 5l-7 7 7 7')}
+          {navBtn(onNext, tr('calendar:nav.nextMonth', { defaultValue: 'Next month' }), nextAbbr, 'M9 5l7 7-7 7')}
         </div>
       </div>
 
@@ -661,11 +680,15 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
   const firstJsDow = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun..6=Sat
   const firstDow = (firstJsDow + 6) % 7; // shift to Mon=0
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const today = new Date();
-  const isCurrentMonth = today.getFullYear() === viewYear && today.getMonth() === viewMonth;
-  const todayDay = isCurrentMonth ? today.getDate() : null;
-  // for the demo month (May 2026), pin "today" visual to the 14th
-  const visualToday = isDemoMonth ? 14 : todayDay;
+  // Today is the CALENDAR's day: in the zone /api/calendar read the month in (`zone`), else this
+  // device's, as the Weeks list reads it (Codex on #2514). A coach viewing a New York calendar
+  // from Europe around midnight sees New York's today ringed and the days before it quieter, not
+  // their own. The demo month (May 2026) pins today to the 14th.
+  const [ty, tm, td] = (isDemoMonth ? '2026-05-14' : bsCalTodayIso(zone)).split('-').map(Number);
+  const visualToday = ty === viewYear && tm === viewMonth + 1 ? td : null;
+  // A day before today reads a step quieter.
+  const cellKey = (d) => viewYear * 10000 + (viewMonth + 1) * 100 + d;
+  const todayKey = ty * 10000 + tm * 100 + td;
   const cells = [];
   for (let i = 0; i < firstDow; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
@@ -688,18 +711,20 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
     <>
       <BSCalMonthHead viewYear={viewYear} viewMonth={viewMonth} monthName={monthName} zone={zone} onPrev={onPrev} onNext={onNext} />
 
-      {/* DOW header — single letters */}
+      {/* DOW header — single letters; the weekend a step quieter */}
       <div style={{ padding: `2px ${t.padX}px 6px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
         {dowNarrow.map((d, i) => (
-          <div key={i} style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, fontWeight: 700, textAlign: 'center' }}>{d}</div>
+          <div key={i} style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', color: i >= 5 ? t.INK50 : t.INK70, fontWeight: 700, textAlign: 'center' }}>{d}</div>
         ))}
       </div>
 
-      {/* Grid — UNBOXED (owner-approved pass, 2026-07-13): the 31 bordered
-          cells die for hairline week rows of bare day numerals + kind dots.
-          Selected day = a filled accent disc; today (unselected) = an accent
-          numeral. The per-cell count numeral is gone — the dots carry the
-          kinds visually, and the aria-label carries the count. */}
+      {/* Grid — UNBOXED (owner-approved pass, 2026-07-13): hairline week rows of bare
+          day numerals + kind dots, no bordered cells. The 2026-10-30 redesign keeps that
+          and makes it readable: a 32-point numeral disc (selected = filled teal; today =
+          a teal ring, so the two never look alike), past days a step quieter than the
+          days ahead, and ONE round dot per KIND on the day (training, meals, check-in,
+          consult) instead of a 3.5-point tick per event, so a busy day reads as what is
+          on it rather than how many. The aria-label still carries the count. */}
       <div style={{ padding: `0 ${t.padX}px` }}>
         {weeks.map((row, ri) => (
           <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: `1px solid ${t.HAIR}` }}>
@@ -707,19 +732,20 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
               if (d == null) return <div key={ci} aria-hidden />;
               const isToday = d === visualToday;
               const isSel = d === selDay;
+              const isPast = cellKey(d) < todayKey;
               const dayEv = eventsByDay[d] || [];
-              const dotsAccents = dayEv.slice(0, 4).map(accentOf);
+              const kinds = [...new Set(dayEv.map(accentOf))].slice(0, 4);
               return (
                 <button key={ci} type="button" onClick={() => setSelDay(d)}
                   aria-label={[`${monthName} ${d}`,
                     ...(dayEv.length ? [tr('calendar:day.items', { count: dayEv.length, defaultValue: '{count, plural, one {# item} other {# items}}' })] : []),
                     ...(isSel ? [tr('calendar:aria.selected', { defaultValue: 'selected' })] : []),
                     ...(isToday ? [tr('calendar:aria.today', { defaultValue: 'today' })] : [])].join(', ')}
-                  style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '7px 0 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                  <span style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 13, lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', background: isSel ? teal : 'transparent', color: isSel ? t.PAPER : (isToday ? teal : t.INK70) }}>{d}</span>
-                  <span style={{ display: 'flex', gap: 2.5, height: 4, overflow: 'hidden' }}>
-                    {dotsAccents.map((c, k) => (
-                      <span key={k} style={{ width: 4, height: 3.5, borderRadius: 1, background: c, display: 'inline-block', flex: '0 0 auto' }} />
+                  style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 52, padding: '6px 0 7px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 32, height: 32, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontWeight: isSel || isToday ? 700 : t.W.display, fontSize: 15, lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', background: isSel ? teal : 'transparent', boxShadow: !isSel && isToday ? `inset 0 0 0 1.5px ${teal}` : 'none', color: isSel ? t.PAPER : (isToday ? teal : (isPast ? t.INK50 : t.INK)), transition: 'background 160ms ease, color 160ms ease' }}>{d}</span>
+                  <span aria-hidden style={{ display: 'flex', gap: 3, height: 5 }}>
+                    {kinds.map((c, k) => (
+                      <span key={k} style={{ width: 5, height: 5, borderRadius: '50%', background: c, opacity: isPast ? 0.7 : 1, flex: '0 0 auto' }} />
                     ))}
                   </span>
                 </button>
@@ -731,25 +757,32 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
 
       {/* Legend — derived from the SAME kind map the dots + spines resolve
           through, so the three can never disagree. */}
-      <div style={{ padding: `10px ${t.padX}px 8px`, display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
+      <div style={{ padding: `12px ${t.padX}px 10px`, display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
         {[['training', 'Training', 'TRN'], ['meals', 'Meals', 'MEAL'], ['checkin', 'Check-in', 'CHECKIN'], ['consult', 'Consult', 'CONSULT']].map(([ks, dv, k]) => (
-          <span key={ks} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 1.5, background: kindAccent[k], display: 'inline-block' }} />{tr('calendar:legend.' + ks, { defaultValue: dv })}
+          <span key={ks} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: kindAccent[k], display: 'inline-block' }} />{tr('calendar:legend.' + ks, { defaultValue: dv })}
           </span>
         ))}
       </div>
 
-      {/* Month register — figure-over-label columns (was a one-line tally) */}
+      {/* Month register — a quiet card: the month's three figures over their labels, split by
+          hairlines, and a bar of how much of it is done (was three loose numerals under a
+          heavy ink rule, read as a footer rather than the month's tally). */}
       {monthTotal > 0 && (
-        <div style={{ margin: `4px ${t.padX}px 14px`, borderTop: `2px solid ${t.INK}`, paddingTop: 8, display: 'flex' }}>
-          {/* "Open", not "Ahead" — a browsed past month's never-completed
-              events are open items, not upcoming ones. */}
-          {[[monthTotal, tr('calendar:register.thisMonth', { defaultValue: 'This month' }), t.INK], [doneCount, tr('calendar:register.done', { defaultValue: 'Done' }), teal], [monthTotal - doneCount, tr('calendar:register.open', { defaultValue: 'Open' }), t.INK]].map(([v, l, c], ri2) => (
-            <div key={ri2} style={{ flex: 1 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, letterSpacing: '-0.03em', color: c, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{v}</div>
-              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
-            </div>
-          ))}
+        <div style={{ margin: `4px ${t.padX}px 16px`, padding: '12px 14px 13px', border: `1px solid ${t.RULE}`, borderRadius: 10, background: t.PAPER2 }}>
+          <div style={{ display: 'flex' }}>
+            {/* "Open", not "Ahead" — a browsed past month's never-completed
+                events are open items, not upcoming ones. */}
+            {[[monthTotal, tr('calendar:register.thisMonth', { defaultValue: 'This month' }), t.INK], [doneCount, tr('calendar:register.done', { defaultValue: 'Done' }), teal], [monthTotal - doneCount, tr('calendar:register.open', { defaultValue: 'Open' }), t.INK]].map(([v, l, c], ri2) => (
+              <div key={ri2} style={{ flex: 1, minWidth: 0, paddingLeft: ri2 ? 12 : 0, borderLeft: ri2 ? `1px solid ${t.HAIR}` : 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, letterSpacing: '-0.03em', color: c, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{v}</div>
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l}</div>
+              </div>
+            ))}
+          </div>
+          <div aria-hidden style={{ marginTop: 11, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${Math.round((doneCount / monthTotal) * 100)}%`, background: teal, borderRadius: 2 }} />
+          </div>
         </div>
       )}
 
