@@ -3269,7 +3269,9 @@ const SHAPE_CHECKOUT_NOTICES = {
   code_invalid: ["error", "That code isn't valid. Check it and try again. Nothing was charged."],
   code_not_here: ["error", "That code can't be used with this coach. Try again without it. Nothing was charged."],
   code_check_failed: ["error", "We couldn't check that code. Nothing was charged. Try again in a moment."],
-  payment_pending: ["error", "A recent checkout with this coach is still being confirmed, so a new one can't start yet. Nothing was charged. If this lasts more than a few days, contact support."],
+  // ⚠ NOT "NOTHING WAS CHARGED" (Codex on #2522): this is a recent checkout on the coach's former
+  // Stripe account that Shape can no longer read (retireCoachCheckouts), which may have been paid.
+  payment_pending: ["error", "We can't confirm a recent checkout with this coach yet, so a new one didn't start. It may have gone through: check your email for a receipt before paying again. If this lasts more than a few days, contact support."],
   membership_required: ["error", "Coaching needs a Shape membership, and it couldn't be started from here. Nothing was charged. Start one on the Pricing page."],
   membership_check_failed: ["error", "We couldn't check your Shape membership. Nothing was charged. Try again in a moment."],
   age_restricted: ["error", "Shape is for adults 18 and over."],

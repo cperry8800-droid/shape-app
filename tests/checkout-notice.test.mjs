@@ -84,6 +84,17 @@ test('every error code the checkout returns with has a line', () => {
   assert.deepEqual(missing, [], 'codes sent back with no line: ' + missing.join(', '));
 });
 
+test('a checkout that may have been paid is never told nothing was charged', () => {
+  // ⚠ Codex on #2522: payment_pending is a recent checkout on the coach's former account that
+  // Shape can't read (src/lib/checkout-barrier.ts, `unverified`), so it may have gone through.
+  const n = A.shapeCheckoutNotice('payment_pending');
+  assert.ok(n, 'payment_pending has no line');
+  assert.doesNotMatch(n.text, /nothing (new )?was charged/i);
+  assert.match(n.text, /receipt before paying again/);
+  // The sender still means that: the code comes from the unverified former-account checkout.
+  assert.match(read('src/app/subscribe/actions.ts'), /if \(retired\.unverified\) redirect\(`\$\{backHref\}&error=payment_pending`\)/);
+});
+
 test('a database or Stripe failure shows the plain line, never its own message', () => {
   for (const raw of ['stripe: No such price: price_123', 'stripe_setup: Invalid API Key provided', 'db_PGRST116: JSON object requested, multiple rows returned', 'db_error: boom']) {
     const n = A.shapeCheckoutNotice(raw);
