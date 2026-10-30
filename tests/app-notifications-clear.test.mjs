@@ -204,6 +204,13 @@ test('a refresh that fails keeps the list on screen; an empty inbox still says a
   await flush();
   assert.match(v.text(), /Tom replied/, 'a failed refresh emptied the list');
   assert.doesNotMatch(v.text(), /Couldn’t load/);
+  // Codex on #2519: that failed refresh must not linger behind the rows. Clearing them is an empty
+  // inbox, not a failed read.
+  await click(button(v.host, /^Clear all$/));
+  await click(button(v.host, /^Yes$/));
+  await flush();
+  assert.match(v.text(), /You’re all caught up\./);
+  assert.doesNotMatch(v.text(), /Couldn’t load/, 'a refresh that failed behind the rows came back after Clear all');
   await v.unmount();
   fakeService({ rows: [] });
   const e = await mount(inChrome(React.createElement(BSNotifications, { onBack: () => {} })));

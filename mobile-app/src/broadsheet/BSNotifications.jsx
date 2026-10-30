@@ -85,13 +85,16 @@ export function BSNotifications({ onBack, onRoute = () => {} }) {
   const gen = React.useRef(0);
   const clearing = React.useRef(false);
   const reloadAfter = React.useRef(false);
+  const shown = React.useRef(null);
+  shown.current = items;
 
   const load = () => {
     if (clearing.current) { reloadAfter.current = true; return Promise.resolve(); }
     const g = gen.current;
     // ⚠ A FAILED READ IS NOT "YOU'RE ALL CAUGHT UP". It says it couldn't load, with Try again; a
-    // list already on screen stays as it was.
-    const fail = () => { if (g === gen.current) setLoadFailed(true); };
+    // list already on screen stays as it was, with no failure kept behind it, or clearing those
+    // rows would say "Couldn't load" (Codex on #2519).
+    const fail = () => { if (g === gen.current && !(shown.current && shown.current.length)) setLoadFailed(true); };
     return Promise.resolve(window.ShapeNotifications?.list?.())
       .then((d) => {
         if (g !== gen.current) return;
