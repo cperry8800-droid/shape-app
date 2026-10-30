@@ -213,8 +213,9 @@ test('the sample trainer\'s words all go through say, each with the English cata
       assert.ok(d.reviews.list.every((r) => said(r.text) && !said(r.author)), `${where}: the reviews' words, not their names`);
     }
   }
-  // Every sample key the English catalog has is one the sample asks for, so none is left over.
-  const keys = Object.keys(en).filter((k) => k.startsWith('sample.')).map((k) => 'profile:' + k);
+  // Every trainer sample key the English catalog has is one the sample asks for, so none is left
+  // over (the nutritionist sample's are sample.nutri.*, tests/nutritionist-profile.test.mjs).
+  const keys = Object.keys(en).filter((k) => k.startsWith('sample.') && !k.startsWith('sample.nutri.')).map((k) => 'profile:' + k);
   assert.deepEqual([...asked.keys()].sort(), keys.sort());
   // With no translator, the English as before.
   const plain = bsTrainerDemo({ kind: 'garage', family: 'conditioning' });
