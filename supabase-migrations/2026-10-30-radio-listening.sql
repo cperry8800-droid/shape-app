@@ -57,9 +57,10 @@ create table if not exists public.radio_listen_peaks (
 
 -- One row per listen: `listen` is the player's random id for it, so an end closes that listen and no
 -- other (a resume's start can reach the server before the pause's end, and one of two devices can
--- stop while the other plays). `played` is how much of the listen has been credited; the player
--- sends its running total, so a beat that arrives late adds nothing, and `ended` keeps it from
--- reopening an ended listen (Codex P2 ×2 on #2527). `credited_to` is how far this account's
+-- stop while the other plays). `played` is the highest running total the player has reported for
+-- it, credited or not: a beat is credited only what it adds to that, so a late beat adds nothing and
+-- time refused once (two devices at once) can't be claimed again later; `ended` keeps a late beat
+-- from reopening an ended listen (Codex P2 ×3 on #2527). `credited_to` is how far this account's
 -- listening has been credited, the same on all its rows, so two listens at once never count a
 -- second twice.
 create table if not exists public.radio_listen_live (
@@ -88,7 +89,7 @@ grant select, insert, update, delete on table public.radio_listen_live to servic
 -- A beat. p_user is the account the route read from the request's own session; p_listen is the
 -- player's random id for this listen; p_played is how long it says the listen has played since it
 -- began; p_end says the stream stopped. A listen's first beat is a tune-in. A later one is credited
--- what its total adds to what this listen already has, but never more than the time since this
+-- what its total adds to the highest this listen has reported, but never more than the time since this
 -- account was last credited, or since this listen's last beat (plus 2 seconds for the network), or
 -- 10 minutes, so a second device on the same account, or a player that claims too much, can't add
 -- listening that didn't happen. A beat for an ended listen adds nothing. Each account gets 6 beats
@@ -161,8 +162,8 @@ begin
     -- pause's end) credits nothing twice. An end that arrives before its own start (a play paused at
     -- once) is the tune-in too, and leaves the listen ended, so the start that follows reopens
     -- nothing (Codex P2 on #2527).
-    insert into public.radio_listen_live (listen, listener, surface, audience, last_beat, credited_to, ended)
-    values (p_listen, p_user, p_surface, v_audience, now(), v_credited, coalesce(p_end, false))
+    insert into public.radio_listen_live (listen, listener, surface, audience, last_beat, credited_to, played, ended)
+    values (p_listen, p_user, p_surface, v_audience, now(), v_credited, greatest(coalesce(p_played, 0), 0), coalesce(p_end, false))
     on conflict (listen) do nothing;
     get diagnostics v_tune_in = row_count;
     if v_tune_in = 0 then
@@ -185,7 +186,7 @@ begin
       where listener = p_user;
     end if;
     update public.radio_listen_live
-    set last_beat = now(), surface = p_surface, played = played + v_credit, ended = coalesce(p_end, false)
+    set last_beat = now(), surface = p_surface, played = greatest(played, coalesce(p_played, 0)), ended = coalesce(p_end, false)
     where listen = p_listen;
   end if;
 

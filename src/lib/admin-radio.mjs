@@ -76,7 +76,9 @@ export function radioSummary(stats) {
     daily: (Array.isArray(s.daily) ? s.daily.filter((d) => d && typeof d === 'object') : []).map((d) => ({
       day: String(d.day ?? ''),
       tune_ins: n(d.tune_ins),
-      minutes: Math.round(n(d.seconds) / 60),
+      // Not rounded here: the chart adds the days up, and rounding each first would make 30 seconds
+      // on each of seven days read as seven minutes (Codex P2 on #2527). The chart rounds what it shows.
+      minutes: n(d.seconds) / 60,
       peak: n(d.peak),
     })),
     peak: peak ? { listeners: n(peak.listeners), at: String(peak.at ?? ''), day: String(peak.day ?? '') } : null,

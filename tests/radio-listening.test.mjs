@@ -350,7 +350,7 @@ test('migration: a listener counts once, and never for more time than has passed
   // A listen's first beat is its tune-in; it takes the account's credited mark. An end that arrives
   // before its own start is the tune-in too and leaves the listen ended, so the late start reopens
   // nothing (Codex P2 on #2527).
-  assert.match(fn, /values \(p_listen, p_user, p_surface, v_audience, now\(\), v_credited, coalesce\(p_end, false\)\)\s+on conflict \(listen\) do nothing;\s+get diagnostics v_tune_in = row_count;/);
+  assert.match(fn, /values \(p_listen, p_user, p_surface, v_audience, now\(\), v_credited, greatest\(coalesce\(p_played, 0\), 0\), coalesce\(p_end, false\)\)\s+on conflict \(listen\) do nothing;\s+get diagnostics v_tune_in = row_count;/);
   // The account's listens are locked, and its mark read, before the listen is looked up.
   assert.match(fn, /perform 1 from public\.radio_listen_live where listener = p_user for update;\s+select max\(l\.credited_to\) into v_credited from public\.radio_listen_live l where l\.listener = p_user;/);
   assert.match(fn, /if v_owner is not null and v_owner <> p_user then\s+return 0;/, 'another account\'s listen is never touched');
@@ -363,7 +363,9 @@ test('migration: a listener counts once, and never for more time than has passed
   assert.match(fn, /if v_credit > 0 then\s+update public\.radio_listen_live\s+set credited_to = least\(now\(\), greatest\(v_credited, v_last\) \+ make_interval\(secs => v_credit\)\)\s+where listener = p_user;\s+end if;/);
   // An end marks its own listen ended and no other; a beat that arrives after it adds nothing and
   // reopens nothing (Codex P2 ×2 on #2527).
-  assert.match(fn, /update public\.radio_listen_live\s+set last_beat = now\(\), surface = p_surface, played = played \+ v_credit, ended = coalesce\(p_end, false\)\s+where listen = p_listen;/);
+  // `played` keeps the highest total reported, credited or not, so time refused once (two devices
+  // at once) can't be claimed again by a later beat (Codex P2 on #2527).
+  assert.match(fn, /update public\.radio_listen_live\s+set last_beat = now\(\), surface = p_surface, played = greatest\(played, coalesce\(p_played, 0\)\), ended = coalesce\(p_end, false\)\s+where listen = p_listen;/);
   assert.match(fn, /elsif v_ended then\s+return 0;/);
   assert.doesNotMatch(fn, /delete from public\.radio_listen_live where listen/, 'an end is kept as a marker, not deleted');
   // A trainer, a nutritionist or a dietitian is a coach, as src/lib/roles.mjs's COACH_ROLES and the tap counts have it (Codex P2 on #2527).
@@ -426,6 +428,11 @@ test('admin-radio: the summary, and an empty or broken answer reads as none', ()
   assert.deepEqual(s.surfaces, { app: { tuneIns: 6, seconds: 6750 }, web: { tuneIns: 2, seconds: 2250 } });
   assert.deepEqual(s.audiences.coach, { tuneIns: 1, seconds: 900 });
   assert.deepEqual(s.daily[1], { day: '2026-10-30', tune_ins: 5, minutes: 100, peak: 3 });
+  // A day's minutes are not rounded before the chart adds them up (Codex P2 on #2527): 30 seconds on
+  // each of seven days is three and a half minutes, not seven.
+  const week = R.radioSummary({ seconds: 210, daily: Array.from({ length: 7 }, (_, i) => ({ day: `2026-10-2${i}`, seconds: 30 })) });
+  assert.equal(week.daily.reduce((t, d) => t + d.minutes, 0), 3.5);
+  assert.equal(overview.dailyColumns(week.daily, 'minutes').total, 3.5);
   assert.deepEqual(s.peak, { listeners: 3, at: '2026-10-30T23:42:00Z', day: '2026-10-30' });
   assert.deepEqual(s.now, { listeners: 2, web: 1, app: 1 });
   assert.equal(R.listenShare(6750, 9000), '75%');
