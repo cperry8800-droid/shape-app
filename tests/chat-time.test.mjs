@@ -111,8 +111,14 @@ test('a channel opened in German says each message\'s time in German', async () 
 
 test('the team list and a live message use the stamp too', () => {
   const client = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
-  // The row's time is the last message's, in the list's shorter form.
-  assert.match(client, /const time = f\.time \|\| \(lastM \? \(\(lastM\.at && bsChatStamp\(lastM\.at, bsDateLocale\(\), \{ list: true \}\)\) \|\| lastM\.time \|\| ''\) : ''\);/);
+  // The row's time is the last message's (the thread's, with none loaded), in the list's shorter form.
+  assert.match(client, /const stampAt = \(lastM \? lastM\.at : f\.at\) \|\| null;\s+const time = f\.time \|\| \(stampAt && bsChatStamp\(stampAt, bsDateLocale\(\), \{ list: true \}\)\) \|\| \(lastM && lastM\.time\) \|\| '';/);
+  // The coach and member rows carry the stamps through (Codex P2 on 0c65f77: the coach rows rebuilt each
+  // message without its `at`, so the list fell back to the bubble's long form).
+  const rows = client.slice(client.indexOf('const threadRows = (coachThreads || [])'), client.indexOf('const startDm = async (m) =>'));
+  assert.equal((rows.match(/at: th\.at \|\| null,/g) || []).length, 2, 'both row kinds keep the thread\'s stamp');
+  assert.match(rows, /time: m\.time \|\| '', at: m\.at \|\| null, me:/, 'a coach row\'s messages keep theirs');
+  assert.match(rows, /messages: th\.messages \|\| \[\],/, 'a member row keeps its messages as they are');
   // A message that arrives while the thread is open carries its row's stamp.
   const live = client.slice(client.indexOf('// Realtime: new messages from others drop into the open thread live.'));
   assert.equal((live.slice(0, 3000).match(/at: row\.created_at \|\| null/g) || []).length, 3);

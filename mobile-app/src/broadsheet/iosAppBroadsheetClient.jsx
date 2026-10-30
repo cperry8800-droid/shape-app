@@ -24089,8 +24089,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     c: _threadPalette[i % _threadPalette.length],
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
+    at: th.at || null,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ id: m.id || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null, grocery: m.grocery || null })),
+    messages: (th.messages || []).map(m => ({ id: m.id || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', at: m.at || null, me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null, grocery: m.grocery || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land
@@ -24192,6 +24193,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     c: _threadPalette[i % _threadPalette.length],
     i: (th.who || 'M').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
+    at: th.at || null,
     conversation_id: th.conversation_id,
     messages: th.messages || [],
   }));
@@ -25011,9 +25013,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           const Row = (f, i, arr) => {
             const count = (unread && unread['dm:' + (f.conversation_id || '')]) || 0;
             const last = f.last || (f.messages && f.messages.length ? (f.messages[f.messages.length - 1].t || '') : '');
-            // The last message's time, said in the app's language from its stamp when it has one.
+            // The last message's time (the thread's, with none loaded), said in the app's language from its
+            // stamp when it has one.
             const lastM = f.messages && f.messages.length ? f.messages[f.messages.length - 1] : null;
-            const time = f.time || (lastM ? ((lastM.at && bsChatStamp(lastM.at, bsDateLocale(), { list: true })) || lastM.time || '') : '');
+            const stampAt = (lastM ? lastM.at : f.at) || null;
+            const time = f.time || (stampAt && bsChatStamp(stampAt, bsDateLocale(), { list: true })) || (lastM && lastM.time) || '';
             const online = !!f.online || count > 0;
             const isLast = Array.isArray(arr) && i === arr.length - 1;
             // In the Wall's magazine look (owner, 2026-10-24: "make the team list match the new design too"):
