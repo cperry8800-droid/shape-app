@@ -17013,12 +17013,14 @@ function bsComposerVisFor(doc) {
   return 'public';
 }
 
-function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) {
+function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null, startKind = null }) {
   const tr = useShapeTr();
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const TEAL = c;
   const ed = editPost || null;
-  const seedKind = ed ? (ed.kind || (ed.video ? 'video' : ed.link ? 'link' : ed.photo ? 'photo' : (Array.isArray(ed.workoutStats) && ed.workoutStats.length ? 'workout' : 'note'))) : 'note';
+  // A new post opens on `startKind` when the caller names one (the coach profile's "Post a workout
+  // video" opens on Video).
+  const seedKind = ed ? (ed.kind || (ed.video ? 'video' : ed.link ? 'link' : ed.photo ? 'photo' : (Array.isArray(ed.workoutStats) && ed.workoutStats.length ? 'workout' : 'note'))) : (['note', 'photo', 'video', 'workout', 'milestone', 'link'].includes(startKind) ? startKind : 'note');
   const [kind, setKind] = useStateBSC(seedKind);
   const [title, setTitle] = useStateBSC(ed ? (ed.title || '') : '');
   // Milestone edits seed the detail line from the stored payload (their note
@@ -38705,7 +38707,7 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
   );
 }
 
-Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, bsScreenName, bsBuilderAisleFor, bsAisleLabel, BSUniversalSearch, BSSearchCorner, bsStartPlatformCheckout });
+Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, bsScreenName, bsBuilderAisleFor, bsAisleLabel, BSUniversalSearch, BSSearchCorner, bsOpenCheckout, bsStartPlatformCheckout });
 // The notification router, for the coach shells' tapped pushes (fix 3a, Codex on #2360).
 Object.assign(window, { bsRouteNotification });
 // The coach app's Notifications page shows the same phone-notifications row (L5).

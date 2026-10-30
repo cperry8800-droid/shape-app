@@ -20,6 +20,7 @@
 // No pronouns: the sample coach's words go by their first name.
 
 import { bsStudioFromTemplate, STUDIO_WORDS } from './studioKit.mjs';
+import { bsCoachPrograms } from './coachWork.mjs';
 
 // The demo photos (mobile-app/public/demo), and the only wall photos a sample page shows or
 // Make it yours offers there.
@@ -48,6 +49,15 @@ const NOTES = {
   bags: 'Bag rounds for conditioning: three minutes hard, one minute off.',
   rig: 'Pull-ups, rows and hangs. Everyone leaves with stronger hands.',
   meetHere: 'We meet here whatever the weather. Bring water and a layer.',
+};
+
+// The station each starting layout pins a sample program to, by its key.
+const PINS = {
+  squatRacks: () => BS_SAMPLE_PROGRAM_IDS.strong,
+  squatRack: () => BS_SAMPLE_PROGRAM_IDS.strong,
+  rack: (family) => (family === 'conditioning' ? BS_SAMPLE_PROGRAM_IDS.engine : BS_SAMPLE_PROGRAM_IDS.strong),
+  kettlebells: (family) => (family === 'conditioning' ? BS_SAMPLE_PROGRAM_IDS.bells : BS_SAMPLE_PROGRAM_IDS.basics),
+  turf: () => BS_SAMPLE_PROGRAM_IDS.engine,
 };
 
 // Weekly open hours as the hours editor stores them: Monday to Friday 6:00 to 20:00, Saturday
@@ -129,6 +139,64 @@ function replaysFor(family, lb, photo) {
   ];
 }
 
+// Sample programs, in the shape the public preview gives a real coach's (names, weeks, days and
+// each move's equipment; 2026-10-29-program-preview-names.sql), so the page reads them through the
+// same bsCoachPrograms. Their ids are fixed, so a sample station can pin one. The moves are the
+// exercise library's (dashBuilderCore.js EXERCISES), with its equipment.
+//
+// The clips: sample videos generated for the samples (the owner chose generated clips,
+// 2026-10-29), recorded in marketing/shape-radio-launch-cut.md's Sources table. Until a clip is
+// there its slot is null, and the program shows its weeks in place of a video and the workout
+// is not listed.
+export const BS_SAMPLE_CLIPS = Object.freeze({ squat: null, deadlift: null, row: null, swings: null });
+const DOW = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 };
+function samplePlan(id, name, price, weeks, days, clip, note) {
+  const blocks = [], firstWeek = [];
+  days.forEach(([wd, dayName, moves], day) => {
+    firstWeek.push({ week: 0, day, weekday: DOW[wd], dayName, moves: moves.length });
+    for (const [n, equipment, muscle] of moves) blocks.push({ week: 0, day, weekday: DOW[wd], dayName, name: n, equipment, muscle, text: n });
+  });
+  return { id, kind: 'program', name, price, meta: `${weeks} weeks`, detail: { preview: true, blocks, weeks, firstWeek, media: clip ? [{ url: clip, type: 'video', name }] : [], note } };
+}
+export const BS_SAMPLE_PROGRAM_IDS = Object.freeze({
+  strong: '5a3e0000-0000-4000-8000-000000000001', basics: '5a3e0000-0000-4000-8000-000000000002',
+  engine: '5a3e0000-0000-4000-8000-000000000003', bells: '5a3e0000-0000-4000-8000-000000000004',
+});
+function programsFor(family) {
+  const I = BS_SAMPLE_PROGRAM_IDS;
+  const plans = family === 'conditioning' ? [
+    samplePlan(I.engine, 'Engine 8', 59, 8, [
+      ['MON', 'Intervals', [['Rower', 'Rower', 'Full body'], ['Kettlebell swing', 'Kettlebell', 'Posterior chain'], ['Box jump', 'Box', 'Quads'], ['Plank', 'Bodyweight', 'Core']]],
+      ['WED', 'Strength for engines', [['Goblet squat', 'Dumbbell', 'Quads'], ['Push-up', 'Bodyweight', 'Chest'], ['Dumbbell row', 'Dumbbell', 'Back'], ['Sled push', 'Sled', 'Full body']]],
+      ['SAT', 'The long one', [['Assault bike', 'Bike', 'Full body'], ['Farmer carry', 'Dumbbell', 'Grip'], ['Walking lunge', 'Dumbbell', 'Quads'], ['Bird dog', 'Bodyweight', 'Core']]],
+    ], BS_SAMPLE_CLIPS.row, 'Three days a week. The intervals get longer every two weeks, and the rest gets shorter.'),
+    samplePlan(I.bells, 'Bike and bells', 29, 4, [
+      ['TUE', 'Bike', [['Assault bike', 'Bike', 'Full body'], ['Kettlebell swing', 'Kettlebell', 'Posterior chain'], ['Hanging leg raise', 'Bodyweight', 'Core']]],
+      ['THU', 'Bells', [['Rower', 'Rower', 'Full body'], ['Sled push', 'Sled', 'Full body'], ['Dead bug', 'Bodyweight', 'Core']]],
+    ], BS_SAMPLE_CLIPS.swings, 'Twenty-five minutes, twice a week, for the weeks with no time.'),
+  ] : [
+    samplePlan(I.strong, 'Strong in 12', 79, 12, [
+      ['MON', 'Squat', [['Back squat', 'Barbell', 'Quads'], ['Romanian deadlift', 'Barbell', 'Hamstrings'], ['Walking lunge', 'Dumbbell', 'Quads'], ['Plank', 'Bodyweight', 'Core']]],
+      ['WED', 'Press', [['Bench press', 'Barbell', 'Chest'], ['Barbell row', 'Barbell', 'Back'], ['Dumbbell shoulder press', 'Dumbbell', 'Shoulders'], ['Face pull', 'Cable', 'Rear delts']]],
+      ['FRI', 'Pull', [['Deadlift', 'Barbell', 'Posterior chain'], ['Pull-up', 'Bodyweight', 'Back'], ['Hip thrust', 'Barbell', 'Glutes'], ['Farmer carry', 'Dumbbell', 'Grip']]],
+    ], BS_SAMPLE_CLIPS.squat, 'Three lifting days a week. Every top set is filmed and gets a note back.'),
+    samplePlan(I.basics, 'Barbell basics', 39, 6, [
+      ['TUE', 'Lower', [['Goblet squat', 'Dumbbell', 'Quads'], ['Trap-bar deadlift', 'Trap bar', 'Posterior chain'], ['Leg press', 'Machine', 'Quads'], ['Dead bug', 'Bodyweight', 'Core']]],
+      ['THU', 'Upper', [['Dumbbell bench press', 'Dumbbell', 'Chest'], ['Overhead press', 'Barbell', 'Shoulders'], ['Lat pulldown', 'Cable', 'Back'], ['Suitcase carry', 'Dumbbell', 'Core']]],
+    ], BS_SAMPLE_CLIPS.deadlift, 'For a first year under the bar: two days a week, every lift taught from the start.'),
+  ];
+  return bsCoachPrograms(plans).map((p) => ({ ...p, sample: true }));
+}
+// The workouts a sample coach posted on video: one per clip there is.
+function workoutsFor(family) {
+  const list = family === 'conditioning'
+    ? [['demo-v-row', 'Rower pacing', 'Long strokes, legs first. Hold the same split for every interval.', '3d', BS_SAMPLE_CLIPS.row],
+      ['demo-v-swing', 'Kettlebell swings', 'Hips snap, arms just hold on. Stop the set when the bell drifts.', '5d', BS_SAMPLE_CLIPS.swings]]
+    : [['demo-v-squat', 'Back squat, what I look for', 'Brace, sit between the hips, stand up the same way you went down.', '3d', BS_SAMPLE_CLIPS.squat],
+      ['demo-v-dead', 'Deadlift set-up', 'Bar over mid-foot, slack out of the bar, then push the floor away.', '5d', BS_SAMPLE_CLIPS.deadlift]];
+  return list.filter((w) => w[4]).map(([key, title, body, ago, url]) => ({ key, title, body, ago, typeLabel: family === 'conditioning' ? 'Conditioning' : 'Strength', video: { url, type: 'video', name: title }, breakdown: null }));
+}
+
 // A stable number from a coach's listing id or name, so the same coach always gets the same page.
 const hash = (s) => { let h = 7; for (const ch of String(s || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
 
@@ -169,7 +237,7 @@ export function bsTrainerDemo({ media = '/demo/', now = Date.now(), zone = null,
   const studio = {
     kind,
     where: where || '',
-    items: bsStudioFromTemplate(kind, word).map((p, i) => (p.st ? { ...p, st: { ...p.st, note: NOTES[keyed[i].st.title] || '' } } : p)),
+    items: bsStudioFromTemplate(kind, word).map((p, i) => (p.st ? { ...p, st: { ...p.st, note: NOTES[keyed[i].st.title] || '', ...(PINS[keyed[i].st.title] ? { pins: [PINS[keyed[i].st.title](family)] } : {}) } } : p)),
   };
   // The wall photo is the seed's, and the listing photos the next three after it.
   const n = BS_TRAINER_DEMO_PHOTOS.length;
@@ -226,5 +294,7 @@ export function bsTrainerDemo({ media = '/demo/', now = Date.now(), zone = null,
       ],
     },
     replays: replaysFor(family, lb, photo),
+    programs: programsFor(family),
+    workouts: workoutsFor(family),
   };
 }
