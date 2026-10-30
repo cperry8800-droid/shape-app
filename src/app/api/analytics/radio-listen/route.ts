@@ -48,11 +48,12 @@ export async function POST(request: Request) {
     if (!beat) return new NextResponse(null, { status: 204 });
     const user = await currentUser(request).catch(() => null);
     if (!user) return new NextResponse(null, { status: 204 });
-    // As src/app/api/radio/station/route.ts asks it; a check that fails counts nothing.
+    // As src/app/api/radio/station/route.ts asks it, the age gate included (a known minor gets no
+    // stream; Codex P2 on #2527); a check that fails counts nothing.
     const membership = await computeMembership(await clientForRequest(request), user.id, user.email ?? null, {
       emailConfirmed: !!user.email_confirmed_at,
     }).catch(() => null);
-    if (!membership?.isMember) return new NextResponse(null, { status: 204 });
+    if (!membership?.isMember || membership.isKnownMinor) return new NextResponse(null, { status: 204 });
     const { error } = await createAdminClient().rpc('record_radio_listen', {
       p_user: user.id,
       p_listen: beat.listen,

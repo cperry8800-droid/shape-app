@@ -225,8 +225,9 @@ test('both players count: the app on its radio audio, the website on its own, ea
 });
 
 // ── The route ────────────────────────────────────────────────────────────────────────────
-// `member` is what computeMembership answers (true, false, or 'throws'); `asked` records its call.
-async function loadRoute({ user = null, rpcError = null, member = true } = {}) {
+// `member` is what computeMembership answers (true, false, or 'throws'), `minor` its age verdict;
+// `asked` records its call.
+async function loadRoute({ user = null, rpcError = null, member = true, minor = false } = {}) {
   const calls = [];
   const asked = [];
   const client = { session: 'the request\'s own' };
@@ -239,7 +240,7 @@ async function loadRoute({ user = null, rpcError = null, member = true } = {}) {
         computeMembership: async (c, id, email, opts) => {
           asked.push({ client: c === client, id, email, opts });
           if (member === 'throws') throw new Error('membership read failed');
-          return { isMember: member === true };
+          return { isMember: member === true, isKnownMinor: minor === true };
         },
       }],
       ['@/lib/request-utils', await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true })],
@@ -300,7 +301,12 @@ test('route: only an account that may hear the stream counts, as the station rou
   assert.equal((await broken.route.POST(post({ surface: 'app', listen: LISTEN2, played: 0 }))).status, 204);
   assert.equal(broken.calls.length, 0, 'a membership read that fails counts nothing');
   assert.deepEqual(broken.asked[0].opts, { emailConfirmed: false });
+  // A known minor gets no stream (the station route's refuseKnownMinor), member or not, so counts nothing.
+  const minor = await loadRoute({ user: { id: 'u-4' }, member: true, minor: true });
+  assert.equal((await minor.route.POST(post({ surface: 'app', listen: LISTEN2, played: 0 }))).status, 204);
+  assert.equal(minor.calls.length, 0, 'a known minor records nothing');
   const station = stripComments(read('src/app/api/radio/station/route.ts'));
+  assert.match(station, /const minor = await refuseKnownMinor\(supabase, user\.id\);\s+if \(minor\) return minor;/, 'the station route turns a known minor away');
   assert.match(station, /computeMembership\(supabase, user\.id, user\.email \?\? null, \{ emailConfirmed: !!user\.email_confirmed_at \}\)/, 'the station route asks the same question');
 });
 
