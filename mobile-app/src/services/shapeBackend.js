@@ -6010,11 +6010,18 @@ async function askListingTime({ role, providerId, at, durationMin, note = '' }) 
 // 126c626: the first 100 by time alone could all be long past, and the count stopped at 100).
 const ASKS_SHOWN = 100;
 async function listingAsks(role, providerId) {
-  if (!supabase || !state.user?.id || !Number(providerId)) return { rows: [], total: 0 };
-  const id = Number(providerId);
+  const me = state.user?.id;
+  if (!supabase || !me) return { rows: [], total: 0 };
+  const id = Number(providerId) > 0 ? Number(providerId) : null;
   const nowIso = new Date().toISOString();
-  const ofListing = (cols, opts) => supabase.from('listing_time_requests').select(cols, opts)
-    .eq('provider_role', role).eq('provider_id', id);
+  // By the listing's id when the page has one. A listing the coach owns but that isn't on the
+  // marketplace yet (payouts, a price or a photo still missing: listing_ready) has no public id, so
+  // then the asks are those the row policy shows them other than their own as a member: the asks of
+  // the listings they own (Codex on 19b138c).
+  const ofListing = (cols, opts) => {
+    const q = supabase.from('listing_time_requests').select(cols, opts).eq('provider_role', role);
+    return id ? q.eq('provider_id', id) : q.neq('member_id', me);
+  };
   const COLS = 'id, member_id, slot_start, duration_min, note, created_at';
   const [ahead, all] = await Promise.all([
     ofListing(COLS).gte('slot_start', nowIso).order('slot_start', { ascending: true }).limit(ASKS_SHOWN),

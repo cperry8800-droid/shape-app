@@ -663,6 +663,13 @@ test('the coach\'s own page lists what members asked of the listing before they 
   const none = await mount(page({ isSelf: true }));
   assert.ok(!document.querySelector('[data-asks]'), 'no list with no asks');
   await none.unmount();
+  // Claimed but not on the marketplace yet (no public listing): the asks are still read, by the
+  // coach's ownership, with no id (Codex on 19b138c).
+  reset({ me: 'u-maya', provider: null, slots: [], asks: [{ id: 'a1', memberId: 'm1', name: 'Sam', at: Date.now() + DAY, durationMin: 20, note: '' }] });
+  const onboarding = await mount(page({ isSelf: true }));
+  assert.deepEqual(world.asksFor, ['trainer', null]);
+  assert.ok(document.querySelector('[data-asks]'), 'the coach sees them while onboarding');
+  await onboarding.unmount();
 });
 
 test('a seeded listing with real hours offers them to take, as its listing does', async () => {

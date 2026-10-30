@@ -254,6 +254,7 @@ test('Codex on 126c626: the coach\'s list is the times to come first, then the p
         eq(k, v) { f.push((r) => r[k] === v); return q; },
         gte(k, v) { f.push((r) => r[k] >= v); return q; },
         lt(k, v) { f.push((r) => r[k] < v); return q; },
+        neq(k, v) { f.push((r) => r[k] !== v); return q; },
         order(k, o) { sort = [k, o && o.ascending === false ? -1 : 1]; return q; },
         limit(x) { n = x; return q; },
         then(res, rej) {
@@ -280,6 +281,30 @@ test('Codex on 126c626: the coach\'s list is the times to come first, then the p
   const past = await listingAsks('trainer', 7);
   assert.deepEqual([past.total, past.rows.length, past.rows[0].id, past.rows[99].id], [150, 100, 'r0', 'r99']);
   assert.deepEqual(await new Function('supabase', 'state', `${body}\nreturn listingAsks;`)(supabase, { user: null })('trainer', 7), { rows: [], total: 0 }, 'signed out, nothing');
+  // With no public id (the coach's listing isn't on the marketplace yet), the asks are every ask the
+  // row policy shows them but their own as a member (Codex on 19b138c): here, listing 8's and 7's.
+  rows.push({ ...mk(500, NOW + DAY), provider_id: 8 }, { ...mk(501, NOW + 4 * DAY), member_id: 'u-coach', provider_id: 12 });
+  const owned = await listingAsks('trainer', null);
+  assert.equal(owned.total, 151, 'the 150 on listing 7 and the one on listing 8, never the coach\'s own ask');
+  assert.ok(!owned.rows.some((r) => r.memberId === 'u-coach'));
+  assert.equal(owned.rows[0].id, 'r500', 'the time to come leads');
+});
+
+test('the route is registered in the War Room, once', async () => {
+  // RAW_ROUTES is module-private: exported for this read, as tests/recipe-parse-route.test.mjs does.
+  const warroom = await loadRealModule(join(ROOT, 'src/lib/warroom.ts'), {
+    typescript: true,
+    appendExports: 'export const __RAW_ROUTES = RAW_ROUTES;',
+    registry: new Map([
+      ['fs/promises', { readdir: async () => [], stat: async () => ({}) }],
+      ['fs', { existsSync: () => false }],
+      ['path', require('path')],
+      ['./funnel.mjs', { buildFunnel: () => ({}) }],
+      ['./supabase/admin', { createAdminClient: () => null }],
+    ]),
+  });
+  assert.ok(warroom.__RAW_ROUTES.length > 100, 'the route table loaded');
+  assert.deepEqual(warroom.__RAW_ROUTES.filter(([p]) => p === '/api/listing-requests'), [['/api/listing-requests', 'POST']]);
 });
 
 test('the app asks through the route with its token; the claim itself tells nobody', () => {

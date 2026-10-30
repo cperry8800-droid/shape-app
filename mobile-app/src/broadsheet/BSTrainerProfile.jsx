@@ -272,15 +272,17 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const listed = providerState === 'ready' && !!provider;
   const providerId = listed ? provider.id : null;
   // The times members asked of this listing before its coach was on Shape: read on the coach's own
-  // page, which the table's policy allows once the listing is theirs.
+  // page, which the table's policy allows once the listing is theirs. Read once the listing read has
+  // settled, with its id or, for a listing not on the marketplace yet, none (the backend then reads
+  // the asks of the listings the coach owns; Codex on 19b138c).
   const [asks, setAsks] = React.useState(null);
   React.useEffect(() => {
     setAsks(null);
-    if (!isSelf || sample || demo || !providerId || !W.ShapeListingAsks?.forListing) return undefined;
+    if (!isSelf || sample || demo || providerState === 'loading' || !W.ShapeListingAsks?.forListing) return undefined;
     let on = true;
     W.ShapeListingAsks.forListing(role, providerId).then((r) => { if (on) setAsks(r && Array.isArray(r.rows) ? r : null); }).catch(() => { if (on) setAsks(null); });
     return () => { on = false; };
-  }, [isSelf, providerId, role, demo]);
+  }, [isSelf, providerId, providerState, role, demo]);
   const listedMedia = (listed && provider.listing_media) || { cover: null, gallery: [] };
   // A sample shows its listing's own photos when it has any, and the sample's where it has none.
   const media = sample

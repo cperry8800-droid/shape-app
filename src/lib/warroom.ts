@@ -310,6 +310,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/lead-boosts', 'GET,POST'],
   ['/api/leaderboard', 'GET'],
   ['/api/league', 'GET,POST'],
+  ['/api/listing-requests', 'POST'],
   ['/api/marketplace-stats', 'GET'],
   ['/api/me/account-action', 'POST'],
   ['/api/me/age-public', 'GET,PUT'],
