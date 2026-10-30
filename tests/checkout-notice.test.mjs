@@ -84,15 +84,22 @@ test('every error code the checkout returns with has a line', () => {
   assert.deepEqual(missing, [], 'codes sent back with no line: ' + missing.join(', '));
 });
 
-test('a checkout that may have been paid is never told nothing was charged', () => {
-  // ⚠ Codex on #2522: payment_pending is a recent checkout on the coach's former account that
-  // Shape can't read (src/lib/checkout-barrier.ts, `unverified`), so it may have gone through.
-  const n = A.shapeCheckoutNotice('payment_pending');
-  assert.ok(n, 'payment_pending has no line');
-  assert.doesNotMatch(n.text, /nothing (new )?was charged/i);
-  assert.match(n.text, /receipt before paying again/);
-  // The sender still means that: the code comes from the unverified former-account checkout.
+test('where another checkout may be open or paid, the line never says nothing was charged', () => {
+  // ⚠ Codex on #2522, twice. Every other line's "Nothing was charged" is about the attempt that just
+  // came back, which handed out no payable checkout. These two come while another may exist:
+  // - payment_pending: a recent checkout on the coach's former account that Shape can't read
+  //   (checkout-barrier.ts, `unverified`), so it may have gone through.
+  // - checkout_in_progress: the claim can stay held for up to 60 seconds after the request that
+  //   won it sent the member to Stripe (a failed release), so that checkout may be open or paid.
+  for (const [code, says] of [['payment_pending', /receipt before paying again/], ['checkout_in_progress', /receipt before trying again/]]) {
+    const n = A.shapeCheckoutNotice(code);
+    assert.ok(n, code + ' has no line');
+    assert.doesNotMatch(n.text, /nothing (new )?was charged/i, code);
+    assert.match(n.text, says, code);
+  }
+  // The senders still mean that.
   assert.match(read('src/app/subscribe/actions.ts'), /if \(retired\.unverified\) redirect\(`\$\{backHref\}&error=payment_pending`\)/);
+  assert.match(read('src/lib/checkout-barrier.ts'), /the claim lapses in 60 seconds/);
 });
 
 test('a database or Stripe failure shows the plain line, never its own message', () => {

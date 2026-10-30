@@ -3258,7 +3258,10 @@ const SHAPE_CHECKOUT_NOTICES = {
   purchase_cancelled: ["info", "Checkout cancelled. Nothing was charged."],
   subscribe_cancelled: ["info", "Checkout cancelled. Nothing was charged."],
   already_subscribed: ["info", "You already subscribe to this coach, so nothing new was charged."],
-  checkout_in_progress: ["info", "Another checkout for this is still starting. Nothing was charged. Try again in a moment."],
+  // ⚠ NOT "NOTHING WAS CHARGED" (Codex on #2522): the claim can stay held for up to 60 seconds after
+  // the request that won it has sent the member to Stripe (checkout-barrier.ts), so that checkout
+  // may be open in another tab, or paid.
+  checkout_in_progress: ["info", "A checkout for this is already open, maybe in another tab. Finish it there, or check your email for a receipt before trying again in a minute."],
   provider_at_capacity: ["error", "This coach is full right now, so checkout didn't start. Nothing was charged."],
   provider_suspended: ["error", "This coach isn't taking payments right now. Nothing was charged."],
   provider_not_found: ["error", "We couldn't find this coach's listing. Nothing was charged."],
@@ -3269,7 +3272,7 @@ const SHAPE_CHECKOUT_NOTICES = {
   code_invalid: ["error", "That code isn't valid. Check it and try again. Nothing was charged."],
   code_not_here: ["error", "That code can't be used with this coach. Try again without it. Nothing was charged."],
   code_check_failed: ["error", "We couldn't check that code. Nothing was charged. Try again in a moment."],
-  // ⚠ NOT "NOTHING WAS CHARGED" (Codex on #2522): this is a recent checkout on the coach's former
+  // ⚠ NOT "NOTHING WAS CHARGED" either (Codex on #2522): a recent checkout on the coach's former
   // Stripe account that Shape can no longer read (retireCoachCheckouts), which may have been paid.
   payment_pending: ["error", "We can't confirm a recent checkout with this coach yet, so a new one didn't start. It may have gone through: check your email for a receipt before paying again. If this lasts more than a few days, contact support."],
   membership_required: ["error", "Coaching needs a Shape membership, and it couldn't be started from here. Nothing was charged. Start one on the Pricing page."],
