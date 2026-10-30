@@ -114,8 +114,10 @@ export function bsPlainScheme(tail) {
 // A slash list of bare counts that is the reps as written (bsAssignExercise below). It is
 // refused where a unit, a percent or a word runs into it, and where a weight, a percent or
 // a time or distance unit follows it after a space (Codex on #2529): "3 × 30/45 s" and
-// "3 × 10/20 m" are holds and distances, not rep lists, and read as before.
-const BS_REP_LIST = new RegExp(String.raw`(\d+)\s*[×x]\s*(\d+(?:[–-]\d+)?(?:\/\d+(?:[–-]\d+)?)+)(?![\w\/.%–-]|\s*(?:%|kg\b|lbs?\b|(?:${BS_TIME_DISTANCE_UNITS})\b))`, 'i');
+// "3 × 10/20 m" are holds and distances, not rep lists, and read as before. So is a value
+// with a decimal comma ("3 × 1/1,5 km", Codex on #2529): a comma before a digit continues
+// the number, while ", 20 kg" still ends the reps.
+const BS_REP_LIST = new RegExp(String.raw`(\d+)\s*[×x]\s*(\d+(?:[–-]\d+)?(?:\/\d+(?:[–-]\d+)?)+)(?![\w\/.%–-]|,\d|\s*(?:%|kg\b|lbs?\b|(?:${BS_TIME_DISTANCE_UNITS})\b))`, 'i');
 export function bsAssignExercise(text) {
   const authored = text && typeof text === 'object' ? text : null;
   const p = bsAssignSplitBlock(authored ? authored.text || authored.name : text);

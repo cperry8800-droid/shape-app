@@ -203,8 +203,12 @@
   // "8/6/AMRAP") is not this rule's and reads as before.
   // So is one with a weight, a percent or a time or distance unit after a space (Codex on
   // #2529): "3 × 30/45 s" and "3 × 10/20 m" are holds and distances, not rep lists.
-  const REP_LIST = String.raw`\d+(?:[–-]\d+)?(?:\/\d+(?:[–-]\d+)?)+(?![\w\/.%–-]|\s*(?:%|kg\b|lbs?\b|(?:${TIME_DISTANCE_UNITS})\b))`;
-  const SCHEME = new RegExp(String.raw`(\d+)\s*[×x]\s*((?:${REP_LIST}|\d+(?:[–-]\d+)?${REP_UNIT}?|AMRAP|to\s+failure|max)(?:\s*(?:ea(?:ch)?|per\s+(?:side|leg)|\/\s*(?:side|leg)))?)(?:\s+(?:reps?|sets?)(?![a-z]))?`, 'i');
+  // And a value with a decimal comma ("3 × 1/1,5 km"): a comma before a digit continues the
+  // number, while ", 20 kg" still ends the reps.
+  const REP_LIST = String.raw`\d+(?:[–-]\d+)?(?:\/\d+(?:[–-]\d+)?)+(?![\w\/.%–-]|,\d|\s*(?:%|kg\b|lbs?\b|(?:${TIME_DISTANCE_UNITS})\b))`;
+  // The per-side "ea"/"each" after the reps ends at the word (Codex on #2529): "3 × 10 easy"
+  // read reps "10 ea" and a load of "sy", and the list rule above made it reach "10/10 easy" too.
+  const SCHEME = new RegExp(String.raw`(\d+)\s*[×x]\s*((?:${REP_LIST}|\d+(?:[–-]\d+)?${REP_UNIT}?|AMRAP|to\s+failure|max)(?:\s*(?:ea(?:ch)?(?![a-z])|per\s+(?:side|leg)|\/\s*(?:side|leg)))?)(?:\s+(?:reps?|sets?)(?![a-z]))?`, 'i');
   function rowFromBlock(block, id) {
     const b = typeof block === 'object' && block ? block : {text:block};
     const raw = text(b.text).trim();

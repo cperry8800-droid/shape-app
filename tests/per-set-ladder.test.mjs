@@ -171,9 +171,12 @@ test('a hand-typed text ladder becomes a structured one, and a list that does no
   // A list run into a unit, a percent or a word is not this rule's, and reads as before.
   // A time or distance unit after a space too (Codex on #2529): a hold or a distance is not a rep list.
   for (const [t, reps] of [['Hold — 3 × 30s/45s', '30'], ['Squat — 3 × 10/90s rest', '10'], ['Bench — 3 × 5/5 kg', '5'],
-                           ['Hold — 3 × 30/45 s', '30'], ['Carry — 3 × 10/20 m', '10'], ['Hold — 3 × 30/45 seconds', '30'], ['Run — 3 × 1/2 km', '1']]) {
+                           ['Hold — 3 × 30/45 s', '30'], ['Carry — 3 × 10/20 m', '10'], ['Hold — 3 × 30/45 seconds', '30'], ['Run — 3 × 1/2 km', '1'],
+                           // A decimal comma continues the number (Codex on #2529); ", 20 kg" still ends the reps.
+                           ['Run — 3 × 1/1,5 km', '1']]) {
     assert.equal(read(t).reps, reps, t);
   }
+  assert.equal(read('Lunge — 3 × 10/10, 20 kg').load, '20 kg', 'a comma and a space end the list');
   assert.equal(read('Back squat — 3 × 8/6/4 · 60 kg').load, '60 kg', 'the rep ladder does not leak into the load');
   // ⚠ AN AUTHORED BLOCK'S OWN FIELDS OUTRANK ITS TEXT, so a ladder read out of text they
   // overrule would describe a prescription the row no longer carries.
