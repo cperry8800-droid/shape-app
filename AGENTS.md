@@ -6,10 +6,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Working memory
 
-`docs/WORKLOG.md` holds the current rules, the code map and the open items. Read it
-before starting work. It has no changelog, because the PR description records what
-shipped. When a PR changes a rule or leaves something open, edit that section of the
-file in the same PR, replacing the old line rather than adding a correction under it.
+`docs/WORKLOG.md` holds the current rules, the code map and what waits on the owner. Read
+it before starting work. It has no changelog, because the PR description records what
+shipped. When a PR changes a rule, replace that line of the file in the same PR rather
+than adding a correction under it. What a PR leaves open goes to the War Room
+(`src/lib/warroom.ts`), and to the file's Waiting on the owner if it needs the owner.
 History up to 2026-10-16 is in `docs/WORKLOG-ARCHIVE-*.md`; grep an archive, and
 never `cat` or `@`-import one.
 
