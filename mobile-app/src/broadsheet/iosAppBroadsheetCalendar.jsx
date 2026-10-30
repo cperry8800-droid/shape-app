@@ -680,14 +680,15 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
   const firstJsDow = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun..6=Sat
   const firstDow = (firstJsDow + 6) % 7; // shift to Mon=0
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const today = new Date();
-  const isCurrentMonth = today.getFullYear() === viewYear && today.getMonth() === viewMonth;
-  const todayDay = isCurrentMonth ? today.getDate() : null;
-  // for the demo month (May 2026), pin "today" visual to the 14th
-  const visualToday = isDemoMonth ? 14 : todayDay;
-  // A day before today reads a step quieter. The demo month's today is its pinned 14th.
+  // Today is the CALENDAR's day: in the zone /api/calendar read the month in (`zone`), else this
+  // device's, as the Weeks list reads it (Codex on #2514). A coach viewing a New York calendar
+  // from Europe around midnight sees New York's today ringed and the days before it quieter, not
+  // their own. The demo month (May 2026) pins today to the 14th.
+  const [ty, tm, td] = (isDemoMonth ? '2026-05-14' : bsCalTodayIso(zone)).split('-').map(Number);
+  const visualToday = ty === viewYear && tm === viewMonth + 1 ? td : null;
+  // A day before today reads a step quieter.
   const cellKey = (d) => viewYear * 10000 + (viewMonth + 1) * 100 + d;
-  const todayKey = isDemoMonth ? cellKey(14) : today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+  const todayKey = ty * 10000 + tm * 100 + td;
   const cells = [];
   for (let i = 0; i < firstDow; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
