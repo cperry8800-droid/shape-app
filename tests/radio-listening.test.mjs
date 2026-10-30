@@ -346,7 +346,12 @@ test('migration: a listener counts once, and never for more time than has passed
   const fn = code.slice(code.indexOf('create or replace function public.record_radio_listen('), code.indexOf('create or replace function public.admin_radio_stats('));
   assert.match(fn, /if p_user is null or p_listen is null or p_surface is null or p_surface not in \('web', 'app'\) then\s+return 0;/);
   assert.match(fn, /_rate_limit_bump\('fn:radio_listen:' \|\| p_user::text, 6, 60\)/);
-  assert.match(fn, /delete from public\.radio_listen_live where last_beat < now\(\) - interval '6 hours';/, 'a player asleep in the background still has its listen when it wakes');
+  assert.match(fn, /delete from public\.radio_listen_live where last_beat < now\(\) - interval '24 hours';/, 'a player asleep through a night still has its listen when it wakes');
+  // Time credited goes on the days it was heard, split at the owner's midnights (Codex P2 on #2527).
+  assert.match(fn, /v_from := now\(\) - make_interval\(secs => v_credit\);\s+v_from_day := \(v_from at time zone v_tz\)::date;\s+while v_from_day < v_day and v_left > 0 loop\s+v_next := \(v_from_day \+ 1\)::timestamp at time zone v_tz;\s+v_part := least\(v_left, ceil\(extract\(epoch from \(v_next - v_from\)\)\)::integer\);/);
+  assert.match(fn, /values \(v_from_day, p_surface, v_audience, 0, v_part\)[\s\S]*?v_left := v_left - v_part;/);
+  assert.match(fn, /values \(v_day, p_surface, v_audience, v_tune_in, v_left\)/, 'the rest, and the tune-in, on the day the beat arrives');
+  assert.match(fn, /exception when others then\s+v_tz := 'UTC';/, 'an unknown zone is UTC, as ui_click_day reads it');
   // A listen's first beat is its tune-in; it takes the account's credited mark. An end that arrives
   // before its own start is the tune-in too and leaves the listen ended, so the late start reopens
   // nothing (Codex P2 on #2527).
@@ -381,11 +386,11 @@ test('migration: a listener counts once, and never for more time than has passed
   assert.doesNotMatch(stats, /'listener'|'listen'/, 'the console never gets an account or a listen');
 });
 
-test('purge: the daily rows after 12 months, a quiet note after 6 hours', () => {
+test('purge: the daily rows after 12 months, a quiet note after 24 hours', () => {
   const src = read('src/app/api/cron/analytics-purge/route.ts');
   assert.match(src, /from\('radio_listen_days'\)\.delete\(\)\.lt\('day', cutoff\.slice\(0, 10\)\)/);
   assert.match(src, /from\('radio_listen_peaks'\)\.delete\(\)\.lt\('day', cutoff\.slice\(0, 10\)\)/);
-  assert.match(src, /from\('radio_listen_live'\)\.delete\(\)\.lt\('last_beat', new Date\(Date\.now\(\) - 6 \* 60 \* 60 \* 1000\)\.toISOString\(\)\)/);
+  assert.match(src, /from\('radio_listen_live'\)\.delete\(\)\.lt\('last_beat', new Date\(Date\.now\(\) - 24 \* 60 \* 60 \* 1000\)\.toISOString\(\)\)/);
   assert.match(src, /\[clicks, listening, peaks, live\]\.map/, 'each one\'s failure is reported');
 });
 
@@ -508,7 +513,7 @@ test('privacy: §10 lists the listening counts, §7 says GPC stops them, and the
   const s10 = privacy.slice(privacy.indexOf('<section class="section" id="s6">'), privacy.indexOf('</section>', privacy.indexOf('id="s6"')));
   assert.match(s10, /<strong>Analytics — Shape Radio listening:<\/strong> when you play Shape Radio on this website or in the app/);
   for (const promise of ['daily totals, split only by website or app and by member or coach', 'we keep a note that your account is listening',
-    'it is deleted within a day of your stopping', 'No account, device identifier or IP address is kept with a count', 'nothing about what was playing',
+    'it is deleted within two days of your stopping', 'No account, device identifier or IP address is kept with a count', 'nothing about what was playing',
     'Global Privacy Control', 'not until you accept our cookie banner', 'kept for 12 months']) {
     assert.ok(s10.includes(promise), promise);
   }

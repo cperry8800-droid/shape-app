@@ -1,6 +1,6 @@
 // Daily: delete analytics_events, the daily tap counts (ui_click_counts) and the daily radio
 // listening (radio_listen_days, radio_listen_peaks), older than 12 months (bounded retention); and
-// any "listening now" row (radio_listen_live) quiet for 6 hours, which a listen that never said it
+// any "listening now" row (radio_listen_live) quiet for 24 hours, which a listen that never said it
 // stopped leaves behind when nobody listens after it. A failure on one is reported and never stops
 // the others.
 // Auth: x-cron-secret: <CRON_SECRET> OR Authorization: Bearer <CRON_SECRET>.
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     const clicks = await admin.from('ui_click_counts').delete().lt('day', cutoff.slice(0, 10));
     const listening = await admin.from('radio_listen_days').delete().lt('day', cutoff.slice(0, 10));
     const peaks = await admin.from('radio_listen_peaks').delete().lt('day', cutoff.slice(0, 10));
-    const live = await admin.from('radio_listen_live').delete().lt('last_beat', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString());
+    const live = await admin.from('radio_listen_live').delete().lt('last_beat', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
     // Before a table's migration runs (2026-10-28-click-counts.sql, 2026-10-30-radio-listening.sql)
     // there is nothing to purge, which is no failure.
     const dailyErrors = [clicks, listening, peaks, live].map((r) => (r.error && !MISSING_TABLE.has(String(r.error.code)) ? r.error.message : ''));

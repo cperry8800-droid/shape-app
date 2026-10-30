@@ -9,9 +9,9 @@
 --   3. radio_listen_live: the listens playing right now, one row each with its account, so a
 --      listener is counted once and the seconds credited can't run ahead of the clock. An ended
 --      listen is marked ended, so a beat that arrives after its end reopens nothing, and every row
---      goes 6 hours after its last beat (at the next beat from anyone, or the nightly purge): long
---      enough for a phone whose player was asleep while the audio played on. It is the "listening
---      now" figure, not a history.
+--      goes 24 hours after its last beat (at the next beat from anyone, or the nightly purge): long
+--      enough for a phone whose player slept through a night while the audio played on. It is the
+--      "listening now" figure, not a history.
 --   4. record_radio_listen(): a player's beat (POST /api/analytics/radio-listen, with the service
 --      role). The player sends one as the stream starts, one a minute while it plays, and one as it
 --      stops (public/newdesign/radioListening.mjs).
@@ -121,6 +121,12 @@ declare
   v_tune_in integer := 0;
   v_credit integer := 0;
   v_now integer;
+  v_tz text;
+  v_from timestamptz;
+  v_from_day date;
+  v_next timestamptz;
+  v_part integer;
+  v_left integer;
 begin
   if p_user is null or p_listen is null or p_surface is null or p_surface not in ('web', 'app') then
     return 0;
@@ -133,8 +139,9 @@ begin
   end if;
 
   -- A listen that went quiet without an end (the app closed, the tab was killed) is forgotten after
-  -- 6 hours, so one whose player slept in the background is still there to credit when it wakes.
-  delete from public.radio_listen_live where last_beat < now() - interval '6 hours';
+  -- 24 hours, so one whose player slept through a night in the background is still there to credit
+  -- when it wakes (Codex P2 on #2527).
+  delete from public.radio_listen_live where last_beat < now() - interval '24 hours';
 
   -- This account's listens, locked so its beats are credited one after another.
   perform 1 from public.radio_listen_live where listener = p_user for update;
@@ -192,10 +199,38 @@ begin
     where listen = p_listen;
   end if;
 
+  -- The owner's zone, as ui_click_day reads it (an unknown one is UTC).
+  begin
+    v_tz := coalesce(nullif(p_tz, ''), 'UTC');
+    perform now() at time zone v_tz;
+  exception when others then
+    v_tz := 'UTC';
+  end;
   v_day := public.ui_click_day(p_tz);
-  if v_tune_in > 0 or v_credit > 0 then
+  -- Time credited goes on the days it was heard: a beat that arrives after a night asleep in the
+  -- background splits its time at each of the owner's midnights rather than putting it all on the
+  -- morning (Codex P2 on #2527). The tune-in is the day the beat arrives.
+  v_left := v_credit;
+  if v_credit > 0 then
+    v_from := now() - make_interval(secs => v_credit);
+    v_from_day := (v_from at time zone v_tz)::date;
+    while v_from_day < v_day and v_left > 0 loop
+      v_next := (v_from_day + 1)::timestamp at time zone v_tz;
+      v_part := least(v_left, ceil(extract(epoch from (v_next - v_from)))::integer);
+      if v_part > 0 then
+        insert into public.radio_listen_days as d (day, surface, audience, tune_ins, seconds)
+        values (v_from_day, p_surface, v_audience, 0, v_part)
+        on conflict (day, surface, audience)
+        do update set seconds = d.seconds + excluded.seconds;
+        v_left := v_left - v_part;
+      end if;
+      v_from := v_next;
+      v_from_day := v_from_day + 1;
+    end loop;
+  end if;
+  if v_tune_in > 0 or v_left > 0 then
     insert into public.radio_listen_days as d (day, surface, audience, tune_ins, seconds)
-    values (v_day, p_surface, v_audience, v_tune_in, v_credit)
+    values (v_day, p_surface, v_audience, v_tune_in, v_left)
     on conflict (day, surface, audience)
     do update set tune_ins = d.tune_ins + excluded.tune_ins, seconds = d.seconds + excluded.seconds;
   end if;
