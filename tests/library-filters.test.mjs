@@ -449,6 +449,27 @@ test('every builder box drawn with dbuField takes the floor\'s class', () => {
   assert.deepEqual(bare.map((f) => f.tag), [], 'boxes under 16px with no floor class');
 });
 
+// And the builder's own sheet: its row cells (.ci), quick-add, AI box and detail fields are set
+// at 13.5 to 14px there (Codex on #2526), so on a coarse pointer every text control inside .dbu2
+// takes 16px, over those selectors (!important), and every one of them is inside .dbu2.
+test('the builder\'s own sheet floors every text control inside it on a coarse pointer', () => {
+  const src = readFileSync(new URL('../public/newdesign/dashBuilder.jsx', import.meta.url), 'utf8');
+  const sheet = src.slice(src.indexOf('<style>{`'), src.indexOf('`}</style>'));
+  assert.ok(sheet.length > 1000, 'the builder\'s sheet moved');
+  const m = /@media \(pointer:coarse\)\{([^{}]*)\{font-size:16px!important\}\}/.exec(sheet);
+  assert.ok(m, 'no coarse-pointer font floor in the builder\'s sheet');
+  const sel = m[1].split(',').map((x) => x.trim());
+  for (const x of ['.dbu2 select', '.dbu2 textarea']) assert.ok(sel.includes(x), x);
+  assert.ok(sel.some((x) => x.startsWith('.dbu2 input')), '.dbu2 input');
+  // The small text-control rules it has to reach are all scoped to .dbu2.
+  for (const rule of ['.dbu2 .dr .ci{', '.dbu2 .dqa input{', '.dbu2 .dai-in{', '.dbu2 .ddetail .df{']) {
+    const at = sheet.indexOf(rule);
+    assert.ok(at > 0, rule + ' moved');
+    // A rule ends at its own line's }, not at a ${…} inside it.
+    assert.match(sheet.slice(at, sheet.indexOf('}\n', at)), /font-size:1[34](?:\.5)?px/, rule + ' size changed: re-check the floor still matters');
+  }
+});
+
 test('the selected chip text is the declared mix, not the bare tag colour', () => {
   assert.match(CSS, /\.dash-chip\.is-on, \.dash-chip\.is-set \{[^}]*color:color-mix\(in srgb, var\(--c, var\(--sh-accent, #2ee0c4\)\) var\(--sh-tag-ink-mix, 65%\), var\(--sh-ink, #f2ede4\)\)/);
 });

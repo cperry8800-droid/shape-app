@@ -2620,6 +2620,12 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
    video controls carry their 44 inline, so the override below needs !important. */
 .dbu2 .drawer{--dbu-ctl:36px;--dbu-cell:30px}
 @media (pointer:coarse){.dbu2 .drawer{--dbu-ctl:44px;--dbu-cell:40px}}
+/* ⚠ iOS SAFARI ZOOMS THE PAGE ON FOCUS when a text box computes under 16px, and this sheet sets
+   the row cells (.ci), quick-add, the AI box and the detail fields at 13.5 to 14px (Codex on
+   #2526). On a coarse pointer every text control in the builder takes 16px, so a new one can't
+   slip by; a mouse keeps the sheet's sizes. Boxes drawn outside .dbu2 (dbuField's, in dialogs)
+   take dash.css's floor through the class dbu-field. */
+@media (pointer:coarse){.dbu2 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),.dbu2 select,.dbu2 textarea{font-size:16px!important}}
 .dbu2 .sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .dbu2 .drawer .dh{display:flex;justify-content:space-between;align-items:flex-end;gap:8px 12px;margin-bottom:12px;flex-wrap:wrap}
 .dbu2 .drawer .dh .x{height:var(--dbu-ctl)}
