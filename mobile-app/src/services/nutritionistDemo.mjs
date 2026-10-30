@@ -242,9 +242,14 @@ export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'perf
     });
   });
 
+  // Each staple's shown name back to its English one: a member's grocery list of them is one list
+  // whatever the language it was added in (Codex on #2512). The doc's cleaner keeps only a staple's
+  // name and group, so this rides beside the kitchen, not in it.
+  const staples = k.staples.map(([n, g]) => ({ n: S('staple.' + stapleKey(n), n), g, en: n }));
   return {
     // No sample photos: Make it yours offers only an upload, and the page shows the colours.
     photos: [],
+    stapleKeys: Object.fromEntries(staples.map((x) => [x.n, x.en])),
     live: {
       pronouns: '',
       points: 2480,
@@ -257,7 +262,7 @@ export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'perf
       kitchen: {
         plate: { ...k.plate },
         rules: k.rules.map((r, i) => S(`rule.${kk}.${i}`, r)),
-        staples: k.staples.map(([n, g]) => ({ n: S('staple.' + stapleKey(n), n), g })),
+        staples: staples.map(({ n, g }) => ({ n, g })),
         recipes: k.dishes.map((d, i) => sampleRecipe(d.r, S(`dish.${kk}.${i}`, d.note), i)).filter(Boolean),
       },
       ...(business ? { bizCard: { name: business, where: where || '' } } : {}),

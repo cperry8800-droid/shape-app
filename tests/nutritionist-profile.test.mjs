@@ -815,6 +815,38 @@ test('a sample nutritionist\'s page reads in the reader\'s language: rules, stap
   } finally { window.ShapeI18n.t = hadT; }
 });
 
+// A sample's staples are said in the reader's language, but the grocery list they make is one list
+// whatever language they were added in (Codex on #2512): its id goes by the staples' English names.
+test('a sample\'s staples added in German and in English make the same grocery list', async () => {
+  const de = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/profile.json'), 'utf8'));
+  const hadT = window.ShapeI18n.t;
+  const g = groceryWorld();
+  const rae = { who: 'Rae Lindqvist', kind: 'NUTRI', providerId: 52, city: 'Remote', bio: 'Plant-forward fuelling.', specialty: 'Plant-based nutrition Vegan', rating10: 9.8 };
+  const raeRow = { id: 52, owner_id: null, name: 'Rae Lindqvist', price: 110, specialty: 'Plant-based nutrition', credential: 'RD', verified: false, listing_media: { cover: null, gallery: [] }, monthly_offer: null };
+  const addTwo = async () => {
+    reset({ me: 'u-me', byId: raeRow, slots: [] });
+    const m = await mount(page({ person: rae }));
+    await click(button(/^Rae's kitchen$/));
+    await click(section('staples'));
+    const chips = [...document.querySelectorAll('[data-staple]')];
+    await click(chips[0]);
+    await click(chips[3]);
+    await click(document.querySelector('[data-add-staples]'));
+    await m.unmount();
+    return g.received[g.received.length - 1];
+  };
+  try {
+    window.ShapeI18n.t = (key, opts = {}) => (key.startsWith('profile:sample.') ? new IntlMessageFormat(de[key.slice('profile:'.length)], 'de-DE').format(opts) : hadT(key, opts));
+    const inGerman = await addTwo();
+    window.ShapeI18n.t = hadT;
+    const inEnglish = await addTwo();
+    assert.deepEqual(inGerman.items.map((i) => i.n), [de['sample.nutri.staple.firmTofu'], de['sample.nutri.staple.kale']], 'the list holds the names as shown');
+    assert.deepEqual(inEnglish.items.map((i) => i.n), ['Firm tofu', 'Kale']);
+    assert.notDeepEqual(inGerman.items.map((i) => i.n), inEnglish.items.map((i) => i.n), 'German names differ from the English');
+    assert.equal(inGerman.id, inEnglish.id, 'one list, whatever the language');
+  } finally { window.ShapeI18n.t = hadT; g.done(); }
+});
+
 test('signed out, the nutritionist app\'s own page is the sample, and Make it yours changes it on screen only', async () => {
   reset({ me: null });
   const m = await mount(page({ person: { who: 'Dr. Maya Patel', kind: 'NUTRI' }, isSelf: true }));

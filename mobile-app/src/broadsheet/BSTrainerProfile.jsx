@@ -664,7 +664,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                   work={studioWork} onPiece={(i) => setSheet({ kind: 'piece', i })} onDraw={() => openEdit('space')} />
               ) : tabNow === 'kitchen' ? (
                 <KitchenTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} kitchen={kitchen} gallery={gallery} isSelf={isSelf} first={first}
-                  ownerKey={person.userId || person.providerId || null} onRecipe={(r) => setOwnRecipe(r)} onFill={(section) => openEdit('kitchen', section)} />
+                  ownerKey={person.userId || person.providerId || null} stapleKeys={(demo && demo.stapleKeys) || null} onRecipe={(r) => setOwnRecipe(r)} onFill={(section) => openEdit('kitchen', section)} />
               ) : tabNow === 'plates' ? (
                 <PlateNotesTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} days={plateDays} isSelf={isSelf} first={first} onOpen={(day) => setSheet({ kind: 'plateDay', day, i: 0 })} />
               ) : (
@@ -1253,7 +1253,7 @@ const STAPLE_GROUP_KEYS = { fridge: ['groupFridge', 'Fridge'], pantry: ['groupPa
 // The kitchen's three parts, in the order a member uses them: what to cook, how to plate it, what to
 // keep in. A visitor sees the parts that have something in them; the coach sees all three.
 export const KITCHEN_SECTIONS = [['recipes', 'secRecipes', 'Recipes'], ['plate', 'secPlate', 'Plate'], ['staples', 'secStaples', 'Staples']];
-function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, isSelf, first, ownerKey, onRecipe, onFill }) {
+function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, isSelf, first, ownerKey, stapleKeys = null, onRecipe, onFill }) {
   const plate = kitchen ? kitchen.plate : null;
   const rules = kitchen ? kitchen.rules : [];
   const staples = kitchen ? kitchen.staples : [];
@@ -1274,7 +1274,10 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, 
     const items = staples.filter((s) => picked.has(s.n)).map((s) => ({ n: s.n, q: '1' }));
     // One list per coach and set of staples, so adding the same ones again keeps one copy. Hashed:
     // the list's id keeps 64 characters, so names cut short there could make a bigger pick the same.
-    const id = `kitchen-${bsShortHash(ownerKey || 'sample')}-${bsShortHash(items.map((i) => i.n.toLowerCase()).sort().join('\n'))}`;
+    // A sample's staples are said in the reader's language, so its list goes by their English names
+    // (stapleKeys), the same list in every language (Codex on #2512).
+    const stable = (n) => (stapleKeys && Object.prototype.hasOwnProperty.call(stapleKeys, n) ? stapleKeys[n] : n);
+    const id = `kitchen-${bsShortHash(ownerKey || 'sample')}-${bsShortHash(items.map((i) => stable(i.n).toLowerCase()).sort().join('\n'))}`;
     const list = bsReceivedGroceryList({ name: tr('profile:nutri.staplesList', { defaultValue: "{name}'s staples", name: first }), items }, { messageId: id, from: first });
     if (!list) return;
     setSaving('busy');
