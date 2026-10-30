@@ -328,8 +328,9 @@ test('migration: a listener counts once, and never for more time than has passed
   // A later beat: what its running total adds to this listen's, never more than the time since the
   // account was last credited or this listen's last beat (+2 s), or 10 minutes, and never below 0.
   assert.match(fn, /v_credit := greatest\(least\(\s+coalesce\(p_played, 0\) - v_played,\s+floor\(extract\(epoch from \(now\(\) - greatest\(v_credited, v_last\)\)\)\)::integer \+ 2,\s+600\s+\), 0\);/);
-  // The account's mark moves, on all its listens, only with time credited.
-  assert.match(fn, /if v_credit > 0 then\s+update public\.radio_listen_live set credited_to = now\(\) where listener = p_user;\s+end if;/);
+  // The account's mark moves, on all its listens, by the time credited and no further (a beat that
+  // credits a second takes no more from another device's next beat; Codex P2 on #2527), never past now.
+  assert.match(fn, /if v_credit > 0 then\s+update public\.radio_listen_live\s+set credited_to = least\(now\(\), greatest\(v_credited, v_last\) \+ make_interval\(secs => v_credit\)\)\s+where listener = p_user;\s+end if;/);
   // An end marks its own listen ended and no other; a beat that arrives after it adds nothing and
   // reopens nothing (Codex P2 ×2 on #2527).
   assert.match(fn, /update public\.radio_listen_live\s+set last_beat = now\(\), surface = p_surface, played = played \+ v_credit, ended = coalesce\(p_end, false\)\s+where listen = p_listen;/);

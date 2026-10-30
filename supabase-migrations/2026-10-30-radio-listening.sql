@@ -176,10 +176,13 @@ begin
       floor(extract(epoch from (now() - greatest(v_credited, v_last))))::integer + 2,
       600
     ), 0);
-    -- The account's mark moves only with time credited, so a beat that adds nothing (a late one,
-    -- or a second device's) takes nothing from another listen's next beat.
+    -- The account's mark moves on by the time credited and no further, so a beat that adds little
+    -- (a late one, or a device that was buffering) takes nothing from another listen's next beat
+    -- (Codex P2 on #2527); never past now.
     if v_credit > 0 then
-      update public.radio_listen_live set credited_to = now() where listener = p_user;
+      update public.radio_listen_live
+      set credited_to = least(now(), greatest(v_credited, v_last) + make_interval(secs => v_credit))
+      where listener = p_user;
     end if;
     update public.radio_listen_live
     set last_beat = now(), surface = p_surface, played = played + v_credit, ended = coalesce(p_end, false)
