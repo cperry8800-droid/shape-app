@@ -166,6 +166,29 @@ test('editing a post keeps its tier: every stored tier has a label that maps bac
   for (const tier of TIERS) assert.equal(privacyToDb(label(tier)), tier, `${tier} → ${label(tier)}`);
 });
 
+test('the edit sheet opens on the audience the post really has', () => {
+  // Codex P1 on #2511: the sheet was seeded with the display label ('Public', 'Friends'),
+  // which matched no rung, so every edit opened with nothing lit over "Only you can see this".
+  assert.match(CLIENT, /const edTier = ed \? String\(ed\.privacy \|\| 'public'\)\.toLowerCase\(\) : null;\n\s*const \[vis, setVis\] = useStateBSC\(ed \? edTier : 'public'\);/);
+  const extra = CLIENT.match(/const BS_EDIT_ONLY_TIERS = (\{[^}]*\});/);
+  assert.ok(extra, 'the tiers the three rungs do not offer');
+  const editOnly = new Function(`return ${extra[1]};`)();
+  const rungs = ['public', 'profile', 'private'];
+  assert.deepEqual(Object.keys(editOnly).sort(), TIERS.filter((t) => !rungs.includes(t)).sort(), 'every other stored tier gets a rung of its own');
+  assert.match(CLIENT, /\.concat\(BS_EDIT_ONLY_TIERS\[edTier\] \? \[\[edTier, BS_EDIT_ONLY_TIERS\[edTier\]\]\] : \[\]\)\.map\(\(\[val, lab\], i\) => \{ const on = vis === val;/);
+  // Every post model's label lands on a rung that is its own tier.
+  const m = BACKEND.match(/function communityPostFromRow\(row\) \{[\s\S]*?\n {4}privacy: ([\s\S]*?'Community'),\n/);
+  const label = new Function('privacy', `return ${m[1]};`);
+  for (const tier of TIERS) {
+    const seeded = String(label(tier)).toLowerCase();
+    assert.equal(seeded, tier, `${tier} seeds its own rung`);
+    assert.ok(rungs.includes(seeded) || editOnly[seeded], `${tier} has a rung`);
+  }
+  // Only Just me says "Only you can see this"; every other tier is described.
+  const desc = CLIENT.slice(CLIENT.indexOf("{vis === 'public' ? tr('profile:log.vis.publicDesc'"), CLIENT.indexOf("tr('profile:log.vis.privateDesc'"));
+  for (const tier of TIERS.filter((t) => t !== 'private')) assert.match(desc, new RegExp(`vis === '${tier}' \\? tr\\('profile:log\\.vis\\.${tier}Desc'`), tier);
+});
+
 test('the Following feed asks for friends posts; the open feed never does', () => {
   assert.match(FEED_ROUTE, /privacyIn = \['public', 'community', 'followers', 'friends'\];/);
   assert.match(FEED_ROUTE, /let privacyIn: string\[\] = \['public', 'community'\];/);

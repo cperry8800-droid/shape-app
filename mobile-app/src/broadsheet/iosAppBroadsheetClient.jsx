@@ -17018,6 +17018,10 @@ function bsComposerVisFor(doc) {
   return 'public';
 }
 
+// Stored audiences the composer's three rungs don't offer. A post being edited that
+// already has one shows it as a fourth rung, so the sheet reads its real audience.
+const BS_EDIT_ONLY_TIERS = { friends: 'Friends', followers: 'Followers', community: 'Community' };
+
 function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null, startKind = null }) {
   const tr = useShapeTr();
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
@@ -17043,7 +17047,13 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null, st
   const [upBusy, setUpBusy] = useStateBSC(false);
   const [delBusy, setDelBusy] = useStateBSC(false);
   // Visibility: 'public' (profile + feed) · 'profile' (profile only, everyone) · 'private' (just me)
-  const [vis, setVis] = useStateBSC(ed ? (ed.privacy || 'public') : 'public');
+  // ⚠ AN EDIT IS SEEDED WITH THE STORED TIER, LOWERCASE. The post models hand over a
+  // display label ('Public', 'Friends'), which matched no rung, so every edit opened
+  // with nothing lit over "Only you can see this" (Codex P1 on #2511). A tier the
+  // three rungs don't offer (friends, followers, community) gets a rung of its own
+  // below, so the sheet shows the audience the post really has and can keep it.
+  const edTier = ed ? String(ed.privacy || 'public').toLowerCase() : null;
+  const [vis, setVis] = useStateBSC(ed ? edTier : 'public');
   // Set the moment the member uses the control, so a settings read landing a
   // beat later can never overrule a choice they have already made.
   const visTouched = React.useRef(false);
@@ -17304,12 +17314,17 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null, st
         <div style={{ marginTop: 16 }}>
           <span style={label}>{tr('profile:log.field.visibility', { defaultValue: 'Visibility' })}</span>
           <div style={{ display: 'flex', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.16)}`, overflow: 'hidden' }}>
-            {[['public', 'Public'], ['profile', 'Profile'], ['private', 'Just me']].map(([val, lab], i) => { const on = vis === val; return (
+            {[['public', 'Public'], ['profile', 'Profile'], ['private', 'Just me']].concat(BS_EDIT_ONLY_TIERS[edTier] ? [[edTier, BS_EDIT_ONLY_TIERS[edTier]]] : []).map(([val, lab], i) => { const on = vis === val; return (
               <button key={val} onClick={() => { visTouched.current = true; setVisResolved(true); setVis(val); }} style={{ flex: 1, padding: '9px 6px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(INK, 0.12)}` : 0, cursor: 'pointer', background: on ? bsTHexA(TEAL, 0.16) : 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tr('profile:log.vis.' + val, { defaultValue: lab })}</button>
             ); })}
           </div>
           <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, letterSpacing: '0.04em', color: bsTHexA(INK, 0.5) }}>
-            {vis === 'public' ? tr('profile:log.vis.publicDesc', { defaultValue: 'Shows on your profile + the community feed' }) : vis === 'profile' ? tr('profile:log.vis.profileDesc', { defaultValue: 'Shows on your profile to everyone — not in the feed' }) : tr('profile:log.vis.privateDesc', { defaultValue: 'Only you can see this' })}
+            {vis === 'public' ? tr('profile:log.vis.publicDesc', { defaultValue: 'Shows on your profile + the community feed' })
+              : vis === 'profile' ? tr('profile:log.vis.profileDesc', { defaultValue: 'Shows on your profile to everyone — not in the feed' })
+              : vis === 'friends' ? tr('profile:log.vis.friendsDesc', { defaultValue: 'Shows to your friends: people you follow who follow you back' })
+              : vis === 'followers' ? tr('profile:log.vis.followersDesc', { defaultValue: 'Shows to your followers' })
+              : vis === 'community' ? tr('profile:log.vis.communityDesc', { defaultValue: 'Shows to Shape members in the community feed' })
+              : tr('profile:log.vis.privateDesc', { defaultValue: 'Only you can see this' })}
           </div>
         </div>
 
