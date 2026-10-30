@@ -18,6 +18,7 @@ import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsValidLivePayload } from '../services/liveProgress.mjs';
 import { createLiveWorkoutPublisher } from '../services/liveWorkoutPublisher.mjs';
 import { bsShortAge } from '../services/shortAge.mjs';
+import { bsChatStamp } from '../services/chatTime.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // The ONE ceiling. The prompt must ask at exactly the load the core refuses to
 // admit unconsidered — a local copy of 150 that drifted would leave the screen
@@ -24088,8 +24089,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     c: _threadPalette[i % _threadPalette.length],
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
+    at: th.at || null,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ id: m.id || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null, grocery: m.grocery || null })),
+    messages: (th.messages || []).map(m => ({ id: m.id || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', at: m.at || null, me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null, grocery: m.grocery || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land
@@ -24191,6 +24193,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     c: _threadPalette[i % _threadPalette.length],
     i: (th.who || 'M').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
+    at: th.at || null,
     conversation_id: th.conversation_id,
     messages: th.messages || [],
   }));
@@ -24803,7 +24806,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <>
         <BSChatThread
           key={openChat.conversation_id || (openChat.channelId != null ? 'ch:' + openChat.channelId : 'n:' + (openChat.n || ''))}
-          thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
+          thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', at: openChat.at || null, messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
           eyebrow={openChat.channelId ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : openChat.dm ? tr('feed:thread.privateThread', { defaultValue: 'Private thread' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })}
           onBack={() => setOpenChat(null)}
           onOpenProfile={(person) => setOpenProfile(person)}
@@ -25010,7 +25013,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           const Row = (f, i, arr) => {
             const count = (unread && unread['dm:' + (f.conversation_id || '')]) || 0;
             const last = f.last || (f.messages && f.messages.length ? (f.messages[f.messages.length - 1].t || '') : '');
-            const time = f.time || (f.messages && f.messages.length ? (f.messages[f.messages.length - 1].time || '') : '');
+            // The last message's time (the thread's, with none loaded), said in the app's language from its
+            // stamp when it has one.
+            const lastM = f.messages && f.messages.length ? f.messages[f.messages.length - 1] : null;
+            const stampAt = (lastM ? lastM.at : f.at) || null;
+            const time = f.time || (stampAt && bsChatStamp(stampAt, bsDateLocale(), { list: true })) || (lastM && lastM.time) || '';
             const online = !!f.online || count > 0;
             const isLast = Array.isArray(arr) && i === arr.length - 1;
             // In the Wall's magazine look (owner, 2026-10-24: "make the team list match the new design too"):
@@ -26661,7 +26668,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   const seed = (thread.messages && thread.messages.length)
     ? thread.messages
     : (historyHere && historyHere.length) ? historyHere
-    : (thread.last ? [{ who: thread.who, t: thread.last, time: thread.time || 'now', me: false }] : []);
+    : (thread.last ? [{ who: thread.who, t: thread.last, time: thread.time || 'now', at: thread.at || null, me: false }] : []);
   // ⚠ MERGED BY MESSAGE ID (Codex on #2360): a message that arrives, or that this view sends,
   // while the history is loading can be in both the snapshot and `extras`. A sent message gets its
   // id when the insert answers (send, below); one still in flight has none and is shown.
@@ -26691,7 +26698,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     if (!text.trim()) return;
     const body = text.trim();
     const tmpId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
-    setExtras(e => [...e, { tmpId, who: 'You', t: body, time: 'now', me: true }]);
+    setExtras(e => [...e, { tmpId, who: 'You', t: body, time: 'now', at: new Date().toISOString(), me: true }]);
     setText('');
     // Persist to the backend: direct conversation or community channel.
     const sent = thread.conversationId ? window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body })
@@ -26709,7 +26716,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     if (thread.channelId && window.ShapeChannels?.subscribeMessages) {
       unsub = window.ShapeChannels.subscribeMessages((row) => {
         if (!row || row.channel_id !== thread.channelId || row.sender_id === myId) return;
-        setExtras(e => [...e, { who: row.author_name || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null }]);
+        setExtras(e => [...e, { who: row.author_name || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null }]);
         window.ShapeUnread?.markChannelRead?.(thread.channelId);  // it's open → keep it read
       });
     } else if (thread.conversationId && window.ShapeMessages?.subscribeMessages) {
@@ -26717,11 +26724,11 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         if (!row || row.conversation_id !== thread.conversationId || row.sender_id === myId) return;
         // Shape's welcome is shown as a note, and the thread is open, so it is read like any other
         // message (dm_unread counts it: it is not the viewer's).
-        if (isShapeWelcome(row)) { setExtras(e => [...e, { id: row.id || null, who: 'Shape', t: row.body, time: 'now', me: false, shape: { body: row.body, sender_id: null, metadata: row.metadata } }]); window.ShapeUnread?.markConversationRead?.(thread.conversationId); return; }
+        if (isShapeWelcome(row)) { setExtras(e => [...e, { id: row.id || null, who: 'Shape', t: row.body, time: 'now', at: row.created_at || null, me: false, shape: { body: row.body, sender_id: null, metadata: row.metadata } }]); window.ShapeUnread?.markConversationRead?.(thread.conversationId); return; }
         // Carry the live-boost stamp on realtime appends too — a boost landing
         // while this thread is OPEN (the time-sensitive case) must render with
         // its eyebrow immediately, not only after a reload re-maps metadata.
-        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null, grocery: bsGroceryFromMetadata(row.metadata) }]);
+        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null, grocery: bsGroceryFromMetadata(row.metadata) }]);
         window.ShapeUnread?.markConversationRead?.(thread.conversationId);
       });
     }
@@ -26869,7 +26876,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                 </div>
                 {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
                 {myR && <BSReactionPill t={t} emoji={myR} anchorRight={me} onClick={() => rx.toggle(rKey, myR)} />}
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 10 : 4, textAlign: me ? 'right' : 'left' }}>{bsShortAge(m.time, tr)}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 10 : 4, textAlign: me ? 'right' : 'left' }}>{(m.at && bsChatStamp(m.at, bsDateLocale())) || bsShortAge(m.time, tr)}</div>
               </div>
                 </div>
               </div>
