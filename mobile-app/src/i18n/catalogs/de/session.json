@@ -115,6 +115,8 @@
   "player.vibe.nope": "Nichts für mich",
   "player.shareToggle": "In der Community teilen",
   "player.shareSub": "Postet deine Sätze + die Aufschlüsselung in den Feed",
+  "player.shareToggleFriends": "Mit deinen Freunden teilen",
+  "player.shareSubFriends": "Deine Freunde sehen deine Sätze + die Aufschlüsselung",
   "player.saveFinish": "Speichern & fertig ✓",
   "player.fieldLoad": "Last",
   "player.effortAria": "Anstrengung {n} von 10",

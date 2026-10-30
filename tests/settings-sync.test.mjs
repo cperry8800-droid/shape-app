@@ -60,6 +60,13 @@ test('privacy is one account-bound write; cleanup failure rolls back the save',a
  assert.equal(f.writes.length,1);assert.equal(f.writes[0].o.expectedUserId,'a');
  assert.equal(f.queries.length,0,'no browser-side cleanup can be stranded by an account switch');
 });
+test('the website can share workouts with friends, and the settings trigger does the rest',async()=>{
+ const f=fixture({client_settings:{profileVisibility:'Public',shareWorkoutData:'On'}});
+ await saveSettingsPatch(f.db,{shareWorkoutData:'Friends'},'a');
+ assert.equal(f.docs.client_settings.shareWorkoutData,'Friends');assert.equal(f.docs.client_settings.profileVisibility,'Public');
+ assert.equal(f.queries.length,0,'history and the live row are the database trigger\'s, not the browser\'s');
+ await assert.rejects(saveSettingsPatch(f.db,{shareWorkoutData:'Friends only'},'a'),/available options/);
+});
 test('unknown account controls and invalid values are rejected before writing',async()=>{
  const f=fixture();
  for(const patch of [{email:'new@shape.test'},{profileVisibility:'Everyone'},{proteinTarget:'120 g'},{hydrationTarget:'-1'}]) await assert.rejects(saveSettingsPatch(f.db,patch,'a'));

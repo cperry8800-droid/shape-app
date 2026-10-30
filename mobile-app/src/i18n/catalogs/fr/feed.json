@@ -282,6 +282,7 @@
   "wall.notOnWall": "pas encore sur le mur",
   "wall.notPublic": "Ton profil est privé, donc tes records restent hors du mur. Réglages → Confidentialité.",
   "wall.notShared": "Le partage des données d'entraînement est désactivé, donc tes records restent hors du mur. Réglages → Confidentialité.",
+  "wall.friendsOnly": "Tes séances sont partagées avec tes amis seulement, donc tes records restent hors du mur. Réglages → Confidentialité.",
   "wall.notStamped": "Pas encore cosigné",
   "wall.over": "↑ +{gain} {unit} sur le dernier record",
   "wall.overShort": "+{gain} {unit}",

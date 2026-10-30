@@ -14,9 +14,16 @@ test('unknown/absent mode falls back to universal', () => {
     { privacyIn: ['public', 'community'], authorIn: null });
 });
 
-test('following: adds followers tier and scopes to follows + self', () => {
+test('following: adds the followers and friends tiers and scopes to follows + self', () => {
+  // A friend is someone the viewer follows, so their friends-tier posts are inside
+  // this author scope; RLS decides whether the follow is mutual.
   assert.deepEqual(bsFeedQuerySpec('following', 'me', ['a', 'b']),
-    { privacyIn: ['public', 'community', 'followers'], authorIn: ['a', 'b', 'me'] });
+    { privacyIn: ['public', 'community', 'followers', 'friends'], authorIn: ['a', 'b', 'me'] });
+});
+
+test('universal never asks for a followers or friends post', () => {
+  const { privacyIn } = bsFeedQuerySpec('universal', 'me', ['a']);
+  assert.ok(!privacyIn.includes('followers') && !privacyIn.includes('friends'));
 });
 
 test('following: dedupes and tolerates falsy uid / non-array ids', () => {

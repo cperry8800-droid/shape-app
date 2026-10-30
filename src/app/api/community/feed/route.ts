@@ -6,9 +6,9 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function normalizePrivacy(input: unknown): 'public' | 'community' | 'private' | 'profile' | 'followers' {
+function normalizePrivacy(input: unknown): 'public' | 'community' | 'private' | 'profile' | 'followers' | 'friends' {
   const value = String(input ?? '').toLowerCase();
-  if (value === 'public' || value === 'private' || value === 'profile' || value === 'followers') return value;
+  if (value === 'public' || value === 'private' || value === 'profile' || value === 'followers' || value === 'friends') return value;
   return 'community';
 }
 
@@ -53,17 +53,17 @@ export async function GET(request: Request) {
       .eq('status', 'accepted')
       .limit(500);
     if (followErr) return dbError(followErr, 'community feed follows read', 400);
-    // Accepted follows + self; 'followers'-tier posts may surface here (and
-    // only here) — RLS re-checks per row, this filter just narrows the query.
-    privacyIn = ['public', 'community', 'followers'];
+    // Accepted follows + self; 'followers'- and 'friends'-tier posts may surface
+    // here (and only here) — RLS re-checks per row, this filter just narrows the query.
+    privacyIn = ['public', 'community', 'followers', 'friends'];
     authorIn = [...new Set([...(follows ?? []).map((r) => r.following_id as string), user.id])];
   }
 
   let query = client
     .from('community_posts')
     .select('*, likes:community_likes(user_id), comments:community_comments(id, user_id, author_name, body, created_at)')
-    // Universal: 'profile'/'private'/'followers' never appear. Following:
-    // 'followers' allowed, scoped to accepted follows + self (RLS re-checks).
+    // Universal: 'profile'/'private'/'followers'/'friends' never appear. Following:
+    // 'followers' and 'friends' allowed, scoped to accepted follows + self (RLS re-checks).
     .in('privacy', privacyIn);
   if (authorIn) query = query.in('author_id', authorIn);
   const { data: posts, error } = await query.order('created_at', { ascending: false }).limit(50);

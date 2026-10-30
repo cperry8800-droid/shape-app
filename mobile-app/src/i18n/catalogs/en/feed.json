@@ -282,6 +282,7 @@
   "wall.notOnWall": "not on the wall yet",
   "wall.notPublic": "Your profile is private, so records stay off the wall. Settings → Privacy.",
   "wall.notShared": "Sharing workout data is off, so records stay off the wall. Settings → Privacy.",
+  "wall.friendsOnly": "Your workouts are shared with friends only, so records stay off the wall. Settings → Privacy.",
   "wall.notStamped": "Not yet stamped",
   "wall.over": "↑ +{gain} {unit} over last best",
   "wall.overShort": "+{gain} {unit}",

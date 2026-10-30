@@ -282,6 +282,7 @@
   "wall.notOnWall": "belum ada di dinding",
   "wall.notPublic": "Profilmu privat, jadi rekor tidak tampil di dinding. Pengaturan → Privasi.",
   "wall.notShared": "Bagikan data latihan nonaktif, jadi rekor tidak tampil di dinding. Pengaturan → Privasi.",
+  "wall.friendsOnly": "Latihanmu hanya dibagikan ke teman, jadi rekor tidak tampil di dinding. Pengaturan → Privasi.",
   "wall.notStamped": "Belum distempel pelatih",
   "wall.over": "↑ +{gain} {unit} dari rekor sebelumnya",
   "wall.overShort": "+{gain} {unit}",

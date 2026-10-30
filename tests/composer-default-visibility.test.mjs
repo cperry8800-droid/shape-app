@@ -57,6 +57,16 @@ test('just friends defaults to the profile rung, never to public', () => {
   withRule(() => assert.equal(bsComposerVisFor({ profileVisibility: 'Just friends' }), 'profile'));
 });
 
+test('sharing workouts with friends defaults to just me, whatever the profile says', () => {
+  // ⚠ NO FRIENDS RUNG, AND 'profile' WOULD BE WIDER THAN THE SETTING: on a Public
+  // profile anyone who opens it reads a profile post. Just me is the one rung
+  // inside "my friends"; widening it stays one visible click.
+  withRule(() => {
+    assert.equal(bsComposerVisFor({ profileVisibility: 'Public', shareWorkoutData: 'Friends' }), 'private');
+    assert.equal(bsComposerVisFor({ profileVisibility: 'Just friends', shareWorkoutData: 'Friends' }), 'private');
+  });
+});
+
 test('a read we could not make never leaves the audience open', () => {
   // null is getUserGoals' can't-know answer; {} is a row that genuinely is not
   // there yet. Only the second may mean "the defaults apply".
@@ -77,10 +87,10 @@ test('every audience the share rule can return lands on a rung the picker offers
   const offered = ['public', 'profile', 'private'];
   const docs = [
     {}, { profileVisibility: 'Public' }, { profileVisibility: 'Just friends' },
-    { profileVisibility: 'Private' }, { shareWorkoutData: 'Off' }, null,
+    { profileVisibility: 'Private' }, { shareWorkoutData: 'Off' }, { shareWorkoutData: 'Friends' }, null,
   ];
   const audiences = new Set(docs.map((d) => (d == null ? 'private' : bsWorkoutSharePrivacy(d))));
-  assert.deepEqual([...audiences].sort(), ['followers', 'private', 'public'], 'all three audiences are exercised');
+  assert.deepEqual([...audiences].sort(), ['followers', 'friends', 'private', 'public'], 'all four audiences are exercised');
   for (const d of docs) {
     const rung = withRule(() => bsComposerVisFor(d));
     assert.ok(offered.includes(rung), `${JSON.stringify(d)} → ${rung}, which the picker does not offer`);

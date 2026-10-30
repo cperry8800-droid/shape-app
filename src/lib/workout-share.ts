@@ -15,7 +15,7 @@ import {
   bsPostActivityStart as postActivityStart,
 } from '../../mobile-app/src/services/workoutShare.mjs';
 
-export type SharePrivacy = 'public' | 'followers' | 'private';
+export type SharePrivacy = 'public' | 'followers' | 'friends' | 'private';
 export { workoutSharePrivacy, isDuplicateWorkoutPost, activityStartISO, postActivityStart };
 
 // Fail CLOSED on a read error — a transient settings failure must degrade to

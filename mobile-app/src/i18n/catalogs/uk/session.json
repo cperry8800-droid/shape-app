@@ -115,6 +115,8 @@
   "player.vibe.nope": "Не моє",
   "player.shareToggle": "Поділитися зі спільнотою",
   "player.shareSub": "Публікує ваші підходи + розбивку у стрічці",
+  "player.shareToggleFriends": "Поділитися з друзями",
+  "player.shareSubFriends": "Друзі побачать ваші підходи + розбивку",
   "player.saveFinish": "Зберегти й завершити ✓",
   "player.fieldLoad": "Навантаження",
   "player.effortAria": "Зусилля {n} з 10",
