@@ -22,7 +22,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadRealModule } from './helpers/load-real-module.mjs';
-import { bsProfileKitchen, bsKitchenPlate, bsKitchenRecipeItem, bsNormalizeProfileCustom } from '../mobile-app/src/services/profileCustom.mjs';
+import { bsProfileKitchen, bsKitchenPlate, bsKitchenRecipeItem, bsNormalizeProfileCustom, BS_KITCHEN_RULE_MAX, BS_STAPLE_MAX, BS_RECIPE_NOTE_MAX, BS_STATION_NOTE_MAX } from '../mobile-app/src/services/profileCustom.mjs';
 import { BS_SUPABASE_HOST } from '../public/newdesign/listingMedia.mjs';
 import { bsNutritionistDemo, bsNutritionistSampleOf, BS_NUTRI_SAMPLE_KINDS, BS_NUTRI_SAMPLE_RECIPES } from '../mobile-app/src/services/nutritionistDemo.mjs';
 import { bsKitchenRecipe, bsKitchenMinutes, bsOwnRecipeGroceryList, bsOwnRecipeCookable, bsShortHash } from '../mobile-app/src/broadsheet/kitchenRecipes.js';
@@ -791,6 +791,98 @@ test('a seeded nutritionist listing is a sample: its listing by id, a sample kit
   await m.unmount();
 });
 
+// A sample nutritionist read in German: the plate's rules, the staples, the notes on recipes and
+// meals in the German catalog's words; the recipes' own names stay the Shape Kitchen's.
+test('a sample nutritionist\'s page reads in the reader\'s language: rules, staples, recipe and meal notes', async () => {
+  const de = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/profile.json'), 'utf8'));
+  const hadT = window.ShapeI18n.t;
+  window.ShapeI18n.t = (key, opts = {}) => (key.startsWith('profile:sample.') ? new IntlMessageFormat(de[key.slice('profile:'.length)], 'de-DE').format(opts) : hadT(key, opts));
+  try {
+    const rae = { who: 'Rae Lindqvist', kind: 'NUTRI', providerId: 52, city: 'Remote', bio: 'Plant-forward fuelling.', specialty: 'Plant-based nutrition Vegan', rating10: 9.8 };
+    reset({ me: 'u-me', byId: { id: 52, owner_id: null, name: 'Rae Lindqvist', price: 110, specialty: 'Plant-based nutrition', credential: 'RD', verified: false, listing_media: { cover: null, gallery: [] }, monthly_offer: null }, slots: [] });
+    const m = await mount(page({ person: rae }));
+    await click(button(/^Rae's kitchen$/));
+    assert.ok(m.text().includes(de['sample.nutri.dish.plant.0']), 'a recipe note in German');
+    assert.ok(m.text().includes('Crispy tofu grain bowl'), 'the recipe keeps the catalog\'s name');
+    await click(section('plate'));
+    assert.ok(document.querySelector('[data-kitchen-plate]').textContent.includes(de['sample.nutri.rule.plant.0']), 'a rule in German');
+    assert.doesNotMatch(document.querySelector('[data-kitchen-plate]').textContent, /Beans, lentils or tofu at every meal/);
+    await click(section('staples'));
+    assert.ok(m.text().includes(de['sample.nutri.staple.firmTofu']), 'a staple in German');
+    await click(button(/^Plate notes$/));
+    assert.ok(m.text().includes(de['sample.nutri.mealName.plant.0.2']) || m.text().includes(de['sample.nutri.meal.plant.0.0']), 'the plate notes in German');
+    await m.unmount();
+  } finally { window.ShapeI18n.t = hadT; }
+});
+
+// A sample's staples are said in the reader's language, but the grocery list they make is one list
+// whatever language they were added in (Codex on #2512): its id goes by the staples' English names.
+test('a sample\'s staples added in German and in English make the same grocery list', async () => {
+  const de = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/profile.json'), 'utf8'));
+  const hadT = window.ShapeI18n.t;
+  const g = groceryWorld();
+  const rae = { who: 'Rae Lindqvist', kind: 'NUTRI', providerId: 52, city: 'Remote', bio: 'Plant-forward fuelling.', specialty: 'Plant-based nutrition Vegan', rating10: 9.8 };
+  const raeRow = { id: 52, owner_id: null, name: 'Rae Lindqvist', price: 110, specialty: 'Plant-based nutrition', credential: 'RD', verified: false, listing_media: { cover: null, gallery: [] }, monthly_offer: null };
+  const addTwo = async () => {
+    reset({ me: 'u-me', byId: raeRow, slots: [] });
+    const m = await mount(page({ person: rae }));
+    await click(button(/^Rae's kitchen$/));
+    await click(section('staples'));
+    const chips = [...document.querySelectorAll('[data-staple]')];
+    await click(chips[0]);
+    await click(chips[3]);
+    await click(document.querySelector('[data-add-staples]'));
+    await m.unmount();
+    return g.received[g.received.length - 1];
+  };
+  try {
+    window.ShapeI18n.t = (key, opts = {}) => (key.startsWith('profile:sample.') ? new IntlMessageFormat(de[key.slice('profile:'.length)], 'de-DE').format(opts) : hadT(key, opts));
+    const inGerman = await addTwo();
+    window.ShapeI18n.t = hadT;
+    const inEnglish = await addTwo();
+    assert.deepEqual(inGerman.items.map((i) => i.n), [de['sample.nutri.staple.firmTofu'], de['sample.nutri.staple.kale']], 'the list holds the names as shown');
+    assert.deepEqual(inEnglish.items.map((i) => i.n), ['Firm tofu', 'Kale']);
+    assert.notDeepEqual(inGerman.items.map((i) => i.n), inEnglish.items.map((i) => i.n), 'German names differ from the English');
+    assert.equal(inGerman.id, inEnglish.id, 'one list, whatever the language');
+  } finally { window.ShapeI18n.t = hadT; g.done(); }
+});
+
+// Staples picked in one language and added after a switch to another are still the ones picked
+// (Codex on #2512): a pick is kept by the staple's English name, not its shown one.
+test('a sample\'s staples picked in German and added after a switch to English are still picked', async () => {
+  const de = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/profile.json'), 'utf8'));
+  const hadT = window.ShapeI18n.t;
+  const hadLocale = window.ShapeLocale;
+  const g = groceryWorld();
+  let lang = 'de';
+  const subs = new Set();
+  window.ShapeLocale = { get: () => lang, subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); } };
+  const german = (key, opts = {}) => (key.startsWith('profile:sample.') ? new IntlMessageFormat(de[key.slice('profile:'.length)], 'de-DE').format(opts) : hadT(key, opts));
+  try {
+    window.ShapeI18n.t = german;
+    const rae = { who: 'Rae Lindqvist', kind: 'NUTRI', providerId: 52, city: 'Remote', bio: 'Plant-forward fuelling.', specialty: 'Plant-based nutrition Vegan', rating10: 9.8 };
+    reset({ me: 'u-me', byId: { id: 52, owner_id: null, name: 'Rae Lindqvist', price: 110, specialty: 'Plant-based nutrition', credential: 'RD', verified: false, listing_media: { cover: null, gallery: [] }, monthly_offer: null }, slots: [] });
+    const m = await mount(page({ person: rae }));
+    await click(button(/^Rae's kitchen$/));
+    await click(section('staples'));
+    const chips = [...document.querySelectorAll('[data-staple]')];
+    await click(chips[0]);
+    await click(chips[3]);
+    assert.match(document.querySelector('[data-add-staples]').textContent, /Add 2 to my grocery list/);
+    // Now English: the page is said again, the picks stay.
+    lang = 'en';
+    window.ShapeI18n.t = hadT;
+    await act(async () => { for (const fn of subs) fn(); });
+    await flush();
+    assert.deepEqual([...document.querySelectorAll('[data-staple][aria-pressed="true"]')].map((b) => b.textContent.replace(/^✓ /, '')), ['Firm tofu', 'Kale'], 'the same two, now in English');
+    assert.match(document.querySelector('[data-add-staples]').textContent, /Add 2 to my grocery list/);
+    await click(document.querySelector('[data-add-staples]'));
+    assert.equal(g.received.length, 1, 'saved');
+    assert.deepEqual(g.received[0].items.map((i) => i.n), ['Firm tofu', 'Kale']);
+    await m.unmount();
+  } finally { window.ShapeI18n.t = hadT; window.ShapeLocale = hadLocale; g.done(); }
+});
+
 test('signed out, the nutritionist app\'s own page is the sample, and Make it yours changes it on screen only', async () => {
   reset({ me: null });
   const m = await mount(page({ person: { who: 'Dr. Maya Patel', kind: 'NUTRI' }, isSelf: true }));
@@ -948,4 +1040,51 @@ test('a day of plate notes totals protein and energy only when every meal carrie
   assert.equal(gap.kcal, null, 'a meal with no energy logged leaves the day without a total, never an undercount');
   assert.equal(gap.proteinAll, true);
   assert.equal(day([{ kcal: 400 }, { kcal: 600, p: 40 }]).proteinAll, false);
+});
+
+// Owner, 2026-10-30: "Yes, translate the nutritionist sample too". Every word the nutritionist
+// sample writes goes through `say` under profile:sample.nutri.*, with the English catalog's text as
+// its default; a recipe's title, ingredients and method stay the Shape Kitchen catalog's.
+test('the sample nutritionist\'s words all go through say, each with the English catalog\'s text', () => {
+  const en = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/en/profile.json'), 'utf8'));
+  const asked = new Set();
+  const say = (key, english) => {
+    assert.match(key, /^profile:sample\.nutri\./, key);
+    assert.equal(en[key.slice('profile:'.length)], english, `${key}: the English catalog's text`);
+    asked.add(key);
+    return '«' + english + '»';
+  };
+  const said = (v) => typeof v === 'string' && v.startsWith('«') && v.endsWith('»');
+  for (const kind of BS_NUTRI_SAMPLE_KINDS) {
+    const d = bsNutritionistDemo({ kind, say });
+    const k = d.custom.kitchen;
+    assert.ok(k.rules.every(said), `${kind}: the rules`);
+    assert.ok(k.staples.every((x) => said(x.n)), `${kind}: the staples`);
+    for (const rec of k.recipes) {
+      assert.ok(said(rec.note), `${kind}: the note on ${rec.t}`);
+      assert.ok(!said(rec.t) && rec.ing.every((x) => !said(x.n)) && rec.steps.every((x) => !said(x)), `${kind}: ${rec.t} stays the catalog's`);
+    }
+    for (const pl of d.plates) {
+      assert.ok(said(pl.body) && said(pl.typeLabel), `${kind}: a meal's note and label`);
+      assert.equal(said(pl.title), !pl.meal.recipeId, `${kind}: ${pl.title}: a home meal's name is said, a recipe's is the catalog's`);
+    }
+    assert.ok(said(d.live.goal) && said(d.provider.specialty) && d.provider.monthly_offer.includes.every(said), `${kind}: the bio, specialty and offer`);
+    assert.ok(d.reviews.list.every((r) => said(r.text) && !said(r.author)), `${kind}: the reviews' words, not their names`);
+  }
+  const keys = Object.keys(en).filter((k) => k.startsWith('sample.nutri.')).map((k) => 'profile:' + k);
+  assert.deepEqual([...asked].sort(), keys.sort(), 'every sample.nutri key is one the sample asks for');
+  assert.equal(bsNutritionistDemo({ kind: 'plant' }).custom.kitchen.rules[0], 'Beans, lentils or tofu at every meal', 'with no translator, the English');
+});
+
+// The kitchen and the studio go through the doc's cleaner, which cuts a field at its cap: in every
+// language, each sample word fits, so none is cut.
+test('every language\'s sample words fit the caps the profile doc cuts at', () => {
+  const dir = join(ROOT, 'mobile-app/src/i18n/catalogs');
+  const caps = [[/^sample\.nutri\.rule\./, BS_KITCHEN_RULE_MAX], [/^sample\.nutri\.staple\./, BS_STAPLE_MAX], [/^sample\.nutri\.dish\./, BS_RECIPE_NOTE_MAX], [/^sample\.note\./, BS_STATION_NOTE_MAX]];
+  for (const loc of readdirSync(dir)) {
+    const cat = JSON.parse(readFileSync(join(dir, loc, 'profile.json'), 'utf8'));
+    for (const [k, v] of Object.entries(cat)) {
+      for (const [re, max] of caps) if (re.test(k)) assert.ok(v.trim().length <= max, `${loc} ${k}: ${v.length} > ${max}: ${v}`);
+    }
+  }
 });
