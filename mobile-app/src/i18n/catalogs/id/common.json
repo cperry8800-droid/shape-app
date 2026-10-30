@@ -91,5 +91,10 @@
   "update.noStoreAndroid": "Buka Google Play lalu perbarui Shape.",
   "update.recommendedTitle": "Versi baru Shape sudah tersedia.",
   "update.recommendedBody": "Perbarui untuk mendapatkan perbaikan dan fitur terbaru.",
-  "update.later": "Nanti saja"
+  "update.later": "Nanti saja",
+  "age.m": "{n} mnt",
+  "age.h": "{n} j",
+  "age.d": "{n} hr",
+  "age.w": "{n} mgg",
+  "age.now": "sekarang"
 }

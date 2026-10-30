@@ -91,5 +91,10 @@
   "update.noStoreAndroid": "Buɗe Google Play ka sabunta Shape.",
   "update.recommendedTitle": "Sabuwar sigar Shape ta fito.",
   "update.recommendedBody": "Sabunta don samun sabbin gyare-gyare da fasaloli.",
-  "update.later": "Ba yanzu ba"
+  "update.later": "Ba yanzu ba",
+  "age.m": "minti {n}",
+  "age.h": "awa {n}",
+  "age.d": "kwana {n}",
+  "age.w": "mako {n}",
+  "age.now": "yanzu"
 }

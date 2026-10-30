@@ -6,6 +6,7 @@ import { bsCoachPrograms, bsWorkoutVideos, bsStudioWork } from '../services/coac
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.mjs';
 import { bsCoachPronoun } from '../services/coachPronoun.mjs';
+import { bsShortAge } from '../services/shortAge.mjs';
 import { bsTrainerDemo, bsTrainerSampleOf } from '../services/trainerDemo.mjs';
 import { bsNutritionistDemo, bsNutritionistSampleOf } from '../services/nutritionistDemo.mjs';
 import { bsKitchenRecipe, bsKitchenGroceryList, bsOwnRecipeGroceryList, bsOwnRecipeCookable, bsShortHash } from './kitchenRecipes.js';
@@ -1757,7 +1758,7 @@ function ReplaysTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, programs = [], wor
                 <span style={{ position: 'relative', display: 'block', width: '100%', aspectRatio: '16 / 9', overflow: 'hidden', background: '#000' }}>
                   <VideoStill url={w.video.url} ACC={ACC} />
                   {playBadge(ACC)}
-                  {w.ago ? <span style={{ position: 'absolute', right: 10, top: 10, padding: '2px 8px', background: hexA('#000000', 0.55), color: '#fff', fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em' }}>{w.ago}</span> : null}
+                  {w.ago ? <span style={{ position: 'absolute', right: 10, top: 10, padding: '2px 8px', background: hexA('#000000', 0.55), color: '#fff', fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em' }}>{bsShortAge(w.ago, tr)}</span> : null}
                 </span>
                 <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.35 }}>
                   <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 17 }}>{w.title || tr('profile:trainer.workoutVideo', { defaultValue: 'Workout video' })}</span>
@@ -1783,7 +1784,7 @@ function ReplaysTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, programs = [], wor
                         <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink(0.6) }}>{r.breakdown.label}</span>
                       </span>
                     )}
-                    <span style={{ position: 'absolute', right: 10, top: 10, padding: '2px 8px', background: hexA('#000000', 0.55), color: '#fff', fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em' }}>{r.ago}</span>
+                    <span style={{ position: 'absolute', right: 10, top: 10, padding: '2px 8px', background: hexA('#000000', 0.55), color: '#fff', fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em' }}>{bsShortAge(r.ago, tr)}</span>
                   </span>
                   <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.35 }}>
                     <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 17 }}>{r.title}</span>
@@ -1864,7 +1865,7 @@ function ReplaySheet({ t, tr, r, i, setI, ACC, DISPLAY, MONO, first, avatar, isS
   const el = (
     <div role="dialog" aria-label={r.title} style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
       <div style={{ padding: 'calc(10px + env(safe-area-inset-top)) 8px 0 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{rows.length ? tr('profile:trainer.replay', { defaultValue: 'Replay' }) : tr('profile:trainer.workout', { defaultValue: 'Workout' })}{r.typeLabel ? ` · ${r.typeLabel}` : ''}{r.ago ? ` · ${r.ago}` : ''}</span>
+        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{rows.length ? tr('profile:trainer.replay', { defaultValue: 'Replay' }) : tr('profile:trainer.workout', { defaultValue: 'Workout' })}{r.typeLabel ? ` · ${r.typeLabel}` : ''}{r.ago ? ` · ${bsShortAge(r.ago, tr)}` : ''}</span>
         <CloseX onClose={onClose} color="#e8ebef" label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
       </div>
       <h2 style={{ margin: '0 18px', fontFamily: DISPLAY, fontWeight: 300, fontSize: 25, lineHeight: 1.1 }}>{r.title}<span style={{ color: ACC }}>.</span></h2>

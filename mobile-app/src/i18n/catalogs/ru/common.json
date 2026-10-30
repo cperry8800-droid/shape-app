@@ -91,5 +91,10 @@
   "update.noStoreAndroid": "Открой Google Play и обнови Shape.",
   "update.recommendedTitle": "Вышла новая версия Shape.",
   "update.recommendedBody": "Обнови, чтобы получить последние исправления и функции.",
-  "update.later": "Не сейчас"
+  "update.later": "Не сейчас",
+  "age.m": "{n} мин",
+  "age.h": "{n} ч",
+  "age.d": "{n} дн.",
+  "age.w": "{n} нед.",
+  "age.now": "сейчас"
 }
