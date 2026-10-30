@@ -244,6 +244,9 @@ export const OVERVIEW_VIEWS = [
   // Where people tap on the website and in the app: its own call (admin_click_stats), drawn by
   // src/app/admin/ClicksView.tsx, so it holds none of admin_overview_stats's sections.
   { key: 'clicks', label: 'Clicks', sections: [], blurb: 'Where people tap, on the website and in the app' },
+  // How Shape Radio is listened to: its own call too (admin_radio_stats), drawn by
+  // src/app/admin/RadioView.tsx.
+  { key: 'radio', label: 'Radio', sections: [], blurb: 'Who listens to Shape Radio, and for how long' },
 ];
 
 export function overviewView(raw) {

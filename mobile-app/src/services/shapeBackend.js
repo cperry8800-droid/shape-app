@@ -1,5 +1,5 @@
 import { validateFile as validateVideoFile } from '../../../public/newdesign/shapeVideo.mjs';
-import { captureFromWindow, sourceFromWindow } from '../../../src/lib/signup-source.mjs';
+import { captureFromWindow, sourceFromWindow, trackingAllowed } from '../../../src/lib/signup-source.mjs';
 import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
@@ -7,6 +7,7 @@ import { hrmAvailable, hrmConnected, hrmCurrent, hrmReading, hrmConnect, hrmDisc
 import { registerPush, teardownPush, pushPermission, askForPush } from './push.js';
 import { signOutGen, bumpSignOutGen, signOutEnded } from './signOutGen.mjs';
 import { makePlaybackGate } from './playbackGate.mjs';
+import { attachRadioListening, listeningAllowed, RADIO_LISTEN_PATH } from '../../../public/newdesign/radioListening.mjs';
 import { bsSetSentryUser } from '../sentry.mjs';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
 // into emitting an answer the core does not recognise.
@@ -9997,7 +9998,19 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
     // crossOrigin='anonymous' so createMediaElementSource (analyser + Nora avatar)
     // works for cross-origin provider streams that send ACAO; without it the Web
     // Audio graph is muted/blocked for cross-origin audio. Part of the stream contract.
-    if (!el) { el = new Audio(); el.preload = 'none'; el.crossOrigin = 'anonymous'; }
+    if (!el) {
+      el = new Audio(); el.preload = 'none'; el.crossOrigin = 'anonymous';
+      // How long it plays, for the admin Overview's Radio tab (radioListening.mjs): a beat as the
+      // stream starts, one a minute, one as it stops, under the sign-up source's consent rule. The
+      // Bearer token goes with each, so the server counts the account once.
+      attachRadioListening(el, {
+        surface: 'app',
+        allowed: () => listeningAllowed(window, trackingAllowed),
+        send: (body) => {
+          shapeApiFetch(RADIO_LISTEN_PATH, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+        },
+      }, window);
+    }
     return el;
   }
   // ⚠ The station route is SIGNED-IN ONLY (see the route's own header). A

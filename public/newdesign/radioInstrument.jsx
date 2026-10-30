@@ -125,6 +125,30 @@ function rdTransportKey({ signedIn, playing, paused }) {
   return "tune";
 }
 
+// How long the stream plays, for the admin Overview's Radio tab: radioListening.mjs (Radio.html
+// hands it over on window) sends a beat as it starts, one a minute, one as it stops. The consent rule
+// is the tap counts' (click-capture.js, which pageShell.jsx loads): until it has loaded, nothing is
+// counted. Each beat carries the Bearer when the page has one, read at the send, for the reason
+// play() sends it to the station route; the cookie goes too.
+function rdCountListening(audio) {
+  const RL = window.ShapeRadioListening;
+  if (!RL || typeof RL.attachRadioListening !== "function") return;
+  RL.attachRadioListening(audio, {
+    surface: "web",
+    allowed: () => RL.listeningAllowed(window, window.shapeClickCapture && window.shapeClickCapture.trackingAllowed),
+    send: (body) => {
+      Promise.resolve(window.shapeDb ? window.shapeDb.getSession() : null)
+        .catch(() => null)
+        .then((live) => {
+          const headers = { "Content-Type": "application/json" };
+          if (live && live.access_token) headers.Authorization = "Bearer " + live.access_token;
+          return fetch(RL.RADIO_LISTEN_PATH, { method: "POST", credentials: "include", keepalive: true, headers, body: JSON.stringify(body) });
+        })
+        .catch(() => {});
+    },
+  }, window);
+}
+
 function useRadioStation() {
   const [signedIn, setSignedIn] = React.useState(null);   // null = not resolved yet
   const [playing, setPlaying] = React.useState(false);
@@ -359,6 +383,7 @@ function useRadioStation() {
       audio.addEventListener("pause", () => stopped(false));
       audio.addEventListener("ended", () => stopped(true));
       audio.addEventListener("error", () => stopped(true));
+      rdCountListening(audio);
       audioRef.current = audio;
     }
     if (!audio.src) {

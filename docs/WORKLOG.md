@@ -115,8 +115,8 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
 - Decide: a buyer paying an open checkout from another tab (closing it means refunds).
 - In-app purchase outside the US (Phase 2): on hold.
 - Decide how a suspended coach appeals.
-- Counsel reads the privacy policy (2026-10-13 text; 2026-10-29 §10 tap counts); the
-  health-data page and the data export are incomplete (War Room).
+- Counsel reads the privacy policy (2026-10-13 text; §10's tap counts, 2026-10-29, and radio
+  listening, 2026-10-30); the health-data page and the data export are incomplete (War Room).
 - The direct-charges test purchase on staging (#2403's Owner steps).
 - Decide how a seeded listing becomes its coach's (`listing_time_requests`, `/dashboard/claim`).
 - Decide the perks "What Master unlocks" and `leaderboards.jsx` promise: nothing grants them.

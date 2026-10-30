@@ -208,6 +208,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/cron/habit-watch', 'GET'],
   ['/api/analytics/track', 'POST'],
   ['/api/analytics/clicks', 'POST'],
+  ['/api/analytics/radio-listen', 'POST'],
   ['/api/auth/password-reset', 'POST'],
   ['/api/auth/resolve-username', 'POST'],
   ['/api/cron/analytics-purge', 'GET'],

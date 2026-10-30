@@ -83,7 +83,8 @@ export default function ClicksView({ filters, result }: { filters: ClickFilters;
 
 type Segment = { key: string; label: string; href: string; on: boolean };
 
-function Segments({ label, items }: { label: string; items: Segment[] }) {
+// The Radio view (./RadioView.tsx) draws its period with these too.
+export function Segments({ label, items }: { label: string; items: Segment[] }) {
   return (
     <nav aria-label={label} className="flex overflow-x-auto [scrollbar-width:none] border border-border-hairline max-w-full">
       {items.map((v) => (
