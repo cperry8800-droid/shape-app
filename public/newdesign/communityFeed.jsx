@@ -1047,6 +1047,20 @@ function CommunityFeed() {
   // out, true = measured signed in. Collapsing null into false would disable
   // posting for a signed-in member for as long as the read takes.
   const [signedIn, setSignedIn] = React.useState(null);
+  // ＋ Post elsewhere on the site (the living profile's own feed head, livingShared.jsx
+  // lvComposePost) asks for the composer: a one-shot request read once the account is known
+  // to be signed in, and an event for a feed already on screen. Signed out, it is left alone.
+  React.useEffect(() => {
+    if (signedIn !== true) return undefined;
+    const take = () => {
+      if (!window.__shapeComposePost) return;
+      window.__shapeComposePost = false;
+      setComposerOpen(true);
+    };
+    take();
+    window.addEventListener("shape:compose-post", take);
+    return () => window.removeEventListener("shape:compose-post", take);
+  }, [signedIn]);
   // The converter and the member's unit setting, once both have loaded. Until
   // then a card renders its figures as stored.
   const [units, setUnits] = React.useState(null);

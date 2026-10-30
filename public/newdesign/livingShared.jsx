@@ -1405,6 +1405,27 @@ function LvKicker({ children, c, style }) {
   return <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: c || hexA(LV_INK, 0.5), ...style }}>{children}</div>;
 }
 
+// ⚠ ＋ POST WAS A <span> THAT LOOKED LIKE A CONTROL AND DID NOTHING (#2137's review: a control
+// that leads nowhere costs more trust than an absent one). Posting happens in the chat
+// widget's Feed tab, so it opens that tab (globalChatButton.js's __openChatTo, which waits
+// for the widget's lazy boot) and asks the feed for its composer: a one-shot request the feed
+// takes once it knows the account, and an event for a feed already on screen.
+function lvComposePost() {
+  try {
+    window.__shapeComposePost = true;
+    if (typeof window.__openChatTo === "function") window.__openChatTo({ tab: "feed" });
+    window.dispatchEvent(new CustomEvent("shape:compose-post"));
+  } catch (e) {}
+}
+// The owner's ＋ Post on their own feed head. Its hit area is 44px; the negative margin keeps
+// the head's row as tall as the label.
+function LvPostButton({ c, size = 9, style }) {
+  return <button type="button" data-lv-post="" onClick={lvComposePost}
+    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 44, minHeight: 44, margin: "-14px -8px", padding: "0 8px",
+      background: "transparent", border: 0, cursor: "pointer", fontFamily: lvMono, fontSize: size, fontWeight: 700, letterSpacing: "0.1em",
+      textTransform: "uppercase", color: c || hexA(LV_INK, 0.7), whiteSpace: "nowrap", ...style }}>＋ Post</button>;
+}
+
 // Scroll-driven sticky-bar visibility hook
 function useLvScroll(threshold = 150) {
   const ref = React.useRef(null);
