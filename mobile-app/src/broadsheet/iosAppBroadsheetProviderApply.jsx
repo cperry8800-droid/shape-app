@@ -568,7 +568,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
     return (
       <div style={{ position: 'absolute', inset: 0, color: AP_CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: AP_BG }}>
         {Ground ? <Ground dim /> : null}
-        <button onClick={onBack} style={backBtn}>← Back</button>
+        <button data-bs-back="" onClick={onBack} style={backBtn}>← Back</button>
         <div className="bs-hide-scroll" style={{ ...scroller, justifyContent: 'center', gap: 16 }}>
           <div style={eyebrow}>Application</div>
           <div style={headStyle}>Submitted<br/><span style={{ fontWeight: 400, color: AP_TEAL2 }}>for review.</span></div>
@@ -581,7 +581,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: AP_C50, lineHeight: 1.7 }}>
             Review target: 2-3 business days. {result.duplicate ? 'This application was already with us, so nothing new was sent.' : 'Uploaded resume and credential files are attached to the application review record.'}
           </div>
-          <button onClick={onBack} className="bs-wire-enter" style={{ width: '100%', borderRadius: 4, padding: '13px 14px', background: AP_TEAL, color: '#05080c', border: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
+          <button data-bs-back="" onClick={onBack} className="bs-wire-enter" style={{ width: '100%', borderRadius: 4, padding: '13px 14px', background: AP_TEAL, color: '#05080c', border: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
             Back to marketplace →
           </button>
         </div>
@@ -592,7 +592,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   return (
     <div style={{ position: 'absolute', inset: 0, color: AP_CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: AP_BG }}>
       {Ground ? <Ground dim /> : null}
-      <button onClick={onBack} style={backBtn}>← Back</button>
+      <button data-bs-back="" onClick={onBack} style={backBtn}>← Back</button>
       <div className="bs-hide-scroll" style={scroller}>
         {/* Head — the wire dispatch header */}
         <div>

@@ -2588,7 +2588,7 @@ function BSRadioScreen({ onBack }) {
           {bsRadioCorner(CREAM)}
         </div>
         {/* Universal back row — own row, flush left, under the mast (2026-07-14). */}
-        <button onClick={onBack} style={{
+        <button data-bs-back="" onClick={onBack} style={{
           marginTop: 12, display: 'inline-flex', padding: '8px 2px', background: 'transparent', color: CREAM, border: 0, cursor: 'pointer',
           fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
         }}>{tr('radio:screen.back', { defaultValue: '← Back' })}</button>
@@ -3184,7 +3184,7 @@ function BSShapeSetsScreen({ onBack }) {
                   avatar unmounts the radio screen and back returns to the root. */}
             </div>
             <div style={{ marginTop: 12 }}>
-              <button type="button" onClick={onBack} aria-label="Radio" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, padding: '8px 2px', cursor: 'pointer', color: CREAM, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', lineHeight: 1 }}>
+              <button data-bs-back="" type="button" onClick={onBack} aria-label="Radio" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, padding: '8px 2px', cursor: 'pointer', color: CREAM, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', lineHeight: 1 }}>
                 <span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>←</span>Radio
               </button>
             </div>

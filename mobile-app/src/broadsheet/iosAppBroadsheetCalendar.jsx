@@ -101,7 +101,7 @@ function BSSheetHost({ children, onDismiss, z }) {
       }}>
         <div style={{ position: 'sticky', top: 0, background: t.PAPER, zIndex: 2, borderBottom: `1px solid ${t.RULE}`, paddingTop: 'max(env(safe-area-inset-top, 0px), var(--bs-notch-floor, 0px))' }}>
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '11px 0 9px', minHeight: 24 }}>
-            <button onClick={onDismiss} style={{
+            <button data-bs-back="" onClick={onDismiss} style={{
               position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
               background: 'transparent', border: 0, color: t.INK,
               fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase',

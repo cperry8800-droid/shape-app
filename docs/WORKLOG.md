@@ -111,7 +111,8 @@ dated entry or past 20 KB.
 - **Sheets** use `createPortal` into `#bs-phone-surface`. No visible scrollbars (`index.html`).
 - **Pages** render inside `BSPage`, which pins a condensed masthead once the page's own
   scrolls away (none if the page scrolls itself); past a `BSDetailHeader`'s title it reads
-  ← and the title. A sticky row in a `BSPage` takes `top: useBSPinnedMastTop()`.
+  ← and the title. A sticky row in a `BSPage` takes `top: useBSPinnedMastTop()`. A swipe
+  right does what the page's ← does: each `BSBackButton` registers with its `BSPage` (`BS_SWIPE`).
 - **Theme:** `useBS()` → `t`. Teal `t.isLight ? '#0a8f87' : '#34d6c5'`; nutritionists gold
   `#a07a2e`, trainers rust `#c0533b`. The Wall, chat and chrome take `bsMagazine.mjs`'s teal.
   Saira; coach Today/Clients/Programs and member Home/Train/Eat: Geist/Inter Tight.

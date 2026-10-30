@@ -3717,7 +3717,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         <div style={{ position: 'relative', background: '#0b0f0f', padding: `62px ${t.padX}px 18px`, overflow: 'hidden' }}>
           <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <button onClick={onClose} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span aria-hidden style={{ fontSize: 11 }}>←</span>{tr('common:action.back', { defaultValue: 'Back' })}</button>
+            <button data-bs-back="" onClick={onClose} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span aria-hidden style={{ fontSize: 11 }}>←</span>{tr('common:action.back', { defaultValue: 'Back' })}</button>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>{tr('nutrition:log.filed', { defaultValue: 'Meal · Filed {time}', time: logTime })}</span>
           </div>
           <div style={{ position: 'relative', textAlign: 'center', marginTop: 30 }}>
@@ -7234,7 +7234,7 @@ function BSMealPreview({ meal, onBack, onLog, onFiled, onUnfiled }) {
 
       {/* CTA row — compact, single-line, squared instrument buttons */}
       <div style={{ padding: `16px ${t.padX}px 16px`, display: 'flex', gap: 8, alignItems: 'stretch' }}>
-        <button onClick={onBack} style={{ borderRadius: 5,
+        <button data-bs-back="" onClick={onBack} style={{ borderRadius: 5,
           padding: '0 14px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK,
           fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer',
         }}>Close</button>
@@ -7444,7 +7444,7 @@ function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded 
           {groceryAdded ? '✓ On your grocery list' : 'Add to grocery list →'}
         </button>
         <div style={{ display: 'flex', gap: 18, marginTop: 4 }}>
-          <button type="button" onClick={onBack} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>Close</button>
+          <button data-bs-back="" type="button" onClick={onBack} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>Close</button>
           <button type="button" onClick={() => bsLibToggle(_libItem)} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${t.ACCENT}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: saved ? t.ACCENT : t.INK }}>{saved ? '✓ Saved to library' : '♡ Save recipe'}</button>
         </div>
       </div>
@@ -7585,7 +7585,7 @@ function BSDayBriefPreview({ day, onBack, onMealClick, onRecipeClick }) {
 
       {/* Back CTA */}
       <div style={{ padding: `22px ${t.padX}px 18px`, textAlign: 'center' }}>
-        <button onClick={onBack} style={{
+        <button data-bs-back="" onClick={onBack} style={{
           padding: '10px 12px', border: 0, background: 'transparent', color: t.INK,
           fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
         }}>← Back to menu</button>
@@ -20237,7 +20237,7 @@ function BSNotifiedPerson({ userId, onClose }) {
         ? <BSPublicProfile person={person} onBack={onClose}
             onMessage={me && person.userId !== me ? (p) => bsOpenMemberConversation(p, onClose) : null} />
         : <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-            <button data-person-back onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
+            <button data-bs-back="" data-person-back onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
           </div>}
     </div>,
     (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body,
@@ -20783,7 +20783,7 @@ function BSNoraProfile({ onClose }) {
             handing off to Settings — see BSMeCorner. */}
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner close={onClose} />} />}
         <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK, padding: '8px 2px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+          <button data-bs-back="" onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK, padding: '8px 2px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>Shape team</span>
         </div>
         {/* identity — the live ring + dot overflow the avatar box, so pad the
@@ -21858,7 +21858,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
               which is recorded rather than tested around. It stays because it states
               the actual rule (back undoes a STEP, and only if one was taken), so it
               is still right on the day the bar learns to render on either face. */}
-          <button onClick={() => { if (focusTab && focusTab !== d.focus) setFocusTab(null); else onClose(); }} aria-label={tr('session:action.back', { defaultValue: 'Back' })} style={{ flexShrink: 0, background: 'transparent', border: 0, padding: '8px 2px', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← {tr('session:action.back', { defaultValue: 'Back' })}</button>
+          <button data-bs-back="" onClick={() => { if (focusTab && focusTab !== d.focus) setFocusTab(null); else onClose(); }} aria-label={tr('session:action.back', { defaultValue: 'Back' })} style={{ flexShrink: 0, background: 'transparent', border: 0, padding: '8px 2px', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← {tr('session:action.back', { defaultValue: 'Back' })}</button>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{isComments ? tr('session:detail.comments', { defaultValue: 'Comments' }) : tr('session:detail.tabDetails', { defaultValue: 'Session details' })}</div>
           {!isComments && canShareCard && (
             <button onClick={() => setShareOpen(true)} aria-label={tr('session:action.share', { defaultValue: 'Share' })} style={{ marginLeft: 'auto', width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
@@ -29434,7 +29434,7 @@ function BSStrengthHistory({ onClose, focusKey = null }) {
     <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 60, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 10px` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
-        <button onClick={onClose} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, padding: 0 }}>← BACK</button>
+        <button data-bs-back="" onClick={onClose} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, padding: 0 }}>← BACK</button>
       </div>
       <div style={{ padding: `0 ${t.padX}px 90px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginBottom: 6 }}>STRENGTH · ESTIMATED 1RM</div>
@@ -30120,7 +30120,7 @@ function BSHealthIntake({ onDone, onBack = null, initial = null, purpose = null 
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{eyebrow}</span>
-          {onBack && <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>{tr('onboarding:health.back', { defaultValue: '← Back' })}</button>}
+          {onBack && <button data-bs-back="" onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>{tr('onboarding:health.back', { defaultValue: '← Back' })}</button>}
         </div>
         <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{tr('onboarding:health.titlePre', { defaultValue: 'Your health' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('onboarding:health.titleAccent', { defaultValue: 'profile.' })}</span></h1>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>
@@ -32005,7 +32005,7 @@ function BSStoreCheckout({ t, lines, total, balance, busy, notice, onQty, onBack
         {lines.length === 0 ? (
           <div style={{ padding: '28px 0', textAlign: 'center', fontFamily: t.BODY, fontSize: 14, color: t.INK70 }}>
             {tr('store:checkout.empty', { defaultValue: 'Your cart is empty.' })}
-            <div style={{ marginTop: 12 }}><button onClick={onBack} style={{ padding: '10px 18px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.BODY, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{tr('store:checkout.backToStore', { defaultValue: 'Back to store' })}</button></div>
+            <div style={{ marginTop: 12 }}><button data-bs-back="" onClick={onBack} style={{ padding: '10px 18px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.BODY, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{tr('store:checkout.backToStore', { defaultValue: 'Back to store' })}</button></div>
           </div>
         ) : (
           <>
@@ -32305,7 +32305,7 @@ function BSWorkoutPreview({ program, coach = '', onBack, onStart }) {
       {/* Sticky-ish CTA */}
       {!isRest && (
         <div style={{ padding: `22px ${t.padX}px 18px`, display: 'flex', gap: 8 }}>
-          <button onClick={onBack} style={{ borderRadius: 5,
+          <button data-bs-back="" onClick={onBack} style={{ borderRadius: 5,
             padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
             fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
           }}>{tr('session:train.close', { defaultValue: 'Close' })}</button>
@@ -35527,7 +35527,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               cancels the padding so the row is pixel-identical; only the hit area grew, to
               29px, past the house floor (WCAG 2.5.8 AA at 24px). Every pane gets it, because
               every pane renders this one row. */}
-          <button onClick={back} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 10px', margin: '-8px -10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {settingsWord}</button>
+          <button onClick={back} data-bs-back="" style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 10px', margin: '-8px -10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {settingsWord}</button>
         </div>
         <SettingsTitle kicker={at >= 0 ? `${String(at + 1).padStart(2, '0')} · ${settingsWord}` : settingsWord} title={title} />
         <div style={{ height: 6 }} />
@@ -36456,7 +36456,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             so the row is pixel-identical; only the hit area grew. Fixed here rather
             than registered because this is the line the Passport was already editing:
             its EDIT sibling moved onto the identity card. */}
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 10px', margin: '-8px -10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {tr('settings:head.back', { defaultValue: 'Back' })}</button>
+        <button data-bs-back="" onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 10px', margin: '-8px -10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {tr('settings:head.back', { defaultValue: 'Back' })}</button>
       </div>
       <SettingsTitle title={tr('settings:head.title', { defaultValue: 'Settings' })} />
 
