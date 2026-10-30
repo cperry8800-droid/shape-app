@@ -162,7 +162,16 @@ test('a hand-typed text ladder becomes a structured one, and a list that does no
   for (const t of ['Lunge — 3 × 10/10 · 20 kg', 'Bench — 4 × 6-8 · RPE 8', 'Squat — 3 × 5 · 60 kg · RPE 8', 'Squat — 3 × 5 · 60/70 kg', 'Bench — 3 × 70/75/80% 1RM', 'Bench — 3 × 60/70/80 kg']) {
     assert.ok(!('perSet' in read(t)), t);
   }
-  assert.equal(read('Lunge — 3 × 10/10 · 20 kg').reps, '10', 'the per-side scheme parses as it always has');
+  // ⚠ A PER-SIDE LIST IS THE REPS AS WRITTEN (#2152's open item): it read 10 and a load of
+  // "/10 · 20 kg", losing the 20 kg. It is still no ladder (above): no per-set targets.
+  const side = read('Lunge — 3 × 10/10 · 20 kg');
+  assert.equal(side.reps, '10/10', 'the per-side list stays whole');
+  assert.equal(side.load, '20 kg', 'and the load is what follows it');
+  assert.equal(read('Lunge — 4 × 12/10 · 3:00').load, '3:00', 'a rest after a list is not cut into');
+  // A list run into a unit, a percent or a word is not this rule's, and reads as before.
+  for (const [t, reps] of [['Hold — 3 × 30s/45s', '30'], ['Squat — 3 × 10/90s rest', '10'], ['Bench — 3 × 5/5 kg', '5']]) {
+    assert.equal(read(t).reps, reps, t);
+  }
   assert.equal(read('Back squat — 3 × 8/6/4 · 60 kg').load, '60 kg', 'the rep ladder does not leak into the load');
   // ⚠ AN AUTHORED BLOCK'S OWN FIELDS OUTRANK ITS TEXT, so a ladder read out of text they
   // overrule would describe a prescription the row no longer carries.

@@ -129,7 +129,13 @@ export function bsAssignExercise(text) {
   // ("3 × 70/75/80% 1RM") is a weight ladder with no reps, never a rep ladder.
   const ladder = tail.match(/(\d+)\s*[×x]\s*((?:[\d–-]+|—)(?:\/(?:[\d–-]+|—))+)(?![\d–—\/-]|\s*(?:%|kg\b|lbs?\b))/);
   const isLadder = !!ladder && ladder[2].split('/').length === Number(ladder[1]);
-  const sx = isLadder ? ladder : bsTextRepLadder(tail) || bsPlainScheme(tail);
+  // ⚠ A LIST THAT IS NOT A LADDER STAYS WHOLE (#2152's open item). "3 × 10/10 · 20 kg" is ten
+  // a side, not a ladder, and the plain pattern stopped at the "/": 10 reps and a load of
+  // "/10 · 20 kg". A slash list of bare counts is the reps as written, so the load is
+  // 20 kg. A list run into a unit, a percent or a word ("10/90s rest", "70/75/80% 1RM",
+  // "8/6/AMRAP") is not this rule's and reads as before.
+  const list = isLadder ? null : tail.match(/(\d+)\s*[×x]\s*(\d+(?:[–-]\d+)?(?:\/\d+(?:[–-]\d+)?)+)(?![\w\/.%–-]|\s*(?:%|kg\b|lbs?\b))/);
+  const sx = isLadder ? ladder : bsTextRepLadder(tail) || list || bsPlainScheme(tail);
   // The separator that ended the reps is not part of the load: a comma, a " · ", and a
   // semicolon, which both ladder readers stop at as well.
   const load = sx ? tail.replace(sx[0], '').replace(/^[\s·,;]+|[\s·,;]+$/g, '') : tail;
