@@ -289,6 +289,28 @@ function RecipesPage() {
   const board = (!anyFilter && !searching) ? kmBoardPicks(courses, kmDaySeed()) : [];
   const toggleExpanded = (key) => setExpanded((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
 
+  // On a phone the filters are one row that scrolls sideways, with no bar: the
+  // edge with more toggles behind it fades (data-l / data-r), so the toggle cut
+  // at the edge reads as "more this way", not as the end of the row.
+  const tgsRef = React.useRef(null);
+  const tgsEdges = React.useRef(() => {});
+  React.useEffect(() => {
+    const el = tgsRef.current;
+    if (!el) return undefined;
+    const edges = () => {
+      el.dataset.l = el.scrollLeft > 1 ? "1" : "0";
+      el.dataset.r = el.scrollLeft + el.clientWidth < el.scrollWidth - 1 ? "1" : "0";
+    };
+    tgsEdges.current = edges;
+    edges();
+    el.addEventListener("scroll", edges, { passive: true });
+    window.addEventListener("resize", edges);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(edges, () => {});
+    return () => { el.removeEventListener("scroll", edges); window.removeEventListener("resize", edges); };
+  }, []);
+  // A count in a toggle can change its width.
+  React.useEffect(() => { tgsEdges.current(); });
+
   // Scroll spy for the jump row: the last course whose head has passed the
   // sticky row is the one you are reading.
   React.useEffect(() => {
@@ -349,7 +371,7 @@ function RecipesPage() {
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search the menu" aria-label="Search the menu" />
             {q ? <button type="button" onClick={() => setQ("")} aria-label="Clear search">×</button> : null}
           </label>
-          <div className="km-tgs">
+          <div className="km-tgs" ref={tgsRef}>
             <KmToggle label={"♡ Saved"} on={savedOnly} count={savedCount} onClick={() => { setSavedOnly((v) => !v); if (!loggedIn && !savedOnly) setAuthNudge(true); }} />
             <KmToggle label="Shape pros" on={pros} count={prosCount} onClick={() => setPros((v) => !v)} />
             <span className="km-sep" aria-hidden />
@@ -554,13 +576,14 @@ function RecipesPage() {
           .km .km-sub { font-size: 14.5px; }
           .km .km-tools { padding: 12px 0; gap: 10px; }
           .km .km-search { max-width: none; flex-basis: 100%; height: 42px; }
-          .km .km-tgs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; width: 100%; padding-bottom: 2px; }
+          .km .km-tgs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; width: 100%; padding-bottom: 2px; --fl: 0px; --fr: 0px; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--fl), #000 calc(100% - var(--fr)), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 var(--fl), #000 calc(100% - var(--fr)), transparent 100%); }
+          .km .km-tgs[data-l="1"] { --fl: 24px; }
+          .km .km-tgs[data-r="1"] { --fr: 48px; }
           .km .km-tgs::-webkit-scrollbar { display: none; }
-          .km .km-tg { flex: 0 0 auto; }
+          .km .km-tg { flex: 0 0 auto; min-height: 44px; padding: 0 14px; }
           .km .km-tools-end { margin-left: 0; width: 100%; justify-content: space-between; }
-          .km .km-jump { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 10px 0; }
-          .km .km-jump::-webkit-scrollbar { display: none; }
-          .km .km-jump a, .km .km-jump .off { flex: 0 0 auto; }
+          .km .km-jump { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 6px 0; }
+          .km .km-jump a, .km .km-jump .off { flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 44px; padding: 4px 2px; white-space: nowrap; }
           .km .km-jump-l { display: none; }
           .km .km-jl { display: none; }
           .km .km-js { display: inline; }
@@ -573,8 +596,8 @@ function RecipesPage() {
           .km .km-course-h h2 { font-size: 21px; }
           .km .km-row { display: block; padding: 12px 0; }
           .km .km-row-t { font-size: 18px; }
-          .km .km-row-r { margin-top: 6px; gap: 14px; font-size: 11.5px; color: ${KM_INK2}; }
-          .km .km-save { margin-left: auto; }
+          .km .km-row-r { margin-top: 6px; column-gap: 12px; row-gap: 2px; flex-wrap: wrap; align-items: center; font-size: 11.5px; color: ${KM_INK2}; }
+          .km .km-save { margin: -10px 0 -10px auto; padding: 0; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: flex-end; }
           .km .km-more .km-btn { width: 100%; }
         }
         @media (prefers-reduced-motion: reduce) { .km * { scroll-behavior: auto !important; } }

@@ -181,9 +181,8 @@ The War Room has the full list; this covers what needs the owner and the planned
 
 **Known gaps** (the War Room has the detail where a line says so)
 - `get_display_names` gives any caller a full name and photo for any id.
-- The app's notification list reads a failed load as "You're all caught up". Email covers only
-  coach messages, waitlist invites, tier-ups and a coach's waiting list (#2387); red and amber
-  client alerts are app and push only, and a failed email is dropped (no retry).
+- Email covers only coach messages, waitlist invites, tier-ups and a coach's waiting list (#2387);
+  red and amber client alerts are app and push only, and a failed email is dropped (no retry).
 - A member may pay two coaches of one role, sharing one section per discipline (#2384), but
   Nora's member read, the calendar and the prep-reminder cron read only the newest published
   meal plan (War Room).
@@ -236,8 +235,6 @@ The War Room has the full list; this covers what needs the owner and the planned
   `@sentry/nextjs/config`.
 - Nothing opens the chat panel from a URL; `TrainerNewProgram.html` and `get-started.html` are
   linked from nowhere.
-- The website's Kitchen (`recipesPage.jsx`) runs its filter toggles and jump row off a phone's
-  right edge.
 - No signed-in pass (browser or phone) yet: client onboarding, the dashboard frame and skins,
   `/admin`, Business (web and app), coach application uploads, the Wall's live story with a
   real set, the coach Today/Clients/Programs redesign (#2458), shared clients (#2496, #2499),

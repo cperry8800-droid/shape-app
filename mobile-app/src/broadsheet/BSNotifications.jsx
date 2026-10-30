@@ -78,19 +78,36 @@ export function BSNotifications({ onBack, onRoute = () => {} }) {
   const [confirming, setConfirming] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [failed, setFailed] = React.useState(false);
+  const [loadFailed, setLoadFailed] = React.useState(false);
   // ⚠ A READ STARTED BEFORE A CLEAR MUST NOT PAINT THE CLEARED ROWS BACK. Every read carries the
   // generation it started in; a clear moves the generation on, and a new notice arriving while a
   // clear is in flight is read again once the clear has landed.
   const gen = React.useRef(0);
   const clearing = React.useRef(false);
   const reloadAfter = React.useRef(false);
+  const shown = React.useRef(null);
+  shown.current = items;
 
   const load = () => {
     if (clearing.current) { reloadAfter.current = true; return Promise.resolve(); }
     const g = gen.current;
+    // ⚠ A FAILED READ IS NOT "YOU'RE ALL CAUGHT UP". It says it couldn't load, with Try again; a
+    // list already on screen stays as it was, with no failure kept behind it, or clearing those
+    // rows would say "Couldn't load" (Codex on #2519).
+    const fail = () => { if (g === gen.current && !(shown.current && shown.current.length)) setLoadFailed(true); };
     return Promise.resolve(window.ShapeNotifications?.list?.())
-      .then((d) => { if (g === gen.current) setItems(Array.isArray(d?.notifications) ? d.notifications : []); })
-      .catch(() => { if (g === gen.current) setItems([]); });
+      .then((d) => {
+        if (g !== gen.current) return;
+        if (!d || d.failed || !Array.isArray(d.notifications)) { fail(); return; }
+        setLoadFailed(false);
+        setItems(d.notifications);
+      })
+      .catch(fail);
+  };
+  const retry = () => {
+    setLoadFailed(false);
+    setItems((x) => (x && x.length ? x : null));
+    load();
   };
   React.useEffect(() => {
     load();
@@ -162,10 +179,19 @@ export function BSNotifications({ onBack, onRoute = () => {} }) {
       {failed && (
         <div role="status" style={{ padding: `6px ${t.padX}px 4px`, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 500, color: t.INK70 }}>{tr('common:notifications.clearFailed', { defaultValue: 'Couldn’t clear your notifications. Try again.' })}</div>
       )}
-      {items === null && (
+      {items === null && !loadFailed && (
         <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('common:notifications.loading', { defaultValue: 'Loading…' })}</div>
       )}
-      {items !== null && list.length === 0 && (
+      {loadFailed && list.length === 0 && (
+        <div role="status" style={{ padding: `0 ${t.padX}px 18px` }}>
+          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>{tr('common:notifications.loadFailedTitle', { defaultValue: 'Couldn’t load your notifications.' })}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>{tr('common:notifications.loadFailedBody', { defaultValue: 'Check your connection, then try again.' })}</div>
+            <button onClick={retry} style={{ ...action(true), marginTop: 14, minHeight: 44, padding: '0 18px', fontSize: 10 }}>{tr('common:notifications.retry', { defaultValue: 'Try again' })}</button>
+          </div>
+        </div>
+      )}
+      {items !== null && list.length === 0 && !loadFailed && (
         <div style={{ padding: `0 ${t.padX}px 18px` }}>
           <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>{tr('common:notifications.emptyTitle', { defaultValue: 'You’re all caught up.' })}</div>

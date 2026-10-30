@@ -61,11 +61,13 @@ const ROWS = [
 
 // A scripted service. `list` answers with the rows unless a read is held; `clear` answers `ok`.
 function fakeService({ ok = true, rows = ROWS } = {}) {
-  const st = { lists: 0, held: [], clears: [], marks: [], onInsert: null, hold: false };
+  const st = { lists: 0, held: [], clears: [], marks: [], onInsert: null, hold: false, fail: null };
   window.ShapeNotifications = {
     list: () => {
       st.lists++;
       if (st.hold) return new Promise((r) => st.held.push(r));
+      if (st.fail === 'flag') return Promise.resolve({ notifications: [], unread: 0, failed: true });
+      if (st.fail === 'throw') return Promise.reject(new Error('offline'));
       return Promise.resolve({ notifications: rows, unread: rows.filter((r) => !r.read).length });
     },
     markRead: (arg) => { st.marks.push(arg); return Promise.resolve(true); },
@@ -170,6 +172,71 @@ test('a notice arriving while a clear fails is still shown (Codex on #2389)', as
   assert.match(v.text(), /Tom replied/, 'the rows were not restored');
   assert.match(v.text(), /Sam wrote/, 'the notice that arrived during the failed clear is invisible');
   await v.unmount();
+});
+
+// A failed read is not an empty inbox: it said "You're all caught up" (WORKLOG Known gaps).
+test('a read that fails says it could not load, with Try again, never "all caught up"', async () => {
+  catalog = {};
+  for (const how of ['flag', 'throw']) {
+    const st = fakeService();
+    st.fail = how;
+    const v = await mount(inChrome(React.createElement(BSNotifications, { onBack: () => {} })));
+    assert.match(v.text(), /Couldn’t load your notifications\./, how);
+    assert.doesNotMatch(v.text(), /caught up/, how + ': a failed read reads as an empty inbox');
+    assert.doesNotMatch(v.text(), /Loading…/, how);
+    st.fail = null;
+    await click(button(v.host, /^Try again$/));
+    await flush();
+    assert.equal(st.lists, 2, how + ': Try again reads again');
+    assert.match(v.text(), /Tom replied/, how);
+    assert.doesNotMatch(v.text(), /Couldn’t load/, how);
+    await v.unmount();
+  }
+});
+
+test('a refresh that fails keeps the list on screen; an empty inbox still says all caught up', async () => {
+  catalog = {};
+  const st = fakeService();
+  const v = await mount(inChrome(React.createElement(BSNotifications, { onBack: () => {} })));
+  assert.match(v.text(), /Tom replied/);
+  st.fail = 'throw';
+  await act(async () => { st.onInsert?.(); });
+  await flush();
+  assert.match(v.text(), /Tom replied/, 'a failed refresh emptied the list');
+  assert.doesNotMatch(v.text(), /Couldn’t load/);
+  // Codex on #2519: that failed refresh must not linger behind the rows. Clearing them is an empty
+  // inbox, not a failed read.
+  await click(button(v.host, /^Clear all$/));
+  await click(button(v.host, /^Yes$/));
+  await flush();
+  assert.match(v.text(), /You’re all caught up\./);
+  assert.doesNotMatch(v.text(), /Couldn’t load/, 'a refresh that failed behind the rows came back after Clear all');
+  await v.unmount();
+  fakeService({ rows: [] });
+  const e = await mount(inChrome(React.createElement(BSNotifications, { onBack: () => {} })));
+  assert.match(e.text(), /You’re all caught up\./);
+  await e.unmount();
+});
+
+test('the data layer says when a read failed: a refused or broken answer is not an empty list', async () => {
+  const src = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const fn = src.slice(src.indexOf('async function listNotifications('), src.indexOf('async function markNotificationRead('));
+  let answer;
+  const fetch = async () => { if (answer instanceof Error) throw answer; return answer; };
+  const make = (signedIn) => new Function('fetch', 'apiBaseUrl', 'sessionsAuthHeaders', 'supabase', 'state', fn + '\nreturn listNotifications;')(
+    fetch, 'https://theshapecommunity.com', () => ({ Authorization: 'Bearer t' }), {}, { user: signedIn ? { id: 'u1' } : null });
+  const list = make(true);
+  answer = { ok: true, json: async () => ({ notifications: ROWS, unread: 1 }) };
+  assert.deepEqual(await list(), { notifications: ROWS, unread: 1 });
+  answer = { ok: false, json: async () => ({ error: 'Could not read notifications.' }) };
+  assert.equal((await list()).failed, true, 'a 502 read as an empty inbox');
+  answer = new Error('offline');
+  assert.equal((await list()).failed, true, 'a network failure read as an empty inbox');
+  answer = { ok: true, json: async () => ({}) };
+  assert.equal((await list()).failed, true, 'an answer with no list read as an empty inbox');
+  answer = { ok: true, json: async () => { throw new Error('not json'); } };
+  assert.equal((await list()).failed, true, 'an unreadable answer read as an empty inbox');
+  assert.deepEqual(await make(false)(), { notifications: [], unread: 0 }, 'signed out is nothing to read, not a failure');
 });
 
 test('the screen speaks the member\'s language', async () => {

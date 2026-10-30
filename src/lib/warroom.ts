@@ -1792,7 +1792,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'The member\'s engine reads their weekly check-ins (ShapeCheckins.mine; it asked for a list() that never existed), so checkin_overdue can lead Home and reach a push; not read at all while the Check-ins switch is off', status: 'done' },
         { label: 'Answered: what the Check-ins switch does (Home check-in prompts, the vitals leads and the check-in notifications; not the page, the member\'s own reminders, the coach\'s view or the −7). The −7 with the switch off is decided: no charge (lands with the check-in build)', status: 'done' },
         { label: 'Review: Codex, two rounds; one P2 (the text-size zoom) confirmed in Chromium and fixed; none on 6b98eee. Rendered in headless Chromium on the built /m/ bundle: the radio bar, the Kitchen dropdown and tabs (including a tap from 1,485px down a list), and the Profile at 1,100px', status: 'done' },
-        { label: 'The website\'s Kitchen (recipesPage.jsx) still runs its toggles and jump row off a phone\'s edge', status: 'pending' },
+        { label: '#2519: the website\'s Kitchen fits a phone. The jump row is one 44px cell per course (all four fit at 320px), the filter row fades at the edge with more toggles behind it, and each recipe\'s ♡ is a 44px button inside its row (it sat past the edge at 320px). Measured at 390, 360 and 320px: nothing overflows. Codex on d2c902d found one P2 (Clear all after a refresh that failed behind the rows read as a failed load), fixed in 3722951, where Codex found no issues.', status: 'done' },
         { label: 'No pass on a phone: the radio\'s first play after a member unmutes is still subject to the platform\'s autoplay rule (a refused play reads crossed out and the next tap plays)', status: 'manual' },
       ],
     },
@@ -1878,7 +1878,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Clear all in the app (owner, 2026-10-16): asks once, clears what the list showed up to its newest notice, rolls back and says so on a failed write. It covers every type, the phone-only reminders included', status: 'done' },
         { label: 'A read in flight can\'t paint cleared rows back, and a notice that arrives mid-clear is read once the clear lands, failed or not (Codex). Mutation round killed 16 of 16; the screen is mounted in the real broadsheet chrome', status: 'done' },
         { label: 'The list moved out of iosAppBroadsheetClient.jsx into BSNotifications.jsx and is translated in all 13 locales', status: 'done' },
-        { label: 'The app\'s list still reads a failed load as "You\'re all caught up"', status: 'pending' },
+        { label: '#2519: a failed read says "Couldn\'t load your notifications" with Try again (13 locales), not "You\'re all caught up"; listNotifications marks a 502, a network error or unreadable JSON as failed, and a refresh that fails behind rows on screen keeps them and no failure (Codex). Codex on d2c902d found one P2 (Clear all after a refresh that failed behind the rows read as a failed load), fixed in 3722951, where Codex found no issues.', status: 'done' },
       ],
     },
     {

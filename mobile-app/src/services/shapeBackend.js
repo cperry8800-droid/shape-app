@@ -5676,9 +5676,20 @@ async function listToSchedule(role) {
 }
 
 // ─── Notifications (in-app feed + live bell) ─────────────────────────────────
+// ⚠ A FAILED READ IS NOT AN EMPTY INBOX (the route answers 502 when its query fails). The list says
+// `failed`, so the bell's screen says it couldn't load: getJsonOrDefault's empty fallback made a
+// failed read read as "You're all caught up". Signed out there is nothing to read, not a failure.
 async function listNotifications() {
-  return getJsonOrDefault(`${apiBaseUrl || ''}/api/notifications`, { notifications: [], unread: 0 },
-    (data) => ({ notifications: Array.isArray(data.notifications) ? data.notifications : [], unread: data.unread || 0 }));
+  const empty = { notifications: [], unread: 0 };
+  if (!supabase || !state.user?.id) return empty;
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/notifications`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
+    const data = res.ok ? await res.json() : null;
+    if (!data || !Array.isArray(data.notifications)) return { ...empty, failed: true };
+    return { notifications: data.notifications, unread: data.unread || 0 };
+  } catch (e) {
+    return { ...empty, failed: true };
+  }
 }
 async function markNotificationRead({ id, all } = {}) {
   const res = await fetch(`${apiBaseUrl || ''}/api/notifications`, {
