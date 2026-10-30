@@ -12,15 +12,20 @@
 // own from a seed (its listing id or name): the photo, and a studio and replays that fit its
 // specialty. What its listing says (name, bio, credential, price, rating) stays its listing's.
 //
-// The sample words (the bio, the station notes, the replays, the reviews) are content, as a
-// coach's own words are, so they stay in English like the rest of the demo's; the studio's
-// station names are the template's, in the reader's language (`word`). Loads come in the
-// reader's units (`lb`), as plate-friendly numbers in each.
+// The sample words (the bio, the station notes, the replays, the programs, the workouts, the
+// reviews) are in the reader's language (owner, 2026-10-30: "Translate all sample text"), through
+// `say`, the profile's tr under profile:sample.* with the English as its default. The studio's
+// station names are the template's, also in the reader's language (`word`). Exercise names stay
+// the exercise library's, as a real coach's programs show them. Loads come in the reader's units
+// (`lb`), as plate-friendly numbers in each.
 //
 // No pronouns: the sample coach's words go by their first name.
 
 import { bsStudioFromTemplate, STUDIO_WORDS } from './studioKit.mjs';
 import { bsCoachPrograms } from './coachWork.mjs';
+
+// The English, with any {name} filled in: what `say` is when no translator is given.
+export const bsSampleEnglish = (key, text, values) => (values ? String(text).replace(/\{(\w+)\}/g, (m, k) => (k in values ? String(values[k]) : m)) : text);
 
 // The demo photos (mobile-app/public/demo), and the only wall photos a sample page shows or
 // Make it yours offers there.
@@ -77,63 +82,67 @@ const DAYS = {
 const set = (lb, kg, pounds, reps) => `${lb ? pounds : kg} ${lb ? 'lb' : 'kg'} × ${reps}`;
 
 // Two kinds of replays: lifting, and conditioning (rounds against the clock).
-function replaysFor(family, lb, photo) {
+function replaysFor(family, lb, photo, S) {
+  const COND = S('type.conditioning', 'Conditioning'), STR = S('type.strength', 'Strength'), TIME = S('stat.time', 'Time');
+  const round = (n) => S('row.round', 'Round {n}', { n }), block = (n) => S('row.block', 'Block {n}', { n }), setN = (n) => S('row.set', 'Set {n}', { n });
+  const rpe = (n, tag) => `RPE ${n}${tag ? ' · ' + tag : ''}`;
   if (family === 'conditioning') {
     return [
       {
-        key: 'demo-bike', typeLabel: 'Conditioning', title: 'Air bike intervals', ago: '2d', photo: null,
-        body: 'Forty seconds on, eighty off. Held the pace to the last round, so next week the rest gets shorter.',
-        statsRow: [['Best round', '17 cal'], ['Time', '24:10']],
-        breakdown: { label: 'Rounds', rows: [
-          ['Round 1', '0:40 · 14 cal', 'RPE 7'], ['Round 2', '0:40 · 15 cal', 'RPE 8'], ['Round 3', '0:40 · 15 cal', 'RPE 8'],
-          ['Round 4', '0:40 · 16 cal', 'RPE 9'], ['Round 5', '0:40 · 17 cal', 'RPE 9 · best round'],
+        key: 'demo-bike', typeLabel: COND, title: S('replay.bike.title', 'Air bike intervals'), ago: '2d', photo: null,
+        body: S('replay.bike.body', 'Forty seconds on, eighty off. Held the pace to the last round, so next week the rest gets shorter.'),
+        statsRow: [[S('stat.bestRound', 'Best round'), '17 cal'], [TIME, '24:10']],
+        breakdown: { label: S('breakdown.rounds', 'Rounds'), rows: [
+          [round(1), '0:40 · 14 cal', rpe(7)], [round(2), '0:40 · 15 cal', rpe(8)], [round(3), '0:40 · 15 cal', rpe(8)],
+          [round(4), '0:40 · 16 cal', rpe(9)], [round(5), '0:40 · 17 cal', rpe(9, S('tag.bestRound', 'best round'))],
         ] },
       },
       {
-        key: 'demo-circuit', typeLabel: 'Conditioning', title: 'Sled, carries and burpees', ago: '4d', photo: photo('studio-01.webp'),
-        body: 'Four rounds of a sled push, a farmer carry and ten burpees. Every round faster than the one before.',
-        statsRow: [['Fastest round', '4:36'], ['Time', '38:00']],
-        breakdown: { label: 'Rounds', rows: [
-          ['Round 1', '4:55', 'RPE 7'], ['Round 2', '4:48', 'RPE 8'], ['Round 3', '4:41', 'RPE 8'], ['Round 4', '4:36', 'RPE 9 · fastest'],
+        key: 'demo-circuit', typeLabel: COND, title: S('replay.circuit.title', 'Sled, carries and burpees'), ago: '4d', photo: photo('studio-01.webp'),
+        body: S('replay.circuit.body', 'Four rounds of a sled push, a farmer carry and ten burpees. Every round faster than the one before.'),
+        statsRow: [[S('stat.fastestRound', 'Fastest round'), '4:36'], [TIME, '38:00']],
+        breakdown: { label: S('breakdown.rounds', 'Rounds'), rows: [
+          [round(1), '4:55', rpe(7)], [round(2), '4:48', rpe(8)], [round(3), '4:41', rpe(8)], [round(4), '4:36', rpe(9, S('tag.fastest', 'fastest'))],
         ] },
       },
       {
-        key: 'demo-swings', typeLabel: 'Conditioning', title: 'Kettlebell swings, every two minutes', ago: '6d', photo: photo('plan-01.webp'),
-        body: 'Thirty swings at the top of every two minutes. Hips snap, arms just hold on.',
-        statsRow: [['Swings', '150'], ['Time', '10:00']],
-        breakdown: { label: 'Blocks', rows: [
-          ['Block 1', set(lb, 24, 53, 30), 'RPE 6'], ['Block 2', set(lb, 24, 53, 30), 'RPE 7'], ['Block 3', set(lb, 24, 53, 30), 'RPE 8'],
-          ['Block 4', set(lb, 24, 53, 30), 'RPE 8'], ['Block 5', set(lb, 24, 53, 30), 'RPE 9 · last block'],
+        key: 'demo-swings', typeLabel: COND, title: S('replay.swings.title', 'Kettlebell swings, every two minutes'), ago: '6d', photo: photo('plan-01.webp'),
+        body: S('replay.swings.body', 'Thirty swings at the top of every two minutes. Hips snap, arms just hold on.'),
+        statsRow: [[S('stat.swings', 'Swings'), '150'], [TIME, '10:00']],
+        breakdown: { label: S('breakdown.blocks', 'Blocks'), rows: [
+          [block(1), set(lb, 24, 53, 30), rpe(6)], [block(2), set(lb, 24, 53, 30), rpe(7)], [block(3), set(lb, 24, 53, 30), rpe(8)],
+          [block(4), set(lb, 24, 53, 30), rpe(8)], [block(5), set(lb, 24, 53, 30), rpe(9, S('tag.lastBlock', 'last block'))],
         ] },
       },
     ];
   }
   return [
     {
-      key: 'demo-squat', typeLabel: 'Strength', title: 'Back squat, heavy triples', ago: '2d', photo: photo('studio-03.webp'),
-      body: 'Paused the first rep of every set. Bar speed held to the last triple, so it goes up next week.',
-      statsRow: [['Top set', set(lb, 130, 285, 3)], ['Time', '48:20']],
-      breakdown: { label: 'Working sets', rows: [
-        ['Set 1', set(lb, 100, 225, 3), 'RPE 6'], ['Set 2', set(lb, 110, 245, 3), 'RPE 7'], ['Set 3', set(lb, 120, 265, 3), 'RPE 8'],
-        ['Set 4', set(lb, 125, 275, 3), 'RPE 8'], ['Set 5', set(lb, 130, 285, 3), 'RPE 9 · top set'],
+      key: 'demo-squat', typeLabel: STR, title: S('replay.squat.title', 'Back squat, heavy triples'), ago: '2d', photo: photo('studio-03.webp'),
+      body: S('replay.squat.body', 'Paused the first rep of every set. Bar speed held to the last triple, so it goes up next week.'),
+      statsRow: [[S('stat.topSet', 'Top set'), set(lb, 130, 285, 3)], [TIME, '48:20']],
+      breakdown: { label: S('breakdown.workingSets', 'Working sets'), rows: [
+        [setN(1), set(lb, 100, 225, 3), rpe(6)], [setN(2), set(lb, 110, 245, 3), rpe(7)], [setN(3), set(lb, 120, 265, 3), rpe(8)],
+        [setN(4), set(lb, 125, 275, 3), rpe(8)], [setN(5), set(lb, 130, 285, 3), rpe(9, S('tag.topSet', 'top set'))],
       ] },
     },
     {
-      key: 'demo-pull', typeLabel: 'Strength', title: 'Deadlift and rows', ago: '4d', photo: photo('studio-02.webp'),
-      body: 'Pulled from a dead stop every rep, no bounce. Rows strict, chest on the bench.',
-      statsRow: [['Top set', set(lb, 180, 405, 2)], ['Time', '55:05']],
-      breakdown: { label: 'Working sets', rows: [
-        ['Deadlift · Set 1', set(lb, 150, 335, 3), 'RPE 6'], ['Deadlift · Set 2', set(lb, 165, 365, 3), 'RPE 7'], ['Deadlift · Set 3', set(lb, 180, 405, 2), 'RPE 9 · top set'],
-        ['Row · Set 1', set(lb, 30, 65, 10), 'RPE 7'], ['Row · Set 2', set(lb, 30, 65, 10), 'RPE 8'],
+      key: 'demo-pull', typeLabel: STR, title: S('replay.pull.title', 'Deadlift and rows'), ago: '4d', photo: photo('studio-02.webp'),
+      body: S('replay.pull.body', 'Pulled from a dead stop every rep, no bounce. Rows strict, chest on the bench.'),
+      statsRow: [[S('stat.topSet', 'Top set'), set(lb, 180, 405, 2)], [TIME, '55:05']],
+      breakdown: { label: S('breakdown.workingSets', 'Working sets'), rows: [
+        [S('row.deadliftSet', 'Deadlift · Set {n}', { n: 1 }), set(lb, 150, 335, 3), rpe(6)], [S('row.deadliftSet', 'Deadlift · Set {n}', { n: 2 }), set(lb, 165, 365, 3), rpe(7)],
+        [S('row.deadliftSet', 'Deadlift · Set {n}', { n: 3 }), set(lb, 180, 405, 2), rpe(9, S('tag.topSet', 'top set'))],
+        [S('row.rowSet', 'Row · Set {n}', { n: 1 }), set(lb, 30, 65, 10), rpe(7)], [S('row.rowSet', 'Row · Set {n}', { n: 2 }), set(lb, 30, 65, 10), rpe(8)],
       ] },
     },
     {
-      key: 'demo-press', typeLabel: 'Strength', title: 'Bench press, fives', ago: '6d', photo: null,
-      body: 'Feet set, shoulder blades pinned, a one-second pause on the chest. Five clean sets.',
-      statsRow: [['Top set', set(lb, 92.5, 205, 5)], ['Time', '41:30']],
-      breakdown: { label: 'Working sets', rows: [
-        ['Set 1', set(lb, 80, 175, 5), 'RPE 6'], ['Set 2', set(lb, 85, 185, 5), 'RPE 7'], ['Set 3', set(lb, 87.5, 195, 5), 'RPE 8'],
-        ['Set 4', set(lb, 90, 200, 5), 'RPE 8'], ['Set 5', set(lb, 92.5, 205, 5), 'RPE 9 · top set'],
+      key: 'demo-press', typeLabel: STR, title: S('replay.press.title', 'Bench press, fives'), ago: '6d', photo: null,
+      body: S('replay.press.body', 'Feet set, shoulder blades pinned, a one-second pause on the chest. Five clean sets.'),
+      statsRow: [[S('stat.topSet', 'Top set'), set(lb, 92.5, 205, 5)], [TIME, '41:30']],
+      breakdown: { label: S('breakdown.workingSets', 'Working sets'), rows: [
+        [setN(1), set(lb, 80, 175, 5), rpe(6)], [setN(2), set(lb, 85, 185, 5), rpe(7)], [setN(3), set(lb, 87.5, 195, 5), rpe(8)],
+        [setN(4), set(lb, 90, 200, 5), rpe(8)], [setN(5), set(lb, 92.5, 205, 5), rpe(9, S('tag.topSet', 'top set'))],
       ] },
     },
   ];
@@ -169,39 +178,40 @@ export const BS_SAMPLE_PROGRAM_IDS = Object.freeze({
   strong: '5a3e0000-0000-4000-8000-000000000001', basics: '5a3e0000-0000-4000-8000-000000000002',
   engine: '5a3e0000-0000-4000-8000-000000000003', bells: '5a3e0000-0000-4000-8000-000000000004',
 });
-function programsFor(family) {
+function programsFor(family, S) {
   const I = BS_SAMPLE_PROGRAM_IDS;
   const plans = family === 'conditioning' ? [
-    samplePlan(I.engine, 'Engine 8', 59, 8, [
-      ['MON', 'Intervals', [['Rower', 'Rower', 'Full body'], ['Kettlebell swing', 'Kettlebell', 'Posterior chain'], ['Box jump', 'Box', 'Quads'], ['Plank', 'Bodyweight', 'Core']]],
-      ['WED', 'Strength for engines', [['Goblet squat', 'Dumbbell', 'Quads'], ['Push-up', 'Bodyweight', 'Chest'], ['Dumbbell row', 'Dumbbell', 'Back'], ['Sled push', 'Sled', 'Full body']]],
-      ['SAT', 'The long one', [['Assault bike', 'Bike', 'Full body'], ['Farmer carry', 'Dumbbell', 'Grip'], ['Walking lunge', 'Dumbbell', 'Quads'], ['Bird dog', 'Bodyweight', 'Core']]],
-    ], BS_SAMPLE_CLIPS.row, 'Three days a week. The intervals get longer every two weeks, and the rest gets shorter.'),
-    samplePlan(I.bells, 'Bike and bells', 29, 4, [
-      ['TUE', 'Bike', [['Assault bike', 'Bike', 'Full body'], ['Kettlebell swing', 'Kettlebell', 'Posterior chain'], ['Hanging leg raise', 'Bodyweight', 'Core']]],
-      ['THU', 'Bells', [['Rower', 'Rower', 'Full body'], ['Sled push', 'Sled', 'Full body'], ['Dead bug', 'Bodyweight', 'Core']]],
-    ], BS_SAMPLE_CLIPS.swings, 'Twenty-five minutes, twice a week, for the weeks with no time.'),
+    samplePlan(I.engine, S('program.engine.name', 'Engine 8'), 59, 8, [
+      ['MON', S('day.intervals', 'Intervals'), [['Rower', 'Rower', 'Full body'], ['Kettlebell swing', 'Kettlebell', 'Posterior chain'], ['Box jump', 'Box', 'Quads'], ['Plank', 'Bodyweight', 'Core']]],
+      ['WED', S('day.engineStrength', 'Strength for engines'), [['Goblet squat', 'Dumbbell', 'Quads'], ['Push-up', 'Bodyweight', 'Chest'], ['Dumbbell row', 'Dumbbell', 'Back'], ['Sled push', 'Sled', 'Full body']]],
+      ['SAT', S('day.longOne', 'The long one'), [['Assault bike', 'Bike', 'Full body'], ['Farmer carry', 'Dumbbell', 'Grip'], ['Walking lunge', 'Dumbbell', 'Quads'], ['Bird dog', 'Bodyweight', 'Core']]],
+    ], BS_SAMPLE_CLIPS.row, S('program.engine.note', 'Three days a week. The intervals get longer every two weeks, and the rest gets shorter.')),
+    samplePlan(I.bells, S('program.bells.name', 'Bike and bells'), 29, 4, [
+      ['TUE', S('day.bike', 'Bike'), [['Assault bike', 'Bike', 'Full body'], ['Kettlebell swing', 'Kettlebell', 'Posterior chain'], ['Hanging leg raise', 'Bodyweight', 'Core']]],
+      ['THU', S('day.bells', 'Bells'), [['Rower', 'Rower', 'Full body'], ['Sled push', 'Sled', 'Full body'], ['Dead bug', 'Bodyweight', 'Core']]],
+    ], BS_SAMPLE_CLIPS.swings, S('program.bells.note', 'Twenty-five minutes, twice a week, for the weeks with no time.')),
   ] : [
-    samplePlan(I.strong, 'Strong in 12', 79, 12, [
-      ['MON', 'Squat', [['Back squat', 'Barbell', 'Quads'], ['Romanian deadlift', 'Barbell', 'Hamstrings'], ['Walking lunge', 'Dumbbell', 'Quads'], ['Plank', 'Bodyweight', 'Core']]],
-      ['WED', 'Press', [['Bench press', 'Barbell', 'Chest'], ['Barbell row', 'Barbell', 'Back'], ['Dumbbell shoulder press', 'Dumbbell', 'Shoulders'], ['Face pull', 'Cable', 'Rear delts']]],
-      ['FRI', 'Pull', [['Deadlift', 'Barbell', 'Posterior chain'], ['Pull-up', 'Bodyweight', 'Back'], ['Hip thrust', 'Barbell', 'Glutes'], ['Farmer carry', 'Dumbbell', 'Grip']]],
-    ], BS_SAMPLE_CLIPS.squat, 'Three lifting days a week. Every top set is filmed and gets a note back.'),
-    samplePlan(I.basics, 'Barbell basics', 39, 6, [
-      ['TUE', 'Lower', [['Goblet squat', 'Dumbbell', 'Quads'], ['Trap-bar deadlift', 'Trap bar', 'Posterior chain'], ['Leg press', 'Machine', 'Quads'], ['Dead bug', 'Bodyweight', 'Core']]],
-      ['THU', 'Upper', [['Dumbbell bench press', 'Dumbbell', 'Chest'], ['Overhead press', 'Barbell', 'Shoulders'], ['Lat pulldown', 'Cable', 'Back'], ['Suitcase carry', 'Dumbbell', 'Core']]],
-    ], BS_SAMPLE_CLIPS.deadlift, 'For a first year under the bar: two days a week, every lift taught from the start.'),
+    samplePlan(I.strong, S('program.strong.name', 'Strong in 12'), 79, 12, [
+      ['MON', S('day.squat', 'Squat'), [['Back squat', 'Barbell', 'Quads'], ['Romanian deadlift', 'Barbell', 'Hamstrings'], ['Walking lunge', 'Dumbbell', 'Quads'], ['Plank', 'Bodyweight', 'Core']]],
+      ['WED', S('day.press', 'Press'), [['Bench press', 'Barbell', 'Chest'], ['Barbell row', 'Barbell', 'Back'], ['Dumbbell shoulder press', 'Dumbbell', 'Shoulders'], ['Face pull', 'Cable', 'Rear delts']]],
+      ['FRI', S('day.pull', 'Pull'), [['Deadlift', 'Barbell', 'Posterior chain'], ['Pull-up', 'Bodyweight', 'Back'], ['Hip thrust', 'Barbell', 'Glutes'], ['Farmer carry', 'Dumbbell', 'Grip']]],
+    ], BS_SAMPLE_CLIPS.squat, S('program.strong.note', 'Three lifting days a week. Every top set is filmed and gets a note back.')),
+    samplePlan(I.basics, S('program.basics.name', 'Barbell basics'), 39, 6, [
+      ['TUE', S('day.lower', 'Lower'), [['Goblet squat', 'Dumbbell', 'Quads'], ['Trap-bar deadlift', 'Trap bar', 'Posterior chain'], ['Leg press', 'Machine', 'Quads'], ['Dead bug', 'Bodyweight', 'Core']]],
+      ['THU', S('day.upper', 'Upper'), [['Dumbbell bench press', 'Dumbbell', 'Chest'], ['Overhead press', 'Barbell', 'Shoulders'], ['Lat pulldown', 'Cable', 'Back'], ['Suitcase carry', 'Dumbbell', 'Core']]],
+    ], BS_SAMPLE_CLIPS.deadlift, S('program.basics.note', 'For a first year under the bar: two days a week, every lift taught from the start.')),
   ];
   return bsCoachPrograms(plans).map((p) => ({ ...p, sample: true }));
 }
 // The workouts a sample coach posted on video: one per clip there is.
-function workoutsFor(family) {
+function workoutsFor(family, S) {
   const list = family === 'conditioning'
-    ? [['demo-v-row', 'Rower pacing', 'Long strokes, legs first. Hold the same split for every interval.', '3d', BS_SAMPLE_CLIPS.row],
-      ['demo-v-swing', 'Kettlebell swings', 'Hips snap, arms just hold on. Stop the set when the bell drifts.', '5d', BS_SAMPLE_CLIPS.swings]]
-    : [['demo-v-squat', 'Back squat, what I look for', 'Brace, sit between the hips, stand up the same way you went down.', '3d', BS_SAMPLE_CLIPS.squat],
-      ['demo-v-dead', 'Deadlift set-up', 'Bar over mid-foot, slack out of the bar, then push the floor away.', '5d', BS_SAMPLE_CLIPS.deadlift]];
-  return list.filter((w) => w[4]).map(([key, title, body, ago, url]) => ({ key, title, body, ago, typeLabel: family === 'conditioning' ? 'Conditioning' : 'Strength', video: { url, type: 'video', name: title }, breakdown: null }));
+    ? [['demo-v-row', S('workout.row.title', 'Rower pacing'), S('workout.row.body', 'Long strokes, legs first. Hold the same split for every interval.'), '3d', BS_SAMPLE_CLIPS.row],
+      ['demo-v-swing', S('workout.swings.title', 'Kettlebell swings'), S('workout.swings.body', 'Hips snap, arms just hold on. Stop the set when the bell drifts.'), '5d', BS_SAMPLE_CLIPS.swings]]
+    : [['demo-v-squat', S('workout.squat.title', 'Back squat, what I look for'), S('workout.squat.body', 'Brace, sit between the hips, stand up the same way you went down.'), '3d', BS_SAMPLE_CLIPS.squat],
+      ['demo-v-dead', S('workout.deadlift.title', 'Deadlift set-up'), S('workout.deadlift.body', 'Bar over mid-foot, slack out of the bar, then push the floor away.'), '5d', BS_SAMPLE_CLIPS.deadlift]];
+  const typeLabel = family === 'conditioning' ? S('type.conditioning', 'Conditioning') : S('type.strength', 'Strength');
+  return list.filter((w) => w[4]).map(([key, title, body, ago, url]) => ({ key, title, body, ago, typeLabel, video: { url, type: 'video', name: title }, breakdown: null }));
 }
 
 // A stable number from a coach's listing id or name, so the same coach always gets the same page.
@@ -233,9 +243,12 @@ export function bsTrainerSampleOf({ key = '', specialty = '' } = {}) {
  *   seed, kind, family   from bsTrainerSampleOf; the defaults are the trainer app's demo coach
  *   where     the place the studio is in
  *   business  the business name on the page (the demo coach's own; none for a listing's coach)
+ *   say       the sample's words in the reader's language: (key, english, values) => text, the
+ *             profile's tr; by default the English (bsSampleEnglish)
  */
 export function bsTrainerDemo({ media = '/demo/', now = Date.now(), zone = null, word = (k) => STUDIO_WORDS[k] || k, lb = true,
-  seed = 0, kind = 'gym', family = 'strength', where = 'Portland, OR', business = 'Iron & Ordinary' } = {}) {
+  seed = 0, kind = 'gym', family = 'strength', where = 'Portland, OR', business = 'Iron & Ordinary', say = bsSampleEnglish } = {}) {
+  const S = (k, english, values) => say('profile:sample.' + k, english, values);
   const photo = (f) => media + f;
   const tz = zone || (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return null; } })() || 'UTC';
 
@@ -244,7 +257,7 @@ export function bsTrainerDemo({ media = '/demo/', now = Date.now(), zone = null,
   const studio = {
     kind,
     where: where || '',
-    items: bsStudioFromTemplate(kind, word).map((p, i) => (p.st ? { ...p, st: { ...p.st, note: NOTES[keyed[i].st.title] || '', ...(PINS[keyed[i].st.title] ? { pins: [PINS[keyed[i].st.title](family)] } : {}) } } : p)),
+    items: bsStudioFromTemplate(kind, word).map((p, i) => (p.st ? { ...p, st: { ...p.st, note: NOTES[keyed[i].st.title] ? S('note.' + keyed[i].st.title, NOTES[keyed[i].st.title]) : '', ...(PINS[keyed[i].st.title] ? { pins: [PINS[keyed[i].st.title](family)] } : {}) } } : p)),
   };
   // The wall photo is the seed's, and the listing photos the next three after it.
   const n = BS_TRAINER_DEMO_PHOTOS.length;
@@ -267,7 +280,7 @@ export function bsTrainerDemo({ media = '/demo/', now = Date.now(), zone = null,
     live: {
       pronouns: '',
       points: 3060,
-      goal: 'Get strong, move well, recover enough to do it again. That is the whole game.',
+      goal: S('goal', 'Get strong, move well, recover enough to do it again. That is the whole game.'),
       can_view: true,
       is_public: true,
     },
@@ -282,26 +295,26 @@ export function bsTrainerDemo({ media = '/demo/', now = Date.now(), zone = null,
       owner_id: null,
       price: 180,
       session_price: 90,
-      specialty: 'Strength and conditioning',
+      specialty: S('specialty', 'Strength and conditioning'),
       verified: true,
       credential: 'NSCA-CSCS',
       at_capacity: false,
       listing_media: { cover: pick(0), gallery: [{ url: pick(1) }, { url: pick(2) }, { url: pick(3) }] },
-      monthly_offer: { includes: ['A program written for your week', 'Notes on every logged session', 'Messages answered within a day'] },
+      monthly_offer: { includes: [S('offer.program', 'A program written for your week'), S('offer.notes', 'Notes on every logged session'), S('offer.messages', 'Messages answered within a day')] },
     },
     availability: { slots: SLOTS, busy, booked: busy.filter((b) => b.kind === 'session').map((b) => b.start), rules: { consultMin: 15 }, timezone: tz, atCapacity: false },
     reviews: {
       avg: 9.9,
       count: 284,
       list: [
-        { id: 'demo-r1', author: 'Priya S.', rating: 10, text: '+60 lb on my deadlift in 14 weeks without a single bad-back day.' },
-        { id: 'demo-r2', author: 'Marcus L.', rating: 10, text: "World-class programming. Books up fast, so plan ahead. It's worth it." },
-        { id: 'demo-r3', author: 'Dana K.', rating: 10, text: 'Every session has a note waiting after. I finally know why the program is the program.' },
-        { id: 'demo-r4', author: 'Jonah W.', rating: 9, text: 'Never touched a barbell before. Eight months later I pulled twice my bodyweight.' },
+        { id: 'demo-r1', author: 'Priya S.', rating: 10, text: S('review.r1', '+60 lb on my deadlift in 14 weeks without a single bad-back day.') },
+        { id: 'demo-r2', author: 'Marcus L.', rating: 10, text: S('review.r2', "World-class programming. Books up fast, so plan ahead. It's worth it.") },
+        { id: 'demo-r3', author: 'Dana K.', rating: 10, text: S('review.r3', 'Every session has a note waiting after. I finally know why the program is the program.') },
+        { id: 'demo-r4', author: 'Jonah W.', rating: 9, text: S('review.r4', 'Never touched a barbell before. Eight months later I pulled twice my bodyweight.') },
       ],
     },
-    replays: replaysFor(family, lb, photo),
-    programs: programsFor(family),
-    workouts: workoutsFor(family),
+    replays: replaysFor(family, lb, photo, S),
+    programs: programsFor(family, S),
+    workouts: workoutsFor(family, S),
   };
 }

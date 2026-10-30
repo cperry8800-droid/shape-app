@@ -139,7 +139,8 @@ export function BSTrainerProfile(props) {
   const demoOn = isSelf && !person.userId && !signedInUid();
   const sampleOn = !isSelf && !person.userId;
   const lb = !!(outer && outer.uMeasure && outer.uMeasure(1, 'kg').unit === 'lb');
-  // Built again when the language changes (useShapeTr re-renders this on it), for the stations' names.
+  // Built again when the language changes (useShapeTr re-renders this on it), for the stations' names
+  // and the sample's words.
   const lang = (() => { try { return window.ShapeLocale?.get?.() || ''; } catch (e) { return ''; } })();
   const sampleKey = sampleOn ? String(person.providerId || person.who || '') : '';
   const sampleCity = sampleOn && person.city && !/^(remote|online|anywhere)$/i.test(String(person.city).trim()) ? String(person.city) : '';
@@ -149,7 +150,10 @@ export function BSTrainerProfile(props) {
       if (demoOn) return { ...bsNutritionistDemo(), mode: 'self' };
       return { ...bsNutritionistDemo({ ...bsNutritionistSampleOf({ key: sampleKey, specialty: person.specialty }), where: sampleCity, business: null }), mode: 'sample' };
     }
-    const base = { media: `${import.meta.env.BASE_URL}demo/`, word: (k) => tr('profile:studio.word.' + k, { defaultValue: STUDIO_WORDS[k] || k }), lb };
+    // The sample's own words in the reader's language too (owner, 2026-10-30: "Translate all sample
+    // text"), with the English as each one's default.
+    const base = { media: `${import.meta.env.BASE_URL}demo/`, word: (k) => tr('profile:studio.word.' + k, { defaultValue: STUDIO_WORDS[k] || k }), lb,
+      say: (k, english, values) => tr(k, { defaultValue: english, ...(values || {}) }) };
     if (demoOn) return { ...bsTrainerDemo(base), mode: 'self' };
     return { ...bsTrainerDemo({ ...base, ...bsTrainerSampleOf({ key: sampleKey, specialty: person.specialty }), where: sampleCity, business: null }), mode: 'sample' };
   }, [nutri, demoOn, sampleOn, sampleKey, sampleCity, person.specialty, lb, lang]);

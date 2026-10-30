@@ -1055,6 +1055,27 @@ test('Make it yours pins the coach\'s published programs to a station, three at 
   await m.unmount();
 });
 
+// Owner, 2026-10-30: "Translate all sample text". A sample read in German: its programs, workouts,
+// replays and station notes in the German catalog's words, and nothing left in the English.
+test('a sample trainer\'s page reads in the reader\'s language: programs, workouts, replays and the studio\'s notes', async () => {
+  const de = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/profile.json'), 'utf8'));
+  const hadT = window.ShapeI18n.t;
+  window.ShapeI18n.t = (key, opts = {}) => (key.startsWith('profile:sample.') ? new IntlMessageFormat(de[key.slice('profile:'.length)], 'de-DE').format(opts) : hadT(key, opts));
+  try {
+    reset({ me: 'u-me', byId: leahRow, slots: [] });
+    const m = await mount(page({ person: leah }));
+    await tab('Replays');
+    const text = m.text();
+    for (const k of ['program.engine.name', 'program.bells.name', 'workout.row.title', 'workout.swings.title', 'replay.bike.title', 'replay.circuit.title']) {
+      assert.ok(text.includes(de['sample.' + k]), `${k} in German: ${de['sample.' + k]}`);
+    }
+    for (const english of ['Engine 8', 'Bike and bells', 'Rower pacing', 'Air bike intervals', 'Sled, carries and burpees']) {
+      if (!Object.values(de).includes(english)) assert.ok(!text.includes(english), `no English left: ${english}`);
+    }
+    await m.unmount();
+  } finally { window.ShapeI18n.t = hadT; }
+});
+
 test('a sample coach\'s programs open with no Buy, and the coach\'s own Replays post a workout video in the composer\'s Video', async () => {
   reset({ me: 'u-me', byId: leahRow, slots: [] });
   let m = await mount(page({ person: leah }));
