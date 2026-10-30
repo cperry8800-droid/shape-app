@@ -617,6 +617,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Workouts shared with friends: Share workout data is On / Friends / Off — #2511. One migration, for the owner to run before merging',
+      items: [
+        { label: 'Owner, 2026-10-30: "make their workouts public with friends so not only can friends see the activity you\'re doing, but they can tap into the workout and see specifics like how fast you are running, pace, etc". Of the options put to them: the Friends tier. Session details (pace, splits, HR, route) already opened for anyone who could read the post; what was missing was the audience', status: 'done' },
+        { label: 'A friend is a mutual follow, both accepted: following a public profile is accepted at once, so followers-only would be anyone who taps Follow. 2026-10-30-workout-friends-audience.sql adds the friends tier to posts and the live row, its legs in can_view_community_post (re-pinned), the posts\' read policy and the live read policy, and Friends to the settings trigger (history tightens, never loosens). Order: public < followers < friends < private', status: 'done' },
+        { label: 'App and website: the three-way setting in 13 locales; the rule, tightenAutoPosts, privacyToDb, the Following feeds and the website profile keep the tier; an edited followers or friends post no longer saves back as community; the composer opens on Just me; Post-a-PR names the friends setting; a session\'s PRs reach the Wall only when it was shared publicly (Off too); the session toggle reads "Share with your friends"', status: 'done' },
+        { label: 'Checks: npm test 8,872/8,872; tsc; the /m/ build; tests/workout-friends-audience.test.mjs; the mutation spec kills 36/36; the migration applied twice on a scratch Postgres 16 with a friend, a one-way follower, pending requests, a one-way follow from the author and a visitor each read under RLS, and the trigger driven through Friends, On and Private; the settings row seen in headless Chromium', status: 'done' },
+        { label: 'OWNER: run supabase-migrations/2026-10-30-workout-friends-audience.sql on Supabase, then merge #2511. Until it runs, Friends leaves past public workouts public and new friends-only posts are refused', status: 'manual' },
+        { label: 'OWNER: on two phones, signed in as mutual follows, pick Friends on one, sync or log a run, and open it from the other: the card, Session details, a like and a comment; then unfollow and check it is gone', status: 'manual' },
+        { label: 'A native speaker reads the new Share workout data, session toggle and Wall strings in the 12 translated locales', status: 'pending' },
+      ],
+    },
+    {
       section: 'App: the trainer profile\'s Replays with programs and workout videos; the studio shows the coach\'s workouts on each machine — #2508. No migration',
       items: [
         { label: 'Owner, 2026-10-29: "There needs to be videos in replays of specific workouts or programs. The layout of the gym floor needs to include coaches workouts based on those machines." Of the options put to them: Replays, workouts and programs; the studio, both (the moves\' equipment and the coach\'s own pins); samples, generated clips', status: 'done' },
