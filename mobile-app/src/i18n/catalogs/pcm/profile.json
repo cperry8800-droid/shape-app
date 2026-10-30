@@ -730,5 +730,6 @@
   "nutri.serves": "{count, plural, one {E fit # person} other {E fit # people}}",
   "nutri.setPlate": "Set your plate",
   "nutri.staplesEmptySelf": "List wetin always dey your fridge, pantry and freezer. Members go add wetin dem want for their grocery list.",
-  "nutri.writeRecipe": "Write recipe"
+  "nutri.writeRecipe": "Write recipe",
+  "trainer.asksSubPending": "{count, plural, one {Dem ask for # time} other {Dem ask for # times}} for your listing when you never dey Shape. Every member wey ask go hear say you dey here once your listing don go live."
 }

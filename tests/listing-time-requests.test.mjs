@@ -396,7 +396,7 @@ test('the migration: each member who asked is told once the claimed listing is r
   for (const piece of [
     "'listing_joined',",
     "coalesce(v_coach, 'The coach you asked') || ' is on Shape now',",
-    "'You asked ' || coalesce(v_coach, 'them') || ' for a time before they joined. Book one on their listing.',",
+    "'You asked ' || coalesce(v_coach, 'them') || ' for a time before they joined. Message them or see what they offer on their listing.',",
     "'coach:' || v_role || ':' || new.id::text,",
     "'dedupe', 'joined:' || v_role || ':' || new.id::text || ':' || a.member_id::text,",
     "'copy', jsonb_build_object(\n             'title', jsonb_build_array('listingJoined.title', jsonb_build_object('coach', coalesce(v_coach, 'The coach you asked'))),",
@@ -407,7 +407,7 @@ test('the migration: each member who asked is told once the claimed listing is r
   // The English is what the notice catalog's English says, so the bell reads the copy, not the text.
   const notice = JSON.parse(read('mobile-app/src/i18n/catalogs/en/notice.json'));
   assert.equal(notice['listingJoined.title'].replace('{coach}', 'Leah'), 'Leah is on Shape now');
-  assert.equal(notice['listingJoined.body'].replace('{coach}', 'Leah'), 'You asked Leah for a time before they joined. Book one on their listing.');
+  assert.equal(notice['listingJoined.body'].replace('{coach}', 'Leah'), 'You asked Leah for a time before they joined. Message them or see what they offer on their listing.', 'no time promised: a listing can be live with no hours');
   // The store refuses a listing off the market, after the claim check.
   const store = sql.slice(sql.indexOf('create or replace function public.add_listing_time_request('));
   const claimed = store.indexOf("return query select 'claimed'::text");

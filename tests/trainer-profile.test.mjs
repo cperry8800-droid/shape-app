@@ -669,6 +669,9 @@ test('the coach\'s own page lists what members asked of the listing before they 
   const onboarding = await mount(page({ isSelf: true }));
   assert.deepEqual(world.asksFor, ['trainer', null]);
   assert.ok(document.querySelector('[data-asks]'), 'the coach sees them while onboarding');
+  // Nobody has been told yet: the notice goes out when the listing goes live (Codex on af3756e).
+  assert.match(document.querySelector('[data-asks]').textContent, /1 time was asked of your listing while you weren't on Shape\. Each member who asked is told you're here once your listing is live\./);
+  assert.doesNotMatch(document.querySelector('[data-asks]').textContent, /has been told/);
   await onboarding.unmount();
 });
 

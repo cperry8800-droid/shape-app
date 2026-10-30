@@ -161,7 +161,9 @@ grant execute on function public.add_listing_time_request(text, bigint, uuid, ti
 -- price, a photo, an unsuspension), and fires only on the change to owned and ready. One notice per
 -- member and listing: the same row and copy the app's notices carry (listingJoined in the notice
 -- catalog), its dedupe key making a second firing write nothing (notifications_dedupe_uidx). A
--- definer, as the coach's own update fires it and the notices are other accounts'.
+-- definer, as the coach's own update fires it and the notices are other accounts'. The notice
+-- promises no time (Codex on af3756e: a listing on the marketplace can still have no open hours):
+-- it says the coach is here, to message or to see what they offer.
 create or replace function public.listing_time_requests_tell()
 returns trigger
 language plpgsql
@@ -176,7 +178,7 @@ begin
   select a.member_id,
          'listing_joined',
          coalesce(v_coach, 'The coach you asked') || ' is on Shape now',
-         'You asked ' || coalesce(v_coach, 'them') || ' for a time before they joined. Book one on their listing.',
+         'You asked ' || coalesce(v_coach, 'them') || ' for a time before they joined. Message them or see what they offer on their listing.',
          'coach:' || v_role || ':' || new.id::text,
          jsonb_build_object(
            'dedupe', 'joined:' || v_role || ':' || new.id::text || ':' || a.member_id::text,

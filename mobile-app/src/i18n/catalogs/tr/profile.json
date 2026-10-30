@@ -730,5 +730,6 @@
   "nutri.serves": "{count, plural, one {# kişilik} other {# kişilik}}",
   "nutri.setPlate": "Tabağını belirle",
   "nutri.staplesEmptySelf": "Buzdolabında, kilerinde ve dondurucunda hep olanları listele. Üyeler istediklerini alışveriş listelerine ekler.",
-  "nutri.writeRecipe": "Tarif yaz"
+  "nutri.writeRecipe": "Tarif yaz",
+  "trainer.asksSubPending": "{count, plural, one {# saat istendi} other {# saat istendi}}; o sırada sen Shape’te değildin. İsteyen her üyeye, profilin yayına girince burada olduğun bildirilecek."
 }

@@ -730,5 +730,6 @@
   "nutri.serves": "{count, plural, one {Per # persona} other {Per # persone}}",
   "nutri.setPlate": "Imposta il tuo piatto",
   "nutri.staplesEmptySelf": "Elenca cosa non manca mai nel tuo frigo, nella dispensa e nel freezer. I membri aggiungono ciò che vogliono alla loro lista della spesa.",
-  "nutri.writeRecipe": "Scrivi una ricetta"
+  "nutri.writeRecipe": "Scrivi una ricetta",
+  "trainer.asksSubPending": "{count, plural, one {# orario è stato chiesto} other {# orari sono stati chiesti}} sul tuo profilo quando non eri ancora su Shape. Ogni membro che li ha chiesti saprà che ci sei appena il tuo profilo sarà online."
 }

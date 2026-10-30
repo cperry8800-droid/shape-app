@@ -730,5 +730,6 @@
   "nutri.serves": "{count, plural, other {Untuk # porsi}}",
   "nutri.setPlate": "Atur piringmu",
   "nutri.staplesEmptySelf": "Catat apa yang selalu ada di kulkas, lemari, dan freezer-mu. Anggota menambahkan yang mereka mau ke daftar belanja mereka.",
-  "nutri.writeRecipe": "Tulis resep"
+  "nutri.writeRecipe": "Tulis resep",
+  "trainer.asksSubPending": "{count, plural, other {# waktu diminta}} di profilmu saat kamu belum ada di Shape. Setiap anggota yang meminta akan dikabari bahwa kamu di sini begitu profilmu tayang."
 }

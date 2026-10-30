@@ -730,5 +730,6 @@
   "nutri.serves": "{count, plural, one {Na mutum #} other {Na mutane #}}",
   "nutri.setPlate": "Saita farantinka",
   "nutri.staplesEmptySelf": "Lissafa abin da ke cikin firiji, ma’ajiya da firiza ɗinka koyaushe. Membobi za su ƙara abin da suke so a jerin sayayyarsu.",
-  "nutri.writeRecipe": "Rubuta girki"
+  "nutri.writeRecipe": "Rubuta girki",
+  "trainer.asksSubPending": "{count, plural, one {An nemi lokaci #} other {An nemi lokuta #}} a shafinka lokacin da ba ka kan Shape ba. Za a sanar da kowane memba da ya nema cewa kana nan da zarar shafinka ya fito."
 }

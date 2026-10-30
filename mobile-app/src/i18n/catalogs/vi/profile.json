@@ -730,5 +730,6 @@
   "nutri.serves": "{count, plural, other {Cho # người}}",
   "nutri.setPlate": "Thiết lập đĩa ăn",
   "nutri.staplesEmptySelf": "Liệt kê những thứ luôn có trong tủ lạnh, tủ bếp và ngăn đá của bạn. Thành viên thêm thứ họ muốn vào danh sách đi chợ.",
-  "nutri.writeRecipe": "Viết công thức"
+  "nutri.writeRecipe": "Viết công thức",
+  "trainer.asksSubPending": "{count, plural, other {Có # giờ được yêu cầu}} trên trang của bạn khi bạn chưa có trên Shape. Mỗi thành viên đã yêu cầu sẽ được báo rằng bạn ở đây khi trang của bạn được hiển thị."
 }

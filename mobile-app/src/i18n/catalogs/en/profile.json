@@ -730,5 +730,6 @@
   "nutri.serves": "{count, plural, one {Serves #} other {Serves #}}",
   "nutri.setPlate": "Set your plate",
   "nutri.staplesEmptySelf": "List what is always in your fridge, pantry and freezer. Members add what they want to their grocery list.",
-  "nutri.writeRecipe": "Write a recipe"
+  "nutri.writeRecipe": "Write a recipe",
+  "trainer.asksSubPending": "{count, plural, one {# time was} other {# times were}} asked of your listing while you weren't on Shape. Each member who asked is told you're here once your listing is live."
 }
