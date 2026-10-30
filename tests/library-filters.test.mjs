@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 
 const require = createRequire(import.meta.url);
+const { parse } = require('@babel/parser');
 const DB = require('../public/newdesign/dashBuilderCore.js');
 const DM = require('../public/newdesign/dashMealCore.js');
 // dashFilterBar.jsx is a babel page script: its last line publishes to `window`.
@@ -410,12 +411,42 @@ for (const [paper, open] of [['light', ':root {'], ['dark', 'html[data-paper="da
 }
 
 // ⚠ iOS SAFARI ZOOMS THE PAGE ON FOCUS when a text box computes under 16px. Both text
-// boxes the library filters added are in the coarse-pointer floor, read from the sheet.
+// boxes the library filters added are in the coarse-pointer floor, read from the sheet, and
+// so is the builder's own field class (#2150's open item: dbuField set 14px).
 test('the library\'s text boxes take the 16px floor on a coarse pointer', () => {
   const m = /@media \(pointer:coarse\)\{([^{}]*)\{\s*font-size:16px !important;\s*\}\s*\}/.exec(CSS);
   assert.ok(m, 'no coarse-pointer font floor in dash.css');
   const sel = m[1].split(',').map((x) => x.trim());
-  for (const x of ['.dash-filter-search input', '.dash-tag-new']) assert.ok(sel.includes(x), x + ' is not in the floor');
+  for (const x of ['.dash-filter-search input', '.dash-tag-new', '.dbu-field']) assert.ok(sel.includes(x), x + ' is not in the floor');
+});
+
+// Every box the builder draws with dbuField (or the per-set cells' copy of it) carries a class
+// in that floor, read from the parsed JSX so a new box can't slip by.
+test('every builder box drawn with dbuField takes the floor\'s class', () => {
+  const src = readFileSync(new URL('../public/newdesign/dashBuilder.jsx', import.meta.url), 'utf8');
+  const ast = parse(src, { sourceType: 'module', plugins: ['jsx'] });
+  const found = [];
+  const walk = (n) => {
+    if (!n || typeof n.type !== 'string') return;
+    if (n.type === 'JSXOpeningElement') {
+      const attr = (name) => n.attributes.find((a) => a.type === 'JSXAttribute' && a.name.name === name);
+      const style = attr('style');
+      const styleSrc = style ? src.slice(style.start, style.end) : '';
+      if (/\bdbuField\b|\bcellStyle\b/.test(styleSrc)) {
+        const cls = attr('className');
+        found.push({ tag: src.slice(n.start, Math.min(n.end, n.start + 70)), cls: cls ? src.slice(cls.start, cls.end) : '' });
+      }
+    }
+    for (const k of Object.keys(n)) {
+      if (k === 'loc' || k === 'start' || k === 'end') continue;
+      const v = n[k];
+      if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') walk(v);
+    }
+  };
+  walk(ast.program);
+  assert.ok(found.length >= 7, 'the walk found ' + found.length + ' boxes');
+  const bare = found.filter((f) => !/"(?:dbu-field|dash-tag-new)"/.test(f.cls));
+  assert.deepEqual(bare.map((f) => f.tag), [], 'boxes under 16px with no floor class');
 });
 
 test('the selected chip text is the declared mix, not the bare tag colour', () => {

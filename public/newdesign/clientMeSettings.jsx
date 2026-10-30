@@ -74,7 +74,8 @@ function SingleFieldModal({ label, fieldKey, initialValue, onClose, onSaved, opt
           {!options.includes(val) && <option value={val}>{val || "Choose…"}</option>}
           {options.map(option => <option key={option} value={option}>{option}</option>)}
         </select> : <input aria-label={label} autoFocus value={val} onChange={e => setVal(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && !saving && !e.isComposing) save(); }}
+          // The Enter that confirms an IME candidate is the IME's, not a save (keyCode 229 is Safari's form).
+          onKeyDown={e => { if (e.key === "Enter" && !saving && !e.isComposing && e.keyCode !== 229) save(); }}
           style={{ width:"100%", boxSizing:"border-box", background:"rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border:"1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", color:INK, padding:"12px 14px", borderRadius:8, fontFamily:sans, fontSize:16 }} />}
         {err && <div style={{ color: "var(--sh-danger, #e07856)", fontSize: 13, marginTop: 14 }}>{err}</div>}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>

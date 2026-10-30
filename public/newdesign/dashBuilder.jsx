@@ -43,7 +43,9 @@ function dbuBtn(primary, c) {
     ? { ...base, background: col, border: "1px solid " + col, color: "var(--sh-deep, #06231f)" }
     : { ...base, background: DBU_WH, border: "1px solid " + DBU_LINE2, color: DBU_INK };
 }
-// `.fld` and `.lbl`.
+// `.fld` and `.lbl`. Every box drawn with it also takes the class `dbu-field`, so dash.css can
+// raise it to 16px on a coarse pointer: iOS Safari zooms the page on focus when a text box
+// computes under 16px, and an inline 14px can't change by pointer.
 const dbuField = { boxSizing: "border-box", display: "flex", alignItems: "center", height: 40, padding: "0 12px", borderRadius: 9, border: "1px solid " + DBU_LINE2, background: DBU_WH, fontFamily: DBU_BODY, fontSize: 14, color: DBU_INK, outline: "none" };
 // ⚠ WHILE AN IME IS COMPOSING, ITS KEYSTROKES BELONG TO IT. The Enter that confirms a
 // candidate and the Escape that cancels one are the IME's, not the control's. keyCode 229
@@ -745,11 +747,12 @@ function DbuExercisePicker({ onPick, onClose, customMoves = [] }) {
         // confirms a candidate would otherwise also create a half-composed move, and the
         // Escape that cancels one would close this dialog — throwing away every move
         // ticked so far, because `selected` lives here and nowhere else.
-        if (e.nativeEvent && e.nativeEvent.isComposing) return;
+        // Safari's composing Enter reads isComposing false and keyCode 229 (dbuImeComposing).
+        if (dbuImeComposing(e.nativeEvent)) return;
         if (e.key === "Escape") onClose();
         if (e.key === "Enter" && canCreate) { e.preventDefault(); create(); }
       }}
-      placeholder="Search exercises, muscles, equipment…" style={{ ...dbuField, width: "100%", marginBottom: 4 }} />
+      placeholder="Search exercises, muscles, equipment…" className="dbu-field" style={{ ...dbuField, width: "100%", marginBottom: 4 }} />
     {/* ⚠ THE OFFER TO CREATE IS NOT GATED ON AN EMPTY RESULT LIST. It used to be,
         so a coach typing a move that merely RESEMBLED a listed one got the
         resemblance and no way to add what they actually meant. It sits above the
@@ -818,8 +821,8 @@ function DbuLadder({ row, onChange }) {
           const e = stored[i] && typeof stored[i] === 'object' ? stored[i] : {};
           return <React.Fragment key={i}>
             <span style={{ fontFamily: DBU_MONO, fontSize: 13, color: DBU_INK2 }}>{String(i + 1).padStart(2, '0')}</span>
-            <input aria-label={who + ' set ' + (i + 1) + ' reps'} value={e.reps ?? ''} maxLength={doc.SET_REPS_MAX} placeholder={String(row.reps ?? '') || '—'} onChange={ev => edit(i, 'reps', ev.target.value)} style={cellStyle} />
-            <input aria-label={who + ' set ' + (i + 1) + ' weight'} type="number" min="0" step="any" value={e.load ?? ''} placeholder={baseWeight || '—'} onChange={ev => edit(i, 'load', ev.target.value === '' ? '' : Number(ev.target.value))} style={cellStyle} />
+            <input aria-label={who + ' set ' + (i + 1) + ' reps'} value={e.reps ?? ''} maxLength={doc.SET_REPS_MAX} placeholder={String(row.reps ?? '') || '—'} onChange={ev => edit(i, 'reps', ev.target.value)} className="dbu-field" style={cellStyle} />
+            <input aria-label={who + ' set ' + (i + 1) + ' weight'} type="number" min="0" step="any" value={e.load ?? ''} placeholder={baseWeight || '—'} onChange={ev => edit(i, 'load', ev.target.value === '' ? '' : Number(ev.target.value))} className="dbu-field" style={cellStyle} />
           </React.Fragment>;
         })}
       </div>
@@ -841,7 +844,7 @@ function dbuNoLoad(load) { return load == null || load === "" || !(Number(load) 
 function DbuLoadInput({ row, onLoad, who, className }) {
   const [draft, setDraft] = React.useState(null);
   const value = draft != null ? draft : dbuNoLoad(row.load) ? "" : row.load;
-  return <input aria-label={(who || row.name)+' load'} type="number" min="0" placeholder="—" value={value} data-cell="load" className={className}
+  return <input aria-label={(who || row.name)+' load'} type="number" min="0" placeholder="—" value={value} data-cell="load" className={className || "dbu-field"}
     onFocus={()=>setDraft(dbuNoLoad(row.load) ? "" : String(row.load))} onBlur={()=>setDraft(null)}
     onChange={e=>{setDraft(e.target.value);onLoad(e.target.value===''?'':Number(e.target.value));}} style={className ? undefined : {...dbuField,width:'100%'}}/>;
 }
@@ -1614,7 +1617,7 @@ function DbuDialog({title,onClose,busy,children}) {
     // closed the dialog — throwing away every move ticked in the exercise picker,
     // whose `selected` lives nowhere else. Tab is guarded with it for the same reason:
     // while composing, it moves the candidate, not the focus ring.
-    const key=e=>{if(e.isComposing)return;if(e.key==='Escape'&&!latest.current.busy){e.preventDefault();latest.current.onClose();}if(e.key==='Tab'){
+    const key=e=>{if(dbuImeComposing(e))return;if(e.key==='Escape'&&!latest.current.busy){e.preventDefault();latest.current.onClose();}if(e.key==='Tab'){
       const items=[...node.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),summary,[tabindex="0"]')].filter(x=>!x.hidden);
       const first=items[0],last=items[items.length-1];
       if(!first){e.preventDefault();node.focus();}else if(e.shiftKey&&(document.activeElement===first||document.activeElement===node)){e.preventDefault();last.focus();}else if(!e.shiftKey&&(document.activeElement===last||document.activeElement===node)){e.preventDefault();first.focus();}
@@ -1749,7 +1752,7 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
         <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 23, margin: "6px 0 4px" }}>Put clients on it.</div>
         <div style={{ fontSize: 12, color: DBU_INK50, marginBottom: 14 }}>{doc.weeks.length} week{doc.weeks.length === 1 ? "" : "s"} · {dayCount} days · snapshot v{doc.version} — your later template edits won't change what they get.</div>
         <span style={dbuLabel}>Start date</span>
-        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ ...dbuField, marginBottom: 12 }} />
+        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="dbu-field" style={{ ...dbuField, marginBottom: 12 }} />
         <details style={{marginBottom:12}}><summary>Preview scheduled workouts</summary>{DashBuilder.buildAssignmentRows(doc,template,startDate || '2000-01-01').map((r,i)=><p key={i} style={{fontSize:12}}>{r.scheduledDate} · {r.title} · {r.payload.exercises.length} exercises</p>)}</details>
         <span style={dbuLabel}>Clients</span>
         <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 6, padding: "2px 10px", marginBottom: 14 }}>
@@ -2868,7 +2871,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
               no home in either canvas, and dropping it would have removed a shipped feature in
               a layout PR. Its developer-voice label (F10) is what changed, not its behaviour. */}
           {!!dayTemplates?.length && (
-            <select aria-label="Add a saved day to week 1" value="" style={{ ...dbuField, cursor: "pointer" }}
+            <select aria-label="Add a saved day to week 1" value="" className="dbu-field" style={{ ...dbuField, cursor: "pointer" }}
               onChange={(e) => {
                 const savedDay = dayTemplates[Number(e.target.value)];
                 if (!savedDay) return;
