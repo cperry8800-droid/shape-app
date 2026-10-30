@@ -194,3 +194,14 @@ test("groupAssignmentWeeks: the real builder output round-trips into one week", 
   assert.equal(total, rows.length);          // nothing dropped
   assert.ok(weeks.length < rows.length);     // and genuinely fewer calls
 });
+
+// ⚠ A NAME THAT IS NOT A STRING NEVER THROWS THE SORT (#2144's open item). The merges key each
+// item by String(name), so a number (a hand-edited document's "name": 5) got in, and then
+// `a.name.localeCompare` threw from the sort, taking the coach's whole list with it.
+test("the own-moves and own-foods merges sort a name that is not a string", () => {
+  const DM = require("../public/newdesign/dashMealCore.js");
+  const moves = DB.mergeOwnMoves([[{ name: "Zercher squat" }, { name: 5 }], [{ name: "Arch hold" }]]);
+  assert.deepEqual(moves.map((m) => m.name), [5, "Arch hold", "Zercher squat"]);
+  const foods = DM.mergeOwnFoods([[{ name: "Oats" }, { name: 7 }], [{ name: "Apple" }]]);
+  assert.deepEqual(foods.map((f) => f.name), [7, "Apple", "Oats"]);
+});
