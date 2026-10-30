@@ -89,6 +89,7 @@
   "prep.pauseOverdue": "Se ha superado la pausa prevista: {titles}. Revisa estos platos antes de continuar.",
   "prep.pauseUpcoming": "{title} necesita atención antes de las {time}. El horario actualizado supera el límite de esta pausa.",
   "prep.invalidTiming": "Los tiempos de estas recetas son demasiado largos para planificarlos. Revisa las duraciones antes de empezar.",
+  "prep.doorSub": "Elige los platos y cocínalos de una vez",
   "ck.readyAria": "Listo hacia las {time}. Ver todos los pasos",
   "ck.readyAround": "Listo hacia las",
   "ck.readsAria": "Nora lee cada paso en voz alta",

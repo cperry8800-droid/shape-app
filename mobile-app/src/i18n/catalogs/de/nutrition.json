@@ -400,6 +400,7 @@
   "grocery.shop.byMeal": "Mahlzeit",
   "grocery.shop.byMealHint": "Jede Zutat steht bei der Mahlzeit, für die sie ist. Lässt du eine Mahlzeit aus, fallen ihre Zutaten von der Liste.",
   "grocery.shop.inCart": "{count} im Wagen",
+  "grocery.shop.inCartOf": "{done} von {total} im Wagen",
   "grocery.shop.itemsGot": "{count, plural, one {# Artikel} other {# Artikel}} · {got} da",
   "grocery.shop.mealKicker": "Mahlzeit",
   "grocery.shop.mealsItems": "{meals, plural, one {# Mahlzeit} other {# Mahlzeiten}} · {items, plural, one {# Artikel} other {# Artikel}}.",
@@ -423,11 +424,16 @@
   "eat.shop.tagAria": "Einkauf für {meal}: {status}",
   "eat.shop.alsoMany": "{count, plural, one {auch # andere Mahlzeit} other {auch # andere Mahlzeiten}}",
   "grocery.shop.sendMember": "An ein Mitglied senden →",
+  "grocery.shop.switchList": "Liste wechseln",
   "grocery.share.meta": "Einkaufsliste · {count, plural, one {# Artikel} other {# Artikel}}",
   "grocery.share.save": "In meinen Listen speichern",
   "grocery.share.saved": "✓ In deinen Listen gespeichert",
   "grocery.share.savedToast": "In deinen Einkaufslisten gespeichert",
   "grocery.share.saveFail": "Die Liste konnte nicht gespeichert werden. Versuch es noch einmal.",
   "eat.libReceivedToday": "Geteilt · Heute erhalten",
-  "eat.libReceivedOn": "Geteilt · Erhalten am {date}"
+  "eat.libReceivedOn": "Geteilt · Erhalten am {date}",
+  "tabs.day": "Tag",
+  "tabs.grocery": "Einkauf",
+  "tabs.library": "Bibliothek",
+  "tabs.recipes": "Rezepte"
 }

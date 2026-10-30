@@ -400,6 +400,7 @@
   "grocery.shop.byMeal": "Pasto",
   "grocery.shop.byMealHint": "Ogni ingrediente sta sotto il pasto a cui serve. Salta un pasto e i suoi ingredienti escono dalla lista.",
   "grocery.shop.inCart": "{count} nel carrello",
+  "grocery.shop.inCartOf": "{done} su {total} nel carrello",
   "grocery.shop.itemsGot": "{count, plural, one {# articolo} other {# articoli}} · {got} presi",
   "grocery.shop.mealKicker": "Pasto",
   "grocery.shop.mealsItems": "{meals, plural, one {# pasto} other {# pasti}} · {items, plural, one {# articolo} other {# articoli}}.",
@@ -423,11 +424,16 @@
   "eat.shop.tagAria": "Spesa per {meal}: {status}",
   "eat.shop.alsoMany": "{count, plural, one {anche # altro pasto} other {anche # altri pasti}}",
   "grocery.shop.sendMember": "Invia a un membro →",
+  "grocery.shop.switchList": "Cambia lista",
   "grocery.share.meta": "Lista della spesa · {count, plural, one {# articolo} other {# articoli}}",
   "grocery.share.save": "Salva nelle mie liste",
   "grocery.share.saved": "✓ Salvata nelle tue liste",
   "grocery.share.savedToast": "Salvata nelle tue liste della spesa",
   "grocery.share.saveFail": "Impossibile salvare la lista. Riprova.",
   "eat.libReceivedToday": "Condivisa · Ricevuta oggi",
-  "eat.libReceivedOn": "Condivisa · Ricevuta il {date}"
+  "eat.libReceivedOn": "Condivisa · Ricevuta il {date}",
+  "tabs.day": "Giorno",
+  "tabs.grocery": "Spesa",
+  "tabs.library": "Libreria",
+  "tabs.recipes": "Ricette"
 }

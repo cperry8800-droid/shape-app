@@ -89,6 +89,7 @@
   "prep.pauseOverdue": "The planned pause has been exceeded: {titles}. Check these dishes before continuing.",
   "prep.pauseUpcoming": "{title} needs attention by {time}. The updated schedule runs past this pause deadline.",
   "prep.invalidTiming": "These recipe times are too large to schedule. Check the recipe durations before starting.",
+  "prep.doorSub": "Pick the dishes and cook them in one go",
   "ck.readyAria": "Ready around {time}. Show all steps",
   "ck.readyAround": "Ready around",
   "ck.readsAria": "Nora reads each step aloud",

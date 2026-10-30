@@ -89,6 +89,7 @@
   "prep.pauseOverdue": "An wuce hutun da aka tsara: {titles}. Duba waɗannan abinci kafin ci gaba.",
   "prep.pauseUpcoming": "{title} na buƙatar kulawa kafin {time}. Sabon jadawalin ya wuce iyakar wannan hutu.",
   "prep.invalidTiming": "Lokutan waɗannan girke-girke sun yi tsawo sosai don tsara jadawali. Duba tsawon lokacin girke-girken kafin farawa.",
+  "prep.doorSub": "Zaɓi abincin ka dafa su gaba ɗaya",
   "ck.readyAria": "A shirye kusan ƙarfe {time}. Nuna duk matakai",
   "ck.readyAround": "A shirye kusan ƙarfe",
   "ck.readsAria": "Nora tana karanta kowane mataki da murya",

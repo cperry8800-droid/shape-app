@@ -30,7 +30,11 @@
   * { box-sizing: border-box; }
   button { font-family: inherit; }
   input, textarea { font-family: inherit; }
-  .bs-scroll::-webkit-scrollbar { display: none; }
+  /* No visible scroll bars anywhere (owner, 2026-10-30). Every scroller still
+     scrolls by touch, wheel and keyboard; only the bar is gone, so a desktop
+     preview no longer draws grey tracks on sheets and strips. */
+  * { scrollbar-width: none; -ms-overflow-style: none; }
+  *::-webkit-scrollbar { display: none; width: 0; height: 0; }
   .bs-scroll { isolation: isolate; }
   html.is-native-app .bs-scroll {
     -webkit-overflow-scrolling: touch;
