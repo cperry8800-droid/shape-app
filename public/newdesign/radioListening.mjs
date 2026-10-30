@@ -4,13 +4,14 @@
 // the app imports it across the tree (mobile-app/src/services/shapeBackend.js).
 //
 // A player sends a beat as the stream starts playing, one a minute while it plays, and one as it
-// stops, each saying how many seconds played since the last, and the listen's own random id, so an
-// end closes that listen and no other (a resume's start can reach the server before the pause's end;
-// Codex P2 on #2527). Nothing else goes: no track, no device and no account (the server reads the
-// account from the request's own session, only to count a member or a coach once). Nothing is
-// sent unless the consent rule allows it, the sign-up source's (trackingAllowed in
-// src/lib/signup-source.mjs, and its copy in public/click-capture.js): Global Privacy Control and
-// a Reject stop it, and in the EEA and the UK it waits for Accept.
+// stops, each with the listen's own random id and how many seconds it has played since it began.
+// The id lets an end close that listen and no other (a resume's start can reach the server before
+// the pause's end), and a running total, not a difference, means a beat that arrives late adds
+// nothing twice and reopens nothing (Codex P2 ×2 on #2527). Nothing else goes: no track, no device
+// and no account (the server reads the account from the request's own session, only to count a
+// member or a coach once). Nothing is sent unless the consent rule allows it, the sign-up source's
+// (trackingAllowed in src/lib/signup-source.mjs, and its copy in public/click-capture.js): Global
+// Privacy Control and a Reject stop it, and in the EEA and the UK it waits for Accept.
 
 export const RADIO_BEAT_MS = 60_000;
 export const RADIO_LISTEN_PATH = '/api/analytics/radio-listen';
@@ -40,48 +41,46 @@ export function newListenId(c = globalThis.crypto) {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-/** The beats for one player. `send(body)` posts one ({ surface, listen, seconds, end? }) and never
+/** The beats for one player. `send(body)` posts one ({ surface, listen, played, end? }) and never
  * throws back; `allowed()` is asked as a listen starts and before every beat, the end included, so a
  * Reject mid-listen stops the beats there (Codex P1 on #2527: the server can't see a Reject). */
 export function createRadioListening({ surface, send, allowed, now = () => Date.now(), timers = globalThis, newId = newListenId }) {
-  let last = 0; // when the last beat went; 0 while nothing plays
+  let begun = 0; // when this listen began; 0 while nothing plays
   let listen = '';
   let timer = null;
 
   function post(body) {
     try { send(body); } catch (e) {}
   }
-  function since(t) {
-    return Math.max(0, Math.round((t - last) / 1000));
+  function played() {
+    return Math.max(0, Math.round((now() - begun) / 1000));
   }
   function quit() {
     if (timer !== null) { timers.clearInterval(timer); timer = null; }
-    last = 0;
+    begun = 0;
   }
   function playing() {
-    if (last || !allowed()) return;
-    last = now() || 1;
+    if (begun || !allowed()) return;
+    begun = now() || 1;
     listen = newId();
-    post({ surface, listen, seconds: 0 });
+    post({ surface, listen, played: 0 });
     timer = timers.setInterval(tick, RADIO_BEAT_MS);
   }
   function tick() {
-    if (!last) return;
+    if (!begun) return;
     // Consent withdrawn while it plays: nothing more is sent, not even the end.
     if (!allowed()) { quit(); return; }
-    const t = now();
-    post({ surface, listen, seconds: since(t) });
-    last = t;
+    post({ surface, listen, played: played() });
   }
   function stopped() {
-    if (!last) return;
-    const seconds = since(now());
+    if (!begun) return;
+    const total = played();
     const id = listen;
     const ok = allowed();
     quit();
-    if (ok) post({ surface, listen: id, seconds, end: true });
+    if (ok) post({ surface, listen: id, played: total, end: true });
   }
-  return { playing, stopped, tick, listening: () => last !== 0 };
+  return { playing, stopped, tick, listening: () => begun !== 0 };
 }
 
 /** Counts `audio`'s listening: a start when it plays, an end when it pauses, ends, fails or loses

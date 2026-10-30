@@ -7,10 +7,10 @@
 --      address is kept with a count.
 --   2. radio_listen_peaks: one row per day, the most accounts listening at once and when.
 --   3. radio_listen_live: the listens playing right now, one row each with its account, so a
---      listener is counted once and the seconds credited can't run ahead of the clock. A row goes
---      when its listen ends. One left quiet for 30 minutes (the app or the tab closed without saying
---      so) goes at the next beat from anyone, or at the nightly purge. It is the "listening now"
---      figure, not a history.
+--      listener is counted once and the seconds credited can't run ahead of the clock. An ended
+--      listen is marked ended, so a beat that arrives after its end reopens nothing, and every row
+--      goes 30 minutes after its last beat (at the next beat from anyone, or the nightly purge). It
+--      is the "listening now" figure, not a history.
 --   4. record_radio_listen(): a player's beat (POST /api/analytics/radio-listen, with the service
 --      role). The player sends one as the stream starts, one a minute while it plays, and one as it
 --      stops (public/newdesign/radioListening.mjs).
@@ -57,15 +57,20 @@ create table if not exists public.radio_listen_peaks (
 
 -- One row per listen: `listen` is the player's random id for it, so an end closes that listen and no
 -- other (a resume's start can reach the server before the pause's end, and one of two devices can
--- stop while the other plays; Codex P2 on #2527). `credited_to` is how far this account's listening
--- has been credited, the same on all its rows, so two listens at once never count a second twice.
+-- stop while the other plays). `played` is how much of the listen has been credited; the player
+-- sends its running total, so a beat that arrives late adds nothing, and `ended` keeps it from
+-- reopening an ended listen (Codex P2 ×2 on #2527). `credited_to` is how far this account's
+-- listening has been credited, the same on all its rows, so two listens at once never count a
+-- second twice.
 create table if not exists public.radio_listen_live (
   listen      uuid        primary key,
   listener    uuid        not null references auth.users (id) on delete cascade,
   surface     text        not null check (surface in ('web', 'app')),
   audience    text        not null check (audience in ('member', 'coach')),
   last_beat   timestamptz not null default now(),
-  credited_to timestamptz
+  credited_to timestamptz,
+  played      integer     not null default 0 check (played >= 0),
+  ended       boolean     not null default false
 );
 create index if not exists radio_listen_live_listener on public.radio_listen_live (listener);
 create index if not exists radio_listen_live_last_beat on public.radio_listen_live (last_beat);
@@ -81,17 +86,18 @@ grant select, insert, update, delete on table public.radio_listen_peaks to servi
 grant select, insert, update, delete on table public.radio_listen_live to service_role;
 
 -- A beat. p_user is the account the route read from the request's own session; p_listen is the
--- player's random id for this listen; p_seconds is how long it says it played since its last beat;
--- p_end says the stream stopped. A listen's first beat is a tune-in. A later one is credited what the
--- player says, but never more than the time since this account was last credited, or since this
--- listen began (plus 2 seconds for the network), or 10 minutes, so a second device on the same
--- account, or a player that claims too much, can't add listening that didn't happen. Each account
--- gets 6 beats a minute. Returns the seconds credited.
+-- player's random id for this listen; p_played is how long it says the listen has played since it
+-- began; p_end says the stream stopped. A listen's first beat is a tune-in. A later one is credited
+-- what its total adds to what this listen already has, but never more than the time since this
+-- account was last credited, or since this listen's last beat (plus 2 seconds for the network), or
+-- 10 minutes, so a second device on the same account, or a player that claims too much, can't add
+-- listening that didn't happen. A beat for an ended listen adds nothing. Each account gets 6 beats
+-- a minute. Returns the seconds credited.
 create or replace function public.record_radio_listen(
   p_user uuid,
   p_listen uuid,
   p_surface text,
-  p_seconds integer,
+  p_played integer,
   p_end boolean default false,
   p_tz text default 'UTC'
 )
@@ -106,6 +112,8 @@ declare
   v_audience text;
   v_last timestamptz;
   v_credited timestamptz;
+  v_played integer;
+  v_ended boolean;
   v_day date;
   v_tune_in integer := 0;
   v_credit integer := 0;
@@ -127,7 +135,7 @@ begin
   -- This account's listens, locked so its beats are credited one after another.
   perform 1 from public.radio_listen_live where listener = p_user for update;
   select max(l.credited_to) into v_credited from public.radio_listen_live l where l.listener = p_user;
-  select l.listener, l.audience, l.last_beat into v_owner, v_audience, v_last
+  select l.listener, l.audience, l.last_beat, l.played, l.ended into v_owner, v_audience, v_last, v_played, v_ended
   from public.radio_listen_live l
   where l.listen = p_listen;
 
@@ -161,18 +169,22 @@ begin
     if v_tune_in = 0 then
       return 0;
     end if;
+  elsif v_ended then
+    return 0; -- a beat that arrived after its listen's end
   else
-    v_credit := least(
-      greatest(coalesce(p_seconds, 0), 0),
+    v_credit := greatest(least(
+      coalesce(p_played, 0) - v_played,
       floor(extract(epoch from (now() - greatest(v_credited, v_last))))::integer + 2,
       600
-    );
-    update public.radio_listen_live set credited_to = now() where listener = p_user;
-    if coalesce(p_end, false) then
-      delete from public.radio_listen_live where listen = p_listen;
-    else
-      update public.radio_listen_live set last_beat = now(), surface = p_surface where listen = p_listen;
+    ), 0);
+    -- The account's mark moves only with time credited, so a beat that adds nothing (a late one,
+    -- or a second device's) takes nothing from another listen's next beat.
+    if v_credit > 0 then
+      update public.radio_listen_live set credited_to = now() where listener = p_user;
     end if;
+    update public.radio_listen_live
+    set last_beat = now(), surface = p_surface, played = played + v_credit, ended = coalesce(p_end, false)
+    where listen = p_listen;
   end if;
 
   v_day := public.ui_click_day(p_tz);
@@ -186,7 +198,7 @@ begin
   -- Listening now: every account with a beat in the last 150 seconds (a beat a minute, with room
   -- for a phone that runs its timers late), counted once however many listens it has.
   select count(distinct listener) into v_now
-  from public.radio_listen_live where last_beat > now() - interval '150 seconds';
+  from public.radio_listen_live where last_beat > now() - interval '150 seconds' and not ended;
   if v_now > 0 then
     insert into public.radio_listen_peaks as pk (day, listeners, at)
     values (v_day, v_now, now())
@@ -230,7 +242,7 @@ begin
     -- One per account, on the surface of its latest beat.
     select distinct on (l.listener) l.surface
     from public.radio_listen_live l
-    where l.last_beat > now() - interval '150 seconds'
+    where l.last_beat > now() - interval '150 seconds' and not l.ended
     order by l.listener, l.last_beat desc
   )
   select jsonb_build_object(

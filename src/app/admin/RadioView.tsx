@@ -167,8 +167,9 @@ function HowCounted() {
         </li>
         <li>
           Listening now is every account whose last beat came in the last two and a half minutes; most at once is the highest that
-          figure reached on a day. While someone listens, the server keeps a note that their account is listening, and deletes it when
-          they stop, or within a day if a listen ends without saying so. The daily totals never hold an account.
+          figure reached on a day. While someone listens, the server keeps a note that their account is listening, and deletes it within
+          a day of their stopping (half an hour after the listen&apos;s last beat, at the next beat or the nightly clean-up). The daily
+          totals never hold an account.
         </li>
         <li>
           Only where consent allows: never with Global Privacy Control or after a Reject, and in the EEA and the UK not until the banner

@@ -22,17 +22,17 @@ const BODY_LIMIT = 1024;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// A beat as the player sends it ({ surface, listen, seconds, end? }), or null. `listen` is the
-// listen's own random id; seconds are whole and at most a day (the database caps what it credits
-// much lower).
-function cleanBeat(raw: unknown): { surface: 'web' | 'app'; listen: string; seconds: number; end: boolean } | null {
+// A beat as the player sends it ({ surface, listen, played, end? }), or null. `listen` is the
+// listen's own random id; `played` is the seconds it has played since it began, whole and at most a
+// day (the database caps what it credits much lower).
+function cleanBeat(raw: unknown): { surface: 'web' | 'app'; listen: string; played: number; end: boolean } | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const b = raw as Record<string, unknown>;
   if (b.surface !== 'web' && b.surface !== 'app') return null;
   if (typeof b.listen !== 'string' || !UUID.test(b.listen)) return null;
-  const seconds = typeof b.seconds === 'number' && Number.isFinite(b.seconds) ? Math.round(b.seconds) : NaN;
-  if (!(seconds >= 0 && seconds <= 86400)) return null;
-  return { surface: b.surface, listen: b.listen.toLowerCase(), seconds, end: b.end === true };
+  const played = typeof b.played === 'number' && Number.isFinite(b.played) ? Math.round(b.played) : NaN;
+  if (!(played >= 0 && played <= 86400)) return null;
+  return { surface: b.surface, listen: b.listen.toLowerCase(), played, end: b.end === true };
 }
 
 export async function POST(request: Request) {
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       p_user: user.id,
       p_listen: beat.listen,
       p_surface: beat.surface,
-      p_seconds: beat.seconds,
+      p_played: beat.played,
       p_end: beat.end,
       p_tz: TIMEZONE,
     });
