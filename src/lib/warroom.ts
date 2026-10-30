@@ -644,6 +644,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'OWNER: run supabase-migrations/2026-10-30-workout-friends-audience.sql on Supabase, then merge #2511. Ran (owner, 2026-10-30: "ran the migration"); checked live, read-only: both checks take friends, can_view_community_post (definer, pinned to public, pg_temp) and both read policies carry the mutual-follow leg, and shape_sync_workout_privacy is enabled with the Friends case', status: 'done' },
         { label: 'OWNER: on two phones, signed in as mutual follows, pick Friends on one, sync or log a run, and open it from the other: the card, Session details, a like and a comment; then unfollow and check it is gone', status: 'manual' },
         { label: 'A native speaker reads the new Share workout data, session toggle and Wall strings in the 12 translated locales', status: 'pending' },
+        { label: 'The website\'s settings show the Share workout data description under the row and in its change dialog, the app\'s own English (settingDescription in settingsSync.mjs, pinned to en/settings.json) — #2517', status: 'done' },
       ],
     },
     {

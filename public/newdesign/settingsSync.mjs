@@ -27,6 +27,13 @@ export function settingOptions(key) {
   const spec=SETTINGS_FIELDS[key];
   return spec && BS_PREF_OPTIONS[spec[1]]?.map(o=>o.en);
 }
+// What a choice means, shown beside it. The app's Settings says the same words
+// (settings:privacy.shareWorkoutDesc in en/settings.json); tests/workout-friends-audience.test.mjs
+// pins the two together.
+const SETTING_DESCRIPTIONS = {
+  shareWorkoutData: 'Who sees your logged and synced workouts, PRs and activity, and can open a workout for its pace, splits, heart rate and route. On: everyone, in the community feed and on your profile; only your followers if your profile is Just friends. Friends: only people you follow who follow you back. Off: only you and your linked coach(es). A Private profile keeps them to you and your coach(es) whatever you pick here.',
+};
+export function settingDescription(key) { return SETTING_DESCRIPTIONS[key] || null; }
 export function projectSettings(legacy,docs) {
   const result={...(legacy||{})};
   for(const [field,[kind,key,nested]] of Object.entries(SETTINGS_FIELDS)) {

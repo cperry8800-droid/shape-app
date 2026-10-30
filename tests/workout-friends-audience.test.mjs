@@ -16,7 +16,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { bsWorkoutSharePrivacy, BS_PRIVACY_RANK } from '../mobile-app/src/services/workoutShare.mjs';
-import { settingOptions } from '../public/newdesign/settingsSync.mjs';
+import { settingOptions, settingDescription } from '../public/newdesign/settingsSync.mjs';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const SQL = read('supabase-migrations/2026-10-30-workout-friends-audience.sql');
@@ -210,6 +210,19 @@ test('both settings screens offer the same three choices', () => {
   assert.deepEqual(settingOptions('shareWorkoutData'), appOptions, 'the website offers what the app stores');
   // The app's row is a three-way picker with a label for each choice.
   assert.match(CLIENT, /key: 'shareWorkoutData', segmented: PREF_OPTIONS\.shareWorkoutData,\s*segLabels: \[[^\]]*'settings:privacy\.shareFriends'[^\]]*\]/);
+});
+
+test('the website explains the choice in the app\'s own words', () => {
+  // The app's Settings shows settings:privacy.shareWorkoutDesc under the picker; the website
+  // shows the same English under its row and in its change dialog.
+  const en = JSON.parse(read('mobile-app/src/i18n/catalogs/en/settings.json'));
+  assert.equal(settingDescription('shareWorkoutData'), en['privacy.shareWorkoutDesc']);
+  assert.equal(settingDescription('displayName'), null, 'a setting without one shows nothing');
+  const WEB = read('public/newdesign/clientMeSettings.jsx');
+  assert.match(WEB, /<Row label="Share workout data"[^\n]*desc=\{sync\?\.settingDescription\?\.\("shareWorkoutData"\)\} \/>/);
+  assert.match(WEB, /desc=\{sync\?\.settingDescription\?\.\(fieldEdit\.key\)\}/);
+  assert.match(WEB, /\{desc && <div style=\{\{ gridColumn: "1 \/ -1"/, 'the row draws it');
+  assert.match(WEB, /\{desc && <p style=/, 'the dialog draws it');
 });
 
 test('records stay off the public Wall unless workouts are shared publicly', () => {
