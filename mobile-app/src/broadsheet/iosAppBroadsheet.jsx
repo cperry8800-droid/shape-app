@@ -1,5 +1,5 @@
 import React from 'react';
-import { bsSwipeIntent } from '../services/swipeIntent.mjs';
+import { bsSwipeIntent, bsSwipeBackRoute, bsSwipeFollow, bsSwipeBackCommits, BS_SWIPE } from '../services/swipeIntent.mjs';
 import { bsSdUnitizeText, bsSdUnitizeStat, bsSdUnitizeLabel, bsSdMeasure } from '../services/sessionLedger.mjs';
 import { bsWsAccent } from './bsMagazine.mjs';
 // iosAppBroadsheet.jsx — Shared tokens, primitives, theme context for the
@@ -561,6 +561,30 @@ function useBSReportBareMast(bare) {
 // same height, so every sticky row that measures it (useBSPinnedMastTop) still sits under it.
 const BSDetailBarCtx = React.createContext(null);
 
+// A page's own Back, for the swipe (owner, 2026-10-30: "if im on one page and want to go back, i
+// can swipe right and it will bring me back to previous page"). Every BSPage knows the Back it
+// shows: its detail header's (useBSDetailBar) or else the newest Back button inside it that is on
+// screen (BSBackButton registers through BSPageBackCtx). The gesture layer finds the page under
+// the finger ([data-bs-page], BS_PAGE_BACKS) and calls that Back, so a swipe does what the page's
+// ← does, on every page that has one, with nothing for a page to wire.
+const BSPageBackCtx = React.createContext(null);
+const BS_PAGE_BACKS = new WeakMap();
+// The page under a touch and its Back (a function, or null when it shows none).
+function bsPageBackFor(target) {
+  const page = target && target.closest ? target.closest('[data-bs-page]') : null;
+  const get = page && BS_PAGE_BACKS.get(page);
+  return { page, back: get ? get() : null };
+}
+// The page's outermost element (its wrapper, when its pinned masthead sits beside the scroller):
+// the one that slides under the finger.
+function bsPageOuter(page) {
+  if (!page) return null;
+  const get = BS_PAGE_BACKS.get(page);
+  let el = page;
+  for (let up = el.parentElement && el.parentElement.closest('[data-bs-page]'); up && BS_PAGE_BACKS.get(up) === get; up = up.parentElement && up.parentElement.closest('[data-bs-page]')) el = up;
+  return el;
+}
+
 // The title as one line of words: a <br/> is a space, and a styled span gives its text.
 function bsTitleText(node) {
   if (node == null || typeof node === 'boolean') return '';
@@ -630,6 +654,26 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
     setText(s) { setDetailText(s || null); },
   } : null), [mast]);
   const tr = useShapeTr();
+  // Its own Back, for the swipe (bsPageBackFor): the newest Back button inside it that is on
+  // screen (a view opened inside the page mounts its Back last; BSDetailHeader draws one too), else
+  // the detail header's. Read at swipe time, so it is always the current one.
+  const backsRef = useRefBS([]);
+  const pageBacks = React.useMemo(() => ({
+    add(b) {
+      backsRef.current = [...backsRef.current, b];
+      return () => { backsRef.current = backsRef.current.filter((x) => x !== b); };
+    },
+  }), []);
+  const pageBack = React.useCallback(() => {
+    for (let i = backsRef.current.length - 1; i >= 0; i--) {
+      const b = backsRef.current[i];
+      if (typeof b.fn.current === 'function' && b.el.current && b.el.current.getClientRects().length) return b.fn.current;
+    }
+    const d = detailRef.current;
+    return d && typeof d.backRef.current === 'function' ? d.backRef.current : null;
+  }, []);
+  const pageRef = React.useCallback((el) => { if (el) BS_PAGE_BACKS.set(el, pageBack); }, [pageBack]);
+  const setScroller = React.useCallback((el) => { scrollerRef.current = el; pageRef(el); }, [pageRef]);
 
   useEffectBS(() => {
     if (!mast) return undefined;
@@ -701,7 +745,7 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
   }, []);
 
   const scroller = (
-    <div ref={scrollerRef} className="bs-scroll" {...((mast && !noSwipe) ? {} : { 'data-bs-noswipe': '' })} style={{
+    <div ref={setScroller} data-bs-page="" className="bs-scroll" {...((mast && !noSwipe) ? {} : { 'data-bs-noswipe': '' })} style={{
       position: 'absolute', inset: 0,
       height: '100%',
       overflowX: 'hidden',
@@ -716,7 +760,9 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
       scrollbarWidth: 'none', msOverflowStyle: 'none',
     }}>
       <BSMastBareCtx.Provider value={reportBareMast}>
-        <BSDetailBarCtx.Provider value={detailBar}>{children}</BSDetailBarCtx.Provider>
+        <BSDetailBarCtx.Provider value={detailBar}>
+          <BSPageBackCtx.Provider value={pageBacks}>{children}</BSPageBackCtx.Provider>
+        </BSDetailBarCtx.Provider>
       </BSMastBareCtx.Provider>
     </div>
   );
@@ -782,14 +828,14 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
   if (!backdrop) {
     if (!pinnedMast) return scroller;
     return (
-      <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+      <div ref={pageRef} data-bs-page="" style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
         {scroller}
         {pinnedMast}
       </div>
     );
   }
   return (
-    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+    <div ref={pageRef} data-bs-page="" style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>{backdrop}</div>
       <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>{scroller}</div>
       {pinnedMast}
@@ -2026,8 +2072,14 @@ function BSBackButton({ onClick, label = null, style }) {
   // Default label localizes to the shared common:action.back; a caller that
   // passes an explicit label (e.g. a screen name) still wins.
   const lbl = label != null ? label : tr('common:action.back', { defaultValue: 'Back' });
+  // This Back is its page's, for the swipe (BSPageBackCtx): a swipe right does what a tap here does.
+  const pageBacks = useContextBS(BSPageBackCtx);
+  const fnRef = useRefBS(onClick);
+  fnRef.current = onClick;
+  const elRef = useRefBS(null);
+  useEffectBS(() => (pageBacks && pageBacks.add ? pageBacks.add({ fn: fnRef, el: elRef }) : undefined), [pageBacks]);
   return (
-    <button type="button" onClick={onClick} aria-label={lbl} style={{
+    <button ref={elRef} type="button" onClick={onClick} aria-label={lbl} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
       background: 'transparent', border: 0,
       padding: '8px 2px', cursor: 'pointer', color: t.INK,
@@ -2045,6 +2097,11 @@ function BSBackButton({ onClick, label = null, style }) {
 // the judgment (back → navBack ‖ close-top-takeover; prev/next-tab → step their
 // own tab order when no takeover is open). We never preventDefault, so this
 // layer cannot fight browser scrolling or the native scroll handlers above.
+// ⚠ A PAGE WITH ITS OWN ← BACK GOES BACK THE WAY THAT BACK DOES (owner, 2026-10-30): the edge
+// swipe, or a fast right swipe anywhere on it, calls the page's Back (bsPageBackFor) before the
+// shell is asked. The shell's stack holds only its jumps, so a detail page opened inside a screen
+// (Progress from Home) did nothing on a swipe, and a right swipe on one stepped the tabs. An edge
+// drag follows the finger and goes back past FOLLOW_COMMIT of the width or on a flick.
 
 // ONE ancestor walk decides whether a touch may become a gesture. Blocked when
 // it starts on: an interactive control · a horizontal scroller that actually
@@ -2121,35 +2178,104 @@ function BSNavGestures() {
   useEffectBS(() => {
     bsInjectNavSwipeCss();
     const surf = document.getElementById('bs-phone-surface') || document.body;
+    const reduced = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const dispatch = (intent) => { try { window.dispatchEvent(new CustomEvent('shape:navGesture', { detail: { intent } })); } catch (err) {} };
+    // The page that came back settles in from the left, as a tab swipe's does. Two frames on,
+    // so React has drawn the page the Back opened.
+    const settleIn = (x, y) => requestAnimationFrame(() => requestAnimationFrame(() => {
+      const at = document.elementFromPoint(x, y);
+      const el = bsPageOuter(at && at.closest ? at.closest('[data-bs-page]') : null);
+      if (!el || reduced()) return;
+      el.classList.remove('bs-nav-slide-r');
+      void el.offsetWidth;
+      el.classList.add('bs-nav-slide-r');
+      setTimeout(() => el.classList.remove('bs-nav-slide-r'), 260);
+    }));
+    const place = (el, x, ms) => {
+      if (!el) return;
+      el.style.transition = ms ? `transform ${ms}ms cubic-bezier(0.2, 0.7, 0.3, 1)` : 'none';
+      el.style.transform = x ? `translateX(${x}px)` : '';
+      el.style.boxShadow = x ? '-10px 0 28px rgba(0, 0, 0, 0.18)' : '';
+    };
+    const clear = (el) => { if (el) { el.style.transition = ''; el.style.transform = ''; el.style.boxShadow = ''; el.style.willChange = ''; } };
     let start = null;
+    // An edge drag the page follows: { el, back, x, y }. el may be null (no page element to
+    // move); back is the page's own Back, or null for the shell's.
+    let drag = null;
+    const springBack = (d) => { place(d.el, 0, 180); setTimeout(() => clear(d.el), 200); };
+    const goBack = (d) => {
+      const w = surf.clientWidth || window.innerWidth;
+      place(d.el, w, 170);
+      setTimeout(() => {
+        try { if (d.back) d.back(); else dispatch('back'); } finally {
+          requestAnimationFrame(() => requestAnimationFrame(() => clear(d.el)));
+          settleIn(d.x, d.y);
+        }
+      }, d.el ? 170 : 0);
+    };
     const onStart = (e) => {
+      if (drag) { springBack(drag); drag = null; }
       if (e.touches.length !== 1) { start = null; return; }
       const t0 = e.touches[0];
       // Normalize x to the SURFACE's left edge — in the desktop preview the
       // phone frame is inset, and the 24px edge zone is the phone's edge, not
       // the browser window's. Only the raw sample is taken here — the DOM
-      // blocked-walk is deferred to touchend and runs ONLY for touches whose
-      // geometry already classifies (taps stay style/layout-read-free).
+      // blocked-walk is deferred until a touch's geometry already classifies
+      // (taps stay style/layout-read-free).
       const left = surf.getBoundingClientRect().left;
-      start = { x0: t0.clientX - left, y0: t0.clientY, t: Date.now(), target: e.target };
+      const x0 = t0.clientX - left;
+      start = { x0, y0: t0.clientY, cx: t0.clientX, t: Date.now(), target: e.target, edge: x0 <= BS_SWIPE.EDGE_PX, decided: false };
     };
-    const onMove = (e) => { if (e.touches.length !== 1) start = null; };
+    const onMove = (e) => {
+      if (!start) return;
+      if (e.touches.length !== 1) { if (drag) { springBack(drag); drag = null; } start = null; return; }
+      const t1 = e.touches[0];
+      const dx = t1.clientX - start.cx;
+      const dy = t1.clientY - start.y0;
+      if (drag) { place(drag.el, Math.max(0, dx), 0); return; }
+      if (!start.edge || start.decided) return;
+      // An edge drag on a page with a Back follows the finger; anything else waits for its end.
+      const f = bsSwipeFollow({ dx, dy });
+      if (!f) return;
+      start.decided = true;
+      if (f !== 'follow' || reduced() || bsSwipeBlocked(start.target, surf)) return;
+      const { page, back } = bsPageBackFor(start.target);
+      if (!back && !(window.ShapeNav && window.ShapeNav.canPop && window.ShapeNav.canPop())) return;
+      drag = { el: bsPageOuter(page), back, x: t1.clientX, y: t1.clientY };
+      if (drag.el) drag.el.style.willChange = 'transform';
+      place(drag.el, Math.max(0, dx), 0);
+    };
     const onEnd = (e) => {
-      if (!start || e.changedTouches.length !== 1) { start = null; return; }
+      if (!start || e.changedTouches.length !== 1) { if (drag) { springBack(drag); drag = null; } start = null; return; }
       const t1 = e.changedTouches[0];
       const left = surf.getBoundingClientRect().left;
-      const intent = bsSwipeIntent({
-        x0: start.x0, y0: start.y0,
-        x1: t1.clientX - left, y1: t1.clientY,
-        dt: Date.now() - start.t, blocked: false,
-      });
-      const startTarget = start.target;
+      const st = start;
       start = null;
+      if (drag) {
+        const d = drag;
+        drag = null;
+        d.x = st.cx + 60;
+        if (bsSwipeBackCommits({ dx: t1.clientX - st.cx, dt: Date.now() - st.t, width: surf.clientWidth || window.innerWidth })) goBack(d);
+        else springBack(d);
+        return;
+      }
+      const intent = bsSwipeIntent({
+        x0: st.x0, y0: st.y0,
+        x1: t1.clientX - left, y1: t1.clientY,
+        dt: Date.now() - st.t, blocked: false,
+      });
       if (!intent) return;
-      if (bsSwipeBlocked(startTarget, surf)) return;
-      try { window.dispatchEvent(new CustomEvent('shape:navGesture', { detail: { intent } })); } catch (err) {}
+      if (bsSwipeBlocked(st.target, surf)) return;
+      // A page with its own Back goes back the way that Back does (bsSwipeBackRoute).
+      const { back } = bsPageBackFor(st.target);
+      if (bsSwipeBackRoute({ intent, hasPageBack: !!back }) === 'page') {
+        back();
+        settleIn(st.cx + 60, st.y0);
+        return;
+      }
+      dispatch(intent);
     };
-    const onCancel = () => { start = null; };
+    const onCancel = () => { if (drag) { springBack(drag); drag = null; } start = null; };
     surf.addEventListener('touchstart', onStart, { capture: true, passive: true });
     surf.addEventListener('touchmove', onMove, { capture: true, passive: true });
     surf.addEventListener('touchend', onEnd, { capture: true, passive: true });

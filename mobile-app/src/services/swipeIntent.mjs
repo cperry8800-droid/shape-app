@@ -15,6 +15,11 @@ export const BS_SWIPE = {
   TAB_DX: 70,       // a tab-swipe must travel at least this far horizontally
   TAB_RATIO: 2,     // …with |dx| strictly more than RATIO·|dy| (rejects diagonals)
   TAB_MS: 600,      // …within this long (a slow pan is a scroll, not a swipe)
+  // An edge swipe on a page with a Back follows the finger (owner, 2026-10-30: "if im on one
+  // page and want to go back, i can swipe right and it will bring me back to previous page").
+  FOLLOW_SLOP: 10,  // the finger must move this far before the drag decides follow or not
+  FOLLOW_COMMIT: 0.3, // let go past this share of the screen's width and it goes back…
+  FLICK_V: 0.45,    // …or past BACK_DX moving right at least this fast (px per ms)
 };
 
 // sample = { x0, y0, x1, y1, dt, blocked }
@@ -36,4 +41,31 @@ export function bsSwipeIntent(sample) {
     return dx < 0 ? 'next-tab' : 'prev-tab';
   }
   return null;
+}
+
+// ── Where a back swipe goes (owner, 2026-10-30) ──
+// A page with its own ← Back goes back the way that Back does: a swipe from the edge, or a fast
+// rightward swipe anywhere on it, which on such a page used to step to the previous TAB (or, on
+// the first tab, do nothing) while the Back sat on screen. A page with no Back keeps the shell's
+// reading: the edge is the shell's back, a horizontal swipe steps the tabs.
+// → 'page' (call the page's Back) | 'shell' (dispatch the intent to the shell) | null
+export function bsSwipeBackRoute({ intent, hasPageBack }) {
+  if (!intent) return null;
+  if ((intent === 'back' || intent === 'prev-tab') && hasPageBack) return 'page';
+  return 'shell';
+}
+
+// While an edge touch moves: does the page follow the finger? null until the finger has moved
+// FOLLOW_SLOP; then 'follow' for a rightward, mostly horizontal drag, else 'cancel' (a scroll).
+export function bsSwipeFollow({ dx, dy }) {
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < BS_SWIPE.FOLLOW_SLOP) return null;
+  return dx > 0 && dx > Math.abs(dy) ? 'follow' : 'cancel';
+}
+
+// Let go of a followed page: does it go back? Past FOLLOW_COMMIT of the width, or a flick past
+// BACK_DX. A slow, short drag springs back, as the platform's does.
+export function bsSwipeBackCommits({ dx, dt, width }) {
+  if (!(dx > 0)) return false;
+  if (dx >= (width || 0) * BS_SWIPE.FOLLOW_COMMIT) return true;
+  return dx >= BS_SWIPE.BACK_DX && dx / Math.max(1, dt) >= BS_SWIPE.FLICK_V;
 }
