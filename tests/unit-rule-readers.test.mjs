@@ -96,6 +96,8 @@ const BUILDER = [
   // ladders
   ["Squat — 3 × 8/6/4 · 60/70/80 kg", { sets: 3, reps: "8", loadType: "kg", load: 0, loadText: "/6/4 · 60/70/80 kg" }, { sets: 3, reps: "8/6/4", loadType: "kg", load: 0, loadText: "60/70/80 kg" }],
   ["Lunge — 3 × 10/10 · 20 kg", { sets: 3, reps: "10", loadType: "kg", load: 0, loadText: "/10 · 20 kg" }, { sets: 3, reps: "10/10", loadType: "kg", load: 20 }],
+  ["Bench — 3 × 5/5 kg", { sets: 3, reps: "5", loadType: "kg", load: 0, loadText: "/5 kg" }],
+  ["Squat — 3 × 10/90s rest", { sets: 3, reps: "10", loadType: "kg", load: 0, loadText: "/90s rest" }],
   ["Deadlift — 3 × 5/3/1", { sets: 3, reps: "5", loadType: "kg", load: 0, loadText: "/3/1" }, { sets: 3, reps: "5/3/1", loadType: "kg", load: 0, loadText: "" }],
   ["Bench — 3 × 70/75/80% 1RM", { sets: 3, reps: "70", loadType: "kg", load: 0, loadText: "/75/80% 1RM" }],
   ["Carry — 3 × 40 m · 60/70/80 kg", { sets: 3, reps: "40", loadType: "kg", load: 0, loadText: "m · 60/70/80 kg" }, { sets: 3, reps: "40 m", loadType: "kg", load: 0, loadText: "60/70/80 kg" }],
