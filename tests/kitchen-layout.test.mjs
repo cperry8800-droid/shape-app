@@ -63,6 +63,40 @@ test('a recipe lands on the spots its own words use', () => {
   assert.deepEqual(bsRecipeKitchenUses(null), []);
 });
 
+test("a recipe written in any of the app's languages lands on its spots too (#2516's open item)", () => {
+  // One recipe per language: its method's words light the spots, its ingredients the pantry and herbs.
+  const cases = [
+    ['de', recipe('de', 'Ofengemüse', ['Den Backofen vorheizen und das Gemüse 25 Minuten rösten.'], ['Basilikum']), ['oven', 'herbs']],
+    ['es', recipe('es', 'Lentejas', ['Enjuague las lentejas y sofría la cebolla en una sartén.'], ['lentejas']), ['range', 'sink', 'pantry']],
+    ['fr', recipe('fr', 'Soupe', ['Mixez la soupe puis gardez-la au frais.'], ['persil']), ['blender', 'fridge', 'herbs']],
+    ['it', recipe('it', 'Pane', ['Pesate la farina e infornate per 30 minuti.'], ['farina']), ['oven', 'scale', 'pantry']],
+    ['pt-BR', recipe('pt', 'Salada', ['Pique a cebola e o coentro.'], ['coentro']), ['board', 'herbs']],
+    ['id', recipe('id', 'Tumis', ['Tumis bawang di wajan, lalu iris cabai.'], ['beras']), ['range', 'board', 'pantry']],
+    ['ha', recipe('ha', 'Kaza', ['Gasa kaza a tanda, sannan ka yanka albasa.'], ['shinkafa']), ['oven', 'board', 'pantry']],
+    ['ru', recipe('ru', 'Курица', ['Обжарьте курицу на сковороде.', 'Нарежьте лук.'], ['рис']), ['range', 'board', 'pantry']],
+    ['uk', recipe('uk', 'Каша', ['Залиште на ніч у холодильнику.'], ['вівсяні пластівці']), ['fridge', 'pantry']],
+    ['tr', recipe('tr', 'Sebze', ['Domatesleri doğrayın ve fırında pişirin.'], ['maydanoz']), ['oven', 'board', 'herbs']],
+    ['vi', recipe('vi', 'Gà', ['Ướp gà qua đêm trong tủ lạnh rồi chiên trong chảo.'], ['gạo']), ['range', 'fridge', 'pantry']],
+  ];
+  for (const [loc, r, uses] of cases) assert.deepEqual(bsRecipeKitchenUses(r), uses, loc);
+  // Words that look like a spot's and are not: a fork, a hob, a stove's burner, a spicy note, a
+  // nutrition balance, the Thai in a dish's name, "definitely".
+  const none = [
+    ['fr', 'Servir avec une fourchette.'], ['es', 'Encienda la hornilla.'], ['es', 'Una salsa picante.'],
+    ['vi', 'Một bữa ăn cân bằng.'], ['tr', 'Kesinlikle lezzetli.'],
+  ];
+  for (const [loc, words] of none) assert.ok(!bsRecipeKitchenUses(recipe(loc, 'x', [words])).some((u) => ['oven', 'board', 'scale'].includes(u)), `${loc}: ${words}`);
+  assert.deepEqual(bsRecipeKitchenUses(recipe('it2', 'x', ['Accendete il fornello.'])), ['range'], 'it: a burner is the stove, not the oven');
+  // A word only counts whole or as a stem's start: "pesto" weighs nothing, "Hackfleisch" is chopped.
+  assert.deepEqual(bsRecipeKitchenUses(recipe('it3', 'x', ['Aggiungete il pesto.'])), []);
+  // The twelve languages' words also run over English recipes: none of them may light a spot there.
+  assert.deepEqual(bsRecipeKitchenUses(recipe('en', 'Tagliatelle marinara', ['Toss a couple of handfuls of mixed greens with the tagliatelle.', 'A balanced plate: lavender to finish.'])), [],
+    'en: couple, mixed, tagliatelle, marinara, balanced, lavender');
+  assert.deepEqual(bsRecipeKitchenUses(recipe('es2', 'x', ['Cocine en tandas.', 'Mire la tabla nutricional.'])), [], 'es: tandas, tabla');
+  assert.deepEqual(bsRecipeKitchenUses(recipe('fr2', 'x', [], ['un oignon'])), [], 'fr: un is not flour');
+  assert.deepEqual(bsRecipeKitchenUses(recipe('vi2', 'Cà ri gà kiểu Thái')), [], 'vi: Thái is Thai, not sliced');
+});
+
 test('each spot holds the recipes made there; a missing piece hands its recipes on; a surface holds what stands on it', () => {
   const items = bsStudioFromTemplate('kitchen');
   const at = (t) => items.findIndex((p) => p.t === t);

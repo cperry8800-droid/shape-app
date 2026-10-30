@@ -243,8 +243,8 @@ export function bsStudioWork(studio, programs) {
 // program's moves onto the pieces they use, the kitchen reads a recipe's method onto the spots it
 // uses: a recipe that roasts lights the oven, one that sears lights the stove, an overnight one the
 // fridge. Read from the recipe's own words (its name, note, method and ingredients), so a coach's
-// recipe lands on their plan with nothing more to set. English words only: a recipe written in
-// another language lights nothing, and its spots still show the coach's own note.
+// recipe lands on their plan with nothing more to set, in English (KITCHEN_USES) or in any of the
+// app's other twelve languages (KITCHEN_USES_INTL).
 const KITCHEN_USES = [
   ['oven', /\b(oven|bake[ds]?|baking|roast(s|ed|ing)?|sheet[- ]pans?|broil(s|ed|ing)?|traybake)\b/i],
   // Sheet-pan is the oven's, so it is taken out before the stove looks for a pan.
@@ -258,6 +258,143 @@ const KITCHEN_USES = [
 // What the pantry and the herb shelf hold, read from the ingredients alone.
 const PANTRY_WORDS = /\b(rice|oats?|lentils?|beans?|chickpeas?|pasta|noodles|quinoa|couscous|tinned|canned|flour|tortillas?|stock|broth)\b/i;
 const HERB_WORDS = /\b(basil|parsley|cilantro|coriander|mint|dill|thyme|rosemary|chives|oregano|sage)\b/i;
+
+// ⚠ THE SAME USES IN THE APP'S OTHER TWELVE LANGUAGES (#2516's open item: a recipe written in
+// German or Vietnamese lit nothing). Two rules hold every word here:
+//   · A word ending in * is a stem and matches any word that starts with it, so an inflected verb
+//     still lands ("anbraten", "обжарьте", "doğrayın"); any other word matches whole. Word edges are
+//     Unicode letters (JS's \b knows only ASCII ones, so Cyrillic and Vietnamese never matched).
+//   · A word that also means something else in a recipe is left out, not guessed: fr "four" is
+//     inside "fourchette", es "horno" next to "hornilla" (a burner), it "forn-" also "fornello" (the
+//     stove), vi "cân" is "cân bằng" (balance), tr "kes-" is "kesinlikle". A spot that stays dark
+//     is better than one lit by the wrong word.
+// Pidgin (pcm) recipes are written with English cooking words, which KITCHEN_USES already reads.
+const KITCHEN_USES_INTL = {
+  oven: [
+    'backofen', 'ofen*', 'backen', 'gebacken*', 'backblech*', 'röst*', 'geröstet*', 'überbacken*',
+    'horno', 'hornea*', 'hornee*', 'hornear', 'horneado*', 'horneada*', 'asado*', 'asada*', 'asar', 'gratin*',
+    'enfourn*', 'rôti*', 'au four',
+    'forno', 'inforn*', 'arrost*', 'teglia',
+    'assar', 'assado*', 'assada*', 'asse', 'assadeira*',
+    'panggang', 'dipanggang', 'memanggang', 'oven',
+    'gasa*',
+    'духовк*', 'запек*', 'запеч*', 'выпек*', 'противн*',
+    'запік*', 'випік*', 'деко',
+    'fırın*',
+    'lò nướng', 'nướng',
+  ],
+  range: [
+    'pfanne*', 'topf', 'kochtopf', 'anbrat*', 'brat*', 'köchel*', 'dünst*', 'sautier*', 'herd', 'schmor*', 'wok',
+    'sartén', 'olla', 'cacerola', 'salte*', 'sofr*', 'freír', 'fríe', 'frit*', 'herv*', 'hierv*', 'fuego',
+    'poêl*', 'casserole', 'sauteuse', 'revenir', 'saisi*', 'mijot*', 'frire', 'bouill*', 'ébullition', 'feu',
+    'padell*', 'pentol*', 'tegame', 'rosol*', 'soffri*', 'frigg*', 'fritt*', 'boll*', 'sobboll*', 'fuoco', 'fornell*',
+    'frigideir*', 'panela', 'refog*', 'ferv*', 'fogo',
+    'wajan', 'panci', 'tumis', 'menumis', 'goreng', 'menggoreng', 'rebus', 'merebus', 'didih*', 'mendidih', 'kompor',
+    'soya*', 'tafas*', 'tukunya', 'murhu',
+    'сковород*', 'кастрюл*', 'обжар*', 'жар*', 'туши*', 'тушен*', 'варит*', 'свари*', 'отвари*', 'кипя*', 'закип*', 'плит*',
+    'сковорід*', 'каструл*', 'обсмаж*', 'смаж*', 'тушк*', 'вари*', 'звари*', 'відвар*', 'кип\'ят*', 'кипʼят*', 'кип’ят*',
+    'tava*', 'tencere*', 'kızart*', 'kavur*', 'haşla*', 'kaynat*', 'sote*', 'ocak*',
+    'chảo', 'nồi', 'xào', 'chiên', 'rán', 'luộc', 'đun', 'hầm',
+  ],
+  blender: [
+    'mixer', 'stabmixer', 'pürier*', 'smoothie*',
+    'licua*', 'batidora', 'tritur*',
+    'mixez', 'mixé*', 'mixeur', 'blender',
+    'frull*',
+    'liquidific*', 'processador',
+    'diblender', 'haluskan',
+    'markad*',
+    'блендер*', 'смузи', 'пюрир*',
+    'смузі',
+    'rondo*',
+    'máy xay', 'xay', 'sinh tố',
+  ],
+  board: [
+    'hack*', 'gehackt*', 'schneid*', 'geschnitten*', 'würfel*', 'gewürfelt*', 'schneidebrett',
+    'picar', 'pique', 'picado*', 'picada*', 'cortar', 'corte', 'cortado*', 'cortada*', 'trocea*', 'troce*', 'dados', 'rebana*', 'tabla de cortar',
+    'hach*', 'émin*', 'coupe', 'coupez', 'couper', 'coupé*', 'découp*', 'dés', 'tranch*', 'cisel*', 'planche à découper',
+    'trit*', 'sminuzz*', 'tagliare', 'tagliate', 'tagliato*', 'tagliata*', 'cubett*', 'dadin*', 'affett*', 'tagliere',
+    'fati*', 'cubos', 'cubinhos', 'tábua',
+    'potong*', 'dipotong', 'iris*', 'diiris', 'cincang', 'dicincang', 'talenan',
+    'yank*', 'yayyank*',
+    'нареж*', 'нарез*', 'порез*', 'измельч*', 'шинк*', 'кубик*', 'рубит*', 'доск*',
+    'наріж*', 'наріз*', 'поріж*', 'поріз*', 'подрібн*', 'шатк*', 'дошк*',
+    'doğra*', 'dilimle*', 'küp', 'rendele*',
+    'băm', 'cắt', 'xắt', 'thái lát', 'thái nhỏ', 'thái mỏng', 'thái sợi', 'thái hạt lựu', 'thớt',
+  ],
+  fridge: [
+    'kühlschrank', 'kühl*', 'gekühlt*', 'über nacht', 'marinier*',
+    'nevera', 'refriger*', 'frigor*', 'enfri*', 'toda la noche', 'marinar', 'marinado*', 'marinada*',
+    'frigo*', 'réfrigér*', 'au frais', 'toute la nuit', 'mariner', 'marinez', 'mariné*',
+    'tutta la notte', 'marinare', 'marinato*', 'marinata*',
+    'geladeira', 'durante a noite', 'noite toda',
+    'kulkas', 'lemari es', 'dinginkan', 'semalam*', 'marinasi',
+    'firij*', 'firji',
+    'холодильник*', 'охлад*', 'на ночь', 'маринов*', 'маринад*',
+    'охолод*', 'на ніч', 'маринув*',
+    'buzdolab*', 'soğut*', 'gece boyunca', 'bir gece', 'marine',
+    'tủ lạnh', 'ướp', 'qua đêm', 'làm lạnh',
+  ],
+  sink: [
+    'abspül*', 'abtropf*', 'abgieß*', 'abgiess*', 'wasch*', 'gewaschen*',
+    'enjuag*', 'escurr*', 'lavar', 'lave', 'lavado*', 'lavada*',
+    'rinc*', 'égoutt*', 'laver', 'lavez',
+    'sciacqu*', 'scol*', 'lavare', 'lavate',
+    'enxágu*', 'enxagu*', 'escorr*',
+    'bilas', 'dibilas', 'tiriskan', 'cuci', 'dicuci',
+    'wank*', 'tsiyay*',
+    'промо*', 'промыв*', 'сполосн*', 'слить', 'слейте', 'дуршлаг*',
+    'промий*', 'промив*', 'злий*', 'злити', 'друшляк*',
+    'durula*', 'süz*', 'yıka*',
+    'rửa', 'xả', 'để ráo', 'ráo',
+  ],
+  scale: [
+    'wieg*', 'abwieg*', 'waage',
+    'pesar', 'pese', 'báscula',
+    'peser', 'pesez', 'pèse',
+    'pesare', 'pesate', 'bilancia',
+    'balança',
+    'timbang', 'ditimbang', 'timbangan',
+    'auna',
+    'взвес*', 'весы', 'весах',
+    'зваж*', 'ваги', 'вагах',
+    'tartın', 'tartılı*', 'terazi',
+  ],
+};
+const PANTRY_INTL = [
+  'reis', 'hafer*', 'linsen', 'bohnen', 'kichererbsen', 'nudeln', 'pasta', 'quinoa', 'couscous', 'mehl', 'brühe',
+  'arroz', 'avena', 'lentejas', 'frijoles', 'judías', 'alubias', 'garbanzos', 'fideos', 'harina', 'caldo',
+  'riz', 'avoine', 'lentilles', 'haricots', 'pois chiches', 'pâtes', 'nouilles', 'farine', 'bouillon',
+  'riso', 'lenticchie', 'fagioli', 'ceci', 'farina', 'brodo',
+  'aveia', 'lentilha*', 'feijão', 'feijões', 'grão-de-bico', 'macarrão', 'cuscuz', 'farinha',
+  'beras', 'nasi', 'oat', 'kacang', 'mie', 'bihun', 'tepung', 'kaldu',
+  'shinkafa', 'wake', 'alkama', 'fulawa', 'taliya',
+  'рис', 'овсян*', 'геркулес', 'чечевиц*', 'фасол*', 'нут', 'макарон*', 'лапш*', 'киноа', 'кускус', 'мук*', 'бульон*', 'консерв*',
+  'вівсян*', 'сочевиц*', 'квасол*', 'локшин*', 'кіноа', 'борошн*', 'бульйон*',
+  'pirinç', 'yulaf', 'mercimek', 'fasulye', 'nohut', 'makarna', 'şehriye', 'kinoa', 'kuskus', 'et suyu', 'tavuk suyu', 'konserve',
+  'gạo', 'cơm', 'yến mạch', 'đậu lăng', 'đậu', 'mì', 'bún', 'phở', 'bột', 'nước dùng', 'đồ hộp',
+];
+const HERB_INTL = [
+  'basilikum', 'petersilie', 'koriander', 'minze', 'dill', 'thymian', 'rosmarin', 'schnittlauch', 'oregano', 'salbei',
+  'albahaca', 'perejil', 'cilantro', 'menta', 'hierbabuena', 'eneldo', 'tomillo', 'romero', 'cebollino', 'orégano', 'salvia',
+  'basilic', 'persil', 'coriandre', 'menthe', 'aneth', 'thym', 'romarin', 'ciboulette', 'origan', 'sauge',
+  'basilico', 'prezzemolo', 'coriandolo', 'aneto', 'timo', 'rosmarino', 'erba cipollina', 'origano',
+  'manjericão', 'salsinha', 'coentro', 'hortelã', 'endro', 'tomilho', 'alecrim', 'cebolinha', 'sálvia',
+  'kemangi', 'peterseli', 'ketumbar', 'daun mint', 'adas', 'daun bawang',
+  "na'a na'a", 'daddoya',
+  'базилик*', 'петрушк*', 'кинз*', 'мят*', 'укроп*', 'тимьян*', 'розмарин*', 'шалфе*',
+  'базилік*', 'кінз*', "м'ят*", 'мʼят*', 'м’ят*', 'кріп', 'кроп*', 'чебрец*', 'чебрець', 'шавлі*',
+  'fesleğen', 'maydanoz', 'kişniş', 'nane', 'dereotu', 'kekik', 'biberiye', 'frenk soğanı', 'adaçayı',
+  'húng quế', 'rau mùi', 'ngò', 'bạc hà', 'thì là', 'hương thảo', 'hẹ', 'kinh giới',
+];
+const reEscape = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// A word list as one regex: a stem's word starts with it, any other word is whole; edges are letters.
+const wordsRe = (list) => new RegExp('(?<![\\p{L}\\p{M}\\p{N}])(?:' + list.map((w) => (w.endsWith('*')
+  ? reEscape(w.slice(0, -1).normalize('NFC'))
+  : reEscape(w.normalize('NFC')) + '(?![\\p{L}\\p{M}\\p{N}])')).join('|') + ')', 'iu');
+const USES_INTL_RE = Object.fromEntries(Object.entries(KITCHEN_USES_INTL).map(([type, list]) => [type, wordsRe(list)]));
+const PANTRY_INTL_RE = wordsRe(PANTRY_INTL);
+const HERB_INTL_RE = wordsRe(HERB_INTL);
 // Where a use lands when the plan has no piece for it: an oven's on the stove, the board's on the
 // island or a counter.
 const KITCHEN_FALLBACK = { oven: ['range'], board: ['island', 'counter'], scale: ['island', 'counter'], blender: ['counter', 'island'] };
@@ -268,12 +405,12 @@ const recipeIngs = (r) => (Array.isArray(r.ing) ? r.ing.slice(0, RECIPE_SCAN) : 
 /** The kitchen pieces one recipe uses, by type, from its words: e.g. ['oven', 'board', 'pantry']. */
 export function bsRecipeKitchenUses(r) {
   if (!isObj(r)) return [];
-  const text = recipeWords(r);
-  const ings = recipeIngs(r);
+  const text = recipeWords(r).normalize('NFC');
+  const ings = recipeIngs(r).normalize('NFC');
   const out = [];
-  for (const [type, re, prep] of KITCHEN_USES) if (re.test(prep ? prep(text) : text)) out.push(type);
-  if (PANTRY_WORDS.test(ings)) out.push('pantry');
-  if (HERB_WORDS.test(ings)) out.push('herbs');
+  for (const [type, re, prep] of KITCHEN_USES) if (re.test(prep ? prep(text) : text) || USES_INTL_RE[type].test(text)) out.push(type);
+  if (PANTRY_WORDS.test(ings) || PANTRY_INTL_RE.test(ings)) out.push('pantry');
+  if (HERB_WORDS.test(ings) || HERB_INTL_RE.test(ings)) out.push('herbs');
   return out;
 }
 
