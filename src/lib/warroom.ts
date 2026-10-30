@@ -1128,7 +1128,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
-      section: 'Known gaps the worklog listed and this board did not (carried here with #2458, 2026-10-25)',
+      section: 'Known gaps the worklog listed and this board did not (carried here with #2458, 2026-10-25, and when the worklog\'s list moved here, 2026-10-30)',
       items: [
         { label: 'Direct charges (#2403): a member whose coach disconnected goes to Shape support, which handles it by hand (Shape can\'t cancel on that account); an unreadable recent checkout on a coach\'s former account holds a new plan up to 4 days (payment_pending)', status: 'pending' },
         { label: 'A client whose payment is retrying keeps access until Stripe cancels the plan; a Stripe setting that leaves it past_due keeps it open', status: 'pending' },
@@ -1144,6 +1144,12 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'The Wall\'s old card (variant="wall") is unused in the app and the website chat bubble still draws its copy; grocery lists are sent and saved in the app only, and old builds\' grocery writes go unmerged', status: 'pending' },
         { label: 'Not built: native mic and camera plugins (including iOS barcode scanning) and on-device macro reads from a meal photo', status: 'pending' },
         { label: 'Android back leaves the native app from any sheet (no @capacitor/app); in the hosted /m/, sheets add no history entry', status: 'pending' },
+        { label: 'Direct charges (#2403): the app profile\'s one-tap Subscribe and Book have no code box, and a one-time percent code\'s fee can be a cent off Stripe\'s rounding', status: 'pending' },
+        { label: 'Home (BSHomeSections.jsx): the weekly notes, the message doors and the next session show only for a paid coach', status: 'pending' },
+        { label: 'Sleep points: Apple Health nights and the Apple Health connection are whatever the app posts, as for Shape Steps', status: 'pending' },
+        { label: 'The hosted /m/ app signed out in its own client: a Nora load spanning an account switch in another tab shows the first account\'s conversation (every write is refused). Not to be fixed (owner)', status: 'pending' },
+        { label: 'For the counsel review: the health-data page lists only the weekly check-in (not the Morning check-in, readiness or patterns), and the data export leaves out Nora\'s conversation and the stored readouts', status: 'pending' },
+        { label: 'Booth: the MakeHuman crowd (crowdPeople.mjs) is 3.6 MB on desktops and 1.1 MB on phones; the old avatar crowd (crowdAvatars.mjs) is kept for a v2 pack', status: 'pending' },
         { label: 'No signed-in pass of the coach application uploads', status: 'manual' },
       ],
     },
