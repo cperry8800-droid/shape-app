@@ -59,9 +59,8 @@ export async function GET(request: Request) {
   // notifications" state UNREACHABLE for the most likely failure there is, while the
   // panel and the records both claimed to handle it.
   //
-  // The mobile client is unaffected: `getJsonOrDefault` already returns its own
-  // `{ notifications: [], unread: 0 }` fallback on any non-OK response, so a 502 lands
-  // exactly where a 200-with-nothing landed before.
+  // The mobile client reads a non-OK answer as a failed read too: its listNotifications
+  // marks it `failed`, and the bell's screen says it couldn't load.
   if (error) return NextResponse.json({ error: 'Could not read notifications.' }, { status: 502 });
 
   const rows = (data ?? []) as Row[];
