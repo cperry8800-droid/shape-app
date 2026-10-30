@@ -346,7 +346,7 @@ test('migration: a listener counts once, and never for more time than has passed
   const fn = code.slice(code.indexOf('create or replace function public.record_radio_listen('), code.indexOf('create or replace function public.admin_radio_stats('));
   assert.match(fn, /if p_user is null or p_listen is null or p_surface is null or p_surface not in \('web', 'app'\) then\s+return 0;/);
   assert.match(fn, /_rate_limit_bump\('fn:radio_listen:' \|\| p_user::text, 6, 60\)/);
-  assert.match(fn, /delete from public\.radio_listen_live where last_beat < now\(\) - interval '30 minutes';/);
+  assert.match(fn, /delete from public\.radio_listen_live where last_beat < now\(\) - interval '6 hours';/, 'a player asleep in the background still has its listen when it wakes');
   // A listen's first beat is its tune-in; it takes the account's credited mark. An end that arrives
   // before its own start is the tune-in too and leaves the listen ended, so the late start reopens
   // nothing (Codex P2 on #2527).
@@ -357,7 +357,8 @@ test('migration: a listener counts once, and never for more time than has passed
   assert.match(fn, /if v_audience is null then\s+return 0;/, 'no profile, no count');
   // A later beat: what its running total adds to this listen's, never more than the time since the
   // account was last credited or this listen's last beat (+2 s), or 10 minutes, and never below 0.
-  assert.match(fn, /v_credit := greatest\(least\(\s+coalesce\(p_played, 0\) - v_played,\s+floor\(extract\(epoch from \(now\(\) - greatest\(v_credited, v_last\)\)\)\)::integer \+ 2,\s+600\s+\), 0\);/);
+  // No other cap: a listen whose player slept in the background is credited in full when it wakes (Codex P1 on #2527).
+  assert.match(fn, /v_credit := greatest\(least\(\s+coalesce\(p_played, 0\) - v_played,\s+floor\(extract\(epoch from \(now\(\) - greatest\(v_credited, v_last\)\)\)\)::integer \+ 2\s+\), 0\);/);
   // The account's mark moves, on all its listens, by the time credited and no further (a beat that
   // credits a second takes no more from another device's next beat; Codex P2 on #2527), never past now.
   assert.match(fn, /if v_credit > 0 then\s+update public\.radio_listen_live\s+set credited_to = least\(now\(\), greatest\(v_credited, v_last\) \+ make_interval\(secs => v_credit\)\)\s+where listener = p_user;\s+end if;/);
@@ -380,11 +381,11 @@ test('migration: a listener counts once, and never for more time than has passed
   assert.doesNotMatch(stats, /'listener'|'listen'/, 'the console never gets an account or a listen');
 });
 
-test('purge: the daily rows after 12 months, a quiet note after 30 minutes', () => {
+test('purge: the daily rows after 12 months, a quiet note after 6 hours', () => {
   const src = read('src/app/api/cron/analytics-purge/route.ts');
   assert.match(src, /from\('radio_listen_days'\)\.delete\(\)\.lt\('day', cutoff\.slice\(0, 10\)\)/);
   assert.match(src, /from\('radio_listen_peaks'\)\.delete\(\)\.lt\('day', cutoff\.slice\(0, 10\)\)/);
-  assert.match(src, /from\('radio_listen_live'\)\.delete\(\)\.lt\('last_beat', new Date\(Date\.now\(\) - 30 \* 60 \* 1000\)\.toISOString\(\)\)/);
+  assert.match(src, /from\('radio_listen_live'\)\.delete\(\)\.lt\('last_beat', new Date\(Date\.now\(\) - 6 \* 60 \* 60 \* 1000\)\.toISOString\(\)\)/);
   assert.match(src, /\[clicks, listening, peaks, live\]\.map/, 'each one\'s failure is reported');
 });
 
@@ -480,6 +481,10 @@ test('view: nobody yet, a missing migration and a failed read each say so', asyn
   assert.ok(none.includes('Nobody has listened in these days yet.'));
   assert.ok(none.includes('Nobody right now') && none.includes('No listening yet'));
   assert.ok(!none.includes('Minutes listened a day'));
+  // A listen begun before the period has its tune-in outside it but its minutes inside: the days are
+  // still drawn (Codex P2 on #2527).
+  const carried = await renderView({ result: shown({ ...STATS, tune_ins: 0, seconds: 1200, by_surface: {}, by_audience: {} }) });
+  assert.ok(carried.includes('Minutes listened a day') && !carried.includes('Nobody has listened'));
   const missing = await renderView({ result: { data: null, missing: true, failed: false } });
   assert.ok(missing.includes('2026-10-30-radio-listening.sql'));
   assert.ok(!missing.includes('Listening now'));

@@ -9,8 +9,9 @@
 --   3. radio_listen_live: the listens playing right now, one row each with its account, so a
 --      listener is counted once and the seconds credited can't run ahead of the clock. An ended
 --      listen is marked ended, so a beat that arrives after its end reopens nothing, and every row
---      goes 30 minutes after its last beat (at the next beat from anyone, or the nightly purge). It
---      is the "listening now" figure, not a history.
+--      goes 6 hours after its last beat (at the next beat from anyone, or the nightly purge): long
+--      enough for a phone whose player was asleep while the audio played on. It is the "listening
+--      now" figure, not a history.
 --   4. record_radio_listen(): a player's beat (POST /api/analytics/radio-listen, with the service
 --      role). The player sends one as the stream starts, one a minute while it plays, and one as it
 --      stops (public/newdesign/radioListening.mjs).
@@ -90,9 +91,10 @@ grant select, insert, update, delete on table public.radio_listen_live to servic
 -- player's random id for this listen; p_played is how long it says the listen has played since it
 -- began; p_end says the stream stopped. A listen's first beat is a tune-in. A later one is credited
 -- what its total adds to the highest this listen has reported, but never more than the time since this
--- account was last credited, or since this listen's last beat (plus 2 seconds for the network), or
--- 10 minutes, so a second device on the same account, or a player that claims too much, can't add
--- listening that didn't happen. A beat for an ended listen adds nothing. Each account gets 6 beats
+-- account was last credited, or since this listen's last beat (plus 2 seconds for the network), so a
+-- second device on the same account, or a player that claims too much, can't add listening that
+-- didn't happen. There is no other cap: a phone whose player slept while the audio played on in the
+-- background is credited its whole listen when it wakes (Codex P1 on #2527). A beat for an ended listen adds nothing. Each account gets 6 beats
 -- a minute. Returns the seconds credited.
 create or replace function public.record_radio_listen(
   p_user uuid,
@@ -130,8 +132,9 @@ begin
     return 0;
   end if;
 
-  -- A listen that went quiet without an end (the app closed, the tab was killed) is forgotten.
-  delete from public.radio_listen_live where last_beat < now() - interval '30 minutes';
+  -- A listen that went quiet without an end (the app closed, the tab was killed) is forgotten after
+  -- 6 hours, so one whose player slept in the background is still there to credit when it wakes.
+  delete from public.radio_listen_live where last_beat < now() - interval '6 hours';
 
   -- This account's listens, locked so its beats are credited one after another.
   perform 1 from public.radio_listen_live where listener = p_user for update;
@@ -174,8 +177,7 @@ begin
   else
     v_credit := greatest(least(
       coalesce(p_played, 0) - v_played,
-      floor(extract(epoch from (now() - greatest(v_credited, v_last))))::integer + 2,
-      600
+      floor(extract(epoch from (now() - greatest(v_credited, v_last))))::integer + 2
     ), 0);
     -- The account's mark moves on by the time credited and no further, so a beat that adds little
     -- (a late one, or a device that was buffering) takes nothing from another listen's next beat

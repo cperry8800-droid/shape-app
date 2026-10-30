@@ -47,7 +47,7 @@ export default function RadioView({ filters, result }: { filters: RadioFilters; 
         <>
           <Totals s={s} />
           <Splits s={s} />
-          {s.tuneIns === 0 ? (
+          {s.tuneIns === 0 && s.seconds === 0 ? (
             <div className={`${PANEL} p-8 text-sm text-neutral-400`}>Nobody has listened in these days yet.</div>
           ) : (
             <div className="grid gap-3 xl:grid-cols-2">
@@ -169,7 +169,7 @@ function HowCounted() {
         <li>
           Listening now is every account whose last beat came in the last two and a half minutes; most at once is the highest that
           figure reached on a day. While someone listens, the server keeps a note that their account is listening, and deletes it within
-          a day of their stopping (half an hour after the listen&apos;s last beat, at the next beat or the nightly clean-up). The daily
+          a day of their stopping (six hours after the listen&apos;s last beat, at the next beat or the nightly clean-up). The daily
           totals never hold an account.
         </li>
         <li>
