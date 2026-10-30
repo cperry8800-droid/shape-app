@@ -24,6 +24,8 @@ export default {
       find: '    if (listen) {\n      // The same listen playing again after it buffered.\n      if (!since) since = now();\n      return;\n    }\n', replace: '' },
     { name: 'module: a listen starts without consent', file: MOD,
       find: '    if (!allowed()) return;\n    listen = newId();', replace: '    listen = newId();' },
+    { name: 'module: a buffering stream keeps beating, so it stays in listening now (Codex P2 on #2527)', file: MOD,
+      find: '    if (!since) return;\n    post({ surface, listen, played: played() });', replace: '    post({ surface, listen, played: played() });' },
     { name: 'module: buffering is counted (Codex P2 on #2527)', file: MOD,
       find: "  audio.addEventListener('waiting', () => beats.buffering());\n", replace: '' },
     { name: 'module: the time heard before buffering is lost', file: MOD,

@@ -82,9 +82,11 @@ test('buffering: time the stream waits for data is not counted, and the same lis
   c.advance(30_000);
   b.buffering();
   b.buffering();
-  c.advance(120_000);
+  c.advance(60_000);
   c.fire();
-  assert.deepEqual(sent.at(-1), { surface: 'app', listen: 'listen-1', played: 30 }, 'two minutes of buffering add nothing');
+  c.advance(60_000);
+  c.fire();
+  assert.deepEqual(sent, [{ surface: 'app', listen: 'listen-1', played: 0 }], 'no beat while it buffers, so it drops out of listening now');
   b.playing();
   c.advance(30_000);
   c.fire();

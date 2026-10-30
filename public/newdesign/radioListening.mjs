@@ -86,6 +86,9 @@ export function createRadioListening({ surface, send, allowed, now = () => Date.
     if (!listen) return;
     // Consent withdrawn while it plays: nothing more is sent, not even the end.
     if (!allowed()) { quit(); return; }
+    // Buffering: no beat, so a stream stuck waiting for data drops out of listening now after its
+    // window; the next `playing` carries on in the same listen (Codex P2 on #2527).
+    if (!since) return;
     post({ surface, listen, played: played() });
   }
   function stopped() {
