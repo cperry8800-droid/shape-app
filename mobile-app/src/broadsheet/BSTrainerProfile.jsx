@@ -1,11 +1,11 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen } from '../services/profileCustom.mjs';
-import { STUDIO_WORDS, STUDIO_KIT, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
-import { bsCoachPrograms, bsWorkoutVideos, bsStudioWork } from '../services/coachWork.mjs';
+import { STUDIO_WORDS, STUDIO_KIT, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, bsStudioFrame, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
+import { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsKitchenWork } from '../services/coachWork.mjs';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.mjs';
-import { bsCoachPronoun } from '../services/coachPronoun.mjs';
+import { bsCoachPronoun, bsCoachFirstName } from '../services/coachPronoun.mjs';
 import { bsShortAge } from '../services/shortAge.mjs';
 import { bsTrainerDemo, bsTrainerSampleOf } from '../services/trainerDemo.mjs';
 import { bsNutritionistDemo, bsNutritionistSampleOf } from '../services/nutritionistDemo.mjs';
@@ -21,8 +21,9 @@ const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 // ─── THE COACH PROFILE: TRAINERS AND NUTRITIONISTS ───────────────────────────────────────────
 // Owner, 2026-10-27, after seven rounds on the canvas ("Show, don't sell · Quiet and premium ·
 // Feels like the Shape app"): one profile, three tabs. A nutritionist's page is the same page with
-// a kitchen in place of the studio and plate notes in place of replays (the plan: "a kitchen tab, no
-// floor plan"; see the end of this note).
+// a kitchen in place of the studio and plate notes in place of replays (see the end of this note).
+// What clients say closes the page, under the tabs (owner, 2026-10-30: "move reviews to bottom of
+// page").
 //
 //   Header      the coach's wall photo with their round avatar over its edge, name, what they
 //               do and where, their bio, the verified line, Message · Work with · Follow.
@@ -50,11 +51,14 @@ const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 // A nutritionist (person.kind 'NUTRI') reads and books as a nutritionist (their listing, hours and
 // intro calls), is painted amber until they pick their colours (Shape's nutritionist gold), and has
 // two tabs of their own (owner, 2026-10-27: "lets do something different for nutritionists"):
-//   Her kitchen  no floor plan, in three parts shown one at a time: their own recipes (cooked in
-//                Shape's cook mode, or sent to the member's grocery list), the plate they teach and
-//                their portion rules, and the staples always in their kitchen (a member taps the ones
-//                they want onto their own grocery list). profile_custom.kitchen, set in Make it yours
-//                → Your kitchen. Listing photos under it.
+//   Her kitchen  the kitchen as they drew it (owner, 2026-10-30: "lets show a kitchen layout, like we
+//                did for trainers"; the 2026-10-27 plan had none): spots with their words, lit where
+//                their recipes' methods use them (bsKitchenWork). It rides in profile_custom.studio
+//                with kind 'kitchen', as a trainer's floor does. Then three parts shown one at a
+//                time: their own recipes (cooked in Shape's cook mode, or sent to the member's
+//                grocery list), the plate they teach and their portion rules, and the staples always
+//                in their kitchen (a member taps the ones they want onto their own grocery list).
+//                profile_custom.kitchen, set in Make it yours → Your kitchen. Listing photos under it.
 //   Plate notes  the meals they logged and shared, a day to a note, stepped through meal by meal with
 //                the protein so far and their note on each.
 //
@@ -102,7 +106,7 @@ const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,
 const FOCUS_POS = { top: 'center 22%', center: 'center 50%', bottom: 'center 80%' };
 const STUDIO_KIND_KEYS = {
   private: ['kindPrivate', 'Private studio'], garage: ['kindGarage', 'Garage gym'], gym: ['kindGym', 'Full gym'], pilates: ['kindPilates', 'Pilates studio'],
-  boxing: ['kindBoxing', 'Boxing gym'], outdoor: ['kindOutdoor', 'Outdoors'], blank: ['kindBlank', 'Their space'],
+  boxing: ['kindBoxing', 'Boxing gym'], outdoor: ['kindOutdoor', 'Outdoors'], kitchen: ['kindKitchen', 'Kitchen'], blank: ['kindBlank', 'Their space'],
 };
 
 function sheetHost() {
@@ -114,7 +118,7 @@ function Sheet({ t, onClose, label, children, dark = false }) {
   const el = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 220 }}>
       <div onClick={onClose} aria-hidden style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
-      <div role="dialog" aria-label={label} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '88%', overflowY: 'auto', borderRadius: '22px 22px 0 0', background: dark ? '#0c0d0f' : t.PAPER, color: dark ? '#e8ebef' : t.INK, fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased', padding: '10px 18px calc(22px + env(safe-area-inset-bottom))', boxShadow: '0 -16px 40px rgba(0,0,0,0.28)' }}>
+      <div role="dialog" aria-label={label} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '88%', overflowY: 'auto', overflowX: 'hidden', borderRadius: '22px 22px 0 0', background: dark ? '#0c0d0f' : t.PAPER, color: dark ? '#e8ebef' : t.INK, fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased', padding: '10px 18px calc(22px + env(safe-area-inset-bottom))', boxShadow: '0 -16px 40px rgba(0,0,0,0.28)' }}>
         <div aria-hidden style={{ width: 40, height: 4, borderRadius: 99, background: dark ? 'rgba(232,235,239,0.25)' : t.RULE, margin: '0 auto 8px' }} />
         {children}
       </div>
@@ -122,8 +126,10 @@ function Sheet({ t, onClose, label, children, dark = false }) {
   );
   return host ? createPortal(el, host) : el;
 }
+// The × sits inside its row's padding: a negative right margin pushed it past the sheet's edge, so
+// every full-screen sheet scrolled sideways by a few points (owner, 2026-10-30: no scroll bars).
 function CloseX({ onClose, color, label }) {
-  return <button type="button" onClick={onClose} aria-label={label} style={{ width: 44, height: 44, margin: '-6px -10px -6px 0', border: 0, background: 'transparent', color, fontSize: 24, cursor: 'pointer' }}>×</button>;
+  return <button type="button" onClick={onClose} aria-label={label} style={{ width: 44, height: 44, margin: '-6px 0 -6px 0', border: 0, background: 'transparent', color, fontSize: 24, cursor: 'pointer' }}>×</button>;
 }
 
 // ── The page, in the coach's colours ─────────────────────────────────────────────────────────
@@ -150,11 +156,12 @@ export function BSTrainerProfile(props) {
     // The sample's own words in the reader's language too (owner, 2026-10-30: "Translate all sample
     // text", then "Yes, translate the nutritionist sample too"), with the English as each one's default.
     const say = (k, english, values) => tr(k, { defaultValue: english, ...(values || {}) });
+    const word = (k) => tr('profile:studio.word.' + k, { defaultValue: STUDIO_WORDS[k] || k });
     if (nutri) {
-      if (demoOn) return { ...bsNutritionistDemo({ say }), mode: 'self' };
-      return { ...bsNutritionistDemo({ ...bsNutritionistSampleOf({ key: sampleKey, specialty: person.specialty }), where: sampleCity, business: null, say }), mode: 'sample' };
+      if (demoOn) return { ...bsNutritionistDemo({ say, word }), mode: 'self' };
+      return { ...bsNutritionistDemo({ ...bsNutritionistSampleOf({ key: sampleKey, specialty: person.specialty }), where: sampleCity, business: null, say, word }), mode: 'sample' };
     }
-    const base = { media: `${import.meta.env.BASE_URL}demo/`, word: (k) => tr('profile:studio.word.' + k, { defaultValue: STUDIO_WORDS[k] || k }), lb, say };
+    const base = { media: `${import.meta.env.BASE_URL}demo/`, word, lb, say };
     if (demoOn) return { ...bsTrainerDemo(base), mode: 'self' };
     return { ...bsTrainerDemo({ ...base, ...bsTrainerSampleOf({ key: sampleKey, specialty: person.specialty }), where: sampleCity, business: null }), mode: 'sample' };
   }, [nutri, demoOn, sampleOn, sampleKey, sampleCity, person.specialty, lb, lang]);
@@ -236,7 +243,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // ── Who ──
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
   const name = (isSelf && W.bsMyName && W.bsMyName()) || person.who || (live && live.name) || tr('profile:trainer.coach', { defaultValue: 'Coach' });
-  const first = String(name).split(' ')[0];
+  const first = bsCoachFirstName(name);
   const pron = bsCoachPronoun(!isPrivate && live ? live.pronouns : '');
   const words = {
     day: pron === 'her' ? tr('profile:trainer.dayHer', { defaultValue: 'Her day' }) : pron === 'him' ? tr('profile:trainer.dayHim', { defaultValue: 'His day' }) : pron === 'them' ? tr('profile:trainer.dayThem', { defaultValue: 'Their day' }) : tr('profile:trainer.dayName', { defaultValue: "{name}'s day", name: first }),
@@ -312,10 +319,13 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const wall = isPrivate ? null : (sample ? (media.cover || (cover && cover.image)) : ((cover && cover.image) || media.cover)) || null;
   const look = bsProfileLook(custom && custom.look) || {};
   // A trainer's studio; a nutritionist's kitchen (a recipe photo only from the coach's own uploads,
-  // as the wall photo).
+  // as the wall photo) and its layout, which rides in the doc's `studio` as a trainer's floor does.
   const studio = nutri ? null : bsProfileStudio(custom && custom.studio);
   const kitchen = nutri ? bsProfileKitchen(custom && custom.kitchen, person.userId || (isSelf ? signedInUid() : null)) : null;
-  const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || person.city || '');
+  // A nutritionist's plan is always her kitchen: one stored as `blank` (the editor's old "Start
+  // blank") reads with the kitchen's heading and room, not "Their space" (Codex on #2516).
+  const kitchenPlan = (() => { const p = nutri ? bsProfileStudio(custom && custom.studio) : null; return p && p.kind === 'blank' ? { ...p, kind: 'kitchen' } : p; })();
+  const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || (kitchenPlan && kitchenPlan.where) || person.city || '');
   const specialty = (!isPrivate && ((listed && (provider.specialty || provider.specialty_type)) || (sample && person.category))) || '';
   const business = !isPrivate && custom && custom.bizCard && custom.bizCard.name;
   const roleLine = [specialty || (nutri ? tr('profile:nutri.role', { defaultValue: 'Nutritionist' }) : tr('profile:trainer.role', { defaultValue: 'Coach' })), business].filter(Boolean).join(' · ');
@@ -438,12 +448,40 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
       if (url) (W.bsOpenCheckout || ((u) => { window.location.href = u; }))(url);
     } catch (e) { W.__bsToast?.(tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err'); }
   };
-  // Each studio piece's share of those programs, by index (bsStudioWork).
+  // Each studio piece's share of those programs, by index (bsStudioWork), and each spot of a
+  // nutritionist's kitchen its share of their recipes (bsKitchenWork).
   const studioWork = studio ? bsStudioWork(studio, programs) : [];
+  const kitchenWork = kitchenPlan ? bsKitchenWork(kitchenPlan, kitchen ? kitchen.recipes : []) : [];
   // A nutritionist's shared meals (the cards that carry a plate), a day to a plate note.
   const plates = !nutri ? [] : demo ? demo.plates : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Nutritionist') : null))
     .filter((c) => c && c.meal && typeof c.meal === 'object');
   const plateDays = bsPlateNoteDays(plates);
+  // Their activity (owner, 2026-10-30: "there is also no activity feed on coaches profile"): what
+  // they published that the tabs don't already show (notes, photos, links, their own runs and rides)
+  // as the member profile's activity cards, newest first. Sessions and workout videos stay in
+  // Replays and shared meals in Plate notes, so nothing is listed twice. Their real posts only; a
+  // sample's are its own (trainerDemo.mjs, nutritionistDemo.mjs).
+  const ownerRole = nutri ? 'Nutritionist' : 'Trainer';
+  const shownKeys = new Set([...replays, ...workouts, ...plates].map((c) => c && c.key).filter(Boolean));
+  const activity = demo
+    ? (demo.activity || []).map((a) => ({ ...a, who: name, role: ownerRole, tier: tierKey, userId: null }))
+    : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, ownerRole) : null)).filter((c) => c && !shownKeys.has(c.key));
+  // The activity card's own reactions and sheets, as the member profile hosts them.
+  const cardSheets = W.useBSCardSheets ? W.useBSCardSheets() : null;
+  const [actLikes, setActLikes] = React.useState({});
+  const [actExpr, setActExpr] = React.useState({});
+  const [exprOpen, setExprOpen] = React.useState(null);
+  const lpTimerRef = React.useRef(null);
+  const lpFiredRef = React.useRef(false);
+  const [actAll, setActAll] = React.useState(false);
+  const [editingPost, setEditingPost] = React.useState(null);
+  const applyReaction = (a, key, _coach, expr) => {
+    const was = actLikes[key] != null ? actLikes[key] : a.liked;
+    const will = expr != null ? true : !was;
+    setActLikes((prev) => ({ ...prev, [key]: will }));
+    setActExpr((prev) => { const next = { ...prev }; if (will && expr != null) next[key] = expr; else if (!will) delete next[key]; return next; });
+    if (a.postId && will !== was) { const lk = W.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); }
+  };
 
   // ── Follow ──
   const [follow, setFollow] = React.useState(() => (person.userId && W.ShapeFollows?.getCached?.(person.userId)) || null);
@@ -470,6 +508,14 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const [cooking, setCooking] = React.useState(null); // the cookable cook mode runs
   const [editTab, setEditTab] = React.useState('colors');
   const [editSection, setEditSection] = React.useState(null); // the kitchen part Make it yours opens on
+  // The kitchen part on screen, kept here rather than in the tab, and the page's scroll when Make it
+  // yours opened: the editor replaces the page, so coming back (Back or Save) puts the coach on the
+  // same tab, part and spot they left (owner, 2026-10-30: back from Edit your kitchen should return
+  // to where they were, not the top of the profile). The trainer's Draw your space is the same path.
+  const [kitchenSec, setKitchenSec] = React.useState(null);
+  const leftAt = React.useRef(null);
+  const pageRef = React.useRef(null);
+  const scrollerOf = () => (pageRef.current && pageRef.current.closest ? pageRef.current.closest('.bs-scroll') : null);
   const [showLog, setShowLog] = React.useState(false);
   // Every way into Make it yours goes through here, and waits for the coach's doc (ownState).
   const editReady = ownState === 'ready';
@@ -478,13 +524,25 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const openEdit = (tabKey, section = null) => {
     if (!editReady) return;
     if (isSelf && signedInUid() !== ownFor) { onRetryOwn(); return; }
+    const sc = scrollerOf();
+    leftAt.current = sc ? sc.scrollTop : null;
     setEditTab(tabKey); setEditSection(section); setPage('edit');
   };
+  React.useLayoutEffect(() => {
+    if (page !== null || leftAt.current == null) return undefined;
+    const top = leftAt.current;
+    leftAt.current = null;
+    const put = () => { const sc = scrollerOf(); if (sc) sc.scrollTop = top; };
+    put();
+    // Once more after the page's own mount effects, which may set the scroller's position.
+    const id = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(put) : null;
+    return () => { if (id != null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(id); };
+  }, [page]);
 
   // Tabs a visitor sees only when there is something in them; the coach always sees all three.
   const gallery = media.gallery || [];
   const hasStudio = !!(studio || gallery.length);
-  const hasKitchen = !!(kitchen || gallery.length);
+  const hasKitchen = !!(kitchen || kitchenPlan || gallery.length);
   const tabs = nutri ? [
     ['day', words.day],
     ...(isSelf || hasKitchen ? [['kitchen', words.kitchen]] : []),
@@ -516,7 +574,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
 
   return (
     <BSPage>
-      <div data-trainer-profile="" style={{ color: INK, fontFamily: BODY, WebkitFontSmoothing: 'antialiased', minHeight: '100%', background: t.PAPER_BG }}>
+      <div ref={pageRef} data-trainer-profile="" style={{ color: INK, fontFamily: BODY, WebkitFontSmoothing: 'antialiased', minHeight: '100%', background: t.PAPER_BG }}>
         {canPickPhoto && photoHook.fileRef ? <input ref={photoHook.fileRef} type="file" accept="image/*" onChange={photoHook.onPick} style={{ display: 'none' }} /> : null}
         {/* The wall: their photo, or their colour until they add one */}
         <div style={{ position: 'relative', height: `calc(${topPad} + ${wallH}px)`, overflow: 'hidden', background: wall ? '#111' : `linear-gradient(135deg, ${hexA(ACC, 0.42)}, ${t.PAPER2} 70%)` }}>
@@ -610,36 +668,6 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
           {meMode && isSelf ? <div style={{ marginTop: 16 }}><BSCoachBusinessCard role={role} accent={ACC} onOpen={() => setPage('business')} /></div> : null}
         </div>
 
-        {/* What clients say: the reviews on the page itself, shown on a private profile too: they are
-            the readers', not the coach's to hide. The newest few, each a card; All reviews opens the
-            full list. A reader who isn't a member gets the rating and Join to read them instead. */}
-        {revLocked ? (
-          <section data-reviews-strip="" data-reviews-locked="" aria-label={tr('profile:trainer.reviews', { defaultValue: 'Reviews' })} style={{ margin: `22px ${gutter}px 0` }}>
-            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.clientsSay', { defaultValue: 'What clients say' })}</span>
-            <div style={{ marginTop: 8, padding: '12px 14px', background: t.PAPER2, borderTop: `2px solid ${ACC}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontFamily: MONO, fontSize: 11, color: ACC }}>★ {ratingBit}</span>
-              <span style={{ fontSize: 15, lineHeight: 1.45, color: INK }}>{tr('marketplace:listing.reviewsMembers', { defaultValue: 'Members read the reviews.' })}</span>
-              <button type="button" data-reviews-join="" onClick={joinToRead} style={{ alignSelf: 'flex-start', minHeight: 40, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>{tr('marketplace:listing.reviewsJoinCta', { defaultValue: 'Join to read them' })} →</button>
-            </div>
-          </section>
-        ) : quotes.length ? (
-          <section data-reviews-strip="" aria-label={tr('profile:trainer.reviews', { defaultValue: 'Reviews' })} style={{ marginTop: 22 }}>
-            <div style={{ padding: `0 ${gutter}px`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-              <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.clientsSay', { defaultValue: 'What clients say' })}</span>
-              <button type="button" data-all-reviews="" onClick={() => setSheet({ kind: 'reviews' })} style={{ minHeight: 36, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.allReviews', { defaultValue: 'All reviews' })} →</button>
-            </div>
-            <div className="bs-scroll" style={{ marginTop: 8, display: 'flex', gap: 10, overflowX: 'auto', scrollSnapType: 'x mandatory', scrollPaddingLeft: gutter, padding: `0 ${gutter}px 4px` }}>
-              {quotes.map((r) => (
-                <figure key={r.id || r.text} data-review-card="" style={{ margin: 0, flex: quotes.length > 1 ? '0 0 80%' : '1 1 auto', scrollSnapAlign: 'start', boxSizing: 'border-box', padding: '12px 14px', background: t.PAPER2, borderTop: `2px solid ${ACC}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <span style={{ fontFamily: MONO, fontSize: 11, color: ACC }}>★ {Math.round(Number(r.rating) || 0)}/10</span>
-                  <blockquote style={{ margin: 0, fontSize: 15, lineHeight: 1.45, color: INK, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{r.text}</blockquote>
-                  <figcaption style={{ fontSize: 12.5, color: ink(0.64) }}>{r.author || tr('profile:role.member', { defaultValue: 'Member' })}</figcaption>
-                </figure>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
         {/* Tabs */}
         {!isPrivate ? (
           <>
@@ -664,8 +692,9 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                 <StudioTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} studio={studio} gallery={gallery} isSelf={isSelf} first={first}
                   work={studioWork} onPiece={(i) => setSheet({ kind: 'piece', i })} onDraw={() => openEdit('space')} />
               ) : tabNow === 'kitchen' ? (
-                <KitchenTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} kitchen={kitchen} gallery={gallery} isSelf={isSelf} first={first}
-                  ownerKey={person.userId || person.providerId || null} stapleKeys={(demo && demo.stapleKeys) || null} onRecipe={(r) => setOwnRecipe(r)} onFill={(section) => openEdit('kitchen', section)} />
+                <KitchenTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} kitchen={kitchen} plan={kitchenPlan} work={kitchenWork} gallery={gallery} isSelf={isSelf} first={first}
+                  ownerKey={person.userId || person.providerId || null} stapleKeys={(demo && demo.stapleKeys) || null} onRecipe={(r) => setOwnRecipe(r)} onFill={(section) => openEdit('kitchen', section)}
+                  onSpot={(i) => setSheet({ kind: 'spot', i })} sec={kitchenSec} setSec={setKitchenSec} />
               ) : tabNow === 'plates' ? (
                 <PlateNotesTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} days={plateDays} isSelf={isSelf} first={first} onOpen={(day) => setSheet({ kind: 'plateDay', day, i: 0 })} />
               ) : (
@@ -676,6 +705,53 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
             </div>
           </>
         ) : null}
+        {!isPrivate && (activity.length || isSelf) ? (
+          <ActivityFeed t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={gutter} cards={activity} isSelf={isSelf} first={first} all={actAll} setAll={setActAll}
+            onLog={() => { if (W.bsRequireAccount && !W.bsRequireAccount('log activity')) return; setShowLog(true); }}
+            ctx={cardSheets && W.BSActivityCard ? {
+              t, cardInk: INK, muted: ink(0.55), hair: ink(0.1), card: t.isLight ? t.PAPER2 : ink(0.05),
+              actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr, exprOpenKey: exprOpen, setExprOpenKey: setExprOpen, lpTimerRef, lpFiredRef,
+              tierByUser: person.userId ? { [person.userId]: tierKey } : {}, avatarByUser: {}, feedAvatars: {},
+              myRole: (W.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client', coachClientIds: new Set(), myFollowingSet: null,
+              setOpenProfile: () => {}, feedApplyReaction: applyReaction,
+              // The coach edits a post of their own from its card, in the same composer.
+              onEdit: isSelf && !demo ? (a) => { if (a.postId && BS_UUID.test(String(a.postId))) setEditingPost({ postId: a.postId, title: a.title || '', body: a.body || '', photo: a.photo || null, video: a.video || null, link: a.link || null, kind: a.editKind || null, privacy: a.privacy || 'public' }); } : undefined,
+              ...cardSheets.ctx,
+            } : null} />
+        ) : null}
+
+        {/* What clients say: the reviews on the page itself, shown on a private profile too: they are
+            the readers', not the coach's to hide. The newest few, each a card; All reviews opens the
+            full list. A reader who isn't a member gets the rating and Join to read them instead.
+            At the foot of the page, after the tabs (owner, 2026-10-30: "move reviews to bottom of
+            page"): the coach's day, space and work come first, and what clients say closes it. */}
+        {revLocked ? (
+          <section data-reviews-strip="" data-reviews-locked="" aria-label={tr('profile:trainer.reviews', { defaultValue: 'Reviews' })} style={{ margin: `${isPrivate ? 22 : 6}px ${gutter}px 18px` }}>
+            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.clientsSay', { defaultValue: 'What clients say' })}</span>
+            <div style={{ marginTop: 8, padding: '12px 14px', background: t.PAPER2, borderTop: `2px solid ${ACC}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontFamily: MONO, fontSize: 11, color: ACC }}>★ {ratingBit}</span>
+              <span style={{ fontSize: 15, lineHeight: 1.45, color: INK }}>{tr('marketplace:listing.reviewsMembers', { defaultValue: 'Members read the reviews.' })}</span>
+              <button type="button" data-reviews-join="" onClick={joinToRead} style={{ alignSelf: 'flex-start', minHeight: 40, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>{tr('marketplace:listing.reviewsJoinCta', { defaultValue: 'Join to read them' })} →</button>
+            </div>
+          </section>
+        ) : quotes.length ? (
+          <section data-reviews-strip="" aria-label={tr('profile:trainer.reviews', { defaultValue: 'Reviews' })} style={{ margin: `${isPrivate ? 22 : 6}px 0 18px` }}>
+            <div style={{ padding: `0 ${gutter}px`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+              <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.clientsSay', { defaultValue: 'What clients say' })}</span>
+              <button type="button" data-all-reviews="" onClick={() => setSheet({ kind: 'reviews' })} style={{ minHeight: 36, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.allReviews', { defaultValue: 'All reviews' })} →</button>
+            </div>
+            <div className="bs-scroll" style={{ marginTop: 8, display: 'flex', gap: 10, overflowX: 'auto', scrollSnapType: 'x mandatory', scrollPaddingLeft: gutter, padding: `0 ${gutter}px 4px` }}>
+              {quotes.map((r) => (
+                <figure key={r.id || r.text} data-review-card="" style={{ margin: 0, flex: quotes.length > 1 ? '0 0 80%' : '1 1 auto', scrollSnapAlign: 'start', boxSizing: 'border-box', padding: '12px 14px', background: t.PAPER2, borderTop: `2px solid ${ACC}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={{ fontFamily: MONO, fontSize: 11, color: ACC }}>★ {Math.round(Number(r.rating) || 0)}/10</span>
+                  <blockquote style={{ margin: 0, fontSize: 15, lineHeight: 1.45, color: INK, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{r.text}</blockquote>
+                  <figcaption style={{ fontSize: 12.5, color: ink(0.64) }}>{r.author || tr('profile:role.member', { defaultValue: 'Member' })}</figcaption>
+                </figure>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <footer style={{ padding: `8px ${gutter}px 34px`, fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: ink(0.5) }}>
           {[listed && provider.credential, verified ? tr('profile:trainer.checked', { defaultValue: 'Checked by Shape' }) : null].filter(Boolean).join(' · ')}
         </footer>
@@ -712,6 +788,11 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
         <PieceSheet t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} INK={INK} studio={studio} i={sheet.i} work={studioWork[sheet.i]} programs={programs}
           isSelf={isSelf} first={first} words={words} onClose={() => setSheet(null)} onWork={() => setSheet({ kind: 'work' })} onProgram={(pr) => setSheet({ kind: 'program', pr })} />
       ) : null}
+      {sheet && sheet.kind === 'spot' && kitchenPlan && kitchenPlan.items[sheet.i] ? (
+        <SpotSheet t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} INK={INK} plan={kitchenPlan} i={sheet.i} work={kitchenWork[sheet.i]} recipes={kitchen ? kitchen.recipes : []}
+          isSelf={isSelf} first={first} words={words} onClose={() => setSheet(null)} onWork={() => setSheet({ kind: 'work' })}
+          onRecipe={(r) => { setSheet(null); setOwnRecipe(r); }} />
+      ) : null}
       {sheet && sheet.kind === 'program' ? (
         <ProgramSheet t={t} tr={tr} pr={sheet.pr} ACC={ACC} DISPLAY={DISPLAY} MONO={MONO} first={first} isSelf={isSelf} studio={studio} work={studioWork}
           onClose={() => setSheet(null)} onBuy={() => buyProgram(sheet.pr)} onWork={() => setSheet({ kind: 'work' })} />
@@ -744,6 +825,8 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
           )) : <p style={{ margin: '10px 0 0', fontSize: 14, color: ink(0.64) }}>{tr('marketplace:listing.noReviews', { defaultValue: 'No reviews yet' })}</p>}
         </Sheet>
       ) : null}
+      {editingPost && W.BSLogActivitySheet ? <W.BSLogActivitySheet c={ACC} INK={INK} BG={t.PAPER_BG} editPost={editingPost} onClose={() => setEditingPost(null)} onPosted={() => { setEditingPost(null); setPostsNonce((n) => n + 1); }} /> : null}
+      {cardSheets ? cardSheets.renderSheets({ applyReaction, setOpenProfile: () => {}, actLikes, actExpr }) : null}
       {showLog && W.BSLogActivitySheet ? <W.BSLogActivitySheet c={ACC} INK={INK} BG={t.PAPER_BG} startKind={typeof showLog === 'string' ? showLog : undefined} onClose={() => setShowLog(false)} onPosted={() => { setShowLog(false); setPostsNonce((n) => n + 1); }} /> : null}
       {recipe ? <RecipeOverlay t={t} tr={tr} recipe={recipe} onClose={() => setRecipe(null)} /> : null}
       {ownRecipe ? <OwnRecipePage t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} recipe={ownRecipe} first={first} avatar={avatarShown} isSelf={isSelf}
@@ -777,7 +860,7 @@ function RecipeOverlay({ t, tr, recipe, onClose }) {
   };
   const host = sheetHost();
   const el = (
-    <div data-recipe-overlay="" style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, overflowY: 'auto' }}>
+    <div data-recipe-overlay="" style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, overflowY: 'auto', overflowX: 'hidden' }}>
       <Page recipe={recipe} onBack={onClose} onAddGrocery={addGrocery} groceryAdded={added} />
     </div>
   );
@@ -1040,7 +1123,10 @@ const pieceName = (p, tr) => (p.st && p.st.title) || p.label || p.tag || kitName
 // is lit in the accent and can be tapped over its whole shape. Either opens the piece (onPiece, by
 // its index). The counts are in the lists under the plan, not on it: a count on the plan reads as a
 // station's number.
-export function BSStudioPlan({ t, studio, ACC, ON_ACC, ink, MONO, onPiece, work = [], door = (k) => k, tr = (k, o) => (o && o.defaultValue) || k }) {
+// `frame` is the part of the plan drawn ([x, y, w, h], the whole plan by default; a kitchen draws
+// only its room, bsStudioFrame). `pieceLabel(p, count)` names a lit piece for a screen reader.
+export function BSStudioPlan({ t, studio, ACC, ON_ACC, ink, MONO, onPiece, work = [], door = (k) => k, tr = (k, o) => (o && o.defaultValue) || k, frame = null, pieceLabel = null }) {
+  const [fx, fy, fw, fh] = frame || [0, 0, BS_STUDIO_W, BS_STUDIO_H];
   const room = bsStudioRoom(studio.kind);
   const [rx, ry, rw, rh, style, radius] = room.room;
   const order = bsStudioDrawOrder(studio.items);
@@ -1051,8 +1137,8 @@ export function BSStudioPlan({ t, studio, ACC, ON_ACC, ink, MONO, onPiece, work 
     return work[i] && work[i].count && p.t !== 'zone' ? { i, p, n: null, count: work[i].count } : null;
   }).filter(Boolean);
   return (
-    <div style={{ position: 'relative', width: '100%', aspectRatio: `${BS_STUDIO_W} / ${BS_STUDIO_H}`, background: t.PAPER2 }}>
-      <svg viewBox={`0 0 ${BS_STUDIO_W} ${BS_STUDIO_H}`} width="100%" height="100%" style={{ position: 'absolute', inset: 0 }} aria-hidden>
+    <div style={{ position: 'relative', width: '100%', aspectRatio: `${fw} / ${fh}`, background: t.PAPER2 }}>
+      <svg viewBox={`${fx} ${fy} ${fw} ${fh}`} width="100%" height="100%" style={{ position: 'absolute', inset: 0 }} aria-hidden>
         <rect x={rx} y={ry} width={rw} height={rh} rx={radius} fill="none" stroke={ink(0.26)} strokeWidth="1.5" strokeDasharray={style === 'dashed' ? '5 5' : undefined} />
         {room.doors.map(([x, y, w, h, key, lx, ly], i) => (
           <g key={i}><rect x={x} y={y} width={w} height={h} fill={t.PAPER2} /><text x={lx} y={ly + 9} fontFamily="Inter, system-ui, sans-serif" fontSize="10.5" fill={ink(0.62)}>{door(key)}</text></g>
@@ -1071,19 +1157,19 @@ export function BSStudioPlan({ t, studio, ACC, ON_ACC, ink, MONO, onPiece, work 
       </svg>
       {marks.filter((x) => !x.n).map(({ i, p, count }) => {
         // The piece's own rectangle, at least 32 points each way so a narrow rack can be tapped.
-        const w = Math.max(p.w, 32 * BS_STUDIO_W / 344), h = Math.max(p.h, 32 * BS_STUDIO_W / 344);
+        const w = Math.max(p.w, 32 * fw / 344), h = Math.max(p.h, 32 * fw / 344);
         const x = p.x + p.w / 2 - w / 2, y = p.y + p.h / 2 - h / 2;
         return (
           <button key={i} type="button" data-piece="" onClick={onPiece ? () => onPiece(i) : undefined}
-            aria-label={tr('profile:trainer.pieceMoves', { defaultValue: '{name}: {count, plural, one {# move} other {# moves}} from the programs', name: pieceName(p, tr), count })}
-            style={{ position: 'absolute', left: `${(x / BS_STUDIO_W) * 100}%`, top: `${(y / BS_STUDIO_H) * 100}%`, width: `${(w / BS_STUDIO_W) * 100}%`, height: `${(h / BS_STUDIO_H) * 100}%`, padding: 0, border: 0, background: 'transparent', cursor: onPiece ? 'pointer' : 'default' }} />
+            aria-label={pieceLabel ? pieceLabel(p, count) : tr('profile:trainer.pieceMoves', { defaultValue: '{name}: {count, plural, one {# move} other {# moves}} from the programs', name: pieceName(p, tr), count })}
+            style={{ position: 'absolute', left: `${((x - fx) / fw) * 100}%`, top: `${((y - fy) / fh) * 100}%`, width: `${(w / fw) * 100}%`, height: `${(h / fh) * 100}%`, padding: 0, border: 0, background: 'transparent', cursor: onPiece ? 'pointer' : 'default' }} />
         );
       })}
       {marks.filter((x) => x.n).map(({ i, p, n }) => {
         const [sx, sy] = bsStudioSpot(p);
         return (
           <button key={i} type="button" data-station="" onClick={onPiece ? () => onPiece(i) : undefined} aria-label={`${n}. ${pieceName(p, tr)}`}
-            style={{ position: 'absolute', left: `${(sx / BS_STUDIO_W) * 100}%`, top: `${(sy / BS_STUDIO_H) * 100}%`, width: 44, height: 44, margin: '-22px 0 0 -22px', padding: 0, border: 0, background: 'transparent', display: 'grid', placeItems: 'center', cursor: onPiece ? 'pointer' : 'default' }}>
+            style={{ position: 'absolute', left: `${((sx - fx) / fw) * 100}%`, top: `${((sy - fy) / fh) * 100}%`, width: 44, height: 44, margin: '-22px 0 0 -22px', padding: 0, border: 0, background: 'transparent', display: 'grid', placeItems: 'center', cursor: onPiece ? 'pointer' : 'default' }}>
             <span style={{ width: 26, height: 26, borderRadius: 99, background: ACC, color: ON_ACC, display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 12, fontWeight: 700, boxShadow: `0 0 0 4px ${hexA(ACC, 0.22)}` }}>{n}</span>
           </button>
         );
@@ -1211,9 +1297,11 @@ function PieceSheet({ t, tr, ACC, ink, DISPLAY, MONO, INK, studio, i, work, prog
 }
 
 // ── Her kitchen (a nutritionist's) ──────────────────────────────────────────────────────────
-// Owner, 2026-10-27 ("lets do something different for nutritionists"): no floor plan; 2026-10-29:
-// "It will be their own recipes", and the plate, the staples and the recipes all kept and organized.
-// Three parts, one on screen at a time: their recipes (their own, written in Make it yours: opened,
+// Owner, 2026-10-27 ("lets do something different for nutritionists"); 2026-10-29: "It will be their
+// own recipes", and the plate, the staples and the recipes all kept and organized; 2026-10-30: "lets
+// show a kitchen layout, like we did for trainers", so the tab opens on the kitchen as they drew it
+// (Make it yours → Your kitchen → Layout), each spot telling what they make there. Then three
+// parts, one on screen at a time: their recipes (their own, written in Make it yours: opened,
 // a member cooks one in Shape's cook mode or sends its ingredients to their grocery list), the plate
 // they teach (a picture of how a plate splits, with their portion rules), and the staples always in
 // their kitchen (tap what you want and add it to your own grocery list). Listing photos under it.
@@ -1251,17 +1339,26 @@ function RecipeSwatch({ r, ACC, t, size = 76, font = 30 }) {
   );
 }
 const STAPLE_GROUP_KEYS = { fridge: ['groupFridge', 'Fridge'], pantry: ['groupPantry', 'Pantry'], freezer: ['groupFreezer', 'Freezer'] };
+// Each staple group's small line drawing: a fridge, a jar, a snowflake. In currentColor.
+function StapleIcon({ g }) {
+  const d = {
+    fridge: <><rect x="6" y="2.5" width="12" height="19" rx="2" /><path d="M6 10h12M9 5.5v2M9 13v3" /></>,
+    pantry: <><path d="M8 3.5h8v3H8z" /><path d="M7.5 6.5h9a1.5 1.5 0 0 1 1.5 1.5v11.5a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8a1.5 1.5 0 0 1 1.5-1.5Z" /><path d="M6 12h12" /></>,
+    freezer: <path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5" />,
+  }[g];
+  return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{d}</svg>;
+}
 // The kitchen's three parts, in the order a member uses them: what to cook, how to plate it, what to
-// keep in. A visitor sees the parts that have something in them; the coach sees all three.
+// keep in. A visitor sees the parts that have something in them; the coach sees all three. The
+// layout is not a part: it heads the tab, as the studio's plan heads a trainer's.
 export const KITCHEN_SECTIONS = [['recipes', 'secRecipes', 'Recipes'], ['plate', 'secPlate', 'Plate'], ['staples', 'secStaples', 'Staples']];
-function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, isSelf, first, ownerKey, stapleKeys = null, onRecipe, onFill }) {
+function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, plan = null, work = [], gallery, isSelf, first, ownerKey, stapleKeys = null, onRecipe, onFill, onSpot, sec = null, setSec = () => {} }) {
   const plate = kitchen ? kitchen.plate : null;
   const rules = kitchen ? kitchen.rules : [];
   const staples = kitchen ? kitchen.staples : [];
   const recipes = kitchen ? kitchen.recipes : [];
   const count = { recipes: recipes.length, plate: plate || rules.length ? 1 : 0, staples: staples.length };
   const shown = KITCHEN_SECTIONS.filter(([k]) => isSelf || count[k] > 0);
-  const [sec, setSec] = React.useState(null);
   const now = shown.some(([k]) => k === sec) ? sec : (shown[0] ? shown[0][0] : null);
   const colors = plateColors(ACC, ink);
   const part = (k) => tr('profile:nutri.part' + k, { defaultValue: { Veg: 'Vegetables', Protein: 'Protein', Carbs: 'Carbs' }[k] });
@@ -1274,6 +1371,8 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, 
   const chosen = staples.filter((s) => picked.has(stable(s.n)));
   const [saving, setSaving] = React.useState(null); // null | 'busy' | 'done' | 'err'
   const toggle = (n) => { setSaving(null); setPicked((prev) => { const next = new Set(prev); if (next.has(n)) next.delete(n); else next.add(n); return next; }); };
+  // A group's Pick all picks every staple in it, or, with all of them picked, clears them.
+  const pickGroup = (names, all) => { setSaving(null); setPicked((prev) => { const next = new Set(prev); for (const n of names) { if (all) next.delete(n); else next.add(n); } return next; }); };
   const addPicked = async () => {
     if (!chosen.length || saving === 'busy') return;
     if (window.bsRequireAccount && !window.bsRequireAccount(tr('profile:nutri.staplesAsk', { defaultValue: 'add to your grocery list' }))) return;
@@ -1289,6 +1388,40 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, 
   const fill = (key, en, section) => (
     <button type="button" data-kitchen-fill={section} onClick={() => onFill(section)} style={{ marginTop: 12, minHeight: 46, padding: '0 16px', border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:nutri.' + key, { defaultValue: en })}</button>
   );
+  const recipesOf = (w) => tr('profile:nutri.recipesHere', { defaultValue: '{count, plural, one {# recipe} other {# recipes}}', count: w ? w.count : 0 });
+
+  // The layout: the coach's kitchen as they drew it, with a number on each spot they named and the
+  // spots their recipes use lit; tap one for what they make there (SpotSheet).
+  const kind = plan ? (STUDIO_KIND_KEYS[plan.kind] || STUDIO_KIND_KEYS.kitchen) : null;
+  const spots = plan ? plan.items.map((p, i) => ({ p, i })).filter((x) => x.p.st) : [];
+  const lit = plan ? plan.items.some((p, i) => !p.st && p.t !== 'zone' && work[i] && work[i].count) : false;
+  const door = (k) => (k === 'entrance' ? tr('profile:trainer.doorEntrance', { defaultValue: 'Entrance' }) : k === 'garage' ? tr('profile:trainer.doorGarage', { defaultValue: 'Garage door' }) : tr('profile:trainer.doorDoor', { defaultValue: 'Door' }));
+  const layout = plan ? (
+    <div data-kitchen-plan="" style={{ marginBottom: 22 }}>
+      <span style={eyebrow(ink, MONO, ACC)}>{tr('profile:trainer.' + kind[0], { defaultValue: kind[1] })}</span>
+      {plan.where ? <span style={{ display: 'block', marginTop: 2, fontFamily: DISPLAY, fontWeight: 500, fontSize: 18 }}>{plan.where}<span style={{ color: ACC }}>.</span></span> : null}
+      {spots.length || lit ? <p style={{ margin: '2px 0 0', fontSize: 13.5, color: ink(0.7) }}>{tr('profile:nutri.tapSpot', { defaultValue: 'Tap a number, or a lit spot, to see what {name} makes there.', name: first })}</p> : null}
+      <div style={{ marginTop: 12 }}>
+        <BSStudioPlan t={t} studio={plan} ACC={ACC} ON_ACC={ON_ACC} ink={ink} MONO={MONO} onPiece={onSpot} work={work} door={door} tr={tr} frame={bsStudioFrame(plan)}
+          pieceLabel={(p, n) => tr('profile:nutri.spotRecipes', { defaultValue: '{name}: {count, plural, one {# recipe} other {# recipes}} made here', name: pieceName(p, tr), count: n })} />
+      </div>
+      {spots.length ? (
+        <ol style={{ margin: '12px 0 0', padding: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0 16px' }}>
+          {spots.map(({ p, i }, n) => (
+            <li key={i}><button type="button" data-spot-row="" onClick={() => onSpot(i)} style={{ width: '100%', minHeight: 44, padding: 0, border: 0, borderBottom: `1px solid ${ink(0.11)}`, background: 'transparent', color: t.INK, display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, textAlign: 'left', cursor: 'pointer' }}>
+              <span style={{ fontFamily: MONO, color: ACC }}>{n + 1}</span><span style={{ flex: 1, minWidth: 0 }}>{p.st.title || pieceName(p, tr)}</span>
+              {work[i] && work[i].count ? <span style={{ flexShrink: 0, fontSize: 11.5, color: ink(0.55) }}>{recipesOf(work[i])}</span> : null}
+            </button></li>
+          ))}
+        </ol>
+      ) : null}
+    </div>
+  ) : isSelf ? (
+    <div data-kitchen-plan-empty="" style={{ marginBottom: 22 }}>
+      <Hint ink={ink}>{tr('profile:nutri.layoutEmptySelf', { defaultValue: 'Draw your kitchen: the fridge, the stove, where you prep. Members tap a spot to see what you make there.' })}</Hint>
+      {fill('drawKitchen', 'Draw your kitchen', 'layout')}
+    </div>
+  ) : null;
 
   const recipesPart = recipes.length ? (
     <div data-kitchen-recipes="" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1340,30 +1473,51 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, 
     </div>
   ) : null;
 
+  // The staples, a soft card per place they live (owner, 2026-10-30: "make these look better"): its
+  // drawing, its name and how many, and each staple a rounded chip. A member taps a chip to pick it
+  // (＋, then ✓ on the accent), or Pick all for the whole group, then adds what they picked.
   const staplesPart = staples.length ? (
     <div data-kitchen-staples="">
       <span style={eyebrow(ink, MONO)}>{tr('profile:nutri.staples', { defaultValue: 'Always in the kitchen' })}</span>
       {!isSelf ? <p style={{ margin: '2px 0 0', fontSize: 13.5, color: ink(0.7) }}>{tr('profile:nutri.staplesSub', { defaultValue: 'Tap what you want, then add it to your grocery list.' })}</p> : null}
-      {['fridge', 'pantry', 'freezer'].map((g) => {
-        const inG = staples.filter((x) => x.g === g);
-        if (!inG.length) return null;
-        return (
-          <div key={g} style={{ marginTop: 10 }}>
-            <span style={{ fontSize: 12, color: ink(0.6) }}>{tr('profile:nutri.' + STAPLE_GROUP_KEYS[g][0], { defaultValue: STAPLE_GROUP_KEYS[g][1] })}</span>
-            <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {inG.map((x) => {
-                const on = picked.has(stable(x.n));
-                return isSelf ? (
-                  <span key={x.n} data-staple="" style={{ minHeight: 36, padding: '0 12px', display: 'inline-flex', alignItems: 'center', border: `1px solid ${ink(0.22)}`, fontSize: 14 }}>{x.n}</span>
-                ) : (
-                  <button key={x.n} type="button" data-staple="" aria-pressed={on} onClick={() => toggle(stable(x.n))}
-                    style={{ minHeight: 40, padding: '0 12px', border: `1px solid ${on ? ACC : ink(0.22)}`, background: on ? hexA(ACC, 0.16) : 'transparent', color: t.INK, fontSize: 14, cursor: 'pointer' }}>{on ? '✓ ' : ''}{x.n}</button>
-                );
-              })}
+      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {['fridge', 'pantry', 'freezer'].map((g) => {
+          const inG = staples.filter((x) => x.g === g);
+          if (!inG.length) return null;
+          const names = inG.map((x) => stable(x.n));
+          const all = names.every((n) => picked.has(n));
+          return (
+            <div key={g} data-staple-group={g} style={{ padding: '10px 12px 14px', borderRadius: 14, background: t.PAPER2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44 }}>
+                <span aria-hidden style={{ flex: 'none', width: 32, height: 32, borderRadius: 10, display: 'grid', placeItems: 'center', background: hexA(ACC, 0.14), color: ACC }}><StapleIcon g={g} /></span>
+                <span style={{ flex: 1, minWidth: 0, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600 }}>
+                  {tr('profile:nutri.' + STAPLE_GROUP_KEYS[g][0], { defaultValue: STAPLE_GROUP_KEYS[g][1] })}
+                  <span style={{ marginLeft: 6, fontFamily: MONO, fontSize: 11, fontWeight: 400, color: ink(0.55) }}>{inG.length}</span>
+                </span>
+                {!isSelf && inG.length > 1 ? (
+                  <button type="button" data-staple-group-pick={g} aria-pressed={all} onClick={() => pickGroup(names, all)}
+                    style={{ flex: 'none', minHeight: 44, padding: '0 4px', border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
+                    {all ? tr('profile:nutri.clearPicks', { defaultValue: 'Clear' }) : tr('profile:nutri.pickAll', { defaultValue: 'Pick all' })}
+                  </button>
+                ) : null}
+              </div>
+              <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {inG.map((x) => {
+                  const on = picked.has(stable(x.n));
+                  return isSelf ? (
+                    <span key={x.n} data-staple="" style={{ minHeight: 36, padding: '0 14px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', background: hexA(ACC, 0.1), color: t.INK, fontSize: 14 }}>{x.n}</span>
+                  ) : (
+                    <button key={x.n} type="button" data-staple="" aria-pressed={on} onClick={() => toggle(stable(x.n))}
+                      style={{ minHeight: 44, padding: '0 14px 0 10px', borderRadius: 999, border: 0, background: on ? ACC : hexA(ACC, 0.1), color: on ? ON_ACC : t.INK, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: on ? 600 : 400, cursor: 'pointer' }}>
+                      <span aria-hidden style={{ width: 18, textAlign: 'center', fontSize: 15, lineHeight: 1, color: on ? ON_ACC : ACC }}>{on ? '✓' : '＋'}</span>{x.n}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
       {!isSelf ? (
         <div style={{ marginTop: 12 }}>
           <button type="button" data-add-staples="" onClick={addPicked} disabled={!chosen.length || saving === 'busy'}
@@ -1385,6 +1539,7 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, 
   const nothing = !count.recipes && !count.plate && !count.staples;
   return (
     <section style={{ paddingTop: 16 }}>
+      {layout}
       {isSelf && nothing ? (
         <div>
           <Hint ink={ink}>{tr('profile:nutri.kitchenEmptySelf', { defaultValue: 'Show members your recipes, the plate you teach and what is always in your kitchen.' })}</Hint>
@@ -1409,7 +1564,14 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, 
           <div style={{ marginTop: shown.length > 1 || now === 'recipes' ? 14 : 0 }}>
             {now === 'recipes' ? recipesPart : now === 'plate' ? platePart : staplesPart}
           </div>
-          {isSelf && count[now] ? <button type="button" onClick={() => onFill(now)} style={{ ...linkBtn(ACC, DISPLAY), marginTop: 14 }}>{tr('profile:nutri.editKitchen', { defaultValue: 'Edit your kitchen' })} →</button> : null}
+          {/* The coach's way into this part's editor: a full-width secondary button, so it reads as
+              the action it is rather than a link under the last chip. */}
+          {isSelf && count[now] ? (
+            <button type="button" data-edit-kitchen={now} onClick={() => onFill(now)}
+              style={{ marginTop: 16, width: '100%', minHeight: 46, padding: '0 14px', border: `1px solid ${ink(0.22)}`, background: 'transparent', color: t.INK, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+              {tr('profile:nutri.editKitchen', { defaultValue: 'Edit your kitchen' })}<span aria-hidden style={{ color: ACC }}>→</span>
+            </button>
+          ) : null}
         </>
       ) : null}
       {gallery.length ? (
@@ -1417,6 +1579,91 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, 
           {gallery.slice(0, 6).map((g, i) => <img key={i} src={g.url} alt={g.caption || ''} style={{ width: '100%', height: 96, objectFit: 'cover' }} />)}
         </div>
       ) : null}
+    </section>
+  );
+}
+
+// A spot opened from the kitchen layout: the coach's words for it and the recipes of theirs made
+// there (bsKitchenWork), each opening the recipe.
+function SpotSheet({ t, tr, ACC, ink, DISPLAY, MONO, INK, plan, i, work, recipes, isSelf, first, words, onClose, onWork, onRecipe }) {
+  const p = plan.items[i];
+  const n = p.st ? plan.items.slice(0, i + 1).filter((q) => q.st).length : null;
+  const name = pieceName(p, tr);
+  const byId = new Map((recipes || []).map((r) => [r.id, r]));
+  const made = work ? work.recipes.map((x) => byId.get(x.id)).filter(Boolean) : [];
+  return (
+    <Sheet t={t} label={name} onClose={onClose}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: ACC }}>{n ? `${n} · ` : ''}{kitName(p.t, tr)}</span>
+        <CloseX onClose={onClose} color={INK} label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
+      </div>
+      <div style={{ marginTop: 8, display: 'grid', placeItems: 'center', height: 120, background: t.PAPER2 }}>
+        <img src={bsStudioSvg(p.t, p.w, p.h, { ink: t.inkRGB, light: t.isLight, accent: ACC })} alt="" style={{ maxWidth: '70%', maxHeight: 96, width: p.w * 1.4, height: p.h * 1.4, objectFit: 'contain' }} />
+      </div>
+      <h2 style={{ margin: '12px 0 0', fontFamily: DISPLAY, fontWeight: 500, fontSize: 21, lineHeight: 1.15 }}>{name}</h2>
+      {p.st && p.st.note ? <p style={{ margin: '6px 0 0', fontSize: 14.5, lineHeight: 1.5, color: ink(0.86), whiteSpace: 'pre-wrap' }}>{p.st.note}</p>
+        : (p.st && isSelf ? <p style={{ margin: '6px 0 0', fontSize: 14, color: ink(0.6) }}>{tr('profile:nutri.spotNoNote', { defaultValue: 'Say what you do here in Make it yours → Your kitchen → Layout.' })}</p> : null)}
+      {made.length ? (
+        <div data-spot-recipes="" style={{ marginTop: 16 }}>
+          <span style={eyebrow(ink, MONO, ACC)}>{tr('profile:nutri.madeHere', { defaultValue: '{name}\'s recipes made here', name: first })}</span>
+          {made.map((r) => (
+            <button key={r.id} type="button" data-spot-recipe={r.id} onClick={() => onRecipe(r)} style={{ width: '100%', minHeight: 56, marginTop: 4, padding: '8px 0', border: 0, borderTop: `1px solid ${ink(0.12)}`, background: 'transparent', color: INK, display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', cursor: 'pointer' }}>
+              <RecipeSwatch r={r} ACC={ACC} t={t} size={44} font={18} />
+              <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.35 }}>
+                <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 15 }}>{r.t}</span>
+                {recipeMeta(tr, r) ? <span style={{ fontFamily: MONO, fontSize: 11, color: ink(0.62) }}>{recipeMeta(tr, r)}</span> : null}
+              </span>
+              <span aria-hidden style={{ color: ACC }}>→</span>
+            </button>
+          ))}
+        </div>
+      ) : (isSelf ? <p style={{ margin: '12px 0 0', fontSize: 13.5, lineHeight: 1.45, color: ink(0.6) }}>{tr('profile:nutri.madeHereSelf', { defaultValue: 'Your recipes show here when their method uses this spot: roasting lights the oven, searing the stove.' })}</p> : null)}
+      {!isSelf ? <button type="button" onClick={onWork} style={{ marginTop: 16, width: '100%', minHeight: 50, padding: '0 14px', border: `1px solid ${ink(0.22)}`, background: 'transparent', color: INK, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{words.work}<span style={{ color: ACC }}>→</span></button> : null}
+    </Sheet>
+  );
+}
+
+// ── Their activity ──────────────────────────────────────────────────────────────────────────
+// The newest three of what the coach posted, with See all for the rest, drawn by the member
+// profile's activity card (BSActivityCard, a window global of the client module) so a coach's
+// feed reads like a member's. Without that card (the module not loaded) a plain row stands in.
+// On their own page: Log activity, and with nothing yet, what it is for.
+const BS_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ACTIVITY_FIRST = 3;
+function ActivityFeed({ t, tr, ACC, ink, DISPLAY, MONO, gutter, cards, isSelf, first, all, setAll, onLog, ctx }) {
+  const Card = ctx ? window.BSActivityCard : null;
+  const list = all ? cards.slice(0, 30) : cards.slice(0, ACTIVITY_FIRST);
+  return (
+    <section data-activity="" aria-label={tr('profile:tab.activity', { defaultValue: 'Activity' })} style={{ margin: `6px 0 22px` }}>
+      <div style={{ padding: `0 ${gutter}px`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+        <span style={eyebrow(ink, MONO)}>{tr('profile:trainer.activityTitle', { defaultValue: '{name}\'s activity', name: first })}</span>
+        {isSelf ? <button type="button" data-log-activity="" onClick={onLog} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>＋ {tr('profile:trainer.logActivity', { defaultValue: 'Log activity' })}</button> : null}
+      </div>
+      {cards.length ? (
+        <div style={{ marginTop: 6 }}>
+          {list.map((a, i) => (Card ? (
+            <div key={a.key || i} data-activity-card="">
+              <Card a={a} ctx={ctx} hideAuthor isLast={i === list.length - 1} pagePad={0} variant="magazine" />
+            </div>
+          ) : (
+            <div key={a.key || i} data-activity-card="" style={{ margin: `0 ${gutter}px`, padding: '12px 0', borderTop: `1px solid ${ink(0.12)}` }}>
+              <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: ACC }}>{[a.typeLabel, a.ago].filter(Boolean).join(' · ')}</span>
+              {a.title ? <span style={{ display: 'block', marginTop: 3, fontFamily: DISPLAY, fontWeight: 600, fontSize: 16 }}>{a.title}</span> : null}
+              {a.body ? <span style={{ display: 'block', marginTop: 2, fontSize: 14, lineHeight: 1.45, color: ink(0.78) }}>{a.body}</span> : null}
+            </div>
+          )))}
+          {cards.length > ACTIVITY_FIRST ? (
+            <button type="button" data-activity-all="" aria-expanded={all} onClick={() => setAll(!all)}
+              style={{ display: 'block', margin: `4px ${gutter}px 0`, minHeight: 44, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+              {all ? tr('profile:trainer.activityFewer', { defaultValue: 'Show fewer' }) : tr('profile:trainer.activityAll', { defaultValue: 'See all {count}', count: cards.length })}
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <div style={{ padding: `4px ${gutter}px 0` }}>
+          <Hint ink={ink}>{tr('profile:trainer.activityEmptySelf', { defaultValue: 'Nothing posted yet. Log a run, a note or a photo, and members see it here.' })}</Hint>
+        </div>
+      )}
     </section>
   );
 }
@@ -1445,7 +1692,7 @@ function OwnRecipePage({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, recipe: r, firs
   const canCook = !!window.BSCookMode && (steps.length > 0 || ings.length > 0);
   const host = sheetHost();
   const el = (
-    <div role="dialog" aria-label={r.t} data-own-recipe={r.id} style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, color: t.INK, overflowY: 'auto', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
+    <div role="dialog" aria-label={r.t} data-own-recipe={r.id} style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, color: t.INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
       <div style={{ position: 'relative' }}>
         {r.photo ? <img src={r.photo} alt="" style={{ display: 'block', width: '100%', height: 240, objectFit: 'cover' }} />
           : <div aria-hidden style={{ height: 120, background: `linear-gradient(135deg, ${hexA(ACC, 0.6)}, ${t.PAPER2})` }} />}
@@ -1522,7 +1769,7 @@ function CookOverlay({ t, cookable, onClose }) {
   if (!Cook || !cookable) return null;
   const host = sheetHost();
   const el = (
-    <div data-cook-overlay="" style={{ position: 'absolute', inset: 0, zIndex: 240, background: t.PAPER_BG || t.PAPER, overflowY: 'auto' }}>
+    <div data-cook-overlay="" style={{ position: 'absolute', inset: 0, zIndex: 240, background: t.PAPER_BG || t.PAPER, overflowY: 'auto', overflowX: 'hidden' }}>
       <Cook cookable={cookable} onClose={onClose} />
     </div>
   );
@@ -1621,12 +1868,13 @@ function PlateNotesSheet({ t, tr, locale, day, i, setI, ACC, DISPLAY, MONO, firs
   const recipe = bsKitchenRecipe(m.recipeId);
   const host = sheetHost();
   const el = (
-    <div role="dialog" aria-label={tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' })} style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
+    <div role="dialog" aria-label={tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' })} style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', overflowX: 'hidden', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
       <div style={{ padding: 'calc(10px + env(safe-area-inset-top)) 8px 0 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' })} · {(() => { try { return Number.isFinite(day.at) ? new Date(day.at).toLocaleDateString(locale, { weekday: 'long' }) : ''; } catch (e) { return ''; } })()}</span>
         <CloseX onClose={onClose} color="#e8ebef" label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
       </div>
-      <div style={{ margin: '16px 18px 0' }}>
+      {/* 22 in from each edge, so the last meal's 44-point target stays on the sheet (as Replays). */}
+      <div style={{ margin: '16px 22px 0' }}>
         <div style={{ position: 'relative', height: 22 }}>
           <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: 10, height: 2, background: 'rgba(232,235,239,0.2)' }} />
           <span aria-hidden style={{ position: 'absolute', left: 0, width: meals.length > 1 ? `${(at / (meals.length - 1)) * 100}%` : '100%', top: 10, height: 2, background: ACC }} />
@@ -1812,7 +2060,7 @@ function ProgramSheet({ t, tr, pr, ACC, DISPLAY, MONO, first, isSelf, studio, wo
   const meta = programMeta(tr, pr);
   const host = sheetHost();
   const el = (
-    <div role="dialog" aria-label={pr.name} data-program-sheet="" style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
+    <div role="dialog" aria-label={pr.name} data-program-sheet="" style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', overflowX: 'hidden', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
       <div style={{ padding: 'calc(10px + env(safe-area-inset-top)) 8px 0 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{tr('profile:trainer.program', { defaultValue: 'Program' })}{pr.price ? ` · ${pr.price}` : ''}</span>
         <CloseX onClose={onClose} color="#e8ebef" label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
@@ -1863,7 +2111,7 @@ function ReplaySheet({ t, tr, r, i, setI, ACC, DISPLAY, MONO, first, avatar, isS
   const muted = 'rgba(232,235,239,0.6)';
   const host = sheetHost();
   const el = (
-    <div role="dialog" aria-label={r.title} style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
+    <div role="dialog" aria-label={r.title} style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', overflowX: 'hidden', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
       <div style={{ padding: 'calc(10px + env(safe-area-inset-top)) 8px 0 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{rows.length ? tr('profile:trainer.replay', { defaultValue: 'Replay' }) : tr('profile:trainer.workout', { defaultValue: 'Workout' })}{r.typeLabel ? ` · ${r.typeLabel}` : ''}{r.ago ? ` · ${bsShortAge(r.ago, tr)}` : ''}</span>
         <CloseX onClose={onClose} color="#e8ebef" label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
@@ -1871,7 +2119,9 @@ function ReplaySheet({ t, tr, r, i, setI, ACC, DISPLAY, MONO, first, avatar, isS
       <h2 style={{ margin: '0 18px', fontFamily: DISPLAY, fontWeight: 300, fontSize: 25, lineHeight: 1.1 }}>{r.title}<span style={{ color: ACC }}>.</span></h2>
       {video ? <div data-replay-video="" style={{ margin: '4px 18px 0' }}><ShapeVideoPlayer value={video} title={r.title} expanded /></div>
         : r.photo ? <div style={{ margin: '12px 18px 0', height: 220, overflow: 'hidden', background: '#000' }}><img src={r.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div> : null}
-      {rows.length ? <div style={{ margin: '16px 18px 0' }}>
+      {/* The step track sits 22 in from each edge, half a dot's 44-point target, so the last
+          target stays on the sheet and it never scrolls sideways. */}
+      {rows.length ? <div style={{ margin: '16px 22px 0' }}>
         <div style={{ position: 'relative', height: 22 }}>
           <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: 10, height: 2, background: 'rgba(232,235,239,0.2)' }} />
           <span aria-hidden style={{ position: 'absolute', left: 0, width: rows.length > 1 ? `${(at / (rows.length - 1)) * 100}%` : '100%', top: 10, height: 2, background: ACC }} />

@@ -83,6 +83,8 @@ function lineDrawings(S, F) {
     counter: (W, H) => R(0.5, 0.5, W - 1, H - 1, fl) + L(W - 5, 0, W - 5, H, fa),
     island: (W, H) => R(1, 1, W - 17, H - 2, 'rx="3" ' + fl) + L(W - 22, 4, W - 22, H - 4, fa) + rep(4, (i) => C(W - 6, H * (i + 0.5) / 4, 5)),
     range: (W, H) => R(0.5, 0.5, W - 1, H - 1, fl) + C(W * 0.3, H * 0.28, W * 0.15) + C(W * 0.7, H * 0.28, W * 0.15) + C(W * 0.3, H * 0.66, W * 0.15) + C(W * 0.7, H * 0.66, W * 0.15) + L(3, H - 3, W - 3, H - 3, fa),
+    // The oven's door and handle face the room (the bottom edge, upright).
+    oven: (W, H) => R(0.5, 0.5, W - 1, H - 1, fl) + rep(3, (i) => C(W * (i + 1) / 4, H * 0.17, 1.6, so)) + R(4, H * 0.3, W - 8, H * 0.5, 'rx="3"') + L(5, H - 5, W - 5, H - 5, 'stroke-width="2" stroke-linecap="round"'),
     fridge: (W, H) => R(0.5, 0.5, W - 1, H - 1, fl) + L(W / 2, 1, W / 2, H - 1) + L(W / 2 - 4, H - 6, W / 2 - 4, H - 12, 'stroke-width="2"') + L(W / 2 + 4, H - 6, W / 2 + 4, H - 12, 'stroke-width="2"'),
     sink: (W, H) => R(0.5, 0.5, W - 1, H - 1, fl) + R(5, 5, W - 10, H * 0.42, 'rx="4"') + R(5, H * 0.53, W - 10, H * 0.42, 'rx="4"') + C(W - 3, H / 2, 2, so),
     pantry: (W, H) => R(0.5, 0.5, W - 1, H - 1, fl) + rep(H / 12 - 1, (i) => L(0, (i + 1) * 12, W, (i + 1) * 12, fa)),
@@ -151,6 +153,7 @@ const SOFT = {
     counter: (W, H, b, d, l) => Rf(0, 0, W, H, 4, b) + Rf(0, H - 4, W, 4, 2, l),
     island: (W, H, b, d) => Rf(0, 0, W - 18, H, 7, b) + Array.from({ length: 4 }, (_, i) => Cf(W - 7, H * (i + 0.5) / 4, 5.5, d)).join(''),
     range: (W, H, b, d) => Rf(0, 0, W, H, 4, b) + [[0.3, 0.28], [0.7, 0.28], [0.3, 0.68], [0.7, 0.68]].map(([x, y]) => Cf(W * x, H * y, W * 0.15, d)).join(''),
+    oven: (W, H, b, d, l) => Rf(0, 0, W, H, 4, b) + [1, 2, 3].map((i) => Cf(W * i / 4, H * 0.17, 1.8, d)).join('') + Rf(4, H * 0.3, W - 8, H * 0.5, 3, l) + Lf(5, H - 5, W - 5, H - 5, d, 2.6),
     fridge: (W, H, b, d, l) => Rf(0, 0, W, H, 4, b) + Lf(W / 2, 3, W / 2, H - 3, l, 1.5) + Lf(W / 2 - 4, H - 7, W / 2 - 4, H - 14, d, 2.5) + Lf(W / 2 + 4, H - 7, W / 2 + 4, H - 14, d, 2.5),
     sink: (W, H, b, d, l) => Rf(0, 0, W, H, 4, b) + Rf(5, 5, W - 10, H * 0.42, 5, d) + Rf(5, H * 0.53, W - 10, H * 0.42, 5, d),
     pantry: (W, H, b, d, l) => Rf(0, 0, W, H, 3, b) + Array.from({ length: Math.floor(H / 12) - 1 }, (_, i) => Rf(2, (i + 1) * 12 - 1, W - 4, 2, 1, l)).join(''),
@@ -182,7 +185,7 @@ export const STUDIO_KIT = Object.freeze({
     ropes: ['Battle ropes', 'Functional', 12, 80], wallballs: ['Wall balls', 'Functional', 44, 14], straps: ['Suspension straps', 'Functional', 24, 30],
     bag: ['Heavy bag', 'Functional', 22, 22], ring: ['Boxing ring', 'Functional', 150, 150],
     mats: ['Mat area', 'Studio', 100, 70], reformer: ['Reformer', 'Studio', 30, 96], barre: ['Barre', 'Studio', 6, 140], mirror: ['Mirror', 'Studio', 6, 120],
-    counter: ['Counter', 'Kitchen', 150, 26], island: ['Island', 'Kitchen', 130, 64], range: ['Stove', 'Kitchen', 30, 34], fridge: ['Fridge', 'Kitchen', 32, 36],
+    counter: ['Counter', 'Kitchen', 150, 26], island: ['Island', 'Kitchen', 130, 64], range: ['Stove', 'Kitchen', 30, 34], oven: ['Oven', 'Kitchen', 32, 32], fridge: ['Fridge', 'Kitchen', 32, 36],
     sink: ['Sink', 'Kitchen', 52, 30], pantry: ['Pantry shelves', 'Kitchen', 96, 18], table: ['Table', 'Kitchen', 100, 64], scale: ['Food scale', 'Kitchen', 18, 18],
     blender: ['Blender', 'Kitchen', 16, 16], herbs: ['Herb shelf', 'Kitchen', 70, 12], board: ['Prep board', 'Kitchen', 44, 30],
     sofa: ['Sofa', 'Office', 84, 32], armchair: ['Armchair', 'Office', 32, 32], screen: ['Video desk', 'Office', 60, 24], shelf: ['Bookshelf', 'Office', 80, 14],
@@ -191,6 +194,9 @@ export const STUDIO_KIT = Object.freeze({
 
 // The groups the editor's "Add what you have" list shows, in order: [slug, English name].
 export const STUDIO_GROUPS = Object.freeze([['free', 'Free weights'], ['machines', 'Machines'], ['cardio', 'Cardio'], ['functional', 'Functional'], ['studio', 'Studio']]);
+// A nutritionist's kitchen layout lists these instead (owner, 2026-10-30: "lets show a kitchen
+// layout, like we did for trainers"): the kitchen's pieces, then the office's for a consult corner.
+export const KITCHEN_GROUPS = Object.freeze([['kitchen', 'Kitchen'], ['office', 'Office']]);
 const GROUP_SLUG = { 'Free weights': 'free', Machines: 'machines', Cardio: 'cardio', Functional: 'functional', Studio: 'studio', Kitchen: 'kitchen', Office: 'office' };
 /** The group slug a piece is listed under. */
 export const bsStudioGroupOf = (type) => GROUP_SLUG[(STUDIO_KIT[type] || [])[1]] || 'studio';
@@ -206,11 +212,14 @@ export const STUDIO_ROOMS = Object.freeze({
   pilates: { room: [12, 12, 320, 480, 'solid', 12], doors: [[9, 420, 8, 44, 'door', 22, 440]] },
   boxing: { room: [12, 12, 320, 480, 'solid', 12], doors: [[150, 489, 44, 8, 'entrance', 150, 500]] },
   outdoor: { room: [12, 12, 320, 480, 'dashed', 28], doors: [] },
+  kitchen: { room: [12, 12, 320, 300, 'solid', 12], doors: [[36, 308, 44, 8, 'door', 38, 318]] },
   blank: { room: [12, 12, 320, 480, 'solid', 12], doors: [[150, 489, 44, 8, 'door', 160, 500]] },
 });
 export const bsStudioRoom = (kind) => STUDIO_ROOMS[kind] || STUDIO_ROOMS.blank;
 // The kinds a coach starts from, in the editor's order.
 export const STUDIO_COACH_KINDS = Object.freeze(['private', 'garage', 'gym', 'pilates', 'boxing', 'outdoor', 'blank']);
+// The kinds a nutritionist's kitchen starts from.
+export const KITCHEN_COACH_KINDS = Object.freeze(['kitchen', 'blank']);
 
 // The words a starting layout writes (station titles, labels and zone names), by key: the
 // English defaults of profile:studio.word.<key>. The editor translates them when the coach picks
@@ -219,6 +228,7 @@ export const STUDIO_WORDS = Object.freeze({
   squatRack: 'Squat rack', squatRacks: 'Squat racks', rack: 'Rack', racks: 'Racks', platform: 'Platform', kettlebells: 'Kettlebells', speaker: 'Speaker',
   desk: 'Desk', frontDesk: 'Front desk', clientWall: 'Client wall', mats: 'Mats', freeWeights: 'Free weights', machines: 'Machines', cardio: 'Cardio',
   turf: 'Turf', cable: 'Cable machine', reformers: 'Reformers', barre: 'Barre', ring: 'The ring', bags: 'Heavy bags', rig: 'Pull-up rig', meetHere: 'Meet here',
+  fridge: 'Fridge', pantry: 'Pantry', stove: 'Stove', oven: 'Oven', prepIsland: 'Prep island', kitchenTable: 'The table',
 });
 
 const it = (t, x, y, o = {}) => ({ t, x, y, w: o.w || STUDIO_KIT[t][2], h: o.h || STUDIO_KIT[t][3], ...(o.st ? { st: o.st } : {}), ...(o.label ? { label: o.label } : {}), ...(o.tag ? { tag: o.tag } : {}), ...(o.spot ? { spot: o.spot } : {}) });
@@ -249,6 +259,14 @@ export const STUDIO_TEMPLATES = Object.freeze({
   outdoor: [
     it('rig', 40, 70, { st: 'rig', label: 'rig' }), it('turf', 254, 90, { h: 300, st: 'turf' }), it('bells', 40, 190, { st: 'kettlebells' }), it('speaker', 160, 398, { st: 'speaker' }), it('desk', 50, 420, { st: 'meetHere', label: 'meetHere' }),
     it('bench', 54, 270, { w: 56, h: 18 }), it('mats', 40, 306), it('boxes', 160, 190), it('tree', 196, 24), it('tree', 280, 428), it('sled', 270, 110), it('ropes', 200, 260)],
+  // A home kitchen: the fridge, counters, sink, stove and oven along the back wall, the pantry on
+  // the left, an island to prep on, the table by the door. Counters come before what sits in them,
+  // so the sink and the board draw on top.
+  kitchen: [
+    it('fridge', 22, 22, { w: 36, h: 40, st: 'fridge' }), it('pantry', 22, 92, { w: 18, h: 124, st: 'pantry' }), it('range', 192, 22, { w: 36, h: 34, st: 'stove' }),
+    it('oven', 232, 22, { w: 32, h: 34, st: 'oven' }), it('island', 84, 110, { w: 160, h: 64, st: 'prepIsland', spot: [12, 14] }), it('table', 172, 218, { w: 124, h: 72, st: 'kitchenTable' }),
+    it('counter', 62, 22, { w: 126, h: 28 }), it('sink', 98, 22, { w: 52, h: 28 }), it('counter', 270, 22, { w: 52, h: 28 }), it('herbs', 312, 66, { w: 12, h: 70 }),
+    it('board', 118, 118, { w: 44, h: 30 }), it('scale', 174, 124, { w: 18, h: 18 }), it('blender', 204, 125, { w: 16, h: 16 })],
   blank: [],
 });
 
@@ -307,4 +325,20 @@ export function bsStudioSvg(type, w, h, { ink = '245,240,230', light = false, ac
   const l = t ? 'rgba(' + t + ',' + (light ? 0.16 : 0.18) + ')' : a(light ? 0.08 : 0.09);
   const draw = SOFT[type] || ((W2, H2, bb) => Rf(0, 0, W2, H2, 5, bb));
   return svgUri(W, H, turned(W, H, (W2, H2) => draw(W2, H2, b, d, l)));
+}
+
+/**
+ * The part of the plan a kitchen layout shows: its room and doors, and every piece with its label,
+ * with a little paper round them. [x, y, w, h] in plan units. A kitchen is shorter than a gym, so
+ * the profile draws only this much of the 344 × 528 plan rather than a tall empty frame.
+ */
+export function bsStudioFrame(studio, pad = 10) {
+  const items = studio && Array.isArray(studio.items) ? studio.items : [];
+  const room = bsStudioRoom(studio && studio.kind);
+  const [rx, ry, rw, rh] = room.room;
+  let x0 = rx, y0 = ry, x1 = rx + rw, y1 = ry + rh;
+  for (const [dx, dy, dw, dh, , , ly] of room.doors) { x0 = Math.min(x0, dx); y0 = Math.min(y0, dy); x1 = Math.max(x1, dx + dw); y1 = Math.max(y1, dy + dh, ly + 12); }
+  for (const p of items) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x + p.w); y1 = Math.max(y1, p.y + p.h + (p.label ? 15 : 0)); }
+  const fx = Math.max(0, Math.floor(x0 - pad)), fy = Math.max(0, Math.floor(y0 - pad));
+  return [fx, fy, Math.min(BS_STUDIO_W, Math.ceil(x1 + pad)) - fx, Math.min(BS_STUDIO_H, Math.ceil(y1 + pad)) - fy];
 }

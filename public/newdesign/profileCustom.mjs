@@ -210,7 +210,7 @@ export const BS_STUDIO_TYPES = [
   'treadmill', 'bike', 'airbike', 'rower', 'ski', 'elliptical', 'stair',
   'rig', 'turf', 'sled', 'boxes', 'ropes', 'wallballs', 'straps', 'bag', 'ring',
   'mats', 'reformer', 'barre', 'mirror', 'speaker', 'desk', 'frames', 'tree', 'zone',
-  'counter', 'island', 'range', 'fridge', 'sink', 'pantry', 'table', 'scale', 'blender', 'herbs', 'board',
+  'counter', 'island', 'range', 'oven', 'fridge', 'sink', 'pantry', 'table', 'scale', 'blender', 'herbs', 'board',
   'sofa', 'armchair', 'screen', 'shelf',
 ];
 // The kinds of space (each draws its own room outline and doors).

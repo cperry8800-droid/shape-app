@@ -7,8 +7,9 @@
 // bsProjectAvailability, the kitchen through the doc's own cleaner, the plate notes as shared-meal
 // cards grouped by day), and the sample itself reads nothing from Shape and writes nothing to it.
 //
-// What a sample nutritionist has is what an account would give it: a kitchen (the plate they
-// teach and their portion rules, their staples, and six recipes of their own with a note on each:
+// What a sample nutritionist has is what an account would give it: a kitchen (its layout with a note
+// at each station, the plate they teach and their portion rules, their staples, and six recipes of
+// their own with a note on each:
 // Shape Kitchen recipes by Shape's own recipe writers, written out as the coach's), a week of open
 // and busy times, two days of shared meals and reviews. Each coach gets its own from a seed (its
 // listing id or name): a kitchen that fits its specialty. What its listing says
@@ -24,6 +25,7 @@
 import { bsKitchenRecipeItem } from './profileCustom.mjs';
 import { bsKitchenRecipe, bsKitchenMinutes } from '../broadsheet/kitchenRecipes.js';
 import { bsSampleEnglish } from './trainerDemo.mjs';
+import { bsStudioFromTemplate, STUDIO_WORDS } from './studioKit.mjs';
 
 // A staple's key: its English name in camel case ("Greek yogurt" → greekYogurt), so a staple two
 // kinds share has one translation.
@@ -149,6 +151,18 @@ const KITCHENS = {
   },
 };
 
+// A note at each station of the kitchen layout (studioKit's 'kitchen' template), by its key: what a
+// sample nutritionist does at each spot (owner, 2026-10-30: "lets show a kitchen layout, like we did
+// for trainers").
+const STATION_NOTES = {
+  fridge: 'Cooked proteins on the top shelf, cut vegetables at eye level. What you see first is what you eat.',
+  pantry: 'Oats, rice, beans and tins, every jar labelled. A full pantry means dinner is never a takeaway.',
+  stove: 'One pan most nights: sear the protein, then the vegetables in what it left behind.',
+  oven: 'Sheet-pan dinners: everything on one tray, twenty-five minutes, one thing to wash.',
+  prepIsland: 'Sunday prep starts here: chop for the week, weigh the portions, fill the boxes.',
+  kitchenTable: 'Where we sit down to eat, phones away. A meal takes twenty minutes, not five.',
+};
+
 // Weekly open hours as the hours editor stores them: Monday to Thursday 8:00 to 18:00, Friday 8:00
 // to 14:00, weekends off.
 const SLOTS = [1, 2, 3, 4].map((weekday) => ({ weekday, start_minute: 480, duration_min: 600 }))
@@ -203,8 +217,10 @@ export function bsNutritionistSampleOf({ key = '', specialty = '' } = {}) {
  *   business  the business name on the page (the demo coach's own; none for a listing's coach)
  *   say       the sample's words in the reader's language: (key, english, values) => text, the
  *             profile's tr; by default the English (bsSampleEnglish)
+ *   word      the kitchen layout's station names in the reader's language (studioKit's `word`)
  */
-export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'performance', where = 'Austin, TX', business = 'Second Helping Nutrition', say = bsSampleEnglish } = {}) {
+export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'performance', where = 'Austin, TX', business = 'Second Helping Nutrition', say = bsSampleEnglish,
+  word = (k) => STUDIO_WORDS[k] || k } = {}) {
   const kk = KITCHENS[kind] ? kind : 'performance';
   const k = KITCHENS[kk];
   const S = (key, english, values) => say('profile:sample.nutri.' + key, english, values);
@@ -246,6 +262,13 @@ export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'perf
   // whatever the language it was added in (Codex on #2512). The doc's cleaner keeps only a staple's
   // name and group, so this rides beside the kitchen, not in it.
   const staples = k.staples.map(([n, g]) => ({ n: S('staple.' + stapleKey(n), n), g, en: n }));
+  // The kitchen layout, its station names in the reader's language and a note at each, by its key.
+  const keyed = bsStudioFromTemplate('kitchen', (key) => key);
+  const layout = {
+    kind: 'kitchen',
+    where: '',
+    items: bsStudioFromTemplate('kitchen', word).map((p, i) => (p.st ? { ...p, st: { ...p.st, note: STATION_NOTES[keyed[i].st.title] ? S('station.' + keyed[i].st.title, STATION_NOTES[keyed[i].st.title]) : '' } } : p)),
+  };
   return {
     // No sample photos: Make it yours offers only an upload, and the page shows the colours.
     photos: [],
@@ -259,6 +282,8 @@ export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'perf
     },
     custom: {
       look: { paper: 'dark', accent: 'amber', focus: 'center' },
+      // A nutritionist's kitchen layout rides in the doc's `studio`, as a trainer's floor does.
+      studio: layout,
       kitchen: {
         plate: { ...k.plate },
         rules: k.rules.map((r, i) => S(`rule.${kk}.${i}`, r)),
@@ -291,5 +316,22 @@ export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'perf
       ],
     },
     plates,
+    // What the sample posted besides plate notes, for the page's activity feed (owner, 2026-10-30:
+    // "there is also no activity feed on coaches profile"): a note on Sunday prep and a walk, as
+    // the member profile's activity cards. The page puts the coach's name and tier on them.
+    activity: [
+      {
+        real: false, key: 'demo-act-prep', postId: null, hot: false, kind: 'note', activityType: 'note', typeLabel: S('type.note', 'Note'),
+        title: S('activity.prep.title', 'Sunday prep'), body: S('activity.prep.body', 'Twelve boxes in ninety minutes: two proteins, three grains, a tray of roast vegetables. The plan only works when the food is ready.'),
+        ago: '1d', city: '', statsRow: [], fullStats: [], stats: [], breakdown: null, zones: null, trace: null, kudos: 0, replies: 0, postComments: [], likers: [], comments: [],
+      },
+      {
+        real: false, key: 'demo-act-walk', postId: null, hot: false, kind: 'workout', activityType: 'walk', typeLabel: S('type.walk', 'Walk'),
+        title: S('activity.walk.title', 'Walk after dinner'), body: S('activity.walk.body', 'Thirty minutes on foot after the evening meal. Better for blood sugar than most supplements.'),
+        ago: '2d', city: '', duration: '32:10', kudos: 0, replies: 0,
+        stats: [[S('stat.time', 'Time'), '32:10'], [S('stat.steps', 'Steps'), '3,940']],
+        breakdown: null, zones: null, trace: null, likers: [], comments: [],
+      },
+    ],
   };
 }

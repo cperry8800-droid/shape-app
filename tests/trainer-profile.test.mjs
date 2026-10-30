@@ -15,7 +15,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadRealModule } from './helpers/load-real-module.mjs';
-import { bsCoachPronoun } from '../mobile-app/src/services/coachPronoun.mjs';
+import { bsCoachPronoun, bsCoachFirstName } from '../mobile-app/src/services/coachPronoun.mjs';
 import { bsStudioFromTemplate } from '../mobile-app/src/services/studioKit.mjs';
 import { BS_SUPABASE_HOST } from '../public/newdesign/listingMedia.mjs';
 
@@ -136,6 +136,13 @@ test('the words follow the pronouns the coach wrote, else their first name', asy
   assert.equal(bsCoachPronoun('He / him'), 'him');
   assert.equal(bsCoachPronoun('they/them'), 'them');
   for (const v of ['', null, 'ze/zir', 'any', 'shee']) assert.equal(bsCoachPronoun(v), null, String(v));
+  // A title is not the first name: the sample "Dr. Maya Patel" read "Dr.'s day".
+  assert.equal(bsCoachFirstName('Dr. Maya Patel'), 'Maya');
+  assert.equal(bsCoachFirstName('coach  Jordan Chen'), 'Jordan');
+  assert.equal(bsCoachFirstName('Prof Dra. Ana Ruiz'), 'Ana');
+  assert.equal(bsCoachFirstName('Maya Okafor'), 'Maya');
+  assert.equal(bsCoachFirstName('Dr.'), 'Dr.', 'a name that is only a title keeps it');
+  assert.equal(bsCoachFirstName(''), '');
   for (const [pronouns, day, work] of [['she/her', 'Her day', 'Work with her'], ['he/him', 'His day', 'Work with him'], ['they', 'Their day', 'Work with them'], ['', "Maya's day", 'Work with Maya'], ['xe/xem', "Maya's day", 'Work with Maya']]) {
     reset({ pronouns });
     const m = await mount(page());
@@ -824,6 +831,40 @@ test('a demo saved in Make it yours keeps only what was changed, so the studio s
   } finally { window.ShapeLocale = hadLocale; window.ShapeI18n.t = hadT; client.restore(); }
 });
 
+test('their activity: what they posted that the tabs do not already show, newest three then See all; a sample has its own', async () => {
+  // Owner, 2026-10-30: "there is also no activity feed on coaches profile".
+  const note = (i) => ({ key: `n${i}`, title: `Note ${i}`, typeLabel: 'Note', ago: `${i}d`, body: `Body ${i}`, statsRow: [], breakdown: null });
+  reset({ posts: [note(1), { key: 'p1', title: 'Heavy squat day', ago: '2d', statsRow: [], breakdown: { label: 'Sets', rows: [['Set 1', '100 kg × 5', '']] } }, note(2), note(3), note(4)] });
+  let m = await mount(page());
+  const feed = document.querySelector('[data-activity]');
+  assert.ok(feed, 'the feed');
+  assert.match(feed.textContent, /Maya's activity/);
+  const titles = () => [...feed.querySelectorAll('[data-activity-card]')].map((c) => (c.textContent.match(/Note \d/) || [''])[0]);
+  assert.deepEqual(titles(), ['Note 1', 'Note 2', 'Note 3'], 'newest three; the logged session stays in Replays');
+  assert.ok(!/Heavy squat day/.test(feed.textContent));
+  await click(feed.querySelector('[data-activity-all]'));
+  assert.deepEqual(titles(), ['Note 1', 'Note 2', 'Note 3', 'Note 4']);
+  assert.ok(!feed.querySelector('[data-log-activity]'), 'no Log activity on another coach\'s page');
+  const reviews = document.querySelector('[data-reviews-strip]');
+  if (reviews) assert.ok(feed.compareDocumentPosition(reviews) & window.Node.DOCUMENT_POSITION_FOLLOWING, 'above the reviews');
+  await m.unmount();
+  // Nothing posted: no feed for a visitor.
+  reset({ posts: [] });
+  m = await mount(page());
+  assert.ok(!document.querySelector('[data-activity]'));
+  await m.unmount();
+  // A private profile shows none.
+  reset({ posts: [note(1)], canView: false });
+  m = await mount(page());
+  assert.ok(!document.querySelector('[data-activity]'));
+  await m.unmount();
+  // A sample coach: its own run and note.
+  reset({ me: 'u-me', byId: leahRow, slots: [] });
+  m = await mount(page({ person: leah }));
+  assert.match(document.querySelector('[data-activity]').textContent, /Easy run, zone 2.*Deload week/s);
+  await m.unmount();
+});
+
 test('the reviews are on the page: the newest, each a card, and All reviews opens the list', async () => {
   // Leah's sample reviews, and a coach with an account's own.
   reset({ me: 'u-me', byId: leahRow, slots: [] });
@@ -832,6 +873,12 @@ test('the reviews are on the page: the newest, each a card, and All reviews open
   assert.equal(cards.length, 4, 'every sample review with words in it');
   assert.match(cards[0].textContent, /★ 10\/10.*\+60 lb on my deadlift.*Priya S\./s);
   assert.match(document.querySelector('[data-reviews-strip]').textContent, /What clients say/);
+  // At the foot of the page, after the tabs and what they hold (owner, 2026-10-30: "move reviews to
+  // bottom of page"), and before the footer.
+  const nav = document.querySelector('nav[aria-label="Profile sections"]');
+  const strip = document.querySelector('[data-reviews-strip]');
+  assert.ok(nav.compareDocumentPosition(strip) & window.Node.DOCUMENT_POSITION_FOLLOWING, 'after the tabs');
+  assert.equal(strip.nextElementSibling.tagName, 'FOOTER', 'the last thing before the footer');
   await click(document.querySelector('[data-all-reviews]'));
   assert.match(document.querySelector('[role="dialog"]').textContent, /Reviews\..*Marcus L\./s, 'the full list');
   await m.unmount();

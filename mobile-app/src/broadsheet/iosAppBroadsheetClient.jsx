@@ -32079,6 +32079,8 @@ Object.assign(window, {
   // Kitchen's recipe page among them (a nutritionist's dishes and plates open it).
   bsGutter, useBSPinnedMastTop, useBSPresence, useBSProfilePhoto, bsInitials, bsIsUserOnline,
   bsProfileCardFromPost, BSLogActivitySheet, BSShapeKitchenRecipe,
+  // The member profile's activity card and its sheets, for the coach profile's activity feed.
+  BSActivityCard, useBSCardSheets,
   BSNotifiedPerson,
   BSReconcile,
   BSFacetAvatar,
