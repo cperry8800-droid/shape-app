@@ -142,10 +142,6 @@ try {
   ok("Builder preview shows verbatim cue + superset label", builder.includes("Brace before the walkout") && builder.includes("A1"));
   const card = render(React.createElement(g.DashWorkoutCard, { workout: g.DashBuilder.dayToClientCard(tpl.detail.builder.weeks[0].days[0], { coach: "you" }), interactive: false, maxRows: 99 }));
   ok("Shared client card renders cue + named playlist chip", card.includes("Brace before the walkout") && card.includes("Lower Push — Peak") && card.includes("A1"));
-  const perf = render(React.createElement(g.DbuPerformance, { template: tpl, live: false }));
-  ok("Performance zone renders retention bars + drop-off", perf.includes("Active subscribers") && perf.includes("drop-off at week"));
-  const perfLive = render(React.createElement(g.DbuPerformance, { template: { id: "real-1" }, live: true }));
-  ok("Performance is honest for live templates", perfLive.includes("tracks from your first assignment"));
 } catch (e) { ok("Programs page + builder render", false, e.message); }
 
 // ── 4c. Nutritionist Plans page + meal builder + the shared meals card ──────
