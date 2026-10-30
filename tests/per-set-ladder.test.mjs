@@ -169,7 +169,9 @@ test('a hand-typed text ladder becomes a structured one, and a list that does no
   assert.equal(side.load, '20 kg', 'and the load is what follows it');
   assert.equal(read('Lunge — 4 × 12/10 · 3:00').load, '3:00', 'a rest after a list is not cut into');
   // A list run into a unit, a percent or a word is not this rule's, and reads as before.
-  for (const [t, reps] of [['Hold — 3 × 30s/45s', '30'], ['Squat — 3 × 10/90s rest', '10'], ['Bench — 3 × 5/5 kg', '5']]) {
+  // A time or distance unit after a space too (Codex on #2529): a hold or a distance is not a rep list.
+  for (const [t, reps] of [['Hold — 3 × 30s/45s', '30'], ['Squat — 3 × 10/90s rest', '10'], ['Bench — 3 × 5/5 kg', '5'],
+                           ['Hold — 3 × 30/45 s', '30'], ['Carry — 3 × 10/20 m', '10'], ['Hold — 3 × 30/45 seconds', '30'], ['Run — 3 × 1/2 km', '1']]) {
     assert.equal(read(t).reps, reps, t);
   }
   assert.equal(read('Back squat — 3 × 8/6/4 · 60 kg').load, '60 kg', 'the rep ladder does not leak into the load');

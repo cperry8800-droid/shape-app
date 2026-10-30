@@ -12,5 +12,7 @@ export default {
     { name: 'the builder ignores the list', file: W, find: "((?:${REP_LIST}|\\d+", replace: "((?:\\d+" },
     { name: 'the builder takes a list run into a unit', file: W, find: "(?:\\/\\d+(?:[–-]\\d+)?)+(?![\\w\\/.%–-]|\\s*(?:%|kg\\b|lbs?\\b))`;", replace: "(?:\\/\\d+(?:[–-]\\d+)?)+(?![\\/.%–-]|\\s*(?:%|kg\\b|lbs?\\b))`;" },
     { name: 'the builder takes a list before a weight unit', file: W, find: "(?:\\/\\d+(?:[–-]\\d+)?)+(?![\\w\\/.%–-]|\\s*(?:%|kg\\b|lbs?\\b))`;", replace: "(?:\\/\\d+(?:[–-]\\d+)?)+(?![\\w\\/.%–-])`;" },
+    { name: 'the player takes a list before a spaced time or distance unit', file: P, find: "|(?:${BS_TIME_DISTANCE_UNITS})\\b))`, 'i');", replace: "))`, 'i');" },
+    { name: 'the builder takes a list before a spaced time or distance unit', file: W, find: "|(?:${TIME_DISTANCE_UNITS})\\b))`;", replace: "))`;" },
   ],
 };

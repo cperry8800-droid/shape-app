@@ -98,6 +98,8 @@ const BUILDER = [
   ["Lunge — 3 × 10/10 · 20 kg", { sets: 3, reps: "10", loadType: "kg", load: 0, loadText: "/10 · 20 kg" }, { sets: 3, reps: "10/10", loadType: "kg", load: 20 }],
   ["Bench — 3 × 5/5 kg", { sets: 3, reps: "5", loadType: "kg", load: 0, loadText: "/5 kg" }],
   ["Squat — 3 × 10/90s rest", { sets: 3, reps: "10", loadType: "kg", load: 0, loadText: "/90s rest" }],
+  ["Hold — 3 × 30/45 s", { sets: 3, reps: "30", loadType: "kg", load: 0, loadText: "/45 s" }],
+  ["Carry — 3 × 10/20 m", { sets: 3, reps: "10", loadType: "kg", load: 0, loadText: "/20 m" }],
   ["Deadlift — 3 × 5/3/1", { sets: 3, reps: "5", loadType: "kg", load: 0, loadText: "/3/1" }, { sets: 3, reps: "5/3/1", loadType: "kg", load: 0, loadText: "" }],
   ["Bench — 3 × 70/75/80% 1RM", { sets: 3, reps: "70", loadType: "kg", load: 0, loadText: "/75/80% 1RM" }],
   ["Carry — 3 × 40 m · 60/70/80 kg", { sets: 3, reps: "40", loadType: "kg", load: 0, loadText: "m · 60/70/80 kg" }, { sets: 3, reps: "40 m", loadType: "kg", load: 0, loadText: "60/70/80 kg" }],

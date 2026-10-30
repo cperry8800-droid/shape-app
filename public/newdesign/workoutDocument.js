@@ -201,7 +201,9 @@
   // and the load is what follows it, as the player's reader (bsAssignExercise) reads it. A list
   // run into a unit, a percent or a word ("30s/45s", "10/90s rest", "70/75/80% 1RM",
   // "8/6/AMRAP") is not this rule's and reads as before.
-  const REP_LIST = String.raw`\d+(?:[–-]\d+)?(?:\/\d+(?:[–-]\d+)?)+(?![\w\/.%–-]|\s*(?:%|kg\b|lbs?\b))`;
+  // So is one with a weight, a percent or a time or distance unit after a space (Codex on
+  // #2529): "3 × 30/45 s" and "3 × 10/20 m" are holds and distances, not rep lists.
+  const REP_LIST = String.raw`\d+(?:[–-]\d+)?(?:\/\d+(?:[–-]\d+)?)+(?![\w\/.%–-]|\s*(?:%|kg\b|lbs?\b|(?:${TIME_DISTANCE_UNITS})\b))`;
   const SCHEME = new RegExp(String.raw`(\d+)\s*[×x]\s*((?:${REP_LIST}|\d+(?:[–-]\d+)?${REP_UNIT}?|AMRAP|to\s+failure|max)(?:\s*(?:ea(?:ch)?|per\s+(?:side|leg)|\/\s*(?:side|leg)))?)(?:\s+(?:reps?|sets?)(?![a-z]))?`, 'i');
   function rowFromBlock(block, id) {
     const b = typeof block === 'object' && block ? block : {text:block};

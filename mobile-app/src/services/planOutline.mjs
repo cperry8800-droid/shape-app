@@ -111,6 +111,11 @@ export function bsPlainScheme(tail) {
 }
 
 // "Secondary compound · 4×8" / "Back squat — 4 × 6 · RPE 8" → exercise row.
+// A slash list of bare counts that is the reps as written (bsAssignExercise below). It is
+// refused where a unit, a percent or a word runs into it, and where a weight, a percent or
+// a time or distance unit follows it after a space (Codex on #2529): "3 × 30/45 s" and
+// "3 × 10/20 m" are holds and distances, not rep lists, and read as before.
+const BS_REP_LIST = new RegExp(String.raw`(\d+)\s*[×x]\s*(\d+(?:[–-]\d+)?(?:\/\d+(?:[–-]\d+)?)+)(?![\w\/.%–-]|\s*(?:%|kg\b|lbs?\b|(?:${BS_TIME_DISTANCE_UNITS})\b))`, 'i');
 export function bsAssignExercise(text) {
   const authored = text && typeof text === 'object' ? text : null;
   const p = bsAssignSplitBlock(authored ? authored.text || authored.name : text);
@@ -133,8 +138,9 @@ export function bsAssignExercise(text) {
   // a side, not a ladder, and the plain pattern stopped at the "/": 10 reps and a load of
   // "/10 · 20 kg". A slash list of bare counts is the reps as written, so the load is
   // 20 kg. A list run into a unit, a percent or a word ("10/90s rest", "70/75/80% 1RM",
-  // "8/6/AMRAP") is not this rule's and reads as before.
-  const list = isLadder ? null : tail.match(/(\d+)\s*[×x]\s*(\d+(?:[–-]\d+)?(?:\/\d+(?:[–-]\d+)?)+)(?![\w\/.%–-]|\s*(?:%|kg\b|lbs?\b))/);
+  // "8/6/AMRAP"), or with a weight or a time or distance unit after it ("5/5 kg",
+  // "30/45 s"), is not this rule's and reads as before (BS_REP_LIST, above).
+  const list = isLadder ? null : tail.match(BS_REP_LIST);
   const sx = isLadder ? ladder : bsTextRepLadder(tail) || list || bsPlainScheme(tail);
   // The separator that ended the reps is not part of the load: a comma, a " · ", and a
   // semicolon, which both ladder readers stop at as well.
