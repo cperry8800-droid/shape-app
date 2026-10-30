@@ -2484,7 +2484,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Needs the owner (#2146 design call): the builder\'s program cards moved from Fraunces to Anybody with the display token', status: 'pending' },
         { label: 'Needs the owner (#2146 design call): the dark paper\'s secondary text sits at about 62% where it used to read 50–55%', status: 'pending' },
         { label: 'Needs the owner (#2160): the app\'s light heat values (#0a8f87 and #a07a2e as small labels on the wall plate) are under AA, and the plate matches the app by rule, so a fix is app-wide', status: 'pending' },
-        { label: 'Open (#2160): the dark paper\'s --sh-ember (#d2693f) and --sh-violet (#8a5cf6) read under 4.5:1 on the dark card', status: 'pending' },
+        { label: '#2528: the dark paper\'s ember and violet are lifted the least that clears 4.5:1 as text on its card, ground, resting fill and (ember) rust tint, hue kept: ember #d47149 (4.76 on the card, was 4.44), violet #9a72f7 (4.66, was 3.76); their var() fallbacks follow, and newdesign-paper-pairs now holds every dark text-only token to the floor. Codex on ae36b9d: no issues. No migration', status: 'done' },
         { label: 'On-account check (#2146): a signed-in coach flips Settings -> Appearance and reloads on a second device; every reading so far is the signed-out demo state', status: 'manual' },
       ],
     },
