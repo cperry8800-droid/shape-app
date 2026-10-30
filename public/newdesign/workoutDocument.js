@@ -195,7 +195,20 @@
   // "AMRAP" into the load field. A "reps" or "sets" written after the count belongs to
   // the scheme, not the reps: "3 × 10 reps · 20 kg" is reps 10 and a load of 20 kg (it
   // was a load text of "reps · 20 kg", so the 20 kg was lost), as the player reads it.
-  const SCHEME = new RegExp(String.raw`(\d+)\s*[×x]\s*((?:\d+(?:[–-]\d+)?${REP_UNIT}?|AMRAP|to\s+failure|max)(?:\s*(?:ea(?:ch)?|per\s+(?:side|leg)|\/\s*(?:side|leg)))?)(?:\s+(?:reps?|sets?)(?![a-z]))?`, 'i');
+  // ⚠ A SLASH LIST OF BARE COUNTS IS THE REPS AS WRITTEN (#2152's open item): "3 × 10/10 · 20 kg"
+  // (ten a side) read 10 reps and a load text of "/10 · 20 kg", so the 20 kg was lost, and a
+  // ladder ("3 × 8/6/4 · 60/70/80 kg") read 8 and "/6/4 · 60/70/80 kg". The list stays whole
+  // and the load is what follows it, as the player's reader (bsAssignExercise) reads it. A list
+  // run into a unit, a percent or a word ("30s/45s", "10/90s rest", "70/75/80% 1RM",
+  // "8/6/AMRAP") is not this rule's and reads as before.
+  // So is one with a weight, a percent or a time or distance unit after a space (Codex on
+  // #2529): "3 × 30/45 s" and "3 × 10/20 m" are holds and distances, not rep lists.
+  // And a value with a decimal comma ("3 × 1/1,5 km"): a comma before a digit continues the
+  // number, while ", 20 kg" still ends the reps.
+  const REP_LIST = String.raw`\d+(?:[–-]\d+)?(?:\/\d+(?:[–-]\d+)?)+(?![\w\/.%–-]|,\d|\s*(?:%|kg\b|lbs?\b|(?:${TIME_DISTANCE_UNITS})\b))`;
+  // The per-side "ea"/"each" after the reps ends at the word (Codex on #2529): "3 × 10 easy"
+  // read reps "10 ea" and a load of "sy", and the list rule above made it reach "10/10 easy" too.
+  const SCHEME = new RegExp(String.raw`(\d+)\s*[×x]\s*((?:${REP_LIST}|\d+(?:[–-]\d+)?${REP_UNIT}?|AMRAP|to\s+failure|max)(?:\s*(?:ea(?:ch)?(?![a-z])|per\s+(?:side|leg)|\/\s*(?:side|leg)))?)(?:\s+(?:reps?|sets?)(?![a-z]))?`, 'i');
   function rowFromBlock(block, id) {
     const b = typeof block === 'object' && block ? block : {text:block};
     const raw = text(b.text).trim();

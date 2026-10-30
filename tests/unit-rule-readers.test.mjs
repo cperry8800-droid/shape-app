@@ -94,8 +94,16 @@ const BUILDER = [
   ["Run — 3 × 250-500m", { sets: 3, reps: "250-500", loadType: "kg", load: 0, loadText: "m" }, { sets: 3, reps: "250-500m", loadType: "kg", load: 0, loadText: "" }],
   ["Plank — 3 × 30 – 45 sec", { sets: 3, reps: "30", loadType: "kg", load: 0, loadText: "– 45 sec" }],
   // ladders
-  ["Squat — 3 × 8/6/4 · 60/70/80 kg", { sets: 3, reps: "8", loadType: "kg", load: 0, loadText: "/6/4 · 60/70/80 kg" }],
-  ["Deadlift — 3 × 5/3/1", { sets: 3, reps: "5", loadType: "kg", load: 0, loadText: "/3/1" }],
+  ["Squat — 3 × 8/6/4 · 60/70/80 kg", { sets: 3, reps: "8", loadType: "kg", load: 0, loadText: "/6/4 · 60/70/80 kg" }, { sets: 3, reps: "8/6/4", loadType: "kg", load: 0, loadText: "60/70/80 kg" }],
+  ["Lunge — 3 × 10/10 · 20 kg", { sets: 3, reps: "10", loadType: "kg", load: 0, loadText: "/10 · 20 kg" }, { sets: 3, reps: "10/10", loadType: "kg", load: 20 }],
+  ["Bench — 3 × 5/5 kg", { sets: 3, reps: "5", loadType: "kg", load: 0, loadText: "/5 kg" }],
+  ["Squat — 3 × 10/90s rest", { sets: 3, reps: "10", loadType: "kg", load: 0, loadText: "/90s rest" }],
+  ["Hold — 3 × 30/45 s", { sets: 3, reps: "30", loadType: "kg", load: 0, loadText: "/45 s" }],
+  ["Carry — 3 × 10/20 m", { sets: 3, reps: "10", loadType: "kg", load: 0, loadText: "/20 m" }],
+  ["Move — 3 × 10/10 easy", { sets: 3, reps: "10", loadType: "kg", load: 0, loadText: "/10 easy" }, { sets: 3, reps: "10/10", loadType: "kg", load: 0, loadText: "easy" }],
+  ["Move — 3 × 10 easy", { sets: 3, reps: "10 ea", loadType: "kg", load: 0, loadText: "sy" }, { sets: 3, reps: "10", loadType: "kg", load: 0, loadText: "easy" }],
+  ["Run — 3 × 1/1,5 km", { sets: 3, reps: "1", loadType: "kg", load: 0, loadText: "/1,5 km" }],
+  ["Deadlift — 3 × 5/3/1", { sets: 3, reps: "5", loadType: "kg", load: 0, loadText: "/3/1" }, { sets: 3, reps: "5/3/1", loadType: "kg", load: 0, loadText: "" }],
   ["Bench — 3 × 70/75/80% 1RM", { sets: 3, reps: "70", loadType: "kg", load: 0, loadText: "/75/80% 1RM" }],
   ["Carry — 3 × 40 m · 60/70/80 kg", { sets: 3, reps: "40", loadType: "kg", load: 0, loadText: "m · 60/70/80 kg" }, { sets: 3, reps: "40 m", loadType: "kg", load: 0, loadText: "60/70/80 kg" }],
   // 5 kg and loads
@@ -203,7 +211,11 @@ const BUILDER = [
 ];
 
 // The lines that changed without being a hold or a distance: a word after the count (#2159).
-const WORD_AFTER_COUNT = new Set(['Squat — 3 × 10 sets', 'Walk — 3 × 12 steps', 'Squat — 3 × 10 sets · 20 kg', 'Squat — 3 × 10 reps · 20 kg']);
+// "easy" is a word too: its "ea" is not the per-side suffix (Codex on #2529).
+const WORD_AFTER_COUNT = new Set(['Squat — 3 × 10 sets', 'Walk — 3 × 12 steps', 'Squat — 3 × 10 sets · 20 kg', 'Squat — 3 × 10 reps · 20 kg', 'Move — 3 × 10 easy']);
+// And a slash list of bare counts, which is the reps as written (#2152): the list whole, and
+// nothing of it left at the head of the load.
+const SLASH_LIST = new Set(['Squat — 3 × 8/6/4 · 60/70/80 kg', 'Lunge — 3 × 10/10 · 20 kg', 'Deadlift — 3 × 5/3/1', 'Move — 3 × 10/10 easy']);
 
 test('the builder reads every line as main did, except a hold or a distance, and a word after the count', () => {
   assert.ok(BUILDER.length >= 105, 'the table is shorter than the one main was recorded over');
@@ -217,13 +229,17 @@ test('the builder reads every line as main did, except a hold or a distance, and
       if (WORD_AFTER_COUNT.has(input)) {
         // The count the player reads, and no unit letters left behind in the load.
         assert.match(now.reps, /^\d+$/, `${JSON.stringify(input)}: the count`);
-        assert.ok(!/^(?:ets|teps)\b/.test(now.loadText || ''), `${JSON.stringify(input)}: a word cut in two`);
+        assert.ok(!/^(?:ets|teps|sy)\b/.test(now.loadText || ''), `${JSON.stringify(input)}: a word cut in two`);
+      } else if (SLASH_LIST.has(input)) {
+        assert.match(now.reps, /^\d+(?:\/\d+)+$/, `${JSON.stringify(input)}: the list`);
+        assert.ok(input.includes(' × ' + now.reps), `${JSON.stringify(input)}: the list as written`);
+        assert.ok(!/^\//.test(now.loadText || ''), `${JSON.stringify(input)}: a list cut in two`);
       } else {
         assert.ok(bsIsTimedReps(now.reps.replace(PER_SIDE, '')), `${JSON.stringify(input)} changed, and "${now.reps}" is not a hold or a distance`);
       }
     }
   }
-  assert.equal(changed, 27, 'the number of lines the builder now reads differently');
+  assert.equal(changed, 32, 'the number of lines the builder now reads differently');
 });
 
 // [scheme or move, what main read, what it reads now: only where it changed]
