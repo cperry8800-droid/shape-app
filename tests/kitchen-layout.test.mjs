@@ -4,16 +4,17 @@
 // nutritionist's layout. The page that draws it is mounted in tests/nutritionist-profile.test.mjs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   STUDIO_KIT, STUDIO_GROUPS, KITCHEN_GROUPS, KITCHEN_COACH_KINDS, STUDIO_ROOMS, STUDIO_WORDS,
   bsStudioFromTemplate, bsStudioFrame, bsStudioSpot, bsStudioTypesIn, bsStudioSvg,
 } from '../mobile-app/src/services/studioKit.mjs';
-import { bsRecipeKitchenUses, bsKitchenWork } from '../mobile-app/src/services/coachWork.mjs';
+import { bsRecipeKitchenUses, bsKitchenWork, bsTextLanguages } from '../mobile-app/src/services/coachWork.mjs';
 import { BS_STUDIO_KINDS, BS_STUDIO_W, BS_STUDIO_H, bsProfileStudio, bsStudioItem } from '../mobile-app/src/services/profileCustom.mjs';
 import { bsNutritionistDemo, BS_NUTRI_SAMPLE_KINDS } from '../mobile-app/src/services/nutritionistDemo.mjs';
 
 const decode = (uri) => decodeURIComponent(uri.replace('data:image/svg+xml,', ''));
-const recipe = (id, t, steps = [], ing = []) => ({ id, t, steps, ing: ing.map((m) => ({ n: '1', m })) });
+const recipe = (id, t, steps = [], ing = [], note) => ({ id, t, note, steps, ing: ing.map((m) => ({ n: '1', m })) });
 
 test('the kitchen layout is a valid stored studio, its stations named, its spots on the plan', () => {
   for (const kind of KITCHEN_COACH_KINDS) {
@@ -89,12 +90,58 @@ test("a recipe written in any of the app's languages lands on its spots too (#25
   assert.deepEqual(bsRecipeKitchenUses(recipe('it2', 'x', ['Accendete il fornello.'])), ['range'], 'it: a burner is the stove, not the oven');
   // A word only counts whole or as a stem's start: "pesto" weighs nothing, "Hackfleisch" is chopped.
   assert.deepEqual(bsRecipeKitchenUses(recipe('it3', 'x', ['Aggiungete il pesto.'])), []);
-  // The twelve languages' words also run over English recipes: none of them may light a spot there.
+  // An English recipe is read with English words, so none of these may light a spot.
   assert.deepEqual(bsRecipeKitchenUses(recipe('en', 'Tagliatelle marinara', ['Toss a couple of handfuls of mixed greens with the tagliatelle.', 'A balanced plate: lavender to finish.'])), [],
     'en: couple, mixed, tagliatelle, marinara, balanced, lavender');
   assert.deepEqual(bsRecipeKitchenUses(recipe('es2', 'x', ['Cocine en tandas.', 'Mire la tabla nutricional.'])), [], 'es: tandas, tabla');
   assert.deepEqual(bsRecipeKitchenUses(recipe('fr2', 'x', [], ['un oignon'])), [], 'fr: un is not flour');
   assert.deepEqual(bsRecipeKitchenUses(recipe('vi2', 'Cà ri gà kiểu Thái')), [], 'vi: Thái is Thai, not sliced');
+});
+
+// Codex on #2518: with every language's words run over every recipe, the Indonesian "iris*" (slice)
+// lit the board for "Irish soda bread", the Italian "trit*" (chop) for "Triticale", and the French
+// "laver" (wash) the sink for a laver soup. Each line is now read in its own language only.
+test('a line is read only with its own language\'s words, or the recipe\'s when it shows none', () => {
+  assert.deepEqual(bsRecipeKitchenUses(recipe('a', 'Irish soda bread', ['Combine the ingredients.'])), [], 'id iris*');
+  assert.deepEqual(bsRecipeKitchenUses(recipe('b', 'Triticale bread', ['Combine the ingredients and knead.'])), [], 'it trit*');
+  assert.deepEqual(bsRecipeKitchenUses(recipe('c', 'Laver soup', ['Stir the laver into the broth.'])), [], 'fr laver');
+  assert.deepEqual(bsRecipeKitchenUses(recipe('d', 'Irish soda bread')), [], 'a title alone reads as English');
+  // The other way: English words don't read a Spanish recipe, where "pan" is bread, not a pan.
+  assert.deepEqual(bsRecipeKitchenUses(recipe('e', 'Pan integral', ['Sirva el pan con aceite.'])), []);
+  // A catalog recipe's English method with the coach's own note in Turkish ("rest it overnight in the
+  // fridge"): each line in its own language, so the note lights the fridge and the method the oven.
+  assert.deepEqual(bsRecipeKitchenUses(recipe('f', 'Roast squash', ['Roast the squash with the oil until golden.'], [], 'Bir gece buzdolabında bekletin.')), ['oven', 'fridge']);
+  // Pidgin is read with English words: its "di" and "e" don't make it Italian.
+  assert.deepEqual(bsRecipeKitchenUses(recipe('h', 'Jollof', ['Put di rice for pot, make e boil small.'])), ['range']);
+
+  assert.deepEqual(bsTextLanguages('Combine the ingredients.'), ['en']);
+  assert.deepEqual(bsTextLanguages('Den Backofen vorheizen und'), ['de']);
+  assert.deepEqual(bsTextLanguages('Cocine en tandas.'), ['es', 'fr'], 'a tie reads with each tied language');
+  assert.deepEqual(bsTextLanguages('Обжарьте курицу на сковороде.'), ['ru', 'uk'], 'Cyrillic with no letter of either');
+  assert.deepEqual(bsTextLanguages('Залиште на ніч у холодильнику.'), ['uk'], 'і is Ukrainian');
+  assert.deepEqual(bsTextLanguages('Domatesleri doğrayın.'), ['tr']);
+  assert.deepEqual(bsTextLanguages('Ướp gà qua đêm.'), ['vi']);
+  assert.deepEqual(bsTextLanguages('Ofen 200 Grad.'), ['en'], 'no sign: English');
+  assert.deepEqual(bsTextLanguages('Ofen 200 Grad.', ['de']), ['de'], 'no sign: the recipe\'s language');
+});
+
+// The sample nutritionists' recipes are the Shape Kitchen catalog's, in English, with the note in the
+// viewer's language: in every locale, each recipe lights at least what it lights in English.
+test('a sample recipe lights its English spots in every locale, with its note translated', () => {
+  const english = new Map();
+  for (const kind of BS_NUTRI_SAMPLE_KINDS) for (const r of bsNutritionistDemo({ kind }).custom.kitchen.recipes) english.set(kind + r.id, bsRecipeKitchenUses(r));
+  const fill = (text, values) => (values ? String(text).replace(/\{(\w+)\}/g, (m, k) => (k in values ? String(values[k]) : m)) : text);
+  for (const loc of ['de', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
+    const cat = JSON.parse(readFileSync(new URL(`../mobile-app/src/i18n/catalogs/${loc}/profile.json`, import.meta.url), 'utf8'));
+    const say = (key, en, values) => fill(cat[key.slice('profile:'.length)] ?? en, values);
+    for (const kind of BS_NUTRI_SAMPLE_KINDS) {
+      for (const r of bsNutritionistDemo({ kind, say }).custom.kitchen.recipes) {
+        assert.notEqual(r.note, bsNutritionistDemo({ kind }).custom.kitchen.recipes.find((x) => x.id === r.id).note, `${loc} ${kind}: the note is translated`);
+        const uses = bsRecipeKitchenUses(r);
+        for (const u of english.get(kind + r.id)) assert.ok(uses.includes(u), `${loc} ${kind} ${r.t}: ${u}`);
+      }
+    }
+  }
 });
 
 test('each spot holds the recipes made there; a missing piece hands its recipes on; a surface holds what stands on it', () => {
