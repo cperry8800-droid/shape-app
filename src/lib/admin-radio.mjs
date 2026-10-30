@@ -69,7 +69,8 @@ export function radioSummary(stats) {
     to: String(s.to ?? ''),
     tuneIns,
     seconds,
-    // An average listen: the seconds over the tune-ins (none without a tune-in).
+    // Time per tune-in: the seconds over the tune-ins (none without a tune-in). Not a listen's average
+    // length: a listen begun before the period brings its seconds but not its tune-in.
     average: tuneIns > 0 ? seconds / tuneIns : 0,
     surfaces: { web: split(bySurface.web), app: split(bySurface.app) },
     audiences: { member: split(byAudience.member), coach: split(byAudience.coach) },

@@ -1,5 +1,5 @@
 // The Overview's Radio view (/admin?view=radio; owner, 2026-10-30: "do we have any tracking for shape
-// radio?", then "Yes build it"): who is listening now, tune-ins, time listened, the average listen and
+// radio?", then "Yes build it"): who is listening now, tune-ins, time listened, time per tune-in and
 // the most listening at once, split by website or app and by member or coach, as daily totals.
 //
 // The Overview (./page.tsx) makes the one call (admin_radio_stats, service role only) for the
@@ -84,7 +84,9 @@ function Totals({ s }: { s: RadioSummary }) {
       <Tile label="Listening now" value={formatCount(s.now.listeners)} sub={nowLine(s.now)} />
       <Tile label="Tune-ins" value={formatCount(s.tuneIns)} sub="Each time the stream started" />
       <Tile label="Time listened" value={listenTime(s.seconds)} sub="All listeners together" />
-      <Tile label="Average listen" value={listenTime(s.average)} sub="Per tune-in" />
+      {/* Not "average listen": a listen begun before the period brings its minutes but not its tune-in,
+          and the daily totals can't tell one listen from another (Codex P2 on #2527). */}
+      <Tile label="Time per tune-in" value={listenTime(s.average)} sub="Time listened ÷ tune-ins in these days" />
       <Tile
         label="Most at once"
         value={formatCount(s.peak?.listeners ?? 0)}

@@ -277,7 +277,7 @@ test('route: no account, Global Privacy Control or junk records nothing; a faile
   assert.equal((await route.POST(post({ surface: 'app', listen: LISTEN, played: 0 }, { 'sec-gpc': '1' }))).status, 204);
   const ok = { surface: 'app', listen: LISTEN, played: 1 };
   for (const body of ['not json', [], null, { ...ok, surface: 'tv' }, { surface: 'app', listen: LISTEN }, { ...ok, played: -1 },
-    { ...ok, played: 86401 }, { ...ok, played: '60' }, { ...ok, played: null }, { surface: 'app', played: 1 }, { ...ok, listen: 'listen-1' },
+    { ...ok, played: 31 * 86400 + 1 }, { ...ok, played: '60' }, { ...ok, played: null }, { surface: 'app', played: 1 }, { ...ok, listen: 'listen-1' },
     { ...ok, listen: `${LISTEN}0` }, { ...ok, listen: 7 }, { surface: 'app', listen: LISTEN, seconds: 1 },
     `{"surface":"app","listen":"${LISTEN}","played":1,"x":"${'y'.repeat(2000)}"}`]) {
     assert.equal((await route.POST(post(body))).status, 204);
@@ -286,6 +286,11 @@ test('route: no account, Global Privacy Control or junk records nothing; a faile
   const failing = await loadRoute({ user: { id: 'u-1' }, rpcError: { message: 'function record_radio_listen does not exist' } });
   assert.equal((await failing.route.POST(post(ok))).status, 204);
   assert.equal(failing.calls.length, 1);
+  // A listen left on for more than a day still counts (Codex P2 on #2527).
+  await route.POST(post({ ...ok, played: 3 * 86400 }));
+  assert.equal(calls.at(-1).args.p_played, 3 * 86400);
+  assert.ok(!stripComments(read('src/app/admin/RadioView.tsx')).includes('Average listen'), 'not called an average listen');
+  calls.length = 0;
   // Only `true` ends a listen.
   await route.POST(post({ ...ok, end: 'yes' }));
   assert.equal(calls[0].args.p_end, false);
@@ -472,7 +477,7 @@ const shown = (data) => ({ data, missing: false, failed: false });
 test('view: listening now, the totals, the splits and the days', async () => {
   const html = await renderView({ searchParams: { days: '7' }, result: shown(STATS) });
   for (const want of ['How Shape Radio is listened to', 'Listening now', '1 in the app · 1 on the website', 'Tune-ins', '2 h 30 min',
-    'Average listen', '19 min', 'Most at once', 'In the app', '75% of the time · 6 tune-ins', 'Coaches', '10% of the time · 1 tune-in<',
+    'Time per tune-in', 'Time listened ÷ tune-ins in these days', '19 min', 'Most at once', 'In the app', '75% of the time · 6 tune-ins', 'Coaches', '10% of the time · 1 tune-in<',
     'Minutes listened a day', 'Tune-ins a day', 'most at once 3', 'How listening is counted']) {
     assert.ok(html.includes(want), want);
   }

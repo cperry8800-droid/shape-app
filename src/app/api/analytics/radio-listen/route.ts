@@ -22,19 +22,21 @@ export const dynamic = 'force-dynamic';
 // The console's days (src/app/admin/ui.tsx): listening counts on the owner's date.
 const TIMEZONE = process.env.ADMIN_TIMEZONE || 'America/New_York';
 const BODY_LIMIT = 1024;
+const MAX_PLAYED = 31 * 24 * 60 * 60;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // A beat as the player sends it ({ surface, listen, played, end? }), or null. `listen` is the
-// listen's own random id; `played` is the seconds it has played since it began, whole and at most a
-// day (the database caps what it credits much lower).
+// listen's own random id; `played` is the seconds it has played since it began, whole and at most 31
+// days, so a listen left on for days still counts (Codex P2 on #2527); the database credits no more
+// than the time that has passed.
 function cleanBeat(raw: unknown): { surface: 'web' | 'app'; listen: string; played: number; end: boolean } | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const b = raw as Record<string, unknown>;
   if (b.surface !== 'web' && b.surface !== 'app') return null;
   if (typeof b.listen !== 'string' || !UUID.test(b.listen)) return null;
   const played = typeof b.played === 'number' && Number.isFinite(b.played) ? Math.round(b.played) : NaN;
-  if (!(played >= 0 && played <= 86400)) return null;
+  if (!(played >= 0 && played <= MAX_PLAYED)) return null;
   return { surface: b.surface, listen: b.listen.toLowerCase(), played, end: b.end === true };
 }
 
