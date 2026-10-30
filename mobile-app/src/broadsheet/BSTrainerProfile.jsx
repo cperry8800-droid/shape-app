@@ -322,7 +322,9 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // as the wall photo) and its layout, which rides in the doc's `studio` as a trainer's floor does.
   const studio = nutri ? null : bsProfileStudio(custom && custom.studio);
   const kitchen = nutri ? bsProfileKitchen(custom && custom.kitchen, person.userId || (isSelf ? signedInUid() : null)) : null;
-  const kitchenPlan = nutri ? bsProfileStudio(custom && custom.studio) : null;
+  // A nutritionist's plan is always her kitchen: one stored as `blank` (the editor's old "Start
+  // blank") reads with the kitchen's heading and room, not "Their space" (Codex on #2516).
+  const kitchenPlan = (() => { const p = nutri ? bsProfileStudio(custom && custom.studio) : null; return p && p.kind === 'blank' ? { ...p, kind: 'kitchen' } : p; })();
   const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || (kitchenPlan && kitchenPlan.where) || person.city || '');
   const specialty = (!isPrivate && ((listed && (provider.specialty || provider.specialty_type)) || (sample && person.category))) || '';
   const business = !isPrivate && custom && custom.bizCard && custom.bizCard.name;

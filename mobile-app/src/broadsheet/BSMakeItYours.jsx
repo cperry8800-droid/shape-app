@@ -278,6 +278,12 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
   const word = (k) => tr('profile:studio.word.' + k, { defaultValue: STUDIO_WORDS[k] || k });
   const kitName = (type) => tr('profile:studio.kit.' + type, { defaultValue: (STUDIO_KIT[type] || [type])[0] });
   const kindName = (k) => tr('profile:' + KIND_KEYS[k][0], { defaultValue: KIND_KEYS[k][1] });
+  // ⚠ A KITCHEN STAYS A KITCHEN (Codex on #2516). "Start blank" empties it but stores kind
+  // `kitchen`, never `blank`, which is the trainer's generic 480-unit room and reads "Their space"
+  // on the profile. So the kind a button stores and the kind it shows as lit are kept apart: a
+  // kitchen's "Start blank" is never the lit one.
+  const kindOf = (k) => (kitchen && k === 'blank' ? 'kitchen' : k);
+  const isOn = (k) => kindOf(k) === studio.kind && items.length > 0 && !(kitchen && k === 'blank');
   const doorName = (k) => (k === 'entrance' ? tr('profile:trainer.doorEntrance', { defaultValue: 'Entrance' }) : k === 'garage' ? tr('profile:trainer.doorGarage', { defaultValue: 'Garage door' }) : tr('profile:trainer.doorDoor', { defaultValue: 'Door' }));
   const items = studio.items;
   const stations = items.filter((p) => p.st).length;
@@ -290,9 +296,9 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
   const update = (i, patch) => setStudio({ ...studio, items: items.map((p, k) => (k === i ? { ...p, ...patch } : p)) });
   const fit = (p) => { const w = clamp(Math.round(p.w), 4, BS_STUDIO_W), h = clamp(Math.round(p.h), 4, BS_STUDIO_H); return { ...p, w, h, x: clamp(Math.round(p.x), 0, BS_STUDIO_W - w), y: clamp(Math.round(p.y), 0, BS_STUDIO_H - h) }; };
   const pickKind = (k) => {
-    if (k === studio.kind && items.length) return;
+    if (isOn(k)) return;
     if (items.length) { setAsk(k); return; }
-    setStudio({ ...studio, kind: k, items: bsStudioFromTemplate(k, word) });
+    setStudio({ ...studio, kind: kindOf(k), items: bsStudioFromTemplate(k, word) });
     setSel(null);
   };
   const add = (type) => {
@@ -332,7 +338,7 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
       <Eyebrow>{kitchen ? tr('profile:mine.kitchenStart', { defaultValue: 'Start from' }) : tr('profile:mine.whereCoach', { defaultValue: 'Where do you coach?' })}</Eyebrow>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {KINDS.map((k) => {
-          const on = k === studio.kind && items.length > 0;
+          const on = isOn(k);
           return <button key={k} type="button" data-kind={k} aria-pressed={on} onClick={() => pickKind(k)}
             style={{ minHeight: 38, padding: '0 12px', borderRadius: 999, border: `1px solid ${on ? E.ED : ea(0.22)}`, background: on ? hexA(E.ED, 0.14) : 'transparent', color: E.INK, fontSize: 13.5, cursor: 'pointer' }}>{kindName(k)}</button>;
         })}
@@ -341,8 +347,8 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
         <div role="alertdialog" style={{ marginTop: 10, padding: 12, borderRadius: 12, background: E.BG3 }}>
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.45 }}>{tr('profile:mine.replaceAsk', { defaultValue: 'Start over from the {kind} layout? It replaces the pieces you have.', kind: kindName(ask) })}</p>
           <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" onClick={() => { setStudio({ ...studio, kind: ask, items: bsStudioFromTemplate(ask, word) }); setSel(null); setAsk(null); }} style={{ ...smallBtn, background: E.ED, color: E.ON_ED, border: 0 }}>{tr('profile:mine.replace', { defaultValue: 'Start over' })}</button>
-            <button type="button" onClick={() => { setStudio({ ...studio, kind: ask }); setAsk(null); }} style={smallBtn}>{tr('profile:mine.keepPieces', { defaultValue: 'Keep my pieces' })}</button>
+            <button type="button" onClick={() => { setStudio({ ...studio, kind: kindOf(ask), items: bsStudioFromTemplate(ask, word) }); setSel(null); setAsk(null); }} style={{ ...smallBtn, background: E.ED, color: E.ON_ED, border: 0 }}>{tr('profile:mine.replace', { defaultValue: 'Start over' })}</button>
+            <button type="button" onClick={() => { setStudio({ ...studio, kind: kindOf(ask) }); setAsk(null); }} style={smallBtn}>{tr('profile:mine.keepPieces', { defaultValue: 'Keep my pieces' })}</button>
             <button type="button" onClick={() => setAsk(null)} style={{ ...smallBtn, border: 0, color: ea(0.7) }}>{tr('profile:mine.cancel', { defaultValue: 'Cancel' })}</button>
           </div>
         </div>
@@ -937,7 +943,9 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     return {
       // A nutritionist starts amber (Shape's nutritionist gold), as their page does.
       look: { paper: look.paper || 'dark', accent: look.accent || (nutri ? 'amber' : 'teal'), focus: look.focus || 'center' }, wall: cover ? cover.image : null,
-      studio: st || { kind: 'blank', where: '', items: [] },
+      // A nutritionist's empty plan is a kitchen, so a piece added before any layout is picked
+      // saves as one (Codex on #2516).
+      studio: st || { kind: nutri ? 'kitchen' : 'blank', where: '', items: [] },
       kitchen: kt
         ? { plate: kt.plate, rules: kt.rules.slice(), staples: kt.staples.map((x) => ({ ...x })), recipes: JSON.parse(JSON.stringify(kt.recipes)) }
         : { plate: null, rules: [], staples: [], recipes: [] },

@@ -489,6 +489,31 @@ test('on her own page with no layout, Draw your kitchen opens the Layout part; t
   await m.unmount();
 });
 
+test('a kitchen started blank, or drawn without a layout, is still saved and shown as a kitchen (Codex on #2516)', async () => {
+  // "Start blank" stored kind `blank`, the trainer's generic 480-unit room, and the page read it as
+  // "Their space"; so did a piece added before any layout was picked.
+  for (const start of ['blank', null]) {
+    reset({ me: 'u-nadia', stored: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }] } } });
+    const m = await mount(page({ isSelf: true }));
+    await click(button(/^Her kitchen$/));
+    await click(document.querySelector('[data-kitchen-fill="layout"]'));
+    if (start) await click(document.querySelector(`[data-kind="${start}"]`));
+    await click(document.querySelector('[data-kit="range"]'));
+    await click(document.querySelector('[data-save-mine]'));
+    assert.equal(world.saved.d.studio.kind, 'kitchen', `${start || 'no layout'}: saved as a kitchen`);
+    assert.equal(world.saved.d.studio.items.length, 1);
+    await m.unmount();
+  }
+  // A plan already stored as `blank` reads as her kitchen, not "Their space".
+  reset({ custom: { studio: { kind: 'blank', where: '', items: [{ t: 'range', x: 40, y: 40, w: 30, h: 34, st: { title: 'Stove', note: '' } }] } } });
+  const m = await mount(page());
+  await click(button(/^Her kitchen$/));
+  const plan = document.querySelector('[data-kitchen-plan]');
+  assert.match(plan.textContent, /^Kitchen/, 'the kitchen heading');
+  assert.doesNotMatch(plan.textContent, /Their space/);
+  await m.unmount();
+});
+
 test('on her own page each empty part says what goes there and opens Make it yours on it', async () => {
   reset({ me: 'u-nadia', stored: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }] } } });
   const m = await mount(page({ isSelf: true }));
