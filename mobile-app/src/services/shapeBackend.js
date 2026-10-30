@@ -2742,7 +2742,11 @@ function communityPostFromRow(row) {
     role: row.author_role === 'trainer' ? 'Trainer' : row.author_role === 'nutritionist' ? 'Nutritionist' : 'Client',
     avatar: authorName.trim()[0]?.toUpperCase() || 'S',
     time: row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'now',
-    privacy: privacy === 'public' ? 'Public' : privacy === 'private' ? 'Private' : privacy === 'profile' ? 'Profile' : 'Community',
+    // ⚠ THE EDIT SHEET SAVES THIS BACK through privacyToDb, so every stored tier
+    // needs a label that maps to itself. 'followers' and 'friends' read as
+    // 'Community' here, and editing such a post widened it to every member.
+    privacy: privacy === 'public' ? 'Public' : privacy === 'private' ? 'Private' : privacy === 'profile' ? 'Profile'
+      : privacy === 'followers' ? 'Followers' : privacy === 'friends' ? 'Friends' : 'Community',
     workout: row.activity_type || 'Workout',
     status: row.status || row.title,
     statA: stats.statA,
@@ -3291,6 +3295,7 @@ async function saveWorkoutSessionLog({
   sensorSamples = [],
   hr = null, // { avg, max, samples } from a worn Bluetooth monitor during the session
   privacy = null, // null = auto-share: the member's own share rule decides
+  shownAudience = null, // the audience the player's toggle named; the post never goes wider
   clientWorkoutId = null,
   providerId = null,
   providerRole = null,
@@ -3357,6 +3362,11 @@ async function saveWorkoutSessionLog({
       resolvedPrivacy = 'private';
     }
   }
+  // ⚠ NEVER WIDER THAN THE PLAYER SHOWED (CodeRabbit on #2511). The toggle's label is
+  // read when the session opens and the rule above is read now, so Friends switched to
+  // On on another device mid-session would post publicly under "Share with your friends".
+  // The narrower of the two wins: a setting that narrowed since still narrows the post.
+  if (resolvedPrivacy && BS_PRIVACY_RANK[shownAudience] > BS_PRIVACY_RANK[resolvedPrivacy]) resolvedPrivacy = shownAudience;
   // Cross-source guard: a device (watch) post for this same workout within
   // ±20 min of the session start → skip the social post (the session itself
   // persisted above; first-writer-wins, silent). Best-effort — never blocks.
@@ -3432,8 +3442,11 @@ async function saveWorkoutSessionLog({
   // Announce any new PRs to the community PR Wall. The server RPC enforces that
   // the profile is PUBLIC and that it's a genuine new best, so non-public members
   // and non-PRs post nothing. Best-effort, fire-and-forget — never blocks save.
+  // ⚠ ONLY A PUBLICLY SHARED SESSION ANNOUNCES. The Wall is read by everyone, so a
+  // session shared with friends, or not shared, keeps its records off it — the
+  // same refusal the Post-a-PR sheet gives (bsWallShareState's privacy).
   if (structured && structured.stored === 'supabase') {
-    announcePRsFromSetLogs(setLogs);
+    if (resolvedPrivacy === 'public') announcePRsFromSetLogs(setLogs);
     // +10 Shape Score once for the day's workout — gated server-side on the
     // workout_minutes snapshot we just wrote (un-farmable: one per day), idempotent.
     // No-op until the accountability migration is applied.
@@ -3452,7 +3465,9 @@ async function saveWorkoutSessionLog({
         await supabase.from('user_goals').upsert(
           { user_id: state.user.id, kind: 'auto_share_flag', data: { at: new Date().toISOString() } },
           { onConflict: 'user_id,kind' });
-        window.__bsToast?.('Workouts now share to your profile + feed · Settings → Share workout data', 'ok');
+        window.__bsToast?.(resolvedPrivacy === 'friends'
+          ? 'Workouts now share with your friends · Settings → Share workout data'
+          : 'Workouts now share to your profile + feed · Settings → Share workout data', 'ok');
       }
     } catch (e) {}
   }
@@ -3776,7 +3791,7 @@ window.ShapePRWall = {
 
 function privacyToDb(value) {
   const clean = String(value || '').toLowerCase();
-  if (clean === 'public' || clean === 'private' || clean === 'profile' || clean === 'followers') return clean;
+  if (clean === 'public' || clean === 'private' || clean === 'profile' || clean === 'followers' || clean === 'friends') return clean;
   return 'community';
 }
 
@@ -3814,8 +3829,8 @@ async function listCommunityPosts(mode = 'universal') {
   let query = supabase
     .from('community_posts')
     .select(COMMUNITY_POST_SELECT)
-    // Universal: 'profile'/'private'/'followers' never appear. Following:
-    // 'followers' allowed, scoped to accepted follows + self (RLS re-checks).
+    // Universal: 'profile'/'private'/'followers'/'friends' never appear. Following:
+    // 'followers' and 'friends' allowed, scoped to accepted follows + self (RLS re-checks).
     .in('privacy', spec.privacyIn);
   if (spec.authorIn) query = query.in('author_id', spec.authorIn);
   const { data, error } = await query.order('created_at', { ascending: false }).limit(50);
@@ -7868,7 +7883,8 @@ async function countCommunityPostsByAuthor(authorId) {
 // manual composer posts (null source_provider) are never touched.
 async function tightenAutoPosts(newPrivacy) {
   if (!supabase || !state.user?.id) return { ok: false };
-  const looser = newPrivacy === 'private' ? ['public', 'community', 'followers']
+  const looser = newPrivacy === 'private' ? ['public', 'community', 'followers', 'friends']
+    : newPrivacy === 'friends' ? ['public', 'community', 'followers']
     : newPrivacy === 'followers' ? ['public', 'community'] : [];
   if (!looser.length) return { ok: true, updated: 0 };
   const { error } = await supabase

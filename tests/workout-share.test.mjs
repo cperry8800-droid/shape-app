@@ -30,8 +30,18 @@ test('dedup: different provider within ±20min is a duplicate; same provider / o
   assert.equal(bsIsDuplicateWorkoutPost([mk('strava', '2026-07-08T10:00:00Z')], 'not-a-date', 'shape_session'), false); // bad input → never block
 });
 
-test('privacy rank orders public < followers < private', () => {
-  assert.ok(BS_PRIVACY_RANK.public < BS_PRIVACY_RANK.followers && BS_PRIVACY_RANK.followers < BS_PRIVACY_RANK.private);
+test('share rule: Friends shares with friends unless something narrower wins', () => {
+  assert.equal(bsWorkoutSharePrivacy({ shareWorkoutData: 'Friends' }), 'friends');
+  assert.equal(bsWorkoutSharePrivacy({ shareWorkoutData: 'Friends', profileVisibility: 'Public' }), 'friends');
+  // A friend is always a follower, so Friends narrows a Just friends profile too.
+  assert.equal(bsWorkoutSharePrivacy({ shareWorkoutData: 'Friends', profileVisibility: 'Just friends' }), 'friends');
+  assert.equal(bsWorkoutSharePrivacy({ shareWorkoutData: 'Friends', profileVisibility: 'Private' }), 'private');
+});
+
+test('privacy rank orders public < followers < friends < private', () => {
+  assert.ok(BS_PRIVACY_RANK.public < BS_PRIVACY_RANK.followers
+    && BS_PRIVACY_RANK.followers < BS_PRIVACY_RANK.friends
+    && BS_PRIVACY_RANK.friends < BS_PRIVACY_RANK.private);
 });
 
 // ── The activity date leaves `created_at` ─────────────────────────────────────

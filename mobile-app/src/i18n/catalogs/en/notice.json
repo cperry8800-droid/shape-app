@@ -116,6 +116,8 @@
   "score.reason.habit": "a broken habit streak",
   "workoutShare.title": "Your workouts now share automatically",
   "workoutShare.body": "Logged and synced workouts show on your profile and in the community feed. Manage this in Settings → Share workout data.",
+  "workoutShare.friendsTitle": "Your workouts now share with your friends",
+  "workoutShare.friendsBody": "Logged and synced workouts show to people you follow who follow you back. Manage this in Settings → Share workout data.",
   "mealPlan.title": "New meal plan from your coach",
   "credential.verified.title": "You’re verified ✓",
   "credential.verified.body": "Your credentials checked out — a Verified badge now shows on your marketplace profile.",

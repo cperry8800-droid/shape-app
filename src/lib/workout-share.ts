@@ -15,7 +15,7 @@ import {
   bsPostActivityStart as postActivityStart,
 } from '../../mobile-app/src/services/workoutShare.mjs';
 
-export type SharePrivacy = 'public' | 'followers' | 'private';
+export type SharePrivacy = 'public' | 'followers' | 'friends' | 'private';
 export { workoutSharePrivacy, isDuplicateWorkoutPost, activityStartISO, postActivityStart };
 
 // Fail CLOSED on a read error — a transient settings failure must degrade to
@@ -92,14 +92,19 @@ export async function maybeSendFirstShareNotice(
         { onConflict: 'user_id,kind' },
       );
     if (upErr) return; // couldn't stamp → don't notify (avoids repeat notices)
+    // Shared with friends says so: "the community feed" would tell a member who picked
+    // Friends that everyone can see them (Codex P2 on #2511).
+    const friends = privacy === 'friends';
     await createNotification(createAdminClient(), {
       userId,
       type: 'general',
-      title: 'Your workouts now share automatically',
-      body: 'Logged and synced workouts show on your profile and in the community feed. Manage this in Settings → Share workout data.',
+      title: friends ? 'Your workouts now share with your friends' : 'Your workouts now share automatically',
+      body: friends
+        ? 'Logged and synced workouts show to people you follow who follow you back. Manage this in Settings → Share workout data.'
+        : 'Logged and synced workouts show on your profile and in the community feed. Manage this in Settings → Share workout data.',
       route: 'settings',
       // How the bell and the push say it in the member's language (noticeCopy.mjs).
-      data: { copy: { title: np('workoutShare.title'), body: np('workoutShare.body') } },
+      data: { copy: { title: np(friends ? 'workoutShare.friendsTitle' : 'workoutShare.title'), body: np(friends ? 'workoutShare.friendsBody' : 'workoutShare.body') } },
     });
   } catch { /* best-effort */ }
 }

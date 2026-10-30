@@ -116,6 +116,8 @@
   "score.reason.habit": "bozulan bir alışkanlık serisi",
   "workoutShare.title": "Antrenmanların artık otomatik paylaşılıyor",
   "workoutShare.body": "Kaydedilen ve eşitlenen antrenmanlar profilinde ve topluluk akışında görünür. Bunu Ayarlar → Antrenman verilerini paylaş bölümünden yönet.",
+  "workoutShare.friendsTitle": "Antrenmanların artık arkadaşlarınla paylaşılıyor",
+  "workoutShare.friendsBody": "Kaydedilen ve eşitlenen antrenmanlarını, takip ettiğin ve seni geri takip eden kişiler görür. Bunu Ayarlar → Antrenman verilerini paylaş bölümünden yönet.",
   "mealPlan.title": "Koçundan yeni öğün planı",
   "credential.verified.title": "Doğrulandın ✓",
   "credential.verified.body": "Sertifikaların onaylandı — pazar yeri profilinde artık Doğrulandı rozeti görünüyor.",

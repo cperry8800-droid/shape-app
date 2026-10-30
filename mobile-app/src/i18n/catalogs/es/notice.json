@@ -116,6 +116,8 @@
   "score.reason.habit": "una racha de hábito rota",
   "workoutShare.title": "Tus entrenamientos ahora se comparten automáticamente",
   "workoutShare.body": "Los entrenamientos registrados y sincronizados aparecen en tu perfil y en el feed de la comunidad. Gestiónalo en Ajustes → Compartir datos de entrenamiento.",
+  "workoutShare.friendsTitle": "Tus entrenamientos ahora se comparten con tus amigos",
+  "workoutShare.friendsBody": "Los entrenamientos registrados y sincronizados los ven las personas que sigues y que te siguen a ti. Gestiónalo en Ajustes → Compartir datos de entrenamiento.",
   "mealPlan.title": "Nuevo plan de comidas de tu coach",
   "credential.verified.title": "Perfil verificado ✓",
   "credential.verified.body": "Tus credenciales están en regla — la insignia «Verificado» ya aparece en tu perfil del mercado.",

@@ -73,11 +73,11 @@ function lvPostKind(row) {
 }
 // Preserve the post's real privacy tier so FeedBlock's lvFeedVisible can apply
 // the right rule per viewer. community_posts.privacy has been widened over time
-// to public|community|private|profile|followers (the 2026-06-09 profile-visibility
-// + 2026-07-08 followers migrations); an unknown value fails closed to private.
+// to public|community|private|profile|followers|friends (the 2026-06-09 profile-visibility,
+// 2026-07-08 followers and 2026-10-30 friends migrations); an unknown value fails closed to private.
 function lvPostVis(row) {
   const p = String(row && row.privacy || "").toLowerCase();
-  return ["public", "community", "private", "profile", "followers"].includes(p) ? p : "private";
+  return ["public", "community", "private", "profile", "followers", "friends"].includes(p) ? p : "private";
 }
 // A post's media url is user-supplied, so only http(s) reaches an <img>/href —
 // never a javascript:/data: scheme (the same guard safeMusicUrl applies to
@@ -235,10 +235,10 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       // profile shows an honest "unavailable" state, not a false "no activity".
       // For a non-owner, constrain to the profile-visible tiers BEFORE the limit —
       // else 12 recent community-only posts (which lvFeedVisible hides) could crowd
-      // out older public/profile/followers posts and read as an empty feed.
+      // out older public/profile/followers/friends posts and read as an empty feed.
       try {
         let fq = c.from("community_posts").select("id,title,note,activity_type,metrics,privacy,photo_url,source_provider,created_at").eq("author_id", uid);
-        if (!isSelf) fq = fq.in("privacy", ["public", "profile", "followers"]);
+        if (!isSelf) fq = fq.in("privacy", ["public", "profile", "followers", "friends"]);
         // The try/catch only covers the SYNCHRONOUS setup — a rejected promise (a
         // dropped network) or a throw inside lvMapPost escapes it, which would
         // leave feedStatus stuck on "loading" forever (an endless spinner, not the

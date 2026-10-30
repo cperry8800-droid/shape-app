@@ -115,6 +115,8 @@
   "player.vibe.nope": "Not for me",
   "player.shareToggle": "Share to the community",
   "player.shareSub": "Posts your sets + breakdown to the feed",
+  "player.shareToggleFriends": "Share with your friends",
+  "player.shareSubFriends": "Your friends see your sets + breakdown",
   "player.saveFinish": "Save & finish ✓",
   "player.fieldLoad": "Load",
   "player.effortAria": "Effort {n} of 10",

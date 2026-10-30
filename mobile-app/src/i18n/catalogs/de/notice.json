@@ -116,6 +116,8 @@
   "score.reason.habit": "eine gerissene Gewohnheitsserie",
   "workoutShare.title": "Deine Workouts werden jetzt automatisch geteilt",
   "workoutShare.body": "Erfasste und synchronisierte Workouts erscheinen auf deinem Profil und im Community-Feed. Verwalte das unter Einstellungen → Trainingsdaten teilen.",
+  "workoutShare.friendsTitle": "Deine Workouts werden jetzt mit deinen Freunden geteilt",
+  "workoutShare.friendsBody": "Erfasste und synchronisierte Workouts sehen Leute, denen du folgst und die dir zurückfolgen. Verwalte das unter Einstellungen → Trainingsdaten teilen.",
   "mealPlan.title": "Neuer Ernährungsplan von deinem Coach",
   "credential.verified.title": "Du bist verifiziert ✓",
   "credential.verified.body": "Deine Qualifikationen wurden bestätigt — auf deinem Marktplatz-Profil steht jetzt das Abzeichen „Verifiziert“.",
