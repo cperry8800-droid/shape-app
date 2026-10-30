@@ -146,14 +146,14 @@ export function BSTrainerProfile(props) {
   const sampleCity = sampleOn && person.city && !/^(remote|online|anywhere)$/i.test(String(person.city).trim()) ? String(person.city) : '';
   const demo = React.useMemo(() => {
     if (!demoOn && !sampleOn) return null;
-    if (nutri) {
-      if (demoOn) return { ...bsNutritionistDemo(), mode: 'self' };
-      return { ...bsNutritionistDemo({ ...bsNutritionistSampleOf({ key: sampleKey, specialty: person.specialty }), where: sampleCity, business: null }), mode: 'sample' };
-    }
     // The sample's own words in the reader's language too (owner, 2026-10-30: "Translate all sample
-    // text"), with the English as each one's default.
-    const base = { media: `${import.meta.env.BASE_URL}demo/`, word: (k) => tr('profile:studio.word.' + k, { defaultValue: STUDIO_WORDS[k] || k }), lb,
-      say: (k, english, values) => tr(k, { defaultValue: english, ...(values || {}) }) };
+    // text", then "Yes, translate the nutritionist sample too"), with the English as each one's default.
+    const say = (k, english, values) => tr(k, { defaultValue: english, ...(values || {}) });
+    if (nutri) {
+      if (demoOn) return { ...bsNutritionistDemo({ say }), mode: 'self' };
+      return { ...bsNutritionistDemo({ ...bsNutritionistSampleOf({ key: sampleKey, specialty: person.specialty }), where: sampleCity, business: null, say }), mode: 'sample' };
+    }
+    const base = { media: `${import.meta.env.BASE_URL}demo/`, word: (k) => tr('profile:studio.word.' + k, { defaultValue: STUDIO_WORDS[k] || k }), lb, say };
     if (demoOn) return { ...bsTrainerDemo(base), mode: 'self' };
     return { ...bsTrainerDemo({ ...base, ...bsTrainerSampleOf({ key: sampleKey, specialty: person.specialty }), where: sampleCity, business: null }), mode: 'sample' };
   }, [nutri, demoOn, sampleOn, sampleKey, sampleCity, person.specialty, lb, lang]);

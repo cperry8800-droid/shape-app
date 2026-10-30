@@ -15,12 +15,19 @@
 // (name, bio, credential, price, rating) stays its listing's. There is no sample wall photo: the
 // page shows the coach's colours until they add one.
 //
-// The sample words (the bio, the notes, the meals, the reviews) are content, as a coach's own words
-// are, so they stay in English like the rest of the demo's. No pronouns: the sample coach's words
-// go by their first name.
+// The sample words (the bio, the portion rules, the staples, the notes on recipes and meals, the
+// reviews) are in the reader's language (owner, 2026-10-30: "Yes, translate the nutritionist sample
+// too"), through `say`, the profile's tr under profile:sample.nutri.* with the English as its
+// default. A recipe's title, ingredients and method stay the Shape Kitchen catalog's, as the
+// catalog reads everywhere else. No pronouns: the sample coach's words go by their first name.
 
 import { bsKitchenRecipeItem } from './profileCustom.mjs';
 import { bsKitchenRecipe, bsKitchenMinutes } from '../broadsheet/kitchenRecipes.js';
+import { bsSampleEnglish } from './trainerDemo.mjs';
+
+// A staple's key: its English name in camel case ("Greek yogurt" → greekYogurt), so a staple two
+// kinds share has one translation.
+const stapleKey = (n) => String(n).toLowerCase().replace(/[^a-z0-9]+(.)?/g, (m, c) => (c ? c.toUpperCase() : ''));
 
 // A recipe's own name and macros per serving (kcal, protein, carbs, fat), for the meals made from
 // it. tests/nutritionist-profile.test.mjs checks each against the Shape Kitchen catalog.
@@ -194,9 +201,13 @@ export function bsNutritionistSampleOf({ key = '', specialty = '' } = {}) {
  *   kind      from bsNutritionistSampleOf; the default is the nutritionist app's demo coach
  *   where     the place they practise
  *   business  the business name on the page (the demo coach's own; none for a listing's coach)
+ *   say       the sample's words in the reader's language: (key, english, values) => text, the
+ *             profile's tr; by default the English (bsSampleEnglish)
  */
-export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'performance', where = 'Austin, TX', business = 'Second Helping Nutrition' } = {}) {
-  const k = KITCHENS[kind] || KITCHENS.performance;
+export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'performance', where = 'Austin, TX', business = 'Second Helping Nutrition', say = bsSampleEnglish } = {}) {
+  const kk = KITCHENS[kind] ? kind : 'performance';
+  const k = KITCHENS[kk];
+  const S = (key, english, values) => say('profile:sample.nutri.' + key, english, values);
   const tz = zone || (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return null; } })() || 'UTC';
   const today = new Date(now);
 
@@ -214,18 +225,21 @@ export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'perf
   // Two days of shared meals, yesterday and the day before, as the client module's shared-meal cards
   // are shaped (bsProfileCardFromPost): the page groups them by day into plate notes.
   const plates = [];
+  // A meal made from a recipe keeps the recipe's catalog name; one made at home, its own, said.
+  const MEAL = S('type.meal', 'Meal');
   k.days.forEach((meals, di) => {
     const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (di + 1));
-    for (const m of meals) {
+    meals.forEach((m, mj) => {
       const [h, mi, slug] = m;
-      const [title, kcal, p, c, f] = slug ? R[slug] : m.slice(3, 8);
-      const note = slug ? m[3] : m[8];
+      const [name, kcal, p, c, f] = slug ? R[slug] : m.slice(3, 8);
+      const title = slug ? name : S(`mealName.${kk}.${di}.${mj}`, name);
+      const note = S(`meal.${kk}.${di}.${mj}`, slug ? m[3] : m[8]);
       plates.push({
-        key: `demo-plate-${di}-${h}${mi}`, title, ago: `${di + 1}d`, photo: null, body: note, typeLabel: 'Meal',
+        key: `demo-plate-${di}-${h}${mi}`, title, ago: `${di + 1}d`, photo: null, body: note, typeLabel: MEAL,
         created_at: new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, mi).toISOString(),
         meal: { kcal, p, c, f, planned: true, recipeId: slug || '' },
       });
-    }
+    });
   });
 
   return {
@@ -234,7 +248,7 @@ export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'perf
     live: {
       pronouns: '',
       points: 2480,
-      goal: 'Food that fits your training and your week, not the other way round.',
+      goal: S('goal', 'Food that fits your training and your week, not the other way round.'),
       can_view: true,
       is_public: true,
     },
@@ -242,9 +256,9 @@ export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'perf
       look: { paper: 'dark', accent: 'amber', focus: 'center' },
       kitchen: {
         plate: { ...k.plate },
-        rules: k.rules.slice(),
-        staples: k.staples.map(([n, g]) => ({ n, g })),
-        recipes: k.dishes.map((d, i) => sampleRecipe(d.r, d.note, i)).filter(Boolean),
+        rules: k.rules.map((r, i) => S(`rule.${kk}.${i}`, r)),
+        staples: k.staples.map(([n, g]) => ({ n: S('staple.' + stapleKey(n), n), g })),
+        recipes: k.dishes.map((d, i) => sampleRecipe(d.r, S(`dish.${kk}.${i}`, d.note), i)).filter(Boolean),
       },
       ...(business ? { bizCard: { name: business, where: where || '' } } : {}),
     },
@@ -253,22 +267,22 @@ export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'perf
       owner_id: null,
       price: 140,
       session_price: 70,
-      specialty: 'Sports nutrition',
+      specialty: S('specialty', 'Sports nutrition'),
       verified: true,
       credential: 'RD, CSSD',
       at_capacity: false,
       listing_media: { cover: null, gallery: [] },
-      monthly_offer: { includes: ['A meal plan written for your week', 'Notes on the meals you log', 'Messages answered within a day'] },
+      monthly_offer: { includes: [S('offer.plan', 'A meal plan written for your week'), S('offer.notes', 'Notes on the meals you log'), S('offer.messages', 'Messages answered within a day')] },
     },
     availability: { slots: SLOTS, busy, booked: busy.filter((b) => b.kind === 'session').map((b) => b.start), rules: { consultMin: 20 }, timezone: tz, atCapacity: false },
     reviews: {
       avg: 9.8,
       count: 161,
       list: [
-        { id: 'demo-n1', author: 'Alicia R.', rating: 10, text: 'First plan I have kept past week two. I cook three times a week now and eat well all seven days.' },
-        { id: 'demo-n2', author: 'Ben T.', rating: 10, text: 'Fuelled my first marathon without a single wall. The race-week plan was gold.' },
-        { id: 'demo-n3', author: 'Sofia M.', rating: 10, text: 'Every meal I log gets read, and the notes are short and useful. No food guilt, ever.' },
-        { id: 'demo-n4', author: 'Kevin O.', rating: 9, text: 'Down 9 kg in five months and I still eat pasta on Fridays.' },
+        { id: 'demo-n1', author: 'Alicia R.', rating: 10, text: S('review.n1', 'First plan I have kept past week two. I cook three times a week now and eat well all seven days.') },
+        { id: 'demo-n2', author: 'Ben T.', rating: 10, text: S('review.n2', 'Fuelled my first marathon without a single wall. The race-week plan was gold.') },
+        { id: 'demo-n3', author: 'Sofia M.', rating: 10, text: S('review.n3', 'Every meal I log gets read, and the notes are short and useful. No food guilt, ever.') },
+        { id: 'demo-n4', author: 'Kevin O.', rating: 9, text: S('review.n4', 'Down 9 kg in five months and I still eat pasta on Fridays.') },
       ],
     },
     plates,
