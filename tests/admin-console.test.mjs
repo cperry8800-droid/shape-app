@@ -15,6 +15,7 @@ const levels = await import(pathToFileURL(join(ROOT, 'src/lib/staff-levels.mjs')
 const overview = await import(pathToFileURL(join(ROOT, 'src/lib/admin-overview.mjs')).href);
 const activity = await import(pathToFileURL(join(ROOT, 'src/lib/admin-activity.mjs')).href);
 const clicks = await import(pathToFileURL(join(ROOT, 'src/lib/admin-clicks.mjs')).href);
+const radio = await import(pathToFileURL(join(ROOT, 'src/lib/admin-radio.mjs')).href);
 
 const OWNER = 'cperry8800@gmail.com';
 const U1 = '11111111-1111-4111-8111-111111111111';
@@ -487,6 +488,10 @@ async function renderPage(rel, { rpc, level = 'owner', searchParams = {}, tables
     typescript: true,
     registry: new Map([['next/link', { __esModule: true, default: link }], ['@/lib/admin-overview.mjs', overview], ['@/lib/admin-clicks.mjs', clicks], ['./ui', ui]]),
   });
+  const radioView = await loadRealModule(join(ROOT, 'src/app/admin/RadioView.tsx'), {
+    typescript: true,
+    registry: new Map([['@/lib/admin-overview.mjs', overview], ['@/lib/admin-radio.mjs', radio], ['./ClicksView', clicksView], ['./ui', ui]]),
+  });
   const page = await loadRealModule(join(ROOT, rel), {
     typescript: true,
     registry: new Map([
@@ -501,6 +506,8 @@ async function renderPage(rel, { rpc, level = 'owner', searchParams = {}, tables
       ['@/lib/funnel', {}],
       ['@/lib/admin-clicks.mjs', clicks],
       ['./ClicksView', clicksView],
+      ['@/lib/admin-radio.mjs', radio],
+      ['./RadioView', radioView],
       ['./ui', ui],
       ['../ui', ui],
     ]),
@@ -574,6 +581,33 @@ test('render: the Clicks view reads only the tap counts, for its filters, at the
   const missing = await renderPage('src/app/admin/page.tsx', { rpc: answers, level: 'analyst', searchParams: { view: 'clicks' } });
   assert.ok(missing.html.includes('Not set up yet: run supabase-migrations/2026-10-28-click-counts.sql'));
   assert.ok((await overviewOf('')).html.includes('Where people tap, on the website and in the app'), 'the summary’s cards open it');
+});
+
+test('render: the Radio view reads only the listening counts, for its period, at the Overview’s level', async () => {
+  const RADIO = {
+    from: '2026-10-24', to: '2026-10-30', days: 7, tune_ins: 4, seconds: 3600,
+    by_surface: { app: { tune_ins: 3, seconds: 2700 }, web: { tune_ins: 1, seconds: 900 } },
+    by_audience: { member: { tune_ins: 4, seconds: 3600 } },
+    daily: [{ day: '2026-10-30', tune_ins: 4, seconds: 3600, peak: 2 }],
+    peak: { listeners: 2, at: '2026-10-30T20:00:00Z', day: '2026-10-30' },
+    now: { listeners: 1, web: 0, app: 1 },
+  };
+  const asked = [];
+  const rpc = (name, args) => { asked.push([name, args]); return name === 'admin_radio_stats' ? { data: RADIO, error: null } : answers(name, args); };
+  const { html, calls } = await renderPage('src/app/admin/page.tsx', { rpc, level: 'analyst', searchParams: { view: 'radio', days: '7' } });
+  assert.equal(calls[0], 'analyst', 'an analyst opens it: it is totals, never one person');
+  assert.deepEqual(calls.slice(1), ['rpc:admin_radio_stats'], 'not the Overview’s own numbers');
+  assert.deepEqual(asked[0][1], { p_days: 7, p_tz: 'America/New_York' });
+  assert.ok(html.includes('href="/admin?view=radio" aria-current="page"'), 'the Radio tab is open');
+  assert.deepEqual(h3s(html), ['How Shape Radio is listened to']);
+  assert.ok(html.includes('1 h 00 min') && html.includes('1 in the app'));
+  assert.ok(!html.includes('Where people tap'), 'not the Clicks view');
+  assert.ok(!/NaN|undefined/.test(html));
+  const missing = await renderPage('src/app/admin/page.tsx', { rpc: answers, level: 'analyst', searchParams: { view: 'radio' } });
+  assert.ok(missing.html.includes('Not set up yet: run supabase-migrations/2026-10-30-radio-listening.sql'));
+  assert.ok((await overviewOf('')).html.includes('Who listens to Shape Radio, and for how long'), 'the summary’s cards open it');
+  const tapped = await renderPage('src/app/admin/page.tsx', { rpc: answers, level: 'analyst', searchParams: { view: 'clicks' } });
+  assert.ok(!tapped.calls.includes('rpc:admin_radio_stats'), 'the Clicks view never reads the listening');
 });
 
 test('render: the summary says how much is waiting on the team, and its key numbers open their views', async () => {

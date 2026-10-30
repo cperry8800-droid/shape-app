@@ -208,6 +208,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/cron/habit-watch', 'GET'],
   ['/api/analytics/track', 'POST'],
   ['/api/analytics/clicks', 'POST'],
+  ['/api/analytics/radio-listen', 'POST'],
   ['/api/auth/password-reset', 'POST'],
   ['/api/auth/resolve-username', 'POST'],
   ['/api/cron/analytics-purge', 'GET'],
@@ -616,6 +617,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
   const auto = (ok: boolean): 'done' | 'pending' => (ok ? 'done' : 'pending');
 
   return [
+    {
+      section: 'Admin: the Overview\'s Radio tab, how Shape Radio is listened to — #2527. One migration, for the owner to run',
+      items: [
+        { label: 'Owner, 2026-10-30: "do we have any tracking for shape radio?", then "Yes build it". A Radio tab on the Overview (/admin?view=radio, analyst and up): listening now (app and website), tune-ins, time listened, time per tune-in, the most at once and when, app or website and member or coach, and minutes and tune-ins a day, over 7, 30 or 90 days. No visitor split: the stream is members only', status: 'done' },
+        { label: 'Both players (public/newdesign/radioListening.mjs, on the Radio page and on the app\'s one radio <audio>) send a beat as the stream starts, one a minute and one as it stops, with the listen\'s random id and its running total of time heard (buffering stops the count and the beats). The consent rule is the tap counts\': GPC or a Reject stops everything, the end beat included, and the EEA and UK wait for Accept. POST /api/analytics/radio-listen (in RAW_ROUTES) takes the account from request-auth, counts only someone the station route would serve (computeMembership, not a known minor), refuses GPC and always answers 204', status: 'done' },
+        { label: '2026-10-30-radio-listening.sql: radio_listen_days and radio_listen_peaks hold daily totals with no account. radio_listen_live has one row per listen with its account: an end marks it ended, and it is deleted 24 hours after its last beat (at the next beat or the nightly purge). record_radio_listen credits what a total adds to the listen\'s highest reported total, never more than the time since the account\'s mark or the listen\'s last beat; the mark moves only by what is credited. Time is split at the owner\'s midnights. Listening now counts accounts with a beat in 150 s, under a lock so the peak sees simultaneous starts. 6 beats a minute per account; admin_radio_stats; service role only, guarded. The purge drops the daily rows after 12 months', status: 'done' },
+        { label: 'Privacy policy §10 "Analytics — Shape Radio listening" (what the player sends, daily totals by website/app and member/coach, the note kept while you listen and deleted within two days of stopping, no account, device, IP or track kept with a count, the consent rule, 12 months) and §7\'s GPC line; "Last updated" October 30, 2026; PRIVACY_VERSIONS gains 2026-10-30', status: 'done' },
+        { label: 'Review: Codex, 14 rounds. Fixed: the end beat after a Reject (P1); dietitians as members; a late end closing a newer listen; a late beat reopening an ended one; an end before its start; buffering counted; the credit mark moving to now; overlapping starts missing the peak; non-members and known minors counted; refused overlap claimed later; rounded daily minutes; the 10-minute cap and 30-minute expiry losing background listens (P1); empty state hiding carried minutes; credit across midnight; listens past a day; buffering beats keeping presence. Declined, with reasons on the threads: heard time inside a buffered background gap across midnight (needs a protocol change) and listens silent for over 24 hours (retention). Checks: every ordering on a local PostgreSQL 16; both players in headless Chromium; mutation rounds on every head, the last (9604449) 110 of 110 killed; 8,988 of 8,988 tests locally on the first head', status: 'done' },
+        { label: 'OWNER: run supabase-migrations/2026-10-30-radio-listening.sql (it needs 2026-10-28-click-counts.sql, already run)', status: 'manual' },
+        { label: 'OWNER/counsel: read §10\'s radio listening bullet with the 2026-10-29 tap counts text', status: 'manual' },
+        { label: 'Nothing counted live yet (the station is on the mock provider). Seen only in headless Chromium and on a local PostgreSQL, not on a phone. A listen silent for over 24 hours restarts as a new tune-in; heard time inside a buffered background gap that crosses midnight lands on the later day', status: 'pending' },
+      ],
+    },
     {
       section: 'App: the 2026-10-30 design pass. The Eat tabs, the Grocery list card, the calendar, smaller coach type and no scroll bars (#2514); the coach profile\'s kitchen layout, reviews at the foot, staples and kitchen editors and activity feed (#2516); its two coach-profile gaps closed (#2518); swipe right to go back (#2520). No migration',
       items: [

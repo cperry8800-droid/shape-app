@@ -11,7 +11,7 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 // Each page's "Last updated" date, oldest first. ⚠ ADD A DATE HERE WHEN A PAGE CHANGES:
 // tests/onboarding-small-fixes.test.mjs holds the newest entry to the page's own date.
 export const TERMS_VERSIONS: readonly string[] = ['2026-06-22'];
-export const PRIVACY_VERSIONS: readonly string[] = ['2026-10-13', '2026-10-29'];
+export const PRIVACY_VERSIONS: readonly string[] = ['2026-10-13', '2026-10-29', '2026-10-30'];
 
 /**
  * The version an account made on `day` accepted: the newest dated BEFORE it (the oldest before any).

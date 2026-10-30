@@ -1,12 +1,14 @@
 // The admin console's Overview: Shape's numbers, analyst level and up, in views so no page is a
 // wall of numbers. The summary leads with what is waiting on the team, then the key numbers and the
 // last 30 days; Growth, Money, Coaching and Engagement hold the rest (OVERVIEW_VIEWS, ?view=), and
-// Clicks shows where people tap on the website and in the app (./ClicksView.tsx).
+// Clicks shows where people tap on the website and in the app (./ClicksView.tsx), and Radio how Shape
+// Radio is listened to (./RadioView.tsx).
 //
 // One database call (admin_overview_stats, service role only) returns every number, and the
 // funnel comes from get_funnel, as on the War Room. src/lib/admin-overview.mjs turns both into
-// what this page draws, so the page itself only renders. The Clicks view makes its own call instead
-// (admin_click_stats, also service role only): daily totals of taps, never who tapped.
+// what this page draws, so the page itself only renders. The Clicks and Radio views make their own
+// calls instead (admin_click_stats and admin_radio_stats, also service role only): daily totals of
+// taps and of listening, never who tapped or listened.
 //
 // Page views are Vercel Analytics' and payouts, disputes and tax are Stripe's: both are linked,
 // not copied, so the console never holds either service's keys.
@@ -20,6 +22,7 @@ import { waitingCount } from '@/lib/admin-waiting';
 import { buildFunnel } from '@/lib/funnel.mjs';
 import type { FunnelRow } from '@/lib/funnel';
 import { clickFilters, clickStatsArgs, type ClickFilters } from '@/lib/admin-clicks.mjs';
+import { radioFilters, radioStatsArgs, type RadioFilters } from '@/lib/admin-radio.mjs';
 import {
   celebrationCounts,
   DAILY_CHARTS,
@@ -42,6 +45,7 @@ import {
   type OverviewTile,
 } from '@/lib/admin-overview.mjs';
 import ClicksView, { type ClicksResult } from './ClicksView';
+import RadioView, { type RadioResult } from './RadioView';
 import { ADMIN_TIMEZONE, DISPLAY, EYEBROW, MONO, PAGE_TITLE, PANEL, Period, SectionHead } from './ui';
 
 export const metadata = { title: 'Overview — Shape Admin', robots: { index: false, follow: false } };
@@ -84,6 +88,16 @@ async function loadClicks(filters: ClickFilters): Promise<ClicksResult> {
   }
 }
 
+async function loadRadio(filters: RadioFilters): Promise<RadioResult> {
+  try {
+    const { data, error } = await createAdminClient().rpc('admin_radio_stats', radioStatsArgs(filters, TIMEZONE));
+    const missing = Boolean(error && MISSING_FUNCTION.has(String(error.code)));
+    return { data: error ? null : data, missing, failed: Boolean(error && !missing) };
+  } catch {
+    return { data: null, missing: false, failed: true };
+  }
+}
+
 async function loadFunnel(): Promise<FunnelRow[] | null> {
   try {
     const to = new Date();
@@ -114,15 +128,18 @@ export default async function AdminOverviewPage({
   const growth = view.key === 'growth';
   const clicks = view.key === 'clicks';
   const clickView = clickFilters(params);
+  const radio = view.key === 'radio';
+  const radioView = radioFilters(params);
 
   // The funnel and this week's birthdays are Growth's alone; the open account requests, the
-  // summary's (the same count as the sidebar's badge). Clicks reads only its own counts.
-  const [{ stats, missing, failed }, funnel, celebrations, accountRequests, clickResult] = await Promise.all([
-    clicks ? Promise.resolve({ stats: null, missing: false, failed: false }) : loadStats(),
+  // summary's (the same count as the sidebar's badge). Clicks and Radio read only their own counts.
+  const [{ stats, missing, failed }, funnel, celebrations, accountRequests, clickResult, radioResult] = await Promise.all([
+    clicks || radio ? Promise.resolve({ stats: null, missing: false, failed: false }) : loadStats(),
     growth ? loadFunnel() : Promise.resolve(null),
     growth ? loadCelebrations() : Promise.resolve(null),
     view.key === 'summary' ? waitingCount('/admin/requests') : Promise.resolve(null),
     clicks ? loadClicks(clickView) : Promise.resolve(null),
+    radio ? loadRadio(radioView) : Promise.resolve(null),
   ]);
   // A tile links only to a page this level opens ('/admin/members#birthdays' is the Members page).
   const openable = (t: OverviewTile) => (t.href && !canOpen(level, t.href.split(/[?#]/)[0]) ? { ...t, href: '' } : t);
@@ -219,6 +236,8 @@ export default async function AdminOverviewPage({
       {stats && view.key === 'engagement' && <ScoreTiers tiers={tierBreakdown(stats)} />}
 
       {clickResult && <ClicksView filters={clickView} result={clickResult} />}
+
+      {radioResult && <RadioView filters={radioView} result={radioResult} />}
     </div>
   );
 }

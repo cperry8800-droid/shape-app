@@ -38,7 +38,7 @@ export function birthdayLabel(month: unknown, day: unknown): string;
 export function whenLabel(daysUntil: unknown): string;
 export function celebrationCounts(answer: unknown): CelebrationCounts;
 export function yearsLabel(years: unknown): string;
-export type OverviewView = { key: 'summary' | 'growth' | 'money' | 'coaching' | 'engagement' | 'clicks'; label: string; sections: ReadonlyArray<string>; blurb?: string };
+export type OverviewView = { key: 'summary' | 'growth' | 'money' | 'coaching' | 'engagement' | 'clicks' | 'radio'; label: string; sections: ReadonlyArray<string>; blurb?: string };
 export const OVERVIEW_VIEWS: ReadonlyArray<OverviewView>;
 export function overviewView(raw: unknown): OverviewView;
 export function viewHref(key: string): string;

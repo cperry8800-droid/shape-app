@@ -1,5 +1,8 @@
-// Daily: delete analytics_events, and the daily tap counts (ui_click_counts), older than 12 months
-// (bounded retention). A failure on one is reported and never stops the other.
+// Daily: delete analytics_events, the daily tap counts (ui_click_counts) and the daily radio
+// listening (radio_listen_days, radio_listen_peaks), older than 12 months (bounded retention); and
+// any "listening now" row (radio_listen_live) quiet for 24 hours, which a listen that never said it
+// stopped leaves behind when nobody listens after it. A failure on one is reported and never stops
+// the others.
 // Auth: x-cron-secret: <CRON_SECRET> OR Authorization: Bearer <CRON_SECRET>.
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
@@ -29,9 +32,13 @@ export async function GET(request: Request) {
     const admin = createAdminClient();
     const { error } = await admin.from('analytics_events').delete().lt('ts', cutoff);
     const clicks = await admin.from('ui_click_counts').delete().lt('day', cutoff.slice(0, 10));
-    // Before 2026-10-28-click-counts.sql runs there is no table to purge, which is no failure.
-    const clicksError = clicks.error && !MISSING_TABLE.has(String(clicks.error.code)) ? clicks.error.message : '';
-    const failed = [error?.message, clicksError].filter(Boolean);
+    const listening = await admin.from('radio_listen_days').delete().lt('day', cutoff.slice(0, 10));
+    const peaks = await admin.from('radio_listen_peaks').delete().lt('day', cutoff.slice(0, 10));
+    const live = await admin.from('radio_listen_live').delete().lt('last_beat', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+    // Before a table's migration runs (2026-10-28-click-counts.sql, 2026-10-30-radio-listening.sql)
+    // there is nothing to purge, which is no failure.
+    const dailyErrors = [clicks, listening, peaks, live].map((r) => (r.error && !MISSING_TABLE.has(String(r.error.code)) ? r.error.message : ''));
+    const failed = [error?.message, ...dailyErrors].filter(Boolean);
     if (failed.length) return NextResponse.json({ ok: false, error: failed.join('; '), cutoff }, { status: 200 });
     return NextResponse.json({ ok: true, cutoff });
   } catch (e) {
