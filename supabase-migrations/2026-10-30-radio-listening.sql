@@ -144,10 +144,6 @@ begin
   end if;
 
   if v_owner is null then
-    -- An end for a listen this never saw, or one already closed, adds nothing.
-    if coalesce(p_end, false) then
-      return 0;
-    end if;
     -- A trainer, a nutritionist or a dietitian is a coach (src/lib/roles.mjs's COACH_ROLES).
     select case
              when coalesce(p.roles, '{}') && array['trainer', 'nutritionist', 'dietitian']
@@ -160,10 +156,13 @@ begin
     if v_audience is null then
       return 0;
     end if;
-    -- It takes the account's credited mark, so a listen started while another plays (a second
-    -- device, or a resume whose start overtook its pause's end) credits nothing twice.
-    insert into public.radio_listen_live (listen, listener, surface, audience, last_beat, credited_to)
-    values (p_listen, p_user, p_surface, v_audience, now(), v_credited)
+    -- A listen's first beat is its tune-in, credited nothing. It takes the account's credited mark,
+    -- so a listen started while another plays (a second device, or a resume whose start overtook its
+    -- pause's end) credits nothing twice. An end that arrives before its own start (a play paused at
+    -- once) is the tune-in too, and leaves the listen ended, so the start that follows reopens
+    -- nothing (Codex P2 on #2527).
+    insert into public.radio_listen_live (listen, listener, surface, audience, last_beat, credited_to, ended)
+    values (p_listen, p_user, p_surface, v_audience, now(), v_credited, coalesce(p_end, false))
     on conflict (listen) do nothing;
     get diagnostics v_tune_in = row_count;
     if v_tune_in = 0 then

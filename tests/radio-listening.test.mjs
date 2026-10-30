@@ -280,12 +280,13 @@ test('migration: a listener counts once, and never for more time than has passed
   assert.match(fn, /if p_user is null or p_listen is null or p_surface is null or p_surface not in \('web', 'app'\) then\s+return 0;/);
   assert.match(fn, /_rate_limit_bump\('fn:radio_listen:' \|\| p_user::text, 6, 60\)/);
   assert.match(fn, /delete from public\.radio_listen_live where last_beat < now\(\) - interval '30 minutes';/);
-  // A listen's first beat is its tune-in; it takes the account's credited mark.
-  assert.match(fn, /values \(p_listen, p_user, p_surface, v_audience, now\(\), v_credited\)\s+on conflict \(listen\) do nothing;\s+get diagnostics v_tune_in = row_count;/);
+  // A listen's first beat is its tune-in; it takes the account's credited mark. An end that arrives
+  // before its own start is the tune-in too and leaves the listen ended, so the late start reopens
+  // nothing (Codex P2 on #2527).
+  assert.match(fn, /values \(p_listen, p_user, p_surface, v_audience, now\(\), v_credited, coalesce\(p_end, false\)\)\s+on conflict \(listen\) do nothing;\s+get diagnostics v_tune_in = row_count;/);
   // The account's listens are locked, and its mark read, before the listen is looked up.
   assert.match(fn, /perform 1 from public\.radio_listen_live where listener = p_user for update;\s+select max\(l\.credited_to\) into v_credited from public\.radio_listen_live l where l\.listener = p_user;/);
   assert.match(fn, /if v_owner is not null and v_owner <> p_user then\s+return 0;/, 'another account\'s listen is never touched');
-  assert.match(fn, /if coalesce\(p_end, false\) then\s+return 0;\s+end if;/, 'an end for a listen never seen adds nothing');
   assert.match(fn, /if v_audience is null then\s+return 0;/, 'no profile, no count');
   // A later beat: what its running total adds to this listen's, never more than the time since the
   // account was last credited or this listen's last beat (+2 s), or 10 minutes, and never below 0.
