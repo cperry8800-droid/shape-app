@@ -78,6 +78,9 @@ export const PREFERENCE_OF = Object.freeze({
   session_paid: 'sessions',
   intro_followup: 'sessions',
   booking_request: 'sessions',
+  // A time asked of a coach not on Shape yet: the owners' notice, and the member's when the coach joins.
+  listing_request: 'sessions',
+  listing_joined: 'sessions',
   // Followers.
   follow: 'follows',
   follow_request: 'follows',

@@ -57,6 +57,15 @@ async function mount(el) {
   return { host, text: () => document.body.textContent.replace(/\s+/g, ' '), unmount: async () => { await act(async () => root.unmount()); host.remove(); } };
 }
 const click = async (el) => { assert.ok(el, 'no such element'); await act(async () => { el.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); }); await flush(); };
+const type = async (el, text) => {
+  assert.ok(el, 'no such field');
+  const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, text);
+    el.dispatchEvent(new window.Event('input', { bubbles: true }));
+  });
+  await flush();
+};
 const button = (re) => [...document.querySelectorAll('button')].find((b) => re.test(b.textContent) || re.test(b.getAttribute('aria-label') || ''));
 
 await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), { registry: new Map([['react', React]]) });
@@ -75,6 +84,7 @@ function reset(over = {}) {
     // stored: the profile_custom doc ({} is no row, as the real read answers); readFails: the read
     // errs; switchOnRead: another account signs in while the read is in flight.
     booked: null, bookError: null, saved: null, stored: {}, readWith: undefined, readFails: false, switchOnRead: false, me: 'u-me', availFor: null,
+    asked: null, askError: null, asks: null, asksTotal: null, asksFor: null,
     ...over,
   };
 }
@@ -108,6 +118,10 @@ window.shapeDb = {
   },
 };
 window.ShapeBookings = { submitConsultationBooking: async (a) => { if (world.bookError) throw world.bookError; world.booked = a; return { ok: true }; } };
+window.ShapeListingAsks = {
+  ask: async (a) => { if (world.askError) throw world.askError; world.asked = a; return { already: false }; },
+  forListing: async (role, id) => { world.asksFor = [role, id]; return { rows: world.asks || [], total: world.asksTotal ?? (world.asks || []).length }; },
+};
 window.bsProfileCardFromPost = (p) => p;
 // The client module's storefront, as a probe: it records what the page hands it.
 window.useBSCoachCommerce = ({ person }) => ((world.commerceSeen = person.commerce), { commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: !!(person.commerce && person.commerce.atCapacity), wl: null });
@@ -558,12 +572,12 @@ test('a seeded listing\'s coach: its own listing, read by id, with a sample stud
     assert.match(m.text(), /9\.6\/10 from 4 reviews/, 'the listing\'s rating over the sample reviews');
     assert.match(m.text(), /ACE-CPT/);
     assert.doesNotMatch(m.text(), /Iron & Ordinary|NSCA-CSCS/, 'nothing of the demo coach\'s own');
-    // No hours on the listing: sample times, shown and never taken.
+    // No hours on the listing: sample times, asked for, never taken (owner, 2026-10-29).
     assert.match(document.querySelector('[data-day-sub]').textContent, /Sample times: Leah hasn't set open hours on Shape yet\./);
     let open = [];
     for (const d of document.querySelectorAll('[role="group"] button')) { await click(d); open = open.concat([...document.querySelectorAll('[data-open-time]')]); }
     assert.ok(open.length > 0, 'sample open times');
-    assert.ok(open.every((b) => b.disabled && !/Take it/.test(b.textContent)), 'none can be taken');
+    assert.ok(open.every((b) => !b.disabled && /Ask for it →/.test(b.textContent) && !/Take it/.test(b.textContent)), 'each is asked for, none taken');
     await click(button(/^The studio$/));
     assert.match(m.text(), /Garage gym/, 'a studio that fits HIIT');
     assert.ok(document.querySelectorAll('[data-station]').length >= 4);
@@ -577,6 +591,89 @@ test('a seeded listing\'s coach: its own listing, read by id, with a sample stud
     assert.equal(world.booked, null, 'nothing booked');
     assert.deepEqual(spy.calls.filter((c) => c !== 'get'), [], 'no account read: no profile, own doc, reviews, posts or follow');
   } finally { spy.restore(); }
+});
+
+test('a sample time is asked for, kept for Leah with the member\'s note; nothing is booked (owner, 2026-10-29)', async () => {
+  reset({ me: 'u-me', byId: leahRow, slots: [] });
+  const m = await mount(page({ person: leah }));
+  try {
+    const firstOpen = async () => { for (const d of document.querySelectorAll('[role="group"] button')) { await click(d); const b = document.querySelector('[data-open-time]'); if (b) return b; } return null; };
+    await click(await firstOpen());
+    assert.match(m.text(), /Ask for this time\./);
+    assert.match(m.text(), /Leah isn't on Shape yet, so this time isn't booked\. Ask for it and Shape keeps it for Leah: you'll hear when they join\./);
+    await type(document.querySelector('[data-ask-note]'), 'Knee rehab, mornings only');
+    await click(document.querySelector('[data-ask-time]'));
+    assert.equal(world.asked.role, 'trainer');
+    assert.equal(world.asked.providerId, 41, 'kept against the listing');
+    assert.ok(Number.isFinite(world.asked.at) && world.asked.at > Date.now(), 'the sample time itself');
+    assert.ok(Number.isInteger(world.asked.durationMin));
+    assert.equal(world.asked.note, 'Knee rehab, mornings only');
+    assert.ok(document.querySelector('[data-ask-done]'));
+    assert.match(m.text(), /Asked\./);
+    assert.match(document.querySelector('[data-ask-done]').textContent, /^Leah isn't on Shape yet\. Shape has kept your ask, and you'll hear when Leah joins\.$/);
+    assert.equal(world.booked, null, 'nothing booked');
+    await click(button(/^Done$/));
+    // The route's refusals, said in the member's words; anything else, a plain try again.
+    for (const [code, said] of [['too_many', /You've asked Leah for 3 times already\. You'll hear when they join\./], ['claimed', /Leah is on Shape now\. Book a time on their listing\./], ['daily_cap', /You've asked for a lot of times today\./], ['time_past', /That time has passed\. Pick a later one\./], [null, /Couldn't send your ask\. Try again\./]]) {
+      world.askError = Object.assign(new Error('from the route'), { code });
+      await click(await firstOpen());
+      await click(document.querySelector('[data-ask-time]'));
+      assert.match(document.querySelector('[role="alert"]').textContent, said, String(code));
+      assert.doesNotMatch(m.text(), /from the route/, 'never the route\'s English');
+      await click(document.querySelector('button[aria-label="Close"]'));
+    }
+    // A guest is asked for an account and nothing is sent.
+    world.askError = null; world.asked = null;
+    window.bsRequireAccount = () => false;
+    await click(await firstOpen());
+    await click(document.querySelector('[data-ask-time]'));
+    assert.equal(world.asked, null);
+  } finally { delete window.bsRequireAccount; await m.unmount(); }
+});
+
+test('the coach\'s own page lists what members asked of the listing before they were on Shape', async () => {
+  const DAY = 86_400_000;
+  reset({ me: 'u-maya', slots: [], asks: [
+    { id: 'a1', memberId: 'm1', name: 'Sam Rivera', at: Date.now() + 2 * DAY, durationMin: 20, note: 'Knee rehab' },
+    { id: 'a2', memberId: 'm2', name: '', at: Date.now() - DAY, durationMin: 20, note: '' },
+  ] });
+  const m = await mount(page({ isSelf: true }));
+  assert.deepEqual(world.asksFor, ['trainer', 7], 'their own listing\'s asks');
+  const list = document.querySelector('[data-asks]');
+  assert.ok(list);
+  assert.match(list.textContent, /Asked for before you joined/);
+  assert.match(list.textContent, /2 times were asked of your listing while you weren't on Shape\. Each member who asked has been told you're here now\./);
+  const rows = [...document.querySelectorAll('[data-ask]')];
+  assert.match(rows[0].textContent, /Sam Rivera/);
+  assert.match(rows[0].textContent, /Knee rehab/);
+  assert.match(rows[1].textContent, /A member.*passed/, 'unnamed, and gone by');
+  await click(button(/^Set your hours so they can book →$/));
+  await m.unmount();
+  // The count is every ask on the listing, not only the ones the list shows (Codex on 126c626).
+  reset({ me: 'u-maya', slots: [], asks: [{ id: 'a1', memberId: 'm1', name: 'Sam', at: Date.now() + DAY, durationMin: 20, note: '' }], asksTotal: 140 });
+  const many = await mount(page({ isSelf: true }));
+  assert.match(document.querySelector('[data-asks]').textContent, /140 times were asked of your listing/);
+  await many.unmount();
+  // Nobody else's page reads them, and none show when there are none.
+  reset({ me: 'u-me', asks: [{ id: 'a1', memberId: 'm1', name: 'Sam', at: Date.now() + DAY, durationMin: 20, note: '' }] });
+  const other = await mount(page());
+  assert.equal(world.asksFor, null, 'a visitor never reads a listing\'s asks');
+  assert.ok(!document.querySelector('[data-asks]'), 'and sees none');
+  await other.unmount();
+  reset({ me: 'u-maya', asks: [] });
+  const none = await mount(page({ isSelf: true }));
+  assert.ok(!document.querySelector('[data-asks]'), 'no list with no asks');
+  await none.unmount();
+  // Claimed but not on the marketplace yet (no public listing): the asks are still read, by the
+  // coach's ownership, with no id (Codex on 19b138c).
+  reset({ me: 'u-maya', provider: null, slots: [], asks: [{ id: 'a1', memberId: 'm1', name: 'Sam', at: Date.now() + DAY, durationMin: 20, note: '' }] });
+  const onboarding = await mount(page({ isSelf: true }));
+  assert.deepEqual(world.asksFor, ['trainer', null]);
+  assert.ok(document.querySelector('[data-asks]'), 'the coach sees them while onboarding');
+  // Nobody has been told yet: the notice goes out when the listing goes live (Codex on af3756e).
+  assert.match(document.querySelector('[data-asks]').textContent, /1 time was asked of your listing while you weren't on Shape\. Each member who asked is told you're here once your listing is live\./);
+  assert.doesNotMatch(document.querySelector('[data-asks]').textContent, /has been told/);
+  await onboarding.unmount();
 });
 
 test('a seeded listing with real hours offers them to take, as its listing does', async () => {

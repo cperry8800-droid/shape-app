@@ -188,6 +188,8 @@ const BUILT = [
   ...['red', 'amber'].flatMap((k) => [`coach.${k}.title`, `coach.${k}.titleAnon`, `coach.${k}.body`]),
   'session.cancelledMany.title', 'session.cancelledMany.body', 'session.movedMany.title', 'session.movedMany.body',
   ...['body', 'bodyAnon', 'bodyList', 'bodyListAnon'].map((k) => `grocery.ready.${k}`),
+  // Written by a migration's trigger (listing_time_requests_tell, 2026-10-29-listing-time-requests.sql).
+  'listingJoined.title', 'listingJoined.body',
 ];
 
 test('every key a writer names is in the catalog, and every catalog key is named', () => {

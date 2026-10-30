@@ -31,7 +31,7 @@ const TIME = await loadRealModule(join(ROOT, 'src/lib/time.ts'), { typescript: t
 test('every kind answers to a switch a person can see', () => {
   const cases = [
     ['workout', null, 'coach_content'], ['program', null, 'coach_content'], ['meal_plan', null, 'coach_content'], ['grocery', null, 'coach_content'],
-    ['session_booked', null, 'sessions'], ['session_cancelled', null, 'sessions'], ['booking_request', null, 'sessions'], ['intro_followup', null, 'sessions'],
+    ['session_booked', null, 'sessions'], ['session_cancelled', null, 'sessions'], ['booking_request', null, 'sessions'], ['intro_followup', null, 'sessions'], ['listing_request', null, 'sessions'], ['listing_joined', null, 'sessions'],
     ['follow', null, 'follows'], ['follow_request', null, 'follows'], ['follow_accept', null, 'follows'],
     ['payment_receipt', null, 'payments'], ['payment', null, 'payments'], ['platform_payment', null, 'payments'],
     ['score_accountability', null, 'score_drop'], ['score_commitment', null, 'score_drop'],

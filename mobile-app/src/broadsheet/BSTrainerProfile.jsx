@@ -281,6 +281,18 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // times, photos or checkout here (Codex P1 on #2484).
   const listed = providerState === 'ready' && !!provider;
   const providerId = listed ? provider.id : null;
+  // The times members asked of this listing before its coach was on Shape: read on the coach's own
+  // page, which the table's policy allows once the listing is theirs. Read once the listing read has
+  // settled, with its id or, for a listing not on the marketplace yet, none (the backend then reads
+  // the asks of the listings the coach owns; Codex on 19b138c).
+  const [asks, setAsks] = React.useState(null);
+  React.useEffect(() => {
+    setAsks(null);
+    if (!isSelf || sample || demo || providerState === 'loading' || !W.ShapeListingAsks?.forListing) return undefined;
+    let on = true;
+    W.ShapeListingAsks.forListing(role, providerId).then((r) => { if (on) setAsks(r && Array.isArray(r.rows) ? r : null); }).catch(() => { if (on) setAsks(null); });
+    return () => { on = false; };
+  }, [isSelf, providerId, providerState, role, demo]);
   const listedMedia = (listed && provider.listing_media) || { cover: null, gallery: [] };
   // A sample shows its listing's own photos when it has any, and the sample's where it has none.
   const media = sample
@@ -638,7 +650,11 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
             <div style={{ padding: `0 ${gutter}px 30px` }}>
               {tabNow === 'day' ? (
                 <DayTab t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} avail={avail} providerState={avail.sample ? 'ready' : providerState} isSelf={isSelf} first={first} words={words} nutri={nutri}
-                  introClosed={introClosed} onRetry={() => (providerState === 'error' ? setProviderEpoch : setAvailEpoch)((n) => n + 1)} onTake={isSelf || avail.sample ? null : (slot) => setSheet({ kind: 'book', slot })} onWork={() => setSheet({ kind: 'work' })} onHours={() => setPage('hours')} />
+                  introClosed={introClosed} onRetry={() => (providerState === 'error' ? setProviderEpoch : setAvailEpoch)((n) => n + 1)}
+                  // A sample time is asked for, kept against the listing for its coach (the owner,
+                  // 2026-10-29: "Request, saved for her"); a listing with no id has nothing to keep it on.
+                  onTake={isSelf ? null : avail.sample ? (providerId ? (slot) => setSheet({ kind: 'ask', slot }) : null) : (slot) => setSheet({ kind: 'book', slot })}
+                  asks={asks} asksLive={!!providerId} onWork={() => setSheet({ kind: 'work' })} onHours={() => setPage('hours')} />
               ) : tabNow === 'studio' ? (
                 <StudioTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} studio={studio} gallery={gallery} isSelf={isSelf} first={first}
                   work={studioWork} onPiece={(i) => setSheet({ kind: 'piece', i })} onDraw={() => openEdit('space')} />
@@ -682,6 +698,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
       {sheet && sheet.kind === 'book' ? (
         <BookSheet t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} slot={sheet.slot} introMin={avail.introMin || 15} first={first} name={name} role={role}
           coach={cm && cm.commerceCoach} onClose={() => setSheet(null)} onRefresh={() => setAvailEpoch((n) => n + 1)} />
+      ) : null}
+      {sheet && sheet.kind === 'ask' ? (
+        <AskSheet t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} slot={sheet.slot} introMin={avail.introMin || 15} first={first} role={role} providerId={providerId}
+          onClose={() => setSheet(null)} />
       ) : null}
       {sheet && sheet.kind === 'piece' && studio && studio.items[sheet.i] ? (
         <PieceSheet t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} INK={INK} studio={studio} i={sheet.i} work={studioWork[sheet.i]} programs={programs}
@@ -760,7 +780,7 @@ function RecipeOverlay({ t, tr, recipe, onClose }) {
 }
 
 // ── Her day ─────────────────────────────────────────────────────────────────────────────────
-function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, providerState, isSelf, first, words, nutri = false, introClosed, onRetry, onTake, onWork, onHours }) {
+function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, providerState, isSelf, first, words, nutri = false, introClosed, onRetry, onTake, asks = null, asksLive = false, onWork, onHours }) {
   const today = new Date();
   const days = Array.from({ length: 7 }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + i));
   const [pick, setPick] = React.useState(isoDay(today));
@@ -821,7 +841,7 @@ function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, provide
                 <span style={{ fontWeight: 600, fontSize: 15 }}>{tr('profile:trainer.open', { defaultValue: 'Open' })}</span>
                 <span style={{ fontSize: 13, color: ink(0.74) }}>{tr('profile:trainer.introLine', { defaultValue: 'A free {minutes}-minute intro call', minutes: avail.introMin })}</span>
               </span>
-              {onTake ? <span style={{ fontSize: 13, fontWeight: 600, color: ACC, whiteSpace: 'nowrap' }}>{tr('profile:trainer.take', { defaultValue: 'Take it →' })}</span> : null}
+              {onTake ? <span style={{ fontSize: 13, fontWeight: 600, color: ACC, whiteSpace: 'nowrap' }}>{avail.sample ? tr('profile:trainer.ask', { defaultValue: 'Ask for it →' }) : tr('profile:trainer.take', { defaultValue: 'Take it →' })}</span> : null}
             </button>
           ) : (
             <div key={'b' + i} data-busy-time="" style={{ minHeight: 48, padding: '8px 12px', background: t.PAPER2, display: 'flex', alignItems: 'center', gap: 12, borderLeft: r.at <= now && (r.end || 0) > now ? `3px solid ${ACC}` : '3px solid transparent' }}>
@@ -837,6 +857,7 @@ function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, provide
   }
   return (
     <section style={{ paddingTop: 16 }}>
+      {isSelf && asks && asks.rows.length ? <AsksList t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} asks={asks.rows} total={asks.total} live={asksLive} onHours={avail.kind === 'ready' && !avail.hasHours ? onHours : null} /> : null}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.thisWeek', { defaultValue: 'This week · open times' })}</span>
         <span style={{ fontSize: 12, color: ink(0.6) }}>{tr('profile:trainer.tapDay', { defaultValue: 'Tap a day' })}</span>
@@ -865,6 +886,90 @@ function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, provide
 const linkBtn = (ACC, DISPLAY) => ({ marginTop: 6, minHeight: 40, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 14.5, fontWeight: 600, cursor: 'pointer' });
 function Hint({ ink, children }) {
   return <p style={{ margin: '14px 0 0', fontSize: 14, lineHeight: 1.5, color: ink(0.7) }}>{children}</p>;
+}
+
+// ── Times asked before the coach was on Shape ───────────────────────────────────────────────
+// On the coach's own page: what members asked of their listing while it was a sample, by time. They
+// were told the coach is on Shape when the listing became theirs (listing-requests.ts tellAskers).
+function AsksList({ t, tr, locale, ACC, ink, DISPLAY, MONO, asks, total, live, onHours }) {
+  const now = Date.now();
+  const count = Math.max(total || 0, asks.length);
+  const when = (ms) => { try { return new Date(ms).toLocaleString(locale, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } };
+  return (
+    <div data-asks="" style={{ marginBottom: 18, padding: '12px 14px', border: `1px solid ${ink(0.18)}`, borderLeft: `3px solid ${ACC}` }}>
+      <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.asksTitle', { defaultValue: 'Asked for before you joined' })}</span>
+      {/* The members who asked are told when the listing goes live on the marketplace (the trigger
+          on listing_ready), so until then the line says they will be (Codex on af3756e). */}
+      <p data-asks-live={live ? 'yes' : 'no'} style={{ margin: '6px 0 0', fontSize: 13.5, lineHeight: 1.45, color: ink(0.74) }}>{live
+        ? tr('profile:trainer.asksSub', { defaultValue: '{count, plural, one {# time was} other {# times were}} asked of your listing while you weren\'t on Shape. Each member who asked has been told you\'re here now.', count })
+        : tr('profile:trainer.asksSubPending', { defaultValue: '{count, plural, one {# time was} other {# times were}} asked of your listing while you weren\'t on Shape. Each member who asked is told you\'re here once your listing is live.', count })}</p>
+      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column' }}>
+        {asks.map((a) => (
+          <div key={a.id} data-ask="" style={{ padding: '8px 0', borderTop: `1px solid ${ink(0.1)}`, opacity: a.at < now ? 0.55 : 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
+              <span style={{ fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK }}>{a.name || tr('profile:trainer.askMember', { defaultValue: 'A member' })}</span>
+              <span style={{ fontFamily: MONO, fontSize: 11.5, color: ink(0.7), whiteSpace: 'nowrap' }}>{when(a.at)}{a.at < now ? ` · ${tr('profile:trainer.askPassed', { defaultValue: 'passed' })}` : ''}</span>
+            </div>
+            {a.note ? <p style={{ margin: '3px 0 0', fontSize: 13.5, lineHeight: 1.45, color: ink(0.78), whiteSpace: 'pre-wrap' }}>{a.note}</p> : null}
+          </div>
+        ))}
+      </div>
+      {onHours ? <button type="button" onClick={onHours} style={linkBtn(ACC, DISPLAY)}>{tr('profile:trainer.asksSetHours', { defaultValue: 'Set your hours so they can book' })} →</button> : null}
+    </div>
+  );
+}
+
+// ── Ask for a sample time ───────────────────────────────────────────────────────────────────
+// The coach isn't on Shape yet: the time is asked for, kept against their listing, and Shape is told.
+// Nothing is booked. The member hears when the coach is on Shape.
+const ASK_ERRORS = {
+  claimed: ['profile:trainer.askClaimed', '{name} is on Shape now. Book a time on their listing.'],
+  too_many: ['profile:trainer.askTooMany', "You've asked {name} for 3 times already. You'll hear when they join."],
+  daily_cap: ['profile:trainer.askDailyCap', "You've asked for a lot of times today. Try again tomorrow."],
+  time_past: ['profile:trainer.askPast', 'That time has passed. Pick a later one.'],
+};
+function AskSheet({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, slot, introMin, first, role, providerId, onClose }) {
+  const [state, setState] = React.useState({ kind: 'ask' });
+  const [note, setNote] = React.useState('');
+  const when = (() => { try { return new Date(slot.at).toLocaleString(locale, { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } })();
+  const ask = async () => {
+    if (state.kind === 'busy') return;
+    if (window.bsRequireAccount && !window.bsRequireAccount('ask for a time')) return;
+    setState({ kind: 'busy' });
+    try {
+      await window.ShapeListingAsks.ask({ role, providerId, at: slot.at, durationMin: introMin, note: note.trim() });
+      setState({ kind: 'done' });
+    } catch (error) {
+      const known = ASK_ERRORS[error && error.code];
+      setState({ kind: 'err', message: known ? tr(known[0], { defaultValue: known[1], name: first }) : tr('profile:trainer.askFailed', { defaultValue: "Couldn't send your ask. Try again." }) });
+    }
+  };
+  return (
+    <Sheet t={t} label={tr('profile:trainer.askTitle', { defaultValue: 'Ask for this time' })} onClose={onClose}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0, fontFamily: DISPLAY, fontWeight: 500, fontSize: 22 }}>{state.kind === 'done' ? tr('profile:trainer.asked', { defaultValue: 'Asked' }) : tr('profile:trainer.askTitle', { defaultValue: 'Ask for this time' })}<span style={{ color: ACC }}>.</span></h2>
+        <CloseX onClose={onClose} color={t.INK} label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
+      </div>
+      <p style={{ margin: '4px 0 0', fontSize: 15 }}>{when}</p>
+      {state.kind === 'done' ? (
+        <>
+          <p data-ask-done="" style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.5, color: ink(0.74) }}>{tr('profile:trainer.askedBody', { defaultValue: "{name} isn't on Shape yet. Shape has kept your ask, and you'll hear when {name} joins.", name: first })}</p>
+          <button type="button" onClick={onClose} style={{ marginTop: 16, width: '100%', minHeight: 50, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.done', { defaultValue: 'Done' })}</button>
+        </>
+      ) : (
+        <>
+          <p style={{ margin: '4px 0 0', fontSize: 13.5, lineHeight: 1.5, color: ink(0.64) }}>{tr('profile:trainer.askSub', { defaultValue: "{name} isn't on Shape yet, so this time isn't booked. Ask for it and Shape keeps it for {name}: you'll hear when they join. A free {minutes}-minute intro.", name: first, minutes: introMin })}</p>
+          <textarea data-ask-note="" value={note} maxLength={500} rows={3} onChange={(e) => setNote(e.target.value)} aria-label={tr('profile:trainer.askNotePh', { defaultValue: 'Anything {name} should know (optional)', name: first })}
+            placeholder={tr('profile:trainer.askNotePh', { defaultValue: 'Anything {name} should know (optional)', name: first })}
+            style={{ marginTop: 12, width: '100%', boxSizing: 'border-box', padding: 10, border: `1px solid ${ink(0.22)}`, background: 'transparent', color: t.INK, fontFamily: 'inherit', fontSize: 14.5, lineHeight: 1.4, resize: 'vertical' }} />
+          {state.kind === 'err' ? <p role="alert" style={{ margin: '10px 0 0', fontSize: 13.5, color: t.RUST || '#c0533b' }}>{state.message}</p> : null}
+          <button type="button" data-ask-time="" onClick={ask} disabled={state.kind === 'busy'} style={{ marginTop: 14, width: '100%', minHeight: 52, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: state.kind === 'busy' ? 'default' : 'pointer', opacity: state.kind === 'busy' ? 0.6 : 1 }}>
+            {state.kind === 'busy' ? tr('profile:trainer.asking', { defaultValue: 'Asking…' }) : tr('profile:trainer.askCta', { defaultValue: 'Ask for this time' })}
+          </button>
+        </>
+      )}
+    </Sheet>
+  );
 }
 
 // ── Book an open time ───────────────────────────────────────────────────────────────────────

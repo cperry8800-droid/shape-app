@@ -113,7 +113,7 @@
   "view.kicker": "Bölüm · Takvim",
   "client.kicker": "Takvim · {name}",
   "client.fallbackName": "Danışan",
-  "client.note": "İki koçun planları: antrenman, öğünler ve randevular. Yalnızca görüntüleme.",
+  "client.note": "Tüm koçların planları: antrenman, öğünler ve randevular. Yalnızca görüntüleme.",
   "view.label": "Takvim görünümü",
   "view.month": "Ay",
   "view.weeks": "Haftalar",

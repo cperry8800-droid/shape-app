@@ -113,7 +113,7 @@
   "view.kicker": "Section · Calendar",
   "client.kicker": "Calendar · {name}",
   "client.fallbackName": "Client",
-  "client.note": "Both coaches’ plans: training, meals and bookings. Read only.",
+  "client.note": "Every coach’s plans: training, meals and bookings. Read only.",
   "view.label": "Calendar view",
   "view.month": "Month",
   "view.weeks": "Weeks",

@@ -117,8 +117,8 @@ export function BSNoraHint({ t }) {
         boxShadow: '0 10px 28px rgba(0,0,0,0.32)',
       }}>
         <span aria-hidden style={{ position: 'absolute', top: -6, right: place ? place.arrowRight : 10, width: 12, height: 12, borderRadius: 2, background: teal, transform: 'rotate(45deg)' }} />
-        <span style={{ fontWeight: 700 }}>{tr('home:noraHint.title', { defaultValue: 'Meet Nora.' })}</span>
-        {' '}{tr('home:noraHint.body', { defaultValue: 'Tap ✦ any time to ask her about your plan, your food or the app.' })}
+        <span style={{ fontWeight: 700 }}>{tr('home:noraHint.title', { defaultValue: 'Ask Nora anything about Shape.' })}</span>
+        {' '}{tr('home:noraHint.body', { defaultValue: 'Tap ✦ any time.' })}
         <div>
           <button type="button" onClick={close} style={{
             minHeight: 40, margin: '2px 0 0 -10px', padding: '0 10px', border: 0, background: 'transparent',

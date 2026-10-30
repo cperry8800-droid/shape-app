@@ -113,7 +113,7 @@
   "view.kicker": "Seção · Calendário",
   "client.kicker": "Calendário · {name}",
   "client.fallbackName": "Cliente",
-  "client.note": "Os planos dos dois coaches: treino, refeições e agendamentos. Somente leitura.",
+  "client.note": "Os planos de todos os coaches: treino, refeições e agendamentos. Somente leitura.",
   "view.label": "Visualização do calendário",
   "view.month": "Mês",
   "view.weeks": "Semanas",

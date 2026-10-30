@@ -5986,6 +5986,71 @@ window.ShapeBookings = {
   setCapacity: setProviderCapacity,
 };
 
+// A time asked of a coach who isn't on Shape yet: a seeded listing's sample time (src/lib/listing-requests.ts).
+// The route takes the account from the Bearer token, as a booking does. A refusal carries the
+// route's code (claimed, too_many, daily_cap, time_past…) for the sheet to say in the member's language.
+async function askListingTime({ role, providerId, at, durationMin, note = '' }) {
+  const token = state.user?.id ? await liveAccessToken() : null;
+  if (!token) throw Object.assign(new Error('Sign in to ask for a time.'), { code: 'signed_out' });
+  const res = await fetch(`${apiBaseUrl || ''}/api/listing-requests`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ role, providerId: Number(providerId), at: new Date(Number(at)).toISOString(), durationMin, note: String(note || '') }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok || !d?.ok) throw Object.assign(new Error(d?.error || 'Could not ask for that time.'), { code: d?.code || null });
+  return { already: !!d.already };
+}
+
+// The asks on a listing this account owns, with the members' names (get_display_names). The table's
+// policy hands them to the listing's owner only, once the listing is theirs.
+// The coach's list of what was asked of their listing: the times still to come, soonest first, then
+// those already passed, newest first, ASKS_SHOWN in all; and how many were asked in all (Codex on
+// 126c626: the first 100 by time alone could all be long past, and the count stopped at 100).
+const ASKS_SHOWN = 100;
+async function listingAsks(role, providerId) {
+  const me = state.user?.id;
+  if (!supabase || !me) return { rows: [], total: 0 };
+  const id = Number(providerId) > 0 ? Number(providerId) : null;
+  const nowIso = new Date().toISOString();
+  // By the listing's id when the page has one. A listing the coach owns but that isn't on the
+  // marketplace yet (payouts, a price or a photo still missing: listing_ready) has no public id, so
+  // then the asks are those the row policy shows them other than their own as a member: the asks of
+  // the listings they own (Codex on 19b138c).
+  const ofListing = (cols, opts) => {
+    const q = supabase.from('listing_time_requests').select(cols, opts).eq('provider_role', role);
+    return id ? q.eq('provider_id', id) : q.neq('member_id', me);
+  };
+  const COLS = 'id, member_id, slot_start, duration_min, note, created_at';
+  const [ahead, all] = await Promise.all([
+    ofListing(COLS).gte('slot_start', nowIso).order('slot_start', { ascending: true }).limit(ASKS_SHOWN),
+    ofListing('id', { count: 'exact', head: true }),
+  ]);
+  if (ahead.error) throw ahead.error;
+  if (all.error) throw all.error;
+  let rows = ahead.data || [];
+  if (rows.length < ASKS_SHOWN) {
+    const past = await ofListing(COLS).lt('slot_start', nowIso).order('slot_start', { ascending: false }).limit(ASKS_SHOWN - rows.length);
+    if (past.error) throw past.error;
+    rows = rows.concat(past.data || []);
+  }
+  const ids = [...new Set(rows.map((r) => r.member_id).filter(Boolean))];
+  let names = {};
+  if (ids.length) {
+    try {
+      const { data: found, error: namesError } = await supabase.rpc('get_display_names', { p_ids: ids });
+      if (!namesError) names = (found || []).reduce((acc, r) => { if (r && r.user_id && r.full_name) acc[r.user_id] = r.full_name; return acc; }, {});
+    } catch { /* unnamed: the list says "A member" */ }
+  }
+  return {
+    rows: rows.map((r) => ({ id: r.id, memberId: r.member_id, name: names[r.member_id] || '', at: Date.parse(r.slot_start), durationMin: r.duration_min, note: r.note || '' })),
+    total: Math.max(Number(all.count) || 0, rows.length),
+  };
+}
+
+window.ShapeListingAsks = { ask: askListingTime, forListing: listingAsks };
+
 // Coaches have Standard Stripe accounts, so payouts, schedule and statements are in their own
 // Stripe dashboard (the website's Business page links the same place).
 window.ShapeCoachBusiness = {

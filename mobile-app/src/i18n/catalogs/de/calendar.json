@@ -113,7 +113,7 @@
   "view.kicker": "Rubrik · Kalender",
   "client.kicker": "Kalender · {name}",
   "client.fallbackName": "Klient",
-  "client.note": "Die Pläne beider Coaches: Training, Mahlzeiten und Termine. Nur zum Ansehen.",
+  "client.note": "Die Pläne aller Coaches: Training, Mahlzeiten und Termine. Nur zum Ansehen.",
   "view.label": "Kalenderansicht",
   "view.month": "Monat",
   "view.weeks": "Wochen",
