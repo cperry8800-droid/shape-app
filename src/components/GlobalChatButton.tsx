@@ -92,6 +92,15 @@ export function keepNoraExchange(question: string, reply: string, account: strin
   }).catch(() => {});
 }
 
+// Where the floating button stays off. The homepage and its preview draw their own Nora. The
+// /connect pages are the installed app's in-app browser, sent there to sign in to a music
+// service and come back (src/lib/integration-handoff.ts): a chat button floating over that
+// sign-in is not something to open, and it was showing there.
+export function noraButtonHidden(pathname: string | null | undefined): boolean {
+  const p = String(pathname || '');
+  return p === '/' || p === '/intro-preview' || p === '/connect' || p.startsWith('/connect/');
+}
+
 export default function GlobalChatButton() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -127,7 +136,7 @@ export default function GlobalChatButton() {
       .catch(() => {});
   }, [open, greeted]);
 
-  if (pathname === '/' || pathname === '/intro-preview') {
+  if (noraButtonHidden(pathname)) {
     return null;
   }
 

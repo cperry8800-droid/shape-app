@@ -189,7 +189,7 @@
         }
       }
     }
-    return out.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    return out.sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
   }
 
   // ⚠ ONE RULE FOR WHICH COPY OF A DISH WINS, wherever two lists of the coach's own
@@ -210,7 +210,7 @@
         seen[k] = rec; out.push(rec);
       }
     }
-    return out.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    return out.sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
   }
   // ⚠ THE OPEN DOCUMENT GOES FIRST, AND THAT DECISION LIVES HERE RATHER THAN IN THE
   // COMPONENT. What the nutritionist typed a moment ago is the current truth about that

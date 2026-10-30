@@ -335,7 +335,7 @@
         }
       }
     }
-    return out.sort(function (a, b2) { return a.name.localeCompare(b2.name); });
+    return out.sort(function (a, b2) { return String(a.name).localeCompare(String(b2.name)); });
   }
 
   // The twin of `mergeOwnFoods`: the EARLIER list keeps identity, `mergeMoveInto` fills
@@ -354,7 +354,7 @@
         seen[k] = rec; out.push(rec);
       }
     }
-    return out.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    return out.sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
   }
   // ⚠ THE OPEN DOCUMENT GOES FIRST, and the decision lives here rather than in the
   // component for the reason `ownFoodsFor` records: in a memo the order is one array

@@ -2988,34 +2988,6 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   );
 }
 
-// ── Performance zone ─────────────────────────────────────────────────────────
-function DbuPerformance({ template, live }) {
-  const perf = live ? null : DashBuilder.demoPerformance(template.id);
-  if (!perf) {
-    return <div style={{ fontSize: 12.5, color: DBU_INK50, lineHeight: 1.55 }}>Performance tracks from your first assignment of this template — subscriber, completion, and drop-off data appear once clients run it.</div>;
-  }
-  const max = Math.max(...perf.retention, 1);
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 22, marginBottom: 12 }}>
-        <div><div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 24, lineHeight: 1 }}>{perf.subscribers}</div><div style={{ fontFamily: DBU_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DBU_INK50, marginTop: 4 }}>Active subscribers</div></div>
-        <div><div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 24, lineHeight: 1 }}>{perf.completion}%</div><div style={{ fontFamily: DBU_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DBU_INK50, marginTop: 4 }}>Completion rate</div></div>
-      </div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 64 }}>
-        {perf.retention.map((v, i) => (
-          <div key={i} title={"Week " + (i + 1) + " · " + v + "% retained"} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, height: "100%", justifyContent: "flex-end" }}>
-            <div style={{ width: "100%", height: Math.round((v / max) * 100) + "%", background: v >= 70 ? "var(--sh-accent, #2ee0c4)" : v >= 50 ? "var(--sh-gold, #d8a23a)" : "var(--sh-rust, #e0644b)", borderRadius: 1, opacity: 0.85 }} />
-            <span style={{ fontFamily: DBU_MONO, fontSize: 7, color: DBU_INK50 }}>W{i + 1}</span>
-          </div>
-        ))}
-      </div>
-      <div style={{ fontFamily: DBU_MONO, fontSize: 8.5, letterSpacing: "0.08em", color: DBU_INK50, marginTop: 8 }}>
-        Per-week retention · drop-off at {(() => { let worst = 1, drop = 0; for (let i = 1; i < perf.retention.length; i++) { const d = perf.retention[i - 1] - perf.retention[i]; if (d > drop) { drop = d; worst = i + 1; } } return "week " + worst + " (−" + drop + " pts)"; })()}
-      </div>
-    </div>
-  );
-}
-
 // ── The page ─────────────────────────────────────────────────────────────────
 // The facts line on a library card: what the program trains and what it needs, in the
 // filters' own words so a coach can see why a card matched. "Full body" stands in for
@@ -3192,4 +3164,4 @@ function TrainerProgramsPage() {
   </React.Fragment>;
 }
 
-Object.assign(window, { TrainerProgramsPage, DbuBuilder, DbuAssignModal, DbuPerformance });
+Object.assign(window, { TrainerProgramsPage, DbuBuilder, DbuAssignModal });
