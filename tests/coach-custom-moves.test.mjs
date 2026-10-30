@@ -485,8 +485,10 @@ test('Enter while an IME is composing does not create a move', async () => {
   await typeInto(input, 'Zercher squat');
   assert.ok(byText(/Add .*Zercher squat/), 'the fixture depends on this being creatable');
 
-  const key = (k, isComposing) => React.act(async () =>
-    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true, isComposing })));
+  // keyCode 229 is Safari's form: WebKit ends the composition before the keydown for the
+  // Enter that confirms it, so `isComposing` already reads false there (#2150's open item).
+  const key = (k, isComposing, keyCode) => React.act(async () =>
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true, isComposing, keyCode })));
 
   await key('Enter', true);
   assert.ok(!/Selected/.test(document.body.textContent), 'the IME kept its Enter');
@@ -496,6 +498,10 @@ test('Enter while an IME is composing does not create a move', async () => {
   // closes the dialog is the listener it bubbles up to — which had no guard, so the
   // fix was passing while the behaviour it claims was still wrong.
   assert.equal(closed, 0, 'and its Escape — through every handler the key reaches');
+  await key('Enter', false, 229);
+  assert.ok(!/Selected/.test(document.body.textContent), 'Safari\'s form of the Enter is the IME\'s too');
+  await key('Escape', false, 229);
+  assert.equal(closed, 0, 'and of the Escape, in the picker and in DbuDialog');
 
   await key('Enter', false);
   assert.match(document.body.textContent, /Selected/, 'and an ordinary Enter still creates the move');
@@ -513,8 +519,10 @@ test('Enter while an IME is composing does not create a food either', async () =
   const input = document.querySelector('input[placeholder^="Search foods"]');
   await typeInto(input, 'Jollof rice');
   assert.ok(byText(/Add .*Jollof rice/), 'the fixture depends on this being creatable');
-  const key = (k, isComposing) => React.act(async () =>
-    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true, isComposing })));
+  // keyCode 229 is Safari's form: WebKit ends the composition before the keydown for the
+  // Enter that confirms it, so `isComposing` already reads false there (#2150's open item).
+  const key = (k, isComposing, keyCode) => React.act(async () =>
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true, isComposing, keyCode })));
 
   await key('Enter', true);
   assert.equal(picked.length, 0, 'the IME kept its Enter');
@@ -522,6 +530,10 @@ test('Enter while an IME is composing does not create a food either', async () =
   // ⚠ UNLIKE THE EXERCISE PICKER, THIS ONE IS NOT INSIDE `DbuDialog` — it is a popover,
   // so its own handler is the whole story and there is no second Escape path.
   assert.equal(closed, 0, 'and its Escape');
+  await key('Enter', false, 229);
+  assert.equal(picked.length, 0, 'Safari\'s form of the Enter is the IME\'s too');
+  await key('Escape', false, 229);
+  assert.equal(closed, 0, 'and of the Escape');
 
   await key('Enter', false);
   assert.equal(picked.length, 1, 'and an ordinary Enter still creates the dish');

@@ -89,8 +89,10 @@ function DmbFoodPicker({ constraints, onPick, onClose, customFoods = [] }) {
           // ⚠ WHILE AN IME IS COMPOSING, THE KEYSTROKES BELONG TO THE IME. The Enter that
           // confirms a candidate would otherwise also create a half-composed name, and the
           // Escape that cancels one would close the picker — which on the workout side
-          // throws away every move ticked so far. Both are handed back to the IME.
-          if (e.nativeEvent && e.nativeEvent.isComposing) return;
+          // throws away every move ticked so far. Both are handed back to the IME. keyCode 229
+          // is Safari's form: WebKit ends the composition before the keydown for the Enter
+          // that confirms it, so `isComposing` already reads false there.
+          if (e.nativeEvent && (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229)) return;
           if (e.key === "Escape") onClose();
           if (e.key === "Enter" && canCreate) { e.preventDefault(); onPick(candidate); }
         }}

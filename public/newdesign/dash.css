@@ -820,8 +820,9 @@ button.dash-chip:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--
    the library filters added, the search and the builder tag picker's New tag, take the
    16px floor on a coarse pointer only, so the mouse keeps the smaller size. The same floor
    dashGrid.jsx keeps for its own controls (#2046, #2137); it lives here because the
-   library pages load dash.css and not dashGrid.jsx. */
-@media (pointer:coarse){ .dash-filter-search input, .dash-tag-new { font-size:16px !important; } }
+   library pages load dash.css and not dashGrid.jsx. The builder's own boxes (dbuField,
+   class dbu-field) take it too. */
+@media (pointer:coarse){ .dash-filter-search input, .dash-tag-new, .dbu-field { font-size:16px !important; } }
 .dash-filter-result { display:inline-flex; align-items:center; gap:10px; margin-left:auto; white-space:nowrap; }
 .dash-filter-count { font-family:var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size:10px; letter-spacing:.1em;
   text-transform:uppercase; color:var(--sh-ink2, #a09b94); white-space:nowrap; }

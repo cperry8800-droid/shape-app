@@ -86,7 +86,7 @@ function TerrainFeed({ d, owner }) {
     <div style={{ marginTop: 30 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <LvKicker>{d.feedLabel} · log</LvKicker>
-        {owner && <span style={{ fontFamily: lvMono, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: hexA(LV_INK, 0.4) }}>＋ Post</span>}
+        {owner && <LvPostButton c={c} />}
       </div>
       <div style={{ position: "relative", paddingLeft: 26 }}>
         <div style={{ position: "absolute", left: 6, top: 6, bottom: 10, width: 0, borderLeft: `1.5px dashed ${hexA(c, 0.4)}` }} />

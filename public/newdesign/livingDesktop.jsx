@@ -653,7 +653,7 @@ function FeedBlock({ d, direction, owner }) {
   const hidden = d.feed.length - shown.length;
   return (
     <div style={dStation()}>
-      <DStationHead c={c} label={`${d.feedLabel}${direction === "terrain" ? " · log" : ""}`} meta={owner ? "＋ Post" : null} />
+      <DStationHead c={c} label={`${d.feedLabel}${direction === "terrain" ? " · log" : ""}`} meta={owner ? <LvPostButton c={c} size={10} /> : null} />
       {shown.length === 0 && hidden === 0 && <DRedact label={d.feedStatus === "loading" ? "Loading activity…" : d.feedStatus === "error" ? "Activity unavailable right now" : "No activity yet"} />}
       {shown.map((it, i) => (
         <div key={i}>

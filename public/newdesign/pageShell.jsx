@@ -1439,6 +1439,21 @@ function useStaffLevel(authUser) {
 
 function Header({ active }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const burgerRef = React.useRef(null);
+  // ⚠ THE DRAWER IS THE NARROW SCREEN'S NAV, SO IT CLOSES WHEN THE SCREEN STOPS BEING ONE.
+  // Widened past the collapse width (1020px, or 1120 and 1170 for the wider signed-in
+  // headers), the burger hides and the tabs come back, but the drawer stayed open over
+  // them with the page's scroll still locked (#2158's open item). The burger's own
+  // display is the test, so each header's width holds without a copy of it here.
+  React.useEffect(() => {
+    if (!drawerOpen) return undefined;
+    const check = () => {
+      const b = burgerRef.current;
+      if (b && window.getComputedStyle(b).display === "none") setDrawerOpen(false);
+    };
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, [drawerOpen]);
   const [authUser, setAuthUser] = React.useState(() => window.ShapePortalSession?.peek()?.user || null);
   const [roleMenuOpen, setRoleMenuOpen] = React.useState(false);
   const [switchingRole, setSwitchingRole] = React.useState(null);
@@ -1628,7 +1643,7 @@ function Header({ active }) {
         <div className="shape-nav-bell" style={{ display: "none", alignItems: "center" }}>
           <DashInbox signedIn={!!authUser} role={authUser && authUser.role} roles={authUser && authUser.roles} inbox={inbox} />
         </div>
-        <button className="shape-nav-burger" aria-label="Open menu" onClick={() => setDrawerOpen(true)}
+        <button ref={burgerRef} className="shape-nav-burger" aria-label="Open menu" onClick={() => setDrawerOpen(true)}
           style={{ display: "none", background: "transparent", border: 0, color: INK, width: 40, height: 40, padding: 0, cursor: "pointer", alignItems: "center", justifyContent: "center" }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
         </button>
