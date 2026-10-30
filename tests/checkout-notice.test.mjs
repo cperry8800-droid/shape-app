@@ -58,9 +58,9 @@ function sentCodes() {
   const sources = ['src/app/purchase/actions.ts', 'src/app/subscribe/actions.ts', 'src/lib/membership-detour.ts', 'src/app/api/stripe/platform-checkout/route.ts'];
   for (const f of sources) {
     const src = read(f);
-    // Back to a page the shell renders: the coach's profile (backHref) or Pricing. `/?error=` and
-    // `/dashboard?error=` go to pages without it (and `/` carries no error on).
-    for (const m of src.matchAll(/(?:&|Pricing\.html\?)error=([a-z_]+)/g)) codes.add(m[1]);
+    // Back to a page the shell renders: the coach's profile (backHref), Marketplace or Pricing.
+    // `/?error=` and `/dashboard?error=` go to pages without it (and `/` carries no error on).
+    for (const m of src.matchAll(/(?:&|(?:Marketplace|Pricing)\.html\?)error=([a-z_]+)/g)) codes.add(m[1]);
     // A code chosen inline: `&error=${x === 'a' ? 'a' : 'b'}`.
     for (const m of src.matchAll(/&error=\$\{[^}]* \? '([a-z_]+)' : '([a-z_]+)'\}/g)) { codes.add(m[1]); codes.add(m[2]); }
   }
@@ -77,11 +77,32 @@ function sentCodes() {
 test('every error code the checkout returns with has a line', () => {
   const codes = sentCodes();
   // Vacuity: the scan has to be reading the actions.
-  for (const known of ['purchase_cancelled', 'subscribe_cancelled', 'provider_at_capacity', 'code_invalid', 'stripe_not_onboarded', 'membership_check_failed', 'checkout_in_progress']) {
+  for (const known of ['purchase_cancelled', 'subscribe_cancelled', 'membership_cancelled', 'invalid_purchase', 'invalid_subscribe', 'provider_at_capacity', 'code_invalid', 'stripe_not_onboarded', 'membership_check_failed', 'checkout_in_progress']) {
     assert.ok(codes.has(known), 'the scan no longer finds ' + known);
   }
   const missing = [...codes].filter((c) => !A.shapeCheckoutNotice(c));
   assert.deepEqual(missing, [], 'codes sent back with no line: ' + missing.join(', '));
+});
+
+test('no checkout comes back where nothing reads its code', () => {
+  // ⚠ /purchase and /subscribe sent a form missing its coach to `/?error=invalid_…`, and the root
+  // redirect carries no error on (carriedQuery), so the visitor landed on the homepage hearing
+  // nothing. They go to Marketplace, which the shell renders. And the membership detour's own
+  // Cancel came back to the profile with no code, so it said nothing.
+  for (const f of ['src/app/purchase/actions.ts', 'src/app/subscribe/actions.ts', 'src/lib/membership-detour.ts']) {
+    assert.doesNotMatch(read(f), /redirect\(['`]\/\?error=/, f);
+  }
+  assert.match(read('src/app/purchase/actions.ts'), /redirect\('\/newdesign\/Marketplace\.html\?error=invalid_purchase'\)/);
+  assert.match(read('src/app/subscribe/actions.ts'), /redirect\('\/newdesign\/Marketplace\.html\?error=invalid_subscribe'\)/);
+  assert.match(read('src/lib/membership-detour.ts'), /cancelPath: `\$\{backHref\}&error=membership_cancelled`/);
+  const p = page('?error=invalid_purchase', { path: '/newdesign/Marketplace.html' });
+  assert.equal(p.box && p.box.attrs.role, 'alert');
+  assert.match(p.text, /didn't start\. Nothing was charged\. Choose the coach again\./);
+  assert.deepEqual(p.replaced, ['/newdesign/Marketplace.html']);
+  const back = page('?u=abc&role=trainer&error=membership_cancelled');
+  assert.equal(back.box && back.box.attrs.role, 'status');
+  assert.match(back.text, /Membership checkout cancelled, so coaching didn't start\. Nothing was charged\./);
+  assert.deepEqual(back.replaced, ['/newdesign/MemberProfile.html?u=abc&role=trainer']);
 });
 
 test('where another checkout may be open or paid, the line never says nothing was charged', () => {
@@ -113,7 +134,7 @@ test('a database or Stripe failure shows the plain line, never its own message',
 });
 
 test('only the checkout codes are read', () => {
-  for (const other of ['access_denied', 'server_error', 'invalid_purchase', 'constructor', '__proto__', 'toString', '', null, undefined]) {
+  for (const other of ['access_denied', 'server_error', 'invalid_request', 'constructor', '__proto__', 'toString', '', null, undefined]) {
     assert.equal(A.shapeCheckoutNotice(other), null, String(other));
   }
 });

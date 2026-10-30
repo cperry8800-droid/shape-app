@@ -30,7 +30,9 @@ export async function membershipDetour(opts: {
   if (!priceId) return `${backHref}&error=membership_required`;
   try {
     const customerId = await stripeCustomerFor(user.id, email);
-    const result = await createPlatformCheckout({ priceId, userId: user.id, customerId, email, origin, next: backHref, cancelPath: backHref });
+    // Its Cancel comes back to the profile saying so (pageShell.jsx's notices); with no code it
+    // landed there without a word.
+    const result = await createPlatformCheckout({ priceId, userId: user.id, customerId, email, origin, next: backHref, cancelPath: `${backHref}&error=membership_cancelled` });
     // Paid moments ago and our row not written yet (Codex on #2353): no second membership.
     if (result.alreadyMember) return `${backHref}&member=pending`;
     return result.url ?? `${backHref}&error=membership_required`;

@@ -851,6 +851,8 @@ test('membershipDetour: a member goes on; anyone else is sent to the $5 checkout
   assert.equal(join_.out, 'https://checkout.stripe.test/cs_test_platform1');
   assert.equal(join_.created[0].customer, 'cus_stable');
   assert.equal(join_.created[0].success_url, returnUrl('/newdesign/MemberProfile.html?u=abc'));
+  // Its Cancel comes back to the coach saying so (pageShell.jsx's membership_cancelled).
+  assert.equal(join_.created[0].cancel_url, 'https://shape.test/newdesign/MemberProfile.html?u=abc&error=membership_cancelled');
   assert.equal((await runDetour({ profile: MINOR })).out, '/newdesign/MemberProfile.html?u=abc&error=age_restricted');
   assert.equal((await runDetour({ errors: { platform_subscriptions: PG_FAIL } })).out, '/newdesign/MemberProfile.html?u=abc&error=membership_check_failed', 'a failed read never reads as "not a member"');
   const paid = await runDetour({ stripeSubs: [stripeSub({ client_id: UID, plan: 'shape_platform' })] });

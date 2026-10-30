@@ -3247,7 +3247,8 @@ window.shapeClearLocalUserContent = function (opts) {
 // ── Checkout notices ─────────────────────────────────────────────────────────
 // ⚠ A CHECKOUT THAT DIDN'T START SAID NOTHING. /purchase, /subscribe and the membership detour
 // (src/lib/membership-detour.ts) send the visitor back to the coach's profile with `&error=<code>`,
-// Stripe's Cancel comes back the same way, and the membership checkout's Cancel lands on Pricing
+// Stripe's Cancel comes back the same way (the detour's own with membership_cancelled), a form
+// missing its coach lands on Marketplace, and the membership checkout's Cancel lands on Pricing
 // with `?error=subscribe_cancelled`. No page read the code, so a visitor whose coach was full, or
 // whose code was refused, was put back on the profile without a word. The shell shows the code's
 // line on every page it renders, once: the code leaves the address, so a reload or a shared link
@@ -3257,6 +3258,7 @@ const SHAPE_CHECKOUT_FAILED = "Checkout couldn't start. Nothing was charged. Try
 const SHAPE_CHECKOUT_NOTICES = {
   purchase_cancelled: ["info", "Checkout cancelled. Nothing was charged."],
   subscribe_cancelled: ["info", "Checkout cancelled. Nothing was charged."],
+  membership_cancelled: ["info", "Membership checkout cancelled, so coaching didn't start. Nothing was charged."],
   already_subscribed: ["info", "You already subscribe to this coach, so nothing new was charged."],
   // ⚠ NOT "NOTHING WAS CHARGED" (Codex on #2522): the claim can stay held for up to 60 seconds after
   // the request that won it has sent the member to Stripe (checkout-barrier.ts), so that checkout
@@ -3278,6 +3280,8 @@ const SHAPE_CHECKOUT_NOTICES = {
   membership_required: ["error", "Coaching needs a Shape membership, and it couldn't be started from here. Nothing was charged. Start one on the Pricing page."],
   membership_check_failed: ["error", "We couldn't check your Shape membership. Nothing was charged. Try again in a moment."],
   age_restricted: ["error", "Shape is for adults 18 and over."],
+  invalid_purchase: ["error", "That checkout didn't say which coach or plan, so it didn't start. Nothing was charged. Choose the coach again."],
+  invalid_subscribe: ["error", "That checkout didn't say which coach, so it didn't start. Nothing was charged. Choose the coach again."],
   checkout_failed: ["error", SHAPE_CHECKOUT_FAILED],
   waitlist_check_failed: ["error", SHAPE_CHECKOUT_FAILED],
   screening_check_failed: ["error", SHAPE_CHECKOUT_FAILED],
