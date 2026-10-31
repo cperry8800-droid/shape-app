@@ -42,6 +42,9 @@ function loadScreen(win, now = NOW) {
   const ctx = {
     React: SHIM, window: win, Date: AtDate, Intl, setTimeout: () => 0,
     useBS: () => THEME, useShapeTr: () => tr, useBSProClientHeat: () => '#c0533b', useStateBSP: SHIM.useState,
+    // The clean type (2026-10-31): the theme and its box, the faces and the button styles.
+    useBSProClean: () => THEME, BSProCleanType: pass, BS_PRO_SANS: 'sans', BS_PRO_HEAD: 'head',
+    bsProPrimaryBtn: () => ({}), bsProQuietBtn: () => ({}), bsProNote: () => ({}), bsProOverline: () => ({}), bsProCard: () => ({}),
     BSPage: pass, BSFooter: () => null, BSProActionHead: () => null, BSProClientMini: () => null, BSProActionSec: () => null,
     // The chips and the segment are the module's own components; the tests pick through their onPick.
     BSProChips: (p) => SHIM.createElement('div', p), BSProSegment: (p) => SHIM.createElement('div', p),
@@ -128,7 +131,8 @@ test('app coach: the screen opens on a time still ahead, and never sends one alr
   // Codex, #2233: opened after 9:00 it sat on 9:00, disabled but selected, and the first Add was refused.
   const calls = [];
   const win = { ShapeSessions: { createCoachSession: async (b) => { calls.push(JSON.parse(JSON.stringify(b))); return { ok: true }; } } };
-  const pressed = (d) => d.nodes().filter((n) => n.type === 'button' && /1c$/.test(String(n.props.style && n.props.style.background))).map((n) => textOf(n).trim());
+  // The chosen day and time say so (aria-pressed); they are drawn in ink since the clean type (2026-10-31).
+  const pressed = (d) => d.nodes().filter((n) => n.type === 'button' && n.props['aria-pressed'] === true).map((n) => textOf(n).trim());
   const at10 = drive(loadScreen(win), { client: { n: 'Priya Shah' }, role: 'trainer', clientUid: 'member-1', onBack() {} });
   assert.deepEqual(pressed(at10), ['WED7', '11:30'], 'at 10:00 it opens today at 11:30');
   at10.click('Add to calendar');
