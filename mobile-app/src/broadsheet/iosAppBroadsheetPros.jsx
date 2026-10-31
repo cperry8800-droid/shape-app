@@ -2348,14 +2348,17 @@ function bsRosterSeverity(c, role) {
 // severities, directives). Builders take the theme so avatar colors stay
 // theme-aware; `s` status drives bsRosterSeverity. When a live roster lands,
 // point both consumers at it.
+// A sample's attendance is a whole number of sessions out of the case file's 25 (a multiple of 4%), so
+// the Clients page, the case file's figure and its "23/25 sessions" agree (Codex on #2534: 91% beside
+// 23/25, which is 92%).
 function bsTrainerDemoRoster(t) {
   return [
     { i: 'S', c: t.GREEN,  n: 'Sofia Martinez', prog: 'Hypertrophy',        streak: 14, r: 'BUILD · W6',  d: 'JUST NOW', s: 'on track',    active: true, adh: 96 },
-    { i: 'A', c: t.RUST,   n: 'Alex Rivera',    prog: 'Push / Pull / Legs', streak: 8,  r: 'CUT · W6',    d: '2H AGO',   s: 'on track',    active: true, adh: 91 },
+    { i: 'A', c: t.RUST,   n: 'Alex Rivera',    prog: 'Push / Pull / Legs', streak: 8,  r: 'CUT · W6',    d: '2H AGO',   s: 'on track',    active: true, adh: 92 },
     { i: 'P', c: '#8a5cf6',n: 'Priya Singh',    prog: 'Fat Loss 101',       streak: 0,  r: 'CUT · W3',    d: '3D AGO',   s: 'missed',      active: true, adh: 40 },
     { i: 'M', c: t.AMBER,  n: 'Marcus Lee',     prog: 'Intro Block',        streak: 3,  r: 'INTAKE',      d: 'NEW',      s: 'onboard',     active: true },
     { i: 'J', c: t.BLUE,   n: 'Jamal Green',    prog: 'Strength',           streak: 21, r: 'PEAK · W11',  d: '1D AGO',   s: 'pr',          active: true, adh: 100 },
-    { i: 'R', c: t.AMBER,  n: 'Riley Kim',      prog: 'Cut Block',          streak: 6,  r: 'CUT · W8',    d: '1D AGO',   s: 'review form', active: true, adh: 78 },
+    { i: 'R', c: t.AMBER,  n: 'Riley Kim',      prog: 'Cut Block',          streak: 6,  r: 'CUT · W8',    d: '1D AGO',   s: 'review form', active: true, adh: 80 },
     { i: 'Q', c: t.BLUE,   n: 'Quinn Choi',     prog: 'Build Phase',        streak: 11, r: 'BUILD · W2',  d: '3D AGO',   s: 'on track',    active: true, adh: 88 },
     { i: 'D', c: t.AMBER,  n: 'Devon Pierce',   prog: 'Strength',           streak: 9,  r: 'BUILD · W9',  d: '2D AGO',   s: 'deload soon', active: true, adh: 84 },
     { i: 'B', c: t.INK50,  n: 'Bailey Cruz',    prog: 'Finished block',     streak: 0,  r: 'PAST · finished block', d: '6W AGO', s: 'past', active: false },

@@ -62,7 +62,7 @@ W.BSTLedgerStat = ({ label }) => React.createElement('div', { 'data-old-ledger':
 
 const PROS = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), {
   registry: new Map([['react', React], ['react-dom', { createPortal: (n) => n }]]),
-  appendExports: 'export { BSProClientFullProfilePage, BSProAdjustProgram, BSProScheduleSession, bsNutriDemoRoster };',
+  appendExports: 'export { BSProClientFullProfilePage, BSProAdjustProgram, BSProScheduleSession, bsNutriDemoRoster, bsTrainerDemoRoster };',
 });
 
 async function mount(el) {
@@ -127,6 +127,22 @@ test("a demo client's case file says what the Clients page says: 4 of 7 days is 
     assert.ok(stats.includes('ADHERENCE57%'), stats.join(' | '));
     assert.ok(stats.includes('DAYS LOGGED4/7'), stats.join(' | '));
     assert.match(m.host.textContent, /CLIENT Since Feb 2026 · 9-day streak/, 'the streak is not the row\'s: ' + (m.host.textContent.match(/CLIENT.{0,60}/) || [''])[0]);
+  } finally { await m.close(); }
+});
+
+test("a demo trainer client's case file agrees with itself and the Clients page: 92% is 23 of 25 sessions", async () => {
+  // Codex on #2534: the headline was the roster's figure while the count was rounded to 25, so Alex
+  // read 91% beside 23/25 (92%), and Riley 78% beside 20/25 (80%).
+  for (const c of PROS.bsTrainerDemoRoster(theme)) {
+    if (typeof c.adh !== 'number') continue;
+    assert.ok(Number.isInteger((c.adh * 25) / 100), `${c.n}: ${c.adh}% is no number of sessions out of 25`);
+  }
+  const alex = PROS.bsTrainerDemoRoster(theme).find((c) => c.n === 'Alex Rivera');
+  const m = await mount(React.createElement(PROS.BSProClientFullProfilePage, { client: alex, role: 'trainer', onBack: () => {} }));
+  try {
+    const stats = [...m.host.querySelectorAll('[data-pro-stat]')].map((s) => s.textContent);
+    assert.ok(stats.includes('ATTENDANCE92%'), stats.join(' | '));
+    assert.ok(stats.includes('SESSIONS23/25'), stats.join(' | '));
   } finally { await m.close(); }
 });
 
