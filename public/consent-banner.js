@@ -61,15 +61,12 @@
               });
             }).catch(function () {});
           } else {
-            // Without the browser client, the route logs the opt-out once per account itself. Once it
-            // has, this tab stops asking. Until then each page asks again: a visitor who isn't
-            // signed in yet (a 401) or a failed write is no receipt, and signing in later in the
-            // same tab still logs it (Codex on #2530).
-            var logged = false;
-            try { logged = !!sessionStorage.getItem("shape.gpc.logged.route"); } catch (e) {}
-            if (!logged) logByRoute("gpc_optout", true, GPC_TEXT).then(function (ok) {
-              if (ok) { try { sessionStorage.setItem("shape.gpc.logged.route", "1"); } catch (e) {} }
-            });
+            // Without the browser client, each page asks the route, which logs the opt-out once per
+            // account itself (it reads the account's own receipts first). Nothing is remembered on
+            // this side: the page can't see whose cookie session it has, so a marker kept here
+            // stopped a visitor who signed in later in the tab, or a second account signing in after
+            // the first was logged, from ever being logged (Codex on #2530).
+            logByRoute("gpc_optout", true, GPC_TEXT);
           }
         } catch (e) {}
       }
