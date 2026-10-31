@@ -886,36 +886,64 @@ test('a demo saved in Make it yours keeps only what was changed, so the studio s
   } finally { window.ShapeLocale = hadLocale; window.ShapeI18n.t = hadT; client.restore(); }
 });
 
-test('their activity: what they posted that the tabs do not already show, newest three then See all; a sample has its own', async () => {
-  // Owner, 2026-10-30: "there is also no activity feed on coaches profile".
+test('their activity: a tab of its own, last, with what they posted that the other tabs do not already show; a sample has its own', async () => {
+  // Owner, 2026-10-30: "there is also no activity feed on coaches profile"; 2026-10-31: "the coaches
+  // activity feed shouldn't be under replays, they should have a separate tab for activity".
   const note = (i) => ({ key: `n${i}`, title: `Note ${i}`, typeLabel: 'Note', ago: `${i}d`, body: `Body ${i}`, statsRow: [], breakdown: null });
+  const tabNames = () => [...document.querySelectorAll('nav[aria-label="Profile sections"] button')].map((b) => b.textContent);
   reset({ posts: [note(1), { key: 'p1', title: 'Heavy squat day', ago: '2d', statsRow: [], breakdown: { label: 'Sets', rows: [['Set 1', '100 kg × 5', '']] } }, note(2), note(3), note(4)] });
   let m = await mount(page());
+  assert.equal(tabNames()[tabNames().length - 1], 'Activity', 'Activity is the last tab');
+  const tabSizes = () => [...document.querySelectorAll('nav[aria-label="Profile sections"] button')].map((b) => b.style.fontSize);
+  assert.deepEqual(tabNames(), ['Her day', 'Replays', 'Activity']);
+  assert.ok(tabSizes().every((x) => x === '15px'), 'three tabs keep their size');
+  assert.ok(!document.querySelector('[data-activity]'), 'the feed is not on the page under another tab');
+  await tab('Replays');
+  assert.ok(!document.querySelector('[data-activity]'), 'nor under Replays');
+  await tab('Activity');
   const feed = document.querySelector('[data-activity]');
-  assert.ok(feed, 'the feed');
+  assert.ok(feed, 'the feed, in its tab');
   assert.match(feed.textContent, /Maya's activity/);
   const titles = () => [...feed.querySelectorAll('[data-activity-card]')].map((c) => (c.textContent.match(/Note \d/) || [''])[0]);
-  assert.deepEqual(titles(), ['Note 1', 'Note 2', 'Note 3'], 'newest three; the logged session stays in Replays');
+  assert.deepEqual(titles(), ['Note 1', 'Note 2', 'Note 3', 'Note 4'], 'all of them, newest first; the logged session stays in Replays');
+  assert.ok(!feed.querySelector('[data-activity-all]'), 'no See all in a tab of its own');
   assert.ok(!/Heavy squat day/.test(feed.textContent));
-  await click(feed.querySelector('[data-activity-all]'));
-  assert.deepEqual(titles(), ['Note 1', 'Note 2', 'Note 3', 'Note 4']);
   assert.ok(!feed.querySelector('[data-log-activity]'), 'no Log activity on another coach\'s page');
   const reviews = document.querySelector('[data-reviews-strip]');
   if (reviews) assert.ok(feed.compareDocumentPosition(reviews) & window.Node.DOCUMENT_POSITION_FOLLOWING, 'above the reviews');
   await m.unmount();
-  // Nothing posted: no feed for a visitor.
+  // Nothing posted: no Activity tab for a visitor.
   reset({ posts: [] });
   m = await mount(page());
+  assert.ok(!tabNames().includes('Activity'), 'an empty tab for a visitor');
   assert.ok(!document.querySelector('[data-activity]'));
+  await m.unmount();
+  // The coach's own page always has it, with Log activity.
+  reset({ me: 'u-maya', posts: [] });
+  m = await mount(page({ isSelf: true }));
+  assert.deepEqual(tabNames(), ['Her day', 'About me', 'The studio', 'Replays', 'Activity'], 'all five on their own page, Activity last');
+  assert.ok(tabSizes().every((x) => x === '13px'), 'more than three tabs set smaller');
+  // Five can't fit a phone at a size worth reading: a tab never shrinks below its words, and the row
+  // scrolls sideways instead of cutting a name to "…".
+  const nav = document.querySelector('nav[aria-label="Profile sections"]');
+  assert.equal(nav.style.overflowX, 'auto', 'the row scrolls');
+  for (const b of nav.querySelectorAll('button')) {
+    assert.equal(b.style.flex, '1 0 auto', 'a tab shrinks below its words');
+    assert.notEqual(b.style.textOverflow, 'ellipsis', 'a name is cut to …');
+  }
+  await tab('Activity');
+  assert.ok(document.querySelector('[data-activity] [data-log-activity]'), 'Log activity on their own page');
   await m.unmount();
   // A private profile shows none.
   reset({ posts: [note(1)], canView: false });
   m = await mount(page());
+  assert.ok(!tabNames().includes('Activity'));
   assert.ok(!document.querySelector('[data-activity]'));
   await m.unmount();
   // A sample coach: its own run and note.
   reset({ me: 'u-me', byId: leahRow, slots: [] });
   m = await mount(page({ person: leah }));
+  await tab('Activity');
   assert.match(document.querySelector('[data-activity]').textContent, /Easy run, zone 2.*Deload week/s);
   await m.unmount();
 });
@@ -934,6 +962,7 @@ test('a person tapped in the activity opens their profile, and Back returns to t
     const messaged = [];
     reset({ posts: [{ key: 'n1', title: 'Note 1', typeLabel: 'Note', ago: '1d', body: 'Body', statsRow: [], breakdown: null }] });
     const m = await mount(page({ onMessage: (p) => messaged.push(p.userId) }));
+    await tab('Activity');
     // From the likers sheet.
     await click(document.querySelector('[data-liker]'));
     assert.equal(document.querySelector('[data-public-profile]')?.getAttribute('data-public-profile'), 'u-sam', 'the liker\'s profile');
@@ -941,7 +970,7 @@ test('a person tapped in the activity opens their profile, and Back returns to t
     await click(document.querySelector('[data-public-message]'));
     assert.deepEqual(messaged, ['u-sam'], 'Message on their profile messages them');
     await click(document.querySelector('[data-public-back]'));
-    assert.ok(document.querySelector('[data-activity]') && !document.querySelector('[data-public-profile]'), 'Back to the coach page');
+    assert.ok(document.querySelector('[data-activity]') && !document.querySelector('[data-public-profile]'), 'Back to the coach page, on its Activity tab');
     // From a name on the card itself.
     await click(document.querySelector('[data-card-name]'));
     assert.ok(document.querySelector('[data-public-profile="u-sam"]'));
@@ -1291,18 +1320,19 @@ test('About me: a visitor sees no tab with nothing in it; the coach does, with a
   reset({ custom: { look: { paper: 'bone', accent: 'rust' }, links: { website: 'https://' } } });
   let m = await mount(page());
   assert.ok(!button(/^About me$/), 'no empty tab for members');
-  // Each tab keeps to one line, a long name ending in … (owner, 2026-10-31: "make this fit on one
-  // line"); three or fewer read at 15px, four at 13px with 4px sides so the four fit a phone whole.
-  const tabStyle = () => [...document.querySelectorAll('[data-profile-tab]')].map((b) => [b.style.fontSize, b.style.padding, b.style.whiteSpace, b.style.textOverflow].join(' '));
+  // Each tab keeps to one line (owner, 2026-10-31: "make this fit on one line"); three or fewer read at
+  // 15px, more at 13px with 4px sides. With About me and Activity (#2541) the coach's own page has five,
+  // which no phone fits whole, so a tab keeps its words and the row scrolls sideways.
+  const tabStyle = () => [...document.querySelectorAll('[data-profile-tab]')].map((b) => [b.style.fontSize, b.style.padding, b.style.whiteSpace, b.style.flex].join(' '));
   const few = tabStyle();
   assert.ok(few.length >= 1 && few.length <= 3, `the member's tabs: ${few.length}`);
-  for (const st of few) assert.equal(st, '15px 0px 6px nowrap ellipsis');
+  for (const st of few) assert.equal(st, '15px 0px 6px nowrap 1 0 auto');
   await m.unmount();
   reset({ me: 'u-maya', stored: { look: { paper: 'dark', accent: 'teal' } } });
   m = await mount(page({ isSelf: true }));
-  const four = tabStyle();
-  assert.equal(four.length, 4, "the coach's own page: the day, About me, the studio, replays");
-  for (const st of four) assert.equal(st, '13px 0px 4px nowrap ellipsis');
+  const five = tabStyle();
+  assert.equal(five.length, 5, "the coach's own page: the day, About me, the studio, replays, Activity");
+  for (const st of five) assert.equal(st, '13px 0px 4px nowrap 1 0 auto');
   await click(button(/^About me$/));
   assert.match(m.text(), /Tell members who you are: your story, how you coach, and where to find you\./);
   await click(document.querySelector('[data-about-edit]'));

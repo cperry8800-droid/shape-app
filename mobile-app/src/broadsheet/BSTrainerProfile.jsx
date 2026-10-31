@@ -20,8 +20,9 @@ const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 
 // ─── THE COACH PROFILE: TRAINERS AND NUTRITIONISTS ───────────────────────────────────────────
 // Owner, 2026-10-27, after seven rounds on the canvas ("Show, don't sell · Quiet and premium ·
-// Feels like the Shape app"): one profile, three tabs. A nutritionist's page is the same page with
-// a kitchen in place of the studio and plate notes in place of replays (see the end of this note).
+// Feels like the Shape app"): one profile, three tabs, and Activity a fourth since 2026-10-31.
+// A nutritionist's page is the same page with a kitchen in place of the studio and plate notes in
+// place of replays (see the end of this note).
 // What clients say closes the page, under the tabs (owner, 2026-10-30: "move reviews to bottom of
 // page").
 //
@@ -40,6 +41,10 @@ const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 //               piece, from the moves' equipment and names, and the programs they pinned to a station
 //               (the same owner note: "The layout of the gym floor needs to include coaches workouts
 //               based on those machines").
+//   Activity    what they posted that the other tabs don't show (notes, photos, links, their own
+//               runs), as the member profile's activity cards; last, after Replays or Plate notes
+//               (owner, 2026-10-31: "the coaches activity feed shouldn't be under replays, they should
+//               have a separate tab for activity"). A visitor sees it when there is something in it.
 //
 // The coach paints it: their paper and accent from Shape's own set (profile_custom.look), set in
 // Make it yours. The page renders inside a BSProvider of those colours, so every piece of chrome
@@ -477,7 +482,6 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const [exprOpen, setExprOpen] = React.useState(null);
   const lpTimerRef = React.useRef(null);
   const lpFiredRef = React.useRef(false);
-  const [actAll, setActAll] = React.useState(false);
   const [editingPost, setEditingPost] = React.useState(null);
   const applyReaction = (a, key, _coach, expr) => {
     const was = actLikes[key] != null ? actLikes[key] : a.liked;
@@ -562,6 +566,8 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const aboutLinks = isPrivate || sample ? null : bsProfileLinkable(custom && custom.links);
   const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks);
   // Tabs a visitor sees only when there is something in them; the coach always sees them all.
+  // Activity is a tab of its own, last (owner, 2026-10-31: "the coaches activity feed shouldn't be
+  // under replays, they should have a separate tab for activity"); it sat under the tabs.
   const gallery = media.gallery || [];
   const hasStudio = !!(studio || gallery.length);
   const hasKitchen = !!(kitchen || kitchenPlan || gallery.length);
@@ -572,11 +578,13 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     ...aboutTab,
     ...(isSelf || hasKitchen ? [['kitchen', words.kitchen]] : []),
     ...(isSelf || plateDays.length ? [['plates', tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' })]] : []),
+    ...(isSelf || activity.length ? [['activity', tr('profile:tab.activity', { defaultValue: 'Activity' })]] : []),
   ] : [
     ['day', words.day],
     ...aboutTab,
     ...(isSelf || hasStudio ? [['studio', tr('profile:trainer.tabStudio', { defaultValue: 'The studio' })]] : []),
     ...(isSelf || replays.length || workouts.length || programs.length ? [['replays', tr('profile:trainer.tabReplays', { defaultValue: 'Replays' })]] : []),
+    ...(isSelf || activity.length ? [['activity', tr('profile:tab.activity', { defaultValue: 'Activity' })]] : []),
   ];
   const tabNow = tabs.some(([k]) => k === tab) ? tab : 'day';
 
@@ -701,7 +709,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
         {/* Tabs */}
         {!isPrivate ? (
           <>
-            <nav aria-label={tr('profile:trainer.sections', { defaultValue: 'Profile sections' })} style={{ position: 'sticky', top: pinnedTop, zIndex: 4, marginTop: 18, background: t.PAPER, borderBottom: `1px solid ${ink(0.18)}`, display: 'flex', padding: '0 8px' }}>
+            <nav aria-label={tr('profile:trainer.sections', { defaultValue: 'Profile sections' })} className="bs-hide-scroll" style={{ position: 'sticky', top: pinnedTop, zIndex: 4, marginTop: 18, background: t.PAPER, borderBottom: `1px solid ${ink(0.18)}`, display: 'flex', padding: '0 8px', overflowX: 'auto', overscrollBehaviorX: 'contain' }}>
               {tabs.map(([k, label]) => {
                 const on = k === tabNow;
                 return (
@@ -709,12 +717,31 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                   // a tab takes the width its words need and shares what is left, and a name too long for
                   // the row ends in … rather than wrapping. Four tabs (with About me) read at 13px with
                   // 4px sides, so a nutritionist's "Quinn's day / About me / Quinn's kitchen / Plate notes"
-                  // fits a phone's row whole (at 15px with 6px sides it needs 358px of 334).
-                  <button key={k} type="button" aria-pressed={on} onClick={() => setTab(k)} title={label} data-profile-tab={k}
-                    style={{ flex: '1 1 auto', minWidth: 0, minHeight: 48, padding: tabs.length > 3 ? '0 4px' : '0 6px', border: 0, borderBottom: `2px solid ${on ? ACC : 'transparent'}`, marginBottom: -1, background: 'transparent', color: on ? INK : ink(0.55), fontFamily: DISPLAY, fontWeight: on ? 600 : 400, fontSize: tabs.length > 3 ? 13 : 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}>{label}</button>
+                  // fits a phone's row whole (at 15px with 6px sides it needs 358px of 334). Five (About me
+                  // and Activity, owner, 2026-10-31) can't fit at any size worth reading, so a tab never
+                  // shrinks below its words: the row scrolls sideways, with no bar, and the picked tab
+                  // comes into view.
+                  <button key={k} type="button" aria-pressed={on} onClick={(e) => { setTab(k); try { e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) {} }} title={label} data-profile-tab={k}
+                    style={{ flex: '1 0 auto', minHeight: 48, padding: tabs.length > 3 ? '0 4px' : '0 6px', border: 0, borderBottom: `2px solid ${on ? ACC : 'transparent'}`, marginBottom: -1, background: 'transparent', color: on ? INK : ink(0.55), fontFamily: DISPLAY, fontWeight: on ? 600 : 400, fontSize: tabs.length > 3 ? 13 : 15, whiteSpace: 'nowrap', cursor: 'pointer' }}>{label}</button>
                 );
               })}
             </nav>
+            {/* Activity draws its cards edge to edge, as the member profile's do, so it stands in
+                for the padded body rather than inside it. */}
+            {tabNow === 'activity' ? (
+              <ActivityFeed t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={gutter} cards={activity} isSelf={isSelf} first={first}
+                onLog={() => { if (W.bsRequireAccount && !W.bsRequireAccount('log activity')) return; setShowLog(true); }}
+                ctx={cardSheets && W.BSActivityCard ? {
+                  t, cardInk: INK, muted: ink(0.55), hair: ink(0.1), card: t.isLight ? t.PAPER2 : ink(0.05),
+                  actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr, exprOpenKey: exprOpen, setExprOpenKey: setExprOpen, lpTimerRef, lpFiredRef,
+                  tierByUser: person.userId ? { [person.userId]: tierKey } : {}, avatarByUser: {}, feedAvatars: {},
+                  myRole: (W.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client', coachClientIds: new Set(), myFollowingSet: null,
+                  setOpenProfile: openPerson, feedApplyReaction: applyReaction,
+                  // The coach edits a post of their own from its card, in the same composer.
+                  onEdit: isSelf && !demo ? (a) => { if (a.postId && BS_UUID.test(String(a.postId))) setEditingPost({ postId: a.postId, title: a.title || '', body: a.body || '', photo: a.photo || null, video: a.video || null, link: a.link || null, kind: a.editKind || null, privacy: a.privacy || 'public' }); } : undefined,
+                  ...cardSheets.ctx,
+                } : null} />
+            ) : (
             <div style={{ padding: `0 ${gutter}px 30px` }}>
               {tabNow === 'day' ? (
                 <DayTab t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} avail={avail} providerState={avail.sample ? 'ready' : providerState} isSelf={isSelf} first={first} words={words} nutri={nutri}
@@ -741,21 +768,8 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                   onLog={(kind) => { if (W.bsRequireAccount && !W.bsRequireAccount('log activity')) return; setShowLog(kind || true); }} />
               )}
             </div>
+            )}
           </>
-        ) : null}
-        {!isPrivate && (activity.length || isSelf) ? (
-          <ActivityFeed t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={gutter} cards={activity} isSelf={isSelf} first={first} all={actAll} setAll={setActAll}
-            onLog={() => { if (W.bsRequireAccount && !W.bsRequireAccount('log activity')) return; setShowLog(true); }}
-            ctx={cardSheets && W.BSActivityCard ? {
-              t, cardInk: INK, muted: ink(0.55), hair: ink(0.1), card: t.isLight ? t.PAPER2 : ink(0.05),
-              actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr, exprOpenKey: exprOpen, setExprOpenKey: setExprOpen, lpTimerRef, lpFiredRef,
-              tierByUser: person.userId ? { [person.userId]: tierKey } : {}, avatarByUser: {}, feedAvatars: {},
-              myRole: (W.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client', coachClientIds: new Set(), myFollowingSet: null,
-              setOpenProfile: openPerson, feedApplyReaction: applyReaction,
-              // The coach edits a post of their own from its card, in the same composer.
-              onEdit: isSelf && !demo ? (a) => { if (a.postId && BS_UUID.test(String(a.postId))) setEditingPost({ postId: a.postId, title: a.title || '', body: a.body || '', photo: a.photo || null, video: a.video || null, link: a.link || null, kind: a.editKind || null, privacy: a.privacy || 'public' }); } : undefined,
-              ...cardSheets.ctx,
-            } : null} />
         ) : null}
 
         {/* What clients say: the reviews on the page itself, shown on a private profile too: they are
@@ -1666,18 +1680,19 @@ function SpotSheet({ t, tr, ACC, ink, DISPLAY, MONO, INK, plan, i, work, recipes
   );
 }
 
-// ── Their activity ──────────────────────────────────────────────────────────────────────────
-// The newest three of what the coach posted, with See all for the rest, drawn by the member
-// profile's activity card (BSActivityCard, a window global of the client module) so a coach's
-// feed reads like a member's. Without that card (the module not loaded) a plain row stands in.
+// ── Their activity (a tab) ──────────────────────────────────────────────────────────────────
+// What the coach posted, newest first, drawn by the member profile's activity card
+// (BSActivityCard, a window global of the client module) so a coach's feed reads like a member's.
+// Without that card (the module not loaded) a plain row stands in. Its own tab since 2026-10-31,
+// so it lists them all (to ACTIVITY_MAX) where under the tabs it showed three and See all.
 // On their own page: Log activity, and with nothing yet, what it is for.
 const BS_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ACTIVITY_FIRST = 3;
-function ActivityFeed({ t, tr, ACC, ink, DISPLAY, MONO, gutter, cards, isSelf, first, all, setAll, onLog, ctx }) {
+const ACTIVITY_MAX = 30;
+function ActivityFeed({ t, tr, ACC, ink, DISPLAY, MONO, gutter, cards, isSelf, first, onLog, ctx }) {
   const Card = ctx ? window.BSActivityCard : null;
-  const list = all ? cards.slice(0, 30) : cards.slice(0, ACTIVITY_FIRST);
+  const list = cards.slice(0, ACTIVITY_MAX);
   return (
-    <section data-activity="" aria-label={tr('profile:tab.activity', { defaultValue: 'Activity' })} style={{ margin: `6px 0 22px` }}>
+    <section data-activity="" aria-label={tr('profile:tab.activity', { defaultValue: 'Activity' })} style={{ margin: `14px 0 22px` }}>
       <div style={{ padding: `0 ${gutter}px`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
         <span style={eyebrow(ink, MONO)}>{tr('profile:trainer.activityTitle', { defaultValue: '{name}\'s activity', name: first })}</span>
         {isSelf ? <button type="button" data-log-activity="" onClick={onLog} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>＋ {tr('profile:trainer.logActivity', { defaultValue: 'Log activity' })}</button> : null}
@@ -1695,12 +1710,6 @@ function ActivityFeed({ t, tr, ACC, ink, DISPLAY, MONO, gutter, cards, isSelf, f
               {a.body ? <span style={{ display: 'block', marginTop: 2, fontSize: 14, lineHeight: 1.45, color: ink(0.78) }}>{a.body}</span> : null}
             </div>
           )))}
-          {cards.length > ACTIVITY_FIRST ? (
-            <button type="button" data-activity-all="" aria-expanded={all} onClick={() => setAll(!all)}
-              style={{ display: 'block', margin: `4px ${gutter}px 0`, minHeight: 44, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-              {all ? tr('profile:trainer.activityFewer', { defaultValue: 'Show fewer' }) : tr('profile:trainer.activityAll', { defaultValue: 'See all {count}', count: cards.length })}
-            </button>
-          ) : null}
         </div>
       ) : (
         <div style={{ padding: `4px ${gutter}px 0` }}>

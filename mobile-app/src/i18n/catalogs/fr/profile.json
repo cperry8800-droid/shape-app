@@ -1033,8 +1033,6 @@
   "sample.nutri.station.kitchenTable": "Là où on s’assoit pour manger, téléphones rangés. Un repas dure vingt minutes, pas cinq.",
   "trainer.activityTitle": "Activité de {name}",
   "trainer.logActivity": "Publier une activité",
-  "trainer.activityAll": "Voir les {count}",
-  "trainer.activityFewer": "Voir moins",
   "trainer.activityEmptySelf": "Rien de publié pour l’instant. Publie une course, une note ou une photo, et les membres la verront ici.",
   "sample.type.run": "Course",
   "sample.type.note": "Note",
