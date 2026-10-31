@@ -19452,7 +19452,9 @@ function useBSCoachCommerce({ person, isSelf, isNutri, name, first, city }) {
 // "Work with": the at-capacity states (invited, waiting, already a client, full), the monthly
 // offer with Subscribe and the free intro, and the coach's catalogue with Buy. The Signal
 // profile's Coaching tab and the trainer profile's Work-with sheet both render it.
-function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, c }) {
+// catalogueOnly: the plans and nothing else, for a coach whose listing has no monthly price (the
+// monthly offer would print the demo package) but who sells plans (Codex P2 on #2545).
+function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, c, catalogueOnly = false }) {
   const tTheme = useBS();
   const tr = useShapeTr();
   const INK = tTheme.INK;
@@ -19528,6 +19530,7 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
               when {first} is effectively at capacity — the waiting-list CTA.
               Each opens on a heavy ink rule under its state's kicker (green for invited or already a client,
               rust for waiting or full), with square actions. */}
+          {catalogueOnly ? null : <>
           {!isSelf && atCapacity && wl?.status === 'invited' && (
             <div style={ctaBlock}>
               <Kick col={tTheme.GREEN}>{tr('profile:coach.youreInvited', { defaultValue: "You're invited" })}</Kick>
@@ -19577,6 +19580,7 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
               </div>
             </div>
           )}
+          </>}
           {/* services & prices — sub-tabbed by type (like the website catalogue) */}
           <div style={{ marginTop: 28 }}>
             <BSTStationHead mag heat={c} INK={INK} label={isNutri ? tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' }) : tr('profile:coach.trainWith', { name: first, defaultValue: 'Train with {name}' })} />

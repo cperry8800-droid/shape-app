@@ -56,6 +56,16 @@ test('one kind: its plans with no tab row; two kinds: All and those two, never a
   assert.match(rows(two)[0], /Strong in 12/);
 });
 
+test('catalogueOnly: the plans to buy and nothing else, for a coach with no monthly price (Codex P2 on #2545)', () => {
+  const plans = [plan('a', 'program', 'Strong in 12', { providerId: 'prov-7', providerRole: 'trainer' })];
+  const full = block({ salePlans: plans });
+  assert.ok(full.buttons().some((b) => b.label === 'Subscribe'), 'the full block offers the monthly plan');
+  const only = block({ salePlans: plans, catalogueOnly: true });
+  assert.ok(!only.buttons().some((b) => /^(Subscribe|Book intro)/.test(b.label)), 'no monthly offer to print the demo package');
+  assert.equal(rows(only).length, 1);
+  assert.ok(only.buttons().some((b) => /^Buy · \$49$/.test(b.label)), 'the plan can be bought');
+});
+
 test('a nutritionist\'s kinds: Meals and Diets as they are listed', () => {
   const d = block({ isNutri: true, salePlans: [plan('m', 'meal', 'Single-week reset'), plan('d', 'diet', 'Cut protocol')] });
   assert.deepEqual(tabs(d), ['All', 'Meals', 'Diets']);

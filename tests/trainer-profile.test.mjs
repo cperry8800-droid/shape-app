@@ -125,7 +125,7 @@ window.ShapeListingAsks = {
 window.bsProfileCardFromPost = (p) => p;
 // The client module's storefront, as a probe: it records what the page hands it.
 window.useBSCoachCommerce = ({ person }) => ((world.commerceSeen = person.commerce), { commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: !!(person.commerce && person.commerce.atCapacity), wl: null });
-window.BSCoachCoachingBlock = ({ cm, salePlans }) => (window.__blockPlans = salePlans, React.createElement('div', { 'data-coaching-block': '' }, cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' ')));
+window.BSCoachCoachingBlock = ({ cm, salePlans, catalogueOnly }) => (window.__blockPlans = salePlans, React.createElement('div', { 'data-coaching-block': catalogueOnly ? 'catalogue' : '' }, catalogueOnly ? salePlans.map((p) => `${p.name} $${p.price}`).join(' ') : cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' ')));
 
 const maya = { userId: 'u-maya', who: 'Maya Okafor', kind: 'TRAINER' };
 const page = (props = {}) => React.createElement(window.BSProvider, { paperMode: 'dark', accentKey: 'teal' },
@@ -198,6 +198,15 @@ test('the storefront shows only what the coach sells: no monthly price, no packa
   assert.ok(!document.querySelector('[data-coaching-block]'), 'no storefront block without a price');
   assert.match(m.text(), /hasn't listed prices on Shape yet/);
   assert.doesNotMatch(document.querySelector('[role="dialog"]').textContent, /\$/);
+  await m.unmount();
+  // No monthly price, but plans to sell: the plans alone, never the monthly package (Codex P2 on #2545).
+  reset({ provider: { ...world.provider, price: null }, salePlans: [{ id: 'p1', kind: 'program', name: 'Strong in 12', meta: '', price: '79', category: 'program', providerId: 7, providerRole: 'trainer' }] });
+  m = await mount(page());
+  await click(button(/^Work with her$/));
+  const cat = document.querySelector('[data-coaching-block="catalogue"]');
+  assert.ok(cat, 'the plans are listed');
+  assert.equal(cat.textContent, 'Strong in 12 $79');
+  assert.doesNotMatch(m.text(), /hasn't listed prices on Shape yet/, 'not told there are no prices beside them');
   await m.unmount();
 });
 
