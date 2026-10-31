@@ -257,3 +257,21 @@ test('the Following count is a noun, not Follow\'s state', () => {
     assert.ok(cat['follow.followingCount'], `${loc} has no Following count`);
   }
 });
+
+test('your tier line opens the Shape Score page where the host can, and is words alone where it cannot', () => {
+  // Codex P2 on #2546: Settings → Public profile handed BSPublicProfile no onOpenScore, so the line was a
+  // button that did nothing. Settings now opens the score page from it; with no way there it is a line.
+  signedOut();
+  let opened = 0;
+  const me = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true, onOpenScore() { opened += 1; } });
+  const [btn] = withAttr(me.nodes(), 'data-member-meta');
+  assert.equal(btn.type, 'button');
+  btn.props.onClick();
+  assert.equal(opened, 1);
+  const bare = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, isSelf: true });
+  const [line] = withAttr(bare.nodes(), 'data-member-meta');
+  assert.equal(line.type, 'p', 'a tier line that opens nothing is still a button');
+  const sig = CLIENT.split('\n').find((l) => l.startsWith('function BSPublicProfile('));
+  assert.ok(sig && sig.includes('onOpenScore = null'), 'BSPublicProfile defaults to a score link that does nothing');
+  assert.match(CLIENT, /onEdit=\{\(\) => \{ setShowPublicProfile\(false\); startEdit\(\); \}\} onOpenScore=\{\(\) => setShowScore\(true\)\} \/>/, 'Settings → Public profile opens no score page');
+});

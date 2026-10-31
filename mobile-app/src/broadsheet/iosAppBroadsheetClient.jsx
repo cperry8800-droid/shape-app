@@ -18292,7 +18292,7 @@ function bsProfileDistLabel(t, km) {
   return m.unit === 'mi' ? `${m.value} mi` : `${m.value}K`;
 }
 
-function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
+function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = null }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
   const hasMessage = typeof onMessage === 'function';
@@ -18886,8 +18886,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 {aboutLine ? <span style={{ fontSize: 12, color: bsTHexA(INK, 0.64) }}>{aboutLine}</span> : null}
               </div>
               {bio ? <p data-member-bio="" style={{ margin: '14px 0 0', fontSize: 15.5, lineHeight: 1.5, color: INK, whiteSpace: 'pre-wrap' }}>{bio}</p> : null}
-              {/* Tier · points · streak: on your own page it opens the Shape Score page (the score's bars live there). */}
-              {isSelf ? (
+              {/* Tier · points · streak: on your own page it opens the Shape Score page (the score's bars live
+                  there); a host with no way there gets the words alone (Codex P2 on #2546). */}
+              {isSelf && typeof onOpenScore === 'function' ? (
                 <button type="button" data-tour="hero-score" data-member-meta="" onClick={onOpenScore} style={{ display: 'block', margin: '8px 0 0', minHeight: 32, padding: 0, border: 0, background: 'transparent', textAlign: 'left', fontSize: 12.5, color: bsTHexA(INK, 0.7), cursor: 'pointer' }}>
                   {metaBits} <span aria-hidden style={{ color: c }}>›</span>
                 </button>
@@ -20145,7 +20146,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
 // design; both are immersive living-identity pages (above).
 // `onMessage` defaults to none, so a page with no way to message shows no Message button (a no-op
 // default drew one that did nothing, opened from the Me tab).
-function BSPublicProfile({ person, onBack, onMessage = null, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, onListing = null }) {
+function BSPublicProfile({ person, onBack, onMessage = null, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = null, onListing = null }) {
   // Every profile you view (from chat, the feed, follows, search…) feeds the
   // search screen's "Recent" list — recently viewed, not just recently searched.
   React.useEffect(() => {
@@ -35731,7 +35732,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     // ⚠ THROUGH startEdit, NOT setEditing(true): the draft is re-seeded on every entry,
     // or a form cancelled on the root and reopened from here carries the discarded
     // edits back with it.
-    return <BSPublicProfile person={{ who: identity.name, init: (identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name), kind, userId: uid, photo: bsMyPhoto() || null }} isSelf onBack={() => setShowPublicProfile(false)} onEdit={() => { setShowPublicProfile(false); startEdit(); }} />;
+    return <BSPublicProfile person={{ who: identity.name, init: (identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name), kind, userId: uid, photo: bsMyPhoto() || null }} isSelf onBack={() => setShowPublicProfile(false)} onEdit={() => { setShowPublicProfile(false); startEdit(); }} onOpenScore={() => setShowScore(true)} />;
   }
 
   const nutritionRows = [

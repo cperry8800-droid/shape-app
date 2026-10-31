@@ -28,7 +28,7 @@ test('the Me page wears the coach profile\'s head: the cover, the round photo, t
   // its tab". The mountain, the name block and the score's bars at the top went; the climb is its own tab.
   globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
   const person = { who: 'Quinn Harper', kind: 'CLIENT', tier: 'TEMPO', init: 'QH' };
-  const d = drive(mod.BSTerrainProfile, { person, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
+  const d = drive(mod.BSTerrainProfile, { person, onBack() {}, onMessage() {}, isSelf: true, meMode: true, onOpenScore() {} });
   const nodes = d.nodes();
   const withAttr = (attr) => nodes.filter((n) => n && n.props && n.props[attr] !== undefined);
   const [head] = withAttr('data-member-head');
