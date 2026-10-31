@@ -195,6 +195,15 @@ function pickDate(record: Record<string, unknown>): string | null {
   return asString(record.start) ?? asString(record.created_at) ?? null;
 }
 
+// The nights a provider's sync filed, as the days whose patch carries sleep hours: the sync route
+// records them where only the server writes (src/lib/device-sleep.ts), for sleep points.
+export type DeviceNight = { date: string; hours: number };
+function nightsOf(byDate: ReadonlyMap<string, SnapshotPatch>): DeviceNight[] {
+  const out: DeviceNight[] = [];
+  for (const [date, patch] of byDate) if (typeof patch.sleep_hours === 'number') out.push({ date, hours: patch.sleep_hours });
+  return out;
+}
+
 // The member's own calendar day for a WHOOP time. WHOOP sends UTC times with the member's
 // offset when they were recorded ("+01:00"); without one, the UTC day.
 export function whoopLocalDate(ts: string | null, offset: unknown): string | null {
@@ -210,7 +219,7 @@ export async function writeWhoopSnapshots(
   client: SupabaseClient,
   userId: string,
   whoop: WhoopSyncShape
-): Promise<{ days: number }> {
+): Promise<{ days: number; nights: DeviceNight[] }> {
   const byDate = new Map<string, SnapshotPatch>();
   const merge = (date: string, patch: SnapshotPatch) => {
     const existing = byDate.get(date) ?? {};
@@ -298,7 +307,7 @@ export async function writeWhoopSnapshots(
     });
     if (result.written > 0) written += 1;
   }
-  return { days: written };
+  return { days: written, nights: nightsOf(byDate) };
 }
 
 // Oura sync helper. Oura v2 records are keyed by a `day` (YYYY-MM-DD) field, so
@@ -319,7 +328,7 @@ export async function writeOuraSnapshots(
   client: SupabaseClient,
   userId: string,
   oura: OuraSyncShape
-): Promise<{ days: number }> {
+): Promise<{ days: number; nights: DeviceNight[] }> {
   const byDate = new Map<string, SnapshotPatch>();
   const merge = (date: string, patch: SnapshotPatch) => {
     byDate.set(date, { ...(byDate.get(date) ?? {}), ...patch });
@@ -401,7 +410,7 @@ export async function writeOuraSnapshots(
     const result = await upsertSnapshot(client, { userId, date, source: 'oura', patch });
     if (result.written > 0) written += 1;
   }
-  return { days: written };
+  return { days: written, nights: nightsOf(byDate) };
 }
 
 // Strava sync helper. Each activity contributes workout minutes / HR to its

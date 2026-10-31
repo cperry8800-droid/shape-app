@@ -4,6 +4,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { dbError } from '@/lib/request-utils';
 import { getFreshAccessToken } from '@/lib/integrations/tokens';
 import { writeWhoopSnapshots } from '@/lib/health-snapshot';
+import { recordDeviceNights } from '@/lib/device-sleep';
 import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, activityStartISO, type SharePrivacy } from '@/lib/workout-share';
 
 export const runtime = 'nodejs';
@@ -297,15 +298,18 @@ export async function GET(request: Request) {
         )
       : null;
 
-    const snapshot = await writeWhoopSnapshots(client, user.id, {
+    const written = await writeWhoopSnapshots(client, user.id, {
       recoveries,
       sleeps,
       cycles,
       workouts,
     }).catch((error) => {
       console.warn('[shape-app] WHOOP snapshot upsert failed:', error);
-      return { days: 0 };
+      return { days: 0, nights: [] };
     });
+    // The nights as WHOOP reported them, where only the server writes, for sleep points.
+    await recordDeviceNights(null, user.id, 'whoop', written.nights);
+    const snapshot = { days: written.days };
 
     return NextResponse.json({
       whoop: {

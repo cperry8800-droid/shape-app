@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { recordDeviceNights } from '@/lib/device-sleep';
 import { upsertSnapshot, type SnapshotPatch } from '@/lib/health-snapshot';
 import { readJson } from '@/lib/request-utils';
 import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, activityStartISO, type SharePrivacy } from '@/lib/workout-share';
@@ -197,6 +198,7 @@ export async function POST(request: Request) {
 
   let written = 0;
   const errors: string[] = [];
+  const nights: { date: string; hours: number }[] = [];
   for (const day of days) {
     if (!day?.date) continue;
     // ⚠ WATER IS ADDED TO THE GLASSES LOGGED IN SHAPE, NEVER WRITTEN OVER THEM (owner, 2026-10-18).
@@ -213,7 +215,12 @@ export async function POST(request: Request) {
     const res = await upsertSnapshot(client, { userId: user.id, date: day.date, source: 'apple_health', patch });
     if (res.written > 0) written += 1;
     if (res.error) errors.push(res.error);
+    if (typeof patch.sleep_hours === 'number') nights.push({ date: String(day.date), hours: patch.sleep_hours });
   }
+  // The nights as the app's Health sync posted them, where only the server writes, for sleep
+  // points (src/lib/device-sleep.ts). Apple Health is whatever the app posts, as for Shape Steps;
+  // what this closes is a night written straight to the snapshot with no sync at all.
+  await recordDeviceNights(null, user.id, 'apple_health', nights);
 
   const importResult = workouts.length
     ? await importWorkouts(client, user.id, (profile as ProfileRow | null) ?? null, user.email?.split('@')[0] || 'Shape member', workouts)

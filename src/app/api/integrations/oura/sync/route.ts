@@ -9,6 +9,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { dbError } from '@/lib/request-utils';
 import { getFreshAccessToken } from '@/lib/integrations/tokens';
 import { writeOuraSnapshots } from '@/lib/health-snapshot';
+import { recordDeviceNights } from '@/lib/device-sleep';
 import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, activityStartISO, type SharePrivacy } from '@/lib/workout-share';
 
 export const runtime = 'nodejs';
@@ -243,7 +244,7 @@ export async function GET(request: Request) {
         )
       : null;
 
-    const snapshot = await writeOuraSnapshots(client, user.id, {
+    const written = await writeOuraSnapshots(client, user.id, {
       readiness,
       sleep,
       dailySleep,
@@ -251,8 +252,11 @@ export async function GET(request: Request) {
       workouts,
     }).catch((error) => {
       console.warn('[shape-app] Oura snapshot upsert failed:', error);
-      return { days: 0 };
+      return { days: 0, nights: [] };
     });
+    // The nights as Oura reported them, where only the server writes, for sleep points.
+    await recordDeviceNights(null, user.id, 'oura', written.nights);
+    const snapshot = { days: written.days };
 
     return NextResponse.json({
       oura: { personalInfo, readiness, sleep, dailySleep, dailyActivity, workouts },

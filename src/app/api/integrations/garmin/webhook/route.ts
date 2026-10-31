@@ -19,6 +19,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { recordDeviceNights } from '@/lib/device-sleep';
 import { upsertSnapshot } from '@/lib/health-snapshot';
 import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, activityStartISO, type SharePrivacy } from '@/lib/workout-share';
 
@@ -146,20 +147,25 @@ export async function POST(request: Request) {
     if (r.written) snapshots += 1;
   }
 
-  // Sleeps → hours slept (+ sleep score when present).
+  // Sleeps → hours slept (+ sleep score when present). Each night is also recorded where only the
+  // server writes, for sleep points (src/lib/device-sleep.ts).
+  const nightsByUser = new Map<string, { date: string; hours: number | null }[]>();
   for (const s of sleeps) {
     const uid = resolve(s.userId);
     const date = s.calendarDate || dayFromEpoch(s.startTimeInSeconds);
     if (!uid || !date) continue;
+    const hours = num(s.durationInSeconds) != null ? Number(((s.durationInSeconds as number) / 3600).toFixed(2)) : null;
     const r = await upsertSnapshot(admin, {
       userId: uid, date, source: 'garmin',
       patch: {
-        sleep_hours: num(s.durationInSeconds) != null ? Number(((s.durationInSeconds as number) / 3600).toFixed(2)) : null,
+        sleep_hours: hours,
         sleep_performance_pct: num(s.overallSleepScore?.value),
       },
     });
     if (r.written) snapshots += 1;
+    if (hours != null) nightsByUser.set(uid, [...(nightsByUser.get(uid) ?? []), { date, hours }]);
   }
+  for (const [uid, nights] of nightsByUser) await recordDeviceNights(admin, uid, 'garmin', nights);
 
   // Activities → per-activity row (idempotent) + workout minutes / HR on the day.
   for (const a of activities) {
