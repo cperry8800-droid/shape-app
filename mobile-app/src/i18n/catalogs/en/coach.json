@@ -1497,5 +1497,7 @@
   "roster.streakDays": "{count, plural, one {#-day streak} other {#-day streak}}",
   "roster.since": "Since {date}",
   "roster.weekLogged": "Logged · 7d",
-  "roster.weekAdherence": "Adherence"
+  "roster.weekAdherence": "Adherence",
+  "roster.workouts6w": "{count, plural, one {# workout} other {# workouts}} in 6 wk",
+  "roster.avgKcal": "Avg {kcal} kcal"
 }

@@ -1497,5 +1497,7 @@
   "roster.streakDays": "{count, plural, one {Серія # день} few {Серія # дні} many {Серія # днів} other {Серія # дня}}",
   "roster.since": "З {date}",
   "roster.weekLogged": "Записи · 7 дн",
-  "roster.weekAdherence": "Виконання"
+  "roster.weekAdherence": "Виконання",
+  "roster.workouts6w": "{count, plural, one {# тренування} few {# тренування} many {# тренувань} other {# тренування}} за 6 тиж.",
+  "roster.avgKcal": "У середньому {kcal} ккал"
 }

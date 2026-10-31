@@ -1497,5 +1497,7 @@
   "roster.streakDays": "{count, plural, other {Chuỗi # ngày}}",
   "roster.since": "Từ {date}",
   "roster.weekLogged": "Đã ghi · 7 ngày",
-  "roster.weekAdherence": "Tuân thủ"
+  "roster.weekAdherence": "Tuân thủ",
+  "roster.workouts6w": "{count, plural, other {# buổi tập}} trong 6 tuần",
+  "roster.avgKcal": "TB {kcal} kcal"
 }

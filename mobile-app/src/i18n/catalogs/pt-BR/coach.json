@@ -1497,5 +1497,7 @@
   "roster.streakDays": "{count, plural, one {Sequência de # dia} other {Sequência de # dias}}",
   "roster.since": "Desde {date}",
   "roster.weekLogged": "Registrado · 7 d",
-  "roster.weekAdherence": "Adesão"
+  "roster.weekAdherence": "Adesão",
+  "roster.workouts6w": "{count, plural, one {# treino} other {# treinos}} em 6 sem",
+  "roster.avgKcal": "Média {kcal} kcal"
 }

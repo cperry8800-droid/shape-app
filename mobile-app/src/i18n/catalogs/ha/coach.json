@@ -1497,5 +1497,7 @@
   "roster.streakDays": "{count, plural, one {Jere na kwana #} other {Jere na kwanaki #}}",
   "roster.since": "Tun {date}",
   "roster.weekLogged": "An rubuta · kwana 7",
-  "roster.weekAdherence": "Bin tsari"
+  "roster.weekAdherence": "Bin tsari",
+  "roster.workouts6w": "{count, plural, one {Motsa jiki #} other {Motsa jiki #}} a mako 6",
+  "roster.avgKcal": "Matsakaici {kcal} kcal"
 }

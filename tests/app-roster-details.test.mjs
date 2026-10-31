@@ -2,8 +2,8 @@
 //
 // Owner, 2026-10-31: "this page needs to have more information on clients" and "client page should
 // include a tab or section that shows total current clients". A row now also carries what the
-// roster already holds (program, streak, since when, and this week's figure as a number and a bar),
-// leaving out what it lacks; the tabs gain All, every current client, with their count. The rows
+// roster already holds (program, streak, workouts or intake, since when, and the week's figure as a
+// number and a bar), leaving out what it lacks; the tabs gain All, every current client, with their count. The rows
 // are built by the shipping bsRowFromTriage from engine triage rows and drawn by the shipping
 // BSProRosterView, in jsdom (the harness is tests/app-roster-payment-retrying.test.mjs's).
 import test from 'node:test';
@@ -137,13 +137,79 @@ test("a nutritionist's figure is days logged in the last week", async () => {
   } finally { await m.close(); }
 });
 
+test('the All tab keeps the Message button for whoever needs reaching today (Codex on #2532)', async () => {
+  const m = await mount(rows());
+  try {
+    await open(m.host, 0);
+    const all = m.host.querySelector('[data-roster-group="all"]');
+    assert.ok(all.querySelector('[aria-label="Message Ben Tal"]'), 'Ben (red) lost his Message button in All');
+    assert.ok(!all.querySelector('[aria-label="Message Ana Reyes"]'), 'an on-track row got one');
+  } finally { await m.close(); }
+});
+
+test('a figure that falls back to the other measure is labelled as that measure (Codex on #2532)', async () => {
+  // A trainer's client with no sessions on the calendar but a food log: that is days logged.
+  const t1 = PROS.bsRowFromTriage(triage('green', { id: 'f1', name: 'Fay Lo' }, { foodLogs: { daysLogged7d: 5 } }), 'trainer', theme);
+  assert.deepEqual([t1.adh, t1.adhSrc], [71, 'log']);
+  // A nutritionist's client with no food log but sessions: that is training adherence.
+  const n1 = PROS.bsRowFromTriage(triage('green', { id: 'f2', name: 'Gus Oh' }, { trainingAdherence: { pct: 80 } }), 'nutritionist', theme);
+  assert.deepEqual([n1.adh, n1.adhSrc], [80, 'train']);
+  for (const [c, role, want] of [[t1, 'trainer', /^71%Logged · 7d$/], [n1, 'nutritionist', /^80%Adherence$/]]) {
+    const m = await mount([c], { role });
+    try {
+      await open(m.host, 0);
+      assert.match(rowOf(m.host, c.n).querySelector('[data-roster-week]').textContent, want, role);
+    } finally { await m.close(); }
+  }
+});
+
+test('a live row says what the live reads hold: workouts in six weeks, or average intake (Codex on #2532)', async () => {
+  // Built by the production mapper from the coach's reads, as triageLive builds it: get_client_stats,
+  // get_client_lifts and the roster entry. Neither read carries a program or a streak.
+  const { recordFromCoachData } = await import('../mobile-app/src/services/signalsMap.mjs');
+  const rec = (id, name, extra = {}) => recordFromCoachData({
+    id, name, joinedAt: '2026-03-02T09:00:00Z',
+    stats: { sessionsCompleted: 9, sessionsPlanned: 10, daysLogged7d: 6, avgCalories: 1849.6, avgProtein: 120 },
+    lifts: { workoutsLogged42d: 14 }, ...extra,
+  });
+  const live = (role, r) => PROS.bsRowFromTriage({ severity: 'green', client: r, flags: [], reasons: [], readOnly: [] }, role, theme);
+  {
+    const m = await mount([live('trainer', rec('l1', 'Hal Ry'))]);
+    try {
+      await open(m.host, 0);
+      const row = rowOf(m.host, 'Hal Ry');
+      assert.equal(row.querySelector('[data-roster-facts]').textContent, '14 workouts in 6 wk · Since Mar 2026');
+      assert.match(row.querySelector('[data-roster-week]').textContent, /^90%Adherence$/);
+    } finally { await m.close(); }
+  }
+  {
+    const m = await mount([live('nutritionist', rec('l2', 'Ida Vu'))], { role: 'nutritionist' });
+    try {
+      await open(m.host, 0);
+      const row = rowOf(m.host, 'Ida Vu');
+      assert.equal(row.querySelector('[data-roster-facts]').textContent, 'Avg 1,850 kcal · Since Mar 2026');
+      assert.match(row.querySelector('[data-roster-week]').textContent, /^86%Logged · 7d$/);
+    } finally { await m.close(); }
+  }
+  {
+    // A new client's six weeks mostly predate them: no count of workouts that reads as a lapse.
+    const fresh = live('trainer', rec('l3', 'Jo Bee', { isNew: true, lifts: { workoutsLogged42d: 0 } }));
+    assert.equal(fresh._sig.sev, 'new');
+    const m = await mount([fresh]);
+    try {
+      await open(m.host, 0);
+      assert.equal(rowOf(m.host, 'Jo Bee').querySelector('[data-roster-facts]').textContent, 'Since Mar 2026');
+    } finally { await m.close(); }
+  }
+});
+
 test('the facts are in every locale the app ships', () => {
   const LOCALES = ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi'];
   for (const loc of LOCALES) {
-    for (const k of ['roster.tabAll', 'roster.groupAll', 'roster.streakDays', 'roster.since', 'roster.weekLogged', 'roster.weekAdherence']) {
+    for (const k of ['roster.tabAll', 'roster.groupAll', 'roster.streakDays', 'roster.since', 'roster.weekLogged', 'roster.weekAdherence', 'roster.workouts6w', 'roster.avgKcal']) {
       const v = catalog(loc)[k];
       assert.ok(typeof v === 'string' && v.trim(), `${loc}: coach:${k}`);
-      assert.doesNotThrow(() => new IntlMessageFormat(v, loc).format({ count: 3, date: 'x' }), `${loc}: coach:${k} formats`);
+      assert.doesNotThrow(() => new IntlMessageFormat(v, loc).format({ count: 3, date: 'x', kcal: '1,850' }), `${loc}: coach:${k} formats`);
     }
   }
 });

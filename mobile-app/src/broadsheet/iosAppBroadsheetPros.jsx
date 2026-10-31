@@ -2375,10 +2375,12 @@ function bsRowFromTriage(row, role, t) {
     ? (obNext ? coachTr('coach:onboard.dirNext', { defaultValue: 'New · {step}', step: obNext }) : coachTr('coach:onboard.dirNew', { defaultValue: 'New client — open their first 30 days.' }))
     : reason || (sev === 'green' ? (nut ? coachTr('coach:roster.dirOnTrackNutri', { defaultValue: 'Logging on plan — nothing needed.' }) : coachTr('coach:roster.dirOnTrack', { defaultValue: 'On plan — nothing needed.' })) : coachTr('coach:roster.dirNeedsAttention', { defaultValue: 'Needs your attention this week.' }));
   // The week's figure is the coach's own measure: training adherence for a trainer, days logged for a
-  // nutritionist (the roster row labels it so, 2026-10-31), each falling back to the other.
+  // nutritionist (the roster row labels it so, 2026-10-31), each falling back to the other. Which one
+  // it is rides with it (adhSrc), so a fallback is labelled as what it is (Codex on #2532).
   const trainPct = (rec.trainingAdherence && rec.trainingAdherence.pct != null) ? rec.trainingAdherence.pct : null;
   const logPct = (rec.foodLogs && rec.foodLogs.daysLogged7d != null) ? Math.round((rec.foodLogs.daysLogged7d / 7) * 100) : null;
-  const adh = nut ? (logPct != null ? logPct : trainPct) : (trainPct != null ? trainPct : logPct);
+  const order = nut ? [['log', logPct], ['train', trainPct]] : [['train', trainPct], ['log', logPct]];
+  const [adhSrc, adh] = order.find(([, v]) => v != null) || [null, null];
   const streak = (rec.streaks && rec.streaks.current != null) ? rec.streaks.current : null;
   // The OTHER discipline's signal, routed read-only to this pro (e.g. a trainer
   // seeing the dietitian's protein flag). owned===false = read-only context.
@@ -2396,7 +2398,11 @@ function bsRowFromTriage(row, role, t) {
     paymentRetrying: p.paymentRetrying === true,
     avatar: p.avatar || p.photo || undefined,
     prog: (rec.program && rec.program.name) || '', r: String(rec.goalPhase || '').toUpperCase(),
-    streak, d: adh != null ? `${adh}%` : '',
+    streak, d: adh != null ? `${adh}%` : '', adh, adhSrc,
+    // What the live reads hold for the row's facts line: workouts logged in the last six weeks
+    // (get_client_lifts) and the average calories eaten on logged days (get_client_stats).
+    workouts6w: (rec.totals && Number.isFinite(rec.totals.workouts)) ? rec.totals.workouts : null,
+    avgKcal: (rec.nutrition && Number.isFinite(rec.nutrition.avgCalories)) ? Math.round(rec.nutrition.avgCalories) : null,
     s: sev === 'red' ? 'missed' : sev === 'amber' ? 'review form' : sev === 'new' ? 'onboard' : 'on track',
     active: true,
     _sig: { sev, rank, label: sev === 'green' ? coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }) : sev === 'new' ? coachTr('coach:sev.new', { defaultValue: 'NEW' }) : coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' }), directive, routed },
@@ -2577,9 +2583,11 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
   // a weekend gap, a variable week). A client to reach out to today also gets a Message button.
   // ⚠ MORE ABOUT EACH CLIENT (owner, 2026-10-31: "this page needs to have more information on
   // clients"). A row named the client, what to do and the phase. It now also says what the roster
-  // already knows: their program, their streak, since when they have been a client, and this week's
-  // figure (training adherence for a trainer, days logged for a nutritionist) as a number with a bar.
-  // Nothing is made up: a fact the roster lacks (a demo row has no start date) is left out.
+  // knows: their program and streak, their workouts in the last six weeks (a trainer) or average
+  // intake (a nutritionist), since when they have been a client, and the coach's own figure (training
+  // adherence, or days logged this week) as a number with a bar. Nothing is made up: a fact the
+  // roster lacks is left out. The live reads hold no program or streak for a coach yet (Codex on
+  // #2532; War Room), so a live row says what they do hold.
   const rowAdh = (c) => (typeof c.adh === 'number' ? c.adh : (/^\d{1,3}%$/.test(String(c.d || '')) ? Number(String(c.d).slice(0, -1)) : null));
   const rowFacts = (c) => {
     let since = null;
@@ -2591,9 +2599,15 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
     }
     // A program named as the phase line already reads (a demo nutritionist's "Build · 2400") is said once.
     const prog = c.prog && String(c.prog).toUpperCase() !== String(c.r || '').toUpperCase() ? c.prog : null;
+    // A new client's six weeks mostly predate them, so their count of workouts would read as a lapse.
+    const fresh = c._sig && c._sig.sev === 'new';
+    let kcal = null;
+    if (c.avgKcal != null) { try { kcal = c.avgKcal.toLocaleString(window.bsDateLocale ? window.bsDateLocale() : undefined); } catch (e) { kcal = String(c.avgKcal); } }
     return [
       prog,
       !pastMode && c.streak > 0 ? tr('coach:roster.streakDays', { defaultValue: '{count, plural, one {#-day streak} other {#-day streak}}', count: c.streak }) : null,
+      !pastMode && !fresh && role !== 'nutritionist' && c.workouts6w != null ? tr('coach:roster.workouts6w', { defaultValue: '{count, plural, one {# workout} other {# workouts}} in 6 wk', count: c.workouts6w }) : null,
+      !pastMode && role === 'nutritionist' && kcal != null ? tr('coach:roster.avgKcal', { defaultValue: 'Avg {kcal} kcal', kcal }) : null,
       since ? tr('coach:roster.since', { defaultValue: 'Since {date}', date: since }) : null,
     ].filter(Boolean);
   };
@@ -2607,7 +2621,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
         <span aria-hidden style={{ display: 'block', height: 3, marginTop: 5, marginLeft: 'auto', width: 44, borderRadius: 2, background: t.RULE, overflow: 'hidden' }}>
           <span style={{ display: 'block', height: '100%', width: `${Math.max(0, Math.min(100, pct))}%`, background: hue }} />
         </span>
-        <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{role === 'nutritionist' ? tr('coach:roster.weekLogged', { defaultValue: 'Logged · 7d' }) : tr('coach:roster.weekAdherence', { defaultValue: 'Adherence' })}</span>
+        <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{(c.adhSrc || (role === 'nutritionist' ? 'log' : 'train')) === 'log' ? tr('coach:roster.weekLogged', { defaultValue: 'Logged · 7d' }) : tr('coach:roster.weekAdherence', { defaultValue: 'Adherence' })}</span>
       </span>
     );
   };
@@ -2732,7 +2746,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
         {activeView === 'all' && rows.length > 0 && (
           <div data-roster-group="all" style={{ marginTop: 20 }}>
             <h2 style={{ ...bsProH2(t), marginBottom: 8 }}>{tr('coach:roster.groupAll', { defaultValue: 'Current clients' })}{bsProCount(t, allRows.length, t.INK)}</h2>
-            {allRows.length > 0 ? card(allRows.map((r, i) => clientRow(r, i, { lead: true }))) : null}
+            {allRows.length > 0 ? card(allRows.map((r, i) => clientRow(r, i, { lead: true, message: r.sig.sev === 'red' }))) : null}
           </div>
         )}
 

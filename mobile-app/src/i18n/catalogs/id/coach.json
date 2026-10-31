@@ -1497,5 +1497,7 @@
   "roster.streakDays": "{count, plural, other {Beruntun # hari}}",
   "roster.since": "Sejak {date}",
   "roster.weekLogged": "Tercatat · 7 hr",
-  "roster.weekAdherence": "Kepatuhan"
+  "roster.weekAdherence": "Kepatuhan",
+  "roster.workouts6w": "{count, plural, other {# latihan}} dalam 6 mgg",
+  "roster.avgKcal": "Rata-rata {kcal} kkal"
 }
