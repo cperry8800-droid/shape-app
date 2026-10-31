@@ -438,15 +438,23 @@ test('her kitchen as she drew it heads the tab: numbered spots, the ones her rec
   await m.unmount();
 });
 
-test('her activity: her posts that are not plate notes; on her own page, Log activity and what the feed is for', async () => {
+test('her activity: a tab of its own, last, with her posts that are not plate notes; on her own page, Log activity and what the feed is for', async () => {
+  // Owner, 2026-10-31: "the coaches activity feed shouldn't be under replays, they should have a
+  // separate tab for activity".
+  const tabNames = () => [...document.querySelectorAll('nav[aria-label="Profile sections"] button')].map((b) => b.textContent);
   reset({ posts: [meal(), { key: 'n1', title: 'Sunday prep', typeLabel: 'Note', ago: '1d', body: 'Twelve boxes.', statsRow: [], breakdown: null }] });
   let m = await mount(page());
+  assert.equal(tabNames()[tabNames().length - 1], 'Activity', 'Activity is the last tab, after Plate notes');
+  assert.ok(!document.querySelector('[data-activity]'), 'not on the page under another tab');
+  await click(button(/^Activity$/));
   const feed = document.querySelector('[data-activity]');
   assert.match(feed.textContent, /Nadia's activity.*Sunday prep/s);
   assert.ok(!/Greek yogurt power bowl/.test(feed.textContent), 'the shared meal stays in Plate notes');
   await m.unmount();
   reset({ me: 'u-nadia', stored: {}, posts: [] });
   m = await mount(page({ isSelf: true }));
+  assert.ok(tabNames().includes('Activity'), 'her own page always has it');
+  await click(button(/^Activity$/));
   const own = document.querySelector('[data-activity]');
   assert.match(own.textContent, /Nothing posted yet\. Log a run, a note or a photo, and members see it here\./);
   assert.ok(own.querySelector('[data-log-activity]'), 'Log activity');

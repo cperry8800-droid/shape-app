@@ -1033,8 +1033,6 @@
   "sample.nutri.station.kitchenTable": "Where we sit down to eat, phones away. A meal takes twenty minutes, not five.",
   "trainer.activityTitle": "{name}'s activity",
   "trainer.logActivity": "Log activity",
-  "trainer.activityAll": "See all {count}",
-  "trainer.activityFewer": "Show fewer",
   "trainer.activityEmptySelf": "Nothing posted yet. Log a run, a note or a photo, and members see it here.",
   "sample.type.run": "Run",
   "sample.type.note": "Note",

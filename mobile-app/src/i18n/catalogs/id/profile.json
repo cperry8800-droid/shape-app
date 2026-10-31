@@ -1033,8 +1033,6 @@
   "sample.nutri.station.kitchenTable": "Tempat kami duduk untuk makan, tanpa ponsel. Makan butuh dua puluh menit, bukan lima.",
   "trainer.activityTitle": "Aktivitas {name}",
   "trainer.logActivity": "Catat aktivitas",
-  "trainer.activityAll": "Lihat semua {count}",
-  "trainer.activityFewer": "Tampilkan lebih sedikit",
   "trainer.activityEmptySelf": "Belum ada yang diunggah. Catat lari, catatan, atau foto, dan anggota akan melihatnya di sini.",
   "sample.type.run": "Lari",
   "sample.type.note": "Catatan",

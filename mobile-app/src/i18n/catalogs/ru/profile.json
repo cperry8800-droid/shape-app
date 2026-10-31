@@ -1033,8 +1033,6 @@
   "sample.nutri.station.kitchenTable": "Здесь мы садимся есть, телефоны в сторону. Еда занимает двадцать минут, а не пять.",
   "trainer.activityTitle": "Активность: {name}",
   "trainer.logActivity": "Добавить активность",
-  "trainer.activityAll": "Показать все: {count}",
-  "trainer.activityFewer": "Свернуть",
   "trainer.activityEmptySelf": "Пока ничего нет. Добавьте пробежку, заметку или фото, и участники увидят их здесь.",
   "sample.type.run": "Бег",
   "sample.type.note": "Заметка",

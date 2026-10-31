@@ -1033,8 +1033,6 @@
   "sample.nutri.station.kitchenTable": "Na here we dey siddon chop, phone dey aside. One meal suppose take twenty minutes, no be five.",
   "trainer.activityTitle": "{name} activity",
   "trainer.logActivity": "Log activity",
-  "trainer.activityAll": "See all {count}",
-  "trainer.activityFewer": "Show small",
   "trainer.activityEmptySelf": "You never post anything yet. Log one run, one note or one photo, and members go see am here.",
   "sample.type.run": "Run",
   "sample.type.note": "Note",
