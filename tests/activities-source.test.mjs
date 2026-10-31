@@ -66,6 +66,7 @@ test('the Apple Health sync reports a refused activity row and still posts the w
       ['@/lib/request-auth', { currentUser: async () => ({ id: 'u1', email: 'ann@shape.test' }), clientForRequest: async () => db }],
       ['@/lib/supabase/admin', { createAdminClient: () => ({ from: () => ({ upsert: async () => ({ error: null }) }) }) }],
       ['@/lib/health-snapshot', { upsertSnapshot: async () => ({ written: 0 }) }],
+      ['@/lib/device-sleep', { recordDeviceNights: async () => ({ recorded: 0 }) }],
       ['@/lib/request-utils', { readJson: async (req) => ({ ok: true, data: await req.json() }) }],
       ['@/lib/workout-share', { resolveWorkoutSharePrivacy: async () => 'private', findCrossSourceDuplicate: async () => null, maybeSendFirstShareNotice: async () => {}, activityStartISO: (x) => x }],
     ]),

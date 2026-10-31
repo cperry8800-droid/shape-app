@@ -89,6 +89,8 @@ async function syncAnswering(status) {
       ['@/lib/integrations/tokens', { getFreshAccessToken: async () => 'tok' }],
       ['@/lib/health-snapshot', { writeWhoopSnapshots: async () => ({ days: 0 }) }],
       ['@/lib/workout-share', { resolveWorkoutSharePrivacy: async () => 'private', findCrossSourceDuplicate: async () => null, maybeSendFirstShareNotice: async () => {}, activityStartISO: (x) => x }],
+      // The nights for sleep points go to the service client (tests/device-sleep-nights.test.mjs).
+      ['@/lib/device-sleep', { recordDeviceNights: async () => ({ recorded: 0 }) }],
     ]),
   });
   const fetchWas = globalThis.fetch;

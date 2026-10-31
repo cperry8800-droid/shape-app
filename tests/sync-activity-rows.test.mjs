@@ -47,6 +47,8 @@ async function load(file, client, extra) {
       ['@/lib/request-utils', { dbError: (_e, _tag, code, msg) => nextServer.NextResponse.json({ error: msg }, { status: code }) }],
       ['@/lib/integrations/tokens', { getFreshAccessToken: async () => 'tok' }],
       ['@/lib/workout-share', { resolveWorkoutSharePrivacy: async () => 'private', findCrossSourceDuplicate: async () => null, maybeSendFirstShareNotice: async () => {}, activityStartISO: (x) => x }],
+      // The nights for sleep points go to the service client (tests/device-sleep-nights.test.mjs).
+      ['@/lib/device-sleep', { recordDeviceNights: async () => ({ recorded: 0 }) }],
       ...extra,
     ]),
   });

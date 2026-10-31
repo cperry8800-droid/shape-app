@@ -8,6 +8,11 @@
 // not 15 back or 2 ahead; signed out paid nothing; anon could not
 // execute it. These tests hold the source to what was probed, and the app and website to
 // claiming it.
+//
+// The award's latest definition is 2026-10-31-device-sleep-nights.sql: it pays from
+// device_sleep_nights, which only the server writes, because the snapshot's stamp sat on a row the
+// member writes (a forged 8 hours stamped 'oura' was paid; probed on the same scaffold before and
+// after). tests/device-sleep-nights.test.mjs holds the table, the recording and that probe.
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -16,7 +21,8 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const read = (p) => readFileSync(join(ROOT, p), 'utf8')
-const SQL = read('supabase-migrations/2026-10-18-sleep-points.sql')
+// The latest definition of the award.
+const SQL = read('supabase-migrations/2026-10-31-device-sleep-nights.sql')
 const at = SQL.indexOf('create or replace function public.award_sleep_points()')
 const BODY = SQL.slice(at, SQL.indexOf('$$;', at) + 3)
 
@@ -31,8 +37,8 @@ test('+5 in habits, once per night, for the caller only', () => {
 })
 
 test('a night of 7 to 12 hours, from the last 14 nights: last night and the 13 before it', () => {
-  assert.match(BODY, /and s\.sleep_hours >= 7 and s\.sleep_hours <= 12\n/)
-  assert.match(BODY, /and s\.snapshot_date <= v_hi\n\s+and s\.snapshot_date >= v_lo\n/)
+  assert.match(BODY, /and n\.hours >= 7 and n\.hours <= 12\n/)
+  assert.match(BODY, /and n\.night <= v_hi\n\s+and n\.night >= v_lo\n/)
   // A known zone: its own today and the 13 nights before it (Codex on #2404: the first draft held 15).
   assert.match(BODY, /v_today date := case when v_tz is not null then \(now\(\) at time zone v_tz\)::date end;/)
   // No zone: from the earliest today any zone has (a UTC day behind) back 13 nights, up to the
@@ -41,11 +47,12 @@ test('a night of 7 to 12 hours, from the last 14 nights: last night and the 13 b
   assert.match(BODY, /v_lo date := coalesce\(v_today, \(now\(\) at time zone 'utc'\)::date - 1\) - 13;/)
 })
 
-test('watch nights only: stamped by a provider the member has connected', () => {
-  // A typed night has no stamp, or 'manual'; the stamp sits on a row the member can write, so the
-  // provider must also be connected (user_integrations is written by the server alone).
-  assert.match(BODY, /and s\.sources->>'sleep_hours' in \('apple_health', 'garmin', 'oura', 'whoop'\)\n/)
-  assert.match(BODY, /and exists \(\n\s+select 1 from public\.user_integrations i\n\s+where i\.user_id = v_uid and i\.provider = s\.sources->>'sleep_hours'\n\s+\)/)
+test('watch nights only: a night the server recorded, from a provider the member has connected', () => {
+  // Read from device_sleep_nights, which no member can write; the snapshot's stamp sat on a row the
+  // member writes. The provider must still be connected (user_integrations is the server's alone).
+  assert.match(BODY, /select distinct n\.night as d\n\s+from public\.device_sleep_nights n\n\s+where n\.user_id = v_uid\n/)
+  assert.match(BODY, /and exists \(\n\s+select 1 from public\.user_integrations i\n\s+where i\.user_id = v_uid and i\.provider = n\.provider\n\s+\)/)
+  assert.doesNotMatch(BODY, /daily_health_snapshot|sources/, 'the award reads a row the member writes')
   assert.doesNotMatch(BODY, /'manual'/)
 })
 
