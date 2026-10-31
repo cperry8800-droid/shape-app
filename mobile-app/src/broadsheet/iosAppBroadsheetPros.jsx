@@ -102,6 +102,46 @@ const bsProH1 = (t) => ({ margin: 0, minWidth: 0, fontFamily: BS_PRO_HEAD, fontS
 const bsProLede = (t) => ({ margin: '5px 0 0', fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 500, lineHeight: 1.45, color: t.INK70 });
 const bsProH2 = (t) => ({ margin: 0, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK });
 const bsProLink = (t) => ({ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 600, color: t.isLight ? '#07706a' : '#34d6c5', whiteSpace: 'nowrap' });
+// ⚠ THE CLIENT REVIEW PAGES IN THE CLEAN TYPE (owner, 2026-10-31, of the case file, Adjust plan and
+// "all of those pages for client review", trainer and nutritionist). They were set in the broadsheet's
+// mono capitals: dash eyebrows over a gradient rule, an italic accent surname, underlined mono actions,
+// teal mono buttons. They now take the coach pages' grammar: Geist heads, Inter Tight words, PAPER2
+// cards, one ink button per form. The catalogs write 146 of these pages' labels in capitals (in every
+// locale), so a label stays in capitals, in Inter Tight (the overline): recasing it in code would be
+// wrong for German nouns, and Turkish and Vietnamese case rules.
+const bsProOverline = (t, color) => ({ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', lineHeight: 1.3, color: color || t.INK50 });
+const bsProNote = (t) => ({ fontFamily: BS_PRO_SANS, fontSize: 12, lineHeight: 1.45, color: t.INK50 });
+const bsProCard = (t) => ({ borderRadius: 12, background: t.PAPER2 });
+const bsProPrimaryBtn = (t, off) => ({ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', minHeight: 50, padding: '0 16px', borderRadius: 14, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 650, letterSpacing: '-0.01em', cursor: off ? 'default' : 'pointer', opacity: off ? 0.55 : 1 });
+const bsProQuietBtn = (t, off) => ({ ...bsProPrimaryBtn(t, off), border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK });
+// What a review page can't show yet ("CHECK-IN · NOT SUBMITTED"): a quiet card, not a dashed mono rule.
+function BSProRedact({ t, label }) {
+  return <div data-pro-redact={typeof label === 'string' ? label : ''} style={{ margin: '4px 0 6px', padding: '12px 14px', borderRadius: 12, background: t.PAPER2, ...bsProOverline(t), textAlign: 'center' }}>{label}</div>;
+}
+// A figure on a review page: its label as an overline, the figure in Geist, a trailing unit smaller.
+function BSProStat({ t, label, value }) {
+  const m = /^([−+-]?[\d.,/]+)\s*(.*)$/.exec(String(value == null ? '—' : value));
+  const num = m ? m[1] : String(value == null ? '—' : value), unit = m ? m[2] : '';
+  return (
+    <div data-pro-stat="" style={{ minWidth: 0 }}>
+      <div style={bsProOverline(t)}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 4 }}>
+        <span style={{ fontFamily: BS_PRO_HEAD, fontSize: 26, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{num}</span>
+        {unit ? <span style={{ fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 600, color: t.INK50 }}>{unit}</span> : null}
+      </div>
+    </div>
+  );
+}
+// A section on a review page: the catalog's capitals as an overline, with what it counts on the right.
+// Both in ink tones: the role colour (gold on cream) is under 4.5:1 at 11px.
+function BSProCaseHead({ t, label, meta }) {
+  return (
+    <div data-pro-case-head={typeof label === 'string' ? label : ''} style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
+      <h2 style={{ margin: 0, minWidth: 0, ...bsProOverline(t, t.INK70), fontSize: 12, fontWeight: 700 }}>{label}</h2>
+      {meta ? <span style={{ marginLeft: 'auto', ...bsProOverline(t), whiteSpace: 'nowrap' }}>{meta}</span> : null}
+    </div>
+  );
+}
 // A count on a section head. `bg` is a deep tone on light papers and a light one on dark, so the
 // figure is white on light and ink on dark.
 function bsProCount(t, n, bg) {
@@ -262,7 +302,7 @@ function demoWorkoutReviewSessions(role = 'trainer') {
 // dots showing what's on each day. Selecting a day is local-only — pros
 // click "Open calendar →" to drill in.
 function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
-  const t = useBS();
+  const t = useBSProClean();
   const tr = useShapeTr();
   const isNutri = role === 'nutritionist';
   const heat = bsProHeat(t, role);
@@ -404,8 +444,8 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
   // rule/box/fill.
   const stat = (label, value) => (
     <div style={{ minWidth: 0 }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{label}</div>
-      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 27, lineHeight: 1, color: t.INK, fontWeight: t.W.display, letterSpacing: '-0.045em', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+      <div style={{ fontFamily: BS_PRO_SANS, fontSize: 11.5, letterSpacing: '0.05em', color: t.INK50, textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ marginTop: 4, fontFamily: BS_PRO_HEAD, fontSize: 24, lineHeight: 1, color: t.INK, fontWeight: 600, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
     </div>
   );
 
@@ -468,21 +508,25 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
           is a textarea that only lands on Save review note. ── */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
       <div style={{ padding: `0 ${t.padX}px 0` }}>
-        <BSBackRow onBack={onBack} trailing={
-          <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
-            {tr('coach:review.queueEyebrow', { defaultValue: 'THE QUEUE' })} <span style={{ color: `${t.INK}80` }}>· {tr('coach:review.itemsCount', { defaultValue: '{count, plural, one {# ITEM} other {# ITEMS}}', count: sessions.length })}</span>
+        <BSBackRow onBack={onBack} trailing={<BSProCleanType t={t}>
+          <div style={{ ...bsProOverline(t), minWidth: 0, textAlign: 'right' }}>
+            {tr('coach:review.queueEyebrow', { defaultValue: 'THE QUEUE' })} · {tr('coach:review.itemsCount', { defaultValue: '{count, plural, one {# ITEM} other {# ITEMS}}', count: sessions.length })}
           </div>
-        } />
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
-          {isNutri ? tr('coach:review.titleNutri', { defaultValue: 'Client' }) : tr('coach:review.titleTrainer', { defaultValue: 'Workout' })} <i style={{ color: heat, fontStyle: 'italic' }}>{tr('coach:review.titleAccent', { defaultValue: 'review.' })}</i>
-        </div>
-        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{status}</div>
+        </BSProCleanType>} />
+      </div>
+      <BSProCleanType t={t}>
+      <div style={{ padding: `0 ${t.padX}px 0` }}>
+        <h1 style={{ ...bsProH1(t), marginTop: 10 }}>
+          {isNutri ? tr('coach:review.titleNutri', { defaultValue: 'Client' }) : tr('coach:review.titleTrainer', { defaultValue: 'Workout' })} {String(tr('coach:review.titleAccent', { defaultValue: 'review.' }) || '').replace(/[.。]\s*$/, '')}
+        </h1>
+        <p style={{ ...bsProLede(t), ...bsProOverline(t), marginTop: 6 }}>{status}</p>
       </div>
 
       {/* ── The queue — dot-leader rows; the selected row carries a heat spine +
           aria-current (never color-only). No fill, no radius. ── */}
-      <div style={{ padding: `10px ${t.padX}px 0` }}>
-        {sessions.map((session) => {
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        {sessions.length ? <div style={{ ...bsProCard(t), overflow: 'hidden' }}>
+        {sessions.map((session, qi) => {
           const active = session.id === selected?.id;
           const isNut = session.nutrition === true;
           // A live day has NO per-meal count (meal logging accumulates day
@@ -505,23 +549,24 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
               aria-current={active ? 'true' : undefined}
               aria-label={`${title}, ${count} ${unit.toLocaleLowerCase(coachLocale())}, ${rowStatus(session)}`}
               style={{
-                width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0,
-                borderTop: `1px solid ${t.INK}12`,
-                borderLeft: active ? `3px solid ${heat}` : '3px solid transparent',
-                minHeight: 52, padding: '11px 0 11px 11px',
+                display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', background: active ? t.PAPER : 'transparent', border: 0,
+                borderTop: qi ? `1px solid ${t.RULE}` : 0,
+                boxShadow: active ? `inset 3px 0 0 ${heat}` : 'none',
+                minHeight: 56, padding: '11px 14px',
               }}
             >
               <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
-                <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{count} {unit}</span>
+                <span style={{ minWidth: 0, fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+                <span aria-hidden style={{ flex: 1, minWidth: 12 }} />
+                <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12.5, letterSpacing: 0, color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{count} {unit}</span>
               </span>
-              <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
+              <span style={{ display: 'block', marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50 }}>
                 {rowStatus(session)}{isNut ? '' : ` · ${formatReviewSeconds(session.duration_seconds)}`}
               </span>
             </button>
           );
         })}
+        </div> : null}
       </div>
 
       {selected ? (
@@ -530,17 +575,17 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
               workout body (sets + watch samples); COACH NOTES is shared below. */}
           {selected.nutrition ? (
             <div style={{ padding: `22px ${t.padX}px 0` }}>
-              {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`${tr('coach:review.mealLog', { defaultValue: 'MEAL LOG' })} · ${rowStatus(selected)}`} />}
+              {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={`${tr('coach:review.mealLog', { defaultValue: 'MEAL LOG' })} · ${rowStatus(selected)}`} />}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
                 {stat(tr('coach:review.statKcal', { defaultValue: 'Kcal' }), fig(selected.kcal))}
                 {/* The target is the COACH'S OWN prescription and is null when
                     they have not set one — an em dash, never a default. */}
                 {stat(tr('coach:review.statTarget', { defaultValue: 'Target' }), fig(selected.kcalTarget))}
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{tr('coach:review.statProtein', { defaultValue: 'Protein' })}</div>
-                  <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 27, lineHeight: 1, color: t.INK, fontWeight: t.W.display, letterSpacing: '-0.045em', fontVariantNumeric: 'tabular-nums' }}>
+                  <div style={{ fontFamily: BS_PRO_SANS, fontSize: 12.5, letterSpacing: 0, color: t.INK50 }}>{tr('coach:review.statProtein', { defaultValue: 'Protein' })}</div>
+                  <div style={{ marginTop: 4, fontFamily: BS_PRO_HEAD, fontSize: 24, lineHeight: 1, color: t.INK, fontWeight: 600, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
                     {fig(selected.proteinG)}{Number.isFinite(Number(selected.proteinTargetG)) && selected.proteinTargetG != null
-                      ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginLeft: 3 }}>/{selected.proteinTargetG}{G}</span>
+                      ? <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11.5, letterSpacing: 0, color: t.INK50, marginLeft: 3 }}>/{selected.proteinTargetG}{G}</span>
                       : null}
                   </div>
                 </div>
@@ -553,10 +598,10 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
               {/* The rest of the day, in the coach's own read order — each part
                   omitted entirely when the client did not log it. */}
               {nutriMeta.length ? (
-                <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{nutriMeta.join(' · ')}</div>
+                <div style={{ marginTop: 12, fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50 }}>{nutriMeta.join(' · ')}</div>
               ) : null}
               {selected.flag ? (
-                <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST }}>{selected.flag}</div>
+                <div style={{ marginTop: 14, fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.RUST }}>{selected.flag}</div>
               ) : null}
               <div style={{ marginTop: 16 }}>
                 {/* A live day has NO per-meal rows to show: logging accumulates
@@ -564,16 +609,16 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
                     record is kept. Say that, rather than rendering an empty
                     list that reads as "logged nothing". */}
                 {!hasMeals && window.BSTRedact
-                  ? <window.BSTRedact INK={t.INK} label={tr('coach:review.mealsNotStored', { defaultValue: 'PER-MEAL DETAIL NOT STORED · DAY TOTALS ONLY' })} />
+                  ? <BSProRedact t={t} label={tr('coach:review.mealsNotStored', { defaultValue: 'PER-MEAL DETAIL NOT STORED · DAY TOTALS ONLY' })} />
                   : null}
                 {(selected.meals || []).map((meal, index) => (
-                  <div key={index} style={{ borderTop: `1px solid ${t.INK}12`, padding: '11px 0', minHeight: 52 }}>
+                  <div key={index} style={{ borderTop: `1px solid ${t.RULE}`, padding: '11px 0', minHeight: 52 }}>
                     <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                      <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meal.slot} · {meal.name}</span>
-                      <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
-                      <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{meal.kcal} KCAL</span>
+                      <span style={{ minWidth: 0, fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meal.slot} · {meal.name}</span>
+                      <span aria-hidden style={{ flex: 1, minWidth: 12 }} />
+                      <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12.5, letterSpacing: 0, color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{meal.kcal} KCAL</span>
                     </span>
-                    <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{meal.macros}</span>
+                    <span style={{ display: 'block', marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50 }}>{meal.macros}</span>
                   </div>
                 ))}
               </div>
@@ -583,7 +628,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
           {/* ── Session detail — station head + bare 4-up registers (eyebrow above
               figure) + dot-leader set rows. The bordered card is gone. ── */}
           <div style={{ padding: `22px ${t.padX}px 0` }}>
-            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`${tr('coach:review.sessionDetail', { defaultValue: 'SESSION DETAIL' })} · ${rowStatus(selected)}`} />}
+            {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={`${tr('coach:review.sessionDetail', { defaultValue: 'SESSION DETAIL' })} · ${rowStatus(selected)}`} />}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
               {stat(tr('coach:review.statSets', { defaultValue: 'Sets' }), completedSets)}
               {stat(tr('coach:review.statAvgSet', { defaultValue: 'Avg set' }), formatReviewSeconds(avgSet))}
@@ -595,23 +640,23 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
                 const name = `${entry.movement_name || entry.moveName || tr('coach:review.movementFallback', { defaultValue: 'Movement' })} #${entry.set_number || entry.setNumber || index + 1}`;
                 const target = t.uText(`${entry.target_reps || entry.targetReps || tr('coach:review.targetFallback', { defaultValue: 'target' })} · ${entry.target_load || entry.targetLoad || tr('coach:review.loadFallback', { defaultValue: 'load' })}`);
                 return (
-                  <div key={entry.id || index} style={{ borderTop: `1px solid ${t.INK}12`, padding: '11px 0', minHeight: 52 }}>
+                  <div key={entry.id || index} style={{ borderTop: `1px solid ${t.RULE}`, padding: '11px 0', minHeight: 52 }}>
                     <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                      <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
-                      <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
-                      <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{tr('coach:review.setLabel', { defaultValue: 'SET' })} {formatReviewSeconds(entry.set_duration_seconds ?? entry.setDurationSeconds)} · {tr('coach:review.restLabel', { defaultValue: 'REST' })} {formatReviewSeconds(entry.rest_before_seconds ?? entry.restBeforeSeconds)}</span>
+                      <span style={{ minWidth: 0, fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+                      <span aria-hidden style={{ flex: 1, minWidth: 12 }} />
+                      <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12.5, letterSpacing: 0, color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{tr('coach:review.setLabel', { defaultValue: 'SET' })} {formatReviewSeconds(entry.set_duration_seconds ?? entry.setDurationSeconds)} · {tr('coach:review.restLabel', { defaultValue: 'REST' })} {formatReviewSeconds(entry.rest_before_seconds ?? entry.restBeforeSeconds)}</span>
                     </span>
-                    <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{target}</span>
+                    <span style={{ display: 'block', marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50 }}>{target}</span>
                   </div>
                 );
-              }) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:review.noSetsLogged', { defaultValue: 'NO SETS LOGGED' })} /> : null)}
+              }) : (window.BSTRedact ? <BSProRedact t={t} label={tr('coach:review.noSetsLogged', { defaultValue: 'NO SETS LOGGED' })} /> : null)}
             </div>
           </div>
 
           <section aria-label={tr('session:player.view.hrReview')} style={{ padding: `22px ${t.padX}px 0`, color: t.INK }}>
-            <h3 style={{ fontFamily: t.DISPLAY, fontSize: 22, margin: '0 0 10px' }}>{tr('session:player.view.hrReview')}</h3>
+            <h3 style={{ ...bsProH2(t), margin: '0 0 10px' }}>{tr('session:player.view.hrReview')}</h3>
             {hrSummary && <>
-              <p style={{ fontFamily: t.MONO, fontSize: 12 }}>{tr('session:player.view.hrSummary', { avg: hrSummary.avg, max: hrSummary.max })}</p>
+              <p style={{ fontFamily: BS_PRO_SANS, fontSize: 13.5, fontVariantNumeric: 'tabular-nums' }}>{tr('session:player.view.hrSummary', { avg: hrSummary.avg, max: hrSummary.max })}</p>
               <p style={{ color: t.INK70, fontSize: 12 }}>{tr('session:player.view.hrCoverage', { pct: hrSummary.coveragePercent, count: hrSummary.samples })}</p>
             </>}
             {hrPaths.length > 0 && <svg role="img" aria-label={tr('session:player.view.hrChart')} viewBox="-2 0 304 80" style={{ width: '100%', height: 110, overflow: 'visible' }}>
@@ -625,15 +670,15 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
           {/* ── Watch samples — bare registers (eyebrow above figure); a pending
               sample renders — in t.INK50. ── */}
           <div style={{ padding: `22px ${t.padX}px 0` }}>
-            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:review.watchSamples', { defaultValue: 'WATCH SAMPLES' })} meta={tr('coach:review.samplesCount', { defaultValue: '{count, plural, one {# sample} other {# samples}}', count: sensorSamples.length })} />}
+            {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:review.watchSamples', { defaultValue: 'WATCH SAMPLES' })} meta={tr('coach:review.samplesCount', { defaultValue: '{count, plural, one {# sample} other {# samples}}', count: sensorSamples.length })} />}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, rowGap: 16 }}>
               {(sensorSamples.length ? sensorSamples : [{ metric: tr('coach:review.watchDataFallback', { defaultValue: 'watch data' }), value: 'pending', unit: '' }]).slice(0, 4).map((sample, index) => {
                 const pending = sample.value === 'pending' || sample.value == null;
                 return (
                   <div key={sample.id || index} style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{String(sample.metric || sample.sample_type || sample.type || tr('coach:review.metricFallback', { defaultValue: 'metric' })).replace(/_/g, ' ')}</div>
-                    <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, color: pending ? t.INK50 : t.INK, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-                      {pending ? '—' : t.uMeasure(sample.value, sample.unit).value}{!pending && sample.unit ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase', marginLeft: 5 }}>{t.uMeasure(sample.value, sample.unit).unit}</span> : null}
+                    <div style={{ fontFamily: BS_PRO_SANS, fontSize: 11.5, letterSpacing: '0.05em', color: t.INK50, textTransform: 'uppercase' }}>{String(sample.metric || sample.sample_type || sample.type || tr('coach:review.metricFallback', { defaultValue: 'metric' })).replace(/_/g, ' ')}</div>
+                    <div style={{ marginTop: 5, fontFamily: BS_PRO_HEAD, fontSize: 24, fontWeight: 600, color: pending ? t.INK50 : t.INK, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                      {pending ? '—' : t.uMeasure(sample.value, sample.unit).value}{!pending && sample.unit ? <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11.5, letterSpacing: '0.05em', color: t.INK50, textTransform: 'uppercase', marginLeft: 5 }}>{t.uMeasure(sample.value, sample.unit).unit}</span> : null}
                     </div>
                   </div>
                 );
@@ -647,10 +692,10 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
               textarea + save button stay a quiet form; button keeps its t.INK
               fill — this page's primary action). ── */}
           <div style={{ padding: `22px ${t.padX}px 22px` }}>
-            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:review.coachNotes', { defaultValue: 'COACH NOTES' })} meta={tr('coach:review.notesCount', { defaultValue: '{count, plural, one {# note} other {# notes}}', count: reviewNotes.length })} />}
+            {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:review.coachNotes', { defaultValue: 'COACH NOTES' })} meta={tr('coach:review.notesCount', { defaultValue: '{count, plural, one {# note} other {# notes}}', count: reviewNotes.length })} />}
             <div style={{ display: 'grid', gap: 10 }}>
               {reviewNotes.map((item) => (
-                <div key={item.id} style={{ borderLeft: `3px solid ${heat}`, padding: '8px 0 8px 11px', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.4 }}>
+                <div key={item.id} style={{ ...bsProCard(t), padding: '11px 14px', fontFamily: BS_PRO_SANS, fontSize: 14, color: t.INK, lineHeight: 1.45 }}>
                   {item.body}
                 </div>
               ))}
@@ -662,7 +707,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
                   about what the product can do. */}
               {selected.notesBlocked ? (
                 window.BSTRedact
-                  ? <window.BSTRedact INK={t.INK} label={tr('coach:review.notesBlocked', { defaultValue: 'NOTES ATTACH TO A WORKOUT SESSION · NOT YET TO A NUTRITION DAY' })} />
+                  ? <BSProRedact t={t} label={tr('coach:review.notesBlocked', { defaultValue: 'NOTES ATTACH TO A WORKOUT SESSION · NOT YET TO A NUTRITION DAY' })} />
                   : null
               ) : (<>
               <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder={tr('coach:review.notePlaceholder', { defaultValue: 'Write feedback for the client...' })} style={{
@@ -674,24 +719,12 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
                 background: t.PAPER2,
                 color: t.INK,
                 padding: 12,
-                fontFamily: t.DISPLAY,
-                fontSize: 15,
-                lineHeight: 1.35,
+                fontFamily: BS_PRO_SANS,
+                fontSize: 16,
+                lineHeight: 1.4,
                 outline: 'none',
               }} />
-              <button onClick={saveNote} style={{
-                border: 0,
-                borderRadius: 12,
-                background: t.INK,
-                color: t.PAPER,
-                minHeight: 48,
-                fontFamily: t.MONO,
-                fontSize: 10,
-                letterSpacing: '0.18em',
-                textTransform: 'uppercase',
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}>
+              <button type="button" onClick={saveNote} style={bsProPrimaryBtn(t, false)}>
                 {tr('coach:review.saveNote', { defaultValue: 'Save review note' })}
               </button>
               </>)}
@@ -699,6 +732,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
           </div>
         </>
       ) : null}
+      </BSProCleanType>
     </BSPage>
   );
 }
@@ -2314,14 +2348,17 @@ function bsRosterSeverity(c, role) {
 // severities, directives). Builders take the theme so avatar colors stay
 // theme-aware; `s` status drives bsRosterSeverity. When a live roster lands,
 // point both consumers at it.
+// A sample's attendance is a whole number of sessions out of the case file's 25 (a multiple of 4%), so
+// the Clients page, the case file's figure and its "23/25 sessions" agree (Codex on #2534: 91% beside
+// 23/25, which is 92%).
 function bsTrainerDemoRoster(t) {
   return [
     { i: 'S', c: t.GREEN,  n: 'Sofia Martinez', prog: 'Hypertrophy',        streak: 14, r: 'BUILD · W6',  d: 'JUST NOW', s: 'on track',    active: true, adh: 96 },
-    { i: 'A', c: t.RUST,   n: 'Alex Rivera',    prog: 'Push / Pull / Legs', streak: 8,  r: 'CUT · W6',    d: '2H AGO',   s: 'on track',    active: true, adh: 91 },
+    { i: 'A', c: t.RUST,   n: 'Alex Rivera',    prog: 'Push / Pull / Legs', streak: 8,  r: 'CUT · W6',    d: '2H AGO',   s: 'on track',    active: true, adh: 92 },
     { i: 'P', c: '#8a5cf6',n: 'Priya Singh',    prog: 'Fat Loss 101',       streak: 0,  r: 'CUT · W3',    d: '3D AGO',   s: 'missed',      active: true, adh: 40 },
     { i: 'M', c: t.AMBER,  n: 'Marcus Lee',     prog: 'Intro Block',        streak: 3,  r: 'INTAKE',      d: 'NEW',      s: 'onboard',     active: true },
     { i: 'J', c: t.BLUE,   n: 'Jamal Green',    prog: 'Strength',           streak: 21, r: 'PEAK · W11',  d: '1D AGO',   s: 'pr',          active: true, adh: 100 },
-    { i: 'R', c: t.AMBER,  n: 'Riley Kim',      prog: 'Cut Block',          streak: 6,  r: 'CUT · W8',    d: '1D AGO',   s: 'review form', active: true, adh: 78 },
+    { i: 'R', c: t.AMBER,  n: 'Riley Kim',      prog: 'Cut Block',          streak: 6,  r: 'CUT · W8',    d: '1D AGO',   s: 'review form', active: true, adh: 80 },
     { i: 'Q', c: t.BLUE,   n: 'Quinn Choi',     prog: 'Build Phase',        streak: 11, r: 'BUILD · W2',  d: '3D AGO',   s: 'on track',    active: true, adh: 88 },
     { i: 'D', c: t.AMBER,  n: 'Devon Pierce',   prog: 'Strength',           streak: 9,  r: 'BUILD · W9',  d: '2D AGO',   s: 'deload soon', active: true, adh: 84 },
     { i: 'B', c: t.INK50,  n: 'Bailey Cruz',    prog: 'Finished block',     streak: 0,  r: 'PAST · finished block', d: '6W AGO', s: 'past', active: false },
@@ -2329,15 +2366,17 @@ function bsTrainerDemoRoster(t) {
   ];
 }
 function bsNutriDemoRoster(t) {
+  // A nutritionist's figure is days logged in the last week (the roster labels it "Logged · 7d"), so
+  // each is a whole number of days out of seven, and the client's case file says the same.
   return [
-    { i: 'A', c: t.RUST,  n: 'Alex Rivera',  prog: 'Cut · 1900 kcal', streak: 19, r: 'CUT · 1900 KCAL',  d: '94%', good: true, s: 'on track',    active: true },
-    { i: 'J', c: t.BLUE,  n: 'Jamie Wong',   prog: 'Cut · 1700 kcal', streak: 12, r: 'CUT · 1700 KCAL',  d: '88%', good: true, s: 'on track',    active: true },
-    { i: 'R', c: t.AMBER, n: 'Riley Kim',    prog: 'Cut · 1850 kcal', streak: 4,  r: 'CUT · 1850 KCAL',  d: '72%', s: 'review form', active: true },
+    { i: 'A', c: t.RUST,  n: 'Alex Rivera',  prog: 'Cut · 1900 kcal', streak: 19, r: 'CUT · 1900 KCAL',  d: '100%', good: true, s: 'on track',    active: true },
+    { i: 'J', c: t.BLUE,  n: 'Jamie Wong',   prog: 'Cut · 1700 kcal', streak: 12, r: 'CUT · 1700 KCAL',  d: '86%', good: true, s: 'on track',    active: true },
+    { i: 'R', c: t.AMBER, n: 'Riley Kim',    prog: 'Cut · 1850 kcal', streak: 4,  r: 'CUT · 1850 KCAL',  d: '71%', s: 'review form', active: true },
     { i: 'S', c: t.GREEN, n: 'Sara Mendez',  prog: 'Intake',          streak: 0,  r: 'INTAKE',           d: 'NEW', s: 'onboard',     active: true },
     { i: 'P', c: t.BLUE,  n: 'Pat Doan',     prog: 'Intake',          streak: 0,  r: 'INTAKE',           d: 'NEW', s: 'onboard',     active: true },
-    { i: 'C', c: t.AMBER, n: 'Casey Lee',    prog: 'Build · 2400',    streak: 9,  r: 'BUILD · 2400',     d: '64%', warn: true, s: 'missed', active: true },
-    { i: 'D', c: t.RUST,  n: 'Drew Park',    prog: 'Build · 2200',    streak: 7,  r: 'BUILD · 2200',     d: '58%', warn: true, s: 'missed', active: true },
-    { i: 'H', c: t.AMBER, n: 'Harper Quinn', prog: 'Build · 2600 kcal', streak: 5, r: 'BUILD · 2600 KCAL', d: '68%', warn: true, s: 'review form', active: true },
+    { i: 'C', c: t.AMBER, n: 'Casey Lee',    prog: 'Build · 2400',    streak: 9,  r: 'BUILD · 2400',     d: '57%', warn: true, s: 'missed', active: true },
+    { i: 'D', c: t.RUST,  n: 'Drew Park',    prog: 'Build · 2200',    streak: 7,  r: 'BUILD · 2200',     d: '43%', warn: true, s: 'missed', active: true },
+    { i: 'H', c: t.AMBER, n: 'Harper Quinn', prog: 'Build · 2600 kcal', streak: 5, r: 'BUILD · 2600 KCAL', d: '71%', warn: true, s: 'review form', active: true },
     { i: 'M', c: t.INK50, n: 'Morgan Liu',   prog: 'Ended Apr',       streak: 0,  r: 'PAST · ended Apr', d: '—', s: 'past', active: false },
     { i: 'T', c: t.INK50, n: 'Taylor Reed',  prog: 'Paused',          streak: 0,  r: 'PAST · paused',    d: '—', s: 'past', active: false },
     { i: 'N', c: t.INK50, n: 'Noah Bennett', prog: 'Completed',       streak: 0,  r: 'PAST · completed', d: '—', s: 'past', active: false },
@@ -3459,91 +3498,100 @@ function useBSProClientHeat(t, role, clientUid) {
   return tier && window.bsTierColor ? window.bsTierColor(tier) : bsProHeat(t, role);
 }
 function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
-  const t = useBS();
+  const t = useBSProClean();
+  // The title as one line in Geist, without the italic accent half or its period (the clean grammar's
+  // titles carry none); the eyebrow, which names the page, rides above it as an overline.
+  const tail = String(titleB || '').replace(/[.。]\s*$/, '');
   return (
     <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
       {/* corners: false — all three consumers (Adjust · Schedule · Assign) are
           forms that commit on an explicit action, so the settings gear would
           unmount an un-applied one. ← BACK is the way out. */}
       {bsProMastRow({ corners: false })}
-      {/* Universal back row — ← BACK left, eyebrow right (owner call 2026-07-14). */}
-      <BSBackRow onBack={onBack} trailing={<div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>} />
-      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{titleA} <span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
+      {/* ← Back in the one place every page keeps it (BSBackRow), the page's name on its right, in the
+          clean type's marked box so the app's weight rules keep its 650. */}
+      <BSBackRow onBack={onBack} trailing={eyebrow ? <BSProCleanType t={t}><div data-pro-action-eyebrow="" style={{ ...bsProOverline(t), minWidth: 0, textAlign: 'right' }}>{eyebrow}</div></BSProCleanType> : null} />
+      <BSProCleanType t={t}>
+        <h1 style={{ ...bsProH1(t), marginTop: 10 }}>{titleA}{tail ? ` ${tail}` : ''}</h1>
+      </BSProCleanType>
     </div>
   );
 }
+// The client the form is for: their avatar, name and program, in a quiet card.
 function BSProClientMini({ client, heat }) {
   const t = useBS();
   const tr = useShapeTr();
   if (!client) return null;
   const prog = client.prog || (client.r || '').split('·')[0].trim() || tr('coach:common.program', { defaultValue: 'Program' });
   return (
-    <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 12, borderLeft: `3px solid ${heat || t.INK}`, padding: '4px 0 4px 12px' }}>
-      <BSFacetAvatar size={38} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{client.n}</div>
-        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{prog}{client.week != null && client.weeks != null ? tr('coach:common.weekOf', { defaultValue: ' · Week {week} of {weeks}', week: client.week, weeks: client.weeks }) : ''}</div>
+    <div data-pro-client-mini="" style={{ marginTop: 16, ...bsProCard(t), display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
+      <BSFacetAvatar size={40} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 600, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client.n}</div>
+        <div style={{ marginTop: 2, fontFamily: BS_PRO_SANS, fontSize: 12.5, color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prog}{client.week != null && client.weeks != null ? tr('coach:common.weekOf', { defaultValue: ' · Week {week} of {weeks}', week: client.week, weeks: client.weeks }) : ''}</div>
       </div>
+      {heat ? <span aria-hidden style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 999, background: heat }} /> : null}
     </div>
   );
 }
-function BSProActionSec({ eyebrow, title, trailing, accent }) {
+// A section of a form: what it is about as an overline, its name as a 17px head.
+function BSProActionSec({ eyebrow, title, trailing }) {
   const t = useBS();
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span aria-hidden style={{ width: 8, height: 2, background: accent }} />
-          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow} · {title}</span>
-        </span>
+    <div data-pro-action-sec="" style={{ marginBottom: 10 }}>
+      {eyebrow ? <div style={bsProOverline(t)}>{eyebrow}</div> : null}
+      <div style={{ marginTop: eyebrow ? 3 : 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <h2 style={bsProH2(t)}>{title}</h2>
         {trailing}
       </div>
-      <div aria-hidden style={{ marginTop: 7, height: 1, background: `linear-gradient(90deg, ${t.INK}, ${accent} 70%, transparent)` }} />
     </div>
   );
 }
-function BSProChips({ options, value, multi, onPick, accent }) {
+function BSProChips({ options, value, multi, onPick }) {
   const t = useBS();
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       {options.map(o => {
         const on = multi ? (value || []).includes(o.k) : value === o.k;
-        return <button key={o.k} onClick={() => onPick(o.k)} style={{ borderRadius: 999, padding: '9px 15px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : 'transparent', color: on ? accent : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{o.l}</button>;
+        return <button key={o.k} type="button" aria-pressed={on} onClick={() => onPick(o.k)} style={{ minHeight: 40, borderRadius: 999, padding: '0 15px', cursor: 'pointer', border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : t.PAPER2, color: on ? t.PAPER : t.INK, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 600 }}>{o.l}</button>;
       })}
     </div>
   );
 }
-function BSProSegment({ options, value, onPick, accent }) {
+// The Clients page's tabs, as a choice of one.
+function BSProSegment({ options, value, onPick }) {
   const t = useBS();
   return (
-    <div style={{ display: 'flex', gap: 6, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 6 }}>
+    <div role="radiogroup" style={{ display: 'flex', gap: 2, padding: 4, borderRadius: 12, background: t.PAPER3 || t.PAPER2 }}>
       {options.map(o => {
         const on = value === o.k;
-        return <button key={o.k} onClick={() => onPick(o.k)} style={{ flex: 1, borderRadius: 10, padding: '11px 6px', cursor: 'pointer', border: 0, background: on ? accent : 'transparent', color: on ? '#06231f' : t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{o.l}</button>;
+        return <button key={o.k} type="button" role="radio" aria-checked={on} onClick={() => onPick(o.k)} style={{ flex: 1, minWidth: 0, minHeight: 44, borderRadius: 9, padding: '0 6px', cursor: 'pointer', border: 0, background: on ? t.PAPER : 'transparent', boxShadow: on ? '0 1px 3px rgba(0,0,0,0.14)' : 'none', color: on ? t.INK : t.INK70, fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: on ? 700 : 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.l}</button>;
       })}
     </div>
   );
 }
-function BSProStepper({ label, sub, value, set, min = 1, max = 14, step = 1, unit = '', accent }) {
+// A number the coach steps: its name as an overline (with a dot in its colour where the colour means
+// something, as a macro's does), what it counts under it, and − value + on the right.
+function BSProStepper({ label, sub, value, set, min = 1, max = 14, step = 1, unit = '', dot }) {
   const t = useBS();
-  const rnd = (txt, on) => <button onClick={on} style={{ width: 38, height: 38, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>{txt}</button>;
+  const rnd = (txt, on, aria, off) => <button type="button" aria-label={aria} disabled={off} onClick={on} style={{ width: 40, height: 40, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 18, fontWeight: 500, cursor: off ? 'default' : 'pointer', lineHeight: 1, opacity: off ? 0.4 : 1 }}>{txt}</button>;
   return (
-    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-      <div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: accent }}>{label}</div>
-        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>
+    <div style={{ ...bsProCard(t), padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, ...bsProOverline(t, t.INK70) }}>{dot ? <span aria-hidden style={{ width: 8, height: 8, borderRadius: 999, background: dot, flexShrink: 0 }} /> : null}{label}</div>
+        {sub ? <div style={{ marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 12.5, color: t.INK50 }}>{sub}</div> : null}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        {rnd('−', () => set(Math.max(min, value - step)))}
-        <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 600, color: t.INK, minWidth: 24, textAlign: 'center' }}>{value}{unit}</span>
-        {rnd('+', () => set(Math.min(max, value + step))) }
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        {rnd('−', () => set(Math.max(min, value - step)), `− ${label}`, value <= min)}
+        <span style={{ fontFamily: BS_PRO_HEAD, fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', color: t.INK, minWidth: 28, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{value}{unit}</span>
+        {rnd('+', () => set(Math.min(max, value + step)), `+ ${label}`, value >= max)}
       </div>
     </div>
   );
 }
 
 function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
-  const t = useBS();
+  const t = useBSProClean();
   const tr = useShapeTr();
   const accent = useBSProClientHeat(t, role, clientUid);
   const isNutri = role === 'nutritionist';
@@ -3718,9 +3766,11 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
       window.__bsToast?.(msg, 'warn');
     }
   };
-  const cta = (txt, onClick, mt) => (
-    <button onClick={onClick} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: mt || 0, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{txt}</button>
-  );
+  // One ink button for the change and its note; the second way to apply it is the quiet one.
+  const cta = (txt, onClick, mt, quiet) => {
+    const off = status === 'saving' || status === 'done';
+    return <button type="button" onClick={onClick} disabled={off} style={{ ...(quiet ? bsProQuietBtn(t, off) : bsProPrimaryBtn(t, off)), marginTop: mt || 0, opacity: status === 'saving' ? 0.6 : 1 }}>{txt}</button>;
+  };
   const sendLabel = status === 'saving' ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : status === 'done' ? tr('coach:adjust.sent', { defaultValue: 'Sent ✓' }) : tr('coach:adjust.applySend', { defaultValue: 'Apply & Send →' });
 
   const trainerBody = (
@@ -3728,7 +3778,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
       <div>
         <BSProActionSec eyebrow={tr('coach:adjust.thisWeek', { defaultValue: 'THIS WEEK' })} title={tr('coach:adjust.intensity', { defaultValue: 'Intensity' })} accent={accent} />
         <BSProSegment options={[{ k: 'deload', l: tr('coach:adjust.deload', { defaultValue: 'Deload' }) }, { k: 'maintain', l: tr('coach:adjust.maintain', { defaultValue: 'Maintain' }) }, { k: 'progress', l: tr('coach:adjust.progress', { defaultValue: 'Progress' }) }]} value={intensity} onPick={setIntensity} accent={accent} />
-        <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>{intensityDesc}</div>
+        <div style={{ marginTop: 14, fontFamily: BS_PRO_SANS, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{intensityDesc}</div>
       </div>
       <div>
         <BSProActionSec eyebrow={tr('coach:adjust.structure', { defaultValue: 'STRUCTURE' })} title={tr('coach:adjust.frequencyBlock', { defaultValue: 'Frequency & block' })} accent={accent} />
@@ -3742,12 +3792,12 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
         <BSProChips options={focusOpts} value={focus} multi onPick={toggleFocus} accent={accent} />
       </div>
       <div>
-        <BSProActionSec eyebrow={tr('coach:adjust.weeklySplit', { defaultValue: 'WEEKLY SPLIT' })} title={tr('coach:adjust.trainingDays', { defaultValue: 'Training days' })} trailing={<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50, whiteSpace: 'nowrap' }}>{tr('coach:adjust.tapToChange', { defaultValue: 'TAP TO CHANGE →' })}</span>} accent={accent} />
+        <BSProActionSec eyebrow={tr('coach:adjust.weeklySplit', { defaultValue: 'WEEKLY SPLIT' })} title={tr('coach:adjust.trainingDays', { defaultValue: 'Training days' })} trailing={<span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, letterSpacing: 0, color: t.INK50, whiteSpace: 'nowrap' }}>{tr('coach:adjust.tapToChange', { defaultValue: 'TAP TO CHANGE →' })}</span>} accent={accent} />
         {days.map((label, i) => {
           const rest = label === 'Rest';
           return (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '42px 1fr auto', gap: 10, alignItems: 'center', padding: '13px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: rest ? t.INK50 : accent }}>{DOW[i]}</span>
+              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 700, letterSpacing: 0, color: rest ? t.INK50 : accent }}>{DOW[i]}</span>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: rest ? t.INK50 : t.INK }}>{label}</span>
               <button onClick={() => cycleDay(i)} style={{ border: 0, background: 'transparent', cursor: 'pointer', color: rest ? t.INK50 : accent, fontSize: 16, lineHeight: 1 }}>⇄</button>
             </div>
@@ -3766,20 +3816,20 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
       <div>
         <BSProActionSec eyebrow={tr('coach:adjust.macros', { defaultValue: 'MACROS' })} title={tr('coach:adjust.dailySplit', { defaultValue: 'Daily split' })} accent={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <BSProStepper label={tr('coach:adjust.protein', { defaultValue: 'PROTEIN' })} sub="" value={protein} set={setProtein} min={0} max={400} step={5} unit="g" accent={teal} />
-          <BSProStepper label={tr('coach:adjust.carbs', { defaultValue: 'CARBS' })} sub="" value={carbs} set={setCarbs} min={0} max={600} step={5} unit="g" accent={gold} />
-          <BSProStepper label={tr('coach:adjust.fat', { defaultValue: 'FAT' })} sub="" value={fat} set={setFat} min={0} max={250} step={2} unit="g" accent={rust} />
+          <BSProStepper label={tr('coach:adjust.protein', { defaultValue: 'PROTEIN' })} sub="" value={protein} set={setProtein} min={0} max={400} step={5} unit="g" dot={teal} />
+          <BSProStepper label={tr('coach:adjust.carbs', { defaultValue: 'CARBS' })} sub="" value={carbs} set={setCarbs} min={0} max={600} step={5} unit="g" dot={gold} />
+          <BSProStepper label={tr('coach:adjust.fat', { defaultValue: 'FAT' })} sub="" value={fat} set={setFat} min={0} max={250} step={2} unit="g" dot={rust} />
           <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '13px 15px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: accent }}>{tr('coach:adjust.fromMacros', { defaultValue: 'FROM MACROS' })}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}>{tr('coach:adjust.kcalUnit', { defaultValue: '{kcal} kcal', kcal: kcalFromMacros.toLocaleString(coachLocale()) })} · <span style={{ color: kcalDiff < 0 ? rust : t.INK }}>{kcalDiff >= 0 ? '+' : ''}{tr('coach:adjust.vsTarget', { defaultValue: '{diff} vs target', diff: kcalDiff })}</span></span>
+              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 650, letterSpacing: 0, color: accent }}>{tr('coach:adjust.fromMacros', { defaultValue: 'FROM MACROS' })}</span>
+              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12, color: t.INK50 }}>{tr('coach:adjust.kcalUnit', { defaultValue: '{kcal} kcal', kcal: kcalFromMacros.toLocaleString(coachLocale()) })} · <span style={{ color: kcalDiff < 0 ? rust : t.INK }}>{kcalDiff >= 0 ? '+' : ''}{tr('coach:adjust.vsTarget', { defaultValue: '{diff} vs target', diff: kcalDiff })}</span></span>
             </div>
             <div style={{ marginTop: 9, display: 'flex', height: 6, borderRadius: 999, overflow: 'hidden', gap: 2 }}>
               <div style={{ width: `${(pK / mTot) * 100}%`, background: teal }} />
               <div style={{ width: `${(cK / mTot) * 100}%`, background: gold }} />
               <div style={{ width: `${(fK / mTot) * 100}%`, background: rust }} />
             </div>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50 }}>{protein}P · {carbs}C · {fat}F</div>
+            <div style={{ marginTop: 8, fontFamily: BS_PRO_SANS, fontSize: 11.5, letterSpacing: 0, color: t.INK50 }}>{protein}P · {carbs}C · {fat}F</div>
           </div>
         </div>
       </div>
@@ -3790,7 +3840,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
           <button onClick={() => setRefeed(r => !r)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 16px', cursor: 'pointer', textAlign: 'left' }}>
             <div>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{tr('coach:adjust.weekendRefeed', { defaultValue: 'Weekend refeed' })}</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:adjust.refeedSub', { defaultValue: '+40g carbs on training days' })}</div>
+              <div style={{ marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:adjust.refeedSub', { defaultValue: '+40g carbs on training days' })}</div>
             </div>
             <span style={{ width: 42, height: 24, borderRadius: 999, padding: 3, flexShrink: 0, border: `1px solid ${refeed ? accent : t.RULE}`, background: refeed ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: refeed ? 'flex-end' : 'flex-start' }}>
               <span style={{ width: 16, height: 16, borderRadius: 999, background: refeed ? '#06231f' : t.INK50, display: 'block' }} />
@@ -3809,15 +3859,16 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         <BSProActionHead eyebrow={isNutri ? tr('coach:adjust.eyebrowNutri', { defaultValue: 'ADJUST PLAN' }) : tr('coach:adjust.eyebrowTrainer', { defaultValue: 'ADJUST PROGRAM' })} titleA={tr('coach:adjust.titleA', { defaultValue: 'Tune the' })} titleB={isNutri ? tr('coach:adjust.titleBNutri', { defaultValue: 'plan.' }) : tr('coach:adjust.titleBTrainer', { defaultValue: 'program.' })} accent={accent} onBack={onBack} />
+        <BSProCleanType t={t}>
         <BSProClientMini client={client} heat={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
           {isNutri ? nutriBody : trainerBody}
           <div>
             <BSProActionSec eyebrow={tr('coach:adjust.message', { defaultValue: 'MESSAGE' })} title={tr('coach:adjust.noteTo', { defaultValue: 'Note to {name}', name: first })} accent={accent} />
-            <textarea value={body} onChange={(e) => setNoteText(e.target.value)} rows={4} style={{ width: '100%', boxSizing: 'border-box', borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />
+            <textarea value={body} onChange={(e) => setNoteText(e.target.value)} rows={4} style={{ width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: BS_PRO_SANS, fontSize: 16, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />
             <div style={{ marginTop: 14 }}>
               {cta(sendLabel, () => apply(false))}
-              {cta(tr('coach:adjust.applyNotify', { defaultValue: 'Apply & Notify →' }), () => apply(true), 10)}
+              {cta(tr('coach:adjust.applyNotify', { defaultValue: 'Apply & Notify →' }), () => apply(true), 10, true)}
             </div>
             {/* The guardrail's own words, a REQUIRED reason, and an explicit
                 override — the same acknowledgment path §9.4 gives a
@@ -3830,13 +3881,13 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
                 same refusal differently — in 13 locales. */}
             {blocked && (
               <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.AMBER}`, background: t.PAPER2, padding: '13px 14px' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.AMBER }}>{(blocked.copy && blocked.copy.chip) || tr('coach:assign.guardChip', { defaultValue: 'Held for review' })}</div>
+                <div style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.AMBER }}>{(blocked.copy && blocked.copy.chip) || tr('coach:assign.guardChip', { defaultValue: 'Held for review' })}</div>
                 <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{(blocked.copy && blocked.copy.line) || tr('coach:assign.guardLine', { defaultValue: 'This week was held for review.' })}</div>
                 {blocked.copy && blocked.copy.detail && (
                   <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.55, color: t.INK70 }}>{blocked.copy.detail}</div>
                 )}
                 {blocked.weekStartISO && (
-                  <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.guardWeek', { defaultValue: 'Week of {date}', date: blocked.weekStartISO })}</div>
+                  <div style={{ marginTop: 9, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:assign.guardWeek', { defaultValue: 'Week of {date}', date: blocked.weekStartISO })}</div>
                 )}
                 <textarea
                   value={reasonText}
@@ -3845,21 +3896,22 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
                   placeholder={tr('coach:assign.guardReasonPlaceholder', { defaultValue: 'Why is this week right for them?' })}
                   style={{ width: '100%', boxSizing: 'border-box', marginTop: 11, borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, padding: '9px 10px', fontFamily: t.BODY, fontSize: 12, lineHeight: 1.5, resize: 'vertical' }}
                 />
-                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.guardReasonHint', { defaultValue: 'Recorded with the week · required to publish' })}</div>
+                <div style={{ marginTop: 4, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:assign.guardReasonHint', { defaultValue: 'Recorded with the week · required to publish' })}</div>
                 <button
                   onClick={() => apply(blocked.notify === true, { reasonCode: 'coach_override', reasonText: reasonText.trim() })}
                   disabled={!reasonText.trim() || status === 'saving'}
-                  style={{ width: '100%', marginTop: 10, borderRadius: 12, border: `1px solid ${t.AMBER}`, background: 'transparent', color: t.AMBER, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!reasonText.trim() || status === 'saving') ? 0.5 : 1 }}
+                  style={{ width: '100%', marginTop: 10, borderRadius: 12, border: `1px solid ${t.AMBER}`, background: 'transparent', color: t.AMBER, padding: '12px', fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!reasonText.trim() || status === 'saving') ? 0.5 : 1 }}
                 >{tr('coach:assign.guardPublishAnyway', { defaultValue: 'Publish anyway' })}</button>
-                <button onClick={() => { setBlocked(null); setReasonText(''); }} style={{ width: '100%', marginTop: 8, border: 0, background: 'transparent', color: t.INK50, padding: '8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
+                <button onClick={() => { setBlocked(null); setReasonText(''); }} style={{ width: '100%', marginTop: 8, border: 0, background: 'transparent', color: t.INK50, padding: '8px', fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 700, letterSpacing: 0, cursor: 'pointer' }}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
               </div>
             )}
-            {status === 'error' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{tr('coach:adjust.sendError', { defaultValue: "Couldn't send — try again." })}</div>}
+            {status === 'error' && <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 11.5, color: t.RUST, letterSpacing: 0 }}>{tr('coach:adjust.sendError', { defaultValue: "Couldn't send — try again." })}</div>}
             {clientUid
-              ? <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{isNutri ? tr('coach:adjust.onApplyNutri', { defaultValue: "On apply · updates {name}'s Eat tab + sends this note", name: first }) : tr('coach:adjust.onApplyTrainer', { defaultValue: "On apply · updates {name}'s Train tab + sends this note", name: first })}</div>
-              : <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:adjust.demoApplies', { defaultValue: 'Demo client · applies once linked to a live member' })}</div>}
+              ? <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{isNutri ? tr('coach:adjust.onApplyNutri', { defaultValue: "On apply · updates {name}'s Eat tab + sends this note", name: first }) : tr('coach:adjust.onApplyTrainer', { defaultValue: "On apply · updates {name}'s Train tab + sends this note", name: first })}</div>
+              : <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:adjust.demoApplies', { defaultValue: 'Demo client · applies once linked to a live member' })}</div>}
           </div>
         </div>
+        </BSProCleanType>
       </div>
       <BSFooter left={isNutri ? tr('coach:adjust.footerNutri', { defaultValue: 'Adjust plan' }) : tr('coach:adjust.footerTrainer', { defaultValue: 'Adjust program' })} right={client?.n} />
     </BSPage>
@@ -3867,7 +3919,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
 }
 
 function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
-  const t = useBS();
+  const t = useBSProClean();
   const tr = useShapeTr();
   const accent = useBSProClientHeat(t, role, clientUid);
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -3948,6 +4000,7 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         <BSProActionHead eyebrow={tr('coach:schedule.eyebrow', { defaultValue: 'SCHEDULE' })} titleA={tr('coach:schedule.titleA', { defaultValue: 'Book a' })} titleB={isNutri ? tr('coach:schedule.titleBNutri', { defaultValue: 'consult.' }) : tr('coach:schedule.titleBTrainer', { defaultValue: 'session.' })} accent={accent} onBack={onBack} />
+        <BSProCleanType t={t}>
         <BSProClientMini client={client} heat={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
           <div>
@@ -3960,9 +4013,9 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
               {dayCells.map((d, i) => {
                 const on = dayIdx === i;
                 return (
-                  <button key={i} onClick={() => setDayIdx(i)} style={{ flexShrink: 0, width: 52, borderRadius: 12, padding: '10px 0', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, textAlign: 'center' }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: on ? accent : t.INK50 }}>{WD[d.getDay()]}</div>
-                    <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: t.INK }}>{d.getDate()}</div>
+                  <button key={i} type="button" aria-pressed={on} onClick={() => setDayIdx(i)} style={{ flexShrink: 0, width: 52, borderRadius: 12, padding: '10px 0', cursor: 'pointer', border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : t.PAPER2, textAlign: 'center' }}>
+                    <div style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, letterSpacing: '0.03em', color: on ? t.PAPER : t.INK50 }}>{WD[d.getDay()]}</div>
+                    <div style={{ marginTop: 4, fontFamily: BS_PRO_HEAD, fontSize: 20, fontWeight: 600, color: on ? t.PAPER : t.INK, fontVariantNumeric: 'tabular-nums' }}>{d.getDate()}</div>
                   </button>
                 );
               })}
@@ -3974,7 +4027,7 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
               {times.map(tm => {
                 const on = time === tm;
                 const gone = isPast(tm);
-                return <button key={tm} disabled={gone} onClick={() => setTime(tm)} style={{ borderRadius: 12, padding: '12px 0', cursor: gone ? 'default' : 'pointer', opacity: gone ? 0.4 : 1, border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, color: on ? accent : t.INK, fontFamily: t.MONO, fontSize: 11, fontWeight: 700 }}>{tm}</button>;
+                return <button key={tm} type="button" aria-pressed={on} disabled={gone} onClick={() => setTime(tm)} style={{ borderRadius: 12, padding: '12px 0', cursor: gone ? 'default' : 'pointer', opacity: gone ? 0.4 : 1, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : t.PAPER2, color: on ? t.PAPER : t.INK, fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 650, fontVariantNumeric: 'tabular-nums' }}>{tm}</button>;
               })}
             </div>
           </div>
@@ -3989,7 +4042,7 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
           <button onClick={() => setRepeat(r => !r)} aria-pressed={repeat} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 16px', cursor: 'pointer', textAlign: 'left' }}>
             <div>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{tr('coach:schedule.repeatWeekly', { defaultValue: 'Repeat weekly' })}</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:schedule.everyDayAt', { defaultValue: 'Every {day} at {time}', day: WD[sel.getDay()], time })}</div>
+              <div style={{ marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:schedule.everyDayAt', { defaultValue: 'Every {day} at {time}', day: WD[sel.getDay()], time })}</div>
             </div>
             <span style={{ width: 42, height: 24, borderRadius: 999, padding: 3, flexShrink: 0, border: `1px solid ${repeat ? accent : t.RULE}`, background: repeat ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: repeat ? 'flex-end' : 'flex-start' }}>
               <span style={{ width: 16, height: 16, borderRadius: 999, background: repeat ? '#06231f' : t.INK50, display: 'block' }} />
@@ -4001,20 +4054,21 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
             <div style={{ display: 'flex', gap: 20 }}>
               {[[tr('coach:schedule.day', { defaultValue: 'DAY' }), `${WD[sel.getDay()]} ${MON[sel.getMonth()]} ${sel.getDate()}`], [tr('coach:schedule.timeCol', { defaultValue: 'TIME' }), time], [tr('coach:schedule.length', { defaultValue: 'LENGTH' }), tr('coach:schedule.minUnit', { defaultValue: '{n} min', n: duration })]].map(([lab, fig]) => (
                 <div key={lab} style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{lab}</div>
+                  <div style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50 }}>{lab}</div>
                   <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1, whiteSpace: 'nowrap' }}>{fig}</div>
                 </div>
               ))}
             </div>
-            <button onClick={add} disabled={status === 'saving' || status === 'done' || isPast(time)} style={{ width: '100%', marginTop: 16, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' || isPast(time) ? 0.6 : 1 }}>{status === 'saving' ? tr('coach:schedule.adding', { defaultValue: 'Adding…' }) : status === 'done' ? tr('coach:schedule.added', { defaultValue: 'Added ✓' }) : tr('coach:schedule.addToCalendar', { defaultValue: 'Add to calendar →' })}</button>
-            {runNote && <div role="status" style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.INK, letterSpacing: '0.06em', lineHeight: 1.5 }}>{runNote}</div>}
-            {runNote && <button data-bs-back="" onClick={onBack} style={{ width: '100%', marginTop: 10, borderRadius: 14, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:schedule.runDone', { defaultValue: 'Done' })}</button>}
-            {status === 'error' && <div role="alert" style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{errMsg || tr('coach:schedule.addError', { defaultValue: "Couldn't add — try again." })}</div>}
+            <button type="button" onClick={add} disabled={status === 'saving' || status === 'done' || isPast(time)} style={{ ...bsProPrimaryBtn(t, status === 'saving' || status === 'done' || isPast(time)), marginTop: 16 }}>{status === 'saving' ? tr('coach:schedule.adding', { defaultValue: 'Adding…' }) : status === 'done' ? tr('coach:schedule.added', { defaultValue: 'Added ✓' }) : tr('coach:schedule.addToCalendar', { defaultValue: 'Add to calendar →' })}</button>
+            {runNote && <div role="status" style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 11.5, color: t.INK, letterSpacing: 0, lineHeight: 1.5 }}>{runNote}</div>}
+            {runNote && <button data-bs-back="" onClick={onBack} style={{ width: '100%', marginTop: 10, borderRadius: 14, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '12px', fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:schedule.runDone', { defaultValue: 'Done' })}</button>}
+            {status === 'error' && <div role="alert" style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 11.5, color: t.RUST, letterSpacing: 0 }}>{errMsg || tr('coach:schedule.addError', { defaultValue: "Couldn't add — try again." })}</div>}
             {/* A refused booking offers Nora, with its words as context (the Ask Nora plan, step 5). */}
             {status === 'error' ? <BSProAskNora t={t} label={tr('feed:support.ask.whatHappenedLink', { defaultValue: 'Ask Nora what happened' })} draft={tr('feed:support.ask.bookingFailed', { defaultValue: "My booking didn't go through. What happened?" })} problem={{ kind: 'booking', message: errMsg || tr('coach:schedule.addError', { defaultValue: "Couldn't add — try again." }) }} /> : null}
-            {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:schedule.demoBooks', { defaultValue: 'Demo client · books once linked to a live member' })}</div>}
+            {!clientUid && <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:schedule.demoBooks', { defaultValue: 'Demo client · books once linked to a live member' })}</div>}
           </div>
         </div>
+        </BSProCleanType>
       </div>
       <BSFooter left={tr('coach:schedule.footer', { defaultValue: 'Schedule' })} right={client?.n} />
     </BSPage>
@@ -4033,7 +4087,7 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
 // exercise outline is one session per week); nutritionist assignments publish a
 // client_meal_plans weekly menu. A short note lands in the client's 1:1.
 function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp, clientUid: clientUidProp, preferClientUid = null, onBack, onDone }) {
-  const t = useBS();
+  const t = useBSProClean();
   const tr = useShapeTr();
   const accent = bsProAccent(t, role);
   const isNutri = role === 'nutritionist';
@@ -4344,13 +4398,13 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
     <button key={key} onClick={onClick} style={{ width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', borderRadius: 14, border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, padding: '13px 14px', cursor: 'pointer' }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
-        {sub && <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50 }}>{sub}</div>}
+        {sub && <div style={{ marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 11.5, letterSpacing: 0, color: t.INK50 }}>{sub}</div>}
       </div>
-      <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: on ? accent : t.INK50 }}>{on ? '✓' : '○'}</span>
+      <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 650, color: on ? accent : t.INK50 }}>{on ? '✓' : '○'}</span>
     </button>
   );
   const emptyCard = (txt) => (
-    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>{txt}</div>
+    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>{txt}</div>
   );
   const working = status === 'working';
   const ctaLabel = working ? tr('coach:assign.assigning', { defaultValue: 'Assigning…' }) : status === 'done' ? tr('coach:assign.assigned', { defaultValue: 'Assigned ✓' }) : tr('coach:assign.assignNotify', { defaultValue: 'Assign & notify →' });
@@ -4377,6 +4431,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         {/* C0 — the heading must not promise what the arc can't deliver: with the
             "Not a menu" notice below, "Put them on a menu." would contradict it. */}
         <BSProActionHead eyebrow={tr('coach:assign.eyebrow', { defaultValue: 'ASSIGN' })} titleA={isNutriWeekBlock ? tr('coach:assign.titleAArc', { defaultValue: 'No menu' }) : tr('coach:assign.titleA', { defaultValue: 'Put them on' })} titleB={isNutriWeekBlock ? tr('coach:assign.titleBArc', { defaultValue: 'to assign.' }) : isNutri ? tr('coach:assign.titleBNutri', { defaultValue: 'a menu.' }) : tr('coach:assign.titleBTrainer', { defaultValue: 'a program.' })} accent={accent} onBack={onBack} />
+        <BSProCleanType t={t}>
         {fixedClient && <BSProClientMini client={clientProp} />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
           {!planProp && (
@@ -4407,7 +4462,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                   const on = dayIdx === i;
                   return (
                     <button key={i} onClick={() => setDayIdx(i)} style={{ flexShrink: 0, width: 52, borderRadius: 12, padding: '10px 0', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, textAlign: 'center' }}>
-                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: on ? accent : t.INK50 }}>{WD[d.getDay()]}</div>
+                      <div style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, letterSpacing: 0, color: on ? accent : t.INK50 }}>{WD[d.getDay()]}</div>
                       <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: t.INK }}>{d.getDate()}</div>
                     </button>
                   );
@@ -4422,14 +4477,14 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                 </div>
               )}
               <div style={{ marginTop: 14 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.sessionTime', { defaultValue: 'Session time · optional' })}</div>
-                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:assign.sessionTimeHint', { defaultValue: "Set the time you've agreed with your client — it shows on their calendar & home card." })}</div>
+                <div style={{ fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 650, letterSpacing: 0, color: t.INK50 }}>{tr('coach:assign.sessionTime', { defaultValue: 'Session time · optional' })}</div>
+                <div style={{ marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: 0, color: t.INK50 }}>{tr('coach:assign.sessionTimeHint', { defaultValue: "Set the time you've agreed with your client — it shows on their calendar & home card." })}</div>
                 <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', marginTop: 9 }}>
                   {['', '06:00', '07:00', '08:00', '09:00', '12:00', '16:00', '17:00', '17:45', '18:00', '19:00', '20:00'].map((tv) => {
                     const on = timeSel === tv;
                     const lbl = tv === '' ? tr('coach:assign.noSetTime', { defaultValue: 'No set time' }) : (() => { const [h, m] = tv.split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const hh = h % 12 === 0 ? 12 : h % 12; return `${hh}:${String(m).padStart(2, '0')} ${ap}`; })();
                     return (
-                      <button key={tv || 'none'} onClick={() => setTimeSel(tv)} style={{ flexShrink: 0, borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, color: on ? accent : t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>{lbl}</button>
+                      <button key={tv || 'none'} onClick={() => setTimeSel(tv)} style={{ flexShrink: 0, borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, color: on ? accent : t.INK50, fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 700, letterSpacing: 0 }}>{lbl}</button>
                     );
                   })}
                 </div>
@@ -4439,34 +4494,34 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
           <div>
             <BSProActionSec eyebrow={tr('coach:schedule.summary', { defaultValue: 'SUMMARY' })} title={tr('coach:assign.theAssignment', { defaultValue: 'The assignment' })} accent={accent} />
             <div style={{ borderRadius: 16, border: `1px solid ${accent}44`, background: `linear-gradient(150deg, ${accent}16, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 16 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK }}>{plan ? plan.name : (isNutri ? tr('coach:assign.pickMealPlan', { defaultValue: 'Pick a meal plan' }) : tr('coach:assign.pickProgram', { defaultValue: 'Pick a program' }))} · <span style={{ fontStyle: 'italic', color: accent }}>{first}</span></div>
-              <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{summaryWhen}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK }}>{plan ? plan.name : (isNutri ? tr('coach:assign.pickMealPlan', { defaultValue: 'Pick a meal plan' }) : tr('coach:assign.pickProgram', { defaultValue: 'Pick a program' }))} · <span style={{ color: t.INK70, fontWeight: 500 }}>{first}</span></div>
+              <div style={{ marginTop: 7, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: accent }}>{summaryWhen}</div>
             </div>
             {/* C0 — a week block has no menu to install, so there is no assign
                 action. State what it is, what to do instead, and (ruling 7)
                 name anything the arc carried that isn't delivered. */}
             {isNutriWeekBlock ? (
               <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.AMBER}`, background: t.PAPER2, padding: '13px 14px' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.AMBER }}>{tr('coach:assign.arcEyebrow', { defaultValue: 'Not a menu' })}</div>
+                <div style={{ fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 650, letterSpacing: 0, color: t.AMBER }}>{tr('coach:assign.arcEyebrow', { defaultValue: 'Not a menu' })}</div>
                 <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{tr('coach:assign.arcTitle', { defaultValue: 'This program describes weeks, not meals.' })}</div>
                 <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.55, color: t.INK70 }}>{tr('coach:assign.arcBody', { defaultValue: "It sets the focus for each week and contains no food. Assign a Diet or Meal plan to install {name}'s menu — the shop list then builds itself from those meals.", name: first })}</div>
                 {droppedBlocks.length > 0 && (
-                  <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.arcDropped', { defaultValue: 'Not delivered · {blocks}', blocks: droppedBlocks.join(' · ') })}</div>
+                  <div style={{ marginTop: 9, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:assign.arcDropped', { defaultValue: 'Not delivered · {blocks}', blocks: droppedBlocks.join(' · ') })}</div>
                 )}
               </div>
             ) : (
               <>
-                <button onClick={() => apply()} disabled={!plan || !uid || working || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!plan || !uid || working) ? 0.6 : 1 }}>{ctaLabel}</button>
+                <button type="button" onClick={() => apply()} disabled={!plan || !uid || working || status === 'done'} style={{ ...bsProPrimaryBtn(t, !plan || !uid || working || status === 'done'), marginTop: 14 }}>{ctaLabel}</button>
                 {/* A guardrail rejection is HELD, never absorbed: the boundary's
                     own words, a required reason, and an explicit override. */}
                 {blocked && (
                   <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.AMBER}`, background: t.PAPER2, padding: '13px 14px' }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.AMBER }}>{(blocked.copy && blocked.copy.chip) || tr('coach:assign.guardChip', { defaultValue: 'Held for review' })}</div>
+                    <div style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.AMBER }}>{(blocked.copy && blocked.copy.chip) || tr('coach:assign.guardChip', { defaultValue: 'Held for review' })}</div>
                     <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{(blocked.copy && blocked.copy.line) || tr('coach:assign.guardLine', { defaultValue: 'This week was held for review.' })}</div>
                     {blocked.copy && blocked.copy.detail && (
                       <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.55, color: t.INK70 }}>{blocked.copy.detail}</div>
                     )}
-                    <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
+                    <div style={{ marginTop: 9, fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50 }}>
                       {tr('coach:assign.guardWeek', { defaultValue: 'Week of {date}', date: blocked.weekStartISO })}
                       {blocked.published > 0 ? ` · ${tr('coach:assign.guardPublished', { defaultValue: '{count, plural, one {# week already published} other {# weeks already published}}', count: blocked.published })}` : ''}
                     </div>
@@ -4477,13 +4532,13 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                       placeholder={tr('coach:assign.guardReasonPlaceholder', { defaultValue: 'Why is this week right for them?' })}
                       style={{ width: '100%', boxSizing: 'border-box', marginTop: 11, borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, padding: '9px 10px', fontFamily: t.BODY, fontSize: 12, lineHeight: 1.5, resize: 'vertical' }}
                     />
-                    <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.guardReasonHint', { defaultValue: 'Recorded with the week · required to publish' })}</div>
+                    <div style={{ marginTop: 4, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:assign.guardReasonHint', { defaultValue: 'Recorded with the week · required to publish' })}</div>
                     <button
                       onClick={() => apply({ reasonCode: 'coach_override', reasonText: reasonText.trim() })}
                       disabled={!reasonText.trim() || working}
-                      style={{ width: '100%', marginTop: 10, borderRadius: 12, border: `1px solid ${t.AMBER}`, background: 'transparent', color: t.AMBER, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!reasonText.trim() || working) ? 0.5 : 1 }}
+                      style={{ width: '100%', marginTop: 10, borderRadius: 12, border: `1px solid ${t.AMBER}`, background: 'transparent', color: t.AMBER, padding: '12px', fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!reasonText.trim() || working) ? 0.5 : 1 }}
                     >{tr('coach:assign.guardPublishAnyway', { defaultValue: 'Publish anyway' })}</button>
-                    <button onClick={() => { setBlocked(null); setReasonText(''); }} style={{ width: '100%', marginTop: 8, border: 0, background: 'transparent', color: t.INK50, padding: '8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
+                    <button onClick={() => { setBlocked(null); setReasonText(''); }} style={{ width: '100%', marginTop: 8, border: 0, background: 'transparent', color: t.INK50, padding: '8px', fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 700, letterSpacing: 0, cursor: 'pointer' }}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
                   </div>
                 )}
                 {/* Offline is not "sent". Say what actually happened — and say
@@ -4492,10 +4547,10 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                     The count is reset at the start of every run, so a non-zero
                     value always describes the run the coach just made. */}
                 {queuedWeeks > 0 && (
-                  <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.AMBER, letterSpacing: '0.08em' }}>{tr('coach:assign.queuedWeeks', { defaultValue: "{count, plural, one {# week is held on this device} other {# weeks are held on this device}} — they publish when you're back online, and {name} hasn't been told yet", count: queuedWeeks, name: first })}</div>
+                  <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 11.5, color: t.AMBER, letterSpacing: 0 }}>{tr('coach:assign.queuedWeeks', { defaultValue: "{count, plural, one {# week is held on this device} other {# weeks are held on this device}} — they publish when you're back online, and {name} hasn't been told yet", count: queuedWeeks, name: first })}</div>
                 )}
-                {status && status !== 'working' && status !== 'done' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{tr('coach:assign.assignError', { defaultValue: "Couldn't assign — {status}", status })}</div>}
-                <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+                {status && status !== 'working' && status !== 'done' && <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 11.5, color: t.RUST, letterSpacing: 0 }}>{tr('coach:assign.assignError', { defaultValue: "Couldn't assign — {status}", status })}</div>}
+                <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50 }}>
                   {uid
                     ? (isNutri ? tr('coach:assign.onAssignNutri', { defaultValue: "On assign · lands on {name}'s Eat tab + sends a note", name: first }) : tr('coach:assign.onAssignTrainer', { defaultValue: "On assign · lands on {name}'s Train tab + sends a note", name: first }))
                     : fixedClient ? tr('coach:assign.demoAssigns', { defaultValue: 'Demo client · assigns once linked to a live member' }) : tr('coach:assign.pickLinked', { defaultValue: 'Pick a linked client above' })}
@@ -4504,15 +4559,16 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
             )}
             {disclaimer && (
               <div style={{ marginTop: 12, borderRadius: 12, border: `1px solid ${accent}33`, background: `${accent}10`, padding: '10px 12px', fontFamily: t.BODY, fontSize: 10.5, lineHeight: 1.5, color: t.INK }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, display: 'block', marginBottom: 4 }}>{tr('coach:assign.scopeCompliance', { defaultValue: 'Scope & compliance' })}</span>
+                <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 650, letterSpacing: 0, color: accent, display: 'block', marginBottom: 4 }}>{tr('coach:assign.scopeCompliance', { defaultValue: 'Scope & compliance' })}</span>
                 {disclaimer}
               </div>
             )}
             {status === 'done' && (disclaimer || queuedWeeks > 0) && (
-              <button onClick={() => { if (onDone) onDone(plan); else onBack(); }} style={{ width: '100%', marginTop: 10, borderRadius: 14, border: `1px solid ${accent}`, background: 'transparent', color: accent, padding: '13px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:assign.readAck', { defaultValue: 'Read & acknowledged · done' })}</button>
+              <button onClick={() => { if (onDone) onDone(plan); else onBack(); }} style={{ width: '100%', marginTop: 10, borderRadius: 14, border: `1px solid ${accent}`, background: 'transparent', color: accent, padding: '13px', fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:assign.readAck', { defaultValue: 'Read & acknowledged · done' })}</button>
             )}
           </div>
         </div>
+        </BSProCleanType>
       </div>
       <BSFooter left={tr('coach:assign.footer', { defaultValue: 'Assign' })} right={plan ? plan.name : tr('coach:assign.catalogueFooter', { defaultValue: 'Catalogue' })} />
     </BSPage>
@@ -4549,7 +4605,7 @@ function bsBuildDraftRecord(clientUid, stats, name) {
 // and approves. Sends via the existing ShapeMessages path; logs the draft + the
 // sent version to ai_audit_log. Never auto-sends.
 function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose }) {
-  const t = useBS();
+  const t = useBSProClean();
   const tr = useShapeTr();
   const first = String(clientName || tr('coach:draft.yourClient', { defaultValue: 'your client' })).split(' ')[0];
   const [draft, setDraft] = useStateBSP('');
@@ -4624,26 +4680,27 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `12px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
         <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent }}>{tr('coach:draft.eyebrow', { defaultValue: '✦ AI draft · check-in' })}</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{tr('coach:draft.aNoteTo', { defaultValue: 'A note to' })} <span style={{ fontStyle: 'italic', color: accent }}>{first}.</span></div>
-        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.5 }}>{tr('coach:draft.grounded', { defaultValue: "Grounded in {name}'s real week — across training and nutrition. Edit anything; nothing sends until you tap Send.", name: first })}</div>
+        <div style={{ fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 650, letterSpacing: 0, color: accent }}>{tr('coach:draft.eyebrow', { defaultValue: '✦ AI draft · check-in' })}</div>
+        <div style={{ marginTop: 6, fontFamily: BS_PRO_HEAD, fontSize: 22, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>{tr('coach:draft.aNoteTo', { defaultValue: 'A note to' })} {first}</div>
+        <div style={{ marginTop: 4, fontFamily: BS_PRO_SANS, fontSize: 11.5, letterSpacing: 0, color: t.INK50, lineHeight: 1.5 }}>{tr('coach:draft.grounded', { defaultValue: "Grounded in {name}'s real week — across training and nutrition. Edit anything; nothing sends until you tap Send.", name: first })}</div>
         {cited.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
             {cited.map((c, i) => (
-              <span key={i} style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em', color: t.INK, border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 6, padding: '4px 8px' }}>{c.label}: <span style={{ color: accent }}>{c.value}</span></span>
+              <span key={i} style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, letterSpacing: 0, color: t.INK, border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 6, padding: '4px 8px' }}>{c.label}: <span style={{ color: accent }}>{c.value}</span></span>
             ))}
           </div>
         )}
-        <textarea value={loading ? tr('coach:draft.drafting', { defaultValue: 'Drafting…' }) : draft} onChange={(e) => setDraft(e.target.value)} rows={6} disabled={loading} style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '12px 13px', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, outline: 'none', fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.5, resize: 'vertical' }} />
+        <textarea value={loading ? tr('coach:draft.drafting', { defaultValue: 'Drafting…' }) : draft} onChange={(e) => setDraft(e.target.value)} rows={6} disabled={loading} style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '12px 13px', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, outline: 'none', fontFamily: BS_PRO_SANS, fontSize: 16, lineHeight: 1.5, resize: 'vertical' }} />
         <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-          <button onClick={onClose} style={{ flex: '0 0 auto', padding: '13px 22px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
-          <button onClick={send} disabled={loading || sending || !draft.trim()} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: accent, color: '#06110e', cursor: loading || sending || !draft.trim() ? 'default' : 'pointer', opacity: loading || sending || !draft.trim() ? 0.55 : 1, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{sending ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:draft.sendButton', { defaultValue: 'Send to {name} →', name: first })}</button>
+          <button type="button" onClick={onClose} style={{ ...bsProQuietBtn(t, false), width: 'auto', flex: '0 0 auto', padding: '0 22px' }}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
+          <button type="button" onClick={send} disabled={loading || sending || !draft.trim()} style={{ ...bsProPrimaryBtn(t, loading || sending || !draft.trim()), width: 'auto', flex: 1 }}>{sending ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:draft.sendButton', { defaultValue: 'Send to {name} →', name: first })}</button>
         </div>
       </div>
     </div>
   );
   const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
-  return target ? createPortal(sheet, target) : sheet;
+  const clean = <BSProCleanType t={t}>{sheet}</BSProCleanType>;
+  return target ? createPortal(clean, target) : clean;
 }
 
 // The flagged-dimension float (spec §C step 2) — the weekend-adherence split,
@@ -4669,12 +4726,12 @@ function ProWeekendPlate({ split }) {
   const dimLabel = { nutrition: tr('coach:case.dimNutrition', { defaultValue: 'Nutrition' }), training: tr('coach:case.dimTraining', { defaultValue: 'Training' }), habits: tr('coach:case.dimHabits', { defaultValue: 'Habits' }) };
   return (
     <div style={{ marginTop: 22 }}>
-      {window.BSTStationHead && <window.BSTStationHead heat={t.RUST} INK={t.INK} label={tr('coach:case.weekendPattern', { defaultValue: 'WEEKEND PATTERN' })} />}
+      {<BSProCaseHead t={t} heat={t.RUST} INK={t.INK} label={tr('coach:case.weekendPattern', { defaultValue: 'WEEKEND PATTERN' })} />}
       <div style={{ borderLeft: `3px solid ${t.RUST}`, padding: '2px 0 2px 11px', display: 'grid', gap: 7 }}>
         {present.map(([k, d]) => (
           <div key={k} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{dimLabel[k]}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', color: d.flagged ? t.RUST : t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 700, letterSpacing: 0, color: d.flagged ? t.RUST : t.INK70, fontVariantNumeric: 'tabular-nums' }}>
               WK {Math.round(d.weekdayRate * 100)}% · WE {Math.round(d.weekendRate * 100)}% · {d.gapPp >= 0 ? '−' : '+'}{Math.abs(Math.round(d.gapPp))}
             </span>
           </div>
@@ -4810,16 +4867,16 @@ function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHell
     if (r && r.ok) { setTarget(r.weekOne); setTargetBy(null); setEditing(false); window.__bsToast?.(coachTr('coach:onboard.saved', { defaultValue: 'Target saved' }), 'ok'); if (onSaved) onSaved(); }
     else window.__bsToast?.((r && r.error) || coachTr('coach:onboard.saveFailed', { defaultValue: 'Couldn’t save it. Try again.' }), 'info');
   };
-  const mono = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase' };
+  const mono = { fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' };
   const btn = { ...mono, fontWeight: 800, color: t.INK, background: 'transparent', border: 0, borderBottom: `1px solid ${heat}`, padding: '10px 0', minHeight: 44, cursor: 'pointer' };
   const hello = ob.steps.find((s) => s.key === 'hello');
   return (
     <div style={{ marginTop: 22 }}>
-      {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={coachTr('coach:onboard.title', { defaultValue: 'FIRST 30 DAYS · DAY {day} OF {days}', day: ob.day, days: ob.days })} />}
+      {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={coachTr('coach:onboard.title', { defaultValue: 'FIRST 30 DAYS · DAY {day} OF {days}', day: ob.day, days: ob.days })} />}
       <div style={{ borderLeft: `3px solid ${heat}`, padding: '2px 0 2px 11px' }}>
         {ob.steps.map((s) => (
           <div key={s.key} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '5px 0' }}>
-            <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 10, width: 12, color: s.done ? heat : t.INK50 }}>{s.done ? '✓' : s.done == null ? '?' : '○'}</span>
+            <span aria-hidden style={{ fontFamily: BS_PRO_SANS, fontSize: 12.5, width: 12, color: s.done ? heat : t.INK50 }}>{s.done ? '✓' : s.done == null ? '?' : '○'}</span>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 13, color: s.done ? t.INK : t.INK70, flex: 1 }}>{bsOnboardStepLabel(s.key, role)}</span>
             <span style={{ ...mono, fontSize: 8, color: t.INK50, whiteSpace: 'nowrap' }}>
               {s.done && s.at ? bsOnboardDay(s.at)
@@ -4871,19 +4928,18 @@ function BSProOnboardingStation({ ob, role, clientUid, first, heat, t, onSayHell
 // board is a failed read, whether the request failed or answered without one (its subscriptions read
 // failed), as on the website's New clients tab.
 function BSProOnboardingUnread({ day, heat, t, busy, onRetry }) {
-  const mono = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase' };
   return (
     <div style={{ marginTop: 22 }}>
-      {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={coachTr('coach:onboard.title', { defaultValue: 'FIRST 30 DAYS · DAY {day} OF {days}', day, days: BS_ONBOARD_DAYS })} />}
-      <div style={{ borderLeft: `3px solid ${heat}`, padding: '2px 0 2px 11px' }}>
-        <div role="status" style={{ ...mono, fontSize: 8, color: t.INK50, padding: '5px 0' }}>{coachTr('coach:onboard.unread', { defaultValue: 'couldn’t read' })}</div>
-        <button type="button" disabled={busy} onClick={onRetry} style={{ ...mono, fontWeight: 800, color: t.INK, background: 'transparent', border: 0, borderBottom: `1px solid ${heat}`, padding: '10px 0', minHeight: 44, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 }}>{coachTr('coach:roster.retry', { defaultValue: 'Retry' })}</button>
+      <BSProCaseHead t={t} heat={heat} label={coachTr('coach:onboard.title', { defaultValue: 'FIRST 30 DAYS · DAY {day} OF {days}', day, days: BS_ONBOARD_DAYS })} />
+      <div style={{ ...bsProCard(t), boxShadow: `inset 3px 0 0 ${heat}`, padding: '8px 10px 8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div role="status" style={bsProOverline(t)}>{coachTr('coach:onboard.unread', { defaultValue: 'couldn’t read' })}</div>
+        <button type="button" disabled={busy} onClick={onRetry} style={{ flexShrink: 0, minHeight: 44, borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, padding: '0 16px', fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 600, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 }}>{coachTr('coach:roster.retry', { defaultValue: 'Retry' })}</button>
       </div>
     </div>
   );
 }
 function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
-  const t = useBS();
+  const t = useBSProClean();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const isNutri = role === 'nutritionist';
@@ -5242,7 +5298,18 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const headEyebrow = `${tr('coach:case.caseFile', { defaultValue: 'CASE FILE' })} · ${phaseUp}${headFrag}`;
   // Real clients show '—' (no live since/streak source) — never the demo literal;
   // demo rows (no clientUid · signed-out preview) keep the example label.
-  const sinceLabel = clientUid ? '—' : (isNutri ? 'Since Feb 2026 · 19d streak' : 'Since Jan 2026 · 14d streak');
+  // A live client's start is the roster's (their first subscription); a demo row keeps its example
+  // start, and the streak is the row's own, so the case file agrees with the Clients page.
+  const sinceLabel = (() => {
+    const d = client.joinedAt ? new Date(client.joinedAt) : null;
+    let since = null;
+    if (d && Number.isFinite(d.getTime())) {
+      try { since = tr('coach:roster.since', { defaultValue: 'Since {date}', date: d.toLocaleDateString(window.bsDateLocale ? window.bsDateLocale() : undefined, { month: 'short', year: 'numeric' }) }); } catch (e) { since = null; }
+    }
+    if (!since && !clientUid) since = isNutri ? 'Since Feb 2026' : 'Since Jan 2026';
+    const streak = client.streak > 0 ? tr('coach:roster.streakDays', { defaultValue: '{count, plural, one {#-day streak} other {#-day streak}}', count: client.streak }) : null;
+    return [since, streak].filter(Boolean).join(' · ') || '—';
+  })();
 
   // Live weigh-ins (share-gated) drive the body chart; else illustrative demo.
   const liveW = (cGoals && cGoals.share !== false && cGoals.overall && Array.isArray(cGoals.overall.weighIns))
@@ -5340,73 +5407,79 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // ---- presentational helpers ----
   // Empty-state row for a signed-in real client with no live data yet.
   const emptyNote = (txt) => (
-    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>
+    <div style={{ ...bsProCard(t), padding: '14px 16px', ...bsProOverline(t) }}>{txt}</div>
   );
 
-  // ---- header (shared across tabs) — the Case File masthead (spec §C):
-  // typographic eyebrow + ← BACK, serif name w/ a heat period, the existing
-  // avatar with the tier ring, a mono id line, status as mono text + a heat
-  // tick, a 4-cell typographic action line (heat-underlined labels), and a
-  // typographic PROFILE/MANAGE index with a drawn heat underline. Every
-  // handler below is unchanged from the prior pill row — restyle only.
+  // ---- header (shared across tabs), in the coach pages' clean type (owner, 2026-10-31: "this
+  // design needs to be updated"). Back, the case line (phase and target) as an overline, the avatar
+  // beside the name as a 32px Geist title (no italic accent surname, no period), since when and age,
+  // the status as a chip, the four actions as buttons (Message first, in ink), the workout monitor
+  // as a card, and Plan / Manage as the Clients page's tabs. Every handler is unchanged.
   const fireEvt = (name) => { try { window.dispatchEvent(new CustomEvent(name, { detail: { client } })); } catch (e) {} };
-  const actionCell = (label, onClick) => (
-    <button key={label} type="button" onClick={onClick} style={{ flex: 1, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 2px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, textAlign: 'center' }}>
-      <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{label}</span>
-    </button>
+  const actionCell = (label, onClick, primary) => (
+    <button key={label} type="button" onClick={onClick} style={{ flex: '1 1 auto', minWidth: 0, minHeight: 44, borderRadius: 999, border: primary ? 0 : `1px solid ${t.RULE}`, background: primary ? t.INK : t.PAPER2, color: primary ? t.PAPER : t.INK, cursor: 'pointer', padding: '0 9px', fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 650, letterSpacing: '0.01em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</button>
   );
+  const caseTab = (k, label) => {
+    const on = view === k;
+    return (
+      <button key={k} type="button" role="tab" aria-selected={on} onClick={() => setView(k)} style={{ minWidth: 0, minHeight: 44, border: 0, borderRadius: 9, background: on ? t.PAPER : 'transparent', boxShadow: on ? '0 1px 3px rgba(0,0,0,0.14)' : 'none', color: on ? t.INK : t.INK70, cursor: 'pointer', padding: '0 6px', fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: on ? 700 : 600, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</button>
+    );
+  };
   const headerBlock = (
     <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
       {bsProMastRow()}
-      {/* ← Back on the left where every page keeps it, the eyebrow on the right (it was the other way). */}
-      <BSBackRow onBack={onBack} trailing={<div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: t.INK50 }}>{headEyebrow}</div>} />
-      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>
-        {first} <span style={{ fontStyle: 'italic', color: heat }}>{last ? `${last}.` : '.'}</span>
-      </div>
-      <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 11 }}>
+      {/* ← Back in the one place every page keeps it (BSBackRow), the case line on its right. */}
+      <BSBackRow onBack={onBack} trailing={<BSProCleanType t={t}><div data-case-eyebrow="" style={{ ...bsProOverline(t), minWidth: 0, textAlign: 'right' }}>{headEyebrow}</div></BSProCleanType>} />
+      <BSProCleanType t={t}>
+      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
         <BSFacetAvatar size={56} c={heat} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
-        <div style={{ flex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>
-          {[tr('coach:case.clientSince', { defaultValue: 'CLIENT {since}', since: sinceLabel }),
-            // ⚠ typeof, not truthiness — 0 is a real age, and `.filter(Boolean)`
-            // below would drop it if this returned the bare number.
-            typeof memberAge === 'number' ? tr('coach:case.age', { defaultValue: 'AGE {n}', n: memberAge }) : null,
-           ].filter(Boolean).join(' · ')}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <h1 style={{ ...bsProH1(t), overflowWrap: 'anywhere' }}>{[first, last].filter(Boolean).join(' ')}</h1>
+          <div style={{ marginTop: 6, ...bsProOverline(t) }}>
+            {[tr('coach:case.clientSince', { defaultValue: 'CLIENT {since}', since: sinceLabel }),
+              // ⚠ typeof, not truthiness — 0 is a real age, and `.filter(Boolean)`
+              // below would drop it if this returned the bare number.
+              typeof memberAge === 'number' ? tr('coach:case.age', { defaultValue: 'AGE {n}', n: memberAge }) : null,
+             ].filter(Boolean).join(' · ')}
+          </div>
         </div>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: t.INK70 }}>
-          <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: isPast ? t.INK50 : heat, display: 'inline-block' }} />
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <span data-case-status="" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minHeight: 28, padding: '0 11px', borderRadius: 999, background: t.PAPER2, ...bsProOverline(t, t.INK), fontWeight: 700 }}>
+          <span aria-hidden style={{ width: 7, height: 7, borderRadius: 999, background: isPast ? t.INK50 : heat, display: 'inline-block' }} />
           {statusLabel}
         </span>
       </div>
-      {/* §C action line — MESSAGE / ADJUST / SCHEDULE / ✦ DRAFT, one row of 4
-          typographic cells, each ≥44px, label underlined in heat. */}
-      <div style={{ marginTop: 18, display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${t.INK}12`, borderBottom: `1px solid ${t.INK}12` }}>
-        {actionCell(tr('coach:case.actMessage', { defaultValue: 'MESSAGE' }), () => fireEvt('shape:proMessageClient'))}
+      {/* The four actions, each ≥44px: Message in ink, the rest quiet. */}
+      <div data-case-actions="" style={{ marginTop: 16, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {actionCell(tr('coach:case.actMessage', { defaultValue: 'MESSAGE' }), () => fireEvt('shape:proMessageClient'), true)}
         {actionCell(tr('coach:case.actAdjust', { defaultValue: 'ADJUST' }), () => setShowAdjustPage(true))}
         {actionCell(tr('coach:case.actSchedule', { defaultValue: 'SCHEDULE' }), () => setShowSchedulePage(true))}
         {actionCell(tr('coach:case.actDraft', { defaultValue: '✦ DRAFT' }), () => setShowDraft(true))}
       </div>
       {showDraft && <BSProCheckinDraft clientUid={clientUid} clientName={client.n} role={role} stats={cStats} accent={accent} onClose={() => setShowDraft(false)} />}
-      {clientUid && !isPast && <button type="button" onClick={()=>setShowWorkoutWatch(true)} style={{minHeight:44,width:'100%',marginTop:12,padding:'12px 14px',border:`1px solid ${t.RULE}`,borderRadius:8,background:t.PAPER2,color:t.INK,fontFamily:t.DISPLAY,fontSize:15,textAlign:'left',cursor:'pointer'}}>{tr('coach:live.watchTitle', {defaultValue:'Workout monitor'})} →</button>}
-      {/* §C tabs — PROFILE / MANAGE typographic index, drawn heat underline. */}
-      <div style={{ marginTop: 4, display: 'flex' }}>
-        {[['profile', isNutri ? tr('coach:case.tabPlan', { defaultValue: 'PLAN' }) : tr('coach:case.tabProfile', { defaultValue: 'PROFILE' })], ['manage', tr('coach:case.tabManage', { defaultValue: 'MANAGE' })]].map(([k, label]) => {
-          const on = view === k;
-          return (
-            <button key={k} type="button" onClick={() => setView(k)} style={{ flex: 1, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 2px 9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: on ? t.INK : t.INK50, textAlign: 'center', borderBottom: `2px solid ${on ? heat : 'transparent'}` }}>{label}</button>
-          );
-        })}
+      {clientUid && !isPast && <button type="button" onClick={()=>setShowWorkoutWatch(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 48, width: '100%', marginTop: 10, padding: '0 14px', border: 0, borderRadius: 12, background: t.PAPER2, color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 600, textAlign: 'left', cursor: 'pointer' }}><span>{tr('coach:live.watchTitle', {defaultValue:'Workout monitor'})}</span><span aria-hidden style={{ fontSize: 20, color: t.INK70 }}>›</span></button>}
+      {/* Plan (Profile) / Manage — the Clients page's tabs. */}
+      <div role="tablist" data-case-tabs="" style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', padding: 4, borderRadius: 12, background: t.PAPER3 || t.PAPER2 }}>
+        {caseTab('profile', isNutri ? tr('coach:case.tabPlan', { defaultValue: 'PLAN' }) : tr('coach:case.tabProfile', { defaultValue: 'PROFILE' }))}
+        {caseTab('manage', tr('coach:case.tabManage', { defaultValue: 'MANAGE' }))}
       </div>
+      </BSProCleanType>
     </div>
   );
 
   // ---- PROFILE tab ----
   // Real clients with no live value show '—'/0 (never the demo literal); demo
   // rows (no clientUid) keep the example numbers.
-  const adhBig = adherencePct != null ? String(adherencePct) : (clientUid ? '—' : '92');
-  const attBig = attendancePct != null ? String(attendancePct) : (clientUid ? '—' : '96');
-  const days7Show = days7 != null ? days7 : (clientUid ? 0 : 6);
-  const sDoneShow = sDone != null ? sDone : (clientUid ? 0 : 38);
-  const sPlanShow = sPlan != null ? sPlan : (clientUid ? 0 : 41);
+  // A demo row's figures are its roster figure, so the case file and the Clients page agree (they
+  // read 92% and 6 of 7 for a client the roster had at 64%).
+  const rowPct = typeof client.adh === 'number' ? client.adh : (/^\d{1,3}%$/.test(String(client.d || '')) ? Number(String(client.d).slice(0, -1)) : null);
+  const demoDays = rowPct != null ? Math.round((rowPct / 100) * 7) : 6;
+  const adhBig = adherencePct != null ? String(adherencePct) : (clientUid ? '—' : String(Math.round((demoDays / 7) * 100)));
+  const attBig = attendancePct != null ? String(attendancePct) : (clientUid ? '—' : String(rowPct != null ? rowPct : 96));
+  const days7Show = days7 != null ? days7 : (clientUid ? 0 : demoDays);
+  const sDoneShow = sDone != null ? sDone : (clientUid ? 0 : (rowPct != null ? Math.round((rowPct / 100) * 25) : 24));
+  const sPlanShow = sPlan != null ? sPlan : (clientUid ? 0 : 25);
   const bigCard = isNutri
     ? { eyebrow: 'ADHERENCE · THIS WEEK', big: adhBig, small: '%', sub: `${days7Show}/7 days logged${bwHasData ? ` · ${bwDelta} ${t.weightUnit}` : ''}`, barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
     : { eyebrow: 'ATTENDANCE · THIS BLOCK', big: attBig, small: '%', sub: `${sDoneShow}/${sPlanShow} sessions · 6 wks left`, barsLabel: 'SESSIONS / WEEK', barsRight: 'LAST 7 WEEKS', bars: [0.55, 0.72, 0.5, 0.86, 0.46, 0.7, 1], barLetters: null, uniform: false };
@@ -5429,7 +5502,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     <div style={{ padding: '12px 0', borderTop: `1px solid ${t.HAIR}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{label}</span>
-        <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{value} <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: deltaColor, fontWeight: 700 }}>▲ {delta}</span></span>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{value} <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12, color: deltaColor, fontWeight: 700 }}>▲ {delta}</span></span>
       </div>
       <div style={{ marginTop: 8, height: 3, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${Math.min(1, pct) * 100}%`, background: barColor, borderRadius: 999 }} /></div>
     </div>
@@ -5538,24 +5611,24 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   })();
   const dotLeaderRow = (label, value, i) => (
     <div key={label + i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '5px 0' }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap' }}>{label}</span>
       <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
-      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{value}</span>
+      <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{value}</span>
     </div>
   );
   const yourMoveStation = (
     <div ref={moveRef} style={{ marginTop: 20 }}>
-      {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.yourMove', { defaultValue: 'YOUR MOVE · FROM THE ENGINE' })} />}
+      {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.yourMove', { defaultValue: 'YOUR MOVE · FROM THE ENGINE' })} />}
       {!hasDirective ? (
-        window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.noRead', { defaultValue: 'NO READ YET · DATA STILL THIN' })} /> : null
+        window.BSTRedact ? <BSProRedact t={t} label={tr('coach:case.noRead', { defaultValue: 'NO READ YET · DATA STILL THIN' })} /> : null
       ) : (
         <>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.3, color: t.INK }}>
-            {moveVerdict}<span style={{ color: heat }}>.</span>
+          <div data-case-move="" style={{ ...bsProCard(t), padding: '14px 14px 12px', boxShadow: `inset 3px 0 0 ${heat}` }}>
+            <div style={{ fontFamily: BS_PRO_SANS, fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.35, color: t.INK }}>{moveVerdict}</div>
+            <button type="button" onClick={moveActionFn} style={{ marginTop: 12, minHeight: 40, borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '0 16px', fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 650, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+              {moveActionLabel} →
+            </button>{/* i18n: moveActionLabel is translated at source */}
           </div>
-          <button type="button" onClick={moveActionFn} style={{ marginTop: 10, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK }}>
-            <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{moveActionLabel} →</span>
-          </button>{/* i18n: moveActionLabel is translated at source */}
           {evidenceRows.length > 0 && (
             <div style={{ marginTop: 8, borderTop: `1px solid ${t.HAIR}`, paddingTop: 6 }}>
               {evidenceRows.map(([l, v], i) => dotLeaderRow(l, v, i))}
@@ -5577,10 +5650,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 
       {/* ATTENDANCE / ADHERENCE — register pair + BSSdBars(still) week bars. */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={isNutri ? tr('coach:case.adherenceWeek', { defaultValue: 'ADHERENCE · THIS WEEK' }) : tr('coach:case.attendanceBlock', { defaultValue: 'ATTENDANCE · THIS BLOCK' })} />}
+        {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={isNutri ? tr('coach:case.adherenceWeek', { defaultValue: 'ADHERENCE · THIS WEEK' }) : tr('coach:case.attendanceBlock', { defaultValue: 'ATTENDANCE · THIS BLOCK' })} />}
         <div style={{ display: 'flex', gap: 22 }}>
-          {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={isNutri ? tr('coach:case.adherence', { defaultValue: 'ADHERENCE' }) : tr('coach:case.attendance', { defaultValue: 'ATTENDANCE' })} value={`${bigCard.big}%`} seen={statsSeen} figSize={26} />}
-          {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={isNutri ? tr('coach:case.daysLogged', { defaultValue: 'DAYS LOGGED' }) : tr('coach:case.sessionsStat', { defaultValue: 'SESSIONS' })} value={isNutri ? `${days7Show}/7` : `${sDoneShow}/${sPlanShow}`} seen={statsSeen} figSize={26} delay={60} />}
+          {<BSProStat t={t} label={isNutri ? tr('coach:case.adherence', { defaultValue: 'ADHERENCE' }) : tr('coach:case.attendance', { defaultValue: 'ATTENDANCE' })} value={`${bigCard.big}%`} seen={statsSeen} figSize={26} />}
+          {<BSProStat t={t} label={isNutri ? tr('coach:case.daysLogged', { defaultValue: 'DAYS LOGGED' }) : tr('coach:case.sessionsStat', { defaultValue: 'SESSIONS' })} value={isNutri ? `${days7Show}/7` : `${sDoneShow}/${sPlanShow}`} seen={statsSeen} figSize={26} delay={60} />}
         </div>
         <div ref={statsRef} style={{ marginTop: 12 }}>
           {window.BSSdBars && <window.BSSdBars
@@ -5599,7 +5672,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             in tr() would invite catalogs to rebuild the sentence from parts and
             fork that source; it is a ledger-note, English by design. */}
         {varRead && (
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: varRead.chip ? t.AMBER : t.INK50 }}>
+          <div style={{ marginTop: 8, fontFamily: BS_PRO_SANS, fontSize: 11.5, letterSpacing: 0, color: varRead.chip ? t.AMBER : t.INK50 }}>
             {varRead.line}
           </div>
         )}
@@ -5608,23 +5681,23 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       {/* KEY LIFTS (trainer) / MACROS VS TARGET (nutri). */}
       {!isNutri ? (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.keyLifts', { defaultValue: 'KEY LIFTS' })} meta={lifts.length ? undefined : null} />}
+          {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.keyLifts', { defaultValue: 'KEY LIFTS' })} meta={lifts.length ? undefined : null} />}
           {lifts.length ? (
             <>
               {lifts.map((l, i) => (
                 <div key={l.n + i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap' }}>{l.n}</span>
                   <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{l.v} <span style={{ color: heat }}>▲{l.d}</span></span>
+                  <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{l.v} <span style={{ color: heat }}>▲{l.d}</span></span>
                 </div>
               ))}
-              <span style={{ marginTop: 6, display: 'inline-block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{tr('coach:case.history', { defaultValue: 'HISTORY' })}</span>
+              <span style={{ marginTop: 6, display: 'inline-block', fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: 0, color: t.INK50 }}>{tr('coach:case.history', { defaultValue: 'HISTORY' })}</span>
             </>
-          ) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.liftsRedact', { defaultValue: 'LIFTS · NOT ON RECORD' })} /> : emptyNote(tr('coach:case.noLifts', { defaultValue: 'No lifts logged yet' })))}
+          ) : (window.BSTRedact ? <BSProRedact t={t} label={tr('coach:case.liftsRedact', { defaultValue: 'LIFTS · NOT ON RECORD' })} /> : emptyNote(tr('coach:case.noLifts', { defaultValue: 'No lifts logged yet' })))}
         </div>
       ) : (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.macrosVsTarget', { defaultValue: 'MACROS VS TARGET' })} />}
+          {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.macrosVsTarget', { defaultValue: 'MACROS VS TARGET' })} />}
           {window.BSSdBars ? <window.BSSdBars
             rows={macros.map((m) => [m.n.toUpperCase(), m.cur != null ? tr('coach:case.macroVsTgt', { defaultValue: '{cur}g · {tgt}g tgt', cur: m.cur, tgt: m.tgt }) : '—', ''])}
             perf={macros.map((m) => (m.cur != null && m.tgt ? m.cur / m.tgt : 0))}
@@ -5643,13 +5716,13 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           (never-shaming — a client who never preps shows NOTHING here). */}
       {prepSignal && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.prep', { defaultValue: 'PREP' })} />}
+          {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.prep', { defaultValue: 'PREP' })} />}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap' }}>
               {tr('coach:case.prepLine', { defaultValue: '{count, plural, one {# meal prepped} other {# meals prepped}}', count: prepSignal.count })}
             </span>
             <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap' }}>
+            <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap' }}>
               {prepSignal.lastAt ? (() => { try { return new Date(prepSignal.lastAt).toLocaleDateString((window.ShapeI18n && window.ShapeI18n.intlLocale && window.ShapeI18n.intlLocale()) || 'en', { weekday: 'short' }); } catch (e) { return ''; } })() : ''}
               {prepSignal.days.length ? <span style={{ color: t.INK50 }}> · {prepSignal.days.join(' ')}</span> : null}
             </span>
@@ -5663,12 +5736,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           (or a demo row / pre-migration read) shows nothing here. */}
       {(selfPlans.programs.length > 0 || selfPlans.repeats.length > 0 || selfPlans.upcoming.length > 0) && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.selfProgrammed', { defaultValue: 'SELF-PROGRAMMED' })} meta={tr('coach:case.sessionsCount', { defaultValue: '{count, plural, one {# SESSION} other {# SESSIONS}}', count: selfPlans.total })} />}
+          {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.selfProgrammed', { defaultValue: 'SELF-PROGRAMMED' })} meta={tr('coach:case.sessionsCount', { defaultValue: '{count, plural, one {# SESSION} other {# SESSIONS}}', count: selfPlans.total })} />}
           {selfPlans.programs.map((p, i) => (
             <div key={`sp-prog-${i}`} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                 {p.nextDate
                   ? <>{p.nextWeek != null ? `W${p.nextWeek}` : ''}{p.nextWeek != null && p.weeks ? tr('coach:case.weekOfSep', { defaultValue: ' OF {weeks}', weeks: p.weeks }) : ''}{p.nextWeek != null ? ' · ' : ''}<span style={{ color: heat }}>{bsSelfPlanDateLabel(p.nextDate)}</span></>
                   : tr('coach:roster.labelPast', { defaultValue: 'PAST' })}
@@ -5679,34 +5752,34 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             <div key={`sp-rep-${i}`} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{r.days} <span style={{ color: t.INK50 }}>· {tr('coach:case.weekly', { defaultValue: 'WEEKLY' })}</span></span>
+              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, color: t.INK, letterSpacing: 0, whiteSpace: 'nowrap' }}>{r.days} <span style={{ color: t.INK50 }}>· {tr('coach:case.weekly', { defaultValue: 'WEEKLY' })}</span></span>
             </div>
           ))}
           {selfPlans.upcoming.map((u, i) => (
             <div key={`sp-up-${i}`} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.title}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: heat, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{bsSelfPlanDateLabel(u.date)}</span>
+              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, color: heat, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{bsSelfPlanDateLabel(u.date)}</span>
             </div>
           ))}
-          <span style={{ marginTop: 6, display: 'inline-block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{tr('coach:case.programmedByMember', { defaultValue: 'PROGRAMMED BY THE MEMBER' })}</span>
+          <span style={{ marginTop: 6, display: 'inline-block', fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: 0, color: t.INK50 }}>{tr('coach:case.programmedByMember', { defaultValue: 'PROGRAMMED BY THE MEMBER' })}</span>
         </div>
       )}
 
       {/* BODY — registers + the self-drawing line-only weight trace + LOG →. */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.body', { defaultValue: 'BODY' })} />}
+        {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.body', { defaultValue: 'BODY' })} />}
         {bwHasData && (
           <div style={{ display: 'flex', gap: 22, alignItems: 'baseline' }}>
-            {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={tr('coach:case.weight', { defaultValue: 'WEIGHT' })} value={`${bwNow}${t.weightUnit}`} seen={bodyStatsSeen} figSize={26} />}
-            <div style={{ fontFamily: t.MONO, fontSize: 9, color: heat, letterSpacing: '0.04em' }}>{bwDelta > 0 ? '+' : ''}{tr('coach:case.weightDelta', { defaultValue: '{delta} {unit} · {weeks} weeks', delta: bwDelta, unit: t.weightUnit, weeks: bwWeeks })}</div>
-            <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? tr('coach:case.history', { defaultValue: 'HISTORY' }) : tr('coach:case.log', { defaultValue: 'LOG' })}</span>
+            {<BSProStat t={t} label={tr('coach:case.weight', { defaultValue: 'WEIGHT' })} value={`${bwNow}${t.weightUnit}`} seen={bodyStatsSeen} figSize={26} />}
+            <div style={{ fontFamily: BS_PRO_SANS, fontSize: 11.5, color: heat, letterSpacing: 0 }}>{bwDelta > 0 ? '+' : ''}{tr('coach:case.weightDelta', { defaultValue: '{delta} {unit} · {weeks} weeks', delta: bwDelta, unit: t.weightUnit, weeks: bwWeeks })}</div>
+            <span style={{ marginLeft: 'auto', fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: 0, color: t.INK50 }}>{isNutri ? tr('coach:case.history', { defaultValue: 'HISTORY' }) : tr('coach:case.log', { defaultValue: 'LOG' })}</span>
           </div>
         )}
         <div ref={bodyRef} style={{ marginTop: 10 }}>
           {(() => {
             const vals = bwSeriesDisp.map(Number).filter(Number.isFinite);
-            if (vals.length < 2) return window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.weightRedact', { defaultValue: 'WEIGHT · NOT ON RECORD' })} /> : null;
+            if (vals.length < 2) return window.BSTRedact ? <BSProRedact t={t} label={tr('coach:case.weightRedact', { defaultValue: 'WEIGHT · NOT ON RECORD' })} /> : null;
             const mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length, W = 320, H = 46;
             const pts = vals.map((v, i) => [(i / (n - 1)) * W, H - 6 - ((v - mn) / span) * (H - 16)]);
             const ln = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
@@ -5725,7 +5798,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 
       {/* CHECK-IN — 3-col mini registers ×6 + the wins/struggles serif pull-quote + asked-you. */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={cKit.checkins.length ? tr('coach:case.checkinWkOf', { defaultValue: 'CHECK-IN · WK OF {date}', date: String(cKit.checkins[0].week_of).slice(5) }) : tr('coach:case.checkin', { defaultValue: 'CHECK-IN' })} />}
+        {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={cKit.checkins.length ? tr('coach:case.checkinWkOf', { defaultValue: 'CHECK-IN · WK OF {date}', date: String(cKit.checkins[0].week_of).slice(5) }) : tr('coach:case.checkin', { defaultValue: 'CHECK-IN' })} />}
         {clientUid && cKit.checkins.length > 0 ? (() => {
           const ck = cKit.checkins[0];
           const R = ck.ratings || {};
@@ -5735,21 +5808,21 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                 {items.map(([k, l]) => (
                   <div key={k}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
+                    <div style={{ fontFamily: BS_PRO_SANS, fontSize: 10.5, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
                     <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: R[k] != null ? t.INK : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{R[k] != null ? tr('coach:case.ratingOf10', { defaultValue: '{n}/10', n: R[k] }) : '—'}</div>
                   </div>
                 ))}
               </div>
               {(ck.wins || ck.struggles || ck.question) && (
                 <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gap: 9 }}>
-                  {ck.wins ? <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>“{ck.wins}”</div> : null}
+                  {ck.wins ? <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>“{ck.wins}”</div> : null}
                   {ck.struggles ? <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{ck.struggles}</div> : null}
-                  {ck.question ? <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: accent }}>{tr('coach:case.askedYou', { defaultValue: 'ASKED YOU · {question}', question: ck.question })}</div> : null}
+                  {ck.question ? <div style={{ fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: 0, color: accent }}>{tr('coach:case.askedYou', { defaultValue: 'ASKED YOU · {question}', question: ck.question })}</div> : null}
                 </div>
               )}
             </>
           );
-        })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.checkinRedact', { defaultValue: 'CHECK-IN · NOT SUBMITTED' })} /> : emptyNote(tr('coach:case.noCheckin', { defaultValue: 'No check-in yet' })))}
+        })() : (window.BSTRedact ? <BSProRedact t={t} label={tr('coach:case.checkinRedact', { defaultValue: 'CHECK-IN · NOT SUBMITTED' })} /> : emptyNote(tr('coach:case.noCheckin', { defaultValue: 'No check-in yet' })))}
       </div>
 
       {/* SLEEP · RECOVERY — readiness + 7-day registers; redactions per field. */}
@@ -5757,7 +5830,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         {/* A card carrying only ENTERED data is not a recovery readout — head it
             as what it is. With nothing at all, the head stays SLEEP · RECOVERY
             so the redact below reads as the pre-§3B empty state. */}
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={caseCheckinHeading
+        {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={caseCheckinHeading
           ? tr('coach:case.dailyCheckin', { defaultValue: 'DAILY CHECK-IN' })
           : tr('coach:case.sleepRecovery', { defaultValue: 'SLEEP · RECOVERY' })} />}
         {(caseHasDevice || caseHasHours || caseHasRested) ? (() => {
@@ -5817,33 +5890,33 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             <>
               {s.readiness != null && (
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{tr('coach:case.readiness', { defaultValue: 'READINESS' })}</span>
+                  <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{tr('coach:case.readiness', { defaultValue: 'READINESS' })}</span>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: rc, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.readiness}</span>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 11, color: t.INK50 }}>/100</span>
-                  {s.readinessLabel && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: rc }}>{s.readinessLabel}</span>}
+                  {s.readinessLabel && <span style={{ marginLeft: 'auto', fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: rc }}>{s.readinessLabel}</span>}
                 </div>
               )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                 {cells.map(([l, v]) => v != null ? (
                   <div key={l}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
+                    <div style={{ fontFamily: BS_PRO_SANS, fontSize: 10.5, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
                     <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
                   </div>
                 ) : (
                   <div key={l}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
-                    <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{tr('coach:case.notSynced', { defaultValue: '— NOT SYNCED' })}</div>
+                    <div style={{ fontFamily: BS_PRO_SANS, fontSize: 10.5, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
+                    <div style={{ marginTop: 2, fontFamily: BS_PRO_SANS, fontSize: 12.5, color: t.INK50 }}>{tr('coach:case.notSynced', { defaultValue: '— NOT SYNCED' })}</div>
                   </div>
                 ))}
               </div>
               {stageParts.length > 0 && (
-                <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+                <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
                   {tr('coach:case.stages', { defaultValue: 'STAGES' })} · {stageParts.join(' · ')}
                 </div>
               )}
             </>
           );
-        })() : (caseShowSleepRedact ? (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.sleepRedact', { defaultValue: 'SLEEP · RECOVERY · NOT SYNCED' })} /> : emptyNote(tr('coach:case.noRecovery', { defaultValue: 'No recovery data yet' }))) : null)}
+        })() : (caseShowSleepRedact ? (window.BSTRedact ? <BSProRedact t={t} label={tr('coach:case.sleepRedact', { defaultValue: 'SLEEP · RECOVERY · NOT SYNCED' })} /> : emptyNote(tr('coach:case.noRecovery', { defaultValue: 'No recovery data yet' }))) : null)}
         {/* DAILY CHECK-IN vitals (spec §3B) — the member's OWN daily gauges
             (daily_health_snapshot energy/hunger/hydration_l), 7-day averages
             off the overview's `vitals` leg. Labeled "DAILY … · 7D" so they can
@@ -5869,13 +5942,13 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
               {vc.map(([l, v]) => (
                 <div key={l}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
+                  <div style={{ fontFamily: BS_PRO_SANS, fontSize: 10.5, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
                   <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
                 </div>
               ))}
             </div>
           );
-        })() : (caseShowVitalsRedact && window.BSTRedact ? <div style={{ marginTop: 12 }}><window.BSTRedact INK={t.INK} label={tr('coach:case.dailyVitalsRedact', { defaultValue: 'DAILY CHECK-IN · NOT ON RECORD' })} /></div> : null)}
+        })() : (caseShowVitalsRedact && window.BSTRedact ? <div style={{ marginTop: 12 }}><BSProRedact t={t} label={tr('coach:case.dailyVitalsRedact', { defaultValue: 'DAILY CHECK-IN · NOT ON RECORD' })} /></div> : null)}
       </div>
 
       {/* CYCLE — share-gated (spec 2026-07-19): renders ONLY when the member
@@ -5906,16 +5979,16 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           : tr('coach:cycle.phaseDay', { defaultValue: '{phase} · day {day}', phase: phaseLabel, day: c.day });
         return (
           <div style={{ marginTop: 22 }}>
-            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:cycle.head', { defaultValue: 'CYCLE · SHARED BY THE MEMBER' })} />}
+            {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:cycle.head', { defaultValue: 'CYCLE · SHARED BY THE MEMBER' })} />}
             <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK }}>{timing}</div>
             {c.predictedStart && (
-              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>
+              <div style={{ marginTop: 4, fontFamily: BS_PRO_SANS, fontSize: 11.5, letterSpacing: 0, color: t.INK50 }}>
                 {tr('coach:cycle.window', { defaultValue: 'Next period window · {from} – {to}', from: bsCycleShortDate(c.predictedStart.from), to: bsCycleShortDate(c.predictedStart.to) })}
               </div>
             )}
             <BSCycleMonthStrip starts={cycleShared.starts} heat={heat} today={cycleShared.today} />
             {c.phase === 'luteal' && c.predictedStart && (
-              <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 12, fontStyle: 'italic', color: t.INK70 }}>
+              <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>
                 {tr('coach:cycle.deload', { defaultValue: 'Week of the {d} is a natural deload window.', d: bsCycleShortDate(c.predictedStart.from) })}
               </div>
             )}
@@ -5925,8 +5998,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 
       {/* ACTIVITY — recent sessions/logs as dot-leader rows. */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={isNutri ? tr('coach:case.activityLogs', { defaultValue: 'ACTIVITY · RECENT LOGS' }) : tr('coach:case.activitySessions', { defaultValue: 'ACTIVITY · RECENT SESSIONS' })} />}
-        {recent.length ? recent.map((r, i) => dotLeaderRow(r.n, r.d, i)) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={isNutri ? tr('coach:case.logsRedact', { defaultValue: 'LOGS · NOT ON RECORD' }) : tr('coach:case.sessionsRedact', { defaultValue: 'SESSIONS · NOT ON RECORD' })} /> : emptyNote(isNutri ? tr('coach:case.noLogs', { defaultValue: 'No logs yet' }) : tr('coach:case.noSessions', { defaultValue: 'No sessions yet' })))}
+        {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={isNutri ? tr('coach:case.activityLogs', { defaultValue: 'ACTIVITY · RECENT LOGS' }) : tr('coach:case.activitySessions', { defaultValue: 'ACTIVITY · RECENT SESSIONS' })} />}
+        {recent.length ? recent.map((r, i) => dotLeaderRow(r.n, r.d, i)) : (window.BSTRedact ? <BSProRedact t={t} label={isNutri ? tr('coach:case.logsRedact', { defaultValue: 'LOGS · NOT ON RECORD' }) : tr('coach:case.sessionsRedact', { defaultValue: 'SESSIONS · NOT ON RECORD' })} /> : emptyNote(isNutri ? tr('coach:case.noLogs', { defaultValue: 'No logs yet' }) : tr('coach:case.noSessions', { defaultValue: 'No sessions yet' })))}
       </div>
 
     </div>
@@ -5938,11 +6011,11 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // goals); private/none/loading → BSTRedact. Same data + gating as before —
   // restyle only (goalsContent no longer wraps its own rounded cards).
   const goalsContent = !clientUid ? (
-    window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.goalsAppearLinked', { defaultValue: 'GOALS · APPEARS ONCE LINKED' })} /> : emptyNote(tr('coach:case.appearsLinked', { defaultValue: 'Appears once linked to a live member' }))
+    window.BSTRedact ? <BSProRedact t={t} label={tr('coach:case.goalsAppearLinked', { defaultValue: 'GOALS · APPEARS ONCE LINKED' })} /> : emptyNote(tr('coach:case.appearsLinked', { defaultValue: 'Appears once linked to a live member' }))
   ) : !cGoalsLoaded ? (
-    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.loading', { defaultValue: 'Loading…' })}</div>
+    <div style={{ fontFamily: BS_PRO_SANS, fontSize: 12.5, letterSpacing: 0, color: t.INK50 }}>{tr('coach:common.loading', { defaultValue: 'Loading…' })}</div>
   ) : (cGoals && cGoals.share === false) ? (
-    window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.goalsPrivateRedact', { defaultValue: '{name} KEEPS GOALS PRIVATE', name: first.toUpperCase() })} /> : emptyNote(tr('coach:case.goalsPrivate', { defaultValue: '{name} keeps their goals private.', name: first }))
+    window.BSTRedact ? <BSProRedact t={t} label={tr('coach:case.goalsPrivateRedact', { defaultValue: '{name} KEEPS GOALS PRIVATE', name: first.toUpperCase() })} /> : emptyNote(tr('coach:case.goalsPrivate', { defaultValue: '{name} keeps their goals private.', name: first }))
   ) : (() => {
     const ov = cGoals && cGoals.overall;
     const trM = (cGoals && cGoals.trainingMeta) || null;
@@ -5950,12 +6023,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     // Work-domain headline (spec 2026-07-13) — shared goals include THE WORK
     // station; a member sharing only work goals must not read as "none shared".
     const wkM = (cGoals && cGoals.workMeta) || null;
-    if (!ov && !(trM && trM.title) && !(nuM && nuM.title) && !(wkM && wkM.title)) return (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.noGoalsShared', { defaultValue: 'NO GOALS SHARED YET' })} /> : emptyNote(tr('coach:case.noGoalsSharedFull', { defaultValue: 'No goals shared yet.' })));
+    if (!ov && !(trM && trM.title) && !(nuM && nuM.title) && !(wkM && wkM.title)) return (window.BSTRedact ? <BSProRedact t={t} label={tr('coach:case.noGoalsShared', { defaultValue: 'NO GOALS SHARED YET' })} /> : emptyNote(tr('coach:case.noGoalsSharedFull', { defaultValue: 'No goals shared yet.' })));
     const goalDotRow = (label, value, c, i) => (
       <div key={label + i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
         <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap' }}>{label}</span>
         <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: c || t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{value}</span>
+        <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, color: c || t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{value}</span>
       </div>
     );
     return (
@@ -5970,31 +6043,31 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           return (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: heat }}>{tr('coach:case.overall', { defaultValue: 'OVERALL' })}{byLabel ? tr('coach:case.byDate', { defaultValue: ' · BY {date}', date: byLabel }) : ''}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>{tr('coach:case.pctThere', { defaultValue: '{pct}% there', pct: Math.round(pct * 100) })}</span>
+                <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: 0, color: heat }}>{tr('coach:case.overall', { defaultValue: 'OVERALL' })}{byLabel ? tr('coach:case.byDate', { defaultValue: ' · BY {date}', date: byLabel }) : ''}</span>
+                <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, color: t.INK50 }}>{tr('coach:case.pctThere', { defaultValue: '{pct}% there', pct: Math.round(pct * 100) })}</span>
               </div>
               <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{ov.title}</div>
               <div style={{ marginTop: 8, height: 2, borderRadius: 0, background: `${t.INK}22`, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct * 100}%`, background: heat }} /></div>
-              <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>{tr('coach:case.goalProgress', { defaultValue: '{down} {unit} so far · {toGo} {unit} to go · now {now}{unit} · target {target}{unit}', down, unit, toGo: Math.abs(toGo), now, target })}</div>
+              <div style={{ marginTop: 7, fontFamily: BS_PRO_SANS, fontSize: 11, color: t.INK50, letterSpacing: 0 }}>{tr('coach:case.goalProgress', { defaultValue: '{down} {unit} so far · {toGo} {unit} to go · now {now}{unit} · target {target}{unit}', down, unit, toGo: Math.abs(toGo), now, target })}</div>
             </div>
           );
         })()}
         {trM && trM.title && (
           <div style={{ marginTop: ov ? 12 : 0 }}>
             {goalDotRow(tr('coach:case.ckTraining', { defaultValue: 'Training' }), trM.title, t.RUST, 0)}
-            {trM.subtitle && <div style={{ marginTop: -2, marginBottom: 4, fontFamily: t.DISPLAY, fontSize: 11.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.35 }}>{trM.subtitle}</div>}
+            {trM.subtitle && <div style={{ marginTop: -2, marginBottom: 4, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.4 }}>{trM.subtitle}</div>}
           </div>
         )}
         {nuM && nuM.title && (
           <div style={{ marginTop: 4 }}>
             {goalDotRow(tr('coach:case.ckNutrition', { defaultValue: 'Nutrition' }), nuM.title, '#a07a2e', 1)}
-            {nuM.subtitle && <div style={{ marginTop: -2, marginBottom: 4, fontFamily: t.DISPLAY, fontSize: 11.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.35 }}>{nuM.subtitle}</div>}
+            {nuM.subtitle && <div style={{ marginTop: -2, marginBottom: 4, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.4 }}>{nuM.subtitle}</div>}
           </div>
         )}
         {wkM && wkM.title && (
           <div style={{ marginTop: 4 }}>
             {goalDotRow(tr('coach:case.dimWork', { defaultValue: 'Work' }), wkM.title, t.BLUE, 2)}
-            {wkM.subtitle && <div style={{ marginTop: -2, marginBottom: 4, fontFamily: t.DISPLAY, fontSize: 11.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.35 }}>{wkM.subtitle}</div>}
+            {wkM.subtitle && <div style={{ marginTop: -2, marginBottom: 4, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.4 }}>{wkM.subtitle}</div>}
           </div>
         )}
       </div>
@@ -6005,15 +6078,15 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       {/* PHASE — typographic index (mono 9/800, active = ink + 2px heat
           underline), the same setPhaseKey handler (ShapeProgramApi-backed). */}
       <div style={{ marginTop: 20 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.blockPhase', { defaultValue: 'BLOCK & PHASE' })} />}
+        {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.blockPhase', { defaultValue: 'BLOCK & PHASE' })} />}
         {[['trainingPhase', tr('coach:case.trainingBlock', { defaultValue: 'TRAINING BLOCK' }), ['Build', 'Cut', 'Peak', 'Maintain', 'Deload', 'Base']], ['nutritionPhase', tr('coach:case.nutritionPhase', { defaultValue: 'NUTRITION PHASE' }), ['Cut', 'Bulk', 'Maintain', 'Recomp', 'Refeed']]].map(([key, label, opts], gi) => (
           <div key={key} style={{ marginTop: gi ? 14 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>{label}</div>
+            <div style={{ fontFamily: BS_PRO_SANS, fontSize: 10.5, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>{label}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
               {opts.map(o => {
                 const on = phase[key] === o;
                 return (
-                  <button key={o} type="button" onClick={() => setPhaseKey(key, o)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: on ? t.INK : t.INK50 }}>
+                  <button key={o} type="button" onClick={() => setPhaseKey(key, o)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 650, letterSpacing: 0, color: on ? t.INK : t.INK50 }}>
                     <span style={{ borderBottom: on ? `2px solid ${heat}` : '2px solid transparent', paddingBottom: 2 }}>{o.toUpperCase()}</span>
                   </button>
                 );
@@ -6021,16 +6094,16 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             </div>
           </div>
         ))}
-        {!clientUid && <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.demoSaves', { defaultValue: 'Demo client · saves once linked to a live member' })}</div>}
+        {!clientUid && <div style={{ marginTop: 4, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:case.demoSaves', { defaultValue: 'Demo client · saves once linked to a live member' })}</div>}
       </div>
 
       {/* ASSIGN — amber-spined notice row → setShowAssignPage(true). */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={t.AMBER || '#d8a23a'} INK={t.INK} label={isNutri ? tr('coach:case.mealPlanHead', { defaultValue: 'MEAL PLAN' }) : tr('coach:case.programHead', { defaultValue: 'PROGRAM' })} />}
+        {<BSProCaseHead t={t} heat={t.AMBER || '#d8a23a'} INK={t.INK} label={isNutri ? tr('coach:case.mealPlanHead', { defaultValue: 'MEAL PLAN' }) : tr('coach:case.programHead', { defaultValue: 'PROGRAM' })} />}
         <button type="button" onClick={() => setShowAssignPage(true)} style={{ display: 'block', width: '100%', minHeight: 44, textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', borderLeft: `3px solid ${t.AMBER || '#d8a23a'}`, padding: '9px 0 9px 11px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ flex: 1, minWidth: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:case.assignFromCatalogue', { defaultValue: 'ASSIGN FROM YOUR CATALOGUE…' })}</span>
-            <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, fontWeight: 700, color: t.AMBER || '#d8a23a' }}>›</span>
+            <span style={{ flex: 1, minWidth: 0, fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:case.assignFromCatalogue', { defaultValue: 'ASSIGN FROM YOUR CATALOGUE…' })}</span>
+            <span aria-hidden style={{ fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 700, color: t.AMBER || '#d8a23a' }}>›</span>
           </div>
           <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.4 }}>{isNutri ? tr('coach:case.assignHintNutri', { defaultValue: "A saved meal plan → {name}'s Eat tab", name: first }) : tr('coach:case.assignHintTrainer', { defaultValue: "A saved program → {name}'s Train tab", name: first })}</div>
         </button>
@@ -6038,22 +6111,22 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 
       {/* CLIENT GOALS — shared goals as dot-leader rows; private/none → redaction. */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.sharedGoals', { defaultValue: 'SHARED GOALS' })} />}
+        {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.sharedGoals', { defaultValue: 'SHARED GOALS' })} />}
         {goalsContent}
       </div>
 
       {/* DATA QUALITY — reconcile sources (unchanged handler). */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.dataQuality', { defaultValue: 'DATA QUALITY' })} />}
+        {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.dataQuality', { defaultValue: 'DATA QUALITY' })} />}
         {clientUid ? (
           <button type="button" onClick={() => setShowReconcile(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '2px 0', textAlign: 'left' }}>
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK }}>{tr('coach:case.whichSource', { defaultValue: 'Which source to trust' })}</span>
-              <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.whichSourceSub', { defaultValue: "When {name}'s devices disagree on a metric", name: first })}</span>
+              <span style={{ display: 'block', marginTop: 2, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:case.whichSourceSub', { defaultValue: "When {name}'s devices disagree on a metric", name: first })}</span>
             </span>
-            <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, fontWeight: 700, color: heat }}>›</span>
+            <span aria-hidden style={{ fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 700, color: heat }}>›</span>
           </button>
-        ) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.demoAppearsRedact', { defaultValue: 'DEMO CLIENT · APPEARS ONCE LINKED' })} /> : emptyNote(tr('coach:case.demoAppears', { defaultValue: 'Demo client · appears once linked to a live member' })))}
+        ) : (window.BSTRedact ? <BSProRedact t={t} label={tr('coach:case.demoAppearsRedact', { defaultValue: 'DEMO CLIENT · APPEARS ONCE LINKED' })} /> : emptyNote(tr('coach:case.demoAppears', { defaultValue: 'Demo client · appears once linked to a live member' })))}
       </div>
 
       {/* CARE TEAM — press-credit rows (counterpart's ROLE-color spine · name ·
@@ -6065,8 +6138,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           double-render. */}
       {clientUid && careLoaded && carePartial && !(careTeam && careTeam.length > 0) && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.careTeam', { defaultValue: 'CARE TEAM' })} />}
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>
+          {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.careTeam', { defaultValue: 'CARE TEAM' })} />}
+          <div style={{ marginTop: 8, fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>
             {tr('coach:case.careTeamUnavailable', { defaultValue: "Couldn't load the care team — a loading problem, not an empty one." })}
           </div>
         </div>
@@ -6074,7 +6147,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 
       {clientUid && careLoaded && careTeam && careTeam.length > 0 && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.careTeam', { defaultValue: 'CARE TEAM' })} />}
+          {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.careTeam', { defaultValue: 'CARE TEAM' })} />}
           {careTeam.map((c, i) => {
             const cName = (c.name || tr('coach:common.coach', { defaultValue: 'Coach' })).trim();
             const cInit = cName.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
@@ -6085,20 +6158,20 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                 <BSFacetAvatar size={36} c={cColor} initial={cInit} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cName}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.coManaging', { defaultValue: '{role} · CO-MANAGING', role: cRoleLabel.toUpperCase() })}</div>
+                  <div style={{ marginTop: 2, fontFamily: BS_PRO_SANS, fontSize: 10.5, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.coManaging', { defaultValue: '{role} · CO-MANAGING', role: cRoleLabel.toUpperCase() })}</div>
                 </div>
-                <button type="button" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:proMessageCoach', { detail: { clientId: clientUid, counterpartUserId: c.userId, name: cName, role: cRoleLabel } })); } catch (e) {} }} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 2px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                <button type="button" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:proMessageCoach', { detail: { clientId: clientUid, counterpartUserId: c.userId, name: cName, role: cRoleLabel } })); } catch (e) {} }} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 2px', fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: 0, color: t.INK, whiteSpace: 'nowrap', flexShrink: 0 }}>
                   <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{tr('coach:case.actMessage', { defaultValue: 'MESSAGE' })}</span>
                 </button>
               </div>
             );
           })}
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.coordinatePlan', { defaultValue: "Coordinate {name}'s plan with the rest of the care team", name: first })}</div>
+          <div style={{ marginTop: 8, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:case.coordinatePlan', { defaultValue: "Coordinate {name}'s plan with the rest of the care team", name: first })}</div>
           {/* Both schedules (owner, 2026-10-29: "any shared client for any trainer or nutritionist
               should be shared"): the client's calendar carries every other coach's workouts or menu
               beside this coach's own, whatever their discipline. */}
           {careTeam.length > 0 && (
-            <button type="button" onClick={() => setShowClientCalendar(true)} style={{ marginTop: 10, minHeight: 44, width: '100%', background: 'transparent', border: `1px solid ${t.INK}`, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>
+            <button type="button" onClick={() => setShowClientCalendar(true)} style={{ marginTop: 10, minHeight: 44, width: '100%', background: 'transparent', border: `1px solid ${t.INK}`, cursor: 'pointer', padding: '11px 0', fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK }}>
               {tr('coach:case.seeBothSchedules', { defaultValue: 'See all schedules →' })}
             </button>
           )}
@@ -6109,28 +6182,28 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           leader · WAIVE heat-underline action, existing RPC handler). */}
       {clientUid && pens.length > 0 && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.accountabilityPenalties', { defaultValue: 'ACCOUNTABILITY · RECENT PENALTIES' })} />}
+          {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.accountabilityPenalties', { defaultValue: 'ACCOUNTABILITY · RECENT PENALTIES' })} />}
           {pens.map((p, i) => (
             <div key={p.source_id || i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '7px 0' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap' }}>{p.note || tr('coach:case.penalty', { defaultValue: 'Penalty' })}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: t.RUST, whiteSpace: 'nowrap' }}>−{Math.abs(Number(p.delta) || 0)}</span>
+              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap' }}>{p.note || tr('coach:case.penalty', { defaultValue: 'Penalty' })}</span>
+              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 650, color: t.RUST, whiteSpace: 'nowrap' }}>−{Math.abs(Number(p.delta) || 0)}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50, whiteSpace: 'nowrap' }}>{p.earned_at ? new Date(p.earned_at).toLocaleDateString(coachLocale()) : ''}</span>
-              <button type="button" onClick={() => waivePen(p)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 2px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, whiteSpace: 'nowrap', flexShrink: 0 }}>
+              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, color: t.INK50, whiteSpace: 'nowrap' }}>{p.earned_at ? new Date(p.earned_at).toLocaleDateString(coachLocale()) : ''}</span>
+              <button type="button" onClick={() => waivePen(p)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 2px', fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: 0, color: t.INK, whiteSpace: 'nowrap', flexShrink: 0 }}>
                 <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{tr('coach:case.waive', { defaultValue: 'WAIVE' })}</span>
               </button>
             </div>
           ))}
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.waiveHint', { defaultValue: "Waiving adds the points back — use it when a miss wasn't on {name}", name: first })}</div>
+          <div style={{ marginTop: 4, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:case.waiveHint', { defaultValue: "Waiving adds the points back — use it when a miss wasn't on {name}", name: first })}</div>
         </div>
       )}
 
       {/* ACCOUNTABILITY — set a weekly commitment (unchanged form/handlers). */}
       {clientUid && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.setCommitment', { defaultValue: 'ACCOUNTABILITY · SET A COMMITMENT' })} />}
+          {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.setCommitment', { defaultValue: 'ACCOUNTABILITY · SET A COMMITMENT' })} />}
           {!commitForm ? (
-            <button type="button" onClick={() => setCommitForm(true)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK }}>
+            <button type="button" onClick={() => setCommitForm(true)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK }}>
               <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{tr('coach:case.proposeCommitment', { defaultValue: '+ PROPOSE A WEEKLY COMMITMENT →' })}</span>
             </button>
           ) : (
@@ -6140,37 +6213,37 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{label}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <button type="button" onClick={() => setCf(s => ({ ...s, [key]: Math.max(lo, s[key] - 1) }))} style={{ width: 28, height: 28, borderRadius: 0, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 15, cursor: 'pointer' }}>−</button>
-                    <span style={{ minWidth: 20, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{cf[key]}</span>
+                    <span style={{ minWidth: 20, textAlign: 'center', fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{cf[key]}</span>
                     <button type="button" onClick={() => setCf(s => ({ ...s, [key]: Math.min(hi, s[key] + 1) }))} style={{ width: 28, height: 28, borderRadius: 0, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 15, cursor: 'pointer' }}>+</button>
                   </div>
                 </div>
               ))}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{tr('coach:case.weeklyCheckin', { defaultValue: 'Weekly check-in' })}</div>
-                <button type="button" onClick={() => setCf(s => ({ ...s, checkin: !s.checkin }))} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, color: t.INK, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                <button type="button" onClick={() => setCf(s => ({ ...s, checkin: !s.checkin }))} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}>
                   <span style={{ borderBottom: cf.checkin ? `1px solid ${heat}` : `1px solid ${t.INK}4d`, paddingBottom: 2 }}>{cf.checkin ? tr('coach:common.yes', { defaultValue: 'YES' }) : tr('coach:common.no', { defaultValue: 'NO' })}</span>
                 </button>
               </div>
               <div style={{ marginTop: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}><span>{tr('coach:case.stake', { defaultValue: 'STAKE' })}</span><span style={{ color: heat }}>{tr('coach:case.stakePts', { defaultValue: '{n} pts', n: cf.stake })}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: BS_PRO_SANS, fontSize: 11, color: t.INK50, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}><span>{tr('coach:case.stake', { defaultValue: 'STAKE' })}</span><span style={{ color: heat }}>{tr('coach:case.stakePts', { defaultValue: '{n} pts', n: cf.stake })}</span></div>
                 <input type="range" aria-label={tr('coach:case.stakePointsAria', { defaultValue: 'Stake points' })} min={5} max={50} step={5} value={cf.stake} onChange={e => setCf(s => ({ ...s, stake: Number(e.target.value) }))} style={{ width: '100%', marginTop: 8, accentColor: heat }} />
               </div>
               <div style={{ marginTop: 14, display: 'flex', gap: 18 }}>
-                <button type="button" disabled={cfBusy} onClick={proposeCommit} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK, opacity: cfBusy ? 0.6 : 1 }}>
+                <button type="button" disabled={cfBusy} onClick={proposeCommit} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK, opacity: cfBusy ? 0.6 : 1 }}>
                   <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{cfBusy ? tr('coach:case.proposing', { defaultValue: 'PROPOSING…' }) : tr('coach:case.propose', { defaultValue: 'PROPOSE →' })}</span>
                 </button>
-                <button type="button" onClick={() => setCommitForm(false)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
+                <button type="button" onClick={() => setCommitForm(false)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
               </div>
             </div>
           )}
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.acceptsBeforeStake', { defaultValue: '{name} accepts before any points are staked', name: first })}</div>
+          <div style={{ marginTop: 8, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:case.acceptsBeforeStake', { defaultValue: '{name} accepts before any points are staked', name: first })}</div>
         </div>
       )}
 
       {/* SCREENING — health profile (PAR-Q); redaction when absent. */}
       {clientUid && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.screening', { defaultValue: 'SCREENING · HEALTH PROFILE' })} meta={cKit.health ? (cKit.health.flagged ? tr('coach:case.flagged', { defaultValue: 'FLAGGED' }) : tr('coach:case.allClear', { defaultValue: 'ALL CLEAR' })) : undefined} />}
+          {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.screening', { defaultValue: 'SCREENING · HEALTH PROFILE' })} meta={cKit.health ? (cKit.health.flagged ? tr('coach:case.flagged', { defaultValue: 'FLAGGED' }) : tr('coach:case.allClear', { defaultValue: 'ALL CLEAR' })) : undefined} />}
           {cKit.health ? (() => {
             const h = cKit.health;
             const rxLine = h.rxMeds === 'yes' ? (h.medications || tr('coach:case.yesNotListed', { defaultValue: 'Yes — not listed' })) : h.rxMeds === 'no' ? tr('coach:case.none', { defaultValue: 'None' }) : (h.medications || null);
@@ -6189,20 +6262,20 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
               <div style={{ borderLeft: `3px solid ${h.flagged ? t.RUST : heat}`, padding: '2px 0 2px 11px' }}>
                 {rows.map(([l, v]) => v ? (
                   <div key={l} style={{ marginTop: 10 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{l}</div>
+                    <div style={{ fontFamily: BS_PRO_SANS, fontSize: 10.5, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50, fontWeight: 650 }}>{l}</div>
                     <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.45 }}>{v}</div>
                   </div>
                 ) : null)}
-                <div style={{ marginTop: 11, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.screeningShared', { defaultValue: 'Shared with linked coaches for safety · completed {date}', date: h.consentAt ? new Date(h.consentAt).toLocaleDateString(coachLocale()) : '' })}</div>
+                <div style={{ marginTop: 11, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:case.screeningShared', { defaultValue: 'Shared with linked coaches for safety · completed {date}', date: h.consentAt ? new Date(h.consentAt).toLocaleDateString(coachLocale()) : '' })}</div>
               </div>
             );
           })() : cKit.screening === 'missing' ? (
             <div style={{ borderLeft: `3px solid ${t.RUST}`, padding: '2px 0 2px 11px' }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>{tr('coach:case.screeningNotCompleted', { defaultValue: 'Not completed' })}</div>
+              <div style={{ fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.RUST, fontWeight: 650 }}>{tr('coach:case.screeningNotCompleted', { defaultValue: 'Not completed' })}</div>
               <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.45 }}>{tr('coach:case.screeningAsk', { defaultValue: 'Ask them to complete the health screening before you program. It is in Settings, under Health profile.' })}</div>
             </div>
           ) : cKit.screening === 'unknown' && cKit.intake ? emptyNote(tr('coach:case.screeningUnread', { defaultValue: 'Their health screening could not be loaded. Try again in a moment.' }))
-            : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.noHealthRedact', { defaultValue: 'NO HEALTH PROFILE ON FILE' })} /> : emptyNote(tr('coach:case.noHealth', { defaultValue: 'No health profile on file yet' })))}
+            : (window.BSTRedact ? <BSProRedact t={t} label={tr('coach:case.noHealthRedact', { defaultValue: 'NO HEALTH PROFILE ON FILE' })} /> : emptyNote(tr('coach:case.noHealth', { defaultValue: 'No health profile on file yet' })))}
         </div>
       )}
 
@@ -6233,11 +6306,11 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         ].filter(([, v]) => v);
         return (
           <div style={{ marginTop: 22 }}>
-            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.intake', { defaultValue: 'WHO THEY ARE · INTAKE' })} />}
+            {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.intake', { defaultValue: 'WHO THEY ARE · INTAKE' })} />}
             <div style={{ borderLeft: `3px solid ${heat}`, padding: '2px 0 2px 11px' }}>
               {rows.map(([l, v]) => (
                 <div key={l} style={{ marginTop: 10 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{l}</div>
+                  <div style={{ fontFamily: BS_PRO_SANS, fontSize: 10.5, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50, fontWeight: 650 }}>{l}</div>
                   <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.45 }}>{v}</div>
                 </div>
               ))}
@@ -6249,13 +6322,13 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       {/* BODY — latest measurements (dot-leader rows). */}
       {clientUid && cKit.meas.length > 0 && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.bodyMeasurements', { defaultValue: 'BODY · LATEST MEASUREMENTS' })} />}
+          {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.bodyMeasurements', { defaultValue: 'BODY · LATEST MEASUREMENTS' })} />}
           {cKit.meas.map((m, i) => (
             <div key={m.site} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{m.site}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{String(m.measured_on).slice(5)}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t.uMeasure(m.value, m.unit).value} {t.uMeasure(m.value, m.unit).unit}</span>
+              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, color: t.INK50, letterSpacing: 0, whiteSpace: 'nowrap' }}>{String(m.measured_on).slice(5)}</span>
+              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t.uMeasure(m.value, m.unit).value} {t.uMeasure(m.value, m.unit).unit}</span>
             </div>
           ))}
         </div>
@@ -6268,8 +6341,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {headerBlock}
+        <BSProCleanType t={t}>
         <BSCoachNote key={clientUid || client.n} clientId={clientUid} sample={note} t={t} tr={tr} />
         {view === 'manage' ? manageView : profileView}
+        </BSProCleanType>
       </div>
       <BSFooter left={isNutri ? tr('coach:case.footerNutri', { defaultValue: 'Client plan' }) : tr('coach:case.footerTrainer', { defaultValue: 'Full profile' })} right={client.n} />
     </BSPage>

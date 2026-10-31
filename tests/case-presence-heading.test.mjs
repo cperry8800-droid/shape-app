@@ -100,10 +100,10 @@ for (const chrome of ['BSMasthead', 'BSPageHeader', 'BSBackButton', 'BSAvatar', 
   'BSContactPage', 'BSTermsPage', 'BSPublicProfile']) {
   W[chrome] = ({ children }) => React.createElement('div', { 'data-chrome': chrome }, children);
 }
-// The two chrome primitives this card actually speaks through. Tagged so the
-// sleep station can be located by STRUCTURE rather than by scraping page text —
-// the station wrapper is the head's parent element, which scopes every read
-// below to this one card.
+// The case file's heads and its "not yet" lines are the module's own (BSProCaseHead, BSProRedact,
+// the clean type, 2026-10-31), tagged with their label so the sleep station is located by
+// STRUCTURE rather than by scraping page text — the station wrapper is the head's parent element,
+// which scopes every read below to this one card. These stand-ins are for any other page.
 W.BSTStationHead = ({ label }) => React.createElement('div', { 'data-station-head': String(label) }, String(label));
 W.BSTRedact = ({ label }) => React.createElement('div', { 'data-redact': String(label) }, String(label));
 
@@ -212,17 +212,17 @@ async function readMobile(vec) {
     onBack: () => {},
     role: 'trainer',
   }));
-  const heads = [...m.host.querySelectorAll('[data-station-head]')]
-    .filter((e) => e.getAttribute('data-station-head') === HEAD_SLEEP || e.getAttribute('data-station-head') === HEAD_CHECKIN);
+  const heads = [...m.host.querySelectorAll('[data-pro-case-head]')]
+    .filter((e) => e.getAttribute('data-pro-case-head') === HEAD_SLEEP || e.getAttribute('data-pro-case-head') === HEAD_CHECKIN);
   // The station head renders unconditionally on mobile, so ZERO of them means
   // the page failed to mount rather than that the card chose to say nothing.
   // Without this guard every "absent" expectation below would pass vacuously.
   assert.equal(heads.length, 1, 'exactly one SLEEP/CHECK-IN station head must render on mobile');
   const station = heads[0].parentElement;
   const labels = leafText(station);
-  const redacts = new Set([...station.querySelectorAll('[data-redact]')].map((e) => e.getAttribute('data-redact')));
+  const redacts = new Set([...station.querySelectorAll('[data-pro-redact]')].map((e) => e.getAttribute('data-pro-redact')));
   const out = {
-    heading: heads[0].getAttribute('data-station-head'),
+    heading: heads[0].getAttribute('data-pro-case-head'),
     device: labels.has(L.DEVICE),
     hours: labels.has(L.HOURS),
     rested: labels.has(L.RESTED),

@@ -72,14 +72,16 @@ export default function BSCoachNote({ clientId, t, tr, sample = '' }) {
     } catch { if (valid()) setState(s => ({ ...s, kind: 'error' })); }
     finally { if (generation.current === gen) saving.current = false; }
   };
-  const button = { minHeight: 44, padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, cursor: 'pointer', borderRadius: 5 };
+  // The case file's clean type (owner, 2026-10-31): a quiet card, its head an overline in the
+  // page's word face, its buttons rounded. The case file is the note's only home.
+  const button = { minHeight: 44, padding: '0 16px', border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, cursor: 'pointer', borderRadius: 999 };
   const status = state.kind === 'saving' ? label('saving', 'Saving…')
     : state.kind === 'conflict' ? label('conflict', 'This note changed elsewhere. Review the saved version before replacing it.')
     : state.kind === 'error' ? label('error', 'Could not save or load your note. Your edits are still here. Retry when connected.')
     : dirty ? deviceReady ? label('draft', 'Draft kept on this device · save to sync with the website') : label('unsaved', 'Unsaved · device recovery unavailable. Keep this screen open.')
     : state.kind === 'saved' ? label('saved', 'Saved to your account') : '';
-  return <section style={{ margin: '14px 0', borderBottom: `1px solid ${t.RULE}`, paddingBottom: 10 }}>
-    <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)} style={{ ...button, width: '100%', textAlign: 'left', background: 'transparent', border: 0, paddingLeft: 0 }}>
+  return <section data-coach-note="" style={{ margin: '16px 0', borderRadius: 12, background: t.PAPER2, padding: open ? '2px 14px 14px' : '2px 14px' }}>
+    <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)} style={{ ...button, width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderRadius: 0, padding: 0, fontSize: 12, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK70 }}>
       {tr('coach:case.coachNoteHead', { defaultValue: 'COACH NOTE · ONLY YOU SEE THIS' })} {open ? '−' : '+'}{dirty ? ' •' : ''}
     </button>
     {open && <div>
@@ -89,7 +91,7 @@ export default function BSCoachNote({ clientId, t, tr, sample = '' }) {
         : <>
           <textarea aria-label={label('label', 'Private coach note')} value={draft} onChange={e => change(e.target.value)} disabled={state.kind === 'saving'} rows={4}
             placeholder={label('placeholder', 'What to watch, what you discussed, and what to check next time.')}
-            style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: 12, border: `1px solid ${t.RULE}`, borderRadius: 5, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.5 }} />
+            style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: 12, border: `1px solid ${t.RULE}`, borderRadius: 12, background: t.PAPER, color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.5 }} />
           <p role="status" style={{ color: ['error', 'conflict'].includes(state.kind) ? t.RUST : t.INK70, fontFamily: t.DISPLAY, fontSize: 13 }}>{status}</p>
           {state.kind === 'conflict' && <><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{label('latest', 'Saved version')}: {state.latestText || '—'}</p><button style={button} onClick={() => save(true)}>{label('replace', 'Replace with my draft')}</button></>}
           <button style={button} onClick={() => save()} disabled={!dirty || ['saving', 'conflict'].includes(state.kind)}>{state.kind === 'saving' ? label('saving', 'Saving…') : label('save', 'Save note')}</button>
