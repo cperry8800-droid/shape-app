@@ -224,7 +224,7 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
     {(() => {
       const status = <span role="status" style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{dirty ? (stored ? txt('localDraft', 'Draft kept on this device') : txt('unsaved', 'Unsaved changes')) : txt('savedVersion', 'Saved version')}</span>;
       return window.BSBackRow
-        ? <window.BSBackRow onBack={close} disabled={saving || !!upload} label={String(txt('back', '← Library')).replace(/^\s*←\s*/, '')} trailing={status} />
+        ? <window.BSBackRow onBack={close} disabled={saving || !!upload} trailing={status} />
         : status;
     })()}
     <h1 style={{ fontFamily: t.DISPLAY, fontSize: 30 }}>{txt('title', 'Build their next session.')}</h1>

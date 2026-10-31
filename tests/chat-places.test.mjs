@@ -60,7 +60,12 @@ test('the title names the place, says it opens a dialog, and opens it', async ()
     assert.ok(btn, 'the title is not a button inside the page\'s h1');
     assert.equal(btn.getAttribute('aria-haspopup'), 'dialog');
     assert.equal(btn.getAttribute('aria-expanded'), 'false');
-    assert.match(btn.textContent, /^Wall▾$/);
+    // The title says it switches (owner, 2026-10-31: "make it more noticeable that you click here to
+    // change between pages"): a keyed Switch chip with a chevron, not a lone ▾.
+    assert.match(btn.textContent, /^WallSwitch$/);
+    const chip = btn.querySelector('[data-bs-chat-switch]');
+    assert.ok(chip && chip.querySelector('svg'), 'the Switch chip and its chevron');
+    assert.match(chip.getAttribute('style'), /border: 1px solid/);
     assert.equal(btn.getAttribute('aria-label'), 'Wall. Choose another place in Chat');
     assert.ok(parseFloat(btn.style.minHeight) >= 44, 'the title is a full touch target');
     await React.act(async () => { btn.click(); });

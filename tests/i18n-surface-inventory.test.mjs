@@ -807,7 +807,9 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // is fully translated: partStrings 181 -> 169, and the chart leaves PARTIAL.
   // Back in the same place on every screen (owner, 2026-10-31): the hand-drawn backs became the
   // shared back row, whose label is common:action.back, so a literal "← Back" goes: 169 -> 168.
-  assert.equal(partStrings, 168, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // Every Back says Back (owner, 2026-10-31: "make them all say back"): the literal "Library" and
+  // "Radio" back labels go: 168 -> 166.
+  assert.equal(partStrings, 166, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had

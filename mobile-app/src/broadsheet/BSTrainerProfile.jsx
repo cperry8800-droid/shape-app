@@ -689,8 +689,11 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
               {tabs.map(([k, label]) => {
                 const on = k === tabNow;
                 return (
-                  <button key={k} type="button" aria-pressed={on} onClick={() => setTab(k)}
-                    style={{ flex: 1, minHeight: 48, border: 0, borderBottom: `2px solid ${on ? ACC : 'transparent'}`, marginBottom: -1, background: 'transparent', color: on ? INK : ink(0.55), fontFamily: DISPLAY, fontWeight: on ? 600 : 400, fontSize: 15, cursor: 'pointer' }}>{label}</button>
+                  // One line each (owner, 2026-10-31: "make this fit on one line" of "Quinn's kitchen"):
+                  // a tab takes the width its words need and shares what is left, and a name too long for
+                  // the row ends in … rather than wrapping.
+                  <button key={k} type="button" aria-pressed={on} onClick={() => setTab(k)} title={label}
+                    style={{ flex: '1 1 auto', minWidth: 0, minHeight: 48, padding: '0 6px', border: 0, borderBottom: `2px solid ${on ? ACC : 'transparent'}`, marginBottom: -1, background: 'transparent', color: on ? INK : ink(0.55), fontFamily: DISPLAY, fontWeight: on ? 600 : 400, fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}>{label}</button>
                 );
               })}
             </nav>

@@ -1480,6 +1480,7 @@
   "hours.title": "Deine Zeiten.",
   "hours.blurb": "Wann Mitglieder dich buchen können. Deine Zeiten wiederholen sich jede Woche; Auszeiten und deine Regeln schließen Zeiten darin.",
   "hours.preview": "Eine Vorschau mit Beispielzeiten. Melde dich als Coach an, um deine festzulegen.",
+  "hours.previewTry": "Probier es aus: Deine Änderungen bleiben hier sichtbar, bis du die Seite verlässt.",
   "hours.perWeek": "{total} pro Woche",
   "hours.weekHead": "Jede Woche",
   "hours.rulesHead": "Buchungsregeln",

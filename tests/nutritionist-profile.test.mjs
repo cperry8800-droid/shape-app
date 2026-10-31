@@ -524,7 +524,7 @@ test('on her own page each empty part says what goes there and opens Make it you
   assert.match(m.text(), /Show members how you build a plate/);
   await click(document.querySelector('[data-kitchen-fill="plate"]'));
   assert.ok(document.querySelector('[data-mine-part="plate"]'), 'Make it yours, on the plate');
-  await click(button(/^←\s*Profile$/));
+  await click(document.querySelector("[data-make-it-yours] [data-bs-back]"));
   // Back lands where she left: her kitchen, on the plate (owner, 2026-10-30).
   assert.equal(button(/^Her kitchen$/).getAttribute('aria-pressed'), 'true', 'still on her kitchen');
   assert.equal(section('plate').getAttribute('aria-pressed'), 'true', 'still on the plate');
@@ -709,7 +709,7 @@ test('Make it yours: a paste the AI can\'t read is laid out on the phone; a reci
     await type(document.querySelector('[data-recipe-num="min"]'), '10');
     assert.match(m.text(), /Laid out from your paste\. Check every line\./, 'the note stays while she checks');
     // A recipe being written is unsaved work: leaving asks first (Codex P2 on #2497).
-    await click(button(/^←\s*Profile$/));
+    await click(document.querySelector("[data-make-it-yours] [data-bs-back]"));
     assert.match(m.text(), /You haven't saved these changes\./);
     assert.ok(document.querySelector('[data-recipe-form]'), 'still open');
     await click(document.querySelector('[data-recipe-cancel]'));

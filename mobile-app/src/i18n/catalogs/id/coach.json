@@ -1480,6 +1480,7 @@
   "hours.title": "Jam kerjamu.",
   "hours.blurb": "Kapan anggota bisa memesanmu. Jam kerjamu berulang setiap minggu; waktu libur dan aturanmu menutup waktu di dalamnya.",
   "hours.preview": "Pratinjau dengan jam contoh. Masuk sebagai pelatih untuk mengatur milikmu.",
+  "hours.previewTry": "Coba saja: perubahanmu tampil di sini sampai kamu keluar.",
   "hours.perWeek": "{total} per minggu",
   "hours.weekHead": "Setiap minggu",
   "hours.rulesHead": "Aturan pemesanan",

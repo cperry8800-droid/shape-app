@@ -310,7 +310,22 @@ const turned = (w, h, draw) => {
  *   accent  a station's accent hex: its piece takes the coach's colour
  *   line    the editor's line-drawing icon instead of the plan's soft shape
  */
-export function bsStudioSvg(type, w, h, { ink = '245,240,230', light = false, accent = null, line = false } = {}) {
+// The same piece is drawn again on every frame of a drag (only its place changes), so each drawing
+// is kept by its arguments: the result depends on nothing else. A few hundred cover every piece of a
+// plan in every look; the oldest goes first.
+const _bsStudioSvgCache = new Map();
+const BS_STUDIO_SVG_CACHE_MAX = 600;
+export function bsStudioSvg(type, w, h, opts = {}) {
+  const { ink = '245,240,230', light = false, accent = null, line = false } = opts || {};
+  const key = [type, w, h, ink, light ? 1 : 0, accent || '', line ? 1 : 0].join('|');
+  const hit = _bsStudioSvgCache.get(key);
+  if (hit !== undefined) return hit;
+  const out = _bsStudioSvgDraw(type, w, h, { ink, light, accent, line });
+  if (_bsStudioSvgCache.size >= BS_STUDIO_SVG_CACHE_MAX) _bsStudioSvgCache.delete(_bsStudioSvgCache.keys().next().value);
+  _bsStudioSvgCache.set(key, out);
+  return out;
+}
+function _bsStudioSvgDraw(type, w, h, { ink, light, accent, line }) {
   const a = (n) => 'rgba(' + ink + ',' + n + ')';
   const W = Math.max(1, Math.round(Number(w) || 0)), H = Math.max(1, Math.round(Number(h) || 0));
   if (line) {
