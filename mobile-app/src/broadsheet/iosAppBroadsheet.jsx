@@ -583,8 +583,10 @@ const BS_SCROLL = bsScrollMemory();
 function bsMarkBack() { BS_SCROLL.markBack(); }
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
   const isBack = (e) => !!(e && e.target && e.target.closest && e.target.closest('[data-bs-back], [data-bs-pin-back]'));
+  // A press or a click that is not a Back clears the mark. The click matters on its own: a
+  // keyboard or screen-reader activation is a click with no press before it (Codex on #2533).
   document.addEventListener('pointerdown', (e) => { if (!isBack(e)) BS_SCROLL.clearBack(); }, true);
-  document.addEventListener('click', (e) => { if (isBack(e)) BS_SCROLL.markBack(); }, true);
+  document.addEventListener('click', (e) => { if (isBack(e)) BS_SCROLL.markBack(); else BS_SCROLL.clearBack(); }, true);
 }
 // The page's identity across a remount: the first element it draws (and, under a plain wrapper,
 // the one inside it) and that element's title. Read from the first render, so data that arrives

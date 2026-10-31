@@ -220,6 +220,22 @@ test('a page opened going forward starts at its top, even after a Back that open
   } finally { await app.unmount(); }
 });
 
+test('the same, when the next step is taken from the keyboard or a screen reader (a click with no press)', async () => {
+  // Codex on #2533: a keyboard activation is a click with no pointerdown before it, so a click
+  // that is not a Back has to clear a Back that opened nothing, as a press does.
+  const app = await mountApp();
+  try {
+    await scrollTo(500);
+    window.bsMarkBack();
+    await act(async () => { document.querySelector('[data-open]').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
+    await flush();
+    assert.equal(scroller().scrollTop, 0, 'the detail is not handed the list\'s place');
+    await act(async () => { document.querySelector('[data-bs-back]').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
+    await flush();
+    assert.equal(scroller().scrollTop, 500, 'and a Back from the keyboard still brings the list back where it was');
+  } finally { await app.unmount(); }
+});
+
 test('scrolled down a page, the pinned bar shows ← at its left, and it goes back the same way', async () => {
   const app = await mountApp();
   try {
