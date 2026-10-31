@@ -275,3 +275,21 @@ test('your tier line opens the Shape Score page where the host can, and is words
   assert.ok(sig && sig.includes('onOpenScore = null'), 'BSPublicProfile defaults to a score link that does nothing');
   assert.match(CLIENT, /onEdit=\{\(\) => \{ setShowPublicProfile\(false\); startEdit\(\); \}\} onOpenScore=\{\(\) => setShowScore\(true\)\} \/>/, 'Settings → Public profile opens no score page');
 });
+
+test('Edit profile opens the host\'s editor when it hands one, else the profile\'s', () => {
+  // Codex P2 on #2546: from Settings → Public profile, Edit profile ignored the onEdit Settings hands it
+  // (its name and initials) and always opened the profile's own editor.
+  signedOut();
+  let edited = 0;
+  const fromSettings = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, isSelf: true, onEdit() { edited += 1; } });
+  withAttr(fromSettings.nodes(), 'data-member-edit')[0].props.onClick();
+  fromSettings.render();
+  assert.equal(edited, 1, 'the host\'s editor did not open');
+  assert.equal(fromSettings.nodes().filter(named('BSProfileCustomizer')).length, 0);
+  const me = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, isSelf: true, meMode: true, onOpenScore() {} });
+  withAttr(me.nodes(), 'data-member-edit')[0].props.onClick();
+  me.render();
+  assert.equal(me.nodes().filter(named('BSProfileCustomizer')).length, 1, 'the Me page\'s Edit profile opens no editor');
+  const sig = CLIENT.split('\n').find((l) => l.startsWith('function BSPublicProfile('));
+  assert.ok(sig.includes('onEdit = null'), 'BSPublicProfile defaults to an editor that does nothing');
+});

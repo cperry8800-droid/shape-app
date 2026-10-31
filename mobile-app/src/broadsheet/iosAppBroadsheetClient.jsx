@@ -18292,7 +18292,7 @@ function bsProfileDistLabel(t, km) {
   return m.unit === 'mi' ? `${m.value} mi` : `${m.value}K`;
 }
 
-function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = null }) {
+function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = null, meMode = false, onOpenSettings = () => {}, onOpenScore = null }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
   const hasMessage = typeof onMessage === 'function';
@@ -18911,7 +18911,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               {isSelf ? (
                 <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
                   <button type="button" data-member-log="" onClick={() => setShowLog(true)} style={btn(true)}>＋ {tr('profile:trainer.logActivity', { defaultValue: 'Log activity' })}</button>
-                  <button type="button" data-member-edit="" onClick={() => setShowCustomizer(true)} style={btn(false)}>{tr('profile:coach.editProfileAria', { defaultValue: 'Edit profile' })}</button>
+                  {/* The host's own editor when it has one (Settings → Public profile: the name and initials;
+                      Codex P2 on #2546), else the profile's; the ✎ above always opens the profile's. */}
+                  <button type="button" data-member-edit="" onClick={() => { if (typeof onEdit === 'function') onEdit(); else setShowCustomizer(true); }} style={btn(false)}>{tr('profile:coach.editProfileAria', { defaultValue: 'Edit profile' })}</button>
                 </div>
               ) : null}
               {/* Coached by: their real coach or program on your own page, the sample's in the preview;
@@ -20146,7 +20148,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
 // design; both are immersive living-identity pages (above).
 // `onMessage` defaults to none, so a page with no way to message shows no Message button (a no-op
 // default drew one that did nothing, opened from the Me tab).
-function BSPublicProfile({ person, onBack, onMessage = null, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = null, onListing = null }) {
+function BSPublicProfile({ person, onBack, onMessage = null, isSelf = false, onEdit = null, meMode = false, onOpenSettings = () => {}, onOpenScore = null, onListing = null }) {
   // Every profile you view (from chat, the feed, follows, search…) feeds the
   // search screen's "Recent" list — recently viewed, not just recently searched.
   React.useEffect(() => {
