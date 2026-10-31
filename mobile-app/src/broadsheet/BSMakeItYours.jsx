@@ -5,6 +5,8 @@ import {
   BS_STATION_TITLE_MAX, BS_STATION_NOTE_MAX, BS_STATION_PINS_MAX, bsProfileLook, bsProfileStudio, bsProfileCover, bsNormalizeProfileCustom,
   BS_KITCHEN_RULES_MAX, BS_KITCHEN_RULE_MAX, BS_KITCHEN_STAPLES_MAX, BS_STAPLE_MAX, BS_KITCHEN_RECIPES_MAX, BS_RECIPE_TITLE_MAX, BS_RECIPE_NOTE_MAX,
   BS_RECIPE_INGS_MAX, BS_RECIPE_ING_MAX, BS_RECIPE_QTY_MAX, BS_RECIPE_STEPS_MAX, BS_RECIPE_STEP_MAX, BS_RECIPE_NUMS, bsKitchenRecipeItem, bsProfileKitchen, bsCleanText,
+  BS_ABOUT_STORY_MAX, BS_ABOUT_FACT_MAX, BS_ABOUT_YEARS_MAX, BS_ABOUT_HOW, BS_PROFILE_LINK_KEYS, BS_LINK_MAX, BS_PROMPTS_MAX, BS_PROMPT_A_MAX, BS_COACH_PROMPTS,
+  bsProfileAbout, bsProfileLinks, bsProfilePrompts, bsProfileLinkHref, bsPromptLabel, bsPromptToken,
 } from '../services/profileCustom.mjs';
 import { bsSplitPaste, bsSplitLongStep } from '../services/clientRecipes.mjs';
 import { bsCoachFirstName } from '../services/coachPronoun.mjs';
@@ -98,7 +100,7 @@ function Seg({ options, value, onChange, label }) {
     <div role="group" aria-label={label} style={{ display: 'grid', gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`, gap: 3, padding: 3, borderRadius: 999, border: `1px solid ${ea(0.2)}` }}>
       {options.map(([k, l]) => {
         const on = k === value;
-        return <button key={k} type="button" aria-pressed={on} onClick={() => onChange(k)} style={{ minHeight: 38, border: 0, borderRadius: 999, background: on ? E.INK : 'transparent', color: on ? E.BG : ea(0.8), fontFamily: DISPLAY, fontSize: 14, fontWeight: on ? 600 : 400, cursor: 'pointer' }}>{l}</button>;
+        return <button key={k} type="button" aria-pressed={on} onClick={() => onChange(k)} style={{ minHeight: 38, minWidth: 0, padding: '0 4px', border: 0, borderRadius: 999, background: on ? E.INK : 'transparent', color: on ? E.BG : ea(0.8), fontFamily: DISPLAY, fontSize: options.length > 3 ? 13 : 14, lineHeight: 1.15, fontWeight: on ? 600 : 400, cursor: 'pointer' }}>{l}</button>;
       })}
     </div>
   );
@@ -806,6 +808,82 @@ function StapleGlyph({ g }) {
 }
 const STAPLE_GROUPS = [['fridge', 'groupFridge', 'Fridge'], ['pantry', 'groupPantry', 'Pantry'], ['freezer', 'groupFreezer', 'Freezer']];
 
+// ── About: the coach's story, the details, questions members ask, and their socials ────────────
+// Owner, 2026-10-31: "a section on coaches profiles for socials to list", then "an about page for each
+// coach where they can write a bio about themselves and include more information". The profile shows
+// it on its About tab. Questions and socials are the keys a member's profile already keeps (prompts,
+// links), so whatever a coach wrote there before is here to edit.
+const BS_LINK_NAMES = { instagram: 'Instagram', x: 'X', tiktok: 'TikTok', youtube: 'YouTube', substack: 'Substack' };
+export const bsLinkName = (k, tr) => (k === 'website' ? tr('profile:editor.link.website', { defaultValue: 'Website' }) : BS_LINK_NAMES[k] || k);
+// The editor's about, as the doc stores it (years typed as text).
+export const bsAboutDoc = (a) => ({ story: a.story, years: a.years === '' ? null : Number(a.years), how: a.how || null, where: a.where, languages: a.languages });
+// A typed social the page could not link: the network's key, or null.
+// Years the page would drop (0, or past 60): said at save, not dropped (Codex P2 on #2540).
+export const bsYearsProblem = (years) => years !== '' && !bsProfileAbout({ years });
+export const bsLinkProblem = (links) => BS_PROFILE_LINK_KEYS.find((k) => String(links[k] || '').trim() && !bsProfileLinkHref(k, String(links[k]).trim())) || null;
+function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks }) {
+  const set = (k, v) => setAbout((a) => ({ ...a, [k]: v }));
+  const inp = { ...field, fontSize: 16 };
+  const area = { ...field, minHeight: 132, padding: '10px 12px', fontSize: 16, lineHeight: 1.5, resize: 'vertical', display: 'block' };
+  const lab = { display: 'block', marginTop: 12, marginBottom: 6, fontSize: 13, color: ea(0.75) };
+  const howLabel = { online: tr('profile:mine.howOnline', { defaultValue: 'Online' }), in_person: tr('profile:mine.howInPerson', { defaultValue: 'In person' }), both: tr('profile:mine.howBoth', { defaultValue: 'Both' }) };
+  const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => (j === i ? { ...p, [k]: v } : p)));
+  const unused = BS_COACH_PROMPTS.find((o) => !prompts.some((p) => bsPromptToken(p.q) === o.id));
+  return (
+    <div data-mine-about="">
+      <Eyebrow right={`${about.story.length} / ${BS_ABOUT_STORY_MAX}`}>{tr('profile:mine.story', { defaultValue: 'Your story' })}</Eyebrow>
+      <textarea data-about-story="" value={about.story} maxLength={BS_ABOUT_STORY_MAX} rows={6} onChange={(e) => set('story', e.target.value)}
+        placeholder={tr('profile:mine.storyPh', { defaultValue: 'How you started, who you coach best, and what a client can expect.' })} style={area} />
+
+      <Eyebrow>{tr('profile:mine.details', { defaultValue: 'The details' })}</Eyebrow>
+      <label style={{ ...lab, marginTop: 0 }} htmlFor="mine-about-years">{tr('profile:mine.years', { defaultValue: 'Years coaching' })}</label>
+      <input id="mine-about-years" data-about-years="" inputMode="numeric" value={about.years} onChange={(e) => set('years', e.target.value.replace(/\D/g, '').slice(0, 2))} style={{ ...inp, width: 96 }} />
+      <div style={lab}>{tr('profile:mine.how', { defaultValue: 'How you coach' })}</div>
+      <div role="group" aria-label={tr('profile:mine.how', { defaultValue: 'How you coach' })} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {BS_ABOUT_HOW.map((k) => {
+          const on = about.how === k;
+          return <button key={k} type="button" data-about-how={k} aria-pressed={on} onClick={() => set('how', on ? '' : k)}
+            style={{ ...smallBtn, borderRadius: 999, padding: '0 16px', background: on ? E.INK : 'transparent', color: on ? E.BG : E.INK, border: on ? 0 : smallBtn.border }}>{howLabel[k]}</button>;
+        })}
+      </div>
+      <label style={lab} htmlFor="mine-about-where">{tr('profile:mine.where', { defaultValue: 'Where you coach' })}</label>
+      <input id="mine-about-where" data-about-where="" value={about.where} maxLength={BS_ABOUT_FACT_MAX} onChange={(e) => set('where', e.target.value)} placeholder={tr('profile:mine.wherePh', { defaultValue: 'City, gym or area' })} style={inp} />
+      <label style={lab} htmlFor="mine-about-languages">{tr('profile:mine.languages', { defaultValue: 'Languages you coach in' })}</label>
+      <input id="mine-about-languages" data-about-languages="" value={about.languages} maxLength={BS_ABOUT_FACT_MAX} onChange={(e) => set('languages', e.target.value)} placeholder={tr('profile:mine.languagesPh', { defaultValue: 'English, Spanish' })} style={inp} />
+
+      <Eyebrow right={`${prompts.length} / ${BS_PROMPTS_MAX}`}>{tr('profile:mine.qa', { defaultValue: 'Questions members ask' })}</Eyebrow>
+      {prompts.map((p, i) => {
+        const tok = bsPromptToken(p.q);
+        const known = BS_COACH_PROMPTS.some((o) => o.id === tok);
+        return (
+          <div key={i} data-about-prompt="" style={{ marginTop: i ? 12 : 0, padding: 12, borderRadius: 12, background: E.BG2, border: `1px solid ${ea(0.14)}` }}>
+            <select aria-label={tr('profile:mine.qaQuestion', { defaultValue: 'Question {n}', n: i + 1 })} value={tok} onChange={(e) => setPrompt(i, 'q', e.target.value)} style={{ ...inp, background: E.BG }}>
+              {BS_COACH_PROMPTS.map((o) => <option key={o.id} value={o.id}>{bsPromptLabel(o.id, tr)}</option>)}
+              {known ? null : <option value={tok}>{bsPromptLabel(tok, tr)}</option>}
+            </select>
+            <textarea data-about-answer="" value={p.a} maxLength={BS_PROMPT_A_MAX} rows={3} onChange={(e) => setPrompt(i, 'a', e.target.value)}
+              aria-label={tr('profile:mine.qaAnswer', { defaultValue: 'Answer {n}', n: i + 1 })} placeholder={tr('profile:editor.ph.promptAnswer', { defaultValue: 'Your answer…' })} style={{ ...area, minHeight: 84, marginTop: 8, background: E.BG }} />
+            <button type="button" data-about-prompt-remove="" onClick={() => setPrompts((prev) => prev.filter((_, j) => j !== i))} style={{ ...smallBtn, marginTop: 8, border: 0, padding: 0, color: ea(0.7) }}>{tr('profile:mine.qaRemove', { defaultValue: 'Remove' })}</button>
+          </div>
+        );
+      })}
+      {prompts.length < BS_PROMPTS_MAX ? (
+        <button type="button" data-about-prompt-add="" onClick={() => setPrompts((prev) => [...prev, { q: (unused || BS_COACH_PROMPTS[0]).id, a: '' }])} style={{ ...smallBtn, marginTop: prompts.length ? 12 : 0 }}>＋ {tr('profile:mine.qaAdd', { defaultValue: 'Add a question' })}</button>
+      ) : null}
+
+      <Eyebrow>{tr('profile:mine.socials', { defaultValue: 'Your socials' })}</Eyebrow>
+      {BS_PROFILE_LINK_KEYS.map((k) => (
+        <div key={k} style={{ display: 'grid', gridTemplateColumns: '96px minmax(0, 1fr)', alignItems: 'center', gap: 10, marginTop: 8 }}>
+          <label htmlFor={`mine-link-${k}`} style={{ fontSize: 14, color: ea(0.8) }}>{bsLinkName(k, tr)}</label>
+          <input id={`mine-link-${k}`} data-about-link={k} value={links[k] || ''} maxLength={BS_LINK_MAX} onChange={(e) => setLinks((l) => ({ ...l, [k]: e.target.value }))}
+            autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="url"
+            placeholder={k === 'website' ? tr('profile:editor.ph.linkSite', { defaultValue: 'yoursite.com' }) : `@${tr('profile:editor.ph.linkHandle', { defaultValue: 'you' })}`} style={inp} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function KitchenTab({ tr, look, kitchen, setKitchen, startSection = null, owner, uploadPhoto, draft, setDraft, layout = null }) {
   const [part, setPart] = React.useState(KITCHEN_PARTS.some(([k]) => k === startSection) ? startSection : 'recipes');
   const [msg, setMsg] = React.useState(null);
@@ -1037,7 +1115,13 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     const st = bsProfileStudio(initial && initial.studio);
     const cover = initial && initial.cover ? coverOf(initial.cover.image) : null;
     const kt = bsProfileKitchen(initial && initial.kitchen, owner);
+    const ab = bsProfileAbout(initial && initial.about) || {};
     return {
+      // The About: the story and details as typed (years as text), the questions as the coach's
+      // tokens, the socials as written.
+      about: { story: ab.story || '', years: ab.years ? String(ab.years) : '', how: ab.how || '', where: ab.where || '', languages: ab.languages || '' },
+      prompts: bsProfilePrompts(initial && initial.prompts).map((p) => ({ q: bsPromptToken(p.q), a: p.a })),
+      links: { ...(bsProfileLinks(initial && initial.links) || {}) },
       // A nutritionist starts amber (Shape's nutritionist gold), as their page does.
       look: { paper: look.paper || 'dark', accent: look.accent || (nutri ? 'amber' : 'teal'), focus: look.focus || 'center' }, wall: cover ? cover.image : null,
       // A nutritionist's empty plan is a kitchen, so a piece added before any layout is picked
@@ -1048,11 +1132,14 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         : { plate: null, rules: [], staples: [], recipes: [] },
     };
   });
-  const [tab, setTab] = React.useState(['colors', 'wall', third].includes(startTab) ? startTab : 'colors');
+  const [tab, setTab] = React.useState(['colors', 'wall', third, 'about'].includes(startTab) ? startTab : 'colors');
   const [look, setLook] = React.useState(seed.look);
   const [wall, setWall] = React.useState(seed.wall);
   const [studio, setStudio] = React.useState(seed.studio);
   const [kitchen, setKitchen] = React.useState(seed.kitchen);
+  const [about, setAbout] = React.useState(seed.about);
+  const [prompts, setPrompts] = React.useState(seed.prompts);
+  const [links, setLinks] = React.useState(seed.links);
   const [sel, setSel] = React.useState(null);
   const [uploading, setUploading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -1063,11 +1150,18 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   // A trainer's floor, or a nutritionist's kitchen layout: both ride in `studio`.
   const studioChanged = !sameJson(bsProfileStudio(studio), bsProfileStudio(seed.studio)) || studio.where !== seed.studio.where;
   const kitchenChanged = nutri && !sameJson(bsProfileKitchen(kitchen, owner), bsProfileKitchen(seed.kitchen, owner));
+  // The About's three keys, each compared as the doc would keep it.
+  const trimmedLinks = Object.fromEntries(BS_PROFILE_LINK_KEYS.map((k) => [k, String(links[k] || '').trim()]).filter(([, v]) => v));
+  // Years typed as their only edit count too, though the doc would drop them, so the save bar shows
+  // and save says why (Codex P2 on #2540: a 75 with nothing else changed got no save bar).
+  const aboutChanged = !sameJson(bsProfileAbout(bsAboutDoc(about)), bsProfileAbout(bsAboutDoc(seed.about))) || (about.years !== seed.about.years && bsYearsProblem(about.years));
+  const promptsChanged = !sameJson(bsProfilePrompts(prompts), bsProfilePrompts(seed.prompts));
+  const linksChanged = !sameJson(trimmedLinks, Object.fromEntries(Object.entries(seed.links).filter(([, v]) => v)));
   // The recipe being written (kept here, so it waits while the coach looks at another tab). Save
   // asks for Done or Cancel first, so it never drops one unseen.
   const [recipeDraft, setRecipeDraft] = React.useState(null);
   const recipeOpen = !!recipeDraft;
-  const dirty = lookChanged || wallChanged || studioChanged || kitchenChanged;
+  const dirty = lookChanged || wallChanged || studioChanged || kitchenChanged || aboutChanged || promptsChanged || linksChanged;
   const first = who.first || bsCoachFirstName(who.name);
   const w = words || { day: tr('profile:trainer.dayName', { defaultValue: "{name}'s day", name: first }), work: tr('profile:trainer.workName', { defaultValue: 'Work with {name}', name: first }) };
 
@@ -1113,6 +1207,10 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     if (studioChanged) doc.studio = { kind: studio.kind, where: studio.where.trim(), items: studio.items };
     // An emptied kitchen drops the key (the normalizer keeps none with nothing in it).
     if (kitchenChanged) doc.kitchen = { plate: kitchen.plate, rules: kitchen.rules, staples: kitchen.staples, recipes: kitchen.recipes };
+    // An emptied About, set of questions or socials drops its key (the normalizer keeps none empty).
+    if (aboutChanged) doc.about = bsAboutDoc(about);
+    if (promptsChanged) doc.prompts = prompts.map((p) => ({ q: bsPromptToken(p.q), a: p.a }));
+    if (linksChanged) doc.links = trimmedLinks;
     if (wallChanged) {
       const cover = wall ? coverOf(wall) : null;
       if (cover) doc.cover = cover; else delete doc.cover;
@@ -1122,9 +1220,13 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const save = async () => {
     if (busy) return;
     if (recipeOpen) { setErr(tr('profile:mine.errRecipeOpen', { defaultValue: 'Finish the recipe you are writing first: Done or Cancel.' })); return; }
+    // Years or a social the page could not keep is said, not dropped at save.
+    if (bsYearsProblem(about.years)) { setTab('about'); setErr(tr('profile:mine.errYears', { defaultValue: 'Years coaching: a number from 1 to {max}.', max: BS_ABOUT_YEARS_MAX })); return; }
+    const badLink = linksChanged ? bsLinkProblem(links) : null;
+    if (badLink) { setTab('about'); setErr(tr('profile:mine.errLink', { defaultValue: 'Check {network}: a handle like @you, or an address starting with https://', network: bsLinkName(badLink, tr) })); return; }
     // The demo also says which keys were changed here, so its page keeps only those over its own
     // sample (whose station names follow the language; Codex P2 on #2486).
-    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null), { look: lookChanged, cover: wallChanged, studio: studioChanged, kitchen: kitchenChanged }); return; }
+    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null), { look: lookChanged, cover: wallChanged, studio: studioChanged, kitchen: kitchenChanged, about: aboutChanged, prompts: promptsChanged, links: linksChanged }); return; }
     const uid = owner;
     if (!uid || signedInUid() !== uid) { setErr(tr('profile:mine.errSignIn', { defaultValue: 'Sign in to save your page.' })); return; }
     if (uploading) { setErr(tr('profile:mine.errBusy', { defaultValue: 'Hang on, your photo is still uploading.' })); return; }
@@ -1156,6 +1258,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     wall: [tr('profile:mine.wallTitle', { defaultValue: 'Your wall photo' }), tr('profile:mine.wallSub', { defaultValue: 'The big photo behind your avatar. Your gym, your platform, your view.' })],
     space: [tr('profile:mine.spaceTitle', { defaultValue: 'Your space' }), tr('profile:mine.spaceSub', { defaultValue: 'Draw where you coach: a studio, a garage, a full gym or a park.' })],
     kitchen: [tr('profile:mine.kitchenTitle', { defaultValue: 'Your kitchen' }), tr('profile:mine.kitchenSub', { defaultValue: 'Your kitchen\'s layout, your recipes, the plate you teach and your staples.' })],
+    about: [tr('profile:mine.aboutTitle', { defaultValue: 'About me' }), tr('profile:mine.aboutSub', { defaultValue: 'Your story, how you coach, the questions members ask, and where to find you.' })],
   }[tab];
 
   const host = typeof document !== 'undefined' ? (document.getElementById('bs-phone-surface') || document.body) : null;
@@ -1184,16 +1287,17 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
           trailing={<span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: E.ED }}>{tr('profile:mine.eyebrow', { defaultValue: 'Your page' })}</span>} /> : null}
         <div style={{ marginTop: 8 }}>
           <Seg label={tr('profile:mine.sections', { defaultValue: 'What to change' })} value={tab} onChange={(k) => { setTab(k); setSel(null); }}
-            options={[['colors', tr('profile:mine.tabColors', { defaultValue: 'Colors' })], ['wall', tr('profile:mine.tabWall', { defaultValue: 'Wall photo' })], nutri ? ['kitchen', tr('profile:mine.tabKitchen', { defaultValue: 'Your kitchen' })] : ['space', tr('profile:mine.tabSpace', { defaultValue: 'Your space' })]]} />
+            options={[['colors', tr('profile:mine.tabColors', { defaultValue: 'Colors' })], ['wall', tr('profile:mine.tabWall', { defaultValue: 'Wall photo' })], nutri ? ['kitchen', tr('profile:mine.tabKitchen', { defaultValue: 'Your kitchen' })] : ['space', tr('profile:mine.tabSpace', { defaultValue: 'Your space' })], ['about', tr('profile:mine.tabAbout', { defaultValue: 'About me' })]]} />
         </div>
         <h1 style={{ margin: '18px 0 0', fontFamily: DISPLAY, fontWeight: 600, fontSize: 28, lineHeight: 1.05 }}>{head[0]}<span style={{ color: E.ED }}>.</span></h1>
         <p style={{ margin: '4px 0 0', fontSize: 14, lineHeight: 1.45, color: ea(0.7) }}>{head[1]}</p>
-        {tab !== 'space' && tab !== 'kitchen' ? <Preview tr={tr} look={look} wall={wall} who={{ ...who, first }} words={w} nutri={nutri} onEdit={(k) => { setTab(k); setSel(null); }} /> : null}
+        {tab !== 'space' && tab !== 'kitchen' && tab !== 'about' ? <Preview tr={tr} look={look} wall={wall} who={{ ...who, first }} words={w} nutri={nutri} onEdit={(k) => { setTab(k); setSel(null); }} /> : null}
         {tab === 'colors' ? <ColorsTab tr={tr} look={look} setLook={setLook} /> : null}
         {tab === 'wall' ? <WallTab tr={tr} look={look} setLook={setLook} wall={wall} setWall={(u) => { setWall(u); setErr(null); }} choices={photos} uploading={uploading} onUpload={onUpload} noUpload={demo ? demoNoUpload : null} /> : null}
         {tab === 'space' ? <SpaceTab tr={tr} look={look} studio={studio} setStudio={setStudio} sel={sel} setSel={setSel} programs={programs} /> : null}
         {tab === 'kitchen' ? <KitchenTab tr={tr} look={look} kitchen={kitchen} setKitchen={setKitchen} startSection={startSection} owner={owner} uploadPhoto={uploadRecipePhoto} draft={recipeDraft} setDraft={setRecipeDraft}
           layout={<SpaceTab tr={tr} look={look} studio={studio} setStudio={setStudio} sel={sel} setSel={setSel} kitchen />} /> : null}
+        {tab === 'about' ? <AboutTab tr={tr} about={about} setAbout={setAbout} prompts={prompts} setPrompts={setPrompts} links={links} setLinks={(f) => { setLinks(f); setErr(null); }} /> : null}
         {err && !unsaved ? <p role="alert" style={{ margin: '14px 0 0', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
       </div>
       {unsaved ? (
