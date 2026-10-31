@@ -50,7 +50,10 @@ export async function POST(request: Request) {
   try {
     const db = await clientForRequest(request);
     // The GPC opt-out is logged once per account, as the banner's own GPC log is: a browser that
-    // sends GPC sends it on every visit.
+    // sends GPC sends it on every visit. As near as two pages allow: two opening at the same
+    // instant can both find none and both log it, as two tabs can on the browser path. That is a
+    // second true record, and the log is append-only, so it isn't made unique (a unique index
+    // couldn't be built over the duplicates already possible there without deleting receipts).
     if (receipt.kind === 'gpc_optout') {
       const { data, error } = await db.from('consent_log').select('id').eq('user_id', user.id).eq('kind', 'gpc_optout').limit(1);
       if (error) throw error;

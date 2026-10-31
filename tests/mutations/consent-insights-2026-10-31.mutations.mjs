@@ -21,7 +21,7 @@ export default {
     { name: 'events are not checked again', file: G, find: "      root.va('beforeSend', function (event) { return allowedHere() ? event : null; });\n", replace: '' },
     { name: 'it loads twice', file: G, find: '    if (loaded) return;\n    loaded = true;\n', replace: '    loaded = true;\n' },
     // ── The Next app ──
-    { name: 'the Next app sends every event', file: N, find: '  return allowedOn(window) ? event : null;', replace: '  return event;' },
+    { name: 'the Next app sends every event', file: N, find: '  if (allowedOn(window)) return event;', replace: '  return event;' },
     // ── The banner ──
     { name: 'the banner does not say it was answered', file: B, find: '        try { window.dispatchEvent(new CustomEvent("shape:consent", { detail: choice })); } catch (e) {}\n', replace: '' },
     { name: 'the launcher is never lifted', file: B, find: '      html.classList.add("shape-consent-open");\n', replace: '' },
@@ -48,10 +48,13 @@ export default {
     { name: 'the route logs GPC every time', file: R, find: "      if (data && data.length) return NextResponse.json({ logged: true });", replace: '' },
     { name: 'the route says logged on a failed write', file: R, find: "    if (error) throw error;\n    return NextResponse.json({ logged: true });", replace: "    return NextResponse.json({ logged: true });" },
     // ── The Next page where the banner is accepted is counted (Codex on #2530) ──
-    { name: 'the Next page is not counted on the Accept', file: N, find: '    return recountOnAccept(window, () => allowedOn(window), () => pageview({ route, path: pathname }));', replace: '    return;' },
+    { name: 'the Next page is not counted on the Accept', file: N, find: '    return recountOnAccept(window, () => allowedOn(window), () => takeDroppedView(pathname), () => pageview({ route, path: pathname }));', replace: '    return;' },
     { name: 'the view is sent under its path, not its route', file: N, find: '() => pageview({ route, path: pathname })', replace: '() => pageview({ route: pathname, path: pathname })' },
-    { name: 'the view is sent on a Reject', file: N, find: '    if (sent || !allowed()) return;', replace: '    if (sent) return;' },
-    { name: 'the view is sent twice', file: N, find: '    if (sent || !allowed()) return;', replace: '    if (!allowed()) return;' },
+    { name: 'the view is sent on a Reject', file: N, find: '    if (allowed() && wasDropped()) send();', replace: '    if (wasDropped()) send();' },
+    { name: 'a queued view is sent again on the Accept', file: N, find: '    if (allowed() && wasDropped()) send();', replace: '    if (allowed()) send();' },
+    { name: 'the view is sent twice', file: N, find: '  return droppedViews.delete(path);', replace: '  return droppedViews.has(path);' },
+    { name: 'a dropped view is not recorded', file: N, find: "  if (event.type === 'pageview') droppedViews.add(pathOf(event.url));\n", replace: '' },
+    { name: 'a dropped custom event is recorded as a view', file: N, find: "  if (event.type === 'pageview') droppedViews.add(pathOf(event.url));", replace: '  droppedViews.add(pathOf(event.url));' },
     { name: 'a counted view is sent again', file: N, find: '  if (allowed()) return () => {};\n', replace: '' },
   ],
 };

@@ -112,7 +112,7 @@ test('the banner says when it is answered, and the Next app checks every event',
   const wrapper = read('src/components/ConsentAnalytics.tsx');
   assert.match(wrapper, /<Analytics beforeSend=\{consentBeforeSend\} \/>/);
   assert.match(wrapper, /\{consentBannerHidden\(pathname\) \? null : <Script src="\/consent-banner\.js" strategy="afterInteractive" \/>\}/, 'and the banner that makes the choice');
-  assert.match(wrapper, /return allowedOn\(window\) \? event : null;/);
+  assert.match(wrapper, /  if \(allowedOn\(window\)\) return event;\n  if \(event\.type === 'pageview'\) droppedViews\.add\(pathOf\(event\.url\)\);\n  return null;/);
 });
 
 test('the Next app\'s check is the same rule, read at each event', async () => {
@@ -220,55 +220,62 @@ async function loadWrapper(state) {
   });
 }
 
-test('recountOnAccept: a dropped view is sent once, on an answer that allows it', () => {
-  const run = async () => {
-    const { recountOnAccept } = await loadWrapper({ views: [] });
-    const win = new JSDOM('<!doctype html><p></p>', { url: 'https://shape.test/' }).window;
-    let allowed = false;
-    let sent = 0;
-    const stop = recountOnAccept(win, () => allowed, () => { sent += 1; });
-    win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'reject' }));
-    assert.equal(sent, 0, 'sent on a Reject');
-    allowed = true;
-    win.dispatchEvent(new win.StorageEvent('storage', { key: 'some.other.key' }));
-    assert.equal(sent, 0, 'sent on another key');
-    win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'accept' }));
-    assert.equal(sent, 1, 'not sent on the Accept');
-    win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'accept' }));
-    win.dispatchEvent(new win.StorageEvent('storage', { key: 'shape.consent.v1' }));
-    assert.equal(sent, 1, 'sent twice');
-    stop();
-    // Another tab's Accept.
-    let other = 0;
-    allowed = false;
-    const stop2 = recountOnAccept(win, () => allowed, () => { other += 1; });
-    allowed = true;
-    win.dispatchEvent(new win.StorageEvent('storage', { key: 'shape.consent.v1' }));
-    assert.equal(other, 1);
-    stop2();
-    // Removed on cleanup.
-    let late = 0;
-    allowed = false;
-    recountOnAccept(win, () => allowed, () => { late += 1; })();
-    allowed = true;
-    win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'accept' }));
-    assert.equal(late, 0, 'still listening after cleanup');
-    // A view that went through: nothing to send again.
-    let again = 0;
-    recountOnAccept(win, () => true, () => { again += 1; });
-    win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'accept' }));
-    assert.equal(again, 0, 'a counted view sent again');
-  };
-  return run();
+test('recountOnAccept: a dropped view is sent once, on an answer that allows it', async () => {
+  const { recountOnAccept } = await loadWrapper({ views: [] });
+  const win = new JSDOM('<!doctype html><p></p>', { url: 'https://shape.test/' }).window;
+  // wasDropped answers as the check's record does: once, then forgotten.
+  const droppedOnce = () => { let left = true; return () => { const was = left; left = false; return was; }; };
+  let allowed = false;
+  let sent = 0;
+  const stop = recountOnAccept(win, () => allowed, droppedOnce(), () => { sent += 1; });
+  win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'reject' }));
+  assert.equal(sent, 0, 'sent on a Reject');
+  allowed = true;
+  win.dispatchEvent(new win.StorageEvent('storage', { key: 'some.other.key' }));
+  assert.equal(sent, 0, 'sent on another key');
+  win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'accept' }));
+  assert.equal(sent, 1, 'not sent on the Accept');
+  win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'accept' }));
+  win.dispatchEvent(new win.StorageEvent('storage', { key: 'shape.consent.v1' }));
+  assert.equal(sent, 1, 'sent twice');
+  stop();
+  // Another tab's Accept.
+  let other = 0;
+  allowed = false;
+  const stop2 = recountOnAccept(win, () => allowed, droppedOnce(), () => { other += 1; });
+  allowed = true;
+  win.dispatchEvent(new win.StorageEvent('storage', { key: 'shape.consent.v1' }));
+  assert.equal(other, 1);
+  stop2();
+  // A view still queued when the Accept came was never dropped: it goes through by itself, and
+  // nothing is sent again (Codex on #2530).
+  let queued = 0;
+  allowed = false;
+  const stop3 = recountOnAccept(win, () => allowed, () => false, () => { queued += 1; });
+  allowed = true;
+  win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'accept' }));
+  assert.equal(queued, 0, 'a view that was never dropped sent again');
+  stop3();
+  // Removed on cleanup.
+  let late = 0;
+  allowed = false;
+  recountOnAccept(win, () => allowed, droppedOnce(), () => { late += 1; })();
+  allowed = true;
+  win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'accept' }));
+  assert.equal(late, 0, 'still listening after cleanup');
+  // A view that went through: nothing to send again.
+  let again = 0;
+  recountOnAccept(win, () => true, droppedOnce(), () => { again += 1; });
+  win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'accept' }));
+  assert.equal(again, 0, 'a counted view sent again');
 });
 
-test('the Next wrapper, mounted, sends the page\'s view on the Accept, under its route', async () => {
+async function mounted(fn) {
   const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'https://shape.test/trainers/12' });
-  const saved = { window: globalThis.window, document: globalThis.document, act: globalThis.IS_REACT_ACT_ENVIRONMENT };
+  const saved = { window: globalThis.window, document: globalThis.document, act: globalThis.IS_REACT_ACT_ENVIRONMENT, React: globalThis.React };
   globalThis.window = dom.window;
   globalThis.document = dom.window.document;
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  const savedReact = globalThis.React;
   try {
     const React = require('react');
     globalThis.React = React;
@@ -277,17 +284,43 @@ test('the Next wrapper, mounted, sends the page\'s view on the Accept, under its
     const mod = await loadWrapper(state);
     const root = createRoot(dom.window.document.getElementById('root'));
     await React.act(async () => { root.render(React.createElement(mod.default)); });
-    assert.deepEqual(state.views, [], 'sent before an answer');
-    state.allowed = true;
-    await React.act(async () => { dom.window.dispatchEvent(new dom.window.CustomEvent('shape:consent', { detail: 'accept' })); });
-    assert.deepEqual(state.views, [{ route: '/trainers/[id]', path: '/trainers/12' }]);
-    await React.act(async () => { dom.window.dispatchEvent(new dom.window.CustomEvent('shape:consent', { detail: 'accept' })); });
-    assert.equal(state.views.length, 1, 'sent twice');
+    const accept = () => React.act(async () => {
+      state.allowed = true;
+      dom.window.dispatchEvent(new dom.window.CustomEvent('shape:consent', { detail: 'accept' }));
+    });
+    await fn({ state, mod, accept });
     await React.act(async () => { root.unmount(); });
   } finally {
     globalThis.window = saved.window;
     globalThis.document = saved.document;
     globalThis.IS_REACT_ACT_ENVIRONMENT = saved.act;
-    globalThis.React = savedReact;
+    globalThis.React = saved.React;
   }
+}
+
+test('the Next wrapper, mounted: a view the check dropped is sent on the Accept, under its route', async () => {
+  await mounted(async ({ state, mod, accept }) => {
+    // Vercel's script has loaded and asked about the page's view: no answer yet, so it is dropped.
+    const view = { type: 'pageview', url: 'https://shape.test/trainers/12' };
+    assert.equal(mod.consentBeforeSend(view), null);
+    assert.deepEqual(state.views, [], 'sent before an answer');
+    await accept();
+    assert.deepEqual(state.views, [{ route: '/trainers/[id]', path: '/trainers/12' }]);
+    await accept();
+    assert.equal(state.views.length, 1, 'sent twice');
+  });
+});
+
+test('the Next wrapper, mounted: a view still queued at the Accept is counted once, by itself', async () => {
+  await mounted(async ({ state, mod, accept }) => {
+    // A custom event the check drops before the answer is not a page view to send again.
+    assert.equal(mod.consentBeforeSend({ type: 'event', url: 'https://shape.test/trainers/12' }), null);
+    // The Accept comes before Vercel's script has loaded: the page's view is still in its queue.
+    await accept();
+    assert.deepEqual(state.views, [], 'sent again, though the queued view goes through itself');
+    // The queue drains: the check now lets the view through, the one count.
+    const view = { type: 'pageview', url: 'https://shape.test/trainers/12' };
+    assert.ok(mod.consentBeforeSend(view) === view, 'the queued view was dropped after the Accept');
+    assert.equal(mod.takeDroppedView('/trainers/12'), false);
+  });
 });
