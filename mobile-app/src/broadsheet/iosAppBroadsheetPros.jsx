@@ -92,10 +92,16 @@ const {
 // smaller", after "font sizing not matching on client account and coaches"). The coach pages were
 // set at 38 / 16 / 20 / 14 and read a size larger than the member's Home, whose section heads are
 // 17px and page titles 34px; these sizes put the two accounts on one scale.
+// ⚠ AND THE WORDS UNDER THE HEADS (owner, 2026-10-31: "font size is still different on client and
+// coaches pages"). Measured on the member's Home: a row's name 15 / 600, the line under it 12, links
+// and buttons 12.5 / 600. The coach pages had kept 14 under each row, 15–17 / 700 names, 13–14 / 700
+// links and buttons, and 19px heads on Clients. Today, Clients and Plans now set rows at 15 (700 only
+// for the one that leads), the line under at 12.5, links at 12.5 / 600, buttons at 13 / 650, empty
+// lines at 13.5 and the lede at 13.5; inputs keep 16 (iOS zooms under it).
 const bsProH1 = (t) => ({ margin: 0, minWidth: 0, fontFamily: BS_PRO_HEAD, fontSize: 32, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.05, color: t.INK });
-const bsProLede = (t) => ({ margin: '5px 0 0', fontFamily: BS_PRO_SANS, fontSize: 14.5, fontWeight: 500, lineHeight: 1.45, color: t.INK70 });
+const bsProLede = (t) => ({ margin: '5px 0 0', fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 500, lineHeight: 1.45, color: t.INK70 });
 const bsProH2 = (t) => ({ margin: 0, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK });
-const bsProLink = (t) => ({ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, color: t.isLight ? '#07706a' : '#34d6c5', whiteSpace: 'nowrap' });
+const bsProLink = (t) => ({ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 600, color: t.isLight ? '#07706a' : '#34d6c5', whiteSpace: 'nowrap' });
 // A count on a section head. `bg` is a deep tone on light papers and a light one on dark, so the
 // figure is white on light and ink on dark.
 function bsProCount(t, n, bg) {
@@ -1096,7 +1102,7 @@ function BSProWeekStrip({ goCalendar, dots, heat, label, selDay: selDayProp, onS
               aria-label={`${dayWord(d, { weekday: 'long', month: 'long', day: 'numeric' })}${today ? `, ${tr('coach:rail.todayAria', { defaultValue: 'today' })}` : ''}`}
               style={{ minWidth: 0, height: 58, boxSizing: 'border-box', border: today && !on ? `1.5px solid ${t.RULE}` : 0, borderRadius: 11, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: 0, cursor: 'pointer' }}>
               <span style={{ maxWidth: '100%', overflow: 'hidden', fontFamily: BS_PRO_SANS, fontSize: 10, fontWeight: 650, color: on ? t.PAPER : t.INK70, opacity: on ? 0.8 : 1, whiteSpace: 'nowrap' }}>{dayWord(d, { weekday: 'short' })}</span>
-              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{d.getDate()}</span>
+              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 16, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{d.getDate()}</span>
               <span aria-hidden style={{ display: 'flex', gap: 3, height: 5 }}>
                 {Array.from({ length: n }).map((_, k) => <span key={k} style={{ width: 5, height: 5, borderRadius: 999, background: on ? heatC : t.INK70 }} />)}
               </span>
@@ -1941,7 +1947,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const gapRow = (g) => (
     <div key={`gap-${g.afterIdx}`} style={{ display: 'grid', gridTemplateColumns: `${TIME_COL}px minmax(0, 1fr)`, columnGap: 12 }}>
       <span />
-      <span style={{ margin: '2px 0', padding: '10px 0 10px 14px', borderLeft: `2px dashed ${t.RULE}`, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70 }}>{tr('coach:rail.openGap', { defaultValue: '{from} – {to} · open', from: fmtClock(g.startMin), to: fmtClock(g.endMin) })}</span>
+      <span style={{ margin: '2px 0', padding: '10px 0 10px 14px', borderLeft: `2px dashed ${t.RULE}`, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>{tr('coach:rail.openGap', { defaultValue: '{from} – {to} · open', from: fmtClock(g.startMin), to: fmtClock(g.endMin) })}</span>
     </div>
   );
 
@@ -2025,7 +2031,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: tealText, fontWeight: 800 }}>
                   <span aria-hidden style={{ width: 7, height: 7, borderRadius: 999, background: 'currentColor', display: 'inline-block', animation: 'bsLivePulse 2.2s ease-in-out infinite' }} /> {tr('coach:today.liveVerb', { defaultValue: 'Live · {verb}', verb })}
                 </div>
-                <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+                <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
               </div>
               <button type="button" onClick={() => {
                 // Nutritionist OPEN → the live-boost sheet (#1514 — cheer them mid-cook). The sheet
@@ -2060,10 +2066,10 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
             </span>
           </div>
           <div style={{ marginTop: 7, fontFamily: BS_PRO_HEAD, fontSize: 20, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.15 }}>{upB.title}</div>
-          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.35, opacity: 0.85 }}>{lineOf(upB)}</div>
+          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, opacity: 0.85 }}>{lineOf(upB)}</div>
           <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 10 }}>
-            <button type="button" onClick={upPrimary[1]} style={{ minHeight: 44, borderRadius: 11, border: 0, background: t.PAPER, color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{upPrimary[0]}</button>
-            {upIsPerson && <button type="button" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ minHeight: 44, borderRadius: 11, border: `1.5px solid ${t.PAPER}80`, background: 'transparent', color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{tr('coach:today.message', { defaultValue: 'Message' })}</button>}
+            <button type="button" onClick={upPrimary[1]} style={{ minHeight: 44, borderRadius: 11, border: 0, background: t.PAPER, color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{upPrimary[0]}</button>
+            {upIsPerson && <button type="button" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ minHeight: 44, borderRadius: 11, border: `1.5px solid ${t.PAPER}80`, background: 'transparent', color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:today.message', { defaultValue: 'Message' })}</button>}
           </div>
         </div>
       )}
@@ -2112,8 +2118,8 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
               <div key={p.purchaseId} data-paid={p.purchaseId} style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
                 <span aria-hidden style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 999, border: `2.5px solid ${heat}`, boxSizing: 'border-box' }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.clientName}</div>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, marginTop: 2 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.clientName}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, marginTop: 2 }}>
                     {tr('coach:today.toSchedulePaid', { defaultValue: 'Paid {date}', date: new Date(p.paidAt).toLocaleDateString(loc, { month: 'short', day: 'numeric' }) })}
                   </div>
                 </div>
@@ -2132,10 +2138,10 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
             <button type="button" onClick={() => openClientFile(w.clientId)} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10, minHeight: 60, padding: '10px 0', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: t.INK }}>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>{w.name}</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK }}>{w.name}</span>
                   {chip(FLAG_WORDS[w.severity], SEV_HUE[w.severity] || t.INK70, sevText(w.severity))}
                 </span>
-                <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.35, color: t.INK70 }}>{w.directive}</span>
+                <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{w.directive}</span>
               </span>
               <span aria-hidden style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 22, lineHeight: 1, color: t.INK70 }}>›</span>
             </button>
@@ -2145,7 +2151,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           <button type="button" onClick={() => onWidgetOpen('clients')} style={{ ...LINK, width: '100%', borderTop: `1px solid ${t.RULE}` }}>{tr('coach:today.seeAllTodo', { defaultValue: 'See all {count} →', count: triageRows.length })}</button>
         )}
         {rosterReady && todoCount === 0 && toSchedule !== false && (
-          <div style={{ borderTop: `1px solid ${t.RULE}`, padding: '14px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70 }}>{tr('coach:today.todoClear', { defaultValue: 'Nothing to do — everyone is on track.' })}</div>
+          <div style={{ borderTop: `1px solid ${t.RULE}`, padding: '14px 0', fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{tr('coach:today.todoClear', { defaultValue: 'Nothing to do — everyone is on track.' })}</div>
         )}
         <div aria-hidden style={{ borderTop: `1px solid ${t.RULE}` }} />
       </section>
@@ -2154,7 +2160,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       <section aria-label={tr('coach:rail.schedule', { defaultValue: 'Schedule' })} style={{ padding: `22px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 style={H2}>{tr('coach:rail.schedule', { defaultValue: 'Schedule' })}</h2>
-          <span style={{ flex: 1, minWidth: 0, fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 600, color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+          <span style={{ flex: 1, minWidth: 0, fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 600, color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
           <button type="button" onClick={goCalendar} style={LINK}>{tr('coach:shortcut.calendar', { defaultValue: 'Calendar' })}</button>
         </div>
         <div
@@ -2164,7 +2170,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           {isToday && doneRows.length > 0 && (
             <button type="button" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)} style={{ width: '100%', minHeight: 48, display: 'flex', alignItems: 'center', gap: 10, border: 0, borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left', color: t.INK70 }}>
               <span style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600 }}>{tr('coach:rail.doneEarlier', { defaultValue: '✓ {count} done earlier', count: doneRows.length })}</span>
-              <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doneNames}</span>
+              <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doneNames}</span>
               <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: t.INK }}>{showDone ? tr('coach:rail.hide', { defaultValue: 'Hide' }) : tr('coach:rail.show', { defaultValue: 'Show' })}</span>
             </button>
           )}
@@ -2192,11 +2198,11 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                         <span style={{ paddingTop: 14, textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: isNext ? t.INK : t.INK70 }}>{fmtAt(b.time)}</span>
                         <div style={{ padding: '12px 0 12px 14px', borderLeft: isNext ? `3px solid ${heat}` : `2px solid ${t.RULE}` }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: isNext ? 700 : 600, color: done ? t.INK70 : t.INK }}>{done ? '✓ ' : ''}{b.title}</span>
+                            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: isNext ? 700 : 600, color: done ? t.INK70 : t.INK }}>{done ? '✓ ' : ''}{b.title}</span>
                             {isNext && chip(tr('coach:rail.nextTag', { defaultValue: 'Next' }), heat, heatText)}
                             {flagHit && FLAG_WORDS[flagHit.severity] && chip(FLAG_WORDS[flagHit.severity], SEV_HUE[flagHit.severity], sevText(flagHit.severity))}
                           </div>
-                          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.35, color: t.INK70 }}>{lineOf(b)}</div>
+                          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{lineOf(b)}</div>
                         </div>
                       </div>
                       {gap && gapRow(gap)}
@@ -2208,7 +2214,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           })()}
           {/* Trailing NOW line — dayShape.nowSlot === 'end' means the coach is past every booking today. */}
           {dayShape.nowSlot === 'end' && isToday && nowLine}
-          {coachSignedIn && calendarStatus !== 'ready' && <div role="status" style={{ padding: '12px 0', color: t.INK70, fontFamily: t.DISPLAY, fontSize: 15 }}>{calendarMessage}{calendarStatus === 'error' && <button type="button" onClick={() => setCalendarReload(n => n + 1)} style={{ ...LINK, display: 'flex' }}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button>}</div>}
+          {coachSignedIn && calendarStatus !== 'ready' && <div role="status" style={{ padding: '12px 0', color: t.INK70, fontFamily: t.DISPLAY, fontSize: 13 }}>{calendarMessage}{calendarStatus === 'error' && <button type="button" onClick={() => setCalendarReload(n => n + 1)} style={{ ...LINK, display: 'flex' }}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button>}</div>}
           {bookings.length === 0 && coachSignedIn && calendarStatus === 'ready' && (
             Redact ? <Redact INK={t.INK} label={tr('coach:rail.nothingBooked', { defaultValue: 'NOTHING BOOKED — OPEN HOURS' })} /> : (
               <div style={{ borderTop: `1px dashed ${t.RULE}`, borderBottom: `1px dashed ${t.RULE}`, padding: '12px 0' }}>
@@ -2217,7 +2223,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
             )
           )}
           {bookings.length === 0 && !coachSignedIn && (
-            <div style={{ padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70 }}>{isNutri ? tr('coach:rail.offDayNutri', { defaultValue: 'Off day · nothing scheduled' }) : tr('coach:rail.offDayTrainer', { defaultValue: 'Off day · nothing booked' })}</div>
+            <div style={{ padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{isNutri ? tr('coach:rail.offDayNutri', { defaultValue: 'Off day · nothing scheduled' }) : tr('coach:rail.offDayTrainer', { defaultValue: 'Off day · nothing booked' })}</div>
           )}
         </div>
       </section>
@@ -2488,7 +2494,7 @@ function bsUseSdInViewFallback() { return [null, true]; }
 function BSProRosterStatus({ status, onRetry }) {
   const t = useBS(); const tr = useShapeTr();
   if (status === 'ready') return null;
-  return <div role="status" style={{ padding: '12px 0', color: t.INK70, fontFamily: t.DISPLAY, fontSize: 14 }}>
+  return <div role="status" style={{ padding: '12px 0', color: t.INK70, fontFamily: t.DISPLAY, fontSize: 12.5 }}>
     {status === 'loading' ? tr('coach:roster.loading', { defaultValue: 'Loading clients…' }) : tr('coach:roster.unavailable', { defaultValue: 'Could not load your clients. Check your connection and retry.' })}
     {status === 'error' && <button type="button" onClick={onRetry} style={{ display: 'block', minHeight: 44, border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO }}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button>}
   </div>;
@@ -2556,7 +2562,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
     const divider = !!prev && !on && activeView !== prev;
     return (
       <button key={key} type="button" role="tab" aria-selected={on} onClick={onPick}
-        style={{ position: 'relative', minHeight: 44, minWidth: 0, border: 0, borderRadius: 9, background: on ? t.PAPER : 'transparent', boxShadow: on ? '0 1px 3px rgba(0,0,0,0.14)' : 'none', color: on ? t.INK : t.INK70, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: on ? 750 : 600, letterSpacing: '-0.01em', cursor: 'pointer', padding: '0 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        style={{ position: 'relative', minHeight: 44, minWidth: 0, border: 0, borderRadius: 9, background: on ? t.PAPER : 'transparent', boxShadow: on ? '0 1px 3px rgba(0,0,0,0.14)' : 'none', color: on ? t.INK : t.INK70, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: on ? 750 : 600, letterSpacing: '-0.01em', cursor: 'pointer', padding: '0 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {divider && bsProSegDivider(t)}{label}{count != null ? <span style={{ color: key === 'needs' && count > 0 ? sevText('red') : 'inherit' }}> {count}</span> : null}
       </button>
     );
@@ -2570,10 +2576,10 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
           ? <BSFacetAvatar size={40} c={c.c} initial={c.i} name={c.n} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
           : <span aria-hidden style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 999, background: pastMode ? t.INK70 : SEV_HUE.new }} />}
         <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: lead ? 17 : 16, fontWeight: lead ? 700 : 600, lineHeight: 1.2, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: lead ? 700 : 600, lineHeight: 1.2, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {c.n}{lead && ageWord(c) ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70 }}> · {ageWord(c)}</span> : null}
           </span>
-          {lead && sig.directive ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.35, color: t.INK70 }}>{sig.directive}</span> : null}
+          {lead && sig.directive ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{sig.directive}</span> : null}
           <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 2, marginTop: 3 }}>
             {(() => { const meta = lead ? c.r : [ageWord(c), c.r || (pastMode ? tr('coach:roster.labelPast', { defaultValue: 'PAST' }) : null), !pastMode && c.streak ? `${c.streak}D` : null].filter(Boolean).join(' · '); return meta ? <span style={{ fontFamily: t.MONO, fontSize: 11.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK70 }}>{meta}</span> : null; })()}
             {c._wknd?.worstDimension && c._wknd.dimensions?.[c._wknd.worstDimension]?.flagged && (
@@ -2615,7 +2621,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <h1 data-tour="hero-clients" style={bsProH1(t)}>{tr('coach:nav.clients', { defaultValue: 'Clients' })}</h1>
-          <button type="button" onClick={goGrowRoster} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 44, padding: '0 16px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap' }}>
+          <button type="button" onClick={goGrowRoster} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 44, padding: '0 16px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, whiteSpace: 'nowrap' }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>{tr('coach:head.add', { defaultValue: 'Add' })}
           </button>
         </div>
@@ -2662,16 +2668,16 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
               if (!group.length) return null;
               return (
                 <div key={sev} data-roster-group={sev} style={{ marginTop: 20 }}>
-                  <h2 style={{ ...bsProH2(t), fontSize: 19, marginBottom: 8 }}>{label}{bsProCount(t, group.length, sevText(sev))}</h2>
+                  <h2 style={{ ...bsProH2(t), marginBottom: 8 }}>{label}{bsProCount(t, group.length, sevText(sev))}</h2>
                   {card(group.map((r, i) => clientRow(r, i, { message: sev === 'red' })))}
                 </div>
               );
             })}
-            {k === 0 && <p style={{ margin: '20px 0 0', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK70 }}>{tr('coach:roster.nobodyNeeds', { defaultValue: 'Nobody needs you right now.' })}</p>}
+            {k === 0 && <p style={{ margin: '20px 0 0', fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{tr('coach:roster.nobodyNeeds', { defaultValue: 'Nobody needs you right now.' })}</p>}
             {m > 0 && (
               <button type="button" onClick={() => setView('track')} style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left' }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70 }}>{tr('coach:roster.everyoneElse', { defaultValue: 'Everyone else is on track.' })}</span>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>{tr('coach:roster.seeCount', { defaultValue: 'See {count} →', count: m })}</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{tr('coach:roster.everyoneElse', { defaultValue: 'Everyone else is on track.' })}</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: t.INK }}>{tr('coach:roster.seeCount', { defaultValue: 'See {count} →', count: m })}</span>
               </button>
             )}
           </>
@@ -2680,7 +2686,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
         {/* ON TRACK — quiet rows in one card, the first eight then the rest on a tap. */}
         {activeView === 'track' && rows.length > 0 && (
           <div data-roster-group="track" style={{ marginTop: 20 }}>
-            {onTrackRows.length > 0 ? card(trackShown.map((r, i) => clientRow(r, i, { lead: false }))) : <p style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 16, color: t.INK70 }}>{tr('coach:roster.noneOnTrack', { defaultValue: 'Nobody is on track yet. Start with Needs you.' })}</p>}
+            {onTrackRows.length > 0 ? card(trackShown.map((r, i) => clientRow(r, i, { lead: false }))) : <p style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{tr('coach:roster.noneOnTrack', { defaultValue: 'Nobody is on track yet. Start with Needs you.' })}</p>}
             {trackMore > 0 && (
               <button type="button" onClick={() => setExpanded(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '6px 2px 0', textAlign: 'left' }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK70 }}>{tr('coach:roster.moreOnTrack', { defaultValue: '{count} MORE ON TRACK', count: trackMore })}</span>
@@ -3151,7 +3157,7 @@ function bsProTypoIndex(t, items, activeKey, onPick, { ariaLabel = 'Sections' } 
         const on = activeKey === k;
         const divider = i > 0 && !on && items[i - 1][0] !== activeKey;
         return (
-          <button key={k} type="button" role="tab" aria-selected={on} onClick={() => onPick(k)} style={{ position: 'relative', minWidth: 0, minHeight: 42, padding: '0 4px', border: 0, borderRadius: 9, background: on ? t.PAPER : 'transparent', boxShadow: on ? '0 1px 3px rgba(0,0,0,0.14)' : 'none', cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: on ? 750 : 600, letterSpacing: '-0.01em', color: on ? t.INK : t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{divider && bsProSegDivider(t)}{l}</button>
+          <button key={k} type="button" role="tab" aria-selected={on} onClick={() => onPick(k)} style={{ position: 'relative', minWidth: 0, minHeight: 42, padding: '0 4px', border: 0, borderRadius: 9, background: on ? t.PAPER : 'transparent', boxShadow: on ? '0 1px 3px rgba(0,0,0,0.14)' : 'none', cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: on ? 750 : 600, letterSpacing: '-0.01em', color: on ? t.INK : t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{divider && bsProSegDivider(t)}{l}</button>
         );
       })}
     </div>
@@ -3192,14 +3198,14 @@ function BSProFeaturedPlan({ plan, heat, t, onOpen, onAssign }) {
     <div data-featured-plan="" style={{ marginTop: 10, borderRadius: 14, overflow: 'hidden', background: t.PAPER2 }}>
       <div style={{ minHeight: 88, background: bsProBand(heat), color: '#ffffff', padding: '14px 16px', boxSizing: 'border-box', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
         <span style={{ fontFamily: BS_PRO_HEAD, fontSize: wk ? 34 : 28, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em' }}>{wk ? tr('coach:plans.weeksBig', { defaultValue: '{count} wk', count: wk }) : (n ? tr('coach:plans.clientsCount', { defaultValue: '{count, plural, one {# client} other {# clients}}', count: Number(n) }) : '')}</span>
-        <span style={{ fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 700, textAlign: 'right' }}>{[wk && n ? tr('coach:plans.clientsCount', { defaultValue: '{count, plural, one {# client} other {# clients}}', count: Number(n) }) : null, rating ? `${rating} ★` : null].filter(Boolean).join(' · ')}</span>
+        <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 600, textAlign: 'right' }}>{[wk && n ? tr('coach:plans.clientsCount', { defaultValue: '{count, plural, one {# client} other {# clients}}', count: Number(n) }) : null, rating ? `${rating} ★` : null].filter(Boolean).join(' · ')}</span>
       </div>
       <div style={{ padding: '12px 16px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button type="button" onClick={onOpen} aria-label={tr('coach:plans.openAria', { defaultValue: 'Open {name}', name: plan.n })} style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: t.INK }}>
           <span style={{ display: 'block', fontFamily: BS_PRO_HEAD, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{plan.n}</span>
           {plan.price && <span style={{ display: 'block', marginTop: 2, fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 600, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{String(plan.price)}</span>}
         </button>
-        {onAssign && <button type="button" onClick={onAssign} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name: plan.n })} style={{ flexShrink: 0, minHeight: 44, padding: '0 18px', borderRadius: 12, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{tr('coach:head.assign', { defaultValue: 'Assign' })}</button>}
+        {onAssign && <button type="button" onClick={onAssign} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name: plan.n })} style={{ flexShrink: 0, minHeight: 44, padding: '0 18px', borderRadius: 12, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:head.assign', { defaultValue: 'Assign' })}</button>}
       </div>
     </div>
   );
@@ -3215,12 +3221,12 @@ function BSProCatRow({ index, name, meta, price, onOpen, onAssign, onDuplicate, 
         {sw.unit && <span style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{sw.unit}</span>}
       </span>
       <button type="button" onClick={onOpen} aria-label={tr('coach:plans.openAria', { defaultValue: 'Open {name}', name })} style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: 0, color: t.INK }}>
-        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, lineHeight: 1.2, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
-        {meta && <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.35, color: t.INK70 }}>{meta}</span>}
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, lineHeight: 1.2, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+        {meta && <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{meta}</span>}
       </button>
       {(price || onDuplicate || onAssign) && (
         <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-          {price && <span style={{ fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{String(price)}</span>}
+          {price && <span style={{ fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{String(price)}</span>}
           <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {onDuplicate && <button type="button" onClick={onDuplicate} aria-label={tr('coach:workoutEditor.copyName', { defaultValue: 'Duplicate {name}', name })} style={{ minWidth: 44, minHeight: 40, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 700, color: t.INK70 }}>{tr('coach:head.copy', { defaultValue: 'Copy' })}</button>}
             {onAssign && (
@@ -3302,7 +3308,7 @@ function bsProFeatureLead(t, heat, eyebrow, headA, headB, meta, actions) {
       <div style={{ background: bsProBand(heat), color: '#ffffff', padding: '12px 16px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{eyebrow}</div>
       <div style={{ padding: '12px 16px 8px' }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{headA} <span style={{ fontStyle: 'italic', color: heat }}>{headB}</span></div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.35, color: t.INK70 }}>{meta}</div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{meta}</div>
         <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 18 }}>{actions}</div>
       </div>
     </div>
@@ -3314,7 +3320,7 @@ function bsProEnrolledRow(t, flash, e, i, heat = '#c0533b') {
   return (
     <button key={i} type="button" onClick={() => flash(coachTr('coach:plans.enrolledFlash', { defaultValue: '{count} clients on {prog}', count: e.n, prog: e.prog }))} aria-label={coachTr('coach:plans.enrolledAria', { defaultValue: '{prog}, {count} clients enrolled', prog: e.prog, count: e.n })} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.RULE}`, cursor: 'pointer', padding: '10px 0', minHeight: 56, color: t.INK }}>
       <span aria-hidden style={{ width: 10, height: 10, flexShrink: 0, borderRadius: 3, background: tone.bg }} />
-      <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.prog}</span>
+      <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.prog}</span>
       <span style={{ display: 'flex' }}>
         {e.who.map(([ini, col], j) => (
           <span key={j} style={{ marginLeft: j ? -8 : 0, width: 26, height: 26, borderRadius: 999, background: col, color: '#fff', border: `2px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>{ini}</span>
