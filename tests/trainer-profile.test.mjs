@@ -1394,3 +1394,27 @@ test('Make it yours, About me: saves the story, details, questions and socials o
   assert.deepEqual(d.look, { paper: 'dark', accent: 'teal' }, 'and a key not changed here is not written');
   await m.unmount();
 });
+
+// Owner, 2026-10-31: "make coach profile cards show the full byline too". The coach's cards ask the
+// shared card for the member profile's byline (onAuthorPage: face, name, coach tier, time; the name
+// opens nothing on their own page), with the page's avatar and the tier keyed by the id the posts are
+// listed by.
+test('the coach\'s activity cards carry the full byline: their face, name and tier', async () => {
+  const had = { card: window.BSActivityCard, sheets: window.useBSCardSheets };
+  const seen = [];
+  window.BSActivityCard = (props) => { seen.push(props); return React.createElement('div', { 'data-probe-card': '' }, props.a.title); };
+  window.useBSCardSheets = () => ({ ctx: {}, renderSheets: () => null });
+  try {
+    reset({ posts: [{ key: 'n1', title: 'Note 1', typeLabel: 'Note', ago: '1d', body: 'Body', statsRow: [], breakdown: null }] });
+    const m = await mount(page({ person: { ...maya, photo: 'https://cdn.test/maya.jpg' } }));
+    await tab('Activity');
+    assert.ok(seen.length, 'no card drawn');
+    const p = seen[seen.length - 1];
+    assert.equal(p.onAuthorPage, true, 'the full byline, its name not a link');
+    assert.ok(!p.hideAuthor, 'the slim byline (the time alone) is back');
+    assert.equal(p.variant, 'magazine');
+    assert.equal(p.ctx.ownerPhoto, 'https://cdn.test/maya.jpg', 'the page\'s own avatar');
+    assert.deepEqual(Object.keys(p.ctx.tierByUser), ['u-maya'], 'the tier keyed by the id the posts are listed by');
+    await m.unmount();
+  } finally { window.BSActivityCard = had.card; window.useBSCardSheets = had.sheets; }
+});

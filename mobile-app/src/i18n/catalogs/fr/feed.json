@@ -117,7 +117,6 @@
   "masthead.eyebrow": "Chat",
   "masthead.titleChannels": "Canaux",
   "places.switchAria": "{place}. Choisir un autre espace du Chat",
-  "places.switch": "Changer",
   "places.goTo": "Aller à",
   "places.messages": "Messages",
   "places.unreadElsewhere": "{count, plural, one {# non lu ailleurs} other {# non lus ailleurs}}",

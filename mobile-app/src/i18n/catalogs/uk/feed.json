@@ -117,7 +117,6 @@
   "masthead.eyebrow": "Чат",
   "masthead.titleChannels": "Канали",
   "places.switchAria": "{place}. Вибрати інший розділ чату",
-  "places.switch": "Змінити",
   "places.goTo": "Перейти",
   "places.messages": "Повідомлення",
   "places.unreadElsewhere": "{count, plural, one {# непрочитане в інших розділах} few {# непрочитані в інших розділах} many {# непрочитаних в інших розділах} other {# непрочитаних в інших розділах}}",

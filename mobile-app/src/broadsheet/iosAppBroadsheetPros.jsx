@@ -1320,11 +1320,12 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   useEffectBSP(() => {
     const open = (e) => {
       const clientId = e && e.detail && e.detail.clientId;
-      if (!clientId) return;
+      const clientName = !clientId && e && e.detail && typeof e.detail.clientName === 'string' ? e.detail.clientName.trim() : '';
+      if (!clientId && !clientName) return;
       // A client of the account's OTHER listing (Codex on #2360): this roster holds only
       // trainers' clients, so hand the route to that role's shell, which replays it on mount.
       const other = e.detail.providerRole;
-      if ((other === 'trainer' || other === 'nutritionist') && other !== 'trainer') {
+      if (clientId && (other === 'trainer' || other === 'nutritionist') && other !== 'trainer') {
         window.__bsPushRoute = 'client:' + other + ':' + clientId;
         setTweak('role', other);
         return;
@@ -1333,7 +1334,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
       setShowCalendar(false); setShowReviews(false); setShowHabits(false);
       setQueueView(null); setLiveWatch(null); setShowSearch(false);
-      setOpenClientReq({ clientId, nonce: Date.now() }); setTab('clients');
+      setOpenClientReq({ clientId: clientId || null, clientName, nonce: Date.now() }); setTab('clients');
     };
     window.addEventListener('shape:openClient', open);
     // The membership welcome ("home") on an account that is a coach now: their Today.
@@ -1718,19 +1719,21 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   }, [isNutri, calendarReload, calendarOwner, calendarWeek]);
   // Per-day bookings dataset (demo). "Today" (offset 0) is always the busy
   // roster regardless of the real weekday. Trainer keys off 21; nutritionist off 22.
+  // The sample week books the sample trainer's own roster (bsTrainerDemoRoster), so "Open their file"
+  // on a sample booking opens that client; the 22nd's intake (Tasha Yeo) is someone not yet a client.
   const TRAINER_BOOKINGS = {
     20: [
       { time: '08:00', tag: 'LIVE', tagColor: t.RUST, title: 'Alex Rivera',    sub: 'Lower Pull · 60m', state: 'done' },
       { time: '11:30', tag: 'LIVE', tagColor: t.RUST, title: 'Riley Kim',      sub: 'Conditioning · 45m', state: 'done' },
-      { time: '15:00', tag: 'ASYN', tagColor: t.BLUE, title: 'Drew Park · review', sub: 'Form check · 6 clips', state: 'done', last: true },
+      { time: '15:00', tag: 'ASYN', tagColor: t.BLUE, title: 'Bailey Cruz · review', sub: 'Form check · 6 clips', state: 'done', last: true },
     ],
     21: [
       { time: '07:00', tag: 'LIVE', tagColor: t.RUST,  title: 'Alex Rivera',     sub: 'Upper Push — Peak · 60m', state: 'done' },
-      { time: '08:30', tag: 'LIVE', tagColor: t.RUST,  title: 'Sam Patel',       sub: 'Conditioning · 45m',      state: 'done' },
+      { time: '08:30', tag: 'LIVE', tagColor: t.RUST,  title: 'Jamal Green',       sub: 'Conditioning · 45m',      state: 'done' },
       { time: '10:00', tag: 'ASYN', tagColor: t.BLUE,  title: 'Riley Kim · review', sub: 'Form check · 4 clips', state: 'next' },
-      { time: '13:00', tag: 'LIVE', tagColor: t.RUST,  title: 'Casey Lee',       sub: 'Lower Pull — Peak · 60m' },
-      { time: '14:30', tag: 'LIVE', tagColor: t.RUST,  title: 'Drew Park',       sub: 'Upper Push — Peak · 45m' },
-      { time: '16:00', tag: 'INTK', tagColor: t.GREEN, title: 'New: Morgan Liu', sub: 'Intake call · 30m' },
+      { time: '13:00', tag: 'LIVE', tagColor: t.RUST,  title: 'Devon Pierce',       sub: 'Lower Pull — Peak · 60m' },
+      { time: '14:30', tag: 'LIVE', tagColor: t.RUST,  title: 'Bailey Cruz',       sub: 'Upper Push — Peak · 45m' },
+      { time: '16:00', tag: 'INTK', tagColor: t.GREEN, title: 'New: Marcus Lee', sub: 'Intake call · 30m' },
       { time: '17:30', tag: 'LIVE', tagColor: t.RUST,  title: 'Quinn Choi',      sub: 'Hypertrophy block 2 · 60m' },
       { time: '19:00', tag: 'PRGM', tagColor: t.AMBER, title: 'Block 3 release', sub: 'Push to all · auto-send', last: true },
     ],
@@ -1740,10 +1743,10 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
     ],
     23: [
       { time: '07:00', tag: 'LIVE', tagColor: t.RUST, title: 'Alex Rivera',  sub: 'Upper Push · 60m' },
-      { time: '11:00', tag: 'ASYN', tagColor: t.BLUE, title: 'Sam Patel · review', sub: 'Bench form · 3 clips', last: true },
+      { time: '11:00', tag: 'ASYN', tagColor: t.BLUE, title: 'Jamal Green · review', sub: 'Bench form · 3 clips', last: true },
     ],
     24: [
-      { time: '08:30', tag: 'LIVE', tagColor: t.RUST, title: 'Casey Lee',  sub: 'Lower Pull · 60m' },
+      { time: '08:30', tag: 'LIVE', tagColor: t.RUST, title: 'Devon Pierce',  sub: 'Lower Pull · 60m' },
       { time: '13:00', tag: 'LIVE', tagColor: t.RUST, title: 'Quinn Choi', sub: 'Conditioning · 45m', last: true },
     ],
     25: [],
@@ -1917,8 +1920,13 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const H2 = bsProH2(t);
   const LINK = bsProLink(t);
   const chip = (label, hue, text) => <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '3px 7px', borderRadius: 4, background: `${hue}26`, color: text }}>{label}</span>;
-  const openClientFile = (clientId) => {
+  // A booking with no client id (an intake with someone new, the preview's samples) still names them:
+  // "Open their file" asks the Clients tab for that name (owner, 2026-10-31: "this should take you right
+  // to the client file"), and the tab opens the one roster client of that name, else stays on the list.
+  const bookingClientName = (b) => String((b && (b.client || b.title)) || '').replace(/^\s*new:\s*/i, '').trim();
+  const openClientFile = (clientId, clientName = '') => {
     if (clientId) { try { window.dispatchEvent(new CustomEvent('shape:openClient', { detail: { clientId, providerRole: role } })); } catch (e) {} return; }
+    if (clientName) { try { window.dispatchEvent(new CustomEvent('shape:openClient', { detail: { clientName, providerRole: role } })); } catch (e) {} return; }
     onWidgetOpen('clients');
   };
   const messageClient = (clientId, name) => { try { window.dispatchEvent(new CustomEvent('shape:proMessageClient', { detail: { client: { userId: clientId || null, n: name } } })); } catch (e) {} };
@@ -1939,7 +1947,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const upIsReview = !!upB && upB.tag === 'ASYN';
   const upPrimary = !upB ? null
     : upIsReview ? [tr('coach:today.openReviews', { defaultValue: 'Open reviews' }), () => onOpenReviews()]
-    : upIsPerson ? [tr('coach:today.openFile', { defaultValue: 'Open their file' }), () => openClientFile(upB.clientId)]
+    : upIsPerson ? [tr('coach:today.openFile', { defaultValue: 'Open their file' }), () => openClientFile(upB.clientId, bookingClientName(upB))]
     : [tr('coach:today.openCalendar', { defaultValue: 'Open calendar' }), () => goCalendar()];
   const doneToday = todayBookings.filter((b) => b.state === 'done').length;
   const toScheduleList = Array.isArray(toSchedule) ? toSchedule : [];
@@ -2094,48 +2102,22 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
 
       {/* UP NEXT — today's next booking, with what the coach does about it. */}
       {upB && (
-        <div data-up-next="" style={{ margin: `16px ${t.padX}px 0`, borderRadius: 14, background: t.INK, color: t.PAPER, padding: 16 }}>
+        // A little smaller (owner, 2026-10-31): tighter padding and type; the buttons keep 44 to tap.
+        <div data-up-next="" style={{ margin: `14px ${t.padX}px 0`, borderRadius: 12, background: t.INK, color: t.PAPER, padding: '12px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span aria-hidden style={{ width: 8, height: 8, borderRadius: 999, background: upAccent, flexShrink: 0 }} />
             <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 750, color: upAccent }}>
               {tr('coach:today.upNextAt', { defaultValue: 'Up next · {time}', time: fmtAt(upB.time) })}{upIn != null ? ` · ${tr('coach:today.inDur', { defaultValue: 'in {dur}', dur: fmtFor(upIn) })}` : ''}
             </span>
           </div>
-          <div style={{ marginTop: 7, fontFamily: BS_PRO_HEAD, fontSize: 20, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.15 }}>{upB.title}</div>
-          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, opacity: 0.85 }}>{lineOf(upB)}</div>
-          <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 10 }}>
+          <div style={{ marginTop: 5, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.15 }}>{upB.title}</div>
+          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12, lineHeight: 1.35, opacity: 0.85 }}>{lineOf(upB)}</div>
+          <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 10 }}>
             <button type="button" onClick={upPrimary[1]} style={{ minHeight: 44, borderRadius: 11, border: 0, background: t.PAPER, color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{upPrimary[0]}</button>
             {upIsPerson && <button type="button" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ minHeight: 44, borderRadius: 11, border: `1.5px solid ${t.PAPER}80`, background: 'transparent', color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:today.message', { defaultValue: 'Message' })}</button>}
           </div>
         </div>
       )}
-
-      {/* THIS WEEK — the day strip; a day picks the schedule below. */}
-      <BSProWeekStrip
-        goCalendar={goCalendar}
-        heat={heat}
-        selDay={selDay}
-        onSelectDay={setSelDay}
-        dots={hasReal
-          ? dates.map((d) => ((realByDate[_ds(d)] || []).slice(0, 3).map((b) => b.tagColor)))
-          : bsProSignedIn() ? dates.map(() => []) : dataByIdx.map(dd => (isNutri ? {
-          20: [t.BLUE, t.BLUE],
-          21: [t.GREEN, t.BLUE, t.BLUE],
-          22: [t.BLUE],
-          23: [t.GREEN, t.BLUE],
-          24: [t.BLUE, t.BLUE],
-          25: [],
-          26: [t.AMBER],
-        } : {
-          20: [t.RUST, t.RUST, t.BLUE],
-          21: [t.RUST, t.RUST, t.RUST],
-          22: [t.AMBER, t.GREEN],
-          23: [t.RUST, t.BLUE],
-          24: [t.RUST, t.RUST],
-          25: [],
-          26: [t.GREEN],
-        })[dd] || [])}
-      />
 
       {/* TO DO — paid sessions to book, then the flagged clients, most urgent first. */}
       <section aria-label={tr('coach:today.todo', { defaultValue: 'To do' })} style={{ padding: `22px ${t.padX}px 0` }}>
@@ -2191,6 +2173,35 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         )}
         <div aria-hidden style={{ borderTop: `1px solid ${t.RULE}` }} />
       </section>
+
+      {/* THIS WEEK — the day strip, right on the schedule it picks (owner, 2026-10-31, of To do sitting
+          between them: "are to dos and tasks supposed to be updating when you choose a different day";
+          To do is the standing list, so it goes above and the strip changes what is under it). */}
+      <BSProWeekStrip
+        goCalendar={goCalendar}
+        heat={heat}
+        selDay={selDay}
+        onSelectDay={setSelDay}
+        dots={hasReal
+          ? dates.map((d) => ((realByDate[_ds(d)] || []).slice(0, 3).map((b) => b.tagColor)))
+          : bsProSignedIn() ? dates.map(() => []) : dataByIdx.map(dd => (isNutri ? {
+          20: [t.BLUE, t.BLUE],
+          21: [t.GREEN, t.BLUE, t.BLUE],
+          22: [t.BLUE],
+          23: [t.GREEN, t.BLUE],
+          24: [t.BLUE, t.BLUE],
+          25: [],
+          26: [t.AMBER],
+        } : {
+          20: [t.RUST, t.RUST, t.BLUE],
+          21: [t.RUST, t.RUST, t.RUST],
+          22: [t.AMBER, t.GREEN],
+          23: [t.RUST, t.BLUE],
+          24: [t.RUST, t.RUST],
+          25: [],
+          26: [t.GREEN],
+        })[dd] || [])}
+      />
 
       {/* SCHEDULE — the selected day, time-ordered: done rows fold, NOW sits before the next one, gaps say open. */}
       <section aria-label={tr('coach:rail.schedule', { defaultValue: 'Schedule' })} style={{ padding: `22px ${t.padX}px 0` }}>
@@ -2462,6 +2473,14 @@ function bsRowSeverity(c, role) {
 // always in agreement. triageLive is cached per-role so they share one fetch.
 function bsProNeedsAttention(sig) { return ['red', 'amber', 'new'].includes(sig?.sev); }
 
+// The one roster client a name names (a booking with no client id), or null: two of a name, or none,
+// open nothing rather than the wrong client's file.
+function bsProRosterByName(roster, name) {
+  const key = String(name || '').trim().toLowerCase();
+  if (!key || !Array.isArray(roster)) return null;
+  const hits = roster.filter((c) => c && String(c.n || '').trim().toLowerCase() === key);
+  return hits.length === 1 ? hits[0] : null;
+}
 function useBSProRoster(role) {
   const t = useBS();
   const [live, setLive] = useStateBSP(null);
@@ -3137,8 +3156,8 @@ function BSTrainerClients({ openRequest = null, onOpenConsumed = () => {} } = {}
   // A notification asked for one client (route "client"): open their page once the roster has
   // them. A client the roster does not hold leaves the list showing, never another client's page.
   useEffectBSP(() => {
-    if (!openRequest || !openRequest.clientId || rosterStatus === 'loading') return;
-    const hit = COACH_CLIENTS.find((c) => c.userId === openRequest.clientId);
+    if (!openRequest || !(openRequest.clientId || openRequest.clientName) || rosterStatus === 'loading') return;
+    const hit = openRequest.clientId ? COACH_CLIENTS.find((c) => c.userId === openRequest.clientId) : bsProRosterByName(COACH_CLIENTS, openRequest.clientName);
     if (hit) { setPreviewClient(null); setFullClient(hit); }
     onOpenConsumed();
   }, [openRequest, rosterStatus, COACH_CLIENTS]);
@@ -3239,16 +3258,15 @@ function bsProHeat(t, role) { return role === 'nutritionist' ? (t.isLight ? '#a0
 // ── Catalogue primitives (Plans/Programs tab, both roles) — the owner's Programs mockup
 // "A + C combined" (2026-10-25) with option B's filter: rows that lead with a coloured length square,
 // the price and Assign on the right, and a feature card for the most popular plan. ──
-// The band colour a white label holds AA on: trainer rust, nutritionist deep gold (the light gold does not).
-function bsProBand(heat) { return heat === '#c0533b' ? '#c0533b' : '#7a5a1e'; }
 // A row's square: the plan's length when its meta says one (weeks, days a week, minutes), else its number.
 function bsProSwatch(t, heat, index, meta) {
   const m = String(meta || '');
   const wk = m.match(/(\d+)\s*(?:wk|wks|week|weeks)\b/i);
   const days = m.match(/(\d+)\s*days?\s*\/\s*wk/i);
   const mins = m.match(/(\d+)\s*min\b/i);
-  const tones = [{ bg: bsProBand(heat), fg: '#ffffff' }, { bg: t.INK, fg: t.PAPER }, { bg: '#07706a', fg: '#ffffff' }, { bg: '#d8a23a', fg: '#0f0e0c' }];
-  const tone = tones[index % tones.length];
+  // One tone, an ink outline (owner, 2026-10-31, of rust, ink, teal and amber squares down the list:
+  // "too many colors here. I dont like the design here"); the length is what tells rows apart.
+  const tone = { bg: 'transparent', fg: t.INK, line: t.INK };
   if (wk) return { ...tone, big: wk[1], unit: coachTr('coach:plans.unitWk', { defaultValue: 'WK' }) };
   if (days) return { ...tone, big: days[1], unit: coachTr('coach:plans.unitDaysWk', { defaultValue: 'D/WK' }) };
   if (mins) return { ...tone, big: mins[1], unit: coachTr('coach:plans.unitMin', { defaultValue: 'MIN' }) };
@@ -3262,12 +3280,14 @@ function bsProSegDivider(t) {
 }
 function bsProTypoIndex(t, items, activeKey, onPick, { ariaLabel = 'Sections' } = {}) {
   return (
-    <div role="tablist" aria-label={ariaLabel} style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, padding: 4, borderRadius: 12, background: t.PAPER3 || t.PAPER2 }}>
+    // A hairline track with the picked box in ink, as the Wall's type chips (owner, 2026-10-31: "too
+    // many colors"; the track was a tan fill and the pick a raised paper box).
+    <div role="tablist" aria-label={ariaLabel} style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, padding: 3, borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent' }}>
       {items.map(([k, l], i) => {
         const on = activeKey === k;
         const divider = i > 0 && !on && items[i - 1][0] !== activeKey;
         return (
-          <button key={k} type="button" role="tab" aria-selected={on} onClick={() => onPick(k)} style={{ position: 'relative', minWidth: 0, minHeight: 42, padding: '0 4px', border: 0, borderRadius: 9, background: on ? t.PAPER : 'transparent', boxShadow: on ? '0 1px 3px rgba(0,0,0,0.14)' : 'none', cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: on ? 750 : 600, letterSpacing: '-0.01em', color: on ? t.INK : t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{divider && bsProSegDivider(t)}{l}</button>
+          <button key={k} type="button" role="tab" aria-selected={on} onClick={() => onPick(k)} style={{ position: 'relative', minWidth: 0, minHeight: 42, padding: '0 4px', border: 0, borderRadius: 9, background: on ? t.INK : 'transparent', boxShadow: 'none', cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: on ? 700 : 600, letterSpacing: '-0.01em', color: on ? t.PAPER : t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{divider && bsProSegDivider(t)}{l}</button>
         );
       })}
     </div>
@@ -3279,7 +3299,7 @@ function bsProTypoIndex(t, items, activeKey, onPick, { ariaLabel = 'Sections' } 
 function bsProCreateButtons(t, heat, tr, onDraft, onScratch) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
-      <button type="button" data-create="nora" onClick={onDraft} style={{ minHeight: 40, padding: '6px 10px', borderRadius: 10, border: 0, background: bsProBand(heat), color: '#ffffff', fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 650, lineHeight: 1.15, letterSpacing: '-0.005em', cursor: 'pointer' }}>{tr('coach:plans.draftWithNora', { defaultValue: '✦ Draft with Nora' })}</button>
+      <button type="button" data-create="nora" onClick={onDraft} style={{ minHeight: 40, padding: '6px 10px', borderRadius: 10, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 650, lineHeight: 1.15, letterSpacing: '-0.005em', cursor: 'pointer' }}>{tr('coach:plans.draftWithNora', { defaultValue: '✦ Draft with Nora' })}</button>
       <button type="button" data-create="scratch" onClick={onScratch} style={{ minHeight: 40, padding: '6px 10px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 650, lineHeight: 1.15, letterSpacing: '-0.005em', cursor: 'pointer' }}>{tr('coach:plans.fromScratch', { defaultValue: '＋ From scratch' })}</button>
     </div>
   );
@@ -3287,7 +3307,7 @@ function bsProCreateButtons(t, heat, tr, onDraft, onScratch) {
 // The library search: one field over every list on the page.
 function bsProLibrarySearch(t, tr, value, setValue, placeholder) {
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, padding: '0 14px', borderRadius: 12, background: t.PAPER2, boxSizing: 'border-box' }}>
+    <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, padding: '0 14px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', boxSizing: 'border-box' }}>
       <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 16, color: t.INK70 }}>⌕</span>
       <input type="search" value={value} onChange={(e) => setValue(e.target.value)} aria-label={tr('coach:plans.searchAria', { defaultValue: 'Search your library' })} placeholder={placeholder || tr('coach:plans.searchPlaceholder', { defaultValue: 'Search plans, workouts, music' })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16 }} />
     </label>
@@ -3318,8 +3338,8 @@ function BSProFeaturedPlan({ plan, heat, t, onOpen, onAssign }) {
   // so the name has the card's width (beside Assign it wrapped: "Push / Pull /" over "Legs"). The whole
   // card opens the plan; the name is its button, and Assign keeps its own tap.
   return (
-    <div data-featured-plan="" onClick={onOpen} style={{ marginTop: 10, borderRadius: 16, background: t.PAPER2, padding: '12px 14px', display: 'grid', gridTemplateColumns: '56px minmax(0, 1fr) auto', columnGap: 14, rowGap: 4, alignItems: 'center', cursor: 'pointer' }}>
-      <span aria-hidden style={{ gridRow: '1 / span 2', width: 56, height: 56, borderRadius: 12, background: bsProBand(heat), color: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+    <div data-featured-plan="" onClick={onOpen} style={{ marginTop: 10, borderRadius: 16, border: `1px solid ${t.RULE}`, background: 'transparent', padding: '12px 14px', display: 'grid', gridTemplateColumns: '56px minmax(0, 1fr) auto', columnGap: 14, rowGap: 4, alignItems: 'center', cursor: 'pointer' }}>
+      <span aria-hidden style={{ gridRow: '1 / span 2', width: 56, height: 56, borderRadius: 12, background: t.INK, color: t.PAPER, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
         <span style={{ fontFamily: BS_PRO_HEAD, fontSize: 20, fontWeight: 800, letterSpacing: '-0.03em' }}>{sw.unit ? sw.big : '★'}</span>
         {sw.unit && <span style={{ marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em' }}>{sw.unit}</span>}
       </span>
@@ -3338,7 +3358,7 @@ function BSProCatRow({ index, name, meta, price, onOpen, onAssign, onDuplicate, 
   const sw = bsProSwatch(t, heat, index, meta);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 72, padding: '12px 0', borderTop: `1px solid ${t.RULE}` }}>
-      <span aria-hidden style={{ width: 48, height: 48, flexShrink: 0, borderRadius: 8, background: sw.bg, color: sw.fg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+      <span aria-hidden style={{ width: 48, height: 48, flexShrink: 0, boxSizing: 'border-box', borderRadius: 8, background: sw.bg, color: sw.fg, border: sw.line ? `1.5px solid ${sw.line}` : 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
         <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700 }}>{sw.big}</span>
         {sw.unit && <span style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{sw.unit}</span>}
       </span>
@@ -3352,7 +3372,7 @@ function BSProCatRow({ index, name, meta, price, onOpen, onAssign, onDuplicate, 
           <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {onDuplicate && <button type="button" onClick={onDuplicate} aria-label={tr('coach:workoutEditor.copyName', { defaultValue: 'Duplicate {name}', name })} style={{ minWidth: 44, minHeight: 40, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 700, color: t.INK70 }}>{tr('coach:head.copy', { defaultValue: 'Copy' })}</button>}
             {onAssign && (
-              <button type="button" onClick={(e) => { e.stopPropagation(); onAssign(); }} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name })} style={{ minHeight: 40, padding: '0 14px', borderRadius: 10, border: `1.5px solid ${heat}`, background: 'transparent', cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 700, color: t.INK }}>
+              <button type="button" onClick={(e) => { e.stopPropagation(); onAssign(); }} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name })} style={{ minHeight: 40, padding: '0 14px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: 'transparent', cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 700, color: t.INK }}>
                 {tr('coach:head.assign', { defaultValue: 'Assign' })}
               </button>
             )}
@@ -3426,26 +3446,25 @@ function bsProMonoTrail(t, label, onClick) {
 // headline with its heat-italic last word, its meta and EDIT · DUPLICATE · SHARE → actions.
 function bsProFeatureLead(t, heat, eyebrow, headA, headB, meta, actions) {
   return (
-    <div style={{ marginTop: 18, borderRadius: 14, overflow: 'hidden', background: t.PAPER2 }}>
-      <div style={{ background: bsProBand(heat), color: '#ffffff', padding: '12px 16px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{eyebrow}</div>
+    <div style={{ marginTop: 18, borderRadius: 14, overflow: 'hidden', border: `1px solid ${t.RULE}` }}>
+      <div style={{ color: t.INK70, padding: '12px 16px 0', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{eyebrow}</div>
       <div style={{ padding: '12px 16px 8px' }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{headA} <span style={{ fontStyle: 'italic', color: heat }}>{headB}</span></div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{headA} {headB}</div>
         <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{meta}</div>
         <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 18 }}>{actions}</div>
       </div>
     </div>
   );
 }
-// Enrolled row: the plan's colour square · name · facepile · {n} ON IT.
+// Enrolled row: name · facepile · {n} ON IT.
 function bsProEnrolledRow(t, flash, e, i, heat = '#c0533b') {
-  const tone = bsProSwatch(t, heat, i, '');
   return (
     <button key={i} type="button" onClick={() => flash(coachTr('coach:plans.enrolledFlash', { defaultValue: '{count} clients on {prog}', count: e.n, prog: e.prog }))} aria-label={coachTr('coach:plans.enrolledAria', { defaultValue: '{prog}, {count} clients enrolled', prog: e.prog, count: e.n })} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.RULE}`, cursor: 'pointer', padding: '10px 0', minHeight: 56, color: t.INK }}>
-      <span aria-hidden style={{ width: 10, height: 10, flexShrink: 0, borderRadius: 3, background: tone.bg }} />
       <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.prog}</span>
       <span style={{ display: 'flex' }}>
         {e.who.map(([ini, col], j) => (
-          <span key={j} style={{ marginLeft: j ? -8 : 0, width: 26, height: 26, borderRadius: 999, background: col, color: '#fff', border: `2px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>{ini}</span>
+          // Faces in the paper's own tones, not a colour each (owner, 2026-10-31: "too many colors").
+          <span key={j} style={{ marginLeft: j ? -8 : 0, width: 26, height: 26, boxSizing: 'border-box', borderRadius: 999, background: t.PAPER2, color: t.INK, border: `2px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>{ini}</span>
         ))}
       </span>
       <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap' }}>{coachTr('coach:plans.onIt', { defaultValue: '{count} ON IT', count: e.n })}</span>
@@ -7656,11 +7675,12 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   useEffectBSP(() => {
     const open = (e) => {
       const clientId = e && e.detail && e.detail.clientId;
-      if (!clientId) return;
+      const clientName = !clientId && e && e.detail && typeof e.detail.clientName === 'string' ? e.detail.clientName.trim() : '';
+      if (!clientId && !clientName) return;
       // A client of the account's OTHER listing (Codex on #2360): this roster holds only
       // nutritionists' clients, so hand the route to that role's shell, which replays it on mount.
       const other = e.detail.providerRole;
-      if ((other === 'trainer' || other === 'nutritionist') && other !== 'nutritionist') {
+      if (clientId && (other === 'trainer' || other === 'nutritionist') && other !== 'nutritionist') {
         window.__bsPushRoute = 'client:' + other + ':' + clientId;
         setTweak('role', other);
         return;
@@ -7669,7 +7689,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
       setShowCalendar(false); setShowReviews(false); setShowHabits(false);
       setQueueView(null); setShowSearch(false);
-      setOpenClientReq({ clientId, nonce: Date.now() }); setTab('clients');
+      setOpenClientReq({ clientId: clientId || null, clientName, nonce: Date.now() }); setTab('clients');
     };
     window.addEventListener('shape:openClient', open);
     // The membership welcome ("home") on an account that is a coach now: their Today.
@@ -7943,8 +7963,8 @@ function BSNutriClients({ openRequest = null, onOpenConsumed = () => {} } = {}) 
   // A notification asked for one client (route "client"): open their page once the roster has
   // them. A client the roster does not hold leaves the list showing, never another client's page.
   useEffectBSP(() => {
-    if (!openRequest || !openRequest.clientId || rosterStatus === 'loading') return;
-    const hit = NUTRI_CLIENTS.find((c) => c.userId === openRequest.clientId);
+    if (!openRequest || !(openRequest.clientId || openRequest.clientName) || rosterStatus === 'loading') return;
+    const hit = openRequest.clientId ? NUTRI_CLIENTS.find((c) => c.userId === openRequest.clientId) : bsProRosterByName(NUTRI_CLIENTS, openRequest.clientName);
     if (hit) { setPreviewClient(null); setFullClient(hit); }
     onOpenConsumed();
   }, [openRequest, rosterStatus, NUTRI_CLIENTS]);

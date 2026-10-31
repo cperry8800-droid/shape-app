@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS } from '../services/profileCustom.mjs';
 import { STUDIO_WORDS, STUDIO_KIT, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, bsStudioFrame, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
-import { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsKitchenWork } from '../services/coachWork.mjs';
+import { bsCoachPrograms, bsWorkoutVideos, bsStudioWork } from '../services/coachWork.mjs';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.mjs';
 import { bsCoachPronoun, bsCoachFirstName } from '../services/coachPronoun.mjs';
@@ -56,11 +56,9 @@ const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 // A nutritionist (person.kind 'NUTRI') reads and books as a nutritionist (their listing, hours and
 // intro calls), is painted amber until they pick their colours (Shape's nutritionist gold), and has
 // two tabs of their own (owner, 2026-10-27: "lets do something different for nutritionists"):
-//   Her kitchen  the kitchen as they drew it (owner, 2026-10-30: "lets show a kitchen layout, like we
-//                did for trainers"; the 2026-10-27 plan had none): spots with their words, lit where
-//                their recipes' methods use them (bsKitchenWork). It rides in profile_custom.studio
-//                with kind 'kitchen', as a trainer's floor does. Then three parts shown one at a
-//                time: their own recipes (cooked in Shape's cook mode, or sent to the member's
+//   Her kitchen  three parts shown one at a time (its floor plan, added 2026-10-30, went the next
+//                day: owner, "i dont think this concept makes sense for nutritionist profiles"; a
+//                layout already saved stays in profile_custom.studio, unread): their own recipes (cooked in Shape's cook mode, or sent to the member's
 //                grocery list), the plate they teach and their portion rules, and the staples always
 //                in their kitchen (a member taps the ones they want onto their own grocery list).
 //                profile_custom.kitchen, set in Make it yours → Your kitchen. Listing photos under it.
@@ -333,8 +331,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const kitchen = nutri ? bsProfileKitchen(custom && custom.kitchen, person.userId || (isSelf ? signedInUid() : null)) : null;
   // A nutritionist's plan is always her kitchen: one stored as `blank` (the editor's old "Start
   // blank") reads with the kitchen's heading and room, not "Their space" (Codex on #2516).
-  const kitchenPlan = (() => { const p = nutri ? bsProfileStudio(custom && custom.studio) : null; return p && p.kind === 'blank' ? { ...p, kind: 'kitchen' } : p; })();
-  const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || (kitchenPlan && kitchenPlan.where) || person.city || '');
+  // A nutritionist's kitchen has no floor plan (owner, 2026-10-31: "i dont think this concept makes
+  // sense for nutritionist profiles", of the numbered fridge, pantry and stove lit by her recipes; it
+  // was added 2026-10-30). A layout already saved stays in profile_custom.studio, read by nothing.
+  const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || person.city || '');
   const specialty = (!isPrivate && ((listed && (provider.specialty || provider.specialty_type)) || (sample && person.category))) || '';
   const business = !isPrivate && custom && custom.bizCard && custom.bizCard.name;
   const roleLine = [specialty || (nutri ? tr('profile:nutri.role', { defaultValue: 'Nutritionist' }) : tr('profile:trainer.role', { defaultValue: 'Coach' })), business].filter(Boolean).join(' · ');
@@ -457,10 +457,8 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
       if (url) (W.bsOpenCheckout || ((u) => { window.location.href = u; }))(url);
     } catch (e) { W.__bsToast?.(tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err'); }
   };
-  // Each studio piece's share of those programs, by index (bsStudioWork), and each spot of a
-  // nutritionist's kitchen its share of their recipes (bsKitchenWork).
+  // Each studio piece's share of those programs, by index (bsStudioWork).
   const studioWork = studio ? bsStudioWork(studio, programs) : [];
-  const kitchenWork = kitchenPlan ? bsKitchenWork(kitchenPlan, kitchen ? kitchen.recipes : []) : [];
   // A nutritionist's shared meals (the cards that carry a plate), a day to a plate note.
   const plates = !nutri ? [] : demo ? demo.plates : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Nutritionist') : null))
     .filter((c) => c && c.meal && typeof c.meal === 'object');
@@ -570,7 +568,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // under replays, they should have a separate tab for activity"); it sat under the tabs.
   const gallery = media.gallery || [];
   const hasStudio = !!(studio || gallery.length);
-  const hasKitchen = !!(kitchen || kitchenPlan || gallery.length);
+  const hasKitchen = !!(kitchen || gallery.length);
   // About me comes second, after the day, so a member meets the coach before their kitchen or studio.
   const aboutTab = isSelf || hasAbout ? [['about', tr('profile:trainer.tabAbout', { defaultValue: 'About me' })]] : [];
   const tabs = nutri ? [
@@ -734,7 +732,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                 ctx={cardSheets && W.BSActivityCard ? {
                   t, cardInk: INK, muted: ink(0.55), hair: ink(0.1), card: t.isLight ? t.PAPER2 : ink(0.05),
                   actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr, exprOpenKey: exprOpen, setExprOpenKey: setExprOpen, lpTimerRef, lpFiredRef,
-                  tierByUser: person.userId ? { [person.userId]: tierKey } : {}, avatarByUser: {}, feedAvatars: {},
+                  // The byline's tier and face, as the member profile's (owner, 2026-10-31: "make coach
+                  // profile cards show the full byline too"): keyed by the id the posts are listed by, and
+                  // the page's own avatar, so a card reads the coach as the header above it does.
+                  tierByUser: feedAuthor ? { [feedAuthor]: tierKey } : {}, avatarByUser: {}, ownerPhoto: avatarShown || null, feedAvatars: {},
                   myRole: (W.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client', coachClientIds: new Set(), myFollowingSet: null,
                   setOpenProfile: openPerson, feedApplyReaction: applyReaction,
                   // The coach edits a post of their own from its card, in the same composer.
@@ -754,9 +755,9 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                 <StudioTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} studio={studio} gallery={gallery} isSelf={isSelf} first={first}
                   work={studioWork} onPiece={(i) => setSheet({ kind: 'piece', i })} onDraw={() => openEdit('space')} />
               ) : tabNow === 'kitchen' ? (
-                <KitchenTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} kitchen={kitchen} plan={kitchenPlan} work={kitchenWork} gallery={gallery} isSelf={isSelf} first={first}
+                <KitchenTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} kitchen={kitchen} gallery={gallery} isSelf={isSelf} first={first}
                   ownerKey={person.userId || person.providerId || null} stapleKeys={(demo && demo.stapleKeys) || null} onRecipe={(r) => setOwnRecipe(r)} onFill={(section) => openEdit('kitchen', section)}
-                  onSpot={(i) => setSheet({ kind: 'spot', i })} sec={kitchenSec} setSec={setKitchenSec} />
+                  sec={kitchenSec} setSec={setKitchenSec} />
               ) : tabNow === 'about' ? (
                 <AboutTab t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} isSelf={isSelf} first={first}
                   onEdit={() => openEdit('about')} />
@@ -839,11 +840,6 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
       {sheet && sheet.kind === 'piece' && studio && studio.items[sheet.i] ? (
         <PieceSheet t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} INK={INK} studio={studio} i={sheet.i} work={studioWork[sheet.i]} programs={programs}
           isSelf={isSelf} first={first} words={words} onClose={() => setSheet(null)} onWork={() => setSheet({ kind: 'work' })} onProgram={(pr) => setSheet({ kind: 'program', pr })} />
-      ) : null}
-      {sheet && sheet.kind === 'spot' && kitchenPlan && kitchenPlan.items[sheet.i] ? (
-        <SpotSheet t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} INK={INK} plan={kitchenPlan} i={sheet.i} work={kitchenWork[sheet.i]} recipes={kitchen ? kitchen.recipes : []}
-          isSelf={isSelf} first={first} words={words} onClose={() => setSheet(null)} onWork={() => setSheet({ kind: 'work' })}
-          onRecipe={(r) => { setSheet(null); setOwnRecipe(r); }} />
       ) : null}
       {sheet && sheet.kind === 'program' ? (
         <ProgramSheet t={t} tr={tr} pr={sheet.pr} ACC={ACC} DISPLAY={DISPLAY} MONO={MONO} first={first} isSelf={isSelf} studio={studio} work={studioWork}
@@ -1409,7 +1405,7 @@ function StapleIcon({ g }) {
 // keep in. A visitor sees the parts that have something in them; the coach sees all three. The
 // layout is not a part: it heads the tab, as the studio's plan heads a trainer's.
 export const KITCHEN_SECTIONS = [['recipes', 'secRecipes', 'Recipes'], ['plate', 'secPlate', 'Plate'], ['staples', 'secStaples', 'Staples']];
-function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, plan = null, work = [], gallery, isSelf, first, ownerKey, stapleKeys = null, onRecipe, onFill, onSpot, sec = null, setSec = () => {} }) {
+function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, gallery, isSelf, first, ownerKey, stapleKeys = null, onRecipe, onFill, sec = null, setSec = () => {} }) {
   const plate = kitchen ? kitchen.plate : null;
   const rules = kitchen ? kitchen.rules : [];
   const staples = kitchen ? kitchen.staples : [];
@@ -1445,40 +1441,7 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, plan = nu
   const fill = (key, en, section) => (
     <button type="button" data-kitchen-fill={section} onClick={() => onFill(section)} style={{ marginTop: 12, minHeight: 46, padding: '0 16px', border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:nutri.' + key, { defaultValue: en })}</button>
   );
-  const recipesOf = (w) => tr('profile:nutri.recipesHere', { defaultValue: '{count, plural, one {# recipe} other {# recipes}}', count: w ? w.count : 0 });
 
-  // The layout: the coach's kitchen as they drew it, with a number on each spot they named and the
-  // spots their recipes use lit; tap one for what they make there (SpotSheet).
-  const kind = plan ? (STUDIO_KIND_KEYS[plan.kind] || STUDIO_KIND_KEYS.kitchen) : null;
-  const spots = plan ? plan.items.map((p, i) => ({ p, i })).filter((x) => x.p.st) : [];
-  const lit = plan ? plan.items.some((p, i) => !p.st && p.t !== 'zone' && work[i] && work[i].count) : false;
-  const door = (k) => (k === 'entrance' ? tr('profile:trainer.doorEntrance', { defaultValue: 'Entrance' }) : k === 'garage' ? tr('profile:trainer.doorGarage', { defaultValue: 'Garage door' }) : tr('profile:trainer.doorDoor', { defaultValue: 'Door' }));
-  const layout = plan ? (
-    <div data-kitchen-plan="" style={{ marginBottom: 22 }}>
-      <span style={eyebrow(ink, MONO, ACC)}>{tr('profile:trainer.' + kind[0], { defaultValue: kind[1] })}</span>
-      {plan.where ? <span style={{ display: 'block', marginTop: 2, fontFamily: DISPLAY, fontWeight: 500, fontSize: 18 }}>{plan.where}<span style={{ color: ACC }}>.</span></span> : null}
-      {spots.length || lit ? <p style={{ margin: '2px 0 0', fontSize: 13.5, color: ink(0.7) }}>{tr('profile:nutri.tapSpot', { defaultValue: 'Tap a number, or a lit spot, to see what {name} makes there.', name: first })}</p> : null}
-      <div style={{ marginTop: 12 }}>
-        <BSStudioPlan t={t} studio={plan} ACC={ACC} ON_ACC={ON_ACC} ink={ink} MONO={MONO} onPiece={onSpot} work={work} door={door} tr={tr} frame={bsStudioFrame(plan)}
-          pieceLabel={(p, n) => tr('profile:nutri.spotRecipes', { defaultValue: '{name}: {count, plural, one {# recipe} other {# recipes}} made here', name: pieceName(p, tr), count: n })} />
-      </div>
-      {spots.length ? (
-        <ol style={{ margin: '12px 0 0', padding: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0 16px' }}>
-          {spots.map(({ p, i }, n) => (
-            <li key={i}><button type="button" data-spot-row="" onClick={() => onSpot(i)} style={{ width: '100%', minHeight: 44, padding: 0, border: 0, borderBottom: `1px solid ${ink(0.11)}`, background: 'transparent', color: t.INK, display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, textAlign: 'left', cursor: 'pointer' }}>
-              <span style={{ fontFamily: MONO, color: ACC }}>{n + 1}</span><span style={{ flex: 1, minWidth: 0 }}>{p.st.title || pieceName(p, tr)}</span>
-              {work[i] && work[i].count ? <span style={{ flexShrink: 0, fontSize: 11.5, color: ink(0.55) }}>{recipesOf(work[i])}</span> : null}
-            </button></li>
-          ))}
-        </ol>
-      ) : null}
-    </div>
-  ) : isSelf ? (
-    <div data-kitchen-plan-empty="" style={{ marginBottom: 22 }}>
-      <Hint ink={ink}>{tr('profile:nutri.layoutEmptySelf', { defaultValue: 'Draw your kitchen: the fridge, the stove, where you prep. Members tap a spot to see what you make there.' })}</Hint>
-      {fill('drawKitchen', 'Draw your kitchen', 'layout')}
-    </div>
-  ) : null;
 
   const recipesPart = recipes.length ? (
     <div data-kitchen-recipes="" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1596,7 +1559,6 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, plan = nu
   const nothing = !count.recipes && !count.plate && !count.staples;
   return (
     <section style={{ paddingTop: 16 }}>
-      {layout}
       {isSelf && nothing ? (
         <div>
           <Hint ink={ink}>{tr('profile:nutri.kitchenEmptySelf', { defaultValue: 'Show members your recipes, the plate you teach and what is always in your kitchen.' })}</Hint>
@@ -1640,49 +1602,12 @@ function KitchenTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, kitchen, plan = nu
   );
 }
 
-// A spot opened from the kitchen layout: the coach's words for it and the recipes of theirs made
-// there (bsKitchenWork), each opening the recipe.
-function SpotSheet({ t, tr, ACC, ink, DISPLAY, MONO, INK, plan, i, work, recipes, isSelf, first, words, onClose, onWork, onRecipe }) {
-  const p = plan.items[i];
-  const n = p.st ? plan.items.slice(0, i + 1).filter((q) => q.st).length : null;
-  const name = pieceName(p, tr);
-  const byId = new Map((recipes || []).map((r) => [r.id, r]));
-  const made = work ? work.recipes.map((x) => byId.get(x.id)).filter(Boolean) : [];
-  return (
-    <Sheet t={t} label={name} onClose={onClose}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: ACC }}>{n ? `${n} · ` : ''}{kitName(p.t, tr)}</span>
-        <CloseX onClose={onClose} color={INK} label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
-      </div>
-      <div style={{ marginTop: 8, display: 'grid', placeItems: 'center', height: 120, background: t.PAPER2 }}>
-        <img src={bsStudioSvg(p.t, p.w, p.h, { ink: t.inkRGB, light: t.isLight, accent: ACC })} alt="" style={{ maxWidth: '70%', maxHeight: 96, width: p.w * 1.4, height: p.h * 1.4, objectFit: 'contain' }} />
-      </div>
-      <h2 style={{ margin: '12px 0 0', fontFamily: DISPLAY, fontWeight: 500, fontSize: 21, lineHeight: 1.15 }}>{name}</h2>
-      {p.st && p.st.note ? <p style={{ margin: '6px 0 0', fontSize: 14.5, lineHeight: 1.5, color: ink(0.86), whiteSpace: 'pre-wrap' }}>{p.st.note}</p>
-        : (p.st && isSelf ? <p style={{ margin: '6px 0 0', fontSize: 14, color: ink(0.6) }}>{tr('profile:nutri.spotNoNote', { defaultValue: 'Say what you do here in Make it yours → Your kitchen → Layout.' })}</p> : null)}
-      {made.length ? (
-        <div data-spot-recipes="" style={{ marginTop: 16 }}>
-          <span style={eyebrow(ink, MONO, ACC)}>{tr('profile:nutri.madeHere', { defaultValue: '{name}\'s recipes made here', name: first })}</span>
-          {made.map((r) => (
-            <button key={r.id} type="button" data-spot-recipe={r.id} onClick={() => onRecipe(r)} style={{ width: '100%', minHeight: 56, marginTop: 4, padding: '8px 0', border: 0, borderTop: `1px solid ${ink(0.12)}`, background: 'transparent', color: INK, display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', cursor: 'pointer' }}>
-              <RecipeSwatch r={r} ACC={ACC} t={t} size={44} font={18} />
-              <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.35 }}>
-                <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 15 }}>{r.t}</span>
-                {recipeMeta(tr, r) ? <span style={{ fontFamily: MONO, fontSize: 11, color: ink(0.62) }}>{recipeMeta(tr, r)}</span> : null}
-              </span>
-              <span aria-hidden style={{ color: ACC }}>→</span>
-            </button>
-          ))}
-        </div>
-      ) : (isSelf ? <p style={{ margin: '12px 0 0', fontSize: 13.5, lineHeight: 1.45, color: ink(0.6) }}>{tr('profile:nutri.madeHereSelf', { defaultValue: 'Your recipes show here when their method uses this spot: roasting lights the oven, searing the stove.' })}</p> : null)}
-      {!isSelf ? <button type="button" onClick={onWork} style={{ marginTop: 16, width: '100%', minHeight: 50, padding: '0 14px', border: `1px solid ${ink(0.22)}`, background: 'transparent', color: INK, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{words.work}<span style={{ color: ACC }}>→</span></button> : null}
-    </Sheet>
-  );
-}
 
 // ── Their activity (a tab) ──────────────────────────────────────────────────────────────────
 // What the coach posted, newest first, drawn by the member profile's activity card
-// (BSActivityCard, a window global of the client module) so a coach's feed reads like a member's.
+// (BSActivityCard, a window global of the client module) so a coach's feed reads like a member's:
+// the Wall's whole byline (their face, name, coach tier and time), the name opening nothing on
+// their own page (onAuthorPage).
 // Without that card (the module not loaded) a plain row stands in. Its own tab since 2026-10-31,
 // so it lists them all (to ACTIVITY_MAX) where under the tabs it showed three and See all.
 // On their own page: Log activity, and with nothing yet, what it is for.
@@ -1701,7 +1626,7 @@ function ActivityFeed({ t, tr, ACC, ink, DISPLAY, MONO, gutter, cards, isSelf, f
         <div style={{ marginTop: 6 }}>
           {list.map((a, i) => (Card ? (
             <div key={a.key || i} data-activity-card="">
-              <Card a={a} ctx={ctx} hideAuthor isLast={i === list.length - 1} pagePad={0} variant="magazine" />
+              <Card a={a} ctx={ctx} onAuthorPage isLast={i === list.length - 1} pagePad={0} variant="magazine" />
             </div>
           ) : (
             <div key={a.key || i} data-activity-card="" style={{ margin: `0 ${gutter}px`, padding: '12px 0', borderTop: `1px solid ${ink(0.12)}` }}>
