@@ -3273,12 +3273,14 @@ function bsProTypoIndex(t, items, activeKey, onPick, { ariaLabel = 'Sections' } 
     </div>
   );
 }
-// The two ways to make something, side by side: Nora drafts it, or the coach builds it blank.
+// The two ways to make something, side by side: Nora drafts it, or the coach builds it blank. 40px
+// at 13.5 / 650, as the page's other actions (owner, 2026-10-31: "these can be condensed more"; they
+// were 48px at 15 / 700, and From scratch had an ink outline).
 function bsProCreateButtons(t, heat, tr, onDraft, onScratch) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
-      <button type="button" onClick={onDraft} style={{ minHeight: 48, borderRadius: 12, border: 0, background: bsProBand(heat), color: '#ffffff', fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', cursor: 'pointer' }}>{tr('coach:plans.draftWithNora', { defaultValue: '✦ Draft with Nora' })}</button>
-      <button type="button" onClick={onScratch} style={{ minHeight: 48, borderRadius: 12, border: `1.5px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', cursor: 'pointer' }}>{tr('coach:plans.fromScratch', { defaultValue: '＋ From scratch' })}</button>
+      <button type="button" data-create="nora" onClick={onDraft} style={{ minHeight: 40, padding: '0 10px', borderRadius: 10, border: 0, background: bsProBand(heat), color: '#ffffff', fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 650, letterSpacing: '-0.005em', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('coach:plans.draftWithNora', { defaultValue: '✦ Draft with Nora' })}</button>
+      <button type="button" data-create="scratch" onClick={onScratch} style={{ minHeight: 40, padding: '0 10px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 650, letterSpacing: '-0.005em', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('coach:plans.fromScratch', { defaultValue: '＋ From scratch' })}</button>
     </div>
   );
 }
@@ -3303,20 +3305,26 @@ function BSProFeaturedPlan({ plan, heat, t, onOpen, onAssign }) {
   const m = String(plan.meta || '');
   const n = (m.match(/(\d+)\s*on it/i) || [])[1];
   const rating = (m.match(/([\d.]+)\s*★/) || [])[1];
-  const wk = (m.match(/(\d+)\s*(?:wk|wks|week|weeks)\b/i) || [])[1];
+  // One row, as condensed as the catalogue's (owner, 2026-10-31: "these can be condensed more"): its
+  // length on a tile in the role's band, the name over its price, clients and rating, and Assign. It
+  // was an 88px band carrying the length at 34px, over a second row with the name and Assign.
+  const sw = bsProSwatch(t, heat, 0, m);
+  const facts = [
+    plan.price ? String(plan.price) : null,
+    n ? tr('coach:plans.clientsCount', { defaultValue: '{count, plural, one {# client} other {# clients}}', count: Number(n) }) : null,
+    rating ? `${rating} ★` : null,
+  ].filter(Boolean).map((f) => f.replace(/ /g, '\u00a0')).join(' · '); // a fact breaks only between facts ("4.9" kept with its ★)
   return (
-    <div data-featured-plan="" style={{ marginTop: 10, borderRadius: 14, overflow: 'hidden', background: t.PAPER2 }}>
-      <div style={{ minHeight: 88, background: bsProBand(heat), color: '#ffffff', padding: '14px 16px', boxSizing: 'border-box', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ fontFamily: BS_PRO_HEAD, fontSize: wk ? 34 : 28, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em' }}>{wk ? tr('coach:plans.weeksBig', { defaultValue: '{count} wk', count: wk }) : (n ? tr('coach:plans.clientsCount', { defaultValue: '{count, plural, one {# client} other {# clients}}', count: Number(n) }) : '')}</span>
-        <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 600, textAlign: 'right' }}>{[wk && n ? tr('coach:plans.clientsCount', { defaultValue: '{count, plural, one {# client} other {# clients}}', count: Number(n) }) : null, rating ? `${rating} ★` : null].filter(Boolean).join(' · ')}</span>
-      </div>
-      <div style={{ padding: '12px 16px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button type="button" onClick={onOpen} aria-label={tr('coach:plans.openAria', { defaultValue: 'Open {name}', name: plan.n })} style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: t.INK }}>
-          <span style={{ display: 'block', fontFamily: BS_PRO_HEAD, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{plan.n}</span>
-          {plan.price && <span style={{ display: 'block', marginTop: 2, fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 600, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{String(plan.price)}</span>}
-        </button>
-        {onAssign && <button type="button" onClick={onAssign} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name: plan.n })} style={{ flexShrink: 0, minHeight: 44, padding: '0 18px', borderRadius: 12, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:head.assign', { defaultValue: 'Assign' })}</button>}
-      </div>
+    <div data-featured-plan="" style={{ marginTop: 10, borderRadius: 14, background: t.PAPER2, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <span aria-hidden style={{ width: 48, height: 48, flexShrink: 0, borderRadius: 10, background: bsProBand(heat), color: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+        <span style={{ fontFamily: BS_PRO_HEAD, fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em' }}>{sw.unit ? sw.big : '★'}</span>
+        {sw.unit && <span style={{ marginTop: 2, fontFamily: BS_PRO_SANS, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em' }}>{sw.unit}</span>}
+      </span>
+      <button type="button" onClick={onOpen} aria-label={tr('coach:plans.openAria', { defaultValue: 'Open {name}', name: plan.n })} style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: t.INK }}>
+        <span style={{ display: 'block', fontFamily: BS_PRO_HEAD, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plan.n}</span>
+        {facts && <span data-featured-facts="" style={{ display: 'block', marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 500, lineHeight: 1.35, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{facts}</span>}
+      </button>
+      {onAssign && <button type="button" onClick={onAssign} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name: plan.n })} style={{ flexShrink: 0, minHeight: 40, padding: '0 14px', borderRadius: 10, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:head.assign', { defaultValue: 'Assign' })}</button>}
     </div>
   );
 }
