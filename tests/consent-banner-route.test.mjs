@@ -169,15 +169,15 @@ test('the route is registered in the War Room', async () => {
 });
 
 // ── The banner asks the route where it has no browser client ─────────────────
-async function bannerPage({ tz = 'Europe/London', gpc = false, shapeDb = null, asked = false } = {}) {
+async function bannerPage({ tz = 'Europe/London', gpc = false, shapeDb = null, logged = false, status = 200 } = {}) {
   const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', { url: 'https://shape.test/dashboard', runScripts: 'outside-only' });
   const win = dom.window;
   win.Intl = { DateTimeFormat: () => ({ resolvedOptions: () => ({ timeZone: tz }) }) };
   if (gpc) Object.defineProperty(win.navigator, 'globalPrivacyControl', { value: true, configurable: true });
-  if (asked) win.sessionStorage.setItem('shape.gpc.asked', '1');
+  if (logged) win.sessionStorage.setItem('shape.gpc.logged.route', '1');
   if (shapeDb) win.shapeDb = shapeDb;
   const posts = [];
-  win.fetch = (url, init) => { posts.push({ url, init, body: JSON.parse(init.body) }); return Promise.resolve({ ok: true }); };
+  win.fetch = (url, init) => { posts.push({ url, init, body: JSON.parse(init.body) }); return Promise.resolve({ ok: status === 200, status }); };
   win.eval(BANNER);
   if (win.document.readyState === 'loading') await new Promise((r) => win.addEventListener('DOMContentLoaded', r));
   const answer = (label) => [...win.document.querySelectorAll('[aria-label="Cookie consent"] button')].find((b) => b.textContent === label).click();
@@ -212,12 +212,22 @@ test('with the browser client the banner writes the row itself, and asks the rou
   assert.deepEqual(JSON.parse(JSON.stringify(rows)), [{ user_id: 'u9', kind: 'cookies', granted: true, policy_version: '2026-06-22', source: 'banner', consent_text: BANNER_COPY }]);
 });
 
-test('GPC without the browser client: the route is asked once a tab, and no banner shows', async () => {
+test('GPC without the browser client: logged once a tab, and asked again until it is', async () => {
+  const settle = () => new Promise((r) => setTimeout(r, 0));
   const first = await bannerPage({ gpc: true });
   assert.ok(!first.win.document.querySelector('[aria-label="Cookie consent"]'), 'a banner under GPC');
   assert.equal(first.win.localStorage.getItem('shape.consent.v1'), 'reject');
   assert.deepEqual(first.posts.map((p) => p.body), [{ kind: 'gpc_optout', granted: true, policy_version: '2026-06-22', consent_text: GPC_TEXT }]);
-  assert.equal(first.win.sessionStorage.getItem('shape.gpc.asked'), '1');
-  const later = await bannerPage({ gpc: true, asked: true });
-  assert.equal(later.posts.length, 0, 'asked again in the same tab');
+  await settle();
+  assert.equal(first.win.sessionStorage.getItem('shape.gpc.logged.route'), '1', 'a logged opt-out is not remembered for the tab');
+  const later = await bannerPage({ gpc: true, logged: true });
+  assert.equal(later.posts.length, 0, 'asked again in the same tab after it was logged');
+  // Not signed in yet (Codex on #2530): no receipt, so nothing is remembered, and the next page
+  // (signed in by then) asks again.
+  for (const status of [401, 503]) {
+    const anon = await bannerPage({ gpc: true, status });
+    assert.equal(anon.posts.length, 1);
+    await settle();
+    assert.equal(anon.win.sessionStorage.getItem('shape.gpc.logged.route'), null, 'remembered after a ' + status);
+  }
 });

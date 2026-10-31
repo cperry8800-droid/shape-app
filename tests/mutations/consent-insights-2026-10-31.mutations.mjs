@@ -39,8 +39,9 @@ export default {
     { name: 'the Next launcher is not lifted', file: C, find: '        id="shape-global-chat-button"\n', replace: '' },
     // ── The receipt where there is no browser client (Codex on #2530) ──
     { name: 'the banner sends no receipt without the browser client', file: B, find: '      if (!(db && db.client && db.client.auth)) return logByRoute(kind, granted, text);', replace: '      if (!(db && db.client && db.client.auth)) return Promise.resolve(false);' },
-    { name: 'GPC is not logged without the browser client', file: B, find: '            if (!asked) logByRoute("gpc_optout", true, GPC_TEXT);\n', replace: '' },
-    { name: 'GPC is logged on every page', file: B, find: '            if (!asked) logByRoute("gpc_optout", true, GPC_TEXT);', replace: '            logByRoute("gpc_optout", true, GPC_TEXT);' },
+    { name: 'GPC is not logged without the browser client', file: B, find: '            if (!logged) logByRoute("gpc_optout", true, GPC_TEXT).then(function (ok) {', replace: '            if (false) logByRoute("gpc_optout", true, GPC_TEXT).then(function (ok) {' },
+    { name: 'GPC is logged on every page', file: B, find: '            if (!logged) logByRoute("gpc_optout", true, GPC_TEXT).then(function (ok) {', replace: '            logByRoute("gpc_optout", true, GPC_TEXT).then(function (ok) {' },
+    { name: 'the tab stops asking before a confirmed write', file: B, find: '              if (ok) { try { sessionStorage.setItem("shape.gpc.logged.route", "1"); } catch (e) {} }', replace: '              try { sessionStorage.setItem("shape.gpc.logged.route", "1"); } catch (e) {}' },
     { name: 'the route takes any kind', file: R, find: "  if (typeof b.kind !== 'string' || !KINDS.has(b.kind)) return null;", replace: "  if (typeof b.kind !== 'string') return null;" },
     { name: 'the route takes any text length', file: R, find: '  if (!text || text.length > TEXT_LIMIT) return null;', replace: '  if (!text) return null;' },
     { name: 'the route takes a form post', file: R, find: "  if (!/^application\\/json\\b/i.test(request.headers.get('content-type') || '')) {", replace: '  if (false) {' },

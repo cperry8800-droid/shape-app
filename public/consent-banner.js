@@ -61,11 +61,15 @@
               });
             }).catch(function () {});
           } else {
-            // Without the browser client, the route logs the opt-out once per account itself. It is
-            // asked once per tab, so a visitor sending GPC isn't a request on every page.
-            var asked = false;
-            try { asked = !!sessionStorage.getItem("shape.gpc.asked"); sessionStorage.setItem("shape.gpc.asked", "1"); } catch (e) {}
-            if (!asked) logByRoute("gpc_optout", true, GPC_TEXT);
+            // Without the browser client, the route logs the opt-out once per account itself. Once it
+            // has, this tab stops asking. Until then each page asks again: a visitor who isn't
+            // signed in yet (a 401) or a failed write is no receipt, and signing in later in the
+            // same tab still logs it (Codex on #2530).
+            var logged = false;
+            try { logged = !!sessionStorage.getItem("shape.gpc.logged.route"); } catch (e) {}
+            if (!logged) logByRoute("gpc_optout", true, GPC_TEXT).then(function (ok) {
+              if (ok) { try { sessionStorage.setItem("shape.gpc.logged.route", "1"); } catch (e) {} }
+            });
           }
         } catch (e) {}
       }
