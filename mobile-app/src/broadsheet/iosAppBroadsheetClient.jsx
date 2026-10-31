@@ -2760,7 +2760,7 @@ function BSLibraryDetail({ item, onBack, myDoc = null }) {
     <BSPage>
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
-        <BSBackRow onBack={onBack} label="Library" />
+        <BSBackRow onBack={onBack} />
       </div>
       <div style={{ padding: `18px ${t.padX}px 0` }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -25687,7 +25687,6 @@ function BSNoraSheet({ onClose }) {
   const tr = useShapeTr();
   // Opening her, by any door, puts Home's first-run note about the ✦ away for good (BSNoraHint.jsx).
   React.useEffect(() => { bsNoraHintDone(); }, []);
-  const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
   const cardInk = t.INK;
   const muted = t.INK50;
   const hair = t.RULE;
@@ -25958,8 +25957,10 @@ function BSNoraSheet({ onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-            const noraTint = TEAL;           // concierge reads teal (was the dated blue #2e6fa0)
-            const myTC = bsMyTierColor();
+            // The sheet in the chat page's magazine look (owner, 2026-10-31: "improve/update look of this
+            // chat"): the magazine's teal, her name in the Wall's face over an ink rule, flat faces, square
+            // notes, suggestions as an index, and the square composer the chat page has.
+            const noraTint = bsWsAccent(t);
               const host = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body;
   return createPortal(
     <div data-nora-sheet style={{ position: 'absolute', inset: 0, zIndex: 240 }}>
@@ -25982,30 +25983,31 @@ function BSNoraSheet({ onClose }) {
                       (each reply should feel like HER), so the masthead carrying it
                       too read as a double avatar. */}
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tr('feed:support.concierge', { defaultValue: 'Concierge' })}</div>
-                    <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>Nora<span style={{ color: noraTint }}>.</span></div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: noraTint, fontWeight: 800 }}>
+                      {tr('feed:support.concierge', { defaultValue: 'Concierge' })}
+                      <span aria-hidden style={{ color: muted }}>·</span>
+                      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: noraTint }} />24/7
+                    </div>
+                    <div style={{ marginTop: 4, fontFamily: bsWsHead(t), fontSize: 34, fontWeight: 500, lineHeight: 1, color: t.INK }}>Nora<span style={{ color: noraTint }}>.</span></div>
                   </div>
-                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint }}>
-                    <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: noraTint, boxShadow: `0 0 8px ${noraTint}` }} />24/7
-                  </span>
                   {/* Talk to Nora: starts inside this tap (the mic and her player unlock only for
                       work a tap starts), then her face takes the sheet. */}
                   <button
                     type="button"
                     data-nora-talk-button
                     onClick={(e) => { e.stopPropagation(); talk.start(); }}
-                    style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '4px 12px 4px 4px', borderRadius: 999, border: 0, background: noraTint, color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: `0 2px 10px ${noraTint}55` }}
+                    style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '0 12px 0 5px', borderRadius: 0, border: 0, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}
                   >
-                    <img src={BS_NORA_AVATAR} alt="" aria-hidden style={{ width: 22, height: 22, borderRadius: 999, objectFit: 'cover', objectPosition: '50% 32%', border: '1.5px solid #fff' }} />
+                    <img src={BS_NORA_AVATAR} alt="" aria-hidden style={{ width: 30, height: 30, borderRadius: 0, objectFit: 'cover', objectPosition: '50% 32%' }} />
                     {tr('feed:support.talk', { defaultValue: 'Talk to Nora' })}
                   </button>
                 </div>
-                <div aria-hidden style={{ height: 2, marginTop: 10, marginBottom: 16, background: `linear-gradient(90deg, ${t.INK}, ${noraTint} 62%, transparent)` }} />
+                <div aria-hidden style={{ height: 3, marginTop: 12, marginBottom: 16, background: t.INK }} />
                 {((!screenOff && (_bsNoraOpen.label || _bsNoraOpen.page)) || supportMsgs.length > 1 || personOk) && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, margin: '-6px 0 14px' }}>
                   {!screenOff && (_bsNoraOpen.label || _bsNoraOpen.page) && (
-                    <div data-nora-screen style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 6, padding: '3px 4px 3px 9px', borderRadius: 999, border: `1px dashed ${hair}`, color: muted, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', maxWidth: '100%' }}>
-                      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: noraTint, flex: 'none' }} />
+                    <div data-nora-screen style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 6, padding: '3px 4px 3px 9px', borderRadius: 0, border: `1px solid ${hair}`, color: muted, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', maxWidth: '100%' }}>
+                      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: noraTint, flex: 'none' }} />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{_bsNoraOpen.label || _bsNoraOpen.page}{bsNoraProblem() ? ` · ${tr('feed:support.withError', { defaultValue: 'with the error' })}` : ''}</span>
                       <button type="button" onClick={() => setScreenOff(true)} aria-label={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} title={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: 12, lineHeight: 1, padding: '0 4px' }}>×</button>
                     </div>
@@ -26039,29 +26041,29 @@ function BSNoraSheet({ onClose }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 96 }}>
                   {(supportBusy && supportLive ? [...supportMsgs, { who: 'Nora', t: supportLive, time: 'now', me: false, bot: true, live: true }] : supportMsgs).map((m, i) => {
                     const me = m.me;
-                    const tc = me ? myTC : noraTint;
-                    const bubbleBg = t.isLight ? `${tc}1c` : `${tc}2b`;
+                    // A square note as on the chat page: yours on a faint ink, hers with the teal edge.
+                    const bubbleBg = me ? bsTHexA(t.INK, 0.05) : 'transparent';
                     return (
                       <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
                         <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
                           {me
-                            ? <BSFacetAvatar size={32} c={myTC} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} showRank={false} />
-                            : <BSFacetAvatar size={32} c={noraTint} initial={m.team ? 'S' : 'N'} name={m.who} photo={m.bot ? BS_NORA_AVATAR : undefined} showRank={false} BG={t.PAPER} INK={'#fff'} onClick={m.bot ? () => setShowNora(true) : undefined} />}
+                            ? <BSFacetAvatar flat size={32} c={t.INK} dotC={noraTint} BG={t.PAPER} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} showRank={false} />
+                            : <BSFacetAvatar flat size={32} c={t.INK} dotC={noraTint} initial={m.team ? 'S' : 'N'} name={m.who} photo={m.bot ? BS_NORA_AVATAR : undefined} showRank={false} BG={t.PAPER} onClick={m.bot ? () => setShowNora(true) : undefined} />}
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
                             {!me && (
                               <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint, fontWeight: 800, marginBottom: 5, cursor: m.bot ? 'pointer' : 'default' }}>{m.team ? tr('feed:support.person.teamLabel', { defaultValue: 'Shape team · a person' }) : m.who}{m.bot ? ` · ${tr('feed:support.concierge', { defaultValue: 'Concierge' })}` : ''}</div>
                             )}
-                            <div style={{ borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em', color: t.INK, background: bubbleBg, border: `1px solid ${tc}40`, padding: '11px 14px', whiteSpace: 'pre-wrap' }}>{m.t}</div>
+                            <div style={{ borderRadius: 0, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.45, letterSpacing: '-0.005em', color: t.INK, background: bubbleBg, border: `1px solid ${bsTHexA(t.INK, 0.18)}`, borderLeft: me ? `1px solid ${bsTHexA(t.INK, 0.18)}` : `3px solid ${noraTint}`, padding: '11px 14px', whiteSpace: 'pre-wrap' }}>{m.t}</div>
                             {m.bot && !m.live && (() => {
                               const mine = listening && listening.i === i;
                               return (
-                                <button onClick={() => listenTo(i, m.t)} aria-pressed={!!mine} title={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} aria-label={mine ? tr('feed:support.stop', { defaultValue: 'Stop' }) : tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, border: `1px solid ${mine ? noraTint : hair}`, background: mine ? `${noraTint}1f` : 'transparent', color: mine ? noraTint : muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}><span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>{mine && listening.playing ? '■' : '♪'}</span> {mine ? (listening.playing ? tr('feed:support.stop', { defaultValue: 'Stop' }) : tr('feed:support.loading', { defaultValue: 'Loading…' })) : tr('feed:support.listen', { defaultValue: 'Listen' })}</button>
+                                <button onClick={() => listenTo(i, m.t)} aria-pressed={!!mine} title={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} aria-label={mine ? tr('feed:support.stop', { defaultValue: 'Stop' }) : tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 28, padding: '0 9px', borderRadius: 0, border: `1px solid ${mine ? noraTint : hair}`, background: mine ? `${noraTint}1f` : 'transparent', color: mine ? noraTint : muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}><span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>{mine && listening.playing ? '■' : '♪'}</span> {mine ? (listening.playing ? tr('feed:support.stop', { defaultValue: 'Stop' }) : tr('feed:support.loading', { defaultValue: 'Loading…' })) : tr('feed:support.listen', { defaultValue: 'Listen' })}</button>
                               );
                             })()}
                             {m.greet && supportMsgs.length === 1 && Array.isArray(m.quick) && m.quick.length > 0 && (
-                              <div data-nora-quick style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
+                              <div data-nora-quick style={{ display: 'flex', flexDirection: 'column', alignSelf: 'stretch', marginTop: 12, borderTop: `1px solid ${hair}` }}>
                                 {m.quick.map((q) => (
-                                  <button key={q} onClick={() => sendSupportText(q)} style={{ border: `1px solid ${TEALB}`, background: 'transparent', color: cardInk, borderRadius: 999, padding: '7px 11px', fontFamily: t.BODY, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{q}</button>
+                                  <button key={q} onClick={() => sendSupportText(q)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%', minHeight: 46, padding: '10px 2px', border: 0, borderBottom: `1px solid ${hair}`, borderRadius: 0, background: 'transparent', color: cardInk, fontFamily: t.BODY, fontSize: 14.5, fontWeight: 500, textAlign: 'left', cursor: 'pointer' }}>{q}<span aria-hidden style={{ color: noraTint, fontSize: 15 }}>→</span></button>
                                 ))}
                               </div>
                             )}
@@ -26072,7 +26074,7 @@ function BSNoraSheet({ onClose }) {
                                     ? <BSNoraProposal key={ai} a={a} t={t} />
                                     : a.type === 'fill'
                                     ? <BSNoraFill key={ai} a={a} t={t} />
-                                    : <button key={ai} onClick={() => runSupportAction(a)} style={{ border: `1px solid ${TEALB}`, background: `${TEALB}1a`, color: cardInk, borderRadius: 12, padding: '7px 11px', fontFamily: t.BODY, fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left', lineHeight: 1.3, display: 'inline-flex', flexDirection: 'column' }}>
+                                    : <button key={ai} onClick={() => runSupportAction(a)} style={{ border: `1px solid ${bsTHexA(t.INK, 0.22)}`, borderLeft: `3px solid ${noraTint}`, background: 'transparent', color: cardInk, borderRadius: 0, minHeight: 40, padding: '8px 12px', fontFamily: t.BODY, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', lineHeight: 1.3, display: 'inline-flex', flexDirection: 'column', justifyContent: 'center' }}>
                                         <span>{a.label}</span>
                                         {a.meta && <span style={{ fontSize: 9.5, opacity: 0.7, fontFamily: t.MONO }}>{a.meta}</span>}
                                       </button>
@@ -26088,7 +26090,7 @@ function BSNoraSheet({ onClose }) {
                 </div>
               </div>
                     </div>
-        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} unlocked voice placeholder={tr('feed:support.composerPlaceholder', { defaultValue: 'Ask Nora…' })} />
+        <BSMessageComposer mag value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} unlocked voice placeholder={tr('feed:support.composerPlaceholder', { defaultValue: 'Ask Nora…' })} />
         <BSNoraTalk talk={talk} t={t} tint={noraTint} avatar={BS_NORA_AVATAR} />
       </div>
       {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
@@ -26251,7 +26253,7 @@ function useBSCanChat() {
 
 function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false, holdToTalk = false, onVoiceComplete, mag = false }) {
   // `mag`: the chat page's composer in the Wall's magazine look (owner, 2026-10-24): square, an ink send
-  // button, the magazine's teal, no lock emoji and no floating shadow. Nora's sheet keeps its own.
+  // button, the magazine's teal, no lock emoji and no floating shadow. Nora's sheet takes it too (2026-10-31).
   const t = useBS();
   const canSend = value.trim().length > 0 || (tags && tags.length > 0);
   const canChat = useBSCanChat();
@@ -35506,7 +35508,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
           {/* The shared back row: a full-height tap target with its ← on the gutter (it was a 13px
               row padded to 29px; BSBackRow, owner 2026-10-31). Every pane renders this one row. */}
-          <BSBackRow onBack={back} label={settingsWord} />
+          <BSBackRow onBack={back} />
         </div>
         <SettingsTitle kicker={at >= 0 ? `${String(at + 1).padStart(2, '0')} · ${settingsWord}` : settingsWord} title={title} />
         <div style={{ height: 6 }} />
@@ -35650,7 +35652,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   }
   if (showRates && window.BSCoachRatesPage) {
     const RatesPage = window.BSCoachRatesPage;
-    return <RatesPage role={coachRole} listing={myListing} backLabel={tr('settings:section.practice', { defaultValue: 'Your practice' })}
+    return <RatesPage role={coachRole} listing={myListing}
       onBack={() => setShowRates(false)} onSaved={setMyListing}
       onPhotos={() => { setShowRates(false); setListingSheet('photos'); }} onPayouts={startPayoutSetup} />;
   }

@@ -3180,7 +3180,7 @@ function BSShapeSetsScreen({ onBack }) {
                   showSets, while the nav descriptor records only tab:'radio' — the
                   avatar unmounts the radio screen and back returns to the root. */}
             </div>
-            {window.BSBackRow ? <window.BSBackRow onBack={onBack} ink={CREAM} label="Radio" /> : null}
+            {window.BSBackRow ? <window.BSBackRow onBack={onBack} ink={CREAM} /> : null}
             <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>{tr('radio:screen.sectionMusic', { defaultValue: 'Section · Music' })}</div>
             <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>Shape <span style={{ color: TEAL }}>Sets.</span></h1>
           </div>

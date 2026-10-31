@@ -98,6 +98,30 @@ test('a page may space what follows the back row, never move the row itself', ()
   assert.deepEqual(bad, []);
 });
 
+test('every Back says Back', () => {
+  // Owner, 2026-10-31: "make them all say back". A row may pass its screen's own key for the word,
+  // never a destination ("← Settings", "← Library", "← The listing", "← Radio", "← Profile",
+  // "← Cancel" all went); each allowed key reads Back in English.
+  const SAYS_BACK = ["tr('home:checkin.back'", "tr('profile:trainer.back'", "tr('session:action.back'", "tr('onboarding:health.back'", "tr('settings:head.back'"];
+  const bad = [];
+  for (const f of readdirSync(DIR).filter((x) => x.endsWith('.jsx'))) {
+    const src = read(f);
+    for (const m of src.matchAll(/<(?:window\.|W\.)?BSBackRow\b[^]*?\/>/g)) {
+      const lab = /\slabel=\{/.exec(m[0]);
+      if (!lab) continue;
+      const rest = m[0].slice(lab.index);
+      if (!SAYS_BACK.some((k) => rest.includes(k))) bad.push(`${f}:${lineOf(src, m.index)}`);
+    }
+  }
+  assert.deepEqual(bad, []);
+  const en = (ns) => JSON.parse(readFileSync(join(ROOT, 'mobile-app', 'src', 'i18n', 'catalogs', 'en', `${ns}.json`), 'utf8'));
+  for (const k of SAYS_BACK) {
+    const [ns, key] = k.slice(4, -1).split(':');
+    assert.match(en(ns)[key], /^(← )?Back$/, `${ns}:${key} reads Back`);
+  }
+  assert.match(fnSrc(CHROME, 'BSBackButton'), /tr\('common:action\.back', \{ defaultValue: 'Back' \}\)/, 'with no label, the button says Back');
+});
+
 test('only the shared row draws the Back button, but for the two screens with no masthead row', () => {
   const hits = [];
   for (const f of readdirSync(DIR).filter((x) => x.endsWith('.jsx') && x !== 'iosAppBroadsheet.jsx')) {

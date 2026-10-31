@@ -91,7 +91,9 @@ function TimeInput({ t, value, onChange, label, invalid }) {
   return (
     <input type="time" step={BS_HOURS_STEP * 60} aria-label={label} value={bsHoursToInput(value)}
       onChange={(e) => { const m = bsHoursFromInput(e.target.value); if (m != null) onChange(m); }}
-      style={{ minWidth: 0, flex: 1, minHeight: 42, boxSizing: 'border-box', padding: '0 10px', borderRadius: 10, border: `1px solid ${invalid ? (t.RUST || '#c0533b') : t.RULE}`, background: t.PAPER2, color: t.INK, colorScheme: t.isLight ? 'light' : 'dark', fontFamily: t.MONO, fontSize: 15, outline: 'none' }} />
+      // The whole time reads, AM/PM included (owner, 2026-10-31: "these times are cut off"): the app's
+      // narrower face with even digits, not the mono, and less padding around it.
+      style={{ minWidth: 0, flex: 1, minHeight: 42, boxSizing: 'border-box', padding: '0 6px 0 9px', borderRadius: 10, border: `1px solid ${invalid ? (t.RUST || '#c0533b') : t.RULE}`, background: t.PAPER2, color: t.INK, colorScheme: t.isLight ? 'light' : 'dark', fontFamily: t.DISPLAY, fontVariantNumeric: 'tabular-nums', fontSize: 15, outline: 'none' }} />
   );
 }
 
@@ -147,7 +149,9 @@ function WeekEditor({ t, tr, days, setDays, disabled }) {
                         onChange={(m) => { if (disabled) return; const next = blocks.map((x) => x.slice()); next[i][1] = m; setDay(wd, next); }} />
                       <button type="button" aria-label={tr('coach:hours.removeBlock', { defaultValue: 'Remove {from} to {to}', from: bsHoursLabel(b[0], locale), to: bsHoursLabel(b[1], locale) })}
                         onClick={() => { if (disabled) return; setDay(wd, blocks.filter((_, j) => j !== i)); }}
-                        style={{ flex: 'none', width: 44, height: 44, border: 0, background: 'transparent', color: t.INK50, fontSize: 22, cursor: 'pointer' }}>×</button>
+                        // A full 44 × 44 target that reaches 12px into the page's gutter, so the time
+                        // fields keep the width to read whole (Codex on #2535).
+                        style={{ flex: 'none', width: 44, height: 44, marginRight: -12, padding: 0, border: 0, background: 'transparent', color: t.INK50, fontSize: 22, cursor: 'pointer' }}>×</button>
                     </div>
                     {problems[i] ? <Note t={t} tone="err" style={{ fontSize: 12.5, marginTop: 4 }}>{problemText[problems[i]]}</Note> : null}
                   </div>
@@ -536,7 +540,9 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
   if (load === 'loading') week = <Note t={t} style={{ marginTop: 12 }}>{tr('coach:hours.loading', { defaultValue: 'Reading your hours…' })}</Note>;
   else if (load === 'error') week = <div style={{ marginTop: 12 }}><Note t={t}>{tr('coach:hours.error', { defaultValue: "Couldn't read your hours just now. Nothing is lost." })}</Note><div style={{ marginTop: 8 }}><Chip t={t} onClick={() => setReload((n) => n + 1)}>{tr('coach:hours.retry', { defaultValue: 'Try again' })}</Chip></div></div>;
   else if (load === 'none') week = <Note t={t} style={{ marginTop: 12 }}>{tr('coach:hours.notCoach', { defaultValue: 'Your hours open once your coach application is approved.' })}</Note>;
-  else week = <WeekEditor t={t} tr={tr} days={days} setDays={(d) => { setDays(d); setMsg(null); }} disabled={load === 'preview'} />;
+  // The preview's week works on screen (owner, 2026-10-31: "the toggles arent working"): its switches,
+  // times and copy change the sample until you leave, as Make it yours does; there is nothing to save.
+  else week = <WeekEditor t={t} tr={tr} days={days} setDays={(d) => { setDays(d); setMsg(null); }} disabled={false} />;
 
   return (
     <BSPage>
@@ -546,7 +552,7 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
       <BSDetailHeader onBack={back} noCorner={dirty && live && load === 'ready'} kicker={tr('coach:hours.kicker', { defaultValue: 'Your practice' })} title={tr('coach:hours.title', { defaultValue: 'Your hours.' })} />
       <div data-coach-hours="" style={{ padding: `0 ${t.padX}px ${dirty ? 110 : 28}px` }}>
         <Note t={t}>{tr('coach:hours.blurb', { defaultValue: 'When members can book you. Your hours repeat every week; time off and your rules close times inside them.' })}</Note>
-        {load === 'preview' ? <Note t={t} style={{ marginTop: 8 }}>{tr('coach:hours.preview', { defaultValue: 'A preview with sample hours. Sign in as a coach to set yours.' })}</Note> : null}
+        {load === 'preview' ? <Note t={t} style={{ marginTop: 8 }}>{tr('coach:hours.preview', { defaultValue: 'A preview with sample hours. Sign in as a coach to set yours.' })} {tr('coach:hours.previewTry', { defaultValue: 'Try it: your changes show here until you leave.' })}</Note> : null}
 
         <div style={{ marginTop: 22 }}>
           <Eyebrow t={t} right={load === 'ready' || load === 'preview' ? tr('coach:hours.perWeek', { defaultValue: '{total} a week', total: hoursLabel(total) }) : null}>{tr('coach:hours.weekHead', { defaultValue: 'Every week' })}</Eyebrow>

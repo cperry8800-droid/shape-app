@@ -1480,6 +1480,7 @@
   "hours.title": "Giờ của bạn.",
   "hours.blurb": "Khi nào thành viên có thể đặt bạn. Giờ của bạn lặp lại mỗi tuần; ngày nghỉ và quy tắc sẽ đóng bớt giờ bên trong.",
   "hours.preview": "Bản xem trước với giờ mẫu. Đăng nhập với tư cách huấn luyện viên để đặt giờ của bạn.",
+  "hours.previewTry": "Thử nhé: thay đổi của bạn hiện ở đây cho đến khi bạn rời trang.",
   "hours.perWeek": "{total} mỗi tuần",
   "hours.weekHead": "Mỗi tuần",
   "hours.rulesHead": "Quy tắc đặt lịch",

@@ -73,3 +73,20 @@ test('zones draw first; the groups list every coach piece once', () => {
   for (const t of ['rack', 'dumbbells', 'treadmill', 'legpress', 'turf', 'reformer', 'ring', 'desk']) assert.ok(listed.includes(t), t);
   assert.equal(bsStudioGroupOf('counter'), 'kitchen', 'kitchen pieces are not in a coach group');
 });
+
+// Owner, 2026-10-31: "coaches should be able to add custom additional eqipment or kitchen stations".
+test('a piece of the coach\'s own is stored with its name, cleaned, and drawn in every size', async () => {
+  const { BS_STUDIO_OWN_SIZES } = await import('../mobile-app/src/services/studioKit.mjs');
+  assert.ok(BS_STUDIO_TYPES.includes('custom'), 'a stored type');
+  const it = bsStudioItem({ t: 'custom', x: 40, y: 50, w: 64, h: 40, label: '  Sandbag wall ' });
+  assert.deepEqual(it, { t: 'custom', x: 40, y: 50, w: 64, h: 40, label: 'Sandbag wall' }, 'its name is its label, trimmed');
+  assert.equal(bsStudioItem({ t: 'custom', x: 0, y: 0, w: 36, h: 36, label: 'x'.repeat(60) }).label.length <= 24, true, 'a name too long is cut to the label limit');
+  assert.ok(bsStudioItem({ t: 'custom', x: 0, y: 0, w: 36, h: 36 }), 'a nameless one still draws (the page names it "Your own piece")');
+  const st = bsProfileStudio({ kind: 'gym', where: '', items: [{ t: 'custom', x: 10, y: 10, w: 110, h: 64, label: 'Sled track', st: { title: 'Sled track', note: 'Push, then pull.' } }] });
+  assert.equal(st.items[0].st.title, 'Sled track', 'and it can be a station');
+  assert.deepEqual(BS_STUDIO_OWN_SIZES.map(([k]) => k), ['s', 'm', 'l']);
+  for (const [, , w, h] of BS_STUDIO_OWN_SIZES) {
+    assert.ok(w <= BS_STUDIO_W && h <= BS_STUDIO_H);
+    for (const opts of [{}, { light: true }, { accent: '#34d6c5' }, { line: true }]) assert.doesNotMatch(decode(bsStudioSvg('custom', w, h, opts)), /NaN|undefined/);
+  }
+});

@@ -9175,7 +9175,7 @@ function BSListingNotice({ listing, onRates, onPhotos, onPayouts }) {
   );
 }
 
-function BSCoachRatesPage({ role, listing, onBack, onSaved, onPhotos, onPayouts, backLabel }) {
+function BSCoachRatesPage({ role, listing, onBack, onSaved, onPhotos, onPayouts }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -9204,7 +9204,7 @@ function BSCoachRatesPage({ role, listing, onBack, onSaved, onPhotos, onPayouts,
         {/* The masthead row, then ← Back under it (it sat at the top with no masthead). No corners:
             the gear would leave unsaved rates. */}
         {bsProMastRow({ corners: false })}
-        <BSBackRow onBack={onBack} label={backLabel || tr('coach:rates.back', { defaultValue: 'Me' })} style={{ marginBottom: 6 }} />
+        <BSBackRow onBack={onBack} style={{ marginBottom: 6 }} />
         <div style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{tr('coach:rates.title', { defaultValue: 'Your rates' })}</div>
         {!listing ? (
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 || t.INK }}>{tr('coach:rates.noListing', { defaultValue: 'Your listing appears once your coach application is approved.' })}</div>

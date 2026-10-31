@@ -46,7 +46,7 @@ export default function BSWorkoutFutureUpdates({ plan, t, tr: inheritedTr, onClo
   const summary = (exercise) => [exercise.sets && exercise.reps ? `${exercise.sets} × ${exercise.reps}` : '', exercise.load, exercise.rest, exercise.tempo, exercise.cue, exercise.video ? txt('demoAttached', 'Demo attached') : ''].filter(Boolean).join(' · ');
   return <section style={{ padding: `${window.BS_MAST_TOP_CSS || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))'} ${t.padX || 24}px 40px`, color: t.INK }}>
     {window.BSMastRow ? <window.BSMastRow trailing={null} /> : null}
-    {window.BSBackRow ? <window.BSBackRow onBack={onClose} disabled={busy} label={String(txt('backEditor', '← Saved workout')).replace(/^\s*←\s*/, '')} /> : null}
+    {window.BSBackRow ? <window.BSBackRow onBack={onClose} disabled={busy} /> : null}
     <h1 style={{ fontFamily: t.DISPLAY, fontSize: 28 }}>{txt('futureTitle', 'Update future workouts')}</h1>
     <p style={{ fontFamily: t.BODY, fontSize: 13, lineHeight: 1.6 }}>{txt('futureHint', 'Choose the upcoming workouts to update from this saved template. Dates stay the same. Today’s workouts and logged sessions are excluded. Clients already training keep the prescription they started.')}</p>
     {skipped > 0 && <p>{txt('futureSkipped', '{count} assignments with logged work, removed days or client changes need individual review.', { count: skipped })}</p>}

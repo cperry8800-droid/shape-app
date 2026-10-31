@@ -1480,6 +1480,7 @@
   "hours.title": "I tuoi orari.",
   "hours.blurb": "Quando i membri possono prenotarti. I tuoi orari si ripetono ogni settimana; assenze e regole chiudono orari al loro interno.",
   "hours.preview": "Un’anteprima con orari di esempio. Accedi come coach per impostare i tuoi.",
+  "hours.previewTry": "Prova: le tue modifiche restano qui finché non esci.",
   "hours.perWeek": "{total} a settimana",
   "hours.weekHead": "Ogni settimana",
   "hours.rulesHead": "Regole di prenotazione",

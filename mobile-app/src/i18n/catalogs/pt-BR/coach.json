@@ -1480,6 +1480,7 @@
   "hours.title": "Seu horário.",
   "hours.blurb": "Quando os membros podem reservar você. Seu horário se repete toda semana; folgas e regras fecham horários dentro dele.",
   "hours.preview": "Uma prévia com horários de exemplo. Entre como coach para definir os seus.",
+  "hours.previewTry": "Experimente: suas mudanças aparecem aqui até você sair.",
   "hours.perWeek": "{total} por semana",
   "hours.weekHead": "Toda semana",
   "hours.rulesHead": "Regras de reserva",
