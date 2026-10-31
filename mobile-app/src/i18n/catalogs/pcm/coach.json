@@ -1491,5 +1491,13 @@
   "hours.undo": "Undo changes",
   "hours.save": "Save hours",
   "hours.footer": "Your hours",
-  "hours.rowSub": "Your hours, booking rules and time off"
+  "hours.rowSub": "Your hours, booking rules and time off",
+  "roster.tabAll": "All",
+  "roster.groupAll": "Clients wey dey now",
+  "roster.streakDays": "{count, plural, one {# day streak} other {# days streak}}",
+  "roster.since": "Since {date}",
+  "roster.weekLogged": "Logged · 7 days",
+  "roster.weekAdherence": "How e follow",
+  "roster.workouts6w": "{count, plural, one {# workout} other {# workouts}} for 6 weeks",
+  "roster.avgKcal": "Average {kcal} kcal"
 }

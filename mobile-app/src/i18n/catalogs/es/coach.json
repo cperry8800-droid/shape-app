@@ -1491,5 +1491,13 @@
   "hours.undo": "Deshacer cambios",
   "hours.save": "Guardar horario",
   "hours.footer": "Tu horario",
-  "hours.rowSub": "Tu horario, reglas de reserva y ausencias"
+  "hours.rowSub": "Tu horario, reglas de reserva y ausencias",
+  "roster.tabAll": "Todos",
+  "roster.groupAll": "Clientes actuales",
+  "roster.streakDays": "{count, plural, one {Racha de # día} other {Racha de # días}}",
+  "roster.since": "Desde {date}",
+  "roster.weekLogged": "Registrado · 7 d",
+  "roster.weekAdherence": "Adherencia",
+  "roster.workouts6w": "{count, plural, one {# entreno} other {# entrenos}} en 6 sem",
+  "roster.avgKcal": "Media {kcal} kcal"
 }

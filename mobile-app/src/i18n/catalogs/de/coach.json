@@ -1491,5 +1491,13 @@
   "hours.undo": "Änderungen verwerfen",
   "hours.save": "Zeiten speichern",
   "hours.footer": "Deine Zeiten",
-  "hours.rowSub": "Deine Zeiten, Buchungsregeln und Auszeiten"
+  "hours.rowSub": "Deine Zeiten, Buchungsregeln und Auszeiten",
+  "roster.tabAll": "Alle",
+  "roster.groupAll": "Aktuelle Klienten",
+  "roster.streakDays": "{count, plural, one {# Tag Serie} other {# Tage Serie}}",
+  "roster.since": "Seit {date}",
+  "roster.weekLogged": "Erfasst · 7 T",
+  "roster.weekAdherence": "Treue",
+  "roster.workouts6w": "{count, plural, one {# Training} other {# Trainings}} in 6 Wo.",
+  "roster.avgKcal": "Ø {kcal} kcal"
 }

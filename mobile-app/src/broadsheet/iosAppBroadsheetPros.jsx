@@ -98,7 +98,7 @@ const {
 // links and buttons, and 19px heads on Clients. Today, Clients and Plans now set rows at 15 (700 only
 // for the one that leads), the line under at 12.5, links at 12.5 / 600, buttons at 13 / 650, empty
 // lines at 13.5 and the lede at 13.5; inputs keep 16 (iOS zooms under it).
-const bsProH1 = (t) => ({ margin: 0, minWidth: 0, fontFamily: BS_PRO_HEAD, fontSize: 32, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.05, color: t.INK });
+const bsProH1 = (t) => ({ margin: 0, minWidth: 0, fontFamily: BS_PRO_HEAD, fontSize: 32, fontWeight: 600, letterSpacing: '-0.035em', lineHeight: 1.05, color: t.INK });
 const bsProLede = (t) => ({ margin: '5px 0 0', fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 500, lineHeight: 1.45, color: t.INK70 });
 const bsProH2 = (t) => ({ margin: 0, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK });
 const bsProLink = (t) => ({ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 600, color: t.isLight ? '#07706a' : '#34d6c5', whiteSpace: 'nowrap' });
@@ -2008,7 +2008,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           </span>
         </div>
         <p style={bsProLede(t)}>
-          {headLead ? <b style={{ fontWeight: 750, color: t.INK }}>{headLead} </b> : null}{headRest}
+          {headLead ? <b style={{ fontWeight: 600, color: t.INK }}>{headLead} </b> : null}{headRest}
         </p>
         {coachSignedIn && calendarStatus === 'error' && <button type="button" onClick={() => setCalendarReload((n) => n + 1)} style={LINK}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button>}
       </div>
@@ -2314,14 +2314,14 @@ function bsRosterSeverity(c, role) {
 // point both consumers at it.
 function bsTrainerDemoRoster(t) {
   return [
-    { i: 'S', c: t.GREEN,  n: 'Sofia Martinez', prog: 'Hypertrophy',        streak: 14, r: 'BUILD · W6',  d: 'JUST NOW', s: 'on track',    active: true },
-    { i: 'A', c: t.RUST,   n: 'Alex Rivera',    prog: 'Push / Pull / Legs', streak: 8,  r: 'CUT · W6',    d: '2H AGO',   s: 'on track',    active: true },
-    { i: 'P', c: '#8a5cf6',n: 'Priya Singh',    prog: 'Fat Loss 101',       streak: 0,  r: 'CUT · W3',    d: '3D AGO',   s: 'missed',      active: true },
+    { i: 'S', c: t.GREEN,  n: 'Sofia Martinez', prog: 'Hypertrophy',        streak: 14, r: 'BUILD · W6',  d: 'JUST NOW', s: 'on track',    active: true, adh: 96 },
+    { i: 'A', c: t.RUST,   n: 'Alex Rivera',    prog: 'Push / Pull / Legs', streak: 8,  r: 'CUT · W6',    d: '2H AGO',   s: 'on track',    active: true, adh: 91 },
+    { i: 'P', c: '#8a5cf6',n: 'Priya Singh',    prog: 'Fat Loss 101',       streak: 0,  r: 'CUT · W3',    d: '3D AGO',   s: 'missed',      active: true, adh: 40 },
     { i: 'M', c: t.AMBER,  n: 'Marcus Lee',     prog: 'Intro Block',        streak: 3,  r: 'INTAKE',      d: 'NEW',      s: 'onboard',     active: true },
-    { i: 'J', c: t.BLUE,   n: 'Jamal Green',    prog: 'Strength',           streak: 21, r: 'PEAK · W11',  d: '1D AGO',   s: 'pr',          active: true },
-    { i: 'R', c: t.AMBER,  n: 'Riley Kim',      prog: 'Cut Block',          streak: 6,  r: 'CUT · W8',    d: '1D AGO',   s: 'review form', active: true },
-    { i: 'Q', c: t.BLUE,   n: 'Quinn Choi',     prog: 'Build Phase',        streak: 11, r: 'BUILD · W2',  d: '3D AGO',   s: 'on track',    active: true },
-    { i: 'D', c: t.AMBER,  n: 'Devon Pierce',   prog: 'Strength',           streak: 9,  r: 'BUILD · W9',  d: '2D AGO',   s: 'deload soon', active: true },
+    { i: 'J', c: t.BLUE,   n: 'Jamal Green',    prog: 'Strength',           streak: 21, r: 'PEAK · W11',  d: '1D AGO',   s: 'pr',          active: true, adh: 100 },
+    { i: 'R', c: t.AMBER,  n: 'Riley Kim',      prog: 'Cut Block',          streak: 6,  r: 'CUT · W8',    d: '1D AGO',   s: 'review form', active: true, adh: 78 },
+    { i: 'Q', c: t.BLUE,   n: 'Quinn Choi',     prog: 'Build Phase',        streak: 11, r: 'BUILD · W2',  d: '3D AGO',   s: 'on track',    active: true, adh: 88 },
+    { i: 'D', c: t.AMBER,  n: 'Devon Pierce',   prog: 'Strength',           streak: 9,  r: 'BUILD · W9',  d: '2D AGO',   s: 'deload soon', active: true, adh: 84 },
     { i: 'B', c: t.INK50,  n: 'Bailey Cruz',    prog: 'Finished block',     streak: 0,  r: 'PAST · finished block', d: '6W AGO', s: 'past', active: false },
     { i: 'T', c: t.INK50,  n: 'Taylor Reed',    prog: 'Paused',             streak: 0,  r: 'PAST · paused', d: '3M AGO', s: 'past',        active: false },
   ];
@@ -2374,8 +2374,15 @@ function bsRowFromTriage(row, role, t) {
   const directive = sev === 'new'
     ? (obNext ? coachTr('coach:onboard.dirNext', { defaultValue: 'New · {step}', step: obNext }) : coachTr('coach:onboard.dirNew', { defaultValue: 'New client — open their first 30 days.' }))
     : reason || (sev === 'green' ? (nut ? coachTr('coach:roster.dirOnTrackNutri', { defaultValue: 'Logging on plan — nothing needed.' }) : coachTr('coach:roster.dirOnTrack', { defaultValue: 'On plan — nothing needed.' })) : coachTr('coach:roster.dirNeedsAttention', { defaultValue: 'Needs your attention this week.' }));
-  const adh = (rec.trainingAdherence && rec.trainingAdherence.pct != null) ? rec.trainingAdherence.pct
-    : (rec.foodLogs && rec.foodLogs.daysLogged7d != null) ? Math.round((rec.foodLogs.daysLogged7d / 7) * 100) : null;
+  // The week's figure is the coach's own measure: training adherence for a trainer, days logged for a
+  // nutritionist (the roster row labels it so, 2026-10-31), each falling back to the other. Which one
+  // it is rides with it (adhSrc), so a fallback is labelled as what it is (Codex on #2532).
+  const trainPct = (rec.trainingAdherence && rec.trainingAdherence.pct != null) ? rec.trainingAdherence.pct : null;
+  // ⚠ get_client_stats counts days from current_date - 7, eight dates (Codex on #2532; War Room), so
+  // a client who logged every one of them has 8: the figure is held to seven of seven, never 114%.
+  const logPct = (rec.foodLogs && rec.foodLogs.daysLogged7d != null) ? Math.round((Math.min(7, Math.max(0, rec.foodLogs.daysLogged7d)) / 7) * 100) : null;
+  const order = nut ? [['log', logPct], ['train', trainPct]] : [['train', trainPct], ['log', logPct]];
+  const [adhSrc, adh] = order.find(([, v]) => v != null) || [null, null];
   const streak = (rec.streaks && rec.streaks.current != null) ? rec.streaks.current : null;
   // The OTHER discipline's signal, routed read-only to this pro (e.g. a trainer
   // seeing the dietitian's protein flag). owned===false = read-only context.
@@ -2393,7 +2400,11 @@ function bsRowFromTriage(row, role, t) {
     paymentRetrying: p.paymentRetrying === true,
     avatar: p.avatar || p.photo || undefined,
     prog: (rec.program && rec.program.name) || '', r: String(rec.goalPhase || '').toUpperCase(),
-    streak, d: adh != null ? `${adh}%` : '',
+    streak, d: adh != null ? `${adh}%` : '', adh, adhSrc,
+    // What the live reads hold for the row's facts line: workouts logged in the last six weeks
+    // (get_client_lifts) and the average calories eaten on logged days (get_client_stats).
+    workouts6w: (rec.totals && Number.isFinite(rec.totals.workouts)) ? rec.totals.workouts : null,
+    avgKcal: (rec.nutrition && Number.isFinite(rec.nutrition.avgCalories)) ? Math.round(rec.nutrition.avgCalories) : null,
     s: sev === 'red' ? 'missed' : sev === 'amber' ? 'review form' : sev === 'new' ? 'onboard' : 'on track',
     active: true,
     _sig: { sev, rank, label: sev === 'green' ? coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }) : sev === 'new' ? coachTr('coach:sev.new', { defaultValue: 'NEW' }) : coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' }), directive, routed },
@@ -2543,6 +2554,9 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
   const needsRows = pastMode ? [] : rows.filter((r) => bsProNeedsAttention(r.sig));
   const onTrackRows = pastMode ? [] : rows.filter((r) => !bsProNeedsAttention(r.sig) && r.sig.sev !== 'past');
   const pastRows = pastMode ? rows : [];
+  // Every current client in one list (owner, 2026-10-31: "client page should include a tab or
+  // section that shows total current clients"): the tabs split them by what they need, this is all.
+  const allRows = pastMode ? [] : rows.filter((r) => r.sig.sev !== 'past');
   const k = needsRows.length;
   const m = onTrackRows.length;
   const activeView = pastMode ? 'past' : (view || (k > 0 ? 'needs' : 'track'));
@@ -2555,7 +2569,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
     { sev: 'new', label: tr('coach:roster.groupNew', { defaultValue: 'New clients' }) },
   ];
 
-  const TAB_ORDER = ['needs', 'track', 'past'];
+  const TAB_ORDER = ['all', 'needs', 'track', 'past'];
   const tab = (key, label, count, onPick) => {
     const on = activeView === key;
     const prev = TAB_ORDER[TAB_ORDER.indexOf(key) - 1];
@@ -2569,6 +2583,50 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
   };
   // A client row: the whole row opens the client; marks ride inside it (a payment that is retrying,
   // a weekend gap, a variable week). A client to reach out to today also gets a Message button.
+  // ⚠ MORE ABOUT EACH CLIENT (owner, 2026-10-31: "this page needs to have more information on
+  // clients"). A row named the client, what to do and the phase. It now also says what the roster
+  // knows: their program and streak, their workouts in the last six weeks (a trainer) or average
+  // intake (a nutritionist), since when they have been a client, and the coach's own figure (training
+  // adherence, or days logged this week) as a number with a bar. Nothing is made up: a fact the
+  // roster lacks is left out. The live reads hold no program or streak for a coach yet (Codex on
+  // #2532; War Room), so a live row says what they do hold.
+  const rowAdh = (c) => (typeof c.adh === 'number' ? c.adh : (/^\d{1,3}%$/.test(String(c.d || '')) ? Number(String(c.d).slice(0, -1)) : null));
+  const rowFacts = (c) => {
+    let since = null;
+    if (c.joinedAt) {
+      const d = new Date(c.joinedAt);
+      if (Number.isFinite(d.getTime())) {
+        try { since = d.toLocaleDateString(window.bsDateLocale ? window.bsDateLocale() : undefined, { month: 'short', year: 'numeric' }); } catch (e) { since = null; }
+      }
+    }
+    // A program named as the phase line already reads (a demo nutritionist's "Build · 2400") is said once.
+    const prog = c.prog && String(c.prog).toUpperCase() !== String(c.r || '').toUpperCase() ? c.prog : null;
+    // A new client's six weeks mostly predate them, so their count of workouts would read as a lapse.
+    const fresh = c._sig && c._sig.sev === 'new';
+    let kcal = null;
+    if (c.avgKcal != null) { try { kcal = c.avgKcal.toLocaleString(window.bsDateLocale ? window.bsDateLocale() : undefined); } catch (e) { kcal = String(c.avgKcal); } }
+    return [
+      prog,
+      !pastMode && c.streak > 0 ? tr('coach:roster.streakDays', { defaultValue: '{count, plural, one {#-day streak} other {#-day streak}}', count: c.streak }) : null,
+      !pastMode && !fresh && role !== 'nutritionist' && c.workouts6w != null ? tr('coach:roster.workouts6w', { defaultValue: '{count, plural, one {# workout} other {# workouts}} in 6 wk', count: c.workouts6w }) : null,
+      !pastMode && role === 'nutritionist' && kcal != null ? tr('coach:roster.avgKcal', { defaultValue: 'Avg {kcal} kcal', kcal }) : null,
+      since ? tr('coach:roster.since', { defaultValue: 'Since {date}', date: since }) : null,
+    ].filter(Boolean);
+  };
+  const weekFigure = (c) => {
+    const pct = rowAdh(c);
+    if (pct == null || pastMode) return null;
+    const hue = pct >= 75 ? heat : pct >= 50 ? sevText('amber') : sevText('red');
+    return (
+      <span data-roster-week="" style={{ flexShrink: 0, minWidth: 48, textAlign: 'right', paddingRight: 2 }}>
+        <span style={{ display: 'block', fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
+        <span aria-hidden style={{ display: 'block', height: 3, marginTop: 5, marginLeft: 'auto', width: 44, borderRadius: 2, background: t.RULE, overflow: 'hidden' }}>
+          <span style={{ display: 'block', height: '100%', width: `${Math.max(0, Math.min(100, pct))}%`, background: hue }} />
+        </span>
+        <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{(c.adhSrc || (role === 'nutritionist' ? 'log' : 'train')) === 'log' ? tr('coach:roster.weekLogged', { defaultValue: 'Logged · 7d' }) : tr('coach:roster.weekAdherence', { defaultValue: 'Adherence' })}</span>
+      </span>
+    );
+  };
   const clientRow = ({ c, sig }, i, { lead = true, message = false } = {}) => (
     <div key={`${activeView}-${c.n}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 4, borderTop: i ? `1px solid ${t.RULE}` : 0 }}>
       <button type="button" onClick={() => onOpen(c)} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, minHeight: lead ? 66 : 54, padding: lead ? '10px 4px 10px 12px' : '8px 4px 8px 14px', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: t.INK }}>
@@ -2577,11 +2635,12 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
           : <span aria-hidden style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 999, background: pastMode ? t.INK70 : SEV_HUE.new }} />}
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: lead ? 700 : 600, lineHeight: 1.2, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {c.n}{lead && ageWord(c) ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70 }}> · {ageWord(c)}</span> : null}
+            {c.n}{ageWord(c) ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70 }}> · {ageWord(c)}</span> : null}
           </span>
           {lead && sig.directive ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{sig.directive}</span> : null}
+          {(() => { const facts = rowFacts(c); return facts.length ? <span data-roster-facts="" style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12, lineHeight: 1.35, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{facts.join(' · ')}</span> : null; })()}
           <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 2, marginTop: 3 }}>
-            {(() => { const meta = lead ? c.r : [ageWord(c), c.r || (pastMode ? tr('coach:roster.labelPast', { defaultValue: 'PAST' }) : null), !pastMode && c.streak ? `${c.streak}D` : null].filter(Boolean).join(' · '); return meta ? <span style={{ fontFamily: t.MONO, fontSize: 11.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK70 }}>{meta}</span> : null; })()}
+            {(() => { const meta = c.r || (pastMode ? tr('coach:roster.labelPast', { defaultValue: 'PAST' }) : null); return meta ? <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK70 }}>{meta}</span> : null; })()}
             {c._wknd?.worstDimension && c._wknd.dimensions?.[c._wknd.worstDimension]?.flagged && (
               <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: sevText('red'), whiteSpace: 'nowrap' }}>{tr('coach:roster.wkndGap', { defaultValue: 'WKND −{gap}', gap: Math.abs(Math.round(c._wknd.dimensions[c._wknd.worstDimension].gapPp)) })}</span>
             )}
@@ -2593,6 +2652,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
             <BSProPayRetryMark c={c} />
           </span>
         </span>
+        {weekFigure(c)}
         {!message && <span aria-hidden style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 22, lineHeight: 1, color: t.INK70, paddingRight: 6 }}>›</span>}
       </button>
       {message && (
@@ -2626,16 +2686,17 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
           </button>
         </div>
         <p style={bsProLede(t)}>
-          <b style={{ fontWeight: 750, color: t.INK }}>{tr('coach:head.activeCount', { defaultValue: '{count, plural, one {# active} other {# active}}', count: Number(activeCount) || 0 })}</b>
+          <b style={{ fontWeight: 600, color: t.INK }}>{tr('coach:head.activeCount', { defaultValue: '{count, plural, one {# active} other {# active}}', count: Number(activeCount) || 0 })}</b>
           {newThisMonth > 0 ? ` · ${tr('coach:head.newThisMonth', { defaultValue: '{count, plural, one {# new this month} other {# new this month}}', count: newThisMonth })}` : ''}
         </p>
       </div>
 
       <div style={{ padding: `0 ${t.padX}px` }}><BSProRosterStatus status={status} onRetry={onRetry} /></div>
 
-      {/* The three tabs — what needs the coach, who is holding, and past clients. */}
+      {/* The four tabs — every current client, what needs the coach, who is holding, and past clients. */}
       <div role="tablist" aria-label={tr('coach:roster.viewAria', { defaultValue: 'Roster view' })} data-roster-view={activeView}
-        style={{ margin: `16px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', padding: 4, borderRadius: 12, background: t.PAPER3 || t.PAPER2 }}>
+        style={{ margin: `16px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '0.8fr 1.25fr 1.1fr 0.85fr', padding: 4, borderRadius: 12, background: t.PAPER3 || t.PAPER2 }}>
+        {tab('all', tr('coach:roster.tabAll', { defaultValue: 'All' }), pastMode ? null : allRows.length, () => { setView('all'); if (pastMode) setRoster('active'); })}
         {tab('needs', tr('coach:roster.tabNeeds', { defaultValue: 'Needs you' }), pastMode ? null : k, () => { setExpanded(false); setView('needs'); if (pastMode) setRoster('active'); })}
         {tab('track', tr('coach:roster.tabTrack', { defaultValue: 'On track' }), pastMode ? null : m, () => { setView('track'); if (pastMode) setRoster('active'); })}
         {tab('past', tr('coach:roster.tabPast', { defaultValue: 'Past' }), pastCount, () => { if (!pastMode) setRoster('past'); })}
@@ -2681,6 +2742,14 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
               </button>
             )}
           </>
+        )}
+
+        {/* ALL — every current client in one card, those who need the coach first. */}
+        {activeView === 'all' && rows.length > 0 && (
+          <div data-roster-group="all" style={{ marginTop: 20 }}>
+            <h2 style={{ ...bsProH2(t), marginBottom: 8 }}>{tr('coach:roster.groupAll', { defaultValue: 'Current clients' })}{bsProCount(t, allRows.length, t.INK)}</h2>
+            {allRows.length > 0 ? card(allRows.map((r, i) => clientRow(r, i, { lead: true, message: r.sig.sev === 'red' }))) : null}
+          </div>
         )}
 
         {/* ON TRACK — quiet rows in one card, the first eight then the rest on a tap. */}
@@ -5214,7 +5283,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const lnum = (x) => (x == null || x === '' || Number.isNaN(Number(x)) ? null : Number(x));
   const sDone = lnum(S.sessionsCompleted), sPlan = lnum(S.sessionsPlanned);
   const attendancePct = (sPlan && sPlan > 0) ? Math.round((sDone / sPlan) * 100) : null;
-  const days7 = lnum(S.daysLogged7d), days30 = lnum(S.daysLogged30d);
+  // daysLogged7d counts eight dates (from current_date - 7), so it is held to seven, as the roster's is.
+  const days7 = lnum(S.daysLogged7d) == null ? null : Math.min(7, lnum(S.daysLogged7d)), days30 = lnum(S.daysLogged30d);
   const adherencePct = (days7 != null) ? Math.round((days7 / 7) * 100) : null;
   const avgKcal = lnum(S.avgCalories), avgP = lnum(S.avgProtein), avgC = lnum(S.avgCarbs), avgF = lnum(S.avgFat);
   const kcalStr = avgKcal != null ? avgKcal.toLocaleString() : null;
@@ -6994,7 +7064,7 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } =
       <BSProCleanType t={t}>
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         <h1 data-tour="hero-plans" style={bsProH1(t)}>{tr('coach:shortcut.programs', { defaultValue: 'Programs' })}</h1>
-        <p style={bsProLede(t)}><b style={{ fontWeight: 750, color: t.INK }}>{publishedLead}</b>{publishedRest ? ` · ${publishedRest}` : ''}</p>
+        <p style={bsProLede(t)}><b style={{ fontWeight: 600, color: t.INK }}>{publishedLead}</b>{publishedRest ? ` · ${publishedRest}` : ''}</p>
       </div>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {note && <div role="status" style={{ marginTop: 12, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: t.isLight ? '#07706a' : teal, padding: '10px 14px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.04em' }}>✓ {note}</div>}
@@ -8118,7 +8188,7 @@ function BSNutriPlans() {
       <BSProCleanType t={t}>
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         <h1 data-tour="hero-plans" style={bsProH1(t)}>{tr('coach:shortcut.plans', { defaultValue: 'Plans' })}</h1>
-        <p style={bsProLede(t)}><b style={{ fontWeight: 750, color: t.INK }}>{publishedLead}</b>{publishedRest ? ` · ${publishedRest}` : ''}</p>
+        <p style={bsProLede(t)}><b style={{ fontWeight: 600, color: t.INK }}>{publishedLead}</b>{publishedRest ? ` · ${publishedRest}` : ''}</p>
       </div>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {note && <div role="status" style={{ marginTop: 12, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: t.isLight ? '#07706a' : teal, padding: '10px 14px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.04em' }}>✓ {note}</div>}

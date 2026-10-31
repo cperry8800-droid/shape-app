@@ -1491,5 +1491,13 @@
   "hours.undo": "Hoàn tác thay đổi",
   "hours.save": "Lưu giờ",
   "hours.footer": "Giờ của bạn",
-  "hours.rowSub": "Giờ, quy tắc đặt lịch và ngày nghỉ"
+  "hours.rowSub": "Giờ, quy tắc đặt lịch và ngày nghỉ",
+  "roster.tabAll": "Tất cả",
+  "roster.groupAll": "Khách hiện tại",
+  "roster.streakDays": "{count, plural, other {Chuỗi # ngày}}",
+  "roster.since": "Từ {date}",
+  "roster.weekLogged": "Đã ghi · 7 ngày",
+  "roster.weekAdherence": "Tuân thủ",
+  "roster.workouts6w": "{count, plural, other {# buổi tập}} trong 6 tuần",
+  "roster.avgKcal": "TB {kcal} kcal"
 }

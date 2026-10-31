@@ -1491,5 +1491,13 @@
   "hours.undo": "Скасувати зміни",
   "hours.save": "Зберегти години",
   "hours.footer": "Ваші години",
-  "hours.rowSub": "Години, правила бронювання та вихідні"
+  "hours.rowSub": "Години, правила бронювання та вихідні",
+  "roster.tabAll": "Усі",
+  "roster.groupAll": "Поточні клієнти",
+  "roster.streakDays": "{count, plural, one {Серія # день} few {Серія # дні} many {Серія # днів} other {Серія # дня}}",
+  "roster.since": "З {date}",
+  "roster.weekLogged": "Записи · 7 дн",
+  "roster.weekAdherence": "Виконання",
+  "roster.workouts6w": "{count, plural, one {# тренування} few {# тренування} many {# тренувань} other {# тренування}} за 6 тиж.",
+  "roster.avgKcal": "У середньому {kcal} ккал"
 }
