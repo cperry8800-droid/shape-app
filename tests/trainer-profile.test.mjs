@@ -224,6 +224,14 @@ test('the storefront shows only what the coach sells: no monthly price, no packa
   assert.ok(!document.querySelector('[data-coaching-block]'), 'no nutrition plan on the trainer\'s sheet');
   assert.match(m.text(), /hasn't listed prices on Shape yet/);
   await m.unmount();
+  // No live listing (unfinished or suspended: the listing read returns no row) sells nothing here,
+  // published plans or not (Codex P1 on 196314b).
+  reset({ provider: null, salePlans: [{ id: 'p1', kind: 'program', name: 'Strong in 12', meta: '', price: '79', category: 'program', providerId: 7, providerRole: 'trainer' }] });
+  m = await mount(page());
+  await click(button(/^Work with her$/));
+  assert.ok(!document.querySelector('[data-coaching-block]'), 'no checkout without a live listing');
+  assert.doesNotMatch(document.querySelector('[role="dialog"]').textContent, /\$/);
+  await m.unmount();
   // With a monthly price, the sheet's catalogue is handed the trainer's plans only.
   reset({ salePlans: [{ id: 'p1', kind: 'program', name: 'Strong in 12', meta: '', price: '79', category: 'program', providerId: 7, providerRole: 'trainer' }, { id: 'm1', kind: 'meal_plan', name: 'Lean cut', meta: '', price: '60', category: 'meal', providerId: 9, providerRole: 'nutritionist' }] });
   m = await mount(page());

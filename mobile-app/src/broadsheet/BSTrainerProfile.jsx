@@ -454,10 +454,12 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // its page shows everywhere else (the sheet said "Publish your first plan" under every tab).
   const sheetPlans = demo ? programs.filter((p) => p && p.plan).map((p) => ({ ...p.plan, category: 'program',
     meta: p.weeks ? tr('profile:trainer.programWeeks', { defaultValue: '{count, plural, one {# week} other {# weeks}}', count: p.weeks }) : (p.plan.meta || '') })) : ownPlans;
-  // A real coach's published plans, for a listing with no monthly price, when one of them has a price
-  // to pay (a workout or reusable program is saved with none, and alone it would hide "hasn't listed
-  // prices" behind rows with nothing to buy: Codex P2 on 2ecbc5b). A sample with no price shows none.
-  const plansListed = !demo && Array.isArray(ownPlans) && ownPlans.some((pl) => bsWorkPaid(pl.price));
+  // A real coach's published plans, for a live listing with no monthly price, when one of them has a
+  // price to pay (a workout or reusable program is saved with none, and alone it would hide "hasn't
+  // listed prices" behind rows with nothing to buy: Codex P2 on 2ecbc5b). An unfinished or suspended
+  // listing sells nothing here, as the monthly offer already holds (Codex P1 on 196314b), and a sample
+  // with no price shows none.
+  const plansListed = listed && !demo && Array.isArray(ownPlans) && ownPlans.some((pl) => bsWorkPaid(pl.price));
   const workouts = nutri ? [] : demo ? (demo.workouts || []) : bsWorkoutVideos(postCards);
   const replays = nutri ? [] : demo ? demo.replays : postCards
     .filter((c) => c.breakdown && Array.isArray(c.breakdown.rows) && c.breakdown.rows.length && !c.video);
