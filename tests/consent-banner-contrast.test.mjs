@@ -1,7 +1,7 @@
 // The cookie-consent banner's colours, and the page palette that made it
 // unreadable.
 //
-// ⚠ WHAT THIS IS ABOUT. `pageShell.jsx` injects the EEA/UK consent banner with
+// ⚠ WHAT THIS IS ABOUT. `/consent-banner.js` (inside pageShell.jsx until #2530) injects the EEA/UK consent banner with
 // inline styles, outside any page stylesheet, and reached for the design-system
 // tokens so it would "stay legible everywhere". Generic token names are a shared
 // namespace with every page's private palette, so that is the mechanism that
@@ -29,12 +29,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const SHELL = readFileSync(new URL('../public/newdesign/pageShell.jsx', import.meta.url), 'utf8');
+const SHELL = readFileSync(new URL('../public/consent-banner.js', import.meta.url), 'utf8');
 
 // the banner's own region: from the dialog element to where it is appended
 function bannerRegion() {
   const a = SHELL.indexOf('"Cookie consent"');
-  assert.notEqual(a, -1, 'the consent banner is gone from pageShell.jsx');
+  assert.notEqual(a, -1, 'the consent banner is gone from /consent-banner.js');
   const b = SHELL.indexOf('document.body.appendChild(bar)', a);
   assert.notEqual(b, -1, 'the consent banner is never appended');
   return SHELL.slice(a, b);
@@ -86,21 +86,34 @@ test('every colour pair the consent banner can render clears WCAG AA', () => {
   }
 });
 
-test('no newdesign page defines --consent-*, so the audited fallbacks are what render', async () => {
+test('no page that shows the banner defines --consent-*, so the audited fallbacks are what render', async () => {
   // ⚠ NOT A BAN — a page MAY theme the banner deliberately. It is a statement
   // about what the contrast check above is actually proving today: with nothing
   // overriding them, the literal fallbacks are the rendered colours on every
   // page. The day a page overrides one, this fails and the check above has to
   // grow to cover that page's pair rather than silently stop applying.
+  // The banner shows on the shell's pages (public/newdesign), on the pages without the shell that
+  // load it themselves (public/*.html), and on the Next app's pages (its stylesheets and
+  // components), so all three are read.
   const { readdirSync } = await import('node:fs');
   const dir = new URL('../public/newdesign/', import.meta.url);
-  const files = readdirSync(dir).filter((f) => f.endsWith('.html') || f.endsWith('.jsx'));
+  const files = readdirSync(dir).filter((f) => f.endsWith('.html') || f.endsWith('.jsx') || f.endsWith('.css'));
   assert.ok(files.length > 20, `only ${files.length} newdesign files scanned — the sweep is not reading the directory`);
+  const sources = files.map((f) => ['public/newdesign/' + f, new URL(f, dir)]);
+  const top = new URL('../public/', import.meta.url);
+  for (const f of readdirSync(top).filter((n) => n.endsWith('.html'))) sources.push(['public/' + f, new URL(f, top)]);
+  const walk = (u, rel) => {
+    for (const e of readdirSync(u, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(new URL(e.name + '/', u), rel + e.name + '/');
+      else if (/\.(css|tsx|ts)$/.test(e.name)) sources.push([rel + e.name, new URL(e.name, u)]);
+    }
+  };
+  walk(new URL('../src/', import.meta.url), 'src/');
+  assert.ok(sources.some(([n]) => n === 'public/privacy.html') && sources.some(([n]) => n === 'src/app/globals.css'), 'the sweep is not reading the standalone pages or the Next app');
   const offenders = [];
-  for (const f of files) {
-    if (f === 'pageShell.jsx') continue;
-    const src = readFileSync(new URL(f, dir), 'utf8');
-    if (/--consent-[a-z0-9-]+\s*:/i.test(src)) offenders.push(f);
+  for (const [name, url] of sources) {
+    const src = readFileSync(url, 'utf8');
+    if (/--consent-[a-z0-9-]+\s*:/i.test(src)) offenders.push(name);
   }
   assert.deepEqual(offenders, [],
     `${offenders.join(', ')} overrides a --consent-* token; extend the contrast test to cover it`);

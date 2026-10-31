@@ -4,7 +4,7 @@ import "./globals.css";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import GlobalChatButton from "@/components/GlobalChatButton";
-import { Analytics } from '@vercel/analytics/next';
+import ConsentAnalytics from '@/components/ConsentAnalytics';
 import Script from 'next/script';
 
 // Inter, self-hosted (src/app/fonts, OFL). next/font/google fetched it from Google during the build,
@@ -34,7 +34,9 @@ export default function RootLayout({
         <div className="flex-1">{children}</div>
         <Footer />
         <GlobalChatButton />
-        <Analytics />
+        {/* Page views, only as the visitor's consent allows (the banner's own rule), and the banner
+            itself (/consent-banner.js), off the /connect pages. */}
+        <ConsentAnalytics />
         {/* Where a sign-up came from (public/signup-source.js): the first link a visitor
             arrives from, remembered only as consent allows, for the admin console. */}
         <Script src="/signup-source.js" strategy="afterInteractive" />

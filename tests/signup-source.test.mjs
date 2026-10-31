@@ -254,7 +254,7 @@ test('the script loads wherever a visitor can land', () => {
 });
 
 test('the cookie banner says its choice covers this, in the words it records, and acts on it at once', () => {
-  const shell = read('public/newdesign/pageShell.jsx');
+  const shell = read('public/consent-banner.js');
   // Codex, #2325: an Accept on the landing page keeps its link (gone after the next click), a
   // Reject drops what was kept.
   assert.match(shell, /function record\(choice\) \{\n\s+try \{ localStorage\.setItem\(KEY, choice\); \} catch \(e\) \{\}\n(\s+\/\/.*\n)+\s+try \{ if \(window\.shapeSignupSource\) window\.shapeSignupSource\.capture\(\); \} catch \(e\) \{\}/);

@@ -669,8 +669,8 @@ test('wiring: a control whose name is a person’s is counted by a fixed label',
 });
 
 test('wiring: the banner and the privacy policy say the website counts taps too', () => {
-  const shell = read('public/newdesign/pageShell.jsx');
-  const recorded = /var BANNER_COPY = "([^"]+)";/.exec(shell)[1];
+  const banner = read('public/consent-banner.js');
+  const recorded = /var BANNER_COPY = "([^"]+)";/.exec(banner)[1];
   assert.match(recorded, /Shape's first-party usage stats on this site and in the app\./);
   // §10 lists them beside Vercel Analytics, as the banner's link promises (owner, 2026-10-29).
   const privacy = read('public/privacy.html');

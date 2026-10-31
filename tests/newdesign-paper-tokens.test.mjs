@@ -319,19 +319,12 @@ test('every --sh-* token referenced is declared in dash.css', () => {
     'right and the value simply never moves when the paper changes:\n  ' + undeclared.join('\n  '));
 });
 
-// The one region of a swept file that is deliberately OUTSIDE the paper system:
-// the cookie-consent banner. It is injected on ~69 pages with its own
-// `--consent-*` namespace because it once borrowed generic palette tokens and a
-// page that defined one of them drew the disclosure at 1.11:1 while Accept stayed
-// legible. See tests/consent-banner-contrast.test.mjs, which is the guard that
-// caught the sweep reaching in here.
-function consentRegion(s) {
-  const a = s.indexOf('"Cookie consent"');
-  if (a === -1) return null;
-  const b = s.indexOf('document.body.appendChild(bar)', a);
-  return b === -1 ? null : [a, b];
-}
-
+// The cookie-consent banner is deliberately OUTSIDE the paper system: it carries its own
+// `--consent-*` namespace because it once borrowed generic palette tokens and a page that defined
+// one of them drew the disclosure at 1.11:1 while Accept stayed legible
+// (tests/consent-banner-contrast.test.mjs). It lived inside pageShell.jsx, so the ratchet below
+// skipped its byte range; it is its own file now (/consent-banner.js, Codex on #2530), outside the
+// swept files, and the ratchet has no exception left.
 test('the dashboard reads its ink through the token, not the literal', () => {
   // The ratchet: the ink family is over half of the surface's colour literals, so
   // if the sweep is ever reverted piecemeal this is the first thing to notice.
@@ -340,30 +333,18 @@ test('the dashboard reads its ink through the token, not the literal', () => {
   for (const f of swept) {
     const s = code.get(f);
     assert.ok(s != null, `${f} missing`);
-    const skip = consentRegion(s);
-    const sites = [...s.matchAll(/rgba?\(\s*242\s*,\s*237\s*,\s*228\s*[,)]/g)]
-      .filter(m => !(skip && m.index >= skip[0] && m.index < skip[1]));
+    const sites = [...s.matchAll(/rgba?\(\s*242\s*,\s*237\s*,\s*228\s*[,)]/g)];
     assert.equal(sites.length, 0,
       `${f} still writes the ink literal directly (${sites.length} sites) — it should read rgba(var(--sh-ink-rgb, 242,237,228), a)`);
   }
 });
 
-test('the consent-banner exception is a real region, not a blanket escape', () => {
-  // ⚠ Guard-the-guard: the ratchet above excludes a byte range, so if that range
-  // ever stopped being found — or grew to swallow the file — the exclusion would
-  // quietly stop the ratchet from catching anything. Both ends are pinned here.
-  const s = code.get('pageShell.jsx');
-  const r = consentRegion(s);
-  assert.ok(r, 'the consent region is gone from pageShell.jsx — the ratchet exclusion above now means nothing');
-  const [a, b] = r;
-  assert.ok(b > a, 'the consent region is empty');
-  assert.ok(b - a < s.length * 0.15,
-    `the consent region spans ${Math.round((100 * (b - a)) / s.length)}% of pageShell.jsx — an exclusion that large is not an exception`);
-  // And the exception must be EARNING itself: the region does carry literals the
-  // ratchet would otherwise flag, which is the whole reason it is excluded.
-  const inside = [...s.slice(a, b).matchAll(/rgba?\(\s*242\s*,\s*237\s*,\s*228\s*[,)]|#f2ede4|#1a1612/gi)].length;
-  assert.ok(inside > 0,
-    'the consent region carries no colour literal — it no longer needs an exception, so remove it rather than leaving a hole in the ratchet');
+test('the consent banner is outside the swept files, so the ratchet needs no exception', () => {
+  // ⚠ Guard-the-guard: the ratchet above used to skip the banner's byte range in pageShell.jsx.
+  // The banner moved to /consent-banner.js; were it ever put back in a swept file, its literals
+  // would need that exception again, and this says so instead of the ratchet failing obscurely.
+  assert.ok(!code.get('pageShell.jsx').includes('"Cookie consent"'), 'the consent banner is back in pageShell.jsx');
+  assert.match(readFileSync(join(ND, '..', 'consent-banner.js'), 'utf8'), /bar\.setAttribute\("aria-label", "Cookie consent"\);/);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

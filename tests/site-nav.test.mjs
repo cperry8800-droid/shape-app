@@ -1093,6 +1093,13 @@ function siteLayers() {
     }
   }
   for (const f of mods) jsLayers(readFileSync(path.join(ND, f), 'utf8'), f, out);
+  // Scripts at the site's root that the shell loads itself (`s.src = "/consent-banner.js"`): the
+  // consent banner left pageShell.jsx for its own file (Codex on #2530) and is on every shell page.
+  const shell = readFileSync(path.join(ND, 'pageShell.jsx'), 'utf8');
+  for (const m of shell.matchAll(/\.src = ["']\/([\w.-]+\.js)["']/g)) {
+    const file = path.join(ND, '..', m[1]);
+    if (existsSync(file)) { mods.add('/' + m[1]); jsLayers(readFileSync(file, 'utf8'), m[1], out); }
+  }
   return { pages, mods, out };
 }
 
@@ -1120,8 +1127,8 @@ test('no layer that stays on screen floats over the open drawer', () => {
     'globalChatButton.js': 3,
     // The cookie-consent bar (99999): a legal choice, kept answerable above
     // everything. It covers the drawer's bottom row only until it is answered,
-    // which is one tap on the bar itself.
-    'pageShell.jsx': 1,
+    // which is one tap on the bar itself. The shell loads it from /consent-banner.js.
+    'consent-banner.js': 1,
     // Toasts (10000): a few seconds of feedback, meant to be topmost.
     'clientMeSettings.jsx': 1, 'nutritionistGoalPage.jsx': 1, 'trainerGoalPage.jsx': 1,
   };
@@ -1132,6 +1139,7 @@ test('no layer that stays on screen floats over the open drawer', () => {
   // Vacuity: the scan has to be seeing the site, and seeing both kinds of layer.
   assert.ok(pages.length >= 60, 'only ' + pages.length + ' pages load pageShell.jsx — the page scan stopped matching');
   assert.ok(mods.has('store.jsx') && mods.has('chatWidget.jsx'), 'the module scan lost store.jsx or chatWidget.jsx');
+  assert.ok(mods.has('/consent-banner.js'), 'the scan no longer follows the shell to /consent-banner.js');
   assert.ok(out.some((l) => /^store\.jsx:\d+$/.test(l.where) && l.floats),
     'the scan no longer sees the Store\'s cart button (a floating style object) — it is reading nothing');
   assert.ok(out.some((l) => l.where === 'globalChatButton.js' && l.floats),
