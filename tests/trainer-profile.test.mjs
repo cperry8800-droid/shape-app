@@ -886,36 +886,64 @@ test('a demo saved in Make it yours keeps only what was changed, so the studio s
   } finally { window.ShapeLocale = hadLocale; window.ShapeI18n.t = hadT; client.restore(); }
 });
 
-test('their activity: what they posted that the tabs do not already show, newest three then See all; a sample has its own', async () => {
-  // Owner, 2026-10-30: "there is also no activity feed on coaches profile".
+test('their activity: a tab of its own, last, with what they posted that the other tabs do not already show; a sample has its own', async () => {
+  // Owner, 2026-10-30: "there is also no activity feed on coaches profile"; 2026-10-31: "the coaches
+  // activity feed shouldn't be under replays, they should have a separate tab for activity".
   const note = (i) => ({ key: `n${i}`, title: `Note ${i}`, typeLabel: 'Note', ago: `${i}d`, body: `Body ${i}`, statsRow: [], breakdown: null });
+  const tabNames = () => [...document.querySelectorAll('nav[aria-label="Profile sections"] button')].map((b) => b.textContent);
   reset({ posts: [note(1), { key: 'p1', title: 'Heavy squat day', ago: '2d', statsRow: [], breakdown: { label: 'Sets', rows: [['Set 1', '100 kg × 5', '']] } }, note(2), note(3), note(4)] });
   let m = await mount(page());
+  assert.equal(tabNames()[tabNames().length - 1], 'Activity', 'Activity is the last tab');
+  const tabSizes = () => [...document.querySelectorAll('nav[aria-label="Profile sections"] button')].map((b) => b.style.fontSize);
+  assert.deepEqual(tabNames(), ['Her day', 'Replays', 'Activity']);
+  assert.ok(tabSizes().every((x) => x === '15px'), 'three tabs keep their size');
+  assert.ok(!document.querySelector('[data-activity]'), 'the feed is not on the page under another tab');
+  await tab('Replays');
+  assert.ok(!document.querySelector('[data-activity]'), 'nor under Replays');
+  await tab('Activity');
   const feed = document.querySelector('[data-activity]');
-  assert.ok(feed, 'the feed');
+  assert.ok(feed, 'the feed, in its tab');
   assert.match(feed.textContent, /Maya's activity/);
   const titles = () => [...feed.querySelectorAll('[data-activity-card]')].map((c) => (c.textContent.match(/Note \d/) || [''])[0]);
-  assert.deepEqual(titles(), ['Note 1', 'Note 2', 'Note 3'], 'newest three; the logged session stays in Replays');
+  assert.deepEqual(titles(), ['Note 1', 'Note 2', 'Note 3', 'Note 4'], 'all of them, newest first; the logged session stays in Replays');
+  assert.ok(!feed.querySelector('[data-activity-all]'), 'no See all in a tab of its own');
   assert.ok(!/Heavy squat day/.test(feed.textContent));
-  await click(feed.querySelector('[data-activity-all]'));
-  assert.deepEqual(titles(), ['Note 1', 'Note 2', 'Note 3', 'Note 4']);
   assert.ok(!feed.querySelector('[data-log-activity]'), 'no Log activity on another coach\'s page');
   const reviews = document.querySelector('[data-reviews-strip]');
   if (reviews) assert.ok(feed.compareDocumentPosition(reviews) & window.Node.DOCUMENT_POSITION_FOLLOWING, 'above the reviews');
   await m.unmount();
-  // Nothing posted: no feed for a visitor.
+  // Nothing posted: no Activity tab for a visitor.
   reset({ posts: [] });
   m = await mount(page());
+  assert.ok(!tabNames().includes('Activity'), 'an empty tab for a visitor');
   assert.ok(!document.querySelector('[data-activity]'));
+  await m.unmount();
+  // The coach's own page always has it, with Log activity.
+  reset({ me: 'u-maya', posts: [] });
+  m = await mount(page({ isSelf: true }));
+  assert.deepEqual(tabNames(), ['Her day', 'About me', 'The studio', 'Replays', 'Activity'], 'all five on their own page, Activity last');
+  assert.ok(tabSizes().every((x) => x === '13px'), 'more than three tabs set smaller');
+  // Five can't fit a phone at a size worth reading: a tab never shrinks below its words, and the row
+  // scrolls sideways instead of cutting a name to "…".
+  const nav = document.querySelector('nav[aria-label="Profile sections"]');
+  assert.equal(nav.style.overflowX, 'auto', 'the row scrolls');
+  for (const b of nav.querySelectorAll('button')) {
+    assert.equal(b.style.flex, '1 0 auto', 'a tab shrinks below its words');
+    assert.notEqual(b.style.textOverflow, 'ellipsis', 'a name is cut to …');
+  }
+  await tab('Activity');
+  assert.ok(document.querySelector('[data-activity] [data-log-activity]'), 'Log activity on their own page');
   await m.unmount();
   // A private profile shows none.
   reset({ posts: [note(1)], canView: false });
   m = await mount(page());
+  assert.ok(!tabNames().includes('Activity'));
   assert.ok(!document.querySelector('[data-activity]'));
   await m.unmount();
   // A sample coach: its own run and note.
   reset({ me: 'u-me', byId: leahRow, slots: [] });
   m = await mount(page({ person: leah }));
+  await tab('Activity');
   assert.match(document.querySelector('[data-activity]').textContent, /Easy run, zone 2.*Deload week/s);
   await m.unmount();
 });
@@ -934,6 +962,7 @@ test('a person tapped in the activity opens their profile, and Back returns to t
     const messaged = [];
     reset({ posts: [{ key: 'n1', title: 'Note 1', typeLabel: 'Note', ago: '1d', body: 'Body', statsRow: [], breakdown: null }] });
     const m = await mount(page({ onMessage: (p) => messaged.push(p.userId) }));
+    await tab('Activity');
     // From the likers sheet.
     await click(document.querySelector('[data-liker]'));
     assert.equal(document.querySelector('[data-public-profile]')?.getAttribute('data-public-profile'), 'u-sam', 'the liker\'s profile');
@@ -941,7 +970,7 @@ test('a person tapped in the activity opens their profile, and Back returns to t
     await click(document.querySelector('[data-public-message]'));
     assert.deepEqual(messaged, ['u-sam'], 'Message on their profile messages them');
     await click(document.querySelector('[data-public-back]'));
-    assert.ok(document.querySelector('[data-activity]') && !document.querySelector('[data-public-profile]'), 'Back to the coach page');
+    assert.ok(document.querySelector('[data-activity]') && !document.querySelector('[data-public-profile]'), 'Back to the coach page, on its Activity tab');
     // From a name on the card itself.
     await click(document.querySelector('[data-card-name]'));
     assert.ok(document.querySelector('[data-public-profile="u-sam"]'));
@@ -1255,4 +1284,113 @@ test('a sample coach\'s programs open with no Buy, and the coach\'s own Replays 
   assert.match(client, /function BSLogActivitySheet\(\{ c, INK, BG, onClose, onPosted, editPost = null, startKind = null \}\)/);
   assert.match(client, /: \(\['note', 'photo', 'video', 'workout', 'milestone', 'link'\]\.includes\(startKind\) \? startKind : 'note'\);/, 'a new post opens on the kind asked for');
   assert.match(client, /BSSearchCorner, bsOpenCheckout, bsStartPlatformCheckout \}\);/, 'the checkout opener is on window for the profile');
+});
+
+// ── About me (owner, 2026-10-31: "an about page for each coach where they can write a bio about
+// themselves and include more information", "a section on coaches profiles for socials to list",
+// and "have the tab say about me") ──────────────────────────────────────────────────────────────
+test('About me: the story, the details, the questions and the socials, as members see them', async () => {
+  reset({ custom: {
+    about: { story: 'I started lifting at 30.\n\nNow I coach beginners.', years: 8, how: 'both', where: 'Brooklyn', languages: 'English, Spanish' },
+    prompts: [{ q: 'philosophy', a: 'Strong first, then fast.' }, { q: 'Something I wrote myself', a: 'Kept as written.' }],
+    links: { instagram: '@maya.lifts', website: 'https://mayaokafor.com/', x: 'javascript:alert(1)', youtube: 'two words', tiktok: 'https://?x' },
+  } });
+  const m = await mount(page());
+  await click(button(/^About me$/));
+  const tab = document.querySelector('[data-about-tab]');
+  assert.ok(tab, 'the About me tab');
+  const story = tab.querySelector('[data-about="story"]');
+  assert.match(story.textContent, /^About Maya/);
+  assert.deepEqual([...story.querySelectorAll('p')].map((p) => p.textContent), ['I started lifting at 30.', 'Now I coach beginners.'], 'a paragraph each');
+  assert.deepEqual([...tab.querySelectorAll('[data-about="facts"] li')].map((li) => li.textContent), ['Coaching for 8 years', 'Coaches online and in person · Brooklyn', 'Coaches in English, Spanish']);
+  const answers = [...tab.querySelectorAll('[data-about-answer]')].map((a) => [a.children[0].textContent, a.children[1].textContent]);
+  assert.deepEqual(answers, [['My coaching philosophy', 'Strong first, then fast.'], ['Something I wrote myself', 'Kept as written.']], 'a prompt reads in the reader\'s language; one written by hand as written');
+  assert.match(tab.querySelector('[data-about="qa"]').textContent, /^In Maya's words/);
+  const links = [...tab.querySelectorAll('[data-about-link]')];
+  assert.deepEqual(links.map((a) => [a.getAttribute('data-about-link'), a.getAttribute('href')]), [['instagram', 'https://instagram.com/maya.lifts'], ['website', 'https://mayaokafor.com/']], 'a javascript: address, a value with a space and an address with no host are no links');
+  assert.match(links[0].textContent, /^Instagram@maya\.lifts/);
+  for (const a of links) { assert.equal(a.getAttribute('target'), '_blank'); assert.equal(a.getAttribute('rel'), 'noopener noreferrer'); }
+  assert.match(tab.querySelector('[data-about="socials"]').textContent, /^Find Maya online/);
+  assert.ok(!document.querySelector('[data-about-edit]'), 'a member has no way to edit it');
+  await m.unmount();
+});
+
+test('About me: a visitor sees no tab with nothing in it; the coach does, with a way in', async () => {
+  // Only a social the page cannot link (Codex P2 on #2540): no tab either.
+  reset({ custom: { look: { paper: 'bone', accent: 'rust' }, links: { website: 'https://' } } });
+  let m = await mount(page());
+  assert.ok(!button(/^About me$/), 'no empty tab for members');
+  // Each tab keeps to one line (owner, 2026-10-31: "make this fit on one line"); three or fewer read at
+  // 15px, more at 13px with 4px sides. With About me and Activity (#2541) the coach's own page has five,
+  // which no phone fits whole, so a tab keeps its words and the row scrolls sideways.
+  const tabStyle = () => [...document.querySelectorAll('[data-profile-tab]')].map((b) => [b.style.fontSize, b.style.padding, b.style.whiteSpace, b.style.flex].join(' '));
+  const few = tabStyle();
+  assert.ok(few.length >= 1 && few.length <= 3, `the member's tabs: ${few.length}`);
+  for (const st of few) assert.equal(st, '15px 0px 6px nowrap 1 0 auto');
+  await m.unmount();
+  reset({ me: 'u-maya', stored: { look: { paper: 'dark', accent: 'teal' } } });
+  m = await mount(page({ isSelf: true }));
+  const five = tabStyle();
+  assert.equal(five.length, 5, "the coach's own page: the day, About me, the studio, replays, Activity");
+  for (const st of five) assert.equal(st, '13px 0px 4px nowrap 1 0 auto');
+  await click(button(/^About me$/));
+  assert.match(m.text(), /Tell members who you are: your story, how you coach, and where to find you\./);
+  await click(document.querySelector('[data-about-edit]'));
+  assert.ok(document.querySelector('[data-mine-about]'), 'Write About me opens Make it yours on About me');
+  await m.unmount();
+});
+
+test('Make it yours, About me: years past 60 as the only edit still show the save bar, and save says why', async () => {
+  // Codex P2 on #2540: the doc drops a 75, so with nothing else changed nothing read as changed.
+  reset({ me: 'u-maya', custom: null, stored: { look: { paper: 'dark', accent: 'teal' } } });
+  const m = await mount(page({ isSelf: true }));
+  await click(button(/^Make it yours$/));
+  await click([...document.querySelectorAll('[data-make-it-yours] button')].find((b) => /^About me$/.test(b.textContent)));
+  assert.ok(!document.querySelector('[data-save-mine]'), 'no save bar before an edit');
+  await type(document.querySelector('[data-about-years]'), '75');
+  assert.ok(document.querySelector('[data-save-mine]'), 'the save bar shows');
+  await click(document.querySelector('[data-save-mine]'));
+  assert.equal(world.saved, null, 'nothing saved');
+  assert.match(m.text(), /Years coaching: a number from 1 to 60\./);
+  await type(document.querySelector('[data-about-years]'), '');
+  assert.ok(!document.querySelector('[data-save-mine]'), 'cleared, nothing is changed');
+  await m.unmount();
+});
+
+test('Make it yours, About me: saves the story, details, questions and socials onto the doc; a link it cannot use is said', async () => {
+  reset({ me: 'u-maya', custom: null, stored: { bio: 'Saved elsewhere', look: { paper: 'dark', accent: 'teal' }, prompts: [{ q: 'never_skip', a: 'Leg day.' }] } });
+  const m = await mount(page({ isSelf: true }));
+  await click(button(/^Make it yours$/));
+  await click([...document.querySelectorAll('[data-make-it-yours] button')].find((b) => /^About me$/.test(b.textContent)));
+  // The question a member's profile kept is here to edit, as written.
+  assert.equal(document.querySelectorAll('[data-about-prompt]').length, 1);
+  await type(document.querySelector('[data-about-story]'), 'I started lifting at 30.\n\n\n\nNow I coach beginners.  ');
+  await type(document.querySelector('[data-about-years]'), '75');
+  await click(document.querySelector('[data-about-how="both"]'));
+  await type(document.querySelector('[data-about-where]'), 'Brooklyn');
+  await type(document.querySelector('[data-about-languages]'), 'English, Spanish');
+  await click(document.querySelector('[data-about-prompt-add]'));
+  const answers = document.querySelectorAll('[data-about-answer]');
+  await type(answers[1], 'Strong first, then fast.');
+  await type(document.querySelector('[data-about-link="instagram"]'), '@maya.lifts');
+  await type(document.querySelector('[data-about-link="website"]'), 'my site');
+  // Years the page would drop are said at save (Codex P2 on #2540: 61–99 saved and vanished).
+  await click(document.querySelector('[data-save-mine]'));
+  assert.equal(world.saved, null, 'nothing saved with years past 60');
+  assert.match(m.text(), /Years coaching: a number from 1 to 60\./);
+  await type(document.querySelector('[data-about-years]'), '8 years');
+  assert.equal(document.querySelector('[data-about-years]').value, '8', 'digits only');
+  await click(document.querySelector('[data-save-mine]'));
+  assert.equal(world.saved, null, 'nothing saved with a link it cannot use');
+  assert.match(m.text(), /Check Website: a handle like @you, or an address starting with https:\/\//);
+  await type(document.querySelector('[data-about-link="website"]'), 'mayaokafor.com');
+  await click(document.querySelector('[data-save-mine]'));
+  assert.ok(world.saved, 'saved');
+  const d = world.saved.d;
+  assert.deepEqual(d.about, { story: 'I started lifting at 30.\n\nNow I coach beginners.', years: 8, how: 'both', where: 'Brooklyn', languages: 'English, Spanish' });
+  assert.deepEqual(d.prompts, [{ q: 'never_skip', a: 'Leg day.' }, { q: 'philosophy', a: 'Strong first, then fast.' }]);
+  assert.deepEqual(d.links, { instagram: '@maya.lifts', website: 'mayaokafor.com' });
+  assert.equal(d.bio, 'Saved elsewhere', 'the rest of the doc is kept');
+  assert.deepEqual(d.look, { paper: 'dark', accent: 'teal' }, 'and a key not changed here is not written');
+  await m.unmount();
 });
