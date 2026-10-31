@@ -21,6 +21,8 @@ const require_ = createRequire(import.meta.url);
 const { IntlMessageFormat } = require_('intl-messageformat');
 
 // The chrome the module destructures off window at load.
+// The shared back row (BSBackRow): ← Back on its own row, the page's eyebrow beside it.
+globalThis.BSBackRow = ({ onBack, label, trailing, disabled }) => React.createElement('div', { 'data-chrome': 'BSBackRow' }, React.createElement('button', { type: 'button', onClick: onBack, disabled }, '← ' + (label || 'Back')), trailing);
 globalThis.BSBackButton = ({ onClick }) => React.createElement('button', { type: 'button', onClick }, '← Back');
 const MOD = await loadBroadsheet(['BSShapeScorePage', 'BSShapeStorePage', 'SHAPE_SCORE_PROFILES', '_bsUseLiveScore'], React);
 const dom = new JSDOM('<div id="root"></div>', { url: 'https://shape.test/m/' });

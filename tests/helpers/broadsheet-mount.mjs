@@ -79,6 +79,9 @@ globalThis._bsScrollTopOnMount = () => {};
 globalThis.BSEyebrow = ({ children }) => React.createElement('div', null, children);
 globalThis.BSPage = ({ children }) => React.createElement('div', null, children);
 globalThis.BSPageHeader = () => null;
+// The shared back row every page draws its ← Back through (the chrome's BSBackRow). Named, so a
+// suite finds it in a shallow tree and goes back with api.back().
+globalThis.BSBackRow = function BSBackRow() { return null; };
 globalThis.BSFooter = ({ left, right }) => React.createElement('footer', null, left, right);
 
 // The hook shim. `useStateBSC` is a module-LOCAL alias for React.useState
@@ -180,10 +183,12 @@ export const loadCarved = (file, reactImpl = SHIM) => loadRealModule(join(SRC_DI
 export const GOALS_SRC = join(SRC_DIR, 'BSGoals.jsx');
 
 // -- tree walking ------------------------------------------------------------
+// A row's `trailing` is drawn beside its children (the chrome's BSBackRow puts a page's eyebrow or
+// status there, beside ← Back), so it is part of what the page shows and is walked like them.
 export function flatten(node, out = []) {
   if (node == null || node === false) return out;
   if (Array.isArray(node)) { for (const n of node) flatten(n, out); return out; }
-  if (typeof node === 'object' && node.props) { out.push(node); flatten(node.props.children, out); }
+  if (typeof node === 'object' && node.props) { out.push(node); flatten(node.props.children, out); flatten(node.props.trailing, out); }
   return out;
 }
 
@@ -193,7 +198,7 @@ export const textOf = (node) => {
     if (n == null || n === false) return;
     if (typeof n === 'string' || typeof n === 'number') { parts.push(String(n)); return; }
     if (Array.isArray(n)) { n.forEach(rec); return; }
-    if (typeof n === 'object' && n.props) rec(n.props.children);
+    if (typeof n === 'object' && n.props) { rec(n.props.children); rec(n.props.trailing); }
   })(node.props ? node.props.children : node);
   return parts.join('');
 };
@@ -228,6 +233,14 @@ export function drive(Component, props, opts = {}) {
     // matched on the accessible text they actually show, never an index. `filter`
     // narrows the candidates first (e.g. `pressable` for selection toggles) — it
     // is honoured, so passing one is never a no-op.
+    // Tap the page's ← Back: the shared back row's onBack (the newest one drawn, as a swipe takes).
+    back() {
+      const rows = nodes().filter((n) => typeof n.type === 'function' && n.type.name === 'BSBackRow');
+      if (!rows.length) throw new Error('no back row on the page');
+      rows[rows.length - 1].props.onBack();
+      renderOnce();
+      return api;
+    },
     click(label, filter = () => true) {
       const btns = nodes().filter((n) => n.type === 'button' && n.props.onClick && filter(n));
       const btn = btns.find((n) => textOf(n).trim().startsWith(label));

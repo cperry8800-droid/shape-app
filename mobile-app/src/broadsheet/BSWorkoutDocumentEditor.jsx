@@ -218,10 +218,15 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
   if (futureUpdates) return <BSWorkoutFutureUpdates plan={plan} t={t} tr={tr} onClose={() => setFutureUpdates(false)} />;
   return <section style={{ padding: `${window.BS_MAST_TOP_CSS || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))'} ${t.padX || 24}px 40px`, color: t.INK }}>
     <fieldset disabled={saving || !!upload} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-      <button type="button" onClick={close} disabled={saving || !!upload} style={button}>{txt('back', '← Library')}</button>
-      <span role="status" style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{dirty ? (stored ? txt('localDraft', 'Draft kept on this device') : txt('unsaved', 'Unsaved changes')) : txt('savedVersion', 'Saved version')}</span>
-    </div>
+    {/* The masthead row and ← Library under it, where every page keeps its Back (owner, 2026-10-31);
+        it was a bordered button at the top. No corners: they would leave unsaved edits. */}
+    {window.BSMastRow ? <window.BSMastRow trailing={null} /> : null}
+    {(() => {
+      const status = <span role="status" style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{dirty ? (stored ? txt('localDraft', 'Draft kept on this device') : txt('unsaved', 'Unsaved changes')) : txt('savedVersion', 'Saved version')}</span>;
+      return window.BSBackRow
+        ? <window.BSBackRow onBack={close} disabled={saving || !!upload} label={String(txt('back', '← Library')).replace(/^\s*←\s*/, '')} trailing={status} />
+        : status;
+    })()}
     <h1 style={{ fontFamily: t.DISPLAY, fontSize: 30 }}>{txt('title', 'Build their next session.')}</h1>
     {plan.id && window.ShapeCoachPlans?.assignments && <button type="button" disabled={dirty || saving || !!upload} onClick={() => setFutureUpdates(true)} style={{ ...button, marginBottom: 14 }}>{dirty ? txt('saveBeforeFuture', 'Save before reviewing future workouts') : txt('reviewFuture', 'Review future assignments')}</button>}
     <label style={label}>{txt('name', 'Name')}<input value={value.name} onChange={(e) => change((next) => { next.name = e.target.value; })} style={input} /></label>

@@ -45,7 +45,7 @@ test('an empty list: the head, the name field, nothing to add or create yet', ()
   assert.equal(btn('+ Add to list').props.disabled, true);
   assert.equal(btn('Create list').props.disabled, true);
   assert.equal(m.key('Produce').props['aria-pressed'], true, 'Produce is the starting aisle');
-  m.api.click('← CANCEL');
+  m.api.back();
   assert.equal(m.cancelled(), 1);
 });
 
@@ -126,6 +126,6 @@ test('the client module renders the carved builder and publishes the two helpers
   assert.match(exportList, /\bbsBuilderAisleFor\b/);
   assert.match(exportList, /\bbsAisleLabel\b/);
   // Read at call time, never at the module's top (the load-order rule every carved module keeps).
-  assert.match(SRC, /export function BSGroceryBuilder\(\{ onCancel, onCreate \}\) \{\n  const \{ BSPage, BSFooter, BSMastRow, BS_MAST_TOP_CSS, _bsScrollTopOnMount, bsGroceryHues, bsBuilderAisleFor, bsAisleLabel \} = window;/);
+  assert.match(SRC, /export function BSGroceryBuilder\(\{ onCancel, onCreate \}\) \{\n  const \{ BSPage, BSFooter, BSMastRow, BSBackRow, BS_MAST_TOP_CSS, _bsScrollTopOnMount, bsGroceryHues, bsBuilderAisleFor, bsAisleLabel \} = window;/);
 });
 

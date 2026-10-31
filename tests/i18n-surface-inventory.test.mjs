@@ -805,7 +805,9 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // The Score page's ladder (owner, 2026-10-26, "A for score"): BSScoreStandingChart and its 12
   // literals (the tier names' axis, the you-dot's label, the zoom's ends) are gone, and BSScoreLadder
   // is fully translated: partStrings 181 -> 169, and the chart leaves PARTIAL.
-  assert.equal(partStrings, 169, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // Back in the same place on every screen (owner, 2026-10-31): the hand-drawn backs became the
+  // shared back row, whose label is common:action.back, so a literal "← Back" goes: 169 -> 168.
+  assert.equal(partStrings, 168, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
@@ -904,7 +906,10 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // channel labels and all 30 switch rows (a local array, which the walk never sees) are keyed under
   // settings:notifyPrefs.* in all 13 locales, and its hours format in the reader's language. It lands
   // fully covered, with the partial columns unchanged. Its line left UNCOVERED.
-  assert.equal(noneStrings, 601, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // Back in the same place on every screen (owner, 2026-10-31): the untranslated pages' hand-drawn
+  // backs ("← BACK", "‹", "← Back to menu", a bottom "Close"…) became the shared back row, labelled
+  // by common:action.back, or went with the duplicate at the page's foot: noneStrings 601 -> 594.
+  assert.equal(noneStrings, 594, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   // 33 -> 32: BSScoreStandingChart left with the Score page's ladder (see partStrings above).
   assert.equal(part.length, 32, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 79, 'untranslated-surface count moved — regenerate UNCOVERED and the record');

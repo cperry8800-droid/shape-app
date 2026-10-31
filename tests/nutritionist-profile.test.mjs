@@ -287,7 +287,7 @@ test('a recipe opens with its numbers, her note, the ingredients and the method,
   assert.equal(document.querySelector('[data-cook-mode]').textContent.replace('Leave cook mode', ''), 'Post-lift rice bowl · 2 steps · 3 ingredients', 'cook mode, on her recipe');
   await click(button(/^Leave cook mode$/));
   assert.ok(!document.querySelector('[data-cook-mode]') && sheet(), 'back on the recipe');
-  await click(document.querySelector('[data-recipe-back]'));
+  await click(document.querySelector('[data-recipe-back] [data-bs-back]'));
   assert.ok(!sheet() && document.querySelector('[data-trainer-profile]'), 'Back closes it, onto the profile');
   await m.unmount();
 });
@@ -524,7 +524,7 @@ test('on her own page each empty part says what goes there and opens Make it you
   assert.match(m.text(), /Show members how you build a plate/);
   await click(document.querySelector('[data-kitchen-fill="plate"]'));
   assert.ok(document.querySelector('[data-mine-part="plate"]'), 'Make it yours, on the plate');
-  await click(button(/^← Profile$/));
+  await click(button(/^←\s*Profile$/));
   // Back lands where she left: her kitchen, on the plate (owner, 2026-10-30).
   assert.equal(button(/^Her kitchen$/).getAttribute('aria-pressed'), 'true', 'still on her kitchen');
   assert.equal(section('plate').getAttribute('aria-pressed'), 'true', 'still on the plate');
@@ -709,7 +709,7 @@ test('Make it yours: a paste the AI can\'t read is laid out on the phone; a reci
     await type(document.querySelector('[data-recipe-num="min"]'), '10');
     assert.match(m.text(), /Laid out from your paste\. Check every line\./, 'the note stays while she checks');
     // A recipe being written is unsaved work: leaving asks first (Codex P2 on #2497).
-    await click(button(/^← Profile$/));
+    await click(button(/^←\s*Profile$/));
     assert.match(m.text(), /You haven't saved these changes\./);
     assert.ok(document.querySelector('[data-recipe-form]'), 'still open');
     await click(document.querySelector('[data-recipe-cancel]'));
@@ -899,7 +899,7 @@ test('a seeded nutritionist listing is a sample: its listing by id, a sample kit
   assert.equal(document.querySelectorAll('[data-recipe]').length, 6, 'six recipes');
   await click(document.querySelector('[data-recipe]'));
   assert.ok(document.querySelectorAll('[data-recipe-ingredients] li').length > 3 && document.querySelectorAll('[data-recipe-method] li').length > 3, 'each written out in full');
-  await click(document.querySelector('[data-recipe-back]'));
+  await click(document.querySelector('[data-recipe-back] [data-bs-back]'));
   await click(section('plate'));
   assert.match(document.querySelector('[data-kitchen-plate]').textContent, /Beans, lentils or tofu at every meal/, 'a plant kitchen for a plant-based specialty');
   await click(section('staples'));

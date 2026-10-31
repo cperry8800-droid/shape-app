@@ -74,7 +74,7 @@ function coachTr(key, opts) {
   return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
 }
 const {
-  useBS, BSBackButton, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSPlate,
+  useBS, BSBackRow, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSPlate,
   BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSHalftone,
   BSTabBar, BSFooter,
   BSSheetProvider, useBSSheet, BSCalendarScreen,
@@ -467,13 +467,12 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
           review." (heat italic), status meta. corners: false — the review note
           is a textarea that only lands on Save review note. ── */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
-      <div style={{ padding: `10px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <BSBackButton onClick={onBack} />
+      <div style={{ padding: `0 ${t.padX}px 0` }}>
+        <BSBackRow onBack={onBack} trailing={
           <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
             {tr('coach:review.queueEyebrow', { defaultValue: 'THE QUEUE' })} <span style={{ color: `${t.INK}80` }}>· {tr('coach:review.itemsCount', { defaultValue: '{count, plural, one {# ITEM} other {# ITEMS}}', count: sessions.length })}</span>
           </div>
-        </div>
+        } />
         <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
           {isNutri ? tr('coach:review.titleNutri', { defaultValue: 'Client' }) : tr('coach:review.titleTrainer', { defaultValue: 'Workout' })} <i style={{ color: heat, fontStyle: 'italic' }}>{tr('coach:review.titleAccent', { defaultValue: 'review.' })}</i>
         </div>
@@ -1570,8 +1569,11 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="trainer" openRequest={chatRequest} />,
     radio:    <BSRadioScreen onBack={() => { if (!navBack()) setTab('today'); }} />,
     store:    storeView === 'score'
-      ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
-      : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('today'); }} onOpenScore={() => setStoreView('score')} />,
+      // Back from the Score goes where the reader came from (owner, 2026-10-31: back "goes back to [the]
+      // page … where that person was"): Home when Home opened it, the Store when the Store did. It
+      // used to go to the Store whatever opened it. Each step between the two is a history step.
+      ? <BSShapeScorePage profile={scoreProfile} onBack={() => { if (!navBack()) setStoreView('store'); }} onOpenStore={() => { navPush(); setStoreView('store'); }} />
+      : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('today'); }} onOpenScore={() => { navPush(); setStoreView('score'); }} />,
     me:       <BSPublicProfile person={{ who: 'Jordan Chen', kind: 'TRAINER', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
   };
   // navSlideCls (from useBSNavSlide): one-shot on a tab SWIPE, cleared in an
@@ -3465,10 +3467,7 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
           unmount an un-applied one. ← BACK is the way out. */}
       {bsProMastRow({ corners: false })}
       {/* Universal back row — ← BACK left, eyebrow right (owner call 2026-07-14). */}
-      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <BSBackButton onClick={onBack} />
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
-      </div>
+      <BSBackRow onBack={onBack} trailing={<div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>} />
       <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{titleA} <span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
     </div>
   );
@@ -5359,10 +5358,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const headerBlock = (
     <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
       {bsProMastRow()}
-      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: t.INK50 }}>{headEyebrow}</div>
-        <button data-bs-back="" type="button" onClick={onBack} aria-label={tr('coach:common.backAria', { defaultValue: 'Back' })} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '0 2px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: t.INK }}>{tr('coach:common.back', { defaultValue: '← BACK' })}</button>
-      </div>
+      {/* ← Back on the left where every page keeps it, the eyebrow on the right (it was the other way). */}
+      <BSBackRow onBack={onBack} trailing={<div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: t.INK50 }}>{headEyebrow}</div>} />
       <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>
         {first} <span style={{ fontStyle: 'italic', color: heat }}>{last ? `${last}.` : '.'}</span>
       </div>
@@ -7812,8 +7809,11 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="nutritionist" openRequest={chatRequest} />,
     radio:    <BSRadioScreen onBack={() => { if (!navBack()) setTab('today'); }} />,
     store:    storeView === 'score'
-      ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
-      : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('today'); }} onOpenScore={() => setStoreView('score')} />,
+      // Back from the Score goes where the reader came from (owner, 2026-10-31: back "goes back to [the]
+      // page … where that person was"): Home when Home opened it, the Store when the Store did. It
+      // used to go to the Store whatever opened it. Each step between the two is a history step.
+      ? <BSShapeScorePage profile={scoreProfile} onBack={() => { if (!navBack()) setStoreView('store'); }} onOpenStore={() => { navPush(); setStoreView('store'); }} />
+      : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('today'); }} onOpenScore={() => { navPush(); setStoreView('score'); }} />,
     me:       <BSPublicProfile person={{ who: 'Dr. Maya Patel', kind: 'NUTRI', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
   };
   // navSlideCls (from useBSNavSlide): one-shot on a tab SWIPE, cleared in an
@@ -8369,7 +8369,7 @@ function bsEqGlyph(color) {
 // cluster rather than splitting the row into a third variant for one page.)
 function BSStShell({ embedded, t, children, footerL, footerR, topPad = BS_MAST_TOP_CSS }) {
   if (embedded) return <div style={{ padding: '4px 0 24px' }}>{children}</div>;
-  return <BSPage><div style={{ padding: `${topPad} ${t.padX}px 28px` }}>{bsProMastRow({ corners: false })}<div style={{ marginTop: 12 }}>{children}</div></div><BSFooter left={footerL} right={footerR} /></BSPage>;
+  return <BSPage><div style={{ padding: `${topPad} ${t.padX}px 28px` }}>{bsProMastRow({ corners: false })}<div>{children}</div></div><BSFooter left={footerL} right={footerR} /></BSPage>;
 }
 // "Pick from your Spotify library" needs per-user OAuth, which is capped at 25
 // manually-allowlisted accounts until the Spotify app is approved for Extended
@@ -8519,10 +8519,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     const list = spotPlaylists || [];
     return (
       <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.yourSpotifyFooter', { defaultValue: 'Your Spotify' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.fromYourSpotify', { defaultValue: 'FROM YOUR SPOTIFY' })}</div>
-            <button onClick={() => setPicking(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
-          </div>
+          <BSBackRow onBack={() => setPicking(false)} trailing={<div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.fromYourSpotify', { defaultValue: 'FROM YOUR SPOTIFY' })}</div>} />
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{tr('coach:sound.yourWord', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: gold }}>{tr('coach:sound.playlistsAccent', { defaultValue: 'playlists.' })}</span></div>
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:sound.tapToImport', { defaultValue: '{count, plural, one {# playlist} other {# playlists}} · tap one to import', count: list.length })}</div>
           <div style={{ marginTop: 16 }}>
@@ -8550,10 +8547,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     const list = applePlaylists || [];
     return (
       <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.yourAppleFooter', { defaultValue: 'Your Apple Music' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.fromYourApple', { defaultValue: 'FROM YOUR APPLE MUSIC' })}</div>
-            <button onClick={() => setPickingApple(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
-          </div>
+          <BSBackRow onBack={() => setPickingApple(false)} trailing={<div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.fromYourApple', { defaultValue: 'FROM YOUR APPLE MUSIC' })}</div>} />
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{tr('coach:sound.yourWord', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: gold }}>{tr('coach:sound.playlistsAccent', { defaultValue: 'playlists.' })}</span></div>
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:sound.tapToImport', { defaultValue: '{count, plural, one {# playlist} other {# playlists}} · tap one to import', count: list.length })}</div>
           <div style={{ marginTop: 16 }}>
@@ -8585,10 +8579,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     );
     return (
       <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.newSoundtrackFooter', { defaultValue: 'New soundtrack' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.newSoundtrack', { defaultValue: 'NEW SOUNDTRACK' })}</div>
-            <button onClick={() => setImporting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
-          </div>
+          <BSBackRow onBack={() => setImporting(false)} trailing={<div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.newSoundtrack', { defaultValue: 'NEW SOUNDTRACK' })}</div>} />
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{tr('coach:sound.importA', { defaultValue: 'Import a' })} <span style={{ fontStyle: 'italic', color: gold }}>{tr('coach:sound.playlistAccent', { defaultValue: 'playlist.' })}</span></div>
           <div style={{ marginTop: 22 }}>
             {/* Pick straight from the coach's connected Spotify — no link to paste.
@@ -8666,10 +8657,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     const clients = BS_SOUNDTRACK_CLIENTS.filter(c => { const q = clientQuery.trim().toLowerCase(); return !q || c.name.toLowerCase().includes(q); });
     return (
       <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.assignFooter', { defaultValue: 'Assign' })} footerR={pl.name}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.assignSoundtrack', { defaultValue: 'ASSIGN SOUNDTRACK' })}</div>
-            <button onClick={() => setAssignFor(null)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
-          </div>
+          <BSBackRow onBack={() => setAssignFor(null)} trailing={<div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.assignSoundtrack', { defaultValue: 'ASSIGN SOUNDTRACK' })}</div>} />
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 32, fontWeight: 600, color: t.INK, lineHeight: 1.02, letterSpacing: '-0.02em' }}>{pl.name} <span style={{ fontStyle: 'italic', color: gold }}>→</span></div>
           <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:sound.attachTo', { defaultValue: "{provider} · attach to plans or a client's workouts", provider: providerLabel(pl.provider) })}</div>
           {/* Tabs */}
@@ -8733,10 +8721,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
         {!embedded && (<>
         {/* The masthead row is BSStShell's — every branch of this page opens on
             it, so drawing a second one here would double the row. */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <BSBackButton onClick={onBack} />
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{tr('coach:sound.playlistsCountUpper', { defaultValue: '{count} PLAYLISTS', count: all.length })}</span>
-        </div>
+        <BSBackRow onBack={onBack} trailing={<span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{tr('coach:sound.playlistsCountUpper', { defaultValue: '{count} PLAYLISTS', count: all.length })}</span>} />
         <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.libraryHead', { defaultValue: 'SOUNDTRACK LIBRARY' })}</div>
         <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{tr('coach:sound.yourWord', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: gold }}>{tr('coach:sound.soundtracksAccent', { defaultValue: 'soundtracks.' })}</span></div>
         <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>{tr('coach:sound.libraryBlurb', { defaultValue: 'Premade playlists you can attach to any workout or meal plan — no need to build a new one each time.' })}</div>
@@ -9129,7 +9114,10 @@ function BSCoachRatesPage({ role, listing, onBack, onSaved, onPhotos, onPayouts,
   return (
     <BSPage>
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 28px` }}>
-        <BSBackButton onClick={onBack} label={backLabel || tr('coach:rates.back', { defaultValue: 'Me' })} style={{ marginBottom: 14 }} />
+        {/* The masthead row, then ← Back under it (it sat at the top with no masthead). No corners:
+            the gear would leave unsaved rates. */}
+        {bsProMastRow({ corners: false })}
+        <BSBackRow onBack={onBack} label={backLabel || tr('coach:rates.back', { defaultValue: 'Me' })} style={{ marginBottom: 6 }} />
         <div style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{tr('coach:rates.title', { defaultValue: 'Your rates' })}</div>
         {!listing ? (
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 || t.INK }}>{tr('coach:rates.noListing', { defaultValue: 'Your listing appears once your coach application is approved.' })}</div>

@@ -30,7 +30,7 @@ function useShapeTr() {
 }
 
 export function BSGroceryBuilder({ onCancel, onCreate }) {
-  const { BSPage, BSFooter, BSMastRow, BS_MAST_TOP_CSS, _bsScrollTopOnMount, bsGroceryHues, bsBuilderAisleFor, bsAisleLabel } = window;
+  const { BSPage, BSFooter, BSMastRow, BSBackRow, BS_MAST_TOP_CSS, _bsScrollTopOnMount, bsGroceryHues, bsBuilderAisleFor, bsAisleLabel } = window;
   const t = useBSClean();
   const tr = useShapeTr();
   const TB = bsTrainT(tr);
@@ -69,13 +69,13 @@ export function BSGroceryBuilder({ onCancel, onCreate }) {
     <BSPage>
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         {BSMastRow && <BSMastRow trailing={null} />}
+        {/* ← Cancel where every page keeps its Back (owner, 2026-10-31), the count on the right. The
+            word is the catalog's, without the arrow the back row draws. */}
+        {BSBackRow && <BSBackRow onBack={onCancel} label={String(tr('nutrition:grocery.build.cancel', { defaultValue: '← CANCEL' })).replace(/^\s*←\s*/, '')}
+          trailing={<span style={mono(9, { fontWeight: 700, letterSpacing: '0.22em', color: t.INK50 })}>{tr('nutrition:grocery.itemCountCaps', { defaultValue: `${count} ITEM${count === 1 ? '' : 'S'}`, count })}</span>} />}
       </div>
       <BSCleanType t={t}>
-        <div style={{ padding: `10px ${t.padX}px 28px` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <button type="button" onClick={onCancel} style={{ minHeight: 40, marginLeft: -2, padding: '0 2px', border: 0, background: 'transparent', color: t.INK, cursor: 'pointer', ...mono(9.5) }}>{tr('nutrition:grocery.build.cancel', { defaultValue: '← CANCEL' })}</button>
-            <span style={mono(9, { fontWeight: 700, letterSpacing: '0.22em', color: t.INK50 })}>{tr('nutrition:grocery.itemCountCaps', { defaultValue: `${count} ITEM${count === 1 ? '' : 'S'}`, count })}</span>
-          </div>
+        <div style={{ padding: `2px ${t.padX}px 28px` }}>
           <div style={mono(9.5, { marginTop: 8, fontWeight: 700, letterSpacing: '0.24em', color: teal })}>{tr('nutrition:grocery.build.eyebrow', { defaultValue: 'NEW LIST' })}</div>
           <div style={{ marginTop: 8, fontFamily: t.HEAD, fontSize: 32, fontWeight: 600, lineHeight: 1.02, letterSpacing: '-0.03em', color: t.INK }}>
             {tr('nutrition:grocery.build.titleA', { defaultValue: 'Build a' })} {tr('nutrition:grocery.build.titleB', { defaultValue: 'list.' })}

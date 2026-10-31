@@ -591,15 +591,13 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
         <div style={{ position: 'relative', height: `calc(${topPad} + ${wallH}px)`, overflow: 'hidden', background: wall ? '#111' : `linear-gradient(135deg, ${hexA(ACC, 0.42)}, ${t.PAPER2} 70%)` }}>
           {wall ? <img src={wall} alt={tr('profile:trainer.wallAlt', { defaultValue: "{name}'s wall photo", name: first })} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: FOCUS_POS[look.focus] || FOCUS_POS.center }} /> : null}
           <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0) 72%, rgba(0,0,0,0.22) 100%)' }} />
-          <div style={{ position: 'relative', padding: `${topPad} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            {meMode ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: '#fff' }}>
-                {W.BSLogo ? <W.BSLogo size={16} color="#ffffff" /> : null}
-                <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>Vol. 1 · No. 1</span>
-              </span>
-            ) : (
-              <button data-bs-back="" type="button" onClick={onBack} aria-label={tr('profile:trainer.back', { defaultValue: 'Back' })} style={{ minHeight: 44, padding: '0 10px', border: 0, background: 'transparent', color: '#fff', fontFamily: MONO, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>← {tr('profile:trainer.back', { defaultValue: 'Back' })}</button>
-            )}
+          {/* The masthead row (logo + Vol·No + the corners), then ← Back on its own row under it, where
+              every page keeps it (owner, 2026-10-31); it sat in the logo's place before. */}
+          <div style={{ position: 'relative', padding: `${topPad} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: W.BS_MAST_ROW_H || 34 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: '#fff' }}>
+              {W.BSLogo ? <W.BSLogo size={16} color="#ffffff" /> : null}
+              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>Vol. 1 · No. 1</span>
+            </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: W.BS_CORNER_GAP || 8 }}>
               {W.BSSearchCorner ? <W.BSSearchCorner size={corner} ink="#ffffff" /> : null}
               {isSelf ? (
@@ -613,6 +611,11 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
               {W.BSSettingsCorner ? <W.BSSettingsCorner size={corner} ink="#ffffff" onClick={isSelf ? onOpenSettings : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openProfile')); } catch (e) {} }} /> : null}
             </div>
           </div>
+          {!meMode && W.BSBackRow ? (
+            <div style={{ position: 'relative', padding: `0 ${gutter}px` }}>
+              <W.BSBackRow onBack={onBack} ink="#ffffff" label={tr('profile:trainer.back', { defaultValue: 'Back' })} buttonStyle={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }} />
+            </div>
+          ) : null}
           {isSelf && !wall ? (
             <button type="button" onClick={() => openEdit('wall')} disabled={!editReady}
               style={{ position: 'absolute', right: gutter, bottom: 14, minHeight: 36, padding: '0 12px', borderRadius: 99, border: '1px solid rgba(255,255,255,0.6)', background: 'rgba(0,0,0,0.3)', color: '#fff', fontFamily: DISPLAY, fontSize: 13, fontWeight: 600, cursor: editReady ? 'pointer' : 'default', opacity: editReady ? 1 : 0.5 }}>
@@ -1706,12 +1709,16 @@ function OwnRecipePage({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, recipe: r, firs
     <div role="dialog" aria-label={r.t} data-own-recipe={r.id} style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, color: t.INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
       <div style={{ position: 'relative' }}>
         {r.photo ? <img src={r.photo} alt="" style={{ display: 'block', width: '100%', height: 240, objectFit: 'cover' }} />
-          : <div aria-hidden style={{ height: 120, background: `linear-gradient(135deg, ${hexA(ACC, 0.6)}, ${t.PAPER2})` }} />}
-        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: 'calc(6px + env(safe-area-inset-top)) 10px 0 8px', display: 'flex', justifyContent: 'space-between' }}>
-          <button data-bs-back="" type="button" data-recipe-back="" onClick={onClose} style={{ minHeight: 44, padding: '0 10px', border: 0, background: 'transparent', color: '#fff', fontFamily: MONO, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>← {tr('profile:trainer.back', { defaultValue: 'Back' })}</button>
+          : <div aria-hidden style={{ height: `calc(${window.BS_MAST_TOP_CSS || '44px'} + 110px)`, background: `linear-gradient(135deg, ${hexA(ACC, 0.6)}, ${t.PAPER2})` }} />}
+        {r.photo ? <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 160, background: 'linear-gradient(180deg, rgba(0,0,0,0.42), rgba(0,0,0,0))' }} /> : null}
+        {/* The masthead row and ← Back under it, where every page keeps them (owner, 2026-10-31), over
+            the photo. No corner: this is a dialog over the profile. */}
+        <div data-recipe-back="" style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: `${window.BS_MAST_TOP_CSS || '44px'} ${t.padX || 22}px 0` }}>
+          {window.BSMastRow ? <window.BSMastRow trailing={null} ink="#ffffff" /> : null}
+          {window.BSBackRow ? <window.BSBackRow onBack={onClose} ink="#ffffff" label={tr('profile:trainer.back', { defaultValue: 'Back' })} buttonStyle={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }} /> : null}
         </div>
       </div>
-      <div style={{ padding: '16px 18px calc(32px + env(safe-area-inset-bottom))' }}>
+      <div style={{ padding: `16px ${t.padX || 22}px calc(32px + env(safe-area-inset-bottom))` }}>
         <span style={eyebrow(ink, MONO, ACC)}>{tr('profile:nutri.kitchenName', { defaultValue: "{name}'s kitchen", name: first })}</span>
         <h2 style={{ margin: '6px 0 0', fontFamily: DISPLAY, fontWeight: 600, fontSize: 26, lineHeight: 1.12 }}>{r.t}</h2>
         {[Number.isFinite(r.min) ? tr('cook:ck.mins', { defaultValue: '{n} min', n: r.min }) : null, Number.isFinite(r.serves) ? tr('profile:nutri.serves', { defaultValue: '{count, plural, one {Serves #} other {Serves #}}', count: r.serves }) : null].filter(Boolean).length ? (
