@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileLinks, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS } from '../services/profileCustom.mjs';
+import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS } from '../services/profileCustom.mjs';
 import { STUDIO_WORDS, STUDIO_KIT, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, bsStudioFrame, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
 import { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsKitchenWork } from '../services/coachWork.mjs';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
@@ -559,7 +559,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // coach has no socials: they would link to someone's real accounts.
   const aboutDoc = isPrivate ? null : bsProfileAbout(custom && custom.about);
   const aboutPrompts = isPrivate ? [] : bsProfilePrompts(custom && custom.prompts);
-  const aboutLinks = isPrivate || sample ? null : bsProfileLinks(custom && custom.links);
+  const aboutLinks = isPrivate || sample ? null : bsProfileLinkable(custom && custom.links);
   const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks);
   // Tabs a visitor sees only when there is something in them; the coach always sees them all.
   const gallery = media.gallery || [];

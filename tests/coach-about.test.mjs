@@ -10,7 +10,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  bsProfileAbout, bsProfileLinks, bsProfilePrompts, bsProfileLinkHref, bsProfileLinkText, bsCleanStory, bsNormalizeProfileCustom,
+  bsProfileAbout, bsProfileLinks, bsProfileLinkable, bsProfilePrompts, bsProfileLinkHref, bsProfileLinkText, bsCleanStory, bsNormalizeProfileCustom,
   BS_ABOUT_STORY_MAX, BS_PROMPTS_MAX, BS_PROMPT_A_MAX,
 } from '../mobile-app/src/services/profileCustom.mjs';
 
@@ -32,7 +32,12 @@ test('socials: the known networks, a handle or a web address, never another sche
   assert.deepEqual(bsProfileLinks({ instagram: ' @maya ', x: 'https://x.com/maya', website: 'javascript:alert(1)', tiktok: 'two words', substack: 'data:text/html,x', myspace: 'maya' }),
     { instagram: '@maya', x: 'https://x.com/maya' });
   assert.equal(bsProfileLinks({ website: 'mailto:a@b.c' }), null);
-  assert.deepEqual(bsProfileLinks({ website: 'https://?x', x: 'https://', instagram: '@', youtube: 'https://youtube.com/@maya' }), { youtube: 'https://youtube.com/@maya' }, 'only what the page can link is kept');
+  // Stored as written (the member editor saves through this and says nothing), drawn only when the
+  // page can link it (Codex P2 on #2540).
+  const odd = { website: 'https://?x', x: 'https://', instagram: '@', youtube: 'https://youtube.com/@maya' };
+  assert.deepEqual(bsProfileLinks(odd), odd);
+  assert.deepEqual(bsProfileLinkable(odd), { youtube: 'https://youtube.com/@maya' }, 'only what the page can link is drawn');
+  assert.equal(bsProfileLinkable({ website: 'https://' }), null);
   assert.equal(bsProfileLinks('maya'), null);
   const cases = [
     ['instagram', '@maya.lifts', 'https://instagram.com/maya.lifts', '@maya.lifts'],

@@ -1255,7 +1255,7 @@ test('About me: the story, the details, the questions and the socials, as member
   reset({ custom: {
     about: { story: 'I started lifting at 30.\n\nNow I coach beginners.', years: 8, how: 'both', where: 'Brooklyn', languages: 'English, Spanish' },
     prompts: [{ q: 'philosophy', a: 'Strong first, then fast.' }, { q: 'Something I wrote myself', a: 'Kept as written.' }],
-    links: { instagram: '@maya.lifts', website: 'https://mayaokafor.com/', x: 'javascript:alert(1)', youtube: 'two words' },
+    links: { instagram: '@maya.lifts', website: 'https://mayaokafor.com/', x: 'javascript:alert(1)', youtube: 'two words', tiktok: 'https://?x' },
   } });
   const m = await mount(page());
   await click(button(/^About me$/));
@@ -1269,7 +1269,7 @@ test('About me: the story, the details, the questions and the socials, as member
   assert.deepEqual(answers, [['My coaching philosophy', 'Strong first, then fast.'], ['Something I wrote myself', 'Kept as written.']], 'a prompt reads in the reader\'s language; one written by hand as written');
   assert.match(tab.querySelector('[data-about="qa"]').textContent, /^In Maya's words/);
   const links = [...tab.querySelectorAll('[data-about-link]')];
-  assert.deepEqual(links.map((a) => [a.getAttribute('data-about-link'), a.getAttribute('href')]), [['instagram', 'https://instagram.com/maya.lifts'], ['website', 'https://mayaokafor.com/']], 'a javascript: address and a value with a space are no links');
+  assert.deepEqual(links.map((a) => [a.getAttribute('data-about-link'), a.getAttribute('href')]), [['instagram', 'https://instagram.com/maya.lifts'], ['website', 'https://mayaokafor.com/']], 'a javascript: address, a value with a space and an address with no host are no links');
   assert.match(links[0].textContent, /^Instagram@maya\.lifts/);
   for (const a of links) { assert.equal(a.getAttribute('target'), '_blank'); assert.equal(a.getAttribute('rel'), 'noopener noreferrer'); }
   assert.match(tab.querySelector('[data-about="socials"]').textContent, /^Find Maya online/);
@@ -1278,7 +1278,8 @@ test('About me: the story, the details, the questions and the socials, as member
 });
 
 test('About me: a visitor sees no tab with nothing in it; the coach does, with a way in', async () => {
-  reset({ custom: { look: { paper: 'bone', accent: 'rust' } } });
+  // Only a social the page cannot link (Codex P2 on #2540): no tab either.
+  reset({ custom: { look: { paper: 'bone', accent: 'rust' }, links: { website: 'https://' } } });
   let m = await mount(page());
   assert.ok(!button(/^About me$/), 'no empty tab for members');
   // Each tab keeps to one line, a long name ending in … (owner, 2026-10-31: "make this fit on one

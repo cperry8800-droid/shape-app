@@ -193,16 +193,29 @@ export function bsProfileAbout(v) {
   return out;
 }
 
-// Socials: the known networks only, each a handle or a web address, kept only when the page can link
-// it (bsProfileLinkHref): a `javascript:` or any other scheme, a value with a space in it, an address
-// with no host (`https://`, `https://?x`) and an empty handle are dropped. Null when empty.
+// Socials: the known networks only, each a handle or a web address. An address must be http(s): a
+// `javascript:` or any other scheme is dropped, as is a value with a space in it. Null when empty.
+// Stored values are not held to bsProfileLinkHref's stricter test: the member editor saves through
+// this too and says nothing, so a member's link would vanish; Make it yours says a link it cannot use
+// at save (bsLinkProblem), and the profile draws only what bsProfileLinkable keeps.
 export function bsProfileLinks(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const out = {};
   for (const k of BS_PROFILE_LINK_KEYS) {
     const raw = bsCleanText(v[k], BS_LINK_MAX);
-    if (raw && bsProfileLinkHref(k, raw)) out[k] = raw;
+    if (!raw || /\s/.test(raw)) continue;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !/^https?:\/\//i.test(raw)) continue;
+    out[k] = raw;
   }
+  return Object.keys(out).length ? out : null;
+}
+// The socials a page can link (Codex P2 on #2540: an `https://` or `https://?x` drew a dead link).
+// Null when none.
+export function bsProfileLinkable(v) {
+  const links = bsProfileLinks(v);
+  if (!links) return null;
+  const out = {};
+  for (const k of BS_PROFILE_LINK_KEYS) if (links[k] && bsProfileLinkHref(k, links[k])) out[k] = links[k];
   return Object.keys(out).length ? out : null;
 }
 
