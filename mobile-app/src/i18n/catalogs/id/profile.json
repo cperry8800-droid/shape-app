@@ -1085,5 +1085,6 @@
   "mine.qaAdd": "Tambah pertanyaan",
   "mine.qaRemove": "Hapus",
   "mine.socials": "Media sosialmu",
-  "mine.errLink": "Periksa {network}: nama pengguna seperti @kamu, atau alamat yang diawali https://"
+  "mine.errLink": "Periksa {network}: nama pengguna seperti @kamu, atau alamat yang diawali https://",
+  "mine.errYears": "Tahun melatih: angka dari 1 sampai {max}."
 }

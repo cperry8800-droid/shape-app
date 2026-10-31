@@ -32,6 +32,7 @@ test('socials: the known networks, a handle or a web address, never another sche
   assert.deepEqual(bsProfileLinks({ instagram: ' @maya ', x: 'https://x.com/maya', website: 'javascript:alert(1)', tiktok: 'two words', substack: 'data:text/html,x', myspace: 'maya' }),
     { instagram: '@maya', x: 'https://x.com/maya' });
   assert.equal(bsProfileLinks({ website: 'mailto:a@b.c' }), null);
+  assert.deepEqual(bsProfileLinks({ website: 'https://?x', x: 'https://', instagram: '@', youtube: 'https://youtube.com/@maya' }), { youtube: 'https://youtube.com/@maya' }, 'only what the page can link is kept');
   assert.equal(bsProfileLinks('maya'), null);
   const cases = [
     ['instagram', '@maya.lifts', 'https://instagram.com/maya.lifts', '@maya.lifts'],
@@ -43,6 +44,11 @@ test('socials: the known networks, a handle or a web address, never another sche
     ['website', 'https://www.mayaokafor.com/', 'https://www.mayaokafor.com/', 'mayaokafor.com'],
     ['website', 'javascript:alert(1)', null, ''],
     ['instagram', 'JaVaScRiPt:alert(1)', null, ''],
+    // An address with no host, or no dot in it, and an empty handle (Codex P2 on #2540).
+    ['website', 'https://', null, ''],
+    ['website', 'https://?x', null, ''],
+    ['website', 'mysite', null, ''],
+    ['instagram', '@', null, ''],
   ];
   for (const [k, v, href, text] of cases) {
     assert.equal(bsProfileLinkHref(k, v), href, `${k} ${v}`);
@@ -76,14 +82,14 @@ test("About me's words in all 13 languages, each one formatting", () => {
   const dir = join(ROOT, 'mobile-app/src/i18n/catalogs');
   const keys = ['trainer.tabAbout', 'about.title', 'about.years', 'about.howOnline', 'about.howInPerson', 'about.howBoth', 'about.languages', 'about.qa', 'about.socials', 'about.emptySelf', 'about.write', 'about.edit',
     'mine.tabAbout', 'mine.aboutTitle', 'mine.aboutSub', 'mine.story', 'mine.storyPh', 'mine.details', 'mine.years', 'mine.how', 'mine.howOnline', 'mine.howInPerson', 'mine.howBoth',
-    'mine.where', 'mine.wherePh', 'mine.languages', 'mine.languagesPh', 'mine.qa', 'mine.qaQuestion', 'mine.qaAnswer', 'mine.qaAdd', 'mine.qaRemove', 'mine.socials', 'mine.errLink'];
+    'mine.where', 'mine.wherePh', 'mine.languages', 'mine.languagesPh', 'mine.qa', 'mine.qaQuestion', 'mine.qaAnswer', 'mine.qaAdd', 'mine.qaRemove', 'mine.socials', 'mine.errLink', 'mine.errYears'];
   const locales = readdirSync(dir);
   assert.equal(locales.length, 13);
   for (const l of locales) {
     const cat = JSON.parse(readFileSync(join(dir, l, 'profile.json'), 'utf8'));
     for (const k of keys) {
       assert.ok(cat[k], `${l} has no profile:${k}`);
-      const out = new IntlMessageFormat(cat[k], l === 'pt-BR' ? 'pt' : l).format({ name: 'Ana', count: 3, languages: 'X', n: 2, network: 'X' });
+      const out = new IntlMessageFormat(cat[k], l === 'pt-BR' ? 'pt' : l).format({ name: 'Ana', count: 3, languages: 'X', n: 2, network: 'X', max: 60 });
       assert.ok(String(out).trim(), `${l} ${k} formats to nothing`);
     }
   }

@@ -1085,5 +1085,6 @@
   "mine.qaAdd": "Thêm câu hỏi",
   "mine.qaRemove": "Xóa",
   "mine.socials": "Mạng xã hội của bạn",
-  "mine.errLink": "Kiểm tra {network}: tên như @bạn, hoặc địa chỉ bắt đầu bằng https://"
+  "mine.errLink": "Kiểm tra {network}: tên như @bạn, hoặc địa chỉ bắt đầu bằng https://",
+  "mine.errYears": "Số năm huấn luyện: một số từ 1 đến {max}."
 }

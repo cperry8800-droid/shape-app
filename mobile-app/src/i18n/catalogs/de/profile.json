@@ -1085,5 +1085,6 @@
   "mine.qaAdd": "Frage hinzufügen",
   "mine.qaRemove": "Entfernen",
   "mine.socials": "Deine Social-Media-Profile",
-  "mine.errLink": "Prüfe {network}: ein Name wie @du oder eine Adresse, die mit https:// beginnt"
+  "mine.errLink": "Prüfe {network}: ein Name wie @du oder eine Adresse, die mit https:// beginnt",
+  "mine.errYears": "Jahre als Coach: eine Zahl von 1 bis {max}."
 }

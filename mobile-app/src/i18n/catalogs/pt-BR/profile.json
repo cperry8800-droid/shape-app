@@ -1085,5 +1085,6 @@
   "mine.qaAdd": "Adicionar uma pergunta",
   "mine.qaRemove": "Remover",
   "mine.socials": "Suas redes sociais",
-  "mine.errLink": "Confira {network}: um usuário como @você, ou um endereço que comece com https://"
+  "mine.errLink": "Confira {network}: um usuário como @você, ou um endereço que comece com https://",
+  "mine.errYears": "Anos como coach: um número de 1 a {max}."
 }

@@ -193,16 +193,15 @@ export function bsProfileAbout(v) {
   return out;
 }
 
-// Socials: the known networks only, each a handle or a web address. An address must be http(s): a
-// `javascript:` or any other scheme is dropped, as is a value with a space in it. Null when empty.
+// Socials: the known networks only, each a handle or a web address, kept only when the page can link
+// it (bsProfileLinkHref): a `javascript:` or any other scheme, a value with a space in it, an address
+// with no host (`https://`, `https://?x`) and an empty handle are dropped. Null when empty.
 export function bsProfileLinks(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const out = {};
   for (const k of BS_PROFILE_LINK_KEYS) {
     const raw = bsCleanText(v[k], BS_LINK_MAX);
-    if (!raw || /\s/.test(raw)) continue;
-    if (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !/^https?:\/\//i.test(raw)) continue;
-    out[k] = raw;
+    if (raw && bsProfileLinkHref(k, raw)) out[k] = raw;
   }
   return Object.keys(out).length ? out : null;
 }
@@ -210,16 +209,25 @@ export function bsProfileLinks(v) {
 // Where a social goes: a web address as it is, a handle on its network (an "@" dropped; a value that
 // already names the network's host, as "x.com/alice", is not prefixed twice). Null when nothing usable.
 const BS_LINK_PREFIX = { instagram: 'instagram.com/', x: 'x.com/', tiktok: 'tiktok.com/@', youtube: 'youtube.com/@', substack: 'substack.com/@', website: '' };
+// An address the page can open: http(s), with a host that has a dot in it (Codex P2 on #2540: an
+// `https://` or `https://?x` read as usable). Null otherwise.
+function bsWebHref(href) {
+  let u;
+  try { u = new URL(href); } catch { return null; }
+  if ((u.protocol !== 'https:' && u.protocol !== 'http:') || !u.hostname.includes('.') || u.hostname.startsWith('.') || u.hostname.endsWith('.')) return null;
+  return href;
+}
 export function bsProfileLinkHref(key, value) {
   const raw = bsCleanText(value, BS_LINK_MAX);
   if (!raw || /\s/.test(raw) || !(key in BS_LINK_PREFIX)) return null;
-  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^https?:\/\//i.test(raw)) return bsWebHref(raw);
   if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) return null;
   const pre = BS_LINK_PREFIX[key];
   const v = raw.replace(/^@/, '');
+  if (!v) return null;
   const host = pre ? pre.split('/')[0] : '';
-  if (host && (v.toLowerCase() === host || v.toLowerCase().startsWith(host + '/'))) return 'https://' + v;
-  return 'https://' + pre + v;
+  if (host && (v.toLowerCase() === host || v.toLowerCase().startsWith(host + '/'))) return bsWebHref('https://' + v);
+  return bsWebHref('https://' + pre + v);
 }
 // What a social reads as on the page: a handle as "@handle", an address as its host and path.
 export function bsProfileLinkText(key, value) {

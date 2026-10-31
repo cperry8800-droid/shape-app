@@ -1308,8 +1308,7 @@ test('Make it yours, About me: saves the story, details, questions and socials o
   // The question a member's profile kept is here to edit, as written.
   assert.equal(document.querySelectorAll('[data-about-prompt]').length, 1);
   await type(document.querySelector('[data-about-story]'), 'I started lifting at 30.\n\n\n\nNow I coach beginners.  ');
-  await type(document.querySelector('[data-about-years]'), '8 years');
-  assert.equal(document.querySelector('[data-about-years]').value, '8', 'digits only');
+  await type(document.querySelector('[data-about-years]'), '75');
   await click(document.querySelector('[data-about-how="both"]'));
   await type(document.querySelector('[data-about-where]'), 'Brooklyn');
   await type(document.querySelector('[data-about-languages]'), 'English, Spanish');
@@ -1318,6 +1317,12 @@ test('Make it yours, About me: saves the story, details, questions and socials o
   await type(answers[1], 'Strong first, then fast.');
   await type(document.querySelector('[data-about-link="instagram"]'), '@maya.lifts');
   await type(document.querySelector('[data-about-link="website"]'), 'my site');
+  // Years the page would drop are said at save (Codex P2 on #2540: 61–99 saved and vanished).
+  await click(document.querySelector('[data-save-mine]'));
+  assert.equal(world.saved, null, 'nothing saved with years past 60');
+  assert.match(m.text(), /Years coaching: a number from 1 to 60\./);
+  await type(document.querySelector('[data-about-years]'), '8 years');
+  assert.equal(document.querySelector('[data-about-years]').value, '8', 'digits only');
   await click(document.querySelector('[data-save-mine]'));
   assert.equal(world.saved, null, 'nothing saved with a link it cannot use');
   assert.match(m.text(), /Check Website: a handle like @you, or an address starting with https:\/\//);

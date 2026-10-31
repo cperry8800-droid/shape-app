@@ -5,7 +5,7 @@ import {
   BS_STATION_TITLE_MAX, BS_STATION_NOTE_MAX, BS_STATION_PINS_MAX, bsProfileLook, bsProfileStudio, bsProfileCover, bsNormalizeProfileCustom,
   BS_KITCHEN_RULES_MAX, BS_KITCHEN_RULE_MAX, BS_KITCHEN_STAPLES_MAX, BS_STAPLE_MAX, BS_KITCHEN_RECIPES_MAX, BS_RECIPE_TITLE_MAX, BS_RECIPE_NOTE_MAX,
   BS_RECIPE_INGS_MAX, BS_RECIPE_ING_MAX, BS_RECIPE_QTY_MAX, BS_RECIPE_STEPS_MAX, BS_RECIPE_STEP_MAX, BS_RECIPE_NUMS, bsKitchenRecipeItem, bsProfileKitchen, bsCleanText,
-  BS_ABOUT_STORY_MAX, BS_ABOUT_FACT_MAX, BS_ABOUT_HOW, BS_PROFILE_LINK_KEYS, BS_LINK_MAX, BS_PROMPTS_MAX, BS_PROMPT_A_MAX, BS_COACH_PROMPTS,
+  BS_ABOUT_STORY_MAX, BS_ABOUT_FACT_MAX, BS_ABOUT_YEARS_MAX, BS_ABOUT_HOW, BS_PROFILE_LINK_KEYS, BS_LINK_MAX, BS_PROMPTS_MAX, BS_PROMPT_A_MAX, BS_COACH_PROMPTS,
   bsProfileAbout, bsProfileLinks, bsProfilePrompts, bsProfileLinkHref, bsPromptLabel, bsPromptToken,
 } from '../services/profileCustom.mjs';
 import { bsSplitPaste, bsSplitLongStep } from '../services/clientRecipes.mjs';
@@ -818,6 +818,8 @@ export const bsLinkName = (k, tr) => (k === 'website' ? tr('profile:editor.link.
 // The editor's about, as the doc stores it (years typed as text).
 export const bsAboutDoc = (a) => ({ story: a.story, years: a.years === '' ? null : Number(a.years), how: a.how || null, where: a.where, languages: a.languages });
 // A typed social the page could not link: the network's key, or null.
+// Years the page would drop (0, or past 60): said at save, not dropped (Codex P2 on #2540).
+export const bsYearsProblem = (years) => years !== '' && !bsProfileAbout({ years });
 export const bsLinkProblem = (links) => BS_PROFILE_LINK_KEYS.find((k) => String(links[k] || '').trim() && !bsProfileLinkHref(k, String(links[k]).trim())) || null;
 function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks }) {
   const set = (k, v) => setAbout((a) => ({ ...a, [k]: v }));
@@ -1216,7 +1218,8 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const save = async () => {
     if (busy) return;
     if (recipeOpen) { setErr(tr('profile:mine.errRecipeOpen', { defaultValue: 'Finish the recipe you are writing first: Done or Cancel.' })); return; }
-    // A social the page could not link is said, not dropped at save.
+    // Years or a social the page could not keep is said, not dropped at save.
+    if (bsYearsProblem(about.years)) { setTab('about'); setErr(tr('profile:mine.errYears', { defaultValue: 'Years coaching: a number from 1 to {max}.', max: BS_ABOUT_YEARS_MAX })); return; }
     const badLink = linksChanged ? bsLinkProblem(links) : null;
     if (badLink) { setTab('about'); setErr(tr('profile:mine.errLink', { defaultValue: 'Check {network}: a handle like @you, or an address starting with https://', network: bsLinkName(badLink, tr) })); return; }
     // The demo also says which keys were changed here, so its page keeps only those over its own
