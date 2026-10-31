@@ -1084,5 +1084,6 @@
   "mine.qaRemove": "Remove",
   "mine.socials": "Your socials",
   "mine.errLink": "Check {network}: a handle like @you, or an address starting with https://",
-  "mine.errYears": "Years coaching: a number from 1 to {max}."
+  "mine.errYears": "Years coaching: a number from 1 to {max}.",
+  "coach.noPlansYet": "{name} hasn't listed a plan yet"
 }

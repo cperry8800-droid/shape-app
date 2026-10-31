@@ -445,6 +445,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // they logged without one (a session with a video is a workout, and keeps its sets).
   const postCards = nutri || demo ? [] : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Trainer') : null)).filter(Boolean);
   const programs = nutri ? [] : demo ? (demo.programs || []) : bsCoachPrograms(salePlans);
+  // What the Work-with sheet lists: a coach's published plans, or the sample's own programs, which
+  // its page shows everywhere else (the sheet said "Publish your first plan" under every tab).
+  const sheetPlans = demo ? programs.filter((p) => p && p.plan).map((p) => ({ ...p.plan, category: 'program',
+    meta: p.weeks ? tr('profile:trainer.programWeeks', { defaultValue: '{count, plural, one {# week} other {# weeks}}', count: p.weeks }) : (p.plan.meta || '') })) : salePlans;
   const workouts = nutri ? [] : demo ? (demo.workouts || []) : bsWorkoutVideos(postCards);
   const replays = nutri ? [] : demo ? demo.replays : postCards
     .filter((c) => c.breakdown && Array.isArray(c.breakdown.rows) && c.breakdown.rows.length && !c.video);
@@ -816,7 +820,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
             <CloseX onClose={() => setSheet(null)} color={INK} label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
           </div>
           <p style={{ margin: '2px 0 0', fontSize: 13.5, color: ink(0.64) }}>{(offer && offer.blurb) || tr('profile:trainer.workSub', { defaultValue: 'Start with a free intro call. Everything runs in the Shape app.' })}</p>
-          {cm && sells && W.BSCoachCoachingBlock ? <W.BSCoachCoachingBlock cm={cm} isSelf={isSelf} isNutri={nutri} first={first} ownZero salePlans={salePlans} c={ACC} /> : (
+          {cm && sells && W.BSCoachCoachingBlock ? <W.BSCoachCoachingBlock cm={cm} isSelf={isSelf} isNutri={nutri} first={first} ownZero salePlans={sheetPlans} c={ACC} /> : (
             <div style={{ marginTop: 14 }}>
               <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: ink(0.74) }}>{isSelf
                 ? tr('profile:trainer.noPricesSelf', { defaultValue: 'Members see your prices here once your listing has a monthly price.' })

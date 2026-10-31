@@ -1084,5 +1084,6 @@
   "mine.qaRemove": "Comot am",
   "mine.socials": "Your socials",
   "mine.errLink": "Check {network}: handle like @you, or address wey start with https://",
-  "mine.errYears": "Years wey you don coach: number from 1 reach {max}."
+  "mine.errYears": "Years wey you don coach: number from 1 reach {max}.",
+  "coach.noPlansYet": "{name} never list any plan yet"
 }

@@ -1084,5 +1084,6 @@
   "mine.qaRemove": "Rimuovi",
   "mine.socials": "I tuoi social",
   "mine.errLink": "Controlla {network}: un nome utente come @tu, o un indirizzo che inizia con https://",
-  "mine.errYears": "Anni da coach: un numero da 1 a {max}."
+  "mine.errYears": "Anni da coach: un numero da 1 a {max}.",
+  "coach.noPlansYet": "{name} non ha ancora pubblicato un piano"
 }

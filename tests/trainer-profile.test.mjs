@@ -125,7 +125,7 @@ window.ShapeListingAsks = {
 window.bsProfileCardFromPost = (p) => p;
 // The client module's storefront, as a probe: it records what the page hands it.
 window.useBSCoachCommerce = ({ person }) => ((world.commerceSeen = person.commerce), { commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: !!(person.commerce && person.commerce.atCapacity), wl: null });
-window.BSCoachCoachingBlock = ({ cm }) => React.createElement('div', { 'data-coaching-block': '' }, cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' '));
+window.BSCoachCoachingBlock = ({ cm, salePlans }) => (window.__blockPlans = salePlans, React.createElement('div', { 'data-coaching-block': '' }, cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' ')));
 
 const maya = { userId: 'u-maya', who: 'Maya Okafor', kind: 'TRAINER' };
 const page = (props = {}) => React.createElement(window.BSProvider, { paperMode: 'dark', accentKey: 'teal' },
@@ -540,6 +540,9 @@ test('signed out, the trainer\'s own page is the new profile with sample content
     assert.ok(both, 'a day with open and busy times');
     await click(button(/^Ways to work with Quinn/));
     assert.equal(document.querySelector('[data-coaching-block]').textContent, 'Monthly coaching $180');
+    // The sheet lists the sample's own programs, as its page shows them (owner, 2026-10-31: it said
+    // "Publish your first plan" under every tab: "dont think this is working properly").
+    assert.deepEqual(window.__blockPlans.map((p) => [p.name, p.category, p.meta]), [['Strong in 12', 'program', '12 weeks'], ['Barbell basics', 'program', '6 weeks']]);
     await click(button(/^Close$/));
     await click(button(/^The studio$/));
     assert.match(m.text(), /Full gym/);

@@ -863,8 +863,11 @@ function BusinessCardBody({ t, role, accent, onOpen, onHide }) {
   else if (biz.kind === 'none') line = tr('coach:business.card.none', { defaultValue: 'Fills in once your listing is set up' });
   else if (!today) line = tr('coach:business.card.unread', { defaultValue: "Couldn't read your numbers. Tap to open Business." });
   else line = tr('coach:business.card.line', { defaultValue: '{count, plural, one {# client} other {# clients}} · payouts, renewals and your plan', count: today.clients });
+  // A little smaller (owner, 2026-10-31: "make this a little smaller"): the figure 34px (was 42), the
+  // weeks' bars 18px high (were 26) with less room around them, and the card's padding 12px top and
+  // bottom (was 14). The eye keeps its 28px, and every line keeps its words.
   return (
-    <div style={{ border: `1px solid ${accent}33`, borderRadius: 16, background: `linear-gradient(155deg, ${accent}14, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: 14 }}>
+    <div data-biz-card="" style={{ border: `1px solid ${accent}33`, borderRadius: 16, background: `linear-gradient(155deg, ${accent}14, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: '12px 14px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
         <button type="button" onClick={onOpen} style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>
           {tr('coach:business.card.eyebrow', { defaultValue: 'Business ›' })}
@@ -883,13 +886,13 @@ function BusinessCardBody({ t, role, accent, onOpen, onHide }) {
         </div>
       </div>
       <button type="button" onClick={onOpen} style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, background: 'transparent', padding: 0, cursor: 'pointer', color: t.INK }}>
-        <div style={{ marginTop: 5, display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 42, fontWeight: 600, lineHeight: 0.95, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{today ? bsBizMoney(today.mrrNetCents) : '—'}</span>
+        <div style={{ marginTop: 4, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span data-biz-figure="" style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 600, lineHeight: 0.95, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{today ? bsBizMoney(today.mrrNetCents) : '—'}</span>
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:business.earn.netMonth', { defaultValue: 'net a month' })}</span>
         </div>
-        <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: accent }}>{line}</div>
-        {weeks && weeks.length ? <div style={{ marginTop: 14 }}><BSBizNetBars t={t} weeks={weeks} height={26} labels={false} /></div> : null}
-        {biz.kind === 'demo' ? <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:business.card.preview', { defaultValue: 'Sample numbers · sign in to see yours' })}</div> : null}
+        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: accent }}>{line}</div>
+        {weeks && weeks.length ? <div data-biz-bars="" style={{ marginTop: 10 }}><BSBizNetBars t={t} weeks={weeks} height={18} labels={false} /></div> : null}
+        {biz.kind === 'demo' ? <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:business.card.preview', { defaultValue: 'Sample numbers · sign in to see yours' })}</div> : null}
       </button>
     </div>
   );

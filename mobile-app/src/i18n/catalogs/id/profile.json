@@ -1084,5 +1084,6 @@
   "mine.qaRemove": "Hapus",
   "mine.socials": "Media sosialmu",
   "mine.errLink": "Periksa {network}: nama pengguna seperti @kamu, atau alamat yang diawali https://",
-  "mine.errYears": "Tahun melatih: angka dari 1 sampai {max}."
+  "mine.errYears": "Tahun melatih: angka dari 1 sampai {max}.",
+  "coach.noPlansYet": "{name} belum mencantumkan rencana"
 }

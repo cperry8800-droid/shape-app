@@ -1084,5 +1084,6 @@
   "mine.qaRemove": "Kaldır",
   "mine.socials": "Sosyal medya hesapların",
   "mine.errLink": "{network} hesabını kontrol et: @sen gibi bir kullanıcı adı ya da https:// ile başlayan bir adres",
-  "mine.errYears": "Koçluk yılı: 1 ile {max} arasında bir sayı."
+  "mine.errYears": "Koçluk yılı: 1 ile {max} arasında bir sayı.",
+  "coach.noPlansYet": "{name} henüz bir plan yayınlamadı"
 }
