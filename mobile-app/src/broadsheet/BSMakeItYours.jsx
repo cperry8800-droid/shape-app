@@ -1256,7 +1256,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     colors: [tr('profile:mine.colorsTitle', { defaultValue: 'Your colors' }), tr('profile:mine.colorsSub', { defaultValue: 'Pick from Shape’s papers and accents. Your whole page follows.' })],
     wall: [tr('profile:mine.wallTitle', { defaultValue: 'Your wall photo' }), tr('profile:mine.wallSub', { defaultValue: 'The big photo behind your avatar. Your gym, your platform, your view.' })],
     space: [tr('profile:mine.spaceTitle', { defaultValue: 'Your space' }), tr('profile:mine.spaceSub', { defaultValue: 'Draw where you coach: a studio, a garage, a full gym or a park.' })],
-    kitchen: [tr('profile:mine.kitchenTitle', { defaultValue: 'Your kitchen' }), tr('profile:mine.kitchenSub', { defaultValue: 'Your kitchen\'s layout, your recipes, the plate you teach and your staples.' })],
+    kitchen: [tr('profile:mine.kitchenTitle', { defaultValue: 'Your kitchen' }), tr('profile:mine.kitchenSub', { defaultValue: 'Your recipes, the plate you teach and your staples.' })],
     about: [tr('profile:mine.aboutTitle', { defaultValue: 'About me' }), tr('profile:mine.aboutSub', { defaultValue: 'Your story, how you coach, the questions members ask, and where to find you.' })],
   }[tab];
 

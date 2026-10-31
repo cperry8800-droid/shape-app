@@ -479,7 +479,8 @@ test('on her own page there is no Draw your kitchen, and Make it yours\'s kitche
   await click(document.querySelector('[data-kitchen-fill="recipes"]'));
   assert.ok(document.querySelector('[data-mine-part="recipes"]'), 'Make it yours, on her recipes');
   assert.ok(!document.querySelector('[data-mine-part="layout"]'));
-  assert.doesNotMatch(m.text(), /\bLayout\b/, 'a Layout part in the kitchen\'s editor');
+  // Nor does its subtitle promise one (Codex P2 on #2543: "Your kitchen's layout, your recipes…").
+  assert.doesNotMatch(m.text(), /\blayout\b/i, 'a Layout part, or the promise of one, in the kitchen\'s editor');
   assert.ok(!document.querySelector('[data-studio-plan]'), 'the floor editor');
   await m.unmount();
 });
