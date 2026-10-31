@@ -1480,6 +1480,7 @@
   "hours.title": "Saatlerin.",
   "hours.blurb": "Üyelerin seni ne zaman alabileceği. Saatlerin her hafta tekrarlanır; izinlerin ve kuralların bunların içindeki saatleri kapatır.",
   "hours.preview": "Örnek saatlerle bir önizleme. Kendi saatlerini ayarlamak için koç olarak giriş yap.",
+  "hours.previewTry": "Dene: değişikliklerin sen ayrılana kadar burada görünür.",
   "hours.perWeek": "haftada {total}",
   "hours.weekHead": "Her hafta",
   "hours.rulesHead": "Rezervasyon kuralları",

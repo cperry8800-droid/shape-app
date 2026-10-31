@@ -34,14 +34,27 @@ const bsChatReduceMotion = () => {
 export function BSChatPlaceTitle({ label, open, onOpen, buttonRef }) {
   const t = window.useBS();
   const tr = useShapeTr();
+  const accent = bsWsAccent(t);
   return (
     <h1 style={{ margin: '4px 0 0', lineHeight: 1 }}>
       <button ref={buttonRef} type="button" onClick={onOpen} aria-haspopup="dialog" aria-expanded={!!open}
         aria-label={tr('feed:places.switchAria', { defaultValue: '{place}. Choose another place in Chat', place: label })}
-        style={{ display: 'inline-flex', alignItems: 'baseline', gap: 10, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left',
+        style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 12, rowGap: 8, maxWidth: '100%', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left',
           fontFamily: bsWsHead(t), fontWeight: 500, fontSize: 36, letterSpacing: '0.005em', lineHeight: 1, color: t.INK }}>
-        <span>{label}</span>
-        <span aria-hidden style={{ fontSize: 15, color: bsWsAccent(t), transform: open ? 'translateY(-6px) rotate(180deg)' : 'translateY(-6px)', transition: 'transform 180ms ease' }}>▾</span>
+        {/* A long place name in a long language keeps the page's width (Codex on #2535): the chip
+            wraps under the name when the two don't fit, and a name wider than the page breaks. */}
+        <span style={{ minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>{label}</span>
+        {/* The title is a switch, and says so (owner, 2026-10-31: "make it more noticeable that you click
+            here to change between pages on chat"): a keyed "Switch" chip in the accent with its chevron,
+            where a lone 15px ▾ was. The whole title stays the tap target. */}
+        <span aria-hidden data-bs-chat-switch="" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', height: 28, padding: '0 9px 0 10px', borderRadius: 6,
+          border: `1px solid ${accent}`, background: open ? accent : `${accent}1a`, color: open ? t.PAPER : accent,
+          fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', lineHeight: 1, transition: 'background 160ms ease, color 160ms ease' }}>
+          {tr('feed:places.switch', { defaultValue: 'Switch' })}
+          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 180ms ease' }}>
+            <path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
       </button>
     </h1>
   );

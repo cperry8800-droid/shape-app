@@ -1915,7 +1915,7 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, note = null
                 member left. Passed literally, not behind a flag — a flag on this
                 row shipped ignored once already (see bsProMastRow). */}
             {window.BSMastRow ? React.createElement(window.BSMastRow, { trailing: null }) : null}
-        {window.BSBackRow ? <window.BSBackRow onBack={onBack} label={tr('marketplace:nav.theListing', { defaultValue: 'The listing' })} /> : null}
+        {window.BSBackRow ? <window.BSBackRow onBack={onBack} /> : null}
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>{tr('marketplace:cal.eyebrow', { defaultValue: 'The calendar' })} · {first}{demo ? ` · ${tr('marketplace:cal.preview', { defaultValue: 'Preview' })}` : ''}</div>
         <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK }}>{tr('marketplace:cal.title1', { defaultValue: 'Open to' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('marketplace:cal.title2', { defaultValue: 'book.' })}</span></h1>
         {demo ? <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:cal.previewNote', { defaultValue: 'Preview · typical availability — confirm at booking' })}</div> : null}
@@ -2565,7 +2565,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
                 member left. Passed literally, not behind a flag — a flag on this
                 row shipped ignored once already (see bsProMastRow). */}
             {window.BSMastRow ? React.createElement(window.BSMastRow, { trailing: null }) : null}
-            {window.BSBackRow ? <window.BSBackRow onBack={onBack} label={tr('marketplace:nav.theClassifieds', { defaultValue: 'The Classifieds' })} /> : null}
+            {window.BSBackRow ? <window.BSBackRow onBack={onBack} /> : null}
             <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>
               {no != null ? `${tr('marketplace:listing.listingNo', { defaultValue: 'Listing Nº {no}', no: String(no).padStart(2, '0') })} · ` : ''}{bsmRoleWord(tr, isNutriDetail)}{coach.verified ? ` · ${tr('marketplace:listing.vetted', { defaultValue: '✓ Vetted' })}` : ''}
             </div>

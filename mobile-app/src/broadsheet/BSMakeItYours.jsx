@@ -10,7 +10,7 @@ import { bsSplitPaste, bsSplitLongStep } from '../services/clientRecipes.mjs';
 import { bsCoachFirstName } from '../services/coachPronoun.mjs';
 import {
   STUDIO_KIT, STUDIO_GROUPS, STUDIO_COACH_KINDS, KITCHEN_GROUPS, KITCHEN_COACH_KINDS, STUDIO_WORDS, BS_STUDIO_W, BS_STUDIO_H,
-  bsStudioTypesIn, bsStudioRoom, bsStudioSvg, bsStudioSpot, bsStudioDrawOrder, bsStudioFromTemplate,
+  bsStudioTypesIn, bsStudioRoom, bsStudioSvg, bsStudioSpot, bsStudioDrawOrder, bsStudioFromTemplate, BS_STUDIO_OWN_SIZES,
 } from '../services/studioKit.mjs';
 
 // ─── MAKE IT YOURS: the coach's profile editor ────────────────────────────────────────────────
@@ -107,14 +107,26 @@ const field = { width: '100%', boxSizing: 'border-box', minHeight: 44, padding: 
 const smallBtn = { minHeight: 40, padding: '0 12px', borderRadius: 10, border: `1px solid ${ea(0.22)}`, background: 'transparent', color: E.INK, fontFamily: DISPLAY, fontSize: 14, fontWeight: 600, cursor: 'pointer' };
 
 // ── The preview: the top of the profile, painted in the look being picked ──────────────────
-function Preview({ tr, look, wall, who, words, nutri = false }) {
+// Its tabs work (owner, 2026-10-31: "these dont work", of The studio and Replays): each shows what
+// that part of the page holds, and the studio or the kitchen opens its own editor. The card says it is
+// a preview, so the buttons drawn on it read as the page's, not as controls here.
+function Preview({ tr, look, wall, who, words, nutri = false, onEdit = null }) {
   const P = paletteOf(look.paper, look.accent);
   const ACC = P.ACCENT;
   const ink = (n) => `rgba(${P.inkRGB},${n})`;
+  const [pv, setPv] = React.useState(0);
+  const tabLabels = [words.day, nutri ? (words.kitchen || tr('profile:nutri.kitchenName', { defaultValue: "{name}'s kitchen", name: who.first })) : tr('profile:trainer.tabStudio', { defaultValue: 'The studio' }), nutri ? tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' }) : tr('profile:trainer.tabReplays', { defaultValue: 'Replays' })];
+  const note = (text, editKey, editLabel) => (
+    <div data-mine-preview-panel={pv} style={{ marginTop: 10, minHeight: 40, padding: '8px 10px', border: `1px solid ${ink(0.16)}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ flex: 1, fontSize: 12.5, lineHeight: 1.35, color: ink(0.78) }}>{text}</span>
+      {editKey && onEdit ? <button type="button" onClick={() => onEdit(editKey)} style={{ flex: 'none', minHeight: 32, padding: '0 2px', border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>{editLabel} →</button> : null}
+    </div>
+  );
   return (
-    <div data-mine-preview="" aria-hidden style={{ marginTop: 14, borderRadius: 16, overflow: 'hidden', background: P.PAPER_BG, color: P.INK, border: `1px solid ${ea(0.14)}` }}>
+    <div data-mine-preview="" style={{ marginTop: 14, borderRadius: 16, overflow: 'hidden', background: P.PAPER_BG, color: P.INK, border: `1px solid ${ea(0.14)}` }}>
       <div style={{ position: 'relative', height: 92, background: wall ? '#111' : `linear-gradient(135deg, ${hexA(ACC, 0.42)}, ${P.PAPER2} 70%)` }}>
         {wall ? <img src={wall} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: FOCUS_POS[look.focus] || FOCUS_POS.center }} /> : null}
+        <span style={{ position: 'absolute', top: 8, right: 8, padding: '4px 7px', borderRadius: 4, background: 'rgba(0,0,0,0.55)', color: '#fff', fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('profile:mine.previewLabel', { defaultValue: 'Preview' })}</span>
       </div>
       <div style={{ position: 'relative', padding: '0 14px 14px' }}>
         <div style={{ position: 'absolute', left: 14, top: -30, width: 60, height: 60, borderRadius: 99, border: `3px solid ${P.PAPER}`, background: P.PAPER2, overflow: 'hidden', display: 'grid', placeItems: 'center', boxSizing: 'border-box' }}>
@@ -124,20 +136,28 @@ function Preview({ tr, look, wall, who, words, nutri = false }) {
           <div style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 17, lineHeight: 1.1 }}>{who.name}<span style={{ color: ACC }}>.</span></div>
           {who.roleLine ? <div style={{ fontSize: 11.5, color: ink(0.7) }}>{who.roleLine}</div> : null}
         </div>
-        <div style={{ marginTop: 10, display: 'flex', gap: 6 }}>
+        <div aria-hidden style={{ marginTop: 10, display: 'flex', gap: 6 }}>
           <span style={{ flex: 1.2, minHeight: 32, display: 'grid', placeItems: 'center', background: ACC, color: onColor(ACC), fontFamily: DISPLAY, fontSize: 12.5, fontWeight: 600 }}>{tr('profile:trainer.message', { defaultValue: 'Message {name}', name: who.first })}</span>
           <span style={{ flex: 1, minHeight: 32, display: 'grid', placeItems: 'center', border: `1px solid ${ink(0.22)}`, fontFamily: DISPLAY, fontSize: 12.5, fontWeight: 600 }}>{words.work}</span>
         </div>
         <div style={{ marginTop: 10, display: 'flex', borderBottom: `1px solid ${ink(0.16)}`, fontFamily: DISPLAY, fontSize: 12.5 }}>
-          {[words.day, nutri ? (words.kitchen || tr('profile:nutri.kitchenName', { defaultValue: "{name}'s kitchen", name: who.first })) : tr('profile:trainer.tabStudio', { defaultValue: 'The studio' }), nutri ? tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' }) : tr('profile:trainer.tabReplays', { defaultValue: 'Replays' })].map((l, i) => (
-            <span key={i} style={{ flex: 1, textAlign: 'center', padding: '6px 0', borderBottom: `2px solid ${i === 0 ? ACC : 'transparent'}`, marginBottom: -1, color: i === 0 ? P.INK : ink(0.55), fontWeight: i === 0 ? 600 : 400 }}>{l}</span>
+          {tabLabels.map((l, i) => (
+            <button key={i} type="button" aria-pressed={pv === i} onClick={() => setPv(i)} style={{ flex: '1 1 auto', minWidth: 0, minHeight: 34, padding: '6px 4px', border: 0, borderBottom: `2px solid ${pv === i ? ACC : 'transparent'}`, marginBottom: -1, background: 'transparent', color: pv === i ? P.INK : ink(0.55), fontFamily: DISPLAY, fontSize: 12.5, fontWeight: pv === i ? 600 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}>{l}</button>
           ))}
         </div>
-        <div style={{ marginTop: 10, minHeight: 40, padding: '6px 10px', border: `1.5px dashed ${ACC}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontFamily: MONO, fontSize: 10.5, color: ink(0.7) }}>8:00</span>
-          <span style={{ flex: 1, fontSize: 12.5 }}><b style={{ fontWeight: 600 }}>{tr('profile:trainer.open', { defaultValue: 'Open' })}</b> · {tr('profile:mine.previewIntro', { defaultValue: 'Free intro call' })}</span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: ACC }}>{tr('profile:trainer.take', { defaultValue: 'Take it →' })}</span>
-        </div>
+        {pv === 1 ? (nutri
+          ? note(tr('profile:mine.previewKitchen', { defaultValue: 'Your kitchen, recipes, plate and staples show here.' }), 'kitchen', tr('profile:mine.previewEditKitchen', { defaultValue: 'Edit your kitchen' }))
+          : note(tr('profile:mine.previewSpace', { defaultValue: 'Your space shows here, as you draw it.' }), 'space', tr('profile:mine.previewEditSpace', { defaultValue: 'Edit your space' })))
+        : pv === 2 ? (nutri
+          ? note(tr('profile:mine.previewPlates', { defaultValue: 'The meals you share with clients show here, by day.' }))
+          : note(tr('profile:mine.previewReplays', { defaultValue: 'Replays, workouts and programs you publish show here.' })))
+        : (
+          <div aria-hidden data-mine-preview-panel={0} style={{ marginTop: 10, minHeight: 40, padding: '6px 10px', border: `1.5px dashed ${ACC}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: MONO, fontSize: 10.5, color: ink(0.7) }}>8:00</span>
+            <span style={{ flex: 1, fontSize: 12.5 }}><b style={{ fontWeight: 600 }}>{tr('profile:trainer.open', { defaultValue: 'Open' })}</b> · {tr('profile:mine.previewIntro', { defaultValue: 'Free intro call' })}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: ACC }}>{tr('profile:trainer.take', { defaultValue: 'Take it →' })}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -290,6 +310,10 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
   const [ask, setAsk] = React.useState(null); // a kind waiting on "replace your pieces?"
   const [group, setGroup] = React.useState(GROUPS[0][0]);
   const [msg, setMsg] = React.useState(null);
+  // A piece of the coach's own being named: { name, size } (owner, 2026-10-31: "coaches should be able
+  // to add custom additional eqipment or kitchen stations"). It drops in like any piece, named by its
+  // label, which the page draws under it and its station sheet takes.
+  const [own, setOwn] = React.useState(null);
   const svgRef = React.useRef(null);
   const drag = React.useRef(null);
 
@@ -312,22 +336,63 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
     setStudio({ ...studio, items: [...items, p] });
     setSel(items.length);
   };
+  const addOwn = () => {
+    setMsg(null);
+    const name = String((own && own.name) || '').trim().slice(0, BS_STUDIO_LABEL_MAX);
+    if (!name) { setMsg(tr('profile:mine.ownNeedName', { defaultValue: 'Give it a name first.' })); return; }
+    if (items.length >= BS_STUDIO_ITEMS_MAX) { setMsg(tr('profile:mine.tooMany', { defaultValue: 'Your space holds {count} pieces at most.', count: BS_STUDIO_ITEMS_MAX })); return; }
+    const [, , w, h] = BS_STUDIO_OWN_SIZES.find(([k]) => k === own.size) || BS_STUDIO_OWN_SIZES[1];
+    const [rx, ry, rw, rh] = bsStudioRoom(studio.kind).room;
+    const n = items.length % 8;
+    const p = fit({ t: 'custom', x: rx + rw / 2 - w / 2 + n * 6, y: ry + rh / 2 - h / 2 + n * 6, w, h, label: name });
+    setStudio({ ...studio, items: [...items, p] });
+    setSel(items.length);
+    setOwn(null);
+  };
+  // ⚠ A DRAG IS SMOOTH (owner, 2026-10-31: "this drag and drop is glitchy"). It was a re-render of the
+  // whole editor on every pointer move, the labels selected as text under the finger, and a sideways
+  // drag that the app's swipe-back took for a Back. Now: one move per frame (the newest pointer
+  // place), no selection or callout on the plan, the plan opted out of the swipe (data-bs-noswipe),
+  // and a touch that starts on a piece holds the page still (a touch on the floor still scrolls).
+  const studioRef = React.useRef(studio);
+  studioRef.current = studio;
+  const frame = React.useRef(0);
+  const applyDrag = () => {
+    frame.current = 0;
+    const d = drag.current;
+    const cur = studioRef.current;
+    const p = d && cur.items[d.i];
+    if (!p || d.cx == null) return;
+    const next = fit({ ...p, x: d.px + (d.cx - d.x0) * d.scale, y: d.py + (d.cy - d.y0) * d.scale });
+    if (next.x === p.x && next.y === p.y) return;
+    setStudio({ ...cur, items: cur.items.map((q, k) => (k === d.i ? next : q)) });
+  };
   const onDown = (e, i) => {
     setSel(i); setMsg(null);
     const svg = svgRef.current;
     if (!svg) return;
     const r = svg.getBoundingClientRect();
-    drag.current = { i, x0: e.clientX, y0: e.clientY, px: items[i].x, py: items[i].y, scale: BS_STUDIO_W / (r.width || BS_STUDIO_W) };
+    drag.current = { i, x0: e.clientX, y0: e.clientY, cx: null, cy: null, px: items[i].x, py: items[i].y, scale: BS_STUDIO_W / (r.width || BS_STUDIO_W) };
     try { svg.setPointerCapture(e.pointerId); } catch (err) {}
   };
   const onMove = (e) => {
     const d = drag.current;
     if (!d) return;
-    const p = items[d.i];
-    if (!p) return;
-    update(d.i, fit({ ...p, x: d.px + (e.clientX - d.x0) * d.scale, y: d.py + (e.clientY - d.y0) * d.scale }));
+    d.cx = e.clientX; d.cy = e.clientY;
+    if (!frame.current) frame.current = (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f) => setTimeout(f, 16))(applyDrag);
   };
-  const onUp = () => { drag.current = null; };
+  const onUp = () => {
+    if (frame.current) { (typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : clearTimeout)(frame.current); applyDrag(); }
+    drag.current = null;
+  };
+  React.useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return undefined;
+    const hold = (e) => { if (e.target && e.target.closest && e.target.closest('[data-piece]')) e.preventDefault(); };
+    svg.addEventListener('touchstart', hold, { passive: false });
+    return () => svg.removeEventListener('touchstart', hold);
+  }, [items.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => () => { if (frame.current) (typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : clearTimeout)(frame.current); }, []);
   const room = bsStudioRoom(studio.kind);
   const [rx, ry, rw, rh, style, radius] = room.room;
   const stationNo = (i) => items.slice(0, i + 1).filter((p) => p.st).length;
@@ -361,9 +426,10 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
       {items.length ? (
         <>
           <p style={{ margin: '14px 0 8px', fontSize: 13, lineHeight: 1.45, color: ea(0.66) }}>{tr('profile:mine.planHint', { defaultValue: 'Drag a piece to move it, or tap it to turn, copy or remove it. Make it a station to give it a number members can tap.' })}</p>
-          <div style={{ position: 'relative', width: '100%', aspectRatio: `${BS_STUDIO_W} / ${BS_STUDIO_H}`, borderRadius: 12, overflow: 'hidden', background: P.PAPER2 }}>
-            <svg ref={svgRef} data-studio-plan="" viewBox={`0 0 ${BS_STUDIO_W} ${BS_STUDIO_H}`} width="100%" height="100%" style={{ position: 'absolute', inset: 0, display: 'block' }}
-              onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
+          <div data-bs-noswipe="" style={{ position: 'relative', width: '100%', aspectRatio: `${BS_STUDIO_W} / ${BS_STUDIO_H}`, borderRadius: 12, overflow: 'hidden', background: P.PAPER2,
+            userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}>
+            <svg ref={svgRef} data-studio-plan="" viewBox={`0 0 ${BS_STUDIO_W} ${BS_STUDIO_H}`} width="100%" height="100%" style={{ position: 'absolute', inset: 0, display: 'block', userSelect: 'none', WebkitUserSelect: 'none' }}
+              onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onLostPointerCapture={onUp}
               onPointerDown={(e) => { if (e.target === e.currentTarget) setSel(null); }}>
               <rect x={rx} y={ry} width={rw} height={rh} rx={radius} fill="none" stroke={ink(0.26)} strokeWidth="1.5" strokeDasharray={style === 'dashed' ? '5 5' : undefined} pointerEvents="none" />
               {room.doors.map(([x, y, w, h, key, lx, ly], i) => (
@@ -372,7 +438,7 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
               {bsStudioDrawOrder(items).map((i) => {
                 const p = items[i], on = i === sel;
                 return (
-                  <g key={i} role="button" tabIndex={0} aria-label={p.st ? `${stationNo(i)}. ${p.st.title || kitName(p.t)}` : (p.tag || p.label || kitName(p.t))} aria-pressed={on}
+                  <g key={i} data-piece="" role="button" tabIndex={0} aria-label={p.st ? `${stationNo(i)}. ${p.st.title || kitName(p.t)}` : (p.tag || p.label || kitName(p.t))} aria-pressed={on}
                     onPointerDown={(e) => { e.stopPropagation(); onDown(e, i); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(i); } }}
                     style={{ cursor: 'grab', touchAction: 'none', outline: 'none' }}>
                     <image href={bsStudioSvg(p.t, p.w, p.h, { ink: P.inkRGB, light: P.isLight, accent: p.st ? ACC : null })} x={p.x} y={p.y} width={p.w} height={p.h} />
@@ -399,7 +465,7 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
       {cur ? (
         <div data-piece-panel="" style={{ marginTop: 12, padding: 14, borderRadius: 12, background: E.BG3 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 600 }}>{kitName(cur.t)}</span>
+            <span style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 600 }}>{cur.t === 'custom' ? (cur.label || kitName(cur.t)) : kitName(cur.t)}</span>
             <button type="button" onClick={() => setSel(null)} style={{ ...smallBtn, background: E.INK, color: E.BG, border: 0 }}>{tr('profile:mine.done', { defaultValue: 'Done' })}</button>
           </div>
           <label style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, cursor: 'pointer' }}>
@@ -435,7 +501,7 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
           </div>
         </div>
       ) : null}
-      {msg ? <p role="alert" style={{ margin: '10px 0 0', fontSize: 13.5, color: E.WARN }}>{msg}</p> : null}
+      {msg && !own ? <p role="alert" style={{ margin: '10px 0 0', fontSize: 13.5, color: E.WARN }}>{msg}</p> : null}
 
       <Eyebrow right={tr('profile:mine.tapToDrop', { defaultValue: 'Tap to drop it in' })}>{tr('profile:mine.addWhat', { defaultValue: 'Add what you have' })}</Eyebrow>
       <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
@@ -444,8 +510,30 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
             style={{ flex: 'none', minHeight: 36, padding: '0 12px', borderRadius: 999, border: `1px solid ${slug === group ? E.INK : ea(0.2)}`, background: slug === group ? E.INK : 'transparent', color: slug === group ? E.BG : E.INK, fontSize: 13, cursor: 'pointer' }}>{tr('profile:studio.group.' + slug, { defaultValue: en })}</button>
         ))}
       </div>
+      {own ? (
+        <div data-own-piece="" style={{ marginTop: 10, padding: 14, borderRadius: 12, background: E.BG3 }}>
+          <label style={{ display: 'block' }}>
+            <span style={{ display: 'block', fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: ea(0.6), marginBottom: 6 }}>{tr('profile:mine.ownName', { defaultValue: 'What is it?' })}</span>
+            <input autoFocus value={own.name} maxLength={BS_STUDIO_LABEL_MAX} onChange={(e) => setOwn({ ...own, name: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addOwn(); } }}
+              placeholder={kitchen ? tr('profile:mine.ownPhKitchen', { defaultValue: 'Dehydrator' }) : tr('profile:mine.ownPh', { defaultValue: 'Sandbag wall' })} style={field} />
+          </label>
+          <div role="group" aria-label={tr('profile:mine.ownSize', { defaultValue: 'Size' })} style={{ marginTop: 10, display: 'flex', gap: 6 }}>
+            {BS_STUDIO_OWN_SIZES.map(([k, en]) => (
+              <button key={k} type="button" data-own-size={k} aria-pressed={own.size === k} onClick={() => setOwn({ ...own, size: k })}
+                style={{ flex: 1, minHeight: 40, borderRadius: 999, border: `1px solid ${own.size === k ? E.ED : ea(0.22)}`, background: own.size === k ? hexA(E.ED, 0.14) : 'transparent', color: E.INK, fontSize: 13.5, cursor: 'pointer' }}>
+                {tr('profile:mine.size' + k.toUpperCase(), { defaultValue: en })}
+              </button>
+            ))}
+          </div>
+          {msg ? <p role="alert" style={{ margin: '10px 0 0', fontSize: 13.5, color: E.WARN }}>{msg}</p> : null}
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <button type="button" data-own-add="" onClick={addOwn} style={{ ...smallBtn, flex: 1, background: E.ED, color: E.ON_ED, border: 0 }}>{tr('profile:mine.ownAddIt', { defaultValue: 'Add it' })}</button>
+            <button type="button" onClick={() => { setOwn(null); setMsg(null); }} style={{ ...smallBtn, border: 0, color: ea(0.7) }}>{tr('profile:mine.cancel', { defaultValue: 'Cancel' })}</button>
+          </div>
+        </div>
+      ) : null}
       <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-        {bsStudioTypesIn(group).filter((t) => t !== 'zone').concat(group === zoneGroup ? ['zone'] : []).map((type) => {
+        {bsStudioTypesIn(group).filter((t) => t !== 'zone' && t !== 'custom').concat(group === zoneGroup ? ['zone'] : []).map((type) => {
           const [, , w, h] = STUDIO_KIT[type];
           const s = Math.min(54 / w, 40 / h, 1.4);
           return (
@@ -456,6 +544,11 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
             </button>
           );
         })}
+        <button type="button" data-kit="custom" aria-pressed={!!own} onClick={() => { setMsg(null); setOwn(own ? null : { name: '', size: 'm' }); }}
+          style={{ minHeight: 84, padding: '8px 4px', borderRadius: 10, border: `1px dashed ${own ? E.ED : ea(0.3)}`, background: 'transparent', color: E.INK, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+          <span style={{ height: 44, display: 'grid', placeItems: 'center' }}><img src={bsStudioSvg('custom', 40, 32, { line: true })} alt="" style={{ width: 40, height: 32 }} /></span>
+          {tr('profile:mine.ownAdd', { defaultValue: 'Your own' })}
+        </button>
       </div>
     </div>
   );
@@ -1066,12 +1159,28 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   }[tab];
 
   const host = typeof document !== 'undefined' ? (document.getElementById('bs-phone-surface') || document.body) : null;
+  // The Save bar comes in over the foot of the page with the first change. The control that made it
+  // (Top, Center, Bottom under "Keep in view", a paper, a piece) stays in sight above it (owner,
+  // 2026-10-31: "the save button pops up and coveres options"). The tap is remembered on its way down,
+  // since a tap focuses nothing on iOS.
+  const scrollRef = React.useRef(null);
+  const barRef = React.useRef(null);
+  const tapRef = React.useRef(null);
+  React.useLayoutEffect(() => {
+    if (!unsaved) return;
+    const root = scrollRef.current;
+    const bar = barRef.current;
+    const hit = tapRef.current;
+    if (!root || !bar || !hit || !hit.isConnected || !root.contains(hit)) return;
+    const over = hit.getBoundingClientRect().bottom + 12 - bar.getBoundingClientRect().top;
+    if (over > 0) root.scrollTop += over;
+  }, [unsaved]);
   const el = (
-    <div className="bs-scroll" data-make-it-yours="" style={{ position: 'absolute', inset: 0, zIndex: 225, background: E.BG, color: E.INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: BODY, WebkitFontSmoothing: 'antialiased' }}>
-      <div style={{ padding: `calc(${window.BS_MAST_TOP_CSS || '12px'}) ${gut}px ${dirty ? 120 : 40}px` }}>
+    <div ref={scrollRef} onClickCapture={(e) => { const tg = e.target; tapRef.current = (tg && tg.closest && tg.closest('button, [role="button"], label, input, select')) || tg; }} className="bs-scroll" data-make-it-yours="" style={{ position: 'absolute', inset: 0, zIndex: 225, background: E.BG, color: E.INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: BODY, WebkitFontSmoothing: 'antialiased' }}>
+      <div style={{ padding: `calc(${window.BS_MAST_TOP_CSS || '12px'}) ${gut}px ${unsaved ? 24 : 40}px` }}>
         {/* The masthead row and the back row every page has. No corner: it would leave an unsaved draft. */}
         {window.BSMastRow ? <window.BSMastRow trailing={null} ink={E.INK} /> : null}
-        {window.BSBackRow ? <window.BSBackRow onBack={back} ink={E.INK} label={tr('profile:mine.backToProfile', { defaultValue: 'Profile' })}
+        {window.BSBackRow ? <window.BSBackRow onBack={back} ink={E.INK}
           trailing={<span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: E.ED }}>{tr('profile:mine.eyebrow', { defaultValue: 'Your page' })}</span>} /> : null}
         <div style={{ marginTop: 8 }}>
           <Seg label={tr('profile:mine.sections', { defaultValue: 'What to change' })} value={tab} onChange={(k) => { setTab(k); setSel(null); }}
@@ -1079,7 +1188,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         </div>
         <h1 style={{ margin: '18px 0 0', fontFamily: DISPLAY, fontWeight: 600, fontSize: 28, lineHeight: 1.05 }}>{head[0]}<span style={{ color: E.ED }}>.</span></h1>
         <p style={{ margin: '4px 0 0', fontSize: 14, lineHeight: 1.45, color: ea(0.7) }}>{head[1]}</p>
-        {tab !== 'space' && tab !== 'kitchen' ? <Preview tr={tr} look={look} wall={wall} who={{ ...who, first }} words={w} nutri={nutri} /> : null}
+        {tab !== 'space' && tab !== 'kitchen' ? <Preview tr={tr} look={look} wall={wall} who={{ ...who, first }} words={w} nutri={nutri} onEdit={(k) => { setTab(k); setSel(null); }} /> : null}
         {tab === 'colors' ? <ColorsTab tr={tr} look={look} setLook={setLook} /> : null}
         {tab === 'wall' ? <WallTab tr={tr} look={look} setLook={setLook} wall={wall} setWall={(u) => { setWall(u); setErr(null); }} choices={photos} uploading={uploading} onUpload={onUpload} noUpload={demo ? demoNoUpload : null} /> : null}
         {tab === 'space' ? <SpaceTab tr={tr} look={look} studio={studio} setStudio={setStudio} sel={sel} setSel={setSel} programs={programs} /> : null}
@@ -1088,7 +1197,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         {err && !unsaved ? <p role="alert" style={{ margin: '14px 0 0', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
       </div>
       {unsaved ? (
-        <div style={{ position: 'sticky', bottom: 0, zIndex: 3, padding: `10px ${gut}px calc(12px + env(safe-area-inset-bottom))`, background: E.BG, borderTop: `1px solid ${ea(0.16)}` }}>
+        <div ref={barRef} data-mine-savebar="" style={{ position: 'sticky', bottom: 0, zIndex: 3, padding: `10px ${gut}px calc(12px + env(safe-area-inset-bottom))`, background: E.BG, borderTop: `1px solid ${ea(0.16)}` }}>
           {leaving ? <p style={{ margin: '0 0 8px', fontSize: 13.5, color: ea(0.8) }}>{tr('profile:mine.leaveAsk', { defaultValue: "You haven't saved these changes." })}</p> : <p style={{ margin: '0 0 8px', fontSize: 12.5, color: ea(0.6) }}>{demo ? tr('profile:mine.demoNote', { defaultValue: 'A sample page: your changes show here until you leave. Sign in to save yours.' }) : tr('profile:mine.saveNote', { defaultValue: 'Members see it as soon as you save.' })}</p>}
           {err ? <p role="alert" style={{ margin: '0 0 8px', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
           <div style={{ display: 'flex', gap: 8 }}>

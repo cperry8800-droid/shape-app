@@ -71,7 +71,7 @@ export function BSGroceryBuilder({ onCancel, onCreate }) {
         {BSMastRow && <BSMastRow trailing={null} />}
         {/* ← Cancel where every page keeps its Back (owner, 2026-10-31), the count on the right. The
             word is the catalog's, without the arrow the back row draws. */}
-        {BSBackRow && <BSBackRow onBack={onCancel} label={String(tr('nutrition:grocery.build.cancel', { defaultValue: '← CANCEL' })).replace(/^\s*←\s*/, '')}
+        {BSBackRow && <BSBackRow onBack={onCancel}
           trailing={<span style={mono(9, { fontWeight: 700, letterSpacing: '0.22em', color: t.INK50 })}>{tr('nutrition:grocery.itemCountCaps', { defaultValue: `${count} ITEM${count === 1 ? '' : 'S'}`, count })}</span>} />}
       </div>
       <BSCleanType t={t}>

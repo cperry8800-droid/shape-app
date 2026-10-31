@@ -1480,6 +1480,7 @@
   "hours.title": "Vos horaires.",
   "hours.blurb": "Quand les membres peuvent vous réserver. Vos horaires se répètent chaque semaine ; vos absences et vos règles ferment des créneaux à l’intérieur.",
   "hours.preview": "Un aperçu avec des horaires d’exemple. Connectez-vous en tant que coach pour définir les vôtres.",
+  "hours.previewTry": "Essaie : tes changements restent affichés ici jusqu’à ce que tu partes.",
   "hours.perWeek": "{total} par semaine",
   "hours.weekHead": "Chaque semaine",
   "hours.rulesHead": "Règles de réservation",
