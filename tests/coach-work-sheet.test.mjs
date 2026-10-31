@@ -56,14 +56,26 @@ test('one kind: its plans with no tab row; two kinds: All and those two, never a
   assert.match(rows(two)[0], /Strong in 12/);
 });
 
-test('catalogueOnly: the plans to buy and nothing else, for a coach with no monthly price (Codex P2 on #2545)', () => {
+test('noMonthly: the plans with Buy and no monthly offer, for a coach with no monthly price (Codex P2 on #2545)', () => {
   const plans = [plan('a', 'program', 'Strong in 12', { providerId: 'prov-7', providerRole: 'trainer' })];
   const full = block({ salePlans: plans });
   assert.ok(full.buttons().some((b) => b.label === 'Subscribe'), 'the full block offers the monthly plan');
-  const only = block({ salePlans: plans, catalogueOnly: true });
+  const only = block({ salePlans: plans, noMonthly: true });
   assert.ok(!only.buttons().some((b) => /^(Subscribe|Book intro)/.test(b.label)), 'no monthly offer to print the demo package');
   assert.equal(rows(only).length, 1);
   assert.ok(only.buttons().some((b) => /^Buy · \$49$/.test(b.label)), 'the plan can be bought');
+});
+
+test('noMonthly at capacity keeps the waiting list and the invite, without Subscribe (Codex P2 on f49af70)', () => {
+  // At capacity the checkout takes a plan only with an invite or from a client, so the way in stays.
+  const plans = [plan('a', 'program', 'Strong in 12', { providerId: 'prov-7', providerRole: 'trainer' })];
+  const full = block({ salePlans: plans, noMonthly: true, cm: { ...cm, atCapacity: true, clientOf: false } });
+  assert.ok(full.buttons().some((b) => b.label === 'Join the waiting list'), 'the waiting list');
+  assert.ok(!full.buttons().some((b) => /^Subscribe/.test(b.label)));
+  const invited = block({ salePlans: plans, noMonthly: true, cm: { ...cm, atCapacity: true, wl: { status: 'invited' } } });
+  const labels = invited.buttons().map((b) => b.label);
+  assert.ok(labels.includes('Book now') && labels.includes('Decline'), 'the invite\'s own way in');
+  assert.ok(!labels.some((l) => /^Subscribe/.test(l)), 'no Subscribe /mo without a monthly price');
 });
 
 test('a nutritionist\'s kinds: Meals and Diets as they are listed', () => {

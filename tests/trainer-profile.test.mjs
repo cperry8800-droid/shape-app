@@ -125,7 +125,7 @@ window.ShapeListingAsks = {
 window.bsProfileCardFromPost = (p) => p;
 // The client module's storefront, as a probe: it records what the page hands it.
 window.useBSCoachCommerce = ({ person }) => ((world.commerceSeen = person.commerce), { commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: !!(person.commerce && person.commerce.atCapacity), wl: null });
-window.BSCoachCoachingBlock = ({ cm, salePlans, catalogueOnly }) => (window.__blockPlans = salePlans, React.createElement('div', { 'data-coaching-block': catalogueOnly ? 'catalogue' : '' }, catalogueOnly ? salePlans.map((p) => `${p.name} $${p.price}`).join(' ') : cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' ')));
+window.BSCoachCoachingBlock = ({ cm, salePlans, noMonthly }) => (window.__blockPlans = salePlans, React.createElement('div', { 'data-coaching-block': noMonthly ? 'catalogue' : '' }, noMonthly ? salePlans.map((p) => `${p.name} $${p.price}`).join(' ') : cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' ')));
 
 const maya = { userId: 'u-maya', who: 'Maya Okafor', kind: 'TRAINER' };
 const page = (props = {}) => React.createElement(window.BSProvider, { paperMode: 'dark', accentKey: 'teal' },

@@ -19452,9 +19452,10 @@ function useBSCoachCommerce({ person, isSelf, isNutri, name, first, city }) {
 // "Work with": the at-capacity states (invited, waiting, already a client, full), the monthly
 // offer with Subscribe and the free intro, and the coach's catalogue with Buy. The Signal
 // profile's Coaching tab and the trainer profile's Work-with sheet both render it.
-// catalogueOnly: the plans and nothing else, for a coach whose listing has no monthly price (the
-// monthly offer would print the demo package) but who sells plans (Codex P2 on #2545).
-function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, c, catalogueOnly = false }) {
+// noMonthly: a coach whose listing has no monthly price but who sells plans (Codex P2 on #2545). The
+// monthly offer and Subscribe go (they would print the demo package); the capacity states stay, since
+// at capacity a plan is only bought with an invite or as a client (Codex P2 on f49af70).
+function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, c, noMonthly = false }) {
   const tTheme = useBS();
   const tr = useShapeTr();
   const INK = tTheme.INK;
@@ -19530,7 +19531,6 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
               when {first} is effectively at capacity — the waiting-list CTA.
               Each opens on a heavy ink rule under its state's kicker (green for invited or already a client,
               rust for waiting or full), with square actions. */}
-          {catalogueOnly ? null : <>
           {!isSelf && atCapacity && wl?.status === 'invited' && (
             <div style={ctaBlock}>
               <Kick col={tTheme.GREEN}>{tr('profile:coach.youreInvited', { defaultValue: "You're invited" })}</Kick>
@@ -19539,8 +19539,8 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
                   at capacity, so the invited state must also carry the subscription
                   path (mirrors the website invited CTA trio, #1498). */}
               <button onClick={doBookOneTime} style={{ ...ctaInk, width: '100%' }}>{tr('profile:coach.bookNow', { defaultValue: 'Book now' })}</button>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-                <button onClick={doSubscribe} style={ctaLine}>{tr('profile:coach.subscribeMo', { defaultValue: 'Subscribe /mo' })}</button>
+              <div style={{ display: 'grid', gridTemplateColumns: noMonthly ? '1fr' : '1fr 1fr', gap: 8, marginTop: 8 }}>
+                {noMonthly ? null : <button onClick={doSubscribe} style={ctaLine}>{tr('profile:coach.subscribeMo', { defaultValue: 'Subscribe /mo' })}</button>}
                 <button onClick={wlWithdraw} style={ctaLine}>{tr('profile:coach.decline', { defaultValue: 'Decline' })}</button>
               </div>
               <button onClick={doBookIntro} data-intro-at-capacity="" style={{ ...ctaLine, width: '100%', marginTop: 8 }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
@@ -19569,6 +19569,7 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
               {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ ...ctaLine, width: '100%', marginTop: 8 }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
             </div>
           )}
+          {noMonthly ? null : <>
           {!isSelf && !atCapacity && (
             <div style={ctaBlock}>
               <Kick col={bsWsAccent(tTheme)}>{tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })}</Kick>
