@@ -619,6 +619,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: Nora\'s sheet as the concierge desk, a third look — #2544. No migration',
+      items: [
+        { label: 'Owner, 2026-10-31: "we need to update this design, dont use a previously used one" (a screenshot of Nora\'s sheet). Neither earlier look: not the round teal bubbles with a glowing pill (to 2026-10-30), nor the magazine notes of #2535', status: 'done' },
+        { label: 'Her desk: an inverted band (the theme\'s ink) that stays put while the talk scrolls: her portrait in a teal ring, Concierge · 24/7, Clear and × in one row (the × a cell of it, so nothing runs under it), then Talk to Nora (filled) and Talk to a person (outline, toggles its card)', status: 'done' },
+        { label: 'A transcript: her words on the paper with no box, her face and name once over each turn, Listen as a speaker key; yours an ink bubble with no face; typing as three dots (the words kept for a screen reader), a caret while she writes; suggestions as tiles two to a row; a follow-up a row ending in an ink arrow', status: 'done' },
+        { label: 'The screen she is told rides over the composer; BSMessageComposer\'s new `tray` (the mic, the field and a round ink send in one rounded tray), the chat page keeps `mag`; Talk to a person opens as a card at the foot of the talk. No new copy', status: 'done' },
+        { label: 'Review: Codex P2 on 427abae (the proposal and fill cards would overflow the full-width action column) traced and answered: mobile-app/index.html sets * { box-sizing: border-box }, and the built sheet measured no overflow at 390px', status: 'done' },
+      ],
+    },
+    {
       section: 'App: the member profile\'s posts in the Wall\'s format (#2538); a coach studio station lists a pinned program once (#2539); the coach profile\'s Activity tab (#2541). No migration',
       items: [
         { label: 'Owner, 2026-10-31: "Make sure member activity feed on profile is same format and design as chat feed"; "this strong in 12 is appearing on multiple machines" (asked, they kept a program on every piece its moves use and had only the repeat fixed); "the coaches activity feed shouldn\'t be under replays, they should have a separate tab for activity"', status: 'done' },

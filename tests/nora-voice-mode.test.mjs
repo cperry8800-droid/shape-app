@@ -177,7 +177,7 @@ test('app Talk view: her face, the status in the member\'s language, End', async
 
 test('app sheet: Talk starts in the tap; Listen shows Loading and Stop and speaks inside the tap', () => {
   const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
-  assert.match(sheet, /onClick=\{\(e\) => \{ e\.stopPropagation\(\); talk\.start\(\); \}\}/);
+  assert.match(sheet, /data-nora-talk-button onClick=\{\(\) => talk\.start\(\)\}/);
   assert.doesNotMatch(sheet, /voiceChat|holdToTalk|onVoiceComplete/, 'the Voice chat chip and hold-to-talk are gone');
   assert.match(sheet, /<BSNoraTalk talk=\{talk\} t=\{t\} tint=\{noraTint\} avatar=\{BS_NORA_AVATAR\} \/>/);
   const listen = between(sheet, 'const listenTo = (i, text) => {', '\n  };\n');

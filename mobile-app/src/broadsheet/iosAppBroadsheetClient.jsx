@@ -25717,7 +25717,6 @@ function BSNoraSheet({ onClose }) {
   React.useEffect(() => { bsNoraHintDone(); }, []);
   const cardInk = t.INK;
   const muted = t.INK50;
-  const hair = t.RULE;
   const [showNora, setShowNora] = useStateBSC(false);
   // Support assistant — one continuous AI-backed thread that lives for the
   // session. It stays put while you move between tabs, but a fresh app load /
@@ -25978,147 +25977,178 @@ function BSNoraSheet({ onClose }) {
     return () => names.forEach((n) => window.removeEventListener(n, close));
   }, [onClose]);
   const scrollRef = React.useRef(null);
-  React.useEffect(() => { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; }, [supportMsgs.length, supportBusy, supportLive]);
+  // Opening Talk to a person scrolls to it too: it opens at the foot of the talk.
+  React.useEffect(() => { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; }, [supportMsgs.length, supportBusy, supportLive, !!personForm]);
   React.useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-            // The sheet in the chat page's magazine look (owner, 2026-10-31: "improve/update look of this
-            // chat"): the magazine's teal, her name in the Wall's face over an ink rule, flat faces, square
-            // notes, suggestions as an index, and the square composer the chat page has.
-            const noraTint = bsWsAccent(t);
-              const host = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body;
+  // ⚠ THE CONCIERGE DESK (owner, 2026-10-31: "we need to update this design, dont use a previously used
+  // one"). It is neither earlier look: not the round teal bubbles with a teal pill (to 2026-10-30), nor the
+  // magazine's "Nora." over an ink rule with square notes, faces on both sides and an index (#2535).
+  //   · Her desk: an inverted band that stays put while the talk scrolls (her portrait in a ring, Talk to
+  //     Nora, Talk to a person, Clear, ×). The × is a cell of its row, so nothing can run under it.
+  //   · A transcript: her words on the paper with no box, her face and name once over each turn; yours in
+  //     an ink bubble with no face. Suggestions are tiles; a follow-up is a row ending in an ink →.
+  //   · The screen she is told rides over the composer, the thing it goes with; the composer is one tray.
+  //   · Talk to a person opens at the foot of the talk, where the eye already is.
+  // On the band the paper and the ink trade places, so its teal is the other theme's.
+  const noraTint = bsWsAccent(t);
+  const deskTeal = t.isLight ? '#34d6c5' : '#0a7a72';
+  const deskMuted = bsTHexA(t.PAPER, 0.64);
+  const screenName = !screenOff && (_bsNoraOpen.label || _bsNoraOpen.page);
+  const thread = supportBusy && supportLive ? [...supportMsgs, { who: 'Nora', t: supportLive, time: 'now', me: false, bot: true, live: true }] : supportMsgs;
+  const face = (size) => <img src={BS_NORA_AVATAR} alt="" aria-hidden style={{ flex: 'none', display: 'block', width: size, height: size, borderRadius: '50%', objectFit: 'cover', objectPosition: '50% 32%' }} />;
+  const host = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body;
   return createPortal(
     <div data-nora-sheet style={{ position: 'absolute', inset: 0, zIndex: 240 }}>
-      <div onClick={onClose} aria-hidden style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.42)' }} />
-      <div role="dialog" aria-label="Nora" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '86%', background: t.PAPER, borderRadius: '18px 18px 0 0', borderTop: `1px solid ${hair}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div aria-hidden style={{ width: 36, height: 4, borderRadius: 2, background: hair, margin: '8px auto 0', flex: 'none' }} />
-        <button type="button" onClick={onClose} aria-label={tr('cycle:close', { defaultValue: 'Close' })} style={{ position: 'absolute', top: 8, right: 10, zIndex: 1, width: 34, height: 34, borderRadius: 999, border: 0, background: 'transparent', color: muted, fontSize: 20, lineHeight: 1, cursor: 'pointer' }}>×</button>
+      <style>{'@keyframes bsNoraDot { 0%, 60%, 100% { transform: translateY(0); opacity: .4 } 30% { transform: translateY(-3px); opacity: 1 } } @keyframes bsNoraCaret { 50% { opacity: 0 } } @media (prefers-reduced-motion: reduce) { .bs-nora-anim { animation: none !important; } }'}</style>
+      <div onClick={onClose} aria-hidden style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.46)' }} />
+      <div role="dialog" aria-label="Nora" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '88%', background: t.PAPER, borderRadius: '22px 22px 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 -18px 48px rgba(0,0,0,0.3)' }}>
+        {/* Her desk. */}
+        <div data-nora-desk style={{ flex: 'none', background: t.INK, color: t.PAPER, padding: `8px ${t.padX}px 16px` }}>
+          <div aria-hidden style={{ width: 36, height: 4, borderRadius: 2, background: bsTHexA(t.PAPER, 0.26), margin: '0 auto 10px' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Her portrait and name open her profile: a button of its own, so Talk and × are never inside it. */}
+            <button type="button" onClick={() => setShowNora(true)} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 13, padding: 0, border: 0, background: 'transparent', color: 'inherit', textAlign: 'left', cursor: 'pointer' }}>
+              <span style={{ position: 'relative', flex: 'none', width: 48, height: 48, borderRadius: '50%', boxShadow: `0 0 0 2px ${t.INK}, 0 0 0 3.5px ${deskTeal}` }}>
+                {face(48)}
+                <span aria-hidden style={{ position: 'absolute', right: -2, bottom: -2, width: 13, height: 13, borderRadius: '50%', background: deskTeal, border: `2.5px solid ${t.INK}`, boxSizing: 'border-box' }} />
+              </span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, lineHeight: 1, letterSpacing: '-0.01em' }}>Nora</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: deskMuted, whiteSpace: 'nowrap' }}>
+                  {tr('feed:support.concierge', { defaultValue: 'Concierge' })}
+                  <span aria-hidden>·</span>
+                  <span style={{ color: deskTeal }}>24/7</span>
+                </span>
+              </span>
+            </button>
+            {supportMsgs.length > 1 && (
+              <button type="button" onClick={clearThread} style={{ flex: 'none', minHeight: 40, padding: '0 8px', border: 0, background: 'transparent', color: deskMuted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('feed:support.thread.clearShort', { defaultValue: 'Clear' })}</button>
+            )}
+            <button type="button" onClick={onClose} aria-label={tr('cycle:close', { defaultValue: 'Close' })} style={{ flex: 'none', width: 40, height: 40, borderRadius: '50%', border: 0, background: bsTHexA(t.PAPER, 0.12), color: t.PAPER, fontSize: 20, lineHeight: 1, cursor: 'pointer', display: 'grid', placeItems: 'center' }}>×</button>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            {/* Talk to Nora: starts inside this tap (the mic and her player unlock only for
+                work a tap starts), then her face takes the sheet. */}
+            <button type="button" data-nora-talk-button onClick={() => talk.start()} style={{ flex: 1, minWidth: 0, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: '0 12px', border: 0, borderRadius: 12, background: t.PAPER, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
+              <span aria-hidden style={{ display: 'inline-flex', alignItems: 'center', gap: 2, height: 14 }}>
+                {[0.45, 0.85, 0.6, 1, 0.5].map((h, n) => <span key={n} style={{ width: 2.5, height: Math.round(14 * h), borderRadius: 2, background: noraTint }} />)}
+              </span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('feed:support.talk', { defaultValue: 'Talk to Nora' })}</span>
+            </button>
+            {/* "Talk to a person" (the Ask Nora plan, step 5): the second key, an outline, never the first. */}
+            {personOk && (
+              <button type="button" data-nora-person aria-expanded={!!personForm} disabled={!!(personForm && personForm.busy)} onClick={() => (personForm ? setPersonForm(null) : openPersonForm())} style={{ flex: 1, minWidth: 0, minHeight: 44, padding: '0 12px', border: `1px solid ${bsTHexA(t.PAPER, personForm ? 0.7 : 0.3)}`, borderRadius: 12, background: personForm ? bsTHexA(t.PAPER, 0.12) : 'transparent', color: t.PAPER, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('feed:support.person.button', { defaultValue: 'Talk to a person' })}</button>
+            )}
+          </div>
+        </div>
+
         <div ref={scrollRef} className="bs-hide-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-
-              <div style={{ padding: `14px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column' }}>
-                {/* Concierge masthead — the section-head language the other tabs carry */}
-                {/* role="button" (not <button>) — the Voice-chat chip is a real
-                    <button> nested inside this tappable head, and button-in-button
-                    is invalid HTML. */}
-                {/* The row stops short of the sheet's × (34px, 10px in from the edge), which sat over Talk to
-                    Nora (owner, 2026-10-24: "the x is overlapping nora box"): measured off the page's gutter,
-                    so every density keeps it clear. */}
-                <div role="button" tabIndex={0} onClick={() => setShowNora(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowNora(true); } }} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', boxSizing: 'border-box', background: 'transparent', border: 0, padding: `0 ${Math.max(0, 48 - t.padX)}px 0 0`, textAlign: 'left', cursor: 'pointer' }}>
-                  {/* Text-only head — Nora's portrait rides her message bubbles below
-                      (each reply should feel like HER), so the masthead carrying it
-                      too read as a double avatar. */}
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: noraTint, fontWeight: 800 }}>
-                      {tr('feed:support.concierge', { defaultValue: 'Concierge' })}
-                      <span aria-hidden style={{ color: muted }}>·</span>
-                      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: noraTint }} />24/7
-                    </div>
-                    <div style={{ marginTop: 4, fontFamily: bsWsHead(t), fontSize: 34, fontWeight: 500, lineHeight: 1, color: t.INK }}>Nora<span style={{ color: noraTint }}>.</span></div>
+          <div style={{ padding: `22px ${t.padX}px 20px`, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {thread.map((m, i) => {
+              // Yours: an ink bubble on the right, no face (it is you).
+              if (m.me) {
+                return <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '84%', boxSizing: 'border-box', padding: '10px 15px', borderRadius: 20, background: t.INK, color: t.PAPER, fontFamily: t.BODY, fontSize: 15, lineHeight: 1.45, letterSpacing: '-0.005em', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.t}</div>;
+              }
+              // Hers, or a person's at Shape: a face and a name over the words, which sit on the paper.
+              const who = m.team ? tr('feed:support.person.teamLabel', { defaultValue: 'Shape team · a person' }) : m.who;
+              const head = m.team
+                ? <span aria-hidden style={{ flex: 'none', width: 24, height: 24, borderRadius: '50%', background: t.INK, color: t.PAPER, display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 700 }}>S</span>
+                : face(24);
+              const nameStyle = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: m.team ? t.INK : noraTint };
+              return (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+                  {m.bot
+                    ? <button type="button" onClick={() => setShowNora(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 28, marginBottom: 6, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>{head}<span style={nameStyle}>{who}</span></button>
+                    : <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 28, marginBottom: 6 }}>{head}<span style={nameStyle}>{who}</span></div>}
+                  <div style={{ maxWidth: '100%', fontFamily: t.BODY, fontSize: 15.5, lineHeight: 1.55, letterSpacing: '-0.005em', color: t.INK, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                    {m.t}
+                    {m.live && <span aria-hidden className="bs-nora-anim" style={{ display: 'inline-block', width: 2, height: '1.05em', marginLeft: 2, verticalAlign: '-0.17em', background: noraTint, animation: 'bsNoraCaret 1s steps(1) infinite' }} />}
                   </div>
-                  {/* Talk to Nora: starts inside this tap (the mic and her player unlock only for
-                      work a tap starts), then her face takes the sheet. */}
-                  <button
-                    type="button"
-                    data-nora-talk-button
-                    onClick={(e) => { e.stopPropagation(); talk.start(); }}
-                    style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '0 12px 0 5px', borderRadius: 0, border: 0, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                  >
-                    <img src={BS_NORA_AVATAR} alt="" aria-hidden style={{ width: 30, height: 30, borderRadius: 0, objectFit: 'cover', objectPosition: '50% 32%' }} />
-                    {tr('feed:support.talk', { defaultValue: 'Talk to Nora' })}
-                  </button>
-                </div>
-                <div aria-hidden style={{ height: 3, marginTop: 12, marginBottom: 16, background: t.INK }} />
-                {((!screenOff && (_bsNoraOpen.label || _bsNoraOpen.page)) || supportMsgs.length > 1 || personOk) && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, margin: '-6px 0 14px' }}>
-                  {!screenOff && (_bsNoraOpen.label || _bsNoraOpen.page) && (
-                    <div data-nora-screen style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 6, padding: '3px 4px 3px 9px', borderRadius: 0, border: `1px solid ${hair}`, color: muted, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', maxWidth: '100%' }}>
-                      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: noraTint, flex: 'none' }} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{_bsNoraOpen.label || _bsNoraOpen.page}{bsNoraProblem() ? ` · ${tr('feed:support.withError', { defaultValue: 'with the error' })}` : ''}</span>
-                      <button type="button" onClick={() => setScreenOff(true)} aria-label={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} title={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: 12, lineHeight: 1, padding: '0 4px' }}>×</button>
-                    </div>
-                  )}
-                  {supportMsgs.length > 1 && (
-                    <button type="button" onClick={clearThread} style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 0', whiteSpace: 'nowrap' }}>{tr('feed:support.thread.clearShort', { defaultValue: 'Clear' })}</button>
-                  )}
-                  {personOk && !personForm && (
-                    <button type="button" data-nora-person onClick={openPersonForm} style={{ marginLeft: supportMsgs.length > 1 ? 0 : 'auto', minHeight: 36, border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 0', whiteSpace: 'nowrap' }}><span style={{ borderBottom: `1px solid ${noraTint}`, paddingBottom: 2 }}>{tr('feed:support.person.button', { defaultValue: 'Talk to a person' })}</span> <span aria-hidden style={{ color: noraTint }}>→</span></button>
-                  )}
-                </div>
-                )}
-                {/* Talk to a person, in the Wall's look (owner, 2026-10-24: "update look of this box"): no tinted
-                    card, a 2px ink rule over it and a hairline under, a square field, square actions (ink for
-                    Send). Its kicker is the button it replaces while it is open. */}
-                {personForm && (
-                  <div data-nora-person-form style={{ margin: '-4px 0 16px', padding: '10px 0 14px', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${hair}`, display: 'grid', gap: 10 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>{tr('feed:support.person.button', { defaultValue: 'Talk to a person' })}</div>
-                    <div style={{ fontFamily: t.BODY, fontSize: 13, lineHeight: 1.45, color: t.INK70 }}>{tr('feed:support.person.intro', { defaultValue: 'Your question goes to the Shape team with this conversation. A person replies here and by email.' })}</div>
-                    <textarea value={personForm.text} onChange={(e) => setPersonForm({ ...personForm, text: e.target.value, err: '' })} rows={3} maxLength={2000} aria-label={tr('feed:support.person.label', { defaultValue: 'Your question for the Shape team' })}
-                      style={{ resize: 'vertical', minHeight: 88, boxSizing: 'border-box', width: '100%', background: 'transparent', color: t.INK, border: `1px solid ${t.INK30}`, borderRadius: 0, padding: '10px 12px', fontFamily: t.BODY, fontSize: 15, lineHeight: 1.4, outline: 'none' }} />
-                    {personForm.err && <div role="alert" style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.RUST || muted }}>{personForm.err}</div>}
-                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                      <button type="button" onClick={() => setPersonForm(null)} disabled={personForm.busy} style={{ minHeight: 44, padding: '0 16px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, borderRadius: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:support.person.cancel', { defaultValue: 'Cancel' })}</button>
-                      <button type="button" data-nora-person-send onClick={sendPerson} disabled={personForm.busy} style={{ minHeight: 44, padding: '0 16px', border: 0, background: t.INK, color: t.PAPER, borderRadius: 0, opacity: personForm.busy ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: personForm.busy ? 'progress' : 'pointer' }}>{personForm.busy ? tr('feed:support.person.sending', { defaultValue: 'Sending…' }) : tr('feed:support.person.send', { defaultValue: 'Send to the team' })} <span aria-hidden>→</span></button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Messages — tucked-corner tinted bubbles, matching BSChatThread */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 96 }}>
-                  {(supportBusy && supportLive ? [...supportMsgs, { who: 'Nora', t: supportLive, time: 'now', me: false, bot: true, live: true }] : supportMsgs).map((m, i) => {
-                    const me = m.me;
-                    // A square note as on the chat page: yours on a faint ink, hers with the teal edge.
-                    const bubbleBg = me ? bsTHexA(t.INK, 0.05) : 'transparent';
+                  {m.bot && !m.live && (() => {
+                    const mine = listening && listening.i === i;
                     return (
-                      <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
-                        <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
-                          {me
-                            ? <BSFacetAvatar flat size={32} c={t.INK} dotC={noraTint} BG={t.PAPER} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} showRank={false} />
-                            : <BSFacetAvatar flat size={32} c={t.INK} dotC={noraTint} initial={m.team ? 'S' : 'N'} name={m.who} photo={m.bot ? BS_NORA_AVATAR : undefined} showRank={false} BG={t.PAPER} onClick={m.bot ? () => setShowNora(true) : undefined} />}
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
-                            {!me && (
-                              <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint, fontWeight: 800, marginBottom: 5, cursor: m.bot ? 'pointer' : 'default' }}>{m.team ? tr('feed:support.person.teamLabel', { defaultValue: 'Shape team · a person' }) : m.who}{m.bot ? ` · ${tr('feed:support.concierge', { defaultValue: 'Concierge' })}` : ''}</div>
-                            )}
-                            <div style={{ borderRadius: 0, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.45, letterSpacing: '-0.005em', color: t.INK, background: bubbleBg, border: `1px solid ${bsTHexA(t.INK, 0.18)}`, borderLeft: me ? `1px solid ${bsTHexA(t.INK, 0.18)}` : `3px solid ${noraTint}`, padding: '11px 14px', whiteSpace: 'pre-wrap' }}>{m.t}</div>
-                            {m.bot && !m.live && (() => {
-                              const mine = listening && listening.i === i;
-                              return (
-                                <button onClick={() => listenTo(i, m.t)} aria-pressed={!!mine} title={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} aria-label={mine ? tr('feed:support.stop', { defaultValue: 'Stop' }) : tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 28, padding: '0 9px', borderRadius: 0, border: `1px solid ${mine ? noraTint : hair}`, background: mine ? `${noraTint}1f` : 'transparent', color: mine ? noraTint : muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}><span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>{mine && listening.playing ? '■' : '♪'}</span> {mine ? (listening.playing ? tr('feed:support.stop', { defaultValue: 'Stop' }) : tr('feed:support.loading', { defaultValue: 'Loading…' })) : tr('feed:support.listen', { defaultValue: 'Listen' })}</button>
-                              );
-                            })()}
-                            {m.greet && supportMsgs.length === 1 && Array.isArray(m.quick) && m.quick.length > 0 && (
-                              <div data-nora-quick style={{ display: 'flex', flexDirection: 'column', alignSelf: 'stretch', marginTop: 12, borderTop: `1px solid ${hair}` }}>
-                                {m.quick.map((q) => (
-                                  <button key={q} onClick={() => sendSupportText(q)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%', minHeight: 46, padding: '10px 2px', border: 0, borderBottom: `1px solid ${hair}`, borderRadius: 0, background: 'transparent', color: cardInk, fontFamily: t.BODY, fontSize: 14.5, fontWeight: 500, textAlign: 'left', cursor: 'pointer' }}>{q}<span aria-hidden style={{ color: noraTint, fontSize: 15 }}>→</span></button>
-                                ))}
-                              </div>
-                            )}
-                            {Array.isArray(m.actions) && m.actions.length > 0 && (
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
-                                {m.actions.map((a, ai) => (
-                                  a.type === 'proposal'
-                                    ? <BSNoraProposal key={ai} a={a} t={t} />
-                                    : a.type === 'fill'
-                                    ? <BSNoraFill key={ai} a={a} t={t} />
-                                    : <button key={ai} onClick={() => runSupportAction(a)} style={{ border: `1px solid ${bsTHexA(t.INK, 0.22)}`, borderLeft: `3px solid ${noraTint}`, background: 'transparent', color: cardInk, borderRadius: 0, minHeight: 40, padding: '8px 12px', fontFamily: t.BODY, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', lineHeight: 1.3, display: 'inline-flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                        <span>{a.label}</span>
-                                        {a.meta && <span style={{ fontSize: 9.5, opacity: 0.7, fontFamily: t.MONO }}>{a.meta}</span>}
-                                      </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                      <button type="button" onClick={() => listenTo(i, m.t)} aria-pressed={!!mine} title={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} aria-label={mine ? tr('feed:support.stop', { defaultValue: 'Stop' }) : tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} style={{ marginTop: 6, marginLeft: -8, display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 34, padding: '0 10px 0 8px', borderRadius: 10, border: 0, background: mine ? bsTHexA(noraTint, 0.12) : 'transparent', color: mine ? noraTint : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                        {mine && listening.playing
+                          ? <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" /></svg>
+                          : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5z" /><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M18.5 5.5a9 9 0 0 1 0 13" /></svg>}
+                        {mine ? (listening.playing ? tr('feed:support.stop', { defaultValue: 'Stop' }) : tr('feed:support.loading', { defaultValue: 'Loading…' })) : tr('feed:support.listen', { defaultValue: 'Listen' })}
+                      </button>
                     );
-                  })}
-                  {supportBusy && !supportLive && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, paddingLeft: 43 }}>{tr('feed:support.typing', { defaultValue: 'Nora is typing…' })}</div>}
+                  })()}
+                  {m.greet && supportMsgs.length === 1 && Array.isArray(m.quick) && m.quick.length > 0 && (
+                    <div data-nora-quick style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, alignSelf: 'stretch', marginTop: 14 }}>
+                      {m.quick.map((q, qi) => (
+                        <button key={q} type="button" onClick={() => sendSupportText(q)} style={{ gridColumn: m.quick.length % 2 && qi === m.quick.length - 1 ? '1 / -1' : 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'stretch', gap: 12, minHeight: 82, boxSizing: 'border-box', padding: '12px 12px 11px 13px', border: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderRadius: 14, background: bsTHexA(t.INK, 0.035), color: t.INK, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 500, lineHeight: 1.32, textAlign: 'left', cursor: 'pointer' }}>
+                          <span>{q}</span>
+                          <span aria-hidden style={{ alignSelf: 'flex-end', color: noraTint, fontSize: 15, lineHeight: 1 }}>→</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {Array.isArray(m.actions) && m.actions.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignSelf: 'stretch', marginTop: 12 }}>
+                      {m.actions.map((a, ai) => (
+                        a.type === 'proposal'
+                          ? <BSNoraProposal key={ai} a={a} t={t} />
+                          : a.type === 'fill'
+                          ? <BSNoraFill key={ai} a={a} t={t} />
+                          : <button key={ai} type="button" onClick={() => runSupportAction(a)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', minHeight: 52, boxSizing: 'border-box', padding: '9px 10px 9px 14px', border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderRadius: 14, background: t.PAPER, color: cardInk, textAlign: 'left', cursor: 'pointer' }}>
+                              <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <span style={{ fontFamily: t.BODY, fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>{a.label}</span>
+                                {a.meta && <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: muted }}>{a.meta}</span>}
+                              </span>
+                              <span aria-hidden style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', background: t.INK, color: t.PAPER, display: 'grid', placeItems: 'center', fontSize: 14, lineHeight: 1 }}>→</span>
+                            </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {supportBusy && !supportLive && (
+              <div role="status" style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                {face(24)}
+                <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{tr('feed:support.typing', { defaultValue: 'Nora is typing…' })}</span>
+                <span aria-hidden style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '10px 13px', borderRadius: 999, background: bsTHexA(t.INK, 0.06) }}>
+                  {[0, 1, 2].map((n) => <span key={n} className="bs-nora-anim" style={{ width: 6, height: 6, borderRadius: '50%', background: noraTint, animation: `bsNoraDot 1.1s ${n * 0.16}s ease-in-out infinite` }} />)}
+                </span>
+              </div>
+            )}
+            {/* Talk to a person, at the foot of the talk: a quiet card, the question already in it. */}
+            {personForm && (
+              <div data-nora-person-form style={{ display: 'grid', gap: 10, padding: 16, borderRadius: 16, border: `1px solid ${bsTHexA(t.INK, 0.12)}`, background: bsTHexA(t.INK, 0.035) }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, lineHeight: 1.1, color: t.INK }}>{tr('feed:support.person.button', { defaultValue: 'Talk to a person' })}</div>
+                <div style={{ fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>{tr('feed:support.person.intro', { defaultValue: 'Your question goes to the Shape team with this conversation. A person replies here and by email.' })}</div>
+                <textarea value={personForm.text} onChange={(e) => setPersonForm({ ...personForm, text: e.target.value, err: '' })} rows={3} maxLength={2000} aria-label={tr('feed:support.person.label', { defaultValue: 'Your question for the Shape team' })}
+                  style={{ resize: 'vertical', minHeight: 92, boxSizing: 'border-box', width: '100%', background: t.PAPER, color: t.INK, border: `1px solid ${bsTHexA(t.INK, 0.2)}`, borderRadius: 12, padding: '11px 13px', fontFamily: t.BODY, fontSize: 15, lineHeight: 1.4, outline: 'none' }} />
+                {personForm.err && <div role="alert" style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.RUST || muted }}>{personForm.err}</div>}
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => setPersonForm(null)} disabled={personForm.busy} style={{ minHeight: 44, padding: '0 16px', border: 0, background: 'transparent', color: t.INK70, borderRadius: 12, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:support.person.cancel', { defaultValue: 'Cancel' })}</button>
+                  <button type="button" data-nora-person-send onClick={sendPerson} disabled={personForm.busy} style={{ minHeight: 44, padding: '0 18px', border: 0, background: t.INK, color: t.PAPER, borderRadius: 12, opacity: personForm.busy ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: personForm.busy ? 'progress' : 'pointer' }}>{personForm.busy ? tr('feed:support.person.sending', { defaultValue: 'Sending…' }) : tr('feed:support.person.send', { defaultValue: 'Send to the team' })} <span aria-hidden>→</span></button>
                 </div>
               </div>
-                    </div>
-        <BSMessageComposer mag value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} unlocked voice placeholder={tr('feed:support.composerPlaceholder', { defaultValue: 'Ask Nora…' })} />
+            )}
+          </div>
+        </div>
+
+        {/* The dock: the screen she is told, over the tray it goes with. */}
+        <div style={{ flex: 'none', borderTop: `1px solid ${bsTHexA(t.INK, 0.09)}`, background: t.PAPER }}>
+          {screenName && (
+            <div style={{ padding: `10px ${t.padX}px 0`, display: 'flex' }}>
+              <div data-nora-screen style={{ display: 'inline-flex', alignItems: 'center', gap: 7, maxWidth: '100%', minHeight: 30, boxSizing: 'border-box', padding: '0 2px 0 10px', borderRadius: 9, background: bsTHexA(noraTint, 0.1), color: t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={noraTint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{_bsNoraOpen.label || _bsNoraOpen.page}{bsNoraProblem() ? ` · ${tr('feed:support.withError', { defaultValue: 'with the error' })}` : ''}</span>
+                <button type="button" onClick={() => setScreenOff(true)} aria-label={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} title={tr('feed:support.screenOff', { defaultValue: "Don't tell Nora which screen you're on" })} style={{ flex: 'none', width: 28, height: 28, border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: 13, lineHeight: 1 }}>×</button>
+              </div>
+            </div>
+          )}
+          <BSMessageComposer tray value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} unlocked voice placeholder={tr('feed:support.composerPlaceholder', { defaultValue: 'Ask Nora…' })} />
+        </div>
         <BSNoraTalk talk={talk} t={t} tint={noraTint} avatar={BS_NORA_AVATAR} />
       </div>
       {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
@@ -26279,9 +26309,11 @@ function useBSCanChat() {
   return v;
 }
 
-function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false, holdToTalk = false, onVoiceComplete, mag = false }) {
+function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false, holdToTalk = false, onVoiceComplete, mag = false, tray = false }) {
   // `mag`: the chat page's composer in the Wall's magazine look (owner, 2026-10-24): square, an ink send
-  // button, the magazine's teal, no lock emoji and no floating shadow. Nora's sheet takes it too (2026-10-31).
+  // button, the magazine's teal, no lock emoji and no floating shadow.
+  // `tray`: Nora's sheet (the concierge desk, 2026-10-31): one rounded tray holds the mic, the field and a
+  // round ink send; the sheet docks it under the screen she is told.
   const t = useBS();
   const canSend = value.trim().length > 0 || (tags && tags.length > 0);
   const canChat = useBSCanChat();
@@ -26557,6 +26589,49 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
       {voiceState === 'listening' ? (holdToTalk ? '● Listening… release to send' : '● Listening… tap the mic to stop') : voiceState === 'transcribing' ? 'Transcribing…' : (voiceErr || '')}
     </div>
   ) : null;
+  if (tray) {
+    const listeningNow = voiceState === 'listening';
+    const trayField = (
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, padding: 4, borderRadius: 24, background: bsTHexA(t.INK, 0.05), border: `1px solid ${bsTHexA(t.INK, 0.13)}` }}>
+        {voiceOk && (
+          <button type="button" {...micHandlers} aria-label={holdToTalk ? 'Hold to talk' : (listeningNow ? 'Stop listening' : 'Speak to Nora')} title={holdToTalk ? 'Hold to talk' : (listeningNow ? 'Stop' : 'Speak to Nora')} style={{
+            flex: 'none', width: 40, height: 40, borderRadius: '50%', border: 0,
+            background: listeningNow ? `${t.RUST}1f` : 'transparent',
+            color: listeningNow ? t.RUST : (voiceState === 'transcribing' ? t.INK50 : t.INK70),
+            cursor: voiceState === 'transcribing' ? 'default' : 'pointer', display: 'grid', placeItems: 'center',
+          }}>
+            {voiceState === 'transcribing'
+              ? <span style={{ width: 14, height: 14, border: `2px solid ${t.INK50}`, borderTopColor: 'transparent', borderRadius: 999, display: 'inline-block', animation: 'bsspin 0.7s linear infinite' }} />
+              : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0" /><line x1="12" y1="18" x2="12" y2="22" /></svg>}
+          </button>
+        )}
+        <textarea
+          ref={taRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) { e.preventDefault(); onSend(); }
+          }}
+          placeholder={placeholder}
+          rows={1}
+          style={{ flex: 1, minWidth: 0, minHeight: 40, maxHeight: COMPOSER_MAX_H, boxSizing: 'border-box', resize: 'none', display: 'block', background: 'transparent', border: 0, padding: voiceOk ? '10px 4px' : '10px 4px 10px 12px', fontFamily: t.BODY, fontSize: 15, lineHeight: 1.35, color: t.INK, outline: 'none', letterSpacing: '-0.005em', overflowY: 'hidden' }}
+        />
+        <button type="button" onClick={onSend} disabled={!canSend} aria-label="Send" style={{
+          flex: 'none', width: 40, height: 40, borderRadius: '50%', border: 0,
+          background: canSend ? t.INK : bsTHexA(t.INK, 0.1), color: canSend ? t.PAPER : t.INK50,
+          display: 'grid', placeItems: 'center', cursor: canSend ? 'pointer' : 'default', transition: 'background .15s ease',
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+        </button>
+      </div>
+    );
+    return (
+      <div style={{ padding: `10px ${t.padX}px calc(12px + env(safe-area-inset-bottom, 0px))` }}>
+        {voiceStatus}
+        {(canChat || unlocked) ? trayField : lockedField}
+      </div>
+    );
+  }
   const tagChips = (onTag && tags && tags.length) ? (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
       {tags.map((x) => <button key={x.id || x.name} onClick={() => onRemoveTag && onRemoveTag(x.id || x.name)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, borderRadius: 999, border: `1px solid ${TEALB}`, background: `${TEALB}1f`, color: t.INK, padding: '4px 9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, cursor: 'pointer' }}>@{x.name} ✕</button>)}
