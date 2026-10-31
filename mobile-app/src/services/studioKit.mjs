@@ -97,7 +97,9 @@ function lineDrawings(S, F) {
     armchair: (W, H) => R(1, 1, W - 2, H - 2, 'rx="7" ' + fl) + L(7, 5, 7, H - 5) + L(7, 6, W - 3, 6, fa) + L(7, H - 6, W - 3, H - 6, fa),
     screen: (W, H) => R(1, 1, W * 0.62, H - 2, fl) + L(W - 3, 7, W - 3, H - 7, 'stroke-width="3" stroke-linecap="round"') + C(W * 0.3, H * 0.5, 4.5, 'stroke-dasharray="2 2"'),
     shelf: (W, H) => R(0.5, 0.5, W - 1, H - 1, fl) + rep((H - 4) / 5, (i) => L(2, 3 + i * 5, W - 2 - (i % 3) * 2, 3 + i * 5, fa)),
-    zone: (W, H) => R(0.6, 0.6, W - 1.2, H - 1.2, 'stroke-dasharray="4 3" stroke-opacity="0.7"')
+    zone: (W, H) => R(0.6, 0.6, W - 1.2, H - 1.2, 'stroke-dasharray="4 3" stroke-opacity="0.7"'),
+    // A piece of the coach's own: a dashed outline and a plus.
+    custom: (W, H) => R(0.6, 0.6, W - 1.2, H - 1.2, 'rx="4" stroke-dasharray="3 3"') + L(W / 2, H / 2 - Math.min(7, H / 3), W / 2, H / 2 + Math.min(7, H / 3), th) + L(W / 2 - Math.min(7, W / 3), H / 2, W / 2 + Math.min(7, W / 3), H / 2, th)
   };
   return D;
 }
@@ -166,7 +168,9 @@ const SOFT = {
     armchair: (W, H, b, d) => Rf(0, 0, W, H, 9, b) + Rf(0, 0, 9, H, 6, d),
     screen: (W, H, b, d) => Rf(0, 0, W * 0.64, H, 5, b) + Lf(W - 4, 6, W - 4, H - 6, d, 4) + Cf(W * 0.3, H / 2, 5, d),
     shelf: (W, H, b, d) => Rf(0, 0, W, H, 3, b) + Array.from({ length: Math.floor((H - 4) / 6) }, (_, i) => Lf(3, 4 + i * 6, W - 3 - (i % 3) * 2, 4 + i * 6, d, 2.5)).join(''),
-    zone: () => ''
+    zone: () => '',
+    // A piece of the coach's own: a plain block with a mark, its name drawn under it from its label.
+    custom: (W, H, b, d) => Rf(0, 0, W, H, 6, b) + Cf(W / 2, H / 2, Math.max(2, Math.min(W, H) * 0.14), d)
   };
 
 // [English name, group, default width, default height]. The name and group are the
@@ -189,8 +193,12 @@ export const STUDIO_KIT = Object.freeze({
     sink: ['Sink', 'Kitchen', 52, 30], pantry: ['Pantry shelves', 'Kitchen', 96, 18], table: ['Table', 'Kitchen', 100, 64], scale: ['Food scale', 'Kitchen', 18, 18],
     blender: ['Blender', 'Kitchen', 16, 16], herbs: ['Herb shelf', 'Kitchen', 70, 12], board: ['Prep board', 'Kitchen', 44, 30],
     sofa: ['Sofa', 'Office', 84, 32], armchair: ['Armchair', 'Office', 32, 32], screen: ['Video desk', 'Office', 60, 24], shelf: ['Bookshelf', 'Office', 80, 14],
-    speaker: ['Speaker', 'Studio', 22, 22], desk: ['Desk', 'Studio', 72, 36], frames: ['Client wall', 'Studio', 8, 78], tree: ['Tree', 'Studio', 44, 44], zone: ['Zone', 'Studio', 120, 80]
+    speaker: ['Speaker', 'Studio', 22, 22], desk: ['Desk', 'Studio', 72, 36], frames: ['Client wall', 'Studio', 8, 78], tree: ['Tree', 'Studio', 44, 44], zone: ['Zone', 'Studio', 120, 80],
+    // The editor offers it at the end of every group, with the size the coach picks (BS_STUDIO_OWN_SIZES).
+    custom: ['Your own piece', 'Studio', 64, 40]
 });
+// The sizes a piece of the coach's own comes in: [key, English name, w, h].
+export const BS_STUDIO_OWN_SIZES = Object.freeze([['s', 'Small', 36, 36], ['m', 'Medium', 64, 40], ['l', 'Large', 110, 64]]);
 
 // The groups the editor's "Add what you have" list shows, in order: [slug, English name].
 export const STUDIO_GROUPS = Object.freeze([['free', 'Free weights'], ['machines', 'Machines'], ['cardio', 'Cardio'], ['functional', 'Functional'], ['studio', 'Studio']]);

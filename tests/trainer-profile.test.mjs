@@ -262,6 +262,33 @@ test('Make it yours saves look, cover and studio onto the doc as it is at save t
   await m.unmount();
 });
 
+// Owner, 2026-10-31: "coaches should be able to add custom additional eqipment or kitchen stations".
+test('Make it yours: a coach adds a piece of their own, named and sized, and it is saved with its name', async () => {
+  reset({ me: 'u-maya', custom: null, stored: { look: { paper: 'dark', accent: 'teal' } } });
+  const m = await mount(page({ isSelf: true }));
+  await click(button(/^Make it yours$/));
+  await click(button(/^Your space$/));
+  await click(document.querySelector('[data-kind="gym"]'));
+  const before = document.querySelectorAll('[data-studio-plan] [data-piece]').length;
+  await click(document.querySelector('[data-kit="custom"]'));
+  assert.ok(document.querySelector('[data-own-piece]'), 'the tile opens its form');
+  await click(document.querySelector('[data-own-add]'));
+  assert.match(document.querySelector('[data-own-piece]').textContent, /Give it a name first\./, 'a nameless piece is asked for its name, in the form');
+  await type(document.querySelector('[data-own-piece] input'), 'Sandbag wall');
+  await click(document.querySelector('[data-own-size="l"]'));
+  await click(document.querySelector('[data-own-add]'));
+  assert.ok(!document.querySelector('[data-own-piece]'), 'the form closes');
+  assert.equal(document.querySelectorAll('[data-studio-plan] [data-piece]').length, before + 1, 'it drops onto the plan');
+  assert.match(document.querySelector('[data-piece-panel]').textContent, /Sandbag wall/, 'selected, under its own name');
+  await click(button(/^Done$/));
+  await click(document.querySelector('[data-save-mine]'));
+  const mine = world.saved.d.studio.items.filter((p) => p.t === 'custom');
+  assert.equal(mine.length, 1);
+  assert.equal(mine[0].label, 'Sandbag wall');
+  assert.deepEqual([mine[0].w, mine[0].h], [110, 64], 'the size it was given');
+  await m.unmount();
+});
+
 test('Make it yours saves only for the account that opened it, and only onto a doc it could read (Codex P1 ×2 on #2484)', async () => {
   for (const [name, arm, says] of [
     ['a failed read', () => { world.readFails = true; }, /Couldn't save\. Nothing changed; try again\./],

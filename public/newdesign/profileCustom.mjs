@@ -212,6 +212,9 @@ export const BS_STUDIO_TYPES = [
   'mats', 'reformer', 'barre', 'mirror', 'speaker', 'desk', 'frames', 'tree', 'zone',
   'counter', 'island', 'range', 'oven', 'fridge', 'sink', 'pantry', 'table', 'scale', 'blender', 'herbs', 'board',
   'sofa', 'armchair', 'screen', 'shelf',
+  // A piece of the coach's own, named by its label (owner, 2026-10-31: "coaches should be able to add
+  // custom additional eqipment or kitchen stations").
+  'custom',
 ];
 // The kinds of space (each draws its own room outline and doors).
 export const BS_STUDIO_KINDS = ['private', 'garage', 'gym', 'pilates', 'boxing', 'outdoor', 'kitchen', 'home', 'clinic', 'online', 'blank'];

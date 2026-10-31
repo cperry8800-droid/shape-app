@@ -10,7 +10,7 @@ import { bsSplitPaste, bsSplitLongStep } from '../services/clientRecipes.mjs';
 import { bsCoachFirstName } from '../services/coachPronoun.mjs';
 import {
   STUDIO_KIT, STUDIO_GROUPS, STUDIO_COACH_KINDS, KITCHEN_GROUPS, KITCHEN_COACH_KINDS, STUDIO_WORDS, BS_STUDIO_W, BS_STUDIO_H,
-  bsStudioTypesIn, bsStudioRoom, bsStudioSvg, bsStudioSpot, bsStudioDrawOrder, bsStudioFromTemplate,
+  bsStudioTypesIn, bsStudioRoom, bsStudioSvg, bsStudioSpot, bsStudioDrawOrder, bsStudioFromTemplate, BS_STUDIO_OWN_SIZES,
 } from '../services/studioKit.mjs';
 
 // ─── MAKE IT YOURS: the coach's profile editor ────────────────────────────────────────────────
@@ -310,6 +310,10 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
   const [ask, setAsk] = React.useState(null); // a kind waiting on "replace your pieces?"
   const [group, setGroup] = React.useState(GROUPS[0][0]);
   const [msg, setMsg] = React.useState(null);
+  // A piece of the coach's own being named: { name, size } (owner, 2026-10-31: "coaches should be able
+  // to add custom additional eqipment or kitchen stations"). It drops in like any piece, named by its
+  // label, which the page draws under it and its station sheet takes.
+  const [own, setOwn] = React.useState(null);
   const svgRef = React.useRef(null);
   const drag = React.useRef(null);
 
@@ -331,6 +335,19 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
     const p = fit({ t: type, x: rx + rw / 2 - w / 2 + n * 6, y: ry + rh / 2 - h / 2 + n * 6, w, h });
     setStudio({ ...studio, items: [...items, p] });
     setSel(items.length);
+  };
+  const addOwn = () => {
+    setMsg(null);
+    const name = String((own && own.name) || '').trim().slice(0, BS_STUDIO_LABEL_MAX);
+    if (!name) { setMsg(tr('profile:mine.ownNeedName', { defaultValue: 'Give it a name first.' })); return; }
+    if (items.length >= BS_STUDIO_ITEMS_MAX) { setMsg(tr('profile:mine.tooMany', { defaultValue: 'Your space holds {count} pieces at most.', count: BS_STUDIO_ITEMS_MAX })); return; }
+    const [, , w, h] = BS_STUDIO_OWN_SIZES.find(([k]) => k === own.size) || BS_STUDIO_OWN_SIZES[1];
+    const [rx, ry, rw, rh] = bsStudioRoom(studio.kind).room;
+    const n = items.length % 8;
+    const p = fit({ t: 'custom', x: rx + rw / 2 - w / 2 + n * 6, y: ry + rh / 2 - h / 2 + n * 6, w, h, label: name });
+    setStudio({ ...studio, items: [...items, p] });
+    setSel(items.length);
+    setOwn(null);
   };
   // ⚠ A DRAG IS SMOOTH (owner, 2026-10-31: "this drag and drop is glitchy"). It was a re-render of the
   // whole editor on every pointer move, the labels selected as text under the finger, and a sideways
@@ -448,7 +465,7 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
       {cur ? (
         <div data-piece-panel="" style={{ marginTop: 12, padding: 14, borderRadius: 12, background: E.BG3 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 600 }}>{kitName(cur.t)}</span>
+            <span style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 600 }}>{cur.t === 'custom' ? (cur.label || kitName(cur.t)) : kitName(cur.t)}</span>
             <button type="button" onClick={() => setSel(null)} style={{ ...smallBtn, background: E.INK, color: E.BG, border: 0 }}>{tr('profile:mine.done', { defaultValue: 'Done' })}</button>
           </div>
           <label style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, cursor: 'pointer' }}>
@@ -484,7 +501,7 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
           </div>
         </div>
       ) : null}
-      {msg ? <p role="alert" style={{ margin: '10px 0 0', fontSize: 13.5, color: E.WARN }}>{msg}</p> : null}
+      {msg && !own ? <p role="alert" style={{ margin: '10px 0 0', fontSize: 13.5, color: E.WARN }}>{msg}</p> : null}
 
       <Eyebrow right={tr('profile:mine.tapToDrop', { defaultValue: 'Tap to drop it in' })}>{tr('profile:mine.addWhat', { defaultValue: 'Add what you have' })}</Eyebrow>
       <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
@@ -493,8 +510,30 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
             style={{ flex: 'none', minHeight: 36, padding: '0 12px', borderRadius: 999, border: `1px solid ${slug === group ? E.INK : ea(0.2)}`, background: slug === group ? E.INK : 'transparent', color: slug === group ? E.BG : E.INK, fontSize: 13, cursor: 'pointer' }}>{tr('profile:studio.group.' + slug, { defaultValue: en })}</button>
         ))}
       </div>
+      {own ? (
+        <div data-own-piece="" style={{ marginTop: 10, padding: 14, borderRadius: 12, background: E.BG3 }}>
+          <label style={{ display: 'block' }}>
+            <span style={{ display: 'block', fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: ea(0.6), marginBottom: 6 }}>{tr('profile:mine.ownName', { defaultValue: 'What is it?' })}</span>
+            <input autoFocus value={own.name} maxLength={BS_STUDIO_LABEL_MAX} onChange={(e) => setOwn({ ...own, name: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addOwn(); } }}
+              placeholder={kitchen ? tr('profile:mine.ownPhKitchen', { defaultValue: 'Dehydrator' }) : tr('profile:mine.ownPh', { defaultValue: 'Sandbag wall' })} style={field} />
+          </label>
+          <div role="group" aria-label={tr('profile:mine.ownSize', { defaultValue: 'Size' })} style={{ marginTop: 10, display: 'flex', gap: 6 }}>
+            {BS_STUDIO_OWN_SIZES.map(([k, en]) => (
+              <button key={k} type="button" data-own-size={k} aria-pressed={own.size === k} onClick={() => setOwn({ ...own, size: k })}
+                style={{ flex: 1, minHeight: 40, borderRadius: 999, border: `1px solid ${own.size === k ? E.ED : ea(0.22)}`, background: own.size === k ? hexA(E.ED, 0.14) : 'transparent', color: E.INK, fontSize: 13.5, cursor: 'pointer' }}>
+                {tr('profile:mine.size' + k.toUpperCase(), { defaultValue: en })}
+              </button>
+            ))}
+          </div>
+          {msg ? <p role="alert" style={{ margin: '10px 0 0', fontSize: 13.5, color: E.WARN }}>{msg}</p> : null}
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <button type="button" data-own-add="" onClick={addOwn} style={{ ...smallBtn, flex: 1, background: E.ED, color: E.ON_ED, border: 0 }}>{tr('profile:mine.ownAddIt', { defaultValue: 'Add it' })}</button>
+            <button type="button" onClick={() => { setOwn(null); setMsg(null); }} style={{ ...smallBtn, border: 0, color: ea(0.7) }}>{tr('profile:mine.cancel', { defaultValue: 'Cancel' })}</button>
+          </div>
+        </div>
+      ) : null}
       <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-        {bsStudioTypesIn(group).filter((t) => t !== 'zone').concat(group === zoneGroup ? ['zone'] : []).map((type) => {
+        {bsStudioTypesIn(group).filter((t) => t !== 'zone' && t !== 'custom').concat(group === zoneGroup ? ['zone'] : []).map((type) => {
           const [, , w, h] = STUDIO_KIT[type];
           const s = Math.min(54 / w, 40 / h, 1.4);
           return (
@@ -505,6 +544,11 @@ function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kit
             </button>
           );
         })}
+        <button type="button" data-kit="custom" aria-pressed={!!own} onClick={() => { setMsg(null); setOwn(own ? null : { name: '', size: 'm' }); }}
+          style={{ minHeight: 84, padding: '8px 4px', borderRadius: 10, border: `1px dashed ${own ? E.ED : ea(0.3)}`, background: 'transparent', color: E.INK, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+          <span style={{ height: 44, display: 'grid', placeItems: 'center' }}><img src={bsStudioSvg('custom', 40, 32, { line: true })} alt="" style={{ width: 40, height: 32 }} /></span>
+          {tr('profile:mine.ownAdd', { defaultValue: 'Your own' })}
+        </button>
       </div>
     </div>
   );
