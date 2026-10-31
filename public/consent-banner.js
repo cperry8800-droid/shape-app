@@ -10,17 +10,33 @@
 (function shapeConsent() {
   if (typeof document === "undefined" || window.__shapeConsentBanner) return;
   window.__shapeConsentBanner = true;
+  var POLICY_VERSION = "2026-06-22";
+  var GPC_TEXT = "Global Privacy Control honored as an opt-out of sale/sharing.";
   // Resolves true only when a consent_log row was actually written (so callers
   // can gate a "logged" flag on a confirmed insert, not an attempt).
   function logConsent(kind, granted, text) {
     try {
       var db = window.shapeDb;
-      if (!(db && db.client && db.client.auth)) return Promise.resolve(false);
+      if (!(db && db.client && db.client.auth)) return logByRoute(kind, granted, text);
       return db.client.auth.getUser().then(function (r) {
         var uid = r && r.data && r.data.user && r.data.user.id;
         if (!uid) return false;
-        return db.client.from("consent_log").insert({ user_id: uid, kind: kind, granted: granted, policy_version: "2026-06-22", source: "banner", consent_text: text }).then(function () { return true; }).catch(function () { return false; });
+        return db.client.from("consent_log").insert({ user_id: uid, kind: kind, granted: granted, policy_version: POLICY_VERSION, source: "banner", consent_text: text }).then(function () { return true; }).catch(function () { return false; });
       }).catch(function () { return false; });
+    } catch (e) { return Promise.resolve(false); }
+  }
+  // A page without the browser database client (every Next page, and the website's pages without
+  // /supabase.js) asks /api/consent/banner, which writes the row with the request's own session
+  // (Codex on #2530). A visitor who isn't signed in gets a 401, and nothing is logged, as above.
+  function logByRoute(kind, granted, text) {
+    try {
+      if (typeof fetch !== "function") return Promise.resolve(false);
+      return fetch("/api/consent/banner", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: kind, granted: granted, policy_version: POLICY_VERSION, consent_text: text })
+      }).then(function (r) { return !!(r && r.ok); }).catch(function () { return false; });
     } catch (e) { return Promise.resolve(false); }
   }
   function start() {
@@ -40,10 +56,16 @@
               if (!uid) return;                                  // anon: nothing to log yet; their next signed-in visit logs it
               var gkey = "shape.gpc.logged." + uid;
               if (localStorage.getItem(gkey)) return;
-              logConsent("gpc_optout", true, "Global Privacy Control honored as an opt-out of sale/sharing.").then(function (ok) {
+              logConsent("gpc_optout", true, GPC_TEXT).then(function (ok) {
                 if (ok) { try { localStorage.setItem(gkey, "1"); } catch (e) {} }
               });
             }).catch(function () {});
+          } else {
+            // Without the browser client, the route logs the opt-out once per account itself. It is
+            // asked once per tab, so a visitor sending GPC isn't a request on every page.
+            var asked = false;
+            try { asked = !!sessionStorage.getItem("shape.gpc.asked"); sessionStorage.setItem("shape.gpc.asked", "1"); } catch (e) {}
+            if (!asked) logByRoute("gpc_optout", true, GPC_TEXT);
           }
         } catch (e) {}
       }

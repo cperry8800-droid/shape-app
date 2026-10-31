@@ -1,12 +1,13 @@
 // Mutation spec for the website's page views waiting for consent (public/consent-insights.js,
 // src/components/ConsentAnalytics.tsx), the consent banner standing clear of the chat launcher
 // (public/consent-banner.js), and every gated page loading the banner (the shell's loader, the
-// pages without the shell, the Next layout). Every mutation must be killed. Run from the repo root:
+// pages without the shell, the Next layout), and the receipt for a page without the browser client
+// (/api/consent/banner). Every mutation must be killed. Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/consent-insights-2026-10-31.mutations.mjs --fail-on-skipped
 const G = 'public/consent-insights.js', N = 'src/components/ConsentAnalytics.tsx', B = 'public/consent-banner.js', S = 'public/newdesign/pageShell.jsx';
-const C = 'src/components/GlobalChatButton.tsx';
+const C = 'src/components/GlobalChatButton.tsx', R = 'src/app/api/consent/banner/route.ts';
 export default {
-  test: 'node --test tests/consent-insights.test.mjs tests/consent-region.test.mjs tests/consent-banner-pages.test.mjs',
+  test: 'node --test tests/consent-insights.test.mjs tests/consent-region.test.mjs tests/consent-banner-pages.test.mjs tests/consent-banner-route.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── The gate ──
@@ -36,5 +37,15 @@ export default {
     { name: 'the banner shows over the app\'s in-app browser', file: N, find: "  return p === '/connect' || p.startsWith('/connect/');", replace: '  return false;' },
     { name: 'a page under a /connect-like path loses it', file: N, find: "p.startsWith('/connect/')", replace: "p.startsWith('/connect')" },
     { name: 'the Next launcher is not lifted', file: C, find: '        id="shape-global-chat-button"\n', replace: '' },
+    // ── The receipt where there is no browser client (Codex on #2530) ──
+    { name: 'the banner sends no receipt without the browser client', file: B, find: '      if (!(db && db.client && db.client.auth)) return logByRoute(kind, granted, text);', replace: '      if (!(db && db.client && db.client.auth)) return Promise.resolve(false);' },
+    { name: 'GPC is not logged without the browser client', file: B, find: '            if (!asked) logByRoute("gpc_optout", true, GPC_TEXT);\n', replace: '' },
+    { name: 'GPC is logged on every page', file: B, find: '            if (!asked) logByRoute("gpc_optout", true, GPC_TEXT);', replace: '            logByRoute("gpc_optout", true, GPC_TEXT);' },
+    { name: 'the route takes any kind', file: R, find: "  if (typeof b.kind !== 'string' || !KINDS.has(b.kind)) return null;", replace: "  if (typeof b.kind !== 'string') return null;" },
+    { name: 'the route takes any text length', file: R, find: '  if (!text || text.length > TEXT_LIMIT) return null;', replace: '  if (!text) return null;' },
+    { name: 'the route takes a form post', file: R, find: "  if (!/^application\\/json\\b/i.test(request.headers.get('content-type') || '')) {", replace: '  if (false) {' },
+    { name: 'the route writes for a visitor not signed in', file: R, find: '  if (!user) return NextResponse.json({ logged: false }, { status: 401 });', replace: '' },
+    { name: 'the route logs GPC every time', file: R, find: "      if (data && data.length) return NextResponse.json({ logged: true });", replace: '' },
+    { name: 'the route says logged on a failed write', file: R, find: "    if (error) throw error;\n    return NextResponse.json({ logged: true });", replace: "    return NextResponse.json({ logged: true });" },
   ],
 };
