@@ -1130,6 +1130,9 @@ test('Replays: workouts posted on video play in the sheet; sessions keep their s
   await m.unmount();
 });
 
+// An unpinned program with a move on the rack, so the station's "done here" has a program of its own.
+const PRESS = { id: '88888888-2222-4333-8444-555555555555', kind: 'program', name: 'Press day', price: 29, providerId: 7, providerRole: 'trainer', detail: { preview: true, blocks: [row(0, 0, 'Press', 'Overhead press', 'Barbell')], weeks: 4 } };
+
 test('the studio: each piece shows the moves of the coach\'s programs done on it, and the programs pinned to a station', async () => {
   const studio = { kind: 'gym', where: 'Portland', items: [
     { t: 'rack', x: 20, y: 40, w: 78, h: 46, st: { title: 'Squat rack', note: 'Heavy sets.', pins: [STRONG.id, '99999999-2222-4333-8444-555555555555'] } },
@@ -1140,7 +1143,7 @@ test('the studio: each piece shows the moves of the coach\'s programs done on it
     { t: 'speaker', x: 200, y: 20, w: 22, h: 22 },
     { t: 'rower', x: 260, y: 300, w: 18, h: 76 },
   ] };
-  reset({ custom: { studio }, salePlans: [STRONG, ROWER] });
+  reset({ custom: { studio }, salePlans: [STRONG, ROWER, PRESS] });
   const m = await mount(page());
   await tab('The studio');
   assert.equal(document.querySelectorAll('[data-station]').length, 1);
@@ -1156,8 +1159,14 @@ test('the studio: each piece shows the moves of the coach\'s programs done on it
   const pinned = document.querySelector('[data-pinned]');
   assert.ok(pinned);
   assert.equal(pinned.querySelectorAll('[data-piece-program]').length, 1, 'a pin to a program no longer published is left out');
-  assert.match(document.querySelector('[data-piece-moves]').textContent, /Strong in 12.*Back squat · Bench press/);
-  await click(document.querySelector('[data-piece-moves] [data-piece-program]'));
+  // A pinned program is listed once (owner, 2026-10-31: "this strong in 12 is appearing on multiple
+  // machines"): under the pins, with its moves done here, and not again under "done here".
+  assert.match(pinned.textContent, /Strong in 12.*Back squat · Bench press/, 'the pinned row says what of it is done here');
+  const held = document.querySelector('[data-piece-moves]');
+  assert.match(held.textContent, /Press day.*Overhead press/, 'an unpinned program\'s moves are still listed');
+  assert.doesNotMatch(held.textContent, /Strong in 12/, 'the pinned program is listed twice');
+  assert.equal(document.querySelectorAll('[data-piece-program]').length, 2, 'one row per program');
+  await click(pinned.querySelector('[data-piece-program]'));
   const sheet = document.querySelector('[data-program-sheet]');
   assert.ok(sheet, 'a program opens from the studio');
   assert.match(sheet.querySelector('[data-program-where]').textContent, /On Maya's floor.*Squat rack · Dumbbell rack/);

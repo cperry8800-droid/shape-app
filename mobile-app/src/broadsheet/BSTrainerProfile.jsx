@@ -1271,14 +1271,19 @@ function StudioTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, studio, gallery, is
 }
 
 // A piece opened from the plan: the station's words, the programs the coach pinned there, and the
-// moves of their programs done on it, a row per program (each opens the program).
+// moves of their programs done on it, a row per program (each opens the program). A program is
+// listed once: a pinned one under the pins, with its moves done here under its name, and not again
+// under "done here" (owner, 2026-10-31: "this strong in 12 is appearing on multiple machines"; asked,
+// they kept a program on every piece its moves use and had only the repeat on one sheet fixed).
 function PieceSheet({ t, tr, ACC, ink, DISPLAY, MONO, INK, studio, i, work, programs, isSelf, first, words, onClose, onWork, onProgram }) {
   const p = studio.items[i];
   const n = p.st ? studio.items.slice(0, i + 1).filter((q) => q.st).length : null;
   const name = pieceName(p, tr);
   const byId = new Map(programs.map((pr) => [pr.id, pr]));
-  const pinned = work ? work.pinned.map((id) => byId.get(id)).filter(Boolean) : [];
-  const held = work ? work.programs.filter((x) => byId.has(x.id)) : [];
+  const pinned = work ? [...new Set(work.pinned)].map((id) => byId.get(id)).filter(Boolean) : [];
+  const pinnedIds = new Set(pinned.map((pr) => pr.id));
+  const movesOf = new Map(work ? work.programs.map((x) => [x.id, x.moves]) : []);
+  const held = work ? work.programs.filter((x) => byId.has(x.id) && !pinnedIds.has(x.id)) : [];
   const progRow = (pr, moves, k) => (
     <button key={k} type="button" data-piece-program="" onClick={() => onProgram(pr)} style={{ width: '100%', minHeight: 48, padding: '9px 0', border: 0, borderTop: `1px solid ${ink(0.12)}`, background: 'transparent', color: INK, display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', cursor: 'pointer' }}>
       <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.35 }}>
@@ -1303,7 +1308,7 @@ function PieceSheet({ t, tr, ACC, ink, DISPLAY, MONO, INK, studio, i, work, prog
       {pinned.length ? (
         <div data-pinned="" style={{ marginTop: 16 }}>
           <span style={eyebrow(ink, MONO, ACC)}>{tr('profile:trainer.pinnedHere', { defaultValue: 'Programs {name} runs here', name: first })}</span>
-          {pinned.map((pr) => progRow(pr, null, 'pin-' + pr.id))}
+          {pinned.map((pr) => progRow(pr, movesOf.get(pr.id) || null, 'pin-' + pr.id))}
         </div>
       ) : null}
       {held.length ? (
