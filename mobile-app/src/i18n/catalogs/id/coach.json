@@ -1491,5 +1491,11 @@
   "hours.undo": "Batalkan perubahan",
   "hours.save": "Simpan jam",
   "hours.footer": "Jam kerjamu",
-  "hours.rowSub": "Jam kerja, aturan pemesanan, dan waktu libur"
+  "hours.rowSub": "Jam kerja, aturan pemesanan, dan waktu libur",
+  "roster.tabAll": "Semua",
+  "roster.groupAll": "Klien saat ini",
+  "roster.streakDays": "{count, plural, other {Beruntun # hari}}",
+  "roster.since": "Sejak {date}",
+  "roster.weekLogged": "Tercatat · 7 hr",
+  "roster.weekAdherence": "Kepatuhan"
 }

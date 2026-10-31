@@ -1491,5 +1491,11 @@
   "hours.undo": "Değişiklikleri geri al",
   "hours.save": "Saatleri kaydet",
   "hours.footer": "Saatlerin",
-  "hours.rowSub": "Saatlerin, rezervasyon kuralların ve izinlerin"
+  "hours.rowSub": "Saatlerin, rezervasyon kuralların ve izinlerin",
+  "roster.tabAll": "Tümü",
+  "roster.groupAll": "Mevcut danışanlar",
+  "roster.streakDays": "{count, plural, other {# günlük seri}}",
+  "roster.since": "{date} tarihinden beri",
+  "roster.weekLogged": "Kayıt · 7 g",
+  "roster.weekAdherence": "Uyum"
 }

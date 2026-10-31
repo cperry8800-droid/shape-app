@@ -1491,5 +1491,11 @@
   "hours.undo": "Отменить изменения",
   "hours.save": "Сохранить часы",
   "hours.footer": "Ваши часы",
-  "hours.rowSub": "Часы, правила бронирования и выходные"
+  "hours.rowSub": "Часы, правила бронирования и выходные",
+  "roster.tabAll": "Все",
+  "roster.groupAll": "Текущие клиенты",
+  "roster.streakDays": "{count, plural, one {Серия # день} few {Серия # дня} many {Серия # дней} other {Серия # дня}}",
+  "roster.since": "С {date}",
+  "roster.weekLogged": "Записи · 7 дн",
+  "roster.weekAdherence": "Выполнение"
 }

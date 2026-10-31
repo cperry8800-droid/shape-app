@@ -1491,5 +1491,11 @@
   "hours.undo": "Soke canje-canje",
   "hours.save": "Ajiye lokuta",
   "hours.footer": "Lokutanka",
-  "hours.rowSub": "Lokutanka, dokokin rajista da hutu"
+  "hours.rowSub": "Lokutanka, dokokin rajista da hutu",
+  "roster.tabAll": "Duka",
+  "roster.groupAll": "Abokan aiki na yanzu",
+  "roster.streakDays": "{count, plural, one {Jere na kwana #} other {Jere na kwanaki #}}",
+  "roster.since": "Tun {date}",
+  "roster.weekLogged": "An rubuta · kwana 7",
+  "roster.weekAdherence": "Bin tsari"
 }

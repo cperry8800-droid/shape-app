@@ -1491,5 +1491,11 @@
   "hours.undo": "Annuler les modifications",
   "hours.save": "Enregistrer les horaires",
   "hours.footer": "Vos horaires",
-  "hours.rowSub": "Vos horaires, règles de réservation et absences"
+  "hours.rowSub": "Vos horaires, règles de réservation et absences",
+  "roster.tabAll": "Tous",
+  "roster.groupAll": "Clients actuels",
+  "roster.streakDays": "{count, plural, one {Série de # jour} other {Série de # jours}}",
+  "roster.since": "Depuis {date}",
+  "roster.weekLogged": "Saisi · 7 j",
+  "roster.weekAdherence": "Assiduité"
 }

@@ -22,8 +22,11 @@ function body(src, decl) {
   return src.slice(a, b < 0 ? src.length : a + decl.length + b);
 }
 
-test('the coach header helpers: 32 / 13.5 / 17, and links at 12.5 / 600', () => {
-  assert.match(PROS, /const bsProH1 = \(t\) => \(\{[^}]*fontSize: 32, fontWeight: 800/);
+test('the coach header helpers: 32 / 600, 13.5, 17, and links at 12.5 / 600', () => {
+  assert.match(PROS, /const bsProH1 = \(t\) => \(\{[^}]*fontSize: 32, fontWeight: 600/);
+  // Owner, 2026-10-31, of the Today title and its line: "this does not need to be so bold".
+  assert.equal((PROS.match(/<b style=\{\{ fontWeight: 750, color: t\.INK \}\}>/g) || []).length, 0, 'a lede lead at 750');
+  assert.equal((PROS.match(/<b style=\{\{ fontWeight: 600, color: t\.INK \}\}>/g) || []).length, 4, 'the four ledes\' leads at 600');
   assert.match(PROS, /const bsProLede = \(t\) => \(\{[^}]*fontSize: 13\.5, fontWeight: 500/);
   assert.match(PROS, /const bsProH2 = \(t\) => \(\{[^}]*fontSize: 17, fontWeight: 700/);
   assert.match(PROS, /const bsProLink = \(t\) => \(\{[^}]*fontSize: 12\.5, fontWeight: 600/);
