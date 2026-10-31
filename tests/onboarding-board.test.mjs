@@ -905,8 +905,9 @@ test('the app keeps the first-30-days station up when the board cannot be read (
   const before = { window: globalThis.window, document: globalThis.document, act: globalThis.IS_REACT_ACT_ENVIRONMENT };
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   const { createRoot } = await import('react-dom/client');
-  dom.window.BSTStationHead = ({ label }) => React.createElement('h3', null, label);
-  const Unread = new Function('React', 'window', 'coachTr', 'BS_ONBOARD_DAYS', comp + ';return BSProOnboardingUnread;')(React, dom.window, coachTr, 30);
+  // The station's head is the module's BSProCaseHead (the clean type, 2026-10-31): a stand-in here.
+  const CaseHead = ({ label }) => React.createElement('h3', null, label);
+  const Unread = new Function('React', 'window', 'coachTr', 'BS_ONBOARD_DAYS', 'BSProCaseHead', 'BS_PRO_SANS', 'bsProCard', 'bsProOverline', comp + ';return BSProOnboardingUnread;')(React, dom.window, coachTr, 30, CaseHead, 'sans', () => ({}), () => ({}));
   const root = createRoot(document.getElementById('root'));
   let retries = 0;
   try {
