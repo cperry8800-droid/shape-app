@@ -172,3 +172,42 @@ test('the Music tab names itself once: a visitor\'s list has no head, your own k
   assert.ok(head, 'your library lost its head');
   assert.match(textOf(head), /Your library[\s\S]*Add playlist/);
 });
+
+test('each discipline is a bar to its own 100, not to the strongest', () => {
+  // Codex P2 on #2546: scaled to the strongest, 91 drew full and 82 at nine tenths.
+  signedOut();
+  const d = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
+  d.nodes().find(named('BSTerrainTabs')).props.onPick('signals');
+  d.render();
+  const fills = withAttr(d.nodes(), 'data-disc-row').map((row) => withAttr([row, ...row.props.children.flatMap((x) => [x, ...[].concat(x && x.props && x.props.children || [])])], 'style')
+    .map((n) => n.props.style.width).find((w) => typeof w === 'string' && w.endsWith('%')));
+  assert.deepEqual(fills, ['82%', '64%', '91%', '73%']);
+});
+
+test('your climb can be the tier alone: the last other source turns off, stays off, and ✎ still opens the list', () => {
+  // Codex P2 on #2546: the tier is always shown, so an empty list of the others is a valid climb; the old
+  // guard put the last one straight back.
+  signedOut();
+  const saved = [];
+  globalThis.window.shapeDb = { saveUserGoals: (k, v) => saved.push([k, v]) };
+  try {
+    const d = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
+    d.nodes().find(named('BSTerrainTabs')).props.onPick('climb');
+    d.render();
+    const pressed = () => d.nodes().filter((n) => n.type === 'button' && n.props['aria-pressed'] !== undefined).map((n) => textOf(n).trim());
+    assert.deepEqual(pressed(), ['Tier', 'Body weight', 'Strength']);
+    d.nodes().find((n) => n.type === 'button' && n.props['aria-label'] === 'Customize climb').props.onClick();
+    d.render();
+    const toggle = (label) => { d.nodes().find((n) => n.type === 'button' && /^[✓＋] /.test(textOf(n)) && textOf(n).includes(label)).props.onClick(); d.render(); };
+    toggle('Body weight');
+    toggle('Strength');
+    assert.deepEqual(pressed(), ['Tier'], 'the last source came back');
+    assert.deepEqual(saved[saved.length - 1], ['client_climb', { source: 'score', shown: [] }]);
+    assert.ok(withAttr(d.nodes(), 'data-climb-switch').length, 'a Tier-only climb lost its ✎');
+    assert.ok(d.nodes().some((n) => n.type === 'button' && textOf(n).trim() === 'Done'), 'the list cannot be closed');
+  } finally { delete globalThis.window.shapeDb; }
+  // And an empty list read back is the tier alone, not the defaults.
+  const fn = fnBody('function BSTerrainProfile(');
+  assert.match(fn, /if \(climb && Array\.isArray\(climb\.shown\)\) setClimbShown\(/);
+  assert.doesNotMatch(fn, /if \(!next\.length\) next = \[k\];/);
+});

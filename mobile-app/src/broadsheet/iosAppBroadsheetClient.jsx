@@ -18494,7 +18494,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       }
       if (merged && (merged.start != null || merged.target != null || merged.now != null)) setRealGoal(merged);
       if (climb && climb.source) setClimbSource(climb.source);
-      if (climb && Array.isArray(climb.shown) && climb.shown.length) setClimbShown(climb.shown.filter((k) => CLIMB_SOURCES.some((s) => s.key === k)));
+      // An empty list is a Tier-only climb (the tier is always shown), kept as saved.
+      if (climb && Array.isArray(climb.shown)) setClimbShown(climb.shown.filter((k) => k !== 'score' && CLIMB_SOURCES.some((s) => s.key === k)));
     })();
     return () => { alive = false; };
   }, [isSelf]);
@@ -18528,10 +18529,10 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const toggleClimbShown = (k) => {
     setClimbShown((prev) => {
       const has = prev.includes(k);
-      let next = has ? prev.filter((x) => x !== k) : CLIMB_SOURCES.map((s) => s.key).filter((x) => x === k || prev.includes(x));
-      if (!next.length) next = [k];
+      // The tier is always shown, so the others may all go (a Tier-only climb; Codex P2 on #2546).
+      const next = has ? prev.filter((x) => x !== k) : CLIMB_SOURCES.map((s) => s.key).filter((x) => x !== 'score' && (x === k || prev.includes(x)));
       let src = climbSource;
-      if (!next.includes(src)) { src = next[0]; setClimbSource(src); }
+      if (src !== 'score' && !next.includes(src)) { src = 'score'; setClimbSource(src); }
       persistClimb(src, next);
       return next;
     });
@@ -18761,7 +18762,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     return { arc: (person.arc || [['Feb ’25', 'Started', 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), `${progressPct}% there`, 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), summit, 'target']]), pct: Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100)), summit };
   };
   const climbTabs = CLIMB_SOURCES.filter((s) => s.key === 'score' || climbShown.includes(s.key));
-  const activeClimb = climbTabs.some((s) => s.key === climbSource) ? climbSource : (climbTabs[0] && climbTabs[0].key) || 'weight';
+  const activeClimb = climbTabs.some((s) => s.key === climbSource) ? climbSource : 'score';
   const climbCfg = climbCfgFor(activeClimb);
   const arc = climbCfg.arc;
   const pct = climbCfg.pct;
@@ -18975,8 +18976,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             <div style={{ marginBottom: 28 }}>
               {/* Member since on its own line (beside the switch and ✎ it was cut to "FEB 202"). */}
               {since ? <span data-climb-since="" style={{ display: 'block', marginBottom: 6, fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.64) }}>{tr('profile:terrain.memberSince', { date: since, defaultValue: 'Member since {date}' })}</span> : null}
-              {climbTabs.length > 1 && (
-                <div className="bs-hide-scroll" style={{ display: 'flex', gap: 16, marginBottom: 14, overflowX: 'auto', alignItems: 'center' }}>
+              {/* The switch, with ✎ on your own page (a Tier-only climb keeps the row, for ✎). */}
+              {(climbTabs.length > 1 || isSelf) && (
+                <div data-climb-switch="" className="bs-hide-scroll" style={{ display: 'flex', gap: 16, marginBottom: 14, overflowX: 'auto', alignItems: 'center' }}>
                   {climbTabs.map((s) => { const on = activeClimb === s.key; return (
                     <button key={s.key} type="button" aria-pressed={on} onClick={() => pickClimb(s.key)} style={{ flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '10px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: SERIF, fontSize: 14, fontWeight: on ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}><span style={{ borderBottom: on ? `2px solid ${c}` : '2px solid transparent', paddingBottom: 3 }}>{tr('profile:terrain.climb.' + s.key, { defaultValue: s.label })}</span></button>
                   ); })}
@@ -18985,11 +18987,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   </button>}
                 </div>
               )}
-              {isSelf && (climbTabs.length <= 1 || climbCustomizing) && (
+              {isSelf && climbCustomizing && (
                 <div style={{ margin: '2px 0 16px', paddingBottom: 12, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 9 }}>
                     <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:terrain.showOnClimb', { defaultValue: 'Show on your climb' })}</div>
-                    {climbTabs.length > 1 && <button onClick={() => setClimbCustomizing(false)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: INK, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '13px 0' }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 1 }}>{tr('profile:action.done', { defaultValue: 'Done' })}</span></button>}
+                    <button onClick={() => setClimbCustomizing(false)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: INK, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '13px 0' }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 1 }}>{tr('profile:action.done', { defaultValue: 'Done' })}</span></button>
                   </div>
                   <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                     {CLIMB_SOURCES.filter((s) => s.key !== 'score').map((s) => { const on = climbShown.includes(s.key); return (
@@ -19067,7 +19069,6 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               const trajCaption = (isSelf && realSig && Array.isArray(realSig.traj) && realSig.traj.length >= 2)
                 ? tr('profile:terrain.weighInsCount', { defaultValue: '{count, plural, one {# weigh-in} other {# weigh-ins}}', count: realSig.traj.length })
                 : tr('profile:terrain.recomp', { defaultValue: '16-wk recomp' });
-              const discMax = Math.max(1, ...discPerf);
               return (<>
               {/* THIS WEEK: the day streak and the week's sessions. No head: the Signals tab names it. */}
               <div data-signals-week="" style={{ ...sectionS, borderTop: 0, paddingTop: 6, display: 'flex', gap: 22, alignItems: 'flex-start' }}>
@@ -19114,7 +19115,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                       <div key={i} data-disc-row={i === discBest ? 'best' : ''} style={{ display: 'grid', gridTemplateColumns: '108px minmax(0, 1fr) 34px', alignItems: 'center', gap: 10 }}>
                         <span style={{ fontSize: 13.5, color: i === discBest ? INK : bsTHexA(INK, 0.78), fontWeight: i === discBest ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
                         <span aria-hidden style={{ height: 6, borderRadius: 3, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}>
-                          <span style={{ display: 'block', height: '100%', width: `${Math.max(2, Math.min(100, (discPerf[i] / discMax) * 100))}%`, borderRadius: 3, background: i === discBest ? c : bsTHexA(INK, 0.45) }} />
+                          <span style={{ display: 'block', height: '100%', width: `${Math.max(2, Math.min(100, Number(discPerf[i]) || 0))}%`, borderRadius: 3, background: i === discBest ? c : bsTHexA(INK, 0.45) }} />
                         </span>
                         <span style={{ textAlign: 'right', fontFamily: SERIF, fontSize: 16, fontWeight: 600, color: INK, fontVariantNumeric: 'tabular-nums' }}>{val}</span>
                       </div>
