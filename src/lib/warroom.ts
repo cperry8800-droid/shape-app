@@ -619,6 +619,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the member profile\'s posts in the Wall\'s format (#2538); a coach studio station lists a pinned program once (#2539); the coach profile\'s Activity tab (#2541). No migration',
+      items: [
+        { label: 'Owner, 2026-10-31: "Make sure member activity feed on profile is same format and design as chat feed"; "this strong in 12 is appearing on multiple machines" (asked, they kept a program on every piece its moves use and had only the repeat fixed); "the coaches activity feed shouldn\'t be under replays, they should have a separate tab for activity"', status: 'done' },
+        { label: '#2538: the member profile\'s cards keep the Wall\'s byline (face, name, tier, time; the name opens nothing on their own page; the owner\'s edit beside it) and the Wall\'s follows (useBSMyFollowing: who you follow reacted, their faces and comments). The face is the hero\'s (avPhoto); a logged session or PR with no post shows the owner\'s photo or initials, never a sample face', status: 'done' },
+        { label: '#2539: on a station the coach pinned a program to, the program is listed once, under the pins with its moves done there, not again under "done here"', status: 'done' },
+        { label: '#2541: Activity is the coach profile\'s last tab, trainer and nutritionist (the coach always sees it, a visitor when something is in it); it lists every post to 30, with no See all (trainer.activityAll and activityFewer gone from the 13 catalogs). Four tabs set at 14px so "Maya\'s day · Maya\'s kitchen · Plate notes · Activity" fits a phone whole', status: 'done' },
+        { label: 'Review: Codex clean on #2538 (8128d27), #2539 (64acff3) and #2541 (57b2f20). Checks: tests/profile-feed-like-wall.test.mjs (6) and 267 of 267 touched suites (#2538); the studio test fails on main, the mutation spec kills 3 of 3 pinned-program mutations (#2539); 1,129 of 1,129 in the 75 coach-page and catalog suites (#2541); each seen in the /m/ build in headless Chromium, signed out', status: 'done' },
+        { label: 'Coach profiles keep the slim byline (the time alone, hideAuthor), and their Activity tab heads its cards "{name}\'s activity" under a tab already named Activity. The website\'s member profile (MemberProfile.html, FeedBlock in livingDesktop.jsx) keeps its own feed in the older dispatch look. The four-tab row was measured in English only', status: 'pending' },
+        { label: 'OWNER: on a phone, signed in: your profile\'s posts against the Wall, a pinned station in a coach\'s studio, and a coach profile\'s Activity tab (seen only in headless Chromium, signed out)', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: every Back says Back, the Nora sheet and Chat switcher, coach profile tabs, Make it yours (own pieces, smooth drag) and hours fixes — #2535. No migration',
       items: [
         { label: 'Owner, 2026-10-31: "make them all say back", "improve/update look of this chat", "make it more noticeable that you click here to change between pages on chat", "make this fit on one line" (a coach profile tab), "this edit page isnt fully fuctional", "these dont work" (its preview tabs), "the save button pops up and coveres options", "coaches should be able to add custom additional eqipment or kitchen stations/supplies", "this drag and drop is glitchy", "these times are cut off" and "the toggles arent working" (hours)', status: 'done' },
