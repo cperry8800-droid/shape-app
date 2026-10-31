@@ -1197,13 +1197,17 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         {err && !unsaved ? <p role="alert" style={{ margin: '14px 0 0', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
       </div>
       {unsaved ? (
-        <div ref={barRef} data-mine-savebar="" style={{ position: 'sticky', bottom: 0, zIndex: 3, padding: `10px ${gut}px calc(12px + env(safe-area-inset-bottom))`, background: E.BG, borderTop: `1px solid ${ea(0.16)}` }}>
-          {leaving ? <p style={{ margin: '0 0 8px', fontSize: 13.5, color: ea(0.8) }}>{tr('profile:mine.leaveAsk', { defaultValue: "You haven't saved these changes." })}</p> : <p style={{ margin: '0 0 8px', fontSize: 12.5, color: ea(0.6) }}>{demo ? tr('profile:mine.demoNote', { defaultValue: 'A sample page: your changes show here until you leave. Sign in to save yours.' }) : tr('profile:mine.saveNote', { defaultValue: 'Members see it as soon as you save.' })}</p>}
+        // The save bar, condensed (owner, 2026-10-31: "also make this smaller"): 40px buttons at 14 / 600,
+        // Leave the wider of the two so "Leave without saving" keeps to one line (a longer translation
+        // wraps rather than being cut). They were 48px pills, Save at 16, and Leave wrapped beside a
+        // wider Save.
+        <div ref={barRef} data-mine-savebar="" data-save-bar="" style={{ position: 'sticky', bottom: 0, zIndex: 3, padding: `8px ${gut}px calc(10px + env(safe-area-inset-bottom))`, background: E.BG, borderTop: `1px solid ${ea(0.16)}` }}>
+          {leaving ? <p style={{ margin: '0 0 6px', fontSize: 13, color: ea(0.8) }}>{tr('profile:mine.leaveAsk', { defaultValue: "You haven't saved these changes." })}</p> : <p style={{ margin: '0 0 6px', fontSize: 12.5, color: ea(0.6) }}>{demo ? tr('profile:mine.demoNote', { defaultValue: 'A sample page: your changes show here until you leave. Sign in to save yours.' }) : tr('profile:mine.saveNote', { defaultValue: 'Members see it as soon as you save.' })}</p>}
           {err ? <p role="alert" style={{ margin: '0 0 8px', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
           <div style={{ display: 'flex', gap: 8 }}>
-            {leaving ? <button type="button" onClick={() => onClose && onClose()} style={{ ...smallBtn, flex: 1, minHeight: 48, borderRadius: 999 }}>{tr('profile:mine.leave', { defaultValue: 'Leave without saving' })}</button> : null}
+            {leaving ? <button type="button" data-leave-mine="" onClick={() => onClose && onClose()} style={{ ...smallBtn, flex: '1.5 1 0px', minWidth: 0, minHeight: 40, padding: '6px 12px', borderRadius: 999, lineHeight: 1.15 }}>{tr('profile:mine.leave', { defaultValue: 'Leave without saving' })}</button> : null}
             <button type="button" data-save-mine="" onClick={save} disabled={busy || uploading}
-              style={{ flex: 1.3, minHeight: 48, borderRadius: 999, border: 0, background: E.ED, color: E.ON_ED, fontFamily: DISPLAY, fontSize: 16, fontWeight: 600, cursor: busy ? 'default' : 'pointer', opacity: busy || uploading ? 0.6 : 1 }}>
+              style={{ flex: '1 1 0px', minWidth: 0, minHeight: 40, padding: '6px 12px', borderRadius: 999, border: 0, background: E.ED, color: E.ON_ED, fontFamily: DISPLAY, fontSize: 14, fontWeight: 600, lineHeight: 1.15, cursor: busy ? 'default' : 'pointer', opacity: busy || uploading ? 0.6 : 1 }}>
               {busy ? tr('profile:mine.saving', { defaultValue: 'Saving…' }) : tr('profile:mine.save', { defaultValue: 'Save' })}
             </button>
           </div>
