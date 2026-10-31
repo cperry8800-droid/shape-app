@@ -711,6 +711,12 @@ test('Make it yours: a paste the AI can\'t read is laid out on the phone; a reci
     // A recipe being written is unsaved work: leaving asks first (Codex P2 on #2497).
     await click(button(/^←\s*Profile$/));
     assert.match(m.text(), /You haven't saved these changes\./);
+    // The bar, condensed (owner, 2026-10-31: "also make this smaller"): 40px buttons at 14px, Leave the
+    // wider of the two so "Leave without saving" keeps to one line. They were 48px pills, Save at 16.
+    const leave = document.querySelector('[data-save-bar] [data-leave-mine]'), saveBtn = document.querySelector('[data-save-bar] [data-save-mine]');
+    for (const b of [leave, saveBtn]) assert.equal(b.style.minHeight, '40px');
+    assert.equal(saveBtn.style.fontSize, '14px');
+    assert.ok(parseFloat(leave.style.flexGrow) > parseFloat(saveBtn.style.flexGrow), 'Leave has the wider share');
     assert.ok(document.querySelector('[data-recipe-form]'), 'still open');
     await click(document.querySelector('[data-recipe-cancel]'));
     assert.equal(document.querySelectorAll('[data-mine-recipe]').length, 1, 'cancelled, not kept');
