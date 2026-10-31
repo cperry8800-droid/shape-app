@@ -97,8 +97,8 @@ test('a plan with no length has a ★ tile, and a plan with no price, clients or
   try {
     const tile = m.host.querySelector('[data-featured-plan]').children[0];
     assert.equal(tile.textContent, '★');
-    assert.equal(m.host.querySelector('[data-featured-facts]'), null);
-    assert.equal(m.host.querySelector('[data-featured-price]'), null);
+    assert.ok(!m.host.querySelector('[data-featured-facts]'), 'no facts line');
+    assert.ok(!m.host.querySelector('[data-featured-price]'), 'no price line');
   } finally { await m.close(); }
 });
 
