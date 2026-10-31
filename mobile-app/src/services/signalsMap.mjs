@@ -73,6 +73,12 @@ export function recordFromCoachData(raw = {}, deps = {}) {
     const totalWorkouts = firstNum(stats.workoutsLogged42d, stats.totalWorkouts, lifts && lifts.workoutsLogged42d);
     if (totalWorkouts != null) rec.totals = { workouts: totalWorkouts };
   }
+  // The lifts rollup is its own read (coachRecords catches each failure apart), so its count of
+  // workouts stands when the stats read failed (Codex on #2532).
+  if (!rec.totals && lifts && typeof lifts === 'object') {
+    const liftWorkouts = firstNum(lifts.workoutsLogged42d);
+    if (liftWorkouts != null) rec.totals = { workouts: liftWorkouts };
+  }
 
   applyGoals(rec, goalsDoc, deps);
   applyCheckIn(rec, checkins);

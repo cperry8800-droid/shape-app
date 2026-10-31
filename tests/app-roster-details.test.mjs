@@ -203,6 +203,30 @@ test('a live row says what the live reads hold: workouts in six weeks, or averag
   }
 });
 
+test('a client who logged on all eight dates the rollup counts reads 100%, never 114% (Codex on #2532)', async () => {
+  // get_client_stats counts snapshot_date >= current_date - 7: eight dates.
+  const c = PROS.bsRowFromTriage(triage('green', { id: 'e1', name: 'Eve Ng' }, { foodLogs: { daysLogged7d: 8 } }), 'nutritionist', theme);
+  assert.deepEqual([c.adh, c.d], [100, '100%']);
+  const m = await mount([c], { role: 'nutritionist' });
+  try {
+    await open(m.host, 0);
+    assert.match(rowOf(m.host, 'Eve Ng').querySelector('[data-roster-week]').textContent, /^100%Logged · 7d$/);
+  } finally { await m.close(); }
+  // The case file holds it the same way.
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), 'utf8');
+  assert.match(src, /const days7 = lnum\(S\.daysLogged7d\) == null \? null : Math\.min\(7, lnum\(S\.daysLogged7d\)\)/);
+});
+
+test('a trainer row keeps the workouts the lifts read found when the stats read failed (Codex on #2532)', async () => {
+  const { recordFromCoachData } = await import('../mobile-app/src/services/signalsMap.mjs');
+  const rec = recordFromCoachData({ id: 'k1', name: 'Kai Ro', stats: null, lifts: { workoutsLogged42d: 9 } });
+  assert.deepEqual(rec.totals, { workouts: 9 });
+  const row = PROS.bsRowFromTriage({ severity: 'green', client: rec, flags: [], reasons: [], readOnly: [] }, 'trainer', theme);
+  assert.equal(row.workouts6w, 9);
+  // Both reads failed: nothing is made up.
+  assert.equal(recordFromCoachData({ id: 'k2', name: 'Lu', stats: null, lifts: null }).totals, undefined);
+});
+
 test('the facts are in every locale the app ships', () => {
   const LOCALES = ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi'];
   for (const loc of LOCALES) {

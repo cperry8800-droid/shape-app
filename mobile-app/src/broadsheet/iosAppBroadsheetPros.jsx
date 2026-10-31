@@ -2378,7 +2378,9 @@ function bsRowFromTriage(row, role, t) {
   // nutritionist (the roster row labels it so, 2026-10-31), each falling back to the other. Which one
   // it is rides with it (adhSrc), so a fallback is labelled as what it is (Codex on #2532).
   const trainPct = (rec.trainingAdherence && rec.trainingAdherence.pct != null) ? rec.trainingAdherence.pct : null;
-  const logPct = (rec.foodLogs && rec.foodLogs.daysLogged7d != null) ? Math.round((rec.foodLogs.daysLogged7d / 7) * 100) : null;
+  // ⚠ get_client_stats counts days from current_date - 7, eight dates (Codex on #2532; War Room), so
+  // a client who logged every one of them has 8: the figure is held to seven of seven, never 114%.
+  const logPct = (rec.foodLogs && rec.foodLogs.daysLogged7d != null) ? Math.round((Math.min(7, Math.max(0, rec.foodLogs.daysLogged7d)) / 7) * 100) : null;
   const order = nut ? [['log', logPct], ['train', trainPct]] : [['train', trainPct], ['log', logPct]];
   const [adhSrc, adh] = order.find(([, v]) => v != null) || [null, null];
   const streak = (rec.streaks && rec.streaks.current != null) ? rec.streaks.current : null;
@@ -5281,7 +5283,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const lnum = (x) => (x == null || x === '' || Number.isNaN(Number(x)) ? null : Number(x));
   const sDone = lnum(S.sessionsCompleted), sPlan = lnum(S.sessionsPlanned);
   const attendancePct = (sPlan && sPlan > 0) ? Math.round((sDone / sPlan) * 100) : null;
-  const days7 = lnum(S.daysLogged7d), days30 = lnum(S.daysLogged30d);
+  // daysLogged7d counts eight dates (from current_date - 7), so it is held to seven, as the roster's is.
+  const days7 = lnum(S.daysLogged7d) == null ? null : Math.min(7, lnum(S.daysLogged7d)), days30 = lnum(S.daysLogged30d);
   const adherencePct = (days7 != null) ? Math.round((days7 / 7) * 100) : null;
   const avgKcal = lnum(S.avgCalories), avgP = lnum(S.avgProtein), avgC = lnum(S.avgCarbs), avgF = lnum(S.avgFat);
   const kcalStr = avgKcal != null ? avgKcal.toLocaleString() : null;
