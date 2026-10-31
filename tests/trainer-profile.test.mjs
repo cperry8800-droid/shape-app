@@ -235,6 +235,34 @@ test('the page is painted in the coach\'s own colours, inside an app painted in 
   await m.unmount();
 });
 
+test("the coach's own page is in the colours members see, before and without their own doc's read", async () => {
+  // Owner, 2026-10-31: "have the profile page reflect whatever the coaches picked that shows public
+  // to members". It fell back to the default dark until the coach's own doc was read, and for good
+  // when that read failed.
+  const bone = window.makePalette({ paperMode: 'bone', accentKey: 'rust' });
+  const probe = document.createElement('div'); probe.style.background = bone.PAPER_BG;
+  const painted = () => document.querySelector('[data-trainer-profile]').style.background;
+  let release;
+  reset({ me: 'u-maya', custom: { look: { paper: 'bone', accent: 'rust' } }, stored: { look: { paper: 'bone', accent: 'rust' } } });
+  world.readHold = new Promise((r) => { release = r; });
+  let m = await mount(page({ isSelf: true }));
+  assert.equal(painted(), probe.style.background, 'while the own doc is read');
+  world.readHold = null;
+  release();
+  await flush();
+  assert.equal(painted(), probe.style.background, 'once it is read');
+  await m.unmount();
+  reset({ me: 'u-maya', custom: { look: { paper: 'bone', accent: 'rust' } }, readFails: true });
+  m = await mount(page({ isSelf: true }));
+  assert.equal(painted(), probe.style.background, 'when the own read fails');
+  await m.unmount();
+  // The own doc, once read, wins: what Make it yours saved is what members now read.
+  reset({ me: 'u-maya', custom: { look: { paper: 'dark', accent: 'teal' } }, stored: { look: { paper: 'bone', accent: 'rust' } } });
+  m = await mount(page({ isSelf: true }));
+  assert.equal(painted(), probe.style.background, 'the own doc over a stale public read');
+  await m.unmount();
+});
+
 test('Make it yours saves look, cover and studio onto the doc as it is at save time', async () => {
   // The doc changed elsewhere since the page read it: a bio and a wall the editor never saw.
   reset({ me: 'u-maya', custom: null, stored: { bio: 'Saved elsewhere', wall: [], look: { paper: 'dark', accent: 'teal' } } });

@@ -206,7 +206,11 @@ export function BSTrainerProfile(props) {
   const custom = demo
     ? (() => { const c = { ...demo.custom }; if (demo.mode === 'self') for (const [k, v] of Object.entries(demoOwn || {})) { if (v === null) delete c[k]; else c[k] = v; } return c; })()
     : isSelf ? own : (live && live.custom) || null;
-  const look = bsProfileLook(custom && custom.look) || {};
+  // The coach's own page is in the colours members see (owner, 2026-10-31: "have the profile page
+  // reflect whatever the coaches picked that shows public to members"). Until their own doc is read,
+  // or when that read fails, those are the public read's, never the default dark.
+  const lookDoc = !demo && isSelf && !own ? ((live && live.custom) || null) : custom;
+  const look = bsProfileLook(lookDoc && lookDoc.look) || {};
   const page = demo
     ? <TrainerPage {...props} role={role} demo={demo} live={demo.mode === 'self' ? demo.live : null} custom={custom} setOwn={saveDemo} ownState="ready" ownFor={null} />
     : <TrainerPage {...props} role={role} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} ownFor={ownFor} onRetryOwn={() => setOwnEpoch((n) => n + 1)} />;
