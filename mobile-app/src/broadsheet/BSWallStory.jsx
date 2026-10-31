@@ -52,7 +52,8 @@ function BSWsRoute({ points }) {
 // The head of a story. `photo` (a URL) or `route` ({ points }) makes the picture, the headline over
 // its foot; with neither the kicker and headline stand alone. `bleed` is the card's side gutter, which
 // the picture runs past to the screen edge. `onOpen` opens the full activity; the byline's `onAuthor`
-// opens the profile. On a profile (no `name`: the page is already theirs) the byline is just `meta`.
+// opens the profile. On a coach profile (no `name`: the page is already theirs) the byline is just `meta`;
+// on a member profile it is the whole byline, with no `onAuthor`, so the name opens nothing.
 // `action` sits at the byline's right end (the owner's edit on their own profile).
 export function BSWallStoryHead({ kicker, title, photo = null, route = null, avatar = null, name, meta = '', bleed = 12, onOpen, onAuthor, action = null }) {
   const t = window.useBS();
@@ -81,14 +82,19 @@ export function BSWallStoryHead({ kicker, title, photo = null, route = null, ava
         </div>
       )}
       <div data-bs-wall-story-byline="" style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, margin: '-8px 0' }}>
-        {name ? (
-          <button type="button" onClick={onAuthor} style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, minWidth: 0, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: 'inherit', font: 'inherit' }}>
+        {name ? (() => {
+          const line = (<>
             {avatar}
             <span style={{ minWidth: 0, fontFamily: t.BODY, fontSize: 13, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               <b style={{ color: t.INK, fontWeight: 600 }}>{name}</b>{meta ? ` · ${meta}` : ''}
             </span>
-          </button>
-        ) : (
+          </>);
+          const box = { display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, minWidth: 0 };
+          // With no `onAuthor` (the story sits on its author's own profile) the same line, not a button.
+          return onAuthor
+            ? <button type="button" onClick={onAuthor} style={{ ...box, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: 'inherit', font: 'inherit' }}>{line}</button>
+            : <span data-bs-wall-story-author="" style={box}>{line}</span>;
+        })() : (
           <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</span>
         )}
         {action ? <span style={{ marginLeft: 'auto', flex: 'none', display: 'inline-flex' }}>{action}</span> : null}
