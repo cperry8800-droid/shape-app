@@ -3,7 +3,7 @@
 // and they decided by /^Europe\//, which misses EEA territory whose IANA zone sits elsewhere: the
 // Canaries, Madeira, the Azores, Ceuta, Cyprus, Iceland and France's outermost regions. A visitor
 // there got no banner and had their first link remembered before any choice, against the privacy
-// policy's promise. One list now, written out in five files; this test holds them equal and pins
+// policy's promise. One list now, written out in six files; this test holds them equal and pins
 // what it covers.
 // Run: node --test tests/consent-region.test.mjs
 import test from 'node:test';
@@ -22,6 +22,7 @@ const COPIES = [
   'public/newdesign/pageShell.jsx',
   'mobile-app/src/services/analytics.js',
   'public/click-capture.js',
+  'public/consent-insights.js',
 ];
 
 // EEA or UK territory whose zone does not start with Europe/.
@@ -39,7 +40,7 @@ const ELSEWHERE = [
   'Atlantic/CanaryX', 'XAtlantic/Canary', 'America/Cayenne/Old',
 ];
 
-test('the five region checks carry the same list', () => {
+test('the six region checks carry the same list', () => {
   for (const rel of COPIES) {
     const m = read(rel).match(/CONSENT_REGION_RE = (\/.+\/);/);
     assert.ok(m, `${rel} declares CONSENT_REGION_RE`);
@@ -53,6 +54,7 @@ test('each check decides by the list', () => {
   assert.match(read('public/newdesign/pageShell.jsx'), /if \(!CONSENT_REGION_RE\.test\(tz\)\) return;\s+\/\/ region-aware: show only for EEA\/UK/);
   assert.match(read('mobile-app/src/services/analytics.js'), /return CONSENT_REGION_RE\.test\(tz\);/);
   assert.match(read('public/click-capture.js'), /return !CONSENT_REGION_RE\.test\(o\.timeZone\);/);
+  assert.match(read('public/consent-insights.js'), /return !CONSENT_REGION_RE\.test\(o\.timeZone\);/);
 });
 
 test('every Europe/* zone and the EEA zones outside it count; nothing else does', () => {

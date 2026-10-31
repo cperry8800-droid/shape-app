@@ -40,7 +40,7 @@
   // The EEA and the UK by device time zone: every Europe/* zone (slightly over-inclusive, which
   // fails safe), plus the EEA's zones outside Europe/* (the Canaries, Madeira, the Azores, Ceuta,
   // Cyprus, Iceland, Svalbard, and France's outermost regions; Codex on #2334). One list, written
-  // out in five files; tests/consent-region.test.mjs holds them equal.
+  // out in six files; tests/consent-region.test.mjs holds them equal.
   var CONSENT_REGION_RE = /^(?:Europe\/|(?:Atlantic\/(?:Canary|Madeira|Azores|Reykjavik|Jan_Mayen)|Africa\/Ceuta|Asia\/(?:Nicosia|Famagusta)|Arctic\/Longyearbyen|America\/(?:Guadeloupe|Martinique|Cayenne|Marigot)|Indian\/(?:Reunion|Mayotte))$)/;
 
   function attr(el, name) {

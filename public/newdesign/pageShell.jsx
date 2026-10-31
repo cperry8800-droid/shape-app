@@ -3193,7 +3193,7 @@ window.shapeClearLocalUserContent = function (opts) {
       // The EEA and the UK by device time zone: every Europe/* zone (slightly over-inclusive, which
       // fails safe), plus the EEA's zones outside Europe/* (the Canaries, Madeira, the Azores, Ceuta,
       // Cyprus, Iceland, Svalbard, and France's outermost regions; Codex on #2334). One list, written
-      // out in five files; tests/consent-region.test.mjs holds them equal.
+      // out in six files; tests/consent-region.test.mjs holds them equal.
       var CONSENT_REGION_RE = /^(?:Europe\/|(?:Atlantic\/(?:Canary|Madeira|Azores|Reykjavik|Jan_Mayen)|Africa\/Ceuta|Asia\/(?:Nicosia|Famagusta)|Arctic\/Longyearbyen|America\/(?:Guadeloupe|Martinique|Cayenne|Marigot)|Indian\/(?:Reunion|Mayotte))$)/;
       if (!CONSENT_REGION_RE.test(tz)) return;               // region-aware: show only for EEA/UK
       // ONE copy string, rendered AND recorded — the consent_log row must carry
@@ -3205,6 +3205,8 @@ window.shapeClearLocalUserContent = function (opts) {
         // capture again now, on this same page, so an Accept keeps it (its tags and referrer
         // are gone after the next click) and a Reject drops it (Codex, #2325).
         try { if (window.shapeSignupSource) window.shapeSignupSource.capture(); } catch (e) {}
+        // And whether this page's own page views start now (/consent-insights.js waits for it).
+        try { window.dispatchEvent(new CustomEvent("shape:consent", { detail: choice })); } catch (e) {}
         // consent_text is the VERBATIM copy shown — nothing appended; the
         // `granted` column already records which button was pressed.
         logConsent("cookies", choice === "accept", BANNER_COPY);
@@ -3234,7 +3236,9 @@ window.shapeClearLocalUserContent = function (opts) {
       // Copy must describe what we actually do. The website's consent-gated
       // uses are remembering the first link a visitor came from, for sign-up
       // attribution (/signup-source.js, 2026-10-13), and counting taps on its
-      // buttons and links as daily totals (/click-capture.js, 2026-10-28). The
+      // buttons and links as daily totals (/click-capture.js, 2026-10-28), and its page views
+      // (Vercel Web Analytics, which /consent-insights.js and ConsentAnalytics.tsx load only as
+      // this choice allows, 2026-10-31). The
       // Shape app on this same origin gates its first-party usage stats on the
       // same choice (mobile-app analytics.js reads shape.consent.v1). Never promise
       // analytics a surface doesn't run, and never run one the copy leaves out.
@@ -3247,12 +3251,35 @@ window.shapeClearLocalUserContent = function (opts) {
         var b = document.createElement("button");
         b.textContent = label;
         b.style.cssText = "border:1px solid " + (primary ? "var(--consent-accent,#0ac5a8)" : "rgba(242,237,228,0.25)") + ";background:" + (primary ? "var(--consent-accent,#0ac5a8)" : "transparent") + ";color:" + (primary ? "var(--consent-bg,#1a1612)" : "var(--consent-fg,#f2ede4)") + ";padding:9px 16px;border-radius:7px;font-family:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap";
-        b.onclick = function () { record(choice); if (bar.parentNode) bar.parentNode.removeChild(bar); };
+        b.onclick = function () { record(choice); if (bar.parentNode) bar.parentNode.removeChild(bar); unlift(); };
         return b;
       }
       bar.appendChild(btn("Reject non-essential", "reject", false));
       bar.appendChild(btn("Accept", "accept", true));
       document.body.appendChild(bar);
+      // ⚠ THE CHAT LAUNCHER COVERED BOTH ANSWERS. It sits bottom-right at z-index 2147483000, over
+      // this bar's 99999, and on a desktop its pill lay across Reject non-essential and Accept
+      // alike (measured at 1280 and 1440 wide on Community, Pricing and the homepage): a click on
+      // either reached the chat, so an EEA or UK visitor at a computer could not answer at all.
+      // While the bar is up, the launcher and its panel stand on top of it instead, at the bar's
+      // own measured height; answering puts them back.
+      var html = document.documentElement;
+      var liftCss = document.createElement("style");
+      liftCss.id = "shape-consent-lift";
+      liftCss.textContent = "html.shape-consent-open #shape-global-chat-button{bottom:calc(var(--shape-consent-h,0px) + 16px) !important}"
+        + "html.shape-consent-open #shape-global-chat-panel{bottom:calc(var(--shape-consent-h,0px) + 70px) !important;max-height:calc(100vh - var(--shape-consent-h,0px) - 94px) !important}";
+      document.head.appendChild(liftCss);
+      function lift() { try { html.style.setProperty("--shape-consent-h", bar.offsetHeight + "px"); } catch (e) {} }
+      function unlift() {
+        try { html.classList.remove("shape-consent-open"); html.style.removeProperty("--shape-consent-h"); window.removeEventListener("resize", lift); if (sizeWatch) sizeWatch.disconnect(); } catch (e) {}
+        if (liftCss.parentNode) liftCss.parentNode.removeChild(liftCss);
+      }
+      html.classList.add("shape-consent-open");
+      lift();
+      window.addEventListener("resize", lift);
+      // The bar's own height changes too (its font arriving rewraps the text), so it is watched.
+      var sizeWatch = null;
+      try { if (window.ResizeObserver) { sizeWatch = new ResizeObserver(lift); sizeWatch.observe(bar); } } catch (e) {}
     } catch (e) {}
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);

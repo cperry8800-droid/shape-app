@@ -24,6 +24,8 @@ export function readStored(rawJson: unknown, now?: number): SignupSource | null;
 export function nextStored(stored: SignupSource | null, touch: SignupSource | null): SignupSource | null;
 export function coachRefLive(rawJson: unknown, now?: number): boolean;
 export function trackingAllowed(input?: { consent?: string | null; gpc?: boolean; timeZone?: string }): boolean;
+/** Whether consent allows first-party tracking on this window now (its stored choice, GPC and time zone). */
+export function allowedOn(win: unknown): boolean;
 export function forSignup(input?: {
   stored?: SignupSource | null;
   current?: SignupSource | null;
