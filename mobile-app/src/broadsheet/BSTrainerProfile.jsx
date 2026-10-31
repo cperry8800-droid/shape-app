@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS } from '../services/profileCustom.mjs';
 import { STUDIO_WORDS, STUDIO_KIT, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, bsStudioFrame, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
-import { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsKitchenWork } from '../services/coachWork.mjs';
+import { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsKitchenWork, bsWorkPaid } from '../services/coachWork.mjs';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.mjs';
 import { bsCoachPronoun, bsCoachFirstName } from '../services/coachPronoun.mjs';
@@ -449,8 +449,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // its page shows everywhere else (the sheet said "Publish your first plan" under every tab).
   const sheetPlans = demo ? programs.filter((p) => p && p.plan).map((p) => ({ ...p.plan, category: 'program',
     meta: p.weeks ? tr('profile:trainer.programWeeks', { defaultValue: '{count, plural, one {# week} other {# weeks}}', count: p.weeks }) : (p.plan.meta || '') })) : salePlans;
-  // A real coach's published plans, for a listing with no monthly price; a sample with no price shows none.
-  const plansListed = !demo && Array.isArray(salePlans) && salePlans.length > 0;
+  // A real coach's published plans, for a listing with no monthly price, when one of them has a price
+  // to pay (a workout or reusable program is saved with none, and alone it would hide "hasn't listed
+  // prices" behind rows with nothing to buy: Codex P2 on 2ecbc5b). A sample with no price shows none.
+  const plansListed = !demo && Array.isArray(salePlans) && salePlans.some((pl) => pl && bsWorkPaid(pl.price));
   const workouts = nutri ? [] : demo ? (demo.workouts || []) : bsWorkoutVideos(postCards);
   const replays = nutri ? [] : demo ? demo.replays : postCards
     .filter((c) => c.breakdown && Array.isArray(c.breakdown.rows) && c.breakdown.rows.length && !c.video);

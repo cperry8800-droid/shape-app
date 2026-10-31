@@ -208,6 +208,14 @@ test('the storefront shows only what the coach sells: no monthly price, no packa
   assert.equal(cat.textContent, 'Strong in 12 $79');
   assert.doesNotMatch(m.text(), /hasn't listed prices on Shape yet/, 'not told there are no prices beside them');
   await m.unmount();
+  // Only plans with no price (a workout or reusable program): nothing to buy, so the no-prices line
+  // stays and no catalogue shows (Codex P2 on 2ecbc5b).
+  reset({ provider: { ...world.provider, price: null }, salePlans: [{ id: 'w1', kind: 'program', name: 'Form check', meta: '', price: null, category: 'workout', providerId: 7, providerRole: 'trainer' }] });
+  m = await mount(page());
+  await click(button(/^Work with her$/));
+  assert.ok(!document.querySelector('[data-coaching-block]'), 'no catalogue with nothing to buy');
+  assert.match(m.text(), /hasn't listed prices on Shape yet/);
+  await m.unmount();
 });
 
 test('a visitor sees a tab only when it has something in it; a private profile shows none', async () => {
