@@ -29,6 +29,7 @@
   "follow.follow": "＋ Follow",
   "follow.following": "Dey follow",
   "follow.posts": "Posts",
+  "follow.followingCount": "Following",
   "follow.requestCount": "{count, plural, one {# request} other {# requests}}",
   "follow.requested": "Don request",
   "follow.updateError": "No fit update di follow.",

@@ -15512,7 +15512,8 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
       <div data-follow-coach="">
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 16 }}>
           {count(stats.followers, tr('profile:log.vis.followers', { defaultValue: 'Followers' }), () => openList('followers'), 'followers')}
-          {count(stats.following, tr('profile:follow.following', { defaultValue: 'Following' }), () => openList('following'), 'following')}
+          {/* The count's own noun: follow.following is Follow's state (de "Folgst du"; Codex P2 on #2546). */}
+          {count(stats.following, tr('profile:follow.followingCount', { defaultValue: 'Following' }), () => openList('following'), 'following')}
           {count(postsShown, tr('profile:follow.posts', { defaultValue: 'Posts' }), () => onOpenPosts && onOpenPosts(), 'posts')}
           {isSelf && reqCount > 0 ? (
             <button type="button" onClick={() => openList('requests')} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: DISPLAY, fontSize: 14, fontWeight: 650, color: INK, borderBottom: `2px solid ${c}` }}>{tr('profile:follow.requestCount', { defaultValue: '{count, plural, one {# request} other {# requests}}', count: reqCount })}</button>

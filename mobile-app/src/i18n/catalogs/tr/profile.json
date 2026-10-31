@@ -29,6 +29,7 @@
   "follow.follow": "＋ Takip et",
   "follow.following": "Takip ediliyor",
   "follow.posts": "Gönderiler",
+  "follow.followingCount": "Takip",
   "follow.requestCount": "{count, plural, one {# istek} other {# istek}}",
   "follow.requested": "İstendi",
   "follow.updateError": "Takip güncellenemedi.",

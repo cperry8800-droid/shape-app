@@ -29,6 +29,7 @@
   "follow.follow": "＋ Ikuti",
   "follow.following": "Mengikuti",
   "follow.posts": "Postingan",
+  "follow.followingCount": "Mengikuti",
   "follow.requestCount": "{count, plural, other {# permintaan}}",
   "follow.requested": "Diminta",
   "follow.updateError": "Tidak dapat memperbarui status ikuti.",

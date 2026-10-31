@@ -29,6 +29,7 @@
   "follow.follow": "＋ Suivre",
   "follow.following": "Abonné",
   "follow.posts": "Publications",
+  "follow.followingCount": "Abonnements",
   "follow.requestCount": "{count, plural, one {# demande} other {# demandes}}",
   "follow.requested": "Demandé",
   "follow.updateError": "Impossible de mettre à jour l’abonnement.",

@@ -29,6 +29,7 @@
   "follow.follow": "＋ Seguir",
   "follow.following": "Siguiendo",
   "follow.posts": "Publicaciones",
+  "follow.followingCount": "Seguidos",
   "follow.requestCount": "{count, plural, one {# solicitud} other {# solicitudes}}",
   "follow.requested": "Solicitado",
   "follow.updateError": "No se pudo actualizar el seguimiento.",

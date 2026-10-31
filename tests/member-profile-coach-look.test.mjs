@@ -237,3 +237,23 @@ test('the tier climb\'s points are in the reader\'s unit', () => {
     }
   } finally { globalThis.window.ShapeI18n = was; }
 });
+
+test('the Following count is a noun, not Follow\'s state', () => {
+  // Codex P2 on #2546: the count reused follow.following, Follow's state, so German read "12 Folgst du"
+  // and Russian "12 Вы подписаны".
+  const de = JSON.parse(readFileSync(new URL('../mobile-app/src/i18n/catalogs/de/profile.json', import.meta.url), 'utf8'));
+  const was = globalThis.window.ShapeI18n;
+  globalThis.window.ShapeI18n = { t: (key, opts = {}) => { const m = /^profile:(.+)$/.exec(key); const msg = m ? de[m[1]] : null; return msg == null ? undefined : new IntlMessageFormat(msg, 'de').format(opts); } };
+  try {
+    signedInAs('u-me');
+    const d = drive(mod.BSFollowBlock, { userId: 'u-priya', isSelf: false, c: '#34d6c5', name: 'Priya Shah', variant: 'coach', onMessage() {} });
+    const [following] = withAttr(d.nodes(), 'data-follow-count').filter((n) => n.props['data-follow-count'] === 'following');
+    assert.match(textOf(following), /Gefolgt$/);
+    assert.doesNotMatch(textOf(following), /Folgst du/);
+  } finally { globalThis.window.ShapeI18n = was; }
+  // Every locale has the noun.
+  for (const loc of ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
+    const cat = JSON.parse(readFileSync(new URL(`../mobile-app/src/i18n/catalogs/${loc}/profile.json`, import.meta.url), 'utf8'));
+    assert.ok(cat['follow.followingCount'], `${loc} has no Following count`);
+  }
+});

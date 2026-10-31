@@ -29,6 +29,7 @@
   "follow.follow": "＋ Підписатися",
   "follow.following": "Ви підписані",
   "follow.posts": "Публікації",
+  "follow.followingCount": "Підписки",
   "follow.requestCount": "{count, plural, one {# запит} few {# запити} many {# запитів} other {# запиту}}",
   "follow.requested": "Запитано",
   "follow.updateError": "Не вдалося оновити підписку.",
