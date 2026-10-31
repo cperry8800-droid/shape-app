@@ -61,10 +61,15 @@ test('the title names the place, says it opens a dialog, and opens it', async ()
     assert.equal(btn.getAttribute('aria-haspopup'), 'dialog');
     assert.equal(btn.getAttribute('aria-expanded'), 'false');
     // The title says it switches (owner, 2026-10-31: "make it more noticeable that you click here to
-    // change between pages"): a keyed Switch chip with a chevron, not a lone ▾.
-    assert.match(btn.textContent, /^WallSwitch$/);
+    // change between pages"): a keyed chip with a chevron, not a lone ▾. No word on it ("dont say
+    // switch, need something else"): a 2×2 grid icon, then the chevron.
+    assert.equal(btn.textContent, 'Wall', 'the chip carries a word again');
     const chip = btn.querySelector('[data-bs-chat-switch]');
-    assert.ok(chip && chip.querySelector('svg'), 'the Switch chip and its chevron');
+    assert.ok(chip, 'the chip');
+    const svgs = [...chip.querySelectorAll('svg')];
+    assert.equal(svgs.length, 2, 'the grid and the chevron');
+    assert.ok(svgs[0].hasAttribute('data-bs-chat-pages-icon') && svgs[0].querySelectorAll('rect').length === 4, 'the grid first, four squares');
+    assert.equal(chip.getAttribute('aria-hidden'), 'true', 'the chip is not read; the button\'s label is');
     assert.match(chip.getAttribute('style'), /border: 1px solid/);
     // Codex on #2535: a long name and the chip wrap rather than run past the phone's width.
     assert.match(btn.getAttribute('style'), /flex-wrap: wrap/);

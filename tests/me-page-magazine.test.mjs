@@ -584,3 +584,28 @@ test('the viewer portals into the phone\'s surface, over the tab bar, as every s
   assert.match(body, /document\.getElementById\('bs-phone-surface'\)/);
   assert.match(body, /return host \? createPortal\(view, host\) : view;/);
 });
+
+// Owner, 2026-10-31, of "Why I train" and "The lift I love" on the member profile: "remove this from
+// member profile". The profile passes showPrompts={false}; the member's editor no longer asks for them,
+// and its save writes back the answers it loaded, so the website's profile (which still reads them)
+// keeps what a member already wrote. A coach's editor keeps its prompts.
+test('the member profile shows no prompts, and the member\'s editor no longer asks for them', () => {
+  const custom = mod.bsDemoMemberCustom();
+  assert.ok(custom.prompts.some((p) => p && p.q && p.a), 'the demo still carries prompts to leave out');
+  const off = drive(mod.BSProfileExtras, { custom, c: '#c0533b', INK, BG: '#fff', isSelf: false, ledger: true, demo: true, bleed: 20, showPrompts: false });
+  assert.deepEqual(off.nodes().filter(named('BSTPullQuote')), [], 'an answer is pulled out');
+  assert.doesNotMatch(off.text, /Why I train|The lift I love/i);
+  assert.deepEqual(off.nodes().filter(named('BSTStationHead')).map((h) => h.props.label), ['The shelf · Proudest'], 'the rest of the extras stay');
+  const src = readFileSync(SRC, "utf8");
+  const start = src.indexOf('function BSTerrainProfile(');
+  const body = src.slice(start, src.indexOf('\nfunction ', start + 30));
+  assert.match(body, /<BSProfileExtras [^>]*showPrompts=\{false\}/, 'the member profile asks for the prompts again');
+  for (const coach of [false, true]) {
+    const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { prompts: [{ q: 'why', a: 'x' }] }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {}, coach }));
+    const asks = /Add prompt/.test(d.text);
+    assert.equal(asks, coach, coach ? 'a coach lost their prompts' : 'the member\'s editor still asks for prompts');
+  }
+  // What a member already wrote rides through a save.
+  assert.match(src, /const \[prompts, setPrompts\] = useStateBSC\(Array\.isArray\(init\.prompts\) && init\.prompts\.length \? init\.prompts\.slice\(0, 4\)/);
+  assert.match(src, /prompts: prompts\.filter\(\(p\) => p && p\.q && String\(p\.a\)\.trim\(\)\)/);
+});

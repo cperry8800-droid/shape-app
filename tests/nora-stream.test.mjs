@@ -288,7 +288,7 @@ test('the sheet draws her reply so far as her message, in place of "Nora is typi
   assert.match(waiting.text, /Nora is typing…/, 'before her first words');
   sheet._bsNoraLiveSet('Hello there, I am wri');
   const writing = open();
-  assert.ok(writing.text.endsWith('Nora · ConciergeHello there, I am wri'), 'after the thread, labelled as hers');
+  assert.ok(writing.text.endsWith('NoraHello there, I am wri'), 'after the thread, labelled as hers');
   assert.doesNotMatch(writing.text, /Nora is typing/);
   assert.equal(writing.buttons().filter((b) => /Listen/.test(b.label)).length, 1, 'Listen on the greeting only: the half-written reply has none');
   reset();

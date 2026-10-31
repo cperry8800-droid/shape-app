@@ -25,10 +25,9 @@ import {
 //   Your space   the studio plan: a starting layout per kind of space, then pieces to add, move,
 //                turn, copy and remove. A piece made a station gets a number members tap, and
 //                the coach's own title and note for it.
-//   Your kitchen (a nutritionist's, in place of Your space) in four parts: the kitchen's layout
-//                (owner, 2026-10-30: "lets show a kitchen layout, like we did for trainers": Your
-//                space's editor with the kitchen's pieces, saved in `studio` as a trainer's floor
-//                is), then the page's three: up to six recipes of their own (written or pasted, with a photo, their
+//   Your kitchen (a nutritionist's, in place of Your space) in the page's three parts (its layout,
+//                added 2026-10-30, went the next day: owner, "i dont think this concept makes sense
+//                for nutritionist profiles"): up to six recipes of their own (written or pasted, with a photo, their
 //                note, the numbers, the ingredients and the method, in the order they put them),
 //                the plate they teach and their portion rules, and their staples.
 //
@@ -581,8 +580,9 @@ function nudgePlate(plate, key, by) {
   }
   return owe ? plate : next;
 }
-// The editor's parts: the kitchen's layout, then the page's three.
-const KITCHEN_PARTS = [['layout', 'secLayout', 'Layout'], ['recipes', 'secRecipes', 'Recipes'], ['plate', 'secPlate', 'Plate'], ['staples', 'secStaples', 'Staples']];
+// The editor's parts: the page's three. The kitchen's layout went (owner, 2026-10-31: "i dont think
+// this concept makes sense for nutritionist profiles").
+const KITCHEN_PARTS = [['recipes', 'secRecipes', 'Recipes'], ['plate', 'secPlate', 'Plate'], ['staples', 'secStaples', 'Staples']];
 // A recipe's numbers as the form asks for them: [key, label key, English]. Their ranges are BS_RECIPE_NUMS.
 const RECIPE_NUM_FIELDS = [['min', 'profile:mine.recipeMin', 'Minutes'], ['serves', 'nutrition:myRecipe.servings', 'Serves'], ['kcal', 'profile:mine.recipeKcal', 'kcal'], ['p', 'profile:mine.recipeP', 'Protein (g)'], ['c', 'profile:mine.recipeC', 'Carbs (g)'], ['f', 'profile:mine.recipeF', 'Fat (g)']];
 const newRecipeId = () => (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).replace(/[^a-z0-9]/g, '').slice(0, 24);
@@ -884,7 +884,7 @@ function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks })
   );
 }
 
-function KitchenTab({ tr, look, kitchen, setKitchen, startSection = null, owner, uploadPhoto, draft, setDraft, layout = null }) {
+function KitchenTab({ tr, look, kitchen, setKitchen, startSection = null, owner, uploadPhoto, draft, setDraft }) {
   const [part, setPart] = React.useState(KITCHEN_PARTS.some(([k]) => k === startSection) ? startSection : 'recipes');
   const [msg, setMsg] = React.useState(null);
   const [staple, setStaple] = React.useState('');
@@ -944,7 +944,6 @@ function KitchenTab({ tr, look, kitchen, setKitchen, startSection = null, owner,
       <Seg label={tr('profile:nutri.sections', { defaultValue: 'In the kitchen' })} value={part} onChange={(k) => { setPart(k); setMsg(null); }}
         options={KITCHEN_PARTS.map(([k, key, en]) => [k, tr('profile:nutri.' + key, { defaultValue: en })])} />
 
-      {part === 'layout' ? <div data-mine-part="layout">{layout}</div> : null}
 
       {part === 'recipes' ? (
         <div data-mine-part="recipes">
@@ -1257,7 +1256,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     colors: [tr('profile:mine.colorsTitle', { defaultValue: 'Your colors' }), tr('profile:mine.colorsSub', { defaultValue: 'Pick from Shape’s papers and accents. Your whole page follows.' })],
     wall: [tr('profile:mine.wallTitle', { defaultValue: 'Your wall photo' }), tr('profile:mine.wallSub', { defaultValue: 'The big photo behind your avatar. Your gym, your platform, your view.' })],
     space: [tr('profile:mine.spaceTitle', { defaultValue: 'Your space' }), tr('profile:mine.spaceSub', { defaultValue: 'Draw where you coach: a studio, a garage, a full gym or a park.' })],
-    kitchen: [tr('profile:mine.kitchenTitle', { defaultValue: 'Your kitchen' }), tr('profile:mine.kitchenSub', { defaultValue: 'Your kitchen\'s layout, your recipes, the plate you teach and your staples.' })],
+    kitchen: [tr('profile:mine.kitchenTitle', { defaultValue: 'Your kitchen' }), tr('profile:mine.kitchenSub', { defaultValue: 'Your recipes, the plate you teach and your staples.' })],
     about: [tr('profile:mine.aboutTitle', { defaultValue: 'About me' }), tr('profile:mine.aboutSub', { defaultValue: 'Your story, how you coach, the questions members ask, and where to find you.' })],
   }[tab];
 
@@ -1295,8 +1294,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         {tab === 'colors' ? <ColorsTab tr={tr} look={look} setLook={setLook} /> : null}
         {tab === 'wall' ? <WallTab tr={tr} look={look} setLook={setLook} wall={wall} setWall={(u) => { setWall(u); setErr(null); }} choices={photos} uploading={uploading} onUpload={onUpload} noUpload={demo ? demoNoUpload : null} /> : null}
         {tab === 'space' ? <SpaceTab tr={tr} look={look} studio={studio} setStudio={setStudio} sel={sel} setSel={setSel} programs={programs} /> : null}
-        {tab === 'kitchen' ? <KitchenTab tr={tr} look={look} kitchen={kitchen} setKitchen={setKitchen} startSection={startSection} owner={owner} uploadPhoto={uploadRecipePhoto} draft={recipeDraft} setDraft={setRecipeDraft}
-          layout={<SpaceTab tr={tr} look={look} studio={studio} setStudio={setStudio} sel={sel} setSel={setSel} kitchen />} /> : null}
+        {tab === 'kitchen' ? <KitchenTab tr={tr} look={look} kitchen={kitchen} setKitchen={setKitchen} startSection={startSection} owner={owner} uploadPhoto={uploadRecipePhoto} draft={recipeDraft} setDraft={setRecipeDraft} /> : null}
         {tab === 'about' ? <AboutTab tr={tr} about={about} setAbout={setAbout} prompts={prompts} setPrompts={setPrompts} links={links} setLinks={(f) => { setLinks(f); setErr(null); }} /> : null}
         {err && !unsaved ? <p role="alert" style={{ margin: '14px 0 0', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
       </div>

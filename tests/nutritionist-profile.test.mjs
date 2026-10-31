@@ -406,36 +406,27 @@ test('a bigger pick of long staple names is its own list', async () => {
   } finally { g.done(); }
 });
 
-test('her kitchen as she drew it heads the tab: numbered spots, the ones her recipes use lit, each opening what she makes there', async () => {
-  // Owner, 2026-10-30: "lets show a kitchen layout, like we did for trainers". It rides in `studio`.
-  const studio = {
+test('her kitchen has no floor plan, even with one saved: the tab opens on her recipes, plate and staples', async () => {
+  // Owner, 2026-10-30: "lets show a kitchen layout, like we did for trainers"; 2026-10-31: "i dont think
+  // this concept makes sense for nutritionist profiles", and asked, to remove it. A layout already in
+  // `studio` (a kitchen one or a blank one) is left there and drawn nowhere.
+  const kitchenPlan = {
     kind: 'kitchen', where: 'The test kitchen',
     items: [
       { t: 'range', x: 192, y: 22, w: 36, h: 34, st: { title: 'Stove', note: 'One pan most nights.' } },
       { t: 'fridge', x: 22, y: 22, w: 36, h: 40, st: { title: 'Fridge', note: '' } },
       { t: 'sink', x: 98, y: 22, w: 52, h: 28 },
-      { t: 'table', x: 172, y: 218, w: 124, h: 72 },
     ],
   };
-  reset({ custom: { kitchen: KITCHEN, studio } });
-  const m = await mount(page());
-  await click(button(/^Her kitchen$/));
-  const plan = document.querySelector('[data-kitchen-plan]');
-  assert.ok(plan, 'the layout');
-  assert.match(plan.textContent, /Kitchen.*The test kitchen\..*Tap a number, or a lit spot, to see what Nadia makes there\./);
-  assert.deepEqual([...plan.querySelectorAll('[data-station]')].map((b) => b.getAttribute('aria-label')), ['1. Stove', '2. Fridge']);
-  // The bowl's method rinses and sears: the stove holds it, and the sink is lit and tappable; the
-  // table holds nothing and is not.
-  assert.deepEqual([...plan.querySelectorAll('[data-piece]')].map((b) => b.getAttribute('aria-label')), ['Sink: 1 recipe made here']);
-  assert.match([...plan.querySelectorAll('[data-spot-row]')].map((b) => b.textContent).join('|'), /^1Stove1 recipe\|2Fridge1 recipe$/, 'overnight oats in the fridge');
-  assert.ok(section('recipes'), 'the three parts follow');
-  await click(plan.querySelector('[data-station]'));
-  const sheet = document.querySelector('[data-spot-recipes]');
-  assert.match(document.body.textContent, /One pan most nights\./, 'her words for it');
-  assert.deepEqual([...sheet.querySelectorAll('[data-spot-recipe]')].map((b) => b.getAttribute('data-spot-recipe')), ['r1']);
-  await click(sheet.querySelector('[data-spot-recipe]'));
-  assert.ok(document.querySelector('[data-own-recipe="r1"]'), 'opens the recipe');
-  await m.unmount();
+  for (const studio of [kitchenPlan, { ...kitchenPlan, kind: 'blank' }]) {
+    reset({ custom: { kitchen: KITCHEN, studio } });
+    const m = await mount(page());
+    await click(button(/^Her kitchen$/));
+    for (const sel of ['[data-kitchen-plan]', '[data-studio-plan]', '[data-station]', '[data-piece]', '[data-spot-row]']) assert.ok(!document.querySelector(sel), `${studio.kind}: ${sel} is drawn`);
+    assert.doesNotMatch(m.text(), /Tap a number, or a lit spot|The test kitchen|One pan most nights/);
+    assert.ok(section('recipes'), 'the three parts lead the tab');
+    await m.unmount();
+  }
 });
 
 test('her activity: a tab of its own, last, with her posts that are not plate notes; on her own page, Log activity and what the feed is for', async () => {
@@ -477,48 +468,20 @@ test('staples: a card per place they live; Pick all picks the group, then clears
   } finally { g.done(); }
 });
 
-test('on her own page with no layout, Draw your kitchen opens the Layout part; the kitchen she starts from is saved in studio', async () => {
-  reset({ me: 'u-nadia', stored: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }] } } });
+test('on her own page there is no Draw your kitchen, and Make it yours\'s kitchen has no Layout part', async () => {
+  const studio = { kind: 'kitchen', where: '', items: [{ t: 'range', x: 40, y: 40, w: 30, h: 34, st: { title: 'Stove', note: '' } }] };
+  reset({ me: 'u-nadia', stored: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }] }, studio } });
   const m = await mount(page({ isSelf: true }));
   await click(button(/^Her kitchen$/));
-  assert.match(document.querySelector('[data-kitchen-plan-empty]').textContent, /Draw your kitchen: the fridge, the stove, where you prep\./);
-  await click(document.querySelector('[data-kitchen-fill="layout"]'));
-  assert.ok(document.querySelector('[data-mine-part="layout"]'), 'Make it yours, on the layout');
-  assert.deepEqual([...document.querySelectorAll('[data-kind]')].map((b) => b.getAttribute('data-kind')), ['kitchen', 'blank'], 'a kitchen\'s kinds, not a gym\'s');
-  assert.ok(!document.querySelector('[data-pins]'), 'no program pins');
-  await click(document.querySelector('[data-kind="kitchen"]'));
-  assert.ok(document.querySelector('[data-studio-plan]'), 'the plan to draw on');
-  assert.ok(document.querySelector('[data-kit="oven"]') && !document.querySelector('[data-kit="rack"]'), 'the kitchen\'s pieces');
-  await click(document.querySelector('[data-save-mine]'));
-  assert.ok(world.saved, 'saved');
-  assert.equal(world.saved.d.studio.kind, 'kitchen');
-  assert.equal(world.saved.d.studio.items.filter((p) => p.st).length, 6);
-  assert.deepEqual(world.saved.d.kitchen.staples, [{ n: 'Eggs', g: 'fridge' }], 'her kitchen kept as it was');
-  await m.unmount();
-});
-
-test('a kitchen started blank, or drawn without a layout, is still saved and shown as a kitchen (Codex on #2516)', async () => {
-  // "Start blank" stored kind `blank`, the trainer's generic 480-unit room, and the page read it as
-  // "Their space"; so did a piece added before any layout was picked.
-  for (const start of ['blank', null]) {
-    reset({ me: 'u-nadia', stored: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }] } } });
-    const m = await mount(page({ isSelf: true }));
-    await click(button(/^Her kitchen$/));
-    await click(document.querySelector('[data-kitchen-fill="layout"]'));
-    if (start) await click(document.querySelector(`[data-kind="${start}"]`));
-    await click(document.querySelector('[data-kit="range"]'));
-    await click(document.querySelector('[data-save-mine]'));
-    assert.equal(world.saved.d.studio.kind, 'kitchen', `${start || 'no layout'}: saved as a kitchen`);
-    assert.equal(world.saved.d.studio.items.length, 1);
-    await m.unmount();
-  }
-  // A plan already stored as `blank` reads as her kitchen, not "Their space".
-  reset({ custom: { studio: { kind: 'blank', where: '', items: [{ t: 'range', x: 40, y: 40, w: 30, h: 34, st: { title: 'Stove', note: '' } }] } } });
-  const m = await mount(page());
-  await click(button(/^Her kitchen$/));
-  const plan = document.querySelector('[data-kitchen-plan]');
-  assert.match(plan.textContent, /^Kitchen/, 'the kitchen heading');
-  assert.doesNotMatch(plan.textContent, /Their space/);
+  assert.ok(!document.querySelector('[data-kitchen-plan-empty]'), 'Draw your kitchen is back');
+  assert.ok(!document.querySelector('[data-kitchen-fill="layout"]'));
+  assert.doesNotMatch(m.text(), /Draw your kitchen/);
+  await click(document.querySelector('[data-kitchen-fill="recipes"]'));
+  assert.ok(document.querySelector('[data-mine-part="recipes"]'), 'Make it yours, on her recipes');
+  assert.ok(!document.querySelector('[data-mine-part="layout"]'));
+  // Nor does its subtitle promise one (Codex P2 on #2543: "Your kitchen's layout, your recipes…").
+  assert.doesNotMatch(m.text(), /\blayout\b/i, 'a Layout part, or the promise of one, in the kitchen\'s editor');
+  assert.ok(!document.querySelector('[data-studio-plan]'), 'the floor editor');
   await m.unmount();
 });
 
