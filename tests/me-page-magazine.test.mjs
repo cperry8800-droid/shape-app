@@ -22,38 +22,46 @@ const named = (name) => (n) => n && typeof n.type === 'function' && n.type.name 
 const TEAL = '#0a7a72';   // bsWsAccent on a light paper (the harness THEME is light)
 const INK = '#111';
 
-test('the Me page asks for the Wall\'s heads on every tab: the name, the score, the climb, the signals', () => {
+test('the Me page wears the coach profile\'s head: the cover, the round photo, the name, one meta line, its own buttons', () => {
+  // Owner, 2026-10-31: "member profile needs to match similar design to coaches, interms of overall look,
+  // but keep same basic features while you look for improvements"; of the choices, "Cover photo; climb in
+  // its tab". The mountain, the name block and the score's bars at the top went; the climb is its own tab.
   globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
   const person = { who: 'Quinn Harper', kind: 'CLIENT', tier: 'TEMPO', init: 'QH' };
   const d = drive(mod.BSTerrainProfile, { person, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
   const nodes = d.nodes();
-  assert.equal(nodes.find(named('BSProfileIdentityHead')).props.mag, true, 'the name block keeps its old heat rule');
-  // The score's bars: square, and no burst on the best one (it left a box drawn round the bar).
-  const scoreBars = nodes.filter(named('BSSdBars'));
-  assert.ok(scoreBars.length && scoreBars.every((b) => b.props.mag && b.props.still), 'the score bars are the old animated ones');
-  // No quote at the top (owner, 2026-10-24: "remove the quote at the top on profiles"): the demo
-  // member has a line, and it is not pulled out; the Training for line under the name stays.
-  assert.equal(nodes.filter(named('BSTPullQuote')).length, 0, 'the member\'s line is pulled out at the top again');
-  assert.match(d.text, /Training for/, 'the start line under the name went with the quote');
+  const withAttr = (attr) => nodes.filter((n) => n && n.props && n.props[attr] !== undefined);
+  const [head] = withAttr('data-member-head');
+  assert.ok(head, 'the coach look\'s head is gone');
+  assert.equal(head.props['data-tour'], 'hero-me', 'the tour\'s first stop lost the head');
+  for (const a of ['data-member-cover', 'data-member-avatar', 'data-member-name', 'data-member-meta', 'data-member-log', 'data-member-edit']) {
+    assert.equal(withAttr(a).length, 1, `${a} on the Me page`);
+  }
+  assert.equal(withAttr('data-member-meta')[0].type, 'button', 'your own tier line opens the Shape Score page');
+  assert.equal(withAttr('data-member-meta')[0].props['data-tour'], 'hero-score');
+  for (const gone of ['BSProfileIdentityHead', 'BSSdBars', 'BSTPullQuote', 'BSProfileDock']) {
+    assert.equal(nodes.filter(named(gone)).length, 0, `${gone} is back at the top`);
+  }
+  // No quote at the top (owner, 2026-10-24); the Training for line under the name stays.
+  assert.match(d.text, /Training for/);
   const tabsOf = () => d.nodes().find(named('BSTerrainTabs'));
-  const seen = {}, texts = {};
+  assert.equal(tabsOf().props.look, 'coach', 'the tab row is the coach page\'s');
+  assert.deepEqual(tabsOf().props.tabs.map((tb) => tb.key), ['activity', 'signals', 'climb', 'playlists']);
+  const heads = {}, texts = {};
   for (const tb of tabsOf().props.tabs) {
     tabsOf().props.onPick(tb.key);
     d.render();
-    const heads = d.nodes().filter(named('BSTStationHead'));
-    for (const h of heads) assert.equal(h.props.mag, true, `"${h.props.label}" on ${tb.key} is the old station head`);
-    for (const b of d.nodes().filter(named('BSSdBars'))) assert.equal(b.props.mag, true, `bars on ${tb.key} are the old ones`);
-    seen[tb.key] = heads.map((h) => h.props.label);
+    heads[tb.key] = d.nodes().filter(named('BSTStationHead')).map((h) => h.props.label);
     texts[tb.key] = d.text;
   }
-  // A tab's first section takes no head of its own: the tab right above names it (owner, 2026-10-26:
-  // "remove these headers. dont need it showing twice", then "and remove 'the climb'").
-  assert.deepEqual(seen.signals, ['Disciplines · strata', 'Key lifts']);
-  assert.deepEqual(seen.climb, []);
-  // The Climb's head carried the join date, the one place most profiles show it: it stays without the head
-  // (Codex P2 on #2468).
+  // The sections carry the coach page's mono eyebrows, not the station heads over heavy rules; a tab's
+  // first section still takes no head of its own (owner, 2026-10-26: "dont need it showing twice").
+  assert.deepEqual(heads.signals, []);
+  assert.match(texts.signals, /Day streak[\s\S]*Weekly momentum[\s\S]*Trajectory[\s\S]*Disciplines[\s\S]*Key lifts/);
+  assert.deepEqual(heads.climb, []);
+  // The join date, the one place most profiles show it, stays on the Climb (Codex P2 on #2468).
   assert.match(texts.climb, /Member since/);
-  assert.ok(!seen.activity.includes('The wall'), 'the wall has its head back under the Activity tab');
+  assert.ok(!heads.activity.includes('The wall'), 'the wall has its head back under the Activity tab');
 });
 
 test('the section strip: the names in the headline face between a heavy rule and a hairline, the active one underlined in teal', () => {
@@ -384,20 +392,25 @@ test('the coach\'s own Me tab draws in the same look', () => {
   assert.deepEqual(oldLook(d.nodes()).map((n) => n.type), []);
 });
 
-test('the member profile\'s Message is the same dock with Message alone, not a sticky fade over the wall', () => {
-  // Owner, 2026-10-24, of "Message Priya" over a member's wall: "fix this message box thats appearing".
+test('another member\'s profile has Message beside Follow in the head, and no dock or sticky fade over the wall', () => {
+  // Owner, 2026-10-24, of "Message Priya" over a member's wall: "fix this message box thats appearing";
+  // 2026-10-31, the coach profile's look: Follow and Message are the head's two buttons, as a coach's are,
+  // so the dock that also said Message went (two Messages on one page).
   const src = stripComments(readFileSync(SRC, 'utf8'));
   const at = src.indexOf('function BSTerrainProfile(');
   const fn = src.slice(at, src.indexOf('\nfunction ', at + 10));
-  assert.match(fn, /<BSProfileDock INK=\{INK\} BG=\{BG\} PAPER=\{tTheme\.PAPER\} onMessage=\{\(\) => onMsg\(person\)\}\s+messageLabel=\{tr\('profile:terrain\.messageName'/);
-  assert.doesNotMatch(fn.slice(fn.indexOf('<BSProfileDock')), /onWorkWith/, 'a member has no Work with');
+  assert.doesNotMatch(fn, /<BSProfileDock\b/, 'the member dock is back');
   assert.doesNotMatch(fn, /position: 'sticky', bottom: 0/, 'the old fade that sat over the wall is back');
+  assert.match(fn, /<BSFollowBlock [^>]*variant="coach"[^>]*onMessage=\{hasMessage && !isSelf \? \(\) => onMsg\(person\) : null\}/);
   globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
   const d = drive(mod.BSTerrainProfile, { person: { who: 'Priya Shah', kind: 'CLIENT', tier: 'PEAK', init: 'PS', userId: 'u-priya' }, onBack() {}, onMessage() {} });
-  const dock = d.nodes().find(named('BSProfileDock'));
-  assert.ok(dock, 'another member\'s profile has no Message dock');
-  assert.equal(dock.props.onWorkWith, undefined);
-  assert.match(dock.props.messageLabel, /^Message /);
+  assert.equal(d.nodes().filter(named('BSProfileDock')).length, 0);
+  const follow = d.nodes().find(named('BSFollowBlock'));
+  assert.equal(follow.props.variant, 'coach');
+  assert.equal(typeof follow.props.onMessage, 'function', 'another member\'s profile has no Message');
+  // Your own page has none.
+  const me = drive(mod.BSTerrainProfile, { person: { who: 'Quinn Harper', kind: 'CLIENT', tier: 'TEMPO', init: 'QH' }, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
+  assert.equal(me.nodes().find(named('BSFollowBlock')).props.onMessage, null);
 });
 
 test('the coach profile renders its dock as the component that hides on scroll, and no other sticky footer', () => {

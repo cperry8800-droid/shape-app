@@ -342,7 +342,7 @@ const UNCOVERED = new Set([
   'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
   'Client::BSNoraMemoryPage', 'Client::BSNoraProfile',
   'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
-  'Client::BSProfileIdentityHead', 'Client::BSProgChart',
+  'Client::BSProgChart',
   'Client::BSRecipePreview',
   // ⚠ BSReconcile MOVED FILES 2026-09-30 (iosAppBroadsheetClient.jsx → BSIntegrationsPage.jsx)
   // with the integrations page it belongs to. Same 13 strings, still no translator;
@@ -441,7 +441,6 @@ const PARTIAL = new Set([
   // module-scope BS_STAT_OPTIONS / BS_PROFILE_LINKS array literals it cannot attribute.
   // All 24 are keyed; none of them ever counted here.
   'Client::BSProfileCustomizer',
-  'Client::BSTerrainProfile',
   // ⚠ BSGoalsContract IS PARTIAL OVER THE SIGNED-OUT DEMO PLAN CARDS, NOT OVER
   // LIVE COPY — 88 tr() calls and exactly four hardcoded strings, all four in the
   // `signedIn ? … : <demo>` else-branch: two fabricated coach credits ("TRAINER ·
@@ -809,7 +808,10 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // shared back row, whose label is common:action.back, so a literal "← Back" goes: 169 -> 168.
   // Every Back says Back (owner, 2026-10-31: "make them all say back"): the literal "Library" and
   // "Radio" back labels go: 168 -> 166.
-  assert.equal(partStrings, 166, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The member profile in the coach profile's look (owner, 2026-10-31): its head and tabs are rewritten
+  // through tr(), and the profile's last literal goes with the old head: 166 -> 165, and
+  // BSTerrainProfile leaves PARTIAL.
+  assert.equal(partStrings, 165, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
@@ -911,10 +913,14 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // Back in the same place on every screen (owner, 2026-10-31): the untranslated pages' hand-drawn
   // backs ("← BACK", "‹", "← Back to menu", a bottom "Close"…) became the shared back row, labelled
   // by common:action.back, or went with the duplicate at the page's foot: noneStrings 601 -> 594.
-  assert.equal(noneStrings, 594, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The member profile's old head (BSProfileIdentityHead) went with the coach profile's look
+  // (owner, 2026-10-31), and its two literals ("Tier", "week streak") with it: 594 -> 592.
+  assert.equal(noneStrings, 592, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   // 33 -> 32: BSScoreStandingChart left with the Score page's ladder (see partStrings above).
-  assert.equal(part.length, 32, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 79, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // BSTerrainProfile is fully translated now (2026-10-31): 32 -> 31.
+  assert.equal(part.length, 31, 'partial-surface count moved — regenerate PARTIAL and the record');
+  // BSProfileIdentityHead was deleted with the member profile's old head (2026-10-31): 79 -> 78.
+  assert.equal(none.length, 78, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

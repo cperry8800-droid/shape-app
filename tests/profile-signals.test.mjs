@@ -114,8 +114,11 @@ test('signed out, the Signals tab keeps every demo figure', async () => {
   const all = d.nodes();
   assert.ok(all.some((n) => n.type === 'span' && textOf(n) === '14'), 'the 14-day streak');
   assert.ok(all.some((n) => n.type === 'span' && textOf(n) === '−5'), 'the −5 lb trajectory');
-  const days = all.filter((n) => n.type === 'div' && n.props && n.props.style && n.props.style.fontSize === 6.5).map(textOf);
+  const days = all.filter((n) => n.type === 'div' && n.props && n.props['data-week-day'] !== undefined).map(textOf);
   assert.deepEqual(days, ['M', 'T', 'W', 'T', 'F', 'S', 'S'], 'the Monday-to-Sunday row');
-  const bars = all.find((n) => n && typeof n.type === 'function' && n.type.name === 'BSSdBars' && n.props.rows[0][0] === 'Strength');
-  assert.deepEqual(bars.props.perf, [82, 64, 91, 73], 'the demo disciplines');
+  // The disciplines, each a bar to its own 100 with its figure, the strongest marked (2026-10-31: the coach
+  // profile's sections replaced the station head's square bars).
+  const disc = all.filter((n) => n.type === 'div' && n.props && n.props['data-disc-row'] !== undefined);
+  assert.deepEqual(disc.map(textOf), ['Strength82', 'Endurance64', 'Consistency91', 'Recovery73'], 'the demo disciplines');
+  assert.deepEqual(disc.map((n) => n.props['data-disc-row']), ['', '', 'best', ''], 'the strongest is Consistency');
 });
