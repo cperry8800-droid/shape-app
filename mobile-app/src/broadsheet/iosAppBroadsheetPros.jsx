@@ -3258,16 +3258,15 @@ function bsProHeat(t, role) { return role === 'nutritionist' ? (t.isLight ? '#a0
 // ── Catalogue primitives (Plans/Programs tab, both roles) — the owner's Programs mockup
 // "A + C combined" (2026-10-25) with option B's filter: rows that lead with a coloured length square,
 // the price and Assign on the right, and a feature card for the most popular plan. ──
-// The band colour a white label holds AA on: trainer rust, nutritionist deep gold (the light gold does not).
-function bsProBand(heat) { return heat === '#c0533b' ? '#c0533b' : '#7a5a1e'; }
 // A row's square: the plan's length when its meta says one (weeks, days a week, minutes), else its number.
 function bsProSwatch(t, heat, index, meta) {
   const m = String(meta || '');
   const wk = m.match(/(\d+)\s*(?:wk|wks|week|weeks)\b/i);
   const days = m.match(/(\d+)\s*days?\s*\/\s*wk/i);
   const mins = m.match(/(\d+)\s*min\b/i);
-  const tones = [{ bg: bsProBand(heat), fg: '#ffffff' }, { bg: t.INK, fg: t.PAPER }, { bg: '#07706a', fg: '#ffffff' }, { bg: '#d8a23a', fg: '#0f0e0c' }];
-  const tone = tones[index % tones.length];
+  // One tone, an ink outline (owner, 2026-10-31, of rust, ink, teal and amber squares down the list:
+  // "too many colors here. I dont like the design here"); the length is what tells rows apart.
+  const tone = { bg: 'transparent', fg: t.INK, line: t.INK };
   if (wk) return { ...tone, big: wk[1], unit: coachTr('coach:plans.unitWk', { defaultValue: 'WK' }) };
   if (days) return { ...tone, big: days[1], unit: coachTr('coach:plans.unitDaysWk', { defaultValue: 'D/WK' }) };
   if (mins) return { ...tone, big: mins[1], unit: coachTr('coach:plans.unitMin', { defaultValue: 'MIN' }) };
@@ -3281,12 +3280,14 @@ function bsProSegDivider(t) {
 }
 function bsProTypoIndex(t, items, activeKey, onPick, { ariaLabel = 'Sections' } = {}) {
   return (
-    <div role="tablist" aria-label={ariaLabel} style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, padding: 4, borderRadius: 12, background: t.PAPER3 || t.PAPER2 }}>
+    // A hairline track with the picked box in ink, as the Wall's type chips (owner, 2026-10-31: "too
+    // many colors"; the track was a tan fill and the pick a raised paper box).
+    <div role="tablist" aria-label={ariaLabel} style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, padding: 3, borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent' }}>
       {items.map(([k, l], i) => {
         const on = activeKey === k;
         const divider = i > 0 && !on && items[i - 1][0] !== activeKey;
         return (
-          <button key={k} type="button" role="tab" aria-selected={on} onClick={() => onPick(k)} style={{ position: 'relative', minWidth: 0, minHeight: 42, padding: '0 4px', border: 0, borderRadius: 9, background: on ? t.PAPER : 'transparent', boxShadow: on ? '0 1px 3px rgba(0,0,0,0.14)' : 'none', cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: on ? 750 : 600, letterSpacing: '-0.01em', color: on ? t.INK : t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{divider && bsProSegDivider(t)}{l}</button>
+          <button key={k} type="button" role="tab" aria-selected={on} onClick={() => onPick(k)} style={{ position: 'relative', minWidth: 0, minHeight: 42, padding: '0 4px', border: 0, borderRadius: 9, background: on ? t.INK : 'transparent', boxShadow: 'none', cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: on ? 700 : 600, letterSpacing: '-0.01em', color: on ? t.PAPER : t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{divider && bsProSegDivider(t)}{l}</button>
         );
       })}
     </div>
@@ -3298,7 +3299,7 @@ function bsProTypoIndex(t, items, activeKey, onPick, { ariaLabel = 'Sections' } 
 function bsProCreateButtons(t, heat, tr, onDraft, onScratch) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
-      <button type="button" data-create="nora" onClick={onDraft} style={{ minHeight: 40, padding: '6px 10px', borderRadius: 10, border: 0, background: bsProBand(heat), color: '#ffffff', fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 650, lineHeight: 1.15, letterSpacing: '-0.005em', cursor: 'pointer' }}>{tr('coach:plans.draftWithNora', { defaultValue: '✦ Draft with Nora' })}</button>
+      <button type="button" data-create="nora" onClick={onDraft} style={{ minHeight: 40, padding: '6px 10px', borderRadius: 10, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 650, lineHeight: 1.15, letterSpacing: '-0.005em', cursor: 'pointer' }}>{tr('coach:plans.draftWithNora', { defaultValue: '✦ Draft with Nora' })}</button>
       <button type="button" data-create="scratch" onClick={onScratch} style={{ minHeight: 40, padding: '6px 10px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 650, lineHeight: 1.15, letterSpacing: '-0.005em', cursor: 'pointer' }}>{tr('coach:plans.fromScratch', { defaultValue: '＋ From scratch' })}</button>
     </div>
   );
@@ -3306,7 +3307,7 @@ function bsProCreateButtons(t, heat, tr, onDraft, onScratch) {
 // The library search: one field over every list on the page.
 function bsProLibrarySearch(t, tr, value, setValue, placeholder) {
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, padding: '0 14px', borderRadius: 12, background: t.PAPER2, boxSizing: 'border-box' }}>
+    <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, padding: '0 14px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', boxSizing: 'border-box' }}>
       <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 16, color: t.INK70 }}>⌕</span>
       <input type="search" value={value} onChange={(e) => setValue(e.target.value)} aria-label={tr('coach:plans.searchAria', { defaultValue: 'Search your library' })} placeholder={placeholder || tr('coach:plans.searchPlaceholder', { defaultValue: 'Search plans, workouts, music' })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16 }} />
     </label>
@@ -3337,8 +3338,8 @@ function BSProFeaturedPlan({ plan, heat, t, onOpen, onAssign }) {
   // so the name has the card's width (beside Assign it wrapped: "Push / Pull /" over "Legs"). The whole
   // card opens the plan; the name is its button, and Assign keeps its own tap.
   return (
-    <div data-featured-plan="" onClick={onOpen} style={{ marginTop: 10, borderRadius: 16, background: t.PAPER2, padding: '12px 14px', display: 'grid', gridTemplateColumns: '56px minmax(0, 1fr) auto', columnGap: 14, rowGap: 4, alignItems: 'center', cursor: 'pointer' }}>
-      <span aria-hidden style={{ gridRow: '1 / span 2', width: 56, height: 56, borderRadius: 12, background: bsProBand(heat), color: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+    <div data-featured-plan="" onClick={onOpen} style={{ marginTop: 10, borderRadius: 16, border: `1px solid ${t.RULE}`, background: 'transparent', padding: '12px 14px', display: 'grid', gridTemplateColumns: '56px minmax(0, 1fr) auto', columnGap: 14, rowGap: 4, alignItems: 'center', cursor: 'pointer' }}>
+      <span aria-hidden style={{ gridRow: '1 / span 2', width: 56, height: 56, borderRadius: 12, background: t.INK, color: t.PAPER, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
         <span style={{ fontFamily: BS_PRO_HEAD, fontSize: 20, fontWeight: 800, letterSpacing: '-0.03em' }}>{sw.unit ? sw.big : '★'}</span>
         {sw.unit && <span style={{ marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em' }}>{sw.unit}</span>}
       </span>
@@ -3357,7 +3358,7 @@ function BSProCatRow({ index, name, meta, price, onOpen, onAssign, onDuplicate, 
   const sw = bsProSwatch(t, heat, index, meta);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 72, padding: '12px 0', borderTop: `1px solid ${t.RULE}` }}>
-      <span aria-hidden style={{ width: 48, height: 48, flexShrink: 0, borderRadius: 8, background: sw.bg, color: sw.fg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+      <span aria-hidden style={{ width: 48, height: 48, flexShrink: 0, boxSizing: 'border-box', borderRadius: 8, background: sw.bg, color: sw.fg, border: sw.line ? `1.5px solid ${sw.line}` : 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
         <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700 }}>{sw.big}</span>
         {sw.unit && <span style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{sw.unit}</span>}
       </span>
@@ -3371,7 +3372,7 @@ function BSProCatRow({ index, name, meta, price, onOpen, onAssign, onDuplicate, 
           <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {onDuplicate && <button type="button" onClick={onDuplicate} aria-label={tr('coach:workoutEditor.copyName', { defaultValue: 'Duplicate {name}', name })} style={{ minWidth: 44, minHeight: 40, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 700, color: t.INK70 }}>{tr('coach:head.copy', { defaultValue: 'Copy' })}</button>}
             {onAssign && (
-              <button type="button" onClick={(e) => { e.stopPropagation(); onAssign(); }} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name })} style={{ minHeight: 40, padding: '0 14px', borderRadius: 10, border: `1.5px solid ${heat}`, background: 'transparent', cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 700, color: t.INK }}>
+              <button type="button" onClick={(e) => { e.stopPropagation(); onAssign(); }} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name })} style={{ minHeight: 40, padding: '0 14px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: 'transparent', cursor: 'pointer', fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 700, color: t.INK }}>
                 {tr('coach:head.assign', { defaultValue: 'Assign' })}
               </button>
             )}
@@ -3445,26 +3446,25 @@ function bsProMonoTrail(t, label, onClick) {
 // headline with its heat-italic last word, its meta and EDIT · DUPLICATE · SHARE → actions.
 function bsProFeatureLead(t, heat, eyebrow, headA, headB, meta, actions) {
   return (
-    <div style={{ marginTop: 18, borderRadius: 14, overflow: 'hidden', background: t.PAPER2 }}>
-      <div style={{ background: bsProBand(heat), color: '#ffffff', padding: '12px 16px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{eyebrow}</div>
+    <div style={{ marginTop: 18, borderRadius: 14, overflow: 'hidden', border: `1px solid ${t.RULE}` }}>
+      <div style={{ color: t.INK70, padding: '12px 16px 0', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{eyebrow}</div>
       <div style={{ padding: '12px 16px 8px' }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{headA} <span style={{ fontStyle: 'italic', color: heat }}>{headB}</span></div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{headA} {headB}</div>
         <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{meta}</div>
         <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 18 }}>{actions}</div>
       </div>
     </div>
   );
 }
-// Enrolled row: the plan's colour square · name · facepile · {n} ON IT.
+// Enrolled row: name · facepile · {n} ON IT.
 function bsProEnrolledRow(t, flash, e, i, heat = '#c0533b') {
-  const tone = bsProSwatch(t, heat, i, '');
   return (
     <button key={i} type="button" onClick={() => flash(coachTr('coach:plans.enrolledFlash', { defaultValue: '{count} clients on {prog}', count: e.n, prog: e.prog }))} aria-label={coachTr('coach:plans.enrolledAria', { defaultValue: '{prog}, {count} clients enrolled', prog: e.prog, count: e.n })} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.RULE}`, cursor: 'pointer', padding: '10px 0', minHeight: 56, color: t.INK }}>
-      <span aria-hidden style={{ width: 10, height: 10, flexShrink: 0, borderRadius: 3, background: tone.bg }} />
       <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.prog}</span>
       <span style={{ display: 'flex' }}>
         {e.who.map(([ini, col], j) => (
-          <span key={j} style={{ marginLeft: j ? -8 : 0, width: 26, height: 26, borderRadius: 999, background: col, color: '#fff', border: `2px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>{ini}</span>
+          // Faces in the paper's own tones, not a colour each (owner, 2026-10-31: "too many colors").
+          <span key={j} style={{ marginLeft: j ? -8 : 0, width: 26, height: 26, boxSizing: 'border-box', borderRadius: 999, background: t.PAPER2, color: t.INK, border: `2px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>{ini}</span>
         ))}
       </span>
       <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap' }}>{coachTr('coach:plans.onIt', { defaultValue: '{count} ON IT', count: e.n })}</span>
