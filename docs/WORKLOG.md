@@ -92,7 +92,8 @@ or past 12 KB.
   or mark a hand-drawn Back `data-bs-back` (`tests/swipe-back.test.mjs`; `BS_SWIPE`).
 - **Theme:** `useBS()` → `t`. Teal `t.isLight ? '#0a8f87' : '#34d6c5'`, nutritionists gold
   `#a07a2e`, trainers rust `#c0533b`; the Wall, chat and chrome take `bsMagazine.mjs`'s
-  teal. Saira; Geist/Inter Tight on coach Today/Clients/Programs and member Home/Train/Eat.
+  teal. Saira; Geist/Inter Tight (`useBSProClean`) on coach Today/Clients/Programs and the client
+  review pages, and member Home/Train/Eat; catalog labels written in capitals stay capitals.
 - **App copy** goes through `useShapeTr()` in all 13 locales
   (`tests/i18n-surface-inventory.test.mjs` counts the untranslated).
 - **Backend:** a new notification kind needs a switch in `PREFERENCE_OF`
