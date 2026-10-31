@@ -734,7 +734,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                 ctx={cardSheets && W.BSActivityCard ? {
                   t, cardInk: INK, muted: ink(0.55), hair: ink(0.1), card: t.isLight ? t.PAPER2 : ink(0.05),
                   actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr, exprOpenKey: exprOpen, setExprOpenKey: setExprOpen, lpTimerRef, lpFiredRef,
-                  tierByUser: person.userId ? { [person.userId]: tierKey } : {}, avatarByUser: {}, feedAvatars: {},
+                  // The byline's tier and face, as the member profile's (owner, 2026-10-31: "make coach
+                  // profile cards show the full byline too"): keyed by the id the posts are listed by, and
+                  // the page's own avatar, so a card reads the coach as the header above it does.
+                  tierByUser: feedAuthor ? { [feedAuthor]: tierKey } : {}, avatarByUser: {}, ownerPhoto: avatarShown || null, feedAvatars: {},
                   myRole: (W.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client', coachClientIds: new Set(), myFollowingSet: null,
                   setOpenProfile: openPerson, feedApplyReaction: applyReaction,
                   // The coach edits a post of their own from its card, in the same composer.
@@ -1682,7 +1685,9 @@ function SpotSheet({ t, tr, ACC, ink, DISPLAY, MONO, INK, plan, i, work, recipes
 
 // ── Their activity (a tab) ──────────────────────────────────────────────────────────────────
 // What the coach posted, newest first, drawn by the member profile's activity card
-// (BSActivityCard, a window global of the client module) so a coach's feed reads like a member's.
+// (BSActivityCard, a window global of the client module) so a coach's feed reads like a member's:
+// the Wall's whole byline (their face, name, coach tier and time), the name opening nothing on
+// their own page (onAuthorPage).
 // Without that card (the module not loaded) a plain row stands in. Its own tab since 2026-10-31,
 // so it lists them all (to ACTIVITY_MAX) where under the tabs it showed three and See all.
 // On their own page: Log activity, and with nothing yet, what it is for.
@@ -1701,7 +1706,7 @@ function ActivityFeed({ t, tr, ACC, ink, DISPLAY, MONO, gutter, cards, isSelf, f
         <div style={{ marginTop: 6 }}>
           {list.map((a, i) => (Card ? (
             <div key={a.key || i} data-activity-card="">
-              <Card a={a} ctx={ctx} hideAuthor isLast={i === list.length - 1} pagePad={0} variant="magazine" />
+              <Card a={a} ctx={ctx} onAuthorPage isLast={i === list.length - 1} pagePad={0} variant="magazine" />
             </div>
           ) : (
             <div key={a.key || i} data-activity-card="" style={{ margin: `0 ${gutter}px`, padding: '12px 0', borderTop: `1px solid ${ink(0.12)}` }}>
