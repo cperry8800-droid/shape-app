@@ -66,6 +66,10 @@ test('the title names the place, says it opens a dialog, and opens it', async ()
     const chip = btn.querySelector('[data-bs-chat-switch]');
     assert.ok(chip && chip.querySelector('svg'), 'the Switch chip and its chevron');
     assert.match(chip.getAttribute('style'), /border: 1px solid/);
+    // Codex on #2535: a long name and the chip wrap rather than run past the phone's width.
+    assert.match(btn.getAttribute('style'), /flex-wrap: wrap/);
+    assert.match(btn.getAttribute('style'), /max-width: 100%/);
+    assert.match(btn.querySelector('span').getAttribute('style'), /overflow-wrap: anywhere/);
     assert.equal(btn.getAttribute('aria-label'), 'Wall. Choose another place in Chat');
     assert.ok(parseFloat(btn.style.minHeight) >= 44, 'the title is a full touch target');
     await React.act(async () => { btn.click(); });

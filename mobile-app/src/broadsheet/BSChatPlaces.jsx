@@ -39,9 +39,11 @@ export function BSChatPlaceTitle({ label, open, onOpen, buttonRef }) {
     <h1 style={{ margin: '4px 0 0', lineHeight: 1 }}>
       <button ref={buttonRef} type="button" onClick={onOpen} aria-haspopup="dialog" aria-expanded={!!open}
         aria-label={tr('feed:places.switchAria', { defaultValue: '{place}. Choose another place in Chat', place: label })}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 12, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left',
+        style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 12, rowGap: 8, maxWidth: '100%', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left',
           fontFamily: bsWsHead(t), fontWeight: 500, fontSize: 36, letterSpacing: '0.005em', lineHeight: 1, color: t.INK }}>
-        <span>{label}</span>
+        {/* A long place name in a long language keeps the page's width (Codex on #2535): the chip
+            wraps under the name when the two don't fit, and a name wider than the page breaks. */}
+        <span style={{ minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>{label}</span>
         {/* The title is a switch, and says so (owner, 2026-10-31: "make it more noticeable that you click
             here to change between pages on chat"): a keyed "Switch" chip in the accent with its chevron,
             where a lone 15px ▾ was. The whole title stays the tap target. */}
