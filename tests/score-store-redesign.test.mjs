@@ -22,6 +22,8 @@ import { loadBroadsheet, ROOT } from './helpers/broadsheet-mount.mjs';
 const require_ = createRequire(import.meta.url);
 const { IntlMessageFormat } = require_('intl-messageformat');
 
+// The shared back row (BSBackRow): ← Back on its own row, the page's eyebrow beside it.
+globalThis.BSBackRow = ({ onBack, label, trailing, disabled }) => React.createElement('div', { 'data-chrome': 'BSBackRow' }, React.createElement('button', { type: 'button', onClick: onBack, disabled }, '← ' + (label || 'Back')), trailing);
 globalThis.BSBackButton = ({ onClick }) => React.createElement('button', { type: 'button', onClick }, '← Back');
 const MOD = await loadBroadsheet(['BSShapeScorePage', 'BSShapeStorePage', 'SHAPE_SCORE_PROFILES', 'BS_STORE_PRODUCTS', 'BS_SHAPE_PTS_PER_USD'], React);
 const dom = new JSDOM('<div id="root"></div>', { url: 'https://shape.test/m/' });

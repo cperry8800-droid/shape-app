@@ -360,10 +360,10 @@ test('back undoes the last step, which is not always close', () => {
   });
   api.click('1 ›');
   assert.ok(api.nodes().some((n) => n.type === 'input'), 'the comments did not open');
-  api.click('←');
+  api.back();
   assert.equal(closed, 0, 'back closed the page instead of returning to the board');
   assert.ok(has(api, mod.BSIbTiles), 'back did not bring the board back');
-  api.click('←');
+  api.back();
   assert.equal(closed, 1, 'back on the page it opened on did not close it');
 });
 
@@ -380,7 +380,7 @@ test('a page OPENED on the comments closes on back, rather than stepping to a bo
     draft: '', setDraft() {}, onSend() {},
   });
   assert.ok(api.nodes().some((n) => n.type === 'input'), 'the page did not open on the comments');
-  api.click('←');
+  api.back();
   assert.equal(closed, 1, 'back on a page opened at the comments did not close it');
 });
 

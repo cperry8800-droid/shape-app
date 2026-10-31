@@ -36,6 +36,8 @@ export function useBSNavHistory({ navLoc, navResolve }) {
 
   const navBack = React.useCallback((fromPopstate = false) => {
     if (!bsNavCanPop()) return false;
+    // A Back: the page it reopens takes the scroll it left at (the chrome's scroll memory).
+    try { if (typeof window !== 'undefined' && window.bsMarkBack) window.bsMarkBack(); } catch (e) {}
     const loc = bsNavPop();
     if (fromPopstate) {
       // the browser just consumed the guard entry

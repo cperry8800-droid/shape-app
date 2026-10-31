@@ -338,6 +338,9 @@ function appSlice(scope = {}) {
     React, window, useBS: () => THEME, useShapeTr: () => tr, useStateBSP: React.useState,
     BSPage: ({ children }) => React.createElement('main', null, children),
     BSBackButton: ({ onClick, label }) => React.createElement('button', { type: 'button', onClick }, label),
+    // The rates page opens on the masthead row and the shared back row, as every page does.
+    BSBackRow: ({ onBack, label }) => React.createElement('button', { type: 'button', onClick: onBack }, label),
+    bsProMastRow: () => null,
     BS_MAST_TOP_CSS: '0px',
     ...scope,
   }, ['BSListingNotice', 'BSCoachRatesPage', 'bsRatesLine']);

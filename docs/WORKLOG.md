@@ -87,9 +87,11 @@ or past 12 KB.
   modules, and `loadProsBundle` the whole client bundle first.
 - **Sheets** portal into `#bs-phone-surface`. No visible scrollbars (`index.html`).
 - **Pages** render in `BSPage`: a condensed masthead pins once the page's own scrolls away,
-  reading ← and the title past a `BSDetailHeader`'s. A sticky row takes
-  `top: useBSPinnedMastTop()`. A swipe right does what the page's ← does: use `BSBackButton`,
-  or mark a hand-drawn Back `data-bs-back` (`tests/swipe-back.test.mjs`; `BS_SWIPE`).
+  reading ← and the title past a `BSDetailHeader`'s (← alone on any page with a Back). A sticky
+  row takes `top: useBSPinnedMastTop()`. ⚠ **One place for Back:** `BSBackRow` directly under
+  the masthead row (`BSDetailHeader`, `BSMasthead`/`BSPageHeader` `onBack`), never hand-drawn
+  (`tests/back-placement.test.mjs`). A swipe right does what that ← does (`BS_SWIPE`), and a Back
+  returns the page at the scroll it left (`services/scrollMemory.mjs`).
 - **Theme:** `useBS()` → `t`. Teal `t.isLight ? '#0a8f87' : '#34d6c5'`, nutritionists gold
   `#a07a2e`, trainers rust `#c0533b`; the Wall, chat and chrome take `bsMagazine.mjs`'s
   teal. Saira; Geist/Inter Tight on coach Today/Clients/Programs and member Home/Train/Eat.

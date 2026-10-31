@@ -48,6 +48,8 @@ globalThis.useBS = () => t;
 // The rest of the shared chrome, as passthroughs — everything inside them is
 // the real component. Without these a chrome global resolves to `undefined`
 // and React reports "Element type is invalid", masking real render faults.
+// The shared back row (BSBackRow): ← Back on its own row, the page's eyebrow beside it.
+globalThis.BSBackRow = ({ onBack, label, trailing, disabled }) => React.createElement('div', { 'data-chrome': 'BSBackRow' }, React.createElement('button', { type: 'button', onClick: onBack, disabled }, '← ' + (label || 'Back')), trailing);
 for (const name of ['BSMasthead', 'BSPageHeader', 'BSBackButton', 'BSAvatar', 'BSFacetAvatar', 'BSEyebrow', 'BSSection', 'BSPlate', 'BSSlab', 'BSCell', 'BSTag', 'BSRow', 'BSHeadlineNumber', 'BSHalftone']) {
   globalThis[name] = ({ children }) => React.createElement('div', { 'data-chrome': name }, children);
 }

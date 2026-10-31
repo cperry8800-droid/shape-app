@@ -523,11 +523,9 @@ export function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack,
   // The station's colour names its page: "The contract" in it, and the title's period.
   const pageHead = (label) => (
     <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-      {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <button data-bs-back="" onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
-        <span style={cardName(STATION_C[view] || 'teal', { fontSize: 10.5 })}>{tr('goal:station.eyebrow', { defaultValue: 'The contract' })}</span>
-      </div>
+      {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+      {window.BSBackRow && <window.BSBackRow onBack={onBack}
+        trailing={<span style={cardName(STATION_C[view] || 'teal', { fontSize: 10.5 })}>{tr('goal:station.eyebrow', { defaultValue: 'The contract' })}</span>} />}
       {/* tabIndex -1 so the parent can move focus here when a station opens: the
           door that was pressed unmounts with the cover, and without this a
           keyboard/screen-reader user is dropped on document.body with no
@@ -1339,8 +1337,8 @@ export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           read once, as a sentence, under it (BSGoalsContract). Cover only: a
           station page carries its own mast + ← Back + station title. */}
       {goalView === 'cover' && <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 4 }} />}
-        <button data-bs-back="" onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+        {window.BSBackRow && <window.BSBackRow onBack={onBack} />}
         <div style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, lineHeight: 1.2, letterSpacing: '0.1em', textTransform: 'uppercase', color: D.text.teal }}>{tr('home:goal.eyebrow', { defaultValue: 'Your goal' })}</div>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginTop: 4 }}>
           {/* Upright, as every title in the dashboard look; the stop takes the member's tier. */}

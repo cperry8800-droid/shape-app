@@ -48,6 +48,8 @@ W.BSPage = ({ children }) => React.createElement('div', null, children);
 W.BSFooter = ({ left, right }) => React.createElement('footer', null, left, right);
 let mastProps = null;
 W.BSMasthead = (p) => { mastProps = p; return React.createElement('header', null, p.title); };
+// The shared back row (BSBackRow): ← Back on its own row, the page's eyebrow beside it.
+globalThis.BSBackRow = ({ onBack, label, trailing, disabled }) => React.createElement('div', { 'data-chrome': 'BSBackRow' }, React.createElement('button', { type: 'button', onClick: onBack, disabled }, '← ' + (label || 'Back')), trailing);
 for (const chrome of ['BSPageHeader', 'BSBackButton', 'BSAvatar', 'BSFacetAvatar', 'BSEyebrow', 'BSSection', 'BSPlate', 'BSSlab', 'BSCell', 'BSTag', 'BSRow', 'BSHeadlineNumber', 'BSHalftone', 'BSTabBar', 'BSSheetProvider', 'BSCalendarScreen', 'BSRadioPrompt', 'BSRadioScreen', 'BSNowPlaying', 'BSClientChat', 'BSSettings', 'BSShapeScorePage', 'BSShapeStorePage', 'BSContactPage', 'BSTermsPage', 'BSPublicProfile']) {
   W[chrome] = ({ children }) => React.createElement('div', { 'data-chrome': chrome }, children);
 }

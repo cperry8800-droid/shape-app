@@ -27,7 +27,9 @@ async function open(userId, { me = 'zoe', profile } = {}) {
   const onClose = () => {};
   const d = drive(BSNotifiedPerson, { userId, onClose });
   const before = profileOf(d);
-  const backBefore = d.nodes().find((n) => n.type === 'button' && n.props['data-person-back']);
+  // While the read is out, the page is the masthead row and the shared back row (BSBackRow).
+  const backRowOf = (dd) => dd.nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSBackRow');
+  const backBefore = backRowOf(d);
   await settle();
   d.render();
   return { d, before, backBefore, asked, onClose };
@@ -38,9 +40,8 @@ test('it opens the named person\'s profile, read by their id', async () => {
   assert.equal(before, undefined, 'no profile is drawn until the read answers');
   // Codex on #2413: while the read is out the page is a Back, never a blank screen with no way out.
   assert.ok(backBefore, 'a Back is there from the first frame');
-  assert.equal(backBefore.props.onClick, onClose, 'and it closes the page');
-  assert.match(textOf(backBefore), /Back/);
-  assert.equal(d.nodes().find((n) => n.type === 'button' && n.props['data-person-back']), undefined, 'the profile\'s own Back takes over once it is drawn');
+  assert.equal(backBefore.props.onBack, onClose, 'and it closes the page');
+  assert.ok(d.nodes().every((n) => !(n.props && 'data-person-loading' in n.props)), 'the profile\'s own Back takes over once it is drawn');
   assert.ok(asked.length >= 1 && asked.every((id) => id === 'ann'), 'the read asks for that person, and only them');
   const p = profileOf(d);
   assert.ok(p, 'the profile opens');

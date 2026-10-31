@@ -617,6 +617,8 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
     setWalk((i) => (typeof i === 'number' ? Math.min(BS_CI_SUMMARY, i + 1) : i));
   };
   const back = () => { setSleepH(null); setRestedPick(null); setFromSummary(false); setWalk((i) => (typeof i === 'number' ? Math.max(0, i - 1) : i)); };
+  // Back shows on every screen after the first (the summary is one of them).
+  const hasBack = typeof walk === 'number' && walk > 0;
   // ⚠ A SKIPPED NIGHT IS TOLD TO THE SERVER (owner, 2026-10-19: "yes fix"). The reminder counts a
   // morning answered once its energy is in and its night is answered, measured or skipped; a skip
   // kept only on this device read as an open night, so it could not hold a finished morning apart
@@ -942,12 +944,15 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
     // of a small phone (review on #2398). The class has no style of its own.
     <div ref={sheetRef} className="bsck-scroll" data-bs-layer="checkin" role="dialog" aria-modal="true" aria-label={tr('home:checkin.title', { defaultValue: 'Morning check-in' })} data-bs-checkin-walk={walk}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } }} style={{ position: 'absolute', inset: 0, zIndex: 250, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'calc(env(safe-area-inset-top, 0px) + 18px) 20px 10px' }}>
-        {/* Back on every morning screen after the first, the summary included: a Change is never more
-            than one tap away (owner, 2026-10-19: "i cant go back and change any of my entries"). */}
-        <button type="button" onClick={back} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', visibility: typeof walk === 'number' && walk > 0 ? 'visible' : 'hidden', ...mono, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em' }}>{tr('home:checkin.back', { defaultValue: '← Back' })}</button>
-        <span style={{ ...mono, color: t.INK50 }}>{walk === 'evening' ? tr('home:checkin.tonight', { defaultValue: 'Tonight' }) : tr('home:checkin.title', { defaultValue: 'Morning check-in' })}</span>
-        <button type="button" onClick={close} aria-label={tr('home:checkin.close', { defaultValue: 'Close' })} style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontSize: 16 }}>×</button>
+      {/* The masthead row (× where a page keeps its corner) and the back row under it: ← Back where
+          every page keeps it (owner, 2026-10-31), on every morning screen after the first, the summary
+          included — a Change is never more than one tap away (owner, 2026-10-19: "i cant go back and
+          change any of my entries"). On the first screen the row keeps its place with no Back. */}
+      <div style={{ padding: `${window.BS_MAST_TOP_CSS || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px))'} ${typeof t.padX === 'number' ? t.padX : 22}px 6px` }}>
+        {window.BSMastRow ? <window.BSMastRow trailing={
+          <button type="button" onClick={close} aria-label={tr('home:checkin.close', { defaultValue: 'Close' })} style={{ width: window.BS_MAST_ROW_H || 34, height: window.BS_MAST_ROW_H || 34, padding: 0, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontSize: 16 }}>×</button>} /> : null}
+        {window.BSBackRow ? <window.BSBackRow onBack={back} disabled={!hasBack} label={String(tr('home:checkin.back', { defaultValue: '← Back' })).replace(/^\s*←\s*/, '')}
+          buttonStyle={{ visibility: hasBack ? 'visible' : 'hidden' }} trailing={<span style={{ ...mono, color: t.INK50 }}>{walk === 'evening' ? tr('home:checkin.tonight', { defaultValue: 'Tonight' }) : tr('home:checkin.title', { defaultValue: 'Morning check-in' })}</span>} /> : null}
       </div>
       {walk === 'evening' ? null : (
         <div aria-hidden style={{ display: 'grid', gridTemplateColumns: `repeat(${BS_CI_STEPS.length}, minmax(0, 1fr))`, gap: 6, padding: '4px 20px 0' }}>

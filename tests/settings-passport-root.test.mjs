@@ -453,7 +453,7 @@ test('Edit profile is its own page whose Back returns to Settings, never to Home
   const db = src.slice(i, i + 1400);
   assert.match(db, /const DetailBack = \(\{ title, onBack: back = \(\) => setDetail\(''\) \}\)/,
     'DetailBack no longer takes a back target that defaults to the root');
-  assert.match(db, /<button onClick=\{back\}/, 'DetailBack ignores the back target it was given');
+  assert.match(db, /<BSBackRow onBack=\{back\}/, 'DetailBack ignores the back target it was given');
 });
 
 test('the root, its own Back and the doors are hidden while editing', () => {
@@ -465,9 +465,10 @@ test('the root, its own Back and the doors are hidden while editing', () => {
   const tiles = s.indexOf('{!detail && !editing && (<>', root + 1);
   // The shell's Back — the one that closes Settings — renders exactly once, inside the
   // root fragment, so it cannot be reached from the edit page.
-  assert.equal(s.split('onClick={onBack}').length - 1, 1, 'the shell’s Back renders at more than one site');
-  const shellBack = s.indexOf('onClick={onBack}');
-  assert.ok(shellBack > root && shellBack < tiles, 'the shell’s Back (onClick={onBack}) is outside the !editing root fragment');
+  // It is the shared back row (BSBackRow), as every page's is.
+  assert.equal(s.split('<BSBackRow onBack={onBack}').length - 1, 1, 'the shell’s Back renders at more than one site');
+  const shellBack = s.indexOf('<BSBackRow onBack={onBack}');
+  assert.ok(shellBack > root && shellBack < tiles, 'the shell’s Back (<BSBackRow onBack={onBack}) is outside the !editing root fragment');
 });
 
 test('the edit page is in the Settings look: rounded fields, pill cells, no box', () => {
