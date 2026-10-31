@@ -18564,7 +18564,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     const isPr = !!it.hot;
     const lift = isPr ? String(it.t || '').replace(/^\s*new pr\s*[—–-]\s*/i, '').trim() : '';
     return {
-      real: false, key: it._k || null, postId: null, who: name, role: 'Client', tier: tierKey, hot: isPr,
+      // No post behind it, but a real member's: `userId` gives the byline their face, not a sample's.
+      real: false, key: it._k || null, postId: null, userId: feedAuthorId || null, who: name, role: 'Client', tier: tierKey, hot: isPr,
       kind: isPr ? 'pr' : 'workout', typeLabel: it.k || 'Workout', title: it.t || '', lift,
       // Every item's line ("Best: 100 kg × 3", "5.2 km · 30 min") is built by the
       // effect above, not written by the member, so it converts like the card's
@@ -18607,6 +18608,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // comments are now hosted here too (useBSCardSheets), so the cards behave EXACTLY
   // like the community feed instead of toasting.
   const cardSheets = useBSCardSheets();
+  const profFollowing = useBSMyFollowing();
+  // Honor the avatar-source toggle on my own profile (initials mode hides the
+  // stored photo here too, not just in the app chrome). The hero's face, and
+  // every card's byline under it.
+  const avPhoto = (isSelf && typeof window !== 'undefined' && window.ShapeIdentity?.avatarMode === 'initials') ? null : (photo || (live && live.avatar));
   const profMyRole = (window.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client';
   // Owner edit — only on your OWN profile, only on a real (UUID-backed) published
   // post; reopens BSLogActivitySheet with the post's data (kind/privacy/media).
@@ -18620,7 +18626,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
     actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr,
     exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
-    tierByUser: (person.userId ? { [person.userId]: tierKey } : {}), avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
+    // The owner's tier, keyed by the id their posts carry (on your own profile that can be your
+    // signed-in id when the page has no person.userId), and the hero's face, so each card's byline
+    // reads as it does on the Wall, with the face the page shows.
+    tierByUser: (feedAuthorId ? { [feedAuthorId]: tierKey } : {}), avatarByUser: {}, ownerPhoto: avPhoto || null,
+    // Who of the people I follow reacted or commented, as on the Wall (useBSMyFollowing).
+    feedAvatars: profFollowing.feedAvatars, myFollowingSet: profFollowing.myFollowingSet,
+    myRole: profMyRole, coachClientIds: new Set(),
     setOpenProfile: (p) => setFollowProfile(p),
     feedApplyReaction: profileApplyReaction, onEdit: profileOnEdit,
     ...cardSheets.ctx, // actComments, actCmtOpen, setActivityDetail/LikerSheetFor/SendPostFor
@@ -18744,9 +18756,6 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const stravaUrl = person.strava
     ? (/^https?:/i.test(person.strava) ? person.strava : 'https://www.strava.com/athletes/' + String(person.strava).replace(/^@/, ''))
     : 'https://www.strava.com';
-  // Honor the avatar-source toggle on my own profile (initials mode hides the
-  // stored photo here too, not just in the app chrome).
-  const avPhoto = (isSelf && typeof window !== 'undefined' && window.ShapeIdentity?.avatarMode === 'initials') ? null : (photo || (live && live.avatar));
   // Full-bleed hero cover: with a cover image set, the photo fills the WHOLE
   // ascent block and the ridge/avatar/labels/phase line draw over it (scrimmed,
   // fixed-cream ink). The phase eyebrow rides the cover when both exist, so the
@@ -19188,11 +19197,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 {feedEff.map((a, i) => (
                   /* Card breaks out of the tab body's 8px gutter (margin '0 -8px')
                      so it aligns with the card's own 8px content gutter — one
-                     consistent small edge everywhere. The card's own age chip
-                     carries the timing; author header hidden (the profile owns
-                     the identity). */
+                     consistent small edge everywhere. Each post reads as it does on
+                     the Wall in Chat (owner, 2026-10-31: "same format and design as
+                     chat feed"): the byline's face, name, tier and time included.
+                     Only the name opens nothing, as this is already their page. */
                   <div key={a.key || i} style={{ margin: '0 -8px' }}>
-                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} variant="magazine" />
+                    <BSActivityCard a={a} ctx={profileCtx} onAuthorPage isLast={i === feedEff.length - 1} pagePad={0} variant="magazine" />
                   </div>
                 ))}
               </div>
@@ -19205,7 +19215,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadPhotoPosts} />}
       {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setFeedReloadNonce(n => n + 1); }} />}
-      {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setFollowProfile(p), actLikes, actExpr })}
+      {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setFollowProfile(p), actLikes, actExpr, feedAvatars: profFollowing.feedAvatars })}
 
       {/* dock — Message others: the coach profile's dock with Message alone, so it hides while the page
           scrolls down and never sits over the wall (owner, 2026-10-24: "fix this message box thats appearing") */}
@@ -22324,12 +22334,38 @@ function useBSCardSheets() {
   return { ctx, renderSheets };
 }
 
+// The people I follow, as a card's social layer reads them: which of them reacted to a post or
+// commented on it, and their faces. One loader for the Wall and the member profile (owner,
+// 2026-10-31: the profile's activity feed in the chat feed's format), so a post says the same
+// thing on both. Null until it loads, or when signed out; an empty Map when the read fails.
+function useBSMyFollowing() {
+  const [myFollowingSet, setMyFollowingSet] = useStateBSC(null); // Map<userId,{name,role}> | null
+  const [feedAvatars, setFeedAvatars] = useStateBSC({});         // userId → photo url
+  React.useEffect(() => {
+    let dead = false;
+    const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+    if (!uid || !window.ShapeFollows?.list) { setMyFollowingSet(null); return undefined; }
+    Promise.resolve(window.ShapeFollows.list(uid, 'following')).then((rows) => {
+      if (dead) return;
+      const map = new Map();
+      (rows || []).forEach((r) => { if (r.userId) map.set(r.userId, { name: r.name || null, role: r.role || 'client' }); });
+      setMyFollowingSet(map);
+      const ids = [...map.keys()];
+      if (ids.length && window.ShapeProfiles?.getUserAvatars) window.ShapeProfiles.getUserAvatars(ids).then((m) => { if (!dead && m) setFeedAvatars((p) => ({ ...p, ...m })); }).catch(() => {});
+    }).catch(() => { if (!dead) setMyFollowingSet(new Map()); });
+    return () => { dead = true; };
+  }, []);
+  return { myFollowingSet, feedAvatars };
+}
+
 // The rich Strava-style activity card — shared by the community feed (BSClientFeed)
 // AND the profile "Personal activities" feed. Module-level + ctx-injected so both
 // surfaces render the SAME card. `ctx` bundles the host's state/handlers; the
 // community feed builds it once per render, the profile builds a slim version
 // (real reactions + share/repost; full detail/likers/send via useBSCardSheets).
-// `hideAuthor` swaps the author header for a slim type-chip + time row (profile).
+// `hideAuthor` swaps the author header for a slim type-chip + time row (a coach profile).
+// `onAuthorPage` is a card on its author's own profile (the member profile): the byline is the
+// Wall's, face, name, tier and time, but the name opens nothing, since that page is already open.
 // The identity a reaction, a co-sign and a local comment are filed under. Real
 // posts carry a stable `key` (`post-<id>`); demo cards have none, so they fall
 // back to who-and-when.
@@ -22349,7 +22385,7 @@ function bsActivityKey(a) {
 // second component would let the two drift; doing it as a variant means every
 // field, every honest-empty and every reaction path stays shared, and the diff
 // between the two surfaces is legible in one file.
-function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 0, variant = 'feed', recordNote = '' }) {
+function BSActivityCard({ a, ctx, hideAuthor = false, onAuthorPage = false, isLast = false, pagePad = 0, variant = 'feed', recordNote = '' }) {
   const tr = useShapeTr();
   const {
     t, cardInk, muted, hair, card,
@@ -22358,6 +22394,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     tierByUser, avatarByUser, feedAvatars, myRole, coachClientIds, myFollowingSet,
     setOpenProfile, setActivityDetail, setLikerSheetFor, setSendPostFor, feedApplyReaction,
     onEdit, // optional owner-edit (profile only; community feed passes nothing)
+    ownerPhoto, // the profile's own photo, for a card on its author's page (onAuthorPage)
   } = ctx;
     // Coaches climb a separate ladder (Certified·Pro·Elite·Master·Icon) — map the
     // tier name + color to it; members keep the client ramp. Real posts resolve the
@@ -22446,7 +22483,13 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     // the actual route; the tier-tinted tile is the fallback for routeless flags.
     const routeObj = a.real && a.routeObj && Array.isArray(a.routeObj.points) && a.routeObj.points.length >= 2 ? a.routeObj : null;
     const roleKind = a.role === 'Trainer' ? 'TRAINER' : a.role === 'Nutritionist' ? 'NUTRI' : 'CLIENT';
-    const avatarPhoto = a.real ? ((a.userId && avatarByUser[a.userId]) || undefined) : bsDemoFace(a.who);
+    // On its author's own page the face is the page's photo, so the byline and the profile agree
+    // (the preview's "you" has a headshot of their own, not the sample face the name would pick).
+    // Elsewhere a sample card's face is the sample's own, and a card with an account behind it
+    // takes that account's photo or its initials, never a sample face picked by the name: the
+    // member profile's logged sessions and PRs carry no post but are a real member's (`userId`).
+    const avatarPhoto = (onAuthorPage && ownerPhoto)
+      || ((a.real || a.userId) ? ((a.userId && avatarByUser[a.userId]) || undefined) : bsDemoFace(a.who));
     const openCardProfile = () => setOpenProfile({ who: a.who, kind: roleKind, tier: realTier, init: bsInitials(a.who), city: a.city, userId: a.real ? a.userId : undefined, public: true, photo: avatarPhoto });
     // Redesign hierarchy: lead with ONE hero metric (load for lifts, distance for
     // runs) at the existing stat-plate value styling; demote the rest behind a
@@ -22603,8 +22646,8 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               // Any post with a stored line draws it as the picture (a sample one too, in the preview).
               const magRoute = a.routeObj && Array.isArray(a.routeObj.points) && a.routeObj.points.length >= 2 ? a.routeObj : null;
               const kicker = [isPR ? tr('feed:card.newPR', { defaultValue: 'New PR' }) : typeLabel, a.city].filter(Boolean).join(' · ');
-              // On a profile (hideAuthor) the page is already theirs: the byline is the time alone, with the
-              // owner's edit beside it.
+              // On a coach profile (hideAuthor) the page is already theirs: the byline is the time alone, with
+              // the owner's edit beside it. The member profile (onAuthorPage) keeps the Wall's byline whole.
               const meta = [hideAuthor ? null : tierDisplay, a.ago ? tr('feed:card.ago', { defaultValue: '{time} ago', time: bsShortAge(a.ago, tr) }) : null].filter(Boolean).join(' · ');
               // The hero figure, then the session-details ranking's lead (pace, time, heart rate), so a
               // run with a dozen stats says distance, pace and time rather than its first three. It ranks
@@ -22617,7 +22660,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                 <>
                   <BSWallStoryHead kicker={kicker} title={title} photo={a.photo || null} route={magRoute}
                     avatar={hideAuthor ? null : <BSFacetAvatar flat size={24} c={t.INK} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} />}
-                    name={hideAuthor ? null : a.who} meta={meta} bleed={12 + pagePad} onOpen={() => openDetail('stats')} onAuthor={openCardProfile}
+                    name={hideAuthor ? null : a.who} meta={meta} bleed={12 + pagePad} onOpen={() => openDetail('stats')} onAuthor={onAuthorPage ? null : openCardProfile}
                     action={onEdit && a.postId ? <button aria-label={tr('feed:card.editActivity', { defaultValue: 'Edit activity' })} onClick={() => onEdit(a)} style={{ flexShrink: 0, background: 'transparent', border: 0, width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}><span aria-hidden style={{ width: 22, height: 22, border: `1px solid ${hair}`, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, boxSizing: 'border-box' }}>✎</span></button> : null} />
                   <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {isPR && heroStat
@@ -24572,26 +24615,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [exprOpenKey, setExprOpenKey] = useStateBSC(null);
   const lpTimerRef = React.useRef(null);
   const lpFiredRef = React.useRef(false);
-  // Social layer on a card: the set of user-ids I FOLLOW (so I can surface the
-  // people I follow who reacted/commented), a batched avatar map for those
-  // people, and the open "who liked" sheet. Following loads once when signed in.
-  const [myFollowingSet, setMyFollowingSet] = useStateBSC(null); // Map<userId,{name,role}> | null
-  const [feedAvatars, setFeedAvatars] = useStateBSC({});         // userId → photo url
+  // Social layer on a card: the people I FOLLOW who reacted or commented, with
+  // their faces (useBSMyFollowing, which the member profile reads too), and the
+  // open "who liked" sheet.
+  const { myFollowingSet, feedAvatars } = useBSMyFollowing();
   const [likerSheetFor, setLikerSheetFor] = useStateBSC(null);   // a card → the likers list
-  React.useEffect(() => {
-    let dead = false;
-    const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
-    if (!uid || !window.ShapeFollows?.list) { setMyFollowingSet(null); return undefined; }
-    Promise.resolve(window.ShapeFollows.list(uid, 'following')).then((rows) => {
-      if (dead) return;
-      const map = new Map();
-      (rows || []).forEach((r) => { if (r.userId) map.set(r.userId, { name: r.name || null, role: r.role || 'client' }); });
-      setMyFollowingSet(map);
-      const ids = [...map.keys()];
-      if (ids.length && window.ShapeProfiles?.getUserAvatars) window.ShapeProfiles.getUserAvatars(ids).then((m) => { if (!dead && m) setFeedAvatars((p) => ({ ...p, ...m })); }).catch(() => {});
-    }).catch(() => { if (!dead) setMyFollowingSet(new Map()); });
-    return () => { dead = true; };
-  }, []);
   // Coach co-sign: my reaction counts heavier when I'm the author's OWN coach.
   // `actCoSign` is my own optimistic co-sign per card (key → {name, role});
   // `coachClientIds` is the set of MY client user-ids (only when I'm a coach), so
