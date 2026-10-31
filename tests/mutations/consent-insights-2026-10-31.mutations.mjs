@@ -12,7 +12,7 @@ export default {
     { name: 'a Reject is ignored', file: G, find: "    if (o.consent === 'reject') return false;\n", replace: '' },
     { name: 'an Accept is ignored', file: G, find: "    if (o.consent === 'accept') return true;\n", replace: '' },
     { name: 'the EEA and the UK do not wait', file: G, find: '    return !CONSENT_REGION_RE.test(o.timeZone);\n  }\n\n  function allowedHere', replace: '    return true;\n  }\n\n  function allowedHere' },
-    { name: 'it loads whatever consent says', file: G, find: '    if (!loaded && allowedHere()) load();', replace: '    if (!loaded) load();' },
+    { name: 'it loads whatever consent says', file: G, find: '    if (allowedHere()) load();', replace: '    load();' },
     { name: 'the banner\'s Accept is not heard', file: G, find: "    root.addEventListener('shape:consent', check);\n", replace: '' },
     { name: 'another tab\'s Accept is not heard', file: G, find: "    root.addEventListener('storage', function (e) { if (!e || e.key === KEY || e.key === null) check(); });\n", replace: '' },
     { name: 'events are not checked again', file: G, find: "      root.va('beforeSend', function (event) { return allowedHere() ? event : null; });\n", replace: '' },

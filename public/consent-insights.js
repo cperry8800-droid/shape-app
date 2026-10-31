@@ -58,7 +58,7 @@
     } catch (e) {}
   }
   function check() {
-    if (!loaded && allowedHere()) load();
+    if (allowedHere()) load();
   }
 
   root.shapeConsentInsights = { trackingAllowed: trackingAllowed, allowedHere: allowedHere, check: check, SRC: SRC };
