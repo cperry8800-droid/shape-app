@@ -136,13 +136,15 @@ test('the thread screen: the teal accent, flat faces, the name in the Wall\'s fa
   assert.match(th, /<BSMessageComposer value=\{text\} onChange=\{setText\} onSend=\{send\} pinned mag \/>/);
 });
 
-test('the composer is square with an ink send button, on the chat page and in Nora\'s sheet', () => {
+test('the composer is square with an ink send button on the chat page; Nora\'s sheet has its own tray', () => {
   const comp = between(CLIENT, 'function BSMessageComposer({', '\n}\n');
-  assert.match(comp, /onVoiceComplete, mag = false \}\) \{/);
+  assert.match(comp, /onVoiceComplete, mag = false, tray = false \}\) \{/);
   assert.match(comp, /background: canSend \? \(mag \? t\.INK : t\.ACCENT\) : t\.SURFACE_BORDER/);
   assert.match(comp, /\{mag \? null : <span aria-hidden>🔒<\/span>\}/);
   assert.equal((comp.match(/borderRadius: 17,/g) || []).length, 0, 'every rounded control asks mag');
   assert.match(CLIENT, /<BSMessageComposer mag value=\{draft\}/, 'the chat page asks for it');
-  // Nora's sheet takes it too now (owner, 2026-10-31: "improve/update look of this chat").
-  assert.match(CLIENT, /<BSMessageComposer mag value=\{supportDraft\}/, 'Nora\'s asks for it');
+  // Nora's sheet has its own look again (owner, 2026-10-31: "dont use a previously used one"): the tray,
+  // tests/nora-desk.test.mjs.
+  assert.match(CLIENT, /<BSMessageComposer tray value=\{supportDraft\}/, 'Nora\'s asks for the tray');
+  assert.doesNotMatch(CLIENT, /<BSMessageComposer mag value=\{supportDraft\}/);
 });

@@ -3,7 +3,8 @@
 // Four asks from the owner on 2026-10-24, read from the shipping source (each surface is mounted and driven
 // by its own suites: nora-thread-load-retry for Talk to a person, the radio-* suites for the station):
 //   "the x is overlapping nora box" (the Nora sheet's × over Talk to Nora);
-//   "update look of this box and make sure its wired correctly" (Talk to a person);
+//   "update look of this box and make sure its wired correctly" (Talk to a person; its look since is the
+//   concierge desk's, 2026-10-31, tests/nora-desk.test.mjs);
 //   "also fix the look of this" (the Radio station's deck);
 // and the dock that hides on scroll, now on a member's profile too ("fix this message box thats appearing"),
 // which tests/me-page-magazine.test.mjs mounts.
@@ -16,33 +17,32 @@ const CLIENT = stripComments(readFileSync('mobile-app/src/broadsheet/iosAppBroad
 const RADIO = stripComments(readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx', 'utf8'));
 const between = (src, a, b) => { const i = src.indexOf(a); assert.ok(i >= 0, `marker moved: ${a}`); const j = src.indexOf(b, i + a.length); assert.ok(j > i, `marker moved: ${b}`); return src.slice(i, j); };
 
-test('the Nora sheet\'s head stops short of its ×, at every density', () => {
+test('the Nora sheet\'s × can never sit over Talk to Nora: it is a cell of the desk\'s row, not laid over it', () => {
+  // "the x is overlapping nora box" (2026-10-24). Since the concierge desk (2026-10-31) the × is a flex cell
+  // beside her name, and Talk to Nora is in the row under it, so no density can put one under the other.
   const sheet = between(CLIENT, 'function BSNoraSheet(', '\nfunction ');
-  // The × is 34px, 10px in from the sheet's right edge and 8px down.
-  assert.match(sheet, /onClick=\{onClose\} aria-label=\{tr\('cycle:close'[^}]*\}\)\} style=\{\{ position: 'absolute', top: 8, right: 10, zIndex: 1, width: 34, height: 34,/);
-  const m = /padding: `0 \$\{Math\.max\(0, (\d+) - t\.padX\)\}px 0 0`/.exec(sheet);
-  assert.ok(m, 'the head row no longer keeps clear of the ×');
-  // The row's content ends at the gutter less this padding; the × starts 44px in from the edge.
-  for (const padX of [18, 22, 26]) {
-    const contentRight = padX + Math.max(0, Number(m[1]) - padX);
-    assert.ok(contentRight >= 44, `at padX ${padX}, Talk to Nora runs under the × (${contentRight}px from the edge)`);
-  }
+  const close = between(sheet, '<button type="button" onClick={onClose} aria-label={tr(\'cycle:close\'', '</button>');
+  assert.match(close, /style=\{\{ flex: 'none', width: 40, height: 40, borderRadius: '50%'/);
+  assert.doesNotMatch(close, /position: 'absolute'/, 'the × is laid over the sheet again');
+  const desk = between(sheet, '<div data-nora-desk', '<div ref={scrollRef}');
+  assert.ok(desk.indexOf('onClick={onClose}') < desk.indexOf('data-nora-talk-button'), 'Talk to Nora sits in the row under the ×');
 });
 
-test('Talk to a person in the Wall\'s look: a ruled block, a square field, square actions, Send in ink', () => {
-  const form = between(CLIENT, '<div data-nora-person-form', '\n                )}');
-  assert.match(form, /borderTop: `2px solid \$\{t\.INK\}`/);
-  assert.doesNotMatch(form, /borderRadius: (12|10|999)/, 'a rounded card, field or pill is back');
-  assert.doesNotMatch(form, /\$\{noraTint\}12/, 'the tinted card is back');
-  assert.match(form, /<textarea [\s\S]*?borderRadius: 0/);
-  // Send is ink with the paper's text, Cancel the ink outline; both 44px.
-  assert.match(form, /data-nora-person-send onClick=\{sendPerson\} disabled=\{personForm\.busy\} style=\{\{ minHeight: 44, [^}]*background: t\.INK, color: t\.PAPER, borderRadius: 0/);
-  assert.match(form, /onClick=\{\(\) => setPersonForm\(null\)\} disabled=\{personForm\.busy\} style=\{\{ minHeight: 44, [^}]*border: `1px solid \$\{t\.INK\}`, background: 'transparent', color: t\.INK, borderRadius: 0/);
+test('Talk to a person: a quiet card at the foot of the talk, a rounded field, Send in ink, both actions 44px', () => {
+  const form = between(CLIENT, '<div data-nora-person-form', '\n            )}');
+  assert.match(form, /borderRadius: 16, border: `1px solid \$\{bsTHexA\(t\.INK, 0\.12\)\}`/);
+  assert.match(form, /<textarea [\s\S]*?background: t\.PAPER, color: t\.INK, border: `1px solid \$\{bsTHexA\(t\.INK, 0\.2\)\}`, borderRadius: 12/);
+  // Send is ink with the paper's text, Cancel a quiet word; both 44px.
+  assert.match(form, /data-nora-person-send onClick=\{sendPerson\} disabled=\{personForm\.busy\} style=\{\{ minHeight: 44, [^}]*background: t\.INK, color: t\.PAPER, borderRadius: 12/);
+  assert.match(form, /onClick=\{\(\) => setPersonForm\(null\)\} disabled=\{personForm\.busy\} style=\{\{ minHeight: 44, /);
   // The wiring is unchanged: the question goes through ShapeSupport.talkToPerson (POST /api/support/request).
   assert.match(CLIENT, /const r = await window\.ShapeSupport\.talkToPerson\(\{ question, surface: 'app', page: _bsNoraOpen\.page \|\| null, account \}\)/);
-  // The opener is an underlined word, as the profiles' Message, not a teal pill.
+  // The opener is the desk's second key: an outline that says whether the card is open, never a filled key.
   const opener = between(CLIENT, '<button type="button" data-nora-person', '</button>');
-  assert.doesNotMatch(opener, /borderRadius: 999/);
+  assert.match(opener, /aria-expanded=\{!!personForm\}/);
+  assert.match(opener, /onClick=\{\(\) => \(personForm \? setPersonForm\(null\) : openPersonForm\(\)\)\}/);
+  assert.match(opener, /border: `1px solid \$\{bsTHexA\(t\.PAPER, personForm \? 0\.7 : 0\.3\)\}`/);
+  assert.doesNotMatch(opener, /background: t\.PAPER,/, 'a person is the second key, never the first');
 });
 
 test('the Radio station\'s deck: square keys, the one to take in ink, the strip as words', () => {
