@@ -619,6 +619,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: Back in one place on every screen, and Back lands where you were — #2533. No migration',
+      items: [
+        { label: 'Owner, 2026-10-31: "please review evrey place there is a back button on the app, it needs to be in the same place on evrey screen", "lets review wheather we should have a back button, or other options", and "make sure it goes back to [the] page of where that person was on the page"', status: 'done' },
+        { label: 'One slot: BSBackRow, a 44px row 4px under the masthead row with its ← on the gutter; BSMastRow always the corner\'s 34px. BSDetailHeader, BSMasthead/BSPageHeader onBack and every hand-built header draw it. Moved: Backs on the right (PAR-Q, the coach client header, soundtracks), at the very top (rates, Make it yours, the recipe page, the meal band, the workout editor, the check-in, the calendar sheet), in the logo\'s place (coach profile), a 26px ‹, a round icon, a bordered ✕ Close, ~20 headers off by 2–18px; four duplicate Backs at a page\'s foot removed. Sign-in and the coach application place it at the same y (BS_BACK_SLOT_TOP_CSS). Scrolled, the pinned bar shows ← on every page with a Back. Measured in the built app: x 18, y 106 on eight screens and sign-in', status: 'done' },
+        { label: 'Back lands where you were (services/scrollMemory.mjs in BSPage): a page left going forward keeps its scroll, and a Back (tap, pinned ←, swipe, phone back) brings it back there; measured Home 1259px → Progress, Habits or Shape Score → Back → 1259. Shape Score\'s Back went to the Store whatever opened it; now back through history in the three shells. tests/back-placement.test.mjs and tests/scroll-memory.test.mjs hold it', status: 'done' },
+        { label: 'Review: Codex P2 on 4fd0883 (a keyboard Back is a click with no press, so a Back that opened nothing stayed marked through the next step), fixed in 8250ae4 with a test that fails without it; Codex clean on 8250ae4', status: 'done' },
+        { label: 'Scroll is remembered for BSPage pages only: a view that swaps its content inside the same BSPage is not, and a Back that first asks to confirm (leave without saving?) returns its page at the top', status: 'pending' },
+        { label: 'OWNER: decide the destination labels (← Settings, ← Library, ← The listing, ← Radio, ← Profile, ← Cancel): keep them, or all "Back"', status: 'manual' },
+        { label: 'OWNER: on a phone, signed in, as a member and a coach: the ← on several pages, the pinned ← once scrolled, and Back landing where you were (seen only in headless Chromium)', status: 'manual' },
+      ],
+    },
+    {
       section: 'Admin: the Overview\'s Radio tab, how Shape Radio is listened to — #2527. One migration, for the owner to run',
       items: [
         { label: 'Owner, 2026-10-30: "do we have any tracking for shape radio?", then "Yes build it". A Radio tab on the Overview (/admin?view=radio, analyst and up): listening now (app and website), tune-ins, time listened, time per tune-in, the most at once and when, app or website and member or coach, and minutes and tune-ins a day, over 7, 30 or 90 days. No visitor split: the stream is members only', status: 'done' },
