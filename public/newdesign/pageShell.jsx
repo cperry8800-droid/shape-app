@@ -3262,12 +3262,15 @@ window.shapeClearLocalUserContent = function (opts) {
       // alike (measured at 1280 and 1440 wide on Community, Pricing and the homepage): a click on
       // either reached the chat, so an EEA or UK visitor at a computer could not answer at all.
       // While the bar is up, the launcher and its panel stand on top of it instead, at the bar's
-      // own measured height; answering puts them back.
+      // own measured height; answering puts them back. A panel the visitor dragged carries an
+      // inline top (globalChatButton.js setPanelPosition), which would win over the bottom, so the
+      // top is let go too while the bar is up (Codex on #2530); the rich widget's own panel sits
+      // at z-index 180, under the bar.
       var html = document.documentElement;
       var liftCss = document.createElement("style");
       liftCss.id = "shape-consent-lift";
       liftCss.textContent = "html.shape-consent-open #shape-global-chat-button{bottom:calc(var(--shape-consent-h,0px) + 16px) !important}"
-        + "html.shape-consent-open #shape-global-chat-panel{bottom:calc(var(--shape-consent-h,0px) + 70px) !important;max-height:calc(100vh - var(--shape-consent-h,0px) - 94px) !important}";
+        + "html.shape-consent-open #shape-global-chat-panel{top:auto !important;bottom:calc(var(--shape-consent-h,0px) + 70px) !important;max-height:calc(100vh - var(--shape-consent-h,0px) - 94px) !important}";
       document.head.appendChild(liftCss);
       function lift() { try { html.style.setProperty("--shape-consent-h", bar.offsetHeight + "px"); } catch (e) {} }
       function unlift() {

@@ -174,7 +174,8 @@ test('while the banner is up the chat launcher stands on it, and an answer puts 
   const css = doc.getElementById('shape-consent-lift');
   assert.ok(css, 'no lift rule');
   assert.match(css.textContent, /html\.shape-consent-open #shape-global-chat-button\{bottom:calc\(var\(--shape-consent-h,0px\) \+ 16px\) !important\}/);
-  assert.match(css.textContent, /html\.shape-consent-open #shape-global-chat-panel\{bottom:calc\(var\(--shape-consent-h,0px\) \+ 70px\) !important;max-height:calc\(100vh - var\(--shape-consent-h,0px\) - 94px\) !important\}/);
+  // A dragged panel's inline top would win over the bottom, so it is let go too (Codex on #2530).
+  assert.match(css.textContent, /html\.shape-consent-open #shape-global-chat-panel\{top:auto !important;bottom:calc\(var\(--shape-consent-h,0px\) \+ 70px\) !important;max-height:calc\(100vh - var\(--shape-consent-h,0px\) - 94px\) !important\}/);
   assert.match(doc.documentElement.style.getPropertyValue('--shape-consent-h'), /^\d+px$/, 'the bar\'s height is not set');
   const accept = [...bar.querySelectorAll('button')].find((x) => x.textContent === 'Accept');
   accept.click();
