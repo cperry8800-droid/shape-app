@@ -1152,7 +1152,9 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const kitchenChanged = nutri && !sameJson(bsProfileKitchen(kitchen, owner), bsProfileKitchen(seed.kitchen, owner));
   // The About's three keys, each compared as the doc would keep it.
   const trimmedLinks = Object.fromEntries(BS_PROFILE_LINK_KEYS.map((k) => [k, String(links[k] || '').trim()]).filter(([, v]) => v));
-  const aboutChanged = !sameJson(bsProfileAbout(bsAboutDoc(about)), bsProfileAbout(bsAboutDoc(seed.about)));
+  // Years typed as their only edit count too, though the doc would drop them, so the save bar shows
+  // and save says why (Codex P2 on #2540: a 75 with nothing else changed got no save bar).
+  const aboutChanged = !sameJson(bsProfileAbout(bsAboutDoc(about)), bsProfileAbout(bsAboutDoc(seed.about))) || (about.years !== seed.about.years && bsYearsProblem(about.years));
   const promptsChanged = !sameJson(bsProfilePrompts(prompts), bsProfilePrompts(seed.prompts));
   const linksChanged = !sameJson(trimmedLinks, Object.fromEntries(Object.entries(seed.links).filter(([, v]) => v)));
   // The recipe being written (kept here, so it waits while the coach looks at another tab). Save

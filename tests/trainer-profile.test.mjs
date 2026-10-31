@@ -1301,6 +1301,23 @@ test('About me: a visitor sees no tab with nothing in it; the coach does, with a
   await m.unmount();
 });
 
+test('Make it yours, About me: years past 60 as the only edit still show the save bar, and save says why', async () => {
+  // Codex P2 on #2540: the doc drops a 75, so with nothing else changed nothing read as changed.
+  reset({ me: 'u-maya', custom: null, stored: { look: { paper: 'dark', accent: 'teal' } } });
+  const m = await mount(page({ isSelf: true }));
+  await click(button(/^Make it yours$/));
+  await click([...document.querySelectorAll('[data-make-it-yours] button')].find((b) => /^About me$/.test(b.textContent)));
+  assert.ok(!document.querySelector('[data-save-mine]'), 'no save bar before an edit');
+  await type(document.querySelector('[data-about-years]'), '75');
+  assert.ok(document.querySelector('[data-save-mine]'), 'the save bar shows');
+  await click(document.querySelector('[data-save-mine]'));
+  assert.equal(world.saved, null, 'nothing saved');
+  assert.match(m.text(), /Years coaching: a number from 1 to 60\./);
+  await type(document.querySelector('[data-about-years]'), '');
+  assert.ok(!document.querySelector('[data-save-mine]'), 'cleared, nothing is changed');
+  await m.unmount();
+});
+
 test('Make it yours, About me: saves the story, details, questions and socials onto the doc; a link it cannot use is said', async () => {
   reset({ me: 'u-maya', custom: null, stored: { bio: 'Saved elsewhere', look: { paper: 'dark', accent: 'teal' }, prompts: [{ q: 'never_skip', a: 'Leg day.' }] } });
   const m = await mount(page({ isSelf: true }));

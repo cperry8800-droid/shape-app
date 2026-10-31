@@ -160,7 +160,10 @@ export const BS_ABOUT_FACT_MAX = 80;
 export const BS_ABOUT_YEARS_MAX = 60;
 export const BS_ABOUT_HOW = ['online', 'in_person', 'both'];
 export const BS_PROFILE_LINK_KEYS = ['instagram', 'x', 'tiktok', 'youtube', 'substack', 'website'];
-export const BS_LINK_MAX = 120;
+// A link is kept whole: a cap shorter than a real address would cut it silently in the member
+// editors, which save through this with no length check (Codex P2 on #2540). 2,048 holds any address
+// a browser opens.
+export const BS_LINK_MAX = 2048;
 export const BS_PROMPTS_MAX = 4;
 export const BS_PROMPT_Q_MAX = 80;
 export const BS_PROMPT_A_MAX = 280;

@@ -38,6 +38,10 @@ test('socials: the known networks, a handle or a web address, never another sche
   assert.deepEqual(bsProfileLinks(odd), odd);
   assert.deepEqual(bsProfileLinkable(odd), { youtube: 'https://youtube.com/@maya' }, 'only what the page can link is drawn');
   assert.equal(bsProfileLinkable({ website: 'https://' }), null);
+  // A long address is kept whole, never cut to a different one (Codex P2 on #2540).
+  const long = 'https://example.com/' + 'a'.repeat(400) + '?utm_source=profile';
+  assert.equal(bsProfileLinks({ website: long }).website, long);
+  assert.equal(bsProfileLinkHref('website', long), long);
   assert.equal(bsProfileLinks('maya'), null);
   const cases = [
     ['instagram', '@maya.lifts', 'https://instagram.com/maya.lifts', '@maya.lifts'],
