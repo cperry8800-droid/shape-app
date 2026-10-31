@@ -125,7 +125,7 @@ window.ShapeListingAsks = {
 window.bsProfileCardFromPost = (p) => p;
 // The client module's storefront, as a probe: it records what the page hands it.
 window.useBSCoachCommerce = ({ person }) => ((world.commerceSeen = person.commerce), { commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: !!(person.commerce && person.commerce.atCapacity), wl: null });
-window.BSCoachCoachingBlock = ({ cm }) => React.createElement('div', { 'data-coaching-block': '' }, cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' '));
+window.BSCoachCoachingBlock = ({ cm, salePlans, noMonthly }) => (window.__blockPlans = salePlans, React.createElement('div', { 'data-coaching-block': noMonthly ? 'catalogue' : '' }, noMonthly ? salePlans.map((p) => `${p.name} $${p.price}`).join(' ') : cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' ')));
 
 const maya = { userId: 'u-maya', who: 'Maya Okafor', kind: 'TRAINER' };
 const page = (props = {}) => React.createElement(window.BSProvider, { paperMode: 'dark', accentKey: 'teal' },
@@ -198,6 +198,45 @@ test('the storefront shows only what the coach sells: no monthly price, no packa
   assert.ok(!document.querySelector('[data-coaching-block]'), 'no storefront block without a price');
   assert.match(m.text(), /hasn't listed prices on Shape yet/);
   assert.doesNotMatch(document.querySelector('[role="dialog"]').textContent, /\$/);
+  await m.unmount();
+  // No monthly price, but plans to sell: the plans alone, never the monthly package (Codex P2 on #2545).
+  reset({ provider: { ...world.provider, price: null }, salePlans: [{ id: 'p1', kind: 'program', name: 'Strong in 12', meta: '', price: '79', category: 'program', providerId: 7, providerRole: 'trainer' }] });
+  m = await mount(page());
+  await click(button(/^Work with her$/));
+  const cat = document.querySelector('[data-coaching-block="catalogue"]');
+  assert.ok(cat, 'the plans are listed');
+  assert.equal(cat.textContent, 'Strong in 12 $79');
+  assert.doesNotMatch(m.text(), /hasn't listed prices on Shape yet/, 'not told there are no prices beside them');
+  await m.unmount();
+  // Only plans with no price (a workout or reusable program): nothing to buy, so the no-prices line
+  // stays and no catalogue shows (Codex P2 on 2ecbc5b).
+  reset({ provider: { ...world.provider, price: null }, salePlans: [{ id: 'w1', kind: 'program', name: 'Form check', meta: '', price: null, category: 'workout', providerId: 7, providerRole: 'trainer' }] });
+  m = await mount(page());
+  await click(button(/^Work with her$/));
+  assert.ok(!document.querySelector('[data-coaching-block]'), 'no catalogue with nothing to buy');
+  assert.match(m.text(), /hasn't listed prices on Shape yet/);
+  await m.unmount();
+  // An account that also coaches nutrition: its paid meal plan is not the trainer's to list or sell
+  // (Codex P2 on b76e074), so the trainer with no monthly price still has nothing listed.
+  reset({ provider: { ...world.provider, price: null }, salePlans: [{ id: 'm1', kind: 'meal_plan', name: 'Lean cut', meta: '', price: '60', category: 'meal', providerId: 9, providerRole: 'nutritionist' }] });
+  m = await mount(page());
+  await click(button(/^Work with her$/));
+  assert.ok(!document.querySelector('[data-coaching-block]'), 'no nutrition plan on the trainer\'s sheet');
+  assert.match(m.text(), /hasn't listed prices on Shape yet/);
+  await m.unmount();
+  // No live listing (unfinished or suspended: the listing read returns no row) sells nothing here,
+  // published plans or not (Codex P1 on 196314b).
+  reset({ provider: null, salePlans: [{ id: 'p1', kind: 'program', name: 'Strong in 12', meta: '', price: '79', category: 'program', providerId: 7, providerRole: 'trainer' }] });
+  m = await mount(page());
+  await click(button(/^Work with her$/));
+  assert.ok(!document.querySelector('[data-coaching-block]'), 'no checkout without a live listing');
+  assert.doesNotMatch(document.querySelector('[role="dialog"]').textContent, /\$/);
+  await m.unmount();
+  // With a monthly price, the sheet's catalogue is handed the trainer's plans only.
+  reset({ salePlans: [{ id: 'p1', kind: 'program', name: 'Strong in 12', meta: '', price: '79', category: 'program', providerId: 7, providerRole: 'trainer' }, { id: 'm1', kind: 'meal_plan', name: 'Lean cut', meta: '', price: '60', category: 'meal', providerId: 9, providerRole: 'nutritionist' }] });
+  m = await mount(page());
+  await click(button(/^Work with her$/));
+  assert.deepEqual(window.__blockPlans.map((p) => p.name), ['Strong in 12']);
   await m.unmount();
 });
 
@@ -540,6 +579,9 @@ test('signed out, the trainer\'s own page is the new profile with sample content
     assert.ok(both, 'a day with open and busy times');
     await click(button(/^Ways to work with Quinn/));
     assert.equal(document.querySelector('[data-coaching-block]').textContent, 'Monthly coaching $180');
+    // The sheet lists the sample's own programs, as its page shows them (owner, 2026-10-31: it said
+    // "Publish your first plan" under every tab: "dont think this is working properly").
+    assert.deepEqual(window.__blockPlans.map((p) => [p.name, p.category, p.meta]), [['Strong in 12', 'program', '12 weeks'], ['Barbell basics', 'program', '6 weeks']]);
     await click(button(/^Close$/));
     await click(button(/^The studio$/));
     assert.match(m.text(), /Full gym/);

@@ -1075,5 +1075,6 @@
   "mine.qaRemove": "Cire",
   "mine.socials": "Shafukanka na sada zumunta",
   "mine.errLink": "Duba {network}: suna kamar @kai, ko adireshi da ke farawa da https://",
-  "mine.errYears": "Shekarun koyarwa: lamba daga 1 zuwa {max}."
+  "mine.errYears": "Shekarun koyarwa: lamba daga 1 zuwa {max}.",
+  "coach.noPlansYet": "{name} bai buga wani shiri ba tukuna"
 }

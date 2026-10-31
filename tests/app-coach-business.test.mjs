@@ -822,6 +822,12 @@ test('the Me card: the coach\'s own net a month and clients, no renewal reads, o
   assert.deepEqual(st.calls, [{ role: 'trainer', renewals: false }], 'the card costs no Stripe renewal reads');
   const today = CF.todayFrom(p);
   assert.match(m.text(), new RegExp(`\\${money(today.mrrNetCents)}net a month${today.clients} clients · payouts, renewals and your plan`));
+  // A little smaller (owner, 2026-10-31: "make this a little smaller"): the figure 34px (was 42), the
+  // weeks' bars 18px (were 26), the padding 12px top and bottom (was 14); the eye keeps its 28px.
+  assert.equal(m.host.querySelector('[data-biz-card]').style.padding, '12px 14px');
+  assert.equal(m.host.querySelector('[data-biz-figure]').style.fontSize, '34px');
+  assert.equal(m.host.querySelector('[data-biz-bars] [role="img"]').style.height, '18px');
+  assert.equal(button(m.host, /Hide your figures/).style.width, '28px');
   await click(button(m.host, /Business ›/));
   assert.equal(opened.length, 1);
   // Owner, 2026-10-18: "the business card should be private, never public". The card says so, and

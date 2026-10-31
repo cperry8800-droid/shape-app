@@ -19457,7 +19457,10 @@ function useBSCoachCommerce({ person, isSelf, isNutri, name, first, city }) {
 // "Work with": the at-capacity states (invited, waiting, already a client, full), the monthly
 // offer with Subscribe and the free intro, and the coach's catalogue with Buy. The Signal
 // profile's Coaching tab and the trainer profile's Work-with sheet both render it.
-function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, c }) {
+// noMonthly: a coach whose listing has no monthly price but who sells plans (Codex P2 on #2545). The
+// monthly offer and Subscribe go (they would print the demo package); the capacity states stay, since
+// at capacity a plan is only bought with an invite or as a client (Codex P2 on f49af70).
+function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, c, noMonthly = false }) {
   const tTheme = useBS();
   const tr = useShapeTr();
   const INK = tTheme.INK;
@@ -19521,7 +19524,13 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
   // catalogue) — empty until you publish; others / signed-out keep demo.
   const offerings = realOfferings.length ? realOfferings : (ownZero ? [] : demoOfferings);
   const offerCats = isNutri ? ['All', 'Meals', 'Diets', 'Coaching'] : ['All', 'Workouts', 'Programs', 'Coaching'];
-  const visibleOfferings = offerTab === 'All' ? offerings : offerings.filter((o) => o[0] === offerTab);
+  // A tab only for a kind the coach lists, and no row with one kind or none (owner, 2026-10-31, of a
+  // Workouts tab saying "Publish your first plan" while the coach had programs: "dont think this is
+  // working properly"). A tab gone since it was picked reads as All.
+  const listedCats = offerCats.filter((ct) => ct === 'All' || offerings.some((o) => o[0] === ct));
+  const showCats = listedCats.length > 2;
+  const catNow = showCats && listedCats.includes(offerTab) ? offerTab : 'All';
+  const visibleOfferings = catNow === 'All' ? offerings : offerings.filter((o) => o[0] === catNow);
   return (<>
           {/* Work with {first} — the storefront CTA (subscribe + book), or —
               when {first} is effectively at capacity — the waiting-list CTA.
@@ -19535,8 +19544,8 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
                   at capacity, so the invited state must also carry the subscription
                   path (mirrors the website invited CTA trio, #1498). */}
               <button onClick={doBookOneTime} style={{ ...ctaInk, width: '100%' }}>{tr('profile:coach.bookNow', { defaultValue: 'Book now' })}</button>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-                <button onClick={doSubscribe} style={ctaLine}>{tr('profile:coach.subscribeMo', { defaultValue: 'Subscribe /mo' })}</button>
+              <div style={{ display: 'grid', gridTemplateColumns: noMonthly ? '1fr' : '1fr 1fr', gap: 8, marginTop: 8 }}>
+                {noMonthly ? null : <button onClick={doSubscribe} style={ctaLine}>{tr('profile:coach.subscribeMo', { defaultValue: 'Subscribe /mo' })}</button>}
                 <button onClick={wlWithdraw} style={ctaLine}>{tr('profile:coach.decline', { defaultValue: 'Decline' })}</button>
               </div>
               <button onClick={doBookIntro} data-intro-at-capacity="" style={{ ...ctaLine, width: '100%', marginTop: 8 }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
@@ -19565,6 +19574,7 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
               {introsOpenAtCap ? <button onClick={doBookIntro} data-intro-at-capacity="" style={{ ...ctaLine, width: '100%', marginTop: 8 }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button> : null}
             </div>
           )}
+          {noMonthly ? null : <>
           {!isSelf && !atCapacity && (
             <div style={ctaBlock}>
               <Kick col={bsWsAccent(tTheme)}>{tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })}</Kick>
@@ -19576,22 +19586,23 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
               </div>
             </div>
           )}
+          </>}
           {/* services & prices — sub-tabbed by type (like the website catalogue) */}
           <div style={{ marginTop: 28 }}>
             <BSTStationHead mag heat={c} INK={INK} label={isNutri ? tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' }) : tr('profile:coach.trainWith', { name: first, defaultValue: 'Train with {name}' })} />
             {/* category sub-tabs, as the Wall's own row under its masthead: mono words, the chosen one in ink over red */}
-            <div style={{ display: 'flex', gap: 18, overflowX: 'auto' }} className="bs-hide-scroll">
-              {offerCats.map((ct) => { const on = offerTab === ct; return (
-                <button key={ct} aria-pressed={on} onClick={() => setOfferTab(ct)} style={{ flex: 'none', minHeight: 36, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
+            {showCats ? <div style={{ display: 'flex', gap: 18, overflowX: 'auto' }} className="bs-hide-scroll">
+              {listedCats.map((ct) => { const on = catNow === ct; return (
+                <button key={ct} data-offer-tab={ct} aria-pressed={on} onClick={() => setOfferTab(ct)} style={{ flex: 'none', minHeight: 36, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
                   <span style={{ display: 'inline-block', padding: '6px 0', boxShadow: on ? `inset 0 -2px 0 ${bsWsAccent(tTheme)}` : 'none', color: on ? INK : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{tr('profile:coach.cat.' + String(ct).toLowerCase(), { defaultValue: ct })}</span>
                 </button>
               ); })}
-            </div>
+            </div> : null}
             <div style={{ marginTop: 6 }}>
               {visibleOfferings.length ? visibleOfferings.map(([cat, kind, nm, sub, price, pl], i) => {
                 const buyable = !isSelf && pl && pl.id && pl.providerId && price !== 'Free' && price !== 'Listed';
                 return (
-                <div key={i} style={{ borderTop: `1px solid ${hair}`, padding: '13px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div key={i} data-offer-row="" style={{ borderTop: `1px solid ${hair}`, padding: '13px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginBottom: 4 }}>{kind}</div><div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 600 }}>{nm}</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.55), marginTop: 3 }}>{sub}</div></div>
                   {buyable
                     ? <button onClick={() => buyPlan(pl)} style={{ ...ctaInk, flex: 'none', padding: '0 14px', fontSize: 9.5, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{tr('profile:coach.buy', { defaultValue: 'Buy' })} · {price}</button>
@@ -19599,7 +19610,9 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
                 </div>
                 );
               }) : (
-                <div style={quiet}>{tr('profile:coach.publishFirst', { defaultValue: 'Publish your first plan to list it here' })}</div>
+                // To the coach, how to fill it; to a member, that there is nothing yet (it said "Publish
+                // your first plan" to members too, as the trainer profile shows no sample catalogue).
+                <div data-offer-empty="" style={quiet}>{isSelf ? tr('profile:coach.publishFirst', { defaultValue: 'Publish your first plan to list it here' }) : tr('profile:coach.noPlansYet', { defaultValue: "{name} hasn't listed a plan yet", name: first })}</div>
               )}
             </div>
           </div>
