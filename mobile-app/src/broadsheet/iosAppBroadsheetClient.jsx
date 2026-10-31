@@ -15495,6 +15495,47 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   // Follow display state — computed before EITHER branch (the ledger variant
   // reads it, so it must not sit in the temporal dead zone).
   const fs = stats.isFollowing ? 'following' : stats.isPending ? 'requested' : 'follow';
+  // ── Coach-look variant (the member profile in the coach profile's look, owner 2026-10-31): the
+  // counts as one quiet line in the clean face, then Follow and Message as the coach page's two 46px
+  // buttons, Follow filled in the profile's accent (`c`) with the ink or paper that reads on it.
+  if (variant === 'coach') {
+    const DISPLAY = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
+    const onC = bsReadableOn(c);
+    const count = (n, label, onTap, key) => (
+      <button key={key} type="button" data-follow-count={key} onClick={onTap} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', color: INK, fontFamily: DISPLAY, fontSize: 14, lineHeight: 1.2, textAlign: 'left' }}>
+        <b style={{ fontWeight: 650, fontVariantNumeric: 'tabular-nums' }}>{Math.max(0, Number(n) || 0).toLocaleString(bsDateLocale())}</b>{' '}<span style={{ color: bsTHexA(INK, 0.64) }}>{label}</span>
+      </button>
+    );
+    const firstName = String(name || '').trim().split(/\s+/)[0] || name;
+    const following = fs === 'following', requested = fs === 'requested';
+    return (
+      <div data-follow-coach="">
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 16 }}>
+          {count(stats.followers, tr('profile:log.vis.followers', { defaultValue: 'Followers' }), () => openList('followers'), 'followers')}
+          {/* The count's own noun: follow.following is Follow's state (de "Folgst du"; Codex P2 on #2546). */}
+          {count(stats.following, tr('profile:follow.followingCount', { defaultValue: 'Following' }), () => openList('following'), 'following')}
+          {count(postsShown, tr('profile:follow.posts', { defaultValue: 'Posts' }), () => onOpenPosts && onOpenPosts(), 'posts')}
+          {isSelf && reqCount > 0 ? (
+            <button type="button" onClick={() => openList('requests')} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: DISPLAY, fontSize: 14, fontWeight: 650, color: INK, borderBottom: `2px solid ${c}` }}>{tr('profile:follow.requestCount', { defaultValue: '{count, plural, one {# request} other {# requests}}', count: reqCount })}</button>
+          ) : null}
+        </div>
+        {!isSelf ? (
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <button type="button" data-follow-toggle="" onClick={onToggle} disabled={busy} aria-pressed={following || requested}
+              style={{ flex: 1.2, minHeight: 46, border: following || requested ? `1px solid ${bsTHexA(INK, 0.22)}` : 0, background: following || requested ? 'transparent' : c, color: following || requested ? INK : onC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: busy ? 'default' : 'pointer' }}>
+              {following ? `✓ ${tr('profile:follow.following', { defaultValue: 'Following' })}` : requested ? tr('profile:follow.requested', { defaultValue: 'Requested' }) : tr('profile:follow.followShort', { defaultValue: 'Follow' })}
+            </button>
+            {typeof onMessage === 'function' ? (
+              <button type="button" data-follow-message="" onClick={() => onMessage()} style={{ flex: 1, minHeight: 46, border: `1px solid ${bsTHexA(INK, 0.22)}`, background: 'transparent', color: INK, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {tr('profile:terrain.messageName', { defaultValue: 'Message {name}', name: firstName })}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={name} c={c} INK={INK} BG={BG} coach={coach} self={isSelf} ownerPhoto={ownerPhoto} onClose={() => setSheet(null)} onOpenProfile={onOpenProfile} />}
+      </div>
+    );
+  }
   // ── Ledger variant (Terrain) — one mono stat line + line-only Follow/Message.
   if (ledger) {
     // Numbers read at register weight (19px, up from 13) so the social line owns
@@ -15686,32 +15727,18 @@ function useBSMemberAge(userId) {
   return entry.uid === userId ? entry.age : null;
 }
 
-function BSProfileIdentityHead({ name, handle, sub, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts, onMessage = null, mag = false }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
-  const reduced = bsSdReduced();
-  // Route Card identity head — the rail's origin. Eyebrow demotes to ink-alphas
-  // (identity is weight, not color); the serif name's period is the head's only
-  // heat mark; a 2px heat rule draws under the block on mount.
-  return (
-    <div style={{ paddingBottom: 13 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800, color: bsTHexA(INK, 0.55) }}>
-        <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: c, marginRight: 1 }} />
-        <span>{tierName} Tier</span>
-        {streak ? <><span style={{ color: bsTHexA(INK, 0.3) }}>·</span><span>{streak} week streak</span></> : null}
-      </div>
-      {/* `mag` (the member profile, owner 2026-10-24: the Me page "cleaned up" to the Wall's look): the name in
-          the headline face over a heavy ink rule, as the Wall's masthead prints its title, and no heat rule under
-          the block, since the tab strip below opens on its own heavy rule. */}
-      <h1 style={mag
-        ? { fontFamily: SERIF, fontSize: 30, fontWeight: 600, color: INK, letterSpacing: '-0.01em', lineHeight: 1, margin: '8px 0 0', paddingBottom: 8, borderBottom: `3px solid ${INK}` }
-        : { fontFamily: SERIF, fontSize: 27, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1.04, margin: '7px 0 5px' }}>{name}<span style={{ color: c }}>.</span></h1>
-      {(handle || sub) && <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55), ...(mag ? { padding: '7px 0', borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` } : null) }}>{[handle, sub].filter(Boolean).join(' · ')}</div>}
-      <div style={{ marginTop: 12 }}>
-        <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} variant="ledger" ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} onMessage={onMessage} />
-      </div>
-      {!mag && <div aria-hidden style={{ height: 2, marginTop: 12, background: `linear-gradient(90deg, ${c}, ${bsTHexA(c, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) 300ms both' }) }} />}
-    </div>
-  );
+
+// The ink that reads on a fill of `hex`: near-black on a light colour, white on a dark one (WCAG
+// relative luminance against the two, whichever contrasts more).
+function bsReadableOn(hex) {
+  const h = String(hex || '').replace('#', '');
+  const s = h.length === 3 ? h.split('').map((x) => x + x).join('') : h;
+  const n = parseInt(s, 16);
+  if (!/^[0-9a-f]{6}$/i.test(s) || !Number.isFinite(n)) return '#ffffff';
+  const lin = (v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  const onDark = 1.05 / (L + 0.05), onLight = (L + 0.05) / (0.0043 + 0.05); // #0f0e0c is L ≈ 0.0043
+  return onLight >= onDark ? '#0f0e0c' : '#ffffff';
 }
 
 // ── Client "Terrain" public profile (Living Identity direction) ──────────────
@@ -16056,7 +16083,9 @@ function BSProfileFilmCard({ film, INK, c, label }) {
 // `showPrompts` false leaves the prompts out (the member profile: owner, 2026-10-31, "remove this from
 // member profile" of "Why I train" and "The lift I love"); the stored answers stay in the doc, which the
 // website's profile still reads.
-function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false, userId = null, coach = false, demo = false, showPrompts = true }) {
+// `clean` (the member profile in the coach profile's look, 2026-10-31): the shelf's head is the coach
+// page's 10px eyebrow over a hairline, not the Wall's headline over a heavy rule.
+function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false, userId = null, coach = false, demo = false, showPrompts = true, clean = false }) {
   const tr = useShapeTr();
   // The Wall shot open full size, by its place on the wall (owner, 2026-10-24: "click on these pictures and
   // make bigger"); null when none is.
@@ -16140,7 +16169,9 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
         )}
         {shelf.length > 0 && (
           <div style={{ marginBottom: 18 }}>
-            <BSTStationHead mag heat={c} INK={INK} label={tr('profile:shelf.head', { defaultValue: 'The shelf · Proudest' })} />
+            {clean
+              ? <span data-shelf-head="clean" style={{ display: 'block', paddingBottom: 8, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}`, fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.64) }}>{tr('profile:shelf.head', { defaultValue: 'The shelf · Proudest' })}</span>
+              : <BSTStationHead mag heat={c} INK={INK} label={tr('profile:shelf.head', { defaultValue: 'The shelf · Proudest' })} />}
             {shelf.map((s, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 9, padding: '9px 0', borderTop: i ? `1px solid ${bsTHexA(INK, 0.12)}` : 'none' }}>
                 <span style={{ flex: 'none', fontFamily: MONO, fontSize: 8.5, fontWeight: 700, color: bsTHexA(INK, 0.4) }}>{String(i + 1).padStart(2, '0')}</span>
@@ -17854,13 +17885,14 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = fa
     const openLink = (url) => <a href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, textDecoration: 'none', flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7), whiteSpace: 'nowrap' }}><span style={{ borderBottom: `1px solid ${accent}`, paddingBottom: 1 }}>{tr('profile:action.open', { defaultValue: 'Open' })} ↗</span></a>;
     return (
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span aria-hidden style={{ width: 6, height: 1.5, background: accent }} />
-            <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{isSelf ? tr('profile:playlists.yourLibrary', { defaultValue: 'Your library' }) : tr('profile:tab.music', { defaultValue: 'Music' })}</div>
+        {/* Your own library and its Add, as the coach page's 10px eyebrow. A visitor's has no head: the
+            Music tab right above names it (a tab's first section takes no head, owner, 2026-10-26). */}
+        {isSelf ? (
+          <div data-playlists-head="" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.64) }}>{tr('profile:playlists.yourLibrary', { defaultValue: 'Your library' })}</div>
+            <button onClick={() => setAdding(true)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK }}><span style={{ borderBottom: `1px solid ${accent}`, paddingBottom: 1 }}>{tr('profile:playlists.addPlaylist', { defaultValue: '＋ Add playlist' })}</span></button>
           </div>
-          {isSelf && <button onClick={() => setAdding(true)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK }}><span style={{ borderBottom: `1px solid ${accent}`, paddingBottom: 1 }}>{tr('profile:playlists.addPlaylist', { defaultValue: '＋ Add playlist' })}</span></button>}
-        </div>
+        ) : null}
         {items === null ? (
           <div style={{ padding: '18px 2px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>{tr('profile:playlists.loading', { defaultValue: 'Loading…' })}</div>
         ) : items.length === 0 ? (
@@ -18155,9 +18187,22 @@ function BSTLedgerStat({ INK, label, value, seen, figSize = 30, delay = 0, align
 // sideways when a language's names run longer (ru "Восхождение"), as the Wall masthead's tabs do. Five names
 // (the coach's) set tighter, so English fits a 375px phone: measured, they need 334px of a 390px phone's 314
 // at the four-name setting and 290 at this one. Sticky on solid paper; real ≥44px buttons.
-function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20, top = 0 }) {
+// `look="coach"`: the coach profile's tab row (the member profile since 2026-10-31, owner: "match
+// similar design to coaches"): the names in the headline face at 15px as written, the picked one in ink
+// over a 2px underline in the page's colour (`heat`), on one hairline; no heavy rule above.
+function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20, top = 0, look = 'mag' }) {
   const accent = bsWsAccent(useBS());
   const five = tabs.length > 4;
+  if (look === 'coach') {
+    return (
+      <nav data-terrain-tabs="coach" className="bs-hide-scroll" style={{ position: 'sticky', top, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: '0 8px', background: BG, borderBottom: `1px solid ${bsTHexA(INK, 0.18)}`, display: 'flex', overflowX: 'auto' }}>
+        {tabs.map((tb) => { const on = active === tb.key; return (
+          <button key={tb.key} type="button" aria-pressed={on} onClick={() => onPick(tb.key)} title={tb.label}
+            style={{ flex: '1 0 auto', minHeight: 48, padding: '0 6px', border: 0, borderBottom: `2px solid ${on ? (heat || accent) : 'transparent'}`, marginBottom: -1, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: BST_SERIF, fontWeight: on ? 600 : 400, fontSize: 15, whiteSpace: 'nowrap', cursor: 'pointer' }}>{tb.label}</button>
+        ); })}
+      </nav>
+    );
+  }
   return (
     <div style={{ position: 'sticky', top, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: `0 ${pad}px`, background: BG, borderTop: `3px solid ${INK}`, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` }}>
       <div className="bs-hide-scroll" style={{ display: 'flex', justifyContent: 'space-between', gap: five ? 10 : 14, overflowX: 'auto' }}>
@@ -18247,7 +18292,7 @@ function bsProfileDistLabel(t, km) {
   return m.unit === 'mi' ? `${m.value} mi` : `${m.value}K`;
 }
 
-function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
+function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = null, meMode = false, onOpenSettings = () => {}, onOpenScore = null }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
   const hasMessage = typeof onMessage === 'function';
@@ -18267,10 +18312,6 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // stamp, breath, line-draw) — inject them so the profile's motion plays even
   // when the session-detail page was never opened this session.
   React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
-  // Hero zone boots on mount (above the fold): flip after one frame so the
-  // ascent's stroke-dashoffset transition fires. Reduced motion → already drawn.
-  const [heroSeen, setHeroSeen] = useStateBSC(bsSdReduced());
-  React.useEffect(() => { if (heroSeen) return undefined; const r = requestAnimationFrame(() => setHeroSeen(true)); return () => cancelAnimationFrame(r); }, [heroSeen]);
   // Per-tab seen map — a tab's station entrances play once, then a revisit
   // renders the FINISHED state (no replay). The effect cleanup marks the tab
   // seen on LEAVE, so the first visit's animation is never cut short.
@@ -18281,6 +18322,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
   // The tab row sticks, and the Posts jump lands, below BSPage's condensed masthead.
   const pinnedTop = useBSPinnedMastTop();
+  // A tab picked from the pinned row opens at its top, not at the scroll the last tab left (a long
+  // Activity left Signals under the row); picked with the row still in place, nothing moves.
+  const pickTab = (k) => {
+    setTab(k);
+    setTimeout(() => { try { const el = activityRef.current; if (el && el.getBoundingClientRect().top < (pinnedTop || 0)) el.scrollIntoView({ block: 'start' }); } catch (e) {} }, 0);
+  };
   useBSPresence();
   // Local reaction state for the shared BSActivityCard on this profile feed.
   // Reactions toggle optimistically + best-effort persist the like (same backend
@@ -18408,10 +18455,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const maxWk = Math.max(...weekEff) || 1;
   const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
   // On your OWN profile the climb is wired to real data, and you can choose what
-  // it tracks: body weight (goal + weigh-ins), Shape Score (→ next tier), or day
-  // streak. Others always see the body-weight climb (derived/demo).
-  // Shape Score climb lives on the Shape Score page now (not a climb aspect here).
+  // it tracks: body weight (goal + weigh-ins), body fat, strength or day streak.
+  // The tier climb (Shape Score → the next tier) leads, always shown: the ridge and its % the head's
+  // mountain drew until 2026-10-31 (owner: the member profile in the coach profile's look, "climb in
+  // its tab").
   const CLIMB_SOURCES = [
+    { key: 'score', label: 'Tier' },
     { key: 'weight', label: 'Body weight' },
     { key: 'bodyfat', label: 'Body fat' },
     { key: 'strength', label: 'Strength' },
@@ -18419,7 +18468,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   ];
   const CLIMB_DEFAULT_SHOWN = ['weight', 'strength'];
   const [realGoal, setRealGoal] = useStateBSC(null);
-  const [climbSource, setClimbSource] = useStateBSC('weight');
+  const [climbSource, setClimbSource] = useStateBSC('score');
   // Which aspects appear as tabs in the climb box (owner-customizable).
   const [climbShown, setClimbShown] = useStateBSC(CLIMB_DEFAULT_SHOWN);
   const [climbCustomizing, setClimbCustomizing] = useStateBSC(false);
@@ -18446,7 +18495,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       }
       if (merged && (merged.start != null || merged.target != null || merged.now != null)) setRealGoal(merged);
       if (climb && climb.source) setClimbSource(climb.source);
-      if (climb && Array.isArray(climb.shown) && climb.shown.length) setClimbShown(climb.shown.filter((k) => CLIMB_SOURCES.some((s) => s.key === k)));
+      // An empty list is a Tier-only climb (the tier is always shown), kept as saved.
+      if (climb && Array.isArray(climb.shown)) setClimbShown(climb.shown.filter((k) => k !== 'score' && CLIMB_SOURCES.some((s) => s.key === k)));
     })();
     return () => { alive = false; };
   }, [isSelf]);
@@ -18480,10 +18530,10 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const toggleClimbShown = (k) => {
     setClimbShown((prev) => {
       const has = prev.includes(k);
-      let next = has ? prev.filter((x) => x !== k) : CLIMB_SOURCES.map((s) => s.key).filter((x) => x === k || prev.includes(x));
-      if (!next.length) next = [k];
+      // The tier is always shown, so the others may all go (a Tier-only climb; Codex P2 on #2546).
+      const next = has ? prev.filter((x) => x !== k) : CLIMB_SOURCES.map((s) => s.key).filter((x) => x !== 'score' && (x === k || prev.includes(x)));
       let src = climbSource;
-      if (!next.includes(src)) { src = next[0]; setClimbSource(src); }
+      if (src !== 'score' && !next.includes(src)) { src = 'score'; setClimbSource(src); }
       persistClimb(src, next);
       return next;
     });
@@ -18666,10 +18716,15 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       // ⚠ At the LAST rung there is no next tier, so a "this tier → the next
       // one" arc labels its two ends with the SAME name and points (it read
       // "Legend 15,000 pts → Legend 15,000 pts"). The top state spans the WHOLE
-      // ladder instead — first rung → the tier they hold — which is the same
-      // re-frame the hero ascent makes, so the two ridges agree on this page.
-      const startRung = last ? [NM[0], `${TH[0].toLocaleString()} pts`, 'start'] : [NM[i], `${floor.toLocaleString()} pts`, 'start'];
-      return { arc: [startRung, [tr('profile:ridge.now', { defaultValue: 'Now' }), `${pts.toLocaleString()} pts`, 'now'], [nextName, `${next.toLocaleString()} pts`, 'target']], pct: last ? 1 : Math.max(0.04, Math.min(0.98, (pts - floor) / Math.max(1, next - floor))), summit: last ? 'Legend tier' : `${nextName} tier` };
+      // ladder instead: first rung → the tier they hold.
+      // Points in the reader's unit (de "Pkt.", ru "очк."; Codex P2 on #2546), as the head's meta line.
+      const ptsOf = (n) => `${Number(n).toLocaleString(bsDateLocale())} ${tr('score:unit.pts', { defaultValue: 'pts' })}`;
+      const startRung = last ? [NM[0], ptsOf(TH[0]), 'start'] : [NM[i], ptsOf(floor), 'start'];
+      const tierPct = last ? 1 : Math.max(0.04, Math.min(0.98, (pts - floor) / Math.max(1, next - floor)));
+      // The % the head's mountain carried, now on "Now" (owner, 2026-10-31: the climb in its tab).
+      const nowFig = last ? ptsOf(pts) : `${ptsOf(pts)} · ${Math.round(tierPct * 100)}%`;
+      // The target flies the next tier's colour, as the head's summit flag did; at the top, their own.
+      return { arc: [startRung, [tr('profile:ridge.now', { defaultValue: 'Now' }), nowFig, 'now'], [nextName, ptsOf(next), 'target']], pct: tierPct, summit: last ? 'Legend tier' : `${nextName} tier`, targetC: last ? c : bsTierColor(nextName) };
     }
     if (aspect === 'streak') {
       const s = Number(streakEff) || 0, target = Math.max(7, Math.ceil((s + 1) / 7) * 7);
@@ -18709,40 +18764,14 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     if (signedInSelf) return { arc: [[tr('profile:ridge.start', { defaultValue: 'Start' }), '—', 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), tr('profile:terrain.noGoalSet', { defaultValue: 'No goal set' }), 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), tr('profile:terrain.setAGoal', { defaultValue: 'Set a goal' }), 'target']], pct: 0.05, summit: tr('profile:terrain.setAGoal', { defaultValue: 'Set a goal' }) };
     return { arc: (person.arc || [['Feb ’25', 'Started', 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), `${progressPct}% there`, 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), summit, 'target']]), pct: Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100)), summit };
   };
-  const climbTabs = CLIMB_SOURCES.filter((s) => climbShown.includes(s.key));
-  const activeClimb = climbTabs.some((s) => s.key === climbSource) ? climbSource : (climbTabs[0] && climbTabs[0].key) || 'weight';
+  const climbTabs = CLIMB_SOURCES.filter((s) => s.key === 'score' || climbShown.includes(s.key));
+  const activeClimb = climbTabs.some((s) => s.key === climbSource) ? climbSource : 'score';
   const climbCfg = climbCfgFor(activeClimb);
   const arc = climbCfg.arc;
   const pct = climbCfg.pct;
   // (`climbCfg.summit` + a rounded `pct` label had no readers — the climb box
   // renders the arc rows and the ridge geometry, not a summit line — so they
   // are not re-derived here. `pct` itself IS read, by the ridge.)
-  // Hero ascent = standing toward the next LEVEL (tier). Independent of the Climb
-  // tab's selected aspect, so the avatar never jumps when you switch tabs.
-  const _HLNM = ['Raw', 'Tempo', 'Form', 'Peak', 'Legend'];
-  const _HLTH = [0, 750, 2000, 5000, 15000];
-  // `base` is the first rung's old name, still in stored scores and demo rows.
-  const _hlKey = String(tierName).toLowerCase() === 'base' ? 'raw' : String(tierName).toLowerCase();
-  const _hlIdx = Math.max(0, _HLNM.findIndex((nm) => nm.toLowerCase() === _hlKey));
-  const _hlTop = _hlIdx >= _HLNM.length - 1;
-  const _hlPts = score;
-  let heroPct, nextLevel;
-  if (_hlTop) { heroPct = 1; nextLevel = null; }
-  else if (_hlPts != null) { const f = _HLTH[_hlIdx], nx = _HLTH[_hlIdx + 1]; heroPct = Math.max(0.04, Math.min(0.97, (_hlPts - f) / Math.max(1, nx - f))); nextLevel = _HLNM[_hlIdx + 1]; }
-  else { heroPct = Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100)); nextLevel = _HLNM[Math.min(_hlIdx + 1, _HLNM.length - 1)]; }
-  const heroPctLabel = Math.round(heroPct * 100);
-  const curLevel = _HLNM[_hlIdx] || tierName;
-  // ⚠ TOP OF THE LADDER (Legend) — the ascent's normal framing is ONE segment,
-  // "your tier → the next one", and at the last rung that segment does not
-  // exist. Left alone it rendered nonsense: BOTH end labels read LEGEND (base =
-  // curLevel, summit = nextLevel ?? curLevel), the badge read "100%" of a span
-  // with no far end, and the figure stood two-thirds up a route drawn full to
-  // the flag. So the top state re-frames the SAME picture as the WHOLE ladder —
-  // base = the first rung, summit = the tier they hold, route complete, figure
-  // at the top of it — and the badge names the state instead of a percentage.
-  // (Same call as the coach sigil's `_sigTop` → "Top of the ladder".)
-  const heroBaseLevel = _hlTop ? _HLNM[0] : curLevel;
-  const heroSummitLevel = nextLevel || curLevel;
   // Coached-by band — real program phase + linked coach on your own profile.
   const blockEff = (isSelf && prog && prog.trainingPhase) ? tr('profile:terrain.currentPhase', { defaultValue: 'Current phase' }) : block;
   const programEff = (isSelf && prog && (prog.trainingPhase || prog.nutritionPhase)) ? [prog.trainingPhase, prog.nutritionPhase].filter(Boolean).join(' · ') : program;
@@ -18752,40 +18781,25 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // "Coached by Maya Okafor · Hypertrophy Block II" band entirely unless a REAL
   // coach or a REAL program phase is set. Signed-out preview keeps the demo band.
   const hasRealProgram = !!(isSelf && prog && (prog.trainingPhase || prog.nutritionPhase));
-  const showCoachBand = !signedInSelf || !!coachReal || hasRealProgram;
-  const showCoachLink = !signedInSelf || !!coachReal;
+  // ⚠ NEVER A MADE-UP COACH ON A REAL PROFILE: this read `!signedInSelf`, true on every other
+  // member's page, so a signed-in reader saw "Coached by Maya Okafor · Week 6 of 12" on everyone.
+  // The sample band is the signed-out preview's; signed in, only a real coach or program shows.
+  const showCoachBand = !signedIn || !!coachReal || hasRealProgram;
+  const showCoachLink = !signedIn || !!coachReal;
   const memberSinceLabel = (isSelf && (() => { try { const cs = window.ShapeAuth?.getCachedState?.(); const ca = cs && cs.user && cs.user.created_at; if (ca) { const dt = new Date(ca); if (!isNaN(dt)) return dt.toLocaleDateString([], { month: 'short', year: 'numeric' }); } } catch (e) {} return null; })()) || person.since || 'Feb 2024';
   const since = memberSinceLabel;
-  // The join date the Climb's head used to carry, in that head's meta type.
-  const climbSinceMeta = <span style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), whiteSpace: 'nowrap' }}>{tr('profile:terrain.memberSince', { date: since, defaultValue: 'Member since {date}' })}</span>;
-  const stravaUrl = person.strava
-    ? (/^https?:/i.test(person.strava) ? person.strava : 'https://www.strava.com/athletes/' + String(person.strava).replace(/^@/, ''))
-    : 'https://www.strava.com';
-  // Full-bleed hero cover: with a cover image set, the photo fills the WHOLE
-  // ascent block and the ridge/avatar/labels/phase line draw over it (scrimmed,
-  // fixed-cream ink). The phase eyebrow rides the cover when both exist, so the
-  // coach band below only renders when it still has content.
+  // The head's cover photo, as the coach page's wall.
   // The cover loads on the device of everyone who opens the profile, so a doc's cover shows only as
   // the owner's own upload or listing photo (bsProfileCover, bound to the profile's owner): an
   // outside URL is no cover. The preview persona has no owner and shows its demo cover instead.
   const heroCover = demoFill ? BS_DEMO_MEMBER_COVER : ((bsProfileCover(customEff && customEff.cover, feedAuthorId) || {}).image || null);
-  const phaseLine = showCoachBand && (!signedInSelf || hasRealProgram);
-  const phaseOnCover = !!heroCover && phaseLine;
-  // ⚠ THE ASCENT BAND AND THE PAD ABOVE IT ARE ONE NUMBER SPLIT IN TWO, and the
-  // split is the whole trick: over a cover photo the band is TALLER and the extra
-  // range is taken out of the dead padding above it, never added to the block. So
-  // the block height — and with it the photo's `cover` crop, the base square, the
-  // base label and the phase eyebrow — lands on exactly the pixels it did before,
-  // while the summit, the route and the figure climb 64px up into the picture and
-  // the chord steepens with them (rise/run 102/296 → 166/296). Raising the band by
-  // growing the block would have re-cropped the photo instead of moving the line.
-  // On paper there is no photo to climb into and no padding to spend, so the
-  // compact chart keeps its own height and is pixel-identical. The block was 278
-  // with a 214 band until the owner asked for "the picture part a little smaller,
-  // more condenced" (2026-10-24): 224 with a 196 band keeps the climb's steepness.
-  const BS_HERO_BLOCK = 224;
-  const heroAscentH = heroCover ? 196 : 150;
-  if (followProfile) return <BSPublicProfile person={followProfile} onBack={() => setFollowProfile(null)} onMessage={onMessage} />;
+  const phaseLine = showCoachBand && (!signedIn || hasRealProgram);
+  // A profile opened from this one messages through the host's handler, or (from your own Me page,
+  // which hands none) opens the member conversation itself; never a Message that does nothing.
+  const meId = signedIn ? (window.ShapeAuth?.getCachedState?.()?.user?.id || null) : null;
+  const nestedMessage = typeof onMessage === 'function' ? onMessage
+    : (meId && followProfile && followProfile.userId && followProfile.userId !== meId ? (p) => bsOpenMemberConversation(p, () => setFollowProfile(null)) : null);
+  if (followProfile) return <BSPublicProfile person={followProfile} onBack={() => setFollowProfile(null)} onMessage={nestedMessage} />;
   return (
     // A page like every other: BSPage's own scroller, so BSPage's condensed
     // masthead pins once this page's own masthead scrolls away (owner,
@@ -18794,234 +18808,147 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     // tab bar, so the page keeps no bottom spacer of its own.
     <BSPage><div style={{ color: INK, fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
-      {meMode ? (
-        /* Me masthead — same structure as the other pages: logo + Vol·No line,
-           then eyebrow + serif title. Settings gear + edit pencil top-right; no
-           back button (it's a root tab). */
-        <div style={{ padding: `${BS_MAST_TOP_CSS} ${bsGutter(tTheme)}px 0` }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {BSLogo && <BSLogo size={16} color={INK} />}
-              <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
-              <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-              <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-              </button>
-              <BSSettingsCorner size={BS_HEADER_AVATAR} ink={INK} onClick={onOpenSettings} />
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* Others' public profile (pushed): the standard masthead (logo + Vol·No
-           + search/avatar corners — same chrome as every page), then a back row. */
-        <div style={{ padding: `${BS_MAST_TOP_CSS} ${bsGutter(tTheme)}px 0` }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {BSLogo && <BSLogo size={16} color={INK} />}
-              <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
-            </div>
-            {isSelf
-              ? <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
-                  <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-                  <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                  </button>
-                  <BSSettingsCorner size={BS_HEADER_AVATAR} ink={INK} />
+      {/* ── THE HEAD, IN THE COACH PROFILE'S LOOK (owner, 2026-10-31: "member profile needs to match
+          similar design to coaches, in terms of overall look, but keep same basic features"; asked, they
+          chose the cover with the climb moved into its tab). Their cover photo (the preview's mountain,
+          else their tier's colour) under the masthead in white, the round avatar over its edge, who they
+          are and their bio, one line of tier · points · streak, the counts, and two buttons: Follow and
+          Message, or on your own page Log activity and Edit profile. The tier ridge is the Climb tab's
+          first climb now, and the Shape Score is that one line (its four bars live on the Score page). ── */}
+      {(() => {
+        const gutter = bsGutter(tTheme);
+        const corner = BS_HEADER_AVATAR;
+        const WHITE = '#ffffff';
+        const DISPLAY = SERIF;
+        const canPickPhoto = isSelf && signedIn;
+        const pts = score != null ? score : null;
+        const ptsLabel = pts != null ? `${Number(pts).toLocaleString(bsDateLocale())} ${tr('score:unit.pts', { defaultValue: 'pts' })}` : null;
+        // A sample's tier can arrive in capitals ("PEAK"): the line reads it as a name.
+        const tierLabel = String(tierName).charAt(0).toUpperCase() + String(tierName).slice(1).toLowerCase();
+        const metaBits = [
+          tr('settings:passport.tierLine', { defaultValue: '{tier} tier', tier: tierLabel }),
+          ptsLabel,
+          Number(streakEff) > 0 ? tr('score:board.streak', { defaultValue: '{n}-day streak', n: streakEff }) : null,
+        ].filter(Boolean).join(' · ');
+        const whoLine = [handle, city].filter(Boolean).join(' · ');
+        const aboutLine = [pronouns, memberAge == null ? '' : `${memberAge}`].filter(Boolean).join(' · ');
+        const heroStart = bsProfileStartLine(customEff && customEff.startLine);
+        const heroStartState = heroStart ? bsStartLineState(heroStart.date, new Date()) : null;
+        let startDate = '';
+        if (heroStartState) { const v = bsValidStartDate(heroStart.date); try { startDate = new Date(v.y, v.m - 1, v.d, 12).toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' }); } catch (e) {} }
+        const memberFilm = bsProfileFilm(customEff && customEff.filmMember, person.userId, 'member-films');
+        const btn = (primary) => ({ flex: primary ? 1.2 : 1, minHeight: 46, border: primary ? 0 : `1px solid ${bsTHexA(INK, 0.22)}`, background: primary ? c : 'transparent', color: primary ? bsReadableOn(c) : INK, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' });
+        return (
+          <div data-member-head="" data-tour={meMode ? 'hero-me' : undefined}>
+            {/* The cover, with the masthead (and Back) over it in white */}
+            <div data-member-cover="" style={{ position: 'relative', height: `calc(${BS_MAST_TOP_CSS} + 190px)`, overflow: 'hidden', background: heroCover ? '#111' : `linear-gradient(135deg, ${bsTHexA(c, 0.5)}, ${tTheme.PAPER2} 72%)` }}>
+              {heroCover ? <img src={heroCover} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 40%' }} /> : null}
+              <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0) 72%, rgba(0,0,0,0.22) 100%)' }} />
+              <div style={{ position: 'relative', padding: `${BS_MAST_TOP_CSS} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: WHITE }}>
+                  {BSLogo && <BSLogo size={16} color={WHITE} />}
+                  <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>Vol. 1 · No. 1</span>
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
+                  <BSSearchCorner size={corner} ink={WHITE} />
+                  {isSelf ? (
+                    <button type="button" onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })}
+                      style={{ width: corner, height: corner, borderRadius: 99, border: '1px solid rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.25)', color: WHITE, display: 'grid', placeItems: 'center', cursor: 'pointer', padding: 0 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                    </button>
+                  ) : null}
+                  {/* A visitor's ⚙ opens their own profile, as on the coach page. */}
+                  <BSSettingsCorner size={corner} ink={WHITE} onClick={isSelf ? onOpenSettings : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 </div>
-              : <BSMeCorner />}
-          </div>
-          <BSBackRow onBack={onBack} ink={INK} />
-        </div>
-      )}
-      {/* ── Route Card — identity head + ascent hero + coach credit + score.
-          The tier-heat rail was removed; a small 8px side gutter keeps the block
-          just off the screen edge (owner request — near-edge-to-edge). ── */}
-      <div style={{ position: 'relative' }}>
-        <div data-tour={meMode ? 'hero-me' : undefined} style={{ position: 'relative', padding: meMode ? '10px 8px 0' : '14px 8px 0' }}>
-          <BSProfileIdentityHead name={name} handle={handle} sub={[pronouns, memberAge == null ? '' : `${memberAge}`, city].filter(Boolean).join(' · ')} goal={goal} tierName={tierName} c={c} streak={streakEff}
-            photo={avPhoto || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
-            userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
-            onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} mag />
-        </div>
-        {/* M2 · the Start line — hero character, under the identity head.
-            Absent/past/invalid date → it doesn't render. The member's line (M4)
-            is no longer pulled out up here (owner, 2026-10-24: "remove the quote
-            at the top on profiles"); the website's desktop profile still shows it. */}
-        {(() => {
-          const heroStart = bsProfileStartLine(customEff && customEff.startLine);
-          const heroStartState = heroStart ? bsStartLineState(heroStart.date, new Date()) : null;
-          if (!heroStartState) return null;
-          let dateLabel = '';
-          const v = bsValidStartDate(heroStart.date); try { dateLabel = new Date(v.y, v.m - 1, v.d, 12).toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' }).toUpperCase(); } catch (e) {}
-          return (
-            <div style={{ padding: '8px 8px 0' }}>
-              <div style={{ fontFamily: BST_MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), lineHeight: 1.5 }}>
-                <span style={{ color: c }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>{heroStart.title ? ` · ${heroStart.title}` : ''}{dateLabel ? ` · ${dateLabel}` : ''} · <span style={{ color: c, whiteSpace: 'nowrap' }}>{heroStartState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: heroStartState.days })}</span>
               </div>
-            </div>
-          );
-        })()}
-        {/* M5 · The intro film — a full-width video band under the hero character,
-            bound to the member-films bucket + the owner folder (a wrong-bucket/photo
-            url → null → nothing renders). */}
-        {(() => {
-          const memberFilm = bsProfileFilm(customEff && customEff.filmMember, person.userId, 'member-films');
-          return memberFilm ? <BSProfileFilmCard film={memberFilm} INK={INK} c={c} label={tr('profile:film.headMember', { defaultValue: 'Intro film' })} /> : null;
-        })()}
-        {/* ASCENT — the self-drawing ridge. With a cover set it runs FULL-BLEED:
-            the photo fills this whole block and the ridge/avatar/labels/phase
-            line draw OVER it on a fixed-dark scrim. Overlay ink is then FIXED
-            CREAM, never theme INK — light papers have dark ink, unreadable on a
-            photo (the house "dark overlays over cover photos" pattern). With no
-            cover the ridge inks straight on the paper, exactly as before.
-            preserveAspectRatio="none" so the %-positioned overlays stay aligned. */}
-        <div style={heroCover ? { position: 'relative', marginTop: 14, overflow: 'hidden', borderTop: `1px solid ${bsTHexA(INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` } : { padding: '14px 0 2px' }}>
-          {heroCover && <img src={heroCover} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
-          {heroCover && <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(11,9,8,0.42) 0%, rgba(11,9,8,0.12) 34%, rgba(11,9,8,0.22) 58%, rgba(11,9,8,0.78) 100%)' }} />}
-          <div style={heroCover ? { position: 'relative', paddingTop: BS_HERO_BLOCK - heroAscentH, paddingBottom: phaseOnCover ? 0 : 6 } : null}>
-          {(() => {
-            const W = 330, H = heroAscentH;
-            const base = [12, H - 22], peak = [W - 22, 26];
-            // ⚠ THE ROUTE IS SHAPED AS A FRACTION OF ITS OWN RISE, NOT OF H, or a
-            // taller band would DISTORT the climb instead of steepening it: the
-            // knee and the shoulder were literals (`H - 34`, `H * 0.5`) measured
-            // against a 150-tall box, and at 214 they would have flattened the
-            // approach to 7% of the rise and dropped the hand-over below half.
-            // The two fractions ARE those literals re-derived at H = 150
-            // (128 − 102·12/102 = 116 = H − 34; 128 − 102·53/102 = 75 = H/2), so
-            // the compact band is byte-identical and only the cover band moves.
-            const rise = base[1] - peak[1];
-            const KNEE = 12 / 102, SHOULDER = 53 / 102;
-            const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${base[1] - rise * KNEE}, ${W * 0.62} ${base[1] - rise * SHOULDER} T ${peak[0]} ${peak[1]}`;
-            // The figure rides the chord, capped clear of the summit flag. At
-            // the top of the ladder it climbs to 0.82 so it stands AT the end of
-            // the fully-drawn route (0.66 there read as "100% — two-thirds up");
-            // the cap is what keeps it off the flag + summit label at any width.
-            const hp = Math.max(0.06, Math.min(heroPct, _hlTop ? 0.82 : 0.66));
-            const here = { x: base[0] + (peak[0] - base[0]) * hp, y: base[1] + (peak[1] - base[1]) * hp };
-            const reduced = bsSdReduced();
-            // Over a photo the paper's INK is unusable — fixed cream + shadow.
-            const rINK = heroCover ? '#f2ede4' : INK;
-            const overSh = heroCover ? '0 1px 5px rgba(0,0,0,0.7)' : undefined;
-            // The two ends of the route are TIERS, so each wears its own tier's color
-            // (owner, 2026-10-12: "make sure the shape score tier colors relate to
-            // profile"): the base is the tier the member holds (c, the profile's own
-            // color) and the flag is the tier they are climbing to. The names keep
-            // their ink and take the color as an underline — gold or green as 8px
-            // text on the light paper would not read. At the top of the
-            // ladder the route re-frames as the whole ladder: the base is the first
-            // rung and the summit is the tier they hold (c).
-            const baseC = _hlTop ? bsTierColor(heroBaseLevel) : c;
-            const summitC = _hlTop ? c : bsTierColor(heroSummitLevel);
-            return (
-              <div style={{ position: 'relative' }}>
-                <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden style={{ display: 'block' }}>
-                  {!heroCover && [0, 1, 2, 3].map((i) => <line key={i} x1="0" y1={(i + 1) * H / 5} x2={W} y2={(i + 1) * H / 5} stroke={bsTHexA(INK, 0.06)} strokeWidth="1" />)}
-                  {/* base ridge = the whole route, dashed ink */}
-                  <path d={ridge} fill="none" stroke={bsTHexA(rINK, heroCover ? 0.5 : 0.3)} strokeWidth="1.5" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
-                  {/* earned segment = heat, drawing itself to heroPct on mount */}
-                  <path d={ridge} fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" pathLength={1}
-                    strokeDasharray={`${heroPct} 1`} style={{ strokeDashoffset: heroSeen ? 0 : heroPct, transition: reduced ? 'none' : 'stroke-dashoffset 1100ms cubic-bezier(.4,0,.2,1) 400ms' }} />
-                  {/* summit flag (heat) + hollow ink start square */}
-                  <line x1={peak[0]} y1={peak[1]} x2={peak[0]} y2={peak[1] - 18} stroke={summitC} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-                  <path d={`M ${peak[0]} ${peak[1] - 18} l 13 4 l -13 4 z`} fill={summitC} />
-                  <rect x={base[0] - 4} y={base[1] - 4} width="8" height="8" fill="none" stroke={baseC} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-                </svg>
-                {/* you-are-here facet (the page's one breathing loop) + 43% readout */}
-                {/* width is PINNED to the 60px facet so the figure sits exactly on
-                    the ridge point: shrink-to-fit would let a long badge (the top-of-
-                    ladder label runs to ~15 chars in ru/uk) widen the column and push
-                    the avatar sideways into the summit flag. The badge is nowrap and
-                    simply overflows this box symmetrically instead. */}
-                <div style={{ position: 'absolute', left: `max(4px, calc(${(here.x / W) * 100}% - 30px))`, top: `${(here.y / H) * 100}%`, width: 60, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, filter: heroCover ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.5))' : undefined }}>
-                  <div style={{ borderRadius: '50%', ...(reduced ? null : { '--sd-glow': bsTHexA(c, 0.45), animation: 'bsSdPop 400ms cubic-bezier(.2,1.1,.3,1) 1150ms both, bsSdPrBreath 3.2s ease-in-out 1750ms infinite' }) }}>
-                    <BSFacetAvatar size={60} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
-                  </div>
-                  <span style={{ fontFamily: MONO, fontSize: _hlTop ? 8 : 9, fontWeight: 800, letterSpacing: _hlTop ? '0.12em' : '0.04em', textTransform: _hlTop ? 'uppercase' : 'none', color: rINK, textShadow: overSh, borderBottom: `1px solid ${c}`, paddingBottom: 1, whiteSpace: 'nowrap' }}>{_hlTop ? tr('profile:ridge.topTier', { defaultValue: 'Top tier' }) : `${heroPctLabel}%`}</span>
+              {!meMode ? (
+                <div style={{ position: 'relative', padding: `0 ${gutter}px` }}>
+                  <BSBackRow onBack={onBack} ink={WHITE} buttonStyle={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }} />
                 </div>
-                {/* base + summit level labels — bare mono (no pills, no tier text) */}
-                <span style={{ position: 'absolute', left: 20, bottom: 2, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh, borderBottom: `1.5px solid ${baseC}`, paddingBottom: 1 }}>{heroBaseLevel}</span>
-                {/* The inset must FOLLOW the SVG's percentage geometry, not be a fixed px:
-                    preserveAspectRatio="none" stretches x with the width, so the flag's
-                    left edge always sits (330−308)/330 = 6.67% from the right. A fixed
-                    inset re-overlaps once the ridge is wide enough (landscape is enabled
-                    in Info.plist, so >510px is reachable); calc(6.67% + 6px) keeps the
-                    label left of the flag with a 6px gap at ANY width. At right:12 the
-                    label's tail painted over the flag fill and was unreadable.
-                    ⚠ At the TOP of the ladder the summit label drops to the
-                    BASELINE instead (mirroring the base label), because the
-                    figure now stands near the peak and would collide with it up
-                    there. The right side under the ridge is empty at that height,
-                    so the two rung names read as the ends of one finished route. */}
-                <span style={_hlTop
-                  ? { position: 'absolute', right: 20, bottom: 2, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh, borderBottom: `1.5px solid ${summitC}`, paddingBottom: 1 }
-                  : { position: 'absolute', right: 'calc(6.67% + 6px)', top: 6, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(rINK, heroCover ? 0.85 : 0.55), textShadow: overSh, borderBottom: `1.5px solid ${summitC}`, paddingBottom: 1 }}>{heroSummitLevel}</span>
-              </div>
-            );
-          })()}
-          </div>
-          {phaseOnCover && (
-            <div style={{ position: 'relative', padding: '2px 20px 10px', fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.6)', textShadow: '0 1px 5px rgba(0,0,0,0.7)' }}>{blockEff} · <span style={{ color: 'rgba(242,237,228,0.9)' }}>{programEff}</span></div>
-          )}
-        </div>
-        {/* coach press credit + Shape Score register — small 8px gutter */}
-        <div style={{ padding: '0 8px' }}>
-          {showCoachBand && (showCoachLink || (phaseLine && !phaseOnCover)) && (
-            <div style={{ padding: '10px 0 14px', ...(bsSdReduced() ? null : { animation: 'bsSdStamp 460ms cubic-bezier(.2,1.1,.3,1) 1500ms both' }) }}>
-              {phaseLine && !phaseOnCover && <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginBottom: showCoachLink ? 7 : 0 }}>{blockEff} · <span style={{ color: bsTHexA(INK, 0.7) }}>{programEff}</span></div>}
-              {showCoachLink && (
-                <button onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })} aria-label={tr('profile:terrain.viewProfileAria', { name: coachNameEff, defaultValue: "View {name}'s profile" })} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', background: 'transparent', border: 0, padding: '2px 0', cursor: 'pointer', textAlign: 'left' }}>
-                  <div style={{ width: 24, height: 24, borderRadius: 999, flex: 'none', background: bsTHexA(INK, 0.06), color: bsTHexA(INK, 0.7), display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 9, fontWeight: 800 }}>{coachInitEff}</div>
-                  <span style={{ color: c, fontFamily: MONO, fontWeight: 900, fontSize: 11 }}>✓</span>
-                  <span style={{ minWidth: 0, flex: 1 }}>
-                    <span style={{ fontFamily: SANS, fontWeight: 800, fontSize: 12.5, color: INK }}>{coachNameEff}</span>
-                    <span style={{ display: 'block', fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginTop: 1 }}>{tr('profile:terrain.coachedBy', { defaultValue: 'coached by' })} · {(coachReal && coachReal.role) === 'nutritionist' ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:role.trainer', { defaultValue: 'Trainer' })}</span>
-                  </span>
-                  <span style={{ color: c, fontFamily: MONO, fontSize: 12 }}>›</span>
+              ) : null}
+            </div>
+
+            {/* The avatar over the cover's edge, and who they are */}
+            <div style={{ position: 'relative', padding: `0 ${gutter}px` }}>
+              <div style={{ position: 'absolute', left: gutter, top: -58, width: 108, height: 108 }}>
+                <button type="button" data-member-avatar="" disabled={!canPickPhoto} onClick={() => { if (canPickPhoto && fileRef && fileRef.current) fileRef.current.click(); }}
+                  aria-label={canPickPhoto ? tr('profile:trainer.changePhoto', { defaultValue: 'Change your photo' }) : name}
+                  style={{ width: 108, height: 108, padding: 0, borderRadius: 99, border: `4px solid ${tTheme.PAPER_BG || BG}`, background: tTheme.PAPER2, overflow: 'hidden', cursor: canPickPhoto ? 'pointer' : 'default', display: 'grid', placeItems: 'center', boxSizing: 'border-box' }}>
+                  {(avPhoto || (isSelf && bsMyPhoto()))
+                    ? <img src={avPhoto || bsMyPhoto()} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} />
+                    : <span data-initials="" style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 600, color: INK }}>{bsInitials(name)}</span>}
                 </button>
-              )}
-            </div>
-          )}
-          {meMode && isSelf && (() => {
-            const TH = [['Raw', 0], ['Tempo', 750], ['Form', 2000], ['Peak', 5000], ['Legend', 15000]];
-            const pts = score != null ? score : (signedInSelf ? 0 : 1284);
-            let si = 0; for (let k = 0; k < TH.length; k++) if (pts >= TH[k][1]) si = k;
-            const nextT = TH[si + 1] || null;
-            const toNextPts = nextT ? nextT[1] - pts : 0;
-            // Composite pillars: real signed-in (honest '—' when too sparse to
-            // score), demo for the signed-out preview.
-            const _comp = (selfScore && selfScore.composite) || {};
-            const cats = signedInSelf
-              ? [['Train', _comp.train ?? null], ['Nutrition', _comp.nutrition ?? null], ['Recovery', _comp.recovery ?? null], ['Consistency', _comp.consistency ?? null]]
-              : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
-            const compRows = cats.map(([k, v]) => [tr('profile:terrain.comp.' + k.toLowerCase(), { defaultValue: k }), v == null ? '—' : String(v), '']);
-            const compPerf = cats.map(([, v]) => (v == null ? 0 : Number(v)));
-            const bestIdx = compPerf.some((v) => v > 0) ? compPerf.indexOf(Math.max(...compPerf)) : -1;
-            return (
-              <div data-tour="hero-score" role="button" tabIndex={0} onClick={onOpenScore} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenScore && onOpenScore(); } }} style={{ padding: '4px 0 6px', cursor: 'pointer' }}>
-                <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Shape Score</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 3 }}>
-                  <span style={{ fontFamily: SERIF, fontSize: 44, fontWeight: 600, color: INK, letterSpacing: '-0.02em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}><BSSdCountUp text={String(pts)} duration={780} delay={180} /></span>
-                  <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>pts</span>
-                  <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, borderBottom: `1px solid ${c}`, paddingBottom: 2, whiteSpace: 'nowrap' }}>{nextT ? tr('profile:ladder.toNext', { pts: toNextPts, tier: nextT[0], defaultValue: '{pts, number} to {tier}' }) : tr('profile:ladder.top', { defaultValue: 'Top of the ladder' })} <span style={{ color: c }}>›</span></span>
-                </div>
-                {/* As the Wall prints its figures (owner, 2026-10-24, the Me page "cleaned up"): a 2px ink rule
-                    under the score, square bars, the figures in the headline face, and no halo or burst on the best
-                    pillar (its burst left a box drawn around the bar). */}
-                <div aria-hidden style={{ height: 2, margin: '11px 0 8px', background: INK }} />
-                <BSSdBars rows={compRows} perf={compPerf} bestIdx={bestIdx} heat={c} t={tTheme} muted={bsTHexA(INK, 0.55)} still mag />
+                {(isSelf ? bsAmLive() : bsIsUserOnline(person.userId)) ? <span aria-label={tr('profile:trainer.online', { defaultValue: 'Online now' })} style={{ position: 'absolute', right: 6, bottom: 6, width: 18, height: 18, borderRadius: 99, background: '#34d6c5', border: `3px solid ${tTheme.PAPER_BG || BG}`, boxSizing: 'border-box' }} /> : null}
               </div>
-            );
-          })()}
-        </div>
-      </div>
+              <div style={{ marginLeft: 120, paddingTop: 8, minHeight: 58, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <h1 data-member-name="" style={{ margin: 0, fontFamily: DISPLAY, fontWeight: 600, fontSize: 26, lineHeight: 1.05, color: INK, overflowWrap: 'anywhere' }}>{name}<span style={{ color: c }}>.</span></h1>
+                {whoLine ? <span style={{ fontSize: 13, color: bsTHexA(INK, 0.74), overflowWrap: 'anywhere' }}>{whoLine}</span> : null}
+                {aboutLine ? <span style={{ fontSize: 12, color: bsTHexA(INK, 0.64) }}>{aboutLine}</span> : null}
+              </div>
+              {bio ? <p data-member-bio="" style={{ margin: '14px 0 0', fontSize: 15.5, lineHeight: 1.5, color: INK, whiteSpace: 'pre-wrap' }}>{bio}</p> : null}
+              {/* Tier · points · streak: on your own page it opens the Shape Score page (the score's bars live
+                  there); a host with no way there gets the words alone (Codex P2 on #2546). */}
+              {isSelf && typeof onOpenScore === 'function' ? (
+                <button type="button" data-tour="hero-score" data-member-meta="" onClick={onOpenScore} style={{ display: 'block', margin: '8px 0 0', minHeight: 32, padding: 0, border: 0, background: 'transparent', textAlign: 'left', fontSize: 12.5, color: bsTHexA(INK, 0.7), cursor: 'pointer' }}>
+                  {metaBits} <span aria-hidden style={{ color: c }}>›</span>
+                </button>
+              ) : (
+                <p data-member-meta="" style={{ margin: '8px 0 0', fontSize: 12.5, color: bsTHexA(INK, 0.66) }}>{metaBits}</p>
+              )}
+              {/* What they are training for: ink words, the tier's colour as the rule (8px coloured text did
+                  not read on the light papers). */}
+              {heroStartState ? (
+                <p data-member-start="" style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.4, color: INK }}>
+                  <span style={{ fontWeight: 600, borderBottom: `2px solid ${c}` }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>
+                  {heroStart.title ? ` ${heroStart.title}` : ''}{startDate ? ` · ${startDate}` : ''}
+                  <span style={{ color: bsTHexA(INK, 0.64) }}>{` · ${heroStartState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: heroStartState.days })}`}</span>
+                </p>
+              ) : null}
+              <div style={{ marginTop: 6 }}>
+                <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} variant="coach" ownerPhoto={avPhoto} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
+                  onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
+              </div>
+              {isSelf ? (
+                <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                  <button type="button" data-member-log="" onClick={() => setShowLog(true)} style={btn(true)}>＋ {tr('profile:trainer.logActivity', { defaultValue: 'Log activity' })}</button>
+                  {/* The host's own editor when it has one (Settings → Public profile: the name and initials;
+                      Codex P2 on #2546), else the profile's; the ✎ above always opens the profile's. */}
+                  <button type="button" data-member-edit="" onClick={() => { if (typeof onEdit === 'function') onEdit(); else setShowCustomizer(true); }} style={btn(false)}>{tr('profile:coach.editProfileAria', { defaultValue: 'Edit profile' })}</button>
+                </div>
+              ) : null}
+              {/* Coached by: their real coach or program on your own page, the sample's in the preview;
+                  never a made-up coach on someone else's real profile. */}
+              {showCoachBand && (showCoachLink || phaseLine) ? (
+                <div data-member-coach="" style={{ marginTop: 14, paddingTop: 4, borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+                  {showCoachLink ? (
+                    <button type="button" onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })}
+                      style={{ width: '100%', minHeight: 52, display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0', border: 0, background: 'transparent', color: INK, textAlign: 'left', cursor: 'pointer' }}>
+                      <span aria-hidden style={{ width: 34, height: 34, borderRadius: 99, flex: 'none', background: tTheme.PAPER2, color: bsTHexA(INK, 0.75), display: 'grid', placeItems: 'center', fontFamily: DISPLAY, fontSize: 13, fontWeight: 600 }}>{coachInitEff}</span>
+                      <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.3 }}>
+                        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.64) }}>{tr('profile:terrain.coachedBy', { defaultValue: 'coached by' })}</span>
+                        <span style={{ fontFamily: DISPLAY, fontSize: 15, fontWeight: 600 }}>{coachNameEff}</span>
+                        {phaseLine ? <span style={{ fontSize: 12, color: bsTHexA(INK, 0.64) }}>{[blockEff, programEff].filter(Boolean).join(' · ')}</span> : null}
+                      </span>
+                      <span aria-hidden style={{ color: c, fontSize: 18 }}>›</span>
+                    </button>
+                  ) : (
+                    <p style={{ margin: '8px 0 0', fontSize: 12.5, color: bsTHexA(INK, 0.66) }}>{[blockEff, programEff].filter(Boolean).join(' · ')}</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+            {/* The intro film, under who they are (bound to the member-films bucket and the owner's folder). */}
+            {memberFilm ? <div style={{ marginTop: 14 }}><BSProfileFilmCard film={memberFilm} INK={INK} c={c} label={tr('profile:film.headMember', { defaultValue: 'Intro film' })} /></div> : null}
+          </div>
+        );
+      })()}
 
       {/* The goal / Shape-steps / Progress utility cards moved to the HOME tab —
           the profile stays identity + climb + activity. */}
 
-      <div style={{ flex: 1, padding: '12px 8px 24px' }}>
+      {/* Activity runs its cards to the edge (8px, as the Wall's); the other tabs keep the coach page's
+          gutter, as their sections do there. */}
+      <div style={{ flex: 1, padding: `12px ${tab === 'activity' ? 8 : bsGutter(tTheme)}px 24px` }}>
         {isPrivate ? (
           <div style={{ margin: '4px 0 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0 12px' }} aria-hidden>
@@ -19034,7 +18961,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         ) : (
           <>
             <div ref={activityRef} style={{ scrollMarginTop: pinnedTop }} />
-            <BSTerrainTabs heat={c} INK={INK} BG={BG} pad={8} top={pinnedTop} active={tab} onPick={setTab} tabs={[
+            <BSTerrainTabs look="coach" heat={c} INK={INK} BG={BG} pad={tab === 'activity' ? 8 : bsGutter(tTheme)} top={pinnedTop} active={tab} onPick={pickTab} tabs={[
               { key: 'activity', label: tr('profile:tab.activity', { defaultValue: 'Activity' }) },
               { key: 'signals', label: tr('profile:tab.signals', { defaultValue: 'Signals' }) },
               { key: 'climb', label: tr('profile:tab.climb', { defaultValue: 'Climb' }) },
@@ -19053,26 +18980,27 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 row (or on its own line when there is no switch): it is the only
                 place most profiles show it (Codex P2 on #2468). */}
             <div style={{ marginBottom: 28 }}>
-              {climbTabs.length <= 1 && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>{climbSinceMeta}</div>}
-              {climbTabs.length > 1 && (
-                <div className="bs-hide-scroll" style={{ display: 'flex', gap: 16, marginBottom: 14, overflowX: 'auto', alignItems: 'center' }}>
+              {/* Member since on its own line (beside the switch and ✎ it was cut to "FEB 202"). */}
+              {since ? <span data-climb-since="" style={{ display: 'block', marginBottom: 6, fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.64) }}>{tr('profile:terrain.memberSince', { date: since, defaultValue: 'Member since {date}' })}</span> : null}
+              {/* The switch, with ✎ on your own page (a Tier-only climb keeps the row, for ✎). */}
+              {(climbTabs.length > 1 || isSelf) && (
+                <div data-climb-switch="" className="bs-hide-scroll" style={{ display: 'flex', gap: 16, marginBottom: 14, overflowX: 'auto', alignItems: 'center' }}>
                   {climbTabs.map((s) => { const on = activeClimb === s.key; return (
-                    <button key={s.key} onClick={() => pickClimb(s.key)} style={{ flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '13px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.45), fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}><span style={{ borderBottom: on ? `1px solid ${c}` : '1px solid transparent', paddingBottom: 2 }}>{tr('profile:terrain.climb.' + s.key, { defaultValue: s.label })}</span></button>
+                    <button key={s.key} type="button" aria-pressed={on} onClick={() => pickClimb(s.key)} style={{ flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '10px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: SERIF, fontSize: 14, fontWeight: on ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}><span style={{ borderBottom: on ? `2px solid ${c}` : '2px solid transparent', paddingBottom: 3 }}>{tr('profile:terrain.climb.' + s.key, { defaultValue: s.label })}</span></button>
                   ); })}
                   {isSelf && <button onClick={() => setClimbCustomizing((v) => !v)} aria-label={tr('profile:terrain.customizeClimb', { defaultValue: 'Customize climb' })} title={tr('profile:terrain.customizeClimb', { defaultValue: 'Customize climb' })} style={{ flex: 'none', minWidth: 44, minHeight: 44, border: 0, background: 'transparent', color: climbCustomizing ? INK : bsTHexA(INK, 0.5), cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>}
-                  <span style={{ marginLeft: 'auto', flex: 'none' }}>{climbSinceMeta}</span>
                 </div>
               )}
-              {isSelf && (climbTabs.length <= 1 || climbCustomizing) && (
+              {isSelf && climbCustomizing && (
                 <div style={{ margin: '2px 0 16px', paddingBottom: 12, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 9 }}>
                     <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:terrain.showOnClimb', { defaultValue: 'Show on your climb' })}</div>
-                    {climbTabs.length > 1 && <button onClick={() => setClimbCustomizing(false)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: INK, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '13px 0' }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 1 }}>{tr('profile:action.done', { defaultValue: 'Done' })}</span></button>}
+                    <button onClick={() => setClimbCustomizing(false)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: INK, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '13px 0' }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 1 }}>{tr('profile:action.done', { defaultValue: 'Done' })}</span></button>
                   </div>
                   <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                    {CLIMB_SOURCES.map((s) => { const on = climbShown.includes(s.key); return (
+                    {CLIMB_SOURCES.filter((s) => s.key !== 'score').map((s) => { const on = climbShown.includes(s.key); return (
                       <button key={s.key} onClick={() => toggleClimbShown(s.key)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '13px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.4), fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}><span style={{ borderBottom: on ? `1px solid ${c}` : '1px solid transparent', paddingBottom: 2 }}>{on ? '✓ ' : '＋ '}{tr('profile:terrain.climb.' + s.key, { defaultValue: s.label })}</span></button>
                     ); })}
                   </div>
@@ -19094,27 +19022,28 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   {/* hollow ink start square · heat now dot (pops) · hollow heat target */}
                   <rect x={xs[0] - 4} y={ys[0] - 4} width="8" height="8" fill="none" stroke={bsTHexA(INK, 0.5)} strokeWidth="1.5" />
                   <circle cx={xs[1]} cy={ys[1]} r="5" fill={c} style={reduced ? null : { transformOrigin: `${xs[1]}px ${ys[1]}px`, animation: 'bsSdPop 320ms cubic-bezier(.2,1.1,.3,1) 1350ms both' }} />
-                  <circle cx={xs[2]} cy={ys[2]} r="4.5" fill="none" stroke={c} strokeWidth="1.5" />
+                  <circle cx={xs[2]} cy={ys[2]} r="4.5" fill="none" stroke={climbCfg.targetC || c} strokeWidth="1.5" />
                 </svg>
                 );
               })()}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
                 {arc.map((a, i) => (
                   <div key={i} style={{ flex: 1, textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center' }}>
-                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{a[0]}</div>
-                    <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.85), marginTop: 4 }}>{a[1]}</div>
+                    <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.64) }}>{a[0]}</div>
+                    <div style={{ fontFamily: SERIF, fontSize: 14.5, fontWeight: a[2] === 'now' ? 600 : 400, color: INK, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>{a[1]}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {(goal || bio) && (
-              <div style={{ marginBottom: 26 }}>
-                <div aria-hidden style={{ height: 2, marginBottom: 12, background: `linear-gradient(90deg, ${INK}, ${c} 70%, transparent)`, transformOrigin: 'left', ...((bsSdReduced() || !tabFresh) ? null : { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) 200ms both' }) }} />
-                <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:terrain.theWhy', { defaultValue: 'The why' })}</div>
-                <div style={{ fontFamily: SERIF, fontSize: 21, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 8, color: INK }}>{goal || bio}</div>
+            {/* The why: their goal, upright in the headline face under a hairline (the bio is in the head now;
+                it showed only here, and only with no goal). */}
+            {goal ? (
+              <div data-climb-why="" style={{ marginBottom: 26, paddingTop: 14, borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+                <span style={{ display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.64) }}>{tr('profile:terrain.theWhy', { defaultValue: 'The why' })}</span>
+                <p style={{ margin: '8px 0 0', fontFamily: SERIF, fontSize: 19, fontWeight: 500, lineHeight: 1.35, color: INK }}><span aria-hidden style={{ color: c }}>“</span>{goal}<span aria-hidden style={{ color: c }}>”</span></p>
               </div>
-            )}
+            ) : null}
             </>)}
 
             {tab === 'signals' && (() => {
@@ -19127,75 +19056,109 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               // Live bars are the seven days ending today, so each carries its own
               // weekday; the demo keeps its Monday-to-Sunday row.
               const liveWeek = weekEff === (realSig && realSig.week) && Array.isArray(realSig.weekDays);
-              const weekLabels = liveWeek
-                ? realSig.weekDays.map((d) => { try { return new Intl.DateTimeFormat(bsDateLocale(), { weekday: 'narrow', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`)).toUpperCase(); } catch (e) { return ''; } })
-                : ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+              const narrowDay = (d) => { try { return new Intl.DateTimeFormat(bsDateLocale(), { weekday: 'narrow', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`)).toUpperCase(); } catch (e) { return ''; } };
+              // The real week's days, else the sample's Monday to Sunday (2024-01-01 was a Monday), in the reader's language.
+              const weekLabels = (liveWeek ? realSig.weekDays : ['2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05', '2024-01-06', '2024-01-07']).map(narrowDay);
               const discRows = disciplinesEff.map(([label, val]) => [tr('profile:terrain.disc.' + String(label).toLowerCase(), { defaultValue: label }), String(Math.round(val * 100)), '']);
               const discPerf = disciplinesEff.map(([, val]) => Math.round(val * 100));
               const hasDisc = !signedInSelf || discPerf.some((v) => v > 0);
               const discBest = hasDisc ? discPerf.indexOf(Math.max(...discPerf)) : -1;
               const hasLifts = !signedInSelf || liftsEff.some(([, v]) => v !== '—');
+              // The coach page's sections (owner, 2026-10-31: the member profile in the coach profile's
+              // look, and "improve design of these pages"): a 10px mono eyebrow, the figures in the headline
+              // face, hairlines between; no heavy rules or 7px labels.
+              const eyebrowS = { display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.64) };
+              const sectionS = { padding: '16px 0', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` };
+              const figS = { fontFamily: SERIF, fontSize: 34, fontWeight: 600, color: INK, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' };
+              const unitS = { fontSize: 13, color: bsTHexA(INK, 0.64) };
+              // Real weigh-ins say how many they span; the preview's sample keeps its caption.
+              const trajCaption = (isSelf && realSig && Array.isArray(realSig.traj) && realSig.traj.length >= 2)
+                ? tr('profile:terrain.weighInsCount', { defaultValue: '{count, plural, one {# weigh-in} other {# weigh-ins}}', count: realSig.traj.length })
+                : tr('profile:terrain.recomp', { defaultValue: '16-wk recomp' });
               return (<>
-              {/* LIVING SIGNALS — day streak + weekly momentum, then trajectory. No head: the Signals tab
-                  right above names it (owner, 2026-10-26: "dont need it showing twice"). */}
-              <div style={{ marginBottom: 26 }}>
-                <div style={{ display: 'flex', gap: 22, alignItems: 'flex-start' }}>
-                  <div style={{ flex: 'none' }}>
-                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:stat.dayStreak', { defaultValue: 'Day streak' })}</div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 3 }}>
-                      <span style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{streakEff}</span>
-                      <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>{tr('profile:terrain.days', { defaultValue: 'days' })}</span>
-                    </div>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginBottom: 8 }}>{tr('profile:terrain.weeklyMomentum', { defaultValue: 'Weekly momentum' })}</div>
-                    {hasWeek ? (<>
-                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 34 }}>{weekEff.map((v, i) => { const today = i === weekEff.length - 1; return <div key={i} aria-hidden style={{ flex: 1, height: `${Math.max(6, (v / (maxWk || 1)) * 100)}%`, background: today ? c : bsTHexA(INK, 0.18), transformOrigin: 'bottom', ...(play ? { animation: `bsSdRise 480ms cubic-bezier(.4,0,.2,1) ${480 + i * 60}ms both` } : null) }} />; })}</div>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>{weekLabels.map((d, i) => <div key={i} style={{ flex: 1, textAlign: 'center', fontFamily: MONO, fontSize: 6.5, fontWeight: 700, color: bsTHexA(INK, 0.4) }}>{d}</div>)}</div>
-                    </>) : <BSTRedact INK={INK} label={tr('profile:terrain.noSessionsWeek', { defaultValue: 'No sessions this week' })} />}
+              {/* THIS WEEK: the day streak and the week's sessions. No head: the Signals tab names it. */}
+              <div data-signals-week="" style={{ ...sectionS, borderTop: 0, paddingTop: 6, display: 'flex', gap: 22, alignItems: 'flex-start' }}>
+                <div style={{ flex: 'none' }}>
+                  <span style={eyebrowS}>{tr('profile:stat.dayStreak', { defaultValue: 'Day streak' })}</span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 6 }}>
+                    <span style={figS}>{streakEff}</span>
+                    <span style={unitS}>{tr('profile:terrain.days', { defaultValue: 'days' })}</span>
                   </div>
                 </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={eyebrowS}>{tr('profile:terrain.weeklyMomentum', { defaultValue: 'Weekly momentum' })}</span>
+                  {hasWeek ? (<>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 40, marginTop: 8 }}>{weekEff.map((v, i) => { const today = i === weekEff.length - 1; return <div key={i} aria-hidden style={{ flex: 1, height: `${Math.max(8, (v / (maxWk || 1)) * 100)}%`, borderRadius: 3, background: today ? c : bsTHexA(INK, 0.2), transformOrigin: 'bottom', ...(play ? { animation: `bsSdRise 480ms cubic-bezier(.4,0,.2,1) ${480 + i * 60}ms both` } : null) }} />; })}</div>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>{weekLabels.map((d, i) => <div key={i} data-week-day="" style={{ flex: 1, textAlign: 'center', fontSize: 10.5, color: bsTHexA(INK, 0.55) }}>{d}</div>)}</div>
+                  </>) : <p style={{ margin: '8px 0 0', fontSize: 13.5, color: bsTHexA(INK, 0.6) }}>{tr('profile:terrain.noSessionsWeek', { defaultValue: 'No sessions this week' })}</p>}
+                </div>
+              </div>
+
+              {/* TRAJECTORY: the weight's change over the weigh-ins, its line, and what it spans. */}
+              <div data-signals-trajectory="" style={sectionS}>
+                <span style={eyebrowS}>{tr('profile:terrain.trajectory', { defaultValue: 'Trajectory' })}</span>
                 {hasTraj ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 16, paddingTop: 14, borderTop: `1px solid ${bsTHexA(INK, 0.08)}` }}>
-                    <div style={{ flex: 'none' }}>
-                      <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:terrain.trajectory', { defaultValue: 'Trajectory' })}</div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 3 }}>
-                        <span style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{trajDelta > 0 ? '+' : '−'}{Math.abs(trajDelta)}</span>
-                        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>{trajDeltaIn.unit || 'lb'}</span>
-                      </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 6 }}>
+                    <div style={{ flex: 'none', display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                      {trajDelta === 0
+                        ? <span style={{ ...figS, fontSize: 22 }}>{tr('profile:terrain.noChange', { defaultValue: 'No change' })}</span>
+                        : <><span style={figS}>{trajDelta > 0 ? '+' : '−'}{Math.abs(trajDelta)}</span><span style={unitS}>{trajDeltaIn.unit || 'lb'}</span></>}
                     </div>
-                    <svg viewBox="0 0 150 34" width="150" height="34" style={{ flex: 1 }} aria-hidden>
-                      <path d={sparkPath} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" style={{ '--sd-len': 1, ...(play ? { animation: 'bsSdDrawLine 900ms cubic-bezier(.4,0,.2,1) 300ms both' } : { strokeDashoffset: 0 }) }} />
+                    <svg viewBox="0 0 150 34" preserveAspectRatio="none" width="100%" height="34" style={{ flex: 1, minWidth: 0 }} aria-hidden>
+                      <path d={sparkPath} fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" style={{ '--sd-len': 1, ...(play ? { animation: 'bsSdDrawLine 900ms cubic-bezier(.4,0,.2,1) 300ms both' } : { strokeDashoffset: 0 }) }} />
                     </svg>
-                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), flex: 'none' }}>{tr('profile:terrain.recomp', { defaultValue: '16-wk recomp' })}</div>
                   </div>
-                ) : <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${bsTHexA(INK, 0.08)}` }}><BSTRedact INK={INK} label={tr('profile:terrain.trajectoryNoWeighIns', { defaultValue: 'Trajectory · no weigh-ins yet' })} /></div>}
+                ) : <p style={{ margin: '8px 0 0', fontSize: 13.5, color: bsTHexA(INK, 0.6) }}>{tr('profile:terrain.trajectoryNoWeighIns', { defaultValue: 'Trajectory · no weigh-ins yet' })}</p>}
+                {hasTraj ? <span style={{ display: 'block', marginTop: 6, fontSize: 12, color: bsTHexA(INK, 0.6) }}>{trajCaption}</span> : null}
               </div>
 
-              <div style={{ marginBottom: 26 }}>
-                <BSTStationHead mag heat={c} INK={INK} label={tr('profile:terrain.disciplinesStrata', { defaultValue: 'Disciplines · strata' })} />
-                {hasDisc ? <BSSdBars rows={discRows} perf={discPerf} bestIdx={discBest} heat={c} t={tTheme} muted={bsTHexA(INK, 0.55)} still mag /> : <BSTRedact INK={INK} label={tr('profile:terrain.notEnoughLogged', { defaultValue: 'Not enough logged yet' })} />}
+              {/* DISCIPLINES: each a bar to its own 100, the strongest in the page's colour. */}
+              <div data-signals-disciplines="" style={sectionS}>
+                <span style={eyebrowS}>{tr('profile:terrain.disciplines', { defaultValue: 'Disciplines' })}</span>
+                {hasDisc ? (
+                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {discRows.map(([label, val], i) => (
+                      <div key={i} data-disc-row={i === discBest ? 'best' : ''} style={{ display: 'grid', gridTemplateColumns: '108px minmax(0, 1fr) 34px', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 13.5, color: i === discBest ? INK : bsTHexA(INK, 0.78), fontWeight: i === discBest ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                        <span aria-hidden style={{ height: 6, borderRadius: 3, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}>
+                          <span style={{ display: 'block', height: '100%', width: `${Math.max(2, Math.min(100, Number(discPerf[i]) || 0))}%`, borderRadius: 3, background: i === discBest ? c : bsTHexA(INK, 0.45) }} />
+                        </span>
+                        <span style={{ textAlign: 'right', fontFamily: SERIF, fontSize: 16, fontWeight: 600, color: INK, fontVariantNumeric: 'tabular-nums' }}>{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p style={{ margin: '8px 0 0', fontSize: 13.5, color: bsTHexA(INK, 0.6) }}>{tr('profile:terrain.notEnoughLogged', { defaultValue: 'Not enough logged yet' })}</p>}
               </div>
 
-              <div style={{ marginBottom: 28 }}>
-                <BSTStationHead mag heat={c} INK={INK} label={tr('profile:terrain.keyLifts', { defaultValue: 'Key lifts' })} />
-                {hasLifts ? liftsEff.map(([label, val]) => { const u = bsSdSplitUnit(tTheme.uText(String(val))); return (
-                  <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '9px 0' }}>
-                    <span style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), flex: 'none' }}>{label}</span>
-                    <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(INK, 0.22)}`, transform: 'translateY(-3px)' }} />
-                    <span style={{ fontFamily: SANS, fontWeight: 700, fontSize: 15, color: INK, fontVariantNumeric: 'tabular-nums', flex: 'none' }}>{u.num}</span>
-                    {u.unit ? <span style={{ fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.55), flex: 'none', width: 16 }}>{u.unit}</span> : null}
+              {/* KEY LIFTS: each lift and its best, in the reader's unit (a bare figure is pounds). */}
+              <div data-signals-lifts="" style={{ ...sectionS, marginBottom: 12 }}>
+                <span style={eyebrowS}>{tr('profile:terrain.keyLifts', { defaultValue: 'Key lifts' })}</span>
+                {hasLifts ? (
+                  <div style={{ marginTop: 4 }}>
+                    {liftsEff.map(([label, val], i) => {
+                      const raw = String(val);
+                      const bare = /^\s*\d+(\.\d+)?\s*$/.test(raw);
+                      const conv = bare ? tTheme.uMeasure(Number(raw), 'lb') : null;
+                      const u = conv ? { num: String(Math.round(Number(conv.value))), unit: conv.unit } : bsSdSplitUnit(tTheme.uText(raw));
+                      return (
+                        <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 10, minHeight: 44, paddingTop: 10, borderTop: i ? `1px solid ${bsTHexA(INK, 0.08)}` : 0 }}>
+                          <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, color: INK }}>{label}</span>
+                          <span style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 18, color: INK, fontVariantNumeric: 'tabular-nums' }}>{u.num}</span>
+                          {u.unit ? <span style={unitS}>{u.unit}</span> : null}
+                        </div>
+                      );
+                    })}
                   </div>
-                ); }) : <BSTRedact INK={INK} label={tr('profile:terrain.liftsNotOnRecord', { defaultValue: 'Lifts · not on record' })} />}
+                ) : <p style={{ margin: '8px 0 0', fontSize: 13.5, color: bsTHexA(INK, 0.6) }}>{tr('profile:terrain.liftsNotOnRecord', { defaultValue: 'Lifts · not on record' })}</p>}
               </div>
               </>);
             })()}
 
             {tab === 'activity' && (
             <div>
-              <BSProfileExtras custom={customEff} demo={demoFill} c={c} INK={INK} BG={BG} isSelf={isSelf} userId={feedAuthorId} bleed={8} ledger seen={tabFresh} showPrompts={false} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, streak: { label: tr('profile:stat.dayStreak', { defaultValue: 'Day streak' }), value: streakEff }, since: { label: tr('profile:stat.memberSince', { defaultValue: 'Member since' }), value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || tr('profile:stat.topLift', { defaultValue: 'Top lift' }), value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
-              <BSActivityLogCta isSelf={isSelf} accent={c} INK={INK} onClick={() => setShowLog(true)} ledger />
-              <div style={{ marginTop: isSelf ? 12 : 0 }}>
+              <BSProfileExtras custom={customEff} demo={demoFill} c={c} INK={INK} BG={BG} isSelf={isSelf} userId={feedAuthorId} bleed={8} ledger clean seen={tabFresh} showPrompts={false} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, streak: { label: tr('profile:stat.dayStreak', { defaultValue: 'Day streak' }), value: streakEff }, since: { label: tr('profile:stat.memberSince', { defaultValue: 'Member since' }), value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || tr('profile:stat.topLift', { defaultValue: 'Top lift' }), value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
+              {/* Log activity is the head's own button now (owner, 2026-10-31: the coach profile's look). */}
+              <div>
                 {feedEff.length === 0 && (
                   <BSTRedact INK={INK} label={isSelf ? tr('profile:terrain.nothingLogged', { defaultValue: 'Nothing logged yet' }) : tr('profile:terrain.noActivityRecord', { defaultValue: 'No activity on record' })} />
                 )}
@@ -19222,12 +19185,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setFeedReloadNonce(n => n + 1); }} />}
       {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setFollowProfile(p), actLikes, actExpr, feedAvatars: profFollowing.feedAvatars })}
 
-      {/* dock — Message others: the coach profile's dock with Message alone, so it hides while the page
-          scrolls down and never sits over the wall (owner, 2026-10-24: "fix this message box thats appearing") */}
-      {!isSelf && hasMessage && (
-        <BSProfileDock INK={INK} BG={BG} PAPER={tTheme.PAPER} onMessage={() => onMsg(person)}
-          messageLabel={tr('profile:terrain.messageName', { name: first, defaultValue: 'Message {name}' })} />
-      )}
+      {/* No Message dock: Message is the head's own button, as on the coach page (2026-10-31); the dock
+          drew a second one under it on first paint. */}
     </div></BSPage>
   );
 }
@@ -20200,7 +20159,9 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
 // respects privacy — only reachable when the post isn't marked private.)
 // Member (client) profiles use the Terrain design; coaches use the Signal
 // design; both are immersive living-identity pages (above).
-function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, onListing = null }) {
+// `onMessage` defaults to none, so a page with no way to message shows no Message button (a no-op
+// default drew one that did nothing, opened from the Me tab).
+function BSPublicProfile({ person, onBack, onMessage = null, isSelf = false, onEdit = null, meMode = false, onOpenSettings = () => {}, onOpenScore = null, onListing = null }) {
   // Every profile you view (from chat, the feed, follows, search…) feeds the
   // search screen's "Recent" list — recently viewed, not just recently searched.
   React.useEffect(() => {
@@ -35786,7 +35747,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     // ⚠ THROUGH startEdit, NOT setEditing(true): the draft is re-seeded on every entry,
     // or a form cancelled on the root and reopened from here carries the discarded
     // edits back with it.
-    return <BSPublicProfile person={{ who: identity.name, init: (identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name), kind, userId: uid, photo: bsMyPhoto() || null }} isSelf onBack={() => setShowPublicProfile(false)} onEdit={() => { setShowPublicProfile(false); startEdit(); }} />;
+    return <BSPublicProfile person={{ who: identity.name, init: (identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name), kind, userId: uid, photo: bsMyPhoto() || null }} isSelf onBack={() => setShowPublicProfile(false)} onEdit={() => { setShowPublicProfile(false); startEdit(); }} onOpenScore={() => setShowScore(true)} />;
   }
 
   const nutritionRows = [

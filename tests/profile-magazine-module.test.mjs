@@ -60,6 +60,8 @@ test('the client imports both pieces, declares neither again, and renders them o
   assert.doesNotMatch(body('function BSTerrainProfile('), /<BSTPullQuote /);
   assert.match(body('function BSSignalCoachProfile('), /<BSTPullQuote /);
   assert.match(body('function BSSignalCoachProfile('), /<BSProfileDock /);
-  assert.match(body('function BSTerrainProfile('), /<BSProfileDock /);
+  // The member's has no dock since it took the coach profile's head, where Message sits beside Follow
+  // (owner, 2026-10-31); tests/me-page-magazine.test.mjs holds that.
+  assert.doesNotMatch(body('function BSTerrainProfile('), /<BSProfileDock /);
   assert.match(body('function BSProfileExtras('), /<BSPhotoViewer /);
 });

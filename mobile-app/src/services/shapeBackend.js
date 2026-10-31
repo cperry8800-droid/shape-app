@@ -8007,7 +8007,11 @@ async function getPublicProfile(userId) {
   if (error) return null;
   const r = Array.isArray(data) ? data[0] : data;
   if (!r) return null;
-  return { userId: r.user_id, name: r.full_name, role: r.role, points: Number(r.points) || 0, bio: r.bio || '', pronouns: r.pronouns || '', goal: r.goal || '', link: r.link || '', avatar: r.avatar || null, visibility: r.visibility, custom: r.custom || null };
+  return { userId: r.user_id, name: r.full_name, role: r.role, points: Number(r.points) || 0, bio: r.bio || '', pronouns: r.pronouns || '', goal: r.goal || '', link: r.link || '', avatar: r.avatar || null, visibility: r.visibility, custom: r.custom || null,
+    // The privacy answer and the handle get_public_profile returns (2026-10-12-shape-score-fixes.sql):
+    // dropped here, a private profile never read as private and every handle was made up from the
+    // first name ("@priya").
+    is_public: r.is_public, can_view: r.can_view, username: r.username || null };
 }
 async function getUserPoints(ids) {
   const list = (ids || []).filter(Boolean);

@@ -43,8 +43,8 @@ export default {
       find: "const trajDeltaIn = tTheme.uMeasure((trajEff[trajEff.length - 1] - trajEff[0]) || 0, 'lb');",
       replace: "const trajDeltaIn = { value: (trajEff[trajEff.length - 1] - trajEff[0]) || 0, unit: 'lb' };" },
     { name: 'the trajectory is labelled pounds', file: CLIENT,
-      find: "bsTHexA(INK, 0.55) }}>{trajDeltaIn.unit || 'lb'}</span>",
-      replace: "bsTHexA(INK, 0.55) }}>lb</span>" },
+      find: "<span style={unitS}>{trajDeltaIn.unit || 'lb'}</span>",
+      replace: "<span style={unitS}>lb</span>" },
     // ── the Home widgets ──
     { name: 'a widget ignores the theme\'s converter', file: WIDGETS,
       find: "const m = (t && typeof t.uMeasure === 'function') ? t.uMeasure(value, unit) : { value, unit };",

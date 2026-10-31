@@ -97,13 +97,22 @@ test('on a surface with its own ink, the flat face\'s initials take that ink', (
 });
 
 test('the profile mastheads\' ✎ and ⚙ are the same bare glyphs, and the ⚙ is the shared gear', () => {
-  // ✎ and ⌕ on the two profile pages (the Me page and a coach's own), in bsCornerBtn's style.
+  // ✎ on the coach's own Signal profile, in bsCornerBtn's style (its masthead and the one it pins).
   const uses = CLIENT.match(/style=\{bsCornerBtn\(BS_HEADER_AVATAR, INK\)\}/g) || [];
-  assert.equal(uses.length, 4, 'the profile mastheads\' ⌕ and ✎');
+  assert.equal(uses.length, 2, 'the Signal coach profile\'s ✎');
   assert.doesNotMatch(CLIENT, /borderRadius: 999, border: `1px solid \$\{bsTHexA\(INK, 0\.3\)\}`/, 'a ringed corner button is back');
-  // The ⚙ on the Me pages, and the corner of a profile opened as myself, on the page's own ink.
-  assert.equal((CLIENT.match(/<BSSettingsCorner size=\{BS_HEADER_AVATAR\} ink=\{INK\} onClick=\{onOpenSettings\} \/>/g) || []).length, 2);
-  assert.equal((CLIENT.match(/<BSSettingsCorner size=\{BS_HEADER_AVATAR\} ink=\{INK\} \/>/g) || []).length, 2);
+  // Its ⚙, on the page's own ink.
+  assert.equal((CLIENT.match(/<BSSettingsCorner size=\{BS_HEADER_AVATAR\} ink=\{INK\} onClick=\{onOpenSettings\} \/>/g) || []).length, 1);
+  assert.equal((CLIENT.match(/<BSSettingsCorner size=\{BS_HEADER_AVATAR\} ink=\{INK\} \/>/g) || []).length, 1);
+  // The member profile's masthead sits on its cover in white, as the trainer profile's does
+  // (BSTrainerProfile.jsx; owner, 2026-10-31: the member profile in the coach profile's look): the same
+  // ⌕, the ✎ on its dark disc for the photo behind it, and a visitor's ⚙ opening their own profile.
+  const member = CLIENT.slice(CLIENT.indexOf('<div data-member-cover=""'), CLIENT.indexOf('{/* The avatar over the cover'));
+  assert.match(member, /<BSSearchCorner size=\{corner\} ink=\{WHITE\} \/>/);
+  assert.match(member, /<BSSettingsCorner size=\{corner\} ink=\{WHITE\} onClick=\{isSelf \? onOpenSettings : \(\) => \{ try \{ window\.dispatchEvent\(new window\.CustomEvent\('shape:openProfile'\)\); \} catch \(e\) \{\} \}\} \/>/);
+  const trainer = read('BSTrainerProfile.jsx');
+  const disc = "borderRadius: 99, border: '1px solid rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.25)'";
+  assert.ok(member.includes(disc) && trainer.includes(disc), 'the ✎ on the cover is the trainer profile\'s');
   // The follow list's corner, on the sheet's own ink, closes the sheet before Settings opens.
   assert.match(CLIENT, /<BSSettingsCorner size=\{BS_HEADER_AVATAR\} ink=\{INK\} onClick=\{\(\) => \{ onClose\(\); setTimeout\(/);
   // No corner draws the member's own face any more: the only own-face avatar labelled as the way to
