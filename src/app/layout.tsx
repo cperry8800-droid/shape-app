@@ -34,7 +34,8 @@ export default function RootLayout({
         <div className="flex-1">{children}</div>
         <Footer />
         <GlobalChatButton />
-        {/* Page views, only as the visitor's consent allows (the banner's own rule). */}
+        {/* Page views, only as the visitor's consent allows (the banner's own rule), and the banner
+            itself (/consent-banner.js), off the /connect pages. */}
         <ConsentAnalytics />
         {/* Where a sign-up came from (public/signup-source.js): the first link a visitor
             arrives from, remembered only as consent allows, for the admin console. */}

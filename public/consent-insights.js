@@ -1,6 +1,6 @@
 /* The website's page views (Vercel Web Analytics), only as the visitor's consent allows.
  *
- * ⚠ THE BANNER SAID IT, THE PAGE VIEWS DIDN'T DO IT. The consent banner (pageShell.jsx) tells an
+ * ⚠ THE BANNER SAID IT, THE PAGE VIEWS DIDN'T DO IT. The consent banner (/consent-banner.js) tells an
  * EEA or UK visitor that their choice controls "Shape's first-party usage stats on this site", and
  * the tap counts (/click-capture.js) and the remembered first link (/signup-source.js) honour it.
  * But every page loaded /_vercel/insights/script.js outright, so a page view was counted before

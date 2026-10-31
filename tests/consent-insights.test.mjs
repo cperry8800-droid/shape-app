@@ -1,5 +1,5 @@
 // The website's page views (Vercel Web Analytics) wait for consent, as the banner says they do.
-// The banner (pageShell.jsx) tells an EEA or UK visitor their choice controls "Shape's first-party
+// The banner (/consent-banner.js) tells an EEA or UK visitor their choice controls "Shape's first-party
 // usage stats on this site"; every page loaded /_vercel/insights/script.js outright, so a page view
 // was counted before an answer, after a Reject and under GPC (War Room: "The website's usage stats
 // don't wait for the consent banner in the EEA and UK"). The gate, public/consent-insights.js, runs
@@ -105,12 +105,13 @@ test('no page loads Vercel\'s script outright, and every page that counted views
 });
 
 test('the banner says when it is answered, and the Next app checks every event', () => {
-  assert.match(read('public/newdesign/pageShell.jsx'), /window\.dispatchEvent\(new CustomEvent\("shape:consent", \{ detail: choice \}\)\)/);
+  assert.match(read('public/consent-banner.js'), /window\.dispatchEvent\(new CustomEvent\("shape:consent", \{ detail: choice \}\)\)/);
   const layout = read('src/app/layout.tsx');
   assert.match(layout, /<ConsentAnalytics \/>/);
   assert.doesNotMatch(layout, /<Analytics\b/, 'the layout renders Vercel\'s Analytics without the consent check');
   const wrapper = read('src/components/ConsentAnalytics.tsx');
   assert.match(wrapper, /<Analytics beforeSend=\{consentBeforeSend\} \/>/);
+  assert.match(wrapper, /\{consentBannerHidden\(pathname\) \? null : <Script src="\/consent-banner\.js" strategy="afterInteractive" \/>\}/, 'and the banner that makes the choice');
   assert.match(wrapper, /return allowedOn\(window\) \? event : null;/);
 });
 
@@ -119,7 +120,12 @@ test('the Next app\'s check is the same rule, read at each event', async () => {
   const signup = await import('../src/lib/signup-source.mjs');
   const mod = await loadRealModule(join(ROOT, 'src/components/ConsentAnalytics.tsx'), {
     typescript: true,
-    registry: new Map([['@vercel/analytics/next', { Analytics: () => null }], ['@/lib/signup-source.mjs', signup]]),
+    registry: new Map([
+      ['@vercel/analytics/next', { Analytics: () => null }],
+      ['@/lib/signup-source.mjs', signup],
+      ['next/script', { __esModule: true, default: () => null }],
+      ['next/navigation', { usePathname: () => '/' }],
+    ]),
   });
   const store = new Map();
   const win = { localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null) }, navigator: { globalPrivacyControl: false } };
@@ -147,13 +153,9 @@ test('the Next app\'s check is the same rule, read at each event', async () => {
 // ⚠ The chat launcher (z-index 2147483000, bottom-right) lay across both of the banner's buttons
 // at desktop widths, so a click on Reject non-essential or Accept reached the chat. While the bar
 // is up the launcher and its panel stand on it; answering puts them back. The banner's own code
-// runs here as written (pageShell.jsx's shapeConsent), on a page in a UK time zone.
+// runs here as written (/consent-banner.js), on a page in a UK time zone.
 async function bannerPage(tz = 'Europe/London') {
-  const SHELL = read('public/newdesign/pageShell.jsx');
-  const a = SHELL.indexOf('(function shapeConsent() {');
-  const b = SHELL.indexOf('\n})();\n', a);
-  assert.ok(a > 0 && b > a, 'the consent banner moved in pageShell.jsx');
-  const src = SHELL.slice(a, b + '\n})();\n'.length);
+  const src = read('public/consent-banner.js');
   const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', { url: 'https://shape.test/newdesign/Pricing.html', runScripts: 'outside-only' });
   const win = dom.window;
   win.Intl = { DateTimeFormat: () => ({ resolvedOptions: () => ({ timeZone: tz }) }) };
@@ -179,9 +181,9 @@ test('while the banner is up the chat launcher stands on it, and an answer puts 
   assert.match(doc.documentElement.style.getPropertyValue('--shape-consent-h'), /^\d+px$/, 'the bar\'s height is not set');
   const accept = [...bar.querySelectorAll('button')].find((x) => x.textContent === 'Accept');
   accept.click();
-  assert.equal(doc.querySelector('[aria-label="Cookie consent"]'), null, 'the bar stayed');
+  assert.ok(!doc.querySelector('[aria-label="Cookie consent"]'), 'the bar stayed');
   assert.ok(!doc.documentElement.classList.contains('shape-consent-open'), 'the launcher stayed lifted');
-  assert.equal(doc.getElementById('shape-consent-lift'), null, 'the lift rule stayed');
+  assert.ok(!doc.getElementById('shape-consent-lift'), 'the lift rule stayed');
   assert.equal(doc.documentElement.style.getPropertyValue('--shape-consent-h'), '');
   assert.equal(win.localStorage.getItem('shape.consent.v1'), 'accept');
   assert.deepEqual(heard, ['accept'], 'the page was not told');
@@ -194,6 +196,6 @@ test('a Reject puts the launcher back too, and outside the EEA and the UK nothin
   assert.ok(!win.document.documentElement.classList.contains('shape-consent-open'));
   assert.deepEqual(heard, ['reject']);
   const us = await bannerPage('America/New_York');
-  assert.equal(us.win.document.querySelector('[aria-label="Cookie consent"]'), null);
+  assert.ok(!us.win.document.querySelector('[aria-label="Cookie consent"]'), 'a banner outside the EEA and the UK');
   assert.ok(!us.win.document.documentElement.classList.contains('shape-consent-open'));
 });

@@ -19,7 +19,7 @@ const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 const COPIES = [
   'src/lib/signup-source.mjs',
   'public/signup-source.js',
-  'public/newdesign/pageShell.jsx',
+  'public/consent-banner.js',
   'mobile-app/src/services/analytics.js',
   'public/click-capture.js',
   'public/consent-insights.js',
@@ -51,7 +51,7 @@ test('the six region checks carry the same list', () => {
 
 test('each check decides by the list', () => {
   assert.match(read('public/signup-source.js'), /return !CONSENT_REGION_RE\.test\(o\.timeZone\);/);
-  assert.match(read('public/newdesign/pageShell.jsx'), /if \(!CONSENT_REGION_RE\.test\(tz\)\) return;\s+\/\/ region-aware: show only for EEA\/UK/);
+  assert.match(read('public/consent-banner.js'), /if \(!CONSENT_REGION_RE\.test\(tz\)\) return;\s+\/\/ region-aware: show only for EEA\/UK/);
   assert.match(read('mobile-app/src/services/analytics.js'), /return CONSENT_REGION_RE\.test\(tz\);/);
   assert.match(read('public/click-capture.js'), /return !CONSENT_REGION_RE\.test\(o\.timeZone\);/);
   assert.match(read('public/consent-insights.js'), /return !CONSENT_REGION_RE\.test\(o\.timeZone\);/);

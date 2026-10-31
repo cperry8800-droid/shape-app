@@ -168,6 +168,7 @@ export default function GlobalChatButton() {
     <>
       {open && (
         <section
+          id="shape-global-chat-panel"
           aria-label="Shape chat"
           role="dialog"
           className="fixed bottom-[92px] right-6 z-[2147483000] flex h-[540px] max-h-[calc(100vh-116px)] w-[390px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[18px] border border-white/15 bg-[#1a1612] text-[#f2ede4] shadow-[0_28px_80px_rgba(0,0,0,0.62)] max-sm:bottom-[82px] max-sm:right-4 max-sm:h-[min(560px,calc(100vh-104px))] max-sm:w-[calc(100vw-32px)]"
@@ -258,7 +259,10 @@ export default function GlobalChatButton() {
         </section>
       )}
 
+      {/* The website's ids: while the consent banner (/consent-banner.js) is up, it lifts these two
+          above itself, so they don't lie across its buttons (Codex on #2530). */}
       <button
+        id="shape-global-chat-button"
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Ask Nora"

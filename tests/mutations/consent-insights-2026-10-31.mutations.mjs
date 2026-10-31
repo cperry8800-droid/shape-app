@@ -1,10 +1,12 @@
 // Mutation spec for the website's page views waiting for consent (public/consent-insights.js,
-// src/components/ConsentAnalytics.tsx) and the consent banner standing clear of the chat launcher
-// (pageShell.jsx). Every mutation must be killed. Run from the repo root:
+// src/components/ConsentAnalytics.tsx), the consent banner standing clear of the chat launcher
+// (public/consent-banner.js), and every gated page loading the banner (the shell's loader, the
+// pages without the shell, the Next layout). Every mutation must be killed. Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/consent-insights-2026-10-31.mutations.mjs --fail-on-skipped
-const G = 'public/consent-insights.js', N = 'src/components/ConsentAnalytics.tsx', S = 'public/newdesign/pageShell.jsx';
+const G = 'public/consent-insights.js', N = 'src/components/ConsentAnalytics.tsx', B = 'public/consent-banner.js', S = 'public/newdesign/pageShell.jsx';
+const C = 'src/components/GlobalChatButton.tsx';
 export default {
-  test: 'node --test tests/consent-insights.test.mjs tests/consent-region.test.mjs',
+  test: 'node --test tests/consent-insights.test.mjs tests/consent-region.test.mjs tests/consent-banner-pages.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── The gate ──
@@ -20,9 +22,19 @@ export default {
     // ── The Next app ──
     { name: 'the Next app sends every event', file: N, find: '  return allowedOn(window) ? event : null;', replace: '  return event;' },
     // ── The banner ──
-    { name: 'the banner does not say it was answered', file: S, find: '        try { window.dispatchEvent(new CustomEvent("shape:consent", { detail: choice })); } catch (e) {}\n', replace: '' },
-    { name: 'the launcher is never lifted', file: S, find: '      html.classList.add("shape-consent-open");\n', replace: '' },
-    { name: 'the launcher stays lifted after an answer', file: S, find: 'if (bar.parentNode) bar.parentNode.removeChild(bar); unlift(); };', replace: 'if (bar.parentNode) bar.parentNode.removeChild(bar); };' },
-    { name: 'the bar\'s height is never set', file: S, find: '      function lift() { try { html.style.setProperty("--shape-consent-h", bar.offsetHeight + "px"); } catch (e) {} }\n', replace: '      function lift() {}\n' },
+    { name: 'the banner does not say it was answered', file: B, find: '        try { window.dispatchEvent(new CustomEvent("shape:consent", { detail: choice })); } catch (e) {}\n', replace: '' },
+    { name: 'the launcher is never lifted', file: B, find: '      html.classList.add("shape-consent-open");\n', replace: '' },
+    { name: 'the launcher stays lifted after an answer', file: B, find: 'if (bar.parentNode) bar.parentNode.removeChild(bar); unlift(); };', replace: 'if (bar.parentNode) bar.parentNode.removeChild(bar); };' },
+    { name: 'the bar\'s height is never set', file: B, find: '      function lift() { try { html.style.setProperty("--shape-consent-h", bar.offsetHeight + "px"); } catch (e) {} }\n', replace: '      function lift() {}\n' },
+    // ── Every gated page can show it (Codex on #2530) ──
+    { name: 'the banner runs again when loaded twice', file: B, find: '  if (typeof document === "undefined" || window.__shapeConsentBanner) return;\n  window.__shapeConsentBanner = true;\n', replace: '  if (typeof document === "undefined") return;\n' },
+    { name: 'the shell never loads the banner', file: S, find: '    document.head.appendChild(s);\n  } catch (e) {}\n})();\n\n// ── Checkout notices', replace: '  } catch (e) {}\n})();\n\n// ── Checkout notices' },
+    { name: 'the shell loads it beside a page\'s own', file: S, find: '    if (document.querySelector(\'script[src="/consent-banner.js"]\')) return;\n', replace: '' },
+    { name: 'the help page has no banner', file: 'public/help.html', find: '<script defer src="/consent-banner.js"></script>\n', replace: '' },
+    { name: 'the 404 has no banner', file: 'public/404.html', find: '<script defer src="/consent-banner.js"></script>\n', replace: '' },
+    { name: 'the Next app has no banner', file: N, find: '{consentBannerHidden(pathname) ? null : <Script src="/consent-banner.js" strategy="afterInteractive" />}', replace: '' },
+    { name: 'the banner shows over the app\'s in-app browser', file: N, find: "  return p === '/connect' || p.startsWith('/connect/');", replace: '  return false;' },
+    { name: 'a page under a /connect-like path loses it', file: N, find: "p.startsWith('/connect/')", replace: "p.startsWith('/connect')" },
+    { name: 'the Next launcher is not lifted', file: C, find: '        id="shape-global-chat-button"\n', replace: '' },
   ],
 };
