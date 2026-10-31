@@ -445,14 +445,19 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // they logged without one (a session with a video is a workout, and keeps its sets).
   const postCards = nutri || demo ? [] : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Trainer') : null)).filter(Boolean);
   const programs = nutri ? [] : demo ? (demo.programs || []) : bsCoachPrograms(salePlans);
+  // This profile's own plans: an account that coaches as both a trainer and a nutritionist publishes
+  // under each, and each row carries its role (a meal plan is a nutritionist's), so the trainer's
+  // sheet never lists or checks out a nutrition plan (Codex P2 on b76e074).
+  const roleOf = (pl) => pl.providerRole || (pl.kind === 'meal_plan' ? 'nutritionist' : 'trainer');
+  const ownPlans = Array.isArray(salePlans) ? salePlans.filter((pl) => pl && roleOf(pl) === (nutri ? 'nutritionist' : 'trainer')) : salePlans;
   // What the Work-with sheet lists: a coach's published plans, or the sample's own programs, which
   // its page shows everywhere else (the sheet said "Publish your first plan" under every tab).
   const sheetPlans = demo ? programs.filter((p) => p && p.plan).map((p) => ({ ...p.plan, category: 'program',
-    meta: p.weeks ? tr('profile:trainer.programWeeks', { defaultValue: '{count, plural, one {# week} other {# weeks}}', count: p.weeks }) : (p.plan.meta || '') })) : salePlans;
+    meta: p.weeks ? tr('profile:trainer.programWeeks', { defaultValue: '{count, plural, one {# week} other {# weeks}}', count: p.weeks }) : (p.plan.meta || '') })) : ownPlans;
   // A real coach's published plans, for a listing with no monthly price, when one of them has a price
   // to pay (a workout or reusable program is saved with none, and alone it would hide "hasn't listed
   // prices" behind rows with nothing to buy: Codex P2 on 2ecbc5b). A sample with no price shows none.
-  const plansListed = !demo && Array.isArray(salePlans) && salePlans.some((pl) => pl && bsWorkPaid(pl.price));
+  const plansListed = !demo && Array.isArray(ownPlans) && ownPlans.some((pl) => bsWorkPaid(pl.price));
   const workouts = nutri ? [] : demo ? (demo.workouts || []) : bsWorkoutVideos(postCards);
   const replays = nutri ? [] : demo ? demo.replays : postCards
     .filter((c) => c.breakdown && Array.isArray(c.breakdown.rows) && c.breakdown.rows.length && !c.video);
@@ -832,7 +837,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
               {!isSelf && providerId && !avail.sample ? <button type="button" onClick={() => { setSheet(null); setTab('day'); }} style={{ marginTop: 12, width: '100%', minHeight: 50, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.pickIntro', { defaultValue: 'Pick an intro time' })}</button> : null}
               {!isSelf && hasMessage ? <button type="button" onClick={() => { setSheet(null); onMessage(person); }} style={{ marginTop: 8, width: '100%', minHeight: 50, border: `1px solid ${ink(0.22)}`, background: 'transparent', color: INK, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.message', { defaultValue: 'Message {name}', name: first })}</button> : null}
               {/* No monthly price, but plans to sell: the plans and the capacity states, without the monthly offer (Codex P2 on #2545). */}
-              {plansListed && cm && W.BSCoachCoachingBlock ? <W.BSCoachCoachingBlock cm={cm} isSelf={isSelf} isNutri={nutri} first={first} ownZero salePlans={salePlans} c={ACC} noMonthly /> : null}
+              {plansListed && cm && W.BSCoachCoachingBlock ? <W.BSCoachCoachingBlock cm={cm} isSelf={isSelf} isNutri={nutri} first={first} ownZero salePlans={ownPlans} c={ACC} noMonthly /> : null}
             </div>
           )}
           {onListing ? <button type="button" data-full-listing="" onClick={() => { setSheet(null); onListing(); }} style={{ ...linkBtn(ACC, DISPLAY), marginTop: 12 }}>{tr('profile:trainer.fullListing', { defaultValue: 'Plans, prices and codes on the full listing' })} →</button> : null}

@@ -216,6 +216,20 @@ test('the storefront shows only what the coach sells: no monthly price, no packa
   assert.ok(!document.querySelector('[data-coaching-block]'), 'no catalogue with nothing to buy');
   assert.match(m.text(), /hasn't listed prices on Shape yet/);
   await m.unmount();
+  // An account that also coaches nutrition: its paid meal plan is not the trainer's to list or sell
+  // (Codex P2 on b76e074), so the trainer with no monthly price still has nothing listed.
+  reset({ provider: { ...world.provider, price: null }, salePlans: [{ id: 'm1', kind: 'meal_plan', name: 'Lean cut', meta: '', price: '60', category: 'meal', providerId: 9, providerRole: 'nutritionist' }] });
+  m = await mount(page());
+  await click(button(/^Work with her$/));
+  assert.ok(!document.querySelector('[data-coaching-block]'), 'no nutrition plan on the trainer\'s sheet');
+  assert.match(m.text(), /hasn't listed prices on Shape yet/);
+  await m.unmount();
+  // With a monthly price, the sheet's catalogue is handed the trainer's plans only.
+  reset({ salePlans: [{ id: 'p1', kind: 'program', name: 'Strong in 12', meta: '', price: '79', category: 'program', providerId: 7, providerRole: 'trainer' }, { id: 'm1', kind: 'meal_plan', name: 'Lean cut', meta: '', price: '60', category: 'meal', providerId: 9, providerRole: 'nutritionist' }] });
+  m = await mount(page());
+  await click(button(/^Work with her$/));
+  assert.deepEqual(window.__blockPlans.map((p) => p.name), ['Strong in 12']);
+  await m.unmount();
 });
 
 test('a visitor sees a tab only when it has something in it; a private profile shows none', async () => {
