@@ -925,6 +925,10 @@ function KitchenTab({ tr, look, kitchen, setKitchen, startSection = null, owner,
 // ── The editor ──────────────────────────────────────────────────────────────────────────────
 export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null, initial = null, startTab = 'colors', startSection = null, who = {}, words = null, photos = [], programs = [], onClose, onSaved }) {
   const tr = useShapeTr();
+  // The app's gutter, so the masthead and ← Back sit where they sit on every page (owner,
+  // 2026-10-31); the chrome's hook is on window before any page renders.
+  const theme = (window.useBS || (() => null))();
+  const gut = (theme && theme.padX) || 22;
   const nutri = role === 'nutritionist';
   // The third tab: a trainer's space, a nutritionist's kitchen.
   const third = nutri ? 'kitchen' : 'space';
@@ -1064,11 +1068,11 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const host = typeof document !== 'undefined' ? (document.getElementById('bs-phone-surface') || document.body) : null;
   const el = (
     <div className="bs-scroll" data-make-it-yours="" style={{ position: 'absolute', inset: 0, zIndex: 225, background: E.BG, color: E.INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: BODY, WebkitFontSmoothing: 'antialiased' }}>
-      <div style={{ padding: `calc(${window.BS_MAST_TOP_CSS || '12px'}) 18px ${dirty ? 120 : 40}px` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button data-bs-back="" type="button" onClick={back} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: E.INK, fontFamily: MONO, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>← {tr('profile:mine.backToProfile', { defaultValue: 'Profile' })}</button>
-          <span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: E.ED }}>{tr('profile:mine.eyebrow', { defaultValue: 'Your page' })}</span>
-        </div>
+      <div style={{ padding: `calc(${window.BS_MAST_TOP_CSS || '12px'}) ${gut}px ${dirty ? 120 : 40}px` }}>
+        {/* The masthead row and the back row every page has. No corner: it would leave an unsaved draft. */}
+        {window.BSMastRow ? <window.BSMastRow trailing={null} ink={E.INK} /> : null}
+        {window.BSBackRow ? <window.BSBackRow onBack={back} ink={E.INK} label={tr('profile:mine.backToProfile', { defaultValue: 'Profile' })}
+          trailing={<span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: E.ED }}>{tr('profile:mine.eyebrow', { defaultValue: 'Your page' })}</span>} /> : null}
         <div style={{ marginTop: 8 }}>
           <Seg label={tr('profile:mine.sections', { defaultValue: 'What to change' })} value={tab} onChange={(k) => { setTab(k); setSel(null); }}
             options={[['colors', tr('profile:mine.tabColors', { defaultValue: 'Colors' })], ['wall', tr('profile:mine.tabWall', { defaultValue: 'Wall photo' })], nutri ? ['kitchen', tr('profile:mine.tabKitchen', { defaultValue: 'Your kitchen' })] : ['space', tr('profile:mine.tabSpace', { defaultValue: 'Your space' })]]} />
@@ -1084,7 +1088,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         {err && !unsaved ? <p role="alert" style={{ margin: '14px 0 0', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
       </div>
       {unsaved ? (
-        <div style={{ position: 'sticky', bottom: 0, zIndex: 3, padding: '10px 18px calc(12px + env(safe-area-inset-bottom))', background: E.BG, borderTop: `1px solid ${ea(0.16)}` }}>
+        <div style={{ position: 'sticky', bottom: 0, zIndex: 3, padding: `10px ${gut}px calc(12px + env(safe-area-inset-bottom))`, background: E.BG, borderTop: `1px solid ${ea(0.16)}` }}>
           {leaving ? <p style={{ margin: '0 0 8px', fontSize: 13.5, color: ea(0.8) }}>{tr('profile:mine.leaveAsk', { defaultValue: "You haven't saved these changes." })}</p> : <p style={{ margin: '0 0 8px', fontSize: 12.5, color: ea(0.6) }}>{demo ? tr('profile:mine.demoNote', { defaultValue: 'A sample page: your changes show here until you leave. Sign in to save yours.' }) : tr('profile:mine.saveNote', { defaultValue: 'Members see it as soon as you save.' })}</p>}
           {err ? <p role="alert" style={{ margin: '0 0 8px', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
           <div style={{ display: 'flex', gap: 8 }}>

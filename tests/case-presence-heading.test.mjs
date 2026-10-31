@@ -91,6 +91,8 @@ const theme = {
 W.useBS = () => theme;
 W.BSPage = ({ children }) => React.createElement('div', null, children);
 W.BSFooter = ({ left, right }) => React.createElement('footer', null, left, right);
+// The shared back row (BSBackRow): ← Back on its own row, the page's eyebrow beside it.
+W.BSBackRow = ({ onBack, label, trailing, disabled }) => React.createElement('div', { 'data-chrome': 'BSBackRow' }, React.createElement('button', { type: 'button', onClick: onBack, disabled }, '← ' + (label || 'Back')), trailing);
 for (const chrome of ['BSMasthead', 'BSPageHeader', 'BSBackButton', 'BSAvatar', 'BSFacetAvatar',
   'BSEyebrow', 'BSSection', 'BSPlate', 'BSSlab', 'BSCell', 'BSTag', 'BSRow', 'BSHeadlineNumber',
   'BSHalftone', 'BSTabBar', 'BSSheetProvider', 'BSCalendarScreen', 'BSRadioPrompt', 'BSRadioScreen',

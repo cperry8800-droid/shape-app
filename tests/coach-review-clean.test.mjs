@@ -49,6 +49,8 @@ W.useBS = () => theme;
 W.BSPage = ({ children }) => React.createElement('div', null, children);
 W.BSFooter = () => null;
 W.BSBackButton = ({ onClick }) => React.createElement('button', { type: 'button', 'data-bs-back': '', onClick }, '← Back');
+// The shared back row (#2533): Back in one place on every page, the page's eyebrow on its right.
+W.BSBackRow = ({ onBack, trailing }) => React.createElement('div', { 'data-bs-back-row': '' }, React.createElement(W.BSBackButton, { onClick: onBack }), trailing);
 for (const chrome of ['BSMasthead', 'BSPageHeader', 'BSAvatar', 'BSFacetAvatar', 'BSEyebrow', 'BSSection', 'BSPlate', 'BSSlab', 'BSCell', 'BSTag', 'BSRow', 'BSHeadlineNumber', 'BSHalftone', 'BSTabBar', 'BSSheetProvider', 'BSCalendarScreen', 'BSRadioPrompt', 'BSRadioScreen', 'BSNowPlaying', 'BSClientChat', 'BSSettings', 'BSShapeScorePage', 'BSShapeStorePage', 'BSContactPage', 'BSTermsPage', 'BSPublicProfile']) {
   W[chrome] = ({ children }) => React.createElement('div', { 'data-chrome': chrome }, children);
 }
@@ -97,6 +99,7 @@ test("the case file: the name as a Geist title, no italic surname or period, fou
     const h1 = m.host.querySelector('h1');
     assert.equal(h1.textContent, 'Casey Lee');
     assert.match(m.host.querySelector('[data-case-eyebrow]').textContent, /^CASE FILE · /);
+    assert.ok(m.host.querySelector('[data-bs-back-row] [data-case-eyebrow]'), 'the case line rides the shared back row');
     const actions = [...m.host.querySelectorAll('[data-case-actions] button')].map((b) => b.textContent);
     assert.deepEqual(actions, ['MESSAGE', 'ADJUST', 'SCHEDULE', '✦ DRAFT']);
     const tabs = [...m.host.querySelectorAll('[data-case-tabs] [role="tab"]')];
@@ -133,6 +136,7 @@ test('Adjust: the title without its italic half or period, the client in a card,
     try {
       assert.equal(m.host.querySelector('h1').textContent, title, role);
       assert.ok(m.host.querySelector('[data-pro-client-mini]'), role + ': the client card');
+      assert.ok(m.host.querySelector('[data-bs-back-row] [data-bs-back]'), role + ': Back is the shared row\'s');
       assert.ok(m.host.querySelectorAll('[data-pro-action-sec] h2').length >= 3, role + ': the section heads');
       const send = [...m.host.querySelectorAll('button')].find((b) => /Apply & Send/.test(b.textContent));
       const notify = [...m.host.querySelectorAll('button')].find((b) => /Apply & Notify/.test(b.textContent));

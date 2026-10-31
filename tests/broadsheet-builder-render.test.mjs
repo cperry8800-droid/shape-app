@@ -63,6 +63,8 @@ globalThis.__VITE_IMPORTMETA__ = { env: { BASE_URL: '/m/' } };
 globalThis.BSLogo = () => React.createElement('span', null, 'SHAPE');
 globalThis.BS_MAST_TOP_CSS = '44px';
 globalThis.BSFacetAvatar = ({ initial }) => React.createElement('span', null, initial);
+// The shared back row (BSBackRow): ← Back on its own row, the page's eyebrow beside it.
+globalThis.BSBackRow = ({ onBack, label, trailing, disabled }) => React.createElement('div', { 'data-chrome': 'BSBackRow' }, React.createElement('button', { type: 'button', onClick: onBack, disabled }, '← ' + (label || 'Back')), trailing);
 for (const n of ['BSPage', 'BSFooter', 'BSEyebrow', 'BSMasthead', 'BSPageHeader', 'BSBackButton', 'BSAvatar', 'BSPlate']) {
   globalThis[n] = ({ children }) => React.createElement('div', null, children);
 }

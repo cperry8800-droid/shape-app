@@ -104,15 +104,21 @@ export default function BSLiveWorkoutWatch({ client = 'Alex Rivera', clientId = 
   const section = { padding: `18px ${t.padX}px 0` };
   const heading = { ...mono, textTransform: 'uppercase', fontWeight: 800, color: t.INK };
   const Page = window.BSPage || React.Fragment;
+  const BackRow = window.BSBackRow || null;
   const queue = moves.map((m, i) => ({ ...m, index: i })).sort((a, b) => (a.index === curIdx ? -1 : b.index === curIdx ? 1 : (a.done >= a.total) - (b.done >= b.total) || a.index - b.index));
   return <Page>
     <div style={{ padding: `${mastTop} ${t.padX}px 0` }}>{masthead}</div>
-    <div style={{ ...section, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-      <button data-bs-back="" type="button" onClick={onBack} style={button}>{tr('coach:live.close', { defaultValue: '✕ Close' })}</button>
-      <div style={{ ...mono, color: status === 'live' ? teal : t.INK70 }}>
-        <span role="status">{statusLabel}</span>{elapsed != null ? ` · ${fmt(elapsed)}` : ''}
-      </div>
-      {total > 0 && <span style={mono}>{tr('coach:live.setsCount', { defaultValue: 'Sets {done}/{total}', done, total })}</span>}
+    {/* ← Back where every page keeps it (it was a bordered ✕ Close), the live status on the right. */}
+    <div style={{ padding: `0 ${t.padX}px` }}>
+      {(() => {
+        const statusRow = <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
+          <div style={{ ...mono, color: status === 'live' ? teal : t.INK70 }}>
+            <span role="status">{statusLabel}</span>{elapsed != null ? ` · ${fmt(elapsed)}` : ''}
+          </div>
+          {total > 0 && <span style={mono}>{tr('coach:live.setsCount', { defaultValue: 'Sets {done}/{total}', done, total })}</span>}
+        </div>;
+        return BackRow ? <BackRow onBack={onBack} trailing={statusRow} /> : statusRow;
+      })()}
     </div>
     <div style={section}>
       <div style={heading}>{tr('coach:live.watchTitle', { defaultValue: 'Workout monitor' })}</div>

@@ -2571,7 +2571,7 @@ function BSRadioScreen({ onBack }) {
 
       {/* HEADER — translucent so portrait shows through */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 11px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: window.BS_MAST_ROW_H || 34 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <BSLogo size={16} color={CREAM} />
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>
@@ -2587,11 +2587,8 @@ function BSRadioScreen({ onBack }) {
               literal-palette. Fix the one, leave the other.) */}
           {bsRadioCorner(CREAM)}
         </div>
-        {/* Universal back row — own row, flush left, under the mast (2026-07-14). */}
-        <button data-bs-back="" onClick={onBack} style={{
-          marginTop: 12, display: 'inline-flex', padding: '8px 2px', background: 'transparent', color: CREAM, border: 0, cursor: 'pointer',
-          fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
-        }}>{tr('radio:screen.back', { defaultValue: '← Back' })}</button>
+        {/* Universal back row — own row, flush left, under the mast (2026-07-14; BSBackRow 2026-10-31). */}
+        {window.BSBackRow ? <window.BSBackRow onBack={onBack} ink={CREAM} /> : null}
         <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, textAlign: 'center' }}>
           {tr('radio:screen.sectionMusic', { defaultValue: 'Section · Music' })}
         </div>
@@ -3165,7 +3162,7 @@ function BSShapeSetsScreen({ onBack }) {
               universal back row (← RADIO, plain mono text-action flush left —
               the bordered pill died with the placement sweep), eyebrow, title. */}
           <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: window.BS_MAST_ROW_H || 34 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>{tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}</div>
@@ -3183,11 +3180,7 @@ function BSShapeSetsScreen({ onBack }) {
                   showSets, while the nav descriptor records only tab:'radio' — the
                   avatar unmounts the radio screen and back returns to the root. */}
             </div>
-            <div style={{ marginTop: 12 }}>
-              <button data-bs-back="" type="button" onClick={onBack} aria-label="Radio" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, padding: '8px 2px', cursor: 'pointer', color: CREAM, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', lineHeight: 1 }}>
-                <span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>←</span>Radio
-              </button>
-            </div>
+            {window.BSBackRow ? <window.BSBackRow onBack={onBack} ink={CREAM} label="Radio" /> : null}
             <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>{tr('radio:screen.sectionMusic', { defaultValue: 'Section · Music' })}</div>
             <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>Shape <span style={{ color: TEAL }}>Sets.</span></h1>
           </div>

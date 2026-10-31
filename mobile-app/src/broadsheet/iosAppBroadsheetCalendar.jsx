@@ -83,7 +83,6 @@ function useBSSheet() {
 
 function BSSheetHost({ children, onDismiss, z }) {
   const t = useBSCal();
-  const tr = useShapeTr();
   const [mounted, setMounted] = useStateBSCal(false);
   useEffectBSCal(() => { const id = requestAnimationFrame(() => setMounted(true)); return () => cancelAnimationFrame(id); }, []);
   return (
@@ -99,16 +98,11 @@ function BSSheetHost({ children, onDismiss, z }) {
         overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none',
         borderTop: 0, boxShadow: '0 -20px 40px rgba(0,0,0,0.25)',
       }}>
-        <div style={{ position: 'sticky', top: 0, background: t.PAPER, zIndex: 2, borderBottom: `1px solid ${t.RULE}`, paddingTop: 'max(env(safe-area-inset-top, 0px), var(--bs-notch-floor, 0px))' }}>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '11px 0 9px', minHeight: 24 }}>
-            <button data-bs-back="" onClick={onDismiss} style={{
-              position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-              background: 'transparent', border: 0, color: t.INK,
-              fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase',
-              fontWeight: 700, cursor: 'pointer', padding: 6, display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>{tr('calendar:cta.back', { defaultValue: '← Back' })}</button>
-            <div style={{ width: 36, height: 3, background: t.INK, opacity: 0.4, borderRadius: 999 }} />
-          </div>
+        {/* The masthead row and ← Back under it, where every page keeps them (owner, 2026-10-31): this
+            sheet fills the screen, so it reads as a page. No corner (it would leave the sheet open). */}
+        <div style={{ position: 'sticky', top: 0, background: t.PAPER, zIndex: 2, borderBottom: `1px solid ${t.RULE}`, padding: `${window.BS_MAST_TOP_CSS || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))'} ${t.padX || 22}px 2px` }}>
+          {window.BSMastRow ? <window.BSMastRow trailing={null} /> : null}
+          {window.BSBackRow ? <window.BSBackRow onBack={onDismiss} /> : null}
         </div>
         <div style={{ position: 'relative' }}>
           {children}

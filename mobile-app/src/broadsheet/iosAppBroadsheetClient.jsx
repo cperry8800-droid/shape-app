@@ -102,7 +102,7 @@ const bsApi = { fetch: (path, init) => (window.ShapeApi ? window.ShapeApi.fetch(
 
 const { useState: useStateBSC } = React;
 const {
-  useBS, BSBackButton, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection,
+  useBS, BSBackRow, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection,
   BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSTicker, BSHalftone,
   BSTabBar, BSFooter, BSLogo, BSPlate, BSSettingsCorner,
   BSSheetProvider, useBSSheet, BSCalendarScreen, BSEventSheet,
@@ -119,6 +119,9 @@ const BS_MAST_TOP = window.BS_MAST_TOP || 44;
 // notch. See the chrome's declaration for why max() is uniform in both.
 const BS_MAST_TOP_CSS = window.BS_MAST_TOP_CSS || `max(${BS_MAST_TOP}px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))`;
 const BS_CORNER_GAP = window.BS_CORNER_GAP || 9;
+// The masthead row's one height, corner or not, so the back row under it sits at one y (the chrome's
+// BS_MAST_ROW_H; tests/back-placement.test.mjs).
+const BS_MAST_ROW_H = window.BS_MAST_ROW_H || 34;
 // A handful of surfaces destructure the theme under a different local name
 // (the profiles use `tTheme`) or receive only BG/INK, so `t.padX` is not
 // reachable at the mast row's own site. They read the live gutter through this
@@ -1273,8 +1276,11 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     radio:   <BSRadioScreen    onBack={() => { if (!navBack()) setTab('home'); }} />,
     market:  <BSMarketplaceScreen initialRole={marketRole} initialCoach={marketCoach} onCoachConsumed={() => setMarketCoach(null)} onBack={() => { if (!navBack()) setTab('home'); }} onProfile={goSettings} goChat={goChat} />,
     store:   storeView === 'score'
-      ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
-      : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('home'); }} onOpenScore={() => setStoreView('score')} />,
+      // Back from the Score goes where the reader came from (owner, 2026-10-31: back "goes back to [the]
+      // page … where that person was"): Home when Home opened it, the Store when the Store did. It
+      // used to go to the Store whatever opened it. Each step between the two is a history step.
+      ? <BSShapeScorePage profile={scoreProfile} onBack={() => { if (!navBack()) setStoreView('store'); }} onOpenStore={() => { navPush(); setStoreView('store'); }} />
+      : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('home'); }} onOpenScore={() => { navPush(); setStoreView('score'); }} />,
     me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} goRadio={goRadio} goChat={goChat} goHome={() => setTab('home')} sheet={sheet} tweaks={tweaks} setTweak={setTweak} initialPage={meStart} onStartConsumed={() => setMeStart('')} />,
   };
   // navSlideCls (from useBSNavSlide): one-shot on a tab SWIPE, cleared in an
@@ -2754,9 +2760,7 @@ function BSLibraryDetail({ item, onBack, myDoc = null }) {
     <BSPage>
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
-        <div style={{ marginTop: 12 }}>
-          <BSBackButton onClick={onBack} label="Library" />
-        </div>
+        <BSBackRow onBack={onBack} label="Library" />
       </div>
       <div style={{ padding: `18px ${t.padX}px 0` }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -2973,9 +2977,7 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
     <BSPage>
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
-        <div style={{ marginTop: 12 }}>
-          <BSBackButton onClick={onBack} />
-        </div>
+        <BSBackRow onBack={onBack} />
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Your library</div>
         <h1 style={{ margin: '6px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Saved<br/><span style={{ fontStyle: 'italic', color: teal }}>everything.</span></h1>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>Every workout, meal, recipe and grocery list you keep — in one place.</div>
@@ -3080,10 +3082,11 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
       </div>
-      <div style={{ padding: `12px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <BSBackButton onClick={onBack} />
-        <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>{tr('home:workoutPreview.eyebrow', { defaultValue: 'Preview' })}</span>
-        <button onClick={onMessage} style={{ ...headBtn, color: t.INK50 }}>{tr('home:action.message', { defaultValue: 'Message' })}</button>
+      <div style={{ padding: `0 ${t.padX}px 2px` }}>
+        <BSBackRow onBack={onBack} trailing={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>{tr('home:workoutPreview.eyebrow', { defaultValue: 'Preview' })}</span>
+          <button onClick={onMessage} style={{ ...headBtn, color: t.INK50 }}>{tr('home:action.message', { defaultValue: 'Message' })}</button>
+        </span>} />
       </div>
 
       <div style={{ padding: `18px ${t.padX}px 4px` }}>
@@ -3714,12 +3717,12 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         {/* THE BAND — the filed stamp (Cockpit/Split spec 2026-07-14). Fixed
             #0b0f0f on every paper; the paper below the teal seam carries the
             actions. Same instrument literals as the live session's band. */}
-        <div style={{ position: 'relative', background: '#0b0f0f', padding: `62px ${t.padX}px 18px`, overflow: 'hidden' }}>
+        <div style={{ position: 'relative', background: '#0b0f0f', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 18px`, overflow: 'hidden' }}>
           <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <button data-bs-back="" onClick={onClose} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span aria-hidden style={{ fontSize: 11 }}>←</span>{tr('common:action.back', { defaultValue: 'Back' })}</button>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>{tr('nutrition:log.filed', { defaultValue: 'Meal · Filed {time}', time: logTime })}</span>
-          </div>
+          {/* The masthead row and the back row every page has, in the band's cream. */}
+          {window.BSMastRow && <window.BSMastRow trailing={null} ink="#f4ede0" style={{ position: 'relative' }} />}
+          <BSBackRow onBack={onClose} ink="#f4ede0" style={{ position: 'relative' }}
+            trailing={<span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>{tr('nutrition:log.filed', { defaultValue: 'Meal · Filed {time}', time: logTime })}</span>} />
           <div style={{ position: 'relative', textAlign: 'center', marginTop: 30 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 46, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 0 18px rgba(56,224,204,0.45)' }}>{kcal}</div>
             <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{tr('nutrition:log.kcalLogged', { defaultValue: 'Kcal · {p}P · Logged ✓', p: P })}</div>
@@ -7106,9 +7109,7 @@ function BSMealPreview({ meal, onBack, onLog, onFiled, onUnfiled }) {
     <BSPage>
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 10px` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
-        <div style={{ marginTop: 12 }}>
-          <BSBackButton onClick={onBack} />
-        </div>
+        <BSBackRow onBack={onBack} />
       </div>
 
       {/* Hero photo — clipped instrument plate (falls back to a halftone if the image fails) */}
@@ -7234,10 +7235,6 @@ function BSMealPreview({ meal, onBack, onLog, onFiled, onUnfiled }) {
 
       {/* CTA row — compact, single-line, squared instrument buttons */}
       <div style={{ padding: `16px ${t.padX}px 16px`, display: 'flex', gap: 8, alignItems: 'stretch' }}>
-        <button data-bs-back="" onClick={onBack} style={{ borderRadius: 5,
-          padding: '0 14px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK,
-          fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer',
-        }}>Close</button>
         <button onClick={() => bsLibToggle(mealLibItem)} style={{ borderRadius: 5,
           padding: '0 14px', border: `1px solid ${mealSaved ? teal : t.RULE}`, borderLeft: mealSaved ? `3px solid ${teal}` : `1px solid ${t.RULE}`, background: mealSaved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: mealSaved ? teal : t.INK, cursor: 'pointer',
           fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap',
@@ -7444,7 +7441,6 @@ function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded 
           {groceryAdded ? '✓ On your grocery list' : 'Add to grocery list →'}
         </button>
         <div style={{ display: 'flex', gap: 18, marginTop: 4 }}>
-          <button data-bs-back="" type="button" onClick={onBack} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>Close</button>
           <button type="button" onClick={() => bsLibToggle(_libItem)} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${t.ACCENT}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: saved ? t.ACCENT : t.INK }}>{saved ? '✓ Saved to library' : '♡ Save recipe'}</button>
         </div>
       </div>
@@ -7582,14 +7578,6 @@ function BSDayBriefPreview({ day, onBack, onMealClick, onRecipeClick }) {
           </div>
         </div>
       )}
-
-      {/* Back CTA */}
-      <div style={{ padding: `22px ${t.padX}px 18px`, textAlign: 'center' }}>
-        <button data-bs-back="" onClick={onBack} style={{
-          padding: '10px 12px', border: 0, background: 'transparent', color: t.INK,
-          fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
-        }}>← Back to menu</button>
-      </div>
 
       <BSFooter right="Day brief" />
     </BSPage>
@@ -18830,9 +18818,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 </div>
               : <BSMeCorner />}
           </div>
-          <div style={{ marginTop: 12 }}>
-            <BSBackButton onClick={onBack} />
-          </div>
+          <BSBackRow onBack={onBack} ink={INK} />
         </div>
       )}
       {/* ── Route Card — identity head + ascent hero + coach credit + score.
@@ -19932,10 +19918,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                 </div>
               : <BSMeCorner />}
           </div>
-          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <BSBackButton onClick={onBack} />
-            <Kick col={c}>{isNutri ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:coach.coach', { defaultValue: 'Coach' })}</Kick>
-          </div>
+          <BSBackRow onBack={onBack} ink={INK}
+            trailing={<Kick col={c}>{isNutri ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:coach.coach', { defaultValue: 'Coach' })}</Kick>} />
         </>
         )}
 
@@ -20236,8 +20220,10 @@ function BSNotifiedPerson({ userId, onClose }) {
       {person
         ? <BSPublicProfile person={person} onBack={onClose}
             onMessage={me && person.userId !== me ? (p) => bsOpenMemberConversation(p, onClose) : null} />
-        : <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-            <button data-bs-back="" data-person-back onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
+        : <div data-person-loading="" style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+            {/* While the read is out: the masthead row and the Back every page has, where it has it. */}
+            {window.BSMastRow && <window.BSMastRow trailing={null} />}
+            <BSBackRow onBack={onClose} />
           </div>}
     </div>,
     (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body,
@@ -20782,10 +20768,8 @@ function BSNoraProfile({ onClose }) {
             corner takes `close`: no ⌕, and the avatar closes this page before
             handing off to Settings — see BSMeCorner. */}
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner close={onClose} />} />}
-        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button data-bs-back="" onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK, padding: '8px 2px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
-          <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>Shape team</span>
-        </div>
+        <BSBackRow onBack={onClose}
+          trailing={<span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>Shape team</span>} />
         {/* identity — the live ring + dot overflow the avatar box, so pad the
             wrapper to keep clear air before the eyebrow */}
         <div style={{ textAlign: 'center', marginTop: 26 }}>
@@ -21836,35 +21820,35 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
       {/* masthead — same chrome as every other page (logo/Vol·No + search/avatar),
           then a back + context row. No top hairline (clean edge). */}
       <div style={{ flexShrink: 0, position: 'relative', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 11px` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: BS_MAST_ROW_H }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7) }}>Vol. 1 · No. 1</div>
           </div>
           <BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* ⚠ BACK UNDOES THE LAST STEP, WHICH IS NOT ALWAYS "CLOSE". Once the
-              sticky bar can turn the page to the comments, a Back that always
-              closed would throw away the board a member had scrolled through to
-              get there, with no way back but reopening the post. It closes only
-              when the page is still showing the face it was OPENED on. */}
-          {/* ⚠ `focusTab !== d.focus` IS A PROVEN NO-OP TODAY, KEPT RATHER THAN TRIMMED.
-              It only changes the answer when the page is showing the face it was
-              OPENED on with `focusTab` set — and the only setter is the sticky bar,
-              which renders behind `!isComments`. So a page opened at the comments
-              can never set `focusTab`, and the clause is today equivalent to
-              `focusTab` alone; a mutation reducing it to that survives the suite,
-              which is recorded rather than tested around. It stays because it states
-              the actual rule (back undoes a STEP, and only if one was taken), so it
-              is still right on the day the bar learns to render on either face. */}
-          <button data-bs-back="" onClick={() => { if (focusTab && focusTab !== d.focus) setFocusTab(null); else onClose(); }} aria-label={tr('session:action.back', { defaultValue: 'Back' })} style={{ flexShrink: 0, background: 'transparent', border: 0, padding: '8px 2px', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← {tr('session:action.back', { defaultValue: 'Back' })}</button>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{isComments ? tr('session:detail.comments', { defaultValue: 'Comments' }) : tr('session:detail.tabDetails', { defaultValue: 'Session details' })}</div>
-          {!isComments && canShareCard && (
-            <button onClick={() => setShareOpen(true)} aria-label={tr('session:action.share', { defaultValue: 'Share' })} style={{ marginLeft: 'auto', width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
-          )}
-          <span style={{ marginLeft: (!isComments && canShareCard) ? 0 : 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: heat }}>{d.typeLabel}</span>
-        </div>
+        {/* ⚠ BACK UNDOES THE LAST STEP, WHICH IS NOT ALWAYS "CLOSE". Once the
+            sticky bar can turn the page to the comments, a Back that always
+            closed would throw away the board a member had scrolled through to
+            get there, with no way back but reopening the post. It closes only
+            when the page is still showing the face it was OPENED on. */}
+        {/* ⚠ `focusTab !== d.focus` IS A PROVEN NO-OP TODAY, KEPT RATHER THAN TRIMMED.
+            It only changes the answer when the page is showing the face it was
+            OPENED on with `focusTab` set — and the only setter is the sticky bar,
+            which renders behind `!isComments`. So a page opened at the comments
+            can never set `focusTab`, and the clause is today equivalent to
+            `focusTab` alone; a mutation reducing it to that survives the suite,
+            which is recorded rather than tested around. It stays because it states
+            the actual rule (back undoes a STEP, and only if one was taken), so it
+            is still right on the day the bar learns to render on either face. */}
+        <BSBackRow onBack={() => { if (focusTab && focusTab !== d.focus) setFocusTab(null); else onClose(); }} label={tr('session:action.back', { defaultValue: 'Back' })}
+          trailing={<div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{isComments ? tr('session:detail.comments', { defaultValue: 'Comments' }) : tr('session:detail.tabDetails', { defaultValue: 'Session details' })}</div>
+            {!isComments && canShareCard && (
+              <button onClick={() => setShareOpen(true)} aria-label={tr('session:action.share', { defaultValue: 'Share' })} style={{ marginLeft: 'auto', width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
+            )}
+            <span style={{ marginLeft: (!isComments && canShareCard) ? 0 : 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: heat }}>{d.typeLabel}</span>
+          </div>} />
       </div>
       {shareOpen && (
         <BSShareChooser
@@ -22216,10 +22200,12 @@ function BSSplitsPage({ d, paceData, heat, t, onClose }) {
       <div style={{ flexShrink: 0, padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner close={onClose} />} />}
       </div>
-      <div style={{ flexShrink: 0, padding: `12px ${t.padX}px 11px`, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={onClose} aria-label={tr('session:action.back', { defaultValue: 'Back' })} style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{tr('session:splits.title', { defaultValue: 'The splits' })}</span>
-        {paceData.source === 'trace' && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>{tr('session:splits.estimatedFromTrace', { defaultValue: 'Estimated · from trace' })}</span>}
+      <div style={{ flexShrink: 0, padding: `0 ${t.padX}px 7px` }}>
+        <BSBackRow onBack={onClose} label={tr('session:action.back', { defaultValue: 'Back' })}
+          trailing={<div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{tr('session:splits.title', { defaultValue: 'The splits' })}</span>
+            {paceData.source === 'trace' && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>{tr('session:splits.estimatedFromTrace', { defaultValue: 'Estimated · from trace' })}</span>}
+          </div>} />
       </div>
       <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 24px' }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{d.title || tr('session:splits.sessionFallback', { defaultValue: 'Session' })}<span style={{ color: accent }}>.</span></div>
@@ -26764,11 +26750,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     <BSPage tabBarHeight={0}>
       {/* Custom header with back chevron — no tab bar on the thread screen */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 14px`, borderBottom: `1px solid ${t.SURFACE_BORDER}`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <BSBackButton onClick={onBack} />
-          <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</span>
-        </div>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+        <BSBackRow onBack={onBack} style={{ marginBottom: 2 }}
+          trailing={<span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</span>} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
             {!thread.group && <BSFacetAvatar flat size={38} c={t.INK} dotC={teal} BG={t.PAPER} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} photo={((thread.userId || thread.counterpartId) && threadAvatars[thread.userId || thread.counterpartId]) || (!thread.conversationId && !thread.channelId ? bsDemoFace(thread.who) : undefined)} showRank={false} />}
@@ -28693,17 +28677,16 @@ function BSStepsHistory({ onClose }) {
         }
       `}</style>
       <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
           <BSMeCorner />
         </div>
-        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={onClose} aria-label="Back" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontSize: 26, lineHeight: 1, padding: 0, marginLeft: -3 }}>‹</button>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Shape <span style={{ fontStyle: 'italic', color: accent }}>steps.</span></div>
-        </div>
+        {/* ← Back where every page keeps it, then the title on its own line (was a 26px ‹ beside it). */}
+        <BSBackRow onBack={onClose} />
+        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Shape <span style={{ fontStyle: 'italic', color: accent }}>steps.</span></div>
       </div>
       <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px 44px' }}>
         {data.length === 0 ? (
@@ -29434,8 +29417,8 @@ function BSStrengthHistory({ onClose, focusKey = null }) {
   return (
     <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 60, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 10px` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
-        <button data-bs-back="" onClick={onClose} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, padding: 0 }}>← BACK</button>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+        <BSBackRow onBack={onClose} />
       </div>
       <div style={{ padding: `0 ${t.padX}px 90px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginBottom: 6 }}>STRENGTH · ESTIMATED 1RM</div>
@@ -30118,11 +30101,12 @@ function BSHealthIntake({ onDone, onBack = null, initial = null, purpose = null 
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         {window.BSMastRow && <window.BSMastRow trailing={mode === 'settings' ? <BSMeCorner /> : null} />}
       </div>
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{eyebrow}</span>
-          {onBack && <button data-bs-back="" onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>{tr('onboarding:health.back', { defaultValue: '← Back' })}</button>}
-        </div>
+      <div style={{ padding: `${onBack ? 0 : 12}px ${t.padX}px 0` }}>
+        {/* ← Back on the left where every page keeps it, the eyebrow on the right (it was the other
+            way round). The required gate has no Back: the eyebrow stands alone. */}
+        {onBack
+          ? <BSBackRow onBack={onBack} label={String(tr('onboarding:health.back', { defaultValue: '← Back' })).replace(/^\s*←\s*/, '')} trailing={<span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{eyebrow}</span>} />
+          : <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{eyebrow}</span>}
         <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{tr('onboarding:health.titlePre', { defaultValue: 'Your health' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('onboarding:health.titleAccent', { defaultValue: 'profile.' })}</span></h1>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>
           {mode === 'hire'
@@ -32129,11 +32113,9 @@ function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = f
   // the strip that opens every page), then the back + eyebrow row.
   return (
     <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 14px`, background: t.PAPER, ...pin }}>
-      {BSMastRow && <BSMastRow trailing={noCorner ? null : <BSMeCorner />} style={{ marginBottom: 12 }} />}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
-        <BSBackButton onClick={onBack} />
-        {eyebrow && <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span>}
-      </div>
+      {BSMastRow && <BSMastRow trailing={noCorner ? null : <BSMeCorner />} />}
+      <BSBackRow onBack={onBack} style={{ marginBottom: 2 }}
+        trailing={eyebrow ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span> : null} />
       {kicker && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 8 }}>{kicker}</div>}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
         <div ref={titleRef || undefined} style={{ fontFamily: t.DISPLAY, fontSize: 30, lineHeight: 0.96, fontWeight: t.W.display, letterSpacing: '-0.035em', color: t.INK }}>{title}</div>
@@ -32306,10 +32288,6 @@ function BSWorkoutPreview({ program, coach = '', onBack, onStart }) {
       {/* Sticky-ish CTA */}
       {!isRest && (
         <div style={{ padding: `22px ${t.padX}px 18px`, display: 'flex', gap: 8 }}>
-          <button data-bs-back="" onClick={onBack} style={{ borderRadius: 5,
-            padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
-            fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
-          }}>{tr('session:train.close', { defaultValue: 'Close' })}</button>
           <button onClick={onStart} style={{ borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)',
             flex: 1, padding: '14px', border: 0, background: t.INK, color: t.PAPER,
             fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
@@ -35525,13 +35503,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {/* Masthead row first (the one inset), then ← Settings on its own row,
             flush left — the house rule for every drill-in pane. */}
         <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 2px` }}>
-          {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
-          {/* ⚠ PADDED INTO A REAL TAP TARGET, MEASURED AT 78x13 ON THE EDIT PAGE — the same
-              13px row the root's own ← Back had until #2085 padded it. The negative margin
-              cancels the padding so the row is pixel-identical; only the hit area grew, to
-              29px, past the house floor (WCAG 2.5.8 AA at 24px). Every pane gets it, because
-              every pane renders this one row. */}
-          <button onClick={back} data-bs-back="" style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 10px', margin: '-8px -10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {settingsWord}</button>
+          {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+          {/* The shared back row: a full-height tap target with its ← on the gutter (it was a 13px
+              row padded to 29px; BSBackRow, owner 2026-10-31). Every pane renders this one row. */}
+          <BSBackRow onBack={back} label={settingsWord} />
         </div>
         <SettingsTitle kicker={at >= 0 ? `${String(at + 1).padStart(2, '0')} · ${settingsWord}` : settingsWord} title={title} />
         <div style={{ height: 6 }} />
@@ -36453,14 +36428,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* ── SETTINGS PAGE ── */}
       {!detail && !editing && (<>
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 2px` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
-        {/* ⚠ PADDED INTO A REAL TAP TARGET, MEASURED AT 47x13 BEFORE. The house floor
-            is WCAG 2.5.8 AA at 24px — never Apple's 44pt suggestion, a distinction
-            this repo measured and wrote down. The negative margin cancels the padding
-            so the row is pixel-identical; only the hit area grew. Fixed here rather
-            than registered because this is the line the Passport was already editing:
-            its EDIT sibling moved onto the identity card. */}
-        <button data-bs-back="" onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 10px', margin: '-8px -10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {tr('settings:head.back', { defaultValue: 'Back' })}</button>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+        <BSBackRow onBack={onBack} label={tr('settings:head.back', { defaultValue: 'Back' })} />
       </div>
       <SettingsTitle title={tr('settings:head.title', { defaultValue: 'Settings' })} />
 

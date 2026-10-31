@@ -99,6 +99,8 @@ globalThis.BSPage = ({ children }) => React.createElement('div', null, children)
 globalThis.BSFooter = ({ left, right }) => React.createElement('footer', null, left, right);
 // The workout preview's header reads two more pieces of shared chrome off `window`,
 // destructured when the module loads, so they are stubbed before it does.
+// The shared back row (BSBackRow): ← Back on its own row, the page's eyebrow beside it.
+globalThis.BSBackRow = ({ onBack, label, trailing, disabled }) => React.createElement('div', { 'data-chrome': 'BSBackRow' }, React.createElement('button', { type: 'button', onClick: onBack, disabled }, '← ' + (label || 'Back')), trailing);
 globalThis.BSBackButton = ({ label }) => React.createElement('button', null, label || 'Back');
 globalThis.BSMastRow = ({ children }) => React.createElement('div', null, children);
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { bsSwipeIntent, bsSwipeBackRoute, bsSwipeFollow, bsSwipeBackCommits, BS_SWIPE } from '../services/swipeIntent.mjs';
+import { bsScrollMemory } from '../services/scrollMemory.mjs';
 import { bsSdUnitizeText, bsSdUnitizeStat, bsSdUnitizeLabel, bsSdMeasure } from '../services/sessionLedger.mjs';
 import { bsWsAccent } from './bsMagazine.mjs';
 // iosAppBroadsheet.jsx — Shared tokens, primitives, theme context for the
@@ -571,6 +572,64 @@ const BSDetailBarCtx = React.createContext(null);
 // of the reader does, on every page and full-screen view that has one.
 const BSPageBackCtx = React.createContext(null);
 const BS_PAGE_BACKS = new WeakMap();
+
+// ⚠ BACK LANDS WHERE YOU WERE (owner, 2026-10-31: "make sure it goes back to [the] page of where that
+// person was on the page"). A page that leaves going forward is remembered with how far down it was;
+// one that comes back because of a Back takes that place (services/scrollMemory.mjs). Every way of
+// going back marks itself first: the ← (BSBackButton), the pinned bar's ←, a swipe (BSNavGestures),
+// the phone's back (bsNavShell's navBack, through window.bsMarkBack) and any other marked Back (the
+// click listener below). The next tap that is not a Back clears the mark.
+const BS_SCROLL = bsScrollMemory();
+function bsMarkBack() { BS_SCROLL.markBack(); }
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  const isBack = (e) => !!(e && e.target && e.target.closest && e.target.closest('[data-bs-back], [data-bs-pin-back]'));
+  // A press or a click that is not a Back clears the mark. The click matters on its own: a
+  // keyboard or screen-reader activation is a click with no press before it (Codex on #2533).
+  document.addEventListener('pointerdown', (e) => { if (!isBack(e)) BS_SCROLL.clearBack(); }, true);
+  document.addEventListener('click', (e) => { if (isBack(e)) BS_SCROLL.markBack(); else BS_SCROLL.clearBack(); }, true);
+}
+// The page's identity across a remount: the first element it draws (and, under a plain wrapper,
+// the one inside it) and that element's title. Read from the first render, so data that arrives
+// later can't change it.
+function bsFirstEl(node) {
+  if (node == null || typeof node === 'boolean' || typeof node === 'string' || typeof node === 'number') return null;
+  if (Array.isArray(node)) { for (const n of node) { const e = bsFirstEl(n); if (e) return e; } return null; }
+  if (node.type === React.Fragment) return bsFirstEl(node.props && node.props.children);
+  return node.props ? node : null;
+}
+function bsPageSig(children) {
+  const e = bsFirstEl(children);
+  if (!e) return null;
+  const types = [e.type];
+  let title = e.props.title != null ? bsTitleText(e.props.title) : '';
+  if (typeof e.type === 'string') {
+    const inner = bsFirstEl(e.props.children);
+    if (inner) { types.push(inner.type); if (!title && inner.props.title != null) title = bsTitleText(inner.props.title); }
+  }
+  return { types, title };
+}
+// Scroll el to y, and keep at it for a moment while the page's content loads in (a list that reads
+// from the server is short at first); the reader's own touch or wheel ends it at once.
+function bsRestoreScroll(el, y) {
+  let done = false;
+  let frames = 0;
+  const stop = () => {
+    done = true;
+    el.removeEventListener('touchstart', stop);
+    el.removeEventListener('wheel', stop);
+  };
+  el.addEventListener('touchstart', stop, { passive: true });
+  el.addEventListener('wheel', stop, { passive: true });
+  const step = () => {
+    if (done) return;
+    el.scrollTop = y;
+    frames += 1;
+    if (Math.abs(el.scrollTop - y) <= 1 || frames > 90) { stop(); return; }
+    requestAnimationFrame(step);
+  };
+  step();
+  return stop;
+}
 // A layer over the phone: a sheet or a takeover portalled in at z ≥ 10, nearly full height.
 function bsIsLayer(el, s, surfH) {
   const z = parseInt(s.zIndex, 10);
@@ -707,6 +766,34 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
   const pageRef = React.useCallback((el) => { if (el) BS_PAGE_BACKS.set(el, pageBack); }, [pageBack]);
   const setScroller = React.useCallback((el) => { scrollerRef.current = el; pageRef(el); }, [pageRef]);
 
+  // Back lands where you were (BS_SCROLL): this page's identity from its first render, the place it
+  // is scrolled to, remembered when it leaves going forward and taken back when a Back returns it.
+  const sigRef = useRefBS(undefined);
+  if (sigRef.current === undefined) sigRef.current = bsPageSig(children);
+  // A passive effect: a Back tapped is a discrete event, whose effects React runs before the paint.
+  useEffectBS(() => {
+    const el = scrollerRef.current;
+    if (!el) return undefined;
+    let lastY = el.scrollTop || 0;
+    const onScroll = () => { lastY = el.scrollTop; };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    const y = BS_SCROLL.arrive(sigRef.current);
+    const stop = y > 0 ? bsRestoreScroll(el, y) : null;
+    if (y > 0) lastY = y;
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (stop) stop();
+      BS_SCROLL.leave(sigRef.current, el.isConnected ? el.scrollTop : lastY);
+    };
+  }, []);
+  // The pinned bar shows ← once the page's own Back has scrolled under it, on every page with one.
+  const [pinBack, setPinBack] = useStateBS(false);
+  const runPinBack = () => {
+    const d = detailRef.current;
+    const fn = (detailText && detailShown && d && d.backRef.current) || pageBack();
+    if (typeof fn === 'function') { bsMarkBack(); fn(); }
+  };
+
   useEffectBS(() => {
     if (!mast) return undefined;
     const el = scrollerRef.current;
@@ -717,6 +804,7 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
       const d = detailRef.current;
       setMastCondensed(el.scrollTop > 64);
       setDetailShown(el.scrollTop > bsMastCondenseAt(el, d && d.titleRef.current, pinnedRef.current));
+      setPinBack(!!pageBack());
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
@@ -803,6 +891,14 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
   // shadow (the Wall's magazine look, owner 2026-10-24). Slides in only once
   // scrolled past the page's own masthead.
   const MastCorner = (typeof window !== 'undefined' && window.BSMastCorner) || null;
+  const pinBackButton = () => (
+    <button type="button" data-bs-pin-back="" onClick={runPinBack}
+      aria-label={tr('common:action.back', { defaultValue: 'Back' })} style={{
+        width: 44, height: 44, margin: '-5px -10px -5px -14px', padding: 0, flexShrink: 0,
+        display: 'grid', placeItems: 'center', background: 'transparent', border: 0, cursor: 'pointer',
+        color: t.INK, fontSize: 18, lineHeight: 1,
+      }}><span aria-hidden>←</span></button>
+  );
   const mastReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const pinnedMast = mast ? (
     // ⚠ `data-bs-pinned-mast` IS AN ANCHOR, NOT DECORATION. This bar hangs OVER
@@ -837,17 +933,19 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
         // A detail page's one line: ←, its title, and the corner. The ← is drawn in the corner's
         // 34px row and reaches 44px with negative margins, so the bar keeps its height.
         <div data-bs-detail-bar="" style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 34 }}>
-          <button type="button" onClick={() => { const d = detailRef.current; if (d && d.backRef.current) d.backRef.current(); }}
-            aria-label={tr('common:action.back', { defaultValue: 'Back' })} style={{
-              width: 44, height: 44, margin: '-5px -10px -5px -14px', padding: 0, flexShrink: 0,
-              display: 'grid', placeItems: 'center', background: 'transparent', border: 0, cursor: 'pointer',
-              color: t.INK, fontSize: 18, lineHeight: 1,
-            }}><span aria-hidden>←</span></button>
+          {pinBackButton()}
           <div style={{
             flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, lineHeight: 1.15,
             letterSpacing: '-0.02em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>{detailText}</div>
           {(MastCorner && !bareMast) ? <MastCorner /> : null}
+        </div>
+      ) : (mastCondensed && pinBack) ? (
+        // Any other page with a Back: the same ← at the bar's left, then the logo row. The page's own
+        // ← Back has scrolled under the bar, so Back stays where it is on every page, scrolled or not.
+        <div data-bs-pin-bar="" style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 34 }}>
+          {pinBackButton()}
+          <div style={{ flex: 1, minWidth: 0 }}><BSMastRow trailing={(MastCorner && !bareMast) ? <MastCorner /> : null} /></div>
         </div>
       ) : (
         <BSMastRow trailing={(MastCorner && !bareMast) ? <MastCorner /> : null} />
@@ -1057,6 +1155,14 @@ const BS_MAST_TOP = 44;
 // role modules all load after), so it is the only safe owner for a value the
 // downstream corner clusters share.
 const BS_CORNER_GAP = 9;
+// THE BACK SLOT'S GEOMETRY (owner, 2026-10-31: "it needs to be in the same place on every screen if
+// that screen needs to have a back button"). The masthead row is always the corner's height, and the
+// back row sits BS_BACK_ROW_GAP under it, BS_BACK_ROW_H tall (a full tap target), its ← at the page
+// gutter. Every page header draws it through BSBackRow, so the ← lands at one x and one y on every
+// screen; tests/back-placement.test.mjs keeps hand-drawn Backs out.
+const BS_MAST_ROW_H = 34;
+const BS_BACK_ROW_GAP = 4;
+const BS_BACK_ROW_H = 44;
 // The same inset as a CSS value, and the NATIVE CONTRACT it encodes:
 //
 //   The WebView is NOT host-inset on either platform — it spans the whole
@@ -1112,6 +1218,9 @@ const BS_CORNER_GAP = 9;
 //   Use this for padding; use BS_MAST_TOP (the number) only for arithmetic, and
 //   never as a bare `${BS_MAST_TOP}px` inset on a live surface.
 const BS_MAST_TOP_CSS = `max(${BS_MAST_TOP}px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))`;
+// Where the back row's top edge falls, for a screen with no masthead row of its own that places its
+// Back absolutely (the sign-in and coach-application screens): the same y as on every app page.
+const BS_BACK_SLOT_TOP_CSS = `calc(${BS_MAST_TOP_CSS} + ${BS_MAST_ROW_H + BS_BACK_ROW_GAP}px)`;
 
 function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false }) {
   const t = useBS();
@@ -1168,7 +1277,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
         </>
       )}
 
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: title ? (compact ? 4 : 10) : 6 }}>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H, marginBottom: onBack ? 0 : (title ? (compact ? 4 : 10) : 6) }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BSLogo size={16} color={t.INK} />
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>
@@ -1180,11 +1289,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
 
       {/* Universal back slot — ← BACK on its own row, flush left, directly
           under the masthead row (never top-right; see BSBackButton's rule). */}
-      {onBack && (
-        <div style={{ position: 'relative', zIndex: 1, marginBottom: title ? 6 : 0 }}>
-          <BSBackButton onClick={onBack} />
-        </div>
-      )}
+      {onBack && <BSBackRow onBack={onBack} style={{ position: 'relative', zIndex: 1, marginBottom: title ? 2 : 0 }} />}
 
       {title && (
         <div style={{
@@ -1211,14 +1316,18 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
 // The standing masthead row — SHAPE logo + "Vol. 1 · No. 1" (+ optional right
 // tools). This strip opens EVERY page; BSMasthead/BSPageHeader embed their own
 // copy, so reach for this on screens with fully custom headers.
-function BSMastRow({ trailing = null, size = 16, style = null }) {
+// ⚠ ONE HEIGHT, CORNER OR NOT (owner, 2026-10-31: the back "needs to be in the same place on every
+// screen"). A row with no corner was the logo's 16px, so the back under it sat 18px higher than on a
+// page with the 34px corner. minHeight is the corner's, so the back row lands at one y everywhere.
+// `ink` is for a dark ground of the page's own (a photo, the meal band); it defaults to the theme's.
+function BSMastRow({ trailing = null, size = 16, style = null, ink = null }) {
   const t = useBS();
   useBSReportBareMast(trailing == null);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, ...style }}>
+    <div data-bs-mast-row="" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H, ...style }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <BSLogo size={size} color={t.INK} />
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+        <BSLogo size={size} color={ink || t.INK} />
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: ink || t.INK70, opacity: ink ? 0.75 : 1 }}>Vol. 1 · No. 1</div>
       </div>
       {trailing}
     </div>
@@ -1231,7 +1340,7 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, o
   useBSReportBareMast(trailing == null);
   return (
     <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 14px` }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BSLogo size={16} color={t.INK} />
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>
@@ -1241,11 +1350,7 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, o
         {trailing}
       </div>
       {/* Universal back slot — own row, flush left, under the masthead row. */}
-      {onBack && (
-        <div style={{ marginTop: 12 }}>
-          <BSBackButton onClick={onBack} />
-        </div>
-      )}
+      {onBack && <BSBackRow onBack={onBack} />}
       {kicker && (
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 600 }}>
           {kicker}
@@ -2062,7 +2167,11 @@ function BSPhone({ children }) {
 // row (logo + Vol·No + corners). The page's eyebrow/meta may share that row on
 // the right. Never inside the masthead row, never top-right, never bottom.
 // BSDetailHeader (client) and BSMasthead/BSPageHeader's `onBack` slot are the
-// canonical implementations — new pages use one of those, not an ad-hoc copy.
+// canonical implementations — new pages use one of those, or BSBackRow under a
+// BSMastRow, never an ad-hoc copy (owner, 2026-10-31: "it needs to be in the same
+// place on every screen"; tests/back-placement.test.mjs). The one exception is the
+// scrolled state: once a detail title scrolls under the pinned bar, the bar shows
+// ← and the title in one line (BSPage), as the owner asked for.
 // The i18n translator for this shared-chrome module. Mirrors client.jsx's
 // useShapeTr — self-contained on the window globals (ShapeI18n/ShapeLocale),
 // so the chrome primitives here don't depend on client.jsx's copy or its load
@@ -2098,7 +2207,7 @@ function BSSettingsCorner({ size = 34, ink = null, onClick = null }) {
   );
 }
 
-function BSBackButton({ onClick, label = null, style }) {
+function BSBackButton({ onClick, label = null, style, ink = null, disabled = false }) {
   const t = useBS();
   const tr = useShapeTr();
   // Default label localizes to the shared common:action.back; a caller that
@@ -2107,19 +2216,38 @@ function BSBackButton({ onClick, label = null, style }) {
   // This Back is its page's, for the swipe (BSPageBackCtx): a swipe right does what a tap here does.
   const pageBacks = useContextBS(BSPageBackCtx);
   const fnRef = useRefBS(onClick);
-  fnRef.current = onClick;
+  fnRef.current = disabled ? null : onClick;
   const elRef = useRefBS(null);
   useEffectBS(() => (pageBacks && pageBacks.add ? pageBacks.add({ fn: fnRef, el: elRef }) : undefined), [pageBacks]);
+  // The ← sits on the page gutter (no left padding) and the button fills the back row's height, so
+  // the whole row is the tap target; the padding on the right widens it past the word.
   return (
-    <button ref={elRef} type="button" data-bs-back="" onClick={onClick} aria-label={lbl} style={{
+    <button ref={elRef} type="button" data-bs-back="" onClick={(e) => { bsMarkBack(); if (onClick) onClick(e); }} disabled={disabled} aria-label={lbl} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
       background: 'transparent', border: 0,
-      padding: '8px 2px', cursor: 'pointer', color: t.INK,
+      minHeight: BS_BACK_ROW_H, padding: '0 12px 0 0', cursor: disabled ? 'default' : 'pointer', color: ink || t.INK,
+      opacity: disabled ? 0.45 : 1,
       fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em',
       textTransform: 'uppercase', lineHeight: 1, flexShrink: 0, ...style,
     }}>
       <span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>←</span>{lbl}
     </button>
+  );
+}
+
+// THE back slot: the row directly under the masthead row, ← Back flush left at the gutter, the
+// page's eyebrow or status on the right (BS_BACK_ROW_* above). Every page that has a Back draws it
+// here — BSDetailHeader, BSMasthead and BSPageHeader's onBack, and the hand-built headers — so it is
+// in the same place on every screen. `ink` for a dark ground of the page's own (a photo, a band).
+function BSBackRow({ onBack, label = null, trailing = null, ink = null, disabled = false, style = null, buttonStyle = null }) {
+  return (
+    <div data-bs-back-row="" style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      minHeight: BS_BACK_ROW_H, marginTop: BS_BACK_ROW_GAP, ...style,
+    }}>
+      <BSBackButton onClick={onBack} label={label} ink={ink} disabled={disabled} style={buttonStyle} />
+      {trailing}
+    </div>
   );
 }
 // ═══ Swipe navigation (spec 2026-07-09 §4 · PR C) ═══════════════════════════
@@ -2212,7 +2340,10 @@ function BSNavGestures() {
     bsInjectNavSwipeCss();
     const surf = document.getElementById('bs-phone-surface') || document.body;
     const reduced = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    const dispatch = (intent) => { try { window.dispatchEvent(new CustomEvent('shape:navGesture', { detail: { intent } })); } catch (err) {} };
+    const dispatch = (intent) => {
+      if (intent === 'back') bsMarkBack();
+      try { window.dispatchEvent(new CustomEvent('shape:navGesture', { detail: { intent } })); } catch (err) {}
+    };
     // The page that came back settles in from the left, as a tab swipe's does. Two frames on,
     // so React has drawn the page the Back opened.
     const settleIn = (x, y) => requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -2253,7 +2384,7 @@ function BSNavGestures() {
       leaving = true;
       place(d.el, w, 170);
       setTimeout(() => {
-        try { if (d.back) d.back(); else dispatch('back'); } finally {
+        try { if (d.back) { bsMarkBack(); d.back(); } else dispatch('back'); } finally {
           requestAnimationFrame(() => requestAnimationFrame(() => { clear(d.el); leaving = false; }));
           settleIn(d.x, d.y);
         }
@@ -2328,6 +2459,7 @@ function BSNavGestures() {
       // A page with its own Back goes back the way that Back does (bsSwipeBackRoute).
       const { back } = bsPageBackFor(st.target, surf);
       if (bsSwipeBackRoute({ intent, hasPageBack: !!back }) === 'page') {
+        bsMarkBack();
         back();
         settleIn(st.cx + 60, st.y0);
         return;
@@ -2350,10 +2482,12 @@ function BSNavGestures() {
 }
 
 Object.assign(window, {
-  BSContext, BSProvider, useBS, BSBackButton, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
+  BSContext, BSProvider, useBS, BSBackButton, BSBackRow, BS_MAST_ROW_H, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
   BSPage, useBSDetailBar, bsTitleText, bsMastCondenseAt, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
-  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_CORNER_GAP,
+  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_BACK_SLOT_TOP_CSS, BS_CORNER_GAP,
   // The settings texture picker paints live pattern-preview tiles with this.
   bsMakeTexture: makeTexture,
+  // Back lands where you were: the shells' navBack (the phone's back) marks its Back with this.
+  bsMarkBack,
 });

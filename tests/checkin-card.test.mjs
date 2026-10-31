@@ -31,6 +31,10 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const React = require_('react');
 const ReactDOMClient = require_('react-dom/client');
 const CARD = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSCheckinCard.jsx'), { registry: new Map([['react', React], ['react-dom', require_('react-dom')]]) });
+// The real chrome: the check-in draws the masthead row and the back row every page has (BSMastRow,
+// BSBackRow), so its × and ← Back are the chrome's own (owner, 2026-10-31). Loaded before the theme
+// stub below, which stays the card's own useBS.
+await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), { registry: new Map([['react', React]]) });
 const { THRESHOLDS } = require_('../public/newdesign/dashSignals.js');
 
 const appRequire = createRequire(join(ROOT, 'mobile-app/package.json'));
@@ -83,7 +87,8 @@ async function mount(props = {}) {
   document.body.appendChild(host);
   const root = ReactDOMClient.createRoot(host);
   const flush = () => React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
-  await React.act(async () => { root.render(React.createElement(CARD.BSCheckinCard, props)); });
+  const tree = () => React.createElement(window.BSProvider, { paperMode: 'light', accentKey: 'teal' }, React.createElement(CARD.BSCheckinCard, props));
+  await React.act(async () => { root.render(tree()); });
   await flush();
   const buttons = (re) => [...document.body.querySelectorAll('button')].filter((b) => re.test(b.textContent.trim()) || re.test(b.getAttribute('aria-label') || ''));
   const click = async (re, nth = 0) => {
@@ -95,7 +100,7 @@ async function mount(props = {}) {
   return {
     host,
     flush,
-    rerender: async () => { await React.act(async () => { root.render(React.createElement(CARD.BSCheckinCard, props)); }); await flush(); },
+    rerender: async () => { await React.act(async () => { root.render(tree()); }); await flush(); },
     button: (re) => buttons(re)[0],
     text: () => document.body.textContent,
     walk: () => document.querySelector('[data-bs-checkin-walk]'),
