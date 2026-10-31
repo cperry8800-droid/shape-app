@@ -92,7 +92,8 @@ test('the Next app shows the banner, off the /connect pages, and its chat button
       ['@vercel/analytics/next', { Analytics: () => null }],
       ['@/lib/signup-source.mjs', await import('../src/lib/signup-source.mjs')],
       ['next/script', { __esModule: true, default: (props) => React.createElement('script', { 'data-src': props.src, 'data-strategy': props.strategy }) }],
-      ['next/navigation', { usePathname: () => path }],
+      ['next/navigation', { usePathname: () => path, useParams: () => ({}) }],
+      ['@vercel/analytics', { computeRoute: (p) => p, pageview: () => {} }],
     ]),
   });
   // The component is compiled with the classic JSX runtime, which reads React from the global.

@@ -10,8 +10,10 @@
 // The website's own banner (/consent-banner.js) is loaded here too. The /connect pages are the
 // installed app's in-app browser, sent there to sign in to a music service and come back
 // (src/lib/integration-handoff.ts): no banner over that sign-in, as no chat button either.
+import { useEffect } from 'react';
 import Script from 'next/script';
-import { usePathname } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
+import { computeRoute, pageview } from '@vercel/analytics';
 import { Analytics, type BeforeSendEvent } from '@vercel/analytics/next';
 import { allowedOn } from '@/lib/signup-source.mjs';
 
@@ -25,8 +27,42 @@ export function consentBannerHidden(pathname: string | null | undefined): boolea
   return p === '/connect' || p.startsWith('/connect/');
 }
 
+// ⚠ THE PAGE WHERE THE BANNER WAS ACCEPTED WENT UNCOUNTED (Codex on #2530). <Analytics> sends a
+// page's view as the page opens, and with no answer yet in the EEA or the UK the check above drops
+// it. The website's gate loads Vercel's script on the Accept, so that page counts then. Here, a
+// page whose view was dropped listens for the answer (the banner's shape:consent event, or another
+// tab's choice) and sends its view once, if the rule allows it by then. A page whose view went
+// through listens for nothing.
+export function recountOnAccept(win: Window, allowed: () => boolean, send: () => void): () => void {
+  if (allowed()) return () => {};
+  let sent = false;
+  const recount = () => {
+    if (sent || !allowed()) return;
+    sent = true;
+    send();
+  };
+  const onStorage = (e: StorageEvent) => {
+    if (!e.key || e.key === 'shape.consent.v1') recount();
+  };
+  win.addEventListener('shape:consent', recount);
+  win.addEventListener('storage', onStorage);
+  return () => {
+    win.removeEventListener('shape:consent', recount);
+    win.removeEventListener('storage', onStorage);
+  };
+}
+
 export default function ConsentAnalytics() {
   const pathname = usePathname();
+  const params = useParams();
+  // The route by <Analytics>' own computeRoute, from the page's params, so the view lands on the page.
+  // A catch-all segment that is absent is undefined in Next's params, and isn't in the path.
+  const defined = Object.fromEntries(Object.entries(params ?? {}).filter((e): e is [string, string | string[]] => e[1] !== undefined));
+  const route = pathname ? computeRoute(pathname, defined) : null;
+  useEffect(() => {
+    if (!pathname) return;
+    return recountOnAccept(window, () => allowedOn(window), () => pageview({ route, path: pathname }));
+  }, [pathname, route]);
   return (
     <>
       <Analytics beforeSend={consentBeforeSend} />

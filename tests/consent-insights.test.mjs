@@ -124,7 +124,8 @@ test('the Next app\'s check is the same rule, read at each event', async () => {
       ['@vercel/analytics/next', { Analytics: () => null }],
       ['@/lib/signup-source.mjs', signup],
       ['next/script', { __esModule: true, default: () => null }],
-      ['next/navigation', { usePathname: () => '/' }],
+      ['next/navigation', { usePathname: () => '/', useParams: () => ({}) }],
+      ['@vercel/analytics', { computeRoute: (p) => p, pageview: () => {} }],
     ]),
   });
   const store = new Map();
@@ -198,4 +199,95 @@ test('a Reject puts the launcher back too, and outside the EEA and the UK nothin
   const us = await bannerPage('America/New_York');
   assert.ok(!us.win.document.querySelector('[aria-label="Cookie consent"]'), 'a banner outside the EEA and the UK');
   assert.ok(!us.win.document.documentElement.classList.contains('shape-consent-open'));
+});
+
+// ── The Next page where the banner is accepted is counted (Codex on #2530) ───
+// <Analytics> sends a page's view as it opens; with no answer yet in the EEA or the UK the check
+// drops it. A page whose view was dropped sends it once the banner is accepted, as the website's
+// gate does by loading Vercel's script on the Accept.
+async function loadWrapper(state) {
+  const { loadRealModule } = await import('./helpers/load-real-module.mjs');
+  const analytics = require('@vercel/analytics');
+  return loadRealModule(join(ROOT, 'src/components/ConsentAnalytics.tsx'), {
+    typescript: true,
+    registry: new Map([
+      ['@vercel/analytics/next', { Analytics: () => null }],
+      ['@vercel/analytics', { computeRoute: analytics.computeRoute, pageview: (v) => state.views.push(v) }],
+      ['@/lib/signup-source.mjs', { allowedOn: () => state.allowed }],
+      ['next/script', { __esModule: true, default: () => null }],
+      ['next/navigation', { usePathname: () => state.path, useParams: () => state.params }],
+    ]),
+  });
+}
+
+test('recountOnAccept: a dropped view is sent once, on an answer that allows it', () => {
+  const run = async () => {
+    const { recountOnAccept } = await loadWrapper({ views: [] });
+    const win = new JSDOM('<!doctype html><p></p>', { url: 'https://shape.test/' }).window;
+    let allowed = false;
+    let sent = 0;
+    const stop = recountOnAccept(win, () => allowed, () => { sent += 1; });
+    win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'reject' }));
+    assert.equal(sent, 0, 'sent on a Reject');
+    allowed = true;
+    win.dispatchEvent(new win.StorageEvent('storage', { key: 'some.other.key' }));
+    assert.equal(sent, 0, 'sent on another key');
+    win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'accept' }));
+    assert.equal(sent, 1, 'not sent on the Accept');
+    win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'accept' }));
+    win.dispatchEvent(new win.StorageEvent('storage', { key: 'shape.consent.v1' }));
+    assert.equal(sent, 1, 'sent twice');
+    stop();
+    // Another tab's Accept.
+    let other = 0;
+    allowed = false;
+    const stop2 = recountOnAccept(win, () => allowed, () => { other += 1; });
+    allowed = true;
+    win.dispatchEvent(new win.StorageEvent('storage', { key: 'shape.consent.v1' }));
+    assert.equal(other, 1);
+    stop2();
+    // Removed on cleanup.
+    let late = 0;
+    allowed = false;
+    recountOnAccept(win, () => allowed, () => { late += 1; })();
+    allowed = true;
+    win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'accept' }));
+    assert.equal(late, 0, 'still listening after cleanup');
+    // A view that went through: nothing to send again.
+    let again = 0;
+    recountOnAccept(win, () => true, () => { again += 1; });
+    win.dispatchEvent(new win.CustomEvent('shape:consent', { detail: 'accept' }));
+    assert.equal(again, 0, 'a counted view sent again');
+  };
+  return run();
+});
+
+test('the Next wrapper, mounted, sends the page\'s view on the Accept, under its route', async () => {
+  const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'https://shape.test/trainers/12' });
+  const saved = { window: globalThis.window, document: globalThis.document, act: globalThis.IS_REACT_ACT_ENVIRONMENT };
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const savedReact = globalThis.React;
+  try {
+    const React = require('react');
+    globalThis.React = React;
+    const { createRoot } = require('react-dom/client');
+    const state = { views: [], allowed: false, path: '/trainers/12', params: { id: '12' } };
+    const mod = await loadWrapper(state);
+    const root = createRoot(dom.window.document.getElementById('root'));
+    await React.act(async () => { root.render(React.createElement(mod.default)); });
+    assert.deepEqual(state.views, [], 'sent before an answer');
+    state.allowed = true;
+    await React.act(async () => { dom.window.dispatchEvent(new dom.window.CustomEvent('shape:consent', { detail: 'accept' })); });
+    assert.deepEqual(state.views, [{ route: '/trainers/[id]', path: '/trainers/12' }]);
+    await React.act(async () => { dom.window.dispatchEvent(new dom.window.CustomEvent('shape:consent', { detail: 'accept' })); });
+    assert.equal(state.views.length, 1, 'sent twice');
+    await React.act(async () => { root.unmount(); });
+  } finally {
+    globalThis.window = saved.window;
+    globalThis.document = saved.document;
+    globalThis.IS_REACT_ACT_ENVIRONMENT = saved.act;
+    globalThis.React = savedReact;
+  }
 });

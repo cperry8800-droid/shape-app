@@ -47,5 +47,11 @@ export default {
     { name: 'the route writes for a visitor not signed in', file: R, find: '  if (!user) return NextResponse.json({ logged: false }, { status: 401 });', replace: '' },
     { name: 'the route logs GPC every time', file: R, find: "      if (data && data.length) return NextResponse.json({ logged: true });", replace: '' },
     { name: 'the route says logged on a failed write', file: R, find: "    if (error) throw error;\n    return NextResponse.json({ logged: true });", replace: "    return NextResponse.json({ logged: true });" },
+    // ── The Next page where the banner is accepted is counted (Codex on #2530) ──
+    { name: 'the Next page is not counted on the Accept', file: N, find: '    return recountOnAccept(window, () => allowedOn(window), () => pageview({ route, path: pathname }));', replace: '    return;' },
+    { name: 'the view is sent under its path, not its route', file: N, find: '() => pageview({ route, path: pathname })', replace: '() => pageview({ route: pathname, path: pathname })' },
+    { name: 'the view is sent on a Reject', file: N, find: '    if (sent || !allowed()) return;', replace: '    if (sent) return;' },
+    { name: 'the view is sent twice', file: N, find: '    if (sent || !allowed()) return;', replace: '    if (!allowed()) return;' },
+    { name: 'a counted view is sent again', file: N, find: '  if (allowed()) return () => {};\n', replace: '' },
   ],
 };
