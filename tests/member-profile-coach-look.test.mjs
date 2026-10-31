@@ -211,3 +211,29 @@ test('your climb can be the tier alone: the last other source turns off, stays o
   assert.match(fn, /if \(climb && Array\.isArray\(climb\.shown\)\) setClimbShown\(/);
   assert.doesNotMatch(fn, /if \(!next\.length\) next = \[k\];/);
 });
+
+test('the tier climb\'s points are in the reader\'s unit', () => {
+  // Codex P2 on #2546: "pts" was written in English on all three of its figures (de reads "Pkt.").
+  const cat = (loc, ns) => JSON.parse(readFileSync(new URL(`../mobile-app/src/i18n/catalogs/${loc}/${ns}.json`, import.meta.url), 'utf8'));
+  const DE = { profile: cat('de', 'profile'), score: cat('de', 'score') };
+  const was = globalThis.window.ShapeI18n;
+  globalThis.window.ShapeI18n = {
+    t: (key, opts = {}) => {
+      const m = /^(profile|score):(.+)$/.exec(key);
+      const msg = m ? DE[m[1]][m[2]] : null;
+      return msg == null ? undefined : new IntlMessageFormat(msg, 'de').format(opts);
+    },
+  };
+  try {
+    signedOut();
+    const d = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
+    d.nodes().find(named('BSTerrainTabs')).props.onPick('climb');
+    d.render();
+    const figs = d.nodes().filter((n) => n.type === 'div' && n.props && n.props.style && n.props.style.fontSize === 14.5).map(textOf);
+    assert.equal(figs.length, 3, 'the ridge\'s three figures');
+    for (const f of figs) {
+      assert.match(f, /Pkt\./, `"${f}" is not in the reader's unit`);
+      assert.doesNotMatch(f, /\bpts\b/);
+    }
+  } finally { globalThis.window.ShapeI18n = was; }
+});

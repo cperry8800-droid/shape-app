@@ -18716,12 +18716,14 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       // one" arc labels its two ends with the SAME name and points (it read
       // "Legend 15,000 pts → Legend 15,000 pts"). The top state spans the WHOLE
       // ladder instead: first rung → the tier they hold.
-      const startRung = last ? [NM[0], `${TH[0].toLocaleString(bsDateLocale())} pts`, 'start'] : [NM[i], `${floor.toLocaleString(bsDateLocale())} pts`, 'start'];
+      // Points in the reader's unit (de "Pkt.", ru "очк."; Codex P2 on #2546), as the head's meta line.
+      const ptsOf = (n) => `${Number(n).toLocaleString(bsDateLocale())} ${tr('score:unit.pts', { defaultValue: 'pts' })}`;
+      const startRung = last ? [NM[0], ptsOf(TH[0]), 'start'] : [NM[i], ptsOf(floor), 'start'];
       const tierPct = last ? 1 : Math.max(0.04, Math.min(0.98, (pts - floor) / Math.max(1, next - floor)));
       // The % the head's mountain carried, now on "Now" (owner, 2026-10-31: the climb in its tab).
-      const nowFig = last ? `${pts.toLocaleString(bsDateLocale())} pts` : `${pts.toLocaleString(bsDateLocale())} pts · ${Math.round(tierPct * 100)}%`;
+      const nowFig = last ? ptsOf(pts) : `${ptsOf(pts)} · ${Math.round(tierPct * 100)}%`;
       // The target flies the next tier's colour, as the head's summit flag did; at the top, their own.
-      return { arc: [startRung, [tr('profile:ridge.now', { defaultValue: 'Now' }), nowFig, 'now'], [nextName, `${next.toLocaleString(bsDateLocale())} pts`, 'target']], pct: tierPct, summit: last ? 'Legend tier' : `${nextName} tier`, targetC: last ? c : bsTierColor(nextName) };
+      return { arc: [startRung, [tr('profile:ridge.now', { defaultValue: 'Now' }), nowFig, 'now'], [nextName, ptsOf(next), 'target']], pct: tierPct, summit: last ? 'Legend tier' : `${nextName} tier`, targetC: last ? c : bsTierColor(nextName) };
     }
     if (aspect === 'streak') {
       const s = Number(streakEff) || 0, target = Math.max(7, Math.ceil((s + 1) / 7) * 7);
