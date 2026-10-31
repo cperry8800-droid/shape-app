@@ -18714,13 +18714,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       // ⚠ At the LAST rung there is no next tier, so a "this tier → the next
       // one" arc labels its two ends with the SAME name and points (it read
       // "Legend 15,000 pts → Legend 15,000 pts"). The top state spans the WHOLE
-      // ladder instead — first rung → the tier they hold — which is the same
-      // re-frame the hero ascent makes, so the two ridges agree on this page.
+      // ladder instead: first rung → the tier they hold.
       const startRung = last ? [NM[0], `${TH[0].toLocaleString(bsDateLocale())} pts`, 'start'] : [NM[i], `${floor.toLocaleString(bsDateLocale())} pts`, 'start'];
       const tierPct = last ? 1 : Math.max(0.04, Math.min(0.98, (pts - floor) / Math.max(1, next - floor)));
       // The % the head's mountain carried, now on "Now" (owner, 2026-10-31: the climb in its tab).
       const nowFig = last ? `${pts.toLocaleString(bsDateLocale())} pts` : `${pts.toLocaleString(bsDateLocale())} pts · ${Math.round(tierPct * 100)}%`;
-      return { arc: [startRung, [tr('profile:ridge.now', { defaultValue: 'Now' }), nowFig, 'now'], [nextName, `${next.toLocaleString(bsDateLocale())} pts`, 'target']], pct: tierPct, summit: last ? 'Legend tier' : `${nextName} tier` };
+      // The target flies the next tier's colour, as the head's summit flag did; at the top, their own.
+      return { arc: [startRung, [tr('profile:ridge.now', { defaultValue: 'Now' }), nowFig, 'now'], [nextName, `${next.toLocaleString(bsDateLocale())} pts`, 'target']], pct: tierPct, summit: last ? 'Legend tier' : `${nextName} tier`, targetC: last ? c : bsTierColor(nextName) };
     }
     if (aspect === 'streak') {
       const s = Number(streakEff) || 0, target = Math.max(7, Math.ceil((s + 1) / 7) * 7);
@@ -19014,7 +19014,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   {/* hollow ink start square · heat now dot (pops) · hollow heat target */}
                   <rect x={xs[0] - 4} y={ys[0] - 4} width="8" height="8" fill="none" stroke={bsTHexA(INK, 0.5)} strokeWidth="1.5" />
                   <circle cx={xs[1]} cy={ys[1]} r="5" fill={c} style={reduced ? null : { transformOrigin: `${xs[1]}px ${ys[1]}px`, animation: 'bsSdPop 320ms cubic-bezier(.2,1.1,.3,1) 1350ms both' }} />
-                  <circle cx={xs[2]} cy={ys[2]} r="4.5" fill="none" stroke={c} strokeWidth="1.5" />
+                  <circle cx={xs[2]} cy={ys[2]} r="4.5" fill="none" stroke={climbCfg.targetC || c} strokeWidth="1.5" />
                 </svg>
                 );
               })()}
