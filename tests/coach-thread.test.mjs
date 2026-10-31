@@ -656,11 +656,13 @@ test('the app opens the membership welcome ("home") and a new client with no thr
   // Clients screen opens that client once the roster has them, and only them.
   const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
   assert.equal((pros.match(/window\.addEventListener\('shape:openClient', open\);/g) || []).length, 2);
-  assert.equal((pros.match(/setOpenClientReq\(\{ clientId, nonce: Date\.now\(\) \}\); setTab\('clients'\);/g) || []).length, 2);
+  // By id, or by the booked name when a booking carries none (the Up next card's "Open their file",
+  // owner 2026-10-31: tests/coach-up-next.test.mjs).
+  assert.equal((pros.match(/setOpenClientReq\(\{ clientId: clientId \|\| null, clientName, nonce: Date\.now\(\) \}\); setTab\('clients'\);/g) || []).length, 2);
   for (const [fn, list] of [['BSTrainerClients', 'COACH_CLIENTS'], ['BSNutriClients', 'NUTRI_CLIENTS']]) {
     assert.match(pros, new RegExp(`clients:  <${fn} sheet=\\{sheet\\} openRequest=\\{openClientReq\\} onOpenConsumed=\\{\\(\\) => setOpenClientReq\\(null\\)\\} />`), fn);
     const body = pros.slice(pros.indexOf(`function ${fn}(`), pros.indexOf(`function ${fn}(`) + 3000);
-    assert.match(body, new RegExp(`if \\(!openRequest \\|\\| !openRequest\\.clientId \\|\\| rosterStatus === 'loading'\\) return;\\s+const hit = ${list}\\.find\\(\\(c\\) => c\\.userId === openRequest\\.clientId\\);\\s+if \\(hit\\) \\{ setPreviewClient\\(null\\); setFullClient\\(hit\\); \\}\\s+onOpenConsumed\\(\\);`), fn);
+    assert.match(body, new RegExp(`if \\(!openRequest \\|\\| !\\(openRequest\\.clientId \\|\\| openRequest\\.clientName\\) \\|\\| rosterStatus === 'loading'\\) return;\\s+const hit = openRequest\\.clientId \\? ${list}\\.find\\(\\(c\\) => c\\.userId === openRequest\\.clientId\\) : bsProRosterByName\\(${list}, openRequest\\.clientName\\);\\s+if \\(hit\\) \\{ setPreviewClient\\(null\\); setFullClient\\(hit\\); \\}\\s+onOpenConsumed\\(\\);`), fn);
   }
 });
 
@@ -846,7 +848,7 @@ test('both coach shells answer every route, and a client of the other listing is
       assert.ok(body.includes(`window.addEventListener('${ev}',`), `${role}: ${ev}`);
     }
     // The handover: the route is left for the other shell, which replays it once its listeners are up.
-    assert.match(body, new RegExp(`if \\(\\(other === 'trainer' \\|\\| other === 'nutritionist'\\) && other !== '${role}'\\) \\{\\s+window\\.__bsPushRoute = 'client:' \\+ other \\+ ':' \\+ clientId;\\s+setTweak\\('role', other\\);\\s+return;`), role);
+    assert.match(body, new RegExp(`if \\(clientId && \\(other === 'trainer' \\|\\| other === 'nutritionist'\\) && other !== '${role}'\\) \\{\\s+window\\.__bsPushRoute = 'client:' \\+ other \\+ ':' \\+ clientId;\\s+setTweak\\('role', other\\);\\s+return;`), role);
     assert.match(body, /if \(pending\) \{ window\.__bsPushRoute = null; replay = setTimeout\(\(\) => bsRouteNotification\(pending\), 0\); \}/, `${role}: the replay`);
     // Handed over, the route names the receiving shell's own role, so it opens there and goes no further.
     assert.deepEqual(routed(`client:${other}:u-1`).out, [['shape:openClient', { clientId: 'u-1', providerRole: other, fromNotification: true }]]);

@@ -1320,11 +1320,12 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   useEffectBSP(() => {
     const open = (e) => {
       const clientId = e && e.detail && e.detail.clientId;
-      if (!clientId) return;
+      const clientName = !clientId && e && e.detail && typeof e.detail.clientName === 'string' ? e.detail.clientName.trim() : '';
+      if (!clientId && !clientName) return;
       // A client of the account's OTHER listing (Codex on #2360): this roster holds only
       // trainers' clients, so hand the route to that role's shell, which replays it on mount.
       const other = e.detail.providerRole;
-      if ((other === 'trainer' || other === 'nutritionist') && other !== 'trainer') {
+      if (clientId && (other === 'trainer' || other === 'nutritionist') && other !== 'trainer') {
         window.__bsPushRoute = 'client:' + other + ':' + clientId;
         setTweak('role', other);
         return;
@@ -1333,7 +1334,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
       setShowCalendar(false); setShowReviews(false); setShowHabits(false);
       setQueueView(null); setLiveWatch(null); setShowSearch(false);
-      setOpenClientReq({ clientId, nonce: Date.now() }); setTab('clients');
+      setOpenClientReq({ clientId: clientId || null, clientName, nonce: Date.now() }); setTab('clients');
     };
     window.addEventListener('shape:openClient', open);
     // The membership welcome ("home") on an account that is a coach now: their Today.
@@ -1718,19 +1719,21 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   }, [isNutri, calendarReload, calendarOwner, calendarWeek]);
   // Per-day bookings dataset (demo). "Today" (offset 0) is always the busy
   // roster regardless of the real weekday. Trainer keys off 21; nutritionist off 22.
+  // The sample week books the sample trainer's own roster (bsTrainerDemoRoster), so "Open their file"
+  // on a sample booking opens that client; the 22nd's intake (Tasha Yeo) is someone not yet a client.
   const TRAINER_BOOKINGS = {
     20: [
       { time: '08:00', tag: 'LIVE', tagColor: t.RUST, title: 'Alex Rivera',    sub: 'Lower Pull · 60m', state: 'done' },
       { time: '11:30', tag: 'LIVE', tagColor: t.RUST, title: 'Riley Kim',      sub: 'Conditioning · 45m', state: 'done' },
-      { time: '15:00', tag: 'ASYN', tagColor: t.BLUE, title: 'Drew Park · review', sub: 'Form check · 6 clips', state: 'done', last: true },
+      { time: '15:00', tag: 'ASYN', tagColor: t.BLUE, title: 'Bailey Cruz · review', sub: 'Form check · 6 clips', state: 'done', last: true },
     ],
     21: [
       { time: '07:00', tag: 'LIVE', tagColor: t.RUST,  title: 'Alex Rivera',     sub: 'Upper Push — Peak · 60m', state: 'done' },
-      { time: '08:30', tag: 'LIVE', tagColor: t.RUST,  title: 'Sam Patel',       sub: 'Conditioning · 45m',      state: 'done' },
+      { time: '08:30', tag: 'LIVE', tagColor: t.RUST,  title: 'Jamal Green',       sub: 'Conditioning · 45m',      state: 'done' },
       { time: '10:00', tag: 'ASYN', tagColor: t.BLUE,  title: 'Riley Kim · review', sub: 'Form check · 4 clips', state: 'next' },
-      { time: '13:00', tag: 'LIVE', tagColor: t.RUST,  title: 'Casey Lee',       sub: 'Lower Pull — Peak · 60m' },
-      { time: '14:30', tag: 'LIVE', tagColor: t.RUST,  title: 'Drew Park',       sub: 'Upper Push — Peak · 45m' },
-      { time: '16:00', tag: 'INTK', tagColor: t.GREEN, title: 'New: Morgan Liu', sub: 'Intake call · 30m' },
+      { time: '13:00', tag: 'LIVE', tagColor: t.RUST,  title: 'Devon Pierce',       sub: 'Lower Pull — Peak · 60m' },
+      { time: '14:30', tag: 'LIVE', tagColor: t.RUST,  title: 'Bailey Cruz',       sub: 'Upper Push — Peak · 45m' },
+      { time: '16:00', tag: 'INTK', tagColor: t.GREEN, title: 'New: Marcus Lee', sub: 'Intake call · 30m' },
       { time: '17:30', tag: 'LIVE', tagColor: t.RUST,  title: 'Quinn Choi',      sub: 'Hypertrophy block 2 · 60m' },
       { time: '19:00', tag: 'PRGM', tagColor: t.AMBER, title: 'Block 3 release', sub: 'Push to all · auto-send', last: true },
     ],
@@ -1740,10 +1743,10 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
     ],
     23: [
       { time: '07:00', tag: 'LIVE', tagColor: t.RUST, title: 'Alex Rivera',  sub: 'Upper Push · 60m' },
-      { time: '11:00', tag: 'ASYN', tagColor: t.BLUE, title: 'Sam Patel · review', sub: 'Bench form · 3 clips', last: true },
+      { time: '11:00', tag: 'ASYN', tagColor: t.BLUE, title: 'Jamal Green · review', sub: 'Bench form · 3 clips', last: true },
     ],
     24: [
-      { time: '08:30', tag: 'LIVE', tagColor: t.RUST, title: 'Casey Lee',  sub: 'Lower Pull · 60m' },
+      { time: '08:30', tag: 'LIVE', tagColor: t.RUST, title: 'Devon Pierce',  sub: 'Lower Pull · 60m' },
       { time: '13:00', tag: 'LIVE', tagColor: t.RUST, title: 'Quinn Choi', sub: 'Conditioning · 45m', last: true },
     ],
     25: [],
@@ -1917,8 +1920,13 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const H2 = bsProH2(t);
   const LINK = bsProLink(t);
   const chip = (label, hue, text) => <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '3px 7px', borderRadius: 4, background: `${hue}26`, color: text }}>{label}</span>;
-  const openClientFile = (clientId) => {
+  // A booking with no client id (an intake with someone new, the preview's samples) still names them:
+  // "Open their file" asks the Clients tab for that name (owner, 2026-10-31: "this should take you right
+  // to the client file"), and the tab opens the one roster client of that name, else stays on the list.
+  const bookingClientName = (b) => String((b && (b.client || b.title)) || '').replace(/^\s*new:\s*/i, '').trim();
+  const openClientFile = (clientId, clientName = '') => {
     if (clientId) { try { window.dispatchEvent(new CustomEvent('shape:openClient', { detail: { clientId, providerRole: role } })); } catch (e) {} return; }
+    if (clientName) { try { window.dispatchEvent(new CustomEvent('shape:openClient', { detail: { clientName, providerRole: role } })); } catch (e) {} return; }
     onWidgetOpen('clients');
   };
   const messageClient = (clientId, name) => { try { window.dispatchEvent(new CustomEvent('shape:proMessageClient', { detail: { client: { userId: clientId || null, n: name } } })); } catch (e) {} };
@@ -1939,7 +1947,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const upIsReview = !!upB && upB.tag === 'ASYN';
   const upPrimary = !upB ? null
     : upIsReview ? [tr('coach:today.openReviews', { defaultValue: 'Open reviews' }), () => onOpenReviews()]
-    : upIsPerson ? [tr('coach:today.openFile', { defaultValue: 'Open their file' }), () => openClientFile(upB.clientId)]
+    : upIsPerson ? [tr('coach:today.openFile', { defaultValue: 'Open their file' }), () => openClientFile(upB.clientId, bookingClientName(upB))]
     : [tr('coach:today.openCalendar', { defaultValue: 'Open calendar' }), () => goCalendar()];
   const doneToday = todayBookings.filter((b) => b.state === 'done').length;
   const toScheduleList = Array.isArray(toSchedule) ? toSchedule : [];
@@ -2094,16 +2102,17 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
 
       {/* UP NEXT — today's next booking, with what the coach does about it. */}
       {upB && (
-        <div data-up-next="" style={{ margin: `16px ${t.padX}px 0`, borderRadius: 14, background: t.INK, color: t.PAPER, padding: 16 }}>
+        // A little smaller (owner, 2026-10-31): tighter padding and type; the buttons keep 44 to tap.
+        <div data-up-next="" style={{ margin: `14px ${t.padX}px 0`, borderRadius: 12, background: t.INK, color: t.PAPER, padding: '12px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span aria-hidden style={{ width: 8, height: 8, borderRadius: 999, background: upAccent, flexShrink: 0 }} />
             <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 750, color: upAccent }}>
               {tr('coach:today.upNextAt', { defaultValue: 'Up next · {time}', time: fmtAt(upB.time) })}{upIn != null ? ` · ${tr('coach:today.inDur', { defaultValue: 'in {dur}', dur: fmtFor(upIn) })}` : ''}
             </span>
           </div>
-          <div style={{ marginTop: 7, fontFamily: BS_PRO_HEAD, fontSize: 20, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.15 }}>{upB.title}</div>
-          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, opacity: 0.85 }}>{lineOf(upB)}</div>
-          <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 10 }}>
+          <div style={{ marginTop: 5, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.15 }}>{upB.title}</div>
+          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12, lineHeight: 1.35, opacity: 0.85 }}>{lineOf(upB)}</div>
+          <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 10 }}>
             <button type="button" onClick={upPrimary[1]} style={{ minHeight: 44, borderRadius: 11, border: 0, background: t.PAPER, color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{upPrimary[0]}</button>
             {upIsPerson && <button type="button" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ minHeight: 44, borderRadius: 11, border: `1.5px solid ${t.PAPER}80`, background: 'transparent', color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:today.message', { defaultValue: 'Message' })}</button>}
           </div>
@@ -2464,6 +2473,14 @@ function bsRowSeverity(c, role) {
 // always in agreement. triageLive is cached per-role so they share one fetch.
 function bsProNeedsAttention(sig) { return ['red', 'amber', 'new'].includes(sig?.sev); }
 
+// The one roster client a name names (a booking with no client id), or null: two of a name, or none,
+// open nothing rather than the wrong client's file.
+function bsProRosterByName(roster, name) {
+  const key = String(name || '').trim().toLowerCase();
+  if (!key || !Array.isArray(roster)) return null;
+  const hits = roster.filter((c) => c && String(c.n || '').trim().toLowerCase() === key);
+  return hits.length === 1 ? hits[0] : null;
+}
 function useBSProRoster(role) {
   const t = useBS();
   const [live, setLive] = useStateBSP(null);
@@ -3139,8 +3156,8 @@ function BSTrainerClients({ openRequest = null, onOpenConsumed = () => {} } = {}
   // A notification asked for one client (route "client"): open their page once the roster has
   // them. A client the roster does not hold leaves the list showing, never another client's page.
   useEffectBSP(() => {
-    if (!openRequest || !openRequest.clientId || rosterStatus === 'loading') return;
-    const hit = COACH_CLIENTS.find((c) => c.userId === openRequest.clientId);
+    if (!openRequest || !(openRequest.clientId || openRequest.clientName) || rosterStatus === 'loading') return;
+    const hit = openRequest.clientId ? COACH_CLIENTS.find((c) => c.userId === openRequest.clientId) : bsProRosterByName(COACH_CLIENTS, openRequest.clientName);
     if (hit) { setPreviewClient(null); setFullClient(hit); }
     onOpenConsumed();
   }, [openRequest, rosterStatus, COACH_CLIENTS]);
@@ -7658,11 +7675,12 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   useEffectBSP(() => {
     const open = (e) => {
       const clientId = e && e.detail && e.detail.clientId;
-      if (!clientId) return;
+      const clientName = !clientId && e && e.detail && typeof e.detail.clientName === 'string' ? e.detail.clientName.trim() : '';
+      if (!clientId && !clientName) return;
       // A client of the account's OTHER listing (Codex on #2360): this roster holds only
       // nutritionists' clients, so hand the route to that role's shell, which replays it on mount.
       const other = e.detail.providerRole;
-      if ((other === 'trainer' || other === 'nutritionist') && other !== 'nutritionist') {
+      if (clientId && (other === 'trainer' || other === 'nutritionist') && other !== 'nutritionist') {
         window.__bsPushRoute = 'client:' + other + ':' + clientId;
         setTweak('role', other);
         return;
@@ -7671,7 +7689,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
       setShowCalendar(false); setShowReviews(false); setShowHabits(false);
       setQueueView(null); setShowSearch(false);
-      setOpenClientReq({ clientId, nonce: Date.now() }); setTab('clients');
+      setOpenClientReq({ clientId: clientId || null, clientName, nonce: Date.now() }); setTab('clients');
     };
     window.addEventListener('shape:openClient', open);
     // The membership welcome ("home") on an account that is a coach now: their Today.
@@ -7945,8 +7963,8 @@ function BSNutriClients({ openRequest = null, onOpenConsumed = () => {} } = {}) 
   // A notification asked for one client (route "client"): open their page once the roster has
   // them. A client the roster does not hold leaves the list showing, never another client's page.
   useEffectBSP(() => {
-    if (!openRequest || !openRequest.clientId || rosterStatus === 'loading') return;
-    const hit = NUTRI_CLIENTS.find((c) => c.userId === openRequest.clientId);
+    if (!openRequest || !(openRequest.clientId || openRequest.clientName) || rosterStatus === 'loading') return;
+    const hit = openRequest.clientId ? NUTRI_CLIENTS.find((c) => c.userId === openRequest.clientId) : bsProRosterByName(NUTRI_CLIENTS, openRequest.clientName);
     if (hit) { setPreviewClient(null); setFullClient(hit); }
     onOpenConsumed();
   }, [openRequest, rosterStatus, NUTRI_CLIENTS]);
