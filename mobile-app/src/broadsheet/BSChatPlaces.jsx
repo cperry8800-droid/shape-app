@@ -45,12 +45,19 @@ export function BSChatPlaceTitle({ label, open, onOpen, buttonRef }) {
             wraps under the name when the two don't fit, and a name wider than the page breaks. */}
         <span style={{ minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>{label}</span>
         {/* The title is a switch, and says so (owner, 2026-10-31: "make it more noticeable that you click
-            here to change between pages on chat"): a keyed "Switch" chip in the accent with its chevron,
-            where a lone 15px ▾ was. The whole title stays the tap target. */}
-        <span aria-hidden data-bs-chat-switch="" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', height: 28, padding: '0 9px 0 10px', borderRadius: 6,
+            here to change between pages on chat"): a keyed chip in the accent with its chevron, where a
+            lone 15px ▾ was. The whole title stays the tap target. No word on it (owner, 2026-10-31: "dont
+            say switch, need something else", then the grid): a 2×2 grid, Chat's pages, reads the same in
+            every language; the button's own label says it aloud. */}
+        <span aria-hidden data-bs-chat-switch="" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none', height: 28, padding: '0 8px 0 9px', borderRadius: 6,
           border: `1px solid ${accent}`, background: open ? accent : `${accent}1a`, color: open ? t.PAPER : accent,
-          fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', lineHeight: 1, transition: 'background 160ms ease, color 160ms ease' }}>
-          {tr('feed:places.switch', { defaultValue: 'Switch' })}
+          lineHeight: 1, transition: 'background 160ms ease, color 160ms ease' }}>
+          <svg data-bs-chat-pages-icon="" width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+            <rect x="0.75" y="0.75" width="4.25" height="4.25" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <rect x="7" y="0.75" width="4.25" height="4.25" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <rect x="0.75" y="7" width="4.25" height="4.25" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <rect x="7" y="7" width="4.25" height="4.25" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 180ms ease' }}>
             <path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>

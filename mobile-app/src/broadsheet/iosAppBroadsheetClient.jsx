@@ -16053,7 +16053,10 @@ function BSProfileFilmCard({ film, INK, c, label }) {
   );
 }
 // Render block — the song, prompts, and social links a member added.
-function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false, userId = null, coach = false, demo = false }) {
+// `showPrompts` false leaves the prompts out (the member profile: owner, 2026-10-31, "remove this from
+// member profile" of "Why I train" and "The lift I love"); the stored answers stay in the doc, which the
+// website's profile still reads.
+function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false, userId = null, coach = false, demo = false, showPrompts = true }) {
   const tr = useShapeTr();
   // The Wall shot open full size, by its place on the wall (owner, 2026-10-24: "click on these pictures and
   // make bigger"); null when none is.
@@ -16067,7 +16070,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
   const cu = custom || {};
   c = (cu.accent && /^#/.test(cu.accent)) ? cu.accent : c;
   const embed = bsSpotifyEmbed(cu.song && cu.song.url);
-  const prompts = Array.isArray(cu.prompts) ? cu.prompts.filter((p) => p && p.q && p.a) : [];
+  const prompts = showPrompts && Array.isArray(cu.prompts) ? cu.prompts.filter((p) => p && p.q && p.a) : [];
   const links = (cu.links && typeof cu.links === 'object') ? BS_PROFILE_LINKS.map((l) => [l, cu.links[l.key]]).filter(([, v]) => v && String(v).trim()) : [];
   const pinned = (cu.pinned && cu.pinned.title) ? cu.pinned : null;
   const heroStats = (Array.isArray(cu.heroStats) ? cu.heroStats : []).map((k) => stats && stats[k] ? { k, ...stats[k] } : null).filter(Boolean).slice(0, 3);
@@ -17742,7 +17745,9 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
           {songUrl.trim() && !embedPreview && <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, color: '#c0533b', letterSpacing: '0.04em' }}>{tr('profile:editor.song.err', { defaultValue: 'Paste a Spotify track or playlist link (open.spotify.com/…).' })}</div>}
           {embedPreview && <div style={{ marginTop: 10, overflow: 'hidden' }}><iframe title={tr('profile:editor.song.previewTitle', { defaultValue: 'Song preview' })} src={embedPreview} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: 'block', border: 0 }} /></div>}
         </div>
-        <div style={{ marginBottom: 28 }}>
+        {/* Prompts only for a coach's page: the member profile no longer shows them (owner, 2026-10-31),
+            so the member's editor doesn't ask; answers already saved are kept as they are on save. */}
+        {coach ? <div style={{ marginBottom: 28 }}>
           {head(tr('profile:editor.prompts.label', { defaultValue: 'Prompts' }))}
           <div style={{ marginTop: -3, marginBottom: 10, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.04em', color: bsTHexA(INK, 0.45) }}>{tr('profile:editor.prompts.hint', { defaultValue: 'Pick a question, write a short answer — they show on your profile so people get a feel for you.' })}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -17762,7 +17767,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
             ))}
           </div>
           {prompts.length < 4 && <button onClick={addPrompt} style={{ ...addKey, cursor: 'pointer' }}>{tr('profile:editor.prompts.add', { defaultValue: '+ Add prompt' })}</button>}
-        </div>
+        </div> : null}
         <div style={{ marginBottom: 22 }}>
           {head(tr('profile:editor.links.label', { defaultValue: 'Social links' }))}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -19188,7 +19193,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
 
             {tab === 'activity' && (
             <div>
-              <BSProfileExtras custom={customEff} demo={demoFill} c={c} INK={INK} BG={BG} isSelf={isSelf} userId={feedAuthorId} bleed={8} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, streak: { label: tr('profile:stat.dayStreak', { defaultValue: 'Day streak' }), value: streakEff }, since: { label: tr('profile:stat.memberSince', { defaultValue: 'Member since' }), value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || tr('profile:stat.topLift', { defaultValue: 'Top lift' }), value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
+              <BSProfileExtras custom={customEff} demo={demoFill} c={c} INK={INK} BG={BG} isSelf={isSelf} userId={feedAuthorId} bleed={8} ledger seen={tabFresh} showPrompts={false} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, streak: { label: tr('profile:stat.dayStreak', { defaultValue: 'Day streak' }), value: streakEff }, since: { label: tr('profile:stat.memberSince', { defaultValue: 'Member since' }), value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || tr('profile:stat.topLift', { defaultValue: 'Top lift' }), value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
               <BSActivityLogCta isSelf={isSelf} accent={c} INK={INK} onClick={() => setShowLog(true)} ledger />
               <div style={{ marginTop: isSelf ? 12 : 0 }}>
                 {feedEff.length === 0 && (

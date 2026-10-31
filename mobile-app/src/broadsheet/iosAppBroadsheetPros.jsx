@@ -2110,33 +2110,6 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         </div>
       )}
 
-      {/* THIS WEEK — the day strip; a day picks the schedule below. */}
-      <BSProWeekStrip
-        goCalendar={goCalendar}
-        heat={heat}
-        selDay={selDay}
-        onSelectDay={setSelDay}
-        dots={hasReal
-          ? dates.map((d) => ((realByDate[_ds(d)] || []).slice(0, 3).map((b) => b.tagColor)))
-          : bsProSignedIn() ? dates.map(() => []) : dataByIdx.map(dd => (isNutri ? {
-          20: [t.BLUE, t.BLUE],
-          21: [t.GREEN, t.BLUE, t.BLUE],
-          22: [t.BLUE],
-          23: [t.GREEN, t.BLUE],
-          24: [t.BLUE, t.BLUE],
-          25: [],
-          26: [t.AMBER],
-        } : {
-          20: [t.RUST, t.RUST, t.BLUE],
-          21: [t.RUST, t.RUST, t.RUST],
-          22: [t.AMBER, t.GREEN],
-          23: [t.RUST, t.BLUE],
-          24: [t.RUST, t.RUST],
-          25: [],
-          26: [t.GREEN],
-        })[dd] || [])}
-      />
-
       {/* TO DO — paid sessions to book, then the flagged clients, most urgent first. */}
       <section aria-label={tr('coach:today.todo', { defaultValue: 'To do' })} style={{ padding: `22px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -2191,6 +2164,35 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         )}
         <div aria-hidden style={{ borderTop: `1px solid ${t.RULE}` }} />
       </section>
+
+      {/* THIS WEEK — the day strip, right on the schedule it picks (owner, 2026-10-31, of To do sitting
+          between them: "are to dos and tasks supposed to be updating when you choose a different day";
+          To do is the standing list, so it goes above and the strip changes what is under it). */}
+      <BSProWeekStrip
+        goCalendar={goCalendar}
+        heat={heat}
+        selDay={selDay}
+        onSelectDay={setSelDay}
+        dots={hasReal
+          ? dates.map((d) => ((realByDate[_ds(d)] || []).slice(0, 3).map((b) => b.tagColor)))
+          : bsProSignedIn() ? dates.map(() => []) : dataByIdx.map(dd => (isNutri ? {
+          20: [t.BLUE, t.BLUE],
+          21: [t.GREEN, t.BLUE, t.BLUE],
+          22: [t.BLUE],
+          23: [t.GREEN, t.BLUE],
+          24: [t.BLUE, t.BLUE],
+          25: [],
+          26: [t.AMBER],
+        } : {
+          20: [t.RUST, t.RUST, t.BLUE],
+          21: [t.RUST, t.RUST, t.RUST],
+          22: [t.AMBER, t.GREEN],
+          23: [t.RUST, t.BLUE],
+          24: [t.RUST, t.RUST],
+          25: [],
+          26: [t.GREEN],
+        })[dd] || [])}
+      />
 
       {/* SCHEDULE — the selected day, time-ordered: done rows fold, NOW sits before the next one, gaps say open. */}
       <section aria-label={tr('coach:rail.schedule', { defaultValue: 'Schedule' })} style={{ padding: `22px ${t.padX}px 0` }}>
