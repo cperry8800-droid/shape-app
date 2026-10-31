@@ -133,3 +133,14 @@ test('with unsaved hours the page offers no corner that would drop them', async 
   const src = readFileSync(new URL('../mobile-app/src/broadsheet/BSCoachHours.jsx', import.meta.url), 'utf8');
   assert.match(src, /<BSDetailHeader onBack=\{back\} noCorner=\{dirty && live && load === 'ready'\}/);
 });
+
+// Owner, 2026-10-31: "these times are cut off", and "the toggles arent working" in the preview.
+test('the times read whole, the remove key keeps a full target, and the preview\'s week works', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../mobile-app/src/broadsheet/BSCoachHours.jsx', import.meta.url), 'utf8');
+  const input = src.slice(src.indexOf('function TimeInput('), src.indexOf('\n}\n', src.indexOf('function TimeInput(')));
+  assert.match(input, /fontFamily: t\.DISPLAY, fontVariantNumeric: 'tabular-nums'/, 'the narrower face, not the mono that cut "AM" off');
+  // Codex on #2535: the × keeps 44 × 44 and reaches into the gutter rather than shrinking.
+  assert.match(src, /style=\{\{ flex: 'none', width: 44, height: 44, marginRight: -12, padding: 0, border: 0/);
+  assert.match(src, /<WeekEditor t=\{t\} tr=\{tr\} days=\{days\} setDays=\{[^}]*\}\} disabled=\{false\} \/>/, 'the preview\'s week is not disabled');
+});

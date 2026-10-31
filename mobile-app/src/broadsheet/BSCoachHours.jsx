@@ -149,7 +149,9 @@ function WeekEditor({ t, tr, days, setDays, disabled }) {
                         onChange={(m) => { if (disabled) return; const next = blocks.map((x) => x.slice()); next[i][1] = m; setDay(wd, next); }} />
                       <button type="button" aria-label={tr('coach:hours.removeBlock', { defaultValue: 'Remove {from} to {to}', from: bsHoursLabel(b[0], locale), to: bsHoursLabel(b[1], locale) })}
                         onClick={() => { if (disabled) return; setDay(wd, blocks.filter((_, j) => j !== i)); }}
-                        style={{ flex: 'none', width: 32, height: 44, marginRight: -6, padding: 0, border: 0, background: 'transparent', color: t.INK50, fontSize: 22, cursor: 'pointer' }}>×</button>
+                        // A full 44 × 44 target that reaches 12px into the page's gutter, so the time
+                        // fields keep the width to read whole (Codex on #2535).
+                        style={{ flex: 'none', width: 44, height: 44, marginRight: -12, padding: 0, border: 0, background: 'transparent', color: t.INK50, fontSize: 22, cursor: 'pointer' }}>×</button>
                     </div>
                     {problems[i] ? <Note t={t} tone="err" style={{ fontSize: 12.5, marginTop: 4 }}>{problemText[problems[i]]}</Note> : null}
                   </div>
