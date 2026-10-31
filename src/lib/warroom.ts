@@ -619,6 +619,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: every Back says Back, the Nora sheet and Chat switcher, coach profile tabs, Make it yours (own pieces, smooth drag) and hours fixes — #2535. No migration',
+      items: [
+        { label: 'Owner, 2026-10-31: "make them all say back", "improve/update look of this chat", "make it more noticeable that you click here to change between pages on chat", "make this fit on one line" (a coach profile tab), "this edit page isnt fully fuctional", "these dont work" (its preview tabs), "the save button pops up and coveres options", "coaches should be able to add custom additional eqipment or kitchen stations/supplies", "this drag and drop is glitchy", "these times are cut off" and "the toggles arent working" (hours)', status: 'done' },
+        { label: 'Every Back says Back: the destination labels went (Settings, Library ×2, Saved workout, The listing, The Classifieds, Radio, Profile, Cancel, Me); tests/back-placement.test.mjs allows only keys that read Back', status: 'done' },
+        { label: 'The Nora sheet in the chat page\'s magazine look: the Wall\'s face over an ink rule, a square Talk key with her photo, flat faces, square notes with her teal edge, suggestions as an index, the square composer. The Chat title carries a Switch ⌄ chip (feed:places.switch, 13 locales) that wraps under a long name', status: 'done' },
+        { label: 'Coach profile tabs never wrap (a long name ends in …). Make it yours: the preview\'s tabs work and open the space or kitchen editor, it says Preview; the Save bar keeps the tapped control in view; a "Your own" tile adds a named piece (type custom, Small/Medium/Large) to the studio or the kitchen; dragging is one move a frame, with no selection, no swipe-back and the page held still under a piece. Hours: the times read whole, the × keeps 44 × 44, and the preview\'s week works on screen. Measured in the built app', status: 'done' },
+        { label: 'Review: Codex P2 on a280f62 (the Switch chip could push a long place name past a narrow phone), fixed in 4ccaf6f; P2 on 4ccaf6f (the hours × lost its 44px target), fixed in a51c3f8; Codex clean on d1d813f and a51c3f8', status: 'done' },
+        { label: 'The Nora sheet stays in iosAppBroadsheetClient.jsx: it shares module-level session state (_bsNora*) with the client and 12 suites load it there, so moving it into its own module is its own change', status: 'pending' },
+        { label: 'OWNER: on a phone, signed in as a coach: drag pieces in Make it yours (the touch hold and the swipe opt-out were checked with a mouse in headless Chromium only), add a piece of your own, and the hours page\'s times', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: Back in one place on every screen, and Back lands where you were — #2533. No migration',
       items: [
         { label: 'Owner, 2026-10-31: "please review evrey place there is a back button on the app, it needs to be in the same place on evrey screen", "lets review wheather we should have a back button, or other options", and "make sure it goes back to [the] page of where that person was on the page"', status: 'done' },
@@ -626,7 +638,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Back lands where you were (services/scrollMemory.mjs in BSPage): a page left going forward keeps its scroll, and a Back (tap, pinned ←, swipe, phone back) brings it back there; measured Home 1259px → Progress, Habits or Shape Score → Back → 1259. Shape Score\'s Back went to the Store whatever opened it; now back through history in the three shells. tests/back-placement.test.mjs and tests/scroll-memory.test.mjs hold it', status: 'done' },
         { label: 'Review: Codex P2 on 4fd0883 (a keyboard Back is a click with no press, so a Back that opened nothing stayed marked through the next step), fixed in 8250ae4 with a test that fails without it; Codex clean on 8250ae4', status: 'done' },
         { label: 'Scroll is remembered for BSPage pages only: a view that swaps its content inside the same BSPage is not, and a Back that first asks to confirm (leave without saving?) returns its page at the top', status: 'pending' },
-        { label: 'OWNER: decide the destination labels (← Settings, ← Library, ← The listing, ← Radio, ← Profile, ← Cancel): keep them, or all "Back"', status: 'manual' },
+        { label: 'The destination labels: owner, 2026-10-31, "make them all say back" (#2535)', status: 'done' },
         { label: 'OWNER: on a phone, signed in, as a member and a coach: the ← on several pages, the pinned ← once scrolled, and Back landing where you were (seen only in headless Chromium)', status: 'manual' },
       ],
     },
