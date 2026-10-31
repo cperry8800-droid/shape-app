@@ -7,7 +7,7 @@ import { useBSClean, BSCleanType } from './bsCleanType.jsx';
 // to load it"). Moved out of iosAppBroadsheetClient.jsx when Send was added, as BSLeaderboard was.
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP. The client module imports this file,
-// so it evaluates before that module's body has put BSDetailHeader and the grocery helpers on window;
+// so it evaluates before that module's body has put BSHeaderTools and the grocery helpers on window;
 // a top-level read would capture undefined (React error #130). The component names the globals it
 // needs on its first line. This file never imports the client module back.
 
@@ -73,8 +73,8 @@ function bsGroceryLibCount(l) {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreate = () => {}, onEdit = () => {}, onDuplicate = () => {}, onDelete = () => {}, deletedIds = [], onChangeView = null }) {
-  const { useBS, BSPage, BSDetailHeader, BSNutritionTopTabs, BSFooter, BSPostSendSheet, _bsScrollTopOnMount, bsGroceryHues, bsDateLocale, bsGroceryListEyebrow } = window;
+export function BSGroceryLibrary({ onLoad = () => {}, recipeLists = [], onCreate = () => {}, onEdit = () => {}, onDuplicate = () => {}, onDelete = () => {}, deletedIds = [], onChangeView = null, onProfile = null }) {
+  const { useBS, BSPage, BSPageHeader, BSHeaderTools, BSNutritionTopTabs, BSFooter, BSPostSendSheet, _bsScrollTopOnMount, bsGroceryHues, bsDateLocale, bsGroceryListEyebrow } = window;
   const t = useBS();
   // Under the Eat · Library tabs, the clean type, as Day and Grocery (owner, 2026-10-29: "Yes", to moving
   // Grocery and the Library off Saira). The header, the tabs and Send to a member keep the app's own type.
@@ -110,12 +110,15 @@ export function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], 
 
   return (
     <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        eyebrow={tr('nutrition:grocery.lib.count', { defaultValue: `${allLists.length} list${allLists.length === 1 ? '' : 's'}`, count: allLists.length })}
-        kicker={tr('nutrition:grocery.lib.kicker', { defaultValue: 'Section · Library' })}
-        title={<>{tr('nutrition:grocery.lib.titleA', { defaultValue: 'Saved' })}<br/>{tr('nutrition:grocery.lib.titleB', { defaultValue: 'carts.' })}</>}
-      />
+      {/* A tab of Eat, headed as Day, Grocery and Recipes are: the masthead and the title, with no Back
+          and no "Section · Library" (owner, 2026-10-31). The count stands at the title's foot. */}
+      <BSPageHeader trailing={<BSHeaderTools onProfile={onProfile || (() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} })} />} />
+      <div style={{ padding: `4px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, color: t.INK, lineHeight: 0.92, letterSpacing: '-0.035em' }}>{tr('nutrition:grocery.lib.titleA', { defaultValue: 'Saved' })}<br/>{tr('nutrition:grocery.lib.titleB', { defaultValue: 'carts.' })}</div>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', paddingBottom: 3 }}>{tr('nutrition:grocery.lib.count', { defaultValue: `${allLists.length} list${allLists.length === 1 ? '' : 's'}`, count: allLists.length })}</span>
+        </div>
+      </div>
 
       {onChangeView && <BSNutritionTopTabs active="library" onChange={onChangeView} />}
 

@@ -14172,7 +14172,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   if (prepCook) return <BSPrepTonightCook slug={prepCook.slug} group={prepCook.group} onClose={() => setPrepCook(null)} />;
   if (prepOpen) return <BSPrepSession program={PROGRAM} seed={prepSeed} onClose={() => { setPrepOpen(false); setPrepSeed(null); }} />;
   if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} planList={planGrocery} mealWhen={groceryMealWhen} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onPickList={(l) => { if (!l) setSelectedGroceryList(null); else loadGroceryList(l); }} onProfile={onProfile} onPrep={() => openPrep()} /></>;
-  if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} onChangeView={setView} /></>;
+  if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} onChangeView={setView} onProfile={onProfile} /></>;
   if (view === 'build') return <BSGroceryBuilder onCancel={() => setView('grocery')} onCreate={createListFromBuilder} />;
   if (view === 'recipes') {
     if (skRecipe) {
@@ -34127,7 +34127,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
 
 // ─── GROCERY LIBRARY ─── moved to BSGroceryLibrary.jsx (2026-10-24), with its built-in lists and Send to a
 // member. It reads these at call time.
-Object.assign(window, { BSNutritionTopTabs, _bsScrollTopOnMount, bsGroceryHues, bsDateLocale, bsGroceryListEyebrow });
+Object.assign(window, { BSNutritionTopTabs, BSHeaderTools, _bsScrollTopOnMount, bsGroceryHues, bsDateLocale, bsGroceryListEyebrow });
 
 function bsNormalizeGroceryList(list) {
   if (!list) return BS_GROCERY_DEFAULT;
