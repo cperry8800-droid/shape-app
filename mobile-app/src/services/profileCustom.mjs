@@ -19,4 +19,6 @@ export {
   BS_RECIPE_STEPS_MAX, BS_RECIPE_STEP_MAX, BS_RECIPE_NUMS, bsKitchenPlate, bsKitchenRecipeItem, bsProfileKitchen,
   BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS,
   bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken,
+  BS_ABOUT_STORY_MAX, BS_ABOUT_FACT_MAX, BS_ABOUT_YEARS_MAX, BS_ABOUT_HOW, BS_PROFILE_LINK_KEYS, BS_LINK_MAX,
+  BS_PROMPTS_MAX, BS_PROMPT_Q_MAX, BS_PROMPT_A_MAX, bsCleanStory, bsProfileAbout, bsProfileLinks, bsProfilePrompts, bsProfileLinkHref, bsProfileLinkText,
 } from '../../../public/newdesign/profileCustom.mjs';

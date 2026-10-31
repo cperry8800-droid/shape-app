@@ -150,6 +150,102 @@ export function bsProfileBizCard(v) {
   };
 }
 
+// The coach's About (owner, 2026-10-31: "lets add an about page for each coach where they can write
+// a bio about themselves and include more information", and "a section on coaches profiles for
+// socials to list"). `about` is the coach's story and a few facts; their questions and answers ride
+// in `prompts` and their socials in `links`, the keys a member's profile already uses, so what a
+// coach wrote there before shows on their About too.
+export const BS_ABOUT_STORY_MAX = 1200;
+export const BS_ABOUT_FACT_MAX = 80;
+export const BS_ABOUT_YEARS_MAX = 60;
+export const BS_ABOUT_HOW = ['online', 'in_person', 'both'];
+export const BS_PROFILE_LINK_KEYS = ['instagram', 'x', 'tiktok', 'youtube', 'substack', 'website'];
+export const BS_LINK_MAX = 120;
+export const BS_PROMPTS_MAX = 4;
+export const BS_PROMPT_Q_MAX = 80;
+export const BS_PROMPT_A_MAX = 280;
+
+// Text over several lines: control characters but the line break stripped, each line trimmed at
+// its end, no more than one blank line in a row, clamped.
+export function bsCleanStory(v, max) {
+  if (typeof v !== 'string') return '';
+  const out = v.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, '')
+    .split('\n').map((l) => l.replace(/\s+$/, '')).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return (max && out.length > max) ? out.slice(0, max).trim() : out;
+}
+
+// The coach's story and facts. Field by field (extra keys never ride through); null when empty.
+export function bsProfileAbout(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const story = bsCleanStory(v.story, BS_ABOUT_STORY_MAX);
+  const y = Number(v.years);
+  const years = Number.isInteger(y) && y >= 1 && y <= BS_ABOUT_YEARS_MAX ? y : null;
+  const how = BS_ABOUT_HOW.includes(v.how) ? v.how : null;
+  const where = bsCleanText(v.where, BS_ABOUT_FACT_MAX);
+  const languages = bsCleanText(v.languages, BS_ABOUT_FACT_MAX);
+  if (!story && !years && !how && !where && !languages) return null;
+  const out = {};
+  if (story) out.story = story;
+  if (years) out.years = years;
+  if (how) out.how = how;
+  if (where) out.where = where;
+  if (languages) out.languages = languages;
+  return out;
+}
+
+// Socials: the known networks only, each a handle or a web address. An address must be http(s): a
+// `javascript:` or any other scheme is dropped, as is a value with a space in it. Null when empty.
+export function bsProfileLinks(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const out = {};
+  for (const k of BS_PROFILE_LINK_KEYS) {
+    const raw = bsCleanText(v[k], BS_LINK_MAX);
+    if (!raw || /\s/.test(raw)) continue;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !/^https?:\/\//i.test(raw)) continue;
+    out[k] = raw;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// Where a social goes: a web address as it is, a handle on its network (an "@" dropped; a value that
+// already names the network's host, as "x.com/alice", is not prefixed twice). Null when nothing usable.
+const BS_LINK_PREFIX = { instagram: 'instagram.com/', x: 'x.com/', tiktok: 'tiktok.com/@', youtube: 'youtube.com/@', substack: 'substack.com/@', website: '' };
+export function bsProfileLinkHref(key, value) {
+  const raw = bsCleanText(value, BS_LINK_MAX);
+  if (!raw || /\s/.test(raw) || !(key in BS_LINK_PREFIX)) return null;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) return null;
+  const pre = BS_LINK_PREFIX[key];
+  const v = raw.replace(/^@/, '');
+  const host = pre ? pre.split('/')[0] : '';
+  if (host && (v.toLowerCase() === host || v.toLowerCase().startsWith(host + '/'))) return 'https://' + v;
+  return 'https://' + pre + v;
+}
+// What a social reads as on the page: a handle as "@handle", an address as its host and path.
+export function bsProfileLinkText(key, value) {
+  const href = bsProfileLinkHref(key, value);
+  if (!href) return '';
+  const raw = bsCleanText(value, BS_LINK_MAX);
+  if (key !== 'website' && !/^https?:\/\//i.test(raw) && !raw.includes('/')) return '@' + raw.replace(/^@/, '');
+  return href.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
+}
+
+// Questions and answers: up to four, each a question (a prompt id, or a member's own older text) and
+// its answer, both required. A member's editor writes answers of up to 120 characters; a coach's of
+// up to 280.
+export function bsProfilePrompts(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  for (const p of v.slice(0, BS_PROMPTS_MAX * 4)) {
+    if (!p || typeof p !== 'object' || Array.isArray(p)) continue;
+    const q = bsCleanText(p.q, BS_PROMPT_Q_MAX);
+    const a = bsCleanStory(p.a, BS_PROMPT_A_MAX);
+    if (q && a) out.push({ q, a });
+    if (out.length >= BS_PROMPTS_MAX) break;
+  }
+  return out;
+}
+
 // P5 — the wins wall's stored form: up to 3 coach_reviews IDs (uuid strings),
 // de-duped, order preserved. This ONLY cleans the id list; the RENDER resolves
 // each id against the profile owner's OWN reviews (by id AND owner_id), so a
@@ -432,6 +528,10 @@ export function bsNormalizeProfileCustom(doc, ownerUid, opts) {
   if (studio) base.studio = studio; else delete base.studio;
   const kitchen = bsProfileKitchen(base.kitchen, ownerUid);
   if (kitchen) base.kitchen = kitchen; else delete base.kitchen;
+  const about = bsProfileAbout(base.about);
+  if (about) base.about = about; else delete base.about;
+  if ('links' in base) { const links = bsProfileLinks(base.links); if (links) base.links = links; else delete base.links; }
+  if ('prompts' in base) { const prompts = bsProfilePrompts(base.prompts); if (prompts.length) base.prompts = prompts; else delete base.prompts; }
   const filmBucket = (opts && typeof opts.filmBucket === 'string') ? opts.filmBucket : null;
   const filmKey = (opts && typeof opts.filmKey === 'string') ? opts.filmKey : 'film';
   if (filmBucket) {
