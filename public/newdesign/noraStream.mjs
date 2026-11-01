@@ -2,6 +2,8 @@
 // Nora sheet). POST /api/support/chat with `stream: true` answers with Server-Sent Events:
 //   - `text`  { text }  her reply so far, already cleaned the way the final reply is;
 //   - `reset` {}        a round turned out to be a lookup, so what it showed is taken back;
+//   - `status` { key }  what that lookup is (src/lib/ai/noraStatus.mjs: 'plan', 'food', …), which
+//                       the panel words in its own language until her reply starts (2026-11-01);
 //   - `done`  {...}     exactly the object a plain request gets ({ reply, source, actions, ... }).
 // Anything the route answers before the model runs (the daily limit, the bot check) is plain
 // JSON, so a caller reads a stream only when the response says it is one (isNoraStream).
@@ -16,9 +18,9 @@ export function isNoraStream(res) {
 }
 
 // Reads the stream to its end: `onText` gets her reply so far on each `text`, `onReset` runs on
-// each `reset`. Resolves the `done` object, or null when the stream ended without one (the
+// each `reset`, `onStatus` gets each `status` key. Resolves the `done` object, or null when the stream ended without one (the
 // connection dropped), which a caller treats as a failed request.
-export async function readNoraStream(res, { onText, onReset } = {}) {
+export async function readNoraStream(res, { onText, onReset, onStatus } = {}) {
   const reader = res && res.body && typeof res.body.getReader === 'function' ? res.body.getReader() : null;
   if (!reader) return null;
   const decoder = new TextDecoder();
@@ -36,6 +38,7 @@ export async function readNoraStream(res, { onText, onReset } = {}) {
     try { value = JSON.parse(data.join('\n')); } catch (e) { return; }
     if (event === 'text') { if (value && typeof value.text === 'string' && onText) onText(value.text); }
     else if (event === 'reset') { if (onReset) onReset(); }
+    else if (event === 'status') { if (value && typeof value.key === 'string' && onStatus) onStatus(value.key); }
     else if (event === 'done') { if (value && typeof value === 'object') done = value; }
   };
   for (;;) {

@@ -1638,10 +1638,13 @@ function ActivityFeed({ t, tr, ACC, ink, DISPLAY, MONO, gutter, cards, isSelf, f
   const list = cards.slice(0, ACTIVITY_MAX);
   return (
     <section data-activity="" aria-label={tr('profile:tab.activity', { defaultValue: 'Activity' })} style={{ margin: `14px 0 22px` }}>
-      <div style={{ padding: `0 ${gutter}px`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-        <span style={eyebrow(ink, MONO)}>{tr('profile:trainer.activityTitle', { defaultValue: '{name}\'s activity', name: first })}</span>
-        {isSelf ? <button type="button" data-log-activity="" onClick={onLog} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>＋ {tr('profile:trainer.logActivity', { defaultValue: 'Log activity' })}</button> : null}
-      </div>
+      {/* No heading: the tab is already named Activity, and each card carries the coach's name in its byline
+          (it read "{name}'s activity" under the Activity tab). On their own page, Log activity. */}
+      {isSelf ? (
+        <div style={{ padding: `0 ${gutter}px`, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+          <button type="button" data-log-activity="" onClick={onLog} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>＋ {tr('profile:trainer.logActivity', { defaultValue: 'Log activity' })}</button>
+        </div>
+      ) : null}
       {cards.length ? (
         <div style={{ marginTop: 6 }}>
           {list.map((a, i) => (Card ? (

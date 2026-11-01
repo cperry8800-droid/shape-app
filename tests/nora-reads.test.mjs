@@ -12,7 +12,7 @@ import { fakeSupabase } from './helpers/fake-supabase.mjs';
 import {
   READ_CAPS, isoDay, addDaysISO, dowMon0, weekStartISO, mealDayFor, movesForSession, habitStreak,
   readTrainingPlan, readRecentTraining, readWeekSummary, readHabits, readCoaching, readReminders, readPoints,
-  readCoachRoster, findClient, readClientSnapshot, readAccount, unitsSystemOf, PLATFORM_ACTIVE, ACCOUNT_PREF_KEYS,
+  readCoachRoster, findClient, readClientSnapshot, readAccount, unitsSystemOf, PLATFORM_ACTIVE, ACCOUNT_PREF_KEYS, todayPlanSlice,
 } from '../src/lib/ai/memberReads.mjs';
 import { matchNamed, matchHabit } from '../src/lib/ai/memberTools.mjs';
 
@@ -111,6 +111,35 @@ test('readTrainingPlan: caps hold and member-authored strings are clipped, never
   assert.equal(r.training.thisWeekTruncated, 20 - READ_CAPS.workouts);
   assert.equal(r.training.thisWeek[0].exercises.length, READ_CAPS.exercises);
   assert.ok(r.training.thisWeek[0].title.length <= 80);
+});
+
+test('⚠ readTrainingPlan: the weekly cap never cuts today\'s sessions — a busy week keeps them, with their exercises (Codex on #2558)', async () => {
+  // NOW is Wednesday 2026-09-23: 15 sessions on Monday the 21st sort first, then today's 3 and
+  // Friday's 2. A plain cut at the cap kept twelve of Monday's and dropped today's.
+  const row = (i, date, title) => ({ id: `w${i}`, client_id: U, status: 'published', title, trainer_id: null, scheduled_date: date, created_at: '2026-09-01T00:00:00Z', payload: { exercises: [{ name: `${title} move` }] } });
+  const rows = [
+    ...Array.from({ length: 15 }, (_, i) => row(i, '2026-09-21', `Mon ${i}`)),
+    ...Array.from({ length: 3 }, (_, i) => row(20 + i, '2026-09-23', `Today ${i}`)),
+    ...Array.from({ length: 2 }, (_, i) => row(30 + i, '2026-09-25', `Fri ${i}`)),
+  ];
+  const r = await readTrainingPlan(fakeSupabase({ tables: { client_workouts: rows } }), U, { now: NOW });
+  assert.equal(r.today, '2026-09-23');
+  assert.equal(r.training.thisWeek.length, READ_CAPS.workouts, 'still the cap');
+  assert.equal(r.training.thisWeekTruncated, 20 - READ_CAPS.workouts, 'the same count left out');
+  const kept = r.training.thisWeek.map((w) => w.title);
+  for (const t of ['Today 0', 'Today 1', 'Today 2']) assert.ok(kept.includes(t), `${t} kept`);
+  assert.deepEqual(r.training.thisWeek.filter((w) => w.today).map((w) => w.exercises[0].name), ['Today 0 move', 'Today 1 move', 'Today 2 move']);
+  assert.deepEqual(kept.slice(0, READ_CAPS.workouts - 3), Array.from({ length: READ_CAPS.workouts - 3 }, (_, i) => `Mon ${i}`), 'the earliest others fill the rest');
+  assert.deepEqual([...kept].sort((a, b) => rows.findIndex((x) => x.title === a) - rows.findIndex((x) => x.title === b)), kept, 'still in date order');
+  assert.deepEqual(r.training.todays, ['Today 0', 'Today 1', 'Today 2']);
+  // And today's slice holds all three, the rest of the week counted (17 others), none of them listed.
+  const slice = todayPlanSlice(r);
+  assert.deepEqual(slice.training.todays.map((w) => w.title), ['Today 0', 'Today 1', 'Today 2']);
+  assert.equal(slice.training.otherSessionsThisWeek, 17);
+  // A week under the cap is untouched.
+  const small = await readTrainingPlan(fakeSupabase({ tables: { client_workouts: rows.slice(10) } }), U, { now: NOW });
+  assert.deepEqual(small.training.thisWeek.map((w) => w.title), rows.slice(10).map((x) => x.title));
+  assert.equal(small.training.thisWeekTruncated, undefined);
 });
 
 test('readRecentTraining: completed sessions only, top sets per move, the unit the LOG stated or none', async () => {

@@ -115,7 +115,8 @@ test('neither earlier look: no round tinted bubbles, no magazine notes, masthead
   assert.doesNotMatch(render, /boxShadow: `0 2px 10px \$\{noraTint\}55`/, 'the glowing teal pill is back');
   // Her typing shows as dots, and the words stay for a screen reader; motion stops when asked to.
   assert.match(render, /@media \(prefers-reduced-motion: reduce\) \{ \.bs-nora-anim \{ animation: none !important; \} \}/);
-  assert.match(render, /<div role="status"[\s\S]*?\{tr\('feed:support\.typing', \{ defaultValue: 'Nora is typing…' \}\)\}/);
+  // The words are kept for a screen reader: what she is looking up when a lookup named itself (#2558), else typing.
+  assert.match(render, /<div role="status"[\s\S]*?\{looking \|\| tr\('feed:support\.typing', \{ defaultValue: 'Nora is typing…' \}\)\}/);
 });
 
 test('the tray: one rounded tray holds the mic, the field and a round ink send', () => {

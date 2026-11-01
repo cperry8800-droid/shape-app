@@ -44,6 +44,7 @@ const memberReads = await import(join(ROOT, 'src/lib/ai/memberReads.mjs'));
 const memberMornings = await import(join(ROOT, 'src/lib/ai/memberMornings.mjs'));
 const shapeKnowledge = await import(join(ROOT, 'src/lib/ai/shapeKnowledge.mjs'));
 const voiceLang = await import(join(ROOT, 'src/lib/ai/voiceLang.mjs'));
+const noraStatus = await import(join(ROOT, 'src/lib/ai/noraStatus.mjs'));
 
 const ROUTE = 'src/app/api/support/chat/route.ts';
 const U = 'member-1';
@@ -83,6 +84,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', role
     ['@/lib/ai/memberMornings.mjs', memberMornings],
     ['@/lib/ai/shapeKnowledge.mjs', shapeKnowledge],
     ['@/lib/ai/voiceLang.mjs', voiceLang],
+    ['@/lib/ai/noraStatus.mjs', noraStatus],
     // The anonymous client a signed-out caller's coach lookup reads the public
     // marketplace tables with — the same fake, so the test reads what it read.
     ['@/lib/request-auth', { clientForRequest: async () => sb }],
@@ -99,7 +101,9 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', role
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
       hasOpenAIKey: () => hasKey,
-      aiPublicModel: ai.aiPublicModel, // the REAL resolver — the tiering test asserts on its answer
+      aiPublicModel: ai.aiPublicModel, // the REAL resolvers — the tiering tests assert on their answers
+      aiFastModel: ai.aiFastModel,
+      aiModel: ai.aiModel,
       callAI: async (body, opts) => {
         calls_.ai.push({ body, opts });
         // An answer may carry `fellBack: '<model>'` — callAI reporting that the
@@ -140,7 +144,7 @@ function pinToday(t) {
 
 const READ_NAMES = ['get_training_plan', 'get_recent_workouts', 'get_week_summary', 'get_mornings', 'get_habits', 'get_coaching', 'get_reminders', 'get_points'];
 
-test('⚠ WHO GETS WHAT: an anonymous caller gets the base tools on the PUBLIC model; a member gets the read tools on the pin; a coach also gets the lookups', async () => {
+test('⚠ WHO GETS WHAT: an anonymous caller gets the base tools on the PUBLIC model; a member gets the read tools on the FAST model; a coach also gets the lookups, on the pin', async () => {
   const anon = await loadRoute({ user: null });
   await anon.mod.POST(post(ask('hi')));
   const a = anon.calls.ai[0];
@@ -152,7 +156,7 @@ test('⚠ WHO GETS WHAT: an anonymous caller gets the base tools on the PUBLIC m
   const member = await loadRoute({});
   await member.mod.POST(post(ask('hi')));
   const m = member.calls.ai[0];
-  assert.equal(m.body.model, undefined, 'a member rides the pin (callAI resolves it, and keeps its access fallback)');
+  assert.equal(m.body.model, ai.aiFastModel(), 'a member\'s own chat rides the fast model (speed, 2026-11-01)');
   for (const n of READ_NAMES) assert.ok(toolNames(m.body).includes(n), `${n} offered to a member`);
   assert.ok(!toolNames(m.body).includes('find_client'), 'a client is not a coach');
   assert.ok(!toolNames(m.body).includes('get_client_snapshot'));
@@ -170,6 +174,7 @@ test('⚠ WHO GETS WHAT: an anonymous caller gets the base tools on the PUBLIC m
   const c = coach.calls.ai[0];
   assert.ok(toolNames(c.body).includes('find_client'));
   assert.ok(toolNames(c.body).includes('get_client_snapshot'));
+  assert.equal(c.body.model, undefined, 'coach work rides the pin (callAI resolves it, and keeps its access fallback)');
   // A signed-in NON-member: no read tools, and the public model.
   const prospect = await loadRoute({ isMember: false });
   await prospect.mod.POST(post(ask('hi')));
@@ -219,7 +224,7 @@ test('⚠ A LOOKUP RUNS: the model asks for the plan, the member\'s own rows com
   assert.equal(result.training.thisWeek[0].title, 'Upper body — push');
   assert.deepEqual(result.training.todays, ['Upper body — push'], 'a row dated today is today\'s session');
   // `account`: who she answered as, so a panel keeps the exchange as that account only (Codex on #2393).
-  assert.deepEqual(out, { reply: 'Today is Upper body — push: bench press 4 × 6, from Maya.', source: 'ai', actions: [], model: 'pinned', account: 'member-1' });
+  assert.deepEqual(out, { reply: 'Today is Upper body — push: bench press 4 × 6, from Maya.', source: 'ai', actions: [], model: ai.aiFastModel(), account: 'member-1' });
 });
 
 test('a read that fails answers ok:false to the model — never an empty plan — and a read for a non-member fails closed', async () => {
@@ -303,13 +308,14 @@ test('the loop is bounded: five model rounds at most, ten tool calls at most, th
 });
 
 test('⚠ A REFUSED PIN IS REFUSED FOR THE WHOLE REQUEST: once callAI reports a fallback, the later rounds name the fallback model directly instead of paying a refused Astra call each', async () => {
-  const { mod, calls: c } = await loadRoute({ answers: [{ ...calls(call('get_reminders', {})), fellBack: 'gpt-5.4-mini' }, say('None set.')], tables: { user_scheduled_reminders: [] } });
+  // A coach: their chat is the one on the pin (a member's own rides the fast model).
+  const { mod, calls: c } = await loadRoute({ role: 'trainer', answers: [{ ...calls(call('get_reminders', {})), fellBack: 'gpt-5.4-mini' }, say('None set.')], tables: { user_scheduled_reminders: [] } });
   const out = await (await mod.POST(post(ask('reminders?')))).json();
   assert.equal(c.ai[0].body.model, undefined, 'round 1 asks for the pin');
   assert.equal(c.ai[1].body.model, 'gpt-5.4-mini', 'round 2 goes straight to the model that answered');
   assert.equal(out.model, 'gpt-5.4-mini', 'and the response says which model answered');
   // Control: with no fallback reported, every round keeps asking for the pin.
-  const b = await loadRoute({ answers: [calls(call('get_reminders', {})), say('None.')], tables: { user_scheduled_reminders: [] } });
+  const b = await loadRoute({ role: 'trainer', answers: [calls(call('get_reminders', {})), say('None.')], tables: { user_scheduled_reminders: [] } });
   const outB = await (await b.mod.POST(post(ask('reminders?')))).json();
   assert.equal(b.calls.ai[1].body.model, undefined);
   assert.equal(outB.model, 'pinned');
@@ -1196,8 +1202,9 @@ test('STREAM: a round that turns out to be a lookup takes back what it showed', 
   ] });
   const evs = await events(await r.mod.POST(post({ ...ask('my habits?'), stream: true })));
   const kinds = evs.map(([e, d]) => (e === 'text' ? `text:${d.text}` : e));
-  assert.deepEqual(kinds, ['text:Let me check your habits', 'reset', 'text:You have 3 habits.', 'done']);
-  assert.equal(evs[3][1].reply, 'You have 3 habits.');
+  assert.deepEqual(kinds, ['text:Let me check your habits', 'reset', 'status', 'text:You have 3 habits.', 'done']);
+  assert.deepEqual(evs[2][1], { key: 'plan' }, 'the lookup is named, as a key the panel words');
+  assert.equal(evs[4][1].reply, 'You have 3 habits.');
   assert.equal(r.calls.ai.length, 2, 'the lookup ran and she answered from it');
 });
 
@@ -1304,4 +1311,176 @@ test('a bare "find me a coach" is asked what kind of coach, by the model rule an
   // Without the question before it, a lone "both" is still not a coach request.
   const lone = await (await fb.mod.POST(post(ask('both')))).json();
   assert.equal(lone.actions.filter((a) => a.type === 'coach').length, 0);
+});
+
+// ─── speed, 2026-11-01: the fast model, today's plan up front, the lookup status ────────────
+
+const TODAY_HEADER = /^TODAY'S PLAN: /;
+const todayData = (body) => {
+  const i = body.input.findIndex((it) => it.role === 'system' && TODAY_HEADER.test(it.content));
+  return i < 0 ? null : body.input[i + 1];
+};
+
+test('⚠ MODEL TIERS: a member\'s own chat names the fast model; coach, nutrition and admin work rides the pin; anyone else the public model', async () => {
+  const member = await loadRoute({});
+  await member.mod.POST(post(ask('log my water')));
+  assert.equal(member.calls.ai[0].body.model, ai.aiFastModel());
+  assert.notEqual(ai.aiFastModel(), ai.aiModel(), 'the fast model is not the pin by default');
+
+  for (const role of ['trainer', 'nutritionist']) {
+    const r = await loadRoute({ role });
+    await r.mod.POST(post(ask('hi')));
+    assert.equal(r.calls.ai[0].body.model, undefined, `${role}: the pin`);
+  }
+  // A dual-role account (primary role client, coaches by roles[]) carries the coach lookups: the pin.
+  const dual = await loadRoute({ role: 'client', roles: ['client', 'trainer'], isCoach: true });
+  await dual.mod.POST(post(ask('hi')));
+  assert.equal(dual.calls.ai[0].body.model, undefined);
+  // An admin on the help desk: the pin.
+  const admin = await loadRoute({ user: { id: 'admin-1', email: 'a@x', email_confirmed_at: '2026-01-01T00:00:00Z' }, isAdmin: true, isCoach: false });
+  await admin.mod.POST(post(ask('hi')));
+  assert.ok(toolNames(admin.calls.ai[0].body).includes('admin_lookup_account'));
+  assert.equal(admin.calls.ai[0].body.model, undefined);
+
+  // Cook Mode carries no tools at all, so even a coach's cooking question is the fast model's.
+  const cook = { messages: [{ role: 'user', content: 'how long?' }], cookContext: { recipeTitle: 'Steak', stepIndex: 1, stepText: 'Sear.', ingredients: ['steak'] } };
+  const memberCook = await loadRoute({});
+  await memberCook.mod.POST(post(cook));
+  assert.equal(memberCook.calls.ai[0].body.model, ai.aiFastModel());
+  const coachCook = await loadRoute({ role: 'trainer' });
+  await coachCook.mod.POST(post(cook));
+  assert.equal(coachCook.calls.ai[0].body.model, ai.aiFastModel());
+});
+
+test('MODEL TIERS: OPENAI_FAST_MODEL=off puts a member back on the pin, unnamed, so it keeps its access fallback', async () => {
+  const saved = process.env.OPENAI_FAST_MODEL;
+  process.env.OPENAI_FAST_MODEL = 'off';
+  try {
+    const r = await loadRoute({});
+    await r.mod.POST(post(ask('hi')));
+    assert.equal(r.calls.ai[0].body.model, undefined);
+  } finally { if (saved === undefined) delete process.env.OPENAI_FAST_MODEL; else process.env.OPENAI_FAST_MODEL = saved; }
+});
+
+test('MODEL TIERS: the fast model is the whole request\'s, every round', async () => {
+  const r = await loadRoute({ answers: [calls(call('get_habits', {})), say('Two of three.')], tables: { user_habits: [] } });
+  await r.mod.POST(post(ask('habits?')));
+  assert.equal(r.calls.ai.length, 2);
+  assert.deepEqual(r.calls.ai.map((c) => c.body.model), [ai.aiFastModel(), ai.aiFastModel()]);
+});
+
+test('⚠ TODAY\'S PLAN UP FRONT: today\'s session with its exercises and today\'s meals ride the first round as data, under a system header', async (t) => {
+  const today = pinToday(t);
+  const other = memberReads.addDaysISO(today, memberReads.dowMon0(today) === 6 ? -1 : 1);
+  const tables = {
+    client_workouts: [
+      { id: 'w1', client_id: U, status: 'published', title: 'Upper body — push', trainer_id: 7, scheduled_date: today, created_at: '2026-09-01T00:00:00Z', payload: { exercises: [{ name: 'Bench press', sets: 4, reps: 6 }] } },
+      { id: 'w2', client_id: U, status: 'published', title: 'Legs', trainer_id: 7, scheduled_date: other, created_at: '2026-09-01T00:00:00Z', payload: {} },
+    ],
+    client_meal_plans: [{ client_id: U, status: 'published', title: 'Lean week', week_start: today, created_at: '2026-09-01T00:00:00Z', payload: { days: [{ dow: memberReads.dowMon0(today), meals: [{ slot: 'Breakfast', title: 'Oats & berries', kcal: 420, p: 20 }], targets: { cal: 2100, p: 150 } }] } }],
+    trainers: [{ id: 7, name: 'Maya Okafor' }],
+  };
+  const { mod, calls: c } = await loadRoute({ tables, answers: [say('Upper body — push, then oats.')] });
+  const out = await (await mod.POST(post(ask("what's on today?")))).json();
+  assert.equal(c.ai.length, 1, 'answered in ONE round: no lookup round first');
+  assert.equal(out.reply, 'Upper body — push, then oats.');
+  const data = todayData(c.ai[0].body);
+  assert.ok(data, 'the plan rides after its header');
+  assert.equal(data.role, 'user', 'the plan is data in the user tier, never in system (coach-written text)');
+  const plan = JSON.parse(data.content.replace(/^TODAY'S PLAN \(data\): /, ''));
+  assert.equal(plan.today, today);
+  assert.deepEqual(plan.training.todays.map((w) => w.title), ['Upper body — push']);
+  assert.deepEqual(plan.training.todays[0].exercises, [{ name: 'Bench press', scheme: '4 × 6' }]);
+  assert.equal(plan.training.otherSessionsThisWeek, 1, 'the rest of the week is counted, not listed');
+  assert.equal(plan.training.coach, 'Maya Okafor');
+  assert.equal(plan.meals.todays[0].title, 'Oats & berries');
+  assert.deepEqual(plan.meals.dayTargets, { kcal: 2100, proteinG: 150 });
+  // It sits after the member's facts and before the conversation.
+  const at = c.ai[0].body.input.indexOf(data);
+  const facts = c.ai[0].body.input.findIndex((it) => it.role === 'system' && /FACTS ABOUT THIS MEMBER/.test(it.content));
+  if (facts >= 0) assert.ok(facts < at);
+  assert.equal(c.ai[0].body.input[c.ai[0].body.input.length - 1].content, "what's on today?");
+});
+
+test('TODAY\'S PLAN: a get_training_plan on the same request is answered from the same read, not a second one', async (t) => {
+  const today = pinToday(t);
+  const tables = { client_workouts: [{ id: 'w1', client_id: U, status: 'published', title: 'Run', trainer_id: null, scheduled_date: today, created_at: '2026-09-01T00:00:00Z', payload: {} }], client_meal_plans: [] };
+  const { mod, calls: c, sb } = await loadRoute({ tables, answers: [calls(call('get_training_plan', {})), say('A run today; nothing else this week.')] });
+  await mod.POST(post(ask('what about the rest of my week?')));
+  const reads = sb._calls.filter((q) => q.table === 'client_workouts');
+  assert.equal(reads.length, 1, `one read of the plan for the request (${reads.length})`);
+  const fco = c.ai[1].body.input.find((it) => it.type === 'function_call_output');
+  const result = JSON.parse(fco.output);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.training.todays, ['Run'], 'the full read, the week included');
+});
+
+test('TODAY\'S PLAN: a failed read adds nothing and the tool reads again; a coach, a cook and a visitor are handed none', async (t) => {
+  pinToday(t);
+  const failed = await loadRoute({ fail: ['client_workouts', 'client_meal_plans'], answers: [calls(call('get_training_plan', {})), say('I can\'t see your plan right now.')] });
+  await failed.mod.POST(post(ask("what's on today?")));
+  assert.equal(todayData(failed.calls.ai[0].body), null, 'an unread plan is never "nothing on"');
+  assert.equal(failed.sb._calls.filter((q) => q.table === 'client_workouts').length, 2, 'the tool tried the read again');
+
+  const coach = await loadRoute({ role: 'trainer' });
+  await coach.mod.POST(post(ask("what's on today?")));
+  assert.equal(todayData(coach.calls.ai[0].body), null, 'a coach\'s today is get_coach_today\'s');
+  assert.equal(coach.sb._calls.filter((q) => q.table === 'client_workouts').length, 0);
+
+  const cook = await loadRoute({});
+  await cook.mod.POST(post({ messages: [{ role: 'user', content: 'how long?' }], cookContext: { recipeTitle: 'Steak', stepIndex: 1, stepText: 'Sear.', ingredients: ['steak'] } }));
+  assert.equal(todayData(cook.calls.ai[0].body), null);
+
+  const visitor = await loadRoute({ user: null });
+  await visitor.mod.POST(post(ask("what's on today?")));
+  assert.equal(todayData(visitor.calls.ai[0].body), null);
+});
+
+test('todayPlanSlice: today\'s sessions only, the rest counted; a failed read is null, an unread half says unavailable', () => {
+  const plan = {
+    ok: true, today: '2026-11-02', weekStart: '2026-11-02', weekEnd: '2026-11-08',
+    training: { hasPlan: true, todays: ['A'], thisWeek: [{ title: 'A', today: true, exercises: [{ name: 'Squat' }] }, { title: 'B', today: false }], thisWeekTruncated: 2, laterWeeks: 3, coach: 'Maya' },
+    meals: { hasPlan: false, todays: [] },
+  };
+  assert.deepEqual(memberReads.todayPlanSlice(plan), {
+    today: '2026-11-02',
+    training: { hasPlan: true, coach: 'Maya', todays: [{ title: 'A', today: true, exercises: [{ name: 'Squat' }] }], otherSessionsThisWeek: 3, laterWeeks: 3 },
+    meals: { hasPlan: false, todays: [] },
+  });
+  assert.equal(memberReads.todayPlanSlice({ ok: false }), null);
+  assert.equal(memberReads.todayPlanSlice(null), null);
+  const half = memberReads.todayPlanSlice({ ok: true, today: '2026-11-02', training: { unavailable: true }, meals: { unavailable: true } });
+  assert.deepEqual(half, { today: '2026-11-02', training: { unavailable: true }, meals: { unavailable: true } });
+  const empty = memberReads.todayPlanSlice({ ok: true, today: '2026-11-02', training: { hasPlan: false, todays: [], thisWeek: [] }, meals: { hasPlan: false, todays: [] } });
+  assert.deepEqual(empty.training, { hasPlan: false, todays: [] }, 'nothing on: an empty list, nothing counted');
+});
+
+test('⚠ LOOKUP STATUS: each tool names what she is doing as a key; an unknown tool is "lookup"; a panel can never be handed words', () => {
+  assert.equal(noraStatus.statusForTools(['get_training_plan']), 'plan');
+  assert.equal(noraStatus.statusForTools(['get_week_summary']), 'progress');
+  assert.equal(noraStatus.statusForTools(['find_food']), 'food');
+  assert.equal(noraStatus.statusForTools(['find_client']), 'clients');
+  assert.equal(noraStatus.statusForTools(['draft_workout']), 'draft');
+  assert.equal(noraStatus.statusForTools(['log_water']), 'draft');
+  assert.equal(noraStatus.statusForTools(['shape_help', 'get_account']), 'account', 'the first call that has one');
+  assert.equal(noraStatus.statusForTools(['shape_help']), 'lookup');
+  assert.equal(noraStatus.statusForTools([]), 'lookup');
+  assert.equal(noraStatus.statusForTools(null), 'lookup');
+  for (const name of [...READ_NAMES, 'get_account', 'find_food', 'recommend_coaches', 'find_client', 'get_client_snapshot', 'get_coach_today', 'admin_lookup_account']) {
+    assert.ok(noraStatus.NORA_STATUS_KEYS.includes(noraStatus.statusForTools([name])), name);
+    assert.notEqual(noraStatus.statusForTools([name]), 'lookup', `${name} has its own words`);
+  }
+  assert.equal(noraStatus.cleanStatusKey('plan'), 'plan');
+  assert.equal(noraStatus.cleanStatusKey('<b>hi</b>'), 'lookup');
+  assert.equal(noraStatus.cleanStatusKey(undefined), 'lookup');
+});
+
+test('STREAM: no status for a round that answers, and a plain request is never handed one', async () => {
+  const r = await loadRoute({ answers: [{ ...say('Hi!'), deltas: ['Hi!'] }] });
+  const evs = await events(await r.mod.POST(post({ ...ask('hi'), stream: true })));
+  assert.deepEqual(evs.map(([e]) => e), ['text', 'done']);
+  const plain = await loadRoute({ answers: [calls(call('get_habits', {})), say('None yet.')], tables: { user_habits: [] } });
+  const json = await (await plain.mod.POST(post(ask('habits?')))).json();
+  assert.equal(json.reply, 'None yet.');
+  assert.equal(json.status, undefined);
 });

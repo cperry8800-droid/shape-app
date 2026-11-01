@@ -945,7 +945,8 @@ test('their activity: a tab of its own, last, with what they posted that the oth
   await tab('Activity');
   const feed = document.querySelector('[data-activity]');
   assert.ok(feed, 'the feed, in its tab');
-  assert.match(feed.textContent, /Maya's activity/);
+  // No "Maya's activity" heading under a tab already named Activity: the cards carry her name in their byline.
+  assert.doesNotMatch(feed.textContent, /Maya's activity/);
   const titles = () => [...feed.querySelectorAll('[data-activity-card]')].map((c) => (c.textContent.match(/Note \d/) || [''])[0]);
   assert.deepEqual(titles(), ['Note 1', 'Note 2', 'Note 3', 'Note 4'], 'all of them, newest first; the logged session stays in Replays');
   assert.ok(!feed.querySelector('[data-activity-all]'), 'no See all in a tab of its own');

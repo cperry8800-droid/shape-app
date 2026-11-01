@@ -50,6 +50,7 @@ const DONE = { reply: 'You have 3 habits — keep going.', source: 'ai', actions
 const LOOKUP = [
   ['text', { text: 'Let me check' }],
   ['reset', {}],
+  ['status', { key: 'plan' }],
   ['text', { text: 'You have' }],
   ['text', { text: 'You have 3 habits — keep going.' }],
   ['done', DONE],
@@ -61,13 +62,18 @@ async function readsLikeTheModule(reader, isStream) {
       const seen = [];
       const res = respond(sse(LOOKUP, eol), { size });
       assert.equal(isStream(res), true);
-      const done = await reader(res, { onText: (t) => seen.push(`text:${t}`), onReset: () => seen.push('reset') });
-      assert.deepEqual(seen, ['text:Let me check', 'reset', 'text:You have', 'text:You have 3 habits — keep going.'], `pieces of ${size}, ${JSON.stringify(eol)}`);
+      const done = await reader(res, { onText: (t) => seen.push(`text:${t}`), onReset: () => seen.push('reset'), onStatus: (k) => seen.push(`status:${k}`) });
+      assert.deepEqual(seen, ['text:Let me check', 'reset', 'status:plan', 'text:You have', 'text:You have 3 habits — keep going.'], `pieces of ${size}, ${JSON.stringify(eol)}`);
       assert.deepEqual(done, DONE, 'done is exactly the plain request\'s object');
     }
   }
   // A stream that ends without `done` (the connection dropped) is null, never a half answer.
   assert.equal(await reader(respond(sse(LOOKUP.slice(0, 3)), { size: 3 }), {}), null);
+  // A status with no key, or a reader that did not ask for statuses, is skipped (an older panel).
+  const keys = [];
+  await reader(respond(sse([['status', {}], ['status', { key: 7 }], ['status', { key: 'food' }], ['done', DONE]])), { onStatus: (k) => keys.push(k) });
+  assert.deepEqual(keys, ['food']);
+  assert.deepEqual(await reader(respond(sse(LOOKUP)), { onText: () => {} }), DONE, 'no onStatus: the status is passed over');
   // Unknown events, comments and malformed data are skipped; the last block needs no blank line.
   const odd = `: keep-alive\n\nevent: ping\ndata: {}\n\nevent: text\ndata: {not json\n\nevent: text\ndata: {"text":"Hi"}\n\nevent: done\ndata: {"reply":"Hi","source":"ai","actions":[]}`;
   const texts = [];
@@ -79,7 +85,7 @@ async function readsLikeTheModule(reader, isStream) {
   assert.equal(await reader(null, {}), null);
 }
 
-test('the shared reader: text, reset and done, whatever the stream is cut into', async () => {
+test('the shared reader: text, reset, status and done, whatever the stream is cut into', async () => {
   await readsLikeTheModule(readNoraStream, isNoraStream);
 });
 
@@ -234,9 +240,9 @@ function appClient(answer) {
 test('the app asks for a stream only when the caller draws words, and resolves the same object', async () => {
   const { ask, calls } = appClient(() => respond(sse(LOOKUP), { size: 6 }));
   const seen = [];
-  const r = await ask([{ role: 'user', content: 'habits?' }], undefined, { onText: (t) => seen.push(t), onReset: () => seen.push('↺') });
+  const r = await ask([{ role: 'user', content: 'habits?' }], undefined, { onText: (t) => seen.push(t), onReset: () => seen.push('↺'), onStatus: (k) => seen.push(`[${k}]`) });
   assert.equal(calls[0].stream, true);
-  assert.deepEqual(seen, ['Let me check', '↺', 'You have', 'You have 3 habits — keep going.']);
+  assert.deepEqual(seen, ['Let me check', '↺', '[plan]', 'You have', 'You have 3 habits — keep going.']);
   assert.deepEqual(r, DONE);
 
   const plain = appClient(() => new Response(JSON.stringify({ reply: 'hi', actions: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
@@ -276,8 +282,8 @@ test('the app names the account its thread loaded as, and a refusal for another 
 
 // ── The app's Nora sheet ───────────────────────────────────────────────────────
 globalThis.document = globalThis.document || { getElementById: () => null, body: {} };
-const sheet = await loadBroadsheet(['BSNoraSheet', '_bsNoraPublish', '_bsNoraLiveSet', '_bsNoraLive', '_bsNoraMarkSynced', '_bsNoraForget', '_bsNoraGen', '_bsNoraSave']);
-const reset = () => { sheet._bsNoraPublish(null, false); sheet._bsNoraLiveSet(''); };
+const sheet = await loadBroadsheet(['BSNoraSheet', '_bsNoraPublish', '_bsNoraLiveSet', '_bsNoraLive', '_bsNoraStatusSet', '_bsNoraStatus', '_bsNoraMarkSynced', '_bsNoraForget', '_bsNoraGen', '_bsNoraSave']);
+const reset = () => { sheet._bsNoraPublish(null, false); sheet._bsNoraLiveSet(''); sheet._bsNoraStatusSet(''); };
 const open = () => drive(sheet.BSNoraSheet, { onClose: () => {} });
 const composer = (d) => d.nodes().find((n) => n.props && typeof n.props.onSend === 'function');
 
@@ -294,6 +300,24 @@ test('the sheet draws her reply so far as her message, in place of "Nora is typi
   reset();
 });
 
+test('⚠ a lookup names itself in place of "Nora is typing…" until her words come; an unknown key reads "Looking that up…"', () => {
+  reset();
+  sheet._bsNoraPublish(null, true);
+  sheet._bsNoraStatusSet('plan');
+  const looking = open();
+  assert.match(looking.text, /Checking your plan…/);
+  assert.doesNotMatch(looking.text, /Nora is typing…/, 'the words replace the typing line, for a screen reader too');
+  sheet._bsNoraStatusSet('food');
+  assert.match(open().text, /Looking up that food…/);
+  sheet._bsNoraStatusSet('something-new');
+  assert.match(open().text, /Looking that up…/, 'a tool the app does not know yet still says something');
+  sheet._bsNoraLiveSet('You have');
+  const writing = open();
+  assert.doesNotMatch(writing.text, /Looking that up…/, 'her words replace it');
+  assert.ok(writing.text.endsWith('NoraYou have'));
+  reset();
+});
+
 test('a send streams into the sheet, and the finished reply replaces the live text', async () => {
   reset();
   const live = [];
@@ -304,6 +328,9 @@ test('a send streams into the sheet, and the finished reply replaces the live te
       live.push(sheet._bsNoraLive);
       extra.onReset();
       live.push(sheet._bsNoraLive);
+      assert.equal(typeof extra.onStatus, 'function', 'the sheet asks what a lookup is');
+      extra.onStatus('plan');
+      live.push(`[${sheet._bsNoraStatus}]`);
       extra.onText('Leg day.');
       live.push(sheet._bsNoraLive);
       return { reply: 'Leg day.', actions: [] };
@@ -314,8 +341,9 @@ test('a send streams into the sheet, and the finished reply replaces the live te
     composer(d).props.onChange('what is on today?');
     d.render();
     await composer(d).props.onSend();
-    assert.deepEqual(live, ['Let me', '', 'Leg day.']);
+    assert.deepEqual(live, ['Let me', '', '[plan]', 'Leg day.']);
     assert.equal(sheet._bsNoraLive, '', 'gone once she has answered');
+    assert.equal(sheet._bsNoraStatus, '', 'and what she was looking up with it');
     const after = open();
     assert.equal(after.text.split('Leg day.').length - 1, 1, 'her reply once: no live copy beside it');
     assert.doesNotMatch(after.text, /Nora is typing/);
@@ -420,6 +448,9 @@ test('the website panel asks for a stream, reads one only when it gets one, and 
   assert.ok(sendAt > 0 && send.length > 500 && send.length < 8000, 'could not delimit her branch of send()');
   assert.match(send, /context: cwNoraContext\(\), stream: true, \.\.\.\(account \? \{ account \} : \{\}\), \.\.\.extra \}\)/);
   assert.match(send, /onText: \(t\) => \{ if \(gen === noraThreadGenRef\.current && acct === noraAcctRef\.current\) setNoraLive\(t\); \}/, 'a cleared conversation, or another account\'s, draws no more words');
+  assert.match(send, /onStatus: \(k\) => \{ if \(gen === noraThreadGenRef\.current && acct === noraAcctRef\.current\) setNoraStatus\(k\); \}/, 'nor names a lookup');
+  assert.match(send, /setNoraLive\(""\);\n\s+setNoraStatus\(""\);/, 'the answer takes the lookup\'s words with it');
+  assert.match(WEB, /<TypingDots \/>\{isSupport \? \(noraStatus \? cwNoraStatusWords\(noraStatus\) : "Nora is typing…"\) : "someone is typing…"\}/, 'the typing line names the lookup');
   assert.match(send, /const read = async \(r\) => \(r\.ok && cwIsNoraStream\(r\) \? \(\(await cwReadNoraStream\(r, live\)\) \|\| \{\}\) : await r\.json\(\)\.catch\(\(\) => \(\{\}\)\)\);/);
   assert.match(send, /let res = await ask\(\{\}\);\n\s+let data = await read\(res\);/);
   assert.match(send, /if \(token\) \{ res = await ask\(\{ turnstileToken: token \}\); data = await read\(res\); \}/, 'the bot check\'s second ask streams too');
@@ -430,4 +461,24 @@ test('the website panel asks for a stream, reads one only when it gets one, and 
   assert.match(WEB, /\{typing && isSupport && noraLive \? \(\(\) => \{/);
   assert.match(WEB, /\}\)\(\) : typing && \(\n\s+<div style=\{\{ display: "flex", alignItems: "center", gap: 6/, 'the typing line until her first words');
   assert.match(WEB, /\}, \[tabIdx, activeIdx, active\?\.messages\?\.length, typing, open, noraLive\]\);/, 'it scrolls with her words');
+});
+
+test('⚠ every status key the server can send has words: the website\'s copy and all 13 app catalogs', async () => {
+  const { NORA_STATUS_KEYS } = await import('../src/lib/ai/noraStatus.mjs');
+  const fnStart = WEB.indexOf('const CW_NORA_STATUS_WORDS = {');
+  const words = new Function(`${WEB.slice(fnStart, WEB.indexOf('\n}\n', WEB.indexOf('function cwNoraStatusWords(')) + 2)}\nreturn { CW_NORA_STATUS_WORDS, cwNoraStatusWords };`)();
+  for (const k of NORA_STATUS_KEYS) assert.ok(words.CW_NORA_STATUS_WORDS[k], `the website words ${k}`);
+  assert.equal(words.cwNoraStatusWords('constructor'), 'Looking that up…', 'an unknown key, even an Object.prototype name, is `lookup`');
+  const locales = ['en', 'de', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi'];
+  const en = JSON.parse(read('mobile-app/src/i18n/catalogs/en/feed.json'));
+  for (const loc of locales) {
+    const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/feed.json`));
+    for (const k of NORA_STATUS_KEYS) {
+      const v = cat[`support.status.${k}`];
+      assert.ok(typeof v === 'string' && v.trim(), `${loc} words ${k}`);
+      if (loc !== 'en' && loc !== 'pcm') assert.notEqual(v, en[`support.status.${k}`], `${loc}'s ${k} is translated`);
+    }
+  }
+  // The website's English is the app's English.
+  for (const k of NORA_STATUS_KEYS) assert.equal(words.CW_NORA_STATUS_WORDS[k], en[`support.status.${k}`], k);
 });
