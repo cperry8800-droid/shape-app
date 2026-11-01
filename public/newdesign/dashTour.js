@@ -38,9 +38,16 @@
   // anchors the button itself; when it's absent the engine centers the card.
   function chatBtn() { return document.getElementById('shape-global-chat-button'); }
 
+  // "Set up with Nora" (the owner, 2026-09-29: Nora "can fill evreything out for you ... and also setup
+  // your account for you"): the Welcome step's other way on. The tour ends, and Nora opens with the ask
+  // in her composer for them to send; she asks, drafts one card (set_up_account), and nothing is saved
+  // until they confirm it.
+  function setUpWithNora(draft) {
+    return function () { try { if (window.__openChatTo) window.__openChatTo({ who: 'Nora', tab: 'support', draft: draft }); } catch (e) {} };
+  }
   function clientSteps() {
     return [
-      { navigate: go('today'), anchor: q('hero-today'), fallback: q('webtab-today'), eyebrow: 'Welcome', title: 'Welcome to Shape.', body: 'A quick tour of everything in your dashboard — about a minute.' },
+      { navigate: go('today'), anchor: q('hero-today'), fallback: q('webtab-today'), eyebrow: 'Welcome', title: 'Welcome to Shape.', body: 'A quick tour of everything in your dashboard — about a minute. Or let Nora set your account up with you.', altLabel: 'Set up with Nora', onAlt: setUpWithNora('Set up my account with me.') },
       { navigate: go('today'), anchor: q('hero-today'), fallback: q('webtab-today'), eyebrow: 'Today', title: 'Your day, at a glance.', body: 'Your next move and the day’s plan lead here.' },
       { navigate: go('progress'), anchor: q('webtab-progress'), fallback: q('webtab-progress'), eyebrow: 'Progress', title: 'Trends & PRs.', body: 'Weight, strength, sleep, volume — your whole picture, charted.' },
       { navigate: go('workouts'), anchor: q('hero-workouts'), fallback: q('webtab-workouts'), eyebrow: 'Workouts', title: 'Your training.', body: 'Today’s session and your program live here.' },
@@ -60,7 +67,7 @@
     var plans = role === 'trainer' ? 'programs' : 'plans';
     var plansLabel = role === 'trainer' ? 'Programs' : 'Plans';
     return [
-      { navigate: go('today'), anchor: q('hero-today'), fallback: q('webtab-today'), eyebrow: 'Welcome', title: 'Your coaching tools.', body: 'A quick tour of your dashboard — about 30 seconds.' },
+      { navigate: go('today'), anchor: q('hero-today'), fallback: q('webtab-today'), eyebrow: 'Welcome', title: 'Your coaching tools.', body: 'A quick tour of your dashboard — about 30 seconds. Or let Nora set up your profile with you.', altLabel: 'Set up with Nora', onAlt: setUpWithNora('Set up my coach profile with me.') },
       { navigate: go('today'), anchor: q('hero-today'), fallback: q('webtab-today'), eyebrow: 'Today', title: 'Who needs you.', body: 'Your day leads with the clients who need attention.' },
       { navigate: go('today'), anchor: q('dash-widgets'), fallback: q('hero-today'), eyebrow: 'Widgets', title: 'Make it yours.', body: 'Add or remove widgets on Today, and drag them where you want them.' },
       { navigate: go('schedule'), anchor: q('webtab-schedule'), fallback: q('webtab-schedule'), eyebrow: 'Schedule', title: 'Your week.', body: 'Sessions, consults and availability — the calendar runs your day.' },

@@ -84,9 +84,18 @@ test('Chat\'s places carry no Support now that it has left', () => {
 });
 
 test('each takeover renders the sheet once', () => {
-  for (const key of ['if (showCalendar) {', 'if (showCycle) {']) {
+  // Anchored on the takeover's own return: the first `if (showCalendar) {` in the file is the swipe
+  // handler's, and a slice from there ran across the first-run steps below it.
+  for (const key of ['if (showCalendar) {\n    return (', 'if (showCycle) {\n    return (']) {
     const block = between(APP, key, '    );');
     assert.equal((block.match(/\{noraSheet\}/g) || []).length, 1, key);
+  }
+  // The first-run steps draw her sheet over the step ("Set up with Nora", src/lib/ai/accountSetup.mjs),
+  // and only that overlay: they must not be escapable through search or Settings.
+  for (const stage of ['intent', 'coaching', 'health']) {
+    const line = between(APP, `if (firstRun.stage === '${stage}') {`, '\n  }');
+    assert.equal((line.match(/\{noraSheet\}/g) || []).length, 1, stage);
+    assert.doesNotMatch(line, /searchOverlay|settingsOverlay/, stage);
   }
 });
 

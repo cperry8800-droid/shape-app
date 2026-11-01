@@ -160,6 +160,10 @@ function cwTierForPoints(pts, coach) {
 // ⚠ `a.open` (a saved draft → the builder) shows only AFTER the confirm lands, and
 // only for a same-site /newdesign/ page — the server builds it, the card still checks.
 const cwIsLine = (d) => !!d && typeof d === "object" && !Object.prototype.hasOwnProperty.call(d, "before");
+// ⚠ A ROW WITH `refused` IS A SETTING NORA COULD NOT SET (set_up_account, src/lib/ai/accountSetup.mjs):
+// its name struck through and why, never a change. The app's card says the same (BSNoraProposal).
+const CW_SETUP_REFUSED = { yours: "Yours to do yourself", not_here: "Nora can’t set this", invalid: "That doesn’t fit this setting", coach_only: "For coaches only" };
+const cwIsRefused = (d) => !!d && typeof d === "object" && typeof d.refused === "string";
 function CwProposalCard({ a }) {
   const [status, setStatus] = React.useState("idle"); // idle|busy|done|undoing|undone|error
   const [err, setErr] = React.useState("");
@@ -195,7 +199,14 @@ function CwProposalCard({ a }) {
       <div style={{ marginTop: 5, fontFamily: sans, fontSize: 13.5, color: ink, lineHeight: 1.35 }}>{a.summary || a.label}</div>
       {diff.length > 0 && status !== "undone" && (
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 5, maxHeight: 280, overflowY: "auto" }}>
-          {diff.map((d, i) => cwIsLine(d) ? (
+          {diff.map((d, i) => cwIsRefused(d) ? (
+            <div key={i} data-nora-refused={d.refused} style={{ display: "flex", alignItems: "baseline", gap: 6, fontFamily: mono, fontSize: 10.5, flexWrap: "wrap" }}>
+              <span style={{ color: muted, textDecoration: "line-through", opacity: 0.7 }}>{d.label || d.field}</span>
+              <span style={{ color: muted }}>·</span>
+              <span style={{ color: "#e0463c", fontWeight: 600 }}>Not set</span>
+              <span style={{ color: muted }}>{CW_SETUP_REFUSED[d.refused] || CW_SETUP_REFUSED.not_here}</span>
+            </div>
+          ) : cwIsLine(d) ? (
             <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 6, fontFamily: mono, fontSize: 10.5, flexWrap: "wrap", paddingLeft: d.label ? 0 : 10 }}>
               {d.label ? <span style={{ color: muted }}>{d.label}</span> : null}
               <span style={{ color: ink, fontWeight: d.label ? 600 : 500 }}>{fmtV(d.after)}</span>
@@ -216,6 +227,9 @@ function CwProposalCard({ a }) {
           <button onClick={confirm} style={{ border: 0, background: TEAL, color: PAPER, borderRadius: 999, padding: "7px 15px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>{status === "error" ? "Try again" : "Confirm"}</button>
         )}
         {status === "busy" && <span style={{ fontFamily: mono, fontSize: 9.5, color: muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Applying…</span>}
+        {status === "done" && a.action === "set_up_account" && (
+          <span data-nora-setup-saved style={{ flexBasis: "100%", fontFamily: sans, fontSize: 12, color: muted, lineHeight: 1.4 }}>Saved to your account. You can change any of it in Settings.</span>
+        )}
         {status === "done" && openUrl && (
           <a href={openUrl} style={{ textDecoration: "none", border: 0, background: TEAL, color: PAPER, borderRadius: 999, padding: "7px 15px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Open in builder →</a>
         )}

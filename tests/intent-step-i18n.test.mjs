@@ -95,11 +95,11 @@ const cats = Object.fromEntries(LOCALES.map((l) => {
 const FRAME = ['intent.becomingPre', 'intent.becomingPost',
                'intent.titlePre', 'intent.titleAccent', 'intent.titlePost'];
 
-test('guard-the-guard: the region is the component and it derives 30 keys', () => {
+test('guard-the-guard: the region is the component and it derives 32 keys', () => {
   assert.ok(region.includes('const IDENTITY = {'), 'the region carries the IDENTITY table');
   assert.ok(region.includes('identityOf'), 'the region carries the resolver');
   assert.ok(!/\bfunction BSHealthIntake\b/.test(region), 'the region stops at the next component');
-  assert.equal(KEYS.length, 30, '13 chrome keys + 12 identity sentences + the save-failed line it shares with the coaching step + the 4 own-goal words it shares with the Goals picker');
+  assert.equal(KEYS.length, 32, '15 chrome keys (two of them "Set up with Nora") + 12 identity sentences + the save-failed line it shares with the coaching step + the 4 own-goal words it shares with the Goals picker');
   assert.equal(LOCALES.length, 13);
   for (const k of KEYS) assert.ok(k.startsWith('intent.') || k === 'firstRun.saveFailed' || k.startsWith('goal:primary.custom'), `${k} is namespaced under intent.`);
 });
