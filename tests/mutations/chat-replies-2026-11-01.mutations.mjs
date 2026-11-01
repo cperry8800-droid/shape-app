@@ -97,7 +97,7 @@ export default {
     { name: 'Escape leaves the actions open', file: CLIENT,
       find: "    else if (e.key === 'Escape' && open) { e.preventDefault(); close(); }\n", replace: '' },
     { name: 'a key on a control opens the actions', file: CLIENT,
-      find: "    if (e.target !== e.currentTarget) return;\n    if (e.key === 'Enter'", replace: "    if (e.key === 'Enter'" },
+      find: "  const actionKeys = (open, toggle, close) => (e) => {\n    if (e.target !== e.currentTarget) return;\n", replace: "  const actionKeys = (open, toggle, close) => (e) => {\n" },
     { name: 'their bubble is no tab stop', file: CLIENT,
       find: 'tabIndex={0} onKeyDown={actionKeys(pickerOpen, () => rx.setPickerKey(pickerOpen ? null : rKey), () => rx.setPickerKey(null))} data-thread-theirs', replace: 'data-thread-theirs' },
     { name: 'the picker has no Reply', file: CLIENT,
