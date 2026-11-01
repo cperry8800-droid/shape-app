@@ -483,7 +483,7 @@ async function lvBuyPlan(o) {
 
 // Categorized services — distinctive filing-card tabs that physically
 // connect into the panel below (a card-index, not a generic tab bar).
-const LV_CAT ={ Workout: "Workouts", Program: "Programs", Coaching: "Coaching", Consult: "Consults", "Meal plan": "Plans" };
+const LV_CAT = { Workout: "Workouts", Program: "Programs", Coaching: "Coaching", Consult: "Consults", "Meal plan": "Plans" };
 function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, reviewCount }) {
   const isNutri = /nutritionist/i.test(String(d.role || "")); // d.role is lowercase (demo + live)
   // Real published catalogue (coach_plans) keyed by the coach's user id; falls
