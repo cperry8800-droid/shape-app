@@ -23,6 +23,10 @@ import {
 // actions, never the draft core directly).
 export { briefFromText as draftBriefFromText } from './workoutDraft.mjs';
 import { cleanMealBrief, pickMeals, buildMealDoc, mealDraftDiff, draftName as mealDraftName } from './mealDraft.mjs';
+import { planSetupChanges, buildSetupPreview, applySetupCells, REFUSED_REASONS, NOTHING_MSG, NOT_ALLOWED_MSG } from './accountSetup.mjs';
+// The chat route offers set_up_account and its note from here (it imports Nora's actions, never the
+// setup core directly), so every harness that maps this module gets them with it.
+export { SETUP_TOOL, SETUP_PROMPT_NOTE } from './accountSetup.mjs';
 
 // NC1 — compute the scope disclaimer for an individualized nutrition action so
 // Nora's confirm card states it up front (the endpoint is the authoritative gate).
@@ -1180,7 +1184,62 @@ export const forgetMemoryTool = {
   },
 };
 
+// ── Account setup (the owner, 2026-09-29: "...and also setup your account for you") ──────────
+// set_up_account → the member's own first-run answers, Settings rows, quiet hours and (for a coach)
+// headline and About, through the allowlist and guarded writes in accountSetup.mjs. One card lists
+// every change and every refusal; Confirm applies them all, Undo restores them all. Members only
+// (the route offers it to a verified member; the preview re-checks), and only ever the actor's own
+// account: the target is ctx.actor.id, a proposal naming anyone else is refused, and execute and
+// undo refuse a plan whose target is not the account confirming it.
+function setupOwner(ctx, plan) {
+  var uid = ctx && ctx.actor && ctx.actor.id;
+  if (!uid || !plan || !plan.target || plan.target.userId !== uid || plan.target.kind !== 'account_setup') throw new Error(NOT_ALLOWED_MSG);
+  return uid;
+}
+export const setUpAccountAction = {
+  name: 'set_up_account',
+  roles: ['client', 'trainer', 'nutritionist', 'dietitian', 'admin'],
+  source: 'nora',
+  async buildPreview(ctx, input) {
+    memberGate(ctx);
+    var plan = planSetupChanges(input, { actorId: ctx.actor.id, roles: [ctx.actor.role].concat(ctx.actor.roles || []) });
+    if (!plan.changes.length) {
+      var why = plan.refused.map(function (r) { return r.label + ' (' + (REFUSED_REASONS[r.reason] || REFUSED_REASONS.not_here).toLowerCase() + ')'; });
+      throw new Error(why.length ? 'None of that can be set from here: ' + why.join(', ') + '.' : NOTHING_MSG);
+    }
+    var tz = (ctx && typeof ctx.zone === 'string' && ctx.zone) || await memberTz(ctx) || 'UTC';
+    var built = await buildSetupPreview(ctx.supabase, ctx.actor.id, plan, { now: new Date().toISOString(), tz: tz });
+    if (!built.cells.length) {
+      throw new Error('That is already how your account is set' + (plan.refused.length ? ', and the rest can’t be set from here' : '') + '. Nothing to change.');
+    }
+    var notes = [];
+    if (built.unchanged.length) notes.push('Already set, left off the card: ' + built.unchanged.join(', ') + '.');
+    if (plan.refused.length) notes.push('On the card as not set: ' + plan.refused.map(function (r) { return r.label + ' — ' + (REFUSED_REASONS[r.reason] || REFUSED_REASONS.not_here); }).join('; ') + '.');
+    var n = built.changed;
+    return {
+      summary: 'Set up your account: ' + n + ' change' + (n === 1 ? '' : 's'),
+      diff: built.diff,
+      target: { userId: ctx.actor.id, kind: 'account_setup', id: null },
+      beforeState: { fields: built.diff.filter(function (d) { return !d.refused; }).map(function (d) { return { field: d.field, before: d.before }; }) },
+      afterState: { cells: built.cells, tz: built.tz },
+      confirmedPayload: { changes: plan.changes },
+      note: notes.join(' ') || undefined,
+    };
+  },
+  async execute(ctx, plan) {
+    var uid = setupOwner(ctx, plan);
+    var a = plan.afterState || {};
+    await applySetupCells(ctx.supabase, uid, a.cells, 'apply', { tz: a.tz });
+    return { ok: true, fields: Array.from(new Set((a.cells || []).map(function (c) { return c.field; }))) };
+  },
+  async undo(ctx, plan) {
+    var uid = setupOwner(ctx, plan);
+    var a = plan.afterState || {};
+    await applySetupCells(ctx.supabase, uid, a.cells, 'undo', { tz: a.tz });
+  },
+};
+
 // Registered in rollout order. (The OpenAI tool schemas Nora exposes live with the
 // chat route; these are the executors the scaffold runs.) The memory tools above
 // are deliberately NOT in this list — they're direct, not proposal-drafted.
-export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, draftWorkoutAction, draftMealPlanAction, assignMealPlanAction, setProgramDetailAction, addReviewNoteAction, rescheduleSessionAction, logWeighInAction, logWaterAction, checkHabitAction, setReminderAction];
+export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, draftWorkoutAction, draftMealPlanAction, assignMealPlanAction, setProgramDetailAction, addReviewNoteAction, rescheduleSessionAction, logWeighInAction, logWaterAction, checkHabitAction, setReminderAction, setUpAccountAction];

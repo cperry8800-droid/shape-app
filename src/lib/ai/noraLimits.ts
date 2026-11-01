@@ -38,11 +38,14 @@ const DAY = 86400;
 // spend of the server's key. These are per-account, a day long, generous enough that a person
 // never meets them (a heavy day of voice is tens of calls) and small enough that a script does.
 // Like the question limits they fail OPEN: a limiter fault never takes a feature down.
-export type AiBudgetKind = 'speak' | 'transcribe' | 'draft_program';
+// account_setup: the cards Nora drafts to set an account up (set_up_account, src/lib/ai/accountSetup.mjs).
+// A first run is one or two; thirty is a person changing their mind all day, never a script's thousands.
+export type AiBudgetKind = 'speak' | 'transcribe' | 'draft_program' | 'account_setup';
 export const AI_DAILY_BUDGETS: Record<AiBudgetKind, number> = {
   speak: 200,
   transcribe: 300,
   draft_program: 40,
+  account_setup: 30,
 };
 
 /** Count one call against the account's daily budget for `kind`. allowed:false once spent. */
@@ -61,7 +64,7 @@ export async function countBudget(
 export function budgetReply(kind: AiBudgetKind, resetSeconds: number): string {
   const hours = Math.max(1, Math.ceil(resetSeconds / 3600));
   const when = `in about ${hours} hour${hours === 1 ? '' : 's'}`;
-  const what = kind === 'speak' ? "Nora's voice" : kind === 'transcribe' ? 'voice input' : 'AI drafting';
+  const what = kind === 'speak' ? "Nora's voice" : kind === 'transcribe' ? 'voice input' : kind === 'account_setup' ? 'setting up your account with Nora' : 'AI drafting';
   return `That's today's limit for ${what}. It resets ${when}.`;
 }
 
