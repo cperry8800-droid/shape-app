@@ -78,7 +78,7 @@ import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsAccent, bsWsHead } from './BSWallStory.jsx';
 import { BSChatPlaceTitle, BSChatPlacesSheet } from './BSChatPlaces.jsx';
 import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
-import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
+import { BSGroceryShareCard, bsGroceryListsAppStore, bsSaveReceivedGroceryList, bsHasGroceryList } from './BSGroceryShare.jsx';
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
 import { bsHomeCoachesOf, bsHomeCoachesKnown, bsHomeSessionsPlanned, bsHomeSessionsPlannedDays, bsHomePaidBanners } from '../services/homeWeek.mjs';
@@ -7649,6 +7649,21 @@ function bsSkParseIngredient(s) {
   return { q: '', n: s };
 }
 
+// A Shape Kitchen recipe's own grocery list: one list per recipe ('sk-' and its slug), the same list
+// wherever it is sent from, so sending it again finds it rather than adding a copy. The Eat page's
+// Recipes tab and the recipe opened from search both build it here.
+function bsSkRecipeGroceryList(recipe) {
+  if (!recipe || !recipe.title) return null;
+  const id = 'sk-' + bsSkSlug(recipe.title);
+  const items = (recipe.ingredients || []).map((ing, idx) => {
+    // Structured {n: qty, m: name} since the Kitchen Card wave; tolerate
+    // legacy strings defensively via the old parser.
+    const p = typeof ing === 'string' ? bsSkParseIngredient(ing) : { n: ing.m, q: ing.n };
+    return { id: `${id}-${idx}`, n: p.n, q: p.q, meals: recipe.title };
+  });
+  return { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen${recipe.byRole ? ` · ${recipe.byRole}` : ''}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // THE MENU — the Shape Kitchen as a menu you read, not a grid you sift.
 // Owner pick 2026-09-15 off docs/REVIEW-2026-09-15-about-and-kitchen.md §K3,
@@ -13795,16 +13810,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
 
   // Itemize a Shape Kitchen recipe (string ingredients) into a saved grocery list.
   const addSKRecipeToGrocery = (recipe) => {
-    if (!recipe) return;
-    const id = 'sk-' + bsSkSlug(recipe.title);
-    const items = (recipe.ingredients || []).map((ing, idx) => {
-      // Structured {n: qty, m: name} since the Kitchen Card wave; tolerate
-      // legacy strings defensively via the old parser.
-      const p = typeof ing === 'string' ? bsSkParseIngredient(ing) : { n: ing.m, q: ing.n };
-      return { id: `${id}-${idx}`, n: p.n, q: p.q, meals: recipe.title };
-    });
-    const list = { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen${recipe.byRole ? ` · ${recipe.byRole}` : ''}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
-    setRecipeLists(prev => [list, ...prev.filter(l => l.id !== id)]);
+    const list = bsSkRecipeGroceryList(recipe);
+    if (!list) return;
+    setRecipeLists(prev => [list, ...prev.filter(l => l.id !== list.id)]);
     window.__bsToast?.(tr('nutrition:eat.toastItemAdded', { defaultValue: 'Added to grocery list' }), 'ok');
     return list;
   };
@@ -20277,6 +20285,31 @@ function bsRecentSearchPush(p) {
 }
 // Inline row actions — follow / message someone straight from the results,
 // without opening their profile first. Real accounts only (demo cast hides them).
+// A Shape Kitchen recipe opened from search. Its "Send to grocery list" did nothing (an empty handler):
+// search sits outside the Eat page, which holds the lists. It now saves the recipe's own list through the
+// path a list sent in chat or a nutritionist's recipe takes (bsSaveReceivedGroceryList): the Eat page
+// takes it when it is mounted, and otherwise it goes to this device's lists and the member's cloud
+// document. A guest is asked for an account first; a list already saved reads as on the list.
+function BSSearchKitchenRecipe({ recipe, onBack }) {
+  const tr = useShapeTr();
+  const list = React.useMemo(() => bsSkRecipeGroceryList(recipe), [recipe]);
+  const [state, setState] = useStateBSC(() => (list && bsHasGroceryList(list.id) ? 'done' : null)); // null | 'busy' | 'done'
+  const add = async () => {
+    if (!list || state === 'busy' || state === 'done') return;
+    if (window.bsRequireAccount && !window.bsRequireAccount(tr('profile:nutri.staplesAsk', { defaultValue: 'add to your grocery list' }))) return;
+    setState('busy');
+    try {
+      await bsSaveReceivedGroceryList(list);
+      setState('done');
+      window.__bsToast?.(tr('nutrition:grocery.share.savedToast', { defaultValue: 'Saved to your grocery lists' }), 'ok');
+    } catch (e) {
+      setState(null);
+      window.__bsToast?.(tr('nutrition:grocery.share.saveFail', { defaultValue: 'Could not save the list. Try again.' }), 'error');
+    }
+  };
+  return <BSShapeKitchenRecipe recipe={recipe} onBack={onBack} onAddGrocery={add} groceryAdded={state === 'done'} />;
+}
+
 function BSSearchFollowBtn({ uid, teal }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -20560,7 +20593,7 @@ function BSUniversalSearch({ onClose }) {
   );
   if (viewRecipe) return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
-      <BSShapeKitchenRecipe recipe={viewRecipe} onBack={() => setViewRecipe(null)} onAddGrocery={() => {}} groceryAdded={false} />
+      <BSSearchKitchenRecipe recipe={viewRecipe} onBack={() => setViewRecipe(null)} />
     </div>
   );
   if (viewWorkout) return (
