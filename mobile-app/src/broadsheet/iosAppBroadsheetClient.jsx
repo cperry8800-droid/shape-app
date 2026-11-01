@@ -25522,10 +25522,10 @@ let _bsNoraThread = null;
 let _bsNoraBusy = false;
 // Her reply so far while she writes it (streamed); the finished reply replaces it.
 let _bsNoraLive = '';
+const _bsNoraSubs = new Set();
 // What she is looking up before her words come (a `status` key, bsNoraStatusWords); cleared with
 // the live text, and shown only while there is none.
 let _bsNoraStatus = '';
-const _bsNoraSubs = new Set();
 // The account whose greeting the thread holds, so a sign-in after a signed-out preview
 // fetches the new account's own (the app remounts on login without reloading; Codex, #2249).
 let _bsNoraGreeted = null;
