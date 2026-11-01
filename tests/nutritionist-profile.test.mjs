@@ -439,7 +439,8 @@ test('her activity: a tab of its own, last, with her posts that are not plate no
   assert.ok(!document.querySelector('[data-activity]'), 'not on the page under another tab');
   await click(button(/^Activity$/));
   const feed = document.querySelector('[data-activity]');
-  assert.match(feed.textContent, /Nadia's activity.*Sunday prep/s);
+  assert.match(feed.textContent, /Sunday prep/);
+  assert.doesNotMatch(feed.textContent, /Nadia's activity/, 'no heading repeating the tab\'s name');
   assert.ok(!/Greek yogurt power bowl/.test(feed.textContent), 'the shared meal stays in Plate notes');
   await m.unmount();
   reset({ me: 'u-nadia', stored: {}, posts: [] });
