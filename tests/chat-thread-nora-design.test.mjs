@@ -56,6 +56,30 @@ test('yours: an ink bubble with no face; theirs on the paper, a byline once per 
   assert.ok(!nodes.some((n) => n.type === 'button' && /^You/.test(textOf(n).trim())), 'no byline on your own words');
 });
 
+test('two accounts with one display name are two runs; one account is one run (Codex P2 on #2556)', () => {
+  const d = drive(BSChatThread, {
+    thread: thread([
+      { who: 'Alex', userId: 'u-1', t: 'First Alex.', time: '3h', me: false },
+      { who: 'Alex', userId: 'u-2', t: 'Second Alex.', time: '3h', me: false },
+      { who: 'Alex', userId: 'u-2', t: 'Second Alex again.', time: '2h', me: false },
+    ], { who: 'Saturday runs', role: 'Channel', group: true, channelId: 7 }),
+    eyebrow: 'Channels', onBack() {},
+  });
+  const bylines = d.nodes().filter((n) => n.type === 'button' && !withAttr(flat(n), 'data-thread-name').length && textOf(n).includes('Alex'));
+  assert.equal(bylines.length, 2, 'u-2 gets its own face and name, then keeps one run');
+});
+
+test('the sticky desk carries the masthead, so BSPage pins none over it (Codex P2 on #2556)', () => {
+  const d = drive(BSChatThread, { thread: thread(talk), eyebrow: 'Coach', onBack() {} });
+  // The harness's BSPage is a nameless stand-in: the page is the root, the one that takes tabBarHeight.
+  const page = d.nodes().find((n) => n && n.props && n.props.tabBarHeight === 0);
+  assert.ok(page, 'the thread is a BSPage with no tab bar');
+  assert.equal(page.props.mast, false);
+  const [desk] = withAttr(d.nodes(), 'data-thread-desk');
+  assert.equal(desk.props.style.position, 'sticky');
+  assert.ok(d.nodes().some(named('BSBackRow')), 'Back stays in the desk');
+});
+
 test('the tray composer docks at the foot, pinned', () => {
   const d = drive(BSChatThread, { thread: thread(talk), eyebrow: 'Coach', onBack() {} });
   const composer = d.nodes().find(named('BSMessageComposer'));

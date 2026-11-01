@@ -26801,8 +26801,10 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   const headPhoto = (counterpartId && threadAvatars[counterpartId]) || (!thread.conversationId && !thread.channelId ? bsDemoFace(thread.who) : undefined);
   const headOnline = !!counterpartId && bsIsUserOnline(counterpartId);
   const deskBtn = { flex: 'none', width: 40, height: 40, borderRadius: '50%', border: 0, background: bsTHexA(DESK_INK, 0.12), color: DESK_INK, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' };
+  // mast={false}: the desk is sticky and carries the masthead and ← itself, so BSPage's paper bar,
+  // which pins past 64px, would only lay a second masthead over the ink band (Codex P2 on #2556).
   return (
-    <BSPage tabBarHeight={0}>
+    <BSPage tabBarHeight={0} mast={false}>
       {/* The desk: the masthead and ← on the ink band, then who you are talking to. */}
       <div data-thread-desk="" style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 16px`, background: DESK, color: DESK_INK, position: 'sticky', top: 0, zIndex: 2 }}>
         {window.BSMastRow && <window.BSMastRow ink={DESK_INK} trailing={<BSMeCorner ink={DESK_INK} />} />}
@@ -26862,7 +26864,10 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
           // their OWN ladder (Certified/Pro/Elite/Master/Icon), members the client ladder.
           const senderName = m.who || thread.who;
           const prev = i > 0 ? allMessages[i - 1] : null;
-          const sameRun = !!prev && !prev.shape && !!prev.me === !!me && (prev.who || thread.who) === senderName;
+          // The same person by account when both carry one (two members can share a display name in a
+          // channel; Codex P2 on #2556), else by name.
+          const sameSender = !!prev && (prev.userId && m.userId ? prev.userId === m.userId : (prev.who || thread.who) === senderName);
+          const sameRun = !!prev && !prev.shape && !!prev.me === !!me && sameSender;
           const senderClientTier = m.tier ? m.tier : bsPostTier({ who: senderName });
           const isCoachSender = !!m.coach || bsIsCoachRole(m.role) || (threadIsCoach && senderName === thread.who);
           const senderTierLabel = isCoachSender ? bsCoachTier(senderClientTier) : senderClientTier;
