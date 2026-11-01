@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
-import { bsChatDayKey, bsChatDayLabel, bsChatClock, bsChatDividerIndexes } from '../mobile-app/src/services/chatTime.mjs';
+import { bsChatDayKey, bsChatDayLabel, bsChatClock, bsChatDividerIndexes, bsChatStamp } from '../mobile-app/src/services/chatTime.mjs';
 import {
   BS_REPLY_SNIPPET, BS_REPLY_SWIPE, bsReplySnippet, bsReplyFromMetadata, bsReplyFor,
   bsReplySwipeDecide, bsReplySwipeOffset, bsReplySwipeCommits,
@@ -81,6 +81,7 @@ test('a reply keeps short strings only: the words run together and cut, the name
   assert.deepEqual(bsReplyFromMetadata({ reply: { id: 'm1', from: 'u1', who: ' Maya   Chen ', t: 'Keep the tempo slow.' } }), { id: 'm1', from: 'u1', who: 'Maya Chen', t: 'Keep the tempo slow.' });
   assert.equal(bsReplyFromMetadata({ reply: { id: 'm1', t: '' } }), null, 'no words and no name is no reply');
   assert.equal(bsReplyFromMetadata({ reply: ['t'] }), null);
+  assert.equal(bsReplyFromMetadata({ reply: Object.assign(['x'], { t: 'words', who: 'Ana' }) }), null, 'an array is no reply, whatever it carries');
   assert.equal(bsReplyFromMetadata({ reply: 'quote' }), null);
   assert.equal(bsReplyFromMetadata({}), null);
   assert.equal(bsReplyFromMetadata(null), null);
@@ -125,7 +126,11 @@ test('each day is said once over its messages, a new day starts a new byline, an
   const bylines = nodes.filter((n) => n.type === 'button' && !withAttr(flat(n), 'data-thread-name').length && textOf(n).includes(MAYA) && !withAttr(flat(n), 'data-thread-quote').length);
   assert.equal(bylines.length, 2);
   const clock = bsChatClock(talk()[3].at, undefined);
-  assert.ok(d.text.includes(clock), `the clock alone, ${clock}`);
+  assert.ok(d.text.includes(clock), `the clock, ${clock}`);
+  // ...alone: the day is the divider's to say (talk() is dated before today, so a full stamp has a day in it).
+  const full = bsChatStamp(talk()[3].at, undefined);
+  assert.notEqual(full, clock);
+  assert.ok(!d.text.includes(full), `never the full stamp, ${full}`);
 });
 
 // A fake bubble: the touch handlers find the row by closest() and slide it.
@@ -135,6 +140,8 @@ const fakeRow = () => {
   return { row, mark, target: { closest: () => row } };
 };
 const touch = (x, y) => ({ touches: [{ clientX: x, clientY: y }] });
+// The quote rides in the composer's `above` (a prop, which the harness does not draw as a child).
+const composerQuote = (d) => d.nodes().find((n) => n && typeof n.type === 'function' && n.type.name === 'BSMessageComposer').props.above;
 
 test('swiping a message left past ARM quotes it over the composer; a short swipe springs back', () => {
   const d = mount();
@@ -148,7 +155,7 @@ test('swiping a message left past ARM quotes it over the composer; a short swipe
   bubble().props.onTouchEnd({});
   d.render();
   assert.equal(row.style.transform, '', 'and settles back');
-  assert.equal(withAttr(d.nodes(), 'data-composer-quote').length, 0);
+  assert.equal(composerQuote(d), null, 'a short swipe quotes nothing');
   // Long: replies.
   bubble().props.onTouchStart({ ...touch(200, 300), currentTarget: target });
   bubble().props.onTouchMove(touch(120, 304));
@@ -177,7 +184,7 @@ test('a vertical drag scrolls and never replies; the bubble claims horizontal to
   assert.equal(row.style.transform, undefined, 'a scroll never moves the row');
   bubble.props.onTouchEnd({});
   d.render();
-  assert.equal(withAttr(d.nodes(), 'data-composer-quote').length, 0);
+  assert.equal(composerQuote(d), null, 'a scroll quotes nothing');
 });
 
 test('Reply after a long press quotes it too, for a mouse, a keyboard or a screen reader', () => {
