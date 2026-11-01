@@ -346,5 +346,12 @@
   "wallLive.sendBoost": "Send ginger →",
   "wallLive.alsoTraining": "Dem dey train too:",
   "card.you": "You",
-  "thread.activeNow": "Dey online now"
+  "thread.activeNow": "Dey online now",
+  "thread.today": "Today",
+  "thread.yesterday": "Yesterday",
+  "thread.you": "You",
+  "thread.reply": "Reply",
+  "thread.replyingTo": "You dey reply {name}",
+  "thread.cancelReply": "Cancel reply",
+  "thread.goToQuoted": "Show the message wey e dey answer"
 }

@@ -125,7 +125,7 @@ test('the tray: one rounded tray holds the mic, the field and a round ink send',
   assert.match(tray, /background: canSend \? t\.INK : bsTHexA\(t\.INK, 0\.1\), color: canSend \? t\.PAPER : t\.INK50/);
   // The mic keeps the composer's own voice: the same handlers and words.
   assert.match(tray, /\{voiceOk && \(\s*<button type="button" \{\.\.\.micHandlers\}/);
-  assert.match(tray, /\{voiceStatus\}\s*\{\(canChat \|\| unlocked\) \? trayField : lockedField\}/);
+  assert.match(tray, /\{voiceStatus\}\s*\{above\}\s*\{\(canChat \|\| unlocked\) \? trayField : lockedField\}/);
   // Every hook runs before the tray returns.
   assert.ok(comp.indexOf('  if (tray) {') > comp.lastIndexOf('React.useLayoutEffect('));
   assert.ok(comp.indexOf('  if (tray) {') > comp.lastIndexOf('React.useEffect('));

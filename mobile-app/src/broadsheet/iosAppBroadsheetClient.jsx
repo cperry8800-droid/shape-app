@@ -18,7 +18,8 @@ import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsValidLivePayload } from '../services/liveProgress.mjs';
 import { createLiveWorkoutPublisher } from '../services/liveWorkoutPublisher.mjs';
 import { bsShortAge } from '../services/shortAge.mjs';
-import { bsChatStamp } from '../services/chatTime.mjs';
+import { bsChatStamp, bsChatDayLabel, bsChatClock, bsChatDividerIndexes } from '../services/chatTime.mjs';
+import { bsReplyFor, bsReplyFromMetadata, bsReplySnippet, bsReplySwipeDecide, bsReplySwipeOffset, bsReplySwipeCommits, BS_REPLY_SWIPE } from '../services/chatReply.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // The ONE ceiling. The prompt must ask at exactly the load the core refuses to
 // admit unconsidered — a local copy of 150 that drifted would leave the screen
@@ -24079,7 +24080,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     last: th.last,
     at: th.at || null,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ id: m.id || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', at: m.at || null, me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null, grocery: m.grocery || null })),
+    messages: (th.messages || []).map(m => ({ id: m.id || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', at: m.at || null, me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null, grocery: m.grocery || null, reply: m.reply || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land
@@ -26245,7 +26246,7 @@ function useBSCanChat() {
   return v;
 }
 
-function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false, holdToTalk = false, onVoiceComplete, mag = false, tray = false }) {
+function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false, holdToTalk = false, onVoiceComplete, mag = false, tray = false, above = null }) {
   // `mag`: the chat page's composer in the Wall's magazine look (owner, 2026-10-24): square, an ink send
   // button, the magazine's teal, no lock emoji and no floating shadow.
   // `tray`: Nora's sheet (the concierge desk, 2026-10-31): one rounded tray holds the mic, the field and a
@@ -26562,9 +26563,11 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         </button>
       </div>
     );
+    // `above`: what rides over the field, a chat thread's reply quote (2026-11-01).
     const trayBox = (
       <div style={{ padding: `10px ${t.padX}px calc(12px + env(safe-area-inset-bottom, 0px))` }}>
         {voiceStatus}
+        {above}
         {(canChat || unlocked) ? trayField : lockedField}
       </div>
     );
@@ -26633,7 +26636,10 @@ function useBSReactions() {
   return { reactions, pickerKey, setPickerKey, toggle };
 }
 
-function BSReactionPicker({ t, anchorRight, onPick, current }) {
+// `onReply`: the chat thread's Reply (2026-11-01), the way to reply without a swipe: a long press, a
+// right click or a double tap opens this row, and Reply sits after the reactions.
+function BSReactionPicker({ t, anchorRight, onPick, current, onReply = null }) {
+  const tr = useShapeTr();
   return (
     <div style={{
       position: 'absolute',
@@ -26651,6 +26657,14 @@ function BSReactionPicker({ t, anchorRight, onPick, current }) {
           fontSize: 17, lineHeight: 1, cursor: 'pointer',
         }}>{em}</button>
       ))}
+      {onReply && (
+        <button type="button" data-reply-action onClick={onReply} style={{
+          height: 32, marginLeft: 2, padding: '0 10px 0 9px', borderRadius: 999, border: 0,
+          borderLeft: `1px solid ${t.SURFACE_BORDER}`, background: 'transparent', color: t.INK,
+          display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+          fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+        }}>{BS_REPLY_GLYPH(13)}{tr('feed:thread.reply', { defaultValue: 'Reply' })}</button>
+      )}
     </div>
   );
 }
@@ -26670,16 +26684,46 @@ function BSReactionPill({ t, emoji, anchorRight, onClick }) {
 
 function bsLongPress(onTrigger) {
   let id = null;
+  let at = null;
+  const stop = () => { if (id) clearTimeout(id); id = null; };
   return {
     onContextMenu: (e) => { e.preventDefault(); onTrigger(); },
     onMouseDown: () => { id = setTimeout(onTrigger, 380); },
-    onMouseUp: () => { if (id) clearTimeout(id); },
-    onMouseLeave: () => { if (id) clearTimeout(id); },
-    onTouchStart: () => { id = setTimeout(onTrigger, 380); },
-    onTouchEnd: () => { if (id) clearTimeout(id); },
+    onMouseUp: stop,
+    onMouseLeave: stop,
+    onTouchStart: (e) => {
+      const p = e && e.touches && e.touches[0];
+      at = p ? { x: p.clientX, y: p.clientY } : null;
+      id = setTimeout(onTrigger, 380);
+    },
+    // A finger that travels is a scroll or a swipe (swipe to reply, 2026-11-01), never a long press:
+    // held still it opens the reactions, moved more than 10px it lets them be.
+    onTouchMove: (e) => {
+      const p = e && e.touches && e.touches[0];
+      if (at && p && Math.hypot(p.clientX - at.x, p.clientY - at.y) > 10) stop();
+    },
+    onTouchEnd: stop,
     onDoubleClick: (e) => { e.preventDefault(); onTrigger('❤️'); },
   };
 }
+
+// Swipe to reply (2026-11-01): the message follows the finger left, and the reply mark behind it
+// comes up as it nears the point where letting go replies. Written straight to the nodes, as the
+// voice ring is, so a drag never re-renders the thread.
+function bsPlaceReplySwipe(row, off, settle = false) {
+  if (!row) return;
+  row.style.transition = settle ? 'transform 180ms ease' : 'none';
+  row.style.transform = off ? `translateX(${off}px)` : '';
+  const mark = row.parentElement && row.parentElement.querySelector(':scope > [data-reply-glyph]');
+  if (mark) {
+    const k = Math.max(0, Math.min(1, -off / BS_REPLY_SWIPE.ARM));
+    mark.style.opacity = String(k);
+    mark.style.transform = `scale(${(0.6 + 0.4 * k).toFixed(3)})`;
+  }
+}
+const BS_REPLY_GLYPH = (size = 14) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg>
+);
 
 function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSendChannel = null, grocerySaveTo = 'member' }) {
   const t = useBS();
@@ -26687,6 +26731,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   useBSPresence(); // refresh message-avatar dots as people start/stop a workout or cooking
   const [text, setText] = useStateBSC('');
   const [extras, setExtras] = useStateBSC([]);
+  // Swipe to reply (2026-11-01): the message being answered, quoted over the composer until it is sent.
+  const [replyTo, setReplyTo] = useStateBSC(null);
+  const swipeRef = React.useRef(null);
   const [threadAvatars, setThreadAvatars] = useStateBSC({}); // userId → profile photo
   // Tap a person's avatar/name → open their public profile (people only — not
   // the channel itself). Role inferred from the thread label.
@@ -26755,13 +26802,17 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     if (!text.trim()) return;
     const body = text.trim();
     const tmpId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
-    setExtras(e => [...e, { tmpId, who: 'You', t: body, time: 'now', at: new Date().toISOString(), me: true }]);
+    const reply = replyTo;
+    setExtras(e => [...e, { tmpId, who: 'You', t: body, time: 'now', at: new Date().toISOString(), me: true, reply }]);
     setText('');
+    setReplyTo(null);
     // Persist to the backend: direct conversation or community channel.
-    const sent = thread.conversationId ? window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body })
-      : thread.channelId ? window.ShapeChannels?.sendMessage?.({ channelId: thread.channelId, body }) : null;
+    // A reply carries its quote: a direct message's metadata.reply, a channel's `reply` (shapeBackend).
+    const sent = thread.conversationId ? window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body, ...(reply ? { metadata: { reply } } : {}) })
+      : thread.channelId ? window.ShapeChannels?.sendMessage?.({ channelId: thread.channelId, body, ...(reply ? { reply } : {}) }) : null;
     // The stored row's id, once it answers, so a history snapshot that already holds it shows it once.
-    if (sent && sent.then && thread.conversationId) {
+    // A channel's too (2026-11-01), so a reply to a message you just sent names it.
+    if (sent && sent.then && (thread.conversationId || thread.channelId)) {
       sent.then(res => { const id = res && res.data && res.data.id; if (id) setExtras(e => e.map(x => x.tmpId === tmpId ? { ...x, id } : x)); }).catch(() => {});
     } else if (sent && sent.catch) sent.catch(() => {});
   };
@@ -26773,7 +26824,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     if (thread.channelId && window.ShapeChannels?.subscribeMessages) {
       unsub = window.ShapeChannels.subscribeMessages((row) => {
         if (!row || row.channel_id !== thread.channelId || row.sender_id === myId) return;
-        setExtras(e => [...e, { who: row.author_name || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null }]);
+        setExtras(e => [...e, { id: row.id || null, who: row.author_name || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, reply: bsReplyFromMetadata(row.metadata) }]);
         window.ShapeUnread?.markChannelRead?.(thread.channelId);  // it's open → keep it read
       });
     } else if (thread.conversationId && window.ShapeMessages?.subscribeMessages) {
@@ -26785,7 +26836,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         // Carry the live-boost stamp on realtime appends too — a boost landing
         // while this thread is OPEN (the time-sensitive case) must render with
         // its eyebrow immediately, not only after a reload re-maps metadata.
-        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null, grocery: bsGroceryFromMetadata(row.metadata) }]);
+        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null, grocery: bsGroceryFromMetadata(row.metadata), reply: bsReplyFromMetadata(row.metadata) }]);
         window.ShapeUnread?.markConversationRead?.(thread.conversationId);
       });
     }
@@ -26812,6 +26863,110 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   const headPhoto = (counterpartId && threadAvatars[counterpartId]) || (!thread.conversationId && !thread.channelId ? bsDemoFace(thread.who) : undefined);
   const headOnline = !!counterpartId && bsIsUserOnline(counterpartId);
   const deskBtn = { flex: 'none', width: 40, height: 40, borderRadius: '50%', border: 0, background: bsTHexA(DESK_INK, 0.12), color: DESK_INK, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' };
+  // ── DAY DIVIDERS AND SWIPE TO REPLY (owner, 2026-11-01: "build the day dividers and swipe to reply").
+  // Each day is said once, centred over its messages (Today, Yesterday, the weekday this past week,
+  // else the date), and a message under it says only its clock. Swipe a message left (a right swipe
+  // is Back, BS_SWIPE) or pick Reply after a long press, and the composer quotes it.
+  const dayAt = bsChatDividerIndexes(allMessages);
+  const dateLocale = bsDateLocale();
+  const dayWords = (iso) => {
+    const d = bsChatDayLabel(iso, dateLocale);
+    if (!d) return '';
+    if (d.kind === 'today') return tr('feed:thread.today', { defaultValue: 'Today' });
+    if (d.kind === 'yesterday') return tr('feed:thread.yesterday', { defaultValue: 'Yesterday' });
+    return d.text;
+  };
+  const dayDivider = (i, at) => (
+    <div key={`day-${i}`} data-thread-day="" role="separator" aria-label={dayWords(at)} style={{ display: 'flex', alignItems: 'center', gap: 10, margin: `${i === 0 ? 0 : 28}px 0 14px` }}>
+      <span aria-hidden style={{ flex: 1, height: 1, background: bsTHexA(t.INK, 0.1) }} />
+      <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{dayWords(at)}</span>
+      <span aria-hidden style={{ flex: 1, height: 1, background: bsTHexA(t.INK, 0.1) }} />
+    </div>
+  );
+  const myId = (() => { try { return window.ShapeAuth?.getCachedState?.()?.user?.id || null; } catch (e) { return null; } })();
+  const youWord = tr('feed:thread.you', { defaultValue: 'You' });
+  const byId = new Map(allMessages.filter((x) => x && x.id).map((x) => [String(x.id), x]));
+  // The quote a reply draws: the quoted message itself when it is loaded (its own sender and words,
+  // so a stored quote cannot misquote it), else the snippet stored with the reply.
+  const quoteOf = (r) => {
+    if (!r) return null;
+    const q = r.id ? byId.get(String(r.id)) : null;
+    if (q) return { id: String(r.id), who: q.me ? youWord : (q.who || thread.who), t: bsReplySnippet(q.t) };
+    return { id: null, who: (r.from && myId && r.from === myId) ? youWord : (r.who || 'Member'), t: r.t };
+  };
+  const jumpTo = (id) => {
+    try {
+      const el = document.querySelector(`[data-msg-id="${String(id).replace(/["\\]/g, '')}"]`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (el.animate) el.animate([{ backgroundColor: bsTHexA(teal, 0.16) }, { backgroundColor: 'rgba(0,0,0,0)' }], { duration: 1200, easing: 'ease-out' });
+    } catch (e) {}
+  };
+  const startReply = (m) => {
+    setReplyTo(bsReplyFor(m, { myId, myName: bsMyName() }));
+    setTimeout(() => { try { const ta = document.querySelector('#bs-composer-slot textarea'); if (ta) ta.focus(); } catch (e) {} }, 0);
+  };
+  // The bubble takes the touch (with touchAction pan-y, so the shell's tab swipe lets it be); the row
+  // around it is what slides, and the reply mark sits behind the row.
+  const swipeProps = (m, lp) => ({
+    ...lp,
+    onTouchStart: (e) => {
+      lp.onTouchStart(e);
+      const p = e.touches && e.touches.length === 1 ? e.touches[0] : null;
+      const row = e.currentTarget && e.currentTarget.closest ? e.currentTarget.closest('[data-swipe-row]') : null;
+      swipeRef.current = p && row ? { x: p.clientX, y: p.clientY, dir: null, off: 0, row } : null;
+    },
+    onTouchMove: (e) => {
+      lp.onTouchMove(e);
+      const st = swipeRef.current;
+      const p = e.touches && e.touches[0];
+      if (!st || !p) return;
+      const dx = p.clientX - st.x;
+      const dy = p.clientY - st.y;
+      if (!st.dir) st.dir = bsReplySwipeDecide({ dx, dy });
+      if (st.dir !== 'reply') return;
+      st.off = bsReplySwipeOffset(dx);
+      bsPlaceReplySwipe(st.row, st.off);
+    },
+    onTouchEnd: (e) => {
+      lp.onTouchEnd(e);
+      const st = swipeRef.current;
+      swipeRef.current = null;
+      if (!st || st.dir !== 'reply') return;
+      bsPlaceReplySwipe(st.row, 0, true);
+      if (bsReplySwipeCommits(st.off)) startReply(m);
+    },
+    onTouchCancel: () => {
+      const st = swipeRef.current;
+      swipeRef.current = null;
+      if (st && st.dir === 'reply') bsPlaceReplySwipe(st.row, 0, true);
+    },
+  });
+  const replyMark = (
+    <span data-reply-glyph="" aria-hidden style={{ position: 'absolute', right: 0, top: '50%', marginTop: -15, width: 30, height: 30, borderRadius: '50%', display: 'grid', placeItems: 'center', background: bsTHexA(t.INK, 0.07), color: teal, opacity: 0, transform: 'scale(0.6)', transition: 'opacity 120ms, transform 120ms', pointerEvents: 'none' }}>{BS_REPLY_GLYPH(15)}</span>
+  );
+  const quoteBlock = (m, mine) => {
+    const q = quoteOf(m.reply);
+    if (!q) return null;
+    return (
+      <button type="button" data-thread-quote="" onClick={(e) => { e.stopPropagation(); if (q.id) jumpTo(q.id); }}
+        aria-label={q.id ? tr('feed:thread.goToQuoted', { defaultValue: 'Show the message this answers' }) : undefined}
+        style={{ display: 'block', width: '100%', boxSizing: 'border-box', margin: '0 0 7px', padding: '2px 0 2px 10px', border: 0, borderLeft: `2px solid ${mine ? bsTHexA(t.PAPER, 0.55) : teal}`, background: 'transparent', textAlign: 'left', cursor: q.id ? 'pointer' : 'default', color: 'inherit', whiteSpace: 'normal' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: mine ? bsTHexA(t.PAPER, 0.72) : teal }}>{BS_REPLY_GLYPH(10)}{q.who}</span>
+        <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', marginTop: 2, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.35, color: mine ? bsTHexA(t.PAPER, 0.74) : t.INK70 }}>{q.t}</span>
+      </button>
+    );
+  };
+  const replyQuote = quoteOf(replyTo);
+  const quoteBar = replyQuote ? (
+    <div data-composer-quote="" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 8px', padding: '7px 4px 7px 12px', borderRadius: 14, background: bsTHexA(t.INK, 0.05), borderLeft: `3px solid ${teal}` }}>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{tr('feed:thread.replyingTo', { name: replyQuote.who, defaultValue: 'Replying to {name}' })}</span>
+        <span style={{ display: 'block', marginTop: 2, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{replyQuote.t}</span>
+      </span>
+      <button type="button" onClick={() => setReplyTo(null)} aria-label={tr('feed:thread.cancelReply', { defaultValue: 'Cancel reply' })} style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: 0, background: 'transparent', color: t.INK50, fontSize: 19, lineHeight: 1, cursor: 'pointer' }}>×</button>
+    </div>
+  ) : null;
   // mast={false}: the desk is sticky and carries the masthead and ← itself, so BSPage's paper bar,
   // which pins past 64px, would only lay a second masthead over the ink band (Codex P2 on #2556).
   return (
@@ -26851,7 +27006,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
 
       {/* The talk — bottom padding clears the pinned tray composer. */}
       <div data-thread-talk="" style={{ padding: `22px ${t.padX}px calc(170px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column' }}>
-        {allMessages.map((m, i) => {
+        {allMessages.map((m, i) => { const node = (() => {
           // Shape's welcome at the top of a coach thread (fix 3a): from neither person, so a
           // centred note rather than a bubble, in the member's language.
           if (m.shape) {
@@ -26878,7 +27033,8 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
           // The same person by account when both carry one (two members can share a display name in a
           // channel; Codex P2 on #2556), else by name.
           const sameSender = !!prev && (prev.userId && m.userId ? prev.userId === m.userId : (prev.who || thread.who) === senderName);
-          const sameRun = !!prev && !prev.shape && !!prev.me === !!me && sameSender;
+          // A new day starts a new run: its divider stands between them.
+          const sameRun = !!prev && !prev.shape && !!prev.me === !!me && sameSender && !dayAt.has(i);
           const senderClientTier = m.tier ? m.tier : bsPostTier({ who: senderName });
           const isCoachSender = !!m.coach || bsIsCoachRole(m.role) || (threadIsCoach && senderName === thread.who);
           const senderTierLabel = isCoachSender ? bsCoachTier(senderClientTier) : senderClientTier;
@@ -26887,25 +27043,27 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
           const senderActivity = bsUserActivity(m.userId);
           const senderPhoto = (m.userId && threadAvatars[m.userId]) || (counterpartId ? threadAvatars[counterpartId] : undefined) || (!thread.conversationId && !thread.channelId ? bsDemoFace(senderName) : undefined);
           const stamp = (
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 12 : 5, textAlign: me ? 'right' : 'left' }}>{(m.at && bsChatStamp(m.at, bsDateLocale())) || bsShortAge(m.time, tr)}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 12 : 5, textAlign: me ? 'right' : 'left' }}>{(m.at && bsChatClock(m.at, dateLocale)) || bsShortAge(m.time, tr)}</div>
           );
           const reactionBits = (
             <>
-              {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
+              {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} onReply={() => { rx.setPickerKey(null); startReply(m); }} />}
               {myR && <BSReactionPill t={t} emoji={myR} anchorRight={me} onClick={() => rx.toggle(rKey, myR)} />}
             </>
           );
           // Yours: an ink bubble on the right, no face (it is you).
           if (me) {
             return (
-              <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '84%', marginTop: i === 0 ? 0 : sameRun ? 8 : 24, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 0 }}>
-                <div style={{ position: 'relative', minWidth: 0, maxWidth: '100%' }}>
-                  <div {...lp} data-thread-mine="" style={{ boxSizing: 'border-box', padding: '10px 15px', borderRadius: 20, background: t.INK, color: t.PAPER, fontFamily: t.BODY, fontSize: 15, lineHeight: 1.45, letterSpacing: '-0.005em', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
+              <div key={i} data-msg-id={m.id || undefined} style={{ position: 'relative', alignSelf: 'flex-end', maxWidth: '84%', marginTop: (i === 0 || dayAt.has(i)) ? 0 : sameRun ? 8 : 24, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 0 }}>
+                {replyMark}
+                <div data-swipe-row="" style={{ position: 'relative', minWidth: 0, maxWidth: '100%' }}>
+                  <div {...swipeProps(m, lp)} data-thread-mine="" style={{ touchAction: 'pan-y', boxSizing: 'border-box', padding: '10px 15px', borderRadius: 20, background: t.INK, color: t.PAPER, fontFamily: t.BODY, fontSize: 15, lineHeight: 1.45, letterSpacing: '-0.005em', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
                     {/* On your ink bubble the boost line takes the bubble's ink: the paper's teal read 1.6:1 on the
                         dark papers' cream bubble (Copilot on #2556). */}
                     {m.boost && (
                       <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.PAPER, 0.78), marginBottom: 5, fontWeight: 800 }}>▲ Live boost · {m.boost === 'cooking' ? 'mid-cook' : 'mid-workout'}</div>
                     )}
+                    {quoteBlock(m, true)}
                     {m.t}
                     {m.clip && (
                       <div style={{ marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${teal}66`, borderRadius: 9 }}>
@@ -26958,7 +27116,8 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
           }
           // Theirs: on the paper with no box, under their face and name.
           return (
-            <div key={i} style={{ alignSelf: 'stretch', marginTop: i === 0 ? 0 : sameRun ? 8 : 24, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+            <div key={i} data-msg-id={m.id || undefined} style={{ position: 'relative', alignSelf: 'stretch', marginTop: (i === 0 || dayAt.has(i)) ? 0 : sameRun ? 8 : 24, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+              {replyMark}
               {!sameRun && (
                 <button onClick={() => openP(senderName, m.userId)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minHeight: 28, marginBottom: 6, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
                   <span style={{ position: 'relative', display: 'inline-flex' }}>
@@ -26971,11 +27130,12 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                   {thread.group && roleLabel && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: senderRole === 'nutritionist' ? '#a07a2e' : t.RUST }}>{roleLabel}</span>}
                 </button>
               )}
-              <div style={{ position: 'relative', minWidth: 0, maxWidth: '100%' }}>
-                <div {...lp} data-thread-theirs="" style={{ maxWidth: '100%', fontFamily: t.BODY, fontSize: 15.5, lineHeight: 1.55, letterSpacing: '-0.005em', color: t.INK, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
+              <div data-swipe-row="" style={{ position: 'relative', minWidth: 0, maxWidth: '100%' }}>
+                <div {...swipeProps(m, lp)} data-thread-theirs="" style={{ touchAction: 'pan-y', maxWidth: '100%', fontFamily: t.BODY, fontSize: 15.5, lineHeight: 1.55, letterSpacing: '-0.005em', color: t.INK, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
                   {m.boost && (
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: m.boost === 'cooking' ? t.AMBER : teal, marginBottom: 5, fontWeight: 800 }}>▲ Live boost · {m.boost === 'cooking' ? 'mid-cook' : 'mid-workout'}</div>
                   )}
+                  {quoteBlock(m, false)}
                   {m.t}
                   {m.clip && (
                     <div style={{ marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${teal}66`, borderRadius: 9 }}>
@@ -27025,11 +27185,12 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
               {stamp}
             </div>
           );
-        })}
+        })(); return dayAt.has(i) ? [dayDivider(i, m.at), node] : node; })}
       </div>
 
-      {/* The tray composer, as Nora's sheet docks it, pinned to the foot of the screen. */}
-      <BSMessageComposer value={text} onChange={setText} onSend={send} pinned tray />
+      {/* The tray composer, as Nora's sheet docks it, pinned to the foot of the screen; a reply's quote
+          rides over its field. */}
+      <BSMessageComposer value={text} onChange={setText} onSend={send} pinned tray above={quoteBar} />
     </BSPage>
   );
 }

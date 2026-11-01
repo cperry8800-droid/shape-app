@@ -1,0 +1,107 @@
+// Mutation spec for day dividers and swipe to reply in a chat thread (owner, 2026-11-01: "build the day
+// dividers and swipe to reply"), with the channel_messages.metadata migration it needs
+// (supabase-migrations/2026-11-01-channel-message-replies.sql). A reply is another member's input
+// written to the database and drawn in someone else's thread, so every mutation must be killed. Run
+// from the repo root:
+//   node scripts/mutate.mjs --spec tests/mutations/chat-replies-2026-11-01.mutations.mjs --fail-on-skipped
+// The suite runs in Auckland so a day key read in UTC is caught.
+const REPLY = 'mobile-app/src/services/chatReply.mjs';
+const TIME = 'mobile-app/src/services/chatTime.mjs';
+const BACKEND = 'mobile-app/src/services/shapeBackend.js';
+const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
+const SQL = 'supabase-migrations/2026-11-01-channel-message-replies.sql';
+
+export default {
+  test: 'TZ=Pacific/Auckland node --test tests/chat-dividers-replies.test.mjs tests/chat-time.test.mjs tests/grocery-share.test.mjs',
+  timeoutMs: 600_000,
+  mutations: [
+    // ── chatReply.mjs: what a reply keeps
+    { name: 'the snippet is not cut', file: REPLY,
+      find: 'return s.length > BS_REPLY_SNIPPET ?', replace: 'return s.length > 100000 ?' },
+    { name: 'the snippet keeps its whitespace', file: REPLY,
+      find: "const s = String(text == null ? '' : text).replace(/\\s+/g, ' ').trim();", replace: "const s = String(text == null ? '' : text);" },
+    { name: 'an array is a reply', file: REPLY,
+      find: "if (!r || typeof r !== 'object' || Array.isArray(r)) return null;", replace: 'if (!r) return null;' },
+    { name: 'the name is not cut', file: REPLY,
+      find: ".trim().slice(0, BS_REPLY_NAME) : '';", replace: ".trim() : '';" },
+    { name: 'a reply with no words and no name stands', file: REPLY,
+      find: '  if (!t && !who) return null;\n', replace: '' },
+    { name: 'an object is an id', file: REPLY,
+      find: "const idOf = (v) => ((typeof v === 'string' && v) || (typeof v === 'number' && Number.isFinite(v)) ?", replace: 'const idOf = (v) => (v ?' },
+    { name: 'your own is stored as "You"', file: REPLY,
+      find: "who: (m.me ? (myName || 'You') : (m.who || 'Member')).slice(0, BS_REPLY_NAME),", replace: "who: (m.who || 'Member').slice(0, BS_REPLY_NAME)," },
+    { name: 'your own names no account', file: REPLY,
+      find: 'from: m.me ? idOf(myId) : idOf(m.userId),', replace: 'from: idOf(m.userId),' },
+    // ── chatReply.mjs: the swipe
+    { name: 'a rightward swipe replies (it is Back)', file: REPLY,
+      find: "return dx < 0 && -dx > BS_REPLY_SWIPE.RATIO * Math.abs(dy) ? 'reply' : 'scroll';", replace: "return Math.abs(dx) > BS_REPLY_SWIPE.RATIO * Math.abs(dy) ? 'reply' : 'scroll';" },
+    { name: 'no slop', file: REPLY,
+      find: '  if (Math.max(Math.abs(dx), Math.abs(dy)) < BS_REPLY_SWIPE.SLOP) return null;\n', replace: '' },
+    { name: 'the row follows past MAX', file: REPLY,
+      find: 'return Math.max(-BS_REPLY_SWIPE.MAX, Math.min(0, dx));', replace: 'return Math.min(0, dx);' },
+    { name: 'any swipe commits', file: REPLY,
+      find: 'return -offset >= BS_REPLY_SWIPE.ARM;', replace: 'return -offset > 0;' },
+    // ── chatTime.mjs: the days
+    { name: 'no Yesterday', file: TIME,
+      find: "  if (days === 1) return { kind: 'yesterday' };\n", replace: '' },
+    { name: 'a weekday a week back', file: TIME,
+      find: "if (days < 7) return { kind: 'weekday'", replace: "if (days < 8) return { kind: 'weekday'" },
+    { name: 'never the year', file: TIME,
+      find: "weekday: 'short', month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear()", replace: "weekday: 'short', month: 'short', day: 'numeric', ...(false" },
+    { name: 'the day key in UTC', file: TIME,
+      find: 'return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;', replace: 'return d.toISOString().slice(0, 10);' },
+    { name: 'an unstamped message breaks the day', file: TIME,
+      find: '    if (!key) return;\n    if (key !== last) out.add(i);', replace: "    if (!key) { last = ''; return; }\n    if (key !== last) out.add(i);" },
+    { name: 'the clock says the date', file: TIME,
+      find: "  return format(d, locale, { hour: 'numeric', minute: '2-digit' });\n}\n\n/**\n * The indexes", replace: "  return format(d, locale, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });\n}\n\n/**\n * The indexes" },
+    // ── shapeBackend.js
+    { name: 'any error retries without the quote', file: BACKEND,
+      find: 'if (error && reply && bsMissingMetadataColumn(error))', replace: 'if (error && reply)' },
+    { name: 'a plain message retries', file: BACKEND,
+      find: 'if (error && reply && bsMissingMetadataColumn(error))', replace: 'if (error && bsMissingMetadataColumn(error))' },
+    { name: 'every channel message writes metadata', file: BACKEND,
+      find: 'insert(reply ? { ...row, metadata: { reply } } : row)', replace: 'insert({ ...row, metadata: { reply } })' },
+    { name: 'channel history names metadata', file: BACKEND,
+      find: "    // run, and naming it before then would fail the whole read.\n    .select('*')", replace: "    // run, and naming it before then would fail the whole read.\n    .select('id, sender_id, author_name, body, created_at, metadata')" },
+    { name: 'channel history drops the id', file: BACKEND,
+      find: "      id: m.id || null,\n      who: m.sender_id === state.user.id ? 'You' : (m.author_name || 'Member'),", replace: "      who: m.sender_id === state.user.id ? 'You' : (m.author_name || 'Member')," },
+    { name: 'channel history drops the reply', file: BACKEND,
+      find: '      reply: bsReplyFromMetadata(m.metadata),\n', replace: '      reply: null,\n' },
+    // ── the thread
+    { name: 'no dividers', file: CLIENT,
+      find: 'return dayAt.has(i) ? [dayDivider(i, m.at), node] : node;', replace: 'return node;' },
+    { name: 'a run runs across a day', file: CLIENT,
+      find: 'sameSender && !dayAt.has(i);', replace: 'sameSender;' },
+    { name: 'the stamp says the day again', file: CLIENT,
+      find: '{(m.at && bsChatClock(m.at, dateLocale))', replace: '{(m.at && bsChatStamp(m.at, dateLocale))' },
+    { name: 'a direct reply is sent without its quote', file: CLIENT,
+      find: 'body, ...(reply ? { metadata: { reply } } : {}) })', replace: 'body })' },
+    { name: 'a channel reply is sent without its quote', file: CLIENT,
+      find: 'body, ...(reply ? { reply } : {}) })', replace: 'body })' },
+    { name: 'the quote stays after the send', file: CLIENT,
+      find: "    setText('');\n    setReplyTo(null);", replace: "    setText('');" },
+    { name: 'a loaded quote is drawn from the stored words', file: CLIENT,
+      find: '    if (q) return { id: String(r.id), who: q.me ? youWord : (q.who || thread.who), t: bsReplySnippet(q.t) };\n', replace: '' },
+    { name: 'any swipe replies', file: CLIENT,
+      find: 'if (bsReplySwipeCommits(st.off)) startReply(m);', replace: 'startReply(m);' },
+    { name: 'a scroll moves the row', file: CLIENT,
+      find: "      if (st.dir !== 'reply') return;\n      st.off = bsReplySwipeOffset(dx);", replace: '      st.off = bsReplySwipeOffset(dx);' },
+    { name: 'the bubble leaves horizontal touches to the shell', file: CLIENT,
+      find: 'data-thread-theirs="" style={{ touchAction: \'pan-y\', ', replace: 'data-thread-theirs="" style={{ ' },
+    { name: 'a moving finger long-presses', file: CLIENT,
+      find: '      if (at && p && Math.hypot(p.clientX - at.x, p.clientY - at.y) > 10) stop();\n', replace: '' },
+    { name: 'the picker has no Reply', file: CLIENT,
+      find: ' onReply={() => { rx.setPickerKey(null); startReply(m); }}', replace: '' },
+    { name: 'a live channel row drops its reply', file: CLIENT,
+      find: "userId: row.sender_id || null, reply: bsReplyFromMetadata(row.metadata) }]);\n        window.ShapeUnread?.markChannelRead", replace: "userId: row.sender_id || null }]);\n        window.ShapeUnread?.markChannelRead" },
+    { name: 'the chat page drops the reply on its way to the thread', file: CLIENT,
+      find: 'grocery: m.grocery || null, reply: m.reply || null })),', replace: 'grocery: m.grocery || null })),' },
+    // ── the migration
+    { name: 'the column may be null', file: SQL,
+      find: "add column if not exists metadata jsonb not null default '{}'::jsonb;", replace: 'add column if not exists metadata jsonb;' },
+    { name: 'no size cap', file: SQL,
+      find: "      check (jsonb_typeof(metadata) = 'object' and pg_column_size(metadata) <= 4096);", replace: "      check (jsonb_typeof(metadata) = 'object');" },
+    { name: 'the guard passes a lost check', file: SQL,
+      find: "    raise exception 'channel_messages lost its metadata shape check';", replace: '    null;' },
+  ],
+};

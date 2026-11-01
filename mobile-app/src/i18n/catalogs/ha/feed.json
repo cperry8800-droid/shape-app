@@ -346,5 +346,12 @@
   "wallLive.sendBoost": "Aika ƙarfafa →",
   "wallLive.alsoTraining": "Su ma suna motsa jiki:",
   "card.you": "Kai",
-  "thread.activeNow": "A kan layi yanzu"
+  "thread.activeNow": "A kan layi yanzu",
+  "thread.today": "Yau",
+  "thread.yesterday": "Jiya",
+  "thread.you": "Kai",
+  "thread.reply": "Amsa",
+  "thread.replyingTo": "Ana amsa wa {name}",
+  "thread.cancelReply": "Soke amsa",
+  "thread.goToQuoted": "Nuna saƙon da ake amsawa"
 }

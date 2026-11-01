@@ -346,5 +346,12 @@
   "wallLive.sendBoost": "Gửi cổ vũ →",
   "wallLive.alsoTraining": "Cũng đang tập:",
   "card.you": "Bạn",
-  "thread.activeNow": "Đang hoạt động"
+  "thread.activeNow": "Đang hoạt động",
+  "thread.today": "Hôm nay",
+  "thread.yesterday": "Hôm qua",
+  "thread.you": "Bạn",
+  "thread.reply": "Trả lời",
+  "thread.replyingTo": "Đang trả lời {name}",
+  "thread.cancelReply": "Hủy trả lời",
+  "thread.goToQuoted": "Xem tin nhắn được trả lời"
 }

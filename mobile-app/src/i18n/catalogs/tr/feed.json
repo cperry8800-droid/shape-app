@@ -346,5 +346,12 @@
   "wallLive.sendBoost": "Destek gönder →",
   "wallLive.alsoTraining": "Antrenmanda olanlar:",
   "card.you": "Sen",
-  "thread.activeNow": "Çevrimiçi"
+  "thread.activeNow": "Çevrimiçi",
+  "thread.today": "Bugün",
+  "thread.yesterday": "Dün",
+  "thread.you": "Sen",
+  "thread.reply": "Yanıtla",
+  "thread.replyingTo": "{name} kişisine yanıt",
+  "thread.cancelReply": "Yanıtı iptal et",
+  "thread.goToQuoted": "Yanıtlanan mesajı göster"
 }

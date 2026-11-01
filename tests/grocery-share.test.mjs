@@ -414,8 +414,9 @@ test('every way a message reaches a thread reads the list strictly, and the thre
   // ...and both keep the row's id, which names the saved copy (Codex P2 on #2432: the member thread reader
   // dropped it, so a reopened thread saved a fresh copy each time).
   assert.equal((BACKEND.match(/\n\s+id: message\.id \|\| null,\n/g) || []).length, 2, 'both thread readers keep the message id');
-  assert.match(CLIENT, /grocery: bsGroceryFromMetadata\(row\.metadata\) \}\]\);/, 'and a message arriving live');
-  assert.match(CLIENT, /coachInvite: m\.coachInvite \|\| null, grocery: m\.grocery \|\| null \}\)\),/, 'and the thread keeps it');
+  // (and the reply it answers, swipe to reply, 2026-11-01)
+  assert.match(CLIENT, /grocery: bsGroceryFromMetadata\(row\.metadata\), reply: bsReplyFromMetadata\(row\.metadata\) \}\]\);/, 'and a message arriving live');
+  assert.match(CLIENT, /coachInvite: m\.coachInvite \|\| null, grocery: m\.grocery \|\| null, reply: m\.reply \|\| null \}\)\),/, 'and the thread keeps it');
   assert.match(CLIENT, /\{m\.grocery && <BSGroceryShareCard shared=\{m\.grocery\} me=\{!!me\} saveTo=\{grocerySaveTo\} messageId=\{m\.id\} from=\{me \? '' : senderName\} \/>\}/);
   // The coach apps mount the same chat (BSClientChat → BSClientFeed): a member saves to the Eat lists, a
   // coach to their own coach lists (owner, 2026-10-24: "yes coaches as well").
