@@ -79,7 +79,9 @@ export function BSNoraProfile({ onClose, onLeave = null, avatar, cover = null })
     ['24/7', tr('feed:support.profile.statHours', { defaultValue: 'Hours' })],
     [tr('feed:support.profile.statHuman', { defaultValue: 'Human' }), tr('feed:support.profile.statBackup', { defaultValue: 'Backup' })],
   ];
-  const btn = (primary) => ({ flex: primary ? 1.2 : 1, minHeight: 46, boxSizing: 'border-box', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '0 12px', border: primary ? 0 : `1px solid ${hexA(INK, 0.22)}`, background: primary ? TEAL : 'transparent', color: primary ? (t.isLight ? WHITE : '#06110e') : INK, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, textDecoration: 'none', cursor: 'pointer', textAlign: 'center' });
+  // Message Nora's words are dark on either teal: white read 3.97:1 on the light papers' #0a8f87,
+  // dark reads 4.84:1 there and 10.6:1 on the dark papers' #34d6c5 (Copilot on #2556).
+  const btn = (primary) => ({ flex: primary ? 1.2 : 1, minHeight: 46, boxSizing: 'border-box', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '0 12px', border: primary ? 0 : `1px solid ${hexA(INK, 0.22)}`, background: primary ? TEAL : 'transparent', color: primary ? '#06110e' : INK, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, textDecoration: 'none', cursor: 'pointer', textAlign: 'center' });
   const sheet = (
     <div data-nora-profile="" className="bs-scroll" style={{ position: 'absolute', inset: 0, zIndex: 100000, background: BG, color: INK, overflowY: 'auto', WebkitFontSmoothing: 'antialiased' }}>
       {/* The cover, with the masthead (and Back) over it in white, as on the coach and member profiles. */}

@@ -80,6 +80,14 @@ test('the sticky desk carries the masthead, so BSPage pins none over it (Codex P
   assert.ok(d.nodes().some(named('BSBackRow')), 'Back stays in the desk');
 });
 
+test('a boost line in your ink bubble takes the bubble\'s ink, not the paper\'s teal (Copilot on #2556)', () => {
+  const d = drive(BSChatThread, { thread: thread([{ who: 'You', t: 'Last set!', time: 'now', me: true, boost: 'workout' }]), eyebrow: 'Coach', onBack() {} });
+  const [mine] = withAttr(d.nodes(), 'data-thread-mine');
+  const boost = flat(mine).find((n) => n.type === 'div' && /Live boost/.test(textOf(n)) && n.props.style && n.props.style.fontSize === 7.5);
+  assert.ok(boost, 'the boost line is drawn');
+  assert.match(String(boost.props.style.color), /^rgba\(255,\s*255,\s*255,\s*0\.78\)$|^#ffffffc7$/i, `the bubble's ink (THEME.PAPER) at 0.78, got ${boost.props.style.color}`);
+});
+
 test('the tray composer docks at the foot, pinned', () => {
   const d = drive(BSChatThread, { thread: thread(talk), eyebrow: 'Coach', onBack() {} });
   const composer = d.nodes().find(named('BSMessageComposer'));

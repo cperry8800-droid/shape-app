@@ -26890,8 +26890,10 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
               <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '84%', marginTop: i === 0 ? 0 : sameRun ? 8 : 24, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 0 }}>
                 <div style={{ position: 'relative', minWidth: 0, maxWidth: '100%' }}>
                   <div {...lp} data-thread-mine="" style={{ boxSizing: 'border-box', padding: '10px 15px', borderRadius: 20, background: t.INK, color: t.PAPER, fontFamily: t.BODY, fontSize: 15, lineHeight: 1.45, letterSpacing: '-0.005em', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
+                    {/* On your ink bubble the boost line takes the bubble's ink: the paper's teal read 1.6:1 on the
+                        dark papers' cream bubble (Copilot on #2556). */}
                     {m.boost && (
-                      <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: m.boost === 'cooking' ? t.AMBER : teal, marginBottom: 5, fontWeight: 800 }}>▲ Live boost · {m.boost === 'cooking' ? 'mid-cook' : 'mid-workout'}</div>
+                      <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.PAPER, 0.78), marginBottom: 5, fontWeight: 800 }}>▲ Live boost · {m.boost === 'cooking' ? 'mid-cook' : 'mid-workout'}</div>
                     )}
                     {m.t}
                     {m.clip && (

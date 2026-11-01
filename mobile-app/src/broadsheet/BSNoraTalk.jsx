@@ -28,6 +28,11 @@ function useShapeTr() {
   };
 }
 
+// Whether the reader asked the OS for reduced motion (read at each level, so a change applies live).
+function bsReducedMotion() {
+  try { return !!(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
+}
+
 /** The voice loop for one sheet. `ask(text)` sends what was heard and resolves to her reply. */
 export function useNoraTalk(ask) {
   const askRef = React.useRef(ask);
@@ -53,6 +58,9 @@ export function useNoraTalk(ask) {
         reply: info.reply != null ? info.reply : (state === 'thinking' && info.heard != null) || state === 'starting' ? '' : v.reply,
       })),
       onLevel: (level) => {
+        // Reduced motion holds the ring and the wave still: the media query in KEYFRAMES stops the
+        // CSS animations, but these transforms are written by hand (Copilot on #2556).
+        if (bsReducedMotion()) return;
         const lv = Math.min(1, level * 5);
         const el = ringRef.current;
         if (el) el.style.transform = `scale(${(1 + lv * 0.3).toFixed(3)})`;
@@ -170,7 +178,11 @@ export function BSNoraTalk({ talk, t, tint, avatar }) {
         <span aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', background: live ? glow : hexA(LIGHT, 0.4), boxShadow: live ? `0 0 10px ${glow}` : 'none', animation: live ? 'bsNoraTalkLive 1.6s ease-in-out infinite' : 'none' }} />
         {tr('feed:support.voice.title', { defaultValue: 'Talking to Nora' })}
       </div>
-      <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, width: '100%' }}>
+      {/* The middle scrolls when it is taller than a short phone leaves it (Copilot on #2556): an
+          inner column with auto margins centres it when it fits and starts at the top when it
+          doesn't, so her face, the tap that resumes her, is never clipped above the fold. */}
+      <div data-nora-talk-middle style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', scrollbarWidth: 'none' }}>
+      <div style={{ margin: 'auto 0', padding: '16px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, width: '100%' }}>
         <button type="button" onClick={talk.tap} aria-label={faceLabel}
           style={{ position: 'relative', width: size, height: size, borderRadius: '50%', border: 0, padding: 0, background: 'transparent', cursor: 'pointer', flex: 'none', marginBottom: 14 }}>
           {/* Thinking: a sweep of teal turns round her. */}
@@ -201,7 +213,7 @@ export function BSNoraTalk({ talk, t, tint, avatar }) {
             {talk.heard && (
               <div>
                 <div style={{ ...eyebrow, color: hexA(LIGHT, 0.5), marginBottom: 4 }}>{tr('feed:support.voice.you', { defaultValue: 'You' })}</div>
-                <div style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: hexA(LIGHT, 0.72) }}>“{talk.heard}”</div>
+                <div style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: hexA(LIGHT, 0.72), display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>“{talk.heard}”</div>
               </div>
             )}
             {talk.reply && (
@@ -213,8 +225,10 @@ export function BSNoraTalk({ talk, t, tint, avatar }) {
           </div>
         )}
       </div>
+      </div>
+      {/* End's red is deep enough for its white 10.5px label: 5.42:1 (#d4553c read 4.07:1; Copilot on #2556). */}
       <button type="button" onClick={talk.end}
-        style={{ position: 'relative', flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, minWidth: 150, minHeight: 50, padding: '0 28px', borderRadius: 999, border: 0, background: '#d4553c', color: '#ffffff', boxShadow: `0 10px 28px ${hexA('#d4553c', 0.4)}`, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
+        style={{ position: 'relative', flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, minWidth: 150, minHeight: 50, padding: '0 28px', borderRadius: 999, border: 0, background: '#b8432b', color: '#ffffff', boxShadow: `0 10px 28px ${hexA('#b8432b', 0.4)}`, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
         {tr('feed:support.voice.end', { defaultValue: 'End' })}
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
       </button>

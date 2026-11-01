@@ -72,6 +72,9 @@ test('a channel\'s messages keep their stamp and read a time, not SYNCED', async
     assert.equal(m.time, bsChatStamp(m.at, undefined));
   }
   assert.deepEqual(data.map((m) => [m.who, m.me]), [['Ana', false], ['You', true]]);
+  // Each keeps its sender's account, as a realtime message does: the thread keys runs and faces by it
+  // (Copilot on #2556: two members sharing a name were one run).
+  assert.deepEqual(data.map((m) => m.userId), ['u-ana', 'u-me']);
 });
 
 test('coach and member threads keep the last message\'s stamp, and a thread with none reads now', () => {
