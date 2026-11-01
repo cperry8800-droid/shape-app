@@ -1651,13 +1651,16 @@ function CpwReplaySheet({ T, r, i, setI, avatar, onClose, onWork }) {
 // What they posted that the other tabs don't show (notes, photos, links, their own runs), newest
 // first. On their own page, Log activity opens the composer.
 function CpwActivityTab({ T, cards }) {
-  const { pal, ACC, INK, ink, first, isSelf } = T;
+  const { pal, ACC, INK, ink, isSelf } = T;
   return (
     <section data-activity="" style={{ paddingTop: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        <span style={cpwEyebrow(ink)}>{first}'s activity</span>
-        {isSelf ? <button type="button" data-log-activity="" onClick={() => { if (typeof lvComposePost === "function") lvComposePost(); }} style={{ ...cpwLink(ACC), marginTop: 0, minHeight: 44 }}>＋ Log activity</button> : null}
-      </div>
+      {/* No heading: the tab is already named Activity (owner, as the app's #2562: it read "{name}'s
+          activity" under the Activity tab). On their own page, Log activity. */}
+      {isSelf ? (
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+          <button type="button" data-log-activity="" onClick={() => { if (typeof lvComposePost === "function") lvComposePost(); }} style={{ ...cpwLink(ACC), marginTop: 0, minHeight: 44 }}>＋ Log activity</button>
+        </div>
+      ) : null}
       {cards.length ? cards.slice(0, 30).map((a, i) => {
         const stats = (Array.isArray(a.stats) && a.stats.length ? a.stats : Array.isArray(a.statsRow) ? a.statsRow : []).slice(0, 3);
         return (

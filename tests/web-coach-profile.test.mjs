@@ -293,6 +293,12 @@ test('a nutritionist\'s page: amber until they pick, the kitchen and plate notes
   }
   assert.ok(!document.querySelector('[data-work-rail] [data-plan-buy]'), 'a sample sells nothing');
   assert.ok(!document.querySelector('[data-work-rail] [data-offer-empty]'));
+  // The Activity tab carries no "{name}'s activity" heading under a tab already named Activity, as
+  // the app's (#2562).
+  await React.act(async () => document.querySelector('[data-profile-tab=activity]').click());
+  const act = document.querySelector('[data-activity]');
+  assert.ok(act, 'the Activity tab is drawn');
+  assert.doesNotMatch(act.textContent, /Quinn's activity/);
   await p.unmount();
 });
 
