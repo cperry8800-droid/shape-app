@@ -126,21 +126,22 @@ test('Channels: the masthead, the magazine\'s teal, the names in the Wall\'s fac
   assert.match(CLIENT, /<div style=\{\{ padding: '16px 12px 90px', display: 'flex', flexDirection: 'column', gap: 12 \}\}>/, 'on the Wall\'s 12px edge');
 });
 
-test('the thread screen: the teal accent, flat faces, the name in the Wall\'s face, square boxes', () => {
+// The thread screen left the magazine look for Nora's sheet's design (owner, 2026-11-01: "also use this
+// chat design for the rest of messaging on chat page"): tests/chat-thread-nora-design.test.mjs drives it.
+test('the thread screen: the magazine teal on the paper, the desk on the ink, Nora\'s tray', () => {
   const th = between(CLIENT, 'function BSChatThread({', '\n}\n');
   assert.match(th, /const teal = bsWsAccent\(t\);/);
-  assert.equal((th.match(/<BSFacetAvatar flat /g) || []).length, 3, 'the header face and both message faces');
-  assert.doesNotMatch(th, /<BSFacetAvatar (?!flat)/, 'a glowing gem in the thread');
-  assert.match(th, /fontFamily: bsWsHead\(t\), fontSize: 26, fontWeight: 500, lineHeight: 1\.05, color: t\.INK \}\}>\{thread\.who\}/);
-  assert.match(th, /borderRadius: 0,\s*fontFamily: t\.BODY, fontSize: 14\.5/);
-  assert.match(th, /<BSMessageComposer value=\{text\} onChange=\{setText\} onSend=\{send\} pinned mag \/>/);
+  assert.match(th, /const DESK = t\.INK, DESK_INK = t\.PAPER;/);
+  assert.match(th, /<window\.BSMastRow ink=\{DESK_INK\} trailing=\{<BSMeCorner ink=\{DESK_INK\} \/>\} \/>/);
+  assert.doesNotMatch(th, /<BSFacetAvatar/, 'faces are round photos, as hers are');
+  assert.match(th, /<BSMessageComposer value=\{text\} onChange=\{setText\} onSend=\{send\} pinned tray \/>/);
 });
 
 test('the composer is square with an ink send button on the chat page; Nora\'s sheet has its own tray', () => {
   const comp = between(CLIENT, 'function BSMessageComposer({', '\n}\n');
   assert.match(comp, /onVoiceComplete, mag = false, tray = false \}\) \{/);
   assert.match(comp, /background: canSend \? \(mag \? t\.INK : t\.ACCENT\) : t\.SURFACE_BORDER/);
-  assert.match(comp, /\{mag \? null : <span aria-hidden>🔒<\/span>\}/);
+  assert.match(comp, /\{\(mag \|\| tray\) \? null : <span aria-hidden>🔒<\/span>\}/);
   assert.equal((comp.match(/borderRadius: 17,/g) || []).length, 0, 'every rounded control asks mag');
   assert.match(CLIENT, /<BSMessageComposer mag value=\{draft\}/, 'the chat page asks for it');
   // Nora's sheet has its own look again (owner, 2026-10-31: "dont use a previously used one"): the tray,
