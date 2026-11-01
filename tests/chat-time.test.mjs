@@ -6,7 +6,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { bsChatStamp } from '../mobile-app/src/services/chatTime.mjs';
+import { bsChatStamp, bsChatClock, bsChatDayLabel } from '../mobile-app/src/services/chatTime.mjs';
+import { bsReplyFromMetadata } from '../mobile-app/src/services/chatReply.mjs';
 import { bsGroceryFromMetadata } from '../mobile-app/src/services/groceryShare.mjs';
 import { isShapeWelcome } from '../mobile-app/src/services/shapeWelcome.mjs';
 
@@ -64,7 +65,7 @@ const fakeSupabase = (rows) => {
 };
 
 test('a channel\'s messages keep their stamp and read a time, not SYNCED', async () => {
-  const listChannelMessages = load('listChannelMessages', { state: { user: { id: 'u-me' } }, supabase: fakeSupabase(ROWS), bsChatStamp });
+  const listChannelMessages = load('listChannelMessages', { state: { user: { id: 'u-me' } }, supabase: fakeSupabase(ROWS), bsChatStamp, bsReplyFromMetadata });
   const { data } = await listChannelMessages('ch-1');
   assert.deepEqual(data.map((m) => m.at), ROWS.map((r) => r.created_at));
   for (const m of data) {
@@ -79,7 +80,7 @@ test('a channel\'s messages keep their stamp and read a time, not SYNCED', async
 
 test('coach and member threads keep the last message\'s stamp, and a thread with none reads now', () => {
   const state = { user: { id: 'u-me' } };
-  const deps = { state, isShapeWelcome, bsGroceryFromMetadata, bsChatStamp };
+  const deps = { state, isShapeWelcome, bsGroceryFromMetadata, bsReplyFromMetadata, bsChatStamp };
   const conversationToThread = load('conversationToThread', deps);
   const memberThreadFromRow = load('memberThreadFromRow', deps);
   const msgs = [{ id: 'a', sender_id: 'u-coach', body: 'Hi', metadata: {}, created_at: ROWS[0].created_at }];
@@ -101,13 +102,19 @@ const { loadBroadsheet, drive } = await import('./helpers/broadsheet-mount.mjs')
 const { BSChatThread } = await loadBroadsheet(['BSChatThread']);
 
 test('a channel opened in German says each message\'s time in German', async () => {
-  const listChannelMessages = load('listChannelMessages', { state: { user: { id: 'u-me' } }, supabase: fakeSupabase(ROWS), bsChatStamp });
+  const listChannelMessages = load('listChannelMessages', { state: { user: { id: 'u-me' } }, supabase: fakeSupabase(ROWS), bsChatStamp, bsReplyFromMetadata });
   const { data } = await listChannelMessages('ch-1');
   const had = globalThis.ShapeI18n;
   globalThis.ShapeI18n = { intlLocale: () => 'de-DE', current: () => 'de', t: () => undefined };
   try {
     const text = drive(BSChatThread, { thread: { who: 'Run club', group: true, channelId: 'ch-1', messages: data }, eyebrow: 'CHANNEL', onBack() {} }).text;
-    for (const m of data) assert.ok(text.includes(bsChatStamp(m.at, 'de-DE')), `${m.t}: ${bsChatStamp(m.at, 'de-DE')} in ${text.slice(0, 160)}`);
+    // Each day is said once, over its messages, and each message its clock (the day dividers, owner,
+    // 2026-11-01): the German day and the German clock.
+    for (const m of data) {
+      const day = bsChatDayLabel(m.at, 'de-DE');
+      if (day.text) assert.ok(text.includes(day.text), `${m.t}: ${day.text} in ${text.slice(0, 160)}`);
+      assert.ok(text.includes(bsChatClock(m.at, 'de-DE')), `${m.t}: ${bsChatClock(m.at, 'de-DE')} in ${text.slice(0, 160)}`);
+    }
     assert.doesNotMatch(text, /synced/i);
   } finally { globalThis.ShapeI18n = had; }
 });
@@ -123,7 +130,9 @@ test('a thread opened on its preview alone says the preview\'s time', () => {
   globalThis.ShapeI18n = { intlLocale: () => 'de-DE', current: () => 'de', t: () => undefined };
   try {
     const text = drive(BSChatThread, { thread: { who: 'Ana', last: 'Six tomorrow?', time: '', at: stamp, messages: [], conversationId: 'c-9' }, eyebrow: 'DM', onBack() {} }).text;
-    assert.ok(text.includes('Six tomorrow?') && text.includes(bsChatStamp(stamp, 'de-DE')), text.slice(0, 160));
+    // Its day over it and its clock under it (the day dividers, 2026-11-01).
+    const day = bsChatDayLabel(stamp, 'de-DE');
+    assert.ok(text.includes('Six tomorrow?') && text.includes(bsChatClock(stamp, 'de-DE')) && (!day.text || text.includes(day.text)), text.slice(0, 160));
     assert.ok(!/now/i.test(text.slice(text.indexOf('Six tomorrow?'))), 'not "now"');
   } finally { globalThis.ShapeI18n = had; }
 });

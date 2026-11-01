@@ -30,6 +30,7 @@ import { bsNormalizeListingMedia } from './listingMedia.mjs';
 import { isShapeWelcome } from './shapeWelcome.mjs';
 import { bsHwWeekWindow, bsHwLocalDayOf } from './homeWeek.mjs';
 import { bsGroceryFromMetadata } from './groceryShare.mjs';
+import { bsReplyFromMetadata } from './chatReply.mjs';
 // The SHARED nora_memory doc normalizer (pure ESM, cross-root import — the
 // dashSignals.js precedent): one implementation of the {rev, notes} semantics
 // for the server tools AND this Settings mirror, so they can't drift.
@@ -2244,6 +2245,8 @@ function conversationToThread(conversation, messages = [], names = {}) {
     bucket: asCoach ? 'CLIENT' : 'COACH',
     messages: ordered.map(message => ({
       id: message.id || null,
+      // The sender's account, as a channel row carries it: a reply names it (Codex P2 on #2561).
+      userId: message.sender_id || null,
       // Shape's welcome (sender_id null, metadata.shape = 'welcome') is from neither side.
       who: isShapeWelcome(message) ? 'Shape' : message.sender_id === myId ? 'You' : counterpart,
       t: message.body,
@@ -2261,6 +2264,8 @@ function conversationToThread(conversation, messages = [], names = {}) {
         : null,
       // A grocery list sent by a member, read strictly (another member's input): null unless it parses.
       grocery: bsGroceryFromMetadata(message.metadata),
+      // The message this one answers (swipe to reply, 2026-11-01), read strictly the same way.
+      reply: bsReplyFromMetadata(message.metadata),
     })),
     updatedAt: conversation.updated_at || conversation.last_message_at || conversation.created_at,
   };
@@ -2294,6 +2299,7 @@ function memberThreadFromRow(row, messages = []) {
       // The row's id, as conversationToThread keeps it: a grocery list's saved copy is named after it, so
       // without it a reopened thread could not tell the list was saved (Codex P2 on #2432).
       id: message.id || null,
+      userId: message.sender_id || null,
       who: message.sender_id === state.user?.id ? 'You' : other,
       t: message.body,
       time: chatTimeOf(message.created_at),
@@ -2308,6 +2314,8 @@ function memberThreadFromRow(row, messages = []) {
         : null,
       // A grocery list sent by a member, read strictly (another member's input): null unless it parses.
       grocery: bsGroceryFromMetadata(message.metadata),
+      // The message this one answers (swipe to reply, 2026-11-01), read strictly the same way.
+      reply: bsReplyFromMetadata(message.metadata),
     })),
     updatedAt: row.last_message_at,
   };
@@ -8301,7 +8309,9 @@ async function listChannelMessages(channelId) {
   if (!supabase || !state.user?.id || !channelId) return { stored: 'local', data: [] };
   const { data, error } = await supabase
     .from('channel_messages')
-    .select('id, sender_id, author_name, body, created_at')
+    // Every column: `metadata` (a reply's quote) exists once 2026-11-01-channel-message-replies.sql has
+    // run, and naming it before then would fail the whole read.
+    .select('*')
     .eq('channel_id', channelId)
     .order('created_at', { ascending: true })
     .limit(200);
@@ -8309,23 +8319,29 @@ async function listChannelMessages(channelId) {
   return {
     stored: 'supabase',
     data: (data || []).map(m => ({
+      // The row's id, so a reply can name the message it answers and the thread can find it.
+      id: m.id || null,
       who: m.sender_id === state.user.id ? 'You' : (m.author_name || 'Member'),
       t: m.body, time: chatTimeOf(m.created_at), at: m.created_at || null, me: m.sender_id === state.user.id,
       // The sender's account, as a realtime message carries it: the thread keys a run of messages
       // and the sender's face by it (#2556), so two members who share a name are two people.
       userId: m.sender_id || null,
+      reply: bsReplyFromMetadata(m.metadata),
     })),
   };
 }
-async function sendChannelMessage({ channelId, body } = {}) {
+// A reply carries its quote as `metadata` (2026-11-01-channel-message-replies.sql). Until that
+// migration has run the column is not there: the message still goes, without its quote, rather than
+// failing the send. A message that is no reply sends exactly as it always did.
+const bsMissingMetadataColumn = (e) => !!e && (e.code === 'PGRST204' || e.code === '42703' || (/metadata/i.test(e.message || '') && /column/i.test(e.message || '')));
+async function sendChannelMessage({ channelId, body, reply = null } = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to post.');
   const clean = String(body || '').trim();
   if (!clean) throw new Error('Message is empty.');
-  const { data, error } = await supabase
-    .from('channel_messages')
-    .insert({ channel_id: channelId, sender_id: state.user.id, author_name: channelDisplayName(), body: clean })
-    .select('id')
-    .maybeSingle();
+  const row = { channel_id: channelId, sender_id: state.user.id, author_name: channelDisplayName(), body: clean };
+  const insert = (r) => supabase.from('channel_messages').insert(r).select('id').maybeSingle();
+  let { data, error } = await insert(reply ? { ...row, metadata: { reply } } : row);
+  if (error && reply && bsMissingMetadataColumn(error)) ({ data, error } = await insert(row));
   if (error) throw error;
   return { stored: 'supabase', data };
 }

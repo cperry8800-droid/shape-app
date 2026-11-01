@@ -96,6 +96,7 @@ class El extends globalThis.Element {
     for (let el = this; el; el = el.parentElement) {
       if (sel === '[data-bs-page]' && el.hasAttribute('data-bs-page')) return el;
       if (sel.startsWith('input') && ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return el;
+      if (/^\[[\w-]+\]$/.test(sel) && el.hasAttribute(sel.slice(1, -1))) return el;
     }
     return null;
   }
@@ -268,6 +269,27 @@ test('a swipe that starts in a text field is the field\'s, not a back', () => {
   touch('touchend', field, 300, 405);
   assert.equal(backs, 0);
   assert.deepEqual(dispatched, []);
+});
+
+// A chat message's swipe to reply (2026-11-01) claims the LEFTWARD swipe only: [data-bs-noswipe-left]
+// keeps the next tab off a left swipe that starts on it, and a right swipe on it still goes Back (Codex P2
+// on #2561: the bubble's touchAction pan-y had blocked both, so most of a thread lost its right-swipe Back).
+test('a right swipe on a message bubble goes Back; a left swipe on it is the bubble\'s, never the next tab', () => {
+  const { scroller, content, channel } = mountPage();
+  let backs = 0;
+  channel.add({ fn: { current: () => { backs++; } }, el: { current: new El() } });
+  const bubble = new El({ attrs: { 'data-bs-noswipe-left': '' }, parent: scroller });
+  dispatched.length = 0;
+  touch('touchstart', bubble, 140, 400);
+  touch('touchend', bubble, 300, 405);
+  assert.equal(backs, 1, 'right: Back, as anywhere on the page');
+  touch('touchstart', bubble, 300, 400);
+  touch('touchend', bubble, 140, 405);
+  assert.deepEqual(dispatched, [], 'left: the bubble\'s own (its reply), not the next tab');
+  // Off the bubble, a left swipe still steps the tabs.
+  touch('touchstart', content, 300, 400);
+  touch('touchend', content, 140, 405);
+  assert.deepEqual(dispatched, ['next-tab']);
 });
 
 // Codex on #2520: a spring-back cleared the page's styles 200 ms later, so a second drag begun in

@@ -354,5 +354,12 @@
   "wallLive.sendBoost": "Encourager →",
   "wallLive.alsoTraining": "S’entraînent aussi :",
   "card.you": "Toi",
-  "thread.activeNow": "En ligne"
+  "thread.activeNow": "En ligne",
+  "thread.today": "Aujourd’hui",
+  "thread.yesterday": "Hier",
+  "thread.you": "Toi",
+  "thread.reply": "Répondre",
+  "thread.replyingTo": "Réponse à {name}",
+  "thread.cancelReply": "Annuler la réponse",
+  "thread.goToQuoted": "Voir le message auquel il répond"
 }

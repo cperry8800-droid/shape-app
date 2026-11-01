@@ -354,5 +354,12 @@
   "wallLive.sendBoost": "Anfeuern →",
   "wallLive.alsoTraining": "Trainiert auch:",
   "card.you": "Du",
-  "thread.activeNow": "Jetzt aktiv"
+  "thread.activeNow": "Jetzt aktiv",
+  "thread.today": "Heute",
+  "thread.yesterday": "Gestern",
+  "thread.you": "Du",
+  "thread.reply": "Antworten",
+  "thread.replyingTo": "Antwort an {name}",
+  "thread.cancelReply": "Antwort abbrechen",
+  "thread.goToQuoted": "Die beantwortete Nachricht zeigen"
 }
