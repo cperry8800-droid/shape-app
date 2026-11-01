@@ -125,6 +125,8 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
 - Decide the perks "What Master unlocks" and `leaderboards.jsx` promise: nothing grants them.
 - Decide whether coaches keep seeing each other's active clients and sessions-kept rate.
 - Check `NORA_TTS_VOICE` (coral, nova, shimmer or sage) and `NORA_TTS_INSTRUCTIONS` in Vercel.
+- Nora's speed (#2558): ask her a few things on the deployed app (one by voice) for the timings;
+  `OPENAI_FAST_MODEL=off` and a redeploy put members back on Astra.
 - Decide the bring-your-clients rules (the 15% cases, private profiles, the app's checkout).
 - Decide whether a coach checkout refuses payment, instead of a destination charge on Shape's
   account, when a Connect variable is missing (`directChargesReady`, #2555).

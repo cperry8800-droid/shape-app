@@ -576,6 +576,7 @@ function buildConfig(): ConfigGroup[] {
       { key: 'OPENAI_API_KEY', label: 'OpenAI key', present: present(env.OPENAI_API_KEY) },
       { key: 'OPENAI_MODEL', label: 'Model', present: present(env.OPENAI_MODEL), note: env.OPENAI_MODEL ?? 'gpt-6-astra (default) · falls back to gpt-5.4-mini if refused' },
       { key: 'OPENAI_TRANSCRIBE_MODEL', label: 'Transcribe model', present: present(env.OPENAI_TRANSCRIBE_MODEL), note: env.OPENAI_TRANSCRIBE_MODEL ?? 'gpt-4o-transcribe (default) · falls back to whisper-1 if refused' },
+      { key: 'OPENAI_FAST_MODEL', label: 'Member chat model', present: present(env.OPENAI_FAST_MODEL), note: env.OPENAI_FAST_MODEL ?? 'unset: the fallback model (gpt-5.4-mini) for a member\'s own chat with Nora · off = OPENAI_MODEL' },
     ], false, 'ai', 'AI (plans / readouts / voice)'),
 
     mk([
@@ -618,6 +619,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
   const auto = (ok: boolean): 'done' | 'pending' => (ok ? 'done' : 'pending');
 
   return [
+    {
+      section: 'Nora answers faster: a fast model for a member\'s own chat, today\'s plan up front, lookups named, a refused model remembered — #2558. No migration',
+      items: [
+        { label: 'Owner, 2026-11-01: "openai responses right now are very slow", then "yes build B through E" (A, trying OPENAI_MODEL=gpt-5.4-mini in Vercel, was a setting for the owner). The Vercel log queries timed out or came back empty, so the four fixes come from the code path: members on GPT-6 Astra, a lookup round before most answers, three bare dots meanwhile, and a refused Astra paid on every message', status: 'done' },
+        { label: 'B: a member\'s own chat (Cook Mode included) runs on aiFastModel(): OPENAI_FAST_MODEL, unset = the fallback model, off = the pin. A chat carrying a coach\'s lookups, a trainer\'s or nutritionist\'s drafting, or the admin help desk keeps the pin, and so does every draft\'s own model call. One model per request, as before', status: 'done' },
+        { label: 'C: the member\'s plan is read at setup beside their facts; today\'s slice (todayPlanSlice: today\'s sessions with exercises, today\'s meals and targets, the rest of the week counted) rides the first round as user-role data under a system header, so "what\'s on today" answers in one round. A get_training_plan on the same request reuses the read; a failed read adds nothing; not for a coach or mid-cook', status: 'done' },
+        { label: 'D: a streamed lookup round sends a `status` key (src/lib/ai/noraStatus.mjs) before its tools run; the website and the app\'s Nora sheet show "Checking your plan…", "Looking up that food…" and the like in place of "Nora is typing…" (feed:support.status.*, 13 locales; an unknown key reads "Looking that up…")', status: 'done' },
+        { label: 'E: a model refused to the account is skipped for an hour on that API (callAI, transcribeAudio), straight to the fallback; the log says skippedRefusedPin. An explicit model, a request-shape 400 and a 5xx are never remembered', status: 'done' },
+        { label: 'Review: Codex\'s two P2s on de98316 (refusals keyed by model name across the text and voice APIs; a busy week\'s cap at 12 dropping today\'s sessions, which get_training_plan already did) fixed in 43049ed, each with a test that fails on de98316; Codex clean on 43049ed. The full suite then failed four tests that pin the source of Nora\'s two panels (each a line or an argument longer); b936b2c moves the sheet\'s new state below the pinned block and updates the four patterns; Codex clean on b936b2c. Copilot could not review (the account\'s review quota was spent); CodeRabbit not asked', status: 'done' },
+        { label: 'Left by #2558: the refusal memory is per server instance (a cold one pays one refused call); today\'s plan now reaches OpenAI on every member message (store: false, as the member facts do); the eight status labels join the native-speaker read (Hausa and Pidgin first); the Nora sheet stays in the client (the #2535 item)', status: 'pending' },
+        { label: 'OWNER: on the deployed app, signed in as a member, ask Nora a few things (one by voice, one "what\'s on today") and say when: the [shape-ai] lines give each round\'s latencyMs, firstTextMs and model, and any model_fallback or skippedRefusedPin. Read her answers on the fast model; OPENAI_FAST_MODEL=off and a redeploy put members back on Astra', status: 'manual' },
+      ],
+    },
     {
       section: 'Coach payments on the coaches\' own Stripe accounts (direct charges), part C: a labelled card-processing estimate wherever a coach reads take-home — #2555. No migration',
       items: [

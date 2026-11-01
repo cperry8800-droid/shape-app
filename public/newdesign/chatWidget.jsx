@@ -268,15 +268,32 @@ function CwFillCard({ a }) {
 }
 
 // Nora's streamed answer (POST /api/support/chat with `stream: true`): her reply so far on each
-// `text`, `reset` when a round turned out to be a lookup, and `done` with exactly the object a
-// plain request gets. An identical copy of public/newdesign/noraStream.mjs, which the app's
+// `text`, `reset` when a round turned out to be a lookup, `status` with what it looks up, and
+// `done` with exactly the object a plain request gets. An identical copy of public/newdesign/noraStream.mjs, which the app's
 // Nora sheet imports; tests/nora-stream.test.mjs holds the two to each other.
+// What Nora is looking up, in the website's English (the app words the same keys from its
+// catalogs, feed:support.status.*). The keys are src/lib/ai/noraStatus.mjs's NORA_STATUS_KEYS;
+// one this copy does not know reads as `lookup`.
+const CW_NORA_STATUS_WORDS = {
+  plan: "Checking your plan…",
+  progress: "Looking at your progress…",
+  account: "Checking your account…",
+  food: "Looking up that food…",
+  coaches: "Finding coaches…",
+  clients: "Checking your clients…",
+  draft: "Getting that ready…",
+  lookup: "Looking that up…",
+};
+function cwNoraStatusWords(key) {
+  return Object.prototype.hasOwnProperty.call(CW_NORA_STATUS_WORDS, key) ? CW_NORA_STATUS_WORDS[key] : CW_NORA_STATUS_WORDS.lookup;
+}
+
 function cwIsNoraStream(res) {
   const type = res && res.headers && typeof res.headers.get === 'function' ? String(res.headers.get('content-type') || '') : '';
   return /text\/event-stream/i.test(type);
 }
 
-async function cwReadNoraStream(res, { onText, onReset } = {}) {
+async function cwReadNoraStream(res, { onText, onReset, onStatus } = {}) {
   const reader = res && res.body && typeof res.body.getReader === 'function' ? res.body.getReader() : null;
   if (!reader) return null;
   const decoder = new TextDecoder();
@@ -294,6 +311,7 @@ async function cwReadNoraStream(res, { onText, onReset } = {}) {
     try { value = JSON.parse(data.join('\n')); } catch (e) { return; }
     if (event === 'text') { if (value && typeof value.text === 'string' && onText) onText(value.text); }
     else if (event === 'reset') { if (onReset) onReset(); }
+    else if (event === 'status') { if (value && typeof value.key === 'string' && onStatus) onStatus(value.key); }
     else if (event === 'done') { if (value && typeof value === 'object') done = value; }
   };
   for (;;) {
@@ -514,6 +532,8 @@ function ChatWidget(props) {
   const [typing, setTyping] = React.useState(false);
   // Nora's reply so far while she writes it (streamed); the finished reply replaces it.
   const [noraLive, setNoraLive] = React.useState("");
+  // What she is looking up while no words have come (a `status` key, CW_NORA_STATUS_WORDS).
+  const [noraStatus, setNoraStatus] = React.useState("");
   // Re-render avatars as people come online / go offline (live presence ring).
   const [, setPresenceV] = React.useState(0);
   React.useEffect(() => {
@@ -844,7 +864,7 @@ function ChatWidget(props) {
         const other = noraHeldRef.current.some((m) => m._as && m._as !== j.account);
         if (other) {
           noraThreadGenRef.current += 1;
-          setNoraLive(""); setTyping(false);
+          setNoraLive(""); setNoraStatus(""); setTyping(false);
           setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
             if (th.who !== "Nora") return th;
             const msgs = th.messages || [];
@@ -967,7 +987,7 @@ function ChatWidget(props) {
     noraHeldRef.current = [];
     stopNora();
     // A reply she was still writing belongs to the conversation that went.
-    setNoraLive(""); setTyping(false);
+    setNoraLive(""); setNoraStatus(""); setTyping(false);
     // Before the store answers, what is said from here on is what follows the join point (its
     // Clear count stays the hydrate's, so the load clears the account first).
     if (noraFromRef.current) { const cur = cwNoraLocal(); noraFromRef.current = { ...noraFromRef.current, base: cur.length && !cur[0].me ? 1 : 0 }; }
@@ -1057,7 +1077,7 @@ function ChatWidget(props) {
           // A "Talk to a person" form open with the last one's question closes, and a reply she was
           // still writing for it stops showing; and what is drawn is now this account's own copy,
           // so nothing typed under the last one holds back its reads.
-          if (!wasUnknown) { noraAcctRef.current += 1; noraThreadSyncRef.current = false; noraHeldRef.current = []; setNoraPersonOk(false); setPersonForm(null); setNoraLive(""); setTyping(false); dirtyRef.current = false; }
+          if (!wasUnknown) { noraAcctRef.current += 1; noraThreadSyncRef.current = false; noraHeldRef.current = []; setNoraPersonOk(false); setPersonForm(null); setNoraLive(""); setNoraStatus(""); setTyping(false); dirtyRef.current = false; }
           // ⚠ AWAY FROM A SIGNED-IN ACCOUNT, THE PAGE RELOADS (Codex, #2391). Thirteen review rounds
           // found one more thing per round that a mounted widget carried from one account to the
           // next: a load, an answer, a stream, a form, a greeting, her voice still reading, an open
@@ -1731,6 +1751,7 @@ function ChatWidget(props) {
           const live = {
             onText: (t) => { if (gen === noraThreadGenRef.current && acct === noraAcctRef.current) setNoraLive(t); },
             onReset: () => { if (gen === noraThreadGenRef.current && acct === noraAcctRef.current) setNoraLive(""); },
+            onStatus: (k) => { if (gen === noraThreadGenRef.current && acct === noraAcctRef.current) setNoraStatus(k); },
           };
           const read = async (r) => (r.ok && cwIsNoraStream(r) ? ((await cwReadNoraStream(r, live)) || {}) : await r.json().catch(() => ({})));
           let res = await ask({});
@@ -1752,6 +1773,7 @@ function ChatWidget(props) {
         if (gen !== noraThreadGenRef.current || acct !== noraAcctRef.current) return null;
         setTyping(false);
         setNoraLive("");
+        setNoraStatus("");
         // Refused as another account: no answer and nothing kept; /api/me is asked again.
         if (refused) { flashSpeakNotice(refused.error || "You're signed in as another account now."); cwNoraSwitched(); return null; }
         const finalReply = reply || supportReply(text);
@@ -2775,7 +2797,7 @@ function ChatWidget(props) {
                 );
               })() : typing && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--sh-ink2, #a09b94)", fontSize: 12, fontStyle: "italic" }}>
-                  <TypingDots />{isSupport ? "Nora is typing…" : "someone is typing…"}
+                  <TypingDots />{isSupport ? (noraStatus ? cwNoraStatusWords(noraStatus) : "Nora is typing…") : "someone is typing…"}
                 </div>
               )}
               {!typing && isSupport && active?.quick?.length > 0 && (

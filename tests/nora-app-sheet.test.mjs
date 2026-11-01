@@ -71,7 +71,7 @@ test('a reply that lands after the sheet closes is kept: the thread and the in-f
   assert.match(sheet, /useStateBSC\(\(\) => _bsNoraBusy\)/, 'a reopened sheet shows Nora still typing');
   assert.match(sheet, /_bsNoraSubs\.add\(sync\);/);
   assert.match(sheet, /_bsNoraPublish\(\[\.\.\.\(_bsNoraThread \|\| next\), \{ who: 'Nora', t: reply/, 'the reply is written to the store, not to the instance that asked');
-  assert.match(sheet, /finally \{ _bsNoraLive = ''; _bsNoraPublish\(null, false\); \}/);
+  assert.match(sheet, /finally \{ _bsNoraLive = ''; _bsNoraStatus = ''; _bsNoraPublish\(null, false\); \}/, 'what she was looking up goes with it (#2558)');
   assert.ok(!/setSupportMsgs\(m => \[\.\.\.m/.test(sheet), 'no reply is written only to this instance');
 });
 

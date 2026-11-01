@@ -23,8 +23,10 @@ class SubmoduleStubs extends Map {
 }
 const ai = await loadRealModule(join(ROOT, 'src/lib/ai.ts'), { typescript: true, registry: new SubmoduleStubs([['next/server', nextServer]]) });
 
-const ENV_KEYS = ['OPENAI_API_KEY', 'OPENAI_TRANSCRIBE_MODEL'];
+const ENV_KEYS = ['OPENAI_API_KEY', 'OPENAI_TRANSCRIBE_MODEL', 'OPENAI_MODEL', 'OPENAI_FALLBACK_MODEL'];
+// The hour's memory of a refused model is module state: each case starts without it.
 async function withEnv(vars, fn) {
+  ai.clearRefusedModels();
   const saved = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
   for (const k of ENV_KEYS) delete process.env[k];
   for (const [k, v] of Object.entries(vars)) if (v !== undefined) process.env[k] = v;
@@ -120,6 +122,33 @@ test('⚠ A REFUSED MODEL FALLS BACK ONCE TO whisper-1 — and only a refused MO
   } finally { h.restore(); log3.restore(); }
 });
 
+test('⚠ A REFUSED MODEL IS REMEMBERED FOR THE HOUR: the next note goes straight to whisper-1', async () => {
+  const f = scriptFetch([REFUSED, OK, OK]);
+  const log = captureLog();
+  try {
+    await withEnv({ OPENAI_API_KEY: 'k' }, async () => {
+      await ai.transcribeAudio(AUDIO(), { promptId: 'ai.transcribe' });
+      const r = await ai.transcribeAudio(AUDIO(), { promptId: 'ai.transcribe', language: 'fr' });
+      assert.equal(r.ok, true);
+      assert.equal(r.model, 'whisper-1');
+      assert.equal(r.fellBack, true);
+      assert.deepEqual(f.calls.map((c) => c.fields.model), ['gpt-4o-transcribe', 'whisper-1', 'whisper-1'], 'one request for the second note');
+      assert.equal(f.calls[2].fields.language, 'fr');
+      assert.ok(log.lines.some((l) => /"skippedRefusedPin":"gpt-4o-transcribe"/.test(l)));
+    });
+  } finally { f.restore(); log.restore(); }
+  // A text call's refusal of the same name says nothing here (Codex on #2558).
+  const g = scriptFetch([OK]);
+  const log2 = captureLog();
+  try {
+    await withEnv({ OPENAI_API_KEY: 'k' }, async () => {
+      ai.noteModelRefused('responses', 'gpt-4o-transcribe');
+      await ai.transcribeAudio(AUDIO(), { promptId: 'ai.transcribe' });
+      assert.deepEqual(g.calls.map((c) => c.fields.model), ['gpt-4o-transcribe']);
+    });
+  } finally { g.restore(); log2.restore(); }
+});
+
 test('no key → no_key, and nothing is fetched', async () => {
   const f = scriptFetch([OK]);
   try {
@@ -127,4 +156,27 @@ test('no key → no_key, and nothing is fetched', async () => {
     assert.deepEqual({ ok: r.ok, reason: r.reason }, { ok: false, reason: 'no_key' });
     assert.equal(f.calls.length, 0);
   } finally { f.restore(); }
+});
+
+test('⚠ a voice pin mistakenly set to the TEXT model is refused for voice only: the next text call still asks that model first (Codex on #2558)', async () => {
+  const calls = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const text = String(url).endsWith('/responses');
+    calls.push({ text, model: text ? JSON.parse(init.body).model : init.body.get('model') });
+    if (!text && init.body.get('model') === 'gpt-6-astra') return new Response(JSON.stringify({ error: { message: 'The model `gpt-6-astra` does not exist or you do not have access to it.', code: 'model_not_found' } }), { status: 404 });
+    return new Response(JSON.stringify(text ? { output_text: 'hi', output: [] } : { text: 'hi' }), { status: 200 });
+  };
+  const log = captureLog();
+  try {
+    await withEnv({ OPENAI_API_KEY: 'k', OPENAI_TRANSCRIBE_MODEL: 'gpt-6-astra' }, async () => {
+      const heard = await ai.transcribeAudio(AUDIO(), { promptId: 'ai.transcribe' });
+      assert.equal(heard.model, 'whisper-1');
+      const said = await ai.callAI({ input: 'hello' }, { promptId: 'support.chat' });
+      assert.equal(said.ok, true);
+      assert.equal(said.model, 'gpt-6-astra', 'the text pin still answers');
+      assert.equal(said.fellBack, false);
+    });
+    assert.deepEqual(calls.map((c) => `${c.text ? 'text' : 'voice'}:${c.model}`), ['voice:gpt-6-astra', 'voice:whisper-1', 'text:gpt-6-astra']);
+  } finally { globalThis.fetch = original; log.restore(); }
 });

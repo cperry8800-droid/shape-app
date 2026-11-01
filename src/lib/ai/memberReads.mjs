@@ -178,11 +178,20 @@ export async function readTrainingPlan(sb, uid, { now = new Date(), zone } = {})
     const weekEnd = addDaysISO(weekStart, 6);
     const thisWeek = all.filter((w) => !w.scheduledDate || (w.scheduledDate >= weekStart && w.scheduledDate <= weekEnd));
     const later = all.length - thisWeek.length;
+    // ⚠ THE CAP NEVER CUTS TODAY (Codex on #2558). The week is in date order, so a busy week
+    // cut at READ_CAPS.workouts dropped the latest days first, today's sessions with them: the
+    // titles stayed in `todays` but their exercises went, and the up-front slice counted them
+    // as later in the week. Today's are kept (up to the cap) and the earliest others fill the
+    // rest, still in date order; the count of what was left out is unchanged.
+    const cap = READ_CAPS.workouts;
+    const keepToday = new Set(thisWeek.filter((w) => w.today).slice(0, cap));
+    const keepOther = new Set(thisWeek.filter((w) => !keepToday.has(w)).slice(0, Math.max(0, cap - keepToday.size)));
+    const shown = thisWeek.length > cap ? thisWeek.filter((w) => keepToday.has(w) || keepOther.has(w)) : thisWeek;
     out.training = {
       hasPlan: all.length > 0,
       todays: thisWeek.filter((w) => w.today).map((w) => w.title),
-      thisWeek: thisWeek.slice(0, READ_CAPS.workouts),
-      ...(thisWeek.length > READ_CAPS.workouts ? { thisWeekTruncated: thisWeek.length - READ_CAPS.workouts } : {}),
+      thisWeek: shown,
+      ...(thisWeek.length > cap ? { thisWeekTruncated: thisWeek.length - shown.length } : {}),
       ...(later > 0 ? { laterWeeks: later } : {}),
     };
     const coachRow = rows.find((w) => w.trainer_id != null);
@@ -220,6 +229,35 @@ export async function readTrainingPlan(sb, uid, { now = new Date(), zone } = {})
   } else {
     out.meals = { unavailable: true };
   }
+  return out;
+}
+
+/**
+ * Today's slice of readTrainingPlan's answer: what Nora is handed before the member asks
+ * (speed, 2026-11-01), so "what's on today" and "what do I eat today" answer in one round
+ * instead of a lookup round and an answer round. Today's sessions with their exercises,
+ * today's meals with the day's targets, and how much more of the week there is (the rest is
+ * still get_training_plan's). Null for a failed read: an unread plan is never "nothing on".
+ */
+export function todayPlanSlice(plan) {
+  if (!plan || typeof plan !== 'object' || plan.ok !== true) return null;
+  const out = { today: plan.today };
+  const tr = plan.training && typeof plan.training === 'object' ? plan.training : null;
+  if (!tr || tr.unavailable) out.training = { unavailable: true };
+  else {
+    const week = Array.isArray(tr.thisWeek) ? tr.thisWeek : [];
+    const todays = week.filter((w) => w && w.today);
+    const rest = week.length - todays.length + (posNum(tr.thisWeekTruncated) || 0);
+    out.training = {
+      hasPlan: tr.hasPlan === true,
+      ...(tr.coach ? { coach: tr.coach } : {}),
+      todays,
+      ...(rest > 0 ? { otherSessionsThisWeek: rest } : {}),
+      ...(posNum(tr.laterWeeks) ? { laterWeeks: tr.laterWeeks } : {}),
+    };
+  }
+  const me = plan.meals && typeof plan.meals === 'object' ? plan.meals : null;
+  out.meals = !me || me.unavailable ? { unavailable: true } : me;
   return out;
 }
 

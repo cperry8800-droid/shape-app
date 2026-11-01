@@ -193,6 +193,7 @@ async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, 
     ['@/lib/ai/memberMornings.mjs', await import(join(ROOT, 'src/lib/ai/memberMornings.mjs'))],
     ['@/lib/ai/shapeKnowledge.mjs', await import(join(ROOT, 'src/lib/ai/shapeKnowledge.mjs'))],
     ['@/lib/ai/voiceLang.mjs', await import(join(ROOT, 'src/lib/ai/voiceLang.mjs'))],
+    ['@/lib/ai/noraStatus.mjs', await import(join(ROOT, 'src/lib/ai/noraStatus.mjs'))],
     ['@/lib/request-auth', { clientForRequest: async () => sb }],
     // Nora's daily limits and bot check are tested in support-chat-route; here every question passes.
     ['@/lib/ai/noraLimits', { noraTier: () => 'member', visitorGate: async () => ({ ok: true, id: 'v', setCookie: null }), countQuestion: async () => ({ allowed: true, limit: null, resetSeconds: 0 }), limitReply: () => '', requestIp: () => 'ip', CHECK_REPLY: '' }],
@@ -208,6 +209,8 @@ async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, 
     ['@/lib/ai', {
       hasOpenAIKey: () => hasKey,
       aiPublicModel: ai_.aiPublicModel,
+      aiFastModel: ai_.aiFastModel,
+      aiModel: ai_.aiModel,
       callAI: async (body, opts) => { seen.push({ body, opts }); if (failAI) return { ok: false, reason: 'http_error', status: 503, latencyMs: 1, promptId: opts.promptId }; const a = answers[Math.min(i, answers.length - 1)]; i += 1; return { ok: true, data: a, usage: null, latencyMs: 1, promptId: opts.promptId, model: 'pinned', fellBack: false }; },
     }],
     ['@/lib/ai/server', {
@@ -298,6 +301,12 @@ test('Nora: a trainer who just asks gets a drafted card — the rows are in the 
   const res = await t.mod.POST(chatPost('build me a lower body session, 50 min, barbell'));
   const json = await res.json();
   assert.equal(t.seen[1].opts.promptId, 'ai.draft-workout', 'the second model call is the draft itself');
+  // ⚠ THE HEAVY WORK KEEPS THE PIN (speed, 2026-11-01): a trainer's chat and the draft's own call
+  // name no model, so callAI sends both to the pin with its access fallback; only a member's own
+  // chat names the fast model.
+  assert.equal(t.seen[0].body.model, undefined, 'a trainer\'s chat rides the pin');
+  assert.equal(t.seen[1].body.model, undefined, 'the draft is written by the pin');
+  assert.equal(t.seen[2].body.model, undefined, 'one model for the whole request');
   const card = json.actions.find((a) => a.type === 'proposal');
   assert.ok(card, 'a confirm card');
   assert.equal(card.action, 'draft_workout');
