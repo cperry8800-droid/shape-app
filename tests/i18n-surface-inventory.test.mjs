@@ -340,7 +340,7 @@ const UNCOVERED = new Set([
   'Client::BSKitchenCard', 'Client::BSLegalActions',
   'Client::BSLogActivity',
   'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
-  'Client::BSNoraMemoryPage', 'Client::BSNoraProfile',
+  'Client::BSNoraMemoryPage',
   'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
   'Client::BSProgChart',
   'Client::BSRecipePreview',
@@ -915,12 +915,17 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // by common:action.back, or went with the duplicate at the page's foot: noneStrings 601 -> 594.
   // The member profile's old head (BSProfileIdentityHead) went with the coach profile's look
   // (owner, 2026-10-31), and its two literals ("Tier", "week streak") with it: 594 -> 592.
-  assert.equal(noneStrings, 592, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // Nora's profile left UNCOVERED for its own module, BSNoraProfile.jsx, fully covered in all 13 catalogs
+  // (owner, 2026-11-01: "also need to update design of this page"). The walk saw six of its literals
+  // ("Shape team", "Always online", the line under her name, "What Nora helps with", her promise and
+  // "Message Nora →"; what she helps with sat in an array literal, the blind spot cut 5 recorded): 592 -> 586.
+  assert.equal(noneStrings, 586, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   // 33 -> 32: BSScoreStandingChart left with the Score page's ladder (see partStrings above).
   // BSTerrainProfile is fully translated now (2026-10-31): 32 -> 31.
   assert.equal(part.length, 31, 'partial-surface count moved — regenerate PARTIAL and the record');
   // BSProfileIdentityHead was deleted with the member profile's old head (2026-10-31): 79 -> 78.
-  assert.equal(none.length, 78, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // Nora's profile moved to BSNoraProfile.jsx, fully covered (2026-11-01): 78 -> 77.
+  assert.equal(none.length, 77, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
