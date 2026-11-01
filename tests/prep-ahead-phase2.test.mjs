@@ -231,6 +231,12 @@ test("the morning swap: a quick recipe that needs no night before and fits the s
   assert.equal(bsMorningSwapFor({ slug: OATS_SLUG, slot: 'BREAKFAST' }, [{ ...recipe(BOWL), prep: 'overnight chill' }], INDEX), null, 'a chilled dish is no swap');
   assert.equal(bsMorningSwapFor({ slug: OATS_SLUG, slot: 'BREAKFAST' }, [{ ...recipe(BOWL), time: '' }], INDEX), null, 'no stated time, no promise');
   assert.equal(bsMorningSwapFor(null, SHAPE_KITCHEN_RECIPES, INDEX), null);
+  // A recipe the rule says needs the night before is never the swap, even one with no `prep` line
+  // of its own (the catalog's oats carry both; a new make-ahead recipe may carry only the mark).
+  const chia = { title: 'Chia pudding', time: '5 min', kcal: 480, tags: ['Breakfast'] };
+  const marked = new Map([['chia-pudding', { slug: 'chia-pudding', title: 'Chia pudding', keeps: 2 }]]);
+  assert.equal(bsMorningSwapFor({ slug: OATS_SLUG, slot: 'BREAKFAST', kcal: 480 }, [chia], marked), null);
+  assert.equal(bsMorningSwapFor({ slug: OATS_SLUG, slot: 'BREAKFAST', kcal: 480 }, [chia], new Map()).title, 'Chia pudding');
   // Ties: the same diet, then the quickest, then the title.
   const tie = [
     { title: 'B dish', time: '10 min', kcal: 400, diet: 'Seafood', tags: ['Breakfast'] },

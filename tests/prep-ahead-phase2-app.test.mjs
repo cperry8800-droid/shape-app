@@ -233,6 +233,10 @@ test("what is owed tonight counts a member's own oats with no plan, and a failed
     assert.deepEqual(gs.map((g) => [g.slug, g.meals.map((m) => m.mealId)]), [['overnight-oats-three-ways', ['own-a1']]]);
     goalsStore({}, { readFails: true });
     assert.equal(await MOD.bsLoadPrepTonight(), null);
+    // Only the day plan's read fails: still unknown, not nothing owed.
+    goalsStore({ client_meal_swaps: {} });
+    window.shapeDb.getUserGoals = async (kind) => (kind === 'client_meal_days' ? null : {});
+    assert.equal(await MOD.bsLoadPrepTonight(), null, 'a day plan that could not be read is not an empty one');
   } finally { Date.now = realNow; }
 });
 
