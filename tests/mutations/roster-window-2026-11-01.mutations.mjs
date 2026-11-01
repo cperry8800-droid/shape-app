@@ -1,10 +1,11 @@
-// Mutation spec for the nutritionist analytics' 30 days logged being 30, each ending on the client's
-// own today (src/lib/roster-days.ts, src/app/api/nutritionist/analytics/route.ts). The Business
-// page's roster and its days-logged, protein and weight figures read these rows, so every mutation
-// must be killed. Run from the repo root:
-//   node scripts/mutate.mjs --spec tests/mutations/nutritionist-roster-window-2026-11-01.mutations.mjs --fail-on-skipped
+// Mutation spec for the coach analytics' 30 days being each client's own 30, ending on their own
+// today (src/lib/roster-days.ts): the nutritionist roster's days logged, protein and weight, and the
+// trainer roster's weight trend. The Business pages read these rows, so every mutation must be
+// killed. Run from the repo root:
+//   node scripts/mutate.mjs --spec tests/mutations/roster-window-2026-11-01.mutations.mjs --fail-on-skipped
 const LIB = 'src/lib/roster-days.ts';
 const ROUTE = 'src/app/api/nutritionist/analytics/route.ts';
+const TRAINER = 'src/app/api/trainer/analytics/route.ts';
 
 export default {
   test: 'node --test tests/coach-analytics-routes.test.mjs tests/dietary-kcal.test.mjs',
@@ -38,6 +39,21 @@ export default {
       find: "          .gte('snapshot_date', readSpan.first)\n          .lte('snapshot_date', readSpan.last);",
       replace: "          .gte('snapshot_date', readSpan.first);" },
     { name: 'the zones are read for nobody', file: ROUTE,
+      find: '      rosterZones(supabase, clientIds),',
+      replace: '      rosterZones(supabase, []),' },
+    { name: "the trainer's weigh-ins are not cut to the window", file: TRAINER,
+      find: '      if (r.snapshot_date < win.first || r.snapshot_date > win.last) continue;\n',
+      replace: '' },
+    { name: "a trainer client's weigh-in ahead counts", file: TRAINER,
+      find: '      if (r.snapshot_date < win.first || r.snapshot_date > win.last) continue;',
+      replace: '      if (r.snapshot_date < win.first) continue;' },
+    { name: "the trainer's weigh-in read has no upper bound", file: TRAINER,
+      find: "          .gte('snapshot_date', weighSpan.first)\n          .lte('snapshot_date', weighSpan.last)\n",
+      replace: "          .gte('snapshot_date', weighSpan.first)\n" },
+    { name: "the trainer's weigh-in read starts at 30 days less one", file: TRAINER,
+      find: "          .gte('snapshot_date', weighSpan.first)\n",
+      replace: "          .gte('snapshot_date', weighSpan.last)\n" },
+    { name: 'the trainer reads no zones', file: TRAINER,
       find: '      rosterZones(supabase, clientIds),',
       replace: '      rosterZones(supabase, []),' },
   ],
