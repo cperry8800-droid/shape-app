@@ -458,9 +458,32 @@ const LV_PRIV = {
 };
 const LV_PRIV_ORDER = ["public", "circle", "private"];
 
+// Buy a real plan via the same Stripe Connect checkout as the marketplace, with the page's code
+// (LvCodeBox). `o` is { name, price, planId, providerId, providerRole }. Shared by the rate card
+// below and the website's coach profile in the app's design (coachProfileWeb.jsx).
+async function lvBuyPlan(o) {
+  if (!o || !o.planId || !o.providerId) return;
+  try {
+    const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "plan", name: o.name, price: o.price, planId: o.planId }, coach: { provider_id: o.providerId, provider_role: o.providerRole }, ref: (window.ShapeCoachRef && window.ShapeCoachRef.token()) || undefined, code: lvCheckoutCode(), successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
+    const j = await res.json().catch(() => ({}));
+    if (j.url) { window.location.href = j.url; return; }
+    // Coaching needs the $5 membership first (owner, 2026-10-14). The route answers 402 with
+    // the gate's own code; it never put "membership_required" in `error`, so this branch used
+    // to be unreachable and a non-member read the bare sentence instead.
+    if (res.status === 402 && j.code === "membership_required" && window.ShapeMembership) {
+      if (window.confirm("Plans are for Shape members. Start your $5/month membership now? You'll come back here to buy the plan.")) {
+        const r = await window.ShapeMembership.start();
+        if (r && r.error) alert(r.error);
+      }
+      return;
+    }
+    alert(j.error || "Could not start checkout.");
+  } catch (e) { alert("Could not start checkout."); }
+}
+
 // Categorized services — distinctive filing-card tabs that physically
 // connect into the panel below (a card-index, not a generic tab bar).
-const LV_CAT = { Workout: "Workouts", Program: "Programs", Coaching: "Coaching", Consult: "Consults", "Meal plan": "Plans" };
+const LV_CAT ={ Workout: "Workouts", Program: "Programs", Coaching: "Coaching", Consult: "Consults", "Meal plan": "Plans" };
 function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, reviewCount }) {
   const isNutri = /nutritionist/i.test(String(d.role || "")); // d.role is lowercase (demo + live)
   // Real published catalogue (coach_plans) keyed by the coach's user id; falls
@@ -494,26 +517,7 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, rev
     return () => { on = false; };
   }, [d.uid]);
   const offerings = (real && real.length) ? real : d.offerings;
-  // Buy a real plan via the same Stripe Connect checkout as the marketplace.
-  const buyPlan = async (o) => {
-    if (!o || !o.planId || !o.providerId) return;
-    try {
-      const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "plan", name: o.name, price: o.price, planId: o.planId }, coach: { provider_id: o.providerId, provider_role: o.providerRole }, ref: (window.ShapeCoachRef && window.ShapeCoachRef.token()) || undefined, code: lvCheckoutCode(), successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
-      const j = await res.json().catch(() => ({}));
-      if (j.url) { window.location.href = j.url; return; }
-      // Coaching needs the $5 membership first (owner, 2026-10-14). The route answers 402 with
-      // the gate's own code; it never put "membership_required" in `error`, so this branch used
-      // to be unreachable and a non-member read the bare sentence instead.
-      if (res.status === 402 && j.code === "membership_required" && window.ShapeMembership) {
-        if (window.confirm("Plans are for Shape members. Start your $5/month membership now? You'll come back here to buy the plan.")) {
-          const r = await window.ShapeMembership.start();
-          if (r && r.error) alert(r.error);
-        }
-        return;
-      }
-      alert(j.error || "Could not start checkout.");
-    } catch (e) { alert("Could not start checkout."); }
-  };
+  const buyPlan = lvBuyPlan;
   // categories present, in stable order
   const order = ["Workout", "Meal plan", "Program", "Single", "Coaching", "Consult"];
   const kinds = order.filter(k => offerings.some(o => o.kind === k));
@@ -638,30 +642,17 @@ function LvClientBand({ d, light }) {
   );
 }
 
-// ── Coach marketplace blocks (trainer/nutritionist only) ─────
-// Certifications (verified), Services & prices, Reviews. Adapts to
-// the host direction via `light` + the --lvc tier var.
-function LvCoachBlocks({ d, light, owner, view, onReviews }) {
-  const showCoaching = view !== "reviews";
-  const showReviews = view !== "coaching";
-  const c = tierOf(d).color;
-  const ink = light ? "#1a1612" : LV_INK;
-  // Ledger station head (zero-box): heat tick + mono eyebrow (+ meta) over a 2px
-  // ink→heat rule. Self-contained here (livingShared loads before livingDesktop).
-  const stHead = (label, meta) => (
-    <div style={{ marginBottom: 15 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-        <span aria-hidden="true" style={{ flex: "none", width: 8, height: 2, background: c }} />
-        <span style={{ fontFamily: lvMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.55) }}>{label}</span>
-        {meta ? <span style={{ marginLeft: "auto" }}>{meta}</span> : null}
-      </div>
-      <div aria-hidden="true" style={{ height: 2, marginTop: 9, background: `linear-gradient(90deg, ${hexA(ink, 0.5)}, ${hexA(c, 0.7)} 55%, transparent)` }} />
-    </div>
-  );
+// ── The storefront's state and actions ─────────────────────────────────────────────────────
+// Everything Work-with runs on (the coach's provider row and capacity, the waiting list, the
+// account, Subscribe and its prompts, the reviews and the review form), read once here and shared
+// by the blocks below and the website's coach profile in the app's design (coachProfileWeb.jsx),
+// so the two pages subscribe, queue and review through one path. `monthly` is the listing's own
+// monthly price as the page prints it ("$180"); without it, the price these blocks have shown.
+function useLvCoachCommerce({ d, monthly = null }) {
   // Storefront: the profile is the listing. Resolve the coach's provider (for the
   // subscription checkout) + live reviews — the same data the marketplace used.
   const first = d.first || String(d.name || "").split(/\s+/)[0] || "Coach";
-  const monthlyPrice = ((d.offerings || []).find((o) => /coaching/i.test(o.kind) || /month/i.test(o.unit || "")) || {}).price || (/nutritionist/i.test(String(d.role || "")) ? "$240" : "$200");
+  const monthlyPrice = monthly || ((d.offerings || []).find((o) => /coaching/i.test(o.kind) || /month/i.test(o.unit || "")) || {}).price || (/nutritionist/i.test(String(d.role || "")) ? "$240" : "$200");
   // ── The coach's own provider row: ONE source for (id, role) AND capacity ──
   //
   // ⚠ THE ROLE-CORRECT ROW, NOT `get_coach_sale_plans_by_user`'s FIRST ROW, which is
@@ -985,6 +976,64 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     } catch (e) { setBuyErr("Could not start checkout — check your connection and try again."); }
     finally { busy.current = false; }
   };
+  return {
+    first, monthlyPrice, prow, provId, listingRole, providerTable, offer, offerLines, hasOffer, studio,
+    liveReviews, revAgg, revLocked, revRating, setRevRating, revText, setRevText, revBusy, revMsg, setRevMsg, postReview,
+    openChat, acct, atCapacity, wl, clientOf, wlErr, buyErr, needsMember, needsScreening, needsAccount, joinErr, setJoinErr,
+    memberReturn, introsOpen, introHref, wlJoin, wlLeave, subscribe,
+  };
+}
+
+// P5 · the Wins wall: up to three REAL reviews the coach pinned (profile_custom.pinnedReviews),
+// in their order. Resolved DIRECTLY by id (not from the 200-row slug list), so a pinned review
+// never vanishes once a coach passes 200 reviews; the results are still filtered to ownerId ===
+// the profile owner, so a cross-coach / hand-written id never resolves. Shared by the blocks below
+// and the website's coach profile in the app's design (coachProfileWeb.jsx).
+function useLvWinsWall(d) {
+  const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
+  const pinnedKey = (plib && plib.bsProfilePinnedReviews ? plib.bsProfilePinnedReviews(d.custom && d.custom.pinnedReviews) : []).join(",");
+  const [pinnedResolved, setPinnedResolved] = React.useState([]);
+  React.useEffect(() => {
+    setPinnedResolved([]); // clear the previous profile's / pins' data on any change
+    if (!pinnedKey || !d.uid) return;
+    let on = true;
+    fetch(`/api/coaches/reviews?ids=${encodeURIComponent(pinnedKey)}`, { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      // Only a MEMBER's review counts (authorId !== ownerId) — a coach can't insert a
+      // self-authored row (insert RLS forces user_id = their uid) and pin it.
+      .then((j) => { if (on && j && Array.isArray(j.reviews)) setPinnedResolved(j.reviews.filter((r) => r && r.ownerId === d.uid && r.authorId !== r.ownerId)); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [pinnedKey, d.uid]);
+  return pinnedKey ? pinnedKey.split(",").map((id) => pinnedResolved.find((r) => r && r.id === id && r.ownerId === d.uid && r.authorId !== r.ownerId)).filter(Boolean) : [];
+}
+
+// ── Coach marketplace blocks (trainer/nutritionist only) ─────
+// Certifications (verified), Services & prices, Reviews. Adapts to
+// the host direction via `light` + the --lvc tier var.
+function LvCoachBlocks({ d, light, owner, view, onReviews }) {
+  const showCoaching = view !== "reviews";
+  const showReviews = view !== "coaching";
+  const c = tierOf(d).color;
+  const ink = light ? "#1a1612" : LV_INK;
+  // Ledger station head (zero-box): heat tick + mono eyebrow (+ meta) over a 2px
+  // ink→heat rule. Self-contained here (livingShared loads before livingDesktop).
+  const stHead = (label, meta) => (
+    <div style={{ marginBottom: 15 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <span aria-hidden="true" style={{ flex: "none", width: 8, height: 2, background: c }} />
+        <span style={{ fontFamily: lvMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.55) }}>{label}</span>
+        {meta ? <span style={{ marginLeft: "auto" }}>{meta}</span> : null}
+      </div>
+      <div aria-hidden="true" style={{ height: 2, marginTop: 9, background: `linear-gradient(90deg, ${hexA(ink, 0.5)}, ${hexA(c, 0.7)} 55%, transparent)` }} />
+    </div>
+  );
+  const {
+    first, monthlyPrice, prow, provId, listingRole, providerTable, offer, offerLines, hasOffer, studio,
+    liveReviews, revAgg, revLocked, revRating, setRevRating, revText, setRevText, revBusy, revMsg, setRevMsg, postReview,
+    openChat, acct, atCapacity, wl, clientOf, wlErr, buyErr, needsMember, needsScreening, needsAccount, joinErr, setJoinErr,
+    memberReturn, introsOpen, introHref, wlJoin, wlLeave, subscribe,
+  } = useLvCoachCommerce({ d });
   // The join prompt and the post-join note, shown under both Subscribe buttons (the open
   // storefront and the at-capacity invite).
   const joinPrompt = (
@@ -1027,23 +1076,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // reviews by id AND ownerId, so a cross-coach / hand-written id never resolves.
   const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
   const bizCard = plib && plib.bsProfileBizCard ? plib.bsProfileBizCard(d.custom && d.custom.bizCard) : null;
-  // P5 wins wall — resolve pinned ids DIRECTLY by id (not from the 200-row slug
-  // list), so a pinned review never vanishes once a coach passes 200 reviews; the
-  // results are still filtered to ownerId === the profile owner.
-  const pinnedKey = (plib && plib.bsProfilePinnedReviews ? plib.bsProfilePinnedReviews(d.custom && d.custom.pinnedReviews) : []).join(",");
-  const [pinnedResolved, setPinnedResolved] = React.useState([]);
-  React.useEffect(() => {
-    setPinnedResolved([]); // clear the previous profile's / pins' data on any change
-    if (!pinnedKey || !d.uid) return;
-    let on = true;
-    fetch(`/api/coaches/reviews?ids=${encodeURIComponent(pinnedKey)}`, { credentials: "same-origin" })
-      .then((r) => (r.ok ? r.json() : null))
-      // Only a MEMBER's review counts (authorId !== ownerId) — a coach can't insert a
-      // self-authored row (insert RLS forces user_id = their uid) and pin it.
-      .then((j) => { if (on && j && Array.isArray(j.reviews)) setPinnedResolved(j.reviews.filter((r) => r && r.ownerId === d.uid && r.authorId !== r.ownerId)); })
-      .catch(() => {});
-    return () => { on = false; };
-  }, [pinnedKey, d.uid]);
+  const winsWall = useLvWinsWall(d);
   // At capacity, a member who already subscribes: no waiting list, and the way to buy (task #10).
   const clientNote = (
     <React.Fragment>
@@ -1053,7 +1086,6 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
       <button type="button" onClick={openChat} data-client-at-capacity="" style={{ marginTop: 16, padding: "13px 20px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Message {first}</button>
     </React.Fragment>
   );
-  const winsWall = pinnedKey ? pinnedKey.split(",").map((id) => pinnedResolved.find((r) => r && r.id === id && r.ownerId === d.uid && r.authorId !== r.ownerId)).filter(Boolean) : [];
   return (
     <div>
       {showCoaching && <React.Fragment>
