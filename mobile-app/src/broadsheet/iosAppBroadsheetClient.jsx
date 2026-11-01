@@ -25522,6 +25522,9 @@ let _bsNoraThread = null;
 let _bsNoraBusy = false;
 // Her reply so far while she writes it (streamed); the finished reply replaces it.
 let _bsNoraLive = '';
+// What she is looking up before her words come (a `status` key, bsNoraStatusWords); cleared with
+// the live text, and shown only while there is none.
+let _bsNoraStatus = '';
 const _bsNoraSubs = new Set();
 // The account whose greeting the thread holds, so a sign-in after a signed-out preview
 // fetches the new account's own (the app remounts on login without reloading; Codex, #2249).
@@ -25596,7 +25599,7 @@ function _bsNoraDropOther(account) {
   if (!_bsNoraHeld.some((m) => m._as && m._as !== account)) return false;
   _bsNoraHeld = _bsNoraHeld.filter((m) => !m._as || m._as === account);
   _bsNoraGen += 1;
-  _bsNoraLive = '';
+  _bsNoraLive = ''; _bsNoraStatus = '';
   _bsNoraPublish([_bsNoraSeed()]);
   return true;
 }
@@ -25626,7 +25629,7 @@ function _bsNoraForget() {
   _bsNoraGen += 1;
   try { window.ShapeVoice?.stop?.(); } catch (e) {}
   _bsNoraLoaded = null; _bsNoraSynced = null; _bsNoraCookie = null; _bsNoraHeld = []; _bsNoraGreeted = null;
-  _bsNoraLive = '';
+  _bsNoraLive = ''; _bsNoraStatus = '';
   _bsNoraPublish([_bsNoraSeed()]);
 }
 const _bsNoraWho = () => { try { return window.ShapeAuth?.getCachedState?.()?.user?.id || 'anon'; } catch (e) { return 'anon'; } };
@@ -25643,6 +25646,25 @@ function _bsNoraPublish(thread, busy) {
 function _bsNoraLiveSet(text) {
   _bsNoraLive = String(text || '');
   _bsNoraSubs.forEach((fn) => { try { fn(); } catch (e) {} });
+}
+function _bsNoraStatusSet(key) {
+  _bsNoraStatus = String(key || '');
+  _bsNoraSubs.forEach((fn) => { try { fn(); } catch (e) {} });
+}
+// What she is looking up (the chat route's `status`, src/lib/ai/noraStatus.mjs), in the app's
+// language (speed, 2026-11-01). A key this build does not know reads as `lookup`, so a tool added
+// on the server later never shows nothing.
+function bsNoraStatusWords(tr, key) {
+  switch (key) {
+    case 'plan': return tr('feed:support.status.plan', { defaultValue: 'Checking your plan…' });
+    case 'progress': return tr('feed:support.status.progress', { defaultValue: 'Looking at your progress…' });
+    case 'account': return tr('feed:support.status.account', { defaultValue: 'Checking your account…' });
+    case 'food': return tr('feed:support.status.food', { defaultValue: 'Looking up that food…' });
+    case 'coaches': return tr('feed:support.status.coaches', { defaultValue: 'Finding coaches…' });
+    case 'clients': return tr('feed:support.status.clients', { defaultValue: 'Checking your clients…' });
+    case 'draft': return tr('feed:support.status.draft', { defaultValue: 'Getting that ready…' });
+    default: return tr('feed:support.status.lookup', { defaultValue: 'Looking that up…' });
+  }
 }
 function BSNoraSheet({ onClose }) {
   const t = useBS();
@@ -25663,6 +25685,7 @@ function BSNoraSheet({ onClose }) {
   const [supportDraft, setSupportDraft] = useStateBSC(() => { const d = _bsNoraDraft; _bsNoraDraft = ''; return d; });
   const [supportBusy, setSupportBusy] = useStateBSC(() => _bsNoraBusy);
   const [supportLive, setSupportLive] = useStateBSC(() => _bsNoraLive);
+  const [supportStatus, setSupportStatus] = useStateBSC(() => _bsNoraStatus);
   // "Talk to a person" (the Ask Nora plan, step 5): signed in only. The question goes to the
   // Shape team with the stored conversation, and a person replies here and by email. With the
   // app signed out, once the store has answered for the website's session (_bsNoraSynced).
@@ -25699,7 +25722,7 @@ function BSNoraSheet({ onClose }) {
   React.useEffect(() => {
     const sync = () => {
       if (_bsNoraThread) setSupportMsgs(_bsNoraThread);
-      setSupportBusy(_bsNoraBusy); setSupportLive(_bsNoraLive);
+      setSupportBusy(_bsNoraBusy); setSupportLive(_bsNoraLive); setSupportStatus(_bsNoraStatus);
       // A cookie account that changed (_bsNoraForget) takes "Talk to a person" with it.
       setPersonSynced(_bsNoraSynced !== null && _bsNoraSynced === _bsNoraWho());
     };
@@ -25773,7 +25796,7 @@ function BSNoraSheet({ onClose }) {
     if (ask && !(await ask({ title: tr('feed:support.thread.confirmTitle', { defaultValue: 'Clear your conversation with Nora?' }), message: tr('feed:support.thread.confirmBody', { defaultValue: 'This deletes it on every device. What Nora remembers stays.' }), confirmLabel: tr('feed:support.thread.clear', { defaultValue: 'Clear conversation' }) }))) return;
     _bsNoraGen += 1;
     try { window.ShapeVoice?.stop?.(); } catch (e) {}
-    _bsNoraLive = '';
+    _bsNoraLive = ''; _bsNoraStatus = '';
     // What was held for the store goes with the conversation it was part of.
     _bsNoraHeld = [];
     _bsNoraPublish([(_bsNoraThread || supportMsgs)[0] || SUPPORT_GREETING]);
@@ -25851,11 +25874,13 @@ function BSNoraSheet({ onClose }) {
       // what it showed. An answer for a cleared conversation is never drawn.
       const onText = (txt) => { if (gen === _bsNoraGen) _bsNoraLiveSet(txt); };
       const onReset = () => _bsNoraLiveSet('');
+      // What a lookup round is looking up, until her words come.
+      const onStatus = (k) => { if (gen === _bsNoraGen) _bsNoraStatusSet(k); };
       // The question names the account the conversation belongs to (or, before the store has
       // answered, the one its held exchanges were answered as): a caller who is another account
       // now is refused before the history is read (Codex on #2393).
       const account = _bsNoraAccount() || _bsNoraHeldAs();
-      const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true, context: bsNoraContext(!screenOffRef.current), onText, onReset, account });
+      const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true, context: bsNoraContext(!screenOffRef.current), onText, onReset, onStatus, account });
       // Cleared while she was answering: the answer belongs to the conversation that went.
       if (gen !== _bsNoraGen) return null;
       // Refused as another account: the sheet starts again, and what they typed goes back in the box.
@@ -25867,7 +25892,7 @@ function BSNoraSheet({ onClose }) {
       }
       const reply = (res && res.reply) || "I can't answer that just now. The Shape team answers at info@theshapecommunity.com.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
-      _bsNoraLive = '';
+      _bsNoraLive = ''; _bsNoraStatus = '';
       _bsNoraPublish([...(_bsNoraThread || next), { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
       // Settings → Nora voice on reads every reply aloud (off by default); failures are silent.
       if (!opts.silent && window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply);
@@ -25876,10 +25901,10 @@ function BSNoraSheet({ onClose }) {
       return res && res.reply ? reply : null;
     } catch (e) {
       if (gen !== _bsNoraGen) return null;
-      _bsNoraLive = '';
+      _bsNoraLive = ''; _bsNoraStatus = '';
       _bsNoraPublish([...(_bsNoraThread || next), { who: 'Nora', t: "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.", time: 'now', me: false, bot: true }]);
       return null;
-    } finally { _bsNoraLive = ''; _bsNoraPublish(null, false); }
+    } finally { _bsNoraLive = ''; _bsNoraStatus = ''; _bsNoraPublish(null, false); }
   };
   sendRef.current = sendSupportText;
   const sendSupport = () => sendSupportText(supportDraft);
@@ -26045,15 +26070,20 @@ function BSNoraSheet({ onClose }) {
                 </div>
               );
             })}
-            {supportBusy && !supportLive && (
-              <div role="status" style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                {face(24)}
-                <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{tr('feed:support.typing', { defaultValue: 'Nora is typing…' })}</span>
-                <span aria-hidden style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '10px 13px', borderRadius: 999, background: bsTHexA(t.INK, 0.06) }}>
-                  {[0, 1, 2].map((n) => <span key={n} className="bs-nora-anim" style={{ width: 6, height: 6, borderRadius: '50%', background: noraTint, animation: `bsNoraDot 1.1s ${n * 0.16}s ease-in-out infinite` }} />)}
-                </span>
-              </div>
-            )}
+            {supportBusy && !supportLive && (() => {
+              // A lookup names itself ("Checking your plan…") beside the dots; before one, the dots alone.
+              const looking = supportStatus ? bsNoraStatusWords(tr, supportStatus) : '';
+              return (
+                <div role="status" style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  {face(24)}
+                  <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{looking || tr('feed:support.typing', { defaultValue: 'Nora is typing…' })}</span>
+                  <span aria-hidden style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '10px 13px', borderRadius: 999, background: bsTHexA(t.INK, 0.06) }}>
+                    {[0, 1, 2].map((n) => <span key={n} className="bs-nora-anim" style={{ width: 6, height: 6, borderRadius: '50%', background: noraTint, animation: `bsNoraDot 1.1s ${n * 0.16}s ease-in-out infinite` }} />)}
+                  </span>
+                  {looking ? <span data-nora-status aria-hidden style={{ fontFamily: t.BODY, fontSize: 13, lineHeight: 1.3, color: muted }}>{looking}</span> : null}
+                </div>
+              );
+            })()}
             {/* Talk to a person, at the foot of the talk: a quiet card, the question already in it. */}
             {personForm && (
               <div data-nora-person-form style={{ display: 'grid', gap: 10, padding: 16, borderRadius: 16, border: `1px solid ${bsTHexA(t.INK, 0.12)}`, background: bsTHexA(t.INK, 0.035) }}>

@@ -26,10 +26,12 @@ const ai = await loadRealModule(join(ROOT, 'src/lib/ai.ts'), {
   typescript: true, registry: new SubmoduleStubs([['next/server', nextServer]]),
 });
 
-const ENV_KEYS = ['OPENAI_API_KEY', 'OPENAI_MODEL', 'OPENAI_FALLBACK_MODEL', 'OPENAI_REASONING_EFFORT', 'OPENAI_STORE_RESPONSES'];
+const ENV_KEYS = ['OPENAI_API_KEY', 'OPENAI_MODEL', 'OPENAI_FALLBACK_MODEL', 'OPENAI_FAST_MODEL', 'OPENAI_PUBLIC_MODEL', 'OPENAI_REASONING_EFFORT', 'OPENAI_STORE_RESPONSES'];
 // Every test runs with the AI env CLEARED and then sets only what it names —
-// the container's own env must never decide a test.
+// the container's own env must never decide a test. The hour's memory of a
+// refused pin is module state, so every test starts with it empty too.
 async function withEnv(vars, fn) {
+  ai.clearRefusedModels();
   const saved = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
   for (const k of ENV_KEYS) delete process.env[k];
   for (const [k, v] of Object.entries(vars)) if (v !== undefined) process.env[k] = v;
@@ -299,4 +301,88 @@ test('callAI logs how much input came from the prompt cache and how much output 
       assert.match(okLine, /"reasoningTokens":123/);
     } finally { f.restore(); log.restore(); }
   });
+});
+
+// ─── speed, 2026-11-01: a refused pin is remembered for an hour ───────────────
+
+test('⚠ callAI: after a refusal the pin is skipped for an hour — straight to the fallback, no refused round trip', async () => {
+  await withEnv({ OPENAI_API_KEY: 'test-key' }, async () => {
+    const f = scriptFetch([NOT_FOUND, OK, OK]);
+    const log = captureLog();
+    try {
+      const first = await ai.callAI({ input: 'hello' }, { promptId: 'support.chat' });
+      assert.equal(first.ok, true);
+      assert.equal(f.calls.length, 2, 'the first refusal is paid once');
+      assert.equal(ai.isModelRefused('gpt-6-astra'), true, 'and remembered');
+      const second = await ai.callAI({ input: 'again', tools: [{ type: 'function', name: 'f' }] }, { promptId: 'support.chat', effort: 'minimal' });
+      assert.equal(f.calls.length, 3, 'ONE request for the second call, not two');
+      assert.equal(f.calls[2].body.model, 'gpt-5.4-mini');
+      assert.equal(f.calls[2].body.reasoning.effort, 'minimal', 'prepared for the fallback model, as a retry is');
+      assert.deepEqual(f.calls[2].body.include, ['reasoning.encrypted_content']);
+      assert.equal(second.ok, true);
+      assert.equal(second.model, 'gpt-5.4-mini');
+      assert.equal(second.fellBack, true, 'the chat route reads fellBack to keep the request on one model');
+      const okLine = log.lines.filter((l) => l.includes('"ok":true')).pop();
+      assert.match(okLine, /"skippedRefusedPin":"gpt-6-astra"/);
+    } finally { f.restore(); log.restore(); }
+  });
+});
+
+test('the refusal expires after the hour, and only a MODEL refusal is remembered', async () => {
+  await withEnv({}, () => {
+    const t0 = 1_000_000;
+    ai.noteModelRefused('gpt-6-astra', t0);
+    assert.equal(ai.isModelRefused('gpt-6-astra', t0 + ai.REFUSED_PIN_TTL_MS - 1), true);
+    assert.equal(ai.isModelRefused('gpt-6-astra', t0 + ai.REFUSED_PIN_TTL_MS), false, 'tried again after the hour');
+    assert.equal(ai.isModelRefused('gpt-6-astra', t0), false, 'an expired entry is forgotten');
+    assert.equal(ai.isModelRefused('gpt-5.4-mini', t0), false);
+  });
+  await withEnv({ OPENAI_API_KEY: 'test-key' }, async () => {
+    const bad = { status: 400, body: { error: { message: "Unsupported parameter: 'foo'", param: 'foo', code: 'unsupported_parameter' } } };
+    const f = scriptFetch([bad, OK]);
+    const log = captureLog();
+    try {
+      await ai.callAI({ input: 'hello' }, { promptId: 'p' });
+      assert.equal(ai.isModelRefused('gpt-6-astra'), false, 'a request-shape 400 says nothing about access');
+    } finally { f.restore(); log.restore(); }
+  });
+  await withEnv({ OPENAI_API_KEY: 'test-key' }, async () => {
+    const f = scriptFetch([NOT_FOUND]);
+    const log = captureLog();
+    try {
+      await ai.callAI({ input: 'hello', model: 'gpt-6-astra' }, { promptId: 'p' });
+      assert.equal(ai.isModelRefused('gpt-6-astra'), false, 'an explicit model has no fallback, so nothing to skip to');
+    } finally { f.restore(); log.restore(); }
+  });
+});
+
+test('a remembered refusal never skips an explicit model, or a pin with the retry disabled', async () => {
+  await withEnv({ OPENAI_API_KEY: 'test-key' }, async () => {
+    ai.noteModelRefused('gpt-6-astra');
+    const f = scriptFetch([OK]);
+    const log = captureLog();
+    try {
+      const res = await ai.callAI({ input: 'hello', model: 'gpt-6-astra' }, { promptId: 'p' });
+      assert.equal(f.calls[0].body.model, 'gpt-6-astra', 'the caller asked for exactly this model');
+      assert.equal(res.fellBack, false);
+    } finally { f.restore(); log.restore(); }
+  });
+  await withEnv({ OPENAI_API_KEY: 'test-key', OPENAI_FALLBACK_MODEL: 'none' }, async () => {
+    ai.noteModelRefused('gpt-6-astra');
+    const f = scriptFetch([OK]);
+    const log = captureLog();
+    try {
+      await ai.callAI({ input: 'hello' }, { promptId: 'p' });
+      assert.equal(f.calls[0].body.model, 'gpt-6-astra', 'nothing to skip to, so the pin is asked');
+    } finally { f.restore(); log.restore(); }
+  });
+});
+
+test('the fast model: unset → the fallback model; a name → that name; off → the pin; fallback disabled → the pin', async () => {
+  await withEnv({}, () => assert.equal(ai.aiFastModel(), 'gpt-5.4-mini'));
+  await withEnv({ OPENAI_FALLBACK_MODEL: 'gpt-5.5' }, () => assert.equal(ai.aiFastModel(), 'gpt-5.5'));
+  await withEnv({ OPENAI_FAST_MODEL: ' gpt-5.4-nano ' }, () => assert.equal(ai.aiFastModel(), 'gpt-5.4-nano'));
+  for (const v of ['off', 'none', 'false', '0', ' OFF ']) await withEnv({ OPENAI_FAST_MODEL: v }, () => assert.equal(ai.aiFastModel(), 'gpt-6-astra', v));
+  await withEnv({ OPENAI_FAST_MODEL: 'off', OPENAI_MODEL: 'gpt-5.5' }, () => assert.equal(ai.aiFastModel(), 'gpt-5.5', 'off is whatever the pin is'));
+  await withEnv({ OPENAI_FALLBACK_MODEL: 'none' }, () => assert.equal(ai.aiFastModel(), 'gpt-6-astra'));
 });

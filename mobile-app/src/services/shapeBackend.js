@@ -4614,9 +4614,10 @@ async function sendGroceryToInstacart({ items, title } = {}) {
 // ('app': a coach chip opens the Listing by provider id, and the website's
 // example directory is left out) and the app's locale, so a short spoken
 // question in German is answered in German. None of the three is read for
-// access on the server. { onText, onReset } (the Nora sheet) ask for her words as she writes
-// them: onText gets her reply so far, onReset takes back what a lookup round showed, and the
-// result is the same object a plain request returns (public/newdesign/noraStream.mjs).
+// access on the server. { onText, onReset, onStatus } (the Nora sheet) ask for her words as she
+// writes them: onText gets her reply so far, onReset takes back what a lookup round showed,
+// onStatus gets what a lookup is (a noraStatus.mjs key), and the result is the same object a
+// plain request returns (public/newdesign/noraStream.mjs).
 async function askSupportBot(messages, tone, extra = {}) {
   if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
   const headers = { 'Content-Type': 'application/json' };
@@ -4644,7 +4645,7 @@ async function askSupportBot(messages, tone, extra = {}) {
   // The limit and the bot check answer as plain JSON even to a streamed request, so the
   // response's own type decides how it is read.
   if (streaming && res.ok && isNoraStream(res)) {
-    const done = await readNoraStream(res, { onText: extra.onText, onReset: extra.onReset });
+    const done = await readNoraStream(res, { onText: extra.onText, onReset: extra.onReset, onStatus: extra.onStatus });
     // A stream that ended without her answer, or one that failed on the way, is a failed request.
     if (!done || done.source === 'error') throw new Error('Support is unavailable right now.');
     return done;

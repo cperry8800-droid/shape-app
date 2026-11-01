@@ -24,7 +24,9 @@ class SubmoduleStubs extends Map {
 const ai = await loadRealModule(join(ROOT, 'src/lib/ai.ts'), { typescript: true, registry: new SubmoduleStubs([['next/server', nextServer]]) });
 
 const ENV_KEYS = ['OPENAI_API_KEY', 'OPENAI_TRANSCRIBE_MODEL'];
+// The hour's memory of a refused model is module state: each case starts without it.
 async function withEnv(vars, fn) {
+  ai.clearRefusedModels();
   const saved = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
   for (const k of ENV_KEYS) delete process.env[k];
   for (const [k, v] of Object.entries(vars)) if (v !== undefined) process.env[k] = v;
@@ -118,6 +120,23 @@ test('⚠ A REFUSED MODEL FALLS BACK ONCE TO whisper-1 — and only a refused MO
     assert.equal(r.ok, false);
     assert.equal(h.calls.length, 1);
   } finally { h.restore(); log3.restore(); }
+});
+
+test('⚠ A REFUSED MODEL IS REMEMBERED FOR THE HOUR: the next note goes straight to whisper-1', async () => {
+  const f = scriptFetch([REFUSED, OK, OK]);
+  const log = captureLog();
+  try {
+    await withEnv({ OPENAI_API_KEY: 'k' }, async () => {
+      await ai.transcribeAudio(AUDIO(), { promptId: 'ai.transcribe' });
+      const r = await ai.transcribeAudio(AUDIO(), { promptId: 'ai.transcribe', language: 'fr' });
+      assert.equal(r.ok, true);
+      assert.equal(r.model, 'whisper-1');
+      assert.equal(r.fellBack, true);
+      assert.deepEqual(f.calls.map((c) => c.fields.model), ['gpt-4o-transcribe', 'whisper-1', 'whisper-1'], 'one request for the second note');
+      assert.equal(f.calls[2].fields.language, 'fr');
+      assert.ok(log.lines.some((l) => /"skippedRefusedPin":"gpt-4o-transcribe"/.test(l)));
+    });
+  } finally { f.restore(); log.restore(); }
 });
 
 test('no key → no_key, and nothing is fetched', async () => {

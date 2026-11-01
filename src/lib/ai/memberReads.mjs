@@ -223,6 +223,35 @@ export async function readTrainingPlan(sb, uid, { now = new Date(), zone } = {})
   return out;
 }
 
+/**
+ * Today's slice of readTrainingPlan's answer: what Nora is handed before the member asks
+ * (speed, 2026-11-01), so "what's on today" and "what do I eat today" answer in one round
+ * instead of a lookup round and an answer round. Today's sessions with their exercises,
+ * today's meals with the day's targets, and how much more of the week there is (the rest is
+ * still get_training_plan's). Null for a failed read: an unread plan is never "nothing on".
+ */
+export function todayPlanSlice(plan) {
+  if (!plan || typeof plan !== 'object' || plan.ok !== true) return null;
+  const out = { today: plan.today };
+  const tr = plan.training && typeof plan.training === 'object' ? plan.training : null;
+  if (!tr || tr.unavailable) out.training = { unavailable: true };
+  else {
+    const week = Array.isArray(tr.thisWeek) ? tr.thisWeek : [];
+    const todays = week.filter((w) => w && w.today);
+    const rest = week.length - todays.length + (posNum(tr.thisWeekTruncated) || 0);
+    out.training = {
+      hasPlan: tr.hasPlan === true,
+      ...(tr.coach ? { coach: tr.coach } : {}),
+      todays,
+      ...(rest > 0 ? { otherSessionsThisWeek: rest } : {}),
+      ...(posNum(tr.laterWeeks) ? { laterWeeks: tr.laterWeeks } : {}),
+    };
+  }
+  const me = plan.meals && typeof plan.meals === 'object' ? plan.meals : null;
+  out.meals = !me || me.unavailable ? { unavailable: true } : me;
+  return out;
+}
+
 // ─── recent training ─────────────────────────────────────────────────────────
 
 // The load a set actually carried, with the unit the LOG stated — never a
