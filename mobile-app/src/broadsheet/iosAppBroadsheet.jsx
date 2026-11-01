@@ -2456,6 +2456,11 @@ function BSNavGestures() {
       });
       if (!intent) return;
       if (bsSwipeBlocked(st.target, surf)) return;
+      // [data-bs-noswipe-left] claims the LEFTWARD swipe only (a chat message's swipe to reply,
+      // 2026-11-01): a left swipe that starts on it is its own, never the next tab, and a right swipe
+      // on it still goes Back, as on the rest of the page (Codex P2 on #2561: touchAction pan-y, which
+      // bsSwipeBlocked reads in both directions, had cost the thread its right-swipe Back).
+      if (intent === 'next-tab' && st.target && st.target.closest && st.target.closest('[data-bs-noswipe-left]')) return;
       // A page with its own Back goes back the way that Back does (bsSwipeBackRoute).
       const { back } = bsPageBackFor(st.target, surf);
       if (bsSwipeBackRoute({ intent, hasPageBack: !!back }) === 'page') {

@@ -354,5 +354,12 @@
   "wallLive.sendBoost": "Kirim semangat →",
   "wallLive.alsoTraining": "Juga latihan:",
   "card.you": "Kamu",
-  "thread.activeNow": "Sedang aktif"
+  "thread.activeNow": "Sedang aktif",
+  "thread.today": "Hari ini",
+  "thread.yesterday": "Kemarin",
+  "thread.you": "Kamu",
+  "thread.reply": "Balas",
+  "thread.replyingTo": "Membalas {name}",
+  "thread.cancelReply": "Batalkan balasan",
+  "thread.goToQuoted": "Tampilkan pesan yang dibalas"
 }

@@ -354,5 +354,12 @@
   "wallLive.sendBoost": "Підтримати →",
   "wallLive.alsoTraining": "Ще тренуються:",
   "card.you": "Ви",
-  "thread.activeNow": "У мережі"
+  "thread.activeNow": "У мережі",
+  "thread.today": "Сьогодні",
+  "thread.yesterday": "Вчора",
+  "thread.you": "Ти",
+  "thread.reply": "Відповісти",
+  "thread.replyingTo": "Відповідь для {name}",
+  "thread.cancelReply": "Скасувати відповідь",
+  "thread.goToQuoted": "Показати повідомлення, на яке це відповідь"
 }

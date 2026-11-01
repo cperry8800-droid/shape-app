@@ -134,12 +134,12 @@ test('the thread screen: the magazine teal on the paper, the desk on the ink, No
   assert.match(th, /const DESK = t\.INK, DESK_INK = t\.PAPER;/);
   assert.match(th, /<window\.BSMastRow ink=\{DESK_INK\} trailing=\{<BSMeCorner ink=\{DESK_INK\} \/>\} \/>/);
   assert.doesNotMatch(th, /<BSFacetAvatar/, 'faces are round photos, as hers are');
-  assert.match(th, /<BSMessageComposer value=\{text\} onChange=\{setText\} onSend=\{send\} pinned tray \/>/);
+  assert.match(th, /<BSMessageComposer value=\{text\} onChange=\{setText\} onSend=\{send\} pinned tray above=\{quoteBar\} \/>/);
 });
 
 test('the composer is square with an ink send button on the chat page; Nora\'s sheet has its own tray', () => {
   const comp = between(CLIENT, 'function BSMessageComposer({', '\n}\n');
-  assert.match(comp, /onVoiceComplete, mag = false, tray = false \}\) \{/);
+  assert.match(comp, /onVoiceComplete, mag = false, tray = false, above = null \}\) \{/);
   assert.match(comp, /background: canSend \? \(mag \? t\.INK : t\.ACCENT\) : t\.SURFACE_BORDER/);
   assert.match(comp, /\{\(mag \|\| tray\) \? null : <span aria-hidden>🔒<\/span>\}/);
   assert.equal((comp.match(/borderRadius: 17,/g) || []).length, 0, 'every rounded control asks mag');

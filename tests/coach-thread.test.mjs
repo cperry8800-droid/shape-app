@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { READER_COPY_EN } from './helpers/reader-copy-en.mjs';
 import { bsGroceryFromMetadata } from '../mobile-app/src/services/groceryShare.mjs';
+import { bsReplyFromMetadata } from '../mobile-app/src/services/chatReply.mjs';
 import { bsChatStamp } from '../mobile-app/src/services/chatTime.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -547,7 +548,7 @@ test('app backend: the coach side names the client, the welcome is from neither 
   const state = { user: { id: 'coach-1' } };
   // The mapper's imports, handed in: the welcome test, the grocery list's strict reader (a list another
   // member sent; null on these messages) and the chat's time (chatTime.mjs, through chatTimeOf).
-  const conversationToThread = new Function('state', 'isShapeWelcome', 'bsGroceryFromMetadata', 'bsChatStamp', `${fnSrc('chatTimeOf')}; ${fnSrc('conversationToThread')}; return conversationToThread;`)(state, W.isShapeWelcome, bsGroceryFromMetadata, bsChatStamp);
+  const conversationToThread = new Function('state', 'isShapeWelcome', 'bsGroceryFromMetadata', 'bsReplyFromMetadata', 'bsChatStamp', `${fnSrc('chatTimeOf')}; ${fnSrc('conversationToThread')}; return conversationToThread;`)(state, W.isShapeWelcome, bsGroceryFromMetadata, bsReplyFromMetadata, bsChatStamp);
   const conv = { id: 'c1', provider_role: 'trainer', provider_id: 7, client_id: 'client-1', title: 'Tom Trainer', last_message: 'x' };
   const msgs = [
     { id: 'w', sender_id: null, body: 'Welcome', metadata: { shape: 'welcome', coach: 'Tom Trainer' }, created_at: '2026-10-15T00:00:00Z' },
@@ -700,7 +701,7 @@ test('the app\'s thread shows a message once when the history and the live messa
   assert.match(thread, /const seedIds = new Set\(seed\.map\(m => m && m\.id\)\.filter\(Boolean\)\);\s+const allMessages = \[\.\.\.seed, \.\.\.extras\.filter\(e => !\(e && e\.id && seedIds\.has\(e\.id\)\)\)\];/);
   // Every source carries the id: the backend's mapping, the list rows, a live row, a sent row once stored.
   assert.match(read('mobile-app/src/services/shapeBackend.js'), /messages: ordered\.map\(message => \(\{\s+id: message\.id \|\| null,/);
-  assert.match(client, /messages: \(th\.messages \|\| \[\]\)\.map\(m => \(\{ id: m\.id \|\| null, who:/);
+  assert.match(client, /messages: \(th\.messages \|\| \[\]\)\.map\(m => \(\{ id: m\.id \|\| null, userId: m\.userId \|\| null, who:/);
   assert.match(thread, /setExtras\(e => \[\.\.\.e, \{ id: row\.id \|\| null, who: thread\.who \|\| 'Member'/);
   assert.match(thread, /setExtras\(e => \[\.\.\.e, \{ id: row\.id \|\| null, who: 'Shape'/);
   assert.match(thread, /sent\.then\(res => \{ const id = res && res\.data && res\.data\.id; if \(id\) setExtras\(e => e\.map\(x => x\.tmpId === tmpId \? \{ \.\.\.x, id \} : x\)\); \}\)/);
