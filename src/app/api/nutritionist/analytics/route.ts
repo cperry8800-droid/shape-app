@@ -16,6 +16,7 @@ import { buildTrajectory, subDeparture, NOT_ENDED_STATUSES, OPEN_SUB_STATUSES } 
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { profileNames } from '@/lib/client-names';
 import { isMeasuredSignedOut } from '@/lib/auth-lookup';
+import { rosterZones, memberWindow, rosterReadBounds } from '@/lib/roster-days';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -168,7 +169,12 @@ export async function GET(request: Request) {
   const [totalSessions, completedSessions, upcomingSessions, bookedToday] = sessCounts.map((r) => r.count ?? 0);
 
   // -------- Client-progress rollups for nutritionist roster -----------------
-  const since30Date = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  // ⚠ EACH CLIENT'S 30 DAYS ARE THEIR OWN 30 (src/lib/roster-days.ts, get_client_stats' rule since
+  // #2547). `>=` the UTC date 30 days back was 31 dates with no upper bound: a client logging every
+  // day read 31 days logged in 30. One read spans every zone's window; each client's rows are then
+  // cut to the 30 days ending on their own today.
+  const rollupNow = Date.now();
+  const readSpan = rosterReadBounds(rollupNow, 30);
 
   // ⚠ A FIGURE THAT COULD NOT BE READ IS NULL, NOT 0 (the trainer route's rule): a failed read
   // is not a roster that logged nothing.
@@ -194,7 +200,7 @@ export async function GET(request: Request) {
   if (clientIds.length) {
     // dietary_kcal = calories EATEN; the snapshot's `calories` is a device's burn.
     type Snap = { id: string; user_id: string; snapshot_date: string; protein_g: number | null; dietary_kcal: number | null; weight_lb: number | null };
-    const [snapRes, rosterNames] = await Promise.all([
+    const [snapRes, rosterNames, zones] = await Promise.all([
       // Every row in the window, a page at a time: about 33 clients logging daily pass 1,000 rows,
       // and the one read (in date order) kept the oldest days and dropped every client's latest.
       readAllById<Snap>((after) => {
@@ -202,7 +208,8 @@ export async function GET(request: Request) {
           .from('daily_health_snapshot')
           .select('id, user_id, snapshot_date, protein_g, dietary_kcal, weight_lb')
           .in('user_id', clientIds)
-          .gte('snapshot_date', since30Date);
+          .gte('snapshot_date', readSpan.first)
+          .lte('snapshot_date', readSpan.last);
         if (after) q = q.gt('id', after);
         // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
         return q.order('id', { ascending: true }).limit(ROW_PAGE);
@@ -210,6 +217,7 @@ export async function GET(request: Request) {
       // ⚠ EVERY CLIENT'S NAME, A BATCH OF IDS AT A TIME (src/lib/client-names.ts; the trainer
       // route's rule): one select over every id stopped at 1,000 rows and dropped its error.
       profileNames(supabase, clientIds),
+      rosterZones(supabase, clientIds),
     ]);
 
     snapsUnknown = !!snapRes.error;
@@ -229,7 +237,8 @@ export async function GET(request: Request) {
         roster.push({ client_id: cid, daysLogged30d: null, avgProteinG: null, avgCalories: null, weightStart: null, weightLatest: null, weightChangeLb: null });
         continue;
       }
-      const rows = byClient.get(cid) || [];
+      const win = memberWindow(rollupNow, zones.get(cid), 30);
+      const rows = (byClient.get(cid) || []).filter((r) => r.snapshot_date >= win.first && r.snapshot_date <= win.last);
       const proteins = rows.map((r) => r.protein_g).filter((v) => v != null) as number[];
       const cals = rows.map((r) => r.dietary_kcal).filter((v) => v != null) as number[];
       const weights = rows.map((r) => r.weight_lb).filter((v) => v != null) as number[];
