@@ -307,7 +307,14 @@ test('the living profile page hands every coach to the new page, with the old on
   const page = read('public/newdesign/livingProfilePage.jsx');
   assert.match(page, /const coachPage = coach && typeof WebCoachProfile !== "undefined" \? \(isDerived/);
   assert.match(page, /<WebCoachProfile key=\{"sample:"[^\n]*mode="sample"[^\n]*fallback=\{desktop\} \/>/, 'a coach with no account is the sample');
-  assert.match(page, /mode="live" role=\{role\} uid=\{st\.uid\} row=\{row\} isSelf=\{st\.isSelf\}/);
+  // A dual-role coach: the page shows the listing the link names, by the storefront hook's own rule,
+  // so what it shows is what Subscribe buys (Codex P2 on #2560).
+  assert.match(page, /mode="live" role=\{listingRole\} uid=\{st\.uid\} row=\{row\} isSelf=\{st\.isSelf\}/);
+  const pageRule = /const listingRole = \(\(\) => \{[\s\S]*?\}\)\(\);/.exec(page)[0];
+  assert.match(pageRule, /get\("role"\)/);
+  assert.match(pageRule, /return p === "trainer" \|\| p === "nutritionist" \? p : role;/);
+  const shared = read('public/newdesign/livingShared.jsx');
+  assert.match(shared, /const listingRole = \(\(\) => \{\n    let p = null;\n    try \{ p = new URLSearchParams\(window\.location\.search\)\.get\("role"\); \} catch \(e\) \{\}\n    if \(p === "trainer" \|\| p === "nutritionist"\) return p;/, 'the storefront reads the same parameter first');
   assert.match(page, /\{coachPage \|\| desktop\}/, 'a member keeps the living layout');
   for (const host of ['MemberProfile', 'TrainerApp', 'NutritionistApp', 'TrainerProfile', 'NutritionistProfile']) {
     const html = read(`public/newdesign/${host}.html`);

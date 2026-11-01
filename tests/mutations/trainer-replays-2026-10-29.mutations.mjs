@@ -3,11 +3,11 @@
 // the page, the editor, the samples and the composer's starting type. The tests named below must
 // notice every one. Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/trainer-replays-2026-10-29.mutations.mjs --fail-on-skipped
-const WORK = 'mobile-app/src/services/coachWork.mjs';
+const WORK = 'public/newdesign/coachWork.mjs'; // canonical since #2560
 const DOC = 'public/newdesign/profileCustom.mjs';
 const PAGE = 'mobile-app/src/broadsheet/BSTrainerProfile.jsx';
 const EDIT = 'mobile-app/src/broadsheet/BSMakeItYours.jsx';
-const DEMO = 'mobile-app/src/services/trainerDemo.mjs';
+const DEMO = 'public/newdesign/trainerDemo.mjs'; // canonical since #2560
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 
 export default {

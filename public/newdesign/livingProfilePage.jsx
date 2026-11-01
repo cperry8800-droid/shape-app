@@ -518,9 +518,19 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   // a real coach's from their account and listing, a coach with no account (a listing opened by name)
   // as the app's sample. A member's profile keeps the living layout above. The living layout is still
   // the fallback when the coach page's kit cannot load.
+  // ⚠ A DUAL-ROLE COACH HOLDS BOTH LISTINGS: the clicked listing's role (the URL's &role=) decides
+  // which one the page shows, by the same rule the storefront hook reads it (useLvCoachCommerce's
+  // listingRole), so the listing, times, plans and price are the listing Subscribe goes to. With the
+  // profile row's role, a nutritionist link showed the trainer listing and subscribed to the
+  // nutritionist (Codex P2 on #2560).
+  const listingRole = (() => {
+    let p = null;
+    try { p = new URLSearchParams(window.location.search).get("role"); } catch (e) {}
+    return p === "trainer" || p === "nutritionist" ? p : role;
+  })();
   const coachPage = coach && typeof WebCoachProfile !== "undefined" ? (isDerived
     ? <WebCoachProfile key={"sample:" + role + ":" + name} mode="sample" role={role} name={name} avatar={lvSafeMedia(row.avatar) || ""} sampleKey={name} onMessage={onMessage} chrome={!shell} belowContent={extras} fallback={desktop} />
-    : <WebCoachProfile key={(st.uid || "preview") + ":" + variant} mode="live" role={role} uid={st.uid} row={row} isSelf={st.isSelf} verified={!!st.verified} certs={st.coachCerts || []}
+    : <WebCoachProfile key={(st.uid || "preview") + ":" + variant + ":" + listingRole} mode="live" role={listingRole} uid={st.uid} row={row} isSelf={st.isSelf} verified={!!st.verified} certs={st.coachCerts || []}
         follow={followProps} onFollow={onFollow} onMessage={onMessage} chrome={!shell} belowContent={extras} fallback={desktop} />) : null;
 
   return wrapShell(
