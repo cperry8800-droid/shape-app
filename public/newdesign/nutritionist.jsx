@@ -217,7 +217,13 @@ function NutEarnings() {
   const grossMonthly = clients * price;
   const feeMonthly = Math.round(grossMonthly * (1 - byo / 100) * PLATFORM_FEE_RATE);
   const monthly = grossMonthly - feeMonthly;
-  const yearly = monthly * 12;
+  // Stripe's card processing comes out of the coach's share (direct charges, #2403). Its cost is
+  // an ESTIMATE from the shared rule (coachForecast.js: one charge a client a month, at Stripe's
+  // published US prices), shown as its own labelled line; without the rule the line is left out.
+  const CF = window.CoachForecast;
+  const processingMonthly = CF ? Math.round(clients * CF.processingCents(price * 100) / 100) : null;
+  const takeHome = processingMonthly == null ? monthly : Math.max(0, monthly - processingMonthly);
+  const yearly = takeHome * 12;
   return (
     <section style={{ padding: "140px 72px" }}>
       <NuReveal>
@@ -272,21 +278,31 @@ function NutEarnings() {
                 <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Gross monthly</div>
                 <div style={{ fontFamily: mono, fontSize: 14, color: "rgba(242,237,228,0.75)" }}>${grossMonthly.toLocaleString()}</div>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 18, borderBottom: "1px dashed rgba(242,237,228,0.12)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", ...(processingMonthly == null ? { paddingBottom: 18, borderBottom: "1px dashed rgba(242,237,228,0.12)" } : { paddingBottom: 10 }) }}>
                 <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Platform fee · 15% on clients who find you</div>
                 <div style={{ fontFamily: mono, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>-${Math.round(feeMonthly).toLocaleString()}</div>
               </div>
+              {processingMonthly == null ? null : (
+                <div data-processing-estimate="" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 18, borderBottom: "1px dashed rgba(242,237,228,0.12)" }}>
+                  <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>Card processing · Stripe, estimated</div>
+                  <div style={{ fontFamily: mono, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>-${processingMonthly.toLocaleString()}</div>
+                </div>
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 18 }}>
-                <div style={{ fontFamily: sans, fontSize: 13, color: INK }}>Your take-home</div>
-                <div style={{ fontFamily: serif, fontSize: 58, color: INK, letterSpacing: "-0.04em", lineHeight: 1 }}>${monthly.toLocaleString()}</div>
+                <div style={{ fontFamily: sans, fontSize: 13, color: INK }}>{processingMonthly == null ? "Your take-home" : "Your take-home, estimated"}</div>
+                <div style={{ fontFamily: serif, fontSize: 58, color: INK, letterSpacing: "-0.04em", lineHeight: 1 }}>${takeHome.toLocaleString()}</div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 10 }}>
                 <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.45)" }}>Annualized</div>
                 <div style={{ fontFamily: mono, fontSize: 14, color: TEAL }}>${yearly.toLocaleString()}/yr</div>
               </div>
             </div>
-            <div style={{ marginTop: 28, fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.4)", lineHeight: 1.5 }}>
-              Estimate at one monthly rate per client. Shape takes 15% on clients who find you on Shape and nothing on clients you bring, before Stripe's card-processing fee, which comes out of your share. Actual earnings vary by specialty and practice model.
+            {/* The footnote carries the estimate's basis, so it reads at AA on the dark card (Copilot, #2555:
+                cream at 40% was about 3.4:1 at 11.5px; at 62% it is about 6.7:1). */}
+            <div data-earn-footnote="" style={{ marginTop: 28, fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.62)", lineHeight: 1.5 }}>
+              Estimate at one monthly rate per client. Shape takes 15% on clients who find you on Shape and nothing on clients you bring. {processingMonthly == null
+                ? "The take-home is before Stripe's card-processing fee, which comes out of your share."
+                : "Stripe's card processing comes out of your share: it is estimated here at Stripe's US card rate, 2.9% + 30¢ a charge, and 0.7% Stripe Billing on subscriptions, and your own Stripe pricing decides the real figure."} Actual earnings vary by specialty and practice model.
             </div>
           </div>
         </div>

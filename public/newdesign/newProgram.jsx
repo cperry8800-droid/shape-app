@@ -315,7 +315,7 @@ function NewProgramPage() {
                 <span style={{ color: "rgba(242,237,228,0.5)", fontSize: 12 }}>{kind === "subscription" ? "/mo" : ""}</span>
               </div>
             </Field>
-            <NpFeeNote price={price} />
+            <NpFeeNote price={price} kind={kind} />
           </Card>
 
           <Card>
@@ -367,16 +367,35 @@ function NewProgramPage() {
 
 // What a coach keeps from a sale, on the platform's fee (src/lib/platform-fee.mjs): Shape takes 15%
 // of a sale to a client who found the coach on Shape and nothing from a client the coach brings,
-// and Stripe's card-processing fee comes out of the coach's share (owner, 2026-10-18). This said "Shape keeps 8%", paid out 92% of every sale, and
-// promised weekly payouts; payouts follow the schedule each coach sets in their own Stripe.
+// and Stripe's card-processing fee comes out of the coach's share (owner, 2026-10-18; direct
+// charges, #2403). That fee is an ESTIMATE (coachForecast.js processingCents), said as one, and the
+// figures it touches read "about". It follows the program's billing model (Codex, #2555): a one-time
+// sale pays Stripe's card rate alone, a subscription's monthly charge Stripe Billing's 0.7% too.
+// This said "Shape keeps 8%", paid out 92% of every sale, and promised weekly payouts; payouts
+// follow the schedule each coach sets in their own Stripe.
 const NP_FEE_RATE = 0.15;
-function NpFeeNote({ price }) {
+function NpFeeNote({ price, kind = "one-time" }) {
   const p = Number(price);
-  const fromShape = price && p > 0 ? (p * (1 - NP_FEE_RATE)).toFixed(2) : null;
+  const sub = kind === "subscription";
+  const CF = window.CoachForecast;
+  const priced = price && p > 0;
+  const proc = priced && CF ? CF.processingCents(Math.round(p * 100), { recurring: sub }) / 100 : null;
+  const after = (v) => "$" + Math.max(0, v - (proc || 0)).toFixed(2);
+  const fromShape = priced ? after(p * (1 - NP_FEE_RATE)) : null;
+  const fromYou = priced ? after(p) : null;
+  const per = sub ? "a month from a client" : "per sale to a client";
+  if (proc == null) {
+    return (
+      <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>
+        You receive <span style={{ color: INK, fontWeight: 500 }}>{fromShape || "—"}</span> {per} who found you on Shape, after Shape's 15%, and the full price from clients you bring.
+        {" "}Stripe's card-processing fee comes out of your share. Payouts go straight to your bank, on the schedule you set in Stripe.
+      </div>
+    );
+  }
   return (
-    <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>
-      You receive <span style={{ color: INK, fontWeight: 500 }}>{fromShape ? "$" + fromShape : "—"}</span> per sale to a client who found you on Shape, after Shape's 15%, and the full price from clients you bring.
-      {" "}Stripe's card-processing fee comes out of your share. Payouts go straight to your bank, on the schedule you set in Stripe.
+    <div data-np-processing="" style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>
+      You receive about <span style={{ color: INK, fontWeight: 500 }}>{fromShape}</span> {per} who found you on Shape, after Shape's 15% and about ${proc.toFixed(2)} card processing, and about <span style={{ color: INK, fontWeight: 500 }}>{fromYou}</span> from a client you bring.
+      {" "}Card processing is Stripe's and comes out of your share: estimated at Stripe's US card rate, 2.9% + 30¢ a charge{sub ? ", and 0.7% Stripe Billing on a subscription" : ""}, and your own Stripe pricing decides it. Payouts go straight to your bank, on the schedule you set in Stripe.
     </div>
   );
 }

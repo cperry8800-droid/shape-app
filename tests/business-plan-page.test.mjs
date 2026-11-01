@@ -127,6 +127,10 @@ test('the calculator starts at a round number above today, and reads the net thr
   const e = CF.earn({ clients: 20, priceCents: 18000, byoShare: 0.17 });
   assert.ok(m.text().includes(money(e.netCents) + 'net a month'), m.text());
   assert.ok(m.text().includes(money(e.grossCents) + ' billed · ' + money(e.feeCents) + ' Shape fee'));
+  // Card processing is the coach's (direct charges, part C): an estimate, labelled, beside the net
+  // and never inside it, with what it is made of.
+  assert.ok(m.text().includes('About ' + money(e.processingCents) + ' card processing · about ' + money(e.afterProcessingCents) + ' a month after it'), m.text());
+  assert.match(m.text(), /Estimate: Stripe's US card rate, 2\.9% \+ 30¢ a charge, and 0\.7% Stripe Billing on subscriptions\. Your own Stripe pricing decides the real figure\./);
   await setValue(clients, 30);
   await setValue(byo, 100);
   assert.ok(m.text().includes(money(30 * 18000) + 'net a month'), 'every client brought by the coach: no fee');
