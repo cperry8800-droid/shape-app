@@ -68,6 +68,8 @@ test('⚠ THE PRICE AND THE FEE ARE THE PRICING PAGE\'S OWN', () => {
   assert.doesNotMatch(fees, /nothing on clients the coach brings\b/);
   // Stripe's card-processing fee is the coach's, as the Terms say (owner, 2026-10-18).
   assert.match(fees, /Stripe’s card-processing fee comes out of the coach’s share/);
+  // The same labelled estimate the coach pages show (coachForecast.js processingCents, part C).
+  assert.match(fees, /estimated at about 2\.9% \+ 30¢ a US card charge plus 0\.7% Stripe Billing on a subscription \(the coach’s own Stripe pricing decides it\)/);
   assert.doesNotMatch(fees, /Shape pays the card processing/);
   assert.match(fees, /on the schedule they set there/, 'payouts follow the coach\'s own Stripe schedule');
   assert.doesNotMatch(fees, /on everything|processing is separate|weekly|instant/i);

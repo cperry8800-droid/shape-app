@@ -77,6 +77,22 @@ function getWorkoutPresetFromUrl() {
   return key ? WORKOUT_PRESETS[key] : null;
 }
 
+// What a coach keeps from a workout sale (the platform's fee, src/lib/platform-fee.mjs): Shape takes
+// 15% from a client who found the coach on Shape and nothing from one the coach brings, and Stripe's
+// card processing comes out of the coach's share (direct charges, #2403). That fee is an ESTIMATE
+// (coachForecast.js processingCents: a one-time sale pays Stripe's card rate alone), said as one.
+function NwFeeNote({ price }) {
+  const p = Number(price);
+  const CF = window.CoachForecast;
+  const priced = price && p > 0;
+  const proc = priced && CF ? CF.processingCents(Math.round(p * 100), { recurring: false }) / 100 : null;
+  const money = (v) => "$" + Math.max(0, v - (proc || 0)).toFixed(2);
+  if (proc == null) {
+    return <>Shape takes 15% on clients who find you on Shape and nothing on clients you bring. You receive <span style={{ color: INK, fontWeight: 500 }}>{priced ? "$" + (p * 0.85).toFixed(2) : "—"}</span> per sale from a client who finds you here, or <span style={{ color: INK, fontWeight: 500 }}>{priced ? "$" + p.toFixed(2) : "—"}</span> from one you bring, before Stripe's card-processing fee.</>;
+  }
+  return <span data-nw-processing="">Shape takes 15% on clients who find you on Shape and nothing on clients you bring. You receive about <span style={{ color: INK, fontWeight: 500 }}>{money(p * 0.85)}</span> per sale from a client who finds you here, or about <span style={{ color: INK, fontWeight: 500 }}>{money(p)}</span> from one you bring, after about ${proc.toFixed(2)} card processing: Stripe's, estimated at its US card rate of 2.9% + 30¢ a charge. Your own Stripe pricing decides it.</span>;
+}
+
 function NewWorkoutPage() {
   const urlMode = new URLSearchParams(window.location.search).get("mode");
   const initialWorkout = getWorkoutPresetFromUrl();
@@ -305,7 +321,7 @@ function NewWorkoutPage() {
             )}
             <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>
               {forSale
-                ? <>Shape takes 15% on clients who find you on Shape and nothing on clients you bring. You receive <span style={{ color: INK, fontWeight: 500 }}>${price ? (Number(price) * (1 - 0.15)).toFixed(2) : "—"}</span> per sale from a client who finds you here, or <span style={{ color: INK, fontWeight: 500 }}>${price ? Number(price).toFixed(2) : "—"}</span> from one you bring, before Stripe's card-processing fee.</>
+                ? <NwFeeNote price={price} />
                 : "Workout lives in your library only. Attach it to a program or assign directly to a client."}
             </div>
           </Card>

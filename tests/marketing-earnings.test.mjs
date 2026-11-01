@@ -26,21 +26,37 @@ function load(file, name) {
   return new Function('React', 'CoReveal', 'NuReveal', 'mono', 'serif', 'sans', 'TEAL', 'RUST', 'INK', code + '\nreturn ' + name + ';')(React, Pass, Pass, 'mono', 'serif', 'sans', '#2ee0c4', '#c0533b', '#f2ede4');
 }
 const text = (el) => renderToStaticMarkup(el).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+// The shared rule the pages read for the card-processing ESTIMATE (part C of direct charges): the
+// pages load public/newdesign/coachForecast.js as a plain script, so it is window.CoachForecast.
+const CF = require_('../public/newdesign/coachForecast.js');
+const withRule = (fn) => { globalThis.window = { CoachForecast: CF }; try { return fn(); } finally { delete globalThis.window; } };
+const withoutRule = (fn) => { globalThis.window = {}; try { return fn(); } finally { delete globalThis.window; } };
 
 for (const [file, name, clients, rate] of [['coach.jsx', 'TrainerEarnings', 20, 150], ['nutritionist.jsx', 'NutEarnings', 18, 140]]) {
   test(file + ': clients × a monthly rate, 15% off, card processing from the coach\'s share, payouts on the coach\'s schedule', () => {
-    const t = text(React.createElement(load(file, name)));
+    const C = load(file, name);
+    const t = withRule(() => text(React.createElement(C)));
     const gross = clients * rate;
     const net = gross - Math.round(gross * 0.15);
+    // Card processing, estimated: one charge a client a month at Stripe's US card rate plus Billing's
+    // 0.7% (2.9% + 0.7% of the rate, + 30¢), in whole dollars, on its own labelled line.
+    const proc = Math.round(clients * Math.round(rate * 100 * 0.036 + 30) / 100);
+    const takeHome = net - proc;
     assert.ok(t.includes('$' + gross.toLocaleString()), 'gross is clients × rate: ' + t.slice(0, 400));
-    assert.ok(t.includes('$' + net.toLocaleString()), 'take-home after 15%');
-    assert.ok(t.includes('$' + (net * 12).toLocaleString() + '/yr'));
+    assert.ok(t.includes('Card processing · Stripe, estimated -$' + proc.toLocaleString()), 'the estimate is its own labelled line: ' + t);
+    assert.ok(t.includes('Your take-home, estimated $' + takeHome.toLocaleString()), 'take-home after 15% and the estimate');
+    assert.ok(t.includes('$' + (takeHome * 12).toLocaleString() + '/yr'));
+    // Without the shared rule the page says what it knows: the take-home before processing, unlabelled
+    // as an estimate, and no processing line.
+    const bare = withoutRule(() => text(React.createElement(C)));
+    assert.ok(bare.includes('Your take-home $' + net.toLocaleString()), bare);
+    assert.doesNotMatch(bare, /Card processing · Stripe/);
     assert.match(t, /Monthly rate per client/);
     assert.match(t, /Clients you bring 0%/);
     assert.match(t, /No Shape fee on clients you bring\./);
     const src = readFileSync(new URL('../public/newdesign/' + file, import.meta.url), 'utf8');
     const body = src.slice(src.indexOf('function ' + name + '() {'), src.indexOf('\n// ---------- ', src.indexOf('function ' + name + '() {')));
-    assert.match(body, /before Stripe's card-processing fee, which comes out of your share\./);
+    assert.match(body, /Stripe's card processing comes out of your share: it is estimated here at Stripe's US card rate, 2\.9% \+ 30¢ a charge, and 0\.7% Stripe Billing on subscriptions, and your own Stripe pricing decides the real figure\./);
     assert.doesNotMatch(body, /Card processing is on Shape|pays the card processing/);
     assert.match(body, /Set your own monthly rate and keep what you earn\./);
     assert.match(body, /Payouts straight to your bank, on the schedule you set in Stripe/);
@@ -64,10 +80,16 @@ test('newProgram.jsx: a sale nets the price after Shape\'s 15% from a client fou
   const fn = /function NpFeeNote\(\{ price \}\) \{[\s\S]*?\n\}/.exec(src)[0];
   const code = babel.transformSync(rate[0] + '\n' + fn, { presets: [presetReact], babelrc: false, configFile: false }).code;
   const NpFeeNote = new Function('React', 'INK', code + '\nreturn NpFeeNote;')(React, '#f2ede4');
-  const t = text(React.createElement(NpFeeNote, { price: '220' })).replace(/&#x27;/g, "'");
-  assert.match(t, new RegExp('You receive \\$' + (220 * (1 - PLATFORM_FEE_RATE)).toFixed(2).replace('.', '\\.') + ' per sale to a client who found you on Shape, after Shape\'s 15%, and the full price from clients you bring\\.'));
-  assert.match(t, /Stripe's card-processing fee comes out of your share\. Payouts go straight to your bank, on the schedule you set in Stripe\./);
-  assert.match(text(React.createElement(NpFeeNote, { price: '' })), /You receive — per sale/);
+  // A one-time sale pays Stripe's card rate alone (no Billing): 2.9% of $220 + 30¢ = $6.68, estimated.
+  const t = withRule(() => text(React.createElement(NpFeeNote, { price: '220' }))).replace(/&#x27;/g, "'");
+  const fromShape = (220 * (1 - PLATFORM_FEE_RATE) - 6.68).toFixed(2);
+  assert.match(t, new RegExp('You receive about \\$' + fromShape.replace('.', '\\.') + ' per sale to a client who found you on Shape, after Shape\'s 15% and about \\$6\\.68 card processing, and about \\$213\\.32 from a client you bring\\.'), t);
+  assert.match(t, /Card processing is Stripe's and comes out of your share: estimated at Stripe's US card rate, 2\.9% \+ 30¢ a charge, and your own Stripe pricing decides it\. Payouts go straight to your bank, on the schedule you set in Stripe\./);
+  assert.match(withRule(() => text(React.createElement(NpFeeNote, { price: '' }))), /You receive — per sale/);
+  // Without the shared rule: the figure after Shape's 15% only, and processing named, not estimated.
+  const bare = withoutRule(() => text(React.createElement(NpFeeNote, { price: '220' }))).replace(/&#x27;/g, "'");
+  assert.match(bare, new RegExp('You receive \\$' + (220 * (1 - PLATFORM_FEE_RATE)).toFixed(2).replace('.', '\\.') + ' per sale to a client who found you on Shape, after Shape\'s 15%, and the full price from clients you bring\\.'));
+  assert.match(bare, /Stripe's card-processing fee comes out of your share\./);
   const code_ = src.replace(/^\s*\/\/.*$/gm, '');
   assert.doesNotMatch(code_, /8%|0\.92|Weekly payouts/i, 'no trace of the old fee or schedule outside the comment that records it');
   assert.match(src, /<NpFeeNote price=\{price\} \/>/, 'the pricing card shows it');
@@ -282,9 +304,15 @@ function priceNote(file, anchor, scope) {
 const FEE_TERMS = 'Shape takes 15% on clients who find you on Shape and nothing on clients you bring.';
 
 test('newWorkout.jsx: a workout listed for sale shows the same terms', () => {
-  const note = (price, forSale) => priceNote('newWorkout.jsx', 'Workout lives in your library only.', { price, forSale });
-  const t = note('20', true).replace(/&#x27;/g, "'");
-  assert.equal(t, FEE_TERMS + ' You receive $17.00 per sale from a client who finds you here, or $20.00 from one you bring, before Stripe\'s card-processing fee.');
+  const src = readFileSync(new URL('../public/newdesign/newWorkout.jsx', import.meta.url), 'utf8');
+  const fn = /function NwFeeNote\(\{ price \}\) \{[\s\S]*?\n\}/.exec(src)[0];
+  const NwFeeNote = new Function('React', 'INK', babel.transformSync(fn, { presets: [presetReact], babelrc: false, configFile: false }).code + '\nreturn NwFeeNote;')(React, '#f2ede4');
+  const note = (price, forSale) => priceNote('newWorkout.jsx', 'Workout lives in your library only.', { price, forSale, NwFeeNote });
+  // A one-time sale: 2.9% of $20 + 30¢ = $0.88 card processing, estimated.
+  const t = withRule(() => note('20', true)).replace(/&#x27;/g, "'");
+  assert.equal(t, FEE_TERMS + ' You receive about $16.12 per sale from a client who finds you here, or about $19.12 from one you bring, after about $0.88 card processing: Stripe\'s, estimated at its US card rate of 2.9% + 30¢ a charge. Your own Stripe pricing decides it.');
   assert.doesNotMatch(t, /8%|\$18\.40/);
+  const bare = withoutRule(() => note('20', true)).replace(/&#x27;/g, "'");
+  assert.equal(bare, FEE_TERMS + ' You receive $17.00 per sale from a client who finds you here, or $20.00 from one you bring, before Stripe\'s card-processing fee.');
   assert.match(note('20', false), /^Workout lives in your library only\./);
 });

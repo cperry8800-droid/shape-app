@@ -1093,6 +1093,10 @@ test('an unread brought share and listing price say so in What clients earn you,
   m = await mount(inChrome(React.createElement(Earn, { base: { state: 'ready', clients: 0, mrrNetCents: 0, rateCents: CF.DEFAULT_RATE_CENTS, rateFrom: 'default', listingUnread: true, byoShare: 0, brought: 0, byoClients: 0, broughtUnread: false, pace: {} } })));
   assert.match(m.text(), /couldn't read your listing price · set your own/);
   assert.match(m.text(), /0% Shape fee on these/, 'a read with no subscriptions is the plain note');
+  // Card processing is the coach's (direct charges, part C): an estimate, labelled, beside the net.
+  const e = CF.earn({ clients: 20, priceCents: CF.DEFAULT_RATE_CENTS, byoShare: 0 });
+  assert.ok(m.text().includes('About ' + BIZ.bsBizMoney(e.processingCents) + ' card processing · about ' + BIZ.bsBizMoney(e.afterProcessingCents) + ' a month after it'), m.text());
+  assert.match(m.text(), /Estimate: Stripe's US card rate, 2\.9% \+ 30¢ a charge, and 0\.7% Stripe Billing on subscriptions\./);
   await m.unmount();
 });
 

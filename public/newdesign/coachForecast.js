@@ -9,10 +9,14 @@
 // Money is in cents throughout and rounded only where it is printed.
 //
 // ⚠ SHAPE'S FEE IS 15% ON A CLIENT WHO FOUND THE COACH ON SHAPE AND 0% ON ONE THE COACH
-// BROUGHT (src/lib/platform-fee.mjs; a guard pins FEE_RATE to PLATFORM_FEE_RATE). Card
-// processing is Shape's, so nothing else comes off. Today's clients are never re-priced
-// here: the route sends their net from each row's STORED fee, and this module only
-// applies the rate to clients who have not joined yet.
+// BROUGHT (src/lib/platform-fee.mjs; a guard pins FEE_RATE to PLATFORM_FEE_RATE). Today's
+// clients are never re-priced here: the route sends their net from each row's STORED fee,
+// and this module only applies the rate to clients who have not joined yet.
+// ⚠ CARD PROCESSING IS THE COACH'S (owner, 2026-10-18: "shape is not paying processing fee";
+// direct charges, #2401 and #2403): Stripe takes it on the coach's own account, so it is not
+// in any "net" here. What it costs is shown beside the net as a LABELLED ESTIMATE
+// (processingCents), never folded into a figure that reads as exact: the coach's own Stripe
+// pricing decides it, and Shape can't read it.
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
@@ -26,6 +30,14 @@
   const PACE_DAYS = 91;
   const PACE_MIN_DAYS = 30;
 
+  // Stripe's published US prices, read on stripe.com on 2026-11-01: 2.9% + 30¢ a successful
+  // domestic card charge (stripe.com/pricing), and Stripe Billing's pay-as-you-go 0.7% of a
+  // subscription's billing volume (stripe.com/billing/pricing). International cards, currency
+  // conversion and a coach's own negotiated pricing differ, which is why it is an estimate.
+  const CARD_PCT = 0.029;
+  const CARD_FIXED_CENTS = 30;
+  const BILLING_PCT = 0.007;
+
   const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
@@ -36,12 +48,30 @@
     return p * (1 - (1 - clamp01(num(byoShare) || 0)) * FEE_RATE);
   }
 
-  // "What clients earn you": n clients at one rate, a month and a year.
+  // The estimated card processing on ONE charge of `priceCents`, in whole cents: Stripe's card
+  // rate, plus Billing's share when the charge is a subscription's (`recurring`, the default:
+  // a coach's monthly plan); a one-time purchase pays the card rate alone. Nothing is charged,
+  // so nothing is estimated, on a free or empty price.
+  function processingCents(priceCents, { recurring = true } = {}) {
+    const p = Math.max(0, num(priceCents) || 0);
+    if (p <= 0) return 0;
+    return Math.round(p * (CARD_PCT + (recurring ? BILLING_PCT : 0)) + CARD_FIXED_CENTS);
+  }
+
+  // "What clients earn you": n clients at one rate, a month and a year. The net is after
+  // Shape's fee; processingCents is the month's estimated card processing (one charge a client
+  // a month, from the gross: Stripe charges on what the client pays), and afterProcessingCents
+  // what is left after it, never below nothing.
   function earn({ clients, priceCents, byoShare }) {
     const n = Math.max(0, num(clients) || 0);
     const gross = n * Math.max(0, num(priceCents) || 0);
     const net = n * netOf(priceCents, byoShare);
-    return { grossCents: Math.round(gross), netCents: Math.round(net), feeCents: Math.round(gross) - Math.round(net), yearNetCents: Math.round(net * 12) };
+    const netCents = Math.round(net);
+    const proc = Math.round(n * processingCents(priceCents));
+    return {
+      grossCents: Math.round(gross), netCents, feeCents: Math.round(gross) - netCents, yearNetCents: Math.round(net * 12),
+      processingCents: proc, afterProcessingCents: Math.max(0, netCents - proc),
+    };
   }
 
   // The next `months` months, one row a month. Row 0 is today.
@@ -379,7 +409,7 @@
   }
 
   return {
-    FEE_RATE, PACE_DAYS, DEFAULT_RATE_CENTS, CHURN_LIST, CHURN_DAYS, netOf, earn, forecast, earnedOver, monthsTo, paceFrom, lifetime,
+    FEE_RATE, CARD_PCT, CARD_FIXED_CENTS, BILLING_PCT, processingCents, PACE_DAYS, DEFAULT_RATE_CENTS, CHURN_LIST, CHURN_DAYS, netOf, earn, forecast, earnedOver, monthsTo, paceFrom, lifetime,
     churnWindow, departures, round1, churnPct, todayFrom, listedCents, planNumbers, planStart, rateRange, people, renewalsSum, moneyFrom,
   };
 });

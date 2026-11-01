@@ -954,6 +954,8 @@ function DbzTrajectoryZone({ live, trajectory, role, loading }) {
 // plausible-looking measurement.
 const DBZ_PATH_TODAY = "var(--sh-ink2, #a09b94)";
 const DBZ_DEFAULT_RATE_CENTS = 15000;   // CoachForecast.DEFAULT_RATE_CENTS, for the pages that read no forecast
+// What the processing estimate is made of (CoachForecast.processingCents), said wherever it is shown.
+const DBZ_PROCESSING_BASIS = "Estimate: Stripe's US card rate, 2.9% + 30¢ a charge, and 0.7% Stripe Billing on subscriptions. Your own Stripe pricing decides the real figure.";
 // ⚠ A MEASURED CHURN IS KEPT TO A TENTH OF A POINT, AND NEVER ROUNDS TO 0. The rule, and why, is
 // coachForecast.js `churnPct`, which the planner's start (`planStart`) and the app's page read too.
 const dbzChurnPct = (churn) => window.CoachForecast.churnPct(churn);
@@ -1068,6 +1070,15 @@ function DbzEarnZone({ base }) {
         <div style={{ gridRow: 1, gridColumn: 2, fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{dashMoney(e.yearNetCents)}</div>
         <div style={{ ...DBZ_LBL, gridRow: 2, gridColumn: 2, marginTop: 8 }}>a year</div>
         <div style={{ ...DBZ_NOTE, gridRow: 3, gridColumn: "1 / -1", marginTop: 10, paddingTop: 9, borderTop: DBZ_RULE }}>{dashMoney(e.grossCents)} billed · {dashMoney(e.feeCents)} Shape fee, each month</div>
+        {/* Card processing is the coach's (direct charges, #2403), so the net above is before it.
+            Its cost is an ESTIMATE from Stripe's published US prices, labelled as one and kept out
+            of the net: the coach's own Stripe pricing decides the real figure (part C). */}
+        {e.grossCents > 0 ? (
+          <div data-dbz-processing="" style={{ ...DBZ_NOTE, gridRow: 4, gridColumn: "1 / -1", marginTop: 6 }}>
+            About {dashMoney(e.processingCents)} card processing · about {dashMoney(e.afterProcessingCents)} a month after it
+            <span style={{ display: "block", marginTop: 3, opacity: 0.8 }}>{DBZ_PROCESSING_BASIS}</span>
+          </div>
+        ) : null}
       </div>
     </div>
   );
