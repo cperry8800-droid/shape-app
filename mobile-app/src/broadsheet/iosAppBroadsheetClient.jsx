@@ -92,6 +92,7 @@ import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSTrainerProfile } from './BSTrainerProfile.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
+import { BSSearchKitchenRecipe } from './BSSearchKitchenRecipe.jsx';
 import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
 import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot, bsGroceryCheckedKeys } from '../services/focusLayout.mjs';
 
@@ -7649,6 +7650,21 @@ function bsSkParseIngredient(s) {
   return { q: '', n: s };
 }
 
+// A Shape Kitchen recipe's own grocery list: one list per recipe ('sk-' and its slug), the same list
+// wherever it is sent from, so sending it again finds it rather than adding a copy. The Eat page's
+// Recipes tab and the recipe opened from search both build it here.
+function bsSkRecipeGroceryList(recipe) {
+  if (!recipe || !recipe.title) return null;
+  const id = 'sk-' + bsSkSlug(recipe.title);
+  const items = (recipe.ingredients || []).map((ing, idx) => {
+    // Structured {n: qty, m: name} since the Kitchen Card wave; tolerate
+    // legacy strings defensively via the old parser.
+    const p = typeof ing === 'string' ? bsSkParseIngredient(ing) : { n: ing.m, q: ing.n };
+    return { id: `${id}-${idx}`, n: p.n, q: p.q, meals: recipe.title };
+  });
+  return { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen${recipe.byRole ? ` · ${recipe.byRole}` : ''}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // THE MENU — the Shape Kitchen as a menu you read, not a grid you sift.
 // Owner pick 2026-09-15 off docs/REVIEW-2026-09-15-about-and-kitchen.md §K3,
@@ -13795,16 +13811,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
 
   // Itemize a Shape Kitchen recipe (string ingredients) into a saved grocery list.
   const addSKRecipeToGrocery = (recipe) => {
-    if (!recipe) return;
-    const id = 'sk-' + bsSkSlug(recipe.title);
-    const items = (recipe.ingredients || []).map((ing, idx) => {
-      // Structured {n: qty, m: name} since the Kitchen Card wave; tolerate
-      // legacy strings defensively via the old parser.
-      const p = typeof ing === 'string' ? bsSkParseIngredient(ing) : { n: ing.m, q: ing.n };
-      return { id: `${id}-${idx}`, n: p.n, q: p.q, meals: recipe.title };
-    });
-    const list = { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen${recipe.byRole ? ` · ${recipe.byRole}` : ''}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
-    setRecipeLists(prev => [list, ...prev.filter(l => l.id !== id)]);
+    const list = bsSkRecipeGroceryList(recipe);
+    if (!list) return;
+    setRecipeLists(prev => [list, ...prev.filter(l => l.id !== list.id)]);
     window.__bsToast?.(tr('nutrition:eat.toastItemAdded', { defaultValue: 'Added to grocery list' }), 'ok');
     return list;
   };
@@ -20560,7 +20569,7 @@ function BSUniversalSearch({ onClose }) {
   );
   if (viewRecipe) return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
-      <BSShapeKitchenRecipe recipe={viewRecipe} onBack={() => setViewRecipe(null)} onAddGrocery={() => {}} groceryAdded={false} />
+      <BSSearchKitchenRecipe recipe={viewRecipe} onBack={() => setViewRecipe(null)} />
     </div>
   );
   if (viewWorkout) return (
@@ -34270,6 +34279,8 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
 // ─── GROCERY LIBRARY ─── moved to BSGroceryLibrary.jsx (2026-10-24), with its built-in lists and Send to a
 // member. It reads these at call time.
 Object.assign(window, { BSNutritionTopTabs, BSHeaderTools, _bsScrollTopOnMount, bsGroceryHues, bsDateLocale, bsGroceryListEyebrow });
+// For BSSearchKitchenRecipe.jsx, which opens a Shape Kitchen recipe from search and sends its list.
+Object.assign(window, { BSShapeKitchenRecipe, bsSkRecipeGroceryList, bsIsCoachRole });
 
 function bsNormalizeGroceryList(list) {
   if (!list) return BS_GROCERY_DEFAULT;
