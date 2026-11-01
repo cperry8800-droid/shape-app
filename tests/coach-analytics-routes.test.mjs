@@ -373,12 +373,14 @@ test('weigh-ins are read in full and each client\'s first and latest are by date
 
 test('trainer: each client\'s weight trend starts in their own 30 days, ending on their own today (#2547\'s rule)', async () => {
   // The weigh-ins were read from >= the UTC date 30 days back: 31 dates with no upper bound, so the
-  // 30-day trend could start on a weigh-in 31 days old. A, with no zone, and B, in UTC+14, weigh in
-  // every day from 33 days before the UTC date to 2 days after; a day outside a client's window
-  // weighs 300, the window's first day 200 and its last 190.
+  // 30-day trend could start on a weigh-in 31 days old. A, with no zone, B, in UTC+14, and C, in
+  // UTC-11 (one of the two is on another date than UTC's at any hour), weigh in every day from 33
+  // days before the UTC date to 2 days after; a day outside a client's window weighs 300, the
+  // window's first day 200 and its last 190.
   const ymd = (t, tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(t)
   const shift = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10)
-  const ZONES = { [A]: null, [B]: 'Pacific/Kiritimati' }
+  const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const ZONES = { [A]: null, [B]: 'Pacific/Kiritimati', [C]: 'Pacific/Pago_Pago' }
   const hasOp = (c, op, col, v) => c.ops.some((o) => o[0] === op && o[1] === col && (v === undefined || JSON.stringify(o[2]) === JSON.stringify(v)))
   const windows = () => Object.fromEntries(Object.entries(ZONES).map(([c, z]) => { const last = ymd(Date.now(), z || 'UTC'); return [c, { first: shift(last, -29), last }] }))
   const before = windows()
@@ -391,14 +393,14 @@ test('trainer: each client\'s weight trend starts in their own 30 days, ending o
       snaps.push({ id: 'w' + String(snaps.length).padStart(5, '0'), user_id: c, snapshot_date: d, weight_lb })
     }
   }
-  const { body, calls } = await loadRoute('trainer', roster({ daily_health_snapshot: snaps, client_profiles: [{ user_id: B, timezone: 'Pacific/Kiritimati' }] }), { rpcs: lifts({}) })
+  const { body, calls } = await loadRoute('trainer', roster({ subscriptions: [sub(A), sub(B), sub(C)], daily_health_snapshot: snaps, client_profiles: [{ user_id: B, timezone: 'Pacific/Kiritimati' }, { user_id: C, timezone: 'Pacific/Pago_Pago' }] }), { rpcs: lifts({}) })
   // A run across a midnight in either zone moves its window a day; skip it rather than flake.
   if (JSON.stringify(before) !== JSON.stringify(windows()) || ymd(Date.now(), 'UTC') !== utc) return
   const reads = calls.filter((c) => c.table === 'daily_health_snapshot')
   assert.ok(reads.length >= 1 && reads.every((r) => hasOp(r, 'gte', 'snapshot_date', shift(utc, -30)) && hasOp(r, 'lte', 'snapshot_date', shift(utc, 1))),
     'one read spans every zone\'s window: from the UTC date less 30 to the UTC date plus one')
   assert.ok(calls.some((c) => c.table === 'client_profiles' && hasOp(c, 'select', 'user_id, timezone') && hasOp(c, 'in', 'user_id')), 'the roster\'s zones, by user_id')
-  for (const c of [A, B]) {
+  for (const c of [A, B, C]) {
     const r = body.clientProgress.roster.find((x) => x.client_id === c)
     assert.deepEqual([r.weightStart, r.weightLatest, r.weightChangeLb], [200, 190, -10], `${c} (${ZONES[c] || 'no zone'})`)
   }
