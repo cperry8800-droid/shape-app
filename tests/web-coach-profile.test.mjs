@@ -283,6 +283,16 @@ test('a nutritionist\'s page: amber until they pick, the kitchen and plate notes
   await React.act(async () => document.querySelector('[data-profile-tab=plates]').click());
   await React.act(async () => document.querySelector('[data-plate-day]').click());
   assert.ok(document.querySelector('[data-plate-step]'), 'a day of meals steps meal by meal');
+  // Work with lists the sample's own meal plans, each with its price and length and none to buy, as
+  // the app's sheet does (Codex P2 on #2560: the sheet read only programs, empty for a nutritionist).
+  const rows = [...document.querySelectorAll('[data-work-rail] [data-offer-row]')];
+  assert.ok(rows.length >= 2, 'the sample meal plans are listed: ' + rows.length);
+  for (const r of rows) {
+    assert.match(r.textContent, /\$\d+/, 'each with its price: ' + r.textContent);
+    assert.match(r.textContent, /\d+ weeks?/, 'and its length: ' + r.textContent);
+  }
+  assert.ok(!document.querySelector('[data-work-rail] [data-plan-buy]'), 'a sample sells nothing');
+  assert.ok(!document.querySelector('[data-work-rail] [data-offer-empty]'));
   await p.unmount();
 });
 

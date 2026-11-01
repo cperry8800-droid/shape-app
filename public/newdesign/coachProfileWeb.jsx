@@ -413,7 +413,14 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const shownKeys = new Set([...replays, ...workouts, ...plates].map((c) => c && c.key).filter(Boolean));
   const activity = sample ? (sample.activity || []) : cards.filter((c) => !shownKeys.has(c.key));
   const studioWork = studio ? K.bsStudioWork(studio, programs) : [];
-  const plansForSale = sample ? programs.filter((p) => p && p.plan).map((p) => ({ ...p.plan, sample: true, meta: p.weeks ? `${p.weeks} weeks` : (p.plan.meta || "") })) : ownPlans;
+  // What Work with lists: a coach's published plans, or the sample's own, as the app's sheet does
+  // (BSTrainerProfile sheetPlans): a trainer's programs, or a nutritionist's meal plans (#2557).
+  // Programs are empty for a nutritionist, so reading only them left the sample's sheet with no
+  // plans and no prices (Codex P2 on #2560).
+  const weeksSaid = (n) => `${n} ${n === 1 ? "week" : "weeks"}`;
+  const plansForSale = !sample ? ownPlans
+    : nutri ? (sample.plans || []).map((pl) => ({ ...pl, sample: true, meta: pl.weeks ? weeksSaid(pl.weeks) : "" }))
+    : programs.filter((p) => p && p.plan).map((p) => ({ ...p.plan, sample: true, meta: p.weeks ? weeksSaid(p.weeks) : (p.plan.meta || "") }));
   // A plan with a price is bought here only from a listing on the marketplace: an unfinished or
   // suspended one sells nothing (the app's rule, Codex P1 on 196314b).
   const plansPaid = listed && ownPlans.some((pl) => K.bsWorkPaid(pl.price));
