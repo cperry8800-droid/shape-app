@@ -15,6 +15,7 @@ const PROS = 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx';
 const WEB = 'public/newdesign/chatWidget.jsx';
 const TOUR = 'public/newdesign/spotlightTour.js';
 const DASH = 'public/newdesign/dashTour.js';
+const PROPOSALS = 'src/lib/ai/proposals.mjs';
 
 export default {
   test: 'node --test tests/nora-account-setup.test.mjs tests/nora-account-setup-surfaces.test.mjs tests/nora-app-sheet.test.mjs',
@@ -75,6 +76,8 @@ export default {
       expectSurvive: true,
     },
     { name: 'the cell allowlist admits anything', file: CORE, find: '!ALLOWED_CELLS.has(cellId(c))', replace: 'false' },
+    { name: 'the scaffold keeps the raw input, refused values and all', file: PROPOSALS, find: 'suggestion: preview.suggestion !== undefined ? preview.suggestion : (input ?? null),', replace: 'suggestion: input ?? null,' },
+    { name: 'the setup keeps no checked suggestion', file: ACT, find: "      suggestion: { changes: plan.changes, refused: plan.refused.map(function (r) { return { field: r.field, reason: r.reason }; }) },\n", replace: '' },
 
     // ── Each field's rule ──
     { name: 'an option is not read by its English label', file: CORE, find: ' || rows.find((o) => fold(o.en) === f)', replace: '' },

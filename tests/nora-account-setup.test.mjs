@@ -437,6 +437,23 @@ test('the whole lifecycle: one card, Confirm applies it all, Undo restores it al
   assert.equal((await s.undo(c.auditId)).alreadyUndone, true);
 });
 
+test('⚠ a refused value is never kept: not in the token the device holds, not in the audit row', async () => {
+  const db = accountDb({ goals: { client_settings: { units: setup.UNITS_IMPERIAL } } });
+  const s = scaffold(db);
+  const p = await s.propose({ changes: [{ field: 'password', value: 'hunter22-SECRET' }, { field: 'cardNumber', value: '4242424242424242' }, { field: 'units', value: 'metric' }] });
+  assert.equal(p.ok, true);
+  const body = Buffer.from(p.token.split('.')[0], 'base64url').toString('utf8');
+  assert.ok(!body.includes('hunter22-SECRET') && !body.includes('4242424242424242'), 'not in the token');
+  assert.deepEqual(JSON.parse(body).suggestion, { changes: [{ field: 'units', value: setup.UNITS_METRIC }], refused: [{ field: 'password', reason: 'yours' }, { field: 'cardNumber', reason: 'yours' }] });
+  const c = await s.confirm(p.token);
+  const row = await s.audit.get(c.auditId);
+  assert.ok(!JSON.stringify(row).includes('hunter22-SECRET') && !JSON.stringify(row).includes('4242'), 'not in the audit row');
+  // Any other action still keeps its input as it came.
+  const registry = proposals.createRegistry().define(proposals.demoEchoAction.name, proposals.demoEchoAction);
+  const echo = await proposals.proposeChange({ registry, action: '__demo.echo', input: { note: 'hydrate' }, actor: { id: ME, role: 'client' }, ctx: { actor: { id: ME }, store: proposals.inMemoryStore() }, secret: SECRET });
+  assert.deepEqual(JSON.parse(Buffer.from(echo.token.split('.')[0], 'base64url').toString('utf8')).suggestion, { note: 'hydrate' });
+});
+
 test('⚠ only the account it was drafted for can confirm or undo it, and only a member is drafted one', async () => {
   const db = accountDb({ goals: { client_settings: { units: setup.UNITS_IMPERIAL } } });
   const s = scaffold(db);

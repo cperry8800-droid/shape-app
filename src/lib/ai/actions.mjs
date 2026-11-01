@@ -1223,6 +1223,9 @@ export const setUpAccountAction = {
       beforeState: { fields: built.diff.filter(function (d) { return !d.refused; }).map(function (d) { return { field: d.field, before: d.before }; }) },
       afterState: { cells: built.cells, tz: built.tz },
       confirmedPayload: { changes: plan.changes },
+      // What was asked, as checked: the changes it will make and the names of what it refused, never
+      // a refused value (the scaffold keeps this in the token and the audit row instead of the input).
+      suggestion: { changes: plan.changes, refused: plan.refused.map(function (r) { return { field: r.field, reason: r.reason }; }) },
       note: notes.join(' ') || undefined,
     };
   },
