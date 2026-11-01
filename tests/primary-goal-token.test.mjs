@@ -227,7 +227,7 @@ test('BSIntentStep IDENTITY is keyed on TOKENS, not on English words', () => {
   // extractFn brace-matches from the first `{` it finds, and for a destructured
   // parameter that is `{ onDone }` — so a bare-name marker extracts the PARAMS
   // and every assertion below would be about a two-word fragment.
-  const step = stripComments(extractFn('function BSIntentStep({ onDone }) {'));
+  const step = stripComments(extractFn('function BSIntentStep({ onDone, onNora = null }) {'));
   const at = step.indexOf('const IDENTITY = {');
   assert.notEqual(at, -1, 'the IDENTITY map is gone — re-point this guard');
   const open = step.indexOf('{', at);

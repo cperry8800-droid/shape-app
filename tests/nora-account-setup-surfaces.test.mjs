@@ -199,13 +199,13 @@ test('the tour engine: a step\'s other way on ends the tour (its seen flag first
     assert.equal(alt.textContent, 'Set up with Nora');
     alt.onclick();
     assert.deepEqual(order, ['done', 'alt'], 'the tour is marked seen before Nora opens');
-    assert.equal(root.querySelector('[role="dialog"]'), null, 'the tour is gone');
+    assert.ok(!root.querySelector('[role="dialog"]'), 'the tour is gone');
   });
   await inDom(async (w) => {
     const root = w.document.getElementById('root');
     startTour([{ anchor: () => w.document.getElementById('anchor'), title: 'Today', body: 'Your day.' }], { root });
     for (let i = 0; i < 20 && !root.querySelector('[data-st="next"]'); i += 1) await new Promise((r) => setTimeout(r, 5));
-    assert.equal(root.querySelector('[data-st="alt"]'), null, 'a step without one draws none');
+    assert.ok(!root.querySelector('[data-st="alt"]'), 'a step without one draws none');
   });
 });
 
