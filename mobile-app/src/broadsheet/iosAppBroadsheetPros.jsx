@@ -4108,17 +4108,6 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
   );
 }
 
-// ── Night-before prep (Phase 2, 2026-11-01) ───────────────────────────────────
-// The Shape Kitchen recipes that have to be prepped the night before (prepAhead.mjs's index, the
-// one the member's reminder reads). A meal block naming one is marked "Prepped the night before"
-// in the editor and mapped to it at Assign; any other block can be ticked (`prepNightBefore`).
-const BS_PRO_MAKE_AHEAD = bsMakeAheadIndex(BS_PRO_KITCHEN);
-// The catalog make-ahead recipe a meal block's line names, or null.
-const bsProMadeAhead = (text) => {
-  const m = String(text || '').trim() ? bsAssignMeal(String(text)) : null;
-  return m ? bsMadeAheadByName(m.title, BS_PRO_MAKE_AHEAD) : null;
-};
-
 // ── Assign a catalogue plan to a client ──────────────────────────────────────
 // The outline parsers (bsAssignExercise / bsAssignDayLine / bsAssignMeal /
 // bsAssignIso) now live in ../services/planOutline.mjs — shared with the client
@@ -6412,6 +6401,19 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 const bsEditorSteps = (steps) => (Array.isArray(steps)
   ? steps.map((s) => (typeof s === 'string' ? { t: s, station: null } : { t: (s && typeof s.t === 'string') ? s.t : '', station: (s && s.station) || null }))
   : undefined);
+
+// ── Night-before prep (Phase 2, 2026-11-01) ───────────────────────────────────
+// The Shape Kitchen recipes that have to be prepped the night before (prepAhead.mjs's index, the
+// one the member's reminder reads). A meal block naming one is marked "Prepped the night before"
+// in the editor below and mapped to it at Assign (BSProAssignPage); any other block can be ticked
+// (`prepNightBefore`). Kept out of the coach booking screen's span, which a harness lifts on its own
+// (tests/app-booking-server.test.mjs).
+const BS_PRO_MAKE_AHEAD = bsMakeAheadIndex(BS_PRO_KITCHEN);
+// The catalog make-ahead recipe a meal block's line names, or null.
+const bsProMadeAhead = (text) => {
+  const m = String(text || '').trim() ? bsAssignMeal(String(text)) : null;
+  return m ? bsMadeAheadByName(m.title, BS_PRO_MAKE_AHEAD) : null;
+};
 
 function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel, initialName, initialBlocks, initialNote, initialMedia, initialDays, stepAuthoring = false, perDayAuthoring = false, loadCapture = false, onPublish, onCancel }) {
   const tr = useShapeTr();

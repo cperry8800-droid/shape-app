@@ -83,7 +83,7 @@ test('the plan sheet: tomorrow first, the slot\'s recipes, the night-before mark
     assert.ok(oats, 'the oats are a breakfast');
     assert.match(oats.textContent, /Prep the night before/);
     assert.match(oats.textContent, /5 min · 480 kcal/);
-    assert.equal(s.buttons().find((b) => b.textContent.startsWith('Beef ragu rigatoni')), undefined, 'a main is not a breakfast');
+    assert.ok(!s.buttons().some((b) => b.textContent.startsWith('Beef ragu rigatoni')), 'a main is not a breakfast');
     const bowl = s.buttons().find((b) => b.textContent.startsWith(BOWL));
     assert.doesNotMatch(bowl.textContent, /Prep the night before/, 'the night before is optional for the bowl: no mark');
     await React.act(async () => { oats.click(); });
@@ -98,7 +98,7 @@ test('the plan sheet: tomorrow first, the slot\'s recipes, the night-before mark
     const props = search[Object.keys(search).find((k) => k.startsWith('__reactProps$'))];
     await React.act(async () => { props.onChange({ target: { value: 'oats' } }); });
     assert.ok(s.buttons().some((b) => b.textContent.startsWith(OATS)), 'a search finds a dish whatever its slot');
-    assert.equal(s.buttons().find((b) => b.textContent.startsWith('Beef ragu rigatoni')), undefined);
+    assert.ok(!s.buttons().some((b) => b.textContent.startsWith('Beef ragu rigatoni')), 'a search for oats lists no ragu');
     await s.click('Today');
     await React.act(async () => { s.buttons().find((b) => b.textContent.startsWith(OATS)).click(); });
     await s.settle();
@@ -164,7 +164,7 @@ test("tonight's card for a dish the nutritionist ticked: no Start, whose word it
   const group = { slug: 'lentil-soup', title: 'Lentil soup', keeps: 1, catalog: false, meals: [{ date: TOMORROW, dow: 0, mealId: 'live-0-1', slot: 'LUNCH', title: 'Lentil soup' }] };
   const s = await mount(MOD.BSPrepTonightCard, { group, onStart: null, onDone() { done += 1; } });
   try {
-    assert.equal(s.button('Start'), undefined);
+    assert.ok(!s.button('Start'), 'no Start for a ticked dish');
     assert.match(s.text(), /Your nutritionist marked this one to prep the night before\./);
     await s.click('Already done');
     assert.equal(done, 1);
@@ -288,14 +288,14 @@ test('Settings: the reminder time sits under Prep reminders, 7 pm until chosen, 
   const f = await mount(MOD.BSNotifyPrefs, { onBack() {}, role: 'client' });
   try {
     await f.settle();
-    assert.equal(document.querySelector('[data-prep-hour]'), null);
+    assert.ok(!document.querySelector('[data-prep-hour]'), 'no reminder-time row');
   } finally { await f.unmount(); }
   // A coach has no prep reminder to time.
   goalsStore();
   const c = await mount(MOD.BSNotifyPrefs, { onBack() {}, role: 'nutritionist' });
   try {
     await c.settle();
-    assert.equal(document.querySelector('[data-prep-hour]'), null);
+    assert.ok(!document.querySelector('[data-prep-hour]'), 'no reminder-time row');
   } finally { await c.unmount(); }
 });
 

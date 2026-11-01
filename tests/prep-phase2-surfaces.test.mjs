@@ -99,7 +99,7 @@ test('the builder row: a tick on any meal, and the Shape oats marked instead of 
   await React.act(async () => { on.click(); });
   assert.equal('prepNightBefore' in changes[1], false);
   await mount(React.createElement(DmbMealRow, { meal: { ...soup, name: 'Overnight oats' }, onChange() {}, onRemove() {}, constraints: {}, customFoods: [] }));
-  assert.equal(document.querySelector('input[type="checkbox"]'), null, 'nothing to tick: it always is');
+  assert.ok(!document.querySelector('input[type="checkbox"]'), 'nothing to tick: it always is');
   assert.match(document.querySelector('[data-night-before="shape"]').textContent, /Prepped the night before · Shape recipe/);
 });
 
@@ -147,7 +147,7 @@ test("the website's settings: the reminder time under Prep reminders, 7 pm until
   // A read that fails draws no row, rather than 7 pm to a member who chose 9.
   fakeClient({ hourFails: true });
   await mount(React.createElement(SETTINGS.NotificationDashboard, { signedIn: true }));
-  assert.equal(document.querySelector('[data-prep-hour]'), null);
+  assert.ok(!document.querySelector('[data-prep-hour]'), 'no reminder-time row');
   assert.ok(document.body.textContent.includes('Prep reminders'), 'the switch itself still is');
   await React.act(async () => root.unmount());
   root = null;
