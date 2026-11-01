@@ -523,10 +523,16 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   // listingRole), so the listing, times, plans and price are the listing Subscribe goes to. With the
   // profile row's role, a nutritionist link showed the trainer listing and subscribed to the
   // nutritionist (Codex P2 on #2560).
+  // With no &role= on the URL, a coach dashboard's own Profile page (TrainerProfile, the Nutritionist
+  // app's Profile tab…) names its listing by the host's role: a dual-role coach on the nutritionist
+  // dashboard sees their nutritionist listing, whatever the profile row's one role says (Codex P2 on
+  // 745e3a8). The member pages pass demoRole "client", which names no listing.
   const listingRole = (() => {
     let p = null;
     try { p = new URLSearchParams(window.location.search).get("role"); } catch (e) {}
-    return p === "trainer" || p === "nutritionist" ? p : role;
+    if (p === "trainer" || p === "nutritionist") return p;
+    if (demoRole === "trainer" || demoRole === "nutritionist") return demoRole;
+    return role;
   })();
   const coachPage = coach && typeof WebCoachProfile !== "undefined" ? (isDerived
     ? <WebCoachProfile key={"sample:" + role + ":" + name} mode="sample" role={role} name={name} avatar={lvSafeMedia(row.avatar) || ""} sampleKey={name} onMessage={onMessage} chrome={!shell} belowContent={extras} fallback={desktop} />

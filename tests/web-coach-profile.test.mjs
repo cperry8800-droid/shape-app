@@ -312,7 +312,10 @@ test('the living profile page hands every coach to the new page, with the old on
   assert.match(page, /mode="live" role=\{listingRole\} uid=\{st\.uid\} row=\{row\} isSelf=\{st\.isSelf\}/);
   const pageRule = /const listingRole = \(\(\) => \{[\s\S]*?\}\)\(\);/.exec(page)[0];
   assert.match(pageRule, /get\("role"\)/);
-  assert.match(pageRule, /return p === "trainer" \|\| p === "nutritionist" \? p : role;/);
+  // The URL's role first, then a coach dashboard's own (its host's demoRole), then the profile row's
+  // (Codex P2 on 745e3a8: the nutritionist dashboard's Profile showed a dual-role coach's trainer listing).
+  const order = ['if (p === "trainer" || p === "nutritionist") return p;', 'if (demoRole === "trainer" || demoRole === "nutritionist") return demoRole;', 'return role;'].map((x) => pageRule.indexOf(x));
+  assert.ok(order.every((i) => i > 0) && order[0] < order[1] && order[1] < order[2], 'URL, then host, then row: ' + order);
   const shared = read('public/newdesign/livingShared.jsx');
   assert.match(shared, /const listingRole = \(\(\) => \{\n    let p = null;\n    try \{ p = new URLSearchParams\(window\.location\.search\)\.get\("role"\); \} catch \(e\) \{\}\n    if \(p === "trainer" \|\| p === "nutritionist"\) return p;/, 'the storefront reads the same parameter first');
   assert.match(page, /\{coachPage \|\| desktop\}/, 'a member keeps the living layout');
