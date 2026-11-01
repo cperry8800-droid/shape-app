@@ -187,6 +187,50 @@ test('a vertical drag scrolls and never replies; the bubble claims horizontal to
   assert.equal(composerQuote(d), null, 'a scroll quotes nothing');
 });
 
+test('a touch that starts on a control inside the bubble is the control\'s, never a reply (Codex P2 on #2561)', () => {
+  const d = mount();
+  const bubble = withAttr(d.nodes(), 'data-thread-theirs')[0];
+  const { row, target } = fakeRow();
+  const scrubber = { tag: 'audio' };
+  bubble.props.onTouchStart({ ...touch(200, 300), currentTarget: { ...target, contains: (n) => n === scrubber }, target: { closest: (sel) => (/audio/.test(sel) ? scrubber : null) } });
+  bubble.props.onTouchMove(touch(100, 300));
+  bubble.props.onTouchEnd({});
+  d.render();
+  assert.equal(row.style.transform, undefined, 'the message stays put');
+  assert.equal(composerQuote(d), null, 'and nothing is quoted');
+  // A touch on the words themselves still swipes.
+  const again = withAttr(d.nodes(), 'data-thread-theirs')[0];
+  again.props.onTouchStart({ ...touch(200, 300), currentTarget: { ...target, contains: () => true }, target: { closest: () => null } });
+  again.props.onTouchMove(touch(100, 300));
+  again.props.onTouchEnd({});
+  d.render();
+  assert.ok(composerQuote(d), 'the words swipe as before');
+});
+
+test('the bubble is a tab stop: Enter opens its actions (Reply among them), Escape shuts them (Codex P2 on #2561)', () => {
+  const d = mount();
+  const pickers = () => d.nodes().filter((n) => n && typeof n.type === 'function' && n.type.name === 'BSReactionPicker');
+  const bubble = () => withAttr(d.nodes(), 'data-thread-theirs')[0];
+  assert.equal(bubble().props.tabIndex, 0);
+  const key = (k, extra = {}) => { const el = {}; let prevented = false; bubble().props.onKeyDown({ key: k, target: el, currentTarget: el, preventDefault: () => { prevented = true; }, ...extra }); d.render(); return prevented; };
+  assert.ok(key('Enter'), 'Enter is taken');
+  assert.equal(pickers().length, 1);
+  assert.equal(typeof pickers()[0].props.onReply, 'function', 'Reply is in reach');
+  assert.ok(key('Escape'));
+  assert.equal(pickers().length, 0);
+  key(' ');
+  assert.equal(pickers().length, 1, 'Space opens them too');
+  key('Escape');
+  key('F10', { shiftKey: true });
+  assert.equal(pickers().length, 1, 'and Shift+F10');
+  key('Escape');
+  // A key pressed on a control inside the bubble is that control's.
+  bubble().props.onKeyDown({ key: 'Enter', target: { a: 1 }, currentTarget: { b: 2 }, preventDefault() {} });
+  d.render();
+  assert.equal(pickers().length, 0);
+  assert.equal(withAttr(d.nodes(), 'data-thread-mine')[0].props.tabIndex, 0, 'yours too');
+});
+
 test('Reply after a long press quotes it too, for a mouse, a keyboard or a screen reader', () => {
   const d = mount();
   const mine = withAttr(d.nodes(), 'data-thread-mine')[0];

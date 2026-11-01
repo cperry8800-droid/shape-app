@@ -26721,6 +26721,8 @@ function bsPlaceReplySwipe(row, off, settle = false) {
     mark.style.transform = `scale(${(0.6 + 0.4 * k).toFixed(3)})`;
   }
 }
+// What a reply swipe never starts on: the controls a message can hold.
+const BS_SWIPE_SKIP = 'button, a, audio, video, input, textarea, select, [role="slider"], [role="button"]';
 const BS_REPLY_GLYPH = (size = 14) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg>
 );
@@ -26914,7 +26916,11 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
       lp.onTouchStart(e);
       const p = e.touches && e.touches.length === 1 ? e.touches[0] : null;
       const row = e.currentTarget && e.currentTarget.closest ? e.currentTarget.closest('[data-swipe-row]') : null;
-      swipeRef.current = p && row ? { x: p.clientX, y: p.clientY, dir: null, off: 0, row } : null;
+      // A touch that starts on a control inside the bubble (the audio's scrubber, a shared channel, an
+      // invite, a quote, a grocery list's Save) is that control's, never a reply (Codex P2 on #2561).
+      const ctl = e.target && e.target.closest ? e.target.closest(BS_SWIPE_SKIP) : null;
+      const onControl = !!ctl && ctl !== e.currentTarget && (!e.currentTarget || !e.currentTarget.contains || e.currentTarget.contains(ctl));
+      swipeRef.current = p && row && !onControl ? { x: p.clientX, y: p.clientY, dir: null, off: 0, row } : null;
     },
     onTouchMove: (e) => {
       lp.onTouchMove(e);
@@ -26942,6 +26948,14 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
       if (st && st.dir === 'reply') bsPlaceReplySwipe(st.row, 0, true);
     },
   });
+  // The bubble is a tab stop: Enter, Space, the menu key or Shift+F10 opens its actions row (the
+  // reactions, then Reply), and Escape closes it, so a keyboard or a switch reaches Reply too (Codex P2
+  // on #2561). A key pressed on a control inside the bubble is that control's.
+  const actionKeys = (open, toggle, close) => (e) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) { e.preventDefault(); toggle(); }
+    else if (e.key === 'Escape' && open) { e.preventDefault(); close(); }
+  };
   const replyMark = (
     <span data-reply-glyph="" aria-hidden style={{ position: 'absolute', right: 0, top: '50%', marginTop: -15, width: 30, height: 30, borderRadius: '50%', display: 'grid', placeItems: 'center', background: bsTHexA(t.INK, 0.07), color: teal, opacity: 0, transform: 'scale(0.6)', transition: 'opacity 120ms, transform 120ms', pointerEvents: 'none' }}>{BS_REPLY_GLYPH(15)}</span>
   );
@@ -27057,7 +27071,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
               <div key={i} data-msg-id={m.id || undefined} style={{ position: 'relative', alignSelf: 'flex-end', maxWidth: '84%', marginTop: (i === 0 || dayAt.has(i)) ? 0 : sameRun ? 8 : 24, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 0 }}>
                 {replyMark}
                 <div data-swipe-row="" style={{ position: 'relative', minWidth: 0, maxWidth: '100%' }}>
-                  <div {...swipeProps(m, lp)} data-thread-mine="" style={{ touchAction: 'pan-y', boxSizing: 'border-box', padding: '10px 15px', borderRadius: 20, background: t.INK, color: t.PAPER, fontFamily: t.BODY, fontSize: 15, lineHeight: 1.45, letterSpacing: '-0.005em', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
+                  <div {...swipeProps(m, lp)} tabIndex={0} onKeyDown={actionKeys(pickerOpen, () => rx.setPickerKey(pickerOpen ? null : rKey), () => rx.setPickerKey(null))} data-thread-mine="" style={{ touchAction: 'pan-y', boxSizing: 'border-box', padding: '10px 15px', borderRadius: 20, background: t.INK, color: t.PAPER, fontFamily: t.BODY, fontSize: 15, lineHeight: 1.45, letterSpacing: '-0.005em', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
                     {/* On your ink bubble the boost line takes the bubble's ink: the paper's teal read 1.6:1 on the
                         dark papers' cream bubble (Copilot on #2556). */}
                     {m.boost && (
@@ -27131,7 +27145,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                 </button>
               )}
               <div data-swipe-row="" style={{ position: 'relative', minWidth: 0, maxWidth: '100%' }}>
-                <div {...swipeProps(m, lp)} data-thread-theirs="" style={{ touchAction: 'pan-y', maxWidth: '100%', fontFamily: t.BODY, fontSize: 15.5, lineHeight: 1.55, letterSpacing: '-0.005em', color: t.INK, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
+                <div {...swipeProps(m, lp)} tabIndex={0} onKeyDown={actionKeys(pickerOpen, () => rx.setPickerKey(pickerOpen ? null : rKey), () => rx.setPickerKey(null))} data-thread-theirs="" style={{ touchAction: 'pan-y', maxWidth: '100%', fontFamily: t.BODY, fontSize: 15.5, lineHeight: 1.55, letterSpacing: '-0.005em', color: t.INK, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
                   {m.boost && (
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: m.boost === 'cooking' ? t.AMBER : teal, marginBottom: 5, fontWeight: 800 }}>▲ Live boost · {m.boost === 'cooking' ? 'mid-cook' : 'mid-workout'}</div>
                   )}
