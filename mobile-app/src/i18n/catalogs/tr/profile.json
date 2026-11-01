@@ -934,6 +934,14 @@
   "sample.nutri.review.n2": "İlk maratonumu bir kez bile duvara çarpmadan koştum. Yarış haftası planı altın değerindeydi.",
   "sample.nutri.review.n3": "Kaydettiğim her öğün okunuyor, notlar kısa ve işe yarıyor. Yemek yüzünden suçluluk duygusu ise hiç yok.",
   "sample.nutri.review.n4": "Beş ayda 9 kg verdim ve cuma günleri hâlâ makarna yiyorum.",
+  "sample.nutri.plan.performance.0": "Antrenman günü yakıtı",
+  "sample.nutri.plan.performance.1": "Yarış haftası",
+  "sample.nutri.plan.plant.0": "Her öğünde bitkisel protein",
+  "sample.nutri.plan.plant.1": "Yedi günlük sıfırlama",
+  "sample.nutri.plan.steady.0": "Sakin sekiz hafta",
+  "sample.nutri.plan.steady.1": "Bir ay öğle yemeği kutusu",
+  "sample.nutri.plan.everyday.0": "Aile sofrası",
+  "sample.nutri.plan.everyday.1": "Pazar hazırlığı",
   "sample.nutri.rule.everyday.0": "Tabağın yarısı sebze",
   "sample.nutri.rule.everyday.1": "Bir avuç içi protein",
   "sample.nutri.rule.everyday.2": "Bir yumruk karbonhidrat",
@@ -1078,5 +1086,9 @@
   "mine.socials": "Sosyal medya hesapların",
   "mine.errLink": "{network} hesabını kontrol et: @sen gibi bir kullanıcı adı ya da https:// ile başlayan bir adres",
   "mine.errYears": "Koçluk yılı: 1 ile {max} arasında bir sayı.",
-  "coach.noPlansYet": "{name} henüz bir plan yayınlamadı"
+  "coach.noPlansYet": "{name} henüz bir plan yayınlamadı",
+  "coach.kind.program": "Program",
+  "coach.kind.workout": "Antrenman",
+  "coach.kind.mealPlan": "Beslenme planı",
+  "coach.kind.diet": "Diyet"
 }

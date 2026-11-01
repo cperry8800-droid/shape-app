@@ -115,9 +115,10 @@ test('the profile mastheads\' ✎ and ⚙ are the same bare glyphs, and the ⚙ 
   assert.ok(member.includes(disc) && trainer.includes(disc), 'the ✎ on the cover is the trainer profile\'s');
   // The follow list's corner, on the sheet's own ink, closes the sheet before Settings opens.
   assert.match(CLIENT, /<BSSettingsCorner size=\{BS_HEADER_AVATAR\} ink=\{INK\} onClick=\{\(\) => \{ onClose\(\); setTimeout\(/);
-  // No corner draws the member's own face any more: the only own-face avatar labelled as the way to
-  // Settings is the one beside the member's messages in a chat thread.
-  assert.equal((CLIENT.match(/settings:avatar\.mine/g) || []).length, 1);
+  // No corner draws the member's own face any more, and since a chat thread took Nora's sheet's design
+  // (owner, 2026-11-01: "use this chat design for the rest of messaging on chat page") your messages carry
+  // no face either, so no own-face avatar is labelled as the way to Settings.
+  assert.equal((CLIENT.match(/settings:avatar\.mine/g) || []).length, 0);
   // On my own follow list my face labels the title row, as the owner's face does on anyone else's.
   assert.match(CLIENT, /<BSFacetAvatar size=\{22\} c=\{c\} initial=\{\(self && bsMyInitials\(\)\) \|\| bsInitials\(name\) \|\| '\?'\}/);
   assert.doesNotMatch(CLIENT, /\{!self && <BSFacetAvatar size=\{22\}/);

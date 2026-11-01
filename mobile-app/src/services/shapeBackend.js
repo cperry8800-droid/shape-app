@@ -8310,6 +8310,9 @@ async function listChannelMessages(channelId) {
     data: (data || []).map(m => ({
       who: m.sender_id === state.user.id ? 'You' : (m.author_name || 'Member'),
       t: m.body, time: chatTimeOf(m.created_at), at: m.created_at || null, me: m.sender_id === state.user.id,
+      // The sender's account, as a realtime message carries it: the thread keys a run of messages
+      // and the sender's face by it (#2556), so two members who share a name are two people.
+      userId: m.sender_id || null,
     })),
   };
 }

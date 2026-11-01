@@ -173,7 +173,7 @@ export function BSGroceryShareCard({ shared, me = false, saveTo = 'member', mess
     setBusy(false);
   };
   return (
-    <div data-bs-grocery-share="" style={{ marginTop: 9, minWidth: 200, padding: '10px 12px', background: t.PAPER, border: `1px solid ${teal}55`, borderRadius: 10, textAlign: 'left' }}>
+    <div data-bs-grocery-share="" style={{ marginTop: 9, minWidth: 200, padding: '10px 12px', background: t.PAPER, color: t.INK, border: `1px solid ${teal}55`, borderRadius: 10, textAlign: 'left' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
         <span aria-hidden style={{ width: 30, height: 30, flex: 'none', borderRadius: 8, background: `${teal}1f`, border: `1px solid ${teal}55`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={teal} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 4h2.2l2.3 11h10.6l2-7.5H6.4" /><circle cx="9.5" cy="19" r="1.4" /><circle cx="16.5" cy="19" r="1.4" /></svg>

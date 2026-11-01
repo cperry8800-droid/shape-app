@@ -934,6 +934,14 @@
   "sample.nutri.review.n2": "Dis food carry me finish my first marathon, I no hit wall even once. Di race-week plan na gold.",
   "sample.nutri.review.n3": "Every meal wey I log, dem dey read am, and di notes short and useful. No food guilt, at all at all.",
   "sample.nutri.review.n4": "I don drop 9 kg inside five months and I still dey chop pasta every Friday.",
+  "sample.nutri.plan.performance.0": "Food for training days",
+  "sample.nutri.plan.performance.1": "Race week",
+  "sample.nutri.plan.plant.0": "Plant protein for every meal",
+  "sample.nutri.plan.plant.1": "Seven-day reset",
+  "sample.nutri.plan.steady.0": "Eight steady weeks",
+  "sample.nutri.plan.steady.1": "Lunch box month",
+  "sample.nutri.plan.everyday.0": "Family table",
+  "sample.nutri.plan.everyday.1": "Sunday prep",
   "sample.nutri.rule.everyday.0": "Half di plate na vegetables",
   "sample.nutri.rule.everyday.1": "One palm of protein",
   "sample.nutri.rule.everyday.2": "One fist of carbs",
@@ -1078,5 +1086,9 @@
   "mine.socials": "Your socials",
   "mine.errLink": "Check {network}: handle like @you, or address wey start with https://",
   "mine.errYears": "Years wey you don coach: number from 1 reach {max}.",
-  "coach.noPlansYet": "{name} never list any plan yet"
+  "coach.noPlansYet": "{name} never list any plan yet",
+  "coach.kind.program": "Program",
+  "coach.kind.workout": "Workout",
+  "coach.kind.mealPlan": "Meal plan",
+  "coach.kind.diet": "Diet"
 }

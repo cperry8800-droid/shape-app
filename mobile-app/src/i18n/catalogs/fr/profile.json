@@ -934,6 +934,14 @@
   "sample.nutri.review.n2": "Un premier marathon bien alimenté, sans prendre le mur une seule fois. Le plan de la semaine de course valait de l’or.",
   "sample.nutri.review.n3": "Chaque repas que j’enregistre est lu, et les notes sont courtes et utiles. Jamais de culpabilité autour de la nourriture.",
   "sample.nutri.review.n4": "9 kg de moins en cinq mois, et je mange toujours des pâtes le vendredi.",
+  "sample.nutri.plan.performance.0": "Carburant des jours d’entraînement",
+  "sample.nutri.plan.performance.1": "Semaine de course",
+  "sample.nutri.plan.plant.0": "Protéines végétales à chaque repas",
+  "sample.nutri.plan.plant.1": "Remise à zéro en sept jours",
+  "sample.nutri.plan.steady.0": "Huit semaines en douceur",
+  "sample.nutri.plan.steady.1": "Un mois de lunch box",
+  "sample.nutri.plan.everyday.0": "La table familiale",
+  "sample.nutri.plan.everyday.1": "La préparation du dimanche",
   "sample.nutri.rule.everyday.0": "La moitié de l’assiette en légumes",
   "sample.nutri.rule.everyday.1": "Une paume de protéines",
   "sample.nutri.rule.everyday.2": "Un poing de glucides",
@@ -1078,5 +1086,9 @@
   "mine.socials": "Vos réseaux sociaux",
   "mine.errLink": "Vérifiez {network} : un identifiant comme @vous, ou une adresse commençant par https://",
   "mine.errYears": "Années de coaching : un nombre de 1 à {max}.",
-  "coach.noPlansYet": "{name} n'a pas encore publié de plan"
+  "coach.noPlansYet": "{name} n'a pas encore publié de plan",
+  "coach.kind.program": "Programme",
+  "coach.kind.workout": "Séance",
+  "coach.kind.mealPlan": "Plan de repas",
+  "coach.kind.diet": "Régime"
 }

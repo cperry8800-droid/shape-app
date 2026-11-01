@@ -934,6 +934,14 @@
   "sample.nutri.review.n2": "Nạp năng lượng cho cuộc marathon đầu tiên của tôi mà không một lần kiệt sức. Kế hoạch cho tuần thi đấu đáng giá như vàng.",
   "sample.nutri.review.n3": "Bữa nào tôi ghi lại cũng được đọc, và ghi chú thì ngắn gọn, hữu ích. Không bao giờ thấy tội lỗi vì ăn uống.",
   "sample.nutri.review.n4": "Giảm 9 kg trong năm tháng mà tôi vẫn ăn mì Ý vào thứ Sáu.",
+  "sample.nutri.plan.performance.0": "Năng lượng cho ngày tập",
+  "sample.nutri.plan.performance.1": "Tuần thi đấu",
+  "sample.nutri.plan.plant.0": "Đạm thực vật mỗi bữa",
+  "sample.nutri.plan.plant.1": "Khởi động lại bảy ngày",
+  "sample.nutri.plan.steady.0": "Tám tuần đều đặn",
+  "sample.nutri.plan.steady.1": "Một tháng cơm hộp",
+  "sample.nutri.plan.everyday.0": "Bữa cơm gia đình",
+  "sample.nutri.plan.everyday.1": "Nấu sẵn ngày Chủ nhật",
   "sample.nutri.rule.everyday.0": "Nửa đĩa là rau",
   "sample.nutri.rule.everyday.1": "Một lòng bàn tay đạm",
   "sample.nutri.rule.everyday.2": "Một nắm tay tinh bột",
@@ -1078,5 +1086,9 @@
   "mine.socials": "Mạng xã hội của bạn",
   "mine.errLink": "Kiểm tra {network}: tên như @bạn, hoặc địa chỉ bắt đầu bằng https://",
   "mine.errYears": "Số năm huấn luyện: một số từ 1 đến {max}.",
-  "coach.noPlansYet": "{name} chưa đăng kế hoạch nào"
+  "coach.noPlansYet": "{name} chưa đăng kế hoạch nào",
+  "coach.kind.program": "Chương trình",
+  "coach.kind.workout": "Buổi tập",
+  "coach.kind.mealPlan": "Thực đơn",
+  "coach.kind.diet": "Chế độ ăn"
 }

@@ -121,7 +121,7 @@ window.shapeDb = {
 window.ShapeBookings = { submitConsultationBooking: async (a) => { world.booked = a; return { ok: true }; } };
 window.bsProfileCardFromPost = (p) => p;
 window.useBSCoachCommerce = ({ person, isNutri }) => ((world.commerceSeen = person.commerce), (world.isNutriSeen = isNutri), { commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: false, wl: null });
-window.BSCoachCoachingBlock = ({ cm, isNutri }) => (world.blockNutri = isNutri, React.createElement('div', { 'data-coaching-block': '' }, cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' ')));
+window.BSCoachCoachingBlock = ({ cm, isNutri, salePlans }) => (world.blockNutri = isNutri, world.blockPlans = salePlans, React.createElement('div', { 'data-coaching-block': '' }, cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' ')));
 
 
 const nadia = { userId: 'u-nadia', who: 'Nadia Rahman', kind: 'NUTRI' };
@@ -909,6 +909,9 @@ test('a sample nutritionist\'s page reads in the reader\'s language: rules, stap
     assert.ok(m.text().includes(de['sample.nutri.staple.firmTofu']), 'a staple in German');
     await click(button(/^Plate notes$/));
     assert.ok(m.text().includes(de['sample.nutri.mealName.plant.0.2']) || m.text().includes(de['sample.nutri.meal.plant.0.0']), 'the plate notes in German');
+    await click(button(/^Work with Rae$/));
+    assert.deepEqual(world.blockPlans.map((p) => p.name), [de['sample.nutri.plan.plant.0'], de['sample.nutri.plan.plant.1']], 'its meal plans in German');
+    await click(button(/^Close$/));
     await m.unmount();
   } finally { window.ShapeI18n.t = hadT; }
 });
@@ -986,6 +989,12 @@ test('signed out, the nutritionist app\'s own page is the sample, and Make it yo
   const m = await mount(page({ person: { who: 'Dr. Maya Patel', kind: 'NUTRI' }, isSelf: true }));
   assert.match(m.text(), /Sports nutrition · Second Helping Nutrition/);
   assert.match(m.text(), /Food that fits your training and your week/);
+  // The Work-with sheet lists the sample's own meal plans, their weeks said and no checkout (owner,
+  // 2026-11-01: "yes add the sample meal plans"; it read "Publish your first plan to list it here").
+  await click(button(/^Ways to work with /));
+  assert.deepEqual(world.blockPlans.map((p) => [p.name, p.category, p.kind, p.meta, p.price, p.providerId ?? null]),
+    [['Train-day fuel', 'meal', 'meal_plan', '4 weeks', 49, null], ['Race week', 'meal', 'meal_plan', '1 week', 29, null]])
+  await click(button(/^Close$/));
   await click(button(/kitchen$/));
   assert.equal(document.querySelectorAll('[data-recipe]').length, 6);
   await click(button(/^Make it yours$/));
@@ -1168,6 +1177,7 @@ test('the sample nutritionist\'s words all go through say, each with the English
     }
     assert.ok(said(d.live.goal) && said(d.provider.specialty) && d.provider.monthly_offer.includes.every(said), `${kind}: the bio, specialty and offer`);
     assert.ok(d.reviews.list.every((r) => said(r.text) && !said(r.author)), `${kind}: the reviews' words, not their names`);
+    assert.ok(d.plans.length === 2 && d.plans.every((pl) => said(pl.name) && pl.weeks > 0 && pl.price > 0 && pl.category === 'meal'), `${kind}: two meal plans, their names said`);
   }
   const keys = Object.keys(en).filter((k) => k.startsWith('sample.nutri.')).map((k) => 'profile:' + k);
   assert.deepEqual([...asked].sort(), keys.sort(), 'every sample.nutri key is one the sample asks for');

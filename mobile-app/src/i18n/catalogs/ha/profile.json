@@ -934,6 +934,14 @@
   "sample.nutri.review.n2": "Ya ba ni kuzari a marathon ɗina na farko ba tare da gajiya ta karya ni ko sau ɗaya ba. Tsarin makon tseren kamar zinare ne.",
   "sample.nutri.review.n3": "Ana karanta kowane abinci da na rubuta, kuma bayanan gajeru ne masu amfani. Babu jin laifi game da abinci, ko kaɗan.",
   "sample.nutri.review.n4": "Na rage 9 kg cikin watanni biyar kuma har yanzu ina cin taliya a ranar Juma’a.",
+  "sample.nutri.plan.performance.0": "Abincin ranakun motsa jiki",
+  "sample.nutri.plan.performance.1": "Makon tsere",
+  "sample.nutri.plan.plant.0": "Furotin na tsirrai a kowane abinci",
+  "sample.nutri.plan.plant.1": "Sabon farawa na kwana bakwai",
+  "sample.nutri.plan.steady.0": "Makonni takwas a hankali",
+  "sample.nutri.plan.steady.1": "Watan akwatin abincin rana",
+  "sample.nutri.plan.everyday.0": "Teburin iyali",
+  "sample.nutri.plan.everyday.1": "Shirin ranar Lahadi",
   "sample.nutri.rule.everyday.0": "Rabin faranti kayan lambu",
   "sample.nutri.rule.everyday.1": "Tafin hannu na furotin",
   "sample.nutri.rule.everyday.2": "Dunƙulen hannu na karbs",
@@ -1078,5 +1086,9 @@
   "mine.socials": "Shafukanka na sada zumunta",
   "mine.errLink": "Duba {network}: suna kamar @kai, ko adireshi da ke farawa da https://",
   "mine.errYears": "Shekarun koyarwa: lamba daga 1 zuwa {max}.",
-  "coach.noPlansYet": "{name} bai buga wani shiri ba tukuna"
+  "coach.noPlansYet": "{name} bai buga wani shiri ba tukuna",
+  "coach.kind.program": "Shiri",
+  "coach.kind.workout": "Motsa jiki",
+  "coach.kind.mealPlan": "Tsarin abinci",
+  "coach.kind.diet": "Tsarin cin abinci"
 }

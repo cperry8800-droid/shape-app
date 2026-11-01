@@ -63,6 +63,8 @@ import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
 import { BSGroceryBuilder } from './BSGroceryBuilder.jsx';
 import { BSNoraHint, bsNoraHintDone } from './BSNoraHint.jsx';
+import { bsNoraPhotoError } from './noraFace.mjs';
+import { BSNoraProfile } from './BSNoraProfile.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx';
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
@@ -361,7 +363,11 @@ function bsCornerBtn(size, ink) {
 // Monochrome ⌕ — opens the universal search screen via a window event
 // (handled in BSClientAppInner / the coach shells), so any header can drop it
 // in without prop-threading. Always sits to the LEFT of the settings gear.
-function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null, nora = true }) {
+// `close` is for a surface that portals ABOVE search and the sheet (Nora's profile, at 100000): the
+// tap dismisses that surface first and hands off on the next tick, as BSMeCorner's gear does, so ✦
+// and ⌕ open where the member can see them (owner, 2026-11-01: Nora's page "has old masthead", the
+// one that dropped them).
+function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null, nora = true, close = null }) {
   const t = useBS();
   // `ink` is the surface's ink where a masthead sets its own (the profile
   // mastheads, Radio), so the corner reads as one set with their ✎ and ⚙.
@@ -376,15 +382,17 @@ function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null, nora = true }) {
   // on a light paper, where a strong one muddies the ink around it.
   const corner = bsCornerBtn(size, ink || t.INK);
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const send = (name) => { try { window.dispatchEvent(new CustomEvent(name)); } catch (e) {} };
+  const fire = (name) => { if (typeof close === 'function') { close(); setTimeout(() => send(name), 0); } else send(name); };
   return (
     <>
       {nora && (
-        <button data-nora-corner onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openNora')); } catch (e) {} }} aria-label="Ask Nora"
+        <button data-nora-corner onClick={() => fire('shape:openNora')} aria-label="Ask Nora"
           style={{ ...corner, color: teal, fontSize: Math.max(18, Math.round(size * 0.7)), lineHeight: 1, textShadow: `0 0 10px ${teal}${t.isLight ? '66' : 'aa'}` }}>
           <span aria-hidden>✦</span>
         </button>
       )}
-      <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openSearch')); } catch (e) {} }} aria-label="Search Shape"
+      <button onClick={() => fire('shape:openSearch')} aria-label="Search Shape"
         style={corner}>
         <svg width={g} height={g} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.3 15.3 5.2 5.2" /></svg>
       </button>
@@ -429,12 +437,13 @@ function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
 // bookkeeping settles before Settings pushes its entry (BSActivityDetail has
 // done it in that order since it shipped). A page in normal flow passes nothing
 // and keeps both controls.
-function BSMeCorner({ size = BS_HEADER_AVATAR, close = null }) {
+// `ink` is the band's ink where the masthead sits on one (a chat thread's desk, 2026-11-01).
+function BSMeCorner({ size = BS_HEADER_AVATAR, close = null, ink = null }) {
   const goProfile = () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} };
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
-      {close ? null : <BSSearchCorner size={size} />}
-      <BSSettingsCorner size={size} onClick={close ? () => { close(); setTimeout(goProfile, 0); } : goProfile} />
+      {close ? null : <BSSearchCorner size={size} ink={ink} />}
+      <BSSettingsCorner size={size} ink={ink} onClick={close ? () => { close(); setTimeout(goProfile, 0); } : goProfile} />
     </span>
   );
 }
@@ -19460,11 +19469,22 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
   const offerBucket = (cat) => {
     const cc = String(cat || '').toLowerCase();
     if (isNutri) return /meal/.test(cc) ? 'Meals' : /diet|cut|recomp|nutrition/.test(cc) ? 'Diets' : 'Coaching';
-    return /workout|single|session|form/.test(cc) ? 'Workouts' : /program|block|strength|hypertrophy|peak/.test(cc) ? 'Programs' : 'Coaching';
+    // A trainer's paid multi-week plan is saved as `plan` (the Programs page's builder), and is a program.
+    return /workout|single|session|form/.test(cc) ? 'Workouts' : (cc === 'plan' || /program|block|strength|hypertrophy|peak/.test(cc)) ? 'Programs' : 'Coaching';
+  };
+  // The small word over each plan, in the reader's language: it was the plan's category as stored
+  // ("meal", "program"), in English whatever the language. A category with no word of its own keeps it.
+  const offerKind = (pl) => {
+    const raw = String(pl.category || (pl.kind === 'meal_plan' ? 'meal plan' : 'program')).replace(/_/g, ' ');
+    // `plan` is a trainer's paid multi-week plan (the builder's "A multi-week paid program clients
+    // enroll in"), so it reads as a program (Codex P2 on #2557).
+    const key = { program: 'program', plan: 'program', workout: 'workout', meal: 'mealPlan', mealplan: 'mealPlan', 'meal plan': 'mealPlan', diet: 'diet' }[raw.toLowerCase()];
+    const english = { program: 'Program', workout: 'Workout', mealPlan: 'Meal plan', diet: 'Diet' }[key];
+    return key ? tr('profile:coach.kind.' + key, { defaultValue: english }) : raw;
   };
   const realOfferings = (salePlans || []).map((pl) => [
     offerBucket(pl.category),
-    String(pl.category || (pl.kind === 'meal_plan' ? 'meal plan' : 'program')).replace(/_/g, ' '),
+    offerKind(pl),
     pl.name,
     pl.meta || '',
     pl.price ? (/^\$|free/i.test(String(pl.price)) ? String(pl.price) : `$${pl.price}`) : 'Listed',
@@ -20731,74 +20751,9 @@ function BSUniversalSearch({ onClose }) {
 // lights up everywhere (BSFacetAvatar falls back to the "N" initial until then).
 const BS_NORA_AVATAR = `${import.meta.env.BASE_URL}nora-avatar.png`;
 
-// ── Nora's profile — Shape's AI assistant ─────────────────────────────────────
-// A lightweight STAFF profile (deliberately not a member Terrain profile — no
-// score/followers/climb): who she is, always-online status, what she helps
-// with, and the human-escalation promise. Opened by tapping her avatar/name in
-// the Support thread.
-function BSNoraProfile({ onClose }) {
-  const t = useBS();
-  const BLUE = '#2e6fa0', TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
-  const MONO = t.MONO, SERIF = t.DISPLAY;
-  const helps = [
-    ['Connecting integrations', 'Whoop, Oura, Strava, Spotify & more'],
-    ['Your plan & programs', 'Workouts, meals, schedules, swaps'],
-    ['Billing & membership', 'The $5/mo plan, coach payments, receipts'],
-    ['Account & settings', 'Profile, privacy, notifications, data'],
-    ['Finding a coach', 'Matching you with vetted trainers & RDs'],
-  ];
-  const sheet = (
-    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, zIndex: 100000, background: t.PAPER_BG, color: t.INK, overflowY: 'auto' }}>
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px calc(28px + env(safe-area-inset-bottom, 0px))` }}>
-        {/* The masthead row opens EVERY page (same format, same size) — the back
-            row + "Shape team" eyebrow sit directly beneath it.
-            ⚠ This page paints at zIndex 100000 (see the container above), ABOVE
-            both BSUniversalSearch (230) and the Settings overlay (210), so the
-            corner takes `close`: no ⌕, and the avatar closes this page before
-            handing off to Settings — see BSMeCorner. */}
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner close={onClose} />} />}
-        <BSBackRow onBack={onClose}
-          trailing={<span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>Shape team</span>} />
-        {/* identity — the live ring + dot overflow the avatar box, so pad the
-            wrapper to keep clear air before the eyebrow */}
-        <div style={{ textAlign: 'center', marginTop: 26 }}>
-          <div style={{ display: 'inline-block', padding: '6px 6px 14px' }}>
-            <BSFacetAvatar size={96} c={BLUE} initial="N" name="Nora" photo={BS_NORA_AVATAR} showRank={false} live BG={t.PAPER_BG} INK={t.INK} />
-          </div>
-          <div style={{ marginTop: 10, fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: TEAL }}>Always online</div>
-          <h1 style={{ fontFamily: SERIF, fontSize: 38, fontWeight: t.W.display, letterSpacing: '-0.03em', margin: '8px 0 0', lineHeight: 1 }}>Nora<span style={{ color: TEAL }}>.</span></h1>
-          <div style={{ marginTop: 10, fontFamily: SERIF, fontSize: 15, fontStyle: 'italic', color: bsTHexA(t.INK, 0.65), lineHeight: 1.5, padding: '0 14px' }}>Shape's AI concierge — here for every member and visitor, day and night.</div>
-        </div>
-        {/* stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 20 }}>
-          {[['Instant', 'Replies'], ['24/7', 'Hours'], ['Human', 'Backup']].map(([v, l]) => (
-            <div key={l} style={{ textAlign: 'center', borderRadius: 14, border: `1px solid ${bsTHexA(t.INK, 0.12)}`, background: bsTHexA(t.INK, 0.04), padding: '12px 6px' }}>
-              <div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{v}</div>
-              <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{l}</div>
-            </div>
-          ))}
-        </div>
-        {/* what she helps with */}
-        <div style={{ marginTop: 22 }}>
-          <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: BLUE, paddingBottom: 6 }}>What Nora helps with</div>
-          {helps.map(([title, sub], i) => (
-            <div key={title} style={{ padding: '10px 2px', borderTop: i ? `1px solid ${bsTHexA(t.INK, 0.08)}` : 0 }}>
-              <div style={{ fontFamily: SERIF, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
-              <div style={{ marginTop: 2, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{sub}</div>
-            </div>
-          ))}
-        </div>
-        {/* escalation note */}
-        <div style={{ marginTop: 16, borderRadius: 14, border: `1px solid ${bsTHexA(BLUE, 0.35)}`, background: bsTHexA(BLUE, 0.08), padding: '12px 14px', fontFamily: SERIF, fontSize: 13.5, fontStyle: 'italic', color: bsTHexA(t.INK, 0.75), lineHeight: 1.5 }}>
-          “If I can't sort it out, I'll point you to the human Shape team at info@theshapecommunity.com.”
-        </div>
-        <button onClick={onClose} style={{ marginTop: 18, width: '100%', minHeight: 46, borderRadius: 999, background: TEAL, color: '#06110e', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message Nora →</button>
-      </div>
-    </div>
-  );
-  const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
-  return surface ? createPortal(sheet, surface) : sheet;
-}
+// Nora's profile (Shape's AI concierge) lives in BSNoraProfile.jsx, in the profiles' look (2026-11-01).
+// Her cover is the night city behind her photo, the radio's skyline (the small cut, for a 190px band).
+const BS_NORA_COVER = `${import.meta.env.BASE_URL}nora/skyline-lo.webp`;
 
 // Feed action glyphs — crisp geometric inline SVGs (replace the typographic
 // ↑ ↳ ↗ ✉ ⇄ for a less-analog, instrument look). Monochrome, square caps, and
@@ -25387,7 +25342,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
-      {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
+      {showNora && <BSNoraProfile avatar={BS_NORA_AVATAR} cover={BS_NORA_COVER} onClose={() => setShowNora(false)} />}
       {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
       {activityDetail && (() => {
         const d = activityDetail;
@@ -25979,7 +25934,8 @@ function BSNoraSheet({ onClose }) {
   const deskMuted = bsTHexA(t.PAPER, 0.64);
   const screenName = !screenOff && (_bsNoraOpen.label || _bsNoraOpen.page);
   const thread = supportBusy && supportLive ? [...supportMsgs, { who: 'Nora', t: supportLive, time: 'now', me: false, bot: true, live: true }] : supportMsgs;
-  const face = (size) => <img src={BS_NORA_AVATAR} alt="" aria-hidden style={{ flex: 'none', display: 'block', width: size, height: size, borderRadius: '50%', objectFit: 'cover', objectPosition: '50% 32%' }} />;
+  // A face that will not load is asked for once more, then her N mark stands in (noraFace.mjs).
+  const face = (size) => <img src={BS_NORA_AVATAR} alt="" aria-hidden onError={bsNoraPhotoError} style={{ flex: 'none', display: 'block', width: size, height: size, borderRadius: '50%', objectFit: 'cover', objectPosition: '50% 32%' }} />;
   const host = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body;
   return createPortal(
     <div data-nora-sheet style={{ position: 'absolute', inset: 0, zIndex: 240 }}>
@@ -26130,7 +26086,8 @@ function BSNoraSheet({ onClose }) {
         </div>
         <BSNoraTalk talk={talk} t={t} tint={noraTint} avatar={BS_NORA_AVATAR} />
       </div>
-      {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
+      {/* From the sheet, ✦ ⌕ ⚙ take the sheet down with her page, so what they open is not under it. */}
+      {showNora && <BSNoraProfile avatar={BS_NORA_AVATAR} cover={BS_NORA_COVER} onClose={() => setShowNora(false)} onLeave={() => { setShowNora(false); onClose(); }} />}
     </div>,
     host
   );
@@ -26510,7 +26467,8 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         textTransform: 'uppercase', color: t.INK50,
       }}
     >
-      {mag ? null : <span aria-hidden>🔒</span>} Join Shape to send messages{mag ? ' →' : ''}
+      {/* No coloured emoji in the magazine's look or the tray's (a chat thread's, 2026-11-01). */}
+      {(mag || tray) ? null : <span aria-hidden>🔒</span>} Join Shape to send messages{(mag || tray) ? ' →' : ''}
     </button>
   );
   // Optional photo-attach button (community feed). Sits to the left of the field.
@@ -26604,12 +26562,16 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         </button>
       </div>
     );
-    return (
+    const trayBox = (
       <div style={{ padding: `10px ${t.padX}px calc(12px + env(safe-area-inset-bottom, 0px))` }}>
         {voiceStatus}
         {(canChat || unlocked) ? trayField : lockedField}
       </div>
     );
+    // `pinned tray`: a chat thread in Nora's sheet's design (2026-11-01) docks the same tray at the foot
+    // of the screen, through the composer slot, on the paper under a hairline.
+    if (pinned) return slot ? createPortal(<div style={{ pointerEvents: 'auto', background: t.PAPER, borderTop: `1px solid ${bsTHexA(t.INK, 0.09)}` }}>{trayBox}</div>, slot) : null;
+    return trayBox;
   }
   const tagChips = (onTag && tags && tags.length) ? (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
@@ -26830,42 +26792,72 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     return () => { try { unsub && unsub(); } catch (e) {} };
   }, [thread.channelId, thread.conversationId]);
 
+  // ── IN NORA'S SHEET'S DESIGN (owner, 2026-11-01, on a screenshot of her sheet: "also use this chat
+  // design for the rest of messaging on chat page"). The desk: an ink band holding the masthead, ←,
+  // their round face in a teal ring and their name; on it the paper and the ink trade places, so its
+  // teal is the other theme's. The talk: your words in an ink bubble on the right with no face (it is
+  // you); theirs on the paper with no box, under their face and name, once for a run of messages from
+  // the same person. The tray composer docks under it.
+  const DESK = t.INK, DESK_INK = t.PAPER;
+  const deskTeal = t.isLight ? '#34d6c5' : '#0a7a72';
+  const deskMuted = bsTHexA(t.PAPER, 0.64);
+  const counterpartId = !thread.group ? (thread.userId || thread.counterpartId || null) : null;
+  // A round face: their photo, or their initials when there is none or it will not load.
+  const roundFace = (size, photo, initials, ring = null) => (
+    <span aria-hidden style={{ position: 'relative', flex: 'none', width: size, height: size, borderRadius: '50%', overflow: 'hidden', display: 'grid', placeItems: 'center', background: ring ? bsTHexA(DESK_INK, 0.14) : bsTHexA(t.INK, 0.1), color: ring ? DESK_INK : t.INK70, fontFamily: t.DISPLAY, fontSize: Math.round(size * 0.4), fontWeight: 600, boxShadow: ring || 'none' }}>
+      <span>{initials}</span>
+      {photo ? <img src={photo} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 30%' }} /> : null}
+    </span>
+  );
+  const headPhoto = (counterpartId && threadAvatars[counterpartId]) || (!thread.conversationId && !thread.channelId ? bsDemoFace(thread.who) : undefined);
+  const headOnline = !!counterpartId && bsIsUserOnline(counterpartId);
+  const deskBtn = { flex: 'none', width: 40, height: 40, borderRadius: '50%', border: 0, background: bsTHexA(DESK_INK, 0.12), color: DESK_INK, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' };
+  // mast={false}: the desk is sticky and carries the masthead and ← itself, so BSPage's paper bar,
+  // which pins past 64px, would only lay a second masthead over the ink band (Codex P2 on #2556).
   return (
-    <BSPage tabBarHeight={0}>
-      {/* Custom header with back chevron — no tab bar on the thread screen */}
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 14px`, borderBottom: `1px solid ${t.SURFACE_BORDER}`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
-        <BSBackRow onBack={onBack} style={{ marginBottom: 2 }}
-          trailing={<span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</span>} />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
-            {!thread.group && <BSFacetAvatar flat size={38} c={t.INK} dotC={teal} BG={t.PAPER} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} photo={((thread.userId || thread.counterpartId) && threadAvatars[thread.userId || thread.counterpartId]) || (!thread.conversationId && !thread.channelId ? bsDemoFace(thread.who) : undefined)} showRank={false} />}
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: bsWsHead(t), fontSize: 26, fontWeight: 500, lineHeight: 1.05, color: t.INK }}>{thread.who}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{thread.role}</div>
-            </div>
+    <BSPage tabBarHeight={0} mast={false}>
+      {/* The desk: the masthead and ← on the ink band, then who you are talking to. */}
+      <div data-thread-desk="" style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 16px`, background: DESK, color: DESK_INK, position: 'sticky', top: 0, zIndex: 2 }}>
+        {window.BSMastRow && <window.BSMastRow ink={DESK_INK} trailing={<BSMeCorner ink={DESK_INK} />} />}
+        <BSBackRow onBack={onBack} ink={DESK_INK} style={{ marginBottom: 2 }}
+          trailing={<span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: deskMuted }}>{eyebrow}</span>} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
+          <button onClick={() => !thread.group && openP(thread.who)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 13, minWidth: 0, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
+            {thread.group ? (
+              <span aria-hidden style={{ flex: 'none', width: 48, height: 48, borderRadius: '50%', display: 'grid', placeItems: 'center', background: bsTHexA(deskTeal, 0.16), color: deskTeal, boxShadow: `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`, fontFamily: t.MONO, fontSize: 20, fontWeight: 800 }}>#</span>
+            ) : (
+              <span style={{ position: 'relative', flex: 'none' }}>
+                {roundFace(48, headPhoto, bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0], `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`)}
+                {headOnline && <span aria-hidden style={{ position: 'absolute', right: -2, bottom: -2, width: 13, height: 13, borderRadius: '50%', background: deskTeal, border: `2.5px solid ${DESK}`, boxSizing: 'border-box' }} />}
+              </span>
+            )}
+            <span style={{ minWidth: 0 }}>
+              <span data-thread-name="" style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, lineHeight: 1, letterSpacing: '-0.01em', color: DESK_INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{thread.who}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: deskMuted, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{thread.role}</span>
+                {headOnline && <><span aria-hidden>·</span><span style={{ color: deskTeal }}>{tr('profile:trainer.online', { defaultValue: 'Online now' })}</span></>}
+              </span>
+            </span>
           </button>
           {/* Channel actions live HERE (not on every index row): send to a member + share */}
           {thread.channelId && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-              {onSendChannel && <button onClick={onSendChannel} aria-label="Send channel to a member" title="Send to a member" style={{ width: 32, height: 32, border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{bsFeedIcon('send', 14)}</button>}
-              <button onClick={() => bsSharePostExternal({ who: '', title: `Join ${thread.who} on Shape`, body: thread.role || '', postId: null })} aria-label="Share channel" title="Share" style={{ width: 32, height: 32, border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{bsFeedIcon('share', 14)}</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              {onSendChannel && <button onClick={onSendChannel} aria-label="Send channel to a member" title="Send to a member" style={deskBtn}>{bsFeedIcon('send', 15)}</button>}
+              <button onClick={() => bsSharePostExternal({ who: '', title: `Join ${thread.who} on Shape`, body: thread.role || '', postId: null })} aria-label="Share channel" title="Share" style={deskBtn}>{bsFeedIcon('share', 15)}</button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Messages — bottom padding clears the pinned composer, which now
-          sits above the 88px tab bar (composer box ~54px + 12px lift +
-          88px tab bar + 24px breathing = 178px). */}
-      <div style={{ padding: `16px ${t.padX}px calc(170px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* The talk — bottom padding clears the pinned tray composer. */}
+      <div data-thread-talk="" style={{ padding: `22px ${t.padX}px calc(170px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column' }}>
         {allMessages.map((m, i) => {
           // Shape's welcome at the top of a coach thread (fix 3a): from neither person, so a
           // centred note rather than a bubble, in the member's language.
           if (m.shape) {
             return (
-              <div key={i} style={{ alignSelf: 'stretch', margin: '2px 0 6px', padding: '12px 4px', borderTop: `1px solid ${t.SURFACE_BORDER}`, borderBottom: `1px solid ${t.SURFACE_BORDER}`, textAlign: 'center' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>{tr('feed:thread.fromShape', { defaultValue: 'From Shape' })}</div>
+              <div key={i} style={{ alignSelf: 'stretch', margin: `${i ? 24 : 0}px 0 4px`, padding: '14px 16px', borderRadius: 16, background: bsTHexA(t.INK, 0.035), border: `1px solid ${bsTHexA(t.INK, 0.1)}`, textAlign: 'center' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal, marginBottom: 6 }}>{tr('feed:thread.fromShape', { defaultValue: 'From Shape' })}</div>
                 <div style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.5, color: t.INK }}>{shapeWelcomeShown(m.shape, tr) || m.t}</div>
               </div>
             );
@@ -26878,48 +26870,109 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
             if (quick === '❤️') rx.toggle(rKey, '❤️');
             else rx.setPickerKey(pickerOpen ? null : rKey);
           });
-          // Byline (channels only): sender name + tier chip + role chip. Coaches
-          // read their OWN ladder (Certified/Pro/Elite/Master/Icon + coach colors);
-          // members read the client ladder. Tier color is the social texture.
+          // Byline: their face and name over the words, once for a run of messages from the same
+          // person. In a channel it carries their tier and, for a coach, the role; coaches read
+          // their OWN ladder (Certified/Pro/Elite/Master/Icon), members the client ladder.
           const senderName = m.who || thread.who;
+          const prev = i > 0 ? allMessages[i - 1] : null;
+          // The same person by account when both carry one (two members can share a display name in a
+          // channel; Codex P2 on #2556), else by name.
+          const sameSender = !!prev && (prev.userId && m.userId ? prev.userId === m.userId : (prev.who || thread.who) === senderName);
+          const sameRun = !!prev && !prev.shape && !!prev.me === !!me && sameSender;
           const senderClientTier = m.tier ? m.tier : bsPostTier({ who: senderName });
           const isCoachSender = !!m.coach || bsIsCoachRole(m.role) || (threadIsCoach && senderName === thread.who);
           const senderTierLabel = isCoachSender ? bsCoachTier(senderClientTier) : senderClientTier;
-          const senderTC = isCoachSender ? coachTint(senderClientTier) : bsTierColor(senderClientTier);
           const senderRole = String(m.role || (threadKind === 'NUTRI' ? 'nutritionist' : 'trainer')).toLowerCase();
-          const roleC = isCoachSender ? (senderRole === 'nutritionist' ? '#a07a2e' : '#c0533b') : null;
           const roleLabel = isCoachSender ? (senderRole === 'nutritionist' ? 'Nutritionist' : 'Trainer') : null;
-          // Bubbles carry the sender's tier color (incoming = their tier, mine =
-          // my tier) so chat stays color-coordinated with the feed + avatars.
-          const myTC = bsMyTierColor();
-          const bubbleTC = me ? myTC : senderTC;
-          const bubbleBg = t.isLight ? `${bubbleTC}1c` : `${bubbleTC}2b`;
+          const senderActivity = bsUserActivity(m.userId);
+          const senderPhoto = (m.userId && threadAvatars[m.userId]) || (counterpartId ? threadAvatars[counterpartId] : undefined) || (!thread.conversationId && !thread.channelId ? bsDemoFace(senderName) : undefined);
+          const stamp = (
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 12 : 5, textAlign: me ? 'right' : 'left' }}>{(m.at && bsChatStamp(m.at, bsDateLocale())) || bsShortAge(m.time, tr)}</div>
+          );
+          const reactionBits = (
+            <>
+              {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
+              {myR && <BSReactionPill t={t} emoji={myR} anchorRight={me} onClick={() => rx.toggle(rKey, myR)} />}
+            </>
+          );
+          // Yours: an ink bubble on the right, no face (it is you).
+          if (me) {
+            return (
+              <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '84%', marginTop: i === 0 ? 0 : sameRun ? 8 : 24, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 0 }}>
+                <div style={{ position: 'relative', minWidth: 0, maxWidth: '100%' }}>
+                  <div {...lp} data-thread-mine="" style={{ boxSizing: 'border-box', padding: '10px 15px', borderRadius: 20, background: t.INK, color: t.PAPER, fontFamily: t.BODY, fontSize: 15, lineHeight: 1.45, letterSpacing: '-0.005em', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
+                    {/* On your ink bubble the boost line takes the bubble's ink: the paper's teal read 1.6:1 on the
+                        dark papers' cream bubble (Copilot on #2556). */}
+                    {m.boost && (
+                      <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.PAPER, 0.78), marginBottom: 5, fontWeight: 800 }}>▲ Live boost · {m.boost === 'cooking' ? 'mid-cook' : 'mid-workout'}</div>
+                    )}
+                    {m.t}
+                    {m.clip && (
+                      <div style={{ marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${teal}66`, borderRadius: 9 }}>
+                        <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginBottom: 5, fontWeight: 800 }}>Program tweak · applied</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.DISPLAY, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: t.INK }}>{m.clip.lift}</span>
+                          {m.clip.was && <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, textDecoration: 'line-through' }}>{m.clip.was}</span>}
+                          {m.clip.next && <span style={{ fontFamily: t.MONO, fontSize: 11, color: teal }}>→ {m.clip.next}</span>}
+                        </div>
+                      </div>
+                    )}
+                    {m.photo && (
+                      <img src={m.photo} alt="Meal photo" onClick={(e) => { e.stopPropagation(); window.open(m.photo, '_blank'); }} style={{ display: 'block', width: '100%', minWidth: 180, maxHeight: 240, objectFit: 'cover', borderRadius: 10, marginTop: 8 }} />
+                    )}
+                    {m.audio && (
+                      <audio src={m.audio} controls preload="none" onClick={(e) => e.stopPropagation()} style={{ display: 'block', width: '100%', minWidth: 180, marginTop: 8 }} />
+                    )}
+                    {m.sharedChannel && (
+                      <button onClick={(e) => { e.stopPropagation(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: m.sharedChannel } })); } catch (e2) {} }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minWidth: 190, textAlign: 'left', marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${teal}66`, borderRadius: 10, cursor: 'pointer' }}>
+                        <span style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 8, background: `${teal}1f`, border: `1px solid ${teal}55`, color: teal, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 14, fontWeight: 800 }}>#</span>
+                        <span style={{ minWidth: 0, flex: 1 }}>
+                          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{m.sharedChannel.name}</span>
+                          <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.sharedChannel.memberCount || 0} member{m.sharedChannel.memberCount === 1 ? '' : 's'} · Channel</span>
+                        </span>
+                        <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal }}>Open →</span>
+                      </button>
+                    )}
+                    {m.coachInvite && (
+                      // A coach's roster invite — tapping opens their marketplace
+                      // Listing (the conversion page) via the openMarket deep link.
+                      <button onClick={(e) => { e.stopPropagation(); try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: { role: m.coachInvite.role, coachId: m.coachInvite.providerId } })); } catch (e2) {} }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minWidth: 190, textAlign: 'left', marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${(m.coachInvite.role === 'nutritionist' ? '#a07a2e' : t.RUST)}66`, borderRadius: 10, cursor: 'pointer' }}>
+                        <span style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 8, background: `${m.coachInvite.role === 'nutritionist' ? '#a07a2e' : t.RUST}1f`, border: `1px solid ${(m.coachInvite.role === 'nutritionist' ? '#a07a2e' : t.RUST)}55`, color: m.coachInvite.role === 'nutritionist' ? '#a07a2e' : t.RUST, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>✦</span>
+                        <span style={{ minWidth: 0, flex: 1 }}>
+                          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.coachInvite.name}</span>
+                          <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.coachInvite.role === 'nutritionist' ? 'Nutritionist' : 'Trainer'} · Invitation</span>
+                        </span>
+                        <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal }}>View listing →</span>
+                      </button>
+                    )}
+                    {/* A grocery list a member sent: its name, count and first items, and Save to my lists. */}
+                    {m.grocery && <BSGroceryShareCard shared={m.grocery} me={!!me} saveTo={grocerySaveTo} messageId={m.id} from={me ? '' : senderName} />}
+                  </div>
+                  {reactionBits}
+                </div>
+                {stamp}
+              </div>
+            );
+          }
+          // Theirs: on the paper with no box, under their face and name.
           return (
-            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
-              <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
-                {!me ? (
-                  <BSFacetAvatar flat size={32} c={t.INK} dotC={teal} BG={t.PAPER} initial={bsInitials(senderName) || '?'} photo={(m.userId && threadAvatars[m.userId]) || (!thread.group && (thread.userId || thread.counterpartId) ? threadAvatars[thread.userId || thread.counterpartId] : undefined) || (m.photo) || (!thread.conversationId && !thread.channelId ? bsDemoFace(senderName) : undefined)} live={bsIsUserOnline(m.userId)} activity={bsUserActivity(m.userId)} showRank={false} onClick={() => openP(senderName, m.userId)} />
-                ) : (
-                  <BSFacetAvatar flat size={32} c={t.INK} dotC={teal} BG={t.PAPER} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
-              {!me && thread.group && (
-                <button onClick={() => openP(senderName)} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', marginBottom: 5 }}>
-                  <span style={{ fontFamily: t.BODY, fontWeight: 600, fontSize: 13.5, color: t.INK }}>{senderName}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1 }}>{String(senderTierLabel).toUpperCase()}</span>
-                  {roleLabel && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, lineHeight: 1 }}>{roleLabel}</span>}
+            <div key={i} style={{ alignSelf: 'stretch', marginTop: i === 0 ? 0 : sameRun ? 8 : 24, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+              {!sameRun && (
+                <button onClick={() => openP(senderName, m.userId)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minHeight: 28, marginBottom: 6, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
+                  <span style={{ position: 'relative', display: 'inline-flex' }}>
+                    {roundFace(24, senderPhoto, bsInitials(senderName) || '?')}
+                    {/* Online, or mid-workout / at the stove (amber), as the facet faces' dot was. */}
+                    {(senderActivity || bsIsUserOnline(m.userId)) && <span aria-hidden style={{ position: 'absolute', right: -2, bottom: -2, width: 9, height: 9, borderRadius: '50%', background: senderActivity === 'cooking' ? '#d8a23a' : teal, border: `2px solid ${t.PAPER}`, boxSizing: 'border-box' }} />}
+                  </span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{senderName}</span>
+                  {thread.group && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{String(senderTierLabel).toUpperCase()}</span>}
+                  {thread.group && roleLabel && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: senderRole === 'nutritionist' ? '#a07a2e' : t.RUST }}>{roleLabel}</span>}
                 </button>
               )}
-              <div style={{ minWidth: 0, position: 'relative' }}>
-                <div {...lp} style={{
-                  borderRadius: 0,
-                  fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em',
-                  color: t.INK,
-                  background: me ? bsTHexA(t.INK, 0.05) : 'transparent',
-                  border: `1px solid ${bsTHexA(t.INK, 0.18)}`,
-                  padding: '11px 14px',
-                  cursor: 'pointer', userSelect: 'none',
-                }}>
+              <div style={{ position: 'relative', minWidth: 0, maxWidth: '100%' }}>
+                <div {...lp} data-thread-theirs="" style={{ maxWidth: '100%', fontFamily: t.BODY, fontSize: 15.5, lineHeight: 1.55, letterSpacing: '-0.005em', color: t.INK, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
                   {m.boost && (
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: m.boost === 'cooking' ? t.AMBER : teal, marginBottom: 5, fontWeight: 800 }}>▲ Live boost · {m.boost === 'cooking' ? 'mid-cook' : 'mid-workout'}</div>
                   )}
@@ -26967,19 +27020,16 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                   {/* A grocery list a member sent: its name, count and first items, and Save to my lists. */}
                   {m.grocery && <BSGroceryShareCard shared={m.grocery} me={!!me} saveTo={grocerySaveTo} messageId={m.id} from={me ? '' : senderName} />}
                 </div>
-                {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
-                {myR && <BSReactionPill t={t} emoji={myR} anchorRight={me} onClick={() => rx.toggle(rKey, myR)} />}
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 10 : 4, textAlign: me ? 'right' : 'left' }}>{(m.at && bsChatStamp(m.at, bsDateLocale())) || bsShortAge(m.time, tr)}</div>
+                {reactionBits}
               </div>
-                </div>
-              </div>
+              {stamp}
             </div>
           );
         })}
       </div>
 
-      {/* Composer — pinned to the bottom of the screen, iMessage-style */}
-      <BSMessageComposer value={text} onChange={setText} onSend={send} pinned mag />
+      {/* The tray composer, as Nora's sheet docks it, pinned to the foot of the screen. */}
+      <BSMessageComposer value={text} onChange={setText} onSend={send} pinned tray />
     </BSPage>
   );
 }

@@ -63,6 +63,8 @@ export const BS_NUTRI_SAMPLE_RECIPES = R;
 // then the note.
 const KITCHENS = {
   performance: {
+    // Its sample meal plans for the Work-with sheet: [name, price in dollars, weeks].
+    plans: [['Train-day fuel', 49, 4], ['Race week', 29, 1]],
     plate: { veg: 40, protein: 30, carbs: 30 },
     rules: ['A palm of protein at every meal', 'A fist of carbs, two on training days', 'Half the plate vegetables at lunch and dinner', 'Fats as a thumb, not a pour'],
     staples: [['Greek yogurt', 'fridge'], ['Eggs', 'fridge'], ['Chicken thighs', 'fridge'], ['Spinach', 'fridge'], ['Oats', 'pantry'], ['Jasmine rice', 'pantry'], ['Canned beans', 'pantry'], ['Peanut butter', 'pantry'], ['Frozen berries', 'freezer'], ['Frozen peas', 'freezer']],
@@ -85,6 +87,8 @@ const KITCHENS = {
     ],
   },
   plant: {
+    // Its sample meal plans for the Work-with sheet: [name, price in dollars, weeks].
+    plans: [['Plant protein, every meal', 39, 4], ['Seven-day reset', 25, 1]],
     plate: { veg: 50, protein: 25, carbs: 25 },
     rules: ['Beans, lentils or tofu at every meal', 'Half the plate vegetables', 'A fist of whole grains', 'A spoon of seeds or nuts on top'],
     staples: [['Firm tofu', 'fridge'], ['Tempeh', 'fridge'], ['Hummus', 'fridge'], ['Kale', 'fridge'], ['Red lentils', 'pantry'], ['Chickpeas', 'pantry'], ['Brown rice', 'pantry'], ['Tahini', 'pantry'], ['Edamame', 'freezer'], ['Frozen spinach', 'freezer']],
@@ -107,6 +111,8 @@ const KITCHENS = {
     ],
   },
   steady: {
+    // Its sample meal plans for the Work-with sheet: [name, price in dollars, weeks].
+    plans: [['Eight steady weeks', 59, 8], ['Lunch box month', 29, 4]],
     plate: { veg: 50, protein: 30, carbs: 20 },
     rules: ['Vegetables first, and plenty of them', 'A palm and a half of protein', 'Carbs as a cupped hand', 'Water before second helpings'],
     staples: [['Cottage cheese', 'fridge'], ['Eggs', 'fridge'], ['Salad greens', 'fridge'], ['Chicken breast', 'fridge'], ['Canned tuna', 'pantry'], ['Almonds', 'pantry'], ['Quinoa', 'pantry'], ['Cod fillets', 'freezer'], ['Frozen broccoli', 'freezer']],
@@ -129,6 +135,8 @@ const KITCHENS = {
     ],
   },
   everyday: {
+    // Its sample meal plans for the Work-with sheet: [name, price in dollars, weeks].
+    plans: [['Family table', 45, 4], ['Sunday prep', 25, 2]],
     plate: { veg: 50, protein: 25, carbs: 25 },
     rules: ['Half the plate vegetables', 'A palm of protein', 'A fist of carbs', 'Everyone at the table eats the same meal'],
     staples: [['Eggs', 'fridge'], ['Milk', 'fridge'], ['Carrots', 'fridge'], ['Cheddar', 'fridge'], ['Pasta', 'pantry'], ['Canned tomatoes', 'pantry'], ['Oats', 'pantry'], ['Chickpeas', 'pantry'], ['Frozen shrimp', 'freezer'], ['Frozen peas', 'freezer']],
@@ -316,6 +324,11 @@ export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'perf
       ],
     },
     plates,
+    // Its meal plans, as a real nutritionist's published plans reach the Work-with sheet (category
+    // 'meal', a kind of 'meal_plan'), with no provider id: a sample has no checkout, so the sheet shows
+    // each one's price, not Buy (owner, 2026-11-01: "yes add the sample meal plans"; the sheet read
+    // "Publish your first plan to list it here", left by #2545). The page words the weeks.
+    plans: k.plans.map(([name, price, weeks], i) => ({ id: `demo-meal-${kk}-${i}`, kind: 'meal_plan', category: 'meal', name: S(`plan.${kk}.${i}`, name), price, weeks })),
     // What the sample posted besides plate notes, for the page's activity feed (owner, 2026-10-30:
     // "there is also no activity feed on coaches profile"): a note on Sunday prep and a walk, as
     // the member profile's activity cards. The page puts the coach's name and tier on them.
