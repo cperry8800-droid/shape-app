@@ -83,6 +83,13 @@ function fakeSupabase(tables, { errors = {}, rpcs = {}, auth = null, honorStatus
   return { reads, calls, bearer: [], client: { from, rpc, auth: { getUser: async () => auth ?? { data: { user: COACH }, error: null } } } }
 }
 
+// src/lib/roster-days.ts with its own '@/lib' imports mapped (the loader resolves only what it is given).
+async function rosterDays() {
+  const time = await loadRealModule(join(ROOT, 'src/lib/time.ts'), { typescript: true })
+  const workoutDays = await loadRealModule(join(ROOT, 'src/lib/workout-days.ts'), { typescript: true, registry: new Map([['@/lib/time', time]]) })
+  return loadRealModule(join(ROOT, 'src/lib/roster-days.ts'), { typescript: true, registry: new Map([['@/lib/time', time], ['@/lib/workout-days', workoutDays]]) })
+}
+
 async function loadRoute(role, tables, opts) {
   const db = fakeSupabase(tables, opts)
   // origin-attribution names the server client in a type-only import; the loader still maps it.
@@ -101,6 +108,7 @@ async function loadRoute(role, tables, opts) {
       ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)],
       ['@/lib/read-all-by-id', await ts('src/lib/read-all-by-id.ts')],
       ['@/lib/client-names', await ts('src/lib/client-names.ts')],
+      ['@/lib/roster-days', await rosterDays()],
       ['@/lib/auth-lookup', await ts('src/lib/auth-lookup.ts')],
       // The real request-auth: the cookie client when there is no Bearer token, else a client made
       // for the token, which answers only the app's token (APP_TOKEN) as the coach.
@@ -328,6 +336,7 @@ test('no failed read in the trainer route is published as an empty history', asy
       ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
       ['@/lib/client-names', await loadRealModule(join(ROOT, 'src/lib/client-names.ts'), { typescript: true })],
       ['@/lib/auth-lookup', await loadRealModule(join(ROOT, 'src/lib/auth-lookup.ts'), { typescript: true })],
+      ['@/lib/roster-days', await rosterDays()],
     ]),
   })
   const body = await (await route.GET(new Request('https://shape.test/api/trainer/analytics'))).json()
@@ -360,6 +369,43 @@ test('weigh-ins are read in full and each client\'s first and latest are by date
   assert.deepEqual([a.weightStart, a.weightLatest], [200, 171])
   assert.deepEqual([b.weightStart, b.weightLatest, b.weightChangeLb], [160, 150, -10])
   assert.equal(body.clientProgress.weightsUnknown, false)
+})
+
+test('trainer: each client\'s weight trend starts in their own 30 days, ending on their own today (#2547\'s rule)', async () => {
+  // The weigh-ins were read from >= the UTC date 30 days back: 31 dates with no upper bound, so the
+  // 30-day trend could start on a weigh-in 31 days old. A, with no zone, B, in UTC+14, and C, in
+  // UTC-11 (one of the two is on another date than UTC's at any hour), weigh in every day from 33
+  // days before the UTC date to 2 days after; a day outside a client's window weighs 300, the
+  // window's first day 200 and its last 190.
+  const ymd = (t, tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(t)
+  const shift = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10)
+  const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const ZONES = { [A]: null, [B]: 'Pacific/Kiritimati', [C]: 'Pacific/Pago_Pago' }
+  const hasOp = (c, op, col, v) => c.ops.some((o) => o[0] === op && o[1] === col && (v === undefined || JSON.stringify(o[2]) === JSON.stringify(v)))
+  const windows = () => Object.fromEntries(Object.entries(ZONES).map(([c, z]) => { const last = ymd(Date.now(), z || 'UTC'); return [c, { first: shift(last, -29), last }] }))
+  const before = windows()
+  const utc = ymd(Date.now(), 'UTC')
+  const snaps = []
+  for (const [c, w] of Object.entries(before)) {
+    for (let n = -33; n <= 2; n += 1) {
+      const d = shift(utc, n)
+      const weight_lb = d < w.first || d > w.last ? 300 : d === w.last ? 190 : 200
+      snaps.push({ id: 'w' + String(snaps.length).padStart(5, '0'), user_id: c, snapshot_date: d, weight_lb })
+    }
+  }
+  const { body, calls } = await loadRoute('trainer', roster({ subscriptions: [sub(A), sub(B), sub(C)], daily_health_snapshot: snaps, client_profiles: [{ user_id: B, timezone: 'Pacific/Kiritimati' }, { user_id: C, timezone: 'Pacific/Pago_Pago' }] }), { rpcs: lifts({}) })
+  // A run across a midnight in either zone moves its window a day; skip it rather than flake.
+  if (JSON.stringify(before) !== JSON.stringify(windows()) || ymd(Date.now(), 'UTC') !== utc) return
+  const reads = calls.filter((c) => c.table === 'daily_health_snapshot')
+  assert.ok(reads.length >= 1 && reads.every((r) => hasOp(r, 'gte', 'snapshot_date', shift(utc, -30)) && hasOp(r, 'lte', 'snapshot_date', shift(utc, 1))),
+    'one read spans every zone\'s window: from the UTC date less 30 to the UTC date plus one')
+  assert.ok(calls.some((c) => c.table === 'client_profiles' && hasOp(c, 'select', 'user_id, timezone') && hasOp(c, 'in', 'user_id')), 'the roster\'s zones, by user_id')
+  for (const c of [A, B, C]) {
+    const r = body.clientProgress.roster.find((x) => x.client_id === c)
+    assert.deepEqual([r.weightStart, r.weightLatest, r.weightChangeLb], [200, 190, -10], `${c} (${ZONES[c] || 'no zone'})`)
+  }
+  // The workouts are counted from an instant 30 × 24 hours back, as before.
+  assert.equal(body.clientProgress.roster.find((x) => x.client_id === A).workouts30d, 2)
 })
 
 test('a workout with no start time counts by its end, else by when it was logged', async () => {
@@ -905,6 +951,50 @@ test('nutritionist: every snapshot in the window is read, and each client\'s fir
   assert.deepEqual([f.totalDaysLogged, f.avgLogsPerClient, f.proteinAdherencePct, f.weightsUnknown, f.activeClients], [null, null, null, true, 2])
   assert.ok(f.roster.length === 2 && f.roster.every((r) => r.daysLogged30d === null && r.avgProteinG === null && r.avgCalories === null && r.weightLatest === null))
   assert.equal(failed.body.ticker.avgLogsPerClient, null)
+})
+
+test('nutritionist: each client\'s 30 days logged are 30, ending on their own today (get_client_stats\' rule, #2547)', async () => {
+  // The route read snapshot_date >= the UTC date 30 days back: 31 dates with no upper bound. Three
+  // clients log every day from 33 days back to 2 days ahead of the UTC date: one with no zone (UTC),
+  // one in UTC+14 and one in UTC-11, whose today can be a day either side of the UTC date. A day
+  // outside a client's window logs 9,000 kcal and weighs 300, so any of it in a figure shows.
+  const ymd = (t, tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(t)
+  const shift = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10)
+  const ZONES = { c000000: null, c000001: 'Pacific/Kiritimati', c000002: 'Pacific/Pago_Pago' }
+  const windows = () => Object.fromEntries(Object.entries(ZONES).map(([c, z]) => { const last = ymd(Date.now(), z || 'UTC'); return [c, { first: shift(last, -29), last }] }))
+  const before = windows()
+  const utc = ymd(Date.now(), 'UTC')
+  const snaps = []
+  for (const [c, w] of Object.entries(before)) {
+    for (let n = -33; n <= 2; n += 1) {
+      const d = shift(utc, n)
+      const inside = d >= w.first && d <= w.last
+      snaps.push({ id: 's' + String(snaps.length).padStart(5, '0'), user_id: c, snapshot_date: d, protein_g: 130, dietary_kcal: inside ? 2000 : 9000, weight_lb: inside ? 200 - (d === w.last ? 10 : 0) : 300 })
+    }
+  }
+  const profiles = Object.entries(ZONES).filter(([, z]) => z).map(([c, z]) => ({ user_id: c, timezone: z }))
+  const spans = [[shift(utc, -30), shift(utc, 1)]]
+  const { body, calls } = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(3), daily_health_snapshot: snaps, client_profiles: profiles })
+  const after = windows()
+  const utcAfter = ymd(Date.now(), 'UTC')
+  spans.push([shift(utcAfter, -30), shift(utcAfter, 1)])
+  // A run across a midnight in any of the three zones moves its window a day; skip it rather than flake.
+  if (JSON.stringify(before) !== JSON.stringify(after)) return
+  const snapReads = calls.filter((c) => c.table === 'daily_health_snapshot')
+  assert.ok(snapReads.length >= 1 && snapReads.every((r) => spans.some(([a, b]) => has(r, 'gte', 'snapshot_date', a) && has(r, 'lte', 'snapshot_date', b))),
+    'one read spans every zone\'s window: from the UTC date less 30 to the UTC date plus one')
+  const zoneReads = calls.filter((c) => c.table === 'client_profiles')
+  assert.equal(zoneReads.length, 1)
+  assert.ok(has(zoneReads[0], 'select', 'user_id, timezone') && has(zoneReads[0], 'in', 'user_id'), 'the roster\'s zones, by user_id')
+  const byId = Object.fromEntries(body.clientProgress.roster.map((r) => [r.client_id, r]))
+  for (const c of Object.keys(ZONES)) {
+    const r = byId[c]
+    assert.deepEqual([r.daysLogged30d, r.avgCalories, r.avgProteinG, r.weightStart, r.weightLatest, r.weightChangeLb], [30, 2000, 130, 200, 190, -10], `${c} (${ZONES[c] || 'no zone'})`)
+  }
+  assert.deepEqual([body.clientProgress.totalDaysLogged, body.clientProgress.avgLogsPerClient], [90, 30])
+  // A failed zone read counts in UTC, as a client with no zone does: still 30, never unread.
+  const failed = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(3), daily_health_snapshot: snaps, client_profiles: profiles }, { errors: { client_profiles: 'timeout' } })
+  assert.equal(failed.body.clientProgress.roster.find((r) => r.client_id === 'c000001').daysLogged30d, 30)
 })
 
 test('nutritionist: appointment counts are counted by the database, and a failed count is unknown', async () => {

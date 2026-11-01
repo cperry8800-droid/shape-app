@@ -107,8 +107,10 @@ test('the month: a calendar of every day, its legend, rates by habit and the bes
   const cells = [...m.host.querySelectorAll('[aria-label="Habits kept each day this month"] button')];
   assert.equal(cells.length, hpDaysInMonth(TODAY));
   assert.match(m.text(), /Habits keptNoneSomeMostAll/);
-  // On the 1st of a month the best run so far can only be 1 day, said in the singular.
-  assert.match(m.text(), /Best run · (Water|Smoking), \d+ days?/);
+  // The month's best run counts this month's days only: Water's is every day so far, up to its
+  // 20, so on the 1st it is "1 day" (asking for "\d+ days" failed every CI run on 2026-11-01).
+  const run = Math.min(Number(TODAY.slice(8)), 20);
+  assert.match(m.text(), new RegExp(`Best run · Water, ${run} ${run === 1 ? 'day' : 'days'}(?!s)`));
   assert.match(m.text(), /By habit/);
   assert.ok(m.btn(/Next month/).disabled);
   await m.close();
