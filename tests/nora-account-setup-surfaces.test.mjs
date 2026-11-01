@@ -163,6 +163,11 @@ test('website card: refusals said as such; a confirmed setup says where to chang
   d.render();
   assert.deepEqual(posted, [['/api/ai/proposals/confirm', { token: 'tok-setup' }]]);
   assert.ok(d.text.includes('Saved to your account. You can change any of it in Settings.'));
+  const other = drive(Card, { a: { ...SETUP_CARD, action: 'log_water', diff: [{ label: 'Hydration', before: '1 L', after: '1.5 L' }] } });
+  other.click('Confirm');
+  await tick(); await tick();
+  other.render();
+  assert.ok(other.text.includes('Applied ✓') && !other.text.includes('Saved to your account'), 'only a setup card says it');
 });
 
 // ── The tours ────────────────────────────────────────────────────────────────────────────────

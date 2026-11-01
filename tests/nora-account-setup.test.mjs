@@ -28,7 +28,10 @@ const NOW = '2026-11-01T12:00:00.000Z';
 // user_id, the table's defaults), profiles (PK id). Every read and write is the signed-in owner's
 // only: a row of another account is invisible and unwritable, an insert for another account is
 // refused (42501), a duplicate first row is 23505. `before(op)` runs before each write, so a test
-// can land a concurrent edit; `failOn(op)` makes a write answer an error.
+// can land a concurrent edit; `failOn(op)` makes a write answer an error. ⚠ profiles are READABLE
+// beyond the owner, as in production (a coach reads their subscribers' profiles:
+// providers_read_subscriber_profiles_base), and maybeSingle over several rows is PostgREST's error,
+// so a read that forgets its own id is caught here rather than saved by the fake.
 function accountDb({ uid = ME, goals = {}, notify = null, profile = { full_name: 'Sam Lee' }, others = true } = {}) {
   let tick = 0;
   const stamp = () => `2026-11-01T00:00:${String(++tick).padStart(2, '0')}.000000+00:00`;
@@ -48,6 +51,7 @@ function accountDb({ uid = ME, goals = {}, notify = null, profile = { full_name:
   function from(table) {
     const st = { op: 'select', filters: [], patch: null, row: null, single: false, ret: false };
     const mine = (r) => owner(table, r) === uid;
+    const visible = (r) => table === 'profiles' || mine(r);
     const chain = {
       select() { st.ret = true; return chain; },
       update(patch) { st.op = 'update'; st.patch = patch; return chain; },
@@ -67,7 +71,8 @@ function accountDb({ uid = ME, goals = {}, notify = null, profile = { full_name:
           }
           const rows = t[table];
           if (st.op === 'select') {
-            const hit = rows.filter((r) => mine(r) && st.filters.every((f) => f(r))).map((r) => JSON.parse(JSON.stringify(r)));
+            const hit = rows.filter((r) => visible(r) && st.filters.every((f) => f(r))).map((r) => JSON.parse(JSON.stringify(r)));
+            if (st.single && hit.length > 1) return res({ data: null, error: { message: 'JSON object requested, multiple (or no) rows returned', code: 'PGRST116' } });
             return res({ data: st.single ? hit[0] ?? null : hit, error: null });
           }
           if (st.op === 'insert') {
@@ -152,6 +157,7 @@ test('a value is read by the screen\'s own rule; anything else is refused as not
   ok('weekStarts', 'sunday', 'Sunday'); bad('weekStarts', 'Wednesday');
   ok('dailyCheckin', 'off', 'Off'); ok('dailyCheckin', true, 'On'); bad('dailyCheckin', 'sometimes');
   ok('quietStart', '10 pm', 22); ok('quietStart', '22:00', 22); ok('quietStart', 0, 0); ok('quietEnd', '7am', 7); ok('quietEnd', 'noon', 12);
+  ok('quietStart', '12am', 0); ok('quietEnd', '12 pm', 12); ok('quietStart', 'midnight', 0);
   bad('quietStart', '22:30'); bad('quietStart', 24); bad('quietStart', '13pm'); bad('quietEnd', -1); bad('quietEnd', 7.5);
   ok('dailyLimit', '6', 6); bad('dailyLimit', '5'); bad('dailyLimit', 100);
   ok('name', '  Sam   Lee ', 'Sam Lee'); bad('name', 'sam@example.com'); bad('name', 'https://x.y'); bad('name', '1234'); bad('name', 'a'.repeat(61));
@@ -294,6 +300,32 @@ test('⚠ a save that lands between the read and the write is never overwritten:
   assert.deepEqual(db.goal('client_settings'), { units: setup.UNITS_METRIC, onlineRail: 'Off' }, 'the other save is kept; ours went in on a re-read');
 });
 
+test('⚠ the notification row and the name are written only while they still hold what was read', async () => {
+  const db = accountDb({ goals: {}, notify: { quiet_start: 22, daily_cap: 4 } });
+  const { built } = await preview(db, [{ field: 'quietStart', value: 21 }]);
+  let once = true;
+  db.hooks.before = (op) => { if (op === 'notification_settings:update' && once) { once = false; db.t.notification_settings.find((r) => r.user_id === ME).quiet_start = 23; } };
+  await assert.rejects(setup.applySetupCells(db, ME, built.cells, 'apply'), { message: setup.STALE_MSG });
+  assert.equal(db.t.notification_settings.find((r) => r.user_id === ME).quiet_start, 23, 'the other device\'s choice stands');
+
+  const named = accountDb({ goals: {} });
+  const b2 = (await preview(named, [{ field: 'name', value: 'Samantha Lee' }])).built;
+  let first = true;
+  named.hooks.before = (op) => { if (op === 'profiles:update' && first) { first = false; named.t.profiles.find((p) => p.id === ME).full_name = 'Sam L.'; } };
+  await assert.rejects(setup.applySetupCells(named, ME, b2.cells, 'apply'), { message: setup.STALE_MSG });
+  assert.equal(named.t.profiles.find((p) => p.id === ME).full_name, 'Sam L.');
+  assert.equal(named.goal('client_identity'), null, 'nor its mirror');
+});
+
+test('a first row made beside ours (another device, the same moment) is read and merged, not refused', async () => {
+  const db = accountDb({ goals: {} });
+  const { built } = await preview(db, [{ field: 'weekStarts', value: 'Sunday' }]);
+  let once = true;
+  db.hooks.before = (op) => { if (op === 'user_goals:insert' && once) { once = false; db.touch('client_settings', { radioAsked: true }); } };
+  await setup.applySetupCells(db, ME, built.cells, 'apply');
+  assert.deepEqual(db.goal('client_settings'), { radioAsked: true, weekStarts: 'Sunday' });
+});
+
 test('⚠ a write that fails part way restores what it had written: no half-applied setup without an undo', async () => {
   const db = accountDb({ goals: { client_settings: { units: setup.UNITS_IMPERIAL } }, notify: { quiet_start: 22 } });
   const { built } = await preview(db, [{ field: 'units', value: 'metric' }, { field: 'quietStart', value: 21 }, { field: 'name', value: 'New Name' }]);
@@ -423,6 +455,20 @@ test('⚠ only the account it was drafted for can confirm or undo it, and only a
   assert.match(same.message, /already how your account is set/);
   const visitor = await scaffold(db, { isMember: false }).propose({ changes: [{ field: 'units', value: 'imperial' }] });
   assert.deepEqual([visitor.ok, visitor.message], [false, 'Becoming a member unlocks this.']);
+});
+
+test('a coach is drafted their profile through the scaffold; a member asking the same is refused it', async () => {
+  const db = accountDb({ goals: { profile_custom: {} } });
+  const coach = scaffold(db, { role: 'trainer' });
+  const p = await coach.propose({ changes: [{ field: 'headline', value: 'Strength for busy parents' }, { field: 'yearsCoaching', value: '9' }] });
+  assert.equal(p.ok, true);
+  assert.deepEqual(p.preview.diff.map((d) => [d.field, d.after]), [['headline', 'Strength for busy parents'], ['yearsCoaching', '9 years']]);
+  const c = await coach.confirm(p.token);
+  assert.equal(c.ok, true);
+  assert.deepEqual(db.goal('profile_custom'), { line: 'Strength for busy parents', about: { years: 9 } });
+  const member = await scaffold(accountDb({ goals: {} })).propose({ changes: [{ field: 'headline', value: 'Hi' }] });
+  assert.equal(member.ok, false);
+  assert.match(member.message, /Headline \(for coaches only\)/);
 });
 
 test('⚠ execute and undo refuse a plan whose target is not the account confirming it', async () => {
