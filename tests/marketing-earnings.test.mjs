@@ -55,6 +55,8 @@ for (const [file, name, clients, rate] of [['coach.jsx', 'TrainerEarnings', 20, 
     assert.match(bare.replace(/&#x27;/g, "'"), /The take-home is before Stripe's card-processing fee, which comes out of your share\./);
     assert.doesNotMatch(bare, /estimated here/);
     assert.doesNotMatch(t.replace(/&#x27;/g, "'"), /The take-home is before Stripe's/);
+    // The footnote carries the basis, so it reads at AA on the dark card: cream at 62%, not 40% (Copilot, #2555).
+    assert.match(withRule(() => renderToStaticMarkup(React.createElement(C))), /data-earn-footnote="" style="margin-top:28px;font-family:sans;font-size:11.5px;color:rgba\(242,237,228,0\.62\)/);
     assert.match(t, /Monthly rate per client/);
     assert.match(t, /Clients you bring 0%/);
     assert.match(t, /No Shape fee on clients you bring\./);
