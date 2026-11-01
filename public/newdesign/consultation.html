@@ -314,6 +314,7 @@
     const proName = params.get('name') || 'Your coach';
     const proType = params.get('type') === 'nutritionist' ? 'nutritionist' : 'trainer';
     const proId = Number(params.get('id') || 0);
+    let wantedAt = params.get('at');   // an open time picked on the coach's profile, if any
     // Role accent: trainer rust, nutritionist gold (client teal is the default).
     const ACCENT = proType === 'nutritionist' ? '#d8b25a' : '#c0533b';
     document.documentElement.style.setProperty('--accent', ACCENT);
@@ -501,6 +502,15 @@
           if (!key) continue;
           if (!slotsByDate.has(key)) slotsByDate.set(key, []);
           slotsByDate.get(key).push(sl);
+        }
+        // A time picked on the coach's profile ("Take it →", coachProfileWeb.jsx) arrives as `at`.
+        // Once the times are laid out it is selected if it is still one of them (matched on the
+        // instant, as `booked` is), and only the first time: after that the member picks.
+        if (wantedAt) {
+          const want = Date.parse(wantedAt);
+          const hit = Number.isFinite(want) ? built.find((sl) => sl.ms === want) : null;
+          wantedAt = null;
+          if (hit) { selectedDate = localDateKey(hit.iso); selectedIso = hit.iso; renderDates(); updateConfirmation(); }
         }
       } catch (_) {
         if (seq !== availSeq) return;
