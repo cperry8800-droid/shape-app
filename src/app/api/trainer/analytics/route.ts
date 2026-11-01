@@ -17,6 +17,7 @@ import { buildTrajectory, subDeparture, NOT_ENDED_STATUSES, OPEN_SUB_STATUSES } 
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { profileNames } from '@/lib/client-names';
 import { isMeasuredSignedOut } from '@/lib/auth-lookup';
+import { rosterZones, memberWindow, rosterReadBounds } from '@/lib/roster-days';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -208,9 +209,15 @@ export async function GET(request: Request) {
     .eq('trainer_id', providerId);
 
   // -------- Client-progress rollups (roster-wide) ---------------------------
-  const since30Iso = new Date(Date.now() - 30 * 86400000).toISOString();
-  const since30Date = since30Iso.slice(0, 10);
-  const since7Iso = new Date(Date.now() - 7 * 86400000).toISOString();
+  // Workouts count from an instant 30 × 24 hours back, which holds exactly 30 days.
+  const rollupNow = Date.now();
+  const since30Iso = new Date(rollupNow - 30 * 86400000).toISOString();
+  const since7Iso = new Date(rollupNow - 7 * 86400000).toISOString();
+  // ⚠ A WEIGH-IN'S 30 DAYS ARE THE CLIENT'S OWN 30 (src/lib/roster-days.ts, as the nutritionist
+  // route and get_client_stats since #2547). `>=` the UTC date 30 days back was 31 dates with no
+  // upper bound, so the trend could start on a weigh-in 31 days old. One read spans every zone's
+  // window; each client's weigh-ins are then cut to the 30 days ending on their own today.
+  const weighSpan = rosterReadBounds(rollupNow, 30);
 
   // ⚠ A FIGURE THAT COULD NOT BE READ IS NULL, NOT 0. `data || []` turned a failed read into a
   // roster that did no work, and the Business page printed it as a measurement.
@@ -245,7 +252,7 @@ export async function GET(request: Request) {
     // subscriptions policy), so it's safe to read their workout aggregates
     // with the service-role client, constrained to exactly those clients.
     const admin = createAdminClient();
-    const [workoutRes, snapRes, prsByClient, rosterNames] = await Promise.all([
+    const [workoutRes, snapRes, prsByClient, rosterNames, zones] = await Promise.all([
       readAllById<SessionRow>((after) => {
         let q = admin
           .from('workout_sessions')
@@ -264,7 +271,8 @@ export async function GET(request: Request) {
           .from('daily_health_snapshot')
           .select('id, user_id, snapshot_date, weight_lb')
           .in('user_id', clientIds)
-          .gte('snapshot_date', since30Date)
+          .gte('snapshot_date', weighSpan.first)
+          .lte('snapshot_date', weighSpan.last)
           .not('weight_lb', 'is', null);
         if (after) q = q.gt('id', after);
         // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
@@ -275,6 +283,7 @@ export async function GET(request: Request) {
       // every id stopped at 1,000 rows, could pass the URL length limit, and dropped its error: the
       // names past it, or all of them, read "Client". A batch that fails comes back as unread.
       profileNames(supabase, clientIds),
+      rosterZones(supabase, clientIds),
     ]);
     const workoutsUnknown = !!workoutRes.error;
     if (workoutsUnknown) {
@@ -295,9 +304,13 @@ export async function GET(request: Request) {
     if (weightsUnknown) console.warn('[shape-app] trainer analytics: weigh-ins read failed — weight trends render as unread:', snapRes.error?.message);
     // The pages come in id order; a client's weigh-ins are put in date order before first and latest.
     const weighIns = (snapRes.data || []).slice().sort((a, b) => String(a.snapshot_date).localeCompare(String(b.snapshot_date)));
+    const windows = new Map<string, { first: string; last: string }>();
     for (const r of weighIns) {
       if (r.weight_lb == null) continue;
       const k = String(r.user_id);
+      const win = windows.get(k) ?? memberWindow(rollupNow, zones.get(k), 30);
+      windows.set(k, win);
+      if (r.snapshot_date < win.first || r.snapshot_date > win.last) continue;
       const list = weightsByClient.get(k) || [];
       list.push(Number(r.weight_lb));
       weightsByClient.set(k, list);

@@ -107,7 +107,8 @@ test('the month: a calendar of every day, its legend, rates by habit and the bes
   const cells = [...m.host.querySelectorAll('[aria-label="Habits kept each day this month"] button')];
   assert.equal(cells.length, hpDaysInMonth(TODAY));
   assert.match(m.text(), /Habits keptNoneSomeMostAll/);
-  assert.match(m.text(), /Best run · (Water|Smoking), \d+ days/);
+  // On the 1st the month holds one day, so its best run is "1 day" (progress.bestRun's own plural).
+  assert.match(m.text(), /Best run · (Water|Smoking), (1 day(?!s)|\d+ days)/);
   assert.match(m.text(), /By habit/);
   assert.ok(m.btn(/Next month/).disabled);
   await m.close();
