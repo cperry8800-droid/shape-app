@@ -630,6 +630,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'App: chat threads get day dividers and swipe to reply (#2561). Migration: 2026-11-01-channel-message-replies.sql',
+      items: [
+        { label: 'Owner, 2026-11-01: "build the day dividers and swipe to reply" (two of the ideas offered for the chat after #2556)', status: 'done' },
+        { label: '#2561 day dividers: a thread says each day once (Today, Yesterday, the weekday this past week, else the date; the year only when not this one) in the reader\'s language, a message under it says only its clock, and a new day starts a new byline. chatTime.mjs: bsChatDayKey, bsChatDayLabel, bsChatClock, bsChatDividerIndexes', status: 'done' },
+        { label: '#2561 swipe to reply: swipe a message left (right is Back) and the composer quotes it, "Replying to {name}" with × in the tray\'s new `above`; or Reply after the reactions from a long press, a right click, a double tap or the keyboard (each bubble a tab stop: Enter, Space, Shift+F10; Escape). A swipe never starts on a control inside a bubble; [data-bs-noswipe-left] claims the leftward swipe alone, so a right swipe on a message still goes Back. The quote over an answer is drawn from the quoted message when it is loaded. A finger that travels is no long press', status: 'done' },
+        { label: '#2561 storage: a direct message\'s quote in messages.metadata.reply; a channel\'s in channel_messages.metadata (2026-11-01-channel-message-replies.sql: jsonb object, not null, default {}, at most 4 KB; until it runs, channel history reads select * and a channel reply goes without its quote). chatReply.mjs reads it strictly; channel rows keep their id and both direct-message readers the sender\'s account', status: 'done' },
+        { label: 'Review: Codex\'s four P2s (a swipe from a control in a bubble, Reply by keyboard, direct-message history dropping sender_id, pan-y costing the right-swipe Back) fixed in 17995bb, 49fca88 and 120f20c, each with a test that fails on the head it was found on; Codex clean on 120f20c. Mutation round 51 of 51 killed (Pacific/Auckland)', status: 'done' },
+        { label: 'OWNER: run supabase-migrations/2026-11-01-channel-message-replies.sql, then check it live (the column, its default and the check) with read-only queries. Until then channel replies send without their quote', status: 'pending' },
+        { label: 'Left by #2561: the website\'s chat panel draws no replies yet (it shows the words); the preview\'s demo threads carry labels, not stamps, so they show no dividers; the new strings want the native-speaker read already waited on (Hausa and Pidgin first)', status: 'pending' },
+        { label: 'OWNER: on a phone, signed in: a left swipe in a DM, a coach thread and a channel (the message follows the finger with no touch-action set), a right swipe on a message or from the edge goes Back, and a scroll with a finger on a message opens neither the reactions nor a reply (seen only in headless Chromium, with synthetic touches)', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: Nora\'s profile in the profiles\' look, her voice screen and face, chat threads in her sheet\'s design (#2556); the Dependabot PRs\' red test (#2553). No migration',
       items: [
         { label: 'Owner, 2026-11-01, on screenshots: Nora\'s profile "also need to update design of this page" and "has old masthead"; her face "also noras avatar is gone now" and "avatar broken here also"; the voice screen "lets also make this screen look cooler"; her sheet "also use this chat design for the rest of messaging on chat page"; and "whats going on with these PRs" (the four Dependabot PRs, red)', status: 'done' },
