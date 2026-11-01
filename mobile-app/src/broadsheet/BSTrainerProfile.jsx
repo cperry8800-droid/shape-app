@@ -450,10 +450,13 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // sheet never lists or checks out a nutrition plan (Codex P2 on b76e074).
   const roleOf = (pl) => pl.providerRole || (pl.kind === 'meal_plan' ? 'nutritionist' : 'trainer');
   const ownPlans = Array.isArray(salePlans) ? salePlans.filter((pl) => pl && roleOf(pl) === (nutri ? 'nutritionist' : 'trainer')) : salePlans;
-  // What the Work-with sheet lists: a coach's published plans, or the sample's own programs, which
-  // its page shows everywhere else (the sheet said "Publish your first plan" under every tab).
-  const sheetPlans = demo ? programs.filter((p) => p && p.plan).map((p) => ({ ...p.plan, category: 'program',
-    meta: p.weeks ? tr('profile:trainer.programWeeks', { defaultValue: '{count, plural, one {# week} other {# weeks}}', count: p.weeks }) : (p.plan.meta || '') })) : ownPlans;
+  // What the Work-with sheet lists: a coach's published plans, or the sample's own: a trainer's
+  // programs, which its page shows everywhere else, or a nutritionist's meal plans (the sheet said
+  // "Publish your first plan" under every tab).
+  const weeksSaid = (n) => tr('profile:trainer.programWeeks', { defaultValue: '{count, plural, one {# week} other {# weeks}}', count: n });
+  const sheetPlans = !demo ? ownPlans
+    : nutri ? (demo.plans || []).map((pl) => ({ ...pl, meta: pl.weeks ? weeksSaid(pl.weeks) : '' }))
+    : programs.filter((p) => p && p.plan).map((p) => ({ ...p.plan, category: 'program', meta: p.weeks ? weeksSaid(p.weeks) : (p.plan.meta || '') }));
   // A real coach's published plans, for a live listing with no monthly price, when one of them has a
   // price to pay (a workout or reusable program is saved with none, and alone it would hide "hasn't
   // listed prices" behind rows with nothing to buy: Codex P2 on 2ecbc5b). An unfinished or suspended
