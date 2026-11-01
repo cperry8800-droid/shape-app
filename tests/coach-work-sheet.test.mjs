@@ -103,6 +103,12 @@ test('the word over each plan is said in the reader\'s language, not the stored 
   const trainer = rows(block({ salePlans: [plan('a', 'program', 'Strong in 12'), plan('w', 'workout', 'Form check')] }));
   assert.ok(trainer[0].startsWith('ProgramStrong in 12'), trainer[0]);
   assert.ok(trainer[1].startsWith('WorkoutForm check'), trainer[1]);
+  // A trainer's paid multi-week plan is saved as `plan`: it reads as a program and sits under Programs,
+  // not Coaching (Codex P2 on #2557).
+  const paid = block({ salePlans: [plan('p', 'plan', 'Twelve-week block'), plan('w', 'workout', 'Form check')] });
+  assert.deepEqual(tabs(paid), ['All', 'Workouts', 'Programs']);
+  paid.click('Programs', (n) => n.props['data-offer-tab'] != null);
+  assert.deepEqual(rows(paid).map((r) => r.startsWith('ProgramTwelve-week block')), [true]);
   const nutri = rows(block({ isNutri: true, salePlans: [plan('m', 'meal', 'Train-day fuel'), plan('d', 'diet', 'Cut protocol'), plan('x', 'cleanse', 'Odd one')] }));
   assert.ok(nutri[0].startsWith('Meal planTrain-day fuel'), nutri[0]);
   assert.ok(nutri[1].startsWith('DietCut protocol'), nutri[1]);

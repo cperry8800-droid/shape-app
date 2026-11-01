@@ -19460,13 +19460,16 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
   const offerBucket = (cat) => {
     const cc = String(cat || '').toLowerCase();
     if (isNutri) return /meal/.test(cc) ? 'Meals' : /diet|cut|recomp|nutrition/.test(cc) ? 'Diets' : 'Coaching';
-    return /workout|single|session|form/.test(cc) ? 'Workouts' : /program|block|strength|hypertrophy|peak/.test(cc) ? 'Programs' : 'Coaching';
+    // A trainer's paid multi-week plan is saved as `plan` (the Programs page's builder), and is a program.
+    return /workout|single|session|form/.test(cc) ? 'Workouts' : (cc === 'plan' || /program|block|strength|hypertrophy|peak/.test(cc)) ? 'Programs' : 'Coaching';
   };
   // The small word over each plan, in the reader's language: it was the plan's category as stored
   // ("meal", "program"), in English whatever the language. A category with no word of its own keeps it.
   const offerKind = (pl) => {
     const raw = String(pl.category || (pl.kind === 'meal_plan' ? 'meal plan' : 'program')).replace(/_/g, ' ');
-    const key = { program: 'program', workout: 'workout', meal: 'mealPlan', mealplan: 'mealPlan', 'meal plan': 'mealPlan', diet: 'diet' }[raw.toLowerCase()];
+    // `plan` is a trainer's paid multi-week plan (the builder's "A multi-week paid program clients
+    // enroll in"), so it reads as a program (Codex P2 on #2557).
+    const key = { program: 'program', plan: 'program', workout: 'workout', meal: 'mealPlan', mealplan: 'mealPlan', 'meal plan': 'mealPlan', diet: 'diet' }[raw.toLowerCase()];
     const english = { program: 'Program', workout: 'Workout', mealPlan: 'Meal plan', diet: 'Diet' }[key];
     return key ? tr('profile:coach.kind.' + key, { defaultValue: english }) : raw;
   };
