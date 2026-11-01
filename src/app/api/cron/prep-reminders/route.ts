@@ -7,9 +7,19 @@
 // (mobile-app/src/services/prepAhead.mjs), so the two agree on what is owed and what is prepped.
 // A day is named in one reminder only; the card stays until the prep is recorded.
 //
+// Phase 2 (2026-11-01, the approved review's "Second" phase), all decided in prepAhead.mjs:
+//   - the hour is the member's own (user_goals `meal_prep_reminder`, 7 pm until they choose), still
+//     in their own zone, still one run an hour;
+//   - a meal the nutritionist ticked "prep the night before" is owed like the oats;
+//   - a meal the member planned for a day themselves (user_goals `client_meal_days`) is owed like a
+//     plan's, so a member with no nutritionist is reminded too: the members to look at are those
+//     with a published plan AND those who changed their own day plan in the window below.
+//
 // It goes through createPreferredNotification: a muted member, or one who turned "Prep reminders"
 // off, gets nothing, and the push webhook honours the channel toggles. Inside the member's quiet
-// hours the row still lands in the app, with no push.
+// hours the row still lands in the app, with no push (the `quiet` flag, as /api/cron/habit-watch):
+// it is NOT held for /api/cron/push-held, whose push would come after the night is over, the
+// morning of the meal it asked to prep for.
 //
 // ⚠ A READ THAT FAILS IS NOT AN EMPTY ANSWER. Swaps, prep records and earlier reminders decide
 // what is owed; reading any of them as "none" would remind a member about a meal they swapped
@@ -26,13 +36,16 @@ import { normalizeZone } from '@/lib/time';
 import * as NotifyLayer from '@/lib/ai/notifications.mjs';
 import { SHAPE_KITCHEN_RECIPES } from '../../../../../mobile-app/src/broadsheet/shapeKitchenData.js';
 import {
+  BS_PREP_REMINDER_KIND,
   bsMakeAheadIndex,
   bsPrepDueTonight,
+  bsPrepHourOf,
   bsPrepReminderCopy,
   bsPrepReminderText,
-  bsPrepRoute,
+  bsPrepRouteFor,
   bsYmdIn,
 } from '../../../../../mobile-app/src/services/prepAhead.mjs';
+import { BS_MEAL_DAYS_KIND } from '../../../../../mobile-app/src/services/mealDays.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,11 +56,11 @@ const { inQuietHours, localHour } = NotifyLayer as unknown as {
   localHour: (now: Date, tz: string) => number;
 };
 
-// 7 pm local: after a usual dinner and before the default quiet hours (22:00). A time the member
-// chooses is the next step (owner, 2026-10-05).
-const PREP_HOUR = 19;
+// The hour is each member's own (bsPrepHourOf: 7 pm until they choose, from 3 pm to 11 pm).
 // How far back earlier reminders are read. One prep keeps at most 7 days, and a reminder names
-// days from tomorrow on, so a reminder older than this names no day still ahead.
+// days from tomorrow on, so a reminder older than this names no day still ahead. The same window
+// finds the members who planned a meal themselves: the app plans today or tomorrow and drops the
+// days gone by on every write, so a day plan last changed longer ago than this holds no day ahead.
 const REMINDED_DAYS = 9;
 // PostgREST takes `in` filters on the URL, so long id lists go in chunks.
 const CHUNK = 150;
@@ -141,18 +154,65 @@ async function handle(request: Request) {
     // Reported, never swallowed: the members past the ceiling get no reminder this hour.
     console.error(`[shape] prep reminders: plan scan stopped at its ${PLAN_MAX_ROWS}-row ceiling; members past it are not reminded`);
   }
-  if (!newest.size) return NextResponse.json({ ok: true, owed: 0, sent: 0, truncated });
 
-  // Each member's zone: the one the app saves on every open, else their notification zone.
-  const ids = [...newest.keys()];
-  const [profiles, settings] = await Promise.all([
+  // The members who planned meals themselves (Phase 2): every day plan changed in the window, by
+  // the same kind of walk, a cursor on `user_id` (unique within one kind: the table's key is
+  // (user_id, kind)). Ids only; the documents are read below for the members due this hour.
+  // ⚠ A FAILED READ STOPS THE RUN, as the plan scan's does: read as "nobody planned anything", it
+  // would leave a member's own oats unreminded with nothing to say so.
+  const planners = new Set<string>();
+  const changedSince = new Date(now - REMINDED_DAYS * 86400000).toISOString();
+  let ownCursor = '';
+  let ownScanned = 0;
+  let ownTruncated = false;
+  for (;;) {
+    let q = admin
+      .from('user_goals')
+      .select('user_id')
+      .eq('kind', BS_MEAL_DAYS_KIND)
+      .gte('updated_at', changedSince);
+    if (ownCursor) q = q.gt('user_id', ownCursor);
+    // capped-read-ok: not a cap that keeps the first rows. Each page is one step of a cursor walk
+    // that reads on to the end (or to the ceiling, which is reported), as the plan scan above.
+    const { data, error } = await q.order('user_id', { ascending: true }).limit(PLAN_PAGE);
+    if (error) {
+      console.error('[shape] prep reminders: day-plan scan failed:', error);
+      return NextResponse.json({ error: 'Could not read the meals members planned.' }, { status: 500 });
+    }
+    const page = (data ?? []) as Row[];
+    for (const r of page) if (typeof r.user_id === 'string' && r.user_id) planners.add(r.user_id);
+    ownScanned += page.length;
+    const last = page.length ? page[page.length - 1].user_id : null;
+    if (page.length < PLAN_PAGE || typeof last !== 'string') break;
+    if (ownScanned >= PLAN_MAX_ROWS) { ownTruncated = true; break; }
+    ownCursor = last;
+  }
+  if (ownTruncated) {
+    truncated = true;
+    console.error(`[shape] prep reminders: day-plan scan stopped at its ${PLAN_MAX_ROWS}-row ceiling; members past it are not reminded of meals they planned`);
+  }
+
+  const ids = [...new Set([...newest.keys(), ...planners])];
+  if (!ids.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, truncated });
+
+  // Each member's zone: the one the app saves on every open, else their notification zone. And the
+  // hour each chose for the reminder (Phase 2), which decides who is due this hour: unreadable, it
+  // stops the run (read as "none chosen", a member who moved it to 9 pm would be reminded at 7).
+  const [profiles, settings, hours] = await Promise.all([
     readIn(ids, (c) => admin.from('client_profiles').select('user_id, timezone').in('user_id', c)),
     readIn(ids, (c) => admin.from('notification_settings').select('user_id, tz, quiet_start, quiet_end').in('user_id', c)),
+    readIn(ids, (c) => admin.from('user_goals').select('user_id, data').in('user_id', c).eq('kind', BS_PREP_REMINDER_KIND)),
   ]);
   if (!profiles || !settings) {
     console.error('[shape] prep reminders: could not read zones');
     return NextResponse.json({ error: 'Could not read time zones.' }, { status: 500 });
   }
+  if (!hours) {
+    console.error('[shape] prep reminders: could not read the reminder times members chose');
+    return NextResponse.json({ error: 'Could not read reminder times.' }, { status: 500 });
+  }
+  const hourChosen = new Map<string, number>();
+  for (const r of hours) hourChosen.set(String(r.user_id), bsPrepHourOf(r.data));
   // normalizeZone and localHour each build an Intl formatter, so each runs once per distinct
   // zone, not once per member.
   const zoneCache = new Map<string, string | null>();
@@ -174,14 +234,17 @@ async function handle(request: Request) {
     if (!hourIn.has(tz)) hourIn.set(tz, localHour(new Date(now), tz));
     return hourIn.get(tz);
   };
-  const due = ids.filter((id) => hourOf(zoneOf.get(id) || 'UTC') === PREP_HOUR);
+  // Due: it is the hour the member chose (7 pm until they do), in their own zone.
+  const due = ids.filter((id) => hourOf(zoneOf.get(id) || 'UTC') === (hourChosen.get(id) ?? bsPrepHourOf(null)));
   if (!due.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, truncated });
 
   const since = new Date(now - REMINDED_DAYS * 86400000).toISOString();
+  // Only members with a plan have a payload to read; one who only planned meals themselves has none.
+  const planIds = due.flatMap((id) => { const p = newest.get(id); return p ? [p.id] : []; });
   const [planRows, goals, earlier] = await Promise.all([
-    // A plan archived since the scan is not read: that member is skipped this hour.
-    readIn(due.map((id) => (newest.get(id) as { id: string }).id), (c) => admin.from('client_meal_plans').select('id, payload').in('id', c).eq('status', 'published')),
-    readIn(due, (c) => admin.from('user_goals').select('user_id, kind, data').in('user_id', c).in('kind', ['client_meal_swaps', 'meal_prep'])),
+    // A plan archived since the scan is not read: that member is reminded of their own meals only.
+    readIn(planIds, (c) => admin.from('client_meal_plans').select('id, payload').in('id', c).eq('status', 'published')),
+    readIn(due, (c) => admin.from('user_goals').select('user_id, kind, data').in('user_id', c).in('kind', ['client_meal_swaps', 'meal_prep', BS_MEAL_DAYS_KIND])),
     readIn(due, (c) => admin.from('notifications').select('user_id, data').in('user_id', c).eq('type', 'meal_prep').gte('created_at', since)),
   ]);
   if (!planRows || !goals || !earlier) {
@@ -209,11 +272,13 @@ async function handle(request: Request) {
           const f = r.data && typeof r.data === 'object' ? (r.data as Row).forMeals : null;
           return Array.isArray(f) ? f.filter((x): x is string => typeof x === 'string') : [];
         });
-      const payload = payloadOf.get((newest.get(userId) as { id: string }).id);
+      const plan = newest.get(userId);
+      const payload = plan ? payloadOf.get(plan.id) : null;
       const days = payload && typeof payload === 'object' ? (payload as Row).days : null;
       const groups = bsPrepDueTonight({
         days,
         swaps: goal('client_meal_swaps'),
+        mine: goal(BS_MEAL_DAYS_KIND),
         entries: Array.isArray(goal('meal_prep').entries) ? goal('meal_prep').entries : [],
         reminded,
         today,
@@ -234,7 +299,8 @@ async function handle(request: Request) {
         type: 'meal_prep',
         title: text.title,
         body: text.body,
-        route: bsPrepRoute(groups[0].slug),
+        // A catalog recipe opens its cook screen; a dish the nutritionist ticked opens Eat.
+        route: bsPrepRouteFor(groups[0]),
         quiet,
         data: {
           // One reminder per member per evening: with the unique index of

@@ -281,12 +281,16 @@ test('the shell, the notification list and Eat are wired to the same pieces', ()
   assert.ok(CLIENT.includes('if (bsRouteNotification(route, data)) setShowNotifications(false);'));
   // Eat: the cook screen, the card and the row marks.
   assert.ok(CLIENT.includes('if (prepCook) return <BSPrepTonightCook slug={prepCook.slug} group={prepCook.group} onClose={() => setPrepCook(null)} />;'));
-  assert.ok(CLIENT.includes('<BSPrepTonightCard group={g} onStart={() => setPrepCook({ slug: g.slug, group: g })} onDone={() => markPrepped(g)} />'));
+  // A dish the nutritionist ticked has no catalog method, so no Start (Phase 2).
+  assert.ok(CLIENT.includes('<BSPrepTonightCard group={g} onStart={g.catalog === false ? null : () => setPrepCook({ slug: g.slug, group: g })} onDone={() => markPrepped(g)} />'));
   assert.ok(CLIENT.includes('const { prepped, notPrepped } = bsMenuPrepState({ meal: m, logged, entries: prepEntries, ahead: aheadOn.get(m.id), viewYmd, todayYmd, now: prepNow });'));
-  // The card shows on today's menu from 3 pm, read from the shared rule.
-  assert.ok(CLIENT.includes('const prepTonightGroups = liveMealDays && viewYmd === todayYmd && new Date(prepNow).getHours() >= 15 && Array.isArray(prepEntries)'));
-  // Home's agenda reads a made-ahead meal's "Prepped ✓" by the same per-day rule, under Eat's meal id.
-  assert.ok(CLIENT.includes("ahead: m.planMealId && BS_MAKE_AHEAD.has(m.prepSlug) ? { date: selYmd, mealId: m.planMealId, title: m.title, slug: m.prepSlug } : null,"));
+  // The card shows on today's menu from 3 pm, read from the shared rule, for a plan or the member's
+  // own day plan (Phase 2).
+  assert.ok(CLIENT.includes('const prepTonightGroups = prepLive && viewYmd === todayYmd && new Date(prepNow).getHours() >= 15 && Array.isArray(prepEntries)'));
+  assert.ok(CLIENT.includes('const prepLive = !!(liveMealDays || myDays);'));
+  // Home's agenda reads a made-ahead meal's "Prepped ✓" by the same per-day rule, under Eat's meal id,
+  // a ticked meal included (Phase 2).
+  assert.ok(CLIENT.includes("ahead: m.planMealId && (BS_MAKE_AHEAD.has(m.prepSlug) || m.prepNightBefore) ? { date: selYmd, mealId: m.planMealId, title: m.title, slug: m.prepSlug } : null,"));
   assert.ok(CLIENT.includes("planMealId: meal.id != null && meal.id !== '' ? String(meal.id) : `live-${i}-${j}`,"));
   // Both settings screens offer the switch.
   assert.ok(CLIENT.includes("['meal_prep', 'Prep reminders', 'The night before a meal that needs it']"));

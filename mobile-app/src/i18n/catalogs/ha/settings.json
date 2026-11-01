@@ -603,5 +603,9 @@
   "notifyPrefs.member.payments": "Rasidu",
   "notifyPrefs.member.payments.sub": "Idan biyan kuɗi ya tafi",
   "notifyPrefs.member.account": "Daga Shape",
-  "notifyPrefs.member.account.sub": "Maraba da kai, da bayanai game da asusunka"
+  "notifyPrefs.member.account.sub": "Maraba da kai, da bayanai game da asusunka",
+  "notifyPrefs.prepHour": "Lokacin tunatarwa",
+  "notifyPrefs.prepHourSub": "Maraicen da ya gabata, a lokacinka",
+  "notifyPrefs.prepHourQuiet": "A cikin lokacin shiru: a cikin manhaja, ba tare da push ba",
+  "notifyPrefs.prepHourFailed": "Ba a adana lokacin tunatarwa ba. Sake gwadawa."
 }

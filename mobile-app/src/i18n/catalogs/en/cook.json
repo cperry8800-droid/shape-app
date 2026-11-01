@@ -235,5 +235,13 @@
   "prepAhead.savedFor": "Saved as prepped for {days}. Nothing is logged as eaten.",
   "prepAhead.saved": "Saved as prepped. Nothing is logged as eaten.",
   "prepAhead.notPrepped": "Not prepped last night",
-  "plated.prepped": "Prepped for tomorrow."
+  "plated.prepped": "Prepped for tomorrow.",
+  "prepAhead.ticked": "Your nutritionist marked this one to prep the night before.",
+  "morningSwap.offer": "Have {recipe} this morning instead? Ready in {min} min, nothing to prep ahead.",
+  "morningSwap.offerNoTime": "Have {recipe} this morning instead? Nothing to prep ahead.",
+  "morningSwap.todayOnly": "For today only. The rest of your plan stays as it is.",
+  "morningSwap.swap": "Swap it",
+  "morningSwap.keep": "Keep it",
+  "morningSwap.done": "Swapped for today: {recipe}.",
+  "morningSwap.failed": "The swap was not saved. Try again."
 }

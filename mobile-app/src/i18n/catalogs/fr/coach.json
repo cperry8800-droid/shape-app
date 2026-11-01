@@ -1502,5 +1502,8 @@
   "roster.weekLogged": "Saisi · 7 j",
   "roster.weekAdherence": "Assiduité",
   "roster.workouts6w": "{count, plural, one {# séance} other {# séances}} en 6 sem.",
-  "roster.avgKcal": "Moy. {kcal} kcal"
+  "roster.avgKcal": "Moy. {kcal} kcal",
+  "editor.nightBefore": "À PRÉPARER LA VEILLE",
+  "editor.nightBeforeShape": "PRÉPARÉ LA VEILLE · RECETTE SHAPE",
+  "editor.nightBeforeAria": "Préparer {name} la veille"
 }

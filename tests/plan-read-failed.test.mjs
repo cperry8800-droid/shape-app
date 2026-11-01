@@ -119,8 +119,11 @@ test('Eat: a failed read says it could not load instead of "No meals planned"', 
   assert.equal((await eatLoad(null, 1)).invalidated, 1, 'Try again reads past it');
   assert.match(client, /\{bsEatSignedIn && eatPlanFailed && !liveMealDays && <BSPlanReadFailed part="meals" busy=\{eatPlanRetrying\} onRetry=\{\(\) => \{ setEatPlanRetrying\(true\); setEatPlanReads\(\(n\) => n \+ 1\); \}\} \/>\}/);
   assert.match(client, /\{effMeals\.length === 0 && \(eatPlanRead \|\| !bsEatSignedIn\) && \(/, '"No meals planned" only once the meals read answered');
-  // Tonight's prep: a failed read is unknown, not "nothing owed".
-  assert.match(slice(client, 'async function bsLoadPrepTonight() {', '// Names as one phrase'), /if \(!bsPlanPartRead\(plan, 'meals'\)\) return null;\s+if \(!plan\.meals\.hasPlan\) return \[\];/);
+  // Tonight's prep: a failed read is unknown, not "nothing owed". No plan is an empty week (night-
+  // before prep, Phase 2: a member with no plan can owe a prep for a meal they planned themselves).
+  const prepLoad = slice(client, 'async function bsLoadPrepTonight() {', '// Names as one phrase');
+  assert.match(prepLoad, /if \(!bsPlanPartRead\(plan, 'meals'\)\) return null;\s+const \[swaps, entries, mine\] = await Promise\.all\(/);
+  assert.match(prepLoad, /days: plan\.meals\.hasPlan \? plan\.meals\.days : \[\]/);
 });
 
 test('the website: a failed read says so on Workouts and Nutrition, and reads again', () => {

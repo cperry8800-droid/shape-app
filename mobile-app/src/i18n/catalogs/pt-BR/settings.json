@@ -603,5 +603,9 @@
   "notifyPrefs.member.payments": "Recibos",
   "notifyPrefs.member.payments.sub": "Quando um pagamento é aprovado",
   "notifyPrefs.member.account": "Do Shape",
-  "notifyPrefs.member.account.sub": "Sua boas-vindas e avisos sobre a sua conta"
+  "notifyPrefs.member.account.sub": "Sua boas-vindas e avisos sobre a sua conta",
+  "notifyPrefs.prepHour": "Horário do lembrete",
+  "notifyPrefs.prepHourSub": "Na noite anterior, no seu horário",
+  "notifyPrefs.prepHourQuiet": "No seu horário de silêncio: no app, sem push",
+  "notifyPrefs.prepHourFailed": "O horário do lembrete não foi salvo. Tente de novo."
 }
