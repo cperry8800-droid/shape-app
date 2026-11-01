@@ -267,18 +267,28 @@ function useCpwWeek({ providerId, role, listingState, sampleWeek, epoch }) {
   return avail;
 }
 // The coach's published plans, as anyone reads them (the public preview of each program).
+// 'loading' | 'ready' | 'none' | 'error': a read that failed is not "no plans", so Work with says it
+// could not read them and offers Try again, rather than telling a visitor the coach sells nothing
+// (Codex P2 on #2560).
 function useCpwPlans(uid) {
-  const [plans, setPlans] = React.useState(null);
+  const [st, setSt] = React.useState({ state: uid ? "loading" : "none", rows: [] });
+  const [epoch, setEpoch] = React.useState(0);
   React.useEffect(() => {
     const cl = window.shapeDb && window.shapeDb.client;
-    if (!uid || !cl || !cl.rpc) { setPlans([]); return undefined; }
+    if (!uid || !cl || !cl.rpc) { setSt({ state: "none", rows: [] }); return undefined; }
     let on = true;
+    setSt({ state: "loading", rows: [] });
     Promise.resolve().then(() => cl.rpc("get_coach_sale_plans_by_user", { p_user_id: uid }))
-      .then((r) => { if (on) setPlans(r && !r.error && Array.isArray(r.data) ? r.data : []); })
-      .catch(() => { if (on) setPlans([]); });
+      .then((r) => {
+        if (!on) return;
+        if (!r || r.error) { setSt({ state: "error", rows: [] }); return; }
+        setSt({ state: "ready", rows: Array.isArray(r.data) ? r.data : [] });
+      })
+      .catch(() => { if (on) setSt({ state: "error", rows: [] }); });
     return () => { on = false; };
-  }, [uid]);
-  return plans;
+  }, [uid, epoch]);
+  const retry = React.useCallback(() => setEpoch((n) => n + 1), []);
+  return { state: st.state, rows: st.rows, retry };
 }
 // Their posts, newest first: a visitor's read keeps to the tiers a profile shows before the limit,
 // so feed-only posts cannot crowd out the profile's (the living profile's rule).
@@ -402,7 +412,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   // ── Their work ──
   const salePlans = useCpwPlans(live ? uid : null);
   const roleOf = (pl) => pl.provider_role || pl.providerRole || (pl.kind === "meal_plan" ? "nutritionist" : "trainer");
-  const ownPlans = Array.isArray(salePlans) ? salePlans.filter((pl) => pl && roleOf(pl) === role) : [];
+  const ownPlans = salePlans.rows.filter((pl) => pl && roleOf(pl) === role);
   const postRows = useCpwPosts(live ? uid : null, isSelf);
   const cards = React.useMemo(() => (postRows || []).map((r) => K.bsCoachCardFromRow(r)).filter((c) => c && (isSelf || (typeof lvFeedVisible === "function" ? lvFeedVisible(c.vis, false) : true))), [postRows, isSelf]);
   const programs = nutri ? [] : sample ? (sample.programs || []) : K.bsCoachPrograms(ownPlans);
@@ -525,6 +535,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const workWith = (
     <CpwWorkWith T={T} cm={cm} sells={sells} monthly={monthly} listed={listed} sample={!!sample} providerId={providerId}
       offer={listed ? listing.row.monthly_offer : null} plans={plansForSale} plansPaid={plansPaid} K={K}
+      plansState={sample ? "ready" : salePlans.state} onRetryPlans={salePlans.retry}
       onPickIntro={providerId && !avail.sample ? toDay : null} onMessage={message} />
   );
 
@@ -747,7 +758,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
 // and Buy go through livingShared.jsx's one path (useLvCoachCommerce's subscribe, lvBuyPlan), each
 // sending the code typed in the code box (LvCodeBox) so the server checks it before the redirect to
 // Stripe (coach direct charges, #2403).
-function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, offer, plans, plansPaid, onPickIntro, onMessage }) {
+function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, offer, plans, plansPaid, plansState = "ready", onRetryPlans, onPickIntro, onMessage }) {
   const { pal, ACC, ON_ACC, INK, ink, first, nutri, isSelf } = T;
   const [cat, setCat] = React.useState("All");
   const perks = offer && Array.isArray(offer.includes) ? offer.includes.filter((x) => typeof x === "string" && x.trim()).slice(0, 3) : [];
@@ -803,7 +814,9 @@ function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, off
   const shown = catNow === "All" ? rows : rows.filter((r) => r.cat === catNow);
   const buy = (pl) => lvBuyPlan({ name: pl.name, price: K.bsWorkPrice(pl.price), planId: pl.id, providerId: pl.provider_id || pl.providerId || providerId, providerRole: pl.provider_role || pl.providerRole || (nutri ? "nutritionist" : "trainer") });
   const canBuy = (r) => !isSelf && !sample && listed && r.pl.id != null && (r.pl.provider_id || r.pl.providerId || providerId) && K.bsWorkPaid(r.pl.price);
-  const plansPart = rows.length || isSelf ? (
+  const plansFailed = plansState === "error";
+  // While the plans are read nothing is claimed about them; a failed read says so, with Try again.
+  const plansPart = rows.length || plansFailed || (isSelf && plansState !== "loading") ? (
     <div data-plans="" style={{ marginTop: 26 }}>
       {/* The app's station head (BSTStationHead): the words in capitals over a rule of ink. */}
       <div style={{ fontFamily: CPW_DISPLAY, fontSize: 17, fontWeight: 500, letterSpacing: "0.03em", textTransform: "uppercase", paddingBottom: 6, borderBottom: `2px solid ${INK}` }}>{nutri ? `Work with ${first}` : `Train with ${first}`}</div>
@@ -827,7 +840,12 @@ function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, off
             ? <button type="button" data-plan-buy="" onClick={() => buy(r.pl)} style={{ ...ctaInk, flex: "none", padding: "0 14px", fontSize: 9.5, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>Buy · {r.price}</button>
             : <div style={{ fontFamily: CPW_DISPLAY, fontSize: 18, fontWeight: 600, fontVariantNumeric: "tabular-nums", flex: "none" }}>{r.price}</div>}
         </div>
-      )) : (
+      )) : plansFailed ? (
+        <div data-plans-error="" role="alert" style={{ padding: "0 0 6px", borderTop: `1px solid ${ink(0.12)}` }}>
+          <CpwHint ink={ink}>{isSelf ? "Couldn't read your plans just now." : `Couldn't read ${first}'s plans just now.`}</CpwHint>
+          {onRetryPlans ? <button type="button" data-plans-retry="" onClick={onRetryPlans} style={cpwLink(ACC)}>Try again</button> : null}
+        </div>
+      ) : (
         <div data-offer-empty="" style={{ padding: "13px 0", borderTop: `1px solid ${ink(0.12)}`, fontFamily: CPW_MONO, fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink(0.5) }}>{isSelf ? "Publish your first plan to list it here" : `${first} hasn't listed a plan yet`}</div>
       )}
     </div>
@@ -869,7 +887,7 @@ function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, off
         </React.Fragment>
       ) : (
         <div style={{ marginTop: 14 }}>
-          {plansPaid ? null : <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: ink(0.74) }}>{sample
+          {plansPaid || plansFailed || plansState === "loading" ? null : <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: ink(0.74) }}>{sample
             ? `${first} hasn't set up a Shape account yet, so there is nothing to buy here. Send a message to ask about working together.`
             : `${first} hasn't listed prices on Shape yet. Book a free intro or send a message to ask.`}</p>}
           {plansPaid && cm.provId ? <div data-code-box="" style={{ marginTop: 4 }}><LvCodeBox ink={INK} /></div> : null}

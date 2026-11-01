@@ -136,7 +136,7 @@ const settle = () => React.act(async () => { await new Promise((r) => setTimeout
 const LISTING = { id: 7, name: 'Tom Trainer', specialty: 'Strength', price: 180, credential: 'NSCA-CSCS', verified: true, at_capacity: false, capacity_resume_at: null, listing_ready: true, monthly_offer: { includes: ['A program written for your week'] }, listing_media: null, owner_id: 'coach-1' };
 const PLANS = [{ id: 'p1', kind: 'program', name: 'Strong in 12', price: 79, category: 'program', meta: '12 weeks', provider_id: 7, provider_role: 'trainer', detail: { preview: true, blocks: [{ week: 0, day: 0, dayName: 'Squat', name: 'Back squat', equipment: 'Barbell' }], weeks: 12, media: [] } }];
 const dayAfter = new Date(Date.now() + 2 * 864e5);
-function backend({ capacity = false } = {}) {
+function backend({ capacity = false, plans = () => ({ data: PLANS, error: null }) } = {}) {
   const calls = [];
   const q = (table) => {
     const rows = table === 'trainers' ? [{ ...LISTING, at_capacity: capacity }] : table === 'community_posts' ? [] : [];
@@ -145,7 +145,7 @@ function backend({ capacity = false } = {}) {
   };
   window.shapeDb = {
     getUser: async () => ({ id: 'member-1' }),
-    client: { from: q, rpc: async (fn) => ({ data: fn === 'get_coach_sale_plans_by_user' ? PLANS : [], error: null }), auth: { onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }), getUser: async () => ({ data: { user: null } }) } },
+    client: { from: q, rpc: async (fn) => (fn === 'get_coach_sale_plans_by_user' ? plans() : { data: [], error: null }), auth: { onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }), getUser: async () => ({ data: { user: null } }) } },
   };
   globalThis.fetch = async (url, init = {}) => {
     calls.push({ url: String(url), body: init.body ? JSON.parse(init.body) : null });
@@ -227,6 +227,32 @@ test('Subscribe goes through the one checkout path, with the code typed before t
   assert.equal(plan.body.item.planId, 'p1'); assert.equal(plan.body.code, 'SHAPE20');
   assert.deepEqual(plan.body.coach, { provider_id: 7, provider_role: 'trainer' });
   await p.unmount();
+});
+
+test('a plan read that fails says so, with Try again, and never reads as "no plans"', async () => {
+  WIDE = true;
+  let fail = true; let reads = 0;
+  backend({ plans: () => { reads++; return fail ? { data: null, error: { message: 'timeout' } } : { data: PLANS, error: null }; } });
+  const p = await mount(LIVE);
+  const rail = document.querySelector('[data-work-rail]');
+  const err = rail.querySelector('[data-plans-error]');
+  assert.ok(err, 'the failed read is shown');
+  assert.match(err.textContent, /Couldn't read Tom's plans just now/);
+  assert.ok(!rail.querySelector('[data-offer-empty]'), 'no "hasn\'t listed a plan" on a failed read');
+  assert.doesNotMatch(rail.textContent, /hasn't listed a plan/);
+  assert.ok(!rail.querySelector('[data-plan-buy]'));
+  fail = false;
+  const before = reads;
+  await React.act(async () => rail.querySelector('[data-plans-retry]').click());
+  await settle();
+  assert.equal(reads, before + 1, 'Try again reads the plans again');
+  assert.ok(!rail.querySelector('[data-plans-error]'));
+  assert.ok(rail.querySelector('[data-plan-buy]'), 'and the plan is back on sale');
+  await p.unmount();
+  backend({ plans: () => { throw new Error('network'); } });
+  const q = await mount(LIVE);
+  assert.ok(document.querySelector('[data-work-rail] [data-plans-error]'), 'a request that throws is a failed read too');
+  await q.unmount();
 });
 
 test('at capacity the storefront is the waiting list, never a live Subscribe', async () => {
