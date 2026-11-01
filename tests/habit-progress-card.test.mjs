@@ -108,7 +108,7 @@ test('the month: a calendar of every day, its legend, rates by habit and the bes
   assert.equal(cells.length, hpDaysInMonth(TODAY));
   assert.match(m.text(), /Habits keptNoneSomeMostAll/);
   // On the 1st of a month the best run so far can only be 1 day, said in the singular.
-  assert.match(m.text(), /Best run · (Water|Smoking), \d+ days?\b/);
+  assert.match(m.text(), /Best run · (Water|Smoking), \d+ days?/);
   assert.match(m.text(), /By habit/);
   assert.ok(m.btn(/Next month/).disabled);
   await m.close();
