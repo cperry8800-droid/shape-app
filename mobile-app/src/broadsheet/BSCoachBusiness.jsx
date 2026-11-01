@@ -450,6 +450,15 @@ export function BSBizEarn({ t, base }) {
         </div>
       </div>
       <Note t={t} style={{ marginTop: 8 }}>{tr('coach:business.billedFee', { defaultValue: '{billed} billed · {fee} Shape fee', billed: bsBizMoney(e.grossCents), fee: bsBizMoney(e.feeCents) })}</Note>
+      {/* Card processing is the coach's (direct charges, #2403), so the net above is before it. Its
+          cost is an ESTIMATE from Stripe's published US prices (CoachForecast.processingCents),
+          labelled as one and kept out of the net: the coach's own Stripe pricing decides it. */}
+      {e.grossCents > 0 ? (
+        <Note t={t} style={{ marginTop: 4, color: t.INK70 || t.INK }}>
+          <span data-biz-processing="">{tr('coach:business.earn.processing', { defaultValue: 'About {processing} card processing · about {after} a month after it', processing: bsBizMoney(e.processingCents), after: bsBizMoney(e.afterProcessingCents) })}</span>
+          <span style={{ display: 'block', marginTop: 3 }}>{tr('coach:business.earn.processingBasis', { defaultValue: "Estimate: Stripe's US card rate, 2.9% + 30¢ a charge, and 0.7% Stripe Billing on subscriptions. Your own Stripe pricing decides the real figure." })}</span>
+        </Note>
+      ) : null}
     </div>
   );
 }
@@ -622,7 +631,7 @@ function PlanTab({ t, biz, now }) {
   ));
   return (
     <div>
-      <Head t={t} label={tr('coach:business.earn.head', { defaultValue: 'What clients earn you' })} right={tr('coach:business.earn.right', { defaultValue: "after Shape's fee" })} />
+      <Head t={t} label={tr('coach:business.earn.head', { defaultValue: 'What clients earn you' })} right={tr('coach:business.earn.right', { defaultValue: "after Shape's fee · before card processing" })} />
       {body(() => <BSBizEarn t={t} base={base} />)}
       <Head t={t} label={tr('coach:business.plan.head', { defaultValue: 'Plan the next 12 months' })} />
       {body(() => <BSBizPlan t={t} base={base} />)}

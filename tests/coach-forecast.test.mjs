@@ -33,6 +33,44 @@ test('earn: 20 clients at $180 with a quarter brought by the coach', () => {
   assert.equal(e.netCents, Math.round(20 * 18000 * (1 - 0.75 * 0.15)));   // 319500
   assert.equal(e.feeCents, e.grossCents - e.netCents);
   assert.equal(e.yearNetCents, e.netCents * 12);
+  // Card processing is the coach's (direct charges): estimated on the gross, one charge a client a
+  // month, and kept out of the net (part C).
+  assert.equal(e.processingCents, 20 * Math.round(18000 * 0.036 + 30));   // 20 × 678
+  assert.equal(e.afterProcessingCents, e.netCents - e.processingCents);
+});
+
+// ── The card-processing estimate (direct charges, part C) ────────────────────
+test('processingCents: Stripe\'s published US prices, an estimate, from the gross of one charge', () => {
+  // The constants are Stripe's published rates (stripe.com/pricing, stripe.com/billing/pricing).
+  assert.equal(CF.CARD_PCT, 0.029);
+  assert.equal(CF.CARD_FIXED_CENTS, 30);
+  assert.equal(CF.BILLING_PCT, 0.007);
+  // A monthly plan pays the card rate and Billing's: $150 → 2.9% + 0.7% + 30¢ = $5.70.
+  assert.equal(CF.processingCents(15000), 570);
+  assert.equal(CF.processingCents(15000, { recurring: true }), 570);
+  // A one-time sale pays the card rate alone: $150 → $4.65; $20 → $0.88.
+  assert.equal(CF.processingCents(15000, { recurring: false }), 465);
+  assert.equal(CF.processingCents(2000, { recurring: false }), 88);
+  // Rounded to the cent: $149.50 a month → 538.2 + 30 = 568.
+  assert.equal(CF.processingCents(14950), 568);
+  // Nothing charged, nothing estimated.
+  for (const v of [0, -500, null, undefined, NaN, '150']) assert.equal(CF.processingCents(v), 0, String(v));
+});
+
+test('earn: the estimate never leaves less than nothing, and scales with the clients', () => {
+  // A $1 rate: 15% leaves 85¢; processing is 30¢ + 3.6¢ = 34¢ a client.
+  const e = CF.earn({ clients: 3, priceCents: 100, byoShare: 0 });
+  assert.equal(e.netCents, 255);
+  assert.equal(e.processingCents, 3 * 34);
+  assert.equal(e.afterProcessingCents, 255 - 102);
+  // No clients, no processing.
+  assert.deepEqual([CF.earn({ clients: 0, priceCents: 15000, byoShare: 0 }).processingCents, CF.earn({ clients: 0, priceCents: 15000, byoShare: 0 }).afterProcessingCents], [0, 0]);
+  // A price below the fixed fee: the net is less than the estimate, and what is left is $0, not negative.
+  const tiny = CF.earn({ clients: 1, priceCents: 20, byoShare: 0 });
+  assert.equal(tiny.processingCents, 31);
+  assert.equal(tiny.afterProcessingCents, 0);
+  // Fractional clients (the plan's steady state) are kept, not rounded.
+  assert.equal(CF.earn({ clients: 2.5, priceCents: 15000, byoShare: 0 }).processingCents, Math.round(2.5 * 570));
 });
 
 test('forecast: row 0 is today, then today\'s clients fade by churn and new ones join at the new rate', () => {
