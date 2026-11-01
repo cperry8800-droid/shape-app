@@ -2245,6 +2245,8 @@ function conversationToThread(conversation, messages = [], names = {}) {
     bucket: asCoach ? 'CLIENT' : 'COACH',
     messages: ordered.map(message => ({
       id: message.id || null,
+      // The sender's account, as a channel row carries it: a reply names it (Codex P2 on #2561).
+      userId: message.sender_id || null,
       // Shape's welcome (sender_id null, metadata.shape = 'welcome') is from neither side.
       who: isShapeWelcome(message) ? 'Shape' : message.sender_id === myId ? 'You' : counterpart,
       t: message.body,
@@ -2297,6 +2299,7 @@ function memberThreadFromRow(row, messages = []) {
       // The row's id, as conversationToThread keeps it: a grocery list's saved copy is named after it, so
       // without it a reopened thread could not tell the list was saved (Codex P2 on #2432).
       id: message.id || null,
+      userId: message.sender_id || null,
       who: message.sender_id === state.user?.id ? 'You' : other,
       t: message.body,
       time: chatTimeOf(message.created_at),

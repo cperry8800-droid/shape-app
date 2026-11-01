@@ -24080,7 +24080,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     last: th.last,
     at: th.at || null,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ id: m.id || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', at: m.at || null, me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null, grocery: m.grocery || null, reply: m.reply || null })),
+    messages: (th.messages || []).map(m => ({ id: m.id || null, userId: m.userId || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', at: m.at || null, me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null, grocery: m.grocery || null, reply: m.reply || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land

@@ -406,6 +406,26 @@ test('a message arriving live keeps its reply, and a channel\'s its id', () => {
   assert.match(CLIENT, /grocery: bsGroceryFromMetadata\(row\.metadata\), reply: bsReplyFromMetadata\(row\.metadata\) \}\]\);/, 'a direct row');
 });
 
+test('both direct-message readers keep the sender\'s account, so a reply names it (Codex P2 on #2561)', async () => {
+  const { isShapeWelcome } = await import('../mobile-app/src/services/shapeWelcome.mjs');
+  const { bsGroceryFromMetadata } = await import('../mobile-app/src/services/groceryShare.mjs');
+  const deps = { state: { user: { id: 'u-me' } }, isShapeWelcome, bsGroceryFromMetadata, bsReplyFromMetadata, bsChatStamp };
+  const load = (name) => new Function(...Object.keys(deps), `${fnSrc('chatTimeOf')}; ${fnSrc(name)}; return ${name};`)(...Object.values(deps));
+  const msgs = [
+    { id: 'a', sender_id: 'u-coach', body: 'Hi', metadata: {}, created_at: day(2026, 10, 31, 9) },
+    { id: 'b', sender_id: 'u-me', body: 'Hello', metadata: {}, created_at: day(2026, 10, 31, 10) },
+  ];
+  const coach = load('conversationToThread')({ id: 'c1', provider_role: 'trainer', client_id: 'u-me', title: 'Tom' }, msgs);
+  const member = load('memberThreadFromRow')({ conversation_id: 'c2', other_name: 'Ana' }, msgs);
+  for (const th of [coach, member]) {
+    assert.deepEqual(th.messages.map((m) => m.userId), ['u-coach', 'u-me']);
+    assert.equal(bsReplyFor(th.messages[0], { myId: 'u-me' }).from, 'u-coach', 'a reply to their message names their account');
+  }
+  // ...and the chat page carries it to the thread.
+  const CLIENT = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(CLIENT, /messages: \(th\.messages \|\| \[\]\)\.map\(m => \(\{ id: m\.id \|\| null, userId: m\.userId \|\| null, /);
+});
+
 test('both direct-message readers keep the reply; the migration adds a capped object column, re-runnable, guarded', () => {
   assert.equal((BACKEND.match(/\n\s+reply: bsReplyFromMetadata\(message\.metadata\),\n/g) || []).length, 2);
   assert.match(MIGRATION, /^begin;$/m);
