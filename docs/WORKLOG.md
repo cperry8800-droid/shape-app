@@ -126,13 +126,13 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
 - Decide whether coaches keep seeing each other's active clients and sessions-kept rate.
 - Check `NORA_TTS_VOICE` (coral, nova, shimmer or sage) and `NORA_TTS_INSTRUCTIONS` in Vercel.
 - Decide the bring-your-clients rules (the 15% cases, private profiles, the app's checkout).
+- Decide whether a coach checkout refuses payment, instead of a destination charge on Shape's
+  account, when a Connect variable is missing (`directChargesReady`, #2555).
 - Add the `localhost` hostname to the Turnstile widget.
 - A native speaker reads the PAR-Q, Nora hint, sample coach and Friends translations
   (Hausa and Pidgin first).
 
 **Planned next**
-- Coach payments, direct charges part C: the coach pages' copy and a labelled processing
-  estimate (part A #2401, part B #2403).
 - Night-before prep, Phase 2: a nutritionist's "prep the night before" tick, a reminder
   time the member chooses, planning tomorrow, a morning swap.
 - The website's coach profile in the app profile's design.

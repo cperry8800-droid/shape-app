@@ -619,6 +619,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Coach payments on the coaches\' own Stripe accounts (direct charges), part C: a labelled card-processing estimate wherever a coach reads take-home — #2555. No migration',
+      items: [
+        { label: 'The owner\'s rule (2026-10-18): "shape is not paying processing fee". Since direct charges (#2401, #2403) Stripe\'s card processing comes out of the coach\'s share, and the pages said so (#2396) but showed no figure. coachForecast.js processingCents is the estimate at Stripe\'s published US prices (2.9% + 30c a charge; plus Stripe Billing\'s 0.7% on a subscription; a one-time sale the card rate alone), and earn() returns it beside the net, never inside it', status: 'done' },
+        { label: 'Shown, labelled as an estimate with its basis: the website\'s and the app\'s "What clients earn you" (13 locales; the app\'s head reads "after Shape\'s fee · before card processing"), the trainer and nutritionist calculators ("Your take-home, estimated"; without the rule they say the take-home is before the fee), the program note on its billing model and the workout note, and Nora\'s coach-fees entry', status: 'done' },
+        { label: 'Review: Codex P2 on 33b5c06 (a subscription program was estimated as a one-time sale), fixed in 55b9fba; Copilot\'s contrast and fallback-footnote findings, fixed in 1eea29b and 3749b46; Codex clean on 1d5085b. Mutations: 34 of 34 killed (tests/mutations/coach-processing-estimate-2026-11-01.mutations.mjs)', status: 'done' },
+        { label: 'Codex P2 on 3749b46, answered: with either Connect variable unset a coach checkout falls back to a destination charge on Shape\'s account, where Shape bears the fee; production has both set (2026-10-18), and the estimate follows the owner\'s rule', status: 'done' },
+        { label: 'OWNER — decide: should a coach checkout refuse payment instead of falling back to a destination charge when a Connect variable is missing (src/lib/coach-checkout.ts directChargesReady)?', status: 'manual' },
+        { label: 'The estimate uses Stripe\'s published US prices; the coach\'s actual fees (each charge\'s balance transaction on their account) are not read', status: 'pending' },
+      ],
+    },
+    {
       section: 'App: the member profile in the coach profile\'s look, Signals and Climb redesigned (#2546); the Chat chip, coach Today, Programs, coach bylines and the nutritionist kitchen (#2543). No migration',
       items: [
         { label: 'Owner, 2026-10-31: "member profile needs to match similar design to coaches, interms of overall look, but keep same basic features while you look for improvements", "improve design of these pages" (Signals, Climb) and "also do a review of member profile"; asked, they chose "Cover photo; climb in its tab". #2543\'s asks: "dont say switch" (they picked an icon), "remove this from member profile" (the prompts), the week strip over its Schedule (picked), "this should take you right to the client file" and "a little smaller", "too many colors here", "make coach profile cards show the full byline too", and the nutritionist\'s floor plan ("Remove it")', status: 'done' },
@@ -1843,7 +1854,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Decided (owner, 2026-10-18: "contact support"): a member whose coach disconnected while their plan still renews is sent to Shape support, in words on the website and as an alert in the app; Shape can\'t cancel on that account, so support handles it by hand', status: 'done' },
         { label: 'A coach who reconnected leaves Shape\'s checkouts on the former account: those from the last 4 days (a checkout\'s 24-hour life plus Stripe\'s 3 days of webhook retries) are read there, a paid plan counts as already subscribed, and one Shape can no longer read holds a second plan with payment_pending until the window ends, never for good (owner: "fix this")', status: 'done' },
         { label: 'The app profile\'s one-tap Subscribe and Book have no code box (the marketplace panel has one); a one-time percent code\'s fee can be a cent off Stripe\'s rounding', status: 'pending' },
-        { label: 'Part C: the coach pages\' copy and a labelled processing estimate', status: 'pending' },
+        { label: 'Part C: the coach pages\' copy and a labelled processing estimate — shipped in #2555 (see its section)', status: 'done' },
       ],
     },
     {
