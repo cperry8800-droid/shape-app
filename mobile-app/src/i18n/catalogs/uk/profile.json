@@ -934,6 +934,14 @@
   "sample.nutri.review.n2": "Пробіг свій перший марафон і жодного разу не вперся в «стіну». План на тиждень забігу — просто золото.",
   "sample.nutri.review.n3": "Кожен прийом їжі, який я записую, читають, а нотатки короткі й корисні. І жодного почуття провини за їжу.",
   "sample.nutri.review.n4": "Мінус 9 кг за п'ять місяців, і по п'ятницях я так само їм пасту.",
+  "sample.nutri.plan.performance.0": "Пальне для тренувальних днів",
+  "sample.nutri.plan.performance.1": "Тиждень старту",
+  "sample.nutri.plan.plant.0": "Рослинний білок у кожній страві",
+  "sample.nutri.plan.plant.1": "Перезавантаження на сім днів",
+  "sample.nutri.plan.steady.0": "Вісім спокійних тижнів",
+  "sample.nutri.plan.steady.1": "Місяць ланч-боксів",
+  "sample.nutri.plan.everyday.0": "Сімейний стіл",
+  "sample.nutri.plan.everyday.1": "Недільні заготовки",
   "sample.nutri.rule.everyday.0": "Половина тарілки — овочі",
   "sample.nutri.rule.everyday.1": "Долоня білка",
   "sample.nutri.rule.everyday.2": "Кулак вуглеводів",
@@ -1078,5 +1086,9 @@
   "mine.socials": "Ваші соцмережі",
   "mine.errLink": "Перевірте {network}: ім’я на кшталт @ви або адреса, що починається з https://",
   "mine.errYears": "Років тренерського стажу: число від 1 до {max}.",
-  "coach.noPlansYet": "{name}: опублікованих планів поки немає"
+  "coach.noPlansYet": "{name}: опублікованих планів поки немає",
+  "coach.kind.program": "Програма",
+  "coach.kind.workout": "Тренування",
+  "coach.kind.mealPlan": "План харчування",
+  "coach.kind.diet": "Дієта"
 }
