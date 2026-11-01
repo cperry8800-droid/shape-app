@@ -14,6 +14,9 @@ const APP = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const MKT = 'mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx';
 
 const RECIPES_SVC = 'mobile-app/src/services/clientRecipes.mjs';
+// The plate notes' day and energy maths moved with the coach work into the module the website shares
+// (#2560); BSTrainerProfile.jsx re-exports it.
+const CW = 'public/newdesign/coachWork.mjs';
 
 export default {
   test: 'node --test tests/nutritionist-profile.test.mjs tests/marketplace-trainer-profile.test.mjs tests/search-recent-listing.test.mjs tests/trainer-profile.test.mjs',
@@ -69,13 +72,13 @@ export default {
     { name: 'page: the coach is offered their own staples', file: PAGE,
       find: '                return isSelf ? (', replace: '                return false ? (' },
     { name: 'page: a guest saves staples without an account', file: PAGE,
-      find: "    if (!picked.size || saving === 'busy') return;\n    if (window.bsRequireAccount && !window.bsRequireAccount(tr('profile:nutri.staplesAsk', { defaultValue: 'add to your grocery list' }))) return;\n",
-      replace: "    if (!picked.size || saving === 'busy') return;\n" },
+      find: "    if (!chosen.length || saving === 'busy') return;\n    if (window.bsRequireAccount && !window.bsRequireAccount(tr('profile:nutri.staplesAsk', { defaultValue: 'add to your grocery list' }))) return;\n",
+      replace: "    if (!chosen.length || saving === 'busy') return;\n" },
     { name: 'page: the same staples make a new list each time', file: PAGE,
       find: ".sort().join('\\n'))}`;", replace: ".sort().join('\\n'))}-${Date.now()}`;" },
     { name: 'page: the staples list id is cut from the names, so a bigger pick reads as the same list', file: PAGE,
-      find: "    const id = `kitchen-${bsShortHash(ownerKey || 'sample')}-${bsShortHash(items.map((i) => i.n.toLowerCase()).sort().join('\\n'))}`;",
-      replace: "    const id = `kitchen-${ownerKey || 'sample'}-${items.map((i) => i.n.toLowerCase()).sort().join('|')}`.replace(/[^a-z0-9|-]+/gi, '-').slice(0, 120);" },
+      find: "    const id = `kitchen-${bsShortHash(ownerKey || 'sample')}-${bsShortHash(items.map((i) => stable(i.n).toLowerCase()).sort().join('\\n'))}`;",
+      replace: "    const id = `kitchen-${ownerKey || 'sample'}-${items.map((i) => stable(i.n).toLowerCase()).sort().join('|')}`.replace(/[^a-z0-9|-]+/gi, '-').slice(0, 120);" },
     { name: 'page: a guest sends a recipe\'s ingredients without an account', file: PAGE,
       find: "    if (list === 'busy' || list === 'done') return;\n    if (window.bsRequireAccount && !window.bsRequireAccount(tr('profile:nutri.staplesAsk', { defaultValue: 'add to your grocery list' }))) return;\n",
       replace: "    if (list === 'busy' || list === 'done') return;\n" },
@@ -85,18 +88,20 @@ export default {
       find: 'onCook={(r) => setCooking(bsOwnRecipeCookable(r, person.userId || person.providerId || null))}', replace: 'onCook={() => {}}' },
     { name: 'page: the Kitchen recipe page\'s grocery button does nothing', file: PAGE,
       find: 'onAddGrocery={addGrocery} groceryAdded={added}', replace: 'onAddGrocery={() => {}} groceryAdded={false}' },
-    { name: 'page: plate notes run oldest day first', file: PAGE,
+    { name: 'page: plate notes run oldest day first', file: CW,
       find: '.sort((a, b) => b.at - a.at)', replace: '.sort((a, b) => a.at - b.at)' },
     { name: 'page: protein so far counts a meal with none logged as 0', file: PAGE,
       find: "  for (const x of meals.slice(0, at + 1)) { const p = num(x.meal && x.meal.p); if (p == null) known = false; else so += p; }",
       replace: "  for (const x of meals.slice(0, at + 1)) { const p = num(x.meal && x.meal.p); if (p != null) so += p; }" },
-    { name: 'page: a day\'s energy counts a meal with none logged as 0', file: PAGE,
-      find: 'const k = num(m.meal && m.meal.kcal); if (k == null) kcalAll = false; else kcal += k;', replace: 'const k = num(m.meal && m.meal.kcal); if (k != null) kcal += k;' },
-    { name: 'page: an energy split from a meal missing a macro', file: PAGE,
+    { name: 'page: a day\'s energy counts a meal with none logged as 0', file: CW,
+      find: 'const k = plateNum(m.meal && m.meal.kcal); if (k == null) kcalAll = false; else kcal += k;', replace: 'const k = plateNum(m.meal && m.meal.kcal); if (k != null) kcal += k;' },
+    { name: 'page: an energy split from a meal missing a macro', file: CW,
       find: '  if (p == null || c == null || f == null) return null;\n  const e = [', replace: '  if (p == null) return null;\n  const e = [' },
     { name: 'page: review fix · the storefront block files a nutritionist\'s plans as a trainer\'s', file: PAGE,
-      find: 'isSelf={isSelf} isNutri={nutri} first={first}', replace: 'isSelf={isSelf} isNutri={false} first={first}' },
-    { name: 'page: review fix · an energy share can round below 0', file: PAGE,
+      find: 'isSelf={isSelf} isNutri={nutri} first={first} ownZero salePlans={sheetPlans}', replace: 'isSelf={isSelf} isNutri={false} first={first} ownZero salePlans={sheetPlans}' },
+    { name: 'page: review fix · the plans-only storefront files a nutritionist\'s plans as a trainer\'s', file: PAGE,
+      find: 'isSelf={isSelf} isNutri={nutri} first={first} ownZero salePlans={ownPlans}', replace: 'isSelf={isSelf} isNutri={false} first={first} ownZero salePlans={ownPlans}' },
+    { name: 'page: review fix · an energy share can round below 0', file: CW,
       find: '  for (let i = 0, left = 100 - out[0] - out[1] - out[2]; i < left; i += 1) out[order[i]] += 1;\n  return { p: out[0], c: out[1], f: out[2] };',
       replace: '  const pp = Math.round(exact[0]), cc = Math.round(exact[1]);\n  return { p: pp, c: cc, f: 100 - pp - cc };' },
     { name: 'page: review fix · a day logged at 0 kcal shows no energy', file: PAGE,
