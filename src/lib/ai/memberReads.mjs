@@ -178,11 +178,20 @@ export async function readTrainingPlan(sb, uid, { now = new Date(), zone } = {})
     const weekEnd = addDaysISO(weekStart, 6);
     const thisWeek = all.filter((w) => !w.scheduledDate || (w.scheduledDate >= weekStart && w.scheduledDate <= weekEnd));
     const later = all.length - thisWeek.length;
+    // ⚠ THE CAP NEVER CUTS TODAY (Codex on #2558). The week is in date order, so a busy week
+    // cut at READ_CAPS.workouts dropped the latest days first, today's sessions with them: the
+    // titles stayed in `todays` but their exercises went, and the up-front slice counted them
+    // as later in the week. Today's are kept (up to the cap) and the earliest others fill the
+    // rest, still in date order; the count of what was left out is unchanged.
+    const cap = READ_CAPS.workouts;
+    const keepToday = new Set(thisWeek.filter((w) => w.today).slice(0, cap));
+    const keepOther = new Set(thisWeek.filter((w) => !keepToday.has(w)).slice(0, Math.max(0, cap - keepToday.size)));
+    const shown = thisWeek.length > cap ? thisWeek.filter((w) => keepToday.has(w) || keepOther.has(w)) : thisWeek;
     out.training = {
       hasPlan: all.length > 0,
       todays: thisWeek.filter((w) => w.today).map((w) => w.title),
-      thisWeek: thisWeek.slice(0, READ_CAPS.workouts),
-      ...(thisWeek.length > READ_CAPS.workouts ? { thisWeekTruncated: thisWeek.length - READ_CAPS.workouts } : {}),
+      thisWeek: shown,
+      ...(thisWeek.length > cap ? { thisWeekTruncated: thisWeek.length - shown.length } : {}),
       ...(later > 0 ? { laterWeeks: later } : {}),
     };
     const coachRow = rows.find((w) => w.trainer_id != null);

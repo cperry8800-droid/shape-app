@@ -313,7 +313,7 @@ test('⚠ callAI: after a refusal the pin is skipped for an hour — straight to
       const first = await ai.callAI({ input: 'hello' }, { promptId: 'support.chat' });
       assert.equal(first.ok, true);
       assert.equal(f.calls.length, 2, 'the first refusal is paid once');
-      assert.equal(ai.isModelRefused('gpt-6-astra'), true, 'and remembered');
+      assert.equal(ai.isModelRefused('responses', 'gpt-6-astra'), true, 'and remembered');
       const second = await ai.callAI({ input: 'again', tools: [{ type: 'function', name: 'f' }] }, { promptId: 'support.chat', effort: 'minimal' });
       assert.equal(f.calls.length, 3, 'ONE request for the second call, not two');
       assert.equal(f.calls[2].body.model, 'gpt-5.4-mini');
@@ -331,11 +331,11 @@ test('⚠ callAI: after a refusal the pin is skipped for an hour — straight to
 test('the refusal expires after the hour, and only a MODEL refusal is remembered', async () => {
   await withEnv({}, () => {
     const t0 = 1_000_000;
-    ai.noteModelRefused('gpt-6-astra', t0);
-    assert.equal(ai.isModelRefused('gpt-6-astra', t0 + ai.REFUSED_PIN_TTL_MS - 1), true);
-    assert.equal(ai.isModelRefused('gpt-6-astra', t0 + ai.REFUSED_PIN_TTL_MS), false, 'tried again after the hour');
-    assert.equal(ai.isModelRefused('gpt-6-astra', t0), false, 'an expired entry is forgotten');
-    assert.equal(ai.isModelRefused('gpt-5.4-mini', t0), false);
+    ai.noteModelRefused('responses', 'gpt-6-astra', t0);
+    assert.equal(ai.isModelRefused('responses', 'gpt-6-astra', t0 + ai.REFUSED_PIN_TTL_MS - 1), true);
+    assert.equal(ai.isModelRefused('responses', 'gpt-6-astra', t0 + ai.REFUSED_PIN_TTL_MS), false, 'tried again after the hour');
+    assert.equal(ai.isModelRefused('responses', 'gpt-6-astra', t0), false, 'an expired entry is forgotten');
+    assert.equal(ai.isModelRefused('responses', 'gpt-5.4-mini', t0), false);
   });
   await withEnv({ OPENAI_API_KEY: 'test-key' }, async () => {
     const bad = { status: 400, body: { error: { message: "Unsupported parameter: 'foo'", param: 'foo', code: 'unsupported_parameter' } } };
@@ -343,7 +343,7 @@ test('the refusal expires after the hour, and only a MODEL refusal is remembered
     const log = captureLog();
     try {
       await ai.callAI({ input: 'hello' }, { promptId: 'p' });
-      assert.equal(ai.isModelRefused('gpt-6-astra'), false, 'a request-shape 400 says nothing about access');
+      assert.equal(ai.isModelRefused('responses', 'gpt-6-astra'), false, 'a request-shape 400 says nothing about access');
     } finally { f.restore(); log.restore(); }
   });
   await withEnv({ OPENAI_API_KEY: 'test-key' }, async () => {
@@ -351,14 +351,14 @@ test('the refusal expires after the hour, and only a MODEL refusal is remembered
     const log = captureLog();
     try {
       await ai.callAI({ input: 'hello', model: 'gpt-6-astra' }, { promptId: 'p' });
-      assert.equal(ai.isModelRefused('gpt-6-astra'), false, 'an explicit model has no fallback, so nothing to skip to');
+      assert.equal(ai.isModelRefused('responses', 'gpt-6-astra'), false, 'an explicit model has no fallback, so nothing to skip to');
     } finally { f.restore(); log.restore(); }
   });
 });
 
 test('a remembered refusal never skips an explicit model, or a pin with the retry disabled', async () => {
   await withEnv({ OPENAI_API_KEY: 'test-key' }, async () => {
-    ai.noteModelRefused('gpt-6-astra');
+    ai.noteModelRefused('responses', 'gpt-6-astra');
     const f = scriptFetch([OK]);
     const log = captureLog();
     try {
@@ -368,7 +368,7 @@ test('a remembered refusal never skips an explicit model, or a pin with the retr
     } finally { f.restore(); log.restore(); }
   });
   await withEnv({ OPENAI_API_KEY: 'test-key', OPENAI_FALLBACK_MODEL: 'none' }, async () => {
-    ai.noteModelRefused('gpt-6-astra');
+    ai.noteModelRefused('responses', 'gpt-6-astra');
     const f = scriptFetch([OK]);
     const log = captureLog();
     try {
@@ -385,4 +385,29 @@ test('the fast model: unset → the fallback model; a name → that name; off �
   for (const v of ['off', 'none', 'false', '0', ' OFF ']) await withEnv({ OPENAI_FAST_MODEL: v }, () => assert.equal(ai.aiFastModel(), 'gpt-6-astra', v));
   await withEnv({ OPENAI_FAST_MODEL: 'off', OPENAI_MODEL: 'gpt-5.5' }, () => assert.equal(ai.aiFastModel(), 'gpt-5.5', 'off is whatever the pin is'));
   await withEnv({ OPENAI_FALLBACK_MODEL: 'none' }, () => assert.equal(ai.aiFastModel(), 'gpt-6-astra'));
+});
+
+test('⚠ a refusal is remembered for its own API only: a transcription refusal never skips a text pin, nor the reverse (Codex on #2558)', async () => {
+  await withEnv({}, () => {
+    ai.noteModelRefused('transcription', 'gpt-6-astra');
+    assert.equal(ai.isModelRefused('transcription', 'gpt-6-astra'), true);
+    assert.equal(ai.isModelRefused('responses', 'gpt-6-astra'), false);
+  });
+  // Driven: a transcription pin mistakenly set to the text model is refused there, and the text
+  // call that follows still asks the pin first.
+  await withEnv({ OPENAI_API_KEY: 'test-key' }, async () => {
+    ai.noteModelRefused('transcription', 'gpt-6-astra');
+    const f = scriptFetch([OK]);
+    const log = captureLog();
+    try {
+      const res = await ai.callAI({ input: 'hello' }, { promptId: 'p' });
+      assert.equal(f.calls.length, 1);
+      assert.equal(f.calls[0].body.model, 'gpt-6-astra');
+      assert.equal(res.fellBack, false);
+    } finally { f.restore(); log.restore(); }
+  });
+  await withEnv({}, () => {
+    ai.noteModelRefused('responses', 'gpt-4o-transcribe');
+    assert.equal(ai.isModelRefused('transcription', 'gpt-4o-transcribe'), false);
+  });
 });

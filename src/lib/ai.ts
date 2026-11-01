@@ -223,20 +223,26 @@ export function hasOpenAIKey(): boolean {
 // line says `skippedRefusedPin`). After the hour the pin is tried again, so access granted
 // meanwhile is picked up without a deploy. It lives in this server instance's memory: a
 // cold instance pays one refused call, then remembers too.
+// ⚠ KEYED BY THE API AS WELL AS THE MODEL (Codex on #2558): a name refused by one endpoint
+// says nothing about the other, so a transcription pin mistakenly set to the text model
+// must never send the text calls to the fallback, nor the reverse.
 export const REFUSED_PIN_TTL_MS = 60 * 60_000;
+export type ModelApi = 'responses' | 'transcription';
 const refusedModels = new Map<string, number>();
+const refusedKey = (api: ModelApi, model: string) => `${api}:${model}`;
 
-/** Note that `model` was refused to this account: skipped until the hour is up. */
-export function noteModelRefused(model: string, now: number = Date.now()): void {
-  if (model) refusedModels.set(model, now + REFUSED_PIN_TTL_MS);
+/** Note that `model` was refused to this account on `api`: skipped there until the hour is up. */
+export function noteModelRefused(api: ModelApi, model: string, now: number = Date.now()): void {
+  if (model) refusedModels.set(refusedKey(api, model), now + REFUSED_PIN_TTL_MS);
 }
 
-/** Whether `model` was refused within the last hour. */
-export function isModelRefused(model: string, now: number = Date.now()): boolean {
-  const until = refusedModels.get(model);
+/** Whether `model` was refused on `api` within the last hour. */
+export function isModelRefused(api: ModelApi, model: string, now: number = Date.now()): boolean {
+  const key = refusedKey(api, model);
+  const until = refusedModels.get(key);
   if (until == null) return false;
   if (until <= now) {
-    refusedModels.delete(model);
+    refusedModels.delete(key);
     return false;
   }
   return true;
@@ -410,7 +416,7 @@ export async function callAI(
   if (!explicit && fallback && fallback !== first.model) {
     const second = { ...prepareAIRequest({ ...body, model: fallback }, { promptId, effort: opts.effort, verbosity: opts.verbosity }), fellBack: true };
     // Refused within the hour: straight to the fallback, no refused round trip first.
-    if (isModelRefused(first.model)) {
+    if (isModelRefused('responses', first.model)) {
       skippedRefusedPin = first.model;
       attempts = [second];
     } else {
@@ -442,7 +448,7 @@ export async function callAI(
         logAI({ promptId, ok: false, reason: canFallBack ? 'model_fallback' : 'http_error', status: res.status, latencyMs, model, ...(canFallBack ? { fallbackModel: attempts[i + 1].model } : {}) });
         console.warn(`[shape-ai] ${promptId} OpenAI ${res.status} (${model}):`, detail.slice(0, 500));
         if (canFallBack) {
-          noteModelRefused(model);
+          noteModelRefused('responses', model);
           continue;
         }
         return { ok: false, reason: 'http_error', status: res.status, detail, latencyMs, promptId, model };
@@ -546,7 +552,7 @@ export async function transcribeAudio(
 
   const pinned = aiTranscribeModel();
   // A pin refused within the hour goes straight to whisper-1, as callAI does.
-  const skippedRefusedPin = pinned !== DEFAULT_TRANSCRIBE_FALLBACK && isModelRefused(pinned) ? pinned : null;
+  const skippedRefusedPin = pinned !== DEFAULT_TRANSCRIBE_FALLBACK && isModelRefused('transcription', pinned) ? pinned : null;
   const models = pinned === DEFAULT_TRANSCRIBE_FALLBACK || skippedRefusedPin ? [DEFAULT_TRANSCRIBE_FALLBACK] : [pinned, DEFAULT_TRANSCRIBE_FALLBACK];
 
   const controller = new AbortController();
@@ -575,7 +581,7 @@ export async function transcribeAudio(
         logAI({ promptId, ok: false, reason: canFallBack ? 'model_fallback' : 'http_error', status: res.status, latencyMs, model, ...(canFallBack ? { fallbackModel: models[i + 1] } : {}) });
         console.warn(`[shape-ai] ${promptId} transcription ${res.status} (${model}):`, detail.slice(0, 300));
         if (canFallBack) {
-          noteModelRefused(model);
+          noteModelRefused('transcription', model);
           continue;
         }
         return { ok: false, reason: 'http_error', status: res.status, latencyMs, promptId, model };
