@@ -77,7 +77,7 @@ test('newProgram.jsx: a sale nets the price after Shape\'s 15% from a client fou
   const rate = /const NP_FEE_RATE = ([0-9.]+);/.exec(src);
   assert.ok(rate, 'NP_FEE_RATE moved');
   assert.equal(Number(rate[1]), PLATFORM_FEE_RATE, 'the page uses the platform fee');
-  const fn = /function NpFeeNote\(\{ price \}\) \{[\s\S]*?\n\}/.exec(src)[0];
+  const fn = /function NpFeeNote\(\{ price, kind = "one-time" \}\) \{[\s\S]*?\n\}/.exec(src)[0];
   const code = babel.transformSync(rate[0] + '\n' + fn, { presets: [presetReact], babelrc: false, configFile: false }).code;
   const NpFeeNote = new Function('React', 'INK', code + '\nreturn NpFeeNote;')(React, '#f2ede4');
   // A one-time sale pays Stripe's card rate alone (no Billing): 2.9% of $220 + 30¢ = $6.68, estimated.
@@ -86,13 +86,19 @@ test('newProgram.jsx: a sale nets the price after Shape\'s 15% from a client fou
   assert.match(t, new RegExp('You receive about \\$' + fromShape.replace('.', '\\.') + ' per sale to a client who found you on Shape, after Shape\'s 15% and about \\$6\\.68 card processing, and about \\$213\\.32 from a client you bring\\.'), t);
   assert.match(t, /Card processing is Stripe's and comes out of your share: estimated at Stripe's US card rate, 2\.9% \+ 30¢ a charge, and your own Stripe pricing decides it\. Payouts go straight to your bank, on the schedule you set in Stripe\./);
   assert.match(withRule(() => text(React.createElement(NpFeeNote, { price: '' }))), /You receive — per sale/);
+  // A subscription program's monthly charge pays Stripe Billing's 0.7% too (Codex, #2555): $220 a month
+  // is 2.9% + 0.7% + 30¢ = $8.22 a month, estimated, and the note speaks of a month, not a sale.
+  const sub = withRule(() => text(React.createElement(NpFeeNote, { price: '220', kind: 'subscription' }))).replace(/&#x27;/g, "'");
+  assert.match(sub, /You receive about \$178\.78 a month from a client who found you on Shape, after Shape's 15% and about \$8\.22 card processing, and about \$211\.78 from a client you bring\./, sub);
+  assert.match(sub, /estimated at Stripe's US card rate, 2\.9% \+ 30¢ a charge, and 0\.7% Stripe Billing on a subscription, and your own Stripe pricing decides it\./);
+  assert.doesNotMatch(t, /Stripe Billing/, 'a one-time sale pays no Billing share');
   // Without the shared rule: the figure after Shape's 15% only, and processing named, not estimated.
   const bare = withoutRule(() => text(React.createElement(NpFeeNote, { price: '220' }))).replace(/&#x27;/g, "'");
   assert.match(bare, new RegExp('You receive \\$' + (220 * (1 - PLATFORM_FEE_RATE)).toFixed(2).replace('.', '\\.') + ' per sale to a client who found you on Shape, after Shape\'s 15%, and the full price from clients you bring\\.'));
   assert.match(bare, /Stripe's card-processing fee comes out of your share\./);
   const code_ = src.replace(/^\s*\/\/.*$/gm, '');
   assert.doesNotMatch(code_, /8%|0\.92|Weekly payouts/i, 'no trace of the old fee or schedule outside the comment that records it');
-  assert.match(src, /<NpFeeNote price=\{price\} \/>/, 'the pricing card shows it');
+  assert.match(src, /<NpFeeNote price=\{price\} kind=\{kind\} \/>/, 'the pricing card shows it, on the program\'s billing model');
 });
 
 // ── Payout timing, on the whole page (Codex, #2394) ──

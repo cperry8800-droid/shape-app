@@ -101,9 +101,15 @@ export default {
       replace: '              {true ? null : (\n                <div data-processing-estimate=""' },
 
     // ── The program and workout price notes ──
-    { name: 'a program sale is estimated as a subscription', file: PROGRAM,
-      find: '  const proc = priced && CF ? CF.processingCents(Math.round(p * 100), { recurring: false }) / 100 : null;',
+    { name: 'a one-time program is estimated as a subscription', file: PROGRAM,
+      find: '  const proc = priced && CF ? CF.processingCents(Math.round(p * 100), { recurring: sub }) / 100 : null;',
       replace: '  const proc = priced && CF ? CF.processingCents(Math.round(p * 100)) / 100 : null;' },
+    { name: 'a subscription program is estimated as a one-time sale', file: PROGRAM,
+      find: '  const proc = priced && CF ? CF.processingCents(Math.round(p * 100), { recurring: sub }) / 100 : null;',
+      replace: '  const proc = priced && CF ? CF.processingCents(Math.round(p * 100), { recurring: false }) / 100 : null;' },
+    { name: 'the page never tells the note its billing model', file: PROGRAM,
+      find: '            <NpFeeNote price={price} kind={kind} />',
+      replace: '            <NpFeeNote price={price} />' },
     { name: 'a program sale leaves processing out', file: PROGRAM,
       find: '  const after = (v) => "$" + Math.max(0, v - (proc || 0)).toFixed(2);',
       replace: '  const after = (v) => "$" + Math.max(0, v).toFixed(2);' },
