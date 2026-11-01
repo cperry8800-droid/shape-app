@@ -78,7 +78,7 @@ import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsAccent, bsWsHead } from './BSWallStory.jsx';
 import { BSChatPlaceTitle, BSChatPlacesSheet } from './BSChatPlaces.jsx';
 import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
-import { BSGroceryShareCard, bsGroceryListsAppStore, bsSaveReceivedGroceryList, bsHasGroceryList } from './BSGroceryShare.jsx';
+import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
 import { bsHomeCoachesOf, bsHomeCoachesKnown, bsHomeSessionsPlanned, bsHomeSessionsPlannedDays, bsHomePaidBanners } from '../services/homeWeek.mjs';
@@ -92,6 +92,7 @@ import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSTrainerProfile } from './BSTrainerProfile.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
+import { BSSearchKitchenRecipe } from './BSSearchKitchenRecipe.jsx';
 import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
 import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot, bsGroceryCheckedKeys } from '../services/focusLayout.mjs';
 
@@ -20285,31 +20286,6 @@ function bsRecentSearchPush(p) {
 }
 // Inline row actions — follow / message someone straight from the results,
 // without opening their profile first. Real accounts only (demo cast hides them).
-// A Shape Kitchen recipe opened from search. Its "Send to grocery list" did nothing (an empty handler):
-// search sits outside the Eat page, which holds the lists. It now saves the recipe's own list through the
-// path a list sent in chat or a nutritionist's recipe takes (bsSaveReceivedGroceryList): the Eat page
-// takes it when it is mounted, and otherwise it goes to this device's lists and the member's cloud
-// document. A guest is asked for an account first; a list already saved reads as on the list.
-function BSSearchKitchenRecipe({ recipe, onBack }) {
-  const tr = useShapeTr();
-  const list = React.useMemo(() => bsSkRecipeGroceryList(recipe), [recipe]);
-  const [state, setState] = useStateBSC(() => (list && bsHasGroceryList(list.id) ? 'done' : null)); // null | 'busy' | 'done'
-  const add = async () => {
-    if (!list || state === 'busy' || state === 'done') return;
-    if (window.bsRequireAccount && !window.bsRequireAccount(tr('profile:nutri.staplesAsk', { defaultValue: 'add to your grocery list' }))) return;
-    setState('busy');
-    try {
-      await bsSaveReceivedGroceryList(list);
-      setState('done');
-      window.__bsToast?.(tr('nutrition:grocery.share.savedToast', { defaultValue: 'Saved to your grocery lists' }), 'ok');
-    } catch (e) {
-      setState(null);
-      window.__bsToast?.(tr('nutrition:grocery.share.saveFail', { defaultValue: 'Could not save the list. Try again.' }), 'error');
-    }
-  };
-  return <BSShapeKitchenRecipe recipe={recipe} onBack={onBack} onAddGrocery={add} groceryAdded={state === 'done'} />;
-}
-
 function BSSearchFollowBtn({ uid, teal }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -34273,6 +34249,8 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
 // ─── GROCERY LIBRARY ─── moved to BSGroceryLibrary.jsx (2026-10-24), with its built-in lists and Send to a
 // member. It reads these at call time.
 Object.assign(window, { BSNutritionTopTabs, BSHeaderTools, _bsScrollTopOnMount, bsGroceryHues, bsDateLocale, bsGroceryListEyebrow });
+// For BSSearchKitchenRecipe.jsx, which opens a Shape Kitchen recipe from search and sends its list.
+Object.assign(window, { BSShapeKitchenRecipe, bsSkRecipeGroceryList });
 
 function bsNormalizeGroceryList(list) {
   if (!list) return BS_GROCERY_DEFAULT;

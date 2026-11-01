@@ -7,9 +7,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROOT, loadBroadsheet, drive, importSibling } from './helpers/broadsheet-mount.mjs';
+import { ROOT, loadBroadsheet, loadCarved, drive, importSibling } from './helpers/broadsheet-mount.mjs';
 
-const MOD = await loadBroadsheet(['BSSearchKitchenRecipe', 'bsSkRecipeGroceryList']);
+// The client puts BSShapeKitchenRecipe and bsSkRecipeGroceryList on window as it loads; the module,
+// carved out of it (BSSearchKitchenRecipe.jsx), reads them there when it draws.
+const CLIENT = await loadBroadsheet(['bsSkRecipeGroceryList', 'BSShapeKitchenRecipe']);
+const { BSSearchKitchenRecipe } = await loadCarved('BSSearchKitchenRecipe.jsx');
+const MOD = { BSSearchKitchenRecipe, bsSkRecipeGroceryList: CLIENT.bsSkRecipeGroceryList };
 const { SHAPE_KITCHEN_RECIPES } = await importSibling('shapeKitchenData.js');
 const recipe = SHAPE_KITCHEN_RECIPES[0];
 
@@ -39,6 +43,12 @@ test('the list is the recipe\'s own, the one the Eat page\'s Recipes tab builds'
   // The Eat page builds it here too, so the two are one list.
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(src, /const addSKRecipeToGrocery = \(recipe\) => \{\n\s+const list = bsSkRecipeGroceryList\(recipe\);/);
+  // The module reads what the client puts on window, and never imports the client back.
+  assert.equal(window.bsSkRecipeGroceryList, CLIENT.bsSkRecipeGroceryList);
+  assert.equal(window.BSShapeKitchenRecipe, CLIENT.BSShapeKitchenRecipe);
+  const mod = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSSearchKitchenRecipe.jsx'), 'utf8');
+  assert.doesNotMatch(mod, /from '\.\/iosAppBroadsheetClient/);
+  assert.doesNotMatch(src, /^function BSSearchKitchenRecipe/m, 'the component is the module\'s, not the client\'s');
 });
 
 test('Send to grocery list saves it: the Eat page, when it is mounted, takes the list', async () => {
