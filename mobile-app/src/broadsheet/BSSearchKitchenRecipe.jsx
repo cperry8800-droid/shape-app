@@ -1,5 +1,6 @@
 import React from 'react';
-import { bsSaveReceivedGroceryList, bsHasGroceryList } from './BSGroceryShare.jsx';
+import { bsSaveReceivedGroceryList, bsHasGroceryList, bsSaveReceivedGroceryListCoach, bsCoachHasGroceryList } from './BSGroceryShare.jsx';
+import { bsReceivedGroceryId } from '../services/groceryShare.mjs';
 // ─── A SHAPE KITCHEN RECIPE OPENED FROM SEARCH ───────────────────────────────────────────────────
 // Its "Send to grocery list" did nothing: search mounted the recipe page with an empty handler,
 // since search sits outside the Eat page, which holds the lists. It now saves the recipe's own list
@@ -7,6 +8,10 @@ import { bsSaveReceivedGroceryList, bsHasGroceryList } from './BSGroceryShare.js
 // chat or a nutritionist's recipe takes (bsSaveReceivedGroceryList): the Eat page takes it when it
 // is mounted, and otherwise it goes to this device's lists and the member's cloud document. A guest
 // is asked for an account first; a list already saved reads as on the list.
+// ⚠ A COACH'S LISTS ARE THEIR OWN (Codex P1 on #2559). Both coach apps open this search too, and a
+// coach's Grocery Lists page reads coach_grocery_lists, not the member's Eat lists: saved there, the
+// list read as saved and could not be found. A coach's copy goes to their own lists, as a list sent
+// to them in chat does (bsSaveReceivedGroceryListCoach); the role is the one the chat reads.
 // Its own module, not the client's (the worklog's rule for what a PR adds); search itself stays in
 // the client, as it reads fourteen of the client's helpers that are not on window.
 //
@@ -30,16 +35,21 @@ function useShapeTr() {
 }
 
 export function BSSearchKitchenRecipe({ recipe, onBack }) {
-  const { BSShapeKitchenRecipe, bsSkRecipeGroceryList } = window;
+  const { BSShapeKitchenRecipe, bsSkRecipeGroceryList, bsIsCoachRole } = window;
   const tr = useShapeTr();
   const list = useMemo(() => (bsSkRecipeGroceryList ? bsSkRecipeGroceryList(recipe) : null), [recipe]);
-  const [state, setState] = useState(() => (list && bsHasGroceryList(list.id) ? 'done' : null)); // null | 'busy' | 'done'
+  const role = (() => { try { return window.ShapeAuth?.getCachedState?.()?.profile?.role || ''; } catch (e) { return ''; } })();
+  const coach = !!(bsIsCoachRole && bsIsCoachRole(role));
+  // A coach's copy is remembered by the id a list received in chat carries (one per source).
+  const coachId = list ? bsReceivedGroceryId(list.id) : null;
+  const [state, setState] = useState(() => (list && (coach ? bsCoachHasGroceryList(coachId) : bsHasGroceryList(list.id)) ? 'done' : null)); // null | 'busy' | 'done'
   const add = async () => {
     if (!list || state === 'busy' || state === 'done') return;
     if (window.bsRequireAccount && !window.bsRequireAccount(tr('profile:nutri.staplesAsk', { defaultValue: 'add to your grocery list' }))) return;
     setState('busy');
     try {
-      await bsSaveReceivedGroceryList(list);
+      if (coach) await bsSaveReceivedGroceryListCoach({ name: list.name, items: list.items.map((it) => ({ n: it.n, q: it.q })) }, { messageId: list.id });
+      else await bsSaveReceivedGroceryList(list);
       setState('done');
       window.__bsToast?.(tr('nutrition:grocery.share.savedToast', { defaultValue: 'Saved to your grocery lists' }), 'ok');
     } catch (e) {

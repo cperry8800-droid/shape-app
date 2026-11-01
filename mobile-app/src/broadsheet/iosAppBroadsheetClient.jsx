@@ -34250,7 +34250,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
 // member. It reads these at call time.
 Object.assign(window, { BSNutritionTopTabs, BSHeaderTools, _bsScrollTopOnMount, bsGroceryHues, bsDateLocale, bsGroceryListEyebrow });
 // For BSSearchKitchenRecipe.jsx, which opens a Shape Kitchen recipe from search and sends its list.
-Object.assign(window, { BSShapeKitchenRecipe, bsSkRecipeGroceryList });
+Object.assign(window, { BSShapeKitchenRecipe, bsSkRecipeGroceryList, bsIsCoachRole });
 
 function bsNormalizeGroceryList(list) {
   if (!list) return BS_GROCERY_DEFAULT;

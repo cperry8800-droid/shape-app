@@ -117,3 +117,49 @@ test('a guest is asked for an account first, and nothing is sent; a save that la
     delete globalThis.bsRequireAccount;
   }
 });
+
+test('a coach\'s copy goes to their own lists, which their Grocery Lists page reads, not the member\'s Eat lists (Codex P1 on #2559)', async () => {
+  // Both coach apps open this search. A coach's lists are coach_grocery_lists (window.ShapeGroceryLists),
+  // so a copy saved to the member store read as saved and could not be found.
+  const sentToEat = [];
+  const onReceived = (e) => { sentToEat.push(e.detail.list); e.detail.handled = true; };
+  globalThis.addEventListener('shape:groceryReceived', onReceived);
+  const created = [];
+  globalThis.ShapeGroceryLists = { create: async (body) => { created.push(body); return { id: 'g1' }; } };
+  try {
+    for (const role of ['trainer', 'nutritionist']) {
+      created.length = 0;
+      sentToEat.length = 0;
+      toasts.length = 0;
+      globalThis.localStorage = memoryStorage();
+      globalThis.ShapeAuth = { getCachedState: () => ({ profile: { role } }) };
+      delete globalThis.bsRequireAccount;
+      const d = page();
+      assert.equal(recipePage(d).props.groceryAdded, false);
+      await recipePage(d).props.onAddGrocery();
+      d.render();
+      assert.equal(sentToEat.length, 0, `${role}: the copy went to the member's Eat lists`);
+      assert.equal(created.length, 1, `${role}: nothing saved to the coach's lists`);
+      assert.equal(created[0].name, `${recipe.title} grocery list`);
+      assert.equal(created[0].items.length, recipe.ingredients.length, 'every ingredient, quantity in the name');
+      assert.ok(created[0].items.every((it) => it.name && it.aisle));
+      assert.equal(recipePage(d).props.groceryAdded, true);
+      assert.deepEqual(toasts, [['Saved to your grocery lists', 'ok']]);
+      // Opened again on this device, it reads as on the coach's list.
+      assert.equal(recipePage(page()).props.groceryAdded, true);
+    }
+    // The coach's lists refuse it: the button stays and says so.
+    globalThis.ShapeGroceryLists = { create: async () => { throw new Error('403'); } };
+    globalThis.localStorage = memoryStorage();
+    toasts.length = 0;
+    const d = page();
+    await recipePage(d).props.onAddGrocery();
+    d.render();
+    assert.equal(recipePage(d).props.groceryAdded, false);
+    assert.deepEqual(toasts, [['Could not save the list. Try again.', 'error']]);
+  } finally {
+    globalThis.removeEventListener('shape:groceryReceived', onReceived);
+    delete globalThis.ShapeAuth;
+    delete globalThis.ShapeGroceryLists;
+  }
+});
