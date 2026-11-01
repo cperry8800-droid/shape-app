@@ -9,10 +9,11 @@ const REPLY = 'mobile-app/src/services/chatReply.mjs';
 const TIME = 'mobile-app/src/services/chatTime.mjs';
 const BACKEND = 'mobile-app/src/services/shapeBackend.js';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
+const CHROME = 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx';
 const SQL = 'supabase-migrations/2026-11-01-channel-message-replies.sql';
 
 export default {
-  test: 'TZ=Pacific/Auckland node --test tests/chat-dividers-replies.test.mjs tests/chat-time.test.mjs tests/grocery-share.test.mjs',
+  test: 'TZ=Pacific/Auckland node --test tests/chat-dividers-replies.test.mjs tests/chat-time.test.mjs tests/grocery-share.test.mjs tests/swipe-back.test.mjs',
   timeoutMs: 600_000,
   mutations: [
     // ── chatReply.mjs: what a reply keeps
@@ -92,8 +93,12 @@ export default {
       find: 'if (bsReplySwipeCommits(st.off)) startReply(m);', replace: 'startReply(m);' },
     { name: 'a scroll moves the row', file: CLIENT,
       find: "      if (st.dir !== 'reply') return;\n      st.off = bsReplySwipeOffset(dx);", replace: '      st.off = bsReplySwipeOffset(dx);' },
-    { name: 'the bubble leaves horizontal touches to the shell', file: CLIENT,
-      find: 'data-thread-theirs="" style={{ touchAction: \'pan-y\', ', replace: 'data-thread-theirs="" style={{ ' },
+    { name: 'the bubble leaves the leftward swipe to the shell', file: CLIENT,
+      find: 'data-bs-noswipe-left="" data-thread-theirs=""', replace: 'data-thread-theirs=""' },
+    { name: 'the shell takes a left swipe off a claimed bubble', file: CHROME,
+      find: "      if (intent === 'next-tab' && st.target && st.target.closest && st.target.closest('[data-bs-noswipe-left]')) return;\n", replace: '' },
+    { name: 'a claimed bubble blocks the right-swipe Back too', file: CHROME,
+      find: "if (intent === 'next-tab' && st.target && st.target.closest && st.target.closest('[data-bs-noswipe-left]')) return;", replace: "if (st.target && st.target.closest && st.target.closest('[data-bs-noswipe-left]')) return;" },
     { name: 'a moving finger long-presses', file: CLIENT,
       find: '      if (at && p && Math.hypot(p.clientX - at.x, p.clientY - at.y) > 10) stop();\n', replace: '' },
     { name: 'a swipe starts on a control', file: CLIENT,

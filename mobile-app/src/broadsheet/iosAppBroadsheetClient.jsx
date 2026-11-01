@@ -26908,8 +26908,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     setReplyTo(bsReplyFor(m, { myId, myName: bsMyName() }));
     setTimeout(() => { try { const ta = document.querySelector('#bs-composer-slot textarea'); if (ta) ta.focus(); } catch (e) {} }, 0);
   };
-  // The bubble takes the touch (with touchAction pan-y, so the shell's tab swipe lets it be); the row
-  // around it is what slides, and the reply mark sits behind the row.
+  // The bubble takes the touch; the row around it is what slides, and the reply mark sits behind the
+  // row. [data-bs-noswipe-left] keeps the shell's next-tab swipe off a leftward swipe that starts on
+  // it, and leaves it the rightward one, which goes Back (Codex P2 on #2561).
   const swipeProps = (m, lp) => ({
     ...lp,
     onTouchStart: (e) => {
@@ -27071,7 +27072,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
               <div key={i} data-msg-id={m.id || undefined} style={{ position: 'relative', alignSelf: 'flex-end', maxWidth: '84%', marginTop: (i === 0 || dayAt.has(i)) ? 0 : sameRun ? 8 : 24, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 0 }}>
                 {replyMark}
                 <div data-swipe-row="" style={{ position: 'relative', minWidth: 0, maxWidth: '100%' }}>
-                  <div {...swipeProps(m, lp)} tabIndex={0} onKeyDown={actionKeys(pickerOpen, () => rx.setPickerKey(pickerOpen ? null : rKey), () => rx.setPickerKey(null))} data-thread-mine="" style={{ touchAction: 'pan-y', boxSizing: 'border-box', padding: '10px 15px', borderRadius: 20, background: t.INK, color: t.PAPER, fontFamily: t.BODY, fontSize: 15, lineHeight: 1.45, letterSpacing: '-0.005em', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
+                  <div {...swipeProps(m, lp)} tabIndex={0} onKeyDown={actionKeys(pickerOpen, () => rx.setPickerKey(pickerOpen ? null : rKey), () => rx.setPickerKey(null))} data-bs-noswipe-left="" data-thread-mine="" style={{ boxSizing: 'border-box', padding: '10px 15px', borderRadius: 20, background: t.INK, color: t.PAPER, fontFamily: t.BODY, fontSize: 15, lineHeight: 1.45, letterSpacing: '-0.005em', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
                     {/* On your ink bubble the boost line takes the bubble's ink: the paper's teal read 1.6:1 on the
                         dark papers' cream bubble (Copilot on #2556). */}
                     {m.boost && (
@@ -27145,7 +27146,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                 </button>
               )}
               <div data-swipe-row="" style={{ position: 'relative', minWidth: 0, maxWidth: '100%' }}>
-                <div {...swipeProps(m, lp)} tabIndex={0} onKeyDown={actionKeys(pickerOpen, () => rx.setPickerKey(pickerOpen ? null : rKey), () => rx.setPickerKey(null))} data-thread-theirs="" style={{ touchAction: 'pan-y', maxWidth: '100%', fontFamily: t.BODY, fontSize: 15.5, lineHeight: 1.55, letterSpacing: '-0.005em', color: t.INK, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
+                <div {...swipeProps(m, lp)} tabIndex={0} onKeyDown={actionKeys(pickerOpen, () => rx.setPickerKey(pickerOpen ? null : rKey), () => rx.setPickerKey(null))} data-bs-noswipe-left="" data-thread-theirs="" style={{ maxWidth: '100%', fontFamily: t.BODY, fontSize: 15.5, lineHeight: 1.55, letterSpacing: '-0.005em', color: t.INK, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', cursor: 'pointer', userSelect: 'none' }}>
                   {m.boost && (
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: m.boost === 'cooking' ? t.AMBER : teal, marginBottom: 5, fontWeight: 800 }}>▲ Live boost · {m.boost === 'cooking' ? 'mid-cook' : 'mid-workout'}</div>
                   )}

@@ -173,10 +173,15 @@ test('swiping a message left past ARM quotes it over the composer; a short swipe
   assert.equal(d.nodes().find((n) => n && typeof n.type === 'function' && n.type.name === 'BSMessageComposer').props.above, null);
 });
 
-test('a vertical drag scrolls and never replies; the bubble claims horizontal touches from the shell', () => {
+test('a vertical drag scrolls and never replies; the bubble claims only the leftward swipe from the shell', () => {
   const d = mount();
   const bubble = withAttr(d.nodes(), 'data-thread-theirs')[0];
-  assert.equal(bubble.props.style.touchAction, 'pan-y', 'the shell\'s tab swipe lets it be (bsSwipeBlocked)');
+  // [data-bs-noswipe-left]: the shell's next-tab swipe lets a leftward swipe be, and a rightward one still
+  // goes Back. touchAction pan-y, which bsSwipeBlocked reads in both directions, cost the thread its
+  // right-swipe Back (Codex P2 on #2561); tests/swipe-back.test.mjs drives both through the real listeners.
+  assert.notEqual(bubble.props['data-bs-noswipe-left'], undefined);
+  assert.equal(bubble.props.style.touchAction, undefined, 'no pan-y: it would block the right-swipe Back');
+  assert.notEqual(withAttr(d.nodes(), 'data-thread-mine')[0].props['data-bs-noswipe-left'], undefined, 'yours too');
   const { row, target } = fakeRow();
   bubble.props.onTouchStart({ ...touch(200, 300), currentTarget: target });
   bubble.props.onTouchMove(touch(196, 360));
