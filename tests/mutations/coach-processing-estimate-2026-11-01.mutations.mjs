@@ -68,8 +68,8 @@ export default {
 
     // ── The app's Business calculator ──
     { name: 'the app shows no estimate', file: APP,
-      find: '      {e.grossCents > 0 ? (\n        <Note t={t} style={{ marginTop: 4 }}>',
-      replace: '      {false ? (\n        <Note t={t} style={{ marginTop: 4 }}>' },
+      find: '      {e.grossCents > 0 ? (\n        <Note t={t} style={{ marginTop: 4, color: t.INK70 || t.INK }}>',
+      replace: '      {false ? (\n        <Note t={t} style={{ marginTop: 4, color: t.INK70 || t.INK }}>' },
     { name: 'the app shows the net as what is left', file: APP,
       find: "processing: bsBizMoney(e.processingCents), after: bsBizMoney(e.afterProcessingCents) })}",
       replace: "processing: bsBizMoney(e.processingCents), after: bsBizMoney(e.netCents) })}" },
