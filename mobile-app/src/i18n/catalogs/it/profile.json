@@ -1086,5 +1086,9 @@
   "mine.socials": "I tuoi social",
   "mine.errLink": "Controlla {network}: un nome utente come @tu, o un indirizzo che inizia con https://",
   "mine.errYears": "Anni da coach: un numero da 1 a {max}.",
-  "coach.noPlansYet": "{name} non ha ancora pubblicato un piano"
+  "coach.noPlansYet": "{name} non ha ancora pubblicato un piano",
+  "coach.kind.program": "Programma",
+  "coach.kind.workout": "Allenamento",
+  "coach.kind.mealPlan": "Piano alimentare",
+  "coach.kind.diet": "Dieta"
 }

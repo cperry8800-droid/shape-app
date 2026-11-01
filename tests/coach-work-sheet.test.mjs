@@ -96,3 +96,20 @@ test('the member\'s empty line in all 13 languages, with the coach\'s name', () 
     assert.match(new IntlMessageFormat(s, l === 'pt-BR' ? 'pt' : l).format({ name: 'Quinn' }), /Quinn/, `${l} drops the name`);
   }
 });
+
+test('the word over each plan is said in the reader\'s language, not the stored category', () => {
+  // It was the category as stored ("meal", "program"), in English in every language (seen on the sample
+  // nutritionist's meal plans, owner 2026-11-01). A category with no word of its own keeps it.
+  const trainer = rows(block({ salePlans: [plan('a', 'program', 'Strong in 12'), plan('w', 'workout', 'Form check')] }));
+  assert.ok(trainer[0].startsWith('ProgramStrong in 12'), trainer[0]);
+  assert.ok(trainer[1].startsWith('WorkoutForm check'), trainer[1]);
+  const nutri = rows(block({ isNutri: true, salePlans: [plan('m', 'meal', 'Train-day fuel'), plan('d', 'diet', 'Cut protocol'), plan('x', 'cleanse', 'Odd one')] }));
+  assert.ok(nutri[0].startsWith('Meal planTrain-day fuel'), nutri[0]);
+  assert.ok(nutri[1].startsWith('DietCut protocol'), nutri[1]);
+  assert.ok(nutri[2].startsWith('cleanseOdd one'), 'a category with no word keeps its own');
+  const dir = join(ROOT, 'mobile-app/src/i18n/catalogs');
+  for (const l of readdirSync(dir)) {
+    const cat = JSON.parse(readFileSync(join(dir, l, 'profile.json'), 'utf8'));
+    for (const k of ['program', 'workout', 'mealPlan', 'diet']) assert.ok(cat['coach.kind.' + k], `${l} has no profile:coach.kind.${k}`);
+  }
+});

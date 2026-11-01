@@ -1086,5 +1086,9 @@
   "mine.socials": "Vos réseaux sociaux",
   "mine.errLink": "Vérifiez {network} : un identifiant comme @vous, ou une adresse commençant par https://",
   "mine.errYears": "Années de coaching : un nombre de 1 à {max}.",
-  "coach.noPlansYet": "{name} n'a pas encore publié de plan"
+  "coach.noPlansYet": "{name} n'a pas encore publié de plan",
+  "coach.kind.program": "Programme",
+  "coach.kind.workout": "Séance",
+  "coach.kind.mealPlan": "Plan de repas",
+  "coach.kind.diet": "Régime"
 }

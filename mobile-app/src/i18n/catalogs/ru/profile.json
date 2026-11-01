@@ -1086,5 +1086,9 @@
   "mine.socials": "Ваши соцсети",
   "mine.errLink": "Проверьте {network}: имя вроде @вы или адрес, начинающийся с https://",
   "mine.errYears": "Лет тренерского стажа: число от 1 до {max}.",
-  "coach.noPlansYet": "{name}: опубликованных планов пока нет"
+  "coach.noPlansYet": "{name}: опубликованных планов пока нет",
+  "coach.kind.program": "Программа",
+  "coach.kind.workout": "Тренировка",
+  "coach.kind.mealPlan": "План питания",
+  "coach.kind.diet": "Диета"
 }
