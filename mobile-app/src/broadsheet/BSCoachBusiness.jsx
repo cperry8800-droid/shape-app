@@ -454,9 +454,9 @@ export function BSBizEarn({ t, base }) {
           cost is an ESTIMATE from Stripe's published US prices (CoachForecast.processingCents),
           labelled as one and kept out of the net: the coach's own Stripe pricing decides it. */}
       {e.grossCents > 0 ? (
-        <Note t={t} style={{ marginTop: 4 }}>
+        <Note t={t} style={{ marginTop: 4, color: t.INK70 || t.INK }}>
           <span data-biz-processing="">{tr('coach:business.earn.processing', { defaultValue: 'About {processing} card processing · about {after} a month after it', processing: bsBizMoney(e.processingCents), after: bsBizMoney(e.afterProcessingCents) })}</span>
-          <span style={{ display: 'block', marginTop: 3, opacity: 0.8 }}>{tr('coach:business.earn.processingBasis', { defaultValue: "Estimate: Stripe's US card rate, 2.9% + 30¢ a charge, and 0.7% Stripe Billing on subscriptions. Your own Stripe pricing decides the real figure." })}</span>
+          <span style={{ display: 'block', marginTop: 3 }}>{tr('coach:business.earn.processingBasis', { defaultValue: "Estimate: Stripe's US card rate, 2.9% + 30¢ a charge, and 0.7% Stripe Billing on subscriptions. Your own Stripe pricing decides the real figure." })}</span>
         </Note>
       ) : null}
     </div>

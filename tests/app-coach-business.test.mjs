@@ -1089,7 +1089,8 @@ test('an unread brought share and listing price say so in What clients earn you,
   assert.match(m.text(), /couldn't read your listing price · your clients' average/);
   await m.unmount();
   // With no clients to average, the unread price starts at the default, and says set your own.
-  const Earn = ({ base: b }) => React.createElement(BIZ.BSBizEarn, { t: window.useBS(), base: b });
+  let seenT = null;
+  const Earn = ({ base: b }) => { const t = window.useBS(); seenT = t; return React.createElement(BIZ.BSBizEarn, { t, base: b }); };
   m = await mount(inChrome(React.createElement(Earn, { base: { state: 'ready', clients: 0, mrrNetCents: 0, rateCents: CF.DEFAULT_RATE_CENTS, rateFrom: 'default', listingUnread: true, byoShare: 0, brought: 0, byoClients: 0, broughtUnread: false, pace: {} } })));
   assert.match(m.text(), /couldn't read your listing price · set your own/);
   assert.match(m.text(), /0% Shape fee on these/, 'a read with no subscriptions is the plain note');
@@ -1097,6 +1098,13 @@ test('an unread brought share and listing price say so in What clients earn you,
   const e = CF.earn({ clients: 20, priceCents: CF.DEFAULT_RATE_CENTS, byoShare: 0 });
   assert.ok(m.text().includes('About ' + BIZ.bsBizMoney(e.processingCents) + ' card processing · about ' + BIZ.bsBizMoney(e.afterProcessingCents) + ' a month after it'), m.text());
   assert.match(m.text(), /Estimate: Stripe's US card rate, 2\.9% \+ 30¢ a charge, and 0\.7% Stripe Billing on subscriptions\./);
+  // Read in the stronger ink, not the notes' faint one, and with no extra fade on the basis (Copilot on
+  // #2555: INK50 at 13.5px was 3.5:1 on Light, under AA).
+  const note = m.host.querySelector('[data-biz-processing]').parentElement;
+  const want = document.createElement('div'); want.style.color = seenT.INK70;
+  assert.ok(seenT.INK70 && seenT.INK70 !== seenT.INK50, 'the theme has a stronger ink to read in');
+  assert.equal(note.style.color, want.style.color);
+  assert.equal(note.lastElementChild.style.opacity, '', 'the basis is not faded further');
   await m.unmount();
 });
 

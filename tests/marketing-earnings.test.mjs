@@ -51,12 +51,16 @@ for (const [file, name, clients, rate] of [['coach.jsx', 'TrainerEarnings', 20, 
     const bare = withoutRule(() => text(React.createElement(C)));
     assert.ok(bare.includes('Your take-home $' + net.toLocaleString()), bare);
     assert.doesNotMatch(bare, /Card processing · Stripe/);
+    // ...and its footnote says the take-home is before the fee, never that it was estimated (Copilot, #2555).
+    assert.match(bare.replace(/&#x27;/g, "'"), /The take-home is before Stripe's card-processing fee, which comes out of your share\./);
+    assert.doesNotMatch(bare, /estimated here/);
+    assert.doesNotMatch(t.replace(/&#x27;/g, "'"), /The take-home is before Stripe's/);
     assert.match(t, /Monthly rate per client/);
     assert.match(t, /Clients you bring 0%/);
     assert.match(t, /No Shape fee on clients you bring\./);
     const src = readFileSync(new URL('../public/newdesign/' + file, import.meta.url), 'utf8');
     const body = src.slice(src.indexOf('function ' + name + '() {'), src.indexOf('\n// ---------- ', src.indexOf('function ' + name + '() {')));
-    assert.match(body, /Stripe's card processing comes out of your share: it is estimated here at Stripe's US card rate, 2\.9% \+ 30¢ a charge, and 0\.7% Stripe Billing on subscriptions, and your own Stripe pricing decides the real figure\./);
+    assert.match(t.replace(/&#x27;/g, "'"), /Stripe's card processing comes out of your share: it is estimated here at Stripe's US card rate, 2\.9% \+ 30¢ a charge, and 0\.7% Stripe Billing on subscriptions, and your own Stripe pricing decides the real figure\./);
     assert.doesNotMatch(body, /Card processing is on Shape|pays the card processing/);
     assert.match(body, /Set your own monthly rate and keep what you earn\./);
     assert.match(body, /Payouts straight to your bank, on the schedule you set in Stripe/);

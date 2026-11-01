@@ -287,7 +287,9 @@ function TrainerEarnings() {
               </div>
             </div>
             <div style={{ marginTop: 28, fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.4)", lineHeight: 1.5 }}>
-              Estimate at one monthly rate per client. Shape takes 15% on clients who find you on Shape and nothing on clients you bring. Stripe's card processing comes out of your share: it is estimated here at Stripe's US card rate, 2.9% + 30¢ a charge, and 0.7% Stripe Billing on subscriptions, and your own Stripe pricing decides the real figure. Actual earnings vary by specialty, location, and how many clients you take on.
+              Estimate at one monthly rate per client. Shape takes 15% on clients who find you on Shape and nothing on clients you bring. {processingMonthly == null
+                ? "The take-home is before Stripe's card-processing fee, which comes out of your share."
+                : "Stripe's card processing comes out of your share: it is estimated here at Stripe's US card rate, 2.9% + 30¢ a charge, and 0.7% Stripe Billing on subscriptions, and your own Stripe pricing decides the real figure."} Actual earnings vary by specialty, location, and how many clients you take on.
             </div>
           </div>
         </div>

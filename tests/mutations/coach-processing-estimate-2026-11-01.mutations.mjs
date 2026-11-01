@@ -63,7 +63,7 @@ export default {
       find: '            About {dashMoney(e.processingCents)} card processing · about {dashMoney(e.afterProcessingCents)} a month after it',
       replace: '            About {dashMoney(e.processingCents)} card processing · about {dashMoney(e.netCents)} a month after it' },
     { name: 'the dashboard does not say what the estimate is', file: BIZ,
-      find: '            <span style={{ display: "block", marginTop: 3, opacity: 0.8 }}>{DBZ_PROCESSING_BASIS}</span>',
+      find: '            <span style={{ display: "block", marginTop: 3 }}>{DBZ_PROCESSING_BASIS}</span>',
       replace: '' },
 
     // ── The app's Business calculator ──
@@ -74,8 +74,11 @@ export default {
       find: "processing: bsBizMoney(e.processingCents), after: bsBizMoney(e.afterProcessingCents) })}",
       replace: "processing: bsBizMoney(e.processingCents), after: bsBizMoney(e.netCents) })}" },
     { name: 'the app does not say what the estimate is', file: APP,
-      find: "          <span style={{ display: 'block', marginTop: 3, opacity: 0.8 }}>{tr('coach:business.earn.processingBasis',",
-      replace: "          <span hidden style={{ display: 'block', marginTop: 3, opacity: 0.8 }}>{false && tr('coach:business.earn.processingBasis'," },
+      find: "          <span style={{ display: 'block', marginTop: 3 }}>{tr('coach:business.earn.processingBasis',",
+      replace: "          <span hidden style={{ display: 'block', marginTop: 3 }}>{false && tr('coach:business.earn.processingBasis'," },
+    { name: 'the app estimate drops back to the faint ink', file: APP,
+      find: '        <Note t={t} style={{ marginTop: 4, color: t.INK70 || t.INK }}>',
+      replace: '        <Note t={t} style={{ marginTop: 4 }}>' },
 
     // ── The marketing calculators ──
     { name: 'the trainer page leaves processing out of the take-home', file: COACH,
@@ -96,6 +99,9 @@ export default {
     { name: 'the nutritionist page leaves processing out of the take-home', file: NUT,
       find: '  const takeHome = processingMonthly == null ? monthly : Math.max(0, monthly - processingMonthly);',
       replace: '  const takeHome = monthly;' },
+    { name: 'the trainer page says it estimated when it did not', file: COACH,
+      find: "                ? \"The take-home is before Stripe's card-processing fee, which comes out of your share.\"",
+      replace: "                ? \"Stripe's card processing comes out of your share: it is estimated here.\"" },
     { name: 'the nutritionist page hides the estimate line', file: NUT,
       find: '              {processingMonthly == null ? null : (\n                <div data-processing-estimate=""',
       replace: '              {true ? null : (\n                <div data-processing-estimate=""' },

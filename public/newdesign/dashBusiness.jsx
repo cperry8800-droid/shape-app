@@ -1076,7 +1076,7 @@ function DbzEarnZone({ base }) {
         {e.grossCents > 0 ? (
           <div data-dbz-processing="" style={{ ...DBZ_NOTE, gridRow: 4, gridColumn: "1 / -1", marginTop: 6 }}>
             About {dashMoney(e.processingCents)} card processing · about {dashMoney(e.afterProcessingCents)} a month after it
-            <span style={{ display: "block", marginTop: 3, opacity: 0.8 }}>{DBZ_PROCESSING_BASIS}</span>
+            <span style={{ display: "block", marginTop: 3 }}>{DBZ_PROCESSING_BASIS}</span>
           </div>
         ) : null}
       </div>
