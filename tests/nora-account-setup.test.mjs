@@ -539,6 +539,8 @@ async function loadChat({ user = { id: ME, email: 'm@x' }, role = 'client', isMe
     ['@/lib/ai/replyText.mjs', await import(join(ROOT, 'src/lib/ai/replyText.mjs'))],
     ['@/lib/ai/memberReads.mjs', await import(join(ROOT, 'src/lib/ai/memberReads.mjs'))],
     ['@/lib/ai/memberMornings.mjs', await import(join(ROOT, 'src/lib/ai/memberMornings.mjs'))],
+    // #2558's lookups named while they run.
+    ['@/lib/ai/noraStatus.mjs', await import(join(ROOT, 'src/lib/ai/noraStatus.mjs'))],
     ['@/lib/ai/shapeKnowledge.mjs', await import(join(ROOT, 'src/lib/ai/shapeKnowledge.mjs'))],
     ['@/lib/ai/voiceLang.mjs', await import(join(ROOT, 'src/lib/ai/voiceLang.mjs'))],
     ['@/lib/request-auth', { clientForRequest: async () => sb }],
@@ -555,6 +557,9 @@ async function loadChat({ user = { id: ME, email: 'm@x' }, role = 'client', isMe
     ['@/lib/ai', {
       hasOpenAIKey: () => true,
       aiPublicModel: ai.aiPublicModel,
+      // #2558: a member's own chat rides the fast model; the real resolvers, as support-chat-route's.
+      aiFastModel: ai.aiFastModel,
+      aiModel: ai.aiModel,
       callAI: async (body, opts) => { seen.ai.push({ body, opts }); const data = answers[Math.min(i, answers.length - 1)]; i += 1; return { ok: true, data, usage: null, latencyMs: 1, promptId: opts.promptId, model: 'pinned', fellBack: false }; },
     }],
     ['@/lib/ai/server', {
