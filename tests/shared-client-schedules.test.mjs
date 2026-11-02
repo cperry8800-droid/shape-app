@@ -245,7 +245,8 @@ const menuRow = (id, nutritionistId, title, createdAt, extra = {}) => ({
 const sub = (providerId, status, extra = {}) => ({ client_id: 'member-1', provider_role: 'nutritionist', provider_id: providerId, status, created_at: '2026-09-01T00:00:00Z', ...extra });
 const MEMBER_MENUS = [
   menuRow('mp-nia', 4, 'Nia lunch', '2026-10-01T00:00:00Z'),
-  menuRow('mp-nia-old', 4, 'Nia old lunch', '2026-09-01T00:00:00Z', { status: 'archived' }),
+  // A menu Nia took down, newer than her current one.
+  menuRow('mp-nia-pulled', 4, 'Nia pulled lunch', '2026-10-15T00:00:00Z', { status: 'archived' }),
   menuRow('mp-nell', 5, 'Nell lunch', '2026-10-20T00:00:00Z'),
   // An older menu of Nell's still published (two pushes at once): her newest is the one shown.
   menuRow('mp-nell-stale', 5, 'Nell stale lunch', '2026-10-10T00:00:00Z'),
@@ -268,8 +269,8 @@ test('the member\'s own calendar shows the menu of each nutritionist who coaches
       sub(6, 'canceled'),
       // Another member's subscription to the nutritionist who left.
       sub(6, 'active', { client_id: 'member-2' }),
-      // The same member's trainer: not a menu.
-      { client_id: 'member-1', provider_role: 'trainer', provider_id: 4, status: 'active', created_at: '2026-09-01T00:00:00Z' },
+      // The same member's trainer, whose trainer id is the left nutritionist's id: not a nutritionist.
+      { client_id: 'member-1', provider_role: 'trainer', provider_id: 6, status: 'active', created_at: '2026-09-01T00:00:00Z' },
     ]),
     rpcs: { get_shared_client_meal_plan: () => { throw new Error('a member never asks'); } },
   });
