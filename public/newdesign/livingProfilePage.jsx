@@ -390,13 +390,21 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     if (demoRole) {
       const dDir = demoRole === "client" ? "terrain" : "signal";
       const demoFollow = { followers: 214, following: 167, posts: 24, canFollow: false };
+      const demoMessage = () => { try { if (window.__openChat) { window.__openChat(); return; } } catch (e) {} const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); };
+      const demoDesktop = <DesktopProfile direction={dDir} persona={demoRole} variant="public" follow={demoFollow} onMessage={demoMessage} onFollow={() => { window.location.href = "/login"; }} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} />;
+      // A coach dashboard signed out shows the coach profile in the app's design with the sample
+      // coach on it (coachProfileWeb.jsx), as the coach apps do signed out.
+      const coachDemo = (demoRole === "trainer" || demoRole === "nutritionist") && typeof WebCoachProfile !== "undefined";
+      const demoPerson = LV_PEOPLE[demoRole] || LV_PEOPLE.trainer;
       return wrapShell(
         <React.Fragment>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "9px 16px", background: "rgba(30,192,168,0.1)", borderBottom: "1px solid rgba(30,192,168,0.3)", fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", textAlign: "center" }}>
             <span>Preview · demo profile — an example of a live account</span>
             <a href="/login" style={{ flexShrink: 0, color: "#06110e", background: "#1ec0a8", borderRadius: 999, padding: "5px 13px", textDecoration: "none" }}>Sign in →</a>
           </div>
-          <div data-tour="hero-profile"><DesktopProfile direction={dDir} persona={demoRole} variant="public" follow={demoFollow} onMessage={() => { try { if (window.__openChat) { window.__openChat(); return; } } catch (e) {} const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); }} onFollow={() => { window.location.href = "/login"; }} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} /></div>
+          <div data-tour="hero-profile">{coachDemo
+            ? <WebCoachProfile mode="sample" demo role={demoRole} name={demoPerson.name} avatar={lvPortraitURL(demoPerson.portrait)} sampleKey="demo" onMessage={demoMessage} chrome={!shell} belowContent={extras} fallback={demoDesktop} />
+            : demoDesktop}</div>
         </React.Fragment>
       );
     }
@@ -505,10 +513,36 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     return (<button key={key} onClick={() => setGroup(key)} style={{ flex: 1, borderRadius: 999, border: 0, cursor: "pointer", padding: "7px 6px", background: on ? "rgba(46,224,196,0.16)" : "transparent", color: on ? "#2ee0c4" : "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: on ? 700 : 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</button>);
   };
 
+  const desktop = <DesktopProfile key={(st.uid || "preview") + ":" + variant} direction={direction} persona={role} person={person} variant={variant} onMessage={onMessage} onFollow={onFollow} follow={followProps} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} />;
+  // ⚠ A COACH'S PAGE IS THE APP PROFILE'S DESIGN (coachProfileWeb.jsx) wherever that module is loaded:
+  // a real coach's from their account and listing, a coach with no account (a listing opened by name)
+  // as the app's sample. A member's profile keeps the living layout above. The living layout is still
+  // the fallback when the coach page's kit cannot load.
+  // ⚠ A DUAL-ROLE COACH HOLDS BOTH LISTINGS: the clicked listing's role (the URL's &role=) decides
+  // which one the page shows, by the same rule the storefront hook reads it (useLvCoachCommerce's
+  // listingRole), so the listing, times, plans and price are the listing Subscribe goes to. With the
+  // profile row's role, a nutritionist link showed the trainer listing and subscribed to the
+  // nutritionist (Codex P2 on #2560).
+  // With no &role= on the URL, a coach dashboard's own Profile page (TrainerProfile, the Nutritionist
+  // app's Profile tab…) names its listing by the host's role: a dual-role coach on the nutritionist
+  // dashboard sees their nutritionist listing, whatever the profile row's one role says (Codex P2 on
+  // 745e3a8). The member pages pass demoRole "client", which names no listing.
+  const listingRole = (() => {
+    let p = null;
+    try { p = new URLSearchParams(window.location.search).get("role"); } catch (e) {}
+    if (p === "trainer" || p === "nutritionist") return p;
+    if (demoRole === "trainer" || demoRole === "nutritionist") return demoRole;
+    return role;
+  })();
+  const coachPage = coach && typeof WebCoachProfile !== "undefined" ? (isDerived
+    ? <WebCoachProfile key={"sample:" + role + ":" + name} mode="sample" role={role} name={name} avatar={lvSafeMedia(row.avatar) || ""} sampleKey={name} onMessage={onMessage} chrome={!shell} belowContent={extras} fallback={desktop} />
+    : <WebCoachProfile key={(st.uid || "preview") + ":" + variant + ":" + listingRole} mode="live" role={listingRole} uid={st.uid} row={row} isSelf={st.isSelf} verified={!!st.verified} certs={st.coachCerts || []}
+        follow={followProps} onFollow={onFollow} onMessage={onMessage} chrome={!shell} belowContent={extras} fallback={desktop} />) : null;
+
   return wrapShell(
     <React.Fragment>
       <div data-tour="hero-profile">
-      <DesktopProfile key={(st.uid || "preview") + ":" + variant} direction={direction} persona={role} person={person} variant={variant} onMessage={onMessage} onFollow={onFollow} follow={followProps} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} />
+      {coachPage || desktop}
       </div>
       {sheet && (
         <div onClick={() => setSheet(null)} style={{ position: "fixed", inset: 0, zIndex: 240, background: "rgba(10,10,8,0.78)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>

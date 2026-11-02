@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS } from '../services/profileCustom.mjs';
 import { STUDIO_WORDS, STUDIO_KIT, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, bsStudioFrame, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
-import { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsWorkPaid } from '../services/coachWork.mjs';
+import { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsWorkPaid, bsPlateNoteDays, energySplit } from '../services/coachWork.mjs';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.mjs';
 import { bsCoachPronoun, bsCoachFirstName } from '../services/coachPronoun.mjs';
@@ -1786,43 +1786,10 @@ function CookOverlay({ t, cookable, onClose }) {
 // macro the meal did not carry is left out, never shown as 0; a meal cooked from a Shape Kitchen
 // recipe opens it.
 const num = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Math.round(Number(v)));
-// Plate cards grouped by the local day they were shared on, newest day first, each day in the order
-// it was eaten.
-export function bsPlateNoteDays(plates) {
-  const days = new Map();
-  for (const pl of plates) {
-    const at = Date.parse(pl && pl.created_at);
-    const d = Number.isFinite(at) ? new Date(at) : null;
-    const key = d ? isoDay(d) : 'undated';
-    if (!days.has(key)) days.set(key, { key, at: d ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() : -Infinity, meals: [] });
-    days.get(key).meals.push({ ...pl, at: d ? d.getTime() : null });
-  }
-  return [...days.values()].sort((a, b) => b.at - a.at).map((day) => {
-    const meals = day.meals.slice().sort((a, b) => (a.at || 0) - (b.at || 0));
-    // A day's protein and energy, each only when every meal of the day carried it.
-    let so = 0, all = true, kcal = 0, kcalAll = true;
-    for (const m of meals) {
-      const p = num(m.meal && m.meal.p); if (p == null) all = false; else so += p;
-      const k = num(m.meal && m.meal.kcal); if (k == null) kcalAll = false; else kcal += k;
-    }
-    return { ...day, meals, protein: so, proteinAll: all, kcal: kcalAll ? kcal : null };
-  });
-}
-// Where a meal's energy came from: protein and carbs at 4 kcal a gram, fat at 9. Null unless all three
-// were logged.
-export function energySplit(m) {
-  const p = num(m.p), c = num(m.c), f = num(m.f);
-  if (p == null || c == null || f == null) return null;
-  const e = [p * 4, c * 4, f * 9], tot = e[0] + e[1] + e[2];
-  if (!tot) return null;
-  // Whole percentages that add up to 100: each share rounded down, then the points left over go to
-  // the largest remainders, so none is ever below 0 or above its share by more than one.
-  const exact = e.map((x) => (x / tot) * 100);
-  const out = exact.map(Math.floor);
-  const order = [0, 1, 2].sort((a, b) => (exact[b] - out[b]) - (exact[a] - out[a]));
-  for (let i = 0, left = 100 - out[0] - out[1] - out[2]; i < left; i += 1) out[order[i]] += 1;
-  return { p: out[0], c: out[1], f: out[2] };
-}
+// Plate cards by day (bsPlateNoteDays) and a meal's energy split (energySplit) live in coachWork.mjs,
+// shared with the website's coach profile; re-exported here for the callers that read them from this
+// module.
+export { bsPlateNoteDays, energySplit };
 function plateMacros(tr, m) {
   return [
     num(m.p) != null ? tr('cook:ck.gProtein', { defaultValue: '{n} g protein', n: num(m.p) }) : null,

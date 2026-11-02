@@ -56,7 +56,9 @@ or past 12 KB.
 - **Website: `public/newdesign/`**, one live page per `*.html`; shared `pageShell.jsx`,
   `living*.jsx`, `chatWidget.jsx`. Never bump `?v=` (`scripts/build-newdesign.mjs` hashes it
   at deploy); check a legacy `*.jsx` is still loaded before editing it. `coachForecast.js`
-  holds the coach Business figures for the app too, and `splitGlassMark.js` the 3D mark.
+  holds the coach Business figures for the app too, and `splitGlassMark.js` the 3D mark. A
+  coach's public page is `coachProfileWeb.jsx` (kit `coachProfileKit.mjs`): the app profile
+  for the web, selling through `livingShared.jsx`'s `useLvCoachCommerce` like the old layout.
 - **Next.js (`src/`):** API routes, `/dashboard`, `/admin`. Read the Next docs first;
   typecheck with `npx tsc --noEmit`. A new route goes in the War Room's `RAW_ROUTES`. A
   route the app calls reads the caller with `clientForRequest`/`currentUser`
@@ -81,7 +83,9 @@ or past 12 KB.
   `BSPage`, `BSFooter`, `BSPlate`, `BSSwapSheet`), `iosAppBroadsheetRadio.jsx`,
   `services/shapeBackend.js` (Supabase data layer). Coach profiles: `BSTrainerProfile.jsx`
   (editor `BSMakeItYours.jsx`; studio and replays in `coachWork.mjs`; a nutritionist's
-  kitchen is `studio` kind `kitchen`; samples in `trainerDemo` and the like).
+  kitchen is `studio` kind `kitchen`; samples in `trainerDemo` and the like). `coachWork`,
+  `studioKit`, `planPreview`, `planOutline`, `coachPronoun` and the demos live in
+  `public/newdesign/` (the website uses them); `mobile-app/src/services/` only re-exports.
 - ⚠ **Window globals** (`Object.assign(window, …)`): read one before its module defines it
   and React throws #130. `iosAppBroadsheetMain.jsx` loads feature modules before role
   modules, and `loadProsBundle` the whole client bundle first.
@@ -137,7 +141,6 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
 **Planned next**
 - Night-before prep, Phase 2: a nutritionist's "prep the night before" tick, a reminder
   time the member chooses, planning tomorrow, a morning swap.
-- The website's coach profile in the app profile's design.
 - Nora as the account-setup assistant (she answers and fills forms; setting up is to build).
 - Nora as a Shape Radio DJ, Phase 2 on
   ([`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md)), once a station provider signs.

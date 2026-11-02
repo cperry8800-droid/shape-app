@@ -111,7 +111,7 @@ window.ShapeCoachListing = {
 };
 window.ShapeCoachAvailability = { get: async (role) => { world.roles.push(['hours', role]); return { slots: world.slots, booked: [], busy: world.busy, rules: world.rules, timezone: ZONE, atCapacity: world.atCapacity }; } };
 window.ShapeCoachReviews = { forOwner: async () => ({ reviews: [], avg: 0, count: 0 }) };
-window.ShapeCoachPlans = { salePlansByUser: async () => [] };
+window.ShapeCoachPlans = { salePlansByUser: async () => world.plans || [] };
 window.ShapeFollows = { stats: async () => ({ isFollowing: false, isPending: false }), toggle: async () => ({ isFollowing: true }), getCached: () => null };
 window.ShapeCommunity = { listByAuthor: async () => ({ data: world.posts }), uploadPhoto: async (f) => { world.uploaded = f; if (world.uploadGate) await world.uploadGate; return world.uploadUrl; } };
 window.shapeDb = {
@@ -121,7 +121,7 @@ window.shapeDb = {
 window.ShapeBookings = { submitConsultationBooking: async (a) => { world.booked = a; return { ok: true }; } };
 window.bsProfileCardFromPost = (p) => p;
 window.useBSCoachCommerce = ({ person, isNutri }) => ((world.commerceSeen = person.commerce), (world.isNutriSeen = isNutri), { commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: false, wl: null });
-window.BSCoachCoachingBlock = ({ cm, isNutri, salePlans }) => (world.blockNutri = isNutri, world.blockPlans = salePlans, React.createElement('div', { 'data-coaching-block': '' }, cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' ')));
+window.BSCoachCoachingBlock = ({ cm, isNutri, salePlans }) => (world.blockNutri = isNutri, world.blockPlans = salePlans, React.createElement('div', { 'data-coaching-block': '' }, ((cm.commerce && cm.commerce.packages) || []).map((p) => `${p.name} ${p.price}`).join(' ')));
 
 
 const nadia = { userId: 'u-nadia', who: 'Nadia Rahman', kind: 'NUTRI' };
@@ -195,6 +195,21 @@ test('a nutritionist\'s page reads, sells and books as a nutritionist, and start
   assert.equal(world.booked.role, 'nutritionist', 'the intro is booked with the nutritionist');
   assert.equal(world.booked.coach.provider_id, 9);
   await m.unmount();
+});
+
+test('with no monthly price but meal plans to sell, the plans-only storefront files them as a nutritionist\'s', async () => {
+  // The second storefront block (Codex P2 on #2545): a listed nutritionist with no monthly price
+  // and a paid meal plan. Its plans are filed under Meals, Diets and Coaching only when it is told
+  // it is a nutritionist's.
+  reset({ provider: { ...world.provider, price: 0 }, plans: [{ id: 'mp1', kind: 'meal_plan', name: 'Cut in 8', price: 59, provider_role: 'nutritionist', provider_id: 9 }] });
+  world.blockNutri = undefined; world.blockPlans = undefined;
+  const m = await mount(page());
+  try {
+    await click(button(/^Work with her$/));
+    assert.ok(document.querySelector('[data-coaching-block]'), 'the plans-only storefront is drawn');
+    assert.deepEqual((world.blockPlans || []).map((pl) => pl.id), ['mp1'], 'with the meal plan');
+    assert.equal(world.blockNutri, true, 'and files it as a nutritionist\'s');
+  } finally { await m.unmount(); reset(); }
 });
 
 test('a nutritionist has their kitchen and plate notes, never the studio or replays; a trainer never the kitchen', async () => {
