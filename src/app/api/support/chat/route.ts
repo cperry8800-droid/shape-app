@@ -1077,7 +1077,7 @@ function extractOutputText(payload: OpenAIResponsePayload): string {
 // the draft is then a labelled template) — injected here rather than imported by the
 // action, so the action's core stays node-testable.
 type DraftModel = ((body: Record<string, unknown>, opts: { promptId: string; effort?: 'medium'; timeoutMs?: number }) => ReturnType<typeof callAI>) | null;
-function makePropose(actor: Actor | null, request: Request, isMember: boolean, draftModel: DraftModel = null, zone: string | null = null): ProposeFn {
+function makePropose(actor: Actor | null, request: Request, isMember: boolean, draftModel: DraftModel = null, zone: string | null = null, locale: string | null = null): ProposeFn {
   return async (name, args) => {
     if (!actor) {
       return { result: { error: 'sign_in_required', message: 'They need to be signed in for me to do that.' }, actions: [] };
@@ -1096,7 +1096,8 @@ function makePropose(actor: Actor | null, request: Request, isMember: boolean, d
       action: name,
       input: args,
       actor: { id: actor.user.id, role: actor.role, roles: actor.roles },
-      ctx: { ...makeCtx(actor, request), isMember, draftModel, zone },
+      // `locale`: the app's language, for words an action writes for the member to read (the goal's).
+      ctx: { ...makeCtx(actor, request), isMember, draftModel, zone, locale: locale || 'en' },
       secret,
     });
     if (!res.ok) {
@@ -1593,7 +1594,7 @@ export async function POST(request: Request) {
   // The draft's own model call: the pinned model with its fallback, like every member
   // call; null with no key, and the draft says it is a template.
   const draftModel: DraftModel = hasOpenAIKey() ? (b, o) => callAI(b, { ...o, signal: request.signal }) : null;
-  const propose = makePropose(actor, request, isMember, trainerTools.length ? draftModel : null, actor ? zone : null);
+  const propose = makePropose(actor, request, isMember, trainerTools.length ? draftModel : null, actor ? zone : null, locale);
   // The coach lookup reads the PUBLIC marketplace tables: the member's own
   // client when there is one, else the request's anonymous client (a signed-out
   // visitor asking for a coach is the website widget's oldest use). A client

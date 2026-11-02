@@ -37,6 +37,7 @@
 // node:test with a fake and in the routes with the real thing.
 
 import { SIGNUP_GOALS, SIGNUP_GOAL_MAX, signupGoalFromText } from '../signup-answers.mjs';
+import { primaryGoalLabel } from './goalLabels.mjs';
 import { BS_PREF_OPTIONS } from '../../../public/newdesign/prefOptions.mjs';
 import {
   bsProfileLine, bsProfileAbout, bsCleanText, bsCleanStory, BS_LINE_MAX, BS_ABOUT_STORY_MAX, BS_ABOUT_FACT_MAX, BS_ABOUT_YEARS_MAX,
@@ -159,7 +160,9 @@ const short = (s, n = 90) => { const a = Array.from(String(s)); return a.length 
 const doc = (kind, key, sub) => ({ store: 'goals', kind, key, ...(sub ? { sub } : {}) });
 export const SETUP_FIELDS = Object.freeze({
   // The goal step ("What brings you here?"): the token the Goals page reads, the profile card's
-  // English label (as the website sign-up writes it), and the step marked done.
+  // label, and the step marked done. ⚠ The label is in the member's app language (`locale`, the chat's),
+  // as the app's goal step and Goals page write it and the public profile shows it; English on the
+  // website, as its sign-up writes it. Their own words stay their words (Codex on #2566).
   goal: {
     label: 'Goal', who: 'any',
     // A listed goal, or their own words: words, so a stray number is not a goal, and no longer than
@@ -170,7 +173,7 @@ export const SETUP_FIELDS = Object.freeze({
       const g = signupGoalFromText(s);
       return g && (SIGNUP_GOALS.some((x) => x.id === g) || /\p{L}/u.test(g)) ? g : null;
     },
-    cells: (g) => [{ ...doc('client_goals', 'primaryGoal'), value: g }, { ...doc('client_identity', 'goal'), value: goalLabel(g) }, { ...doc('client_onboarding', 'intentSeen'), value: true }],
+    cells: (g, now, { locale } = {}) => [{ ...doc('client_goals', 'primaryGoal'), value: g }, { ...doc('client_identity', 'goal'), value: primaryGoalLabel(g, locale) ?? goalLabel(g) }, { ...doc('client_onboarding', 'intentSeen'), value: true }],
     show: (g) => goalLabel(g),
   },
   // The coaching step ("Are you looking for personal coaching?"). A yes still leads to the health
@@ -361,6 +364,11 @@ export const READ_FAILED_MSG = 'I could not read your account right now, so noth
 export const STALE_MSG = 'Something on this card changed since I drafted it, so nothing was applied. Ask me again and I will draft it fresh.';
 export const CHANGED_MSG = 'Changed since — nothing undone.';
 export const WRITE_FAILED_MSG = 'I could not save your setup, so nothing was changed. Try again in a moment.';
+// ⚠ SAID ONLY WHEN IT IS TRUE. A write that fails part way restores what it had written; when one of
+// those restores fails too (the same outage, or another device saving that document in between), part
+// of the setup stays saved with no Undo, and "nothing was changed" would be false (Codex on #2566). This
+// names what stayed, so the member knows where to look.
+export const partialSavedMsg = (labels) => `Part of your setup was saved and I could not take it back: ${labels.join(', ')}. Nothing else was changed. You can change ${labels.length === 1 ? 'it' : 'those'} in Settings.`;
 export const NOT_ALLOWED_MSG = 'That setup is not one I can apply.';
 
 // Equal as stored: absent and null alike, and an object's keys in any order (jsonb keeps its own).
@@ -517,11 +525,14 @@ export async function applySetupCells(sb, uid, cells, dir, { tz = 'UTC' } = {}) 
       if (await writeGroup(sb, uid, group, dir, tz)) done.push(group);
     } catch (e) {
       if (dir === 'apply') {
+        const kept = [];
         for (const g of done.reverse()) {
           try { await writeGroup(sb, uid, g, 'undo', tz); } catch (re) {
+            kept.push(...g);
             console.error('[nora-setup] rollback failed after a failed apply', { group: groupKey(g[0]), message: (re && re.message) || String(re) });
           }
         }
+        if (kept.length) throw new Error(partialSavedMsg([...new Set(kept.map((c) => SETUP_FIELDS[c.field] ? SETUP_FIELDS[c.field].label : c.field))]));
       }
       throw e;
     }
@@ -534,8 +545,8 @@ export async function applySetupCells(sb, uid, cells, dir, { tz = 'UTC' } = {}) 
  * Unchanged values are left off (and named in `unchanged`). `now` is the stamp the coaching step
  * and the check-in carry. Reads only; writes nothing.
  */
-export async function buildSetupPreview(sb, uid, { changes, refused }, { now = new Date().toISOString(), tz = 'UTC' } = {}) {
-  const planned = changes.map((ch) => ({ ch, spec: SETUP_FIELDS[ch.field], cells: SETUP_FIELDS[ch.field].cells(ch.value, now) }));
+export async function buildSetupPreview(sb, uid, { changes, refused }, { now = new Date().toISOString(), tz = 'UTC', locale = 'en' } = {}) {
+  const planned = changes.map((ch) => ({ ch, spec: SETUP_FIELDS[ch.field], cells: SETUP_FIELDS[ch.field].cells(ch.value, now, { locale }) }));
   const state = await readState(sb, uid, planned.flatMap((p) => p.cells));
   const cells = [];
   const diff = [];

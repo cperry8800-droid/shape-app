@@ -1208,7 +1208,9 @@ export const setUpAccountAction = {
       throw new Error(why.length ? 'None of that can be set from here: ' + why.join(', ') + '.' : NOTHING_MSG);
     }
     var tz = (ctx && typeof ctx.zone === 'string' && ctx.zone) || await memberTz(ctx) || 'UTC';
-    var built = await buildSetupPreview(ctx.supabase, ctx.actor.id, plan, { now: new Date().toISOString(), tz: tz });
+    // The member's app language, for the goal's words on their profile (accountSetup.mjs, goal).
+    var locale = (ctx && typeof ctx.locale === 'string' && ctx.locale) || 'en';
+    var built = await buildSetupPreview(ctx.supabase, ctx.actor.id, plan, { now: new Date().toISOString(), tz: tz, locale: locale });
     if (!built.cells.length) {
       throw new Error('That is already how your account is set' + (plan.refused.length ? ', and the rest can’t be set from here' : '') + '. Nothing to change.');
     }

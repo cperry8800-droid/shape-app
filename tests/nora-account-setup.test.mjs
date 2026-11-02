@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
 import * as setup from '../src/lib/ai/accountSetup.mjs';
+import { SIGNUP_GOALS } from '../src/lib/signup-answers.mjs';
 import * as actions from '../src/lib/ai/actions.mjs';
 import * as proposals from '../src/lib/ai/proposals.mjs';
 
@@ -337,6 +338,30 @@ test('⚠ a write that fails part way restores what it had written: no half-appl
   assert.equal(db.t.profiles.find((p) => p.id === ME).full_name, 'Sam Lee');
 });
 
+// Codex on a569e48 (P2): a restore that fails too (the same outage, or another device saving that
+// document in between) leaves part of the setup saved with no Undo. Then "nothing was changed" is
+// false: the member is told what stayed, by name.
+test('⚠ when a write fails and a restore fails too, the member is told what stayed saved, never "nothing was changed"', async () => {
+  const db = accountDb({ goals: { client_settings: { units: setup.UNITS_IMPERIAL } }, notify: { quiet_start: 22 } });
+  const { built } = await preview(db, [{ field: 'units', value: 'metric' }, { field: 'quietStart', value: 21 }, { field: 'name', value: 'New Name' }]);
+  // The name fails; then restoring quiet hours fails (its restore is the update back to 22).
+  db.hooks.failOn = (op, st) => op === 'profiles:update' || (op === 'notification_settings:update' && st.patch && st.patch.quiet_start === 22);
+  const msg = setup.partialSavedMsg(['Quiet hours from']);
+  assert.equal(msg, 'Part of your setup was saved and I could not take it back: Quiet hours from. Nothing else was changed. You can change it in Settings.');
+  await assert.rejects(setup.applySetupCells(db, ME, built.cells, 'apply'), { message: msg });
+  assert.equal(db.t.notification_settings.find((r) => r.user_id === ME).quiet_start, 21, 'what the message names is what stayed');
+  assert.equal(db.goal('client_settings').units, setup.UNITS_IMPERIAL, 'the rest was restored');
+  assert.equal(db.t.profiles.find((p) => p.id === ME).full_name, 'Sam Lee');
+  assert.match(setup.partialSavedMsg(['Units', 'Goal']), /: Units, Goal\. .*change those in Settings\.$/);
+  // Through the action, the card's error is that message, and nothing is audited as applied.
+  const db2 = accountDb({ goals: { client_settings: { units: setup.UNITS_IMPERIAL } }, notify: { quiet_start: 22 } });
+  const s2 = scaffold(db2);
+  const p2 = await s2.propose({ changes: [{ field: 'units', value: 'metric' }, { field: 'quietStart', value: 21 }, { field: 'name', value: 'New Name' }] });
+  db2.hooks.failOn = (op, st) => op === 'profiles:update' || (op === 'notification_settings:update' && st.patch && st.patch.quiet_start === 22);
+  const c2 = await s2.confirm(p2.token);
+  assert.deepEqual([c2.ok, c2.error, c2.message], [false, 'execute_failed', msg]);
+});
+
 test('⚠ undo after the member changed one of the values refuses, and undoes nothing', async () => {
   const db = accountDb({ goals: { client_settings: { units: setup.UNITS_IMPERIAL }, client_training_prefs: { experience: 'beginner' } } });
   const { built } = await preview(db, [{ field: 'units', value: 'metric' }, { field: 'experience', value: 'advanced' }]);
@@ -403,12 +428,12 @@ test('a coach\'s headline and About go through Make it yours\' own cleaner; an A
 
 // ── Through the scaffold: propose → confirm → undo ─────────────────────────────────────────────
 const SECRET = 'setup-secret';
-function scaffold(db, { isMember = true, role = 'client' } = {}) {
+function scaffold(db, { isMember = true, role = 'client', locale } = {}) {
   const registry = proposals.createRegistry();
   for (const a of actions.NORA_ACTIONS) registry.define(a.name, a);
   const audit = proposals.inMemoryAudit();
   const consumer = proposals.inMemoryConsumer();
-  const ctxFor = (id, r = role) => ({ actor: { id, role: r, roles: [r] }, supabase: db, isMember, zone: 'Europe/London' });
+  const ctxFor = (id, r = role) => ({ actor: { id, role: r, roles: [r] }, supabase: db, isMember, zone: 'Europe/London', ...(locale ? { locale } : {}) });
   const propose = (input, id = ME) => proposals.proposeChange({ registry, action: 'set_up_account', input, actor: { id, role, roles: [role] }, ctx: ctxFor(id), secret: SECRET });
   const confirm = (token, id = ME) => proposals.confirmChange({ registry, token, actor: { id, role, roles: [role] }, ctx: ctxFor(id), secret: SECRET, audit, consume: consumer.consume, release: consumer.release });
   const undo = (auditId, id = ME) => proposals.undoChange({ registry, auditId, actor: { id, role, roles: [role] }, ctx: ctxFor(id), audit });
@@ -466,6 +491,42 @@ test('⚠ the when-it-changed stamps are the moment of Confirm, not of the card;
   assert.equal(u.ok, true, 'Undo checks the stamp that was written, so it is not read as changed since');
   assert.deepEqual(db.goal('client_settings'), { units: setup.UNITS_IMPERIAL });
   assert.deepEqual(db.goal('client_onboarding'), { tourSeen: true });
+});
+
+// Codex on a569e48 (P2): client_identity.goal is the label the member's public profile shows, and the
+// app's goal step and Goals page write it in the member's language. Setup writes it in the chat's
+// language too (the app sends its locale), English on the website, and their own words as written.
+test('⚠ the goal\'s words on the profile are in the member\'s app language, as the app writes them', async () => {
+  const { PRIMARY_GOAL_LABELS, primaryGoalLabel } = await import('../src/lib/ai/goalLabels.mjs');
+  const { ACTIVE_LOCALES } = await import('../mobile-app/src/i18n/locales.mjs');
+  assert.deepEqual(Object.keys(PRIMARY_GOAL_LABELS).sort(), [...ACTIVE_LOCALES].sort(), 'every language the app ships');
+  for (const l of ACTIVE_LOCALES) {
+    const cat = JSON.parse(readFileSync(join(ROOT, `mobile-app/src/i18n/catalogs/${l}/goal.json`), 'utf8'));
+    for (const g of SIGNUP_GOALS.map((x) => x.id)) assert.equal(PRIMARY_GOAL_LABELS[l][g], cat[`primary.goal.${g}`], `${l} ${g} is its catalog's`);
+  }
+  assert.equal(primaryGoalLabel('muscle', 'xx'), 'Build muscle', 'an unknown language reads English');
+  assert.equal(primaryGoalLabel('my own words', 'es'), null, 'their own words are not a listed goal');
+
+  const db = accountDb({ goals: { client_onboarding: { tourSeen: true } } });
+  const plan = setup.planSetupChanges({ changes: [{ field: 'goal', value: 'build muscle' }] }, { actorId: ME, roles: ['client'] });
+  const es = await setup.buildSetupPreview(db, ME, plan, { now: NOW, locale: 'es' });
+  assert.equal(es.cells.find((c) => c.kind === 'client_identity').after, 'Ganar músculo');
+  assert.equal(es.cells.find((c) => c.kind === 'client_goals').after, 'muscle', 'the token is the token');
+  const en = await setup.buildSetupPreview(db, ME, plan, { now: NOW });
+  assert.equal(en.cells.find((c) => c.kind === 'client_identity').after, 'Build muscle', 'English by default (the website)');
+  const own = setup.planSetupChanges({ changes: [{ field: 'goal', value: 'Hike Kilimanjaro' }] }, { actorId: ME, roles: ['client'] });
+  const ownBuilt = await setup.buildSetupPreview(db, ME, own, { now: NOW, locale: 'es' });
+  assert.equal(ownBuilt.cells.find((c) => c.kind === 'client_identity').after, 'Hike Kilimanjaro', 'their own words, as written');
+  // Already set in their language: unchanged, so a Spanish profile is never rewritten in English.
+  const set = accountDb({ goals: { client_goals: { primaryGoal: 'muscle' }, client_identity: { goal: 'Ganar músculo' }, client_onboarding: { intentSeen: true } } });
+  const again = await setup.buildSetupPreview(set, ME, plan, { now: NOW, locale: 'es' });
+  assert.deepEqual([again.cells.length, again.unchanged], [0, ['goal']]);
+  // Through the action: the context's locale reaches the write.
+  const s = scaffold(db, { locale: 'es' });
+  const p = await s.propose({ changes: [{ field: 'goal', value: 'build muscle' }] });
+  assert.equal((await s.confirm(p.token)).ok, true);
+  assert.equal(db.goal('client_identity').goal, 'Ganar músculo');
+  assert.equal(db.goal('client_goals').primaryGoal, 'muscle');
 });
 
 test('⚠ a refused value is never kept: not in the token the device holds, not in the audit row', async () => {
@@ -647,6 +708,16 @@ test('route: Nora\'s call becomes one confirm card with each change and each ref
   assert.equal(out.requiresConfirm, true);
   assert.match(out.note, /password — Yours to do yourself/);
   assert.deepEqual(r.seen.rate.filter((x) => x.key.startsWith('nora:account_setup:')), [{ key: `nora:account_setup:${ME}`, max: 30, win: 86400 }], 'counted once, per account, a day long');
+});
+
+test('route: the app\'s language reaches the goal\'s words on the profile; the website\'s chat writes English', async () => {
+  for (const [extra, words] of [[{ locale: 'es' }, 'Ganar músculo'], [{}, 'Build muscle']]) {
+    const r = await loadChat({ answers: [call('set_up_account', { changes: [{ field: 'goal', value: 'build muscle' }] }), say('Drafted.')] });
+    const res = await (await r.mod.POST(chat('my goal is to build muscle', extra))).json();
+    const card = res.actions.find((a) => a.type === 'proposal');
+    const plan = proposals.verifyToken(card.token, SECRET);
+    assert.equal(plan.afterState.cells.find((c) => c.kind === 'client_identity').after, words, JSON.stringify(extra));
+  }
 });
 
 test('route: ⚠ past the day\'s budget nothing is read or drafted; another account\'s setup is never drafted', async () => {

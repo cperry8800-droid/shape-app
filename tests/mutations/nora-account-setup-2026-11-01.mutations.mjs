@@ -16,6 +16,7 @@ const WEB = 'public/newdesign/chatWidget.jsx';
 const TOUR = 'public/newdesign/spotlightTour.js';
 const DASH = 'public/newdesign/dashTour.js';
 const PROPOSALS = 'src/lib/ai/proposals.mjs';
+const GL = 'src/lib/ai/goalLabels.mjs';
 
 export default {
   test: 'node --test tests/nora-account-setup.test.mjs tests/nora-account-setup-surfaces.test.mjs tests/nora-app-sheet.test.mjs',
@@ -117,7 +118,7 @@ export default {
     { name: 'the name is written without its guard', file: CORE, find: "      q = from == null ? q.is('full_name', null) : q.eq('full_name', from);\n", replace: '' },
     { name: 'a first row made beside ours is a failure', file: CORE, find: "      if (res.error.code === '23505') continue;", replace: "      if (false) continue;" },
     { name: 'a new notification row is made in UTC', file: CORE, find: 'insert({ user_id: uid, tz: tz || \'UTC\', ...patch })', replace: "insert({ user_id: uid, tz: 'UTC', ...patch })" },
-    { name: 'a failed apply is not rolled back', file: CORE, find: "      if (dir === 'apply') {\n        for (const g of done.reverse()) {", replace: "      if (false) {\n        for (const g of done.reverse()) {" },
+    { name: 'a failed apply is not rolled back', file: CORE, find: "      if (dir === 'apply') {\n        const kept = [];", replace: "      if (false) {\n        const kept = [];" },
     { name: 'undo trips over a cell already back', file: CORE, find: "    else if (dir === 'undo' && sameValue(cur, to)) continue;\n", replace: '' },
     { name: 'an About in another key order reads as changed', file: CORE, find: 'Object.fromEntries(Object.keys(v).sort().map(', replace: 'Object.fromEntries(Object.keys(v).map(' },
     { name: 'an About the cleaner would reshape is saved', file: CORE, find: '!sameValue(bsProfileAbout(data.about), data.about)', replace: 'false' },
@@ -153,8 +154,23 @@ export default {
     { name: 'the stamp is written into the cells given', file: CORE, find: 'STAMP_CELLS.has(cellId(c)) ? { ...c, after: now } : c', replace: 'STAMP_CELLS.has(cellId(c)) ? Object.assign(c, { after: now }) : c' },
     { name: 'the allowlist names no stamp', file: CORE, find: ".filter((c) => c.stamp).map(cellId)", replace: ".filter((c) => false).map(cellId)" },
 
+    // ── The goal's words in the member's language (Codex on a569e48) ──
+    { name: 'the goal mirror is English in every language', file: CORE, find: 'value: primaryGoalLabel(g, locale) ?? goalLabel(g) }', replace: 'value: goalLabel(g) }' },
+    { name: 'the preview drops the language', file: CORE, find: 'cells: SETUP_FIELDS[ch.field].cells(ch.value, now, { locale }) }));', replace: 'cells: SETUP_FIELDS[ch.field].cells(ch.value, now) }));' },
+    { name: 'the action drops the language', file: ACT, find: 'tz: tz, locale: locale });', replace: 'tz: tz });' },
+    { name: "the route's context carries no language", file: ROUTE, find: "isMember, draftModel, zone, locale: locale || 'en' },", replace: 'isMember, draftModel, zone },' },
+    { name: 'the route hands the proposer no language', file: ROUTE, find: 'actor ? zone : null, locale);', replace: 'actor ? zone : null);' },
+    { name: "a language's label is read in English", file: GL, find: 'const row = Object.prototype.hasOwnProperty.call(PRIMARY_GOAL_LABELS, locale) ? PRIMARY_GOAL_LABELS[locale] : en;', replace: 'const row = en;' },
+
+    // ── A restore that fails too (Codex on a569e48) ──
+    { name: 'a failed restore still says nothing was changed', file: CORE, find: 'if (kept.length) throw new Error(partialSavedMsg(', replace: 'if (false) throw new Error(partialSavedMsg(' },
+    { name: 'a failed restore names nothing kept', file: CORE, find: '            kept.push(...g);\n', replace: '' },
+
     // ── The website and the tours ──
     { name: 'the website draws a refused row as a line', file: WEB, find: '{diff.map((d, i) => cwIsRefused(d) ? (', replace: '{diff.map((d, i) => false ? (' },
+    { name: 'the page under the website card is not told of a setup', file: WEB, find: 'setStatus("done"); if (a.action === "set_up_account") cwAfterAccountSetup(false); }', replace: 'setStatus("done"); }' },
+    { name: 'the page under the website card is not told of an Undo', file: WEB, find: 'setStatus("undone"); if (a.action === "set_up_account") cwAfterAccountSetup(true); }', replace: 'setStatus("undone"); }' },
+    { name: 'the page under the website card is told of every card', file: WEB, find: 'setStatus("done"); if (a.action === "set_up_account") cwAfterAccountSetup(false); }', replace: 'setStatus("done"); cwAfterAccountSetup(false); }' },
     { name: 'every confirmed web card says "saved to your account"', file: WEB, find: '{status === "done" && a.action === "set_up_account" && (', replace: '{status === "done" && (' },
     { name: "the tour's other way on runs before the tour is marked seen", file: TOUR, find: "other.onclick = () => { finish(); try { step.onAlt(); } catch (_) {} };", replace: "other.onclick = () => { try { step.onAlt(); } catch (_) {} finish(); };" },
     { name: 'the tour never draws the other way on', file: TOUR, find: '`${alt ? `<button data-st="alt"', replace: '`${false ? `<button data-st="alt"' },
