@@ -190,9 +190,9 @@ test('website card: refusals said as such; a confirmed setup says where to chang
   assert.deepEqual(told, [['shape:accountSetup', { undone: false }], ['shape:accountSetup', { undone: true }]], 'and again on Undo');
   const third = drive(Card, { a: SETUP_CARD });
   assert.ok(third.text.includes('Undone') && !third.buttons().some((b) => b.label === 'Confirm' || b.label === 'Undo'), 'an undone card stays undone');
-  const fresh = drive(Card, { a: { ...SETUP_CARD, token: 'tok-other.sig2' } });
+  const fresh = drive(Card, { a: { ...SETUP_CARD, token: 'tok-other' } });
   assert.ok(fresh.buttons().some((b) => b.label === 'Confirm'), 'another proposal is its own');
-  const other = drive(Card, { a: { ...SETUP_CARD, token: 'tok-water.sig', action: 'log_water', diff: [{ label: 'Hydration', before: '1 L', after: '1.5 L' }] } });
+  const other = drive(Card, { a: { ...SETUP_CARD, token: 'tok-water', action: 'log_water', diff: [{ label: 'Hydration', before: '1 L', after: '1.5 L' }] } });
   other.click('Confirm');
   await tick(); await tick();
   other.render();
