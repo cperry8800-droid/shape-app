@@ -56,13 +56,26 @@ async function mount(Component, props) {
   return { root, text, button, buttons, click, settle, unmount: () => React.act(async () => root.unmount()) };
 }
 function signedIn(on) { window.ShapeAuth = { getCachedState: () => ({ user: on ? { id: 'member-1' } : null }) }; }
-// A user_goals store for the app's window.shapeDb: `fail` makes reads or saves fail.
+// A user_goals store for the app's window.shapeDb: `fail` makes reads or saves fail. The day plan is
+// written compare-and-set and bound to the account (shapeBackend.js saveUserGoalsIfRev), so the store
+// has both, as the backend does: a write whose revision moved on is a conflict.
 function goalsStore(initial = {}, { readFails = false, saveFails = false } = {}) {
   const docs = { ...initial };
   const saves = [];
+  const me = () => (window.ShapeAuth && window.ShapeAuth.getCachedState().user) || null;
   window.shapeDb = {
-    getUserGoals: async (kind) => (readFails ? null : (docs[kind] || {})),
+    getUser: async () => me(),
+    getUserGoals: async (kind, opts) => (readFails || (opts && opts.expectedUserId != null && (!me() || me().id !== opts.expectedUserId)) ? null : (docs[kind] || {})),
     saveUserGoals: async (kind, data) => { saves.push([kind, data]); if (saveFails) return { error: { message: 'no' } }; docs[kind] = data; return { ok: true }; },
+    saveUserGoalsIfRev: async (kind, data, rev, uid) => {
+      saves.push([kind, data]);
+      if (saveFails) return { error: { message: 'no' } };
+      if (!me() || me().id !== uid) return { accountChanged: true, error: { message: 'Account changed' } };
+      const cur = docs[kind] && docs[kind].rev != null ? String(docs[kind].rev) : null;
+      if (cur !== rev) return { conflict: true };
+      docs[kind] = data;
+      return { ok: true };
+    },
   };
   return { docs, saves };
 }

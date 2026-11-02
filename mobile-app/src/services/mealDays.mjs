@@ -142,6 +142,58 @@ export function bsMealDaysSwap(doc, ymd, mealId, swap, today) {
   });
 }
 
+// ── Writing the document (Codex P1s on #2563) ────────────────────────────────────────────────
+// The document is written whole, so two devices (or Eat and a recipe's page) that read the same copy
+// and each change a day would leave only the later write. And getUserGoals and saveUserGoals each
+// resolve the signed-in account on their own, so an account switch between the read and the write
+// would put one member's whole plan in another's row. So a write is bound to the account that started
+// it, from the read to the save, and is compare-and-set on the document's revision (user_goals'
+// saveUserGoalsIfRev, as clientRecipes.mjs writes recipes): a conflict re-reads and re-applies the
+// change to the newer copy.
+export const BS_MEAL_DAYS_CAS_TRIES = 4;
+
+// The revision a document carries (0 when it has none), and the raw value to compare-and-set on:
+// `data->>'rev'` as Postgres reads it, null when the key is absent.
+export function bsMealDaysRev(raw) {
+  const r = raw && typeof raw === 'object' ? raw.rev : null;
+  return typeof r === 'number' && Number.isFinite(r) && r >= 0 ? Math.floor(r) : 0;
+}
+export function bsMealDaysRevToken(raw) {
+  if (!raw || typeof raw !== 'object' || raw.rev == null) return null;
+  return String(raw.rev);
+}
+
+// Read, change and write the member's day plan. `change(doc, today)` returns the new document (one
+// of bsMealDaysAdd / Remove / Swap). Resolves { ok: true, doc } with the document saved, or
+// { ok: false, reason }: 'signed-out', 'unreadable' (a read that failed writes nothing: an empty
+// document saved over a real one would lose every meal planned), 'account-changed', 'write-failed'
+// or 'contended' (every try lost to another device; nothing was written, nothing lost).
+export async function bsMealDaysWrite(db, change, today) {
+  try {
+    if (!db || !db.getUser || !db.getUserGoals || !(db.saveUserGoalsIfRev || db.saveUserGoals)) return { ok: false, reason: 'write-failed' };
+    const u = await db.getUser();
+    const uid = u && u.id;
+    if (!uid) return { ok: false, reason: 'signed-out' };
+    for (let i = 0; i < BS_MEAL_DAYS_CAS_TRIES; i += 1) {
+      // Bound to `uid`: with another account signed in the read comes back null, never theirs.
+      const cur = await db.getUserGoals(BS_MEAL_DAYS_KIND, { expectedUserId: uid });
+      if (!cur || typeof cur !== 'object') return { ok: false, reason: 'unreadable' };
+      const next = { ...change(cur, today), rev: bsMealDaysRev(cur) + 1 };
+      // The writer checks the account itself (it resolves the user on its own, so only it can close
+      // that window) and the revision the read saw. A build without the compare-and-set falls back to
+      // the account-bound upsert.
+      const res = db.saveUserGoalsIfRev
+        ? await db.saveUserGoalsIfRev(BS_MEAL_DAYS_KIND, next, bsMealDaysRevToken(cur), uid)
+        : await db.saveUserGoals(BS_MEAL_DAYS_KIND, next, { expectedUserId: uid });
+      if (res && res.conflict) continue;
+      if (res && res.accountChanged) return { ok: false, reason: 'account-changed' };
+      if (!res || !res.ok) return { ok: false, reason: 'write-failed' };
+      return { ok: true, doc: next };
+    }
+    return { ok: false, reason: 'contended' };
+  } catch (e) { return { ok: false, reason: 'write-failed' }; }
+}
+
 // A Shape Kitchen recipe as a meal the member plans into `slot`: its title, its catalog slug as the
 // recipe id (the prep rule matches on it) and its own amounts.
 export function bsOwnMealOf(recipe, slot, id) {

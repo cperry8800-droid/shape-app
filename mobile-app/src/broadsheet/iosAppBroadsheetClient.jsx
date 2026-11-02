@@ -49,7 +49,7 @@ import { bsRecipesStore, bsRecipesList, bsRecipePointer, bsRecipesUidSync, bsSpl
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from '../services/mealPrep.mjs';
 import { bsMakeAheadIndex, bsMakeAheadInfo, bsMorningSwapFor, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepHourOf, bsPrepRecordsFor, bsYmdAdd, bsYmdIn, BS_PREP_HOURS, BS_PREP_REMINDER_KIND } from '../services/prepAhead.mjs';
-import { BS_MEAL_DAYS_KIND, BS_OWN_SLOT_TIME, bsMealDayOf, bsMealDaysAdd, bsMealDaysRemove, bsMealDaysSwap, bsOwnMealOf } from '../services/mealDays.mjs';
+import { BS_MEAL_DAYS_KIND, BS_OWN_SLOT_TIME, bsMealDayOf, bsMealDaysAdd, bsMealDaysRemove, bsMealDaysSwap, bsMealDaysWrite, bsOwnMealOf } from '../services/mealDays.mjs';
 import { BSPlanMealSheet, BSMorningSwapCard } from './BSPlanDay.jsx';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
@@ -12615,22 +12615,15 @@ async function bsLoadPrepTonight() {
 }
 
 // ── The member's own day plan (Phase 2, mealDays.mjs; user_goals `client_meal_days`) ───────────
-// Every write reads the document fresh first, so two screens (Eat and a recipe's page) never write
-// back a copy older than the other's change, and a read that fails writes nothing: an empty
-// document saved over a member's real one would lose every meal they planned. Resolves the saved
-// document, or null when nothing was saved. Eat hears the change ('shape:dayPlanSaved').
+// Every write goes through bsMealDaysWrite: read fresh and bound to the account that started it, then
+// compare-and-set on the document's revision, re-applying the change when another device wrote first
+// (Codex P1s on #2563). A read that fails writes nothing. Resolves the saved document, or null when
+// nothing was saved. Eat hears the change ('shape:dayPlanSaved').
 async function bsWriteMealDays(change) {
-  try {
-    const db = window.shapeDb;
-    if (!db || !db.getUserGoals || !db.saveUserGoals) return null;
-    const cur = await db.getUserGoals(BS_MEAL_DAYS_KIND);
-    if (!cur || typeof cur !== 'object') return null;
-    const next = change(cur, bsLocalDay(Date.now()));
-    const r = await db.saveUserGoals(BS_MEAL_DAYS_KIND, next);
-    if (!r || !r.ok) return null;
-    try { window.dispatchEvent(new CustomEvent('shape:dayPlanSaved', { detail: next })); } catch (e) {}
-    return next;
-  } catch (e) { return null; }
+  const r = await bsMealDaysWrite(window.shapeDb, change, bsLocalDay(Date.now()));
+  if (!r.ok) return null;
+  try { window.dispatchEvent(new CustomEvent('shape:dayPlanSaved', { detail: r.doc })); } catch (e) {}
+  return r.doc;
 }
 // A day's menu with the member's own meals in it, in time order (`minOf` reads a meal's minutes),
 // ties kept as they came. A menu with no meal of the member's is returned as the plan wrote it, and
