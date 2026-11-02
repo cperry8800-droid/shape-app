@@ -87,6 +87,21 @@ export function bsReceiptFor(messages, seen) {
   return { index: i, state: count ? 'seen' : 'sent', count };
 }
 
+// A thread's history can be read more than once at a time (on opening, and again on coming back into
+// view), and the answers can land in either order. So a read is merged into what the thread holds, by
+// message id, rather than replacing it: a slower, older snapshot never takes away a message a newer one
+// showed (Codex on #2565). The same id keeps the latest read of it; the result is oldest first. A row
+// with no id is no stored message and is left out.
+export function bsMergeThreadHistory(prev, id, rows) {
+  const base = prev && prev.id === id && Array.isArray(prev.messages) ? prev.messages : [];
+  const byId = new Map();
+  for (const m of [...base, ...(Array.isArray(rows) ? rows : [])]) {
+    if (m && m.id != null && m.id !== '') byId.set(String(m.id), m);
+  }
+  const messages = [...byId.values()].sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+  return { id, messages };
+}
+
 export const BS_SIGNALS_EMPTY = Object.freeze({ typing: Object.freeze([]), seen: null });
 
 // The store an open thread reads with useSyncExternalStore: per thread key ('dm:<id>' or 'ch:<id>'),

@@ -599,7 +599,8 @@ test('app: the thread view loads its history by id, shows the welcome as a note,
   assert.match(thread, /: \(historyHere && historyHere\.length\) \? historyHere/);
   // One conversation's history never shows in another (Codex on #2360).
   assert.match(thread, /React\.useEffect\(\(\) => \{\s+setHistory\(null\);/);
-  assert.match(thread, /res\.data\.conversation_id === id && Array\.isArray\(res\.data\.messages\)\) setHistory\(\{ id, messages: res\.data\.messages \}\)/);
+  // Merged by id with any read that landed first, never replaced by an older one (read receipts, Codex on #2565).
+  assert.match(thread, /res\.data\.conversation_id === id && Array\.isArray\(res\.data\.messages\)\) setHistory\(\(prev\) => bsMergeThreadHistory\(prev, id, res\.data\.messages\.map\(nameRow\)\)\)/);
   assert.match(thread, /const historyHere = history && history\.id === thread\.conversationId \? history\.messages : null;/);
   assert.match(client, /<BSChatThread\s+key=\{openChat\.conversation_id \|\| \(openChat\.channelId != null \? 'ch:' \+ openChat\.channelId : 'n:' \+ \(openChat\.n \|\| ''\)\)\}/);
   assert.match(thread, /if \(isShapeWelcome\(row\)\) \{ setExtras/);

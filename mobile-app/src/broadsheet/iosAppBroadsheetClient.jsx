@@ -20,7 +20,7 @@ import { createLiveWorkoutPublisher } from '../services/liveWorkoutPublisher.mjs
 import { bsShortAge } from '../services/shortAge.mjs';
 import { bsChatStamp, bsChatDayLabel, bsChatClock, bsChatDividerIndexes } from '../services/chatTime.mjs';
 import { bsReplyFor, bsReplyFromMetadata, bsReplySnippet, bsReplySwipeDecide, bsReplySwipeOffset, bsReplySwipeCommits, BS_REPLY_SWIPE } from '../services/chatReply.mjs';
-import { bsTypingSend, bsTypingWho, bsReceiptFor, BS_SIGNALS_EMPTY } from '../services/chatSignals.mjs';
+import { bsTypingSend, bsTypingWho, bsReceiptFor, bsMergeThreadHistory, BS_SIGNALS_EMPTY } from '../services/chatSignals.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // The ONE ceiling. The prompt must ask at exactly the load the core refuses to
 // admit unconsidered — a local copy of 150 that drifted would leave the screen
@@ -27050,6 +27050,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   // ⚠ KEYED TO ITS CONVERSATION (Codex on #2360): a history fetched for one conversation is never
   // shown in another, even for the moment before the next fetch lands or when it fails.
   const [history, setHistory] = useStateBSC(null);
+  // A read-back row from the other side takes the thread's own name for them, as a live row does (the
+  // history reader names a member's direct message by the conversation's title).
+  const nameRow = (m) => (!m || m.me || m.shape ? m : { ...m, who: thread.who || m.who });
   // ── READ RECEIPTS AND TYPING (owner, 2026-11-02: "build read receipts and typing indicator next"). The
   // thread joins its signals channel (shapeBackend's ShapeThreadSignals) and reads who is typing and the
   // others' read times from its store. Joined ABOVE the read-marking below, so the read that effect
@@ -27113,8 +27116,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         if (!live) return;
         const stored = res && res.data && res.data.conversation_id === id && Array.isArray(res.data.messages) ? res.data.messages : null;
         if (!stored) { readIfWaiting(); return; }
-        // The other side's rows take the thread's own name for them, as a live row does.
-        const rows = stored.map((m) => (!m || m.me || m.shape ? m : { ...m, who: thread.who || m.who }));
+        const rows = stored.map(nameRow);
         const shown = shownIdsRef.current;
         const missed = rows.filter((m) => m && m.id && !shown.has(String(m.id)));
         // A message of yours still waiting on its send's answer, whose stored row is here, is that row: it
@@ -27136,7 +27138,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         } else {
           // It was showing the history it loaded, or only the list's id-less preview line: the stored
           // history replaces either, so the preview never stands beside its stored copy (Codex P2 on #2565).
-          setHistory({ id, messages: rows.filter(Boolean) });
+          setHistory((prev) => bsMergeThreadHistory(prev, id, rows));
           setExtras(claim);
         }
         if (missed.length || unreadWhileHiddenRef.current) read();
@@ -27160,7 +27162,8 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     let on = true;
     const id = thread.conversationId;
     window.ShapeMessages.getConversationThread(id)
-      .then(res => { if (on && res && res.data && res.data.conversation_id === id && Array.isArray(res.data.messages)) setHistory({ id, messages: res.data.messages }); })
+      // Merged by id with any read that landed first (the return-to-view one), never replacing it (Codex on #2565).
+      .then(res => { if (on && res && res.data && res.data.conversation_id === id && Array.isArray(res.data.messages)) setHistory((prev) => bsMergeThreadHistory(prev, id, res.data.messages.map(nameRow))); })
       .catch(() => {});
     return () => { on = false; };
   }, [thread.conversationId]);

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import {
   BS_TYPING, BS_SIGNALS_EMPTY, bsTypingFromPayload, bsTypingNext, bsTypingLive, bsTypingSend, bsTypingWho,
-  bsSeenFromRpc, bsReceiptFor, createThreadSignalStore,
+  bsSeenFromRpc, bsReceiptFor, createThreadSignalStore, bsMergeThreadHistory,
 } from '../mobile-app/src/services/chatSignals.mjs';
 import { loadBroadsheet, drive, textOf, ROOT, SHIM } from './helpers/broadsheet-mount.mjs';
 
@@ -898,6 +898,45 @@ test('both direct-message readers keep the id the sender\'s view gave a message,
   const bsViewIdOf = new Function(`${BACKEND.slice(at, BACKEND.indexOf('\n}\n', at) + 2)}; return bsViewIdOf;`)();
   assert.equal(bsViewIdOf({ cid: 'tmp-1-abc' }), 'tmp-1-abc');
   for (const bad of [null, {}, { cid: '' }, { cid: 7 }, { cid: ['tmp'] }, { cid: 'x'.repeat(65) }]) assert.equal(bsViewIdOf(bad), null, JSON.stringify(bad));
+});
+
+test('two reads of a history merge by id, in either order, so nothing a newer read showed is taken away (Codex P2 on #2565)', () => {
+  const a = { id: 'a', t: 'one', at: '2026-11-02T09:00:00Z' };
+  const b = { id: 'b', t: 'two', at: '2026-11-02T10:00:00Z' };
+  const c = { id: 'c', t: 'three', at: '2026-11-02T11:00:00Z' };
+  const newer = bsMergeThreadHistory(null, 'c1', [a, b, c]);
+  assert.deepEqual(newer.messages.map((m) => m.id), ['a', 'b', 'c']);
+  const thenOlder = bsMergeThreadHistory(newer, 'c1', [a, b]);
+  assert.deepEqual(thenOlder.messages.map((m) => m.id), ['a', 'b', 'c'], 'the older snapshot takes nothing away');
+  assert.deepEqual(bsMergeThreadHistory(bsMergeThreadHistory(null, 'c1', [a, b]), 'c1', [a, b, c]).messages.map((m) => m.id), ['a', 'b', 'c'], 'and the other order');
+  const edited = bsMergeThreadHistory(newer, 'c1', [{ ...b, who: 'Maya' }]);
+  assert.equal(edited.messages.find((m) => m.id === 'b').who, 'Maya', 'the latest read of an id wins');
+  assert.deepEqual(bsMergeThreadHistory(newer, 'c2', [a]).messages.map((m) => m.id), ['a'], 'another conversation\'s history is not merged in');
+  assert.deepEqual(bsMergeThreadHistory(null, 'c1', [c, a, b, null, { t: 'no id' }, { id: '', t: 'empty id' }]).messages.map((m) => m.id), ['a', 'b', 'c'], 'oldest first; no id, no row');
+});
+
+test('mounted: an older history read that lands after a newer one never takes the newer message away (Codex P2 on #2565)', async () => {
+  wire();
+  const page = pageStandIn('visible');
+  const answers = [];
+  const older = [{ id: 'h1', who: 'Trainer', userId: 'u-maya', t: 'Earlier', at: '2026-11-02T08:00:00Z', me: false }];
+  const newer = [...older, { id: 'h2', who: 'Trainer', userId: 'u-maya', t: 'Missed one', at: '2026-11-02T09:00:00Z', me: false }];
+  await withPage(page, {
+    ShapeUnread: { markConversationRead: () => Promise.resolve(true) },
+    ShapeMessages: { subscribeMessages: () => () => {}, getConversationThread: (id) => new Promise((r) => answers.push((msgs) => r({ data: { conversation_id: id, messages: msgs } }))) },
+  }, async () => {
+    const { d, effects } = mount({ who: MAYA, role: 'Trainer', conversationId: 'c-1', userId: 'u-maya', messages: [], last: 'Missed one', time: '1h' });
+    effects.forEach((fn) => fn());   // the opening read starts (slow)
+    page.onVis();                    // and the return-to-view read
+    assert.equal(answers.length, 2);
+    answers[1](newer);               // the newer lands first...
+    await tick(); await tick();
+    answers[0](older);               // ...the older after it
+    await tick(); await tick();
+    d.render();
+    assert.ok(d.text.includes('Missed one') && d.text.includes('Earlier'), 'both messages stay');
+    assert.equal(d.text.split('Missed one').length - 1, 1, 'once');
+  });
 });
 
 function flat(node, out = []) {
