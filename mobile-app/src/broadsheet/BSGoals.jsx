@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom';
 import { bsGoalVerdict, bsGoalPct, bsGoalRemaining } from '../services/goalContract.mjs';
 import { bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { bsDash, bsDashA, BSDashCard, BSDashRing } from './BSDash.jsx';
+import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
+const useBSUserGoalsRev = bsUserGoalsRevHook(React);
+const BS_GOALS_PAGE_KINDS = ['client_goals', 'client_identity'];
 // ─── GOALS: THE PAGE, ITS CONTRACT AND ITS SHEETS ─────────────────────────────────────────────────
 // Home's goal card and Settings → Goals open BSClientGoals: the member's goal, the read against it
 // (BSGoalsContract: the ring, the next milestone, the five station doors and their pages), the
@@ -1248,7 +1251,9 @@ export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
     return () => { on = false; };
   }, [loggedIn]);
   // Load the editable goal fields (user_goals) + the live weigh-in series. When
-  // signed in, the dedicated client_weigh_ins table wins for weighIns/now.
+  // signed in, the dedicated client_weigh_ins table wins for weighIns/now. Read again when Nora's
+  // account setup (or its Undo) changes the goal from her sheet (services/userGoalsRefresh.mjs).
+  const goalsRev = useBSUserGoalsRev(BS_GOALS_PAGE_KINDS);
   React.useEffect(() => {
     let alive = true;
     (async () => {
@@ -1284,7 +1289,7 @@ export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       });
     })();
     return () => { alive = false; };
-  }, [loggedIn]);
+  }, [loggedIn, goalsRev]);
   // ⚠ RETURNS THE WRITE, SO A CALLER CAN WAIT FOR IT. `saveUserGoals` is async
   // and resolves `{ ok }` or `{ error }` (it never throws), but this used to
   // discard the promise — so "persist before the RPC" established CALL order

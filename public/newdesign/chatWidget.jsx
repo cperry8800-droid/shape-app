@@ -160,10 +160,75 @@ function cwTierForPoints(pts, coach) {
 // ⚠ `a.open` (a saved draft → the builder) shows only AFTER the confirm lands, and
 // only for a same-site /newdesign/ page — the server builds it, the card still checks.
 const cwIsLine = (d) => !!d && typeof d === "object" && !Object.prototype.hasOwnProperty.call(d, "before");
+// ⚠ A ROW WITH `refused` IS A SETTING NORA COULD NOT SET (set_up_account, src/lib/ai/accountSetup.mjs):
+// its name struck through and why, never a change. The app's card says the same (BSNoraProposal).
+const CW_SETUP_REFUSED = { yours: "Yours to do yourself", not_here: "Nora can’t set this", invalid: "That doesn’t fit this setting", coach_only: "For coaches only" };
+const cwIsRefused = (d) => !!d && typeof d === "object" && typeof d.refused === "string";
+// ⚠ A SETUP CONFIRMED OR UNDONE HERE IS TOLD TO THE PAGE UNDER THE WIDGET (Codex on #2566): Settings,
+// the notification centre, the units every dashboard figure is shown in, Goals, the dashboard's setup
+// lines and the member's own profile each read what they show once, so they would keep the old values
+// while the card says saved. Each listens for `shape:accountSetup` and reads again, as the app does.
+const cwAfterAccountSetup = (undone) => { try { window.dispatchEvent(new CustomEvent("shape:accountSetup", { detail: { undone: !!undone } })); } catch (e) {} };
+// ⚠ A CARD'S OUTCOME OUTLIVES THE CARD, AS THE THREAD DOES (Codex on #2566). The thread is kept in
+// localStorage, so closing the widget, another page or another tab draws every card anew; kept only in
+// the card, a confirmed change offered Confirm again (which answers "already applied") and its Undo was
+// gone. The app keeps the same (_bsNoraCardDone). Keyed by the token's signature, which names one
+// proposal; the newest 50 are kept, with a copy in memory for a browser that refuses storage.
+// ⚠ ONE SOURCE: the card draws Applied or Undone from the kept outcome alone, and its own state holds
+// only what is in flight here (Applying, Undoing) and an error. So an outcome kept by this tab, by
+// another tab (the storage event), or by another tab that won a Confirm pressed in both at once (this
+// one's answer is "already applied") is drawn the same way, with its Undo.
+const CW_CARD_DONE_KEY = "shape.nora.cardDone.v1";
+const _cwCardDoneMem = new Map();
+const cwCardId = (token) => (typeof token === "string" && token ? token.slice(token.lastIndexOf(".") + 1) || null : null);
+const cwCardDoneRead = (token) => {
+  const id = cwCardId(token);
+  if (!id) return null;
+  let v = null;
+  try { const m = JSON.parse(localStorage.getItem(CW_CARD_DONE_KEY) || "{}"); v = m && m[id]; } catch (e) { v = null; }
+  if (!v) v = _cwCardDoneMem.get(id) || null;
+  return v && (v.status === "done" || v.status === "undone") ? v : null;
+};
+const cwCardDoneKeep = (token, status, auditId) => {
+  const id = cwCardId(token);
+  if (!id) return;
+  const v = { status, auditId: auditId || null, at: Date.now() };
+  _cwCardDoneMem.set(id, v);
+  try {
+    const m = JSON.parse(localStorage.getItem(CW_CARD_DONE_KEY) || "{}") || {};
+    m[id] = v;
+    Object.keys(m).sort((x, y) => (m[y].at || 0) - (m[x].at || 0)).slice(50).forEach((k) => { delete m[k]; });
+    localStorage.setItem(CW_CARD_DONE_KEY, JSON.stringify(m));
+  } catch (e) {}
+};
 function CwProposalCard({ a }) {
-  const [status, setStatus] = React.useState("idle"); // idle|busy|done|undoing|undone|error
+  const token = a && a.token;
+  const isSetup = !!a && a.action === "set_up_account";
+  const [phase, setPhase] = React.useState(null); // null | busy | undoing | error: what is in flight here
   const [err, setErr] = React.useState("");
-  const [auditId, setAuditId] = React.useState(null);
+  const [, setSeen] = React.useState(0); // moved on when the kept outcome may have changed
+  const kept = cwCardDoneRead(token);
+  const status = phase === "busy" || phase === "undoing" ? phase : kept ? kept.status : phase === "error" ? "error" : "idle";
+  const auditId = kept ? kept.auditId : null;
+  // The outcome this tab last drew, so a setup's page here is told once per change, whoever made it.
+  const keptRef = React.useRef(kept ? kept.status : null);
+  const adopt = () => {
+    const k = cwCardDoneRead(token);
+    const now = k ? k.status : null;
+    const was = keptRef.current;
+    keptRef.current = now;
+    setSeen((n) => n + 1);
+    if (now && now !== was && isSetup) cwAfterAccountSetup(now === "undone");
+    return k;
+  };
+  // The same card open in another tab: its Confirm or Undo there lands here too (the storage event
+  // fires in every other tab of the origin), so this one never offers Confirm again, and a setup's
+  // page here reads again what it changed, as it does when Confirm is pressed here.
+  React.useEffect(() => {
+    const onStore = (e) => { if (e && e.key != null && e.key !== CW_CARD_DONE_KEY) return; adopt(); };
+    try { window.addEventListener("storage", onStore); } catch (e) { return undefined; }
+    return () => { try { window.removeEventListener("storage", onStore); } catch (e) {} };
+  }, [token]);
   const mono = "'JetBrains Mono', monospace";
   const ink = "var(--sh-ink, #f2ede4)", muted = "var(--sh-ink2, #a09b94)", hair = "rgba(var(--sh-ink-rgb, 242,237,228),0.14)";
   const diff = Array.isArray(a.diff) ? a.diff : [];
@@ -177,15 +242,31 @@ function CwProposalCard({ a }) {
   };
   const confirm = async () => {
     if (status === "busy" || status === "done") return;
-    setStatus("busy"); setErr("");
-    try { const r = await post("/api/ai/proposals/confirm", { token: a.token }); setAuditId(r && r.auditId); setStatus("done"); }
-    catch (e) { setErr(String(e && e.message || "Could not apply that change.")); setStatus("error"); }
+    setPhase("busy"); setErr("");
+    try {
+      const r = await post("/api/ai/proposals/confirm", { token });
+      cwCardDoneKeep(token, "done", r && r.auditId);
+      setPhase(null);
+      adopt();
+    } catch (e) {
+      setPhase("error");
+      // Lost to the same card confirmed in another tab: its kept outcome is this card's, Undo and all.
+      if (adopt()) { setPhase(null); return; }
+      setErr(String(e && e.message || "Could not apply that change."));
+    }
   };
   const undo = async () => {
     if (!auditId || status === "undoing" || status === "undone") return;
-    setStatus("undoing"); setErr("");
-    try { await post("/api/ai/audit/undo", { auditId }); setStatus("undone"); }
-    catch (e) { setErr(String(e && e.message || "Could not undo.")); setStatus("done"); }
+    setPhase("undoing"); setErr("");
+    try {
+      await post("/api/ai/audit/undo", { auditId });
+      cwCardDoneKeep(token, "undone", auditId);
+      setPhase(null);
+      adopt();
+    } catch (e) {
+      setPhase(null);
+      setErr(String(e && e.message || "Could not undo."));
+    }
   };
   return (
     <div style={{ width: "100%", maxWidth: "92%", border: `1px solid ${cwHexA(TEAL, 0.45)}`, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.07)", borderRadius: 14, padding: 12, marginTop: 8 }}>
@@ -195,7 +276,14 @@ function CwProposalCard({ a }) {
       <div style={{ marginTop: 5, fontFamily: sans, fontSize: 13.5, color: ink, lineHeight: 1.35 }}>{a.summary || a.label}</div>
       {diff.length > 0 && status !== "undone" && (
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 5, maxHeight: 280, overflowY: "auto" }}>
-          {diff.map((d, i) => cwIsLine(d) ? (
+          {diff.map((d, i) => cwIsRefused(d) ? (
+            <div key={i} data-nora-refused={d.refused} style={{ display: "flex", alignItems: "baseline", gap: 6, fontFamily: mono, fontSize: 10.5, flexWrap: "wrap" }}>
+              <span style={{ color: muted, textDecoration: "line-through", opacity: 0.7 }}>{d.label || d.field}</span>
+              <span style={{ color: muted }}>·</span>
+              <span style={{ color: "#e0463c", fontWeight: 600 }}>Not set</span>
+              <span style={{ color: muted }}>{CW_SETUP_REFUSED[d.refused] || CW_SETUP_REFUSED.not_here}</span>
+            </div>
+          ) : cwIsLine(d) ? (
             <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 6, fontFamily: mono, fontSize: 10.5, flexWrap: "wrap", paddingLeft: d.label ? 0 : 10 }}>
               {d.label ? <span style={{ color: muted }}>{d.label}</span> : null}
               <span style={{ color: ink, fontWeight: d.label ? 600 : 500 }}>{fmtV(d.after)}</span>
@@ -216,6 +304,9 @@ function CwProposalCard({ a }) {
           <button onClick={confirm} style={{ border: 0, background: TEAL, color: PAPER, borderRadius: 999, padding: "7px 15px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>{status === "error" ? "Try again" : "Confirm"}</button>
         )}
         {status === "busy" && <span style={{ fontFamily: mono, fontSize: 9.5, color: muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Applying…</span>}
+        {status === "done" && a.action === "set_up_account" && (
+          <span data-nora-setup-saved style={{ flexBasis: "100%", fontFamily: sans, fontSize: 12, color: muted, lineHeight: 1.4 }}>Saved to your account. You can change any of it in Settings.</span>
+        )}
         {status === "done" && openUrl && (
           <a href={openUrl} style={{ textDecoration: "none", border: 0, background: TEAL, color: PAPER, borderRadius: 999, padding: "7px 15px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Open in builder →</a>
         )}

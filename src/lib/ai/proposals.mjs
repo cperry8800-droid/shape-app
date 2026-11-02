@@ -135,7 +135,11 @@ export async function proposeChange({
     source: action.source || 'engine',
     actor: { id: actor.id, role: actor.role },
     target,
-    suggestion: input ?? null,
+    // ⚠ A PREVIEW MAY NAME WHAT IS KEPT OF THE SUGGESTION (set_up_account): the plan rides in the token
+    // the device holds and in ai_audit_log, and the model's input can carry a value the preview refused
+    // (a password typed into the conversation, passed on as a "change"). A preview that returns
+    // `suggestion` keeps that instead of the input; every other action keeps the input as it came.
+    suggestion: preview.suggestion !== undefined ? preview.suggestion : (input ?? null),
     confirmedPayload: preview.confirmedPayload ?? null,
     beforeState: preview.beforeState ?? null,
     afterState: preview.afterState ?? null,

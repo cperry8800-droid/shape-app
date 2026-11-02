@@ -315,6 +315,10 @@ function ClientGoalsPage() {
   const [signedIn, setSignedIn] = React.useState(false);
   const [logOpen, setLogOpen] = React.useState(false);
   const [toast, setToast] = React.useState(null);
+  // Read again when Nora's account setup (or its Undo) changes the goal or units from the chat over
+  // this page (chatWidget.jsx).
+  const [setupRev, setSetupRev] = React.useState(0);
+  React.useEffect(() => { const again = () => setSetupRev((n) => n + 1); window.addEventListener("shape:accountSetup", again); return () => window.removeEventListener("shape:accountSetup", again); }, []);
 
   React.useEffect(() => {
     let on = true;
@@ -377,7 +381,7 @@ function ClientGoalsPage() {
       setSource("live");
     })();
     return () => { on = false; };
-  }, []);
+  }, [setupRev]);
 
   // ⚠ PRESENTATION BOUNDARY. `goalsFromDoc` copies the document's `unit`, `start`,
   // `target` and `now` verbatim, and the document is canonical kilograms — so the

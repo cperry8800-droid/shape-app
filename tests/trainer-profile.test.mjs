@@ -1461,3 +1461,32 @@ test('the coach\'s activity cards carry the full byline: their face, name and ti
     await m.unmount();
   } finally { window.BSActivityCard = had.card; window.useBSCardSheets = had.sheets; }
 });
+
+// Codex on #2566 (P2): Nora's account setup writes a coach's headline and About from her sheet, over
+// their own page. The page reads its own doc as it opens, so it kept the old About until reopened.
+// After a setup card is confirmed or undone the app announces the kinds it wrote
+// (services/userGoalsRefresh.mjs); the own page reads profile_custom again, and nothing else does.
+test('⚠ the coach\'s own page reads their doc again when Nora\'s account setup changes it', async () => {
+  const { bsAnnounceUserGoals } = await import('../mobile-app/src/services/userGoalsRefresh.mjs');
+  reset({ me: 'u-maya', custom: null, stored: { about: { story: 'Before Nora.' }, look: { paper: 'dark', accent: 'teal' } } });
+  let reads = 0;
+  const realGet = window.shapeDb.getUserGoals;
+  window.shapeDb.getUserGoals = async (k, opts) => { if (k === 'profile_custom') reads += 1; return realGet(k, opts); };
+  try {
+    const m = await mount(page({ isSelf: true }));
+    await click(button(/^About me$/));
+    const story = () => document.querySelector('[data-about-tab] [data-about="story"]').textContent;
+    assert.match(story(), /Before Nora\./);
+    assert.equal(reads, 1);
+    world.stored = { about: { story: 'After Nora.' }, look: { paper: 'dark', accent: 'teal' } };
+    await act(async () => { bsAnnounceUserGoals(['client_settings', 'client_goals'], window); });
+    await flush();
+    assert.equal(reads, 1, 'an announcement of other documents reads nothing here');
+    await act(async () => { bsAnnounceUserGoals(['profile_custom'], window); });
+    await flush();
+    assert.equal(reads, 2, 'read again, bound to the account as before');
+    assert.deepEqual(world.readWith, { expectedUserId: 'u-maya' });
+    assert.match(story(), /After Nora\./, 'the About on screen is the one now stored');
+    await m.unmount();
+  } finally { window.shapeDb.getUserGoals = realGet; }
+});

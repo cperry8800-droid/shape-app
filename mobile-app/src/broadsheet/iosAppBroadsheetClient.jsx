@@ -34,6 +34,7 @@ import { bsGoalVerdict, bsGoalPct, bsGoalRemaining } from '../services/goalContr
 import { bsProfileStreak, bsProfileWeek, bsProfileTrajectory, bsProfileLifts, bsProfileDisciplines } from '../services/profileSignals.mjs';
 import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionDisplay, bsPrefOptionToken, bsGoalKind } from '../services/prefOptions.mjs';
 import { bsFirstRunStage, bsFirstRunNeedsSeed } from '../services/firstRun.mjs';
+import { bsUserGoalsRevHook, bsAnnounceUserGoals, BS_ACCOUNT_SETUP_KINDS } from '../services/userGoalsRefresh.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsAssignWeekLine, bsAssignDayLine, bsWeekUnits, bsWeekSpan } from '../services/planOutline.mjs';
@@ -1172,9 +1173,17 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     };
     // Auth may resolve after first paint: asked again once if there was no session yet.
     check().then((hadUser) => { if (!hadUser && on) tid = setTimeout(check, 1600); });
-    return () => { on = false; clearTimeout(tid); };
+    // A setup Nora drafted and they confirmed, or undid (src/lib/ai/accountSetup.mjs), can answer the
+    // goal and coaching steps: the steps are read again, so the one on screen moves on (or comes back).
+    // A yes to coaching still leads to the health screening, which only they can answer.
+    const again = () => { check(); };
+    window.addEventListener('shape:accountSetup', again);
+    return () => { on = false; clearTimeout(tid); window.removeEventListener('shape:accountSetup', again); };
   }, []);
   const firstRunNext = (onb) => setFirstRun((f) => ({ ...f, onb, stage: bsFirstRunStage(onb, f.health) }));
+  // "Set up with Nora" on the first-run steps (the owner, 2026-09-29): her sheet opens over the step with
+  // the ask in her composer, for them to send. The step stays underneath, so closing her goes back to it.
+  const setUpWithNora = () => bsAskNora(tr('onboarding:intent.noraDraft', { defaultValue: 'Set up my account with me.' }));
   // The health screening before hiring a coach (client-onboarding review, fix 2b): a coach checkout
   // the server refuses with `screening_required` opens it here (window.bsOpenScreening, from the
   // marketplace and a coach's profile), and once it is saved the checkout carries on. Back cancels.
@@ -1201,14 +1210,17 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // is at that component, which now omits its corners in the gate variant. The
   // reason a required gate skips this overlay is that it is required, not that
   // it has nothing to press.
+  // Nora's sheet is the one overlay the first-run steps do draw: "Set up with Nora" opens her over the
+  // step, and a setup she drafts can move them from one step to the next while she is still open.
+  const noraSheet = showNoraSheet ? <BSNoraSheet onClose={() => setShowNoraSheet(false)} /> : null;
   if (firstRun.stage === 'intent') {
-    return <BSIntentStep onDone={() => firstRunNext({ ...firstRun.onb, intentSeen: true })} />;
+    return <>{<BSIntentStep onDone={() => firstRunNext({ ...firstRun.onb, intentSeen: true })} onNora={setUpWithNora} />}{noraSheet}</>;
   }
   if (firstRun.stage === 'coaching') {
-    return <BSCoachingStep onDone={(answer) => firstRunNext({ ...firstRun.onb, ...answer })} />;
+    return <>{<BSCoachingStep onDone={(answer) => firstRunNext({ ...firstRun.onb, ...answer })} />}{noraSheet}</>;
   }
   if (firstRun.stage === 'health') {
-    return <BSHealthIntake onDone={(doc) => setFirstRun((f) => ({ ...f, health: doc, stage: 'ok' }))} />;
+    return <>{<BSHealthIntake onDone={(doc) => setFirstRun((f) => ({ ...f, health: doc, stage: 'ok' }))} />}{noraSheet}</>;
   }
   // ⚠ Settings is an OVERLAY, not an early return, and that is load-bearing.
   // Returning <BSSettings/> in its place unmounted the whole tab tree beneath it,
@@ -1225,7 +1237,6 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // the profile customizer (220) and BSUniversalSearch (230) — so search opened
   // FROM Settings still paints over it. The wrapper is its own stacking context,
   // so Settings' own sheets (200/240) stack inside it and are unaffected.
-  const noraSheet = showNoraSheet ? <BSNoraSheet onClose={() => setShowNoraSheet(false)} /> : null;
   const settingsOverlay = showSettings ? (
     <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
       <BSSettings
@@ -4651,6 +4662,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // The Energy card reads the user's active goal (nutrition + training prefs)
   // and reframes the same balance into one of three states. Default 'maintain'.
   const [energyGoal, setEnergyGoal] = useStateBSC('maintain');
+  const prefsRev = useBSUserGoalsRev(BS_PREF_KINDS);
   React.useEffect(() => {
     let cancelled = false;
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
@@ -4664,7 +4676,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       setEnergyGoal(bsGoalKind((np && np.primary_goal) || '', (tp && tp.primary_goal) || (tp && tp.goal) || ''));
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [prefsRev]);
 
   // Live focus banner + pushed items the coach sent. Initial pull, then a
   // Supabase Realtime subscription on coach_focus_banners / coach_pushed_items
@@ -12884,6 +12896,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   const [liveMealTitle, setLiveMealTitle] = useStateBSC(null); // real plan title
   // Goal label for the "Your plan" header, read from the client's nutrition prefs.
   const [planGoal, setPlanGoal] = useStateBSC('maintain');
+  const prefsRev = useBSUserGoalsRev(BS_PREF_KINDS);
   React.useEffect(() => {
     let cancelled = false;
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
@@ -12900,7 +12913,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       setPlanGoal(bsGoalKind((np && np.primary_goal) || '', (tp && tp.primary_goal) || (tp && tp.goal) || ''));
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [prefsRev]);
   const planGoalLabel = planGoal === 'cut' ? tr('nutrition:eat.goalCut', { defaultValue: 'Cutting' })
     : planGoal === 'build' ? tr('nutrition:eat.goalBuild', { defaultValue: 'Building' })
     : tr('nutrition:eat.goalMaintain', { defaultValue: 'Maintaining' });
@@ -18620,7 +18633,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   React.useEffect(() => { setLive(null); if (!person.userId || !window.ShapeProfiles?.getPublicProfile) return undefined; let on = true; window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (on && d) setLive(d); }).catch(() => {}); return () => { on = false; }; }, [person.userId]);
   // Profile customization (song/prompts/links/bio): self loads its own doc;
   // others read it from the public-profile RPC (`custom`).
-  React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
+  const customRev = useBSUserGoalsRev(BS_PROFILE_CUSTOM_KINDS);
+  React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf, customRev]);
   React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
   // For your OWN profile, tier + points come from the SAME live-score source as
@@ -18755,6 +18769,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const [climbProgress, setClimbProgress] = useStateBSC(null);
   const prog = useBSProgram();
   const [coachReal, setCoachReal] = useStateBSC(null);
+  const goalsRev = useBSUserGoalsRev(BS_GOALS_KINDS);
   React.useEffect(() => {
     if (!isSelf) return;
     let alive = true;
@@ -18778,7 +18793,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       if (climb && Array.isArray(climb.shown)) setClimbShown(climb.shown.filter((k) => k !== 'score' && CLIMB_SOURCES.some((s) => s.key === k)));
     })();
     return () => { alive = false; };
-  }, [isSelf]);
+  }, [isSelf, goalsRev]);
   // Strength PRs + body-fat trend for the self climb (demo fallback otherwise).
   React.useEffect(() => {
     if (!isSelf || !(window.ShapeProgress && window.ShapeProgress.progress)) return;
@@ -19912,7 +19927,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   React.useEffect(() => { loadCoachPosts(); }, [loadCoachPosts, coachFeedReloadNonce]);
   useBSPresence();
   React.useEffect(() => { setLive(null); if (!person.userId || !window.ShapeProfiles?.getPublicProfile) return undefined; let on = true; window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (on && d) setLive(d); }).catch(() => {}); return () => { on = false; }; }, [person.userId]);
-  React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
+  const customRev = useBSUserGoalsRev(BS_PROFILE_CUSTOM_KINDS);
+  React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf, customRev]);
   // Live sigil rings for your own coach profile (habits / client workouts / own activity).
   React.useEffect(() => { let on = true; if (isSelf && window.ShapeCoachRings?.get) { window.ShapeCoachRings.get().then((d) => { if (on && d) setRingLive(d); }).catch(() => {}); } return () => { on = false; }; }, [isSelf]);
   React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
@@ -26450,16 +26466,71 @@ function BSNoraFill({ a, t }) {
   );
 }
 
+// ⚠ A ROW WITH `refused` IS A SETTING NORA COULD NOT SET (set_up_account, src/lib/ai/accountSetup.mjs):
+// its name and why, in their language, never a change. It also carries an `after` of the server's
+// English ("Not set: …"), so a build from before this reads it as a plain line rather than nothing.
+const BS_SETUP_REFUSED = {
+  yours: ['feed:support.setup.refused.yours', 'Yours to do yourself'],
+  not_here: ['feed:support.setup.refused.notHere', 'Nora can’t set this'],
+  invalid: ['feed:support.setup.refused.invalid', 'That doesn’t fit this setting'],
+  coach_only: ['feed:support.setup.refused.coachOnly', 'For coaches only'],
+};
+// After a setup card is confirmed or undone, what the app keeps a copy of is read again, the same
+// reads each owning screen makes at start: units, the Morning check-in switch, the profile, the
+// notification switches; and the first-run steps are re-read (shape:accountSetup), so the step on
+// screen moves on.
+// Each mounted reader of a document the setup writes reads it again (services/userGoalsRefresh.mjs):
+// Home's Energy card, Eat's goal line, Settings' Training, Nutrition and Preferences rows, the
+// profile's climb, a coach's own profile, and (in their own modules) Home's goal, Goals and the
+// coach page.
+const useBSUserGoalsRev = bsUserGoalsRevHook(React);
+const BS_PREF_KINDS = ['client_training_prefs', 'client_nutrition_prefs'];
+const BS_GOALS_KINDS = ['client_goals'];
+const BS_SETTINGS_KINDS = ['client_settings'];
+const BS_PROFILE_CUSTOM_KINDS = ['profile_custom'];
+const BS_IDENTITY_KINDS = ['client_identity'];
+function bsAfterAccountSetup(undone) {
+  try { bsAnnounceUserGoals(BS_ACCOUNT_SETUP_KINDS); } catch (e) {}
+  try {
+    const db = window.shapeDb;
+    if (db && db.getUserGoals) {
+      Promise.resolve(db.getUserGoals('client_settings')).then((st) => {
+        if (!st || typeof st !== 'object') return;
+        if (st.units) { try { window.ShapeUnits?.set?.(st.units); } catch (e) {} }
+        try { bsDailyCheckinApply(('dailyCheckin' in st) ? bsDailyCheckinOn(st.dailyCheckin) : true); } catch (e) {}
+      }).catch(() => {});
+    }
+  } catch (e) {}
+  try { bsHydrateIdentity(); } catch (e) {}
+  try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+  // The name lives in profiles.full_name too, which bsMyName() reads from the auth cache: read the
+  // row again (Codex on #2566). A changed name is told to every avatar by the cache itself
+  // (setCached's shape:identity).
+  try { Promise.resolve(window.ShapeAuth?.reloadProfile?.()).catch(() => {}); } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('shape:notifyprefs')); } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('shape:accountSetup', { detail: { undone: !!undone } })); } catch (e) {}
+}
+// ⚠ A CARD'S OUTCOME OUTLIVES THE CARD, AS THE THREAD DOES (_bsNoraThread). Closing her and opening her
+// again draws every card anew, and so does the first run moving on under her sheet once a setup answers
+// the step (the sheet moves from the step's return to the app's). Kept in the card, a confirmed change
+// offered Confirm again (which answered "already applied") and its Undo was gone. Keyed by the signed
+// token, which names one proposal; the hard reload on sign-out clears it with the thread.
+const _bsNoraCardDone = new Map(); // token -> { status: 'done' | 'undone', auditId }
 function BSNoraProposal({ a, t }) {
   const tr = useShapeTr();
-  const [status, setStatus] = React.useState('idle'); // idle | busy | done | undoing | undone | error
+  const kept = a && a.token ? _bsNoraCardDone.get(a.token) : null;
+  const [status, setStatus] = React.useState(kept ? kept.status : 'idle'); // idle | busy | done | undoing | undone | error
   const [err, setErr] = React.useState('');
-  const [auditId, setAuditId] = React.useState(null);
+  const [auditId, setAuditId] = React.useState(kept ? kept.auditId : null);
+  const keep = (st, id) => { if (a && a.token) _bsNoraCardDone.set(a.token, { status: st, auditId: id || null }); };
   const mono = t.MONO, ink = t.INK, muted = t.INK50, hair = t.RULE;
   const ac = t.isLight ? '#0a8f87' : '#34d6c5';
   const diff = Array.isArray(a.diff) ? a.diff : [];
   const fmtV = (v) => (v == null || v === '') ? '—' : String(v);
+  const isRefused = (d) => !!d && typeof d === 'object' && typeof d.refused === 'string';
   const isLine = (d) => !!d && typeof d === 'object' && !Object.prototype.hasOwnProperty.call(d, 'before');
+  const refusedWhy = (d) => { const k = BS_SETUP_REFUSED[d.refused] || BS_SETUP_REFUSED.not_here; return tr(k[0], { defaultValue: k[1] }); };
+  const setupCard = a.action === 'set_up_account';
   const open = a.open && a.open.kind === 'coach_plan' && a.open.planId ? a.open : null;
   const confirm = async () => {
     if (status === 'busy' || status === 'done') return;
@@ -26467,7 +26538,8 @@ function BSNoraProposal({ a, t }) {
     try {
       if (!window.ShapeSupport?.confirm) throw new Error(tr('feed:support.proposal.unavailable', { defaultValue: 'Actions are unavailable right now.' }));
       const r = await window.ShapeSupport.confirm(a.token);
-      setAuditId(r && r.auditId); setStatus('done');
+      setAuditId(r && r.auditId); setStatus('done'); keep('done', r && r.auditId);
+      if (setupCard) bsAfterAccountSetup(false);
     } catch (e) { setErr(String(e?.message || tr('feed:support.proposal.applyFailed', { defaultValue: 'Could not apply that change.' }))); setStatus('error'); }
   };
   const undo = async () => {
@@ -26475,7 +26547,8 @@ function BSNoraProposal({ a, t }) {
     setStatus('undoing'); setErr('');
     try {
       if (!window.ShapeSupport?.undo) throw new Error(tr('feed:support.proposal.undoUnavailable', { defaultValue: 'Undo is unavailable right now.' }));
-      await window.ShapeSupport.undo(auditId); setStatus('undone');
+      await window.ShapeSupport.undo(auditId); setStatus('undone'); keep('undone', auditId);
+      if (setupCard) bsAfterAccountSetup(true);
     } catch (e) { setErr(String(e?.message || tr('feed:support.proposal.undoFailed', { defaultValue: 'Could not undo.' }))); setStatus('done'); }
   };
   const openPlan = () => {
@@ -26489,7 +26562,16 @@ function BSNoraProposal({ a, t }) {
       <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 14, color: ink, lineHeight: 1.35 }}>{a.summary || a.label}</div>
       {diff.length > 0 && status !== 'undone' && (
         <div className="bs-hide-scroll" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 280, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {diff.map((d, i) => (isLine(d)
+          {diff.map((d, i) => (isRefused(d)
+            ? (
+              <div key={i} data-nora-refused={d.refused} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontFamily: mono, fontSize: 10, flexWrap: 'wrap' }}>
+                <span style={{ color: muted, textDecoration: 'line-through', opacity: 0.7 }}>{d.label || d.field}</span>
+                <span style={{ color: muted }}>·</span>
+                <span style={{ color: t.RUST || muted, fontWeight: 700 }}>{tr('feed:support.setup.notSet', { defaultValue: 'Not set' })}</span>
+                <span style={{ color: muted }}>{refusedWhy(d)}</span>
+              </div>
+            )
+            : isLine(d)
             ? (
               <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontFamily: mono, fontSize: 10, flexWrap: 'wrap', paddingLeft: d.label ? 0 : 10 }}>
                 {d.label ? <span style={{ color: muted }}>{d.label}</span> : null}
@@ -26515,6 +26597,9 @@ function BSNoraProposal({ a, t }) {
         {/* A meal plan Nora drafted is the website builder's document: the app's editor keeps
             another shape, so the card says where it is instead of opening a screen that cannot
             show it (Codex, #2260). It is listed under Plans. */}
+        {status === 'done' && setupCard && (
+          <span data-nora-setup-saved style={{ flexBasis: '100%', fontFamily: t.BODY, fontSize: 12, color: muted, lineHeight: 1.4 }}>{tr('feed:support.setup.saved', { defaultValue: 'Saved to your account. You can change any of it in Settings.' })}</span>
+        )}
         {status === 'done' && open && open.planKind === 'meal_plan' && (
           <span data-nora-meal-saved style={{ fontFamily: t.BODY, fontSize: 12, color: muted, lineHeight: 1.4 }}>{tr('feed:support.proposal.mealPlanSaved', { defaultValue: 'Saved to your meal plans. Edit and assign it in the meal builder on the Shape website.' })}</span>
         )}
@@ -28093,6 +28178,14 @@ function BSNotifyPrefs({ onBack, role }) {
   const isCoach = role === 'trainer' || role === 'nutritionist' || role === 'dietitian';
   const [settings, setSettings] = useStateBSC(null);
   const [matrix, setMatrix] = useStateBSC({});
+  // Read again when quiet hours or the daily limit change from outside this pane: Nora's account
+  // setup, confirmed or undone over it, says so with shape:notifyprefs (bsAfterAccountSetup).
+  const [centerRev, setCenterRev] = useStateBSC(0);
+  React.useEffect(() => {
+    const again = () => setCenterRev((n) => n + 1);
+    window.addEventListener('shape:notifyprefs', again);
+    return () => window.removeEventListener('shape:notifyprefs', again);
+  }, []);
   React.useEffect(() => {
     let alive = true;
     Promise.resolve(window.ShapeNotifyPrefs?.center?.() || { settings: null, prefs: [] }).then(c => {
@@ -28104,7 +28197,7 @@ function BSNotifyPrefs({ onBack, role }) {
       setMatrix(m);
     });
     return () => { alive = false; };
-  }, []);
+  }, [centerRev]);
   const saveSettings = (patch) => { setSettings(s => ({ ...s, ...patch })); window.ShapeNotifyPrefs?.saveSettings?.(patch); };
   // The hour the prep reminder comes at (night-before prep, Phase 2): the member's own, kept in
   // user_goals like their other preferences (prepAhead.mjs BS_PREP_REMINDER_KIND), 7 pm until they
@@ -30380,11 +30473,12 @@ function BSMeGoalCard({ onOpen }) {
   const TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
   const [g, setG] = useStateBSC(null);
   const [primary, setPrimary] = useStateBSC('');
+  const goalsRev = useBSUserGoalsRev(BS_GOALS_KINDS);
   React.useEffect(() => {
     let on = true;
     (async () => { try { const d = await window.shapeDb?.getUserGoals?.('client_goals'); if (on && d) { if (d.overall) setG(d.overall); if (d.primaryGoal) setPrimary(d.primaryGoal); } } catch (e) {} })();
     return () => { on = false; };
-  }, []);
+  }, [goalsRev]);
   // Signed in with no goal set → render nothing (never the demo goal); the demo
   // is the signed-out preview only. A real goal (g) shows once it loads — a door
   // never appears for a signed-in account with no goal. A goal that isn't about
@@ -30629,12 +30723,18 @@ const BS_CONDITION_TAGS = [
 // frames the member's identity, then writes the SAME canonical goal keys the
 // Goals page + coach view already read (client_goals.primaryGoal + the profile's
 // client_identity.goal). Marks client_onboarding.intentSeen so it shows once.
-function BSIntentStep({ onDone }) {
+// `onNora`: "Set up with Nora" (the owner, 2026-09-29: Nora "can fill evreything out for you ... and
+// also setup your account for you"), the other way through the first run: she asks, drafts one card
+// (set_up_account, src/lib/ai/accountSetup.mjs), and nothing is saved until they confirm it.
+function BSIntentStep({ onDone, onNora = null }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   _bsScrollTopOnMount();
   React.useEffect(() => { try { window.ShapeAnalytics?.track?.('onboarding_started'); } catch (e) {} }, []);
+  // Nora is told she is opened over the first run (the Ask Nora plan, step 4), in English for her and
+  // in their language for the sheet's chip.
+  React.useEffect(() => bsNoraOpen({ page: 'Welcome to Shape (first-run setup: their goal, then whether they want a coach)', label: tr('onboarding:intent.eyebrowWelcome', { defaultValue: 'Welcome to Shape' }) }), []);
   const [picked, setPicked] = useStateBSC(null);
   const [own, setOwn] = useStateBSC(null); // the member's own words: null = field closed
   const ownNext = own == null ? '' : bsPrimaryGoalFromText(own);
@@ -30757,6 +30857,18 @@ function BSIntentStep({ onDone }) {
               style={{ width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) }} />
             <button onClick={() => pick(ownNext)} disabled={!ownNext || saving} style={{ marginTop: 12, width: '100%', padding: '14px', borderRadius: 999, border: 0, background: ownNext ? teal : t.RULE, color: ownNext ? '#04201d' : t.INK50, cursor: ownNext && !saving ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('goal:primary.customSave', { defaultValue: 'Set goal' })}</button>
           </div>
+        )}
+        {/* The other way through: Nora asks, fills it in, and they confirm one card. Her face, so a
+            person meeting her for the first time knows who she is; the step stays under her sheet. */}
+        {onNora && (
+          <button type="button" data-nora-setup onClick={onNora} disabled={saving} style={{ marginTop: 26, width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 13, padding: '13px 14px', borderRadius: 16, border: `1px solid ${bsTHexA(teal, 0.42)}`, background: bsTHexA(teal, 0.07), color: t.INK, textAlign: 'left', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.6 : 1 }}>
+            <img src={BS_NORA_AVATAR} alt="" aria-hidden style={{ flex: 'none', display: 'block', width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', objectPosition: '50% 32%', boxShadow: `0 0 0 2px ${t.PAPER}, 0 0 0 3.5px ${teal}` }} />
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>{tr('onboarding:intent.nora', { defaultValue: 'Set up with Nora' })}</span>
+              <span style={{ display: 'block', marginTop: 4, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>{tr('onboarding:intent.noraBody', { defaultValue: 'Tell her about you and she fills it all in. You check it before anything is saved.' })}</span>
+            </span>
+            <span aria-hidden style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', background: t.INK, color: t.PAPER, display: 'grid', placeItems: 'center', fontSize: 14, lineHeight: 1 }}>→</span>
+          </button>
         )}
         <button onClick={skip} style={{ marginTop: 28, background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', padding: 0 }}>{tr('onboarding:intent.skip', { defaultValue: 'Skip for now →' })}</button>
       </div>
@@ -35258,6 +35370,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // user_goals, edited through the same edit sheet.
   const [nutritionPrefs, setNutritionPrefs] = useStateBSC({});
   const [trainingPrefs, setTrainingPrefs] = useStateBSC({});
+  const prefsRev = useBSUserGoalsRev(BS_PREF_KINDS);
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -35271,7 +35384,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       } catch (e) {}
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [prefsRev]);
   const persistPref = async (store, patch, uid) => {
     const kind = store === 'nutrition' ? 'client_nutrition_prefs' : 'client_training_prefs';
     try {
@@ -35372,6 +35485,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const serverDocRef = React.useRef(null); // the newest REAL document we've seen
   const hydrateRef = React.useRef(null);   // this pane's first read, in flight
   const [prefs, setPrefs] = useStateBSC(() => ({ ...PREF_DEFAULTS, dailyCheckin: bsDailyCheckinLabel(), onlineRail: bsOnlineRailLabel() }));
+  // Read again when the doc is changed from outside this pane (Nora's account setup or its Undo);
+  // what the member has edited here still wins, as on the first read.
+  const settingsRev = useBSUserGoalsRev(BS_SETTINGS_KINDS);
   React.useEffect(() => {
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
     let alive = true;
@@ -35416,7 +35532,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (s.trainingPhase || s.nutritionPhase) window.ShapeProgram?.set?.({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
     }).catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [settingsRev]);
   // The ONE place a pref reaches the cloud. Nothing else in this pane may call
   // saveUserGoals: a bare `next` published before the hydrate lands is exactly
   // the clobber this exists to prevent.
@@ -36002,7 +36118,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     window.ShapeNav?.announce?.({ sub: navSub });
     return () => window.ShapeNav?.announce?.(null);
   }, [navSub]);
-  // Persist the profile identity across sessions/devices via user_goals.
+  // Persist the profile identity across sessions/devices via user_goals. Read again when Nora's
+  // account setup (or its Undo) changes the name from her sheet; a key typed into stays theirs.
+  const identityRev = useBSUserGoalsRev(BS_IDENTITY_KINDS);
   React.useEffect(() => {
     if (!window.shapeDb?.getUserGoals) return;
     window.shapeDb.getUserGoals('client_identity').then(d => {
@@ -36019,7 +36137,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...d }; } catch (e) {}
       }
     }).catch(() => {});
-  }, []);
+  }, [identityRev]);
   const startEdit = () => { touchedRef.current = new Set(); setDraft(seedDraft()); setEditing(true); };
   const saveEdit  = async () => {
     // ⚠ ONLY WHAT THE MEMBER TOUCHED IS WRITTEN (see touchedRef). The draft is a copy

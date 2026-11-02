@@ -17,6 +17,10 @@ regexes = [
   # Client-side localStorage key NAMES (e.g. shape.grocery.lists.v1) — these
   # trip the generic-api-key rule on the `..._KEY = "..."` shape but are not keys.
   '''shape\.[A-Za-z.]+\.v\d+''',
+  # A made-up proposal token in a test fixture, in #2566's history (tests/nora-account-setup-surfaces,
+  # since renamed to 'tok-other'): generic-api-key reads any long enough value beside a `token:` key,
+  # and the commit scan reads every commit of the PR. A test's card id, not a credential.
+  '''tok-other\.sig2''',
   # The webhook's idempotency key for returning Shape's fee on a refund, as a test asserts it
   # (refund-appfee-<charge id>-<refunded cents>): built from a charge id and an amount, not a
   # credential. generic-api-key reads any quoted value beside an `idempotencyKey` field.

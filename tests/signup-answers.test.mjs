@@ -241,9 +241,10 @@ test('the first-run steps: the goal, the coaching question, and the screening on
   assert.match(gate, /if \(doc == null\) throw new Error\('Could not read ' \+ kind\);/);
   assert.match(gate, /if \(bsFirstRunNeedsSeed\(onb\) && \(await window\.ShapeOnboarding\?\.seed\?\.\(\)\)\) onb = await read\('client_onboarding'\);/);
   assert.match(gate, /if \(on\) setFirstRun\(\{ stage: bsFirstRunStage\(onb, health\), onb, health \}\);\n\s+\} catch \(e\) \{ if \(on\) setFirstRun\(\(f\) => \(\{ \.\.\.f, stage: 'ok' \}\)\); \}/);
-  assert.match(CLIENT, /if \(firstRun\.stage === 'health'\) \{\n\s+return <BSHealthIntake /, 'the screening is drawn at the health stage only');
+  // Each step is drawn with Nora's sheet over it ("Set up with Nora", src/lib/ai/accountSetup.mjs).
+  assert.match(CLIENT, /if \(firstRun\.stage === 'health'\) \{\n\s+return <>\{<BSHealthIntake /, 'the screening is drawn at the health stage only');
   assert.equal((CLIENT.match(/<BSHealthIntake onDone=/g) || []).length, 1, 'and from nowhere else as a gate');
-  assert.match(CLIENT, /if \(firstRun\.stage === 'coaching'\) \{\n\s+return <BSCoachingStep onDone=\{\(answer\) => firstRunNext\(\{ \.\.\.firstRun\.onb, \.\.\.answer \}\)\} \/>;/);
+  assert.match(CLIENT, /if \(firstRun\.stage === 'coaching'\) \{\n\s+return <>\{<BSCoachingStep onDone=\{\(answer\) => firstRunNext\(\{ \.\.\.firstRun\.onb, \.\.\.answer \}\)\} \/>\}\{noraSheet\}<\/>;/);
   assert.doesNotMatch(CLIENT, /intentGate|healthGate/, 'the old gates, which screened everyone, are gone');
 });
 

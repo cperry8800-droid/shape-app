@@ -416,7 +416,7 @@ test('app card: once confirmed, "Open in builder" opens the saved program by id'
     assert.equal(fired[0].type, 'shape:openCoachPlan');
     assert.deepEqual(fired[0].detail, { planId: 'plan-1', clientId: CLIENT });
     assert.ok(d.buttons().some((b) => b.label === 'Undo'));
-    const plain = drive(BSNoraProposal, { a: { ...DRAFT_CARD, open: undefined }, t: THEME });
+    const plain = drive(BSNoraProposal, { a: { ...DRAFT_CARD, token: 'tok-plain', open: undefined }, t: THEME });
     plain.click('Confirm');
     await tick();
     plain.render();
@@ -436,7 +436,7 @@ test('app card: a confirmed meal-plan draft says where it is edited and opens no
   globalThis.ShapeSupport = { confirm: async () => ({ ok: true, auditId: 'aud-2' }), undo: async () => ({ ok: true }) };
   globalThis.dispatchEvent = (e) => { fired.push(e); return true; };
   try {
-    const meal = { ...DRAFT_CARD, action: 'draft_meal_plan', open: { kind: 'coach_plan', planKind: 'meal_plan', planId: 'plan-9', url: '/newdesign/NutritionistApp.html#plans?plan=plan-9' } };
+    const meal = { ...DRAFT_CARD, token: 'tok-meal', action: 'draft_meal_plan', open: { kind: 'coach_plan', planKind: 'meal_plan', planId: 'plan-9', url: '/newdesign/NutritionistApp.html#plans?plan=plan-9' } };
     const d = drive(BSNoraProposal, { a: meal, t: THEME });
     assert.ok(!d.text.includes('Saved to your meal plans'), 'nothing said before the confirm lands');
     d.click('Confirm');
@@ -493,7 +493,8 @@ test('website card: lines render as lines; "Open in builder" appears after the c
   assert.equal(link().props.href, '/newdesign/TrainerApp.html#programs?plan=plan-1');
   assert.equal(textOf(link()), 'Open in builder →');
 
-  const evil = drive(Card, { a: { ...DRAFT_CARD, open: { kind: 'coach_plan', planId: 'x', url: 'https://evil.example/' } } });
+  // Its own proposal: a card's outcome is kept by its token (#2566), so the same token would draw Applied.
+  const evil = drive(Card, { a: { ...DRAFT_CARD, token: 'tok-evil', open: { kind: 'coach_plan', planId: 'x', url: 'https://evil.example/' } } });
   evil.click('Confirm');
   await tick(); await tick();
   evil.render();

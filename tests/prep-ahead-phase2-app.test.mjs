@@ -440,3 +440,29 @@ test('a recipe planned from its own page takes the slot the sheet files it under
     assert.ok(bsRecipesForSlot([rec], slot, '').length === 1, `${rec.title} is planned as ${slot} but the sheet lists it elsewhere`);
   }
 });
+
+// Codex on #2566 (P2): Nora's account setup can set quiet hours and the daily limit from her sheet,
+// over an open Notification center, and the pane read them once as it opened, so it kept the old
+// values after Confirm or Undo. The setup says so with shape:notifyprefs (bsAfterAccountSetup), and
+// the pane reads the centre again on it.
+test('⚠ the Notification center reads quiet hours again when Nora\'s account setup changes them over it', async () => {
+  signedIn(true);
+  window.BSPage = ({ children }) => React.createElement('div', null, children);
+  window.BSDetailHeader = () => null;
+  let quietStart = 23;
+  let reads = 0;
+  window.ShapeNotifyPrefs = { center: async () => { reads += 1; return { settings: { quiet_start: quietStart, quiet_end: 7 }, prefs: [] }; } };
+  goalsStore({ meal_prep_reminder: { hour: 22 } });
+  const s = await mount(MOD.BSNotifyPrefs, { onBack() {}, role: 'client' });
+  try {
+    await s.settle();
+    const note = () => document.querySelector('[data-prep-hour]').textContent;
+    assert.equal(reads, 1);
+    assert.doesNotMatch(note(), /In your quiet hours/, '10 pm is before quiet hours from 11 pm');
+    quietStart = 21; // the setup's write
+    await React.act(async () => { window.dispatchEvent(new CustomEvent('shape:notifyprefs')); });
+    await s.settle();
+    assert.equal(reads, 2, 'read again');
+    assert.match(note(), /In your quiet hours: in the app, no push/, 'and drawn from the hours now stored');
+  } finally { await s.unmount(); }
+});

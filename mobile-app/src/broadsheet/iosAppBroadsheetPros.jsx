@@ -1198,7 +1198,11 @@ function BSProOnboardingTour({ onClose, onNavigate, role = 'trainer', plansKey =
     const go = (tab) => () => onNavigate && onNavigate(tab);
     const plansLabel = plansKey === 'programs' ? tr('coach:tour.programs', { defaultValue: 'Programs' }) : tr('coach:tour.plans', { defaultValue: 'Plans' });
     const steps = [
-      { navigate: go('today'), anchor: q('hero-today'), fallback: q('tab-today'), eyebrow: tr('coach:tour.welcomeEyebrow', { defaultValue: 'Welcome' }), title: tr('coach:tour.welcomeTitle', { defaultValue: 'Your coaching tools.' }), body: tr('coach:tour.welcomeBody', { defaultValue: 'A quick tour of your dashboard — about 30 seconds.' }) },
+      // "Set up with Nora" (src/lib/ai/accountSetup.mjs): the tour ends and her sheet opens with the ask
+      // in her composer; she drafts one card, and nothing is saved until they confirm it. Read off
+      // window at the tap (the client module defines it).
+      { navigate: go('today'), anchor: q('hero-today'), fallback: q('tab-today'), eyebrow: tr('coach:tour.welcomeEyebrow', { defaultValue: 'Welcome' }), title: tr('coach:tour.welcomeTitle', { defaultValue: 'Your coaching tools.' }), body: tr('coach:tour.welcomeBody', { defaultValue: 'A quick tour of your dashboard — about 30 seconds.' }),
+        altLabel: tr('coach:tour.noraSetup', { defaultValue: 'Set up with Nora' }), onAlt: () => { try { if (window.bsAskNora) window.bsAskNora(tr('coach:tour.noraSetupDraft', { defaultValue: 'Set up my coach profile with me.' })); } catch (e) {} } },
       { navigate: go('today'), anchor: q('hero-today'), fallback: q('tab-today'), eyebrow: tr('coach:tour.todayEyebrow', { defaultValue: 'Today' }), title: tr('coach:tour.todayTitle', { defaultValue: 'Who needs you.' }), body: tr('coach:tour.todayBody', { defaultValue: 'Your day leads with the clients who need attention first.' }) },
       { navigate: go('clients'), anchor: q('hero-clients'), fallback: q('tab-clients'), eyebrow: tr('coach:tour.clientsEyebrow', { defaultValue: 'Clients' }), title: tr('coach:tour.clientsTitle', { defaultValue: 'Your roster.' }), body: tr('coach:tour.clientsBody', { defaultValue: "Every client, sorted by who's on track and who's slipping." }) },
       { navigate: go(plansKey), anchor: q('hero-plans'), fallback: q('tab-' + plansKey), eyebrow: plansLabel, title: tr('coach:tour.plansTitle', { defaultValue: 'Build & sell.' }), body: tr('coach:tour.plansBody', { defaultValue: 'Create {kind}, assign them to clients, and sell them in the marketplace.', kind: plansLabel.toLowerCase() }) },

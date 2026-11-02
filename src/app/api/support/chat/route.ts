@@ -61,9 +61,9 @@ import { resolveActor, makeCtx, serverRegistry, proposalSecret, casWriteUserGoal
 import { toneInstruction } from '@/lib/ai/tone.mjs';
 import { formatMemberContext, UNAVAILABLE_NOTE } from '@/lib/ai/memberContext.mjs';
 import { formatCookContext, COOK_CONTEXT_HEADER } from '@/lib/ai/cookContext.mjs';
-import { rememberMemoryTool, forgetMemoryTool, draftBriefFromText, noraSessionZone } from '@/lib/ai/actions.mjs';
+import { rememberMemoryTool, forgetMemoryTool, draftBriefFromText, noraSessionZone, SETUP_TOOL, SETUP_PROMPT_NOTE } from '@/lib/ai/actions.mjs';
 import { computeMembership } from '@/lib/membership-core';
-import { noraTier, visitorGate, countQuestion, limitReply, requestIp, CHECK_REPLY } from '@/lib/ai/noraLimits';
+import { noraTier, visitorGate, countQuestion, limitReply, requestIp, CHECK_REPLY, countBudget, budgetReply } from '@/lib/ai/noraLimits';
 import { greetingKind, greetingFor } from '@/lib/ai/noraGreeting.mjs';
 import { normalizeContext, formatContextNote, validZone, dayIn } from '@/lib/ai/noraContext.mjs';
 import { answeredReplies } from '@/lib/supportRequests.mjs';
@@ -322,7 +322,7 @@ const TOOLS = [
 
 // The write tools that DRAFT a confirm-required change (vs. read tools that
 // answer inline). Kept in sync with the registry's Tier-1/Tier-2 actions.
-const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'draft_workout', 'draft_meal_plan', 'assign_meal_plan', 'set_program_detail', 'add_review_note', 'reschedule_session', 'log_weigh_in', 'log_water', 'check_habit', 'set_reminder']);
+const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'draft_workout', 'draft_meal_plan', 'assign_meal_plan', 'set_program_detail', 'add_review_note', 'reschedule_session', 'log_weigh_in', 'log_water', 'check_habit', 'set_reminder', 'set_up_account']);
 
 // ── Member-only tools (memory) ────────────────────────────────────────────────
 // Appended to the tool list ONLY for a verified member (computeMembership,
@@ -435,6 +435,10 @@ const MEMBER_TOOLS = [
     },
     strict: true,
   },
+  // Account setup (src/lib/ai/accountSetup.mjs): the member's own first-run answers, Settings rows,
+  // quiet hours and, for a coach, headline and About. DRAFTS one card; the server's allowlist and
+  // each field's own rule decide what is set, never the model.
+  SETUP_TOOL,
 ];
 // ── Member-only READ tools ────────────────────────────────────────────────────
 // No parameters: each answers for the SIGNED-IN member on the caller's own RLS
@@ -1073,19 +1077,27 @@ function extractOutputText(payload: OpenAIResponsePayload): string {
 // the draft is then a labelled template) — injected here rather than imported by the
 // action, so the action's core stays node-testable.
 type DraftModel = ((body: Record<string, unknown>, opts: { promptId: string; effort?: 'medium'; timeoutMs?: number }) => ReturnType<typeof callAI>) | null;
-function makePropose(actor: Actor | null, request: Request, isMember: boolean, draftModel: DraftModel = null, zone: string | null = null): ProposeFn {
+function makePropose(actor: Actor | null, request: Request, isMember: boolean, draftModel: DraftModel = null, zone: string | null = null, locale: string | null = null): ProposeFn {
   return async (name, args) => {
     if (!actor) {
       return { result: { error: 'sign_in_required', message: 'They need to be signed in for me to do that.' }, actions: [] };
     }
     const secret = proposalSecret();
     if (!secret) return { result: { error: 'unavailable', message: 'Actions are not configured right now.' }, actions: [] };
+    // ⚠ ACCOUNT SETUP IS METERED LIKE NORA'S OTHER COSTLY ACTIONS (noraLimits.ts AI_DAILY_BUDGETS): each
+    // card reads the account and signs a token that writes account data, so a script cannot draft them
+    // all day. Counted per account before the preview; past the budget nothing is read or drafted.
+    if (name === 'set_up_account') {
+      const budget = await countBudget(actor.supabase, actor.user.id, 'account_setup');
+      if (!budget.allowed) return { result: { error: 'daily_budget', message: budgetReply('account_setup', budget.resetSeconds) }, actions: [] };
+    }
     const res = await proposeChange({
       registry: serverRegistry,
       action: name,
       input: args,
       actor: { id: actor.user.id, role: actor.role, roles: actor.roles },
-      ctx: { ...makeCtx(actor, request), isMember, draftModel, zone },
+      // `locale`: the app's language, for words an action writes for the member to read (the goal's).
+      ctx: { ...makeCtx(actor, request), isMember, draftModel, zone, locale: locale || 'en' },
       secret,
     });
     if (!res.ok) {
@@ -1147,7 +1159,9 @@ async function askOpenAI(
   const adminNote = member.adminTools && member.adminTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${ADMIN_PROMPT_NOTE}` : '';
   const noCardsNote = member.noCards && !member.cookMsg ? `\n\n${NO_CARDS_NOTE}` : '';
   const personNote = member.signedIn && !member.noCards && !member.cookMsg ? `\n\n${PERSON_NOTE}` : '';
-  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}${member.reads && member.reads.mornings ? `\n\n${morningsPromptNote(member.coach.surface)}` : ''}` : ''}${trainerNote}${nutritionNote}${adminNote}${noCardsNote}${personNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
+  // Account setup rides with its tool: a member's turn on a chat that draws cards, never in the kitchen.
+  const setupNote = member.memberTools.length && !member.noCards && !member.cookMsg ? `\n\n${SETUP_PROMPT_NOTE}` : '';
+  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}${member.reads && member.reads.mornings ? `\n\n${morningsPromptNote(member.coach.surface)}` : ''}` : ''}${setupNote}${trainerNote}${nutritionNote}${adminNote}${noCardsNote}${personNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
     // Where they are: the clock in their zone and what the server verified (system), then
@@ -1580,7 +1594,7 @@ export async function POST(request: Request) {
   // The draft's own model call: the pinned model with its fallback, like every member
   // call; null with no key, and the draft says it is a template.
   const draftModel: DraftModel = hasOpenAIKey() ? (b, o) => callAI(b, { ...o, signal: request.signal }) : null;
-  const propose = makePropose(actor, request, isMember, trainerTools.length ? draftModel : null, actor ? zone : null);
+  const propose = makePropose(actor, request, isMember, trainerTools.length ? draftModel : null, actor ? zone : null, locale);
   // The coach lookup reads the PUBLIC marketplace tables: the member's own
   // client when there is one, else the request's anonymous client (a signed-out
   // visitor asking for a coach is the website widget's oldest use). A client

@@ -166,10 +166,14 @@ export function startTour(steps, opts = {}) {
     card.setAttribute('aria-label', step.title || 'Product tour');
     const dots = steps.map((_, k) => `<span style="width:${k === idx ? 18 : 6}px;height:6px;border-radius:3px;background:${k === idx ? accent : stAlpha(ink, 0.25)};transition:width .2s;display:inline-block;margin-right:5px"></span>`).join('');
     const nextLabel = step.final ? (step.ctaLabel || 'Open →') : (b.isLast ? 'Done' : 'Next →');
+    // A step can offer another way on (`altLabel` + `onAlt`): the Welcome step's "Set up with Nora"
+    // (src/lib/ai/accountSetup.mjs). It ends the tour first, like the finale's CTA, then runs.
+    const alt = step.altLabel && typeof step.onAlt === 'function';
     card.innerHTML =
       `${step.eyebrow ? `<div style="font:600 10px/1 ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;color:${accent};margin-bottom:8px">${esc(step.eyebrow)}</div>` : ''}` +
       `<div style="font:600 19px/1.2 Georgia,serif;margin-bottom:7px">${esc(step.title)}</div>` +
       `<div style="font-size:13.5px;line-height:1.5;opacity:.82;margin-bottom:14px">${esc(step.body)}</div>` +
+      `${alt ? `<button data-st="alt" style="display:block;width:100%;margin:0 0 14px;background:none;border:1px solid ${accent};color:${accent};border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;text-align:center">${esc(step.altLabel)}</button>` : ''}` +
       `<div style="display:flex;align-items:center;justify-content:space-between">` +
         `<div>${dots}</div>` +
         `<div style="display:flex;gap:8px">` +
@@ -186,6 +190,8 @@ export function startTour(steps, opts = {}) {
     // happened (the unload killed the seen-flag write mid-flight).
     next.onclick = () => { if (step.final) { finish(); try { step.onCta && step.onCta(); } catch (_) {} } else if (b.isLast) finish(); else { i = idx + 1; show(); } };
     const back = card.querySelector('[data-st="back"]'); if (back) back.onclick = () => { if (idx > 0) { i = idx - 1; show(); } };
+    // The other way on: the tour is over (its seen flag written) before the step's own action runs.
+    const other = card.querySelector('[data-st="alt"]'); if (other) other.onclick = () => { finish(); try { step.onAlt(); } catch (_) {} };
     // A final step with a navigating CTA also gets a plain Done — ending the
     // tour must never REQUIRE leaving the page.
     const done = card.querySelector('[data-st="done"]'); if (done) done.onclick = finish;

@@ -167,6 +167,10 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   const [feedStatus, setFeedStatus] = React.useState("loading"); // loading | error | ok — so a load failure isn't shown as "no activity"
 
   const cl = () => (window.shapeDb && window.shapeDb.client) || null;
+  // The own profile reads again when Nora's account setup (or its Undo) changes the name, goal or
+  // units from the chat over this page (chatWidget.jsx).
+  const [setupRev, setSetupRev] = React.useState(0);
+  React.useEffect(() => { const again = () => setSetupRev((n) => n + 1); window.addEventListener("shape:accountSetup", again); return () => window.removeEventListener("shape:accountSetup", again); }, []);
   const applyStats = (d) => { if (d) setFollow({ followers: +d.followers || 0, following: +d.following || 0, isFollowing: !!d.is_following, isPending: !!d.is_pending }); };
   React.useEffect(() => {
     let on = true;
@@ -254,7 +258,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       } catch (e) { if (on) setFeedStatus("error"); }
     })();
     return () => { on = false; };
-  }, []);
+  }, [setupRev]);
 
   // Own client profile, signed in → replace the demo persona's performance
   // fields (day streak, weekly Shape Score delta, body-comp trajectory, current
@@ -293,7 +297,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       setLiveSelf(out);
     })();
     return () => { on = false; };
-  }, [st.isSelf, st.uid]);
+  }, [st.isSelf, st.uid, setupRev]);
 
   const onMessage = () => {
     if (st.isSelf) {
