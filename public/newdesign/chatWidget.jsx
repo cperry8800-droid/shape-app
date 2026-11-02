@@ -197,14 +197,21 @@ function CwProposalCard({ a }) {
   const [err, setErr] = React.useState("");
   const [auditId, setAuditId] = React.useState(kept ? kept.auditId : null);
   // The same card open in another tab: its Confirm or Undo there lands here too (the storage event
-  // fires in every other tab of the origin), so this one never offers Confirm again (Codex on #2566).
+  // fires in every other tab of the origin), so this one never offers Confirm again, and a setup's
+  // page here reads again what it changed, as it does when Confirm is pressed here (Codex on #2566).
+  const statusRef = React.useRef(status);
+  statusRef.current = status;
   React.useEffect(() => {
     const onStore = (e) => {
       if (e && e.key != null && e.key !== CW_CARD_DONE_KEY) return;
       const k = cwCardDoneRead(a && a.token);
       if (!k) return;
-      setStatus((st) => (st === "busy" || st === "undoing" ? st : k.status));
+      const cur = statusRef.current;
+      if (cur === "busy" || cur === "undoing" || cur === k.status) return;
+      statusRef.current = k.status;
+      setStatus(k.status);
       setAuditId(k.auditId || null);
+      if (a && a.action === "set_up_account") cwAfterAccountSetup(k.status === "undone");
     };
     try { window.addEventListener("storage", onStore); } catch (e) { return undefined; }
     return () => { try { window.removeEventListener("storage", onStore); } catch (e) {} };

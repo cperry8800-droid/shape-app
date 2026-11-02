@@ -192,7 +192,10 @@ export default {
       // only spares that read. The test's other-key event confirms the card is unchanged either way.
       expectSurvive: true,
     },
-    { name: 'a website card hears another tab but keeps its Undo away', file: WEB, find: '      setAuditId(k.auditId || null);\n    };', replace: '    };' },
+    { name: 'a website card hears another tab but keeps its Undo away', file: WEB, find: '      setAuditId(k.auditId || null);\n      if (a && a.action', replace: '      if (a && a.action' },
+    { name: "another tab's setup does not reach this tab's page", file: WEB, find: '      if (a && a.action === "set_up_account") cwAfterAccountSetup(k.status === "undone");\n', replace: '' },
+    { name: "another tab's every card reaches this tab's page as a setup", file: WEB, find: '      if (a && a.action === "set_up_account") cwAfterAccountSetup(k.status === "undone");', replace: '      cwAfterAccountSetup(k.status === "undone");' },
+    { name: 'the same outcome heard again is announced again', file: WEB, find: 'if (cur === "busy" || cur === "undoing" || cur === k.status) return;', replace: 'if (cur === "busy" || cur === "undoing") return;' },
     { name: 'every website card is kept as one', file: WEB, find: 'token.slice(token.lastIndexOf(".") + 1) || null', replace: '"all"' },
     { name: 'every confirmed web card says "saved to your account"', file: WEB, find: '{status === "done" && a.action === "set_up_account" && (', replace: '{status === "done" && (' },
     { name: "the tour's other way on runs before the tour is marked seen", file: TOUR, find: "other.onclick = () => { finish(); try { step.onAlt(); } catch (_) {} };", replace: "other.onclick = () => { try { step.onAlt(); } catch (_) {} finish(); };" },

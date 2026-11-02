@@ -206,8 +206,9 @@ test('website card: refusals said as such; a confirmed setup says where to chang
 test('website card: a card open in another tab follows its Confirm and Undo there', async () => {
   const store = memStorage();
   const listeners = [];
+  const told = [];
   const win = {
-    dispatchEvent: () => true,
+    dispatchEvent: (e) => { told.push([e.type, JSON.parse(JSON.stringify(e.detail))]); return true; },
     addEventListener: (type, fn) => { listeners.push([type, fn]); },
     removeEventListener: (type, fn) => { const i = listeners.findIndex(([t, f]) => t === type && f === fn); if (i >= 0) listeners.splice(i, 1); },
   };
@@ -224,6 +225,10 @@ test('website card: a card open in another tab follows its Confirm and Undo ther
   assert.ok(other.text.includes('Applied ✓'), 'applied here too');
   assert.ok(!other.buttons().some((b) => b.label === 'Confirm'), 'never Confirm again');
   assert.ok(other.buttons().some((b) => b.label === 'Undo'), 'with its Undo');
+  // Codex on 6a19188 (P2): and this tab's page reads again what the setup changed, once.
+  assert.deepEqual(told, [['shape:accountSetup', { undone: false }]]);
+  listeners.forEach(([t, fn]) => fn({ key: 'shape.nora.cardDone.v1' }));
+  assert.equal(told.length, 1, 'the same outcome heard again tells the page nothing new');
   // Another key changing is not this card's news.
   listeners.forEach(([t, fn]) => fn({ key: 'shape.something.else.v1' }));
   other.render();
@@ -233,6 +238,14 @@ test('website card: a card open in another tab follows its Confirm and Undo ther
   listeners.forEach(([t, fn]) => fn({ key: 'shape.nora.cardDone.v1' }));
   other.render();
   assert.ok(other.text.includes('Undone') && !other.buttons().some((b) => b.label === 'Undo' || b.label === 'Confirm'));
+  assert.deepEqual(told, [['shape:accountSetup', { undone: false }], ['shape:accountSetup', { undone: true }]], 'and of the Undo');
+  // Any other card heard from another tab tells the page nothing.
+  const water = drive(Card, { a: { ...SETUP_CARD, token: 'tok-tabw', action: 'log_water' } });
+  store.setItem('shape.nora.cardDone.v1', JSON.stringify({ 'tok-tabw': { status: 'done', auditId: 'aud-8', at: 3 } }));
+  listeners.forEach(([t, fn]) => fn({ key: 'shape.nora.cardDone.v1' }));
+  water.render();
+  assert.ok(water.text.includes('Applied ✓'));
+  assert.equal(told.length, 2, 'no setup announced for another card');
 });
 
 // ── The tours ────────────────────────────────────────────────────────────────────────────────
