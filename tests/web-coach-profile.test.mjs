@@ -136,11 +136,14 @@ const settle = () => React.act(async () => { await new Promise((r) => setTimeout
 const LISTING = { id: 7, name: 'Tom Trainer', specialty: 'Strength', price: 180, credential: 'NSCA-CSCS', verified: true, at_capacity: false, capacity_resume_at: null, listing_ready: true, monthly_offer: { includes: ['A program written for your week'] }, listing_media: null, owner_id: 'coach-1' };
 const PLANS = [{ id: 'p1', kind: 'program', name: 'Strong in 12', price: 79, category: 'program', meta: '12 weeks', provider_id: 7, provider_role: 'trainer', detail: { preview: true, blocks: [{ week: 0, day: 0, dayName: 'Squat', name: 'Back squat', equipment: 'Barbell' }], weeks: 12, media: [] } }];
 const dayAfter = new Date(Date.now() + 2 * 864e5);
-function backend({ capacity = false, plans = () => ({ data: PLANS, error: null }) } = {}) {
+// `fail(table)` makes a table's read come back with an error, as a Supabase or network failure does;
+// `hold(table)` leaves it on its way; `reads` counts each table's reads.
+function backend({ capacity = false, plans = () => ({ data: PLANS, error: null }), fail = () => false, hold = () => false, reads = {} } = {}) {
   const calls = [];
   const q = (table) => {
     const rows = table === 'trainers' ? [{ ...LISTING, at_capacity: capacity }] : table === 'community_posts' ? [] : [];
-    const o = { select: () => o, eq: () => o, in: () => o, order: () => o, limit: () => o, maybeSingle: async () => ({ data: rows[0] || null, error: null }), then: (r, j) => Promise.resolve({ data: rows, error: null }).then(r, j) };
+    const res = () => { reads[table] = (reads[table] || 0) + 1; return fail(table) ? { data: null, error: { message: 'timeout' } } : { data: rows, error: null }; };
+    const o = { select: () => o, eq: () => o, in: () => o, order: () => o, limit: () => o, maybeSingle: async () => { const r = res(); return { data: r.data ? r.data[0] || null : null, error: r.error }; }, then: (r, j) => (hold(table) ? new Promise(() => {}) : Promise.resolve(res())).then(r, j) };
     return o;
   };
   window.shapeDb = {
@@ -253,6 +256,73 @@ test('a plan read that fails says so, with Try again, and never reads as "no pla
   const q = await mount(LIVE);
   assert.ok(document.querySelector('[data-work-rail] [data-plans-error]'), 'a request that throws is a failed read too');
   await q.unmount();
+});
+
+test('a listing read that fails says so in Work with, with Try again, and never reads as unlisted', async () => {
+  WIDE = true;
+  let down = true; const reads = {};
+  backend({ fail: (t) => down && t === 'trainers', reads });
+  const p = await mount(LIVE);
+  const rail = document.querySelector('[data-work-rail]');
+  const err = rail.querySelector('[data-listing-error]');
+  assert.ok(err, 'the failed read is shown');
+  assert.match(err.textContent, /Couldn't read Tom's prices just now/);
+  assert.doesNotMatch(rail.textContent, /hasn't listed prices/, 'no "unlisted" claim on a failed read');
+  assert.ok(!rail.querySelector('[data-subscribe]') && !rail.querySelector('[data-plan-buy]'));
+  down = false;
+  const before = reads.trainers;
+  await React.act(async () => err.querySelector('[data-read-retry]').click());
+  await settle(); await settle();
+  assert.ok(reads.trainers > before, 'Try again reads the listing again');
+  assert.ok(!rail.querySelector('[data-listing-error]'));
+  assert.ok(rail.querySelector('[data-subscribe]'), 'and Subscribe is back');
+  await p.unmount();
+});
+
+test('a reviews read that fails claims no rating: never "New on Shape" for a coach it could not read', async () => {
+  WIDE = true; backend();
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, init) => (String(url).startsWith('/api/coaches/reviews') ? { ok: false, status: 503, json: async () => ({}) } : real(url, init));
+  const p = await mount(LIVE);
+  const line = document.querySelector('[data-verified-line]').textContent;
+  assert.doesNotMatch(line, /New on Shape/);
+  assert.match(line, /Verified Elite coach/);
+  assert.doesNotMatch(document.querySelector('[data-coach-profile]').textContent, /No reviews yet/);
+  await p.unmount();
+  globalThis.fetch = real;
+});
+
+test('while the listing is read, Work with claims no prices', async () => {
+  WIDE = true; backend({ hold: (t) => t === 'trainers' });
+  const p = await mount(LIVE);
+  const rail = document.querySelector('[data-work-rail]');
+  assert.match(rail.textContent, /Reading the prices/);
+  assert.doesNotMatch(rail.textContent, /hasn't listed prices/);
+  await p.unmount();
+});
+
+test('a post read that fails keeps the tabs it feeds, each saying so with Try again', async () => {
+  WIDE = true;
+  let down = true; const reads = {};
+  backend({ fail: (t) => down && t === 'community_posts', reads });
+  const p = await mount(LIVE);
+  const tabs = [...document.querySelectorAll('[data-profile-tab]')].map((b) => b.getAttribute('data-profile-tab'));
+  assert.ok(tabs.includes('activity') && tabs.includes('replays'), 'the post tabs stay: ' + tabs.join(','));
+  await React.act(async () => document.querySelector('[data-profile-tab="replays"]').click());
+  assert.match(document.querySelector('[data-work-error]').textContent, /Couldn't read all of Tom's work just now/);
+  assert.ok(document.querySelector('[data-program]'), 'the programs that did load still show');
+  await React.act(async () => document.querySelector('[data-profile-tab="activity"]').click());
+  const err = document.querySelector('[data-posts-error]');
+  assert.match(err.textContent, /Couldn't read Tom's posts just now/);
+  down = false;
+  const before = reads.community_posts;
+  await React.act(async () => err.querySelector('[data-read-retry]').click());
+  await settle();
+  assert.equal(reads.community_posts, before + 1, 'Try again reads the posts again');
+  assert.ok(!document.querySelector('[data-posts-error]'));
+  // Read, and empty: a visitor sees no Activity tab, as before.
+  assert.ok(![...document.querySelectorAll('[data-profile-tab]')].some((b) => b.getAttribute('data-profile-tab') === 'activity'));
+  await p.unmount();
 });
 
 test('at capacity the storefront is the waiting list, never a live Subscribe', async () => {

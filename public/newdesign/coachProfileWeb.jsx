@@ -115,6 +115,16 @@ const cpwVideoFile = (u) => { try { return /\.(mp4|m4v|mov|webm)$/i.test(new URL
 function CpwHint({ ink, children }) {
   return <p style={{ margin: "14px 0 0", fontSize: 14.5, lineHeight: 1.5, color: ink(0.7) }}>{children}</p>;
 }
+// A read that failed is said as such, with Try again: never shown as "nothing here" (Codex P2s on
+// #2560: the plans, the posts and the listing each turned a failed read into an empty one).
+function CpwReadFailed({ ink, ACC, what, onRetry, tag }) {
+  return (
+    <div role="alert" {...{ [`data-${tag || "read"}-error`]: "" }}>
+      <CpwHint ink={ink}>{what}</CpwHint>
+      {onRetry ? <button type="button" data-read-retry="" onClick={onRetry} style={cpwLink(ACC)}>Try again</button> : null}
+    </div>
+  );
+}
 const cpwLink = (ACC) => ({ marginTop: 6, minHeight: 40, padding: 0, border: 0, background: "transparent", color: ACC, fontFamily: CPW_DISPLAY, fontSize: 14.5, fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" });
 const cpwEyebrow = (ink, color) => ({ display: "block", fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: color || ink(0.64) });
 function CpwX({ onClose, color }) {
@@ -292,22 +302,30 @@ function useCpwPlans(uid) {
 }
 // Their posts, newest first: a visitor's read keeps to the tiers a profile shows before the limit,
 // so feed-only posts cannot crowd out the profile's (the living profile's rule).
+// 'loading' | 'ready' | 'none' | 'error', as the plans: a failed read is not "nothing posted".
 function useCpwPosts(uid, isSelf) {
-  const [rows, setRows] = React.useState(null);
+  const [st, setSt] = React.useState({ state: uid ? "loading" : "none", rows: [] });
+  const [epoch, setEpoch] = React.useState(0);
   React.useEffect(() => {
     const cl = window.shapeDb && window.shapeDb.client;
-    if (!uid || !cl || !cl.from) { setRows([]); return undefined; }
+    if (!uid || !cl || !cl.from) { setSt({ state: "none", rows: [] }); return undefined; }
     let on = true;
+    setSt({ state: "loading", rows: [] });
     Promise.resolve().then(() => {
       let q = cl.from("community_posts").select("id,title,note,activity_type,metrics,privacy,photo_url,source_provider,created_at").eq("author_id", uid);
       if (!isSelf) q = q.in("privacy", ["public", "profile", "followers", "friends"]);
       return q.order("created_at", { ascending: false }).limit(40);
     })
-      .then((r) => { if (on) setRows(r && !r.error && Array.isArray(r.data) ? r.data : []); })
-      .catch(() => { if (on) setRows([]); });
+      .then((r) => {
+        if (!on) return;
+        if (!r || r.error) { setSt({ state: "error", rows: [] }); return; }
+        setSt({ state: "ready", rows: Array.isArray(r.data) ? r.data : [] });
+      })
+      .catch(() => { if (on) setSt({ state: "error", rows: [] }); });
     return () => { on = false; };
-  }, [uid, isSelf]);
-  return rows;
+  }, [uid, isSelf, epoch]);
+  const retry = React.useCallback(() => setEpoch((n) => n + 1), []);
+  return { state: st.state, rows: st.rows, retry };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -413,8 +431,9 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const salePlans = useCpwPlans(live ? uid : null);
   const roleOf = (pl) => pl.provider_role || pl.providerRole || (pl.kind === "meal_plan" ? "nutritionist" : "trainer");
   const ownPlans = salePlans.rows.filter((pl) => pl && roleOf(pl) === role);
-  const postRows = useCpwPosts(live ? uid : null, isSelf);
-  const cards = React.useMemo(() => (postRows || []).map((r) => K.bsCoachCardFromRow(r)).filter((c) => c && (isSelf || (typeof lvFeedVisible === "function" ? lvFeedVisible(c.vis, false) : true))), [postRows, isSelf]);
+  const posts = useCpwPosts(live ? uid : null, isSelf);
+  const postRows = posts.rows;
+  const cards = React.useMemo(() => postRows.map((r) => K.bsCoachCardFromRow(r)).filter((c) => c && (isSelf || (typeof lvFeedVisible === "function" ? lvFeedVisible(c.vis, false) : true))), [postRows, isSelf]);
   const programs = nutri ? [] : sample ? (sample.programs || []) : K.bsCoachPrograms(ownPlans);
   const workouts = nutri ? [] : sample ? (sample.workouts || []) : K.bsWorkoutVideos(cards);
   const replays = nutri ? [] : sample ? (sample.replays || []) : cards.filter((c) => c.breakdown && Array.isArray(c.breakdown.rows) && c.breakdown.rows.length && !c.video);
@@ -434,6 +453,11 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   // A plan with a price is bought here only from a listing on the marketplace: an unfinished or
   // suspended one sells nothing (the app's rule, Codex P1 on 196314b).
   const plansPaid = listed && ownPlans.some((pl) => K.bsWorkPaid(pl.price));
+  // A post or plan read that failed keeps its tabs, each saying so with Try again, rather than
+  // dropping them as if the coach had posted or sold nothing.
+  const postsFailed = live && posts.state === "error";
+  const workFailed = postsFailed || (live && salePlans.state === "error");
+  const retryWork = () => { if (posts.state === "error") posts.retry(); if (salePlans.state === "error") salePlans.retry(); };
 
   // ── Reviews ──
   const reviews = sample
@@ -457,7 +481,9 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     }
     return out;
   })();
-  const ratingBit = reviews.count > 0 ? `${(Math.round(reviews.avg * 10) / 10).toFixed(1)}/10 from ${reviews.count} ${reviews.count === 1 ? "review" : "reviews"}` : "New on Shape";
+  // "New on Shape" only once the reviews are read: while they load, or when the read failed, the
+  // line names no rating rather than claiming none.
+  const ratingBit = reviews.count > 0 ? `${(Math.round(reviews.avg * 10) / 10).toFixed(1)}/10 from ${reviews.count} ${reviews.count === 1 ? "review" : "reviews"}` : reviews.unread ? "" : "New on Shape";
 
   // The page's title and share card name the coach (the public page only; the dashboard keeps its own).
   React.useEffect(() => {
@@ -489,13 +515,13 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const tabs = nutri ? [
     ["day", words.day], ...aboutTab,
     ...(isSelf || kitchen || gallery.length ? [["kitchen", words.kitchen]] : []),
-    ...(isSelf || plateDays.length ? [["plates", "Plate notes"]] : []),
-    ...(isSelf || activity.length ? [["activity", "Activity"]] : []),
+    ...(isSelf || plateDays.length || postsFailed ? [["plates", "Plate notes"]] : []),
+    ...(isSelf || activity.length || postsFailed ? [["activity", "Activity"]] : []),
   ] : [
     ["day", words.day], ...aboutTab,
     ...(isSelf || studio || gallery.length ? [["studio", "The studio"]] : []),
-    ...(isSelf || replays.length || workouts.length || programs.length ? [["replays", "Replays"]] : []),
-    ...(isSelf || activity.length ? [["activity", "Activity"]] : []),
+    ...(isSelf || replays.length || workouts.length || programs.length || workFailed ? [["replays", "Replays"]] : []),
+    ...(isSelf || activity.length || postsFailed ? [["activity", "Activity"]] : []),
   ];
   const [tab, setTab] = React.useState("day");
   const tabNow = tabs.some(([k]) => k === tab) ? tab : "day";
@@ -536,6 +562,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     <CpwWorkWith T={T} cm={cm} sells={sells} monthly={monthly} listed={listed} sample={!!sample} providerId={providerId}
       offer={listed ? listing.row.monthly_offer : null} plans={plansForSale} plansPaid={plansPaid} K={K}
       plansState={sample ? "ready" : salePlans.state} onRetryPlans={salePlans.retry}
+      listingState={live ? listing.state : "ready"} onRetryListing={() => setListingEpoch((n) => n + 1)}
       onPickIntro={providerId && !avail.sample ? toDay : null} onMessage={message} />
   );
 
@@ -688,11 +715,11 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                   ) : tabNow === "kitchen" ? (
                     <CpwKitchenTab T={T} kitchen={kitchen} gallery={gallery} onRecipe={(r) => setSheet({ kind: "recipe", r })} />
                   ) : tabNow === "plates" ? (
-                    <CpwPlateNotesTab T={T} days={plateDays} onOpen={(day) => setSheet({ kind: "plateDay", day, i: 0 })} />
+                    <CpwPlateNotesTab T={T} days={plateDays} failed={postsFailed} onRetry={posts.retry} onOpen={(day) => setSheet({ kind: "plateDay", day, i: 0 })} />
                   ) : tabNow === "replays" ? (
-                    <CpwReplaysTab T={T} programs={programs} workouts={workouts} replays={replays} onProgram={(pr) => setSheet({ kind: "program", pr })} onOpen={(r) => setSheet({ kind: "replay", r, i: 0 })} />
+                    <CpwReplaysTab T={T} programs={programs} workouts={workouts} replays={replays} failed={workFailed} onRetry={retryWork} onProgram={(pr) => setSheet({ kind: "program", pr })} onOpen={(r) => setSheet({ kind: "replay", r, i: 0 })} />
                   ) : (
-                    <CpwActivityTab T={T} cards={activity} />
+                    <CpwActivityTab T={T} cards={activity} failed={postsFailed} onRetry={posts.retry} />
                   )}
                 </div>
               </React.Fragment>
@@ -758,7 +785,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
 // and Buy go through livingShared.jsx's one path (useLvCoachCommerce's subscribe, lvBuyPlan), each
 // sending the code typed in the code box (LvCodeBox) so the server checks it before the redirect to
 // Stripe (coach direct charges, #2403).
-function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, offer, plans, plansPaid, plansState = "ready", onRetryPlans, onPickIntro, onMessage }) {
+function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, offer, plans, plansPaid, plansState = "ready", onRetryPlans, listingState = "ready", onRetryListing, onPickIntro, onMessage }) {
   const { pal, ACC, ON_ACC, INK, ink, first, nutri, isSelf } = T;
   const [cat, setCat] = React.useState("All");
   const perks = offer && Array.isArray(offer.includes) ? offer.includes.filter((x) => typeof x === "string" && x.trim()).slice(0, 3) : [];
@@ -856,7 +883,14 @@ function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, off
       <h2 tabIndex={-1} className="cpw-s22" style={{ margin: 0, fontFamily: CPW_DISPLAY, fontWeight: 500, fontSize: 22, color: INK, outline: "none" }}>Work with {first}<span style={{ color: ACC }}>.</span></h2>
       <p style={{ margin: "3px 0 0", fontSize: 13.5, lineHeight: 1.45, color: ink(0.64) }}>{blurb || "Start with a free intro call. Everything runs in the Shape app."}</p>
 
-      {isSelf ? (
+      {listingState === "error" ? (
+        <div style={{ marginTop: 14 }}>
+          <CpwReadFailed ink={ink} ACC={ACC} tag="listing" what={isSelf ? "Couldn't read your listing just now." : `Couldn't read ${first}'s prices just now.`} onRetry={onRetryListing} />
+          {!isSelf ? <button type="button" onClick={onMessage} style={{ marginTop: 8, width: "100%", minHeight: 50, border: `1px solid ${ink(0.22)}`, background: "transparent", color: INK, fontFamily: CPW_DISPLAY, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>Message {first}</button> : null}
+        </div>
+      ) : listingState === "loading" ? (
+        <div style={{ marginTop: 14 }}><CpwHint ink={ink}>Reading the prices…</CpwHint></div>
+      ) : isSelf ? (
         sells ? (
           <div style={block}>
             <Kick col={ACC}>What members see</Kick>
@@ -1432,7 +1466,7 @@ function CpwRecipeSheet({ T, r, onClose }) {
 }
 
 // ── Plate notes ──────────────────────────────────────────────────────────────────────────────
-function CpwPlateNotesTab({ T, days, onOpen }) {
+function CpwPlateNotesTab({ T, days, failed = false, onRetry, onOpen }) {
   const { pal, ACC, INK, ink, first, isSelf } = T;
   const dayName = (day) => { if (!Number.isFinite(day.at)) return "A day of meals"; try { return new Date(day.at).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }); } catch (e) { return day.key; } };
   return (
@@ -1448,7 +1482,8 @@ function CpwPlateNotesTab({ T, days, onOpen }) {
           </button>
         ))}
       </div>
-      {!days.length && isSelf ? <CpwHint ink={ink}>Share the meals you log, and each day you share becomes a plate note here.</CpwHint> : null}
+      {failed ? <CpwReadFailed ink={ink} ACC={ACC} tag="posts" what={isSelf ? "Couldn't read your plate notes just now." : `Couldn't read ${first}'s plate notes just now.`} onRetry={onRetry} /> : null}
+      {!days.length && isSelf && !failed ? <CpwHint ink={ink}>Share the meals you log, and each day you share becomes a plate note here.</CpwHint> : null}
     </section>
   );
 }
@@ -1505,7 +1540,7 @@ const cpwProgramDays = (pr) => {
   if (!p || !Array.isArray(p.units) || !(p.kind === "program" || p.kind === "split")) return "";
   return p.units.filter((u) => !u.rest).slice(0, 7).map((u) => [u.label, u.title].filter(Boolean).join(" ")).join(" · ");
 };
-function CpwReplaysTab({ T, programs, workouts, replays, onProgram, onOpen }) {
+function CpwReplaysTab({ T, programs, workouts, replays, failed = false, onRetry, onProgram, onOpen }) {
   const { pal, ACC, ON_ACC, INK, ink, first, isSelf } = T;
   const head = (label) => <span style={{ ...cpwEyebrow(ink), marginTop: 26, marginBottom: 12 }}>{label}</span>;
   const card = { padding: 0, border: 0, background: "transparent", color: INK, textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", gap: 8, fontFamily: CPW_BODY };
@@ -1513,6 +1548,7 @@ function CpwReplaysTab({ T, programs, workouts, replays, onProgram, onOpen }) {
   return (
     <section data-replays-tab="" style={{ paddingTop: 20 }}>
       <p style={{ margin: 0, fontSize: 14.5, color: ink(0.74) }}>The programs {first} sells, workouts on video, and sessions stepped set by set.</p>
+      {failed ? <CpwReadFailed ink={ink} ACC={ACC} tag="work" what={isSelf ? "Couldn't read all of your work just now." : `Couldn't read all of ${first}'s work just now.`} onRetry={onRetry} /> : null}
       {programs.length ? (
         <div data-programs="">
           {head("Programs")}
@@ -1535,7 +1571,7 @@ function CpwReplaysTab({ T, programs, workouts, replays, onProgram, onOpen }) {
             ))}
           </div>
         </div>
-      ) : isSelf ? <CpwHint ink={ink}>Publish a program and it shows here with its preview video, for members to buy.</CpwHint> : null}
+      ) : isSelf && !failed ? <CpwHint ink={ink}>Publish a program and it shows here with its preview video, for members to buy.</CpwHint> : null}
       {workouts.length ? (
         <div data-workouts="">
           {head("Workouts")}
@@ -1582,7 +1618,7 @@ function CpwReplaysTab({ T, programs, workouts, replays, onProgram, onOpen }) {
           </div>
         </div>
       ) : null}
-      {isSelf && !workouts.length && !replays.length ? <CpwHint ink={ink}>Log a session and share it, and it shows here with every set.</CpwHint> : null}
+      {isSelf && !failed && !workouts.length && !replays.length ? <CpwHint ink={ink}>Log a session and share it, and it shows here with every set.</CpwHint> : null}
     </section>
   );
 }
@@ -1668,8 +1704,8 @@ function CpwReplaySheet({ T, r, i, setI, avatar, onClose, onWork }) {
 // ── Activity ─────────────────────────────────────────────────────────────────────────────────
 // What they posted that the other tabs don't show (notes, photos, links, their own runs), newest
 // first. On their own page, Log activity opens the composer.
-function CpwActivityTab({ T, cards }) {
-  const { pal, ACC, INK, ink, isSelf } = T;
+function CpwActivityTab({ T, cards, failed = false, onRetry }) {
+  const { pal, ACC, INK, ink, isSelf, first } = T;
   return (
     <section data-activity="" style={{ paddingTop: 20 }}>
       {/* No heading: the tab is already named Activity (owner, as the app's #2562: it read "{name}'s
@@ -1679,6 +1715,7 @@ function CpwActivityTab({ T, cards }) {
           <button type="button" data-log-activity="" onClick={() => { if (typeof lvComposePost === "function") lvComposePost(); }} style={{ ...cpwLink(ACC), marginTop: 0, minHeight: 44 }}>＋ Log activity</button>
         </div>
       ) : null}
+      {failed ? <CpwReadFailed ink={ink} ACC={ACC} tag="posts" what={isSelf ? "Couldn't read your posts just now." : `Couldn't read ${first}'s posts just now.`} onRetry={onRetry} /> : null}
       {cards.length ? cards.slice(0, 30).map((a, i) => {
         const stats = (Array.isArray(a.stats) && a.stats.length ? a.stats : Array.isArray(a.statsRow) ? a.statsRow : []).slice(0, 3);
         return (
@@ -1696,7 +1733,7 @@ function CpwActivityTab({ T, cards }) {
             ) : null}
           </article>
         );
-      }) : <CpwHint ink={ink}>Nothing posted yet. Log a run, a note or a photo, and members see it here.</CpwHint>}
+      }) : failed ? null : <CpwHint ink={ink}>Nothing posted yet. Log a run, a note or a photo, and members see it here.</CpwHint>}
     </section>
   );
 }
