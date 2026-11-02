@@ -92,9 +92,11 @@ function accountDb({ uid = ME, goals = {}, notify = null, profile = { full_name:
             return res({ data: hit.map((r) => ({ ...r })), error: null });
           }
           if (st.op === 'delete') {
-            const keep = rows.filter((r) => !(mine(r) && st.filters.every((f) => f(r))));
-            t[table] = keep;
-            return res({ data: [], error: null });
+            // As PostgREST with .select(): the rows it removed, the owner's own only.
+            const gone = rows.filter((r) => mine(r) && st.filters.every((f) => f(r)));
+            t[table] = rows.filter((r) => !gone.includes(r));
+            if (gone.length) writes.push({ op, rows: gone.length });
+            return res({ data: gone.map((r) => ({ ...r })), error: null });
           }
           return res({ data: null, error: null });
         } catch (e) { return rej(e); }
@@ -271,7 +273,7 @@ test('confirm writes every cell into the screens\' own stores, merged; undo rest
   assert.deepEqual(strip(db.t), strip(before), 'every document, the notification row and the name are back as they were');
 });
 
-test('an account with no rows yet: confirm makes them; undo leaves them as an account that never answered', async () => {
+test('an account with no rows yet: confirm makes them; undo leaves it as an account that never answered', async () => {
   const db = accountDb({ goals: {}, notify: null });
   const { built } = await preview(db, [{ field: 'weekStarts', value: 'Sunday' }, { field: 'quietEnd', value: '8am' }]);
   await setup.applySetupCells(db, ME, built.cells, 'apply', { tz: built.tz });
@@ -280,7 +282,49 @@ test('an account with no rows yet: confirm makes them; undo leaves them as an ac
   assert.deepEqual([row.quiet_start, row.quiet_end, row.daily_cap, row.tz], [22, 8, 4, 'America/New_York'], 'made in their own zone, the rest the table defaults');
   await setup.applySetupCells(db, ME, built.cells, 'undo', { tz: built.tz });
   assert.deepEqual(db.goal('client_settings'), {}, 'the key they never had is gone again');
-  assert.equal(db.t.notification_settings.find((r) => r.user_id === ME).quiet_end, 7, 'back to the default');
+  // Codex on fbf4a41 (P2): the row Confirm made, and its zone, go with the Undo; a row of defaults
+  // left behind can start a quiet-hours window the account never had.
+  assert.equal(db.t.notification_settings.find((r) => r.user_id === ME), undefined, 'the notification row the setup made is gone');
+  await setup.applySetupCells(db, ME, built.cells, 'undo', { tz: built.tz });
+  assert.equal(db.t.notification_settings.find((r) => r.user_id === ME), undefined, 'and undoing again passes over it');
+});
+
+test('⚠ a notification row the setup made and the member has changed since is kept: only the setup\'s columns go back', async () => {
+  const db = accountDb({ goals: {}, notify: null });
+  const { built } = await preview(db, [{ field: 'quietEnd', value: '8am' }]);
+  await setup.applySetupCells(db, ME, built.cells, 'apply', { tz: built.tz });
+  db.t.notification_settings.find((r) => r.user_id === ME).muted = true; // their own switch, since
+  await setup.applySetupCells(db, ME, built.cells, 'undo', { tz: built.tz });
+  const row = db.t.notification_settings.find((r) => r.user_id === ME);
+  assert.ok(row, 'their own choice keeps the row');
+  assert.deepEqual([row.muted, row.quiet_end], [true, 7], 'muted as they set it; the setup\'s quiet end back to the default');
+  // Another column moved by another device (the daily limit), likewise.
+  const db2 = accountDb({ goals: {}, notify: null });
+  await setup.applySetupCells(db2, ME, built.cells, 'apply', { tz: built.tz });
+  db2.t.notification_settings.find((r) => r.user_id === ME).daily_cap = 6;
+  await setup.applySetupCells(db2, ME, built.cells, 'undo', { tz: built.tz });
+  assert.deepEqual([db2.t.notification_settings.find((r) => r.user_id === ME).daily_cap, db2.t.notification_settings.find((r) => r.user_id === ME).quiet_end], [6, 7]);
+  // Saved since from the notification centre in another zone: kept, in that zone.
+  const db4 = accountDb({ goals: {}, notify: null });
+  await setup.applySetupCells(db4, ME, built.cells, 'apply', { tz: built.tz });
+  db4.t.notification_settings.find((r) => r.user_id === ME).tz = 'Europe/Paris';
+  await setup.applySetupCells(db4, ME, built.cells, 'undo', { tz: built.tz });
+  assert.equal(db4.t.notification_settings.find((r) => r.user_id === ME).tz, 'Europe/Paris');
+  // An account that had a row before: Undo never deletes it.
+  const db3 = accountDb({ goals: {}, notify: { quiet_end: 7 } });
+  const { built: b3 } = await preview(db3, [{ field: 'quietEnd', value: '8am' }]);
+  await setup.applySetupCells(db3, ME, b3.cells, 'apply', { tz: b3.tz });
+  await setup.applySetupCells(db3, ME, b3.cells, 'undo', { tz: b3.tz });
+  assert.equal(db3.t.notification_settings.find((r) => r.user_id === ME).quiet_end, 7);
+  assert.ok(!db3.writes.some((w) => w.op === 'notification_settings:delete'), 'no delete');
+});
+
+test('⚠ a failed apply takes away a notification row it had just made', async () => {
+  const db = accountDb({ goals: {}, notify: null });
+  const { built } = await preview(db, [{ field: 'quietStart', value: 21 }, { field: 'name', value: 'New Name' }]);
+  db.hooks.failOn = (op) => op === 'profiles:update';
+  await assert.rejects(setup.applySetupCells(db, ME, built.cells, 'apply', { tz: built.tz }), { message: setup.WRITE_FAILED_MSG });
+  assert.equal(db.t.notification_settings.find((r) => r.user_id === ME), undefined, 'no row of defaults left behind');
 });
 
 test('⚠ a value changed after the card was drawn stops the whole confirm before any write', async () => {

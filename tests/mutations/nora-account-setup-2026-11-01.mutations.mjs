@@ -166,6 +166,14 @@ export default {
     { name: 'a failed restore still says nothing was changed', file: CORE, find: 'if (kept.length) throw new Error(partialSavedMsg(', replace: 'if (false) throw new Error(partialSavedMsg(' },
     { name: 'a failed restore names nothing kept', file: CORE, find: '            kept.push(...g);\n', replace: '' },
 
+    // ── A notification row the setup made, on Undo (Codex on fbf4a41) ──
+    { name: 'Undo keeps the notification row the setup made', file: CORE, find: "      if (dir === 'undo' && state.notify && cells.every((c) => c.had === false)) {", replace: '      if (false) {' },
+    { name: 'Undo deletes a notification row the member had before', file: CORE, find: '&& state.notify && cells.every((c) => c.had === false)) {', replace: '&& state.notify) {' },
+    { name: 'the delete ignores the mute', file: CORE, find: ".delete().eq('user_id', uid).eq('muted', false).eq('tz', tz || 'UTC');", replace: ".delete().eq('user_id', uid).eq('tz', tz || 'UTC');" },
+    { name: 'the delete ignores the zone', file: CORE, find: ".eq('muted', false).eq('tz', tz || 'UTC');", replace: ".eq('muted', false);" },
+    { name: "the delete ignores the columns the setup did not set", file: CORE, find: 'del = del.eq(k, mine ? mine.after : NOTIFY_DEFAULTS[k]);', replace: 'del = mine ? del.eq(k, mine.after) : del;' },
+    { name: 'a delete that removed nothing is read as done', file: CORE, find: 'if (gone && !gone.error && Array.isArray(gone.data) && gone.data.length) return true;', replace: 'if (gone && !gone.error) return true;' },
+
     // ── The website and the tours ──
     { name: 'the website draws a refused row as a line', file: WEB, find: '{diff.map((d, i) => cwIsRefused(d) ? (', replace: '{diff.map((d, i) => false ? (' },
     { name: 'the page under the website card is not told of a setup', file: WEB, find: 'setStatus("done"); if (a.action === "set_up_account") cwAfterAccountSetup(false); }', replace: 'setStatus("done"); }' },

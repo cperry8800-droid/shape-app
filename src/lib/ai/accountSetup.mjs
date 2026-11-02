@@ -466,6 +466,22 @@ async function writeGroup(sb, uid, cells, dir, tz) {
         ? await sb.from('user_goals').update({ data }).eq('user_id', uid).eq('kind', c0.kind).eq('updated_at', row.updatedAt).select('kind')
         : await sb.from('user_goals').insert({ user_id: uid, kind: c0.kind, data }).select('kind');
     } else if (c0.store === 'notify') {
+      // ⚠ A ROW THE SETUP MADE IS TAKEN AWAY BY ITS UNDO (Codex on #2566). An account with no
+      // notification_settings row is given one by Confirm (in the chat's zone); restoring only the
+      // columns would leave the row, and its zone, behind, which can start a quiet-hours window the
+      // account never had. So when every cell was absent before, Undo (and a rollback) deletes the
+      // row, only while each of its columns is still what the setup left: its own cells at their
+      // `after`, the rest at the table's defaults, unmuted, in the zone it was made in. A row changed
+      // since holds the member's own choices; then only the setup's columns go back, as below.
+      if (dir === 'undo' && state.notify && cells.every((c) => c.had === false)) {
+        let del = sb.from('notification_settings').delete().eq('user_id', uid).eq('muted', false).eq('tz', tz || 'UTC');
+        for (const k of Object.keys(NOTIFY_DEFAULTS)) {
+          const mine = cells.find((c) => c.key === k);
+          del = del.eq(k, mine ? mine.after : NOTIFY_DEFAULTS[k]);
+        }
+        const gone = await del.select('user_id');
+        if (gone && !gone.error && Array.isArray(gone.data) && gone.data.length) return true;
+      }
       const patch = {};
       for (const c of todo) patch[c.key] = dir === 'apply' ? c.after : c.before;
       if (state.notify) {
