@@ -86,6 +86,9 @@ or past 12 KB.
   kitchen is `studio` kind `kitchen`; samples in `trainerDemo` and the like). `coachWork`,
   `studioKit`, `planPreview`, `planOutline`, `coachPronoun` and the demos live in
   `public/newdesign/` (the website uses them); `mobile-app/src/services/` only re-exports.
+  Night-before prep: one rule in `services/prepAhead.mjs` for Eat and the reminder cron; a
+  member's own day plan in `services/mealDays.mjs` (written account-bound and compare-and-set);
+  the plan sheet and morning swap in `BSPlanDay.jsx`.
 - ⚠ **Window globals** (`Object.assign(window, …)`): read one before its module defines it
   and React throws #130. `iosAppBroadsheetMain.jsx` loads feature modules before role
   modules, and `loadProsBundle` the whole client bundle first.
@@ -134,13 +137,13 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
 - Decide the bring-your-clients rules (the 15% cases, private profiles, the app's checkout).
 - Decide whether a coach checkout refuses payment, instead of a destination charge on Shape's
   account, when a Connect variable is missing (`directChargesReady`, #2555).
+- Decide night-before prep's open calls (#2563's War Room section): a second push for a meal
+  planned after tonight's reminder, and a planned-day total on Eat beside Fuel left.
 - Add the `localhost` hostname to the Turnstile widget.
 - A native speaker reads the PAR-Q, Nora hint, sample coach and Friends translations
   (Hausa and Pidgin first).
 
 **Planned next**
-- Night-before prep, Phase 2: a nutritionist's "prep the night before" tick, a reminder
-  time the member chooses, planning tomorrow, a morning swap.
 - Nora as the account-setup assistant (she answers and fills forms; setting up is to build).
 - Nora as a Shape Radio DJ, Phase 2 on
   ([`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md)), once a station provider signs.
