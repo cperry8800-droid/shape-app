@@ -16,7 +16,7 @@ const W_GOALS = 'public/newdesign/dashGoals.jsx';
 const W_PROFILE = 'public/newdesign/livingProfilePage.jsx';
 
 export default {
-  test: 'node --test tests/user-goals-refresh.test.mjs tests/nora-account-setup-surfaces.test.mjs tests/trainer-profile.test.mjs tests/website-dash-units.test.mjs',
+  test: 'node --test tests/user-goals-refresh.test.mjs tests/nora-account-setup-surfaces.test.mjs tests/trainer-profile.test.mjs tests/website-dash-units.test.mjs tests/prep-ahead-phase2-app.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── The announcement ──
@@ -44,6 +44,11 @@ export default {
     { name: 'Goals keeps its first read', file: GOALS, find: '  }, [loggedIn, goalsRev]);', replace: '  }, [loggedIn]);' },
     { name: "the coach page keeps its first read", file: COACH, find: '  }, [isSelf, ownEpoch, demoOn, customRev]);', replace: '  }, [isSelf, ownEpoch, demoOn]);' },
     { name: 'the coach page listens for another document', file: COACH, find: "const BS_OWN_PROFILE_KINDS = ['profile_custom'];", replace: "const BS_OWN_PROFILE_KINDS = ['client_settings'];" },
+
+    // ── The app's Notification center (Codex on 6d567bd) ──
+    { name: 'the Notification center keeps its first read', file: APP, find: '  }, [centerRev]);', replace: '  }, []);' },
+    { name: 'the Notification center does not listen for a setup', file: APP, find: "    window.addEventListener('shape:notifyprefs', again);\n", replace: '' },
+    { name: 'the setup does not tell the Notification center', file: APP, find: "  try { window.dispatchEvent(new CustomEvent('shape:notifyprefs')); } catch (e) {}\n", replace: '' },
 
     // ── The website (Codex on a569e48) ──
     { name: 'web Settings is not told of a setup', file: W_ME, find: '    window.addEventListener("shape:accountSetup",refresh);\n', replace: '' },

@@ -28022,6 +28022,14 @@ function BSNotifyPrefs({ onBack, role }) {
   const isCoach = role === 'trainer' || role === 'nutritionist' || role === 'dietitian';
   const [settings, setSettings] = useStateBSC(null);
   const [matrix, setMatrix] = useStateBSC({});
+  // Read again when quiet hours or the daily limit change from outside this pane: Nora's account
+  // setup, confirmed or undone over it, says so with shape:notifyprefs (bsAfterAccountSetup).
+  const [centerRev, setCenterRev] = useStateBSC(0);
+  React.useEffect(() => {
+    const again = () => setCenterRev((n) => n + 1);
+    window.addEventListener('shape:notifyprefs', again);
+    return () => window.removeEventListener('shape:notifyprefs', again);
+  }, []);
   React.useEffect(() => {
     let alive = true;
     Promise.resolve(window.ShapeNotifyPrefs?.center?.() || { settings: null, prefs: [] }).then(c => {
@@ -28033,7 +28041,7 @@ function BSNotifyPrefs({ onBack, role }) {
       setMatrix(m);
     });
     return () => { alive = false; };
-  }, []);
+  }, [centerRev]);
   const saveSettings = (patch) => { setSettings(s => ({ ...s, ...patch })); window.ShapeNotifyPrefs?.saveSettings?.(patch); };
   // The hour the prep reminder comes at (night-before prep, Phase 2): the member's own, kept in
   // user_goals like their other preferences (prepAhead.mjs BS_PREP_REMINDER_KIND), 7 pm until they
