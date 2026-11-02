@@ -466,7 +466,8 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       const list = Array.isArray(cm.liveReviews) ? cm.liveReviews : [];
       const count = cm.revAgg ? cm.revAgg.count : list.length;
       const avg = cm.revAgg && cm.revAgg.count > 0 ? cm.revAgg.avg : (list.length ? list.reduce((s, r) => s + (Number(r.rating) || 0), 0) / list.length : 0);
-      return { list, avg, count, locked: !!cm.revLocked, unread: live && cm.liveReviews === null };
+      const unread = live && cm.liveReviews === null;
+      return { list, avg, count, locked: !!cm.revLocked, unread, failed: unread && !!cm.revErr };
     })();
   const revLocked = !!(reviews.locked && reviews.count > 0 && !reviews.list.length);
   // The coach's pinned reviews first (their Wins wall), then the newest.
@@ -728,7 +729,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
             {/* What clients say: the reviews on the page itself, shown on a private profile too (they
                 are the readers', not the coach's to hide). A reader who isn't a member gets the rating
                 and the way in. At the foot of the page, after the tabs (owner, 2026-10-30). */}
-            <CpwReviewsStrip T={T} quotes={quotes} revLocked={revLocked} ratingBit={ratingBit} onAll={() => setSheet({ kind: "reviews" })} />
+            <CpwReviewsStrip T={T} quotes={quotes} revLocked={revLocked} ratingBit={ratingBit} failed={!!reviews.failed} onRetry={cm.retryReviews} onAll={() => setSheet({ kind: "reviews" })} />
 
             <footer data-credential="" style={{ padding: "10px 0 40px", fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: ink(0.5) }}>
               {[L && L.credential, verified ? "Checked by Shape" : null].filter(Boolean).join(" · ")}
@@ -1739,8 +1740,8 @@ function CpwActivityTab({ T, cards, failed = false, onRetry }) {
 }
 
 // ── What clients say ─────────────────────────────────────────────────────────────────────────
-function CpwReviewsStrip({ T, quotes, revLocked, ratingBit, onAll }) {
-  const { pal, ACC, INK, ink } = T;
+function CpwReviewsStrip({ T, quotes, revLocked, ratingBit, failed = false, onRetry, onAll }) {
+  const { pal, ACC, INK, ink, first, isSelf } = T;
   if (revLocked) {
     return (
       <section data-reviews-strip="" data-reviews-locked="" aria-label="Reviews" style={{ margin: "8px 0 20px" }}>
@@ -1750,6 +1751,15 @@ function CpwReviewsStrip({ T, quotes, revLocked, ratingBit, onAll }) {
           <span style={{ fontSize: 15, lineHeight: 1.45 }}>Members read the reviews.</span>
           <button type="button" data-reviews-join="" onClick={() => { if (window.ShapeMembership && window.ShapeMembership.start) window.ShapeMembership.start(); else window.location.href = "/newdesign/Pricing.html"; }} style={{ alignSelf: "flex-start", minHeight: 40, padding: 0, border: 0, background: "transparent", color: ACC, fontFamily: CPW_DISPLAY, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Join to read them →</button>
         </div>
+      </section>
+    );
+  }
+  // A reviews read that failed says so with Try again, never an empty strip (Codex P2 on 26f4346).
+  if (failed && !quotes.length) {
+    return (
+      <section data-reviews-strip="" aria-label="Reviews" style={{ margin: "8px 0 20px" }}>
+        <span style={cpwEyebrow(ink)}>What clients say</span>
+        <CpwReadFailed ink={ink} ACC={ACC} tag="reviews" what={isSelf ? "Couldn't read your reviews just now." : `Couldn't read ${first}'s reviews just now.`} onRetry={onRetry} />
       </section>
     );
   }
@@ -1811,7 +1821,8 @@ function CpwReviewsSheet({ T, reviews, revLocked, ratingBit, cm, canReview, onCl
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 14 }}><span style={{ fontWeight: 600 }}>{r.author || "Member"}</span><span style={{ fontFamily: CPW_MONO, fontSize: 11, color: ink(0.7) }}>★ {Math.round(Number(r.rating) || 0)}/10</span></div>
           {r.text ? <p style={{ margin: "4px 0 0", fontSize: 15, lineHeight: 1.5 }}>{r.text}</p> : null}
         </div>
-      )) : reviews.unread ? null : <p style={{ margin: "10px 0 0", fontSize: 14, color: ink(0.64) }}>No reviews yet</p>}
+      )) : reviews.failed ? <CpwReadFailed ink={ink} ACC={ACC} tag="reviews" what="Couldn't read the reviews just now." onRetry={cm.retryReviews} />
+        : reviews.unread ? null : <p style={{ margin: "10px 0 0", fontSize: 14, color: ink(0.64) }}>No reviews yet</p>}
     </CpwSheet>
   );
 }

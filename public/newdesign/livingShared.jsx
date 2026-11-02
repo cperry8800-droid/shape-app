@@ -680,6 +680,9 @@ function useLvCoachCommerce({ d, monthly = null }) {
   // Members read the reviews; anyone else sees the rating and is told so (owner, 2026-10-28).
   const [revLocked, setRevLocked] = React.useState(false);
   const [revLoad, setRevLoad] = React.useState(0);
+  // A read that failed (an error response, or none): never "No reviews yet", and the page can offer
+  // Try again (retryReviews) rather than hiding the coach's reviews until a reload.
+  const [revErr, setRevErr] = React.useState(false);
   const revKeyRef = React.useRef("");
   // Coach-authored monthly offer (spec #1632 §5) — the same provider-row
   // monthly_offer the mobile Listing's WHAT'S INCLUDED sheet reads. The
@@ -755,12 +758,14 @@ function useLvCoachCommerce({ d, monthly = null }) {
     const key = `${d.uid || ""}|${d.name || ""}`;
     if (revKeyRef.current !== key) { revKeyRef.current = key; setLiveReviews(null); setRevAgg(null); }
     const q = d.uid ? `owner=${encodeURIComponent(d.uid)}` : `coach=${encodeURIComponent(slug)}`;
+    setRevErr(false);
     fetch(`/api/coaches/reviews?${q}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).then((j) => {
-      if (!on || !j || !Array.isArray(j.reviews)) return;
+      if (!on) return;
+      if (!j || !Array.isArray(j.reviews)) { setRevErr(true); return; }
       if (d.uid || j.reviews.length) setLiveReviews(j.reviews);
       setRevLocked(j.locked === true);
       setRevAgg(Number.isFinite(Number(j.count)) ? { avg: Number(j.avg) || 0, count: Number(j.count) } : null);
-    }).catch(() => {});
+    }).catch(() => { if (on) setRevErr(true); });
     return () => { on = false; };
   }, [d.uid, d.name, revLoad]);
   const postReview = async () => {
@@ -979,6 +984,7 @@ function useLvCoachCommerce({ d, monthly = null }) {
   return {
     first, monthlyPrice, prow, provId, listingRole, providerTable, offer, offerLines, hasOffer, studio,
     liveReviews, revAgg, revLocked, revRating, setRevRating, revText, setRevText, revBusy, revMsg, setRevMsg, postReview,
+    revErr, retryReviews: () => setRevLoad((n) => n + 1),
     openChat, acct, atCapacity, wl, clientOf, wlErr, buyErr, needsMember, needsScreening, needsAccount, joinErr, setJoinErr,
     memberReturn, introsOpen, introHref, wlJoin, wlLeave, subscribe,
   };

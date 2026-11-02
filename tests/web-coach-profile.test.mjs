@@ -279,17 +279,40 @@ test('a listing read that fails says so in Work with, with Try again, and never 
   await p.unmount();
 });
 
-test('a reviews read that fails claims no rating: never "New on Shape" for a coach it could not read', async () => {
+test('a reviews read that fails claims no rating and says so, with Try again', async () => {
   WIDE = true; backend();
   const real = globalThis.fetch;
-  globalThis.fetch = async (url, init) => (String(url).startsWith('/api/coaches/reviews') ? { ok: false, status: 503, json: async () => ({}) } : real(url, init));
-  const p = await mount(LIVE);
-  const line = document.querySelector('[data-verified-line]').textContent;
-  assert.doesNotMatch(line, /New on Shape/);
-  assert.match(line, /Verified Elite coach/);
-  assert.doesNotMatch(document.querySelector('[data-coach-profile]').textContent, /No reviews yet/);
-  await p.unmount();
-  globalThis.fetch = real;
+  let down = true; let reads = 0;
+  globalThis.fetch = async (url, init) => {
+    if (!String(url).startsWith('/api/coaches/reviews')) return real(url, init);
+    reads++;
+    if (down) return { ok: false, status: 503, json: async () => ({}) };
+    return real(url, init);
+  };
+  try {
+    const p = await mount(LIVE);
+    const line = document.querySelector('[data-verified-line]').textContent;
+    assert.doesNotMatch(line, /New on Shape/);
+    assert.match(line, /Verified Elite coach/);
+    assert.doesNotMatch(document.querySelector('[data-coach-profile]').textContent, /No reviews yet/);
+    const err = document.querySelector('[data-reviews-strip] [data-reviews-error]');
+    assert.ok(err, 'the strip says the read failed');
+    assert.match(err.textContent, /Couldn't read Tom's reviews just now/);
+    down = false;
+    const before = reads;
+    await React.act(async () => err.querySelector('[data-read-retry]').click());
+    await settle();
+    assert.equal(reads, before + 1, 'Try again reads the reviews again');
+    assert.ok(!document.querySelector('[data-reviews-error]'));
+    assert.match(document.querySelector('[data-verified-line]').textContent, /10\.0\/10 from 1 review/);
+    assert.ok(document.querySelector('[data-review-card]'), 'and the reviews are back');
+    // A request that throws is a failed read too.
+    await p.unmount();
+    globalThis.fetch = async (url, init) => (String(url).startsWith('/api/coaches/reviews') ? Promise.reject(new Error('network')) : real(url, init));
+    const q = await mount(LIVE);
+    assert.ok(document.querySelector('[data-reviews-strip] [data-reviews-error]'));
+    await q.unmount();
+  } finally { globalThis.fetch = real; }
 });
 
 test('while the listing is read, Work with claims no prices', async () => {
