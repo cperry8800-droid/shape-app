@@ -24,7 +24,7 @@ export async function calendarRoute() {
   const series = await lib('session-series.ts', new Map([['@supabase/supabase-js', {}], ['@/lib/time', time]]));
   const activities = await lib('calendar-activities.ts', new Map([['@/lib/time', time]]));
   const workoutDays = await lib('workout-days.ts', new Map([['@/lib/time', time], ['@supabase/supabase-js', {}]]));
-  const memberMenus = await lib('member-menus.ts', new Map([['@supabase/supabase-js', {}], ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)]]));
+  const memberMenus = await lib('member-menus.ts', new Map([['@supabase/supabase-js', {}], ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)], ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })]]));
   let client = null;
   const route = await loadRealModule(join(ROOT, 'src/app/api/calendar/route.ts'), {
     typescript: true,

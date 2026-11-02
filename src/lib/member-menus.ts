@@ -8,6 +8,7 @@
 // (/api/nutritionist/meal-plan), so each nutritionist has one published menu: this reads it.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { OPEN_SUB_STATUSES } from '@/lib/coach-trajectory.mjs';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 
 export type MenuRow = {
   id: string;
@@ -20,8 +21,6 @@ export type MenuRow = {
 export type CalendarMenu = { mp: MenuRow; by: string | null };
 
 export const MENU_COLUMNS = 'id, title, week_start, payload, nutritionist_id, created_at';
-// Far past any member's nutritionists; each is one read of one row.
-export const MENU_COACHES = 10;
 
 /**
  * The menus on a member's own calendar. `newest` is their newest published menu (the read the
@@ -40,23 +39,28 @@ export async function memberMenus(
   newest: MenuRow | null,
 ): Promise<CalendarMenu[]> {
   const asBefore: CalendarMenu[] = newest ? [{ mp: newest, by: null }] : [];
-  const { data: subs, error: subsError } = await supabase
-    .from('subscriptions')
-    .select('provider_id')
-    .eq('client_id', memberId)
-    .eq('provider_role', 'nutritionist')
-    .in('status', OPEN_SUB_STATUSES)
-    .order('created_at', { ascending: true })
-    .limit(MENU_COACHES);
+  // Every open row, a page at a time (readAllById), never the first few: a capped read keeps the
+  // oldest rows, and a member's rows for one nutritionist could fill it (Codex on #2564).
+  const { data: subs, error: subsError } = await readAllById<{ id: string; provider_id: number | string | null }>((after) => {
+    let q = supabase
+      .from('subscriptions')
+      .select('id, provider_id')
+      .eq('client_id', memberId)
+      .eq('provider_role', 'nutritionist')
+      .in('status', OPEN_SUB_STATUSES);
+    if (after) q = q.gt('id', after);
+    return q.order('id', { ascending: true }).limit(ROW_PAGE);
+  });
   if (subsError) {
     console.warn('[calendar] the member\'s nutritionists were not read — their newest menu only:', subsError.message);
     return asBefore;
   }
-  const ids = [...new Set(((subs ?? []) as { provider_id: number | string | null }[])
+  const ids = [...new Set((subs ?? [])
     .map((s) => Number(s.provider_id))
     .filter((id) => Number.isSafeInteger(id) && id > 0))];
   if (!ids.length) return asBefore;
 
+  // One read of one row for each nutritionist the member has now.
   const found = (await Promise.all(ids.map(async (id): Promise<MenuRow | null> => {
     // The newest menu overall is already read: it is this nutritionist's newest.
     if (newest && Number(newest.nutritionist_id) === id) return newest;

@@ -34,7 +34,7 @@ async function calendarRoute() {
   const guards = await import(pathToFileURL(join(ROOT, 'src/lib/access-guards.mjs')).href);
   const activities = await loadRealModule(join(ROOT, 'src/lib/calendar-activities.ts'), { typescript: true, registry: new Map([['@/lib/time', time]]) });
   const workoutDays = await loadRealModule(join(ROOT, 'src/lib/workout-days.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/time', time]]) });
-  const memberMenus = await loadRealModule(join(ROOT, 'src/lib/member-menus.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)]]) });
+  const memberMenus = await loadRealModule(join(ROOT, 'src/lib/member-menus.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)], ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })]]) });
   let client = null, userId = null;
   const route = await loadRealModule(join(ROOT, 'src/app/api/calendar/route.ts'), {
     typescript: true,
@@ -350,6 +350,20 @@ test('one nutritionist\'s menu read fails: the others still show', async () => {
   // Nia's read was asked for and failed; the newest and Nell's were answered.
   assert.equal(failed, 1);
   assert.equal(db._calls.filter((c) => c.table === 'client_meal_plans').length, 2);
+});
+
+test('every open subscription is read, a page at a time: a nutritionist past the first page still shows (Codex on #2564)', async () => {
+  // A thousand open rows for Nia (renewals that never closed), then Nell's, newest of all: a capped
+  // read of the first rows never reached hers.
+  const subscriptions = Array.from({ length: 1000 }, (_, i) => sub(4, 'past_due', { id: `sub-${String(i).padStart(4, '0')}`, created_at: '2026-08-01T00:00:00Z' }));
+  subscriptions.push(sub(5, 'active', { id: 'sub-1000', created_at: '2026-10-01T00:00:00Z' }));
+  const db = fakeSupabase({ tables: memberWorld(subscriptions, MEMBER_MENUS.filter((m) => m.id !== 'mp-fay')) });
+  const { status, body } = await getCalendar(db, 'member-1', QS);
+  assert.equal(status, 200);
+  assert.deepEqual(lunchesToday(body), [['Nell lunch', 'Nell Second'], ['Nia lunch', 'Nia Nutri']]);
+  const pages = db._calls.filter((c) => c.table === 'subscriptions');
+  assert.equal(pages.length, 2, 'a full page, then the rest');
+  assert.ok(pages.every((c) => c.limit === 1000));
 });
 
 test('a coach\'s view of a client reads no subscriptions for its menus', async () => {

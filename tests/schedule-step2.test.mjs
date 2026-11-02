@@ -343,7 +343,7 @@ async function routes() {
   const series = await lib('session-series.ts', [['@supabase/supabase-js', {}], ['@/lib/time', time]]);
   const activities = await lib('calendar-activities.ts', [['@/lib/time', time]]);
   const workoutDays = await lib('workout-days.ts', [['@supabase/supabase-js', {}], ['@/lib/time', time]]);
-  const memberMenus = await lib('member-menus.ts', [['@supabase/supabase-js', {}], ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)]]);
+  const memberMenus = await lib('member-menus.ts', [['@supabase/supabase-js', {}], ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)], ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })]]);
   const emails = await lib('coach-application-emails.ts');
   const paidSessions = await lib('paid-sessions.ts', [['@supabase/supabase-js', {}]]);
   const capacity = await lib('capacity.ts');
