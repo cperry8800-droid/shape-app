@@ -33,6 +33,8 @@ async function api(path, results = {}, user = { id: 'coach-a' }) {
   registry.set('@/lib/calendar-activities',await loadRealModule(fileURLToPath(new URL('../src/lib/calendar-activities.ts',import.meta.url)),{typescript:true,registry:new Map([['@/lib/time',registry.get('@/lib/time')]])}));
   // The calendar dates a finished run by the day the app stored (src/lib/workout-days.ts).
   registry.set('@/lib/workout-days',await loadRealModule(fileURLToPath(new URL('../src/lib/workout-days.ts',import.meta.url)),{typescript:true,registry:new Map([['@/lib/time',registry.get('@/lib/time')],['@supabase/supabase-js',{}]])}));
+  // The member's own calendar puts each current nutritionist's menu on it (src/lib/member-menus.ts).
+  registry.set('@/lib/member-menus',await loadRealModule(fileURLToPath(new URL('../src/lib/member-menus.ts',import.meta.url)),{typescript:true,registry:new Map([['@supabase/supabase-js',{}],['@/lib/coach-trajectory.mjs',await import(new URL('../src/lib/coach-trajectory.mjs',import.meta.url).href)]])}));
   const route = await loadRealModule(fileURLToPath(new URL('../src/app/api/'+path+'/route.ts',import.meta.url)),{typescript:true,registry});
   return { route, calls };
 }
