@@ -3,11 +3,11 @@
 // the page, the editor, the samples and the composer's starting type. The tests named below must
 // notice every one. Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/trainer-replays-2026-10-29.mutations.mjs --fail-on-skipped
-const WORK = 'mobile-app/src/services/coachWork.mjs';
+const WORK = 'public/newdesign/coachWork.mjs'; // canonical since #2560
 const DOC = 'public/newdesign/profileCustom.mjs';
 const PAGE = 'mobile-app/src/broadsheet/BSTrainerProfile.jsx';
 const EDIT = 'mobile-app/src/broadsheet/BSMakeItYours.jsx';
-const DEMO = 'mobile-app/src/services/trainerDemo.mjs';
+const DEMO = 'public/newdesign/trainerDemo.mjs'; // canonical since #2560
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 
 export default {
@@ -121,7 +121,12 @@ export default {
       find: "  return bsCoachPrograms(plans).map((p) => ({ ...p, sample: true }));", replace: "  return bsCoachPrograms(plans);" },
     { name: 'samples: no station pins a program', file: DEMO,
       find: "...(PINS[keyed[i].st.title] ? { pins: [PINS[keyed[i].st.title](family)] } : {})", replace: "...({})" },
-    { name: 'samples: a workout with no clip', file: DEMO,
+    // PROVEN NO-OP on today's data (found when #2560 pointed this spec back at the canonical file; the
+    // stale path had hidden it): every workout row carries a BS_SAMPLE_CLIPS url, and coach-work pins
+    // all four clips as defined CDN mp4s, so `filter((w) => w[4])` drops nothing and the mutant's
+    // output is identical. The guard is for a future sample with no clip yet; BS_SAMPLE_CLIPS is
+    // frozen and workoutsFor unexported, so no test can remove one.
+    { name: 'samples: a workout with no clip', file: DEMO, expectSurvive: true,
       find: "  return list.filter((w) => w[4]).map(", replace: "  return list.map(" },
     // ── the composer ──
     { name: 'composer: a new post ignores the kind asked for', file: CLIENT,

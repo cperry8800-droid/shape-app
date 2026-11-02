@@ -1,7 +1,7 @@
 // Mutation spec for a slash list of bare counts as the reps (#2152's open item): the player's
 // bsAssignExercise and the builder's rowFromBlock. Every mutation must be killed. Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/slash-list-reps-2026-10-30.mutations.mjs --fail-on-skipped
-const P = 'mobile-app/src/services/planOutline.mjs', W = 'public/newdesign/workoutDocument.js';
+const P = 'public/newdesign/planOutline.mjs' /* canonical since #2560 */, W = 'public/newdesign/workoutDocument.js';
 export default {
   test: 'node --test tests/per-set-ladder.test.mjs tests/unit-rule-readers.test.mjs',
   timeoutMs: 300_000,

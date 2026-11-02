@@ -6,7 +6,7 @@
 // the runner does not run Postgres; the replica fixture and the migration's guard are its test.
 // Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/program-preview-names-2026-10-29.mutations.mjs --fail-on-skipped
-const PREVIEW = 'mobile-app/src/services/planPreview.mjs';
+const PREVIEW = 'public/newdesign/planPreview.mjs'; // canonical since #2560 (the services path re-exports it)
 const SHEET = 'mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx';
 const MIG = 'supabase-migrations/2026-10-29-program-preview-names.sql';
 

@@ -5,7 +5,7 @@
 // replica comparison recorded in the PR is its test.
 // Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/sale-plan-preview-menus-2026-10-09.mutations.mjs --fail-on-skipped
-const PREVIEW = 'mobile-app/src/services/planPreview.mjs';
+const PREVIEW = 'public/newdesign/planPreview.mjs'; // canonical since #2560 (the services path re-exports it)
 const MIG = 'supabase-migrations/2026-10-09-sale-plan-preview-menus.sql';
 
 export default {
