@@ -1502,5 +1502,8 @@
   "roster.weekLogged": "Erfasst · 7 T",
   "roster.weekAdherence": "Treue",
   "roster.workouts6w": "{count, plural, one {# Training} other {# Trainings}} in 6 Wo.",
-  "roster.avgKcal": "Ø {kcal} kcal"
+  "roster.avgKcal": "Ø {kcal} kcal",
+  "editor.nightBefore": "AM VORABEND VORBEREITEN",
+  "editor.nightBeforeShape": "AM VORABEND VORBEREITET · SHAPE-REZEPT",
+  "editor.nightBeforeAria": "{name} am Vorabend vorbereiten"
 }

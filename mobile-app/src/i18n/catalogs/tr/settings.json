@@ -603,5 +603,9 @@
   "notifyPrefs.member.payments": "Makbuzlar",
   "notifyPrefs.member.payments.sub": "Bir ödeme gerçekleştiğinde",
   "notifyPrefs.member.account": "Shape’ten",
-  "notifyPrefs.member.account.sub": "Hoş geldin mesajın ve hesabınla ilgili notlar"
+  "notifyPrefs.member.account.sub": "Hoş geldin mesajın ve hesabınla ilgili notlar",
+  "notifyPrefs.prepHour": "Hatırlatma saati",
+  "notifyPrefs.prepHourSub": "Önceki akşam, senin saatinle",
+  "notifyPrefs.prepHourQuiet": "Sessiz saatlerinde: uygulamada, bildirim yok",
+  "notifyPrefs.prepHourFailed": "Hatırlatma saati kaydedilmedi. Tekrar dene."
 }

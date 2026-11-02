@@ -155,6 +155,19 @@ function DmbMealRow({ meal, onChange, onRemove, constraints, followers, badge, c
         <div><span style={dmbLabel}>Fat g</span><input aria-label={meal.name + " Fat g"} type="number" value={meal.f} onChange={num("f")} style={{ ...dmbField, width: "100%" }} /></div>
         <div><span style={dmbLabel}>Prep</span><div style={{ fontFamily: DMB_MONO, fontSize: 10.5, color: DMB_INK50, paddingTop: 8 }}>{meal.prepMin != null ? meal.prepMin + " min" : "—"}</div></div>
       </div>
+      {/* Night-before prep (Phase 2): the client is reminded the evening before and Eat shows it on
+          tonight's card. A Shape dish that always needs it (the overnight oats) is marked, not ticked;
+          any other meal can be. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+        {DashMeals.shapeMadeAhead(meal.name) ? (
+          <span data-night-before="shape" style={{ fontFamily: DMB_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)" }}>✓ Prepped the night before · Shape recipe</span>
+        ) : (
+          <label data-night-before="tick" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 32, cursor: "pointer", fontFamily: DMB_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: meal.prepNightBefore === true ? "var(--sh-accent-ink, #2ee0c4)" : DMB_INK50 }}>
+            <input type="checkbox" checked={meal.prepNightBefore === true} onChange={(e) => onChange(DashMeals.setNightBefore(meal, e.target.checked))} aria-label={"Prep " + (meal.name || "this meal") + " the night before"} style={{ accentColor: "var(--sh-accent, #2ee0c4)", width: 16, height: 16, margin: 0 }} />
+            Prep the night before
+          </label>
+        )}
+      </div>
       {/* Swap group — approved alternates; the client's ⇄ chip cycles these */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
         <span style={{ fontFamily: DMB_MONO, fontSize: 7.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DMB_INK50 }}>Swaps</span>

@@ -271,6 +271,40 @@
       swaps: [],
     };
   }
+
+  // ── Night-before prep (Phase 2, 2026-11-01) ─────────────────────────────────
+  // A nutritionist ticks "Prep the night before" on any meal (`meal.prepNightBefore: true`), and the
+  // assignment carries it into the client's plan, where the app's rule
+  // (mobile-app/src/services/prepAhead.mjs) owes a reminder the evening before, as for the overnight
+  // oats. A Shape dish that always needs it is marked whatever the tick says: a library food that sets
+  // overnight (NIGHT_BEFORE_FOODS, by id: the overnight oats cannot be made on the morning), or a Shape
+  // Kitchen recipe whose method stops overnight. MADE_AHEAD_RECIPES is a copy of the catalog's
+  // (bsMakeAheadIndex over SHAPE_KITCHEN_RECIPES), held to it by tests/prep-phase2-surfaces.test.mjs,
+  // because this page is not a module. (The ids live beside FOODS, not in it: Nora's meal drafts copy
+  // FOODS field for field, src/lib/ai/mealDraft.mjs.)
+  var MADE_AHEAD_RECIPES = ["Overnight oats, three ways"];
+  var NIGHT_BEFORE_FOODS = ["f2"];
+  function nameSlug(s) { return String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
+  // Whether a Shape dish of this name always needs the night before (the builder shows it marked).
+  function shapeMadeAhead(name) {
+    var slug = nameSlug(name);
+    if (!slug) return false;
+    for (var i = 0; i < MADE_AHEAD_RECIPES.length; i++) if (nameSlug(MADE_AHEAD_RECIPES[i]) === slug) return true;
+    for (var j = 0; j < FOODS.length; j++) if (NIGHT_BEFORE_FOODS.indexOf(FOODS[j].id) >= 0 && nameSlug(FOODS[j].name) === slug) return true;
+    return false;
+  }
+  // Whether this meal is prepped the night before: ticked, or a Shape dish that always is.
+  function madeAheadMeal(meal) {
+    return !!meal && (meal.prepNightBefore === true || shapeMadeAhead(meal.name));
+  }
+  // The meal with its tick set or cleared. A cleared tick leaves no key behind, so an untouched meal
+  // stores exactly what it stored before.
+  function setNightBefore(meal, on) {
+    var next = clone(meal);
+    if (on) next.prepNightBefore = true;
+    else delete next.prepNightBefore;
+    return next;
+  }
   function newDay(name) { return { name: name || "Day A", slots: [], variants: {} }; }
   function newPlan(name, phaseKey) {
     var phase = GOAL_PHASES.find(function (g) { return g.key === phaseKey; }) || GOAL_PHASES[0];
@@ -478,12 +512,16 @@
           c: Math.round(plan.targets.c * scale), f: Math.round(plan.targets.f * scale),
         },
         meals: meals.map(function (sm) {
-          return {
+          var out = {
             slot: sm.slot, time: SLOT_TIMES[sm.slot] || "",
             title: sm.name, kcal: sm.kcal, p: sm.p, c: sm.c, f: sm.f,
             ingredients: (sm.ingredients || []).map(function (ing) { return { qty: ing.qty + (ing.unit ? " " + ing.unit : ""), name: ing.name }; }),
             alts: sm.swaps || [],
           };
+          // Night-before prep (Phase 2): only a meal that needs it carries the key, so every other
+          // meal is published exactly as before.
+          if (madeAheadMeal(sm)) out.prepNightBefore = true;
+          return out;
         }),
       };
     });
@@ -692,6 +730,7 @@
   return {
     GOAL_PHASES: GOAL_PHASES, SLOTS: SLOTS, VARIANT_KEYS: VARIANT_KEYS, FOODS: FOODS,
     searchFoods: searchFoods, newMeal: newMeal, newDay: newDay, newPlan: newPlan,
+    MADE_AHEAD_RECIPES: MADE_AHEAD_RECIPES, NIGHT_BEFORE_FOODS: NIGHT_BEFORE_FOODS, shapeMadeAhead: shapeMadeAhead, madeAheadMeal: madeAheadMeal, setNightBefore: setNightBefore,
     customFoodsFromTemplates: customFoodsFromTemplates, searchCustomFoods: searchCustomFoods,
     canCreateFood: canCreateFood, newCustomFood: newCustomFood,
     foodHasMacros: foodHasMacros, mergeFoodInto: mergeFoodInto,

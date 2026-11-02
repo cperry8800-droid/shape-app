@@ -235,5 +235,13 @@
   "prepAhead.savedFor": "E don save as prepared for {days}. Nothing dey log as food wey you chop.",
   "prepAhead.saved": "E don save as prepared. Nothing dey log as food wey you chop.",
   "prepAhead.notPrepped": "You no prepare am last night",
-  "plated.prepped": "E don ready for tomorrow."
+  "plated.prepped": "E don ready for tomorrow.",
+  "prepAhead.ticked": "Your nutritionist mark this one make you prepare am the night before.",
+  "morningSwap.offer": "You go chop {recipe} this morning instead? E go ready for {min} min, nothing to prepare before.",
+  "morningSwap.offerNoTime": "You go chop {recipe} this morning instead? Nothing to prepare before.",
+  "morningSwap.todayOnly": "Na for today only. The rest of your plan go stay as e be.",
+  "morningSwap.swap": "Change am",
+  "morningSwap.keep": "Leave am",
+  "morningSwap.done": "You don change am for today: {recipe}.",
+  "morningSwap.failed": "The change no save. Try again."
 }

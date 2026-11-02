@@ -1502,5 +1502,8 @@
   "roster.weekLogged": "Logged · 7d",
   "roster.weekAdherence": "Adherence",
   "roster.workouts6w": "{count, plural, one {# workout} other {# workouts}} in 6 wk",
-  "roster.avgKcal": "Avg {kcal} kcal"
+  "roster.avgKcal": "Avg {kcal} kcal",
+  "editor.nightBefore": "PREP THE NIGHT BEFORE",
+  "editor.nightBeforeShape": "PREPPED THE NIGHT BEFORE · SHAPE RECIPE",
+  "editor.nightBeforeAria": "Prep {name} the night before"
 }

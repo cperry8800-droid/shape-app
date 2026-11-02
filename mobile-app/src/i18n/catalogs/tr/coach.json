@@ -1502,5 +1502,8 @@
   "roster.weekLogged": "Kayıt · 7 g",
   "roster.weekAdherence": "Uyum",
   "roster.workouts6w": "6 haftada {count, plural, other {# antrenman}}",
-  "roster.avgKcal": "Ort. {kcal} kcal"
+  "roster.avgKcal": "Ort. {kcal} kcal",
+  "editor.nightBefore": "ÖNCEKİ AKŞAM HAZIRLA",
+  "editor.nightBeforeShape": "ÖNCEKİ AKŞAM HAZIRLANIR · SHAPE TARİFİ",
+  "editor.nightBeforeAria": "{name} önceki akşam hazırlansın"
 }

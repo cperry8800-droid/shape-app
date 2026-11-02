@@ -603,5 +603,9 @@
   "notifyPrefs.member.payments": "Belege",
   "notifyPrefs.member.payments.sub": "Wenn eine Zahlung durchgeht",
   "notifyPrefs.member.account": "Von Shape",
-  "notifyPrefs.member.account.sub": "Deine Begrüßung und Hinweise zu deinem Konto"
+  "notifyPrefs.member.account.sub": "Deine Begrüßung und Hinweise zu deinem Konto",
+  "notifyPrefs.prepHour": "Uhrzeit der Erinnerung",
+  "notifyPrefs.prepHourSub": "Am Vorabend, deine Uhrzeit",
+  "notifyPrefs.prepHourQuiet": "In deinen Ruhezeiten: in der App, ohne Push",
+  "notifyPrefs.prepHourFailed": "Die Uhrzeit wurde nicht gespeichert. Versuch es noch einmal."
 }

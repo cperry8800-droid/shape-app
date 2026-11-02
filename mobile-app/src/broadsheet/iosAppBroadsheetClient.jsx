@@ -48,7 +48,9 @@ import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bs
 import { bsRecipesStore, bsRecipesList, bsRecipePointer, bsRecipesUidSync, bsSplitPaste, bsNewRecipeId, bsMyRecipeIdFrom, bsIsMyRecipeId } from '../services/clientRecipes.mjs';
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from '../services/mealPrep.mjs';
-import { bsMakeAheadIndex, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepRecordsFor, bsYmdAdd, bsYmdIn } from '../services/prepAhead.mjs';
+import { bsMakeAheadIndex, bsMakeAheadInfo, bsMorningSwapFor, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepHourOf, bsPrepRecordsFor, bsYmdAdd, bsYmdIn, BS_PREP_HOURS, BS_PREP_REMINDER_KIND } from '../services/prepAhead.mjs';
+import { BS_MEAL_DAYS_KIND, BS_OWN_PER_DAY, BS_OWN_SLOT_TIME, bsMealDayOf, bsMealDaysAdd, bsMealDaysRemove, bsMealDaysSwap, bsMealDaysWrite, bsOwnMealOf } from '../services/mealDays.mjs';
+import { BSPlanMealSheet, BSMorningSwapCard } from './BSPlanDay.jsx';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileCover, bsProfileStartLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
@@ -4283,6 +4285,8 @@ function bsHomeLiveWeek(plan, t, tr) {
           // "Prepped ✓" reads the same per-day rule here as on Eat (bsMenuPrepState).
           planMealId: meal.id != null && meal.id !== '' ? String(meal.id) : `live-${i}-${j}`,
           prepSlug: bsCookSlug(meal.recipeId ? String(meal.recipeId) : (meal.title || '')),
+          // The nutritionist's "prep the night before" tick (Phase 2): made ahead like a catalog recipe.
+          prepNightBefore: meal.prepNightBefore === true,
           title: meal.title || T('common:fallback.meal', 'Meal'), sub: sub || '', kcal: meal.kcal || 0, p: meal.p || 0, c: meal.c || 0, f: meal.f || 0,
           prep: meal.prep || '—', portion: meal.portion || '1 plate', score: meal.score || '—',
           hero: meal.hero || meal.brief || `${meal.title || T('common:fallback.meal', 'Meal')}.`, brief: meal.brief || '',
@@ -5011,7 +5015,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         status: [fmtAt(mealMinutes(m)), m.kcal ? `${m.kcal} ${tr('home:unit.kcal', { defaultValue: 'kcal' })}` : null,
           bsMenuPrepState({
             meal: m, logged, entries: prepEntries, viewYmd: selYmd, todayYmd: bsLocalDay(Date.now()), now: Date.now(),
-            ahead: m.planMealId && BS_MAKE_AHEAD.has(m.prepSlug) ? { date: selYmd, mealId: m.planMealId, title: m.title, slug: m.prepSlug } : null,
+            ahead: m.planMealId && (BS_MAKE_AHEAD.has(m.prepSlug) || m.prepNightBefore) ? { date: selYmd, mealId: m.planMealId, title: m.title, slug: m.prepSlug } : null,
           }).prepped ? tr('cook:prep.stampShort', { defaultValue: 'Prepped ✓' }) : null,
         ].filter(Boolean).join(' · '),
         // The design board's line: a logged stop is done (kcal ✓), the lead is
@@ -12251,6 +12255,9 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   const _no = (() => { const i = SHAPE_KITCHEN_RECIPES.indexOf(recipe); return i >= 0 ? i + 1 : null; })();
   const tr = useShapeTr();
   const [cooking, setCooking] = useStateBSC(false);
+  // Plan it for today or tomorrow (night-before prep, Phase 2): the member's own day plan, which
+  // Eat's menu, tonight's card and the reminder all read. Signed in only: it is the member's.
+  const [planning, setPlanning] = useStateBSC(false);
   // Normalized ONCE — a null result hides the Cook door so BSCookMode can
   // never mount on a null cookable (catalog recipes always normalize, but the
   // guard is structural, not assumed — CodeRabbit).
@@ -12322,10 +12329,21 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
         <button type="button" onClick={onAddGrocery} style={{ display: 'block', width: '100%', padding: 14, border: 0, background: groceryAdded ? t.GREEN : t.ACCENT, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
           {groceryAdded ? '✓ On your grocery list' : 'Send to grocery list →'}
         </button>
+        {bsEatSignedInNow() && (
+          <button type="button" data-plan-recipe="" onClick={() => setPlanning(true)} style={{ display: 'block', width: '100%', marginTop: 8, padding: 14, minHeight: 44, border: `1px solid ${t.ACCENT}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+            {tr('nutrition:planDay.cta', { defaultValue: 'Plan it for today or tomorrow →' })}
+          </button>
+        )}
         <div style={{ marginTop: 8 }}>
           <BSSaveButton full item={bsRecipeLibItem(r)} />
         </div>
       </div>
+      {planning && (
+        <BSPlanMealSheet recipes={SHAPE_KITCHEN_RECIPES} index={BS_MAKE_AHEAD} recipe={r} days={bsPlanDayChoices(tr)}
+          plannedOn={() => []}
+          onAdd={(ymd, slot, rec) => bsPlanRecipe(tr, ymd, slot, rec)}
+          onClose={() => setPlanning(false)} />
+      )}
 
       <BSSection title="Reviews" meta={reviews.length ? `${avg} ★ · ${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'}` : 'Be the first'} />
       <div style={{ padding: `0 ${t.padX}px` }}>
@@ -12577,22 +12595,78 @@ function bsBuildPlanGrocery(program, author, name, tr) {
 const BS_MAKE_AHEAD = bsMakeAheadIndex(SHAPE_KITCHEN_RECIPES);
 const bsLocalDay = (ms) => bsYmdIn(ms);
 
-// What is owed tonight for the signed-in member, read fresh from their plan, swaps and prep
-// records. null when any of them cannot be read: a read that failed is neither "nothing owed"
-// nor "nothing prepped".
+// What is owed tonight for the signed-in member, read fresh from their plan, swaps, own day plan
+// and prep records. null when any of them cannot be read: a read that failed is neither "nothing
+// owed" nor "nothing prepped". A member with no plan can still owe a prep for a meal they planned
+// themselves (Phase 2), so no plan reads as an empty week, not as nothing owed.
 async function bsLoadPrepTonight() {
   try {
     const plan = await window.ShapePlan?.get?.();
     if (!bsPlanPartRead(plan, 'meals')) return null;
-    if (!plan.meals.hasPlan) return [];
-    const [swaps, entries] = await Promise.all([
+    const [swaps, entries, mine] = await Promise.all([
       window.shapeDb?.getUserGoals?.('client_meal_swaps'),
       window.ShapeMealPrep?.entries?.(),
+      window.shapeDb?.getUserGoals?.(BS_MEAL_DAYS_KIND),
     ]);
-    if (!swaps || typeof swaps !== 'object' || !Array.isArray(entries)) return null;
+    if (!swaps || typeof swaps !== 'object' || !Array.isArray(entries) || !mine || typeof mine !== 'object') return null;
     const now = Date.now();
-    return bsPrepDueTonight({ days: plan.meals.days, swaps, entries, reminded: [], today: bsLocalDay(now), index: BS_MAKE_AHEAD, dayOf: bsLocalDay, now });
+    return bsPrepDueTonight({ days: plan.meals.hasPlan ? plan.meals.days : [], swaps, mine, entries, reminded: [], today: bsLocalDay(now), index: BS_MAKE_AHEAD, dayOf: bsLocalDay, now });
   } catch (e) { return null; }
+}
+
+// ── The member's own day plan (Phase 2, mealDays.mjs; user_goals `client_meal_days`) ───────────
+// Every write goes through bsMealDaysWrite: read fresh and bound to the account that started it, then
+// compare-and-set on the document's revision, re-applying the change when another device wrote first
+// (Codex P1s on #2563). A read that fails writes nothing. Resolves the saved document, or null when
+// nothing was saved. Eat hears the change ('shape:dayPlanSaved').
+async function bsWriteMealDays(change) {
+  const r = await bsMealDaysWrite(window.shapeDb, change, bsLocalDay(Date.now()));
+  if (!r.ok) return null;
+  try { window.dispatchEvent(new CustomEvent('shape:dayPlanSaved', { detail: r.doc })); } catch (e) {}
+  return r.doc;
+}
+// A day's menu with the member's own meals in it, in time order (`minOf` reads a meal's minutes),
+// ties kept as they came. A menu with no meal of the member's is returned as the plan wrote it, and
+// so is one where any meal has no time: there is nothing to order it by, and a guess would move it.
+function bsEatByTime(list, minOf) {
+  if (!list.some((m) => m && m._own)) return list;
+  const at = list.map((m, i) => ({ m, i, at: minOf(m) }));
+  if (at.some((x) => x.at == null)) return list;
+  return at.sort((a, b) => a.at - b.at || a.i - b.i).map((x) => x.m);
+}
+
+// Whether a member is signed in now: the day plan is theirs to read and write only then.
+const bsEatSignedInNow = () => !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+// A new planned meal's id: the clock and a few random letters, inside mealDays.mjs's id rule.
+const bsOwnMealId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+// Today and tomorrow, as the plan sheet offers them, in the member's words.
+function bsPlanDayChoices(tr) {
+  const today = bsLocalDay(Date.now());
+  return [
+    { ymd: today, label: tr('nutrition:planDay.today', { defaultValue: 'Today' }) },
+    { ymd: bsYmdAdd(today, 1), label: tr('nutrition:planDay.tomorrow', { defaultValue: 'Tomorrow' }) },
+  ];
+}
+// Plans one catalog recipe for a day, saying so in a toast: a dish that needs the night before,
+// planned for tomorrow, is tonight's to prep (the card on Eat and the reminder).
+async function bsPlanRecipe(tr, ymd, slot, recipe) {
+  const meal = bsOwnMealOf(recipe, slot, bsOwnMealId());
+  const saved = meal ? await bsWriteMealDays((doc, today) => bsMealDaysAdd(doc, ymd, meal, today)) : null;
+  // A day already holding BS_OWN_PER_DAY meals takes no more: the document saved without it, so
+  // say the day is full rather than that it was planned (Codex P2 on #2563).
+  if (saved && !bsMealDayOf(saved, ymd).add.some((a) => a.id === meal.id)) {
+    window.__bsToast && window.__bsToast(tr('nutrition:planDay.dayFull', { defaultValue: 'That day already has {n} meals planned.', n: BS_OWN_PER_DAY }), 'error');
+    return false;
+  }
+  const today = bsLocalDay(Date.now());
+  window.__bsToast && window.__bsToast(!saved
+    ? tr('nutrition:planDay.failed', { defaultValue: 'That was not saved. Try again.' })
+    : ymd === today
+      ? tr('nutrition:planDay.toastToday', { defaultValue: 'Planned for today: {title}.', title: recipe.title })
+      : BS_MAKE_AHEAD.has(bsCookSlug(recipe.title))
+        ? tr('nutrition:planDay.toastPrep', { defaultValue: 'Planned for tomorrow: {title}. It needs prepping tonight.', title: recipe.title })
+        : tr('nutrition:planDay.toastTomorrow', { defaultValue: 'Planned for tomorrow: {title}.', title: recipe.title }), saved ? 'ok' : 'error');
+  return !!saved;
 }
 
 // Names as one phrase in the member's language: "Tom and Sam" (a member may pay two coaches of one
@@ -12612,10 +12686,34 @@ function bsPrepDays(dates) {
 }
 
 
+// The dish the swap sheet offers as "current" (Keep it): the meal as planned, before any swap. A
+// plan meal is the day's plan row; a meal the member planned is their own row, never the day's swap
+// of it, which Keep it would undo while its label said it kept it (Codex P2 on #2563).
+function bsSwapSheetBase(id, planMeals, ownMeals, shown) {
+  const find = (list) => (Array.isArray(list) ? list.find((m) => m && m.id === id) : null);
+  return find(planMeals) || find(ownMeals) || shown;
+}
+
+// Where a pick in Eat's swap sheet is written (night-before prep, Phase 2). A meal the member planned
+// is theirs, and a plan meal swapped for the day is that day's: either one is swapped, or kept, as
+// that day's swap (`day`: the swap, or null to undo it), never as a title swap that follows every
+// meal of that name (Codex P2 on #2563: a second pick on a day-swapped meal changed every future day
+// and not today). Keeping a plan meal undoes its title swap as well (`title`). `day` is undefined
+// when the day plan is not written.
+function bsSwapPickWrites(orig, o) {
+  const keep = !!(o && o._keep);
+  const alt = o && o._alt;
+  const dayScoped = !!(orig && (orig._own || orig._daySwap));
+  const day = !dayScoped ? undefined : keep || !alt ? null : { title: alt.title, kcal: alt.kcal, p: alt.p, c: alt.c, f: alt.f };
+  return { day, title: !(orig && orig._own) && (!dayScoped || keep) };
+}
+
 // What a menu row says about prep. A made-ahead meal (`ahead`, from bsPlanMealsOn) is prepped
 // only when a prep covers it on its day (bsPrepCovers). On today's menu, until the meal's time
-// (noon when it has none), one that is not says "Not prepped last night", because it cannot be
-// made in time now; once the meal has passed, the note would only be noise. Every other meal keeps
+// (its own, else the member's time for its slot, bsMealSchedTime; noon only when it has neither),
+// one that is not says "Not prepped last night", because it cannot be made in time now; once the
+// meal has passed, the note would only be noise, and the morning swap is no longer offered (Codex
+// P2 on #2563: a breakfast with no time of its own read as due at noon). Every other meal keeps
 // the PREPPED stamp's own rule (bsPrepMatch). A logged meal, or records that have not loaded, say
 // nothing.
 function bsMenuPrepState({ meal, logged, entries, ahead, viewYmd, todayYmd, now }) {
@@ -12623,7 +12721,7 @@ function bsMenuPrepState({ meal, logged, entries, ahead, viewYmd, todayYmd, now 
   if (ahead) {
     const info = BS_MAKE_AHEAD.get(ahead.slug);
     const covered = bsPrepCovers(entries, ahead, info ? info.keeps : 1, bsLocalDay, now);
-    const hm = /^(\d{1,2}):(\d{2})/.exec(String(meal.time || ''));
+    const hm = /^(\d{1,2}):(\d{2})/.exec(String(bsMealSchedTime(meal) || ''));
     const dueMin = hm ? Number(hm[1]) * 60 + Number(hm[2]) : 12 * 60;
     const d = new Date(now);
     const upcoming = d.getHours() * 60 + d.getMinutes() < dueMin;
@@ -12632,7 +12730,9 @@ function bsMenuPrepState({ meal, logged, entries, ahead, viewYmd, todayYmd, now 
   return { prepped: bsPrepMatch(entries, { mealId: meal.id, title: meal.title }, now), notPrepped: false };
 }
 
-// The card on today's menu for one recipe owed tonight: the same list the 7 pm reminder names.
+// The card on today's menu for one recipe owed tonight: the same list the reminder names. A dish the
+// nutritionist ticked (Phase 2: `catalog: false`) has no catalog method to walk, so it is offered no
+// Start (`onStart` null) and says whose word it is; "Already done" records it the same way.
 function BSPrepTonightCard({ group, onStart, onDone }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -12650,8 +12750,11 @@ function BSPrepTonightCard({ group, onStart, onDone }) {
       <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.4, color: t.INK70 }}>{group.meals.length > 1
         ? tr('cook:prepAhead.makeMany', { defaultValue: 'One batch tonight covers each day listed.' })
         : tr('cook:prepAhead.makeOne', { defaultValue: 'Prep it tonight so it is ready.' })}</div>
+      {group.catalog === false && (
+        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.4, color: t.INK70 }}>{tr('cook:prepAhead.ticked', { defaultValue: 'Your nutritionist marked this one to prep the night before.' })}</div>
+      )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-        <button type="button" onClick={onStart} style={{ ...btn, background: t.INK, color: t.PAPER, border: 0 }}>{tr('cook:prepAhead.start', { defaultValue: 'Start' })}</button>
+        {onStart && <button type="button" onClick={onStart} style={{ ...btn, background: t.INK, color: t.PAPER, border: 0 }}>{tr('cook:prepAhead.start', { defaultValue: 'Start' })}</button>}
         <button type="button" onClick={onDone} style={{ ...btn, background: 'transparent', color: t.INK, border: `1.5px solid ${t.INK}` }}>{tr('cook:prepAhead.done', { defaultValue: 'Already done' })}</button>
       </div>
     </BSPlate>
@@ -12804,6 +12907,33 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       if (!cancelled && saved && typeof saved === 'object') setMealOverrides(saved);
     }).catch(() => {});
     return () => { cancelled = true; };
+  }, []);
+  // The member's own day plan (Phase 2, mealDays.mjs): meals they planned for today or tomorrow and a
+  // morning's swap. null until it is read, and while a read has failed: then nothing of it is drawn
+  // and nothing offers to write it, so a failed read is never shown as "nothing planned". A write
+  // from anywhere (this page or a recipe's own) hands the saved document over ('shape:dayPlanSaved').
+  const [myDays, setMyDays] = useStateBSC(null);
+  const [planSheet, setPlanSheet] = useStateBSC(false);
+  // The morning swaps the member turned down ('YYYY-MM-DD|mealId'), remembered on this device so a
+  // meal they chose to keep is not offered again that day; a per-device convenience, nothing more.
+  const [morningKept, setMorningKept] = useStateBSC(() => {
+    try {
+      const raw = window.localStorage && window.localStorage.getItem('shape.morningSwap.kept');
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list.filter((k) => typeof k === 'string') : [];
+    } catch (e) { return []; }
+  });
+  const [morningBusy, setMorningBusy] = useStateBSC(false);
+  React.useEffect(() => {
+    let cancelled = false;
+    if (bsEatSignedInNow() && window.shapeDb && window.shapeDb.getUserGoals) {
+      window.shapeDb.getUserGoals(BS_MEAL_DAYS_KIND).then((doc) => {
+        if (!cancelled && doc && typeof doc === 'object') setMyDays(doc);
+      }).catch(() => {});
+    }
+    const onSaved = (e) => { if (e && e.detail && typeof e.detail === 'object') setMyDays(e.detail); };
+    window.addEventListener('shape:dayPlanSaved', onSaved);
+    return () => { cancelled = true; window.removeEventListener('shape:dayPlanSaved', onSaved); };
   }, []);
 
   // ── Compact builder for non-anchor days. Generates a full BSMealPreview-shaped record.
@@ -13898,6 +14028,38 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   const cur = PROGRAM[day] || PROGRAM[0];
   const days = PROGRAM.map(p => p.d);
   const meals = cur.meals;
+  // ── The member's own day (night-before prep, Phase 2; mealDays.mjs) ──────────────────────────
+  // On the day shown: the meals the member planned (`own-<id>`, the id prepAhead.mjs gives them, so
+  // the prep rule and this menu name the same meal) and that day's swap of a meal (by its id). A
+  // planned Shape Kitchen recipe, and a swap to one, open as that recipe: its method and ingredients.
+  const eatViewYmd = bsYmdAdd(bsLocalDay(Date.now()), day - bsWeekdayIdx());
+  const myDay = bsMealDayOf(myDays, eatViewYmd);
+  const eatSlotColor = { BREAKFAST: t.GREEN, LUNCH: t.AMBER, SNACK: t.BLUE, DINNER: t.RUST };
+  const eatRecipeOf = (slug) => (slug ? SHAPE_KITCHEN_RECIPES.find((r) => bsCookSlug(r.title) === slug) || null : null);
+  const eatAsRecipe = (r) => (r ? {
+    hero: r.blurb || '', brief: r.blurb || '', prep: r.time || '—', coachNote: '',
+    ingredients: (r.ingredients || []).map((ing) => ({ n: ing.n || '', m: ing.m || '', k: ing.k || '' })),
+    steps: Array.isArray(r.steps) ? r.steps : [],
+  } : { hero: '', brief: '', prep: '—', coachNote: '', ingredients: [], steps: [] });
+  const ownMeals = myDay.add.map((a) => mk({
+    id: `own-${a.id}`, time: a.time || BS_OWN_SLOT_TIME[a.slot] || '', tag: a.slot.slice(0, 5), tagColor: eatSlotColor[a.slot] || t.AMBER,
+    title: a.title, kcal: a.kcal, p: a.p, c: a.c, f: a.f, last: false, ...eatAsRecipe(eatRecipeOf(a.recipeId)),
+  }));
+  const eatDaySwap = (m) => {
+    const ds = m && myDay.swap[m.id];
+    if (!ds) return m;
+    return {
+      ...m, title: ds.title, kcal: ds.kcal, p: ds.p, c: ds.c, f: ds.f, sub: `${ds.kcal} kcal · ${ds.p}P · ${ds.c}C · ${ds.f}F`,
+      ...eatAsRecipe(eatRecipeOf(ds.recipeId)), _daySwap: true,
+    };
+  };
+  // A meal the member planned, or one swapped for the day, opens as what it now is.
+  const eatOwnOpen = (id) => {
+    const own = ownMeals.find((m) => m.id === id);
+    if (own) return eatDaySwap(own);
+    const base = meals.find((m) => m.id === id);
+    return base && myDay.swap[id] ? eatDaySwap(base) : null;
+  };
   // The default shop list is built straight from the week's meal ingredients, so
   // it always matches what the meals show. A user-selected list takes precedence.
   // With a live assigned plan, the list is credited to the real nutritionist
@@ -14203,6 +14365,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       />
     );
   }
+  // A meal the member planned, or one swapped for the day (Phase 2), opens as what it now is.
+  const _eatOwnOpen = previewMealId ? eatOwnOpen(previewMealId) : null;
+  if (_eatOwnOpen) return <BSMealPreview meal={_eatOwnOpen} onBack={() => setPreviewMealId(null)} />;
   if (previewMealId) {
     // A swapped meal opens as its swap, as its row reads (bsEatSwappedMeal).
     const meal = bsEatSwappedMeal(meals.find(m => m.id === previewMealId), mealOverrides);
@@ -14233,7 +14398,13 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // Apply any coach-approved meal swaps the user picked.
   // Overrides are keyed by the meal's ORIGINAL name so a swap saved here lines
   // up with the same meal on the website (shared user_goals store).
-  const effMeals = cur.meals.map(m => { const ov = mealOverrides[m.title]; return ov ? { ...m, ...ov, _baseTitle: m.title } : { ...m, _baseTitle: m.title }; });
+  // Then the member's own (Phase 2): the meals they planned for the day, never touched by a title
+  // swap (they chose them), and that day's swap of any meal, over both. The day runs in time order,
+  // as the line and its NOW mark read it; a meal with no time keeps its place.
+  const effMeals = bsEatByTime([
+    ...cur.meals.map(m => { const ov = mealOverrides[m.title]; return ov ? { ...m, ...ov, _baseTitle: m.title } : { ...m, _baseTitle: m.title }; }),
+    ...ownMeals.map((m) => ({ ...m, _baseTitle: m.title, _own: true })),
+  ].map(eatDaySwap), (m) => bsFocusMin(bsMealSchedTime(m)));
   // The meal's shop list, under its row on the menu (A · On the line). It reads
   // the list this page shops from (the plan's, or the one picked), matches the
   // meal by its plan title (a swap keeps the planned ingredients), and ticks and
@@ -14290,15 +14461,49 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   const prepNow = Date.now();
   const todayYmd = bsLocalDay(prepNow);
   const viewYmd = bsYmdAdd(todayYmd, day - bsWeekdayIdx());
-  const aheadOn = new Map(liveMealDays
-    ? bsPlanMealsOn(bsPlanByDow(liveMealDays), viewYmd, mealOverrides).filter((x) => BS_MAKE_AHEAD.has(x.slug)).map((x) => [x.mealId, x])
+  // Phase 2: the member's own day plan counts as a plan's (a member with no nutritionist can plan
+  // the oats for tomorrow), and a dish the nutritionist ticked is made ahead like a catalog recipe
+  // (bsMakeAheadInfo). Still no preview: an own plan is read only for a signed-in member.
+  const prepLive = !!(liveMealDays || myDays);
+  const aheadOn = new Map(prepLive
+    ? bsPlanMealsOn(bsPlanByDow(liveMealDays || []), viewYmd, mealOverrides, myDays).filter((x) => bsMakeAheadInfo(x, BS_MAKE_AHEAD)).map((x) => [x.mealId, x])
     : []);
   // The card sits on today's menu from late afternoon until the prep is recorded. The reminder
-  // goes out at 7 pm from the same rule; unlike it, the card does not stop at a day an earlier
-  // reminder named, so jars made without telling the app still show here until "Already done".
-  const prepTonightGroups = liveMealDays && viewYmd === todayYmd && new Date(prepNow).getHours() >= 15 && Array.isArray(prepEntries)
-    ? bsPrepDueTonight({ days: liveMealDays, swaps: mealOverrides, entries: prepEntries, reminded: [], today: todayYmd, index: BS_MAKE_AHEAD, dayOf: bsLocalDay, now: prepNow })
+  // goes out at the member's hour from the same rule; unlike it, the card does not stop at a day an
+  // earlier reminder named, so jars made without telling the app still show here until "Already done".
+  const prepTonightGroups = prepLive && viewYmd === todayYmd && new Date(prepNow).getHours() >= 15 && Array.isArray(prepEntries)
+    ? bsPrepDueTonight({ days: liveMealDays || [], swaps: mealOverrides, mine: myDays, entries: prepEntries, reminded: [], today: todayYmd, index: BS_MAKE_AHEAD, dayOf: bsLocalDay, now: prepNow })
     : [];
+  // The morning swap (Phase 2): today, the first made-ahead meal still to come that no prep covers
+  // ("Not prepped last night", bsMenuPrepState) is offered a quick catalog recipe in its place, for
+  // today only (bsMorningSwapFor). A meal the member keeps is not offered again today on this device.
+  // Signed in, with the day plan read: the swap is written there.
+  const morningSwap = (() => {
+    if (!bsEatSignedIn || !myDays || viewYmd !== todayYmd || !Array.isArray(prepEntries)) return null;
+    for (const m of effMeals) {
+      const ahead = aheadOn.get(m.id);
+      if (!ahead || m.state === 'done' || morningKept.includes(`${todayYmd}|${m.id}`)) continue;
+      if (!bsMenuPrepState({ meal: m, logged: false, entries: prepEntries, ahead, viewYmd, todayYmd, now: prepNow }).notPrepped) continue;
+      const recipe = bsMorningSwapFor(ahead, SHAPE_KITCHEN_RECIPES, BS_MAKE_AHEAD);
+      if (recipe) return { meal: m, slot: ahead.slot, recipe };
+    }
+    return null;
+  })();
+  const doMorningSwap = async ({ meal, recipe }) => {
+    setMorningBusy(true);
+    const mac = recipe.macros || {};
+    const saved = await bsWriteMealDays((doc, today) => bsMealDaysSwap(doc, todayYmd, meal.id, { title: recipe.title, recipeId: bsCookSlug(recipe.title), kcal: recipe.kcal, p: mac.p, c: mac.c, f: mac.f }, today));
+    setMorningBusy(false);
+    if (saved) setMyDays(saved);
+    window.__bsToast && window.__bsToast(saved
+      ? tr('cook:morningSwap.done', { defaultValue: 'Swapped for today: {recipe}.', recipe: recipe.title })
+      : tr('cook:morningSwap.failed', { defaultValue: 'The swap was not saved. Try again.' }), saved ? 'ok' : 'error');
+  };
+  const keepMorningMeal = ({ meal }) => {
+    const next = [...morningKept.filter((k) => k.startsWith(`${todayYmd}|`)), `${todayYmd}|${meal.id}`];
+    setMorningKept(next);
+    try { window.localStorage && window.localStorage.setItem('shape.morningSwap.kept', JSON.stringify(next)); } catch (e) {}
+  };
   const markPrepped = async (g) => {
     let ok = false;
     try { const r = await window.ShapeMealPrep?.record?.(bsPrepRecordsFor(g, Date.now())); ok = !!(r && r.ok); } catch (e) { ok = false; }
@@ -14431,6 +14636,15 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         </BSFocusLead>
       )}
 
+      {/* The morning swap (Phase 2): a made-ahead meal that was not prepped last night, and a quick
+          recipe for it this morning, for today only. */}
+      {morningSwap && (
+        <div style={{ padding: `18px ${t.padX}px 0` }}>
+          <BSMorningSwapCard meal={{ title: morningSwap.meal.title, slot: morningSwap.slot }} recipe={morningSwap.recipe} busy={morningBusy}
+            onSwap={() => doMorningSwap(morningSwap)} onKeep={() => keepMorningMeal(morningSwap)} />
+        </div>
+      )}
+
       {/* The menu — the day as a line: each meal at its time, on the rail, with the
           NOW tick today; the next one is marked and carries the kcal still left.
           Tapping a meal opens it. */}
@@ -14451,7 +14665,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
           rows={effMeals.map((m) => {
             const logged = m.state === 'done';
             const isNext = !!(bsEatNextMeal && m.id === bsEatNextMeal.id);
-            const swapped = !!mealOverrides[m._baseTitle];
+            // A meal the member planned, or swapped for the day (Phase 2), says so instead.
+            const swapped = !m._own && !m._daySwap && !!mealOverrides[m._baseTitle];
+            const ownMark = m._daySwap ? tr('nutrition:planDay.daySwapped', { defaultValue: 'Swapped for today' })
+              : m._own ? tr('nutrition:planDay.yours', { defaultValue: 'Planned by you' }) : null;
             const timeLabel = bsMealSchedLabel(m) || m.tag || '';
             // PREPPED stamp (PR C): a fresh prep record for THIS meal — exact
             // match only, and only until it's logged (the log supersedes it).
@@ -14464,9 +14681,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
               time: timeLabel,
               title: m.title,
               sub: `${_eatMacro(m)}${isNext ? ` · ${tr('nutrition:eat.kcalLeftUpper', { defaultValue: '{kcal} KCAL LEFT', kcal: bsEatCalLeft.toLocaleString() })}` : ''}`,
-              extra: (swapped || prepped || notPrepped) ? (
+              extra: (swapped || ownMark || prepped || notPrepped) ? (
                 <>
                   {swapped && stamp(tr('nutrition:eat.swapped', { defaultValue: 'SWAPPED' }), t.ACCENT)}
+                  {ownMark && stamp(ownMark, t.ACCENT)}
                   {prepped && stamp(tr('cook:prep.stamp', { defaultValue: 'Prepped ✓ · just plate it' }), t.isLight ? '#0a8f87' : t.ACCENT)}
                   {notPrepped && stamp(tr('cook:prepAhead.notPrepped', { defaultValue: 'Not prepped last night' }), t.INK70)}
                 </>
@@ -14491,12 +14709,21 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         )}
       </div>
 
-      {/* Tonight's prep for tomorrow (owner, 2026-10-05): the same list the 7 pm reminder names. */}
+      {/* Tonight's prep for tomorrow (owner, 2026-10-05): the same list the reminder names. A dish
+          the nutritionist ticked has no catalog method to walk, so it has no Start (Phase 2). */}
       {prepTonightGroups.map((g) => (
         <div key={g.slug} style={{ padding: `18px ${t.padX}px 0` }}>
-          <BSPrepTonightCard group={g} onStart={() => setPrepCook({ slug: g.slug, group: g })} onDone={() => markPrepped(g)} />
+          <BSPrepTonightCard group={g} onStart={g.catalog === false ? null : () => setPrepCook({ slug: g.slug, group: g })} onDone={() => markPrepped(g)} />
         </div>
       ))}
+
+      {/* Plan a meal for today or tomorrow (Phase 2): signed in, once the day plan is read. */}
+      {bsEatSignedIn && myDays && (
+        <div style={{ marginTop: 10 }}>
+          <BSFocusLink data-bsck-door="plan" color={t.isLight ? '#0a8f87' : t.ACCENT} glyph="＋" label={tr('nutrition:planDay.link', { defaultValue: 'Plan a meal' })}
+            sub={tr('nutrition:planDay.linkSub', { defaultValue: 'Today or tomorrow, from Shape Kitchen' })} onOpen={() => setPlanSheet(true)} />
+        </div>
+      )}
 
       {/* ── FOCUS · LINKS — the rest of Eat, one row each: the shop list (with
           what is still to get), prep the week, the nutritionist's plan (and the
@@ -14571,13 +14798,31 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         const macroSub = (x) => tr('nutrition:eat.macroRow', { defaultValue: '{kcal} kcal · {p}P · {c}C · {f}F', kcal: x.kcal, p: x.p, c: x.c, f: x.f });
         const orig = effMeals.find(m => m.id === swapMealId);
         if (!orig) return null;
-        const base = cur.meals.find(m => m.id === swapMealId) || orig;
+        const base = bsSwapSheetBase(swapMealId, cur.meals, ownMeals, orig);
         const options = [
           { label: base.title, sub: macroSub(base), current: true, _keep: true },
           ...BS_MEAL_SWAPS.filter(a => a.title !== orig.title).map(a => ({ label: a.title, sub: macroSub(a), _alt: a })),
         ];
         return <BSSwapSheet title={tr('nutrition:eat.swapAction', { defaultValue: 'Swap meal' })} subtitle={orig.title} options={options} onClose={() => setSwapMealId(null)}
-          onPick={(o) => {
+          onPick={async (o) => {
+            // Phase 2: a planned or day-swapped meal is swapped (or kept) as that day's swap; a plan
+            // meal kept also drops its title swap (bsSwapPickWrites). The day plan's write is waited
+            // for: one that was not saved says so and leaves the sheet open to try again, and nothing
+            // reads as swapped until it is (Codex P2 on #2563).
+            const writes = bsSwapPickWrites(orig, o);
+            if (writes.day !== undefined) {
+              const saved = await bsWriteMealDays((doc, today) => bsMealDaysSwap(doc, eatViewYmd, orig.id, writes.day, today));
+              if (!saved) {
+                if (window.__bsToast) window.__bsToast(tr('cook:morningSwap.failed', { defaultValue: 'The swap was not saved. Try again.' }), 'error');
+                return;
+              }
+              setMyDays(saved);
+              if (!writes.title) {
+                if (!o._keep && window.__bsToast) window.__bsToast(tr('nutrition:eat.toastSwapped', { defaultValue: 'Swapped to {title}', title: o._alt.title }), 'ok');
+                setSwapMealId(null);
+                return;
+              }
+            }
             const key = base.title;
             const next = { ...mealOverrides };
             if (o._keep) delete next[key];
@@ -14601,6 +14846,15 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
             setSwapMealId(null);
           }} />;
       })()}
+
+      {/* Plan a meal (Phase 2): the member's own day plan, today or tomorrow (tomorrow first). */}
+      {planSheet && (
+        <BSPlanMealSheet recipes={SHAPE_KITCHEN_RECIPES} index={BS_MAKE_AHEAD} days={bsPlanDayChoices(tr)}
+          plannedOn={(ymd) => bsMealDayOf(myDays, ymd).add}
+          onAdd={(ymd, slot, r) => bsPlanRecipe(tr, ymd, slot, r)}
+          onRemove={async (ymd, id) => { const saved = await bsWriteMealDays((doc, today) => bsMealDaysRemove(doc, ymd, id, today)); if (saved) setMyDays(saved); return !!saved; }}
+          onClose={() => setPlanSheet(false)} />
+      )}
 
       <BSFooter right={tr('nutrition:eat.footerPage', { defaultValue: 'Pg 3 of 5' })} />
     </BSPage>
@@ -27700,6 +27954,37 @@ function BSNotifyPrefs({ onBack, role }) {
     return () => { alive = false; };
   }, []);
   const saveSettings = (patch) => { setSettings(s => ({ ...s, ...patch })); window.ShapeNotifyPrefs?.saveSettings?.(patch); };
+  // The hour the prep reminder comes at (night-before prep, Phase 2): the member's own, kept in
+  // user_goals like their other preferences (prepAhead.mjs BS_PREP_REMINDER_KIND), 7 pm until they
+  // choose. null until it is read, and when the read fails: then the row is not drawn, rather than
+  // showing 7 pm to a member who chose 9.
+  const [prepHour, setPrepHour] = useStateBSC(null);
+  React.useEffect(() => {
+    let alive = true;
+    if (!isCoach && window.shapeDb?.getUserGoals) {
+      Promise.resolve(window.shapeDb.getUserGoals(BS_PREP_REMINDER_KIND)).then((doc) => {
+        if (alive && doc && typeof doc === 'object') setPrepHour(bsPrepHourOf(doc));
+      }).catch(() => {});
+    }
+    return () => { alive = false; };
+  }, []);
+  const savePrepHour = async (h) => {
+    const was = prepHour;
+    setPrepHour(h);
+    let ok = false;
+    try { const r = await window.shapeDb?.saveUserGoals?.(BS_PREP_REMINDER_KIND, { hour: h }); ok = !!(r && r.ok); } catch (e) { ok = false; }
+    if (!ok) {
+      setPrepHour(was);
+      window.__bsToast && window.__bsToast(tr('settings:notifyPrefs.prepHourFailed', { defaultValue: 'The reminder time was not saved. Try again.' }), 'error');
+    }
+  };
+  // Inside quiet hours the reminder lands in the app with no push (the server's `quiet` flag).
+  const inQuiet = (h) => {
+    const s = settings || {};
+    const a = s.quiet_start, b = s.quiet_end;
+    if (!Number.isFinite(a) || !Number.isFinite(b) || a === b) return false;
+    return a < b ? (h >= a && h < b) : (h >= a || h < b);
+  };
   // A tier-up's email starts on (notificationSurfaces.mjs); every other default is _NP_DEF_CH.
   const chDefault = (type, ch) => (ch === 'email' ? emailOnByDefault(type) : _NP_DEF_CH[ch]);
   const chOn = (type, ch) => { const o = matrix[type]; return (o && o[ch] !== undefined) ? o[ch] : chDefault(type, ch); };
@@ -27765,7 +28050,8 @@ function BSNotifyPrefs({ onBack, role }) {
                 {_NP_CHANNELS.map(([k, l]) => <span key={k} style={{ width: 44, textAlign: 'center', fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>{channelLabel(k, l)}</span>)}
               </div>
               {TYPES.map(([type, label, sub], i) => (
-                <div key={type} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderBottom: i < TYPES.length - 1 ? `1px solid ${t.HAIR}` : 0 }}>
+                <React.Fragment key={type}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderBottom: i < TYPES.length - 1 ? `1px solid ${t.HAIR}` : 0 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: t.INK }}>{tr(`settings:notifyPrefs.${side}.${type}`, { defaultValue: label })}</div>
                     {sub && <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{tr(`settings:notifyPrefs.${side}.${type}.sub`, { defaultValue: sub })}</div>}
@@ -27779,6 +28065,22 @@ function BSNotifyPrefs({ onBack, role }) {
                       : <ChannelChip key={k} on={chOn(type, k)} label={channelLabel(k, l)} onClick={() => toggleCh(type, k)} />))}
                   </div>
                 </div>
+                {/* The prep reminder's hour, next to its switch (Phase 2). */}
+                {type === 'meal_prep' && prepHour != null && (
+                  <div data-prep-hour="" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 0 10px 12px', borderLeft: `2px solid ${t.ACCENT}`, borderBottom: `1px solid ${t.HAIR}` }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK }}>{tr('settings:notifyPrefs.prepHour', { defaultValue: 'Reminder time' })}</div>
+                      <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{inQuiet(prepHour)
+                        ? tr('settings:notifyPrefs.prepHourQuiet', { defaultValue: 'In your quiet hours: in the app, no push' })
+                        : tr('settings:notifyPrefs.prepHourSub', { defaultValue: 'The evening before, your time' })}</div>
+                    </div>
+                    <select value={prepHour} aria-label={tr('settings:notifyPrefs.prepHour', { defaultValue: 'Reminder time' })} onChange={(e) => savePrepHour(Number(e.target.value))}
+                      style={{ background: 'transparent', color: t.ACCENT, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '6px 9px', minHeight: 36, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>
+                      {BS_PREP_HOURS.map((h) => <option key={h} value={h} style={{ color: '#000' }}>{hourLabel(h)}</option>)}
+                    </select>
+                  </div>
+                )}
+                </React.Fragment>
               ))}
               {!isCoach && <BSReminderManager />}
               <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>{tr('settings:notifyPrefs.footer', { defaultValue: 'Push also needs your device’s system permission. Shape only notifies on a real event — never a guilt-trip; each one deep-links you in, nothing changes your data.' })}</div>

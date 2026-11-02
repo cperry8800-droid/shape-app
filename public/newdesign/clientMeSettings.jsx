@@ -1007,6 +1007,14 @@ const NP_EMAIL_ON = ["tier_up"];
 const npDefault = (type, ch) => (ch === "email" ? NP_EMAIL_ON.includes(type) : NP_DEF_CH[ch]);
 const NP_CHANNELS = [["inapp", "App"], ["push", "Push"], ["email", "Email"]];
 const NP_CAPS = [2, 3, 4, 6, 8];
+// The hour the night-before prep reminder comes at (Phase 2, 2026-11-01): the member's own, kept in
+// user_goals('meal_prep_reminder') as { hour }, which /api/cron/prep-reminders reads. A copy of
+// mobile-app/src/services/prepAhead.mjs (BS_PREP_REMINDER_KIND, BS_PREP_HOURS, BS_PREP_HOUR), held to
+// it by tests/prep-phase2-surfaces.test.mjs, because this page is not a module.
+const NP_PREP_KIND = "meal_prep_reminder";
+const NP_PREP_HOURS = [15, 16, 17, 18, 19, 20, 21, 22, 23];
+const NP_PREP_DEFAULT = 19;
+const npPrepHourOf = (doc) => (doc && NP_PREP_HOURS.includes(doc.hour) ? doc.hour : NP_PREP_DEFAULT);
 // ⚠ EVERY KIND A MEMBER CAN RECEIVE HAS A ROW (owner, 2026-10-26: "make sure users have the ability to
 // customize/toggle which notifications they want"): each is the switch the server reads for it
 // (notificationSurfaces.mjs preferenceTypeFor), for the push, the bell and the app.
@@ -1026,7 +1034,8 @@ const NP_TYPES = [
   ["streak_broken", "Streak restarts", "A gentle nudge — never shaming"],
   ["waitlist_invite", "Waitlist invites", "When a coach has room for you"],
   ["habit_reminder", "Habit reminders", "Set per-habit on the app's Habits page"],
-  // The night-before prep reminder (src/app/api/cron/prep-reminders), sent at 7 pm local.
+  // The night-before prep reminder (src/app/api/cron/prep-reminders), sent at the hour the member
+  // chooses below it (7 pm local until they do).
   ["meal_prep", "Prep reminders", "The night before a meal that needs it"],
   // Shared habits (src/app/api/cron/habit-watch): someone you're connected to missed a habit they
   // shared with you, at 8 pm their time.
@@ -1046,16 +1055,27 @@ function NotificationDashboard({ signedIn }) {
     try {
       const c = window.shapeDb.client;
       const u = await c.auth.getUser();
-      setUid((u && u.data && u.data.user && u.data.user.id) || null);
+      const id = (u && u.data && u.data.user && u.data.user.id) || null;
+      setUid(id);
       const { data, error } = await c.rpc("get_notification_center");
       if (error || !data) { setState(empty); return; }
       const m = {};
       (Array.isArray(data.prefs) ? data.prefs : []).forEach(p => { (m[p.type] = m[p.type] || {})[p.channel] = p.enabled; });
       const s = data.settings || {};
+      // The prep reminder's hour: null when it cannot be read, and then its row is not drawn, rather
+      // than showing 7 pm to a member who chose 9.
+      let prepHour = null;
+      if (id) {
+        try {
+          const ph = await c.from("user_goals").select("data").eq("user_id", id).eq("kind", NP_PREP_KIND).maybeSingle();
+          if (!ph.error) prepHour = npPrepHourOf(ph.data && ph.data.data);
+        } catch (e) { prepHour = null; }
+      }
       setState({
         settings: { muted: s.muted === true, quiet_start: Number.isFinite(s.quiet_start) ? s.quiet_start : 22, quiet_end: Number.isFinite(s.quiet_end) ? s.quiet_end : 7, daily_cap: Number.isFinite(s.daily_cap) ? s.daily_cap : 4 },
         matrix: m,
         reminders: Array.isArray(data.reminders) ? data.reminders : [],
+        prepHour,
       });
     } catch (e) { setState(empty); }
   }, [signedIn]);
@@ -1091,6 +1111,17 @@ function NotificationDashboard({ signedIn }) {
     } else {
       onWrite(c.from("notification_preferences").upsert({ user_id: uid, type, channel: ch, enabled: next, updated_at: new Date().toISOString() }, { onConflict: "user_id,type,channel" }));
     }
+  };
+  const savePrepHour = (h) => {
+    setState(st => (st ? { ...st, prepHour: h } : st));
+    const c = cli(); if (!uid || !c) return;
+    onWrite(c.from("user_goals").upsert({ user_id: uid, kind: NP_PREP_KIND, data: { hour: h } }, { onConflict: "user_id,kind" }));
+  };
+  // Inside quiet hours the reminder lands in the app with no push (the server's `quiet` flag).
+  const npInQuiet = (h, st) => {
+    const a = st && st.quiet_start, b = st && st.quiet_end;
+    if (!Number.isFinite(a) || !Number.isFinite(b) || a === b) return false;
+    return a < b ? (h >= a && h < b) : (h >= a || h < b);
   };
   const toggleHabit = (r) => {
     const next = !r.enabled;
@@ -1159,7 +1190,8 @@ function NotificationDashboard({ signedIn }) {
                 {NP_CHANNELS.map(([k, l]) => <span key={k} style={{ width: 52, textAlign: "center", fontFamily: mono, fontSize: 8, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>{l}</span>)}
               </div>
               {NP_TYPES.map(([type, label, sub]) => (
-                <div key={type} style={rowStyle}>
+                <React.Fragment key={type}>
+                <div style={rowStyle}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={lblStyle}>{label}</div>
                     <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 1 }}>{sub}</div>
@@ -1170,6 +1202,17 @@ function NotificationDashboard({ signedIn }) {
                       : <button key={k} type="button" onClick={() => toggleCh(type, k)} aria-label={label + " · " + l + " · " + (chOn(type, k) ? "on" : "off")} style={chip(chOn(type, k))}>{l}</button>))}
                   </div>
                 </div>
+                {/* The prep reminder's hour, next to its switch (Phase 2). */}
+                {type === "meal_prep" && s.prepHour != null && (
+                  <div data-prep-hour="" style={{ ...rowStyle, borderTop: 0, paddingLeft: 12, borderLeft: "2px solid " + TEAL_BRIGHT }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={lblStyle}>Reminder time</div>
+                      <div style={subStyle}>{npInQuiet(s.prepHour, s.settings) ? "In your quiet hours: it lands in the app, with no push" : "The evening before, in your time zone"}</div>
+                    </div>
+                    <select value={s.prepHour} onChange={e => savePrepHour(Number(e.target.value))} aria-label="Prep reminder time" style={sel}>{NP_PREP_HOURS.map(h => <option key={h} value={h} style={{ color: "#000" }}>{(NP_HOURS.find(x => x.v === h) || {}).l}</option>)}</select>
+                  </div>
+                )}
+                </React.Fragment>
               ))}
 
               {s.reminders.length > 0 && (
