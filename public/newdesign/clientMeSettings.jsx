@@ -403,13 +403,15 @@ function ClientMeSettings() {
     let active=true, timer;
     const refresh=()=>{if(active)loadSettings();};
     window.addEventListener("focus",refresh);
+    // Nora's account setup, confirmed or undone in the chat over this page (chatWidget.jsx).
+    window.addEventListener("shape:accountSetup",refresh);
     const sub=window.shapeDb?.client?.auth?.onAuthStateChange?.((_event,session)=>{
       const uid=session?.user?.id || null;
       if(uid===authOwner.current)return;
       authOwner.current=uid;loadGeneration.current++;
       setAccountId(null);setEditOpen(false);setFieldEdit(null);clearTimeout(timer);timer=setTimeout(refresh,0);
     });
-    return ()=>{active=false;clearTimeout(timer);loadGeneration.current++;window.removeEventListener("focus",refresh);sub?.data?.subscription?.unsubscribe?.();};
+    return ()=>{active=false;clearTimeout(timer);loadGeneration.current++;window.removeEventListener("focus",refresh);window.removeEventListener("shape:accountSetup",refresh);sub?.data?.subscription?.unsubscribe?.();};
   },[loadSettings]);
 
   async function handleLogout() {
@@ -1080,6 +1082,8 @@ function NotificationDashboard({ signedIn }) {
     } catch (e) { setState(empty); }
   }, [signedIn]);
   React.useEffect(() => { load(); }, [load]);
+  // Quiet hours and the daily limit set or undone by Nora's account setup (chatWidget.jsx).
+  React.useEffect(() => { const again = () => load(); window.addEventListener("shape:accountSetup", again); return () => window.removeEventListener("shape:accountSetup", again); }, [load]);
 
   const tz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; } };
   const cli = () => (window.shapeDb && window.shapeDb.client) || null;

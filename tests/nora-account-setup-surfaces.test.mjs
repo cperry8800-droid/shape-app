@@ -144,21 +144,22 @@ test('app card: any other card is unchanged by this — no "saved" line, no setu
 });
 
 // ── The website's card ───────────────────────────────────────────────────────────────────────
-function webCard(fetchImpl) {
+function webCard(fetchImpl, win = undefined) {
   const babel = require_('next/dist/compiled/babel/core');
   const presetReact = require_('next/dist/compiled/babel/preset-react');
   const src = read('public/newdesign/chatWidget.jsx');
   const start = src.indexOf('const cwIsLine =');
   const end = src.indexOf('function ChatWidget(props)');
   const { code } = babel.transformSync(src.slice(start, end) + '\nthis.CwProposalCard = CwProposalCard;', { presets: [presetReact], babelrc: false, configFile: false });
-  const ctx = { React: SHIM, TEAL: 'teal', TEAL_BRIGHT: 'teal', PAPER: 'paper', sans: 'sans', cwHexA: () => 'rgba(0,0,0,0.1)', fetch: fetchImpl };
+  const ctx = { React: SHIM, TEAL: 'teal', TEAL_BRIGHT: 'teal', PAPER: 'paper', sans: 'sans', cwHexA: () => 'rgba(0,0,0,0.1)', fetch: fetchImpl, ...(win ? { window: win, CustomEvent } : {}) };
   vm.runInNewContext(code, ctx);
   return ctx.CwProposalCard;
 }
 
 test('website card: refusals said as such; a confirmed setup says where to change it', async () => {
   const posted = [];
-  const Card = webCard(async (url, init) => { posted.push([url, JSON.parse(init.body)]); return { ok: true, json: async () => ({ ok: true, auditId: 'aud-3' }) }; });
+  const told = [];
+  const Card = webCard(async (url, init) => { posted.push([url, JSON.parse(init.body)]); return { ok: true, json: async () => ({ ok: true, auditId: 'aud-3' }) }; }, { dispatchEvent: (e) => { told.push([e.type, JSON.parse(JSON.stringify(e.detail))]); return true; } });
   const d = drive(Card, { a: SETUP_CARD });
   const refused = d.nodes().filter((n) => n.props && n.props['data-nora-refused']).map((n) => textOf(n));
   assert.deepEqual(refused, ['email·Not setYours to do yourself', 'Headline·Not setFor coaches only']);
@@ -169,11 +170,18 @@ test('website card: refusals said as such; a confirmed setup says where to chang
   d.render();
   assert.deepEqual(posted, [['/api/ai/proposals/confirm', { token: 'tok-setup' }]]);
   assert.ok(d.text.includes('Saved to your account. You can change any of it in Settings.'));
+  // Codex on a569e48 (P2): the page under the widget is told, and reads again what it shows.
+  assert.deepEqual(told, [['shape:accountSetup', { undone: false }]]);
+  d.click('Undo');
+  await tick(); await tick();
+  d.render();
+  assert.deepEqual(told, [['shape:accountSetup', { undone: false }], ['shape:accountSetup', { undone: true }]], 'and again on Undo');
   const other = drive(Card, { a: { ...SETUP_CARD, action: 'log_water', diff: [{ label: 'Hydration', before: '1 L', after: '1.5 L' }] } });
   other.click('Confirm');
   await tick(); await tick();
   other.render();
   assert.ok(other.text.includes('Applied ✓') && !other.text.includes('Saved to your account'), 'only a setup card says it');
+  assert.equal(told.length, 2, 'nor is the page told of any other card');
 });
 
 // ── The tours ────────────────────────────────────────────────────────────────────────────────

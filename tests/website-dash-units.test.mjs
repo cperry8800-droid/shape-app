@@ -802,3 +802,33 @@ test("the website's Progress trend has no Energy, Hunger or Rested tab", async (
   const tabsSrc = src.slice(src.indexOf('const DPR_TREND_TABS = ['), src.indexOf('const DPR_TREND_KEYS'));
   assert.doesNotMatch(tabsSrc, /\/10|k: "(energy|hunger|sleepQuality)"/);
 });
+
+// Codex on #2566 (P2): Nora's account setup can change the units from the chat widget over a page, and
+// the page's one read of them was kept for the page's life, so every figure stayed in the old units
+// while the card said saved. The widget tells the page (`shape:accountSetup`, chatWidget.jsx); the
+// loader drops its read, reads again, and every component re-renders in the new units.
+test('a setup confirmed or undone in the chat widget reads the units again, and every figure follows', async () => {
+  const { React } = await setup();
+  const { createRoot } = require('react-dom/client');
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  let units = METRIC;
+  const reads = [];
+  window.shapeDb = { getSession: async () => ({}), getUser: async () => ({ id: 'u-1' }), getUserGoals: async (k) => { reads.push(k); return { units }; } };
+  const L = freshLoader();
+  const seen = [];
+  const Probe = () => { seen.push(L.useDashUnits().fmt(171, 'lb')); return null; };
+  const el = document.createElement('div'); document.body.appendChild(el);
+  const root = createRoot(el);
+  const close = track(React, root, el);
+  await React.act(async () => root.render(React.createElement(Probe)));
+  await React.act(async () => { await L.dashLoadUnits(); });
+  assert.equal(seen[seen.length - 1], '77.6 kg');
+  assert.deepEqual(reads, ['client_settings']);
+  units = IMPERIAL; // the setup's write
+  const before = reads.length;
+  await React.act(async () => { window.dispatchEvent(new window.CustomEvent('shape:accountSetup', { detail: { undone: false } })); await L.dashLoadUnits(); });
+  // (The earlier tests' loaders share this page's window and read again too, so the count only grows.)
+  assert.ok(reads.length > before && reads.slice(before).every((k) => k === 'client_settings'), 'read again');
+  assert.equal(seen[seen.length - 1], '171 lb', 'and shown in the units now stored');
+  await close();
+});

@@ -164,6 +164,11 @@ const cwIsLine = (d) => !!d && typeof d === "object" && !Object.prototype.hasOwn
 // its name struck through and why, never a change. The app's card says the same (BSNoraProposal).
 const CW_SETUP_REFUSED = { yours: "Yours to do yourself", not_here: "Nora can’t set this", invalid: "That doesn’t fit this setting", coach_only: "For coaches only" };
 const cwIsRefused = (d) => !!d && typeof d === "object" && typeof d.refused === "string";
+// ⚠ A SETUP CONFIRMED OR UNDONE HERE IS TOLD TO THE PAGE UNDER THE WIDGET (Codex on #2566): Settings,
+// the notification centre, the units every dashboard figure is shown in, Goals, the dashboard's setup
+// lines and the member's own profile each read what they show once, so they would keep the old values
+// while the card says saved. Each listens for `shape:accountSetup` and reads again, as the app does.
+const cwAfterAccountSetup = (undone) => { try { window.dispatchEvent(new CustomEvent("shape:accountSetup", { detail: { undone: !!undone } })); } catch (e) {} };
 function CwProposalCard({ a }) {
   const [status, setStatus] = React.useState("idle"); // idle|busy|done|undoing|undone|error
   const [err, setErr] = React.useState("");
@@ -182,13 +187,13 @@ function CwProposalCard({ a }) {
   const confirm = async () => {
     if (status === "busy" || status === "done") return;
     setStatus("busy"); setErr("");
-    try { const r = await post("/api/ai/proposals/confirm", { token: a.token }); setAuditId(r && r.auditId); setStatus("done"); }
+    try { const r = await post("/api/ai/proposals/confirm", { token: a.token }); setAuditId(r && r.auditId); setStatus("done"); if (a.action === "set_up_account") cwAfterAccountSetup(false); }
     catch (e) { setErr(String(e && e.message || "Could not apply that change.")); setStatus("error"); }
   };
   const undo = async () => {
     if (!auditId || status === "undoing" || status === "undone") return;
     setStatus("undoing"); setErr("");
-    try { await post("/api/ai/audit/undo", { auditId }); setStatus("undone"); }
+    try { await post("/api/ai/audit/undo", { auditId }); setStatus("undone"); if (a.action === "set_up_account") cwAfterAccountSetup(true); }
     catch (e) { setErr(String(e && e.message || "Could not undo.")); setStatus("done"); }
   };
   return (

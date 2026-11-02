@@ -9,9 +9,14 @@ const APP = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const HOME = 'mobile-app/src/broadsheet/BSHomeSections.jsx';
 const GOALS = 'mobile-app/src/broadsheet/BSGoals.jsx';
 const COACH = 'mobile-app/src/broadsheet/BSTrainerProfile.jsx';
+const W_ME = 'public/newdesign/clientMeSettings.jsx';
+const W_DATA = 'public/newdesign/dashData.jsx';
+const W_CLIENT = 'public/newdesign/dashClient.jsx';
+const W_GOALS = 'public/newdesign/dashGoals.jsx';
+const W_PROFILE = 'public/newdesign/livingProfilePage.jsx';
 
 export default {
-  test: 'node --test tests/user-goals-refresh.test.mjs tests/nora-account-setup-surfaces.test.mjs tests/trainer-profile.test.mjs',
+  test: 'node --test tests/user-goals-refresh.test.mjs tests/nora-account-setup-surfaces.test.mjs tests/trainer-profile.test.mjs tests/website-dash-units.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── The announcement ──
@@ -39,5 +44,16 @@ export default {
     { name: 'Goals keeps its first read', file: GOALS, find: '  }, [loggedIn, goalsRev]);', replace: '  }, [loggedIn]);' },
     { name: "the coach page keeps its first read", file: COACH, find: '  }, [isSelf, ownEpoch, demoOn, customRev]);', replace: '  }, [isSelf, ownEpoch, demoOn]);' },
     { name: 'the coach page listens for another document', file: COACH, find: "const BS_OWN_PROFILE_KINDS = ['profile_custom'];", replace: "const BS_OWN_PROFILE_KINDS = ['client_settings'];" },
+
+    // ── The website (Codex on a569e48) ──
+    { name: 'web Settings is not told of a setup', file: W_ME, find: '    window.addEventListener("shape:accountSetup",refresh);\n', replace: '' },
+    { name: 'web Settings keeps listening after it unmounts', file: W_ME, find: 'window.removeEventListener("shape:accountSetup",refresh);', replace: '' },
+    { name: 'the web notification centre is not told of a setup', file: W_ME, find: '  React.useEffect(() => { const again = () => load(); window.addEventListener("shape:accountSetup", again); return () => window.removeEventListener("shape:accountSetup", again); }, [load]);\n\n  const tz = () =>', replace: '\n  const tz = () =>' },
+    { name: "the web dashboard's setup lines are not told of a setup", file: W_CLIENT, find: '  React.useEffect(() => { const again = () => load(); window.addEventListener("shape:accountSetup", again); return () => window.removeEventListener("shape:accountSetup", again); }, [load]);\n', replace: '' },
+    { name: 'web units are read once a page', file: W_DATA, find: '  dashWatchUnitsSetup();\n', replace: '' },
+    { name: 'the web units cache is kept on a setup', file: W_DATA, find: '{ _dashUnitsLoad = null; dashLoadUnits(); }', replace: '{ dashLoadUnits(); }' },
+    { name: 'web Goals keeps its first read', file: W_GOALS, find: '  }, [setupRev]);', replace: '  }, []);' },
+    { name: "the web own profile keeps its first read", file: W_PROFILE, find: '  }, [setupRev]);', replace: '  }, []);' },
+    { name: "the web own profile keeps its first units", file: W_PROFILE, find: '  }, [st.isSelf, st.uid, setupRev]);', replace: '  }, [st.isSelf, st.uid]);' },
   ],
 };

@@ -160,3 +160,32 @@ test('the card announces after Confirm and after Undo, with the units and check-
   assert.match(fn, /ShapeUnits\?\.set\?\.\(st\.units\)/);
   assert.match(fn, /bsDailyCheckinApply\(/);
 });
+
+// ── The website (Codex on a569e48, P2) ───────────────────────────────────────────────────────
+// The chat widget sits over the website's pages, and a setup confirmed or undone in it changes what
+// they show. The widget announces `shape:accountSetup` (pinned in nora-account-setup-surfaces); each
+// page that shows what the setup writes reads again on it. The units loader is driven end to end in
+// tests/website-dash-units.test.mjs; these pin the other readers' wiring.
+const web = (f) => readFileSync(join(ROOT, 'public/newdesign', f), 'utf8');
+const sliceFn = (src, head) => { const a = src.indexOf(head); assert.ok(a >= 0, head); const b = src.indexOf('\n}\n', a); return src.slice(a, b); };
+
+test('website: Settings, the notification centre, the dashboard\'s setup lines, Goals and the own profile read again after a setup', () => {
+  const me = web('clientMeSettings.jsx');
+  const settings = sliceFn(me, 'function ClientMeSettings(');
+  assert.match(settings, /window\.addEventListener\("shape:accountSetup",refresh\);/, 'Settings (its profile, preferences and options) reads again');
+  assert.match(settings, /window\.removeEventListener\("shape:accountSetup",refresh\);/, 'and lets go on unmount');
+  assert.match(settings, /const refresh=\(\)=>\{if\(active\)loadSettings\(\);\};/);
+  const notify = sliceFn(me, 'function NotificationDashboard(');
+  assert.match(notify, /const again = \(\) => load\(\); window\.addEventListener\("shape:accountSetup", again\); return \(\) => window\.removeEventListener\("shape:accountSetup", again\); \}, \[load\]\);/, 'quiet hours and the daily limit');
+  const board = sliceFn(web('dashClient.jsx'), 'function DclSetupBoard(');
+  assert.match(board, /const again = \(\) => load\(\); window\.addEventListener\("shape:accountSetup", again\); return \(\) => window\.removeEventListener\("shape:accountSetup", again\); \}, \[load\]\);/, 'the dashboard\'s goal, experience and diet lines');
+  const goals = web('dashGoals.jsx');
+  assert.match(goals, /const again = \(\) => setSetupRev\(\(n\) => n \+ 1\); window\.addEventListener\("shape:accountSetup", again\);/);
+  const goalsRead = goals.slice(goals.indexOf('window.shapeDb.getUserGoals("client_goals")'));
+  assert.match(goalsRead.slice(0, goalsRead.indexOf('}, [')+20), /\}, \[setupRev\]\);/, 'the Goals page\'s read runs again on it');
+  const prof = web('livingProfilePage.jsx');
+  assert.match(prof, /const again = \(\) => setSetupRev\(\(n\) => n \+ 1\); window\.addEventListener\("shape:accountSetup", again\);/);
+  const ident = prof.slice(prof.indexOf('.eq("kind", "client_identity")'));
+  assert.match(ident.slice(0, ident.indexOf('}, [') + 20), /\}, \[setupRev\]\);/, 'the own profile\'s name and goal');
+  assert.match(prof, /\}, \[st\.isSelf, st\.uid, setupRev\]\);/, 'and its units');
+});

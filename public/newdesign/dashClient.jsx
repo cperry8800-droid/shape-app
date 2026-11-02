@@ -556,6 +556,8 @@ function DclSetupBoard() {
     } catch (e) { /* see above: nothing shows */ }
   }, []);
   React.useEffect(() => { load(); }, [load]);
+  // The goal, coaching and preferences set or undone by Nora's account setup (chatWidget.jsx).
+  React.useEffect(() => { const again = () => load(); window.addEventListener("shape:accountSetup", again); return () => window.removeEventListener("shape:accountSetup", again); }, [load]);
   if (!board || !Array.isArray(board.steps)) return null;
   return <DclSetupBoardView board={board} onSaved={load} />;
 }

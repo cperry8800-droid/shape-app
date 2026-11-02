@@ -1517,9 +1517,18 @@ function dashWatchUnitsAuth() {
     });
   } catch (e) { _dashUnitsWatching = false; }
 }
+// The units changed by Nora's account setup (or its Undo) in the chat over the page: the cached read is
+// dropped and read again, and every figure on the page redraws (chatWidget.jsx).
+let _dashUnitsSetupWatching = false;
+function dashWatchUnitsSetup() {
+  if (_dashUnitsSetupWatching || typeof window === "undefined" || !window.addEventListener) return;
+  _dashUnitsSetupWatching = true;
+  window.addEventListener("shape:accountSetup", () => { _dashUnitsLoad = null; dashLoadUnits(); });
+}
 function dashLoadUnits() {
   if (_dashUnitsLoad) return _dashUnitsLoad;
   dashWatchUnitsAuth();
+  dashWatchUnitsSetup();
   const gen = ++_dashUnitsGen;
   const setting = (async () => {
     const db = window.shapeDb;
