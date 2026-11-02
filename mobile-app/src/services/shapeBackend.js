@@ -31,6 +31,7 @@ import { isShapeWelcome } from './shapeWelcome.mjs';
 import { bsHwWeekWindow, bsHwLocalDayOf } from './homeWeek.mjs';
 import { bsGroceryFromMetadata } from './groceryShare.mjs';
 import { bsReplyFromMetadata } from './chatReply.mjs';
+import { createThreadSignalStore, bsTypingFromPayload, bsSeenFromRpc } from './chatSignals.mjs';
 // The SHARED nora_memory doc normalizer (pure ESM, cross-root import — the
 // dashSignals.js precedent): one implementation of the {rev, notes} semantics
 // for the server tools AND this Settings mirror, so they can't drift.
@@ -750,6 +751,8 @@ async function signOut() {
     _presence.visible = true; // startPresence re-reads the NEXT account's pref; A's opt-out must not carry over
     _presenceEmit();
   } catch (e) {}
+  // The open threads' typing and read-receipt channels, and what they hold, are the last account's.
+  try { _teardownThreadSignals(); } catch (e) {}
   try {
     _activity.gen += 1; // invalidate an in-flight hydrate the same way
     if (_activity.channel && supabase) { try { supabase.removeChannel(_activity.channel); } catch (e) {} }
@@ -2238,6 +2241,11 @@ function chatTimeOf(iso) {
 // (client_id → full name). Before this (client-onboarding review, fix 3a) the coach read every
 // client thread under their own name, filed as "Your coach". A coach↔coach "Care team" thread has
 // no provider and keeps its title.
+// The id a sender's thread gave a message it sent (metadata.cid), so its own view knows the stored row
+// before the send answers (read receipts, Codex on #2565). A short string, else nothing.
+function bsViewIdOf(md) {
+  return md && typeof md.cid === 'string' && md.cid && md.cid.length <= 64 ? md.cid : null;
+}
 function conversationToThread(conversation, messages = [], names = {}) {
   const providerRole = conversation.provider_role === 'nutritionist' ? 'Nutritionist' : 'Trainer';
   const ordered = [...messages].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
@@ -2281,6 +2289,8 @@ function conversationToThread(conversation, messages = [], names = {}) {
       grocery: bsGroceryFromMetadata(message.metadata),
       // The message this one answers (swipe to reply, 2026-11-01), read strictly the same way.
       reply: bsReplyFromMetadata(message.metadata),
+      // The id the sender's view gave it (read receipts, 2026-11-02): its own thread knows the row by it.
+      cid: bsViewIdOf(message.metadata),
     })),
     updatedAt: conversation.updated_at || conversation.last_message_at || conversation.created_at,
   };
@@ -2331,6 +2341,8 @@ function memberThreadFromRow(row, messages = []) {
       grocery: bsGroceryFromMetadata(message.metadata),
       // The message this one answers (swipe to reply, 2026-11-01), read strictly the same way.
       reply: bsReplyFromMetadata(message.metadata),
+      // The id the sender's view gave it (read receipts, 2026-11-02): its own thread knows the row by it.
+      cid: bsViewIdOf(message.metadata),
     })),
     updatedAt: row.last_message_at,
   };
@@ -8609,7 +8621,171 @@ window.ShapeUnread = {
   onChange: (cb) => { _unread.listeners.add(cb); return () => _unread.listeners.delete(cb); },
   noteChannel: (id) => { if (id) _unread.myChannels.add(id); },
   markChannelRead: (id) => { _unread.map['ch:' + id] = 0; _unread.myChannels.add(id); _unreadEmit(); if (supabase) supabase.rpc('mark_channel_read', { p_channel_id: id }).then(() => {}).catch(() => {}); },
-  markConversationRead: (id) => { _unread.map['dm:' + id] = 0; _unreadEmit(); if (supabase) supabase.rpc('mark_conversation_read', { p_conversation_id: id }).then(() => {}).catch(() => {}); },
+  // Returns once the read is stored (or failed), so an open thread can tell the other side to look
+  // again only after there is something to see (read receipts, 2026-11-02).
+  markConversationRead: (id) => {
+    _unread.map['dm:' + id] = 0; _unreadEmit();
+    if (!supabase) return Promise.resolve(false);
+    return Promise.resolve(supabase.rpc('mark_conversation_read', { p_conversation_id: id })).then((r) => !(r && r.error), () => false);
+  },
+};
+
+// ── Read receipts and typing (owner, 2026-11-02: "build read receipts and typing indicator next").
+// Each open thread joins one Realtime broadcast channel, `thread-signals:<key>` (key 'dm:<conversation>'
+// or 'ch:<channel>'), and two events ride it:
+//   · typing { u, n, on }: the composer's "on" every few seconds while there are words, "off" when they
+//     go or are sent. Sent only while "Show when I'm online" is on. Read strictly on arrival
+//     (bsTypingFromPayload) and shown for a few seconds past the last one.
+//   · seen { u }: "I've just read this", sent once a read is stored. It carries nothing to trust: it
+//     only makes the other side ask conversation_seen() again, which reads the stored times and each
+//     side's switch, and is never sent by someone whose read receipts are off.
+// The channel is PRIVATE: Realtime admits a client only if realtime.messages' policies let it listen
+// (anyone who may open the conversation or see the channel) and speak (anyone who may open the
+// conversation, or a channel's member or host). One channel per topic, shared by everything that joins
+// it here, so a thread that remounts never subscribes the topic twice.
+const _threadSignals = createThreadSignalStore();
+const _sigChannels = new Map(); // topic → { channel, refs, ready, queue, waits, openTimer, closeTimer }
+const _seenOn = new Map();      // key → true | false, from conversation_seen()'s last answer
+const _seenPending = new Map(); // key → that answer, while it is on its way
+const _seenTimers = new Map();
+const _seenSeq = new Map();     // key → the newest conversation_seen() ask; an older answer never lands
+function _sigTopic(key) { return `thread-signals:${key}`; }
+// Ask conversation_seen() for a conversation's read times and publish them to its open thread. null
+// (unknown: the function isn't there yet, or the read failed) leaves the thread showing no receipts.
+function refreshConversationSeen(conversationId) {
+  const key = conversationId ? `dm:${conversationId}` : null;
+  const uid = state.user?.id;
+  if (!key || !supabase || !uid) return Promise.resolve(null);
+  const seq = (_seenSeq.get(key) || 0) + 1;
+  _seenSeq.set(key, seq);
+  const p = Promise.resolve(supabase.rpc('conversation_seen', { p_conversation_id: conversationId }))
+    .then((r) => (r && !r.error ? r.data : null), () => null)
+    .then((data) => {
+      if (state.user?.id !== uid) return null; // a sign-out in between: this answer is the last account's
+      // Two asks in flight (the mount's and a nudge's): only the newest publishes, so a slow older answer
+      // can neither take Seen back to Sent nor turn the switch back on (Codex P2 on #2565).
+      if (_seenSeq.get(key) !== seq) return null;
+      const seen = bsSeenFromRpc(data, { myId: uid });
+      _seenOn.set(key, !!(data && data.on === true));
+      if (seen || (data && data.on === false)) _threadSignals.setSeen(key, seen);
+      return seen;
+    });
+  _seenPending.set(key, p);
+  p.then(() => { if (_seenPending.get(key) === p) _seenPending.delete(key); });
+  return p;
+}
+function _refreshSeenSoon(key) {
+  if (!key || key.indexOf('dm:') !== 0) return;
+  clearTimeout(_seenTimers.get(key));
+  _seenTimers.set(key, setTimeout(() => { _seenTimers.delete(key); refreshConversationSeen(key.slice(3)); }, 300));
+}
+// Opens the topic's channel for `entry`, once nothing of the topic is left on the client. A channel
+// that is leaving stays in supabase's list until the server answers the leave, and supabase.channel()
+// would hand that one back (it reuses a topic), so a thread reopened in that moment waits it out.
+function _sigOpen(key, topic, entry) {
+  if (_sigChannels.get(topic) !== entry || entry.refs <= 0 || entry.channel) return;
+  const leaving = typeof supabase.getChannels === 'function' && supabase.getChannels().some((c) => c && c.topic === `realtime:${topic}`);
+  if (leaving && entry.waits < 20) { entry.waits += 1; entry.openTimer = setTimeout(() => { entry.openTimer = null; _sigOpen(key, topic, entry); }, 100); return; }
+  let channel = null;
+  try {
+    // Private (Codex P1 on #2565): Realtime admits only the thread's people (2026-11-02-read-receipts.sql).
+    channel = supabase.channel(topic, { config: { broadcast: { self: false }, private: true } });
+    channel
+      .on('broadcast', { event: 'typing' }, (msg) => {
+        const sig = bsTypingFromPayload(msg && msg.payload, { myId: state.user?.id });
+        if (sig) _threadSignals.typing(key, sig);
+      })
+      .on('broadcast', { event: 'seen' }, (msg) => {
+        const u = msg && msg.payload && msg.payload.u;
+        if (typeof u === 'string' && u && u !== state.user?.id) _refreshSeenSoon(key);
+      })
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED' || entry.channel !== channel) return;
+        entry.ready = true;
+        entry.queue.splice(0).forEach((m) => { try { channel.send(m); } catch (e) {} });
+      });
+  } catch (e) { return; } // no typing or nudges in this thread, rather than a broken one
+  entry.channel = channel;
+}
+function joinThreadSignals(key) {
+  const noop = { typing() {}, seen() {}, leave() {} };
+  if (!supabase || !key || !state.user?.id) return noop;
+  const myId = state.user.id;
+  const topic = _sigTopic(key);
+  let entry = _sigChannels.get(topic);
+  if (!entry) {
+    entry = { channel: null, refs: 0, ready: false, queue: [], waits: 0, openTimer: null, closeTimer: null };
+    _sigChannels.set(topic, entry);
+  }
+  // Back within the grace below (a remount, a quick back-and-forth): the same channel, still joined.
+  if (entry.closeTimer) { clearTimeout(entry.closeTimer); entry.closeTimer = null; }
+  entry.refs += 1;
+  _sigOpen(key, topic, entry);
+  const own = entry;
+  let left = false;
+  const send = (event, payload) => {
+    if (left) return;
+    const msg = { type: 'broadcast', event, payload };
+    if (own.ready && own.channel) { try { own.channel.send(msg); } catch (e) {} return; }
+    // Not joined yet: hold the newest of each event until it is.
+    own.queue = own.queue.filter((m) => m.event !== event);
+    own.queue.push(msg);
+  };
+  return {
+    typing(on) {
+      if (on && window.ShapeOnlineVisible === false) return; // hidden online, hidden typing
+      // A channel's line names who is typing; a direct thread already knows. A full name only, never the
+      // email channelDisplayName() falls back to.
+      const n = on && key.indexOf('ch:') === 0
+        ? String((state.profile && (state.profile.full_name || state.profile.fullName)) || (state.user && state.user.user_metadata && state.user.user_metadata.full_name) || '')
+        : '';
+      send('typing', { u: myId, n, on: !!on });
+    },
+    // After a read is stored. Waits for this conversation's own answer about the switch, so a member
+    // whose read receipts are off never says they've read anything (and a channel, which never has
+    // that answer, never says it).
+    seen() {
+      Promise.resolve(_seenPending.get(key)).then(() => { if (_seenOn.get(key) === true) send('seen', { u: myId }); });
+    },
+    // The last one out closes the channel after a short grace, counted from that last leave, and the
+    // thread's typers and read times go with it. A join in the grace cancels the timer before it counts
+    // itself in, so the timer only ever fires with nobody in the thread.
+    leave() {
+      if (left) return;
+      left = true;
+      own.refs -= 1;
+      if (own.refs > 0 || own.closeTimer) return;
+      own.closeTimer = setTimeout(() => {
+        own.closeTimer = null;
+        if (own.openTimer) { clearTimeout(own.openTimer); own.openTimer = null; }
+        if (_sigChannels.get(topic) === own) _sigChannels.delete(topic);
+        if (own.channel) { try { supabase.removeChannel(own.channel); } catch (e) {} }
+        _threadSignals.clear(key);
+      }, 1500);
+    },
+  };
+}
+function _teardownThreadSignals() {
+  _sigChannels.forEach((entry) => {
+    clearTimeout(entry.openTimer);
+    clearTimeout(entry.closeTimer);
+    try { if (supabase && entry.channel) supabase.removeChannel(entry.channel); } catch (e) {}
+  });
+  _sigChannels.clear();
+  _seenOn.clear();
+  _seenPending.clear();
+  _seenTimers.forEach((h) => clearTimeout(h));
+  _seenTimers.clear();
+  _seenSeq.clear();
+  _threadSignals.clearAll();
+}
+window.ShapeThreadSignals = {
+  get: _threadSignals.get,
+  subscribe: _threadSignals.subscribe,
+  join: joinThreadSignals,
+  // A message from someone ends their typing at once, without waiting out the signal.
+  typing: _threadSignals.typing,
+  refreshSeen: refreshConversationSeen,
 };
 
 // ── Live presence — "N online now". Everyone with the app open joins one

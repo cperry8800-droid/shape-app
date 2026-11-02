@@ -20,6 +20,7 @@ import { createLiveWorkoutPublisher } from '../services/liveWorkoutPublisher.mjs
 import { bsShortAge } from '../services/shortAge.mjs';
 import { bsChatStamp, bsChatDayLabel, bsChatClock, bsChatDividerIndexes } from '../services/chatTime.mjs';
 import { bsReplyFor, bsReplyFromMetadata, bsReplySnippet, bsReplySwipeDecide, bsReplySwipeOffset, bsReplySwipeCommits, BS_REPLY_SWIPE } from '../services/chatReply.mjs';
+import { bsTypingSend, bsTypingWho, bsReceiptFor, bsMergeThreadHistory, BS_SIGNALS_EMPTY } from '../services/chatSignals.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // The ONE ceiling. The prompt must ask at exactly the load the core refuses to
 // admit unconsidered — a local copy of 150 that drifted would leave the screen
@@ -273,6 +274,11 @@ function bsAmLive() {
 // already respects each person's "show when I'm online" toggle).
 function bsIsUserOnline(uid) {
   try { return !!(uid && window.ShapePresence && window.ShapePresence.isOnline && window.ShapePresence.isOnline(uid)); } catch (e) { return false; }
+}
+// Is the app out of sight (another tab, the phone locked, the app in the background)? A chat thread
+// reads nothing while it is: read receipts would otherwise say Seen to someone whose message no one saw.
+function bsPageHidden() {
+  try { return typeof document !== 'undefined' && document.visibilityState === 'hidden'; } catch (e) { return false; }
 }
 // Sign-out: drop the account-scoped window caches this module owns. handleLogout
 // never navigates (same JS context into the next sign-in), so without this the
@@ -27129,12 +27135,111 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   // ⚠ KEYED TO ITS CONVERSATION (Codex on #2360): a history fetched for one conversation is never
   // shown in another, even for the moment before the next fetch lands or when it fails.
   const [history, setHistory] = useStateBSC(null);
+  // A read-back row from the other side takes the thread's own name for them, as a live row does (the
+  // history reader names a member's direct message by the conversation's title).
+  const nameRow = (m) => (!m || m.me || m.shape ? m : { ...m, who: thread.who || m.who });
+  // ── READ RECEIPTS AND TYPING (owner, 2026-11-02: "build read receipts and typing indicator next"). The
+  // thread joins its signals channel (shapeBackend's ShapeThreadSignals) and reads who is typing and the
+  // others' read times from its store. Joined ABOVE the read-marking below, so the read that effect
+  // stores can be announced on it.
+  const sigKey = thread.conversationId ? `dm:${thread.conversationId}` : thread.channelId ? `ch:${thread.channelId}` : null;
+  const sigStore = window.ShapeThreadSignals || null;
+  const sigSubscribe = React.useCallback((cb) => (sigStore && sigKey ? sigStore.subscribe(sigKey, cb) : () => {}), [sigStore, sigKey]);
+  const signals = React.useSyncExternalStore(sigSubscribe, () => (sigStore && sigKey ? sigStore.get(sigKey) : BS_SIGNALS_EMPTY)) || BS_SIGNALS_EMPTY;
+  const sigRef = React.useRef(null);
+  const typedAtRef = React.useRef(0);
+  React.useEffect(() => {
+    const store = window.ShapeThreadSignals;
+    if (!sigKey || !store || !store.join) return undefined;
+    const h = store.join(sigKey);
+    sigRef.current = h;
+    if (thread.conversationId && store.refreshSeen) store.refreshSeen(thread.conversationId);
+    return () => {
+      try { if (typedAtRef.current) h.typing(false); } catch (e) {}
+      typedAtRef.current = 0;
+      try { h.leave(); } catch (e) {}
+      if (sigRef.current === h) sigRef.current = null;
+    };
+  }, [sigKey]);
+  // Once a read is stored, the other side is told to look again (the handle stays quiet when this
+  // member's read receipts are off).
+  const announceRead = (p) => { if (p && typeof p.then === 'function') p.then(() => { const h = sigRef.current; if (h) h.seen(); }).catch(() => {}); };
+  // What the composer sends as you type: an "on" every few seconds while there are words, an "off"
+  // when they go (bsTypingSend), and an "off" when the message is sent.
+  const onType = (v) => {
+    setText(v);
+    const h = sigRef.current;
+    if (!h) return;
+    const now = Date.now();
+    const act = bsTypingSend(typedAtRef.current, v, now);
+    if (act === 'on') { typedAtRef.current = now; h.typing(true); }
+    else if (act === 'off') { typedAtRef.current = 0; h.typing(false); }
+  };
+  const stopTyping = () => { if (!typedAtRef.current) return; typedAtRef.current = 0; const h = sigRef.current; if (h) h.typing(false); };
+  // A message that arrives while the app is out of sight (another tab, the phone locked or the app in the
+  // background) is not read yet, so it stays unread and the sender keeps Sent; it is read, and announced,
+  // when the thread comes back into view. A thread opened while hidden waits the same way.
+  // ⚠ COMING BACK RECONCILES WITH THE STORED THREAD (Codex P1 on #2565): a suspended app or socket can
+  // miss a message outright, so nothing arrived to note. Back in view, the thread loads its history, adds
+  // what it missed (in the thread's own name for the other side, as a live row is), and reads the thread
+  // if anything was waiting. If the history can't be loaded, only what this view already shows is read.
+  const unreadWhileHiddenRef = React.useRef(false);
+  const shownIdsRef = React.useRef(new Set());
+  React.useEffect(() => {
+    if (!thread.conversationId || typeof document === 'undefined' || !document.addEventListener) return undefined;
+    const id = thread.conversationId;
+    // Live only while this conversation is the thread's: a history that lands after the thread moved on
+    // (or closed) is dropped, never added to the next conversation or read for this one (Codex P2 on #2565).
+    let live = true;
+    const read = () => { unreadWhileHiddenRef.current = false; announceRead(window.ShapeUnread?.markConversationRead?.(id)); };
+    const readIfWaiting = () => { if (live && unreadWhileHiddenRef.current) read(); };
+    const onShown = () => {
+      if (bsPageHidden()) return;
+      const load = window.ShapeMessages?.getConversationThread;
+      if (!load) { readIfWaiting(); return; }
+      Promise.resolve(load(id)).then((res) => {
+        if (!live) return;
+        const stored = res && res.data && res.data.conversation_id === id && Array.isArray(res.data.messages) ? res.data.messages : null;
+        if (!stored) { readIfWaiting(); return; }
+        const rows = stored.map(nameRow);
+        const shown = shownIdsRef.current;
+        const missed = rows.filter((m) => m && m.id && !shown.has(String(m.id)));
+        // A message of yours still waiting on its send's answer, whose stored row is here, is that row: it
+        // takes the stored id in place rather than showing twice (Codex P2 on #2565). Known by the id this
+        // view sent it with (metadata.cid), never by its words, which an older message can share.
+        const byCid = new Map(rows.filter((m) => m && m.me && m.id && m.cid).map((m) => [m.cid, m]));
+        const claim = (e) => e.map((x) => {
+          if (!(x && x.me && x.tmpId && !x.id)) return x;
+          const row = byCid.get(x.tmpId);
+          return row ? { ...x, id: row.id, at: row.at || x.at } : x;
+        });
+        if (thread.messages && thread.messages.length) {
+          // The thread's messages came with it: what it missed joins them.
+          if (missed.length) setExtras((e) => {
+            const next = claim(e);
+            const have = new Set(next.filter((x) => x && x.id).map((x) => String(x.id)));
+            return [...next, ...missed.filter((m) => !have.has(String(m.id)))];
+          });
+        } else {
+          // It was showing the history it loaded, or only the list's id-less preview line: the stored
+          // history replaces either, so the preview never stands beside its stored copy (Codex P2 on #2565).
+          setHistory((prev) => bsMergeThreadHistory(prev, id, rows));
+          setExtras(claim);
+        }
+        if (missed.length || unreadWhileHiddenRef.current) read();
+      }).catch(readIfWaiting);
+    };
+    document.addEventListener('visibilitychange', onShown);
+    return () => { live = false; document.removeEventListener('visibilitychange', onShown); };
+  }, [thread.conversationId]);
   // ⚠ AN OPEN CONVERSATION IS READ, HOWEVER IT WAS OPENED (Codex on #2360, carried to the
   // notification audit): only the list's own tap marked it, so a thread opened from a notification,
   // a push or a coach's Message kept the messages already in it (the welcome included) in
   // dm_unread(), and the badge came back after a reload. Marked here, where every opener lands.
   React.useEffect(() => {
-    if (thread.conversationId) window.ShapeUnread?.markConversationRead?.(thread.conversationId);
+    // Out of sight (a notification can open it before the app is in view): read once it is (Codex P2 on #2565).
+    if (thread.conversationId && bsPageHidden()) unreadWhileHiddenRef.current = true;
+    else if (thread.conversationId) announceRead(window.ShapeUnread?.markConversationRead?.(thread.conversationId));
   }, [thread.conversationId]);
   React.useEffect(() => {
     setHistory(null);
@@ -27142,7 +27247,8 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     let on = true;
     const id = thread.conversationId;
     window.ShapeMessages.getConversationThread(id)
-      .then(res => { if (on && res && res.data && res.data.conversation_id === id && Array.isArray(res.data.messages)) setHistory({ id, messages: res.data.messages }); })
+      // Merged by id with any read that landed first (the return-to-view one), never replacing it (Codex on #2565).
+      .then(res => { if (on && res && res.data && res.data.conversation_id === id && Array.isArray(res.data.messages)) setHistory((prev) => bsMergeThreadHistory(prev, id, res.data.messages.map(nameRow))); })
       .catch(() => {});
     return () => { on = false; };
   }, [thread.conversationId]);
@@ -27157,7 +27263,11 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   // while the history is loading can be in both the snapshot and `extras`. A sent message gets its
   // id when the insert answers (send, below); one still in flight has none and is shown.
   const seedIds = new Set(seed.map(m => m && m.id).filter(Boolean));
-  const allMessages = [...seed, ...extras.filter(e => !(e && e.id && seedIds.has(e.id)))];
+  // ...and one id is shown once among `extras` too: a stored row can reach them from more than one place
+  // (a live row, a sent message's answer, the history read back on returning to view; Codex on #2565).
+  const shownOnce = new Set(seedIds);
+  const allMessages = [...seed, ...extras.filter(e => { if (!(e && e.id)) return true; if (shownOnce.has(e.id)) return false; shownOnce.add(e.id); return true; })];
+  shownIdsRef.current = new Set(allMessages.map(m => m && m.id).filter(Boolean).map(String));
   // Members' profile photos for the message avatars (visibility-ungated).
   React.useEffect(() => {
     if (!window.ShapeProfiles?.getUserAvatars) return;
@@ -27186,14 +27296,19 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     setExtras(e => [...e, { tmpId, who: 'You', t: body, time: 'now', at: new Date().toISOString(), me: true, reply }]);
     setText('');
     setReplyTo(null);
+    stopTyping();
     // Persist to the backend: direct conversation or community channel.
     // A reply carries its quote: a direct message's metadata.reply, a channel's `reply` (shapeBackend).
-    const sent = thread.conversationId ? window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body, ...(reply ? { metadata: { reply } } : {}) })
+    // A direct message carries the id this view gave it (metadata.cid), so a history read back before the
+    // send answers knows its row as this message, exactly (Codex P2 on #2565).
+    const sent = thread.conversationId ? window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body, metadata: { ...(reply ? { reply } : {}), cid: tmpId } })
       : thread.channelId ? window.ShapeChannels?.sendMessage?.({ channelId: thread.channelId, body, ...(reply ? { reply } : {}) }) : null;
     // The stored row's id, once it answers, so a history snapshot that already holds it shows it once.
     // A channel's too (2026-11-01), so a reply to a message you just sent names it.
     if (sent && sent.then && (thread.conversationId || thread.channelId)) {
-      sent.then(res => { const id = res && res.data && res.data.id; if (id) setExtras(e => e.map(x => x.tmpId === tmpId ? { ...x, id } : x)); }).catch(() => {});
+      // And its stored time: Seen compares the other side's read time with the server's clock, not this
+      // device's (read receipts, 2026-11-02).
+      sent.then(res => { const id = res && res.data && res.data.id; const at = res && res.data && res.data.created_at; if (id) setExtras(e => e.map(x => x.tmpId === tmpId ? { ...x, id, ...(at ? { at } : {}) } : x)); }).catch(() => {});
     } else if (sent && sent.catch) sent.catch(() => {});
   };
 
@@ -27205,6 +27320,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
       unsub = window.ShapeChannels.subscribeMessages((row) => {
         if (!row || row.channel_id !== thread.channelId || row.sender_id === myId) return;
         setExtras(e => [...e, { id: row.id || null, who: row.author_name || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, reply: bsReplyFromMetadata(row.metadata) }]);
+        if (row.sender_id) window.ShapeThreadSignals?.typing?.(sigKey, { userId: row.sender_id, on: false }); // they sent it: no longer typing
         window.ShapeUnread?.markChannelRead?.(thread.channelId);  // it's open → keep it read
       });
     } else if (thread.conversationId && window.ShapeMessages?.subscribeMessages) {
@@ -27212,12 +27328,15 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         if (!row || row.conversation_id !== thread.conversationId || row.sender_id === myId) return;
         // Shape's welcome is shown as a note, and the thread is open, so it is read like any other
         // message (dm_unread counts it: it is not the viewer's).
-        if (isShapeWelcome(row)) { setExtras(e => [...e, { id: row.id || null, who: 'Shape', t: row.body, time: 'now', at: row.created_at || null, me: false, shape: { body: row.body, sender_id: null, metadata: row.metadata } }]); window.ShapeUnread?.markConversationRead?.(thread.conversationId); return; }
+        if (isShapeWelcome(row)) { setExtras(e => [...e, { id: row.id || null, who: 'Shape', t: row.body, time: 'now', at: row.created_at || null, me: false, shape: { body: row.body, sender_id: null, metadata: row.metadata } }]); if (bsPageHidden()) unreadWhileHiddenRef.current = true; else announceRead(window.ShapeUnread?.markConversationRead?.(thread.conversationId)); return; }
         // Carry the live-boost stamp on realtime appends too — a boost landing
         // while this thread is OPEN (the time-sensitive case) must render with
         // its eyebrow immediately, not only after a reload re-maps metadata.
         setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null, grocery: bsGroceryFromMetadata(row.metadata), reply: bsReplyFromMetadata(row.metadata) }]);
-        window.ShapeUnread?.markConversationRead?.(thread.conversationId);
+        if (row.sender_id) window.ShapeThreadSignals?.typing?.(sigKey, { userId: row.sender_id, on: false }); // they sent it: no longer typing
+        // Read while open and in view: stored, then announced, so their Sent turns to Seen.
+        if (bsPageHidden()) unreadWhileHiddenRef.current = true;
+        else announceRead(window.ShapeUnread?.markConversationRead?.(thread.conversationId));
       });
     }
     return () => { try { unsub && unsub(); } catch (e) {} };
@@ -27360,6 +27479,24 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
       <button type="button" onClick={() => setReplyTo(null)} aria-label={tr('feed:thread.cancelReply', { defaultValue: 'Cancel reply' })} style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: 0, background: 'transparent', color: t.INK50, fontSize: 19, lineHeight: 1, cursor: 'pointer' }}>×</button>
     </div>
   ) : null;
+  // Sent, then Seen, under your last message in a conversation (never a channel). Nothing until the
+  // conversation says receipts may show: this member's switch is on and conversation_seen() answered.
+  const receipt = thread.conversationId && !thread.group ? bsReceiptFor(allMessages, signals.seen) : null;
+  const receiptWords = !receipt ? ''
+    : receipt.state === 'sent' ? tr('feed:thread.sent', { defaultValue: 'Sent' })
+    : receipt.count > 1 ? tr('feed:thread.seenBy', { count: receipt.count, defaultValue: 'Seen by {count}' })
+    : tr('feed:thread.seen', { defaultValue: 'Seen' });
+  // Who is typing. A direct thread shows its other person's face (and takes no one else's signal when it
+  // knows who that is); a channel names them, by the name their messages carry before the signal's own.
+  const nameOf = (uid) => { const hit = allMessages.find((x) => x && !x.me && x.userId === uid && x.who); return hit ? hit.who : ''; };
+  const typers = (signals.typing || [])
+    .filter((p) => p && (thread.group || !counterpartId || p.userId === counterpartId))
+    .map((p) => ({ userId: p.userId, name: thread.group ? (nameOf(p.userId) || p.name || tr('feed:thread.someone', { defaultValue: 'Someone' })) : thread.who }));
+  const typingWho = bsTypingWho(typers);
+  const typingWords = typingWho.kind === 'one' ? tr('feed:thread.typing', { name: typingWho.a, defaultValue: '{name} is typing' })
+    : typingWho.kind === 'two' ? tr('feed:thread.typingTwo', { a: typingWho.a, b: typingWho.b, defaultValue: '{a} and {b} are typing' })
+    : typingWho.kind === 'many' ? tr('feed:thread.typingMany', { defaultValue: 'Several people are typing' })
+    : '';
   // mast={false}: the desk is sticky and carries the masthead and ← itself, so BSPage's paper bar,
   // which pins past 64px, would only lay a second masthead over the ink band (Codex P2 on #2556).
   return (
@@ -27436,7 +27573,10 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
           const senderActivity = bsUserActivity(m.userId);
           const senderPhoto = (m.userId && threadAvatars[m.userId]) || (counterpartId ? threadAvatars[counterpartId] : undefined) || (!thread.conversationId && !thread.channelId ? bsDemoFace(senderName) : undefined);
           const stamp = (
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 12 : 5, textAlign: me ? 'right' : 'left' }}>{(m.at && bsChatClock(m.at, dateLocale)) || bsShortAge(m.time, tr)}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: myR ? 12 : 5, textAlign: me ? 'right' : 'left' }}>
+              {(m.at && bsChatClock(m.at, dateLocale)) || bsShortAge(m.time, tr)}
+              {receipt && receipt.index === i ? <><span aria-hidden> · </span><span data-thread-receipt={receipt.state} style={receipt.state === 'seen' ? { color: teal, fontWeight: 800 } : undefined}>{receiptWords}</span></> : null}
+            </div>
           );
           const reactionBits = (
             <>
@@ -27579,11 +27719,23 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
             </div>
           );
         })(); return dayAt.has(i) ? [dayDivider(i, m.at), node] : node; })}
+        {/* Typing: three teal dots on the paper, under their face (a direct thread) or beside the names
+            (a channel). The dots hold still under reduced motion (index.html). */}
+        {typers.length > 0 && (
+          <div data-thread-typing="" aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 18, minHeight: 28, minWidth: 0 }}>
+            {!thread.group && roundFace(24, headPhoto, bsInitials(thread.who) || '?')}
+            <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '9px 12px', borderRadius: 16, background: bsTHexA(t.INK, 0.06) }}>
+              {[0, 1, 2].map((k) => <span key={k} className="bs-typing-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: teal, animation: `bsTypingDot 1.2s ease-in-out ${k * 0.16}s infinite` }} />)}
+            </span>
+            {thread.group && <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{typingWords}</span>}
+          </div>
+        )}
+        <span role="status" aria-live="polite" style={BS_SR_ONLY}>{typingWords}</span>
       </div>
 
       {/* The tray composer, as Nora's sheet docks it, pinned to the foot of the screen; a reply's quote
           rides over its field. */}
-      <BSMessageComposer value={text} onChange={setText} onSend={send} pinned tray above={quoteBar} />
+      <BSMessageComposer value={text} onChange={onType} onSend={send} pinned tray above={quoteBar} />
     </BSPage>
   );
 }
@@ -35282,6 +35434,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     profileVisibility: ['Public', 'Just friends', 'Private'],
     agePublic: ['Off', 'On'],
     onlineVisible:     ['On', 'Off'],
+    // Read receipts (2026-11-02): conversation_seen() reads this key of the doc for both sides; Off hides
+    // your reads and theirs.
+    readReceipts:      ['On', 'Off'],
     // 'Friends' shares with mutual follows only (2026-10-30-workout-friends-audience.sql).
     shareWorkoutData:  ['On', 'Friends', 'Off'],
     dailyCheckin:      ['On', 'Off'],
@@ -36587,6 +36742,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       rows: [
         { l: tr('settings:privacy.visibility', { defaultValue: 'Profile visibility' }), key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility, desc: tr('settings:privacy.visibilityDesc', { defaultValue: 'Who can open your full profile — your activity, climb, and stats. Public: anyone on Shape. Just friends: only members you share a chat with. Private: hidden, so others see just your name and tier.' }) },
         { l: tr('settings:privacy.online', { defaultValue: 'Show when I’m online' }), key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible, desc: tr('settings:privacy.onlineDesc', { defaultValue: 'When on, a live dot shows on your avatar so others can see you’re active in the app right now. Turn it off to browse privately — your presence is never shown.' }) },
+        { l: tr('settings:privacy.readReceipts', { defaultValue: 'Read receipts' }), key: 'readReceipts', segmented: PREF_OPTIONS.readReceipts, segLabels: [tr('settings:common.on', { defaultValue: 'On' }), tr('settings:common.off', { defaultValue: 'Off' })], desc: tr('settings:privacy.readReceiptsDesc', { defaultValue: 'When on, the people you message see when you’ve read their messages, and you see when they’ve read yours. Turn it off and neither of you sees it. Channels never show who has read what.' }) },
         { l: tr('settings:privacy.shareWorkout', { defaultValue: 'Share workout data' }), key: 'shareWorkoutData', segmented: PREF_OPTIONS.shareWorkoutData,
           segLabels: [tr('settings:common.on', { defaultValue: 'On' }), tr('settings:privacy.shareFriends', { defaultValue: 'Friends' }), tr('settings:common.off', { defaultValue: 'Off' })],
           desc: tr('settings:privacy.shareWorkoutDesc', { defaultValue: 'Who sees your logged and synced workouts, PRs and activity, and can open a workout for its pace, splits, heart rate and route. On: everyone, in the community feed and on your profile; only your followers if your profile is Just friends. Friends: only people you follow who follow you back. Off: only you and your linked coach(es). A Private profile keeps them to you and your coach(es) whatever you pick here.' }) },

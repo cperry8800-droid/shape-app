@@ -66,6 +66,9 @@
   @keyframes bsAvDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.82); } }
   @keyframes bsspin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .bs-av-pulse, .bs-av-dot { animation: none !important; } }
+  /* A chat thread's typing dots (2026-11-02); still under reduced motion. */
+  @keyframes bsTypingDot { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+  @media (prefers-reduced-motion: reduce) { .bs-typing-dot { animation: none !important; opacity: 0.7; } }
   /* The facet avatar as a CONTROL — it is the only way into Settings from a
      masthead, and it shipped with no keyboard focus ring at all. :focus-visible,
      so a tap never flashes a ring and a Tab always does.

@@ -134,7 +134,8 @@ test('the thread screen: the magazine teal on the paper, the desk on the ink, No
   assert.match(th, /const DESK = t\.INK, DESK_INK = t\.PAPER;/);
   assert.match(th, /<window\.BSMastRow ink=\{DESK_INK\} trailing=\{<BSMeCorner ink=\{DESK_INK\} \/>\} \/>/);
   assert.doesNotMatch(th, /<BSFacetAvatar/, 'faces are round photos, as hers are');
-  assert.match(th, /<BSMessageComposer value=\{text\} onChange=\{setText\} onSend=\{send\} pinned tray above=\{quoteBar\} \/>/);
+  // onType sets the words and sends the typing signal (2026-11-02).
+  assert.match(th, /<BSMessageComposer value=\{text\} onChange=\{onType\} onSend=\{send\} pinned tray above=\{quoteBar\} \/>/);
 });
 
 test('the composer is square with an ink send button on the chat page; Nora\'s sheet has its own tray', () => {

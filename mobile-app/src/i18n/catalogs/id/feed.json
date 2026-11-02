@@ -367,5 +367,12 @@
   "thread.reply": "Balas",
   "thread.replyingTo": "Membalas {name}",
   "thread.cancelReply": "Batalkan balasan",
-  "thread.goToQuoted": "Tampilkan pesan yang dibalas"
+  "thread.goToQuoted": "Tampilkan pesan yang dibalas",
+  "thread.sent": "Terkirim",
+  "thread.seen": "Dilihat",
+  "thread.seenBy": "Dilihat oleh {count}",
+  "thread.typing": "{name} sedang mengetik",
+  "thread.typingTwo": "{a} dan {b} sedang mengetik",
+  "thread.typingMany": "Beberapa orang sedang mengetik",
+  "thread.someone": "Seseorang"
 }

@@ -367,5 +367,12 @@
   "thread.reply": "Reply",
   "thread.replyingTo": "You dey reply {name}",
   "thread.cancelReply": "Cancel reply",
-  "thread.goToQuoted": "Show the message wey e dey answer"
+  "thread.goToQuoted": "Show the message wey e dey answer",
+  "thread.sent": "Don send",
+  "thread.seen": "Don see",
+  "thread.seenBy": "{count} people don see",
+  "thread.typing": "{name} dey type",
+  "thread.typingTwo": "{a} and {b} dey type",
+  "thread.typingMany": "Plenty people dey type",
+  "thread.someone": "Somebody"
 }

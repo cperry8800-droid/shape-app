@@ -367,5 +367,12 @@
   "thread.reply": "Yanıtla",
   "thread.replyingTo": "{name} kişisine yanıt",
   "thread.cancelReply": "Yanıtı iptal et",
-  "thread.goToQuoted": "Yanıtlanan mesajı göster"
+  "thread.goToQuoted": "Yanıtlanan mesajı göster",
+  "thread.sent": "Gönderildi",
+  "thread.seen": "Görüldü",
+  "thread.seenBy": "{count} kişi gördü",
+  "thread.typing": "{name} yazıyor",
+  "thread.typingTwo": "{a} ve {b} yazıyor",
+  "thread.typingMany": "Birkaç kişi yazıyor",
+  "thread.someone": "Biri"
 }

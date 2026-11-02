@@ -367,5 +367,12 @@
   "thread.reply": "Répondre",
   "thread.replyingTo": "Réponse à {name}",
   "thread.cancelReply": "Annuler la réponse",
-  "thread.goToQuoted": "Voir le message auquel il répond"
+  "thread.goToQuoted": "Voir le message auquel il répond",
+  "thread.sent": "Envoyé",
+  "thread.seen": "Vu",
+  "thread.seenBy": "Vu par {count}",
+  "thread.typing": "{name} est en train d’écrire",
+  "thread.typingTwo": "{a} et {b} sont en train d’écrire",
+  "thread.typingMany": "Plusieurs personnes sont en train d’écrire",
+  "thread.someone": "Quelqu’un"
 }
