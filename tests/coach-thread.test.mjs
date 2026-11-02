@@ -699,7 +699,8 @@ test('a Messages page opens the thread it asked for, or none: never another clie
 test('the app\'s thread shows a message once when the history and the live messages overlap', () => {
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   const thread = client.slice(client.indexOf('function BSChatThread('), client.indexOf('\n}\n', client.indexOf('function BSChatThread(')));
-  assert.match(thread, /const seedIds = new Set\(seed\.map\(m => m && m\.id\)\.filter\(Boolean\)\);\s+const allMessages = \[\.\.\.seed, \.\.\.extras\.filter\(e => !\(e && e\.id && seedIds\.has\(e\.id\)\)\)\];/);
+  // Once among the extras too (read receipts, Codex on #2565: a row can reach them from more than one place).
+  assert.match(thread, /const seedIds = new Set\(seed\.map\(m => m && m\.id\)\.filter\(Boolean\)\);[\s\S]{0,260}const shownOnce = new Set\(seedIds\);\s+const allMessages = \[\.\.\.seed, \.\.\.extras\.filter\(e => \{ if \(!\(e && e\.id\)\) return true; if \(shownOnce\.has\(e\.id\)\) return false; shownOnce\.add\(e\.id\); return true; \}\)\];/);
   // Every source carries the id: the backend's mapping, the list rows, a live row, a sent row once stored.
   assert.match(read('mobile-app/src/services/shapeBackend.js'), /messages: ordered\.map\(message => \(\{\s+id: message\.id \|\| null,/);
   assert.match(client, /messages: \(th\.messages \|\| \[\]\)\.map\(m => \(\{ id: m\.id \|\| null, userId: m\.userId \|\| null, who:/);

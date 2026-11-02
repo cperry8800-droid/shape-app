@@ -27116,7 +27116,18 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         const shown = shownIdsRef.current;
         const missed = stored.filter((m) => m && m.id && !shown.has(String(m.id)))
           .map((m) => (m.me || m.shape ? m : { ...m, who: thread.who || m.who }));
-        if (missed.length) setExtras((e) => [...e, ...missed.filter((m) => !e.some((x) => x && x.id === m.id))]);
+        // A row of yours whose send is still waiting on its answer is that message: it takes the stored id
+        // in place, rather than showing twice (Codex P2 on #2565).
+        if (missed.length) setExtras((e) => {
+          const next = e.slice();
+          for (const m of missed) {
+            if (next.some((x) => x && x.id === m.id)) continue;
+            const pending = m.me ? next.findIndex((x) => x && x.me && x.tmpId && !x.id && x.t === m.t) : -1;
+            if (pending >= 0) next[pending] = { ...next[pending], id: m.id, at: m.at || next[pending].at };
+            else next.push(m);
+          }
+          return next;
+        });
         if (missed.length || unreadWhileHiddenRef.current) read();
       }).catch(readIfWaiting);
     };
@@ -27153,7 +27164,10 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   // while the history is loading can be in both the snapshot and `extras`. A sent message gets its
   // id when the insert answers (send, below); one still in flight has none and is shown.
   const seedIds = new Set(seed.map(m => m && m.id).filter(Boolean));
-  const allMessages = [...seed, ...extras.filter(e => !(e && e.id && seedIds.has(e.id)))];
+  // ...and one id is shown once among `extras` too: a stored row can reach them from more than one place
+  // (a live row, a sent message's answer, the history read back on returning to view; Codex on #2565).
+  const shownOnce = new Set(seedIds);
+  const allMessages = [...seed, ...extras.filter(e => { if (!(e && e.id)) return true; if (shownOnce.has(e.id)) return false; shownOnce.add(e.id); return true; })];
   shownIdsRef.current = new Set(allMessages.map(m => m && m.id).filter(Boolean).map(String));
   // Members' profile photos for the message avatars (visibility-ungated).
   React.useEffect(() => {

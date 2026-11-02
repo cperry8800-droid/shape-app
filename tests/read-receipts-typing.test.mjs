@@ -787,6 +787,39 @@ test('a history that lands after the thread has moved on is dropped, never added
   });
 });
 
+test('back in view while your own send is still on its way: the stored row is that message, shown once (Codex P2 on #2565)', async () => {
+  wire();
+  const page = pageStandIn('visible');
+  let answerSend = null;
+  const stored = { id: 'm-sent', who: 'You', t: 'On my way', at: '2026-11-02T10:30:00Z', me: true };
+  await withPage(page, {
+    ShapeUnread: { markConversationRead: () => Promise.resolve(true) },
+    ShapeMessages: {
+      subscribeMessages: () => () => {},
+      sendMessage: () => new Promise((r) => { answerSend = () => r({ data: { id: 'm-sent', created_at: stored.at } }); }),
+      getConversationThread: async (id) => ({ data: { conversation_id: id, messages: [...talk(), stored] } }),
+    },
+  }, async () => {
+    const { d, effects } = mount(DM());
+    effects.forEach((fn) => fn());
+    await tick();
+    composer(d).props.onChange('On my way');
+    d.render();
+    composer(d).props.onSend();   // stored at once; its answer is slow
+    d.render();
+    page.onVis();                 // back in view before the answer lands
+    await tick(); await tick();
+    d.render();
+    const count = () => d.text.split('On my way').length - 1;
+    assert.equal(count(), 1, 'once, while the send waits');
+    answerSend();
+    await tick(); await tick();
+    d.render();
+    assert.equal(count(), 1, 'and once after it answers');
+    assert.equal(withAttr(d.nodes(), 'data-thread-mine').filter((n) => textOf(n).includes('On my way')).length, 1);
+  });
+});
+
 function flat(node, out = []) {
   if (node == null || typeof node !== 'object') return out;
   if (Array.isArray(node)) { for (const c of node) flat(c, out); return out; }

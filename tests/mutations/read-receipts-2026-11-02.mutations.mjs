@@ -160,6 +160,10 @@ export default {
       find: "    return () => { live = false; document.removeEventListener('visibilitychange', onShown); };", replace: "    return () => { document.removeEventListener('visibilitychange', onShown); };" },
     { name: 'the typing channel is public', file: BACKEND,
       find: "channel = supabase.channel(topic, { config: { broadcast: { self: false }, private: true } });", replace: "channel = supabase.channel(topic, { config: { broadcast: { self: false } } });" },
+    { name: 'a stored copy of your pending send is added beside it', file: CLIENT,
+      find: '            const pending = m.me ? next.findIndex((x) => x && x.me && x.tmpId && !x.id && x.t === m.t) : -1;', replace: '            const pending = -1;' },
+    { name: 'one id may show twice among the extras', file: CLIENT,
+      find: 'if (shownOnce.has(e.id)) return false; shownOnce.add(e.id); return true;', replace: 'if (seedIds.has(e.id)) return false; return true;' },
     // ── the migration
     { name: 'the read time stays open to clients', file: SQL,
       find: 'revoke select on public.conversation_participants from anon, authenticated;\n', replace: '' },
