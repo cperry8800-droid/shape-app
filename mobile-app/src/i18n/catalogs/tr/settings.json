@@ -67,6 +67,8 @@
   "privacy.visibilityDesc": "Tam profilini kimler açabilir — etkinliğin, tırmanışın ve istatistiklerin. Herkese açık: Shape'teki herkes. Yalnızca arkadaşlar: sadece bir sohbeti paylaştığın üyeler. Gizli: gizlenir, böylece başkaları yalnızca adını ve seviyeni görür.",
   "privacy.online": "Çevrimiçiyken göster",
   "privacy.onlineDesc": "Açıkken avatarında canlı bir nokta belirir, böylece başkaları uygulamada şu anda aktif olduğunu görebilir. Gizlice gezinmek için kapat — varlığın asla gösterilmez.",
+  "privacy.readReceipts": "Okundu bilgisi",
+  "privacy.readReceiptsDesc": "Açıkken mesajlaştığın kişiler mesajlarını ne zaman okuduğunu görür, sen de onların seninkileri ne zaman okuduğunu görürsün. Kapatırsan ikiniz de göremezsiniz. Kanallar kimin neyi okuduğunu asla göstermez.",
   "privacy.shareWorkout": "Antrenman verilerini paylaş",
   "privacy.shareFriends": "Arkadaşlar",
   "privacy.shareWorkoutDesc": "Kaydedilen ve eşitlenen antrenmanlarını, rekorlarını ve etkinliğini kimin göreceği ve bir antrenmanı açıp temposunu, ara sürelerini, nabzını ve rotasını kimin görebileceği. Açık: herkes, topluluk akışında ve profilinde; profilin Yalnızca arkadaşlar ise yalnızca takipçilerin. Arkadaşlar: yalnızca takip ettiğin ve seni geri takip eden kişiler. Kapalı: yalnızca sen ve bağlı koçların. Gizli bir profil, burada ne seçersen seç, onları sana ve koçlarına saklar.",

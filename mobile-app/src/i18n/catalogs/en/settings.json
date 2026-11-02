@@ -67,6 +67,8 @@
   "privacy.visibilityDesc": "Who can open your full profile — your activity, climb, and stats. Public: anyone on Shape. Just friends: only members you share a chat with. Private: hidden, so others see just your name and tier.",
   "privacy.online": "Show when I’m online",
   "privacy.onlineDesc": "When on, a live dot shows on your avatar so others can see you’re active in the app right now. Turn it off to browse privately — your presence is never shown.",
+  "privacy.readReceipts": "Read receipts",
+  "privacy.readReceiptsDesc": "When on, the people you message see when you’ve read their messages, and you see when they’ve read yours. Turn it off and neither of you sees it. Channels never show who has read what.",
   "privacy.shareWorkout": "Share workout data",
   "privacy.shareFriends": "Friends",
   "privacy.shareWorkoutDesc": "Who sees your logged and synced workouts, PRs and activity, and can open a workout for its pace, splits, heart rate and route. On: everyone, in the community feed and on your profile; only your followers if your profile is Just friends. Friends: only people you follow who follow you back. Off: only you and your linked coach(es). A Private profile keeps them to you and your coach(es) whatever you pick here.",

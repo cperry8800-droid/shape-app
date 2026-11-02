@@ -361,5 +361,12 @@
   "thread.reply": "Amsa",
   "thread.replyingTo": "Ana amsa wa {name}",
   "thread.cancelReply": "Soke amsa",
-  "thread.goToQuoted": "Nuna saƙon da ake amsawa"
+  "thread.goToQuoted": "Nuna saƙon da ake amsawa",
+  "thread.sent": "An aika",
+  "thread.seen": "An gani",
+  "thread.seenBy": "Mutum {count} sun gani",
+  "thread.typing": "{name} na rubutu",
+  "thread.typingTwo": "{a} da {b} suna rubutu",
+  "thread.typingMany": "Mutane da dama suna rubutu",
+  "thread.someone": "Wani"
 }

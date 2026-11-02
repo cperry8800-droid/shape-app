@@ -53,7 +53,8 @@ const fnSrc = (name) => {
   for (; i < SRC.length; i++) { if (SRC[i] === '{') depth++; else if (SRC[i] === '}' && --depth === 0) break; }
   return SRC.slice(at, i + 1);
 };
-const load = (name, deps) => new Function(...Object.keys(deps), `${fnSrc('chatTimeOf')}; ${fnSrc(name)}; return ${name};`)(...Object.values(deps));
+// bsViewIdOf: the id a sender's view gave its message (read receipts, #2565), which both readers keep.
+const load = (name, deps) => new Function(...Object.keys(deps), `${fnSrc('chatTimeOf')}; ${fnSrc('bsViewIdOf')}; ${fnSrc(name)}; return ${name};`)(...Object.values(deps));
 const ROWS = [
   { id: 'm1', sender_id: 'u-ana', author_name: 'Ana', body: 'Six tomorrow?', created_at: at(2026, 9, 27, 18, 30) },
   { id: 'm2', sender_id: 'u-me', author_name: 'Me', body: 'In', created_at: at(2026, 9, 30, 9, 15) },

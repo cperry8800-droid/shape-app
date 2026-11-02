@@ -361,5 +361,12 @@
   "thread.reply": "Відповісти",
   "thread.replyingTo": "Відповідь для {name}",
   "thread.cancelReply": "Скасувати відповідь",
-  "thread.goToQuoted": "Показати повідомлення, на яке це відповідь"
+  "thread.goToQuoted": "Показати повідомлення, на яке це відповідь",
+  "thread.sent": "Надіслано",
+  "thread.seen": "Переглянуто",
+  "thread.seenBy": "Переглянули: {count}",
+  "thread.typing": "{name} друкує",
+  "thread.typingTwo": "{a} і {b} друкують",
+  "thread.typingMany": "Кілька людей друкують",
+  "thread.someone": "Хтось"
 }

@@ -584,6 +584,8 @@ test('a conversation opened by id is read, however it was opened', () => {
   // A notification, a push or a coach's Message opened the thread by id and never marked it read, so
   // the messages already in it (the welcome included) stayed in dm_unread().
   const at = CLIENT.indexOf('function BSChatThread(');
-  const body = CLIENT.slice(at, at + 4000);
-  assert.match(body, /React\.useEffect\(\(\) => \{\s+if \(thread\.conversationId\) window\.ShapeUnread\?\.markConversationRead\?\.\(thread\.conversationId\);\s+\}, \[thread\.conversationId\]\);/);
+  const body = CLIENT.slice(at, CLIENT.indexOf('\n}\n', at)); // to the function's end: its effects grew (read receipts)
+  // The stored read is then announced, so the other side's Sent turns to Seen (read receipts, 2026-11-02).
+  // Opened out of sight (a notification can open it before the app is in view), it is read once it is in view.
+  assert.match(body, /React\.useEffect\(\(\) => \{\s+\/\/[^\n]*\n\s+if \(thread\.conversationId && bsPageHidden\(\)\) unreadWhileHiddenRef\.current = true;\s+else if \(thread\.conversationId\) announceRead\(window\.ShapeUnread\?\.markConversationRead\?\.\(thread\.conversationId\)\);\s+\}, \[thread\.conversationId\]\);/);
 });
