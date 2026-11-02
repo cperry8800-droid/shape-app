@@ -493,7 +493,8 @@ test('website card: lines render as lines; "Open in builder" appears after the c
   assert.equal(link().props.href, '/newdesign/TrainerApp.html#programs?plan=plan-1');
   assert.equal(textOf(link()), 'Open in builder →');
 
-  const evil = drive(Card, { a: { ...DRAFT_CARD, open: { kind: 'coach_plan', planId: 'x', url: 'https://evil.example/' } } });
+  // Its own proposal: a card's outcome is kept by its token (#2566), so the same token would draw Applied.
+  const evil = drive(Card, { a: { ...DRAFT_CARD, token: 'tok-evil', open: { kind: 'coach_plan', planId: 'x', url: 'https://evil.example/' } } });
   evil.click('Confirm');
   await tick(); await tick();
   evil.render();

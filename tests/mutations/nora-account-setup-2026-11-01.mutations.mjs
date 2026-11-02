@@ -176,15 +176,21 @@ export default {
 
     // ── The website and the tours ──
     { name: 'the website draws a refused row as a line', file: WEB, find: '{diff.map((d, i) => cwIsRefused(d) ? (', replace: '{diff.map((d, i) => false ? (' },
-    { name: 'the page under the website card is not told of a setup', file: WEB, find: ' if (a.action === "set_up_account") cwAfterAccountSetup(false); }', replace: ' }' },
-    { name: 'the page under the website card is not told of an Undo', file: WEB, find: ' if (a.action === "set_up_account") cwAfterAccountSetup(true); }', replace: ' }' },
-    { name: 'the page under the website card is told of every card', file: WEB, find: ' if (a.action === "set_up_account") cwAfterAccountSetup(false); }', replace: ' cwAfterAccountSetup(false); }' },
     // ── A website card's outcome outlives the card (Codex on 08677b3) ──
-    { name: 'a website card forgets it was applied', file: WEB, find: 'const [status, setStatus] = React.useState(kept ? kept.status : "idle");', replace: 'const [status, setStatus] = React.useState("idle");' },
-    { name: 'a website card forgets its Undo', file: WEB, find: 'const [auditId, setAuditId] = React.useState(kept ? kept.auditId : null);', replace: 'const [auditId, setAuditId] = React.useState(null);' },
-    { name: 'a confirmed website card is not kept', file: WEB, find: ' cwCardDoneKeep(a.token, "done", r && r.auditId);', replace: '' },
-    { name: 'an undone website card is not kept', file: WEB, find: ' cwCardDoneKeep(a.token, "undone", auditId);', replace: '' },
+    // One source (Codex on 88348f0): Applied and Undone are drawn from the kept outcome alone.
+    { name: 'a website card forgets it was applied', file: WEB, find: 'phase : kept ? kept.status : phase === "error"', replace: 'phase : phase === "error"' },
+    { name: 'a website card forgets its Undo', file: WEB, find: 'const auditId = kept ? kept.auditId : null;', replace: 'const auditId = null;' },
+    { name: 'a confirmed website card is not kept', file: WEB, find: '      cwCardDoneKeep(token, "done", r && r.auditId);\n', replace: '' },
+    { name: 'an undone website card is not kept', file: WEB, find: '      cwCardDoneKeep(token, "undone", auditId);\n', replace: '' },
+    { name: 'a confirmed setup does not tell the page under the website card', file: WEB, find: 'cwCardDoneKeep(token, "done", r && r.auditId);\n      setPhase(null);\n      adopt();', replace: 'cwCardDoneKeep(token, "done", r && r.auditId);\n      setPhase(null);' },
+    { name: 'an undone setup does not tell the page under the website card', file: WEB, find: 'cwCardDoneKeep(token, "undone", auditId);\n      setPhase(null);\n      adopt();', replace: 'cwCardDoneKeep(token, "undone", auditId);\n      setPhase(null);' },
+    { name: 'the page under the website card is told of every card', file: WEB, find: 'if (now && now !== was && isSetup) cwAfterAccountSetup', replace: 'if (now && now !== was) cwAfterAccountSetup' },
+    { name: 'the page under the website card is told of no setup', file: WEB, find: '    if (now && now !== was && isSetup) cwAfterAccountSetup(now === "undone");\n', replace: '' },
+    { name: 'the same outcome heard again is announced again', file: WEB, find: 'if (now && now !== was && isSetup)', replace: 'if (now && isSetup)' },
     { name: 'a website card does not hear another tab', file: WEB, find: '    try { window.addEventListener("storage", onStore); } catch (e) { return undefined; }', replace: '    return undefined;' },
+    { name: 'a Confirm lost to another tab shows its error over the winner\'s outcome', file: WEB, find: '      if (adopt()) { setPhase(null); return; }\n', replace: '' },
+    { name: 'an error outranks the kept outcome', file: WEB, find: 'const status = phase === "busy" || phase === "undoing" ? phase : kept ? kept.status : phase === "error" ? "error" : "idle";', replace: 'const status = phase === "busy" || phase === "undoing" || phase === "error" ? phase : kept ? kept.status : "idle";' },
+    { name: 'a browser that refuses storage keeps no outcome', file: WEB, find: '  _cwCardDoneMem.set(id, v);\n', replace: '' },
     {
       name: "a website card takes any key's change as its own", file: WEB, find: 'if (e && e.key != null && e.key !== CW_CARD_DONE_KEY) return;', replace: 'if (false) return;',
       // PROOF OF NO-OP: on any storage event the card re-reads its own outcome from the one store
@@ -192,10 +198,6 @@ export default {
       // only spares that read. The test's other-key event confirms the card is unchanged either way.
       expectSurvive: true,
     },
-    { name: 'a website card hears another tab but keeps its Undo away', file: WEB, find: '      setAuditId(k.auditId || null);\n      if (a && a.action', replace: '      if (a && a.action' },
-    { name: "another tab's setup does not reach this tab's page", file: WEB, find: '      if (a && a.action === "set_up_account") cwAfterAccountSetup(k.status === "undone");\n', replace: '' },
-    { name: "another tab's every card reaches this tab's page as a setup", file: WEB, find: '      if (a && a.action === "set_up_account") cwAfterAccountSetup(k.status === "undone");', replace: '      cwAfterAccountSetup(k.status === "undone");' },
-    { name: 'the same outcome heard again is announced again', file: WEB, find: 'if (cur === "busy" || cur === "undoing" || cur === k.status) return;', replace: 'if (cur === "busy" || cur === "undoing") return;' },
     { name: 'every website card is kept as one', file: WEB, find: 'token.slice(token.lastIndexOf(".") + 1) || null', replace: '"all"' },
     { name: 'every confirmed web card says "saved to your account"', file: WEB, find: '{status === "done" && a.action === "set_up_account" && (', replace: '{status === "done" && (' },
     { name: "the tour's other way on runs before the tour is marked seen", file: TOUR, find: "other.onclick = () => { finish(); try { step.onAlt(); } catch (_) {} };", replace: "other.onclick = () => { try { step.onAlt(); } catch (_) {} finish(); };" },

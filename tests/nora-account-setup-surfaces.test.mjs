@@ -248,6 +248,60 @@ test('website card: a card open in another tab follows its Confirm and Undo ther
   assert.equal(told.length, 2, 'no setup announced for another card');
 });
 
+// Codex on 88348f0 (P2): Confirm pressed on the same card in two tabs at once. One wins; the other's
+// answer is "already applied". The card draws its outcome from the kept store alone, so the loser
+// shows Applied with the winner's Undo, whether the winner's outcome landed before its answer or after.
+test('website card: a Confirm that loses to another tab shows the winner\'s outcome, with its Undo', async () => {
+  const fail = { ok: false, json: async () => ({ ok: false, error: 'already_confirmed', message: 'That change was already applied.' }) };
+  // The winner's outcome is kept before this tab's answer arrives.
+  {
+    const store = memStorage();
+    const told = [];
+    const win = { dispatchEvent: (e) => { told.push([e.type, JSON.parse(JSON.stringify(e.detail))]); return true; }, addEventListener() {}, removeEventListener() {} };
+    const Card = webCard(async () => { store.setItem('shape.nora.cardDone.v1', JSON.stringify({ 'tok-race': { status: 'done', auditId: 'aud-win', at: 1 } })); return fail; }, win, store);
+    const d = drive(Card, { a: { ...SETUP_CARD, token: 'tok-race' } });
+    d.click('Confirm');
+    await tick(); await tick();
+    d.render();
+    assert.ok(d.text.includes('Applied ✓') && !d.text.includes('already applied'), 'applied, and no error');
+    assert.ok(d.buttons().some((b) => b.label === 'Undo'), 'with the winner\'s Undo');
+    assert.ok(!d.buttons().some((b) => /^(Confirm|Try again)/.test(b.label)));
+    assert.deepEqual(told, [['shape:accountSetup', { undone: false }]], 'and this tab\'s page is told');
+  }
+  // The winner's outcome lands after: the error stands until it does, then the card follows it.
+  {
+    const store = memStorage();
+    const listeners = [];
+    const told = [];
+    const win = { dispatchEvent: (e) => { told.push([e.type, JSON.parse(JSON.stringify(e.detail))]); return true; }, addEventListener: (t, fn) => listeners.push([t, fn]), removeEventListener() {} };
+    const ran = new Set();
+    const React = { ...SHIM, useEffect: (fn, deps) => { const key = JSON.stringify(deps); if (!ran.has(key)) { ran.add(key); fn(); } } };
+    const Card = webCard(async () => fail, win, store, React);
+    const d = drive(Card, { a: { ...SETUP_CARD, token: 'tok-race' } });
+    d.click('Confirm');
+    await tick(); await tick();
+    d.render();
+    assert.ok(d.text.includes('That change was already applied.'), 'the answer, until the outcome lands');
+    store.setItem('shape.nora.cardDone.v1', JSON.stringify({ 'tok-race': { status: 'done', auditId: 'aud-win', at: 1 } }));
+    listeners.forEach(([t, fn]) => fn({ key: 'shape.nora.cardDone.v1' }));
+    d.render();
+    assert.ok(d.text.includes('Applied ✓') && d.buttons().some((b) => b.label === 'Undo'), 'then the winner\'s outcome, Undo and all');
+    assert.deepEqual(told, [['shape:accountSetup', { undone: false }]]);
+  }
+  // A browser that refuses storage still keeps the outcome for the page's life.
+  {
+    const broken = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };
+    const Card = webCard(async () => ({ ok: true, json: async () => ({ ok: true, auditId: 'aud-mem' }) }), { dispatchEvent: () => true }, broken);
+    const d = drive(Card, { a: { ...SETUP_CARD, token: 'tok-mem' } });
+    d.click('Confirm');
+    await tick(); await tick();
+    d.render();
+    assert.ok(d.text.includes('Applied ✓'));
+    const again = drive(Card, { a: { ...SETUP_CARD, token: 'tok-mem' } });
+    assert.ok(again.text.includes('Applied ✓') && again.buttons().some((b) => b.label === 'Undo'), 'drawn again, from memory');
+  }
+});
+
 // ── The tours ────────────────────────────────────────────────────────────────────────────────
 async function inDom(fn) {
   const { JSDOM } = require_('jsdom');

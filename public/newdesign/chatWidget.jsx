@@ -173,49 +173,62 @@ const cwAfterAccountSetup = (undone) => { try { window.dispatchEvent(new CustomE
 // localStorage, so closing the widget, another page or another tab draws every card anew; kept only in
 // the card, a confirmed change offered Confirm again (which answers "already applied") and its Undo was
 // gone. The app keeps the same (_bsNoraCardDone). Keyed by the token's signature, which names one
-// proposal; the newest 50 are kept.
+// proposal; the newest 50 are kept, with a copy in memory for a browser that refuses storage.
+// ⚠ ONE SOURCE: the card draws Applied or Undone from the kept outcome alone, and its own state holds
+// only what is in flight here (Applying, Undoing) and an error. So an outcome kept by this tab, by
+// another tab (the storage event), or by another tab that won a Confirm pressed in both at once (this
+// one's answer is "already applied") is drawn the same way, with its Undo.
 const CW_CARD_DONE_KEY = "shape.nora.cardDone.v1";
+const _cwCardDoneMem = new Map();
 const cwCardId = (token) => (typeof token === "string" && token ? token.slice(token.lastIndexOf(".") + 1) || null : null);
 const cwCardDoneRead = (token) => {
   const id = cwCardId(token);
   if (!id) return null;
-  try { const m = JSON.parse(localStorage.getItem(CW_CARD_DONE_KEY) || "{}"); const v = m && m[id]; return v && (v.status === "done" || v.status === "undone") ? v : null; } catch (e) { return null; }
+  let v = null;
+  try { const m = JSON.parse(localStorage.getItem(CW_CARD_DONE_KEY) || "{}"); v = m && m[id]; } catch (e) { v = null; }
+  if (!v) v = _cwCardDoneMem.get(id) || null;
+  return v && (v.status === "done" || v.status === "undone") ? v : null;
 };
 const cwCardDoneKeep = (token, status, auditId) => {
   const id = cwCardId(token);
   if (!id) return;
+  const v = { status, auditId: auditId || null, at: Date.now() };
+  _cwCardDoneMem.set(id, v);
   try {
     const m = JSON.parse(localStorage.getItem(CW_CARD_DONE_KEY) || "{}") || {};
-    m[id] = { status, auditId: auditId || null, at: Date.now() };
+    m[id] = v;
     Object.keys(m).sort((x, y) => (m[y].at || 0) - (m[x].at || 0)).slice(50).forEach((k) => { delete m[k]; });
     localStorage.setItem(CW_CARD_DONE_KEY, JSON.stringify(m));
   } catch (e) {}
 };
 function CwProposalCard({ a }) {
-  const kept = cwCardDoneRead(a && a.token);
-  const [status, setStatus] = React.useState(kept ? kept.status : "idle"); // idle|busy|done|undoing|undone|error
+  const token = a && a.token;
+  const isSetup = !!a && a.action === "set_up_account";
+  const [phase, setPhase] = React.useState(null); // null | busy | undoing | error: what is in flight here
   const [err, setErr] = React.useState("");
-  const [auditId, setAuditId] = React.useState(kept ? kept.auditId : null);
+  const [, setSeen] = React.useState(0); // moved on when the kept outcome may have changed
+  const kept = cwCardDoneRead(token);
+  const status = phase === "busy" || phase === "undoing" ? phase : kept ? kept.status : phase === "error" ? "error" : "idle";
+  const auditId = kept ? kept.auditId : null;
+  // The outcome this tab last drew, so a setup's page here is told once per change, whoever made it.
+  const keptRef = React.useRef(kept ? kept.status : null);
+  const adopt = () => {
+    const k = cwCardDoneRead(token);
+    const now = k ? k.status : null;
+    const was = keptRef.current;
+    keptRef.current = now;
+    setSeen((n) => n + 1);
+    if (now && now !== was && isSetup) cwAfterAccountSetup(now === "undone");
+    return k;
+  };
   // The same card open in another tab: its Confirm or Undo there lands here too (the storage event
   // fires in every other tab of the origin), so this one never offers Confirm again, and a setup's
-  // page here reads again what it changed, as it does when Confirm is pressed here (Codex on #2566).
-  const statusRef = React.useRef(status);
-  statusRef.current = status;
+  // page here reads again what it changed, as it does when Confirm is pressed here.
   React.useEffect(() => {
-    const onStore = (e) => {
-      if (e && e.key != null && e.key !== CW_CARD_DONE_KEY) return;
-      const k = cwCardDoneRead(a && a.token);
-      if (!k) return;
-      const cur = statusRef.current;
-      if (cur === "busy" || cur === "undoing" || cur === k.status) return;
-      statusRef.current = k.status;
-      setStatus(k.status);
-      setAuditId(k.auditId || null);
-      if (a && a.action === "set_up_account") cwAfterAccountSetup(k.status === "undone");
-    };
+    const onStore = (e) => { if (e && e.key != null && e.key !== CW_CARD_DONE_KEY) return; adopt(); };
     try { window.addEventListener("storage", onStore); } catch (e) { return undefined; }
     return () => { try { window.removeEventListener("storage", onStore); } catch (e) {} };
-  }, [a && a.token]);
+  }, [token]);
   const mono = "'JetBrains Mono', monospace";
   const ink = "var(--sh-ink, #f2ede4)", muted = "var(--sh-ink2, #a09b94)", hair = "rgba(var(--sh-ink-rgb, 242,237,228),0.14)";
   const diff = Array.isArray(a.diff) ? a.diff : [];
@@ -229,15 +242,31 @@ function CwProposalCard({ a }) {
   };
   const confirm = async () => {
     if (status === "busy" || status === "done") return;
-    setStatus("busy"); setErr("");
-    try { const r = await post("/api/ai/proposals/confirm", { token: a.token }); setAuditId(r && r.auditId); setStatus("done"); cwCardDoneKeep(a.token, "done", r && r.auditId); if (a.action === "set_up_account") cwAfterAccountSetup(false); }
-    catch (e) { setErr(String(e && e.message || "Could not apply that change.")); setStatus("error"); }
+    setPhase("busy"); setErr("");
+    try {
+      const r = await post("/api/ai/proposals/confirm", { token });
+      cwCardDoneKeep(token, "done", r && r.auditId);
+      setPhase(null);
+      adopt();
+    } catch (e) {
+      setPhase("error");
+      // Lost to the same card confirmed in another tab: its kept outcome is this card's, Undo and all.
+      if (adopt()) { setPhase(null); return; }
+      setErr(String(e && e.message || "Could not apply that change."));
+    }
   };
   const undo = async () => {
     if (!auditId || status === "undoing" || status === "undone") return;
-    setStatus("undoing"); setErr("");
-    try { await post("/api/ai/audit/undo", { auditId }); setStatus("undone"); cwCardDoneKeep(a.token, "undone", auditId); if (a.action === "set_up_account") cwAfterAccountSetup(true); }
-    catch (e) { setErr(String(e && e.message || "Could not undo.")); setStatus("done"); }
+    setPhase("undoing"); setErr("");
+    try {
+      await post("/api/ai/audit/undo", { auditId });
+      cwCardDoneKeep(token, "undone", auditId);
+      setPhase(null);
+      adopt();
+    } catch (e) {
+      setPhase(null);
+      setErr(String(e && e.message || "Could not undo."));
+    }
   };
   return (
     <div style={{ width: "100%", maxWidth: "92%", border: `1px solid ${cwHexA(TEAL, 0.45)}`, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.07)", borderRadius: 14, padding: 12, marginTop: 8 }}>
