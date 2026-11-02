@@ -37,7 +37,7 @@
 // node:test with a fake and in the routes with the real thing.
 
 import { SIGNUP_GOALS, SIGNUP_GOAL_MAX, signupGoalFromText } from '../signup-answers.mjs';
-import { primaryGoalLabel } from './goalLabels.mjs';
+import { primaryGoalLabel, primaryGoalFromWords } from './goalLabels.mjs';
 import { BS_PREF_OPTIONS } from '../../../public/newdesign/prefOptions.mjs';
 import {
   bsProfileLine, bsProfileAbout, bsCleanText, bsCleanStory, BS_LINE_MAX, BS_ABOUT_STORY_MAX, BS_ABOUT_FACT_MAX, BS_ABOUT_YEARS_MAX,
@@ -170,7 +170,8 @@ export const SETUP_FIELDS = Object.freeze({
     parse: (raw) => {
       const s = text(raw);
       if (s == null || Array.from(s.replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim()).length > SIGNUP_GOAL_MAX) return null;
-      const g = signupGoalFromText(s);
+      // A listed goal named in any of the app's languages is that goal (goalLabels.mjs), not their words.
+      const g = primaryGoalFromWords(s) || signupGoalFromText(s);
       return g && (SIGNUP_GOALS.some((x) => x.id === g) || /\p{L}/u.test(g)) ? g : null;
     },
     cells: (g, now, { locale } = {}) => [{ ...doc('client_goals', 'primaryGoal'), value: g }, { ...doc('client_identity', 'goal'), value: primaryGoalLabel(g, locale) ?? goalLabel(g) }, { ...doc('client_onboarding', 'intentSeen'), value: true }],

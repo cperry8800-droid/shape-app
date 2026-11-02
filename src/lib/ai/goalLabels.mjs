@@ -30,3 +30,18 @@ export function primaryGoalLabel(id, locale = 'en') {
   const row = Object.prototype.hasOwnProperty.call(PRIMARY_GOAL_LABELS, locale) ? PRIMARY_GOAL_LABELS[locale] : en;
   return row[id] || en[id];
 }
+
+// A goal's words, in any of the app's languages, back to its id (Codex on #2566): Nora in a Spanish
+// chat may pass "Perder grasa", which the English-only reader (signupGoalFromText) would keep as the
+// member's own words, so Goals would show no chip and the weight read would miss it. Folded as a
+// person types them: case, spacing and compatibility forms aside. null for words no language uses.
+const fold = (s) => String(s == null ? '' : s).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+const BY_WORDS = (() => {
+  const m = new Map();
+  for (const row of Object.values(PRIMARY_GOAL_LABELS)) for (const [id, words] of Object.entries(row)) m.set(fold(words), id);
+  return m;
+})();
+export function primaryGoalFromWords(text) {
+  const k = fold(text);
+  return k && BY_WORDS.has(k) ? BY_WORDS.get(k) : null;
+}

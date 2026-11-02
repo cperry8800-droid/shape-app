@@ -162,6 +162,9 @@ export default {
     { name: 'the route hands the proposer no language', file: ROUTE, find: 'actor ? zone : null, locale);', replace: 'actor ? zone : null);' },
     { name: "a language's label is read in English", file: GL, find: 'const row = Object.prototype.hasOwnProperty.call(PRIMARY_GOAL_LABELS, locale) ? PRIMARY_GOAL_LABELS[locale] : en;', replace: 'const row = en;' },
 
+    { name: 'a goal named in another language is kept as their words', file: CORE, find: 'const g = primaryGoalFromWords(s) || signupGoalFromText(s);', replace: 'const g = signupGoalFromText(s);' },
+    { name: "a goal's words are matched as typed, unfolded", file: GL, find: ".normalize('NFKC').toLowerCase().replace(/\\s+/g, ' ').trim();", replace: ';' },
+
     // ── A restore that fails too (Codex on a569e48) ──
     { name: 'a failed restore still says nothing was changed', file: CORE, find: 'if (kept.length) throw new Error(partialSavedMsg(', replace: 'if (false) throw new Error(partialSavedMsg(' },
     { name: 'a failed restore names nothing kept', file: CORE, find: '            kept.push(...g);\n', replace: '' },

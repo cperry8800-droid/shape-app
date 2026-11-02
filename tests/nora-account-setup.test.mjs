@@ -540,6 +540,33 @@ test('⚠ the when-it-changed stamps are the moment of Confirm, not of the card;
 // Codex on a569e48 (P2): client_identity.goal is the label the member's public profile shows, and the
 // app's goal step and Goals page write it in the member's language. Setup writes it in the chat's
 // language too (the app sends its locale), English on the website, and their own words as written.
+// Codex on a17e22a (P2): in a Spanish chat Nora may pass the goal in Spanish ("Perder grasa"). The
+// English-only reader kept that as the member's own words, so Goals showed no chip; a listed goal named
+// in any of the app's languages is that goal.
+test('⚠ a listed goal named in any of the app\'s languages is that goal, not the member\'s own words', async () => {
+  const { PRIMARY_GOAL_LABELS, primaryGoalFromWords } = await import('../src/lib/ai/goalLabels.mjs');
+  const seen = new Map();
+  for (const [l, row] of Object.entries(PRIMARY_GOAL_LABELS)) {
+    for (const [id, words] of Object.entries(row)) {
+      assert.equal(primaryGoalFromWords(words), id, `${l} "${words}" is ${id}`);
+      const k = words.toLowerCase();
+      assert.ok(!seen.has(k) || seen.get(k) === id, `"${words}" names two goals (${seen.get(k)}, ${id})`);
+      seen.set(k, id);
+    }
+  }
+  assert.equal(primaryGoalFromWords('  perder   GRASA '), 'fat_loss', 'as a person types it');
+  assert.equal(primaryGoalFromWords('Hike Kilimanjaro'), null);
+  const plan = (value) => setup.planSetupChanges({ changes: [{ field: 'goal', value }] }, { actorId: ME, roles: ['client'] });
+  assert.deepEqual(plan('Perder grasa').changes, [{ field: 'goal', value: 'fat_loss' }]);
+  assert.deepEqual(plan('Ganhar músculo').changes, [{ field: 'goal', value: 'muscle' }]);
+  assert.deepEqual(plan('Hike Kilimanjaro').changes, [{ field: 'goal', value: 'Hike Kilimanjaro' }], 'their own words stay theirs');
+  // Through the card, in Spanish: the token, and the profile's words in Spanish.
+  const db = accountDb({ goals: { client_onboarding: { tourSeen: true } } });
+  const built = await setup.buildSetupPreview(db, ME, plan('Perder grasa'), { now: NOW, locale: 'es' });
+  assert.equal(built.cells.find((c) => c.kind === 'client_goals').after, 'fat_loss');
+  assert.equal(built.cells.find((c) => c.kind === 'client_identity').after, 'Perder grasa');
+});
+
 test('⚠ the goal\'s words on the profile are in the member\'s app language, as the app writes them', async () => {
   const { PRIMARY_GOAL_LABELS, primaryGoalLabel } = await import('../src/lib/ai/goalLabels.mjs');
   const { ACTIVE_LOCALES } = await import('../mobile-app/src/i18n/locales.mjs');
