@@ -450,6 +450,7 @@
   "planDay.minutes": "{min} phút",
   "planDay.kcal": "{kcal} kcal",
   "planDay.failed": "Chưa lưu được. Thử lại.",
+  "planDay.dayFull": "Ngày đó đã có {n} bữa được lên kế hoạch.",
   "planDay.close": "Xong",
   "planDay.today": "Hôm nay",
   "planDay.tomorrow": "Ngày mai",

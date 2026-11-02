@@ -450,6 +450,7 @@
   "planDay.minutes": "{min} мин",
   "planDay.kcal": "{kcal} ккал",
   "planDay.failed": "Не сохранилось. Попробуйте ещё раз.",
+  "planDay.dayFull": "На этот день уже запланировано блюд: {n}.",
   "planDay.close": "Готово",
   "planDay.today": "Сегодня",
   "planDay.tomorrow": "Завтра",

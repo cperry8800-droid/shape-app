@@ -450,6 +450,7 @@
   "planDay.minutes": "{min} хв",
   "planDay.kcal": "{kcal} ккал",
   "planDay.failed": "Не збережено. Спробуйте ще раз.",
+  "planDay.dayFull": "На цей день уже заплановано страв: {n}.",
   "planDay.close": "Готово",
   "planDay.today": "Сьогодні",
   "planDay.tomorrow": "Завтра",

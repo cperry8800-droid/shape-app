@@ -450,6 +450,7 @@
   "planDay.minutes": "{min} min",
   "planDay.kcal": "{kcal} kcal",
   "planDay.failed": "E no save. Try again.",
+  "planDay.dayFull": "Dat day don already get {n} food wey you plan.",
   "planDay.close": "Done",
   "planDay.today": "Today",
   "planDay.tomorrow": "Tomorrow",

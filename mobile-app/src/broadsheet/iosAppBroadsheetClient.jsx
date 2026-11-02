@@ -49,7 +49,7 @@ import { bsRecipesStore, bsRecipesList, bsRecipePointer, bsRecipesUidSync, bsSpl
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from '../services/mealPrep.mjs';
 import { bsMakeAheadIndex, bsMakeAheadInfo, bsMorningSwapFor, bsPlanByDow, bsPlanMealsOn, bsPrepCovers, bsPrepDueTonight, bsPrepHourOf, bsPrepRecordsFor, bsYmdAdd, bsYmdIn, BS_PREP_HOURS, BS_PREP_REMINDER_KIND } from '../services/prepAhead.mjs';
-import { BS_MEAL_DAYS_KIND, BS_OWN_SLOT_TIME, bsMealDayOf, bsMealDaysAdd, bsMealDaysRemove, bsMealDaysSwap, bsMealDaysWrite, bsOwnMealOf } from '../services/mealDays.mjs';
+import { BS_MEAL_DAYS_KIND, BS_OWN_PER_DAY, BS_OWN_SLOT_TIME, bsMealDayOf, bsMealDaysAdd, bsMealDaysRemove, bsMealDaysSwap, bsMealDaysWrite, bsOwnMealOf } from '../services/mealDays.mjs';
 import { BSPlanMealSheet, BSMorningSwapCard } from './BSPlanDay.jsx';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
@@ -12652,6 +12652,12 @@ function bsPlanDayChoices(tr) {
 async function bsPlanRecipe(tr, ymd, slot, recipe) {
   const meal = bsOwnMealOf(recipe, slot, bsOwnMealId());
   const saved = meal ? await bsWriteMealDays((doc, today) => bsMealDaysAdd(doc, ymd, meal, today)) : null;
+  // A day already holding BS_OWN_PER_DAY meals takes no more: the document saved without it, so
+  // say the day is full rather than that it was planned (Codex P2 on #2563).
+  if (saved && !bsMealDayOf(saved, ymd).add.some((a) => a.id === meal.id)) {
+    window.__bsToast && window.__bsToast(tr('nutrition:planDay.dayFull', { defaultValue: 'That day already has {n} meals planned.', n: BS_OWN_PER_DAY }), 'error');
+    return false;
+  }
   const today = bsLocalDay(Date.now());
   window.__bsToast && window.__bsToast(!saved
     ? tr('nutrition:planDay.failed', { defaultValue: 'That was not saved. Try again.' })

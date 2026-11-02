@@ -450,6 +450,7 @@
   "planDay.minutes": "{min} menit",
   "planDay.kcal": "{kcal} kkal",
   "planDay.failed": "Itu tidak tersimpan. Coba lagi.",
+  "planDay.dayFull": "Hari itu sudah punya {n} makanan yang direncanakan.",
   "planDay.close": "Selesai",
   "planDay.today": "Hari ini",
   "planDay.tomorrow": "Besok",

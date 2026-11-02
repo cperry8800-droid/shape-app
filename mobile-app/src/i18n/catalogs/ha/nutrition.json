@@ -450,6 +450,7 @@
   "planDay.minutes": "minti {min}",
   "planDay.kcal": "{kcal} kcal",
   "planDay.failed": "Ba a adana hakan ba. Sake gwadawa.",
+  "planDay.dayFull": "Wannan ranar tana da abinci {n} da aka tsara riga.",
   "planDay.close": "An gama",
   "planDay.today": "Yau",
   "planDay.tomorrow": "Gobe",

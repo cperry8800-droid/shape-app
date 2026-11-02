@@ -410,3 +410,17 @@ test('⚠ the plan sheet\'s search narrows the slot\'s recipes, never leaves the
   assert.deepEqual(titles('BREAKFAST', ''), ['Chicken and egg breakfast wrap', 'Greek yogurt power bowl']);
   assert.deepEqual(titles('BREAKFAST', 'tray'), [], 'a search with nothing in the slot finds nothing');
 });
+
+test('⚠ a full day says so: the thirteenth meal is not reported as planned (Codex P2 on #2563)', async () => {
+  signedIn(true);
+  const tomorrow = bsYmdAdd(bsYmdIn(Date.now()), 1);
+  const full = Array.from({ length: 12 }, (_, i) => ({ id: `m${i}`, slot: 'LUNCH', title: `Meal ${i}` }));
+  const store = goalsStore({ client_meal_days: { v: 1, days: { [tomorrow]: { add: full } } } });
+  const toasts = [];
+  window.__bsToast = (msg, kind) => toasts.push([msg, kind]);
+  const tr = (k, o = {}) => window.ShapeI18n.t(k, o);
+  assert.equal(await MOD.bsPlanRecipe(tr, tomorrow, 'BREAKFAST', recipe(OATS)), false);
+  assert.deepEqual(toasts.pop(), ['That day already has 12 meals planned.', 'error']);
+  assert.equal(store.docs.client_meal_days.days[tomorrow].add.length, 12, 'the day is as it was');
+  assert.ok(!store.docs.client_meal_days.days[tomorrow].add.some((a) => a.title === OATS));
+});

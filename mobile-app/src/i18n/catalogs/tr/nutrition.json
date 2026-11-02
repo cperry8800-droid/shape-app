@@ -450,6 +450,7 @@
   "planDay.minutes": "{min} dk",
   "planDay.kcal": "{kcal} kcal",
   "planDay.failed": "Kaydedilmedi. Tekrar dene.",
+  "planDay.dayFull": "O gün için zaten {n} öğün planlandı.",
   "planDay.close": "Tamam",
   "planDay.today": "Bugün",
   "planDay.tomorrow": "Yarın",

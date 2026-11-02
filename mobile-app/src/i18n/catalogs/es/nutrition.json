@@ -450,6 +450,7 @@
   "planDay.minutes": "{min} min",
   "planDay.kcal": "{kcal} kcal",
   "planDay.failed": "No se guardó. Inténtalo de nuevo.",
+  "planDay.dayFull": "Ese día ya tiene {n} comidas planificadas.",
   "planDay.close": "Listo",
   "planDay.today": "Hoy",
   "planDay.tomorrow": "Mañana",
