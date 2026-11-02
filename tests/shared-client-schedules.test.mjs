@@ -34,6 +34,7 @@ async function calendarRoute() {
   const guards = await import(pathToFileURL(join(ROOT, 'src/lib/access-guards.mjs')).href);
   const activities = await loadRealModule(join(ROOT, 'src/lib/calendar-activities.ts'), { typescript: true, registry: new Map([['@/lib/time', time]]) });
   const workoutDays = await loadRealModule(join(ROOT, 'src/lib/workout-days.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/time', time]]) });
+  const memberMenus = await loadRealModule(join(ROOT, 'src/lib/member-menus.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href)]]) });
   let client = null, userId = null;
   const route = await loadRealModule(join(ROOT, 'src/app/api/calendar/route.ts'), {
     typescript: true,
@@ -44,6 +45,7 @@ async function calendarRoute() {
       ['@/lib/access-guards.mjs', guards],
       ['@/lib/calendar-activities', activities],
       ['@/lib/workout-days', workoutDays],
+      ['@/lib/member-menus', memberMenus],
       ['@/lib/require-membership', { requireMembership: async () => null }],
       ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: userId }) }],
       ['@supabase/supabase-js', {}],
@@ -227,6 +229,135 @@ test('the member\'s own calendar asks for nothing new, and a failed shared read 
   assert.equal(res.status, 200);
   assert.equal(res.body.events.filter((e) => e.source === 'plan' || e.source === 'meal').length, 0);
   assert.equal(res.body.events.filter((e) => e.source === 'session').length, 2);
+});
+
+// ── the member's own calendar: each nutritionist who coaches them now (War Room: "The member's own
+// calendar still shows only the newest menu when they have two nutritionists") ─────────────────────
+const NUTRITIONISTS = [
+  { id: 4, owner_id: 'coach-n', name: 'Nia Nutri' },
+  { id: 5, owner_id: 'coach-n2', name: 'Nell Second' },
+  { id: 6, owner_id: 'coach-n3', name: 'Fay Former' },
+];
+const menuRow = (id, nutritionistId, title, createdAt, extra = {}) => ({
+  id, client_id: 'member-1', nutritionist_id: nutritionistId, status: 'published', title, week_start: null, created_at: createdAt,
+  payload: { days: [{ dow: DOW, meals: [{ slot: 'Lunch', title, time: '12:30', kcal: 600 }] }] }, ...extra,
+});
+const sub = (providerId, status, extra = {}) => ({ client_id: 'member-1', provider_role: 'nutritionist', provider_id: providerId, status, created_at: '2026-09-01T00:00:00Z', ...extra });
+const MEMBER_MENUS = [
+  menuRow('mp-nia', 4, 'Nia lunch', '2026-10-01T00:00:00Z'),
+  menuRow('mp-nia-old', 4, 'Nia old lunch', '2026-09-01T00:00:00Z', { status: 'archived' }),
+  menuRow('mp-nell', 5, 'Nell lunch', '2026-10-20T00:00:00Z'),
+  // An older menu of Nell's still published (two pushes at once): her newest is the one shown.
+  menuRow('mp-nell-stale', 5, 'Nell stale lunch', '2026-10-10T00:00:00Z'),
+  // A nutritionist who has left, whose menu is the newest of all.
+  menuRow('mp-fay', 6, 'Fay lunch', '2026-10-25T00:00:00Z'),
+  // Another member's menu from the same nutritionist.
+  menuRow('mp-other', 4, 'Someone else lunch', '2026-10-30T00:00:00Z', { client_id: 'member-2' }),
+];
+const memberWorld = (subscriptions, client_meal_plans = MEMBER_MENUS) => ({
+  ...COACHES, nutritionists: NUTRITIONISTS, sessions: [], calendar_events: [], client_workouts: [], workout_sessions: [],
+  client_meal_plans, subscriptions,
+});
+const lunchesToday = (body) => body.events.filter((e) => e.source === 'meal' && e.date === TODAY).map((e) => [e.title, e.by]).sort();
+
+test('the member\'s own calendar shows the menu of each nutritionist who coaches them now, each named', async () => {
+  const db = fakeSupabase({
+    tables: memberWorld([
+      sub(4, 'active'),
+      sub(5, 'past_due'),
+      sub(6, 'canceled'),
+      // Another member's subscription to the nutritionist who left.
+      sub(6, 'active', { client_id: 'member-2' }),
+      // The same member's trainer: not a menu.
+      { client_id: 'member-1', provider_role: 'trainer', provider_id: 4, status: 'active', created_at: '2026-09-01T00:00:00Z' },
+    ]),
+    rpcs: { get_shared_client_meal_plan: () => { throw new Error('a member never asks'); } },
+  });
+  const { status, body } = await getCalendar(db, 'member-1', QS);
+  assert.equal(status, 200);
+  assert.deepEqual(lunchesToday(body), [['Nell lunch', 'Nell Second'], ['Nia lunch', 'Nia Nutri']],
+    'both current nutritionists\' menus, named; not the one who left, an archived menu, or another member\'s');
+  const ids = new Set(body.events.filter((e) => e.source === 'meal').map((e) => e.id));
+  assert.equal(ids.size, body.events.filter((e) => e.source === 'meal').length, 'every meal keeps its own id');
+  // The reads: the newest menu, the member's open nutritionists, one menu read for each not already read.
+  const menuReads = db._calls.filter((c) => c.table === 'client_meal_plans');
+  assert.equal(menuReads.length, 3);
+  assert.ok(menuReads.every((c) => c.limit === 1));
+  assert.equal(db._calls.filter((c) => c.table === 'subscriptions').length, 1);
+});
+
+test('one current nutritionist: their menu, unnamed, as before, even when a former one\'s menu is newer', async () => {
+  const db = fakeSupabase({ tables: memberWorld([sub(4, 'trialing'), sub(6, 'canceled')]) });
+  const { body } = await getCalendar(db, 'member-1', QS);
+  assert.deepEqual(lunchesToday(body), [['Nia lunch', undefined]]);
+
+  // Their menu is the newest: no second menu read.
+  const newest = fakeSupabase({ tables: memberWorld([sub(5, 'active')]) });
+  const res = await getCalendar(newest, 'member-1', QS);
+  assert.deepEqual(lunchesToday(res.body), [['Nell lunch', undefined]]);
+  assert.equal(newest._calls.filter((c) => c.table === 'client_meal_plans').length, 2);
+  // …and with Fay's newest menu gone, Nell's is the newest overall and is read once.
+  const once = fakeSupabase({ tables: memberWorld([sub(5, 'active')], MEMBER_MENUS.filter((m) => m.id !== 'mp-fay')) });
+  const r2 = await getCalendar(once, 'member-1', QS);
+  assert.deepEqual(lunchesToday(r2.body), [['Nell lunch', undefined]]);
+  assert.equal(once._calls.filter((c) => c.table === 'client_meal_plans').length, 1);
+});
+
+test('no current nutritionist\'s menu, or a failed read: the newest menu, as before', async () => {
+  // Their nutritionist has left: they keep the menu they were given.
+  const left = await getCalendar(fakeSupabase({ tables: memberWorld([sub(6, 'canceled')]) }), 'member-1', QS);
+  assert.deepEqual(lunchesToday(left.body), [['Fay lunch', undefined]]);
+  // No subscriptions at all.
+  const none = await getCalendar(fakeSupabase({ tables: memberWorld([]) }), 'member-1', QS);
+  assert.deepEqual(lunchesToday(none.body), [['Fay lunch', undefined]]);
+  // A current nutritionist with no menu yet.
+  const noMenu = await getCalendar(fakeSupabase({ tables: memberWorld([sub(4, 'active')], MEMBER_MENUS.filter((m) => m.nutritionist_id !== 4)) }), 'member-1', QS);
+  assert.deepEqual(lunchesToday(noMenu.body), [['Fay lunch', undefined]]);
+  // The subscriptions read fails: the newest menu, never an empty calendar.
+  const failed = await getCalendar(fakeSupabase({ tables: memberWorld([sub(4, 'active'), sub(5, 'active')]), fail: ['subscriptions'] }), 'member-1', QS);
+  assert.equal(failed.status, 200);
+  assert.deepEqual(lunchesToday(failed.body), [['Fay lunch', undefined]]);
+  // The names read fails: both menus, unnamed.
+  const unnamed = await getCalendar(fakeSupabase({ tables: memberWorld([sub(4, 'active'), sub(5, 'active')]), fail: ['nutritionists'] }), 'member-1', QS);
+  assert.deepEqual(lunchesToday(unnamed.body), [['Nell lunch', undefined], ['Nia lunch', undefined]]);
+});
+
+test('one nutritionist\'s menu read fails: the others still show', async () => {
+  // A fake whose menu read for one nutritionist answers an error, as a timeout would.
+  let failed = 0;
+  const failOne = (db, id) => ({
+    ...db,
+    from(table) {
+      const q = db.from(table);
+      if (table !== 'client_meal_plans') return q;
+      let hit = false;
+      const { eq, then } = q;
+      q.eq = (col, v) => { if (col === 'nutritionist_id' && Number(v) === id) hit = true; eq(col, v); return q; };
+      q.then = (res, rej) => {
+        if (!hit) return then.call(q, res, rej);
+        failed += 1;
+        return Promise.resolve({ data: null, error: { message: 'timeout' } }).then(res, rej);
+      };
+      return q;
+    },
+  });
+  // Three nutritionists coach them; Nia's menu read fails.
+  const db = failOne(fakeSupabase({ tables: memberWorld([sub(4, 'active'), sub(5, 'active'), sub(6, 'active')]) }), 4);
+  const { status, body } = await getCalendar(db, 'member-1', QS);
+  assert.equal(status, 200);
+  assert.deepEqual(lunchesToday(body), [['Fay lunch', 'Fay Former'], ['Nell lunch', 'Nell Second']]);
+  // Nia's read was asked for and failed; the newest and Nell's were answered.
+  assert.equal(failed, 1);
+  assert.equal(db._calls.filter((c) => c.table === 'client_meal_plans').length, 2);
+});
+
+test('a coach\'s view of a client reads no subscriptions for its menus', async () => {
+  const db = fakeSupabase({
+    tables: { ...memberWorld([sub(4, 'active'), sub(5, 'active')]) },
+    rpcs: { get_shared_client_workouts: () => [], get_shared_client_meal_plan: () => [OTHER_NUTRITIONIST_MENU] },
+  });
+  await getCalendar(db, 'coach-n', `${QS}&clientId=member-1&role=nutritionist`);
+  assert.equal(db._calls.filter((c) => c.table === 'subscriptions').length, 0);
 });
 
 // ── the migration ────────────────────────────────────────────────────────────────────────────────

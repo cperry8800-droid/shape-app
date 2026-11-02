@@ -51,6 +51,7 @@ import { requireMembership } from '@/lib/require-membership';
 import { DAY_MS, normalizeZone, wallClockInZone } from '@/lib/time';
 import { calendarActivities, workoutKind, type ActivityRow, type ActivityEvent, type DoneWorkout, type PlannedWorkout } from '@/lib/calendar-activities';
 import { memberDay, storedDay } from '@/lib/workout-days';
+import { memberMenus, MENU_COLUMNS, type CalendarMenu, type MenuRow } from '@/lib/member-menus';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -494,12 +495,12 @@ export async function GET(request: Request) {
     }
   }
 
-  // 4) The active weekly menu (nutritionist "push to client"), expanded onto
+  // 4) The active weekly menus (each nutritionist's "push to client"), expanded onto
   //    real dates by day-of-week — from this week forward only (the current
   //    menu says nothing about what past weeks were).
   const { data: mpRows } = await supabase
     .from('client_meal_plans')
-    .select('id, title, week_start, payload')
+    .select(MENU_COLUMNS)
     .eq('client_id', targetUserId)
     .eq('status', 'published')
     .order('created_at', { ascending: false })
@@ -507,15 +508,16 @@ export async function GET(request: Request) {
 
   type MenuMeal = { slot?: unknown; title?: unknown; time?: unknown; kcal?: unknown };
   type MenuDay = { dow?: unknown; meals?: MenuMeal[] };
-  type MpRow = { id: string; title: string; week_start: string | null; payload: unknown };
-  // The menus on this calendar: the reader's own newest (RLS) and, in a coach's view of a client,
-  // the newest published menu of each OTHER nutritionist who coaches them now (any coach on the
-  // client sees every other coach's plan: owner, 2026-10-29), each meal's slot, title, time and
-  // kcal (no ingredients, steps or notes), named by its nutritionist. A failed read shows the
-  // reader's own menu only, as before.
-  const menus: Array<{ mp: MpRow; by: string | null }> = [];
+  type MpRow = MenuRow;
+  // The menus on this calendar.
+  // - The member's own: the newest published menu of each nutritionist who coaches them now, each
+  //   named when there are two or more (`memberMenus`), else their newest, as before.
+  // - A coach's view of a client: the coach's own newest (RLS) and the newest published menu of
+  //   each OTHER nutritionist who coaches them now (any coach on the client sees every other
+  //   coach's plan: owner, 2026-10-29), each meal's slot, title, time and kcal (no ingredients,
+  //   steps or notes), named by its nutritionist. A failed read shows the coach's own menu only.
   const ownMenu = ((mpRows ?? []) as MpRow[])[0] ?? null;
-  if (ownMenu) menus.push({ mp: ownMenu, by: null });
+  const menus: CalendarMenu[] = clientView ? (ownMenu ? [{ mp: ownMenu, by: null }] : []) : await memberMenus(supabase, targetUserId, ownMenu);
   if (clientView) {
     const { data: sharedMenus, error: menuError } = await supabase.rpc('get_shared_client_meal_plan', { p_client_id: clientId });
     if (menuError) console.warn('[calendar] the other coaches\' menus were not read:', menuError.message);
