@@ -33,6 +33,7 @@ import { bsGoalVerdict, bsGoalPct, bsGoalRemaining } from '../services/goalContr
 import { bsProfileStreak, bsProfileWeek, bsProfileTrajectory, bsProfileLifts, bsProfileDisciplines } from '../services/profileSignals.mjs';
 import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionDisplay, bsPrefOptionToken, bsGoalKind } from '../services/prefOptions.mjs';
 import { bsFirstRunStage, bsFirstRunNeedsSeed } from '../services/firstRun.mjs';
+import { bsUserGoalsRevHook, bsAnnounceUserGoals, BS_ACCOUNT_SETUP_KINDS } from '../services/userGoalsRefresh.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsAssignWeekLine, bsAssignDayLine, bsWeekUnits, bsWeekSpan } from '../services/planOutline.mjs';
@@ -4655,6 +4656,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // The Energy card reads the user's active goal (nutrition + training prefs)
   // and reframes the same balance into one of three states. Default 'maintain'.
   const [energyGoal, setEnergyGoal] = useStateBSC('maintain');
+  const prefsRev = useBSUserGoalsRev(BS_PREF_KINDS);
   React.useEffect(() => {
     let cancelled = false;
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
@@ -4668,7 +4670,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       setEnergyGoal(bsGoalKind((np && np.primary_goal) || '', (tp && tp.primary_goal) || (tp && tp.goal) || ''));
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [prefsRev]);
 
   // Live focus banner + pushed items the coach sent. Initial pull, then a
   // Supabase Realtime subscription on coach_focus_banners / coach_pushed_items
@@ -12888,6 +12890,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   const [liveMealTitle, setLiveMealTitle] = useStateBSC(null); // real plan title
   // Goal label for the "Your plan" header, read from the client's nutrition prefs.
   const [planGoal, setPlanGoal] = useStateBSC('maintain');
+  const prefsRev = useBSUserGoalsRev(BS_PREF_KINDS);
   React.useEffect(() => {
     let cancelled = false;
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
@@ -12904,7 +12907,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       setPlanGoal(bsGoalKind((np && np.primary_goal) || '', (tp && tp.primary_goal) || (tp && tp.goal) || ''));
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [prefsRev]);
   const planGoalLabel = planGoal === 'cut' ? tr('nutrition:eat.goalCut', { defaultValue: 'Cutting' })
     : planGoal === 'build' ? tr('nutrition:eat.goalBuild', { defaultValue: 'Building' })
     : tr('nutrition:eat.goalMaintain', { defaultValue: 'Maintaining' });
@@ -18624,7 +18627,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   React.useEffect(() => { setLive(null); if (!person.userId || !window.ShapeProfiles?.getPublicProfile) return undefined; let on = true; window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (on && d) setLive(d); }).catch(() => {}); return () => { on = false; }; }, [person.userId]);
   // Profile customization (song/prompts/links/bio): self loads its own doc;
   // others read it from the public-profile RPC (`custom`).
-  React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
+  const customRev = useBSUserGoalsRev(BS_PROFILE_CUSTOM_KINDS);
+  React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf, customRev]);
   React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
   // For your OWN profile, tier + points come from the SAME live-score source as
@@ -18759,6 +18763,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const [climbProgress, setClimbProgress] = useStateBSC(null);
   const prog = useBSProgram();
   const [coachReal, setCoachReal] = useStateBSC(null);
+  const goalsRev = useBSUserGoalsRev(BS_GOALS_KINDS);
   React.useEffect(() => {
     if (!isSelf) return;
     let alive = true;
@@ -18782,7 +18787,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       if (climb && Array.isArray(climb.shown)) setClimbShown(climb.shown.filter((k) => k !== 'score' && CLIMB_SOURCES.some((s) => s.key === k)));
     })();
     return () => { alive = false; };
-  }, [isSelf]);
+  }, [isSelf, goalsRev]);
   // Strength PRs + body-fat trend for the self climb (demo fallback otherwise).
   React.useEffect(() => {
     if (!isSelf || !(window.ShapeProgress && window.ShapeProgress.progress)) return;
@@ -19916,7 +19921,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   React.useEffect(() => { loadCoachPosts(); }, [loadCoachPosts, coachFeedReloadNonce]);
   useBSPresence();
   React.useEffect(() => { setLive(null); if (!person.userId || !window.ShapeProfiles?.getPublicProfile) return undefined; let on = true; window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (on && d) setLive(d); }).catch(() => {}); return () => { on = false; }; }, [person.userId]);
-  React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
+  const customRev = useBSUserGoalsRev(BS_PROFILE_CUSTOM_KINDS);
+  React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf, customRev]);
   // Live sigil rings for your own coach profile (habits / client workouts / own activity).
   React.useEffect(() => { let on = true; if (isSelf && window.ShapeCoachRings?.get) { window.ShapeCoachRings.get().then((d) => { if (on && d) setRingLive(d); }).catch(() => {}); } return () => { on = false; }; }, [isSelf]);
   React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
@@ -26467,7 +26473,18 @@ const BS_SETUP_REFUSED = {
 // reads each owning screen makes at start: units, the Morning check-in switch, the profile, the
 // notification switches; and the first-run steps are re-read (shape:accountSetup), so the step on
 // screen moves on.
+// Each mounted reader of a document the setup writes reads it again (services/userGoalsRefresh.mjs):
+// Home's Energy card, Eat's goal line, Settings' Training, Nutrition and Preferences rows, the
+// profile's climb, a coach's own profile, and (in their own modules) Home's goal, Goals and the
+// coach page.
+const useBSUserGoalsRev = bsUserGoalsRevHook(React);
+const BS_PREF_KINDS = ['client_training_prefs', 'client_nutrition_prefs'];
+const BS_GOALS_KINDS = ['client_goals'];
+const BS_SETTINGS_KINDS = ['client_settings'];
+const BS_PROFILE_CUSTOM_KINDS = ['profile_custom'];
+const BS_IDENTITY_KINDS = ['client_identity'];
 function bsAfterAccountSetup(undone) {
+  try { bsAnnounceUserGoals(BS_ACCOUNT_SETUP_KINDS); } catch (e) {}
   try {
     const db = window.shapeDb;
     if (db && db.getUserGoals) {
@@ -30292,11 +30309,12 @@ function BSMeGoalCard({ onOpen }) {
   const TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
   const [g, setG] = useStateBSC(null);
   const [primary, setPrimary] = useStateBSC('');
+  const goalsRev = useBSUserGoalsRev(BS_GOALS_KINDS);
   React.useEffect(() => {
     let on = true;
     (async () => { try { const d = await window.shapeDb?.getUserGoals?.('client_goals'); if (on && d) { if (d.overall) setG(d.overall); if (d.primaryGoal) setPrimary(d.primaryGoal); } } catch (e) {} })();
     return () => { on = false; };
-  }, []);
+  }, [goalsRev]);
   // Signed in with no goal set → render nothing (never the demo goal); the demo
   // is the signed-out preview only. A real goal (g) shows once it loads — a door
   // never appears for a signed-in account with no goal. A goal that isn't about
@@ -35188,6 +35206,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // user_goals, edited through the same edit sheet.
   const [nutritionPrefs, setNutritionPrefs] = useStateBSC({});
   const [trainingPrefs, setTrainingPrefs] = useStateBSC({});
+  const prefsRev = useBSUserGoalsRev(BS_PREF_KINDS);
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -35201,7 +35220,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       } catch (e) {}
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [prefsRev]);
   const persistPref = async (store, patch, uid) => {
     const kind = store === 'nutrition' ? 'client_nutrition_prefs' : 'client_training_prefs';
     try {
@@ -35299,6 +35318,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const serverDocRef = React.useRef(null); // the newest REAL document we've seen
   const hydrateRef = React.useRef(null);   // this pane's first read, in flight
   const [prefs, setPrefs] = useStateBSC(() => ({ ...PREF_DEFAULTS, dailyCheckin: bsDailyCheckinLabel(), onlineRail: bsOnlineRailLabel() }));
+  // Read again when the doc is changed from outside this pane (Nora's account setup or its Undo);
+  // what the member has edited here still wins, as on the first read.
+  const settingsRev = useBSUserGoalsRev(BS_SETTINGS_KINDS);
   React.useEffect(() => {
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
     let alive = true;
@@ -35343,7 +35365,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (s.trainingPhase || s.nutritionPhase) window.ShapeProgram?.set?.({ trainingPhase: s.trainingPhase, nutritionPhase: s.nutritionPhase });
     }).catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [settingsRev]);
   // The ONE place a pref reaches the cloud. Nothing else in this pane may call
   // saveUserGoals: a bare `next` published before the hydrate lands is exactly
   // the clobber this exists to prevent.
@@ -35929,7 +35951,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     window.ShapeNav?.announce?.({ sub: navSub });
     return () => window.ShapeNav?.announce?.(null);
   }, [navSub]);
-  // Persist the profile identity across sessions/devices via user_goals.
+  // Persist the profile identity across sessions/devices via user_goals. Read again when Nora's
+  // account setup (or its Undo) changes the name from her sheet; a key typed into stays theirs.
+  const identityRev = useBSUserGoalsRev(BS_IDENTITY_KINDS);
   React.useEffect(() => {
     if (!window.shapeDb?.getUserGoals) return;
     window.shapeDb.getUserGoals('client_identity').then(d => {
@@ -35946,7 +35970,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...d }; } catch (e) {}
       }
     }).catch(() => {});
-  }, []);
+  }, [identityRev]);
   const startEdit = () => { touchedRef.current = new Set(); setDraft(seedDraft()); setEditing(true); };
   const saveEdit  = async () => {
     // ⚠ ONLY WHAT THE MEMBER TOUCHED IS WRITTEN (see touchedRef). The draft is a copy

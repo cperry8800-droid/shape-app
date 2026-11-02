@@ -3,6 +3,11 @@ import { BSFocusTitle, BSFocusLink } from './BSFocus.jsx';
 import { bsCiDay, bsCiAnswered, bsCiIso, BS_CI_SAVED } from './BSCheckinCard.jsx';
 import { bsHomeWeekSoFar, bsHwPct, bsHomeGoalRead, bsHwRedate, bsHomeNextSession, bsHwDaysBetween, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf, bsHwTrainedDaysOf, bsHwSeriesOf, bsHwGoalData, bsHwOfWeek, bsHwWeekGrid, bsHwShift } from '../services/homeWeek.mjs';
 import { bsWsAccent } from './bsMagazine.mjs';
+import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
+
+// Home's goal reads its documents again when Nora's account setup (or its Undo) changes them.
+const useBSUserGoalsRev = bsUserGoalsRevHook(React);
+const BS_HOME_GOAL_KINDS = ['client_goals', 'client_identity'];
 // ─── HOME, PART 2: YOUR GOAL · WEEK SO FAR · FROM YOUR COACHES ─────────────────────────────────────
 // Owner, 2026-10-22: "The home page is repetitive of the train and eat pages." Off the mockup the owner
 // approved, Home says what only Home can, under Today's call:
@@ -97,6 +102,7 @@ function useBSHomeGoalData(demo) {
     overall: (demo && demo.overall) || {},
     weighIns: bsHwRedate((demo && demo.overall && demo.overall.weighIns) || [], bsCiIso(new Date())),
   }));
+  const goalsRev = useBSUserGoalsRev(BS_HOME_GOAL_KINDS);
   useEffect(() => {
     if (!signedIn) return undefined;
     let on = true;
@@ -110,7 +116,7 @@ function useBSHomeGoalData(demo) {
       setData(bsHwGoalData(doc, ident, weigh));
     })();
     return () => { on = false; };
-  }, [signedIn]);
+  }, [signedIn, goalsRev]);
   return data;
 }
 

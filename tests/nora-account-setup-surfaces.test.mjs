@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { loadBroadsheet, drive, SHIM, THEME, flatten, textOf } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { BS_ACCOUNT_SETUP_KINDS } from '../mobile-app/src/services/userGoalsRefresh.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(join(ROOT, 'package.json'));
@@ -106,6 +107,9 @@ test('app card: a confirmed setup says where to change it, and the app reads aga
     assert.deepEqual(setup[0].detail, { undone: false });
     assert.ok(fired.some((e) => e.type === 'shape:identity') && fired.some((e) => e.type === 'shape:notifyprefs'));
     assert.deepEqual(unitsSet, ['Metric · kg / km'], 'the units the account now holds');
+    // Codex on #2566 (P2): every mounted screen holding a copy of what the setup writes reads it again.
+    const announced = () => fired.filter((e) => e.type === 'shape:userGoals').map((e) => e.detail.kinds);
+    assert.deepEqual(announced(), [[...BS_ACCOUNT_SETUP_KINDS]], 'the setup\'s documents are announced on Confirm');
     // ⚠ Drawn again (her sheet closed and reopened, or the first run moving on under it): still applied,
     // with its Undo, never Confirm again.
     const again = drive(BSNoraProposal, { a: SETUP_CARD, t: THEME });
@@ -117,6 +121,7 @@ test('app card: a confirmed setup says where to change it, and the app reads aga
     d.render();
     assert.ok(d.text.includes('Undone'));
     assert.deepEqual(fired.filter((e) => e.type === 'shape:accountSetup').map((e) => e.detail), [{ undone: false }, { undone: true }]);
+    assert.deepEqual(announced(), [[...BS_ACCOUNT_SETUP_KINDS], [...BS_ACCOUNT_SETUP_KINDS]], 'and again on Undo');
     const third = drive(BSNoraProposal, { a: SETUP_CARD, t: THEME });
     assert.ok(third.text.includes('Undone') && !third.buttons().some((b) => b.label === 'Confirm' || b.label === 'Undo'), 'an undone card stays undone');
   });
@@ -134,6 +139,7 @@ test('app card: any other card is unchanged by this — no "saved" line, no setu
     d.render();
     assert.ok(!d.text.includes('Saved to your account'));
     assert.equal(fired.filter((e) => e.type === 'shape:accountSetup').length, 0);
+    assert.equal(fired.filter((e) => e.type === 'shape:userGoals').length, 0, 'nor any document announced');
   });
 });
 

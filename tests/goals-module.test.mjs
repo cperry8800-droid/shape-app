@@ -62,7 +62,7 @@ test('each component opens by naming the window globals it uses, at call time', 
   assert.match(page, /BS_MAST_TOP_CSS = 'max\(44px, calc\(env\(safe-area-inset-top, 0px\) \+ 12px\), var\(--bs-notch-floor, 0px\)\)'/);
 });
 
-test('the module carries its own translator, and imports only React, the pure goal contract and two siblings', () => {
+test('the module carries its own translator, and imports only React, the pure goal contract, two siblings and the refresh', () => {
   assert.match(page, /^function useShapeTr\(\) \{/m, 'the module has no useShapeTr()');
   for (const n of ['BSClientGoals', 'BSGoalsContract']) {
     const body = page.slice(page.indexOf(`export function ${n}(`));
@@ -70,7 +70,8 @@ test('the module carries its own translator, and imports only React, the pure go
   }
   assert.equal((page.match(/window\.ShapeI18n/g) || []).length, 1, 'window.ShapeI18n must be read only inside useShapeTr()');
   const imports = [...page.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);
-  assert.deepEqual(imports, ['react', 'react-dom', '../services/goalContract.mjs', './BSCheckinCard.jsx', './BSDash.jsx']);
+  // userGoalsRefresh.mjs (#2566): the page reads its goal again when Nora's account setup changes it.
+  assert.deepEqual(imports, ['react', 'react-dom', '../services/goalContract.mjs', './BSCheckinCard.jsx', './BSDash.jsx', '../services/userGoalsRefresh.mjs']);
   assert.ok(!imports.some((s) => /iosAppBroadsheet/.test(s)), 'the module imports the client module back');
 });
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
 import { createPortal } from 'react-dom';
 import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS } from '../services/profileCustom.mjs';
 import { STUDIO_WORDS, STUDIO_KIT, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, bsStudioFrame, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
@@ -17,6 +18,9 @@ import { bsReceivedGroceryList } from '../services/groceryShare.mjs';
 import { bsSaveReceivedGroceryList } from './BSGroceryShare.jsx';
 
 const { ShapeVideoPlayer } = createMobileVideoComponents(React);
+// Nora's account setup announces the documents it changed (services/userGoalsRefresh.mjs).
+const useBSUserGoalsRev = bsUserGoalsRevHook(React);
+const BS_OWN_PROFILE_KINDS = ['profile_custom'];
 
 // ─── THE COACH PROFILE: TRAINERS AND NUTRITIONISTS ───────────────────────────────────────────
 // Owner, 2026-10-27, after seven rounds on the canvas ("Show, don't sell · Quiet and premium ·
@@ -191,6 +195,9 @@ export function BSTrainerProfile(props) {
   const [ownState, setOwnState] = React.useState('loading');
   const [ownFor, setOwnFor] = React.useState(null); // the account `own` was read for
   const [ownEpoch, setOwnEpoch] = React.useState(0);
+  // The coach's doc is read again when Nora's account setup (or its Undo) changes their headline or
+  // About from her sheet (services/userGoalsRefresh.mjs), as Try again reads it.
+  const customRev = useBSUserGoalsRev(BS_OWN_PROFILE_KINDS);
   React.useEffect(() => {
     if (!isSelf || demoOn) return undefined;
     const uid = signedInUid();
@@ -205,7 +212,7 @@ export function BSTrainerProfile(props) {
       if (d && typeof d === 'object' && !Array.isArray(d)) { setOwn(d); setOwnFor(uid); setOwnState('ready'); } else setOwnState('error');
     })();
     return () => { on = false; };
-  }, [isSelf, ownEpoch, demoOn]);
+  }, [isSelf, ownEpoch, demoOn, customRev]);
   const custom = demo
     ? (() => { const c = { ...demo.custom }; if (demo.mode === 'self') for (const [k, v] of Object.entries(demoOwn || {})) { if (v === null) delete c[k]; else c[k] = v; } return c; })()
     : isSelf ? own : (live && live.custom) || null;
