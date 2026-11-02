@@ -110,7 +110,10 @@ or past 12 KB.
   `/api/cron/push-held`; a writer stores `data.copy` for `noticeCopy.mjs`. Reviews' words
   go to members only (`/api/coaches/reviews`). Also: `src/lib/calendar-activities.ts`,
   `api/nutrition/meal-note` (private `meal-notes` bucket), `api/nutrition/voice` (Whisper),
-  and the War Room board (`/warroom`).
+  and the War Room board (`/warroom`). Nora's account setup: `src/lib/ai/accountSetup.mjs`.
+- ⚠ **A screen holding a copy of a `user_goals` doc** reads it again when something else writes
+  it: `services/userGoalsRefresh.mjs`'s hook in its read's deps (`tests/user-goals-refresh.test.mjs`
+  holds every broadsheet reader to it); website pages listen for `shape:accountSetup`.
 
 ## Open items
 
@@ -137,6 +140,8 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
 - Decide the bring-your-clients rules (the 15% cases, private profiles, the app's checkout).
 - Decide whether a coach checkout refuses payment, instead of a destination charge on Shape's
   account, when a Connect variable is missing (`directChargesReady`, #2555).
+- Decide #2566's calls (its War Room section): Nora's account setup as one database transaction,
+  and her confirm cards in the member's language.
 - Decide night-before prep's open calls (#2563's War Room section): a second push for a meal
   planned after tonight's reminder, and a planned-day total on Eat beside Fuel left.
 - Add the `localhost` hostname to the Turnstile widget.
@@ -144,7 +149,6 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
   (Hausa and Pidgin first).
 
 **Planned next**
-- Nora as the account-setup assistant (she answers and fills forms; setting up is to build).
 - Nora as a Shape Radio DJ, Phase 2 on
   ([`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md)), once a station provider signs.
 
