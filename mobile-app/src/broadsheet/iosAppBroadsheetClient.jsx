@@ -14798,15 +14798,19 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
           ...BS_MEAL_SWAPS.filter(a => a.title !== orig.title).map(a => ({ label: a.title, sub: macroSub(a), _alt: a })),
         ];
         return <BSSwapSheet title={tr('nutrition:eat.swapAction', { defaultValue: 'Swap meal' })} subtitle={orig.title} options={options} onClose={() => setSwapMealId(null)}
-          onPick={(o) => {
+          onPick={async (o) => {
             // Phase 2: a planned or day-swapped meal is swapped (or kept) as that day's swap; a plan
-            // meal kept also drops its title swap (bsSwapPickWrites).
+            // meal kept also drops its title swap (bsSwapPickWrites). The day plan's write is waited
+            // for: one that was not saved says so and leaves the sheet open to try again, and nothing
+            // reads as swapped until it is (Codex P2 on #2563).
             const writes = bsSwapPickWrites(orig, o);
             if (writes.day !== undefined) {
-              bsWriteMealDays((doc, today) => bsMealDaysSwap(doc, eatViewYmd, orig.id, writes.day, today)).then((saved) => {
-                if (saved) setMyDays(saved);
-                else if (window.__bsToast) window.__bsToast(tr('cook:morningSwap.failed', { defaultValue: 'The swap was not saved. Try again.' }), 'error');
-              });
+              const saved = await bsWriteMealDays((doc, today) => bsMealDaysSwap(doc, eatViewYmd, orig.id, writes.day, today));
+              if (!saved) {
+                if (window.__bsToast) window.__bsToast(tr('cook:morningSwap.failed', { defaultValue: 'The swap was not saved. Try again.' }), 'error');
+                return;
+              }
+              setMyDays(saved);
               if (!writes.title) {
                 if (!o._keep && window.__bsToast) window.__bsToast(tr('nutrition:eat.toastSwapped', { defaultValue: 'Swapped to {title}', title: o._alt.title }), 'ok');
                 setSwapMealId(null);

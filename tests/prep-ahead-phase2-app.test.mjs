@@ -330,6 +330,19 @@ test('Eat and the recipe page are wired to the day plan, the morning swap and th
   assert.ok(CLIENT.includes('bsMealDaysSwap(doc, eatViewYmd, orig.id, writes.day, today)'));
   assert.ok(CLIENT.includes('              if (!writes.title) {'));
   assert.ok(CLIENT.includes('const base = bsSwapSheetBase(swapMealId, cur.meals, ownMeals, orig);'));
+  // ⚠ The day plan's write is waited for before anything reads as swapped (Codex P2 on #2563): a
+  // write that failed toasts and returns with the sheet open; the success toast and the close come
+  // only after a saved write.
+  const pick = CLIENT.slice(CLIENT.indexOf('onPick={async (o) => {'), CLIENT.indexOf('const key = base.title;', CLIENT.indexOf('onPick={async (o) => {')));
+  assert.ok(pick.length > 0, 'the swap sheet\'s pick handler moved');
+  const awaitAt = pick.indexOf('const saved = await bsWriteMealDays(');
+  const failAt = pick.indexOf("              if (!saved) {");
+  const returnAt = pick.indexOf('                return;\n              }\n              setMyDays(saved);');
+  const okToastAt = pick.indexOf("'nutrition:eat.toastSwapped'");
+  const closeAt = pick.indexOf('setSwapMealId(null)');
+  assert.ok(awaitAt > 0 && failAt > awaitAt && returnAt > failAt, 'a failed write returns before anything else');
+  assert.ok(okToastAt > returnAt && closeAt > returnAt, 'the success toast and the close come after the saved write');
+  assert.doesNotMatch(pick, /bsWriteMealDays\([^;]*\)\.then\(/, 'the write is not left to resolve after the sheet closed');
   // The recipe's own page plans it, signed in only.
   assert.ok(CLIENT.includes("{bsEatSignedInNow() && (\n          <button type=\"button\" data-plan-recipe=\"\" onClick={() => setPlanning(true)}"));
 });
