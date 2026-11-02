@@ -556,7 +556,8 @@ test('mounted: typing sends an "on" every few seconds, an "off" when the field e
 test('a message from someone ends their typing at once; a sent message keeps the server\'s time', () => {
   assert.equal((CLIENT.match(/if \(row\.sender_id\) window\.ShapeThreadSignals\?\.typing\?\.\(sigKey, \{ userId: row\.sender_id, on: false \}\);/g) || []).length, 2, 'a channel row and a direct row');
   assert.match(CLIENT, /const at = res && res\.data && res\.data\.created_at; if \(id\) setExtras\(e => e\.map\(x => x\.tmpId === tmpId \? \{ \.\.\.x, id, \.\.\.\(at \? \{ at \} : \{\}\) \} : x\)\);/);
-  assert.equal((CLIENT.match(/announceRead\(window\.ShapeUnread\?\.markConversationRead\?\.\(thread\.conversationId\)\)/g) || []).length, 4, 'on open, on the welcome, on every message read while open, and on coming back into view');
+  assert.equal((CLIENT.match(/announceRead\(window\.ShapeUnread\?\.markConversationRead\?\.\(thread\.conversationId\)\)/g) || []).length, 3, 'on open, on the welcome and on every message read while open');
+  assert.match(CLIENT, /const read = \(\) => \{ unreadWhileHiddenRef\.current = false; announceRead\(window\.ShapeUnread\?\.markConversationRead\?\.\(id\)\); \};/, 'and on coming back into view');
 });
 
 test('mounted: a message that arrives while the app is hidden stays unread (Sent) until the thread is back in view', async () => {
@@ -597,6 +598,123 @@ test('mounted: a message that arrives while the app is hidden stays unread (Sent
     window.ShapeMessages = saved.ShapeMessages;
     window.ShapeUnread = saved.ShapeUnread;
   }
+});
+
+// A document stand-in whose visibility a test turns, and whose visibilitychange it fires.
+function pageStandIn(state = 'visible') {
+  const page = { visibilityState: state, onVis: null, addEventListener: (type, fn) => { if (type === 'visibilitychange') page.onVis = fn; }, removeEventListener: () => {} };
+  return page;
+}
+async function withPage(page, globals, run) {
+  const saved = { document: globalThis.document };
+  for (const k of Object.keys(globals)) saved[k] = window[k];
+  globalThis.document = page;
+  Object.assign(window, globals);
+  try { await run(); } finally {
+    globalThis.document = saved.document;
+    for (const k of Object.keys(globals)) window[k] = saved[k];
+  }
+}
+
+test('opened out of sight (a notification, before the app is in view): read only once it is (Codex P2 on #2565)', async () => {
+  const { calls } = wire();
+  const page = pageStandIn('hidden');
+  const marks = [];
+  await withPage(page, {
+    ShapeUnread: { markConversationRead: (id) => { marks.push(id); return Promise.resolve(true); } },
+    ShapeMessages: { subscribeMessages: () => () => {}, getConversationThread: async (id) => ({ data: { conversation_id: id, messages: talk() } }) },
+  }, async () => {
+    const { effects } = mount(DM());
+    effects.forEach((fn) => fn());
+    await tick();
+    assert.deepEqual(marks, [], 'not read while hidden');
+    assert.equal(calls.seen, 0);
+    page.visibilityState = 'visible';
+    page.onVis();
+    await tick(); await tick();
+    assert.deepEqual(marks, ['c-1'], 'read when it comes into view');
+    assert.equal(calls.seen, 1);
+  });
+});
+
+test('back in view after the socket slept: the thread loads what it missed, shows it, and reads it (Codex P1 on #2565)', async () => {
+  const { calls } = wire();
+  const page = pageStandIn('visible');
+  const marks = [];
+  let stored = talk();
+  let fail = false;
+  await withPage(page, {
+    ShapeUnread: { markConversationRead: (id) => { marks.push(id); return Promise.resolve(true); } },
+    ShapeMessages: {
+      subscribeMessages: () => () => {}, // the socket that slept: no row ever arrives
+      getConversationThread: async (id) => { if (fail) throw new Error('offline'); return { data: { conversation_id: id, messages: stored } }; },
+    },
+  }, async () => {
+    const { d, effects } = mount(DM());
+    effects.forEach((fn) => fn());
+    await tick();
+    assert.deepEqual(marks, ['c-1'], 'read on open');
+    // Nothing new: coming back reads nothing.
+    page.onVis();
+    await tick(); await tick();
+    assert.deepEqual(marks, ['c-1']);
+    // While locked she sent one; the socket never heard it.
+    page.visibilityState = 'hidden';
+    stored = [...talk(), { id: 'm9', who: 'Trainer', userId: 'u-maya', t: 'You there?', at: '2026-11-02T11:00:00Z', me: false }];
+    page.onVis();
+    assert.deepEqual(marks, ['c-1'], 'still hidden: nothing');
+    page.visibilityState = 'visible';
+    page.onVis();
+    await tick(); await tick();
+    d.render();
+    assert.ok(d.text.includes('You there?'), 'the missed message is shown');
+    const missed = withAttr(d.nodes(), 'data-thread-theirs').find((n) => textOf(n).includes('You there?'));
+    assert.ok(missed, 'as theirs');
+    // Bylines are the buttons over their words (not the desk's name, which also shows her role).
+    const bylines = d.nodes().filter((n) => n.type === 'button' && !withAttr(flat(n), 'data-thread-name').length && !withAttr(flat(n), 'data-thread-quote').length);
+    assert.equal(bylines.filter((b) => textOf(b).includes(MAYA)).length, 2, 'her byline over m1 and over the missed message');
+    assert.ok(!bylines.some((b) => textOf(b).includes('Trainer')), 'in the thread\'s name for her, never the history\'s role label');
+    assert.deepEqual(marks, ['c-1', 'c-1'], 'and read');
+    assert.equal(calls.seen, 2, 'and announced');
+    page.onVis();
+    await tick(); await tick();
+    d.render();
+    assert.equal(marks.length, 2, 'shown now, so not missed again');
+    assert.equal(d.text.split('You there?').length - 1, 1, 'and shown once');
+    // History can't load: only what this view already shows is read.
+    fail = true;
+    page.onVis();
+    await tick(); await tick();
+    assert.equal(marks.length, 2, 'nothing was waiting: nothing read');
+  });
+});
+
+test('two read-time asks in flight: the older answer never lands (Codex P2 on #2565)', async () => {
+  const answers = [];
+  const w = loadWire({ rpc: () => new Promise((r) => answers.push(r)) });
+  const first = w.refreshConversationSeen('c1');
+  const second = w.refreshConversationSeen('c1');
+  answers[1]({ data: { on: true, seen: [{ user_id: 'u-maya', last_read_at: '2026-11-02T10:05:00+00:00' }] }, error: null });
+  await second;
+  assert.deepEqual(w.store.get('dm:c1').seen, { 'u-maya': '2026-11-02T10:05:00.000Z' });
+  answers[0]({ data: { on: true, seen: [{ user_id: 'u-maya', last_read_at: '2026-11-02T09:00:00+00:00' }] }, error: null });
+  assert.equal(await first, null, 'the older answer is dropped');
+  assert.deepEqual(w.store.get('dm:c1').seen, { 'u-maya': '2026-11-02T10:05:00.000Z' }, 'Seen never goes back to an older time');
+  // ...nor turns a switch that is now off back on.
+  const off = loadWire({ rpc: () => new Promise((r) => answers.push(r)) });
+  answers.length = 0;
+  const a = off.refreshConversationSeen('c1');
+  const b = off.refreshConversationSeen('c1');
+  const h = off.joinThreadSignals('dm:c1');
+  off.supabase.channels[0].cb('SUBSCRIBED');
+  answers[1]({ data: { on: false, seen: [] }, error: null });
+  await b;
+  answers[0]({ data: { on: true, seen: [{ user_id: 'u-maya', last_read_at: '2026-11-02T09:00:00+00:00' }] }, error: null });
+  await a;
+  assert.equal(off.store.get('dm:c1').seen, null);
+  h.seen();
+  await tick(); await tick();
+  assert.equal(off.supabase.channels[0].sent.length, 0, 'still off: no seen nudge');
 });
 
 test('Settings: a Read receipts switch in Privacy, in the document conversation_seen() reads', () => {

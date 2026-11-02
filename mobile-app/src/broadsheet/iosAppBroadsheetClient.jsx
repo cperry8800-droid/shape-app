@@ -26836,14 +26836,31 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   const stopTyping = () => { if (!typedAtRef.current) return; typedAtRef.current = 0; const h = sigRef.current; if (h) h.typing(false); };
   // A message that arrives while the app is out of sight (another tab, the phone locked or the app in the
   // background) is not read yet, so it stays unread and the sender keeps Sent; it is read, and announced,
-  // when the thread comes back into view.
+  // when the thread comes back into view. A thread opened while hidden waits the same way.
+  // ⚠ COMING BACK RECONCILES WITH THE STORED THREAD (Codex P1 on #2565): a suspended app or socket can
+  // miss a message outright, so nothing arrived to note. Back in view, the thread loads its history, adds
+  // what it missed (in the thread's own name for the other side, as a live row is), and reads the thread
+  // if anything was waiting. If the history can't be loaded, only what this view already shows is read.
   const unreadWhileHiddenRef = React.useRef(false);
+  const shownIdsRef = React.useRef(new Set());
   React.useEffect(() => {
     if (!thread.conversationId || typeof document === 'undefined' || !document.addEventListener) return undefined;
+    const id = thread.conversationId;
+    const read = () => { unreadWhileHiddenRef.current = false; announceRead(window.ShapeUnread?.markConversationRead?.(id)); };
+    const readIfWaiting = () => { if (unreadWhileHiddenRef.current) read(); };
     const onShown = () => {
-      if (bsPageHidden() || !unreadWhileHiddenRef.current) return;
-      unreadWhileHiddenRef.current = false;
-      announceRead(window.ShapeUnread?.markConversationRead?.(thread.conversationId));
+      if (bsPageHidden()) return;
+      const load = window.ShapeMessages?.getConversationThread;
+      if (!load) { readIfWaiting(); return; }
+      Promise.resolve(load(id)).then((res) => {
+        const stored = res && res.data && res.data.conversation_id === id && Array.isArray(res.data.messages) ? res.data.messages : null;
+        if (!stored) { readIfWaiting(); return; }
+        const shown = shownIdsRef.current;
+        const missed = stored.filter((m) => m && m.id && !shown.has(String(m.id)))
+          .map((m) => (m.me || m.shape ? m : { ...m, who: thread.who || m.who }));
+        if (missed.length) setExtras((e) => [...e, ...missed.filter((m) => !e.some((x) => x && x.id === m.id))]);
+        if (missed.length || unreadWhileHiddenRef.current) read();
+      }).catch(readIfWaiting);
     };
     document.addEventListener('visibilitychange', onShown);
     return () => document.removeEventListener('visibilitychange', onShown);
@@ -26853,7 +26870,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   // a push or a coach's Message kept the messages already in it (the welcome included) in
   // dm_unread(), and the badge came back after a reload. Marked here, where every opener lands.
   React.useEffect(() => {
-    if (thread.conversationId) announceRead(window.ShapeUnread?.markConversationRead?.(thread.conversationId));
+    // Out of sight (a notification can open it before the app is in view): read once it is (Codex P2 on #2565).
+    if (thread.conversationId && bsPageHidden()) unreadWhileHiddenRef.current = true;
+    else if (thread.conversationId) announceRead(window.ShapeUnread?.markConversationRead?.(thread.conversationId));
   }, [thread.conversationId]);
   React.useEffect(() => {
     setHistory(null);
@@ -26877,6 +26896,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   // id when the insert answers (send, below); one still in flight has none and is shown.
   const seedIds = new Set(seed.map(m => m && m.id).filter(Boolean));
   const allMessages = [...seed, ...extras.filter(e => !(e && e.id && seedIds.has(e.id)))];
+  shownIdsRef.current = new Set(allMessages.map(m => m && m.id).filter(Boolean).map(String));
   // Members' profile photos for the message avatars (visibility-ungated).
   React.useEffect(() => {
     if (!window.ShapeProfiles?.getUserAvatars) return;

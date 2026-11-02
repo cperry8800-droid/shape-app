@@ -586,5 +586,6 @@ test('a conversation opened by id is read, however it was opened', () => {
   const at = CLIENT.indexOf('function BSChatThread(');
   const body = CLIENT.slice(at, at + 8000);
   // The stored read is then announced, so the other side's Sent turns to Seen (read receipts, 2026-11-02).
-  assert.match(body, /React\.useEffect\(\(\) => \{\s+if \(thread\.conversationId\) announceRead\(window\.ShapeUnread\?\.markConversationRead\?\.\(thread\.conversationId\)\);\s+\}, \[thread\.conversationId\]\);/);
+  // Opened out of sight (a notification can open it before the app is in view), it is read once it is in view.
+  assert.match(body, /React\.useEffect\(\(\) => \{\s+\/\/[^\n]*\n\s+if \(thread\.conversationId && bsPageHidden\(\)\) unreadWhileHiddenRef\.current = true;\s+else if \(thread\.conversationId\) announceRead\(window\.ShapeUnread\?\.markConversationRead\?\.\(thread\.conversationId\)\);\s+\}, \[thread\.conversationId\]\);/);
 });

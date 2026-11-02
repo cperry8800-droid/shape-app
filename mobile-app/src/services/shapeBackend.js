@@ -8621,6 +8621,7 @@ const _sigChannels = new Map(); // topic → { channel, refs, ready, queue, wait
 const _seenOn = new Map();      // key → true | false, from conversation_seen()'s last answer
 const _seenPending = new Map(); // key → that answer, while it is on its way
 const _seenTimers = new Map();
+const _seenSeq = new Map();     // key → the newest conversation_seen() ask; an older answer never lands
 function _sigTopic(key) { return `thread-signals:${key}`; }
 // Ask conversation_seen() for a conversation's read times and publish them to its open thread. null
 // (unknown: the function isn't there yet, or the read failed) leaves the thread showing no receipts.
@@ -8628,10 +8629,15 @@ function refreshConversationSeen(conversationId) {
   const key = conversationId ? `dm:${conversationId}` : null;
   const uid = state.user?.id;
   if (!key || !supabase || !uid) return Promise.resolve(null);
+  const seq = (_seenSeq.get(key) || 0) + 1;
+  _seenSeq.set(key, seq);
   const p = Promise.resolve(supabase.rpc('conversation_seen', { p_conversation_id: conversationId }))
     .then((r) => (r && !r.error ? r.data : null), () => null)
     .then((data) => {
       if (state.user?.id !== uid) return null; // a sign-out in between: this answer is the last account's
+      // Two asks in flight (the mount's and a nudge's): only the newest publishes, so a slow older answer
+      // can neither take Seen back to Sent nor turn the switch back on (Codex P2 on #2565).
+      if (_seenSeq.get(key) !== seq) return null;
       const seen = bsSeenFromRpc(data, { myId: uid });
       _seenOn.set(key, !!(data && data.on === true));
       if (seen || (data && data.on === false)) _threadSignals.setSeen(key, seen);
@@ -8742,6 +8748,7 @@ function _teardownThreadSignals() {
   _seenPending.clear();
   _seenTimers.forEach((h) => clearTimeout(h));
   _seenTimers.clear();
+  _seenSeq.clear();
   _threadSignals.clearAll();
 }
 window.ShapeThreadSignals = {
