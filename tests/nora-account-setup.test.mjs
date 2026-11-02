@@ -437,6 +437,37 @@ test('the whole lifecycle: one card, Confirm applies it all, Undo restores it al
   assert.equal((await s.undo(c.auditId)).alreadyUndone, true);
 });
 
+// Codex on 60fdc94 (P2): the card is drawn with a `now`, and Confirm can come minutes later. The
+// check-in's dailyCheckinSince is read against the weekly cutoff (score-accountability), so it is the
+// moment of Confirm; the audit row keeps the cells as written, so Undo checks the stamp it wrote.
+test('⚠ the when-it-changed stamps are the moment of Confirm, not of the card; Undo still restores them', async () => {
+  assert.deepEqual([...setup.STAMP_CELLS].sort(), ['goals:client_onboarding:coachingAt', 'goals:client_settings:dailyCheckinSince'], 'the allowlist names the stamps');
+  const cells = [{ store: 'goals', kind: 'client_settings', key: 'dailyCheckin', after: 'Off' }, { store: 'goals', kind: 'client_settings', key: 'dailyCheckinSince', after: NOW }];
+  const stamped = setup.stampSetupCells(cells, 'LATER');
+  assert.deepEqual(stamped.map((c) => c.after), ['Off', 'LATER'], 'only a stamp moves');
+  assert.equal(cells[1].after, NOW, 'a copy: the cells it was given are left as they are');
+  assert.equal(setup.stampSetupCells(null, 'LATER'), null, 'anything not a list goes on to be refused as it is');
+
+  const db = accountDb({ goals: { client_settings: { units: setup.UNITS_IMPERIAL }, client_onboarding: { tourSeen: true } } });
+  const s = scaffold(db);
+  const p = await s.propose({ changes: [{ field: 'dailyCheckin', value: 'off' }, { field: 'coaching', value: 'training' }] });
+  assert.equal(p.ok, true);
+  await new Promise((r) => setTimeout(r, 15)); // the card waits on screen
+  const t1 = new Date().toISOString();
+  const c = await s.confirm(p.token);
+  const t2 = new Date().toISOString();
+  assert.equal(c.ok, true);
+  const since = db.goal('client_settings').dailyCheckinSince;
+  const at = db.goal('client_onboarding').coachingAt;
+  assert.ok(since >= t1 && since <= t2, `dailyCheckinSince is stamped at Confirm (${since}, confirmed between ${t1} and ${t2})`);
+  assert.ok(at >= t1 && at <= t2, `coachingAt is stamped at Confirm (${at})`);
+  assert.equal(db.goal('client_settings').dailyCheckin, 'Off');
+  const u = await s.undo(c.auditId);
+  assert.equal(u.ok, true, 'Undo checks the stamp that was written, so it is not read as changed since');
+  assert.deepEqual(db.goal('client_settings'), { units: setup.UNITS_IMPERIAL });
+  assert.deepEqual(db.goal('client_onboarding'), { tourSeen: true });
+});
+
 test('⚠ a refused value is never kept: not in the token the device holds, not in the audit row', async () => {
   const db = accountDb({ goals: { client_settings: { units: setup.UNITS_IMPERIAL } } });
   const s = scaffold(db);

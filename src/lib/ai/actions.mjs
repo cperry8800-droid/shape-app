@@ -23,7 +23,7 @@ import {
 // actions, never the draft core directly).
 export { briefFromText as draftBriefFromText } from './workoutDraft.mjs';
 import { cleanMealBrief, pickMeals, buildMealDoc, mealDraftDiff, draftName as mealDraftName } from './mealDraft.mjs';
-import { planSetupChanges, buildSetupPreview, applySetupCells, REFUSED_REASONS, NOTHING_MSG, NOT_ALLOWED_MSG } from './accountSetup.mjs';
+import { planSetupChanges, buildSetupPreview, applySetupCells, stampSetupCells, REFUSED_REASONS, NOTHING_MSG, NOT_ALLOWED_MSG } from './accountSetup.mjs';
 // The chat route offers set_up_account and its note from here (it imports Nora's actions, never the
 // setup core directly), so every harness that maps this module gets them with it.
 export { SETUP_TOOL, SETUP_PROMPT_NOTE } from './accountSetup.mjs';
@@ -1232,8 +1232,12 @@ export const setUpAccountAction = {
   async execute(ctx, plan) {
     var uid = setupOwner(ctx, plan);
     var a = plan.afterState || {};
-    await applySetupCells(ctx.supabase, uid, a.cells, 'apply', { tz: a.tz });
-    return { ok: true, fields: Array.from(new Set((a.cells || []).map(function (c) { return c.field; }))) };
+    // The when-it-changed stamps are the moment of Confirm, not of the card (stampSetupCells), and
+    // the cells as written are what the audit row keeps, so Undo checks the stamp that was written.
+    var cells = stampSetupCells(a.cells, new Date().toISOString());
+    await applySetupCells(ctx.supabase, uid, cells, 'apply', { tz: a.tz });
+    plan.afterState = Object.assign({}, a, { cells: cells });
+    return { ok: true, fields: Array.from(new Set((cells || []).map(function (c) { return c.field; }))) };
   },
   async undo(ctx, plan) {
     var uid = setupOwner(ctx, plan);

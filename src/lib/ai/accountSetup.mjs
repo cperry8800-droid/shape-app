@@ -296,6 +296,9 @@ export const cellId = (c) => (c.store === 'goals' ? `goals:${c.kind}:${c.key}${c
 // Every cell any field can write. Confirm and Undo refuse a plan carrying any other (the token is
 // signed, so this is defence in depth: a write outside this set cannot be expressed at all).
 export const ALLOWED_CELLS = Object.freeze(new Set(SETUP_FIELD_KEYS.flatMap((k) => SETUP_FIELDS[k].cells(firstValid(k), 'x').map(cellId))));
+// The when-it-changed stamps among them (coachingAt, dailyCheckinSince), named by the allowlist
+// itself, so the stamp written at confirm never rests on a flag the token carries.
+export const STAMP_CELLS = Object.freeze(new Set(SETUP_FIELD_KEYS.flatMap((k) => SETUP_FIELDS[k].cells(firstValid(k), 'x').filter((c) => c.stamp).map(cellId))));
 function firstValid(k) {
   // A representative value per field, only to enumerate the cells it writes.
   return { goal: 'muscle', coaching: 'both', sessionsPerWeek: '3', units: UNITS_METRIC, weekStarts: 'Monday', dailyCheckin: 'On', quietStart: 22, quietEnd: 7, dailyLimit: 4, name: 'A', headline: 'A', aboutStory: 'A', yearsCoaching: 1, coachingFormat: 'online', basedIn: 'A', languages: 'A' }[k] ?? 'x';
@@ -478,6 +481,19 @@ async function writeGroup(sb, uid, cells, dir, tz) {
     // Zero rows: the row moved since it was read (or is not this account's). Read it and go again.
   }
   throw new Error(dir === 'apply' ? STALE_MSG : CHANGED_MSG);
+}
+
+/**
+ * ⚠ A WHEN-IT-CHANGED STAMP IS THE MOMENT THE MEMBER CONFIRMS, NOT THE MOMENT NORA DREW THE CARD.
+ * The card is drawn with a `now` (the stamps' value in the preview), and it can wait up to the
+ * token's life before Confirm. The check-in's dailyCheckinSince is read against the weekly cutoff
+ * by score-accountability, so a preview-time stamp would date the switch minutes early. Execute
+ * stamps the cells at confirm with this, and keeps the stamped cells for the undo, which checks the
+ * stamp it wrote. A copy: the cells it is given are left as they are.
+ */
+export function stampSetupCells(cells, now = new Date().toISOString()) {
+  if (!Array.isArray(cells)) return cells;
+  return cells.map((c) => (isObj(c) && STAMP_CELLS.has(cellId(c)) ? { ...c, after: now } : c));
 }
 
 /**

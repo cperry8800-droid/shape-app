@@ -146,6 +146,13 @@ export default {
     { name: 'the first-run steps do not listen for a setup', file: APP, find: "    window.addEventListener('shape:accountSetup', again);\n", replace: '' },
     { name: "her sheet is not drawn over the goal step", file: APP, find: "onNora={setUpWithNora} />}{noraSheet}</>;", replace: 'onNora={setUpWithNora} />}</>;' },
 
+    // ── The when-it-changed stamps (Codex on 60fdc94) ──
+    { name: "execute writes the card's stamp, not Confirm's", file: ACT, find: '    var cells = stampSetupCells(a.cells, new Date().toISOString());', replace: '    var cells = a.cells;' },
+    { name: 'the stamped cells are not kept for the undo', file: ACT, find: '    plan.afterState = Object.assign({}, a, { cells: cells });\n', replace: '' },
+    { name: 'every cell is stamped', file: CORE, find: 'isObj(c) && STAMP_CELLS.has(cellId(c)) ? { ...c, after: now } : c', replace: 'isObj(c) ? { ...c, after: now } : c' },
+    { name: 'the stamp is written into the cells given', file: CORE, find: 'STAMP_CELLS.has(cellId(c)) ? { ...c, after: now } : c', replace: 'STAMP_CELLS.has(cellId(c)) ? Object.assign(c, { after: now }) : c' },
+    { name: 'the allowlist names no stamp', file: CORE, find: ".filter((c) => c.stamp).map(cellId)", replace: ".filter((c) => false).map(cellId)" },
+
     // ── The website and the tours ──
     { name: 'the website draws a refused row as a line', file: WEB, find: '{diff.map((d, i) => cwIsRefused(d) ? (', replace: '{diff.map((d, i) => false ? (' },
     { name: 'every confirmed web card says "saved to your account"', file: WEB, find: '{status === "done" && a.action === "set_up_account" && (', replace: '{status === "done" && (' },
