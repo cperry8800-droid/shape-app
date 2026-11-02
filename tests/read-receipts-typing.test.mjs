@@ -165,7 +165,8 @@ function loadWire({ rpc, user = { id: 'u-me', email: 'me@example.com', user_meta
     `${BLOCK}; return { joinThreadSignals, refreshConversationSeen, _teardownThreadSignals, _sigChannels };`)(
     supabase, state, window, () => store, bsTypingFromPayload, bsSeenFromRpc, fakeSetTimeout, fakeClearTimeout);
   const runTimers = () => { timers.splice(0).filter(Boolean).forEach((t) => t.fn()); };
-  return { ...api, supabase, state, store, window, runTimers };
+  const pending = () => timers.filter(Boolean).length;
+  return { ...api, supabase, state, store, window, runTimers, pending };
 }
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -181,6 +182,7 @@ test('one broadcast channel per thread, shared by every join, closed a beat afte
   w.store.typing('dm:c1', { userId: 'u-maya', on: true });
   a.leave();
   a.leave();
+  assert.equal(w.pending(), 0, 'b is still in: no close is even scheduled, so the grace counts from the last leave');
   w.runTimers();
   assert.equal(w.supabase.removed.length, 0, 'b is still in the thread (and a second leave counts once)');
   b.leave();

@@ -8713,8 +8713,9 @@ function joinThreadSignals(key) {
     seen() {
       Promise.resolve(_seenPending.get(key)).then(() => { if (_seenOn.get(key) === true) send('seen', { u: myId }); });
     },
-    // The last one out closes the channel after a short grace, and the thread's typers and read times
-    // go with it.
+    // The last one out closes the channel after a short grace, counted from that last leave, and the
+    // thread's typers and read times go with it. A join in the grace cancels the timer before it counts
+    // itself in, so the timer only ever fires with nobody in the thread.
     leave() {
       if (left) return;
       left = true;
@@ -8722,7 +8723,6 @@ function joinThreadSignals(key) {
       if (own.refs > 0 || own.closeTimer) return;
       own.closeTimer = setTimeout(() => {
         own.closeTimer = null;
-        if (own.refs > 0) return;
         if (own.openTimer) { clearTimeout(own.openTimer); own.openTimer = null; }
         if (_sigChannels.get(topic) === own) _sigChannels.delete(topic);
         if (own.channel) { try { supabase.removeChannel(own.channel); } catch (e) {} }
