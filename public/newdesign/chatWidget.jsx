@@ -174,7 +174,7 @@ const cwAfterAccountSetup = (undone) => { try { window.dispatchEvent(new CustomE
 // the card, a confirmed change offered Confirm again (which answers "already applied") and its Undo was
 // gone. The app keeps the same (_bsNoraCardDone). Keyed by the token's signature, which names one
 // proposal; the newest 50 are kept.
-const CW_CARD_DONE_KEY = "shape.nora.cardDone";
+const CW_CARD_DONE_KEY = "shape.nora.cardDone.v1";
 const cwCardId = (token) => (typeof token === "string" && token ? token.slice(token.lastIndexOf(".") + 1) || null : null);
 const cwCardDoneRead = (token) => {
   const id = cwCardId(token);

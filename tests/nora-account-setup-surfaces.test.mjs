@@ -181,7 +181,7 @@ test('website card: refusals said as such; a confirmed setup says where to chang
   assert.ok(again.text.includes('Applied ✓') && again.text.includes('Saved to your account'));
   assert.ok(!again.buttons().some((b) => b.label === 'Confirm'));
   assert.ok(again.buttons().some((b) => b.label === 'Undo'), 'with its Undo');
-  const kept = JSON.parse(store._m.get('shape.nora.cardDone'));
+  const kept = JSON.parse(store._m.get('shape.nora.cardDone.v1'));
   assert.deepEqual(Object.keys(kept), ['tok-setup'], 'kept by the token (its signature, when it has one)');
   assert.deepEqual([kept['tok-setup'].status, kept['tok-setup'].auditId], ['done', 'aud-3']);
   d.click('Undo');
