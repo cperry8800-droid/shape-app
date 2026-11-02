@@ -95,15 +95,36 @@ test('the hour is the member\'s own: 9 pm is not reminded at 7 and is at 9; an h
   assert.deepEqual(seven.sent.map((n) => n.userId).sort(), ['bob', 'cy']);
   t.mock.timers.reset();
   t.mock.restoreAll();
-  const nine = await run(t, tables(), { now: hourAt(21) });
+  // The 9 pm run sees the 7 pm reminders: Bob and Cy, past their hour, were reminded tonight.
+  const toldAt7 = seven.sent.map((n) => ({ user_id: n.userId, type: 'meal_prep', created_at: new Date(NOW).toISOString(), data: n.data }));
+  const nine = await run(t, { ...tables(), notifications: toldAt7 }, { now: hourAt(21) });
   assert.deepEqual(nine.sent.map((n) => n.userId), ['ann']);
   assert.equal(nine.sent[0].data.dedupe, 'prep:2026-10-04', 'still one per evening, by her own date');
   // The default quiet hours start at 22:00: a chosen 11 pm is inside them, 9 pm is not (above).
   assert.equal(nine.sent[0].quiet, false);
   t.mock.timers.reset();
   t.mock.restoreAll();
-  const late = await run(t, { ...tables(), user_goals: [hour('ann', 23)] }, { now: hourAt(23) });
+  const late = await run(t, { ...tables(), user_goals: [hour('ann', 23)], notifications: toldAt7 }, { now: hourAt(23) });
   assert.deepEqual(late.sent.map((n) => [n.userId, n.quiet]), [['ann', true]], 'inside quiet hours it lands in the app with no push');
+});
+
+test('⚠ a meal planned after the member\'s hour is reminded by a later run that evening, once (Codex P1 on #2563)', async (t) => {
+  // At 8 pm: Gil (7 pm) had nothing owed at 7 and has the oats tomorrow now, so he is reminded; Hana
+  // (7 pm) was reminded at 7 tonight and says nothing more; Ivo chose 9 pm, still ahead of him.
+  const tables = {
+    client_meal_plans: [plan('gil', week({ slot: 'BREAKFAST', title: OATS })), plan('hana', week({ slot: 'BREAKFAST', title: OATS })), plan('ivo', week({ slot: 'BREAKFAST', title: OATS }))],
+    client_profiles: utc('gil', 'hana', 'ivo'),
+    user_goals: [hour('ivo', 21)],
+    notifications: [{ user_id: 'hana', type: 'meal_prep', created_at: new Date(NOW).toISOString(), data: { dedupe: 'prep:2026-10-04', forMeals: [] } }],
+  };
+  const eight = await run(t, tables, { now: hourAt(20) });
+  assert.deepEqual(eight.sent.map((n) => n.userId), ['gil']);
+  assert.equal(eight.sent[0].data.dedupe, 'prep:2026-10-04', 'the same one-an-evening key');
+  // Before the member's hour nothing is sent, however much is owed.
+  t.mock.timers.reset();
+  t.mock.restoreAll();
+  const six = await run(t, tables, { now: hourAt(18) });
+  assert.deepEqual(six.sent, []);
 });
 
 test('a member with no plan who planned the oats for tomorrow is reminded, and a stale day plan is not read', async (t) => {

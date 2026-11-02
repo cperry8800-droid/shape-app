@@ -234,8 +234,14 @@ async function handle(request: Request) {
     if (!hourIn.has(tz)) hourIn.set(tz, localHour(new Date(now), tz));
     return hourIn.get(tz);
   };
-  // Due: it is the hour the member chose (7 pm until they do), in their own zone.
-  const due = ids.filter((id) => hourOf(zoneOf.get(id) || 'UTC') === (hourChosen.get(id) ?? bsPrepHourOf(null)));
+  // Due: from the hour the member chose (7 pm until they do) to the end of their evening, in their
+  // own zone. One reminder an evening (the dedupe key below), so a member reminded at their hour is
+  // skipped by the later runs; a member who planned a made-ahead meal after their hour, with nothing
+  // sent tonight, is reminded by the next run rather than never (Codex P1 on #2563).
+  const due = ids.filter((id) => {
+    const h = hourOf(zoneOf.get(id) || 'UTC');
+    return typeof h === 'number' && h >= (hourChosen.get(id) ?? bsPrepHourOf(null));
+  });
   if (!due.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, truncated });
 
   const since = new Date(now - REMINDED_DAYS * 86400000).toISOString();
@@ -262,6 +268,9 @@ async function handle(request: Request) {
     try {
       const tz = zoneOf.get(userId) || 'UTC';
       const today = bsYmdIn(now, tz);
+      // Already reminded tonight: one reminder an evening, so a later run says nothing more.
+      const tonight = `prep:${today}`;
+      if (earlier.some((r) => r.user_id === userId && r.data && typeof r.data === 'object' && (r.data as Row).dedupe === tonight)) continue;
       const goal = (kind: string) => {
         const row = goals.find((g) => g.user_id === userId && g.kind === kind);
         return row && row.data && typeof row.data === 'object' ? (row.data as Row) : {};

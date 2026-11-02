@@ -117,8 +117,18 @@ export default {
 
     // ── The reminder ─────────────────────────────────────────────────────────────────────────
     { name: 'the hour is 7 pm for everyone', file: ROUTE,
-      find: "  const due = ids.filter((id) => hourOf(zoneOf.get(id) || 'UTC') === (hourChosen.get(id) ?? bsPrepHourOf(null)));",
-      replace: "  const due = ids.filter((id) => hourOf(zoneOf.get(id) || 'UTC') === 19);" },
+      find: "    return typeof h === 'number' && h >= (hourChosen.get(id) ?? bsPrepHourOf(null));",
+      replace: "    return typeof h === 'number' && h >= 19;" },
+    // The evening window (Codex P1 on #2563).
+    { name: 'a meal planned after the member\'s hour is never reminded', file: ROUTE,
+      find: "    return typeof h === 'number' && h >= (hourChosen.get(id) ?? bsPrepHourOf(null));",
+      replace: "    return typeof h === 'number' && h === (hourChosen.get(id) ?? bsPrepHourOf(null));" },
+    { name: 'a member is reminded before their hour', file: ROUTE,
+      find: "    return typeof h === 'number' && h >= (hourChosen.get(id) ?? bsPrepHourOf(null));",
+      replace: "    return typeof h === 'number';" },
+    { name: 'a member reminded tonight is reminded again by a later run', file: ROUTE,
+      find: "      if (earlier.some((r) => r.user_id === userId && r.data && typeof r.data === 'object' && (r.data as Row).dedupe === tonight)) continue;\n",
+      replace: "" },
     { name: 'members who planned meals themselves are not looked at', file: ROUTE,
       find: '  const ids = [...new Set([...newest.keys(), ...planners])];',
       replace: '  const ids = [...newest.keys()];' },
