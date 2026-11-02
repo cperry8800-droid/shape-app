@@ -868,8 +868,9 @@ test('an older message of yours with the same words is never taken for a pending
     ShapeMessages: {
       subscribeMessages: () => () => {},
       sendMessage: (a) => { sentCid = a.metadata && a.metadata.cid; return new Promise((r) => { answerSend = () => r({ data: { id: 'm-new', created_at: '2026-11-02T11:00:00Z' } }); }); },
-      // Read back before the new insert is visible: only the older one, with no cid of this send.
-      getConversationThread: async (id) => ({ data: { conversation_id: id, messages: [...talk(), older] } }),
+      // Read back before the new insert is visible: the older one (no cid of this send), and one of hers the
+      // socket missed, so the reconcile has something to join and runs its claim.
+      getConversationThread: async (id) => ({ data: { conversation_id: id, messages: [...talk(), older, { id: 'h-missed', who: 'Trainer', userId: 'u-maya', t: 'Running late?', at: '2026-11-02T10:59:00Z', me: false }] } }),
     },
   }, async () => {
     const { d, effects } = mount(DM({ messages: [...talk(), older] }));
@@ -884,6 +885,7 @@ test('an older message of yours with the same words is never taken for a pending
     await tick(); await tick();
     d.render();
     const mineOnMyWay = () => withAttr(d.nodes(), 'data-thread-mine').filter((n) => textOf(n).includes('On my way')).length;
+    assert.ok(d.text.includes('Running late?'), 'the missed message joined, so the claim ran');
     assert.equal(mineOnMyWay(), 2, 'the older one and the new one, which never vanishes into the older');
     answerSend();
     await tick(); await tick();
@@ -936,6 +938,33 @@ test('mounted: an older history read that lands after a newer one never takes th
     d.render();
     assert.ok(d.text.includes('Missed one') && d.text.includes('Earlier'), 'both messages stay');
     assert.equal(d.text.split('Missed one').length - 1, 1, 'once');
+  });
+});
+
+test('mounted: two quick returns into view answered newest first: the older answer never takes a message away (Codex P2 on #2565)', async () => {
+  wire();
+  const page = pageStandIn('visible');
+  const answers = [];
+  const older = [{ id: 'h1', who: 'Trainer', userId: 'u-maya', t: 'Earlier', at: '2026-11-02T08:00:00Z', me: false }];
+  const newer = [...older, { id: 'h2', who: 'Trainer', userId: 'u-maya', t: 'Missed one', at: '2026-11-02T09:00:00Z', me: false }];
+  await withPage(page, {
+    ShapeUnread: { markConversationRead: () => Promise.resolve(true) },
+    ShapeMessages: { subscribeMessages: () => () => {}, getConversationThread: (id) => new Promise((r) => answers.push((msgs) => r({ data: { conversation_id: id, messages: msgs } }))) },
+  }, async () => {
+    const { d, effects } = mount({ who: MAYA, role: 'Trainer', conversationId: 'c-1', userId: 'u-maya', messages: [], last: 'Earlier', time: '2h' });
+    effects.forEach((fn) => fn());
+    answers[0](older);               // the opening read
+    await tick(); await tick();
+    page.onVis();                    // back in view...
+    page.onVis();                    // ...and again, quickly
+    assert.equal(answers.length, 3);
+    answers[2](newer);               // the second return's (newer) answer lands first
+    await tick(); await tick();
+    answers[1](older);               // the first return's (older) answer after it
+    await tick(); await tick();
+    d.render();
+    assert.ok(d.text.includes('Missed one'), 'the newer message stays');
+    assert.equal(d.text.split('Earlier').length - 1, 1, 'and nothing shows twice');
   });
 });
 
