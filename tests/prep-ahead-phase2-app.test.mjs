@@ -424,3 +424,19 @@ test('⚠ a full day says so: the thirteenth meal is not reported as planned (Co
   assert.equal(store.docs.client_meal_days.days[tomorrow].add.length, 12, 'the day is as it was');
   assert.ok(!store.docs.client_meal_days.days[tomorrow].add.some((a) => a.title === OATS));
 });
+
+test('a recipe planned from its own page takes the slot the sheet files it under: a side is a snack (Codex P2 on #2563)', async () => {
+  const { bsSlotForRecipe, bsRecipesForSlot } = await loadCarved('BSPlanDay.jsx', React);
+  const r = (tags) => ({ title: 'x', tags });
+  assert.equal(bsSlotForRecipe(r(['Side'])), 'SNACK');
+  assert.equal(bsSlotForRecipe(r(['Snack'])), 'SNACK');
+  assert.equal(bsSlotForRecipe(r(['Brunch'])), 'BREAKFAST');
+  assert.equal(bsSlotForRecipe(r(['Breakfast', 'Snack'])), 'BREAKFAST');
+  assert.equal(bsSlotForRecipe(r(['Dinner'])), 'DINNER');
+  assert.equal(bsSlotForRecipe(null), 'DINNER');
+  // Every catalog recipe is listed under the slot its own page plans it into.
+  for (const rec of SHAPE_KITCHEN_RECIPES) {
+    const slot = bsSlotForRecipe(rec);
+    assert.ok(bsRecipesForSlot([rec], slot, '').length === 1, `${rec.title} is planned as ${slot} but the sheet lists it elsewhere`);
+  }
+});

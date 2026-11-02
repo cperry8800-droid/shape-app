@@ -59,11 +59,13 @@ export function bsRecipesForSlot(recipes, slot, query) {
     return want ? want.some((x) => tags.includes(x)) : !tags.some((x) => NOT_A_MAIN.includes(x));
   });
 }
-// The slot a recipe is planned into when none is chosen: its own, by its tags.
+// The slot a recipe is planned into when none is chosen: its own, by its tags, as the sheet's slots
+// group them (SLOT_TAGS): a side sits with the snacks, so a side planned from its own page is saved
+// as the sheet would save it (Codex P2 on #2563).
 export function bsSlotForRecipe(recipe) {
   const tags = recipe && Array.isArray(recipe.tags) ? recipe.tags : [];
-  if (tags.includes('Breakfast') || tags.includes('Brunch')) return 'BREAKFAST';
-  if (tags.includes('Snack')) return 'SNACK';
+  if (SLOT_TAGS.BREAKFAST.some((x) => tags.includes(x))) return 'BREAKFAST';
+  if (SLOT_TAGS.SNACK.some((x) => tags.includes(x))) return 'SNACK';
   return 'DINNER';
 }
 
