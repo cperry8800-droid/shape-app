@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { JSDOM } from 'jsdom';
-import { loadBroadsheet } from './helpers/broadsheet-mount.mjs';
+import { loadBroadsheet, loadCarved } from './helpers/broadsheet-mount.mjs';
 import { SHAPE_KITCHEN_RECIPES } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 import { bsMakeAheadIndex, bsYmdAdd, bsYmdIn } from '../mobile-app/src/services/prepAhead.mjs';
 
@@ -102,7 +102,9 @@ test('the plan sheet: tomorrow first, the slot\'s recipes, the night-before mark
     await React.act(async () => { oats.click(); });
     await s.settle();
     assert.deepEqual(added.map(([ymd, slot, r]) => [ymd, slot, r.title]), [[TOMORROW, 'BREAKFAST', OATS]]);
-    // Dinner lists mains; the search narrows any slot by name.
+    // Dinner lists mains; the search narrows the slot's list by name, never leaves the slot: a dish
+    // picked is planned into the slot chosen (Codex P2 on #2563: oats found under Dinner were saved
+    // as dinner).
     await s.click('Dinner');
     assert.ok(s.buttons().some((b) => b.textContent.startsWith('Beef ragu rigatoni')));
     // Typed into through the field's own onChange: react-dom loaded before jsdom's window, so a
@@ -110,12 +112,14 @@ test('the plan sheet: tomorrow first, the slot\'s recipes, the night-before mark
     const search = document.querySelector('input[aria-label="Search recipes"]');
     const props = search[Object.keys(search).find((k) => k.startsWith('__reactProps$'))];
     await React.act(async () => { props.onChange({ target: { value: 'oats' } }); });
-    assert.ok(s.buttons().some((b) => b.textContent.startsWith(OATS)), 'a search finds a dish whatever its slot');
+    assert.ok(!s.buttons().some((b) => b.textContent.startsWith(OATS)), 'a search under Dinner offers no breakfast');
     assert.ok(!s.buttons().some((b) => b.textContent.startsWith('Beef ragu rigatoni')), 'a search for oats lists no ragu');
+    await s.click('Breakfast');
+    assert.ok(s.buttons().some((b) => b.textContent.startsWith(OATS)), 'the same search under Breakfast finds the oats');
     await s.click('Today');
     await React.act(async () => { s.buttons().find((b) => b.textContent.startsWith(OATS)).click(); });
     await s.settle();
-    assert.deepEqual(added[1].slice(0, 2), [TODAY, 'DINNER']);
+    assert.deepEqual(added[1].slice(0, 2), [TODAY, 'BREAKFAST']);
   } finally { await s.unmount(); }
 });
 
@@ -391,4 +395,18 @@ test('the swap sheet\'s current dish is the meal as planned, never the day\'s sw
   // Neither list has it: what is shown.
   assert.equal(MOD.bsSwapSheetBase('x', plan, own, { id: 'x', title: 'Shown' }).title, 'Shown');
   assert.equal(MOD.bsSwapSheetBase('x', null, undefined, { id: 'x', title: 'Shown' }).title, 'Shown');
+});
+
+test('⚠ the plan sheet\'s search narrows the slot\'s recipes, never leaves the slot (Codex P2 on #2563)', async () => {
+  const { bsRecipesForSlot } = await loadCarved('BSPlanDay.jsx', React);
+  const tagged = (title, tags) => ({ title, tags });
+  const book = [tagged('Chicken and egg breakfast wrap', ['Breakfast']), tagged('Chicken tray bake', ['Dinner']), tagged('Greek yogurt power bowl', ['Breakfast']), tagged('Chicken satay skewers', ['Snack'])];
+  const titles = (slot, q) => bsRecipesForSlot(book, slot, q).map((r) => r.title);
+  // Breakfast, searching "chicken": the breakfast wrap only, never the tray bake it would save as breakfast.
+  assert.deepEqual(titles('BREAKFAST', 'chicken'), ['Chicken and egg breakfast wrap']);
+  assert.deepEqual(titles('SNACK', 'chicken'), ['Chicken satay skewers']);
+  assert.deepEqual(titles('DINNER', 'chicken'), ['Chicken tray bake'], 'a main for dinner');
+  // No search: the slot's whole list, as before.
+  assert.deepEqual(titles('BREAKFAST', ''), ['Chicken and egg breakfast wrap', 'Greek yogurt power bowl']);
+  assert.deepEqual(titles('BREAKFAST', 'tray'), [], 'a search with nothing in the slot finds nothing');
 });

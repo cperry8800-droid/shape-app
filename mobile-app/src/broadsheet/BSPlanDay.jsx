@@ -44,7 +44,9 @@ function useSlotWord() {
 }
 
 // Which catalog recipes a slot lists: a breakfast for breakfast, a snack for a snack, a main for
-// lunch and dinner (the morning swap's grouping, prepAhead.mjs).
+// lunch and dinner (the morning swap's grouping, prepAhead.mjs). A search narrows the slot's list,
+// never leaves it: a recipe picked is planned into the slot chosen, so a main found while Breakfast
+// is chosen would be saved as breakfast (Codex P2 on #2563).
 const SLOT_TAGS = { BREAKFAST: ['Breakfast', 'Brunch'], SNACK: ['Snack', 'Side'] };
 const NOT_A_MAIN = ['Breakfast', 'Brunch', 'Snack', 'Side'];
 export function bsRecipesForSlot(recipes, slot, query) {
@@ -52,7 +54,7 @@ export function bsRecipesForSlot(recipes, slot, query) {
   const q = String(query || '').trim().toLowerCase();
   return (Array.isArray(recipes) ? recipes : []).filter((r) => {
     if (!r || !r.title) return false;
-    if (q) return String(r.title).toLowerCase().includes(q);
+    if (q && !String(r.title).toLowerCase().includes(q)) return false;
     const tags = Array.isArray(r.tags) ? r.tags : [];
     return want ? want.some((x) => tags.includes(x)) : !tags.some((x) => NOT_A_MAIN.includes(x));
   });
