@@ -1502,5 +1502,8 @@
   "roster.weekLogged": "Tercatat · 7 hr",
   "roster.weekAdherence": "Kepatuhan",
   "roster.workouts6w": "{count, plural, other {# latihan}} dalam 6 mgg",
-  "roster.avgKcal": "Rata-rata {kcal} kkal"
+  "roster.avgKcal": "Rata-rata {kcal} kkal",
+  "editor.nightBefore": "SIAPKAN MALAM SEBELUMNYA",
+  "editor.nightBeforeShape": "DISIAPKAN MALAM SEBELUMNYA · RESEP SHAPE",
+  "editor.nightBeforeAria": "Siapkan {name} malam sebelumnya"
 }

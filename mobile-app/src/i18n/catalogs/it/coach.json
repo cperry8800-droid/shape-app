@@ -1502,5 +1502,8 @@
   "roster.weekLogged": "Registrato · 7 g",
   "roster.weekAdherence": "Aderenza",
   "roster.workouts6w": "{count, plural, one {# allenamento} other {# allenamenti}} in 6 sett.",
-  "roster.avgKcal": "Media {kcal} kcal"
+  "roster.avgKcal": "Media {kcal} kcal",
+  "editor.nightBefore": "DA PREPARARE LA SERA PRIMA",
+  "editor.nightBeforeShape": "PREPARATO LA SERA PRIMA · RICETTA SHAPE",
+  "editor.nightBeforeAria": "Prepara {name} la sera prima"
 }

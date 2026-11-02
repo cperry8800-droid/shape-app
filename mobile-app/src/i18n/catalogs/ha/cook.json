@@ -235,5 +235,13 @@
   "prepAhead.savedFor": "An adana a matsayin wanda aka shirya don {days}. Ba a rubuta komai a matsayin abin da aka ci ba.",
   "prepAhead.saved": "An adana a matsayin wanda aka shirya. Ba a rubuta komai a matsayin abin da aka ci ba.",
   "prepAhead.notPrepped": "Ba a shirya shi jiya da dare ba",
-  "plated.prepped": "An shirya don gobe."
+  "plated.prepped": "An shirya don gobe.",
+  "prepAhead.ticked": "Masanin abincinka ya yi alamar a shirya wannan daren da ya gabata.",
+  "morningSwap.offer": "Ka ci {recipe} a madadin haka yau da safe? Zai kasance a shirye cikin minti {min}, babu abin da za a shirya tun da wuri.",
+  "morningSwap.offerNoTime": "Ka ci {recipe} a madadin haka yau da safe? Babu abin da za a shirya tun da wuri.",
+  "morningSwap.todayOnly": "Don yau kaɗai. Sauran shirinka zai kasance yadda yake.",
+  "morningSwap.swap": "Canja",
+  "morningSwap.keep": "Bar shi",
+  "morningSwap.done": "An canja don yau: {recipe}.",
+  "morningSwap.failed": "Ba a adana canjin ba. Sake gwadawa."
 }

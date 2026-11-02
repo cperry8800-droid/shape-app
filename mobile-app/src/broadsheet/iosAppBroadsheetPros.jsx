@@ -13,6 +13,8 @@ import BSWorkoutDocumentEditor from './BSWorkoutDocumentEditor.jsx';
 import BSCoachNote from './BSCoachNote.jsx';
 import BSLiveWorkoutWatch from './BSLiveWorkoutWatch.jsx';
 import { bsAuthorStep, bsStepPerSideMin, BS_STATIONS } from '../services/cookable.mjs';
+import { bsMakeAheadIndex, bsMadeAheadByName } from '../services/prepAhead.mjs';
+import { SHAPE_KITCHEN_RECIPES as BS_PRO_KITCHEN } from './shapeKitchenData.js';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsCaseVitals } from '../services/caseVitals.mjs';
 import { bsVarianceCopy } from '../../../public/newdesign/varianceBand.mjs';
@@ -4265,6 +4267,12 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
             .map((s) => (s && typeof s === 'object' ? bsAuthorStep(s.t, s.station) : bsAuthorStep(s, null)))
             .filter(Boolean).slice(0, 30);
           if (ds.length) m.steps = ds;
+          // Night-before prep (Phase 2): a block naming a Shape recipe that has to be made the night
+          // before is that recipe (its id, so the member's reminder and cook screen find it whatever
+          // the line's calories say); any other block the coach ticked carries the tick.
+          const madeAhead = bsMadeAheadByName(m.title, BS_PRO_MAKE_AHEAD);
+          if (madeAhead) m.recipeId = madeAhead.slug;
+          else if (rb && rb.prepNightBefore === true) m.prepNightBefore = true;
           return m;
         }).filter(Boolean);
         const calM = String((plan.detail && plan.detail.cals) || plan.meta || '').match(/(\d{3,4})/);
@@ -6394,6 +6402,19 @@ const bsEditorSteps = (steps) => (Array.isArray(steps)
   ? steps.map((s) => (typeof s === 'string' ? { t: s, station: null } : { t: (s && typeof s.t === 'string') ? s.t : '', station: (s && s.station) || null }))
   : undefined);
 
+// ── Night-before prep (Phase 2, 2026-11-01) ───────────────────────────────────
+// The Shape Kitchen recipes that have to be prepped the night before (prepAhead.mjs's index, the
+// one the member's reminder reads). A meal block naming one is marked "Prepped the night before"
+// in the editor below and mapped to it at Assign (BSProAssignPage); any other block can be ticked
+// (`prepNightBefore`). Kept out of the coach booking screen's span, which a harness lifts on its own
+// (tests/app-booking-server.test.mjs).
+const BS_PRO_MAKE_AHEAD = bsMakeAheadIndex(BS_PRO_KITCHEN);
+// The catalog make-ahead recipe a meal block's line names, or null.
+const bsProMadeAhead = (text) => {
+  const m = String(text || '').trim() ? bsAssignMeal(String(text)) : null;
+  return m ? bsMadeAheadByName(m.title, BS_PRO_MAKE_AHEAD) : null;
+};
+
 function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel, initialName, initialBlocks, initialNote, initialMedia, initialDays, stepAuthoring = false, perDayAuthoring = false, loadCapture = false, onPublish, onCancel }) {
   const tr = useShapeTr();
   const blockLabelText = blockLabel || tr('coach:editor.sections', { defaultValue: 'Sections' });
@@ -6499,6 +6520,13 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
     setUploading(false);
   };
   const clearClip = (i) => editBlocks(list => list.map((b, j) => (j === i ? { ...b, video: undefined } : b)));
+  // Night-before prep (Phase 2): the tick on a meal block. Cleared, it leaves no key behind, so an
+  // untouched block publishes exactly what it did before.
+  const toggleNightBefore = (i) => editBlocks(bs => bs.map((b, j) => {
+    if (j !== i) return b;
+    if (b.prepNightBefore === true) { const { prepNightBefore: _off, ...rest } = b; return rest; }
+    return { ...b, prepNightBefore: true };
+  }));
   const clipBtnStyle = { minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', color: accent, whiteSpace: 'nowrap', padding: '0 2px' };
   const setBlock = (i, v) => editBlocks(bs => bs.map((b, j) => (j === i ? { ...b, text: v } : b)));
   // §3.2a capture. Stored as the CHIP VALUE the coach picked, never a number:
@@ -6641,6 +6669,23 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                     )}
                   </div>
                 )}
+                {/* Night-before prep (Phase 2): a meal block naming a Shape recipe that has to be
+                    made the night before is marked; any other can be ticked, and the member is
+                    reminded the evening before either way. Menus only (a meal plan or a diet, the
+                    drafts with per-day menus): a program's blocks are weeks, not meals. */}
+                {stepAuthoring && perDayAuthoring && String(b.text || '').trim() && (bsProMadeAhead(b.text) ? (
+                  <div data-night-before="shape" style={{ margin: '6px 0 0 28px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color: accent }}>
+                    <span aria-hidden>✓ </span>{tr('coach:editor.nightBeforeShape', { defaultValue: 'PREPPED THE NIGHT BEFORE · SHAPE RECIPE' })}
+                  </div>
+                ) : (
+                  <div style={{ margin: '6px 0 0 28px' }}>
+                    <button type="button" data-night-before="tick" onClick={() => toggleNightBefore(i)} aria-pressed={b.prepNightBefore === true}
+                      aria-label={tr('coach:editor.nightBeforeAria', { defaultValue: 'Prep {name} the night before', name: b.text })}
+                      style={{ minHeight: 34, borderRadius: 8, border: `1px solid ${b.prepNightBefore === true ? accent : t.RULE}`, background: b.prepNightBefore === true ? `${accent}1c` : 'transparent', color: b.prepNightBefore === true ? accent : t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', padding: '0 9px', cursor: 'pointer' }}>
+                      {b.prepNightBefore === true ? <span aria-hidden>✓ </span> : null}{tr('coach:editor.nightBefore', { defaultValue: 'PREP THE NIGHT BEFORE' })}
+                    </button>
+                  </div>
+                ))}
                 {/* PR E — the method: ordered cooking steps on a meal block. A step
                     with a station AND a duration STATED IN ITS OWN TEXT becomes a
                     hands-off window (Cook Mode's board can interleave around it);

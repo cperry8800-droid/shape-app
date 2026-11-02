@@ -235,5 +235,13 @@
   "prepAhead.savedFor": "Als vorbereitet gespeichert für {days}. Nichts wird als gegessen erfasst.",
   "prepAhead.saved": "Als vorbereitet gespeichert. Nichts wird als gegessen erfasst.",
   "prepAhead.notPrepped": "Gestern Abend nicht vorbereitet",
-  "plated.prepped": "Für morgen vorbereitet."
+  "plated.prepped": "Für morgen vorbereitet.",
+  "prepAhead.ticked": "Deine Ernährungsberatung hat das zum Vorbereiten am Vorabend markiert.",
+  "morningSwap.offer": "Stattdessen heute Morgen {recipe}? In {min} Min. fertig, ohne Vorbereitung am Vorabend.",
+  "morningSwap.offerNoTime": "Stattdessen heute Morgen {recipe}? Ohne Vorbereitung am Vorabend.",
+  "morningSwap.todayOnly": "Nur für heute. Der Rest deines Plans bleibt, wie er ist.",
+  "morningSwap.swap": "Tauschen",
+  "morningSwap.keep": "Behalten",
+  "morningSwap.done": "Für heute getauscht: {recipe}.",
+  "morningSwap.failed": "Der Tausch wurde nicht gespeichert. Versuch es noch einmal."
 }

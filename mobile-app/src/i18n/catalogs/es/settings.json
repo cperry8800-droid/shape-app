@@ -605,5 +605,9 @@
   "notifyPrefs.member.payments": "Recibos",
   "notifyPrefs.member.payments.sub": "Cuando se completa un pago",
   "notifyPrefs.member.account": "De Shape",
-  "notifyPrefs.member.account.sub": "Tu bienvenida y avisos sobre tu cuenta"
+  "notifyPrefs.member.account.sub": "Tu bienvenida y avisos sobre tu cuenta",
+  "notifyPrefs.prepHour": "Hora del recordatorio",
+  "notifyPrefs.prepHourSub": "La noche antes, a tu hora",
+  "notifyPrefs.prepHourQuiet": "En tus horas de silencio: en la app, sin push",
+  "notifyPrefs.prepHourFailed": "No se guardó la hora del recordatorio. Inténtalo de nuevo."
 }

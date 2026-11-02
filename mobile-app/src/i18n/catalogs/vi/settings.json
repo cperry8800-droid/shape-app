@@ -605,5 +605,9 @@
   "notifyPrefs.member.payments": "Biên nhận",
   "notifyPrefs.member.payments.sub": "Khi một khoản thanh toán thành công",
   "notifyPrefs.member.account": "Từ Shape",
-  "notifyPrefs.member.account.sub": "Lời chào mừng, và ghi chú về tài khoản của bạn"
+  "notifyPrefs.member.account.sub": "Lời chào mừng, và ghi chú về tài khoản của bạn",
+  "notifyPrefs.prepHour": "Giờ nhắc",
+  "notifyPrefs.prepHourSub": "Tối hôm trước, theo giờ của bạn",
+  "notifyPrefs.prepHourQuiet": "Trong giờ yên lặng: chỉ trong ứng dụng, không đẩy thông báo",
+  "notifyPrefs.prepHourFailed": "Chưa lưu được giờ nhắc. Thử lại."
 }

@@ -1502,5 +1502,8 @@
   "roster.weekLogged": "Đã ghi · 7 ngày",
   "roster.weekAdherence": "Tuân thủ",
   "roster.workouts6w": "{count, plural, other {# buổi tập}} trong 6 tuần",
-  "roster.avgKcal": "TB {kcal} kcal"
+  "roster.avgKcal": "TB {kcal} kcal",
+  "editor.nightBefore": "CHUẨN BỊ TỪ TỐI HÔM TRƯỚC",
+  "editor.nightBeforeShape": "CHUẨN BỊ TỪ TỐI HÔM TRƯỚC · CÔNG THỨC SHAPE",
+  "editor.nightBeforeAria": "Chuẩn bị {name} từ tối hôm trước"
 }

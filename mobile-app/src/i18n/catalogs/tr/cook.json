@@ -235,5 +235,13 @@
   "prepAhead.savedFor": "{days} için hazırlandı olarak kaydedildi. Hiçbir şey yenmiş olarak kaydedilmedi.",
   "prepAhead.saved": "Hazırlandı olarak kaydedildi. Hiçbir şey yenmiş olarak kaydedilmedi.",
   "prepAhead.notPrepped": "Dün akşam hazırlanmadı",
-  "plated.prepped": "Yarın için hazırlandı."
+  "plated.prepped": "Yarın için hazırlandı.",
+  "prepAhead.ticked": "Beslenme uzmanın bunu bir önceki akşam hazırlanacak diye işaretledi.",
+  "morningSwap.offer": "Bu sabah onun yerine {recipe}? {min} dakikada hazır, önceden hazırlık yok.",
+  "morningSwap.offerNoTime": "Bu sabah onun yerine {recipe}? Önceden hazırlık yok.",
+  "morningSwap.todayOnly": "Sadece bugün için. Planının geri kalanı olduğu gibi kalır.",
+  "morningSwap.swap": "Değiştir",
+  "morningSwap.keep": "Kalsın",
+  "morningSwap.done": "Bugün için değiştirildi: {recipe}.",
+  "morningSwap.failed": "Değişiklik kaydedilmedi. Tekrar dene."
 }

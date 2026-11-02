@@ -100,10 +100,12 @@ const TABLES = () => ({
     { user_id: 'ivy', timezone: 'UTC' }, { user_id: 'hal', timezone: 'UTC' },
   ],
   // Cat and Dan have no profile zone; their notification settings carry one. Cat's quiet hours
-  // start at 6 pm. Dan is in Lagos, where it is 8:30 pm: read as UTC, he would be reminded.
+  // start at 6 pm. Dan is in São Paulo, where it is 4:30 pm: read as UTC, he would be reminded.
+  // (A member is due from their hour to the end of their evening, so a zone already past 7 pm is
+  // due too; one before it is the zone's test.)
   notification_settings: [
     { user_id: 'cat', tz: 'Africa/Accra', quiet_start: 18, quiet_end: 7 },
-    { user_id: 'dan', tz: 'Africa/Lagos' },
+    { user_id: 'dan', tz: 'America/Sao_Paulo' },
   ],
   user_goals: [
     forDate('dee', ['2026-10-05', '2026-10-06', '2026-10-07']),
@@ -119,7 +121,7 @@ test('at 7 pm in their own zone, a member whose plan has the oats tomorrow gets 
   const { status, body, sent } = await run(t, TABLES());
   assert.equal(status, 200);
   assert.deepEqual(sent.map((n) => n.userId).sort(), ['ann', 'cat', 'hal', 'ivy'],
-    'ben is at 3 pm and dan at 8:30 pm; dee prepped; eve was told on Saturday; fay swapped the oats out; gus has no published plan');
+    'ben is at 3 pm and dan at 4:30 pm; dee prepped; eve was told on Saturday; fay swapped the oats out; gus has no published plan');
   assert.deepEqual(body, { ok: true, owed: 4, sent: 4, truncated: false });
   const ann = sent.find((n) => n.userId === 'ann');
   assert.equal(ann.type, 'meal_prep');

@@ -605,5 +605,9 @@
   "notifyPrefs.member.payments": "Tanda terima",
   "notifyPrefs.member.payments.sub": "Saat pembayaran berhasil",
   "notifyPrefs.member.account": "Dari Shape",
-  "notifyPrefs.member.account.sub": "Sambutanmu, dan catatan tentang akunmu"
+  "notifyPrefs.member.account.sub": "Sambutanmu, dan catatan tentang akunmu",
+  "notifyPrefs.prepHour": "Waktu pengingat",
+  "notifyPrefs.prepHourSub": "Malam sebelumnya, waktu setempatmu",
+  "notifyPrefs.prepHourQuiet": "Di jam tenangmu: di aplikasi, tanpa push",
+  "notifyPrefs.prepHourFailed": "Waktu pengingat tidak tersimpan. Coba lagi."
 }

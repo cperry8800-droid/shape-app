@@ -605,5 +605,9 @@
   "notifyPrefs.member.payments": "Receipts",
   "notifyPrefs.member.payments.sub": "When payment go through",
   "notifyPrefs.member.account": "From Shape",
-  "notifyPrefs.member.account.sub": "Your welcome, and notes about your account"
+  "notifyPrefs.member.account.sub": "Your welcome, and notes about your account",
+  "notifyPrefs.prepHour": "Reminder time",
+  "notifyPrefs.prepHourSub": "The evening before, your own time",
+  "notifyPrefs.prepHourQuiet": "For your quiet hours: inside the app, no push",
+  "notifyPrefs.prepHourFailed": "The reminder time no save. Try again."
 }

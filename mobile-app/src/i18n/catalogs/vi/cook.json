@@ -235,5 +235,13 @@
   "prepAhead.savedFor": "Đã lưu là đã chuẩn bị cho {days}. Chưa ghi nhận là đã ăn.",
   "prepAhead.saved": "Đã lưu là đã chuẩn bị. Chưa ghi nhận là đã ăn.",
   "prepAhead.notPrepped": "Tối qua chưa chuẩn bị",
-  "plated.prepped": "Đã chuẩn bị cho ngày mai."
+  "plated.prepped": "Đã chuẩn bị cho ngày mai.",
+  "prepAhead.ticked": "Chuyên gia dinh dưỡng của bạn đánh dấu món này cần chuẩn bị từ tối hôm trước.",
+  "morningSwap.offer": "Sáng nay ăn {recipe} thay thế nhé? Xong trong {min} phút, không cần chuẩn bị trước.",
+  "morningSwap.offerNoTime": "Sáng nay ăn {recipe} thay thế nhé? Không cần chuẩn bị trước.",
+  "morningSwap.todayOnly": "Chỉ hôm nay thôi. Phần còn lại của kế hoạch vẫn giữ nguyên.",
+  "morningSwap.swap": "Đổi món",
+  "morningSwap.keep": "Giữ nguyên",
+  "morningSwap.done": "Đã đổi cho hôm nay: {recipe}.",
+  "morningSwap.failed": "Chưa lưu được món đổi. Thử lại."
 }

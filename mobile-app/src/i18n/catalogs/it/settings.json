@@ -605,5 +605,9 @@
   "notifyPrefs.member.payments": "Ricevute",
   "notifyPrefs.member.payments.sub": "Quando un pagamento va a buon fine",
   "notifyPrefs.member.account": "Da Shape",
-  "notifyPrefs.member.account.sub": "Il tuo benvenuto e note sul tuo account"
+  "notifyPrefs.member.account.sub": "Il tuo benvenuto e note sul tuo account",
+  "notifyPrefs.prepHour": "Orario del promemoria",
+  "notifyPrefs.prepHourSub": "La sera prima, all’ora locale",
+  "notifyPrefs.prepHourQuiet": "Nelle ore di silenzio: nell’app, senza push",
+  "notifyPrefs.prepHourFailed": "L’orario del promemoria non è stato salvato. Riprova."
 }

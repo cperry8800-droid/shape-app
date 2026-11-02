@@ -605,5 +605,9 @@
   "notifyPrefs.member.payments": "Reçus",
   "notifyPrefs.member.payments.sub": "Quand un paiement passe",
   "notifyPrefs.member.account": "De Shape",
-  "notifyPrefs.member.account.sub": "Votre bienvenue et des informations sur votre compte"
+  "notifyPrefs.member.account.sub": "Votre bienvenue et des informations sur votre compte",
+  "notifyPrefs.prepHour": "Heure du rappel",
+  "notifyPrefs.prepHourSub": "La veille au soir, à votre heure",
+  "notifyPrefs.prepHourQuiet": "Pendant vos heures calmes : dans l’app, sans push",
+  "notifyPrefs.prepHourFailed": "L’heure du rappel n’a pas été enregistrée. Réessayez."
 }

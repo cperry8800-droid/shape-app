@@ -1014,3 +1014,72 @@ test('the method editor explains a per-side step, and a range is a window from i
   // ⚠ Codex, on e4ea9ba: a per-side step too short to carry minutes got "state a time".
   assert.match(hints[4], /^Timed per side, so the cook comes back to turn it/, 'e: per side, however short');
 });
+
+// ── Night-before prep, Phase 2 (2026-11-01): the nutritionist's tick ─────────────────────────
+// A meal block can be ticked "prep the night before"; one naming a Shape recipe that has to be made
+// the night before is marked instead. The tick rides the block to publish, and Assign carries it
+// (or the recipe's id) to the client's plan, which the member's reminder reads (prepAhead.mjs).
+test('the meal editor ticks a block to prep the night before, marks the Shape oats, and publishes the tick', async () => {
+  const { published, props } = baseProps({
+    stepAuthoring: true,
+    initialBlocks: [
+      { id: 'b1', text: 'Breakfast — Overnight oats, three ways · 480 kcal' },
+      { id: 'b2', text: 'Lunch — Lentil soup · 420 kcal' },
+    ],
+  });
+  const ed = drive(props);
+  const ticks = () => ed.nodes().filter((n) => n.props && n.props['data-night-before'] === 'tick');
+  const marks = () => ed.nodes().filter((n) => n.props && n.props['data-night-before'] === 'shape');
+  assert.equal(marks().length, 1, 'the oats are marked, not ticked');
+  assert.match(textOf(marks()[0]), /PREPPED THE NIGHT BEFORE · SHAPE RECIPE/);
+  assert.equal(ticks().length, 1, 'the soup can be ticked');
+  assert.equal(ticks()[0].props['aria-pressed'], false);
+  ed.clickAria('Prep {name} the night before');
+  assert.equal(ticks()[0].props['aria-pressed'], true);
+  await ed.publish();
+  assert.deepEqual(published[0].blocks.map((b) => [b.text, b.prepNightBefore]), [
+    ['Breakfast — Overnight oats, three ways · 480 kcal', undefined],
+    ['Lunch — Lentil soup · 420 kcal', true],
+  ]);
+  // Unticked, the key goes: an untouched block publishes what it did before.
+  ed.clickAria('Prep {name} the night before');
+  await ed.publish();
+  assert.equal('prepNightBefore' in published[1].blocks[1], false);
+});
+
+test('a program (no per-day menus) is not offered the tick: its blocks are weeks, not meals', () => {
+  const ed = drive(baseProps({ stepAuthoring: true, perDayAuthoring: false, initialBlocks: [{ id: 'b1', text: 'Week 1 — Reset & habits' }] }).props);
+  assert.equal(ed.nodes().filter((n) => n.props && n.props['data-night-before']).length, 0);
+});
+
+test('assign: a ticked meal carries its tick to the client, and the Shape oats their recipe id', async () => {
+  const sent = [];
+  globalThis.ShapeAssign = { mealPlan: async (body) => { sent.push(body); return { ok: true }; }, clients: async () => [] };
+  globalThis.ShapeCoachPlans = { list: async () => [] };
+  globalThis.ShapeMessages = undefined;
+  globalThis.bsAskConfirm = async () => true;
+  try {
+    const page = driveAssign({
+      role: 'nutritionist',
+      plan: { id: 'mp-1', name: 'Lean Cut', meta: '2,100 kcal', detail: { blocks: [
+        { id: 'b1', text: 'Breakfast — Overnight oats, three ways · 480 kcal' },
+        { id: 'b2', text: 'Lunch — Lentil soup · 420 kcal', prepNightBefore: true },
+        { id: 'b3', text: 'Dinner — Salmon, rice · 600 kcal' },
+      ] } },
+      client: { n: 'Ana Ruiz' },
+      clientUid: '11111111-2222-4333-8444-555555555555',
+      onBack() {}, onDone() {},
+    });
+    await page.click((s) => /Assign & notify/.test(s));
+    assert.equal(sent.length, 1);
+    const monday = sent[0].days[0].meals;
+    assert.deepEqual(monday.map((m) => [m.title, m.recipeId, m.prepNightBefore]), [
+      ['Overnight oats, three ways · 480 kcal', 'overnight-oats-three-ways', undefined],
+      ['Lentil soup · 420 kcal', undefined, true],
+      ['Salmon, rice · 600 kcal', undefined, undefined],
+    ]);
+    assert.equal(sent[0].days.length, 7);
+  } finally {
+    delete globalThis.bsAskConfirm;
+  }
+});

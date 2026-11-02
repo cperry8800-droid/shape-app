@@ -1502,5 +1502,8 @@
   "roster.weekLogged": "Записи · 7 дн",
   "roster.weekAdherence": "Виконання",
   "roster.workouts6w": "{count, plural, one {# тренування} few {# тренування} many {# тренувань} other {# тренування}} за 6 тиж.",
-  "roster.avgKcal": "У середньому {kcal} ккал"
+  "roster.avgKcal": "У середньому {kcal} ккал",
+  "editor.nightBefore": "ГОТУВАТИ НАПЕРЕДОДНІ",
+  "editor.nightBeforeShape": "ГОТУЄТЬСЯ НАПЕРЕДОДНІ · РЕЦЕПТ SHAPE",
+  "editor.nightBeforeAria": "Готувати {name} напередодні"
 }

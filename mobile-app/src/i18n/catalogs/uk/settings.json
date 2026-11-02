@@ -605,5 +605,9 @@
   "notifyPrefs.member.payments": "Чеки",
   "notifyPrefs.member.payments.sub": "Коли платіж проходить",
   "notifyPrefs.member.account": "Від Shape",
-  "notifyPrefs.member.account.sub": "Привітання та нотатки про ваш акаунт"
+  "notifyPrefs.member.account.sub": "Привітання та нотатки про ваш акаунт",
+  "notifyPrefs.prepHour": "Час нагадування",
+  "notifyPrefs.prepHourSub": "Напередодні ввечері, за вашим часом",
+  "notifyPrefs.prepHourQuiet": "У тихі години: у застосунку, без пуша",
+  "notifyPrefs.prepHourFailed": "Час нагадування не збережено. Спробуйте ще раз."
 }

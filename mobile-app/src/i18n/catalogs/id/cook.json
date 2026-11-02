@@ -235,5 +235,13 @@
   "prepAhead.savedFor": "Disimpan sebagai sudah disiapkan untuk {days}. Tidak ada yang dicatat sebagai sudah dimakan.",
   "prepAhead.saved": "Disimpan sebagai sudah disiapkan. Tidak ada yang dicatat sebagai sudah dimakan.",
   "prepAhead.notPrepped": "Belum disiapkan semalam",
-  "plated.prepped": "Sudah disiapkan untuk besok."
+  "plated.prepped": "Sudah disiapkan untuk besok.",
+  "prepAhead.ticked": "Ahli gizimu menandai yang ini untuk disiapkan malam sebelumnya.",
+  "morningSwap.offer": "Ganti dengan {recipe} pagi ini? Siap dalam {min} menit, tanpa persiapan sebelumnya.",
+  "morningSwap.offerNoTime": "Ganti dengan {recipe} pagi ini? Tanpa persiapan sebelumnya.",
+  "morningSwap.todayOnly": "Hanya untuk hari ini. Rencanamu yang lain tetap seperti semula.",
+  "morningSwap.swap": "Tukar",
+  "morningSwap.keep": "Tetap",
+  "morningSwap.done": "Ditukar untuk hari ini: {recipe}.",
+  "morningSwap.failed": "Penukaran tidak tersimpan. Coba lagi."
 }
