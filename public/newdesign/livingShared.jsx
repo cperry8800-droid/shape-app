@@ -648,7 +648,11 @@ function LvClientBand({ d, light }) {
 // by the blocks below and the website's coach profile in the app's design (coachProfileWeb.jsx),
 // so the two pages subscribe, queue and review through one path. `monthly` is the listing's own
 // monthly price as the page prints it ("$180"); without it, the price these blocks have shown.
-function useLvCoachCommerce({ d, monthly = null }) {
+// `provider`: the coach's provider row when the page has already read it (the coach profile page,
+// coachProfileWeb.jsx), so Subscribe, the waiting list and the review form use the very row the page
+// shows rather than a second read that can fail on its own (Codex P2 on #2560). `undefined` (the old
+// page) reads it here; `null` means the page's own read is still on its way.
+function useLvCoachCommerce({ d, monthly = null, provider }) {
   // Storefront: the profile is the listing. Resolve the coach's provider (for the
   // subscription checkout) + live reviews — the same data the marketplace used.
   const first = d.first || String(d.name || "").split(/\s+/)[0] || "Coach";
@@ -709,6 +713,31 @@ function useLvCoachCommerce({ d, monthly = null }) {
     // and their storefront never appears at all. Clearing first makes the stale state
     // unreachable on every exit from this effect rather than on the happy one.
     setOffer(null); setStudio([]); setProw(null); setCapSrv(false); setBuyErr(""); setWlErr("");
+    const apply = (row) => {
+      // Capacity rides the request that was already going out — the page has always
+      // read this row for the offer and the STUDIO, so knowing whether the coach is
+      // paused costs no extra round trip.
+      //
+      // ⚠ SPELLED EXACTLY AS `src/lib/capacity.ts` isEffectivelyAtCapacity SPELLS IT:
+      // paused, AND either no resume date or one still in the future. A resume date
+      // that has passed means accepting again even though the column has not been
+      // flipped back yet (the lazy cleanup runs on the coach's next dashboard visit).
+      // An unparseable date is NaN, and `NaN > Date.now()` is false — the server
+      // reads it as accepting too, which is the point of copying the expression
+      // rather than re-deriving one that agrees on the cases somebody thought of.
+      const resume = row.capacity_resume_at;
+      setProw({ id: row.id, name: row.name || "", atCapacity: !!row.at_capacity && (!resume || new Date(resume).getTime() > Date.now()) });
+      if (row.monthly_offer) setOffer(row.monthly_offer);
+      const lib = window.ShapeListingLib;
+      if (row.listing_media && lib && lib.bsNormalizeListingMedia) {
+        const m = lib.bsNormalizeListingMedia(row.listing_media, d.uid);
+        if (m && Array.isArray(m.gallery) && m.gallery.length) setStudio(m.gallery);
+      }
+    };
+    if (provider !== undefined) {
+      if (d.uid && provider && provider.id != null) apply(provider);
+      return undefined;
+    }
     if (!d.uid || !cl || !cl.from) return;
     let on = true;
     // Clear any prior coach's data first, so a same-mount profile swap can't
@@ -722,29 +751,11 @@ function useLvCoachCommerce({ d, monthly = null }) {
     cl.from(providerTable).select("id, name, monthly_offer, listing_media, at_capacity, capacity_resume_at").eq("owner_id", d.uid).maybeSingle()
       .then((r) => {
         if (!on || !r || r.error || !r.data) return;
-        // Capacity rides the request that was already going out — the page has always
-        // read this row for the offer and the STUDIO, so knowing whether the coach is
-        // paused costs no extra round trip.
-        //
-        // ⚠ SPELLED EXACTLY AS `src/lib/capacity.ts` isEffectivelyAtCapacity SPELLS IT:
-        // paused, AND either no resume date or one still in the future. A resume date
-        // that has passed means accepting again even though the column has not been
-        // flipped back yet (the lazy cleanup runs on the coach's next dashboard visit).
-        // An unparseable date is NaN, and `NaN > Date.now()` is false — the server
-        // reads it as accepting too, which is the point of copying the expression
-        // rather than re-deriving one that agrees on the cases somebody thought of.
-        const resume = r.data.capacity_resume_at;
-        setProw({ id: r.data.id, name: r.data.name || "", atCapacity: !!r.data.at_capacity && (!resume || new Date(resume).getTime() > Date.now()) });
-        if (r.data.monthly_offer) setOffer(r.data.monthly_offer);
-        const lib = window.ShapeListingLib;
-        if (lib && lib.bsNormalizeListingMedia) {
-          const m = lib.bsNormalizeListingMedia(r.data.listing_media, d.uid);
-          if (m && Array.isArray(m.gallery) && m.gallery.length) setStudio(m.gallery);
-        }
+        apply(r.data);
       })
       .catch(() => {});
     return () => { on = false; };
-  }, [d.uid, providerTable]);
+  }, [d.uid, providerTable, provider]);
   const offerLines = offer && Array.isArray(offer.includes) ? offer.includes.filter((x) => typeof x === "string" && x.trim()).slice(0, 8) : [];
   const hasOffer = Boolean(offer && ((offer.blurb && String(offer.blurb).trim()) || offerLines.length));
   // ⚠ A COACH WITH AN ACCOUNT IS RATED BY ITS REVIEWS OR NOT AT ALL (owner,

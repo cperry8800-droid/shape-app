@@ -142,8 +142,9 @@ function backend({ capacity = false, plans = () => ({ data: PLANS, error: null }
   const calls = [];
   const q = (table) => {
     const rows = table === 'trainers' ? [{ ...LISTING, at_capacity: capacity }] : table === 'community_posts' ? [] : [];
-    const res = () => { reads[table] = (reads[table] || 0) + 1; return fail(table) ? { data: null, error: { message: 'timeout' } } : { data: rows, error: null }; };
-    const o = { select: () => o, eq: () => o, in: () => o, order: () => o, limit: () => o, maybeSingle: async () => { const r = res(); return { data: r.data ? r.data[0] || null : null, error: r.error }; }, then: (r, j) => (hold(table) ? new Promise(() => {}) : Promise.resolve(res())).then(r, j) };
+    // `how` is 'list' for a read of rows, 'single' for a maybeSingle (the storefront hook's own read).
+    const res = (how) => { reads[table] = (reads[table] || 0) + 1; return fail(table, how) ? { data: null, error: { message: 'timeout' } } : { data: rows, error: null }; };
+    const o = { select: () => o, eq: () => o, in: () => o, order: () => o, limit: () => o, maybeSingle: async () => { const r = res('single'); return { data: r.data ? r.data[0] || null : null, error: r.error }; }, then: (r, j) => (hold(table) ? new Promise(() => {}) : Promise.resolve(res('list'))).then(r, j) };
     return o;
   };
   window.shapeDb = {
@@ -256,6 +257,20 @@ test('a plan read that fails says so, with Try again, and never reads as "no pla
   const q = await mount(LIVE);
   assert.ok(document.querySelector('[data-work-rail] [data-plans-error]'), 'a request that throws is a failed read too');
   await q.unmount();
+});
+
+test('Subscribe checks out against the listing the page read, never needing a second read of it', async () => {
+  WIDE = true; const reads = {};
+  const calls = backend({ fail: (t, how) => t === 'trainers' && how === 'single', reads });
+  const p = await mount(LIVE);
+  const rail = document.querySelector('[data-work-rail]');
+  assert.ok(rail.querySelector('[data-code-box]'), 'the storefront has its provider: the code box is drawn');
+  await React.act(async () => rail.querySelector('[data-subscribe]').click());
+  await settle();
+  const post = calls.find((c) => c.url === '/api/stripe/checkout-session');
+  assert.ok(post, 'Subscribe posts the checkout');
+  assert.deepEqual(post.body.coach, { provider_id: 7, provider_role: 'trainer', name: 'Tom Trainer' });
+  await p.unmount();
 });
 
 test('a listing read that fails says so in Work with, with Try again, and never reads as unlisted', async () => {

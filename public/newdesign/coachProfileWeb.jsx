@@ -418,7 +418,14 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
 
   // ── The storefront, the reviews and the review form: the one path (livingShared.jsx) ──
   const commerceD = React.useMemo(() => ({ uid: live ? uid : null, name, first, role, offerings: [], reviews: [], custom }), [live, uid, name, first, role, custom]);
-  const cm = useLvCoachCommerce({ d: commerceD, monthly: sells ? `$${monthly}` : null });
+  // The storefront uses the listing this page read (Subscribe, the waiting list, the review form), so
+  // one failed read cannot leave a Subscribe drawn with nothing to check out (Codex P2 on 539a354).
+  // While the page's read is on its way the storefront waits; with no listing on the marketplace, or
+  // a read that failed, it reads the coach's row itself as the old page did.
+  // (Its media is already this page's; the storefront's own copy of it is for the old page.)
+  const commerceRow = React.useMemo(() => (listed ? { ...listing.row, listing_media: null } : null), [listed, listing.row]);
+  const commerceProvider = !live ? undefined : listing.state === "loading" ? null : commerceRow || undefined;
+  const cm = useLvCoachCommerce({ d: commerceD, monthly: sells ? `$${monthly}` : null, provider: commerceProvider });
   const wins = useLvWinsWall(commerceD);
 
   // ── Their week ──

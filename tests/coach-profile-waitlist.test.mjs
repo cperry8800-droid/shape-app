@@ -67,9 +67,10 @@ test('the capacity reading agrees with the server, driven rather than matched', 
   // reading that disagrees with the server's on some edge — after which the profile
   // shows a storefront the checkout then refuses, or a waiting list for a coach with
   // room. Parity is the invariant; the spelling is not.
-  const wm = /atCapacity: (!!r\.data\.at_capacity[^}]+?) \}\);/.exec(WEB);
+  // The row is the provider read's, or the one the coach profile page passes in (`apply(row)`).
+  const wm = /atCapacity: (!!row\.at_capacity[^}]+?) \}\);/.exec(WEB);
   assert.ok(wm, 'the capacity expression moved');
-  const web = new Function('r', 'resume', 'return (' + wm[1] + ');');
+  const web = new Function('row', 'resume', 'return (' + wm[1] + ');');
 
   const body = CAP_TS.slice(CAP_TS.indexOf('): boolean {') + '): boolean {'.length, CAP_TS.lastIndexOf('}'));
   assert.ok(body.includes('at_capacity'), 'capacity.ts body did not lift');
@@ -90,13 +91,13 @@ test('the capacity reading agrees with the server, driven rather than matched', 
   ];
   for (const v of VECTORS) {
     assert.equal(
-      !!web({ data: v }, v.capacity_resume_at), !!srv(v),
+      !!web(v, v.capacity_resume_at), !!srv(v),
       'the profile and src/lib/capacity.ts disagree on ' + JSON.stringify(v));
   }
   // Positive control — without it this passes on two expressions that both return
   // false for everything, which is exactly the "nobody is ever at capacity" defect.
   assert.equal(srv({ at_capacity: true, capacity_resume_at: null }), true, 'the control vector is not at capacity');
-  assert.equal(web({ data: { at_capacity: true } }, null), true, 'the profile never reports at capacity');
+  assert.equal(web({ at_capacity: true }, null), true, 'the profile never reports at capacity');
 });
 
 test('the checkout provider is the role-correct row, never the plan RPC’s guess', () => {
