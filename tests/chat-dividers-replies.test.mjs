@@ -281,7 +281,9 @@ test('what you send carries the quote: a direct message\'s metadata.reply, a cha
     composer = d.nodes().find((n) => n && typeof n.type === 'function' && n.type.name === 'BSMessageComposer');
     composer.props.onSend();
     d.render();
-    assert.deepEqual(calls[0], ['dm', { conversationId: 'c-1', body: 'Will do.', metadata: { reply: { id: 'm2', from: 'u-maya', who: MAYA, t: 'Keep the tempo slow today.' } } }]);
+    // With the id the view gave it (metadata.cid, read receipts on #2565).
+    assert.match(calls[0][1].metadata.cid, /^tmp-\d+-[a-z0-9]+$/);
+    assert.deepEqual(calls[0], ['dm', { conversationId: 'c-1', body: 'Will do.', metadata: { reply: { id: 'm2', from: 'u-maya', who: MAYA, t: 'Keep the tempo slow today.' }, cid: calls[0][1].metadata.cid } }]);
     assert.equal(d.nodes().find((n) => n && typeof n.type === 'function' && n.type.name === 'BSMessageComposer').props.above, null, 'the quote goes with the send');
     // ...and the sent message draws it over its words.
     const sent = withAttr(d.nodes(), 'data-thread-mine').find((n) => textOf(n).includes('Will do.'));
@@ -291,7 +293,8 @@ test('what you send carries the quote: a direct message\'s metadata.reply, a cha
     composer.props.onChange('Plain.');
     d.render();
     d.nodes().find((n) => n && typeof n.type === 'function' && n.type.name === 'BSMessageComposer').props.onSend();
-    assert.deepEqual(calls[1], ['dm', { conversationId: 'c-1', body: 'Plain.' }]);
+    assert.deepEqual(calls[1], ['dm', { conversationId: 'c-1', body: 'Plain.', metadata: { cid: calls[1][1].metadata.cid } }], 'no reply: only its own id');
+    assert.notEqual(calls[1][1].metadata.cid, calls[0][1].metadata.cid);
     // A channel's reply goes as `reply`.
     const ch = drive(BSChatThread, { thread: { who: 'Run club', role: 'Channel', group: true, channelId: 'ch-1', messages: talk() }, eyebrow: 'Channels', onBack() {} });
     const cb = withAttr(ch.nodes(), 'data-thread-theirs')[0];
@@ -415,7 +418,7 @@ test('both direct-message readers keep the sender\'s account, so a reply names i
   const { isShapeWelcome } = await import('../mobile-app/src/services/shapeWelcome.mjs');
   const { bsGroceryFromMetadata } = await import('../mobile-app/src/services/groceryShare.mjs');
   const deps = { state: { user: { id: 'u-me' } }, isShapeWelcome, bsGroceryFromMetadata, bsReplyFromMetadata, bsChatStamp };
-  const load = (name) => new Function(...Object.keys(deps), `${fnSrc('chatTimeOf')}; ${fnSrc(name)}; return ${name};`)(...Object.values(deps));
+  const load = (name) => new Function(...Object.keys(deps), `${fnSrc('chatTimeOf')}; ${fnSrc('bsViewIdOf')}; ${fnSrc(name)}; return ${name};`)(...Object.values(deps));
   const msgs = [
     { id: 'a', sender_id: 'u-coach', body: 'Hi', metadata: {}, created_at: day(2026, 10, 31, 9) },
     { id: 'b', sender_id: 'u-me', body: 'Hello', metadata: {}, created_at: day(2026, 10, 31, 10) },

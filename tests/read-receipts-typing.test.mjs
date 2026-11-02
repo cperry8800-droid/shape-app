@@ -791,13 +791,15 @@ test('back in view while your own send is still on its way: the stored row is th
   wire();
   const page = pageStandIn('visible');
   let answerSend = null;
+  let sentCid = null;
   const stored = { id: 'm-sent', who: 'You', t: 'On my way', at: '2026-11-02T10:30:00Z', me: true };
   await withPage(page, {
     ShapeUnread: { markConversationRead: () => Promise.resolve(true) },
     ShapeMessages: {
       subscribeMessages: () => () => {},
-      sendMessage: () => new Promise((r) => { answerSend = () => r({ data: { id: 'm-sent', created_at: stored.at } }); }),
-      getConversationThread: async (id) => ({ data: { conversation_id: id, messages: [...talk(), stored] } }),
+      sendMessage: (a) => { sentCid = a.metadata && a.metadata.cid; return new Promise((r) => { answerSend = () => r({ data: { id: 'm-sent', created_at: stored.at } }); }); },
+      // The stored row carries the id the view sent it with, as the readers map it (cid).
+      getConversationThread: async (id) => ({ data: { conversation_id: id, messages: [...talk(), { ...stored, cid: sentCid }] } }),
     },
   }, async () => {
     const { d, effects } = mount(DM());
@@ -853,6 +855,49 @@ test('opened with only the list\'s preview and a history that failed: back in vi
     assert.ok(!bylines.some((b) => textOf(b).includes('Trainer')), 'in the thread\'s name for her');
     assert.ok(marks.length >= 1, 'read');
   });
+});
+
+test('an older message of yours with the same words is never taken for a pending send (Codex P2 on #2565)', async () => {
+  wire();
+  const page = pageStandIn('visible');
+  let answerSend = null;
+  let sentCid = null;
+  const older = { id: 'm-old', who: 'You', t: 'On my way', at: '2026-11-02T08:00:00Z', me: true };
+  await withPage(page, {
+    ShapeUnread: { markConversationRead: () => Promise.resolve(true) },
+    ShapeMessages: {
+      subscribeMessages: () => () => {},
+      sendMessage: (a) => { sentCid = a.metadata && a.metadata.cid; return new Promise((r) => { answerSend = () => r({ data: { id: 'm-new', created_at: '2026-11-02T11:00:00Z' } }); }); },
+      // Read back before the new insert is visible: only the older one, with no cid of this send.
+      getConversationThread: async (id) => ({ data: { conversation_id: id, messages: [...talk(), older] } }),
+    },
+  }, async () => {
+    const { d, effects } = mount(DM({ messages: [...talk(), older] }));
+    effects.forEach((fn) => fn());
+    await tick();
+    composer(d).props.onChange('On my way');
+    d.render();
+    composer(d).props.onSend();
+    d.render();
+    assert.ok(sentCid, 'the send carries its view id');
+    page.onVis();
+    await tick(); await tick();
+    d.render();
+    const mineOnMyWay = () => withAttr(d.nodes(), 'data-thread-mine').filter((n) => textOf(n).includes('On my way')).length;
+    assert.equal(mineOnMyWay(), 2, 'the older one and the new one, which never vanishes into the older');
+    answerSend();
+    await tick(); await tick();
+    d.render();
+    assert.equal(mineOnMyWay(), 2, 'still both once the send answers');
+  });
+});
+
+test('both direct-message readers keep the id the sender\'s view gave a message, read strictly', () => {
+  assert.equal((BACKEND.match(/\n\s+cid: bsViewIdOf\(message\.metadata\),\n/g) || []).length, 2);
+  const at = BACKEND.indexOf('function bsViewIdOf(md) {');
+  const bsViewIdOf = new Function(`${BACKEND.slice(at, BACKEND.indexOf('\n}\n', at) + 2)}; return bsViewIdOf;`)();
+  assert.equal(bsViewIdOf({ cid: 'tmp-1-abc' }), 'tmp-1-abc');
+  for (const bad of [null, {}, { cid: '' }, { cid: 7 }, { cid: ['tmp'] }, { cid: 'x'.repeat(65) }]) assert.equal(bsViewIdOf(bad), null, JSON.stringify(bad));
 });
 
 function flat(node, out = []) {

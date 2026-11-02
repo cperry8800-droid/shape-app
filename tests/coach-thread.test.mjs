@@ -548,7 +548,7 @@ test('app backend: the coach side names the client, the welcome is from neither 
   const state = { user: { id: 'coach-1' } };
   // The mapper's imports, handed in: the welcome test, the grocery list's strict reader (a list another
   // member sent; null on these messages) and the chat's time (chatTime.mjs, through chatTimeOf).
-  const conversationToThread = new Function('state', 'isShapeWelcome', 'bsGroceryFromMetadata', 'bsReplyFromMetadata', 'bsChatStamp', `${fnSrc('chatTimeOf')}; ${fnSrc('conversationToThread')}; return conversationToThread;`)(state, W.isShapeWelcome, bsGroceryFromMetadata, bsReplyFromMetadata, bsChatStamp);
+  const conversationToThread = new Function('state', 'isShapeWelcome', 'bsGroceryFromMetadata', 'bsReplyFromMetadata', 'bsChatStamp', `${fnSrc('chatTimeOf')}; ${fnSrc('bsViewIdOf')}; ${fnSrc('conversationToThread')}; return conversationToThread;`)(state, W.isShapeWelcome, bsGroceryFromMetadata, bsReplyFromMetadata, bsChatStamp);
   const conv = { id: 'c1', provider_role: 'trainer', provider_id: 7, client_id: 'client-1', title: 'Tom Trainer', last_message: 'x' };
   const msgs = [
     { id: 'w', sender_id: null, body: 'Welcome', metadata: { shape: 'welcome', coach: 'Tom Trainer' }, created_at: '2026-10-15T00:00:00Z' },

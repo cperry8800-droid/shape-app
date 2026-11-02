@@ -27118,17 +27118,14 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         const shown = shownIdsRef.current;
         const missed = rows.filter((m) => m && m.id && !shown.has(String(m.id)));
         // A message of yours still waiting on its send's answer, whose stored row is here, is that row: it
-        // takes the stored id in place rather than showing twice (Codex P2 on #2565).
-        const claim = (e) => {
-          const taken = new Set(e.filter((x) => x && x.id).map((x) => String(x.id)));
-          return e.map((x) => {
-            if (!(x && x.me && x.tmpId && !x.id)) return x;
-            const row = rows.find((m) => m && m.me && m.id && !taken.has(String(m.id)) && m.t === x.t);
-            if (!row) return x;
-            taken.add(String(row.id));
-            return { ...x, id: row.id, at: row.at || x.at };
-          });
-        };
+        // takes the stored id in place rather than showing twice (Codex P2 on #2565). Known by the id this
+        // view sent it with (metadata.cid), never by its words, which an older message can share.
+        const byCid = new Map(rows.filter((m) => m && m.me && m.id && m.cid).map((m) => [m.cid, m]));
+        const claim = (e) => e.map((x) => {
+          if (!(x && x.me && x.tmpId && !x.id)) return x;
+          const row = byCid.get(x.tmpId);
+          return row ? { ...x, id: row.id, at: row.at || x.at } : x;
+        });
         if (thread.messages && thread.messages.length) {
           // The thread's messages came with it: what it missed joins them.
           if (missed.length) setExtras((e) => {
@@ -27214,7 +27211,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     stopTyping();
     // Persist to the backend: direct conversation or community channel.
     // A reply carries its quote: a direct message's metadata.reply, a channel's `reply` (shapeBackend).
-    const sent = thread.conversationId ? window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body, ...(reply ? { metadata: { reply } } : {}) })
+    // A direct message carries the id this view gave it (metadata.cid), so a history read back before the
+    // send answers knows its row as this message, exactly (Codex P2 on #2565).
+    const sent = thread.conversationId ? window.ShapeMessages?.sendMessage?.({ conversationId: thread.conversationId, body, metadata: { ...(reply ? { reply } : {}), cid: tmpId } })
       : thread.channelId ? window.ShapeChannels?.sendMessage?.({ channelId: thread.channelId, body, ...(reply ? { reply } : {}) }) : null;
     // The stored row's id, once it answers, so a history snapshot that already holds it shows it once.
     // A channel's too (2026-11-01), so a reply to a message you just sent names it.

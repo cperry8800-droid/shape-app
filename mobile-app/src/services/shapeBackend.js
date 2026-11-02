@@ -2226,6 +2226,11 @@ function chatTimeOf(iso) {
 // (client_id → full name). Before this (client-onboarding review, fix 3a) the coach read every
 // client thread under their own name, filed as "Your coach". A coach↔coach "Care team" thread has
 // no provider and keeps its title.
+// The id a sender's thread gave a message it sent (metadata.cid), so its own view knows the stored row
+// before the send answers (read receipts, Codex on #2565). A short string, else nothing.
+function bsViewIdOf(md) {
+  return md && typeof md.cid === 'string' && md.cid && md.cid.length <= 64 ? md.cid : null;
+}
 function conversationToThread(conversation, messages = [], names = {}) {
   const providerRole = conversation.provider_role === 'nutritionist' ? 'Nutritionist' : 'Trainer';
   const ordered = [...messages].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
@@ -2269,6 +2274,8 @@ function conversationToThread(conversation, messages = [], names = {}) {
       grocery: bsGroceryFromMetadata(message.metadata),
       // The message this one answers (swipe to reply, 2026-11-01), read strictly the same way.
       reply: bsReplyFromMetadata(message.metadata),
+      // The id the sender's view gave it (read receipts, 2026-11-02): its own thread knows the row by it.
+      cid: bsViewIdOf(message.metadata),
     })),
     updatedAt: conversation.updated_at || conversation.last_message_at || conversation.created_at,
   };
@@ -2319,6 +2326,8 @@ function memberThreadFromRow(row, messages = []) {
       grocery: bsGroceryFromMetadata(message.metadata),
       // The message this one answers (swipe to reply, 2026-11-01), read strictly the same way.
       reply: bsReplyFromMetadata(message.metadata),
+      // The id the sender's view gave it (read receipts, 2026-11-02): its own thread knows the row by it.
+      cid: bsViewIdOf(message.metadata),
     })),
     updatedAt: row.last_message_at,
   };
