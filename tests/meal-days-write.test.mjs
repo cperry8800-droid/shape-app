@@ -91,6 +91,15 @@ test('⚠ an account switch mid-write writes nothing into the other account', as
   const r = await bsMealDaysWrite(b, add('m1', 'Oats'), TODAY);
   assert.deepEqual(r, { ok: false, reason: 'account-changed' });
   assert.equal(b.doc.rev, 5, 'nothing was saved');
+  // ⚠ Switched between the read and the save: the save is still bound to the account the write
+  // started as, so B's row is never given A's plan (re-resolving the account at the save would
+  // write it there, the window the mutation round found open).
+  const m = backend({ doc: { v: 1, days: {}, rev: 5 } });
+  const readA = m.getUserGoals;
+  m.getUserGoals = async (kind, opts) => { const d = await readA(kind, opts); m.user = 'member-b'; return d; };
+  assert.deepEqual(await bsMealDaysWrite(m, add('m1', 'Oats'), TODAY), { ok: false, reason: 'account-changed' });
+  assert.equal(m.doc.rev, 5, 'nothing was written into the other account');
+  assert.equal(m.saves[0].uid, 'member-a', 'the save named the account that started the write');
   // Switched before the read: the bound read comes back empty-handed, and nothing is written.
   const c = backend({ doc: { v: 1, days: {}, rev: 5 } });
   const realGet = c.getUserGoals;
