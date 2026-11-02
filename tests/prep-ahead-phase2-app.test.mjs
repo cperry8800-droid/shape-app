@@ -14,7 +14,7 @@ import { bsMakeAheadIndex, bsYmdAdd, bsYmdIn } from '../mobile-app/src/services/
 
 globalThis.BSPlate = ({ children }) => React.createElement('div', { 'data-plate': '' }, children);
 const MOD = await loadBroadsheet(['BSPrepTonightCard', 'BSPlanMealSheet', 'BSMorningSwapCard', 'BSNotifyPrefs', 'BSShapeKitchenRecipe',
-  'bsEatByTime', 'bsWriteMealDays', 'bsPlanRecipe', 'bsLoadPrepTonight', 'bsPlanDayChoices'], React);
+  'bsEatByTime', 'bsWriteMealDays', 'bsPlanRecipe', 'bsLoadPrepTonight', 'bsPlanDayChoices', 'bsSwapPickWrites', 'bsMenuPrepState'], React);
 const dom = new JSDOM('<div id="root"></div><div id="bs-phone-surface"></div>', { url: 'https://shape.test' });
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
@@ -325,8 +325,42 @@ test('Eat and the recipe page are wired to the day plan, the morning swap and th
   assert.ok(CLIENT.includes("if (!bsEatSignedIn || !myDays || viewYmd !== todayYmd || !Array.isArray(prepEntries)) return null;"));
   assert.ok(CLIENT.includes('bsMealDaysSwap(doc, todayYmd, meal.id, { title: recipe.title, recipeId: bsCookSlug(recipe.title), kcal: recipe.kcal, p: mac.p, c: mac.c, f: mac.f }, today)'));
   assert.ok(CLIENT.includes('onSwap={() => doMorningSwap(morningSwap)} onKeep={() => keepMorningMeal(morningSwap)} />'));
-  // A planned meal swapped from the sheet is that day's swap, never a title swap.
-  assert.ok(CLIENT.includes('if (orig._own || (o._keep && orig._daySwap)) {'));
+  // A planned or day-swapped meal swapped from the sheet is that day's swap, never a title swap.
+  assert.ok(CLIENT.includes('const writes = bsSwapPickWrites(orig, o);\n            if (writes.day !== undefined) {'));
+  assert.ok(CLIENT.includes('bsMealDaysSwap(doc, eatViewYmd, orig.id, writes.day, today)'));
+  assert.ok(CLIENT.includes('              if (!writes.title) {'));
   // The recipe's own page plans it, signed in only.
   assert.ok(CLIENT.includes("{bsEatSignedInNow() && (\n          <button type=\"button\" data-plan-recipe=\"\" onClick={() => setPlanning(true)}"));
+});
+
+test('the swap sheet: a planned or day-swapped meal is swapped for that day only; a plan meal kept drops its title swap', () => {
+  const alt = { _alt: { title: 'Greek yogurt power bowl', kcal: 380, p: 30, c: 40, f: 9 } };
+  const keep = { _keep: true };
+  const bowl = { title: 'Greek yogurt power bowl', kcal: 380, p: 30, c: 40, f: 9 };
+  // A plan meal: a title swap, as before.
+  assert.deepEqual(MOD.bsSwapPickWrites({ id: 'live-1-0' }, alt), { day: undefined, title: true });
+  assert.deepEqual(MOD.bsSwapPickWrites({ id: 'live-1-0' }, keep), { day: undefined, title: true });
+  // The member's own meal: that day's swap, never a title swap.
+  assert.deepEqual(MOD.bsSwapPickWrites({ id: 'own-a', _own: true }, alt), { day: bowl, title: false });
+  assert.deepEqual(MOD.bsSwapPickWrites({ id: 'own-a', _own: true }, keep), { day: null, title: false });
+  // ⚠ A plan meal already swapped for the day (the morning swap): another pick replaces that day's
+  // swap and leaves every other day alone (Codex P2 on #2563); keeping it undoes the day's swap and
+  // any title swap.
+  assert.deepEqual(MOD.bsSwapPickWrites({ id: 'live-1-0', _daySwap: true }, alt), { day: bowl, title: false });
+  assert.deepEqual(MOD.bsSwapPickWrites({ id: 'live-1-0', _daySwap: true }, keep), { day: null, title: true });
+});
+
+test('⚠ the morning swap and its note end at the meal\'s own slot time, not noon, when the meal has no time', () => {
+  // A breakfast assigned with no time of its own (BSProAssignPage) is due at the member's breakfast
+  // time (8 am by default), so at 9 am it is past: no "Not prepped last night", no morning swap.
+  const local = (h, mi = 0) => new Date(2026, 9, 8, h, mi).getTime();
+  const ahead = { mealId: 'live-3-0', slug: 'overnight-oats-three-ways', title: OATS, date: '2026-10-08', slot: 'BREAKFAST' };
+  const state = (meal, now) => MOD.bsMenuPrepState({ meal, logged: false, entries: [], ahead, viewYmd: '2026-10-08', todayYmd: '2026-10-08', now });
+  const breakfast = { id: 'live-3-0', title: OATS, tag: 'BFAST' };
+  assert.equal(state(breakfast, local(7, 30)).notPrepped, true, 'before breakfast it is still to come');
+  assert.equal(state(breakfast, local(9)).notPrepped, false, 'a breakfast at 8 is past at 9');
+  // Its own time still wins over the slot's, and a meal with neither is due at noon.
+  assert.equal(state({ ...breakfast, time: '10:00' }, local(9)).notPrepped, true);
+  assert.equal(state({ id: 'live-3-0', title: OATS }, local(11)).notPrepped, true);
+  assert.equal(state({ id: 'live-3-0', title: OATS }, local(13)).notPrepped, false);
 });

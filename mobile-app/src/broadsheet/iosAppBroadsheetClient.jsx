@@ -12680,10 +12680,26 @@ function bsPrepDays(dates) {
 }
 
 
+// Where a pick in Eat's swap sheet is written (night-before prep, Phase 2). A meal the member planned
+// is theirs, and a plan meal swapped for the day is that day's: either one is swapped, or kept, as
+// that day's swap (`day`: the swap, or null to undo it), never as a title swap that follows every
+// meal of that name (Codex P2 on #2563: a second pick on a day-swapped meal changed every future day
+// and not today). Keeping a plan meal undoes its title swap as well (`title`). `day` is undefined
+// when the day plan is not written.
+function bsSwapPickWrites(orig, o) {
+  const keep = !!(o && o._keep);
+  const alt = o && o._alt;
+  const dayScoped = !!(orig && (orig._own || orig._daySwap));
+  const day = !dayScoped ? undefined : keep || !alt ? null : { title: alt.title, kcal: alt.kcal, p: alt.p, c: alt.c, f: alt.f };
+  return { day, title: !(orig && orig._own) && (!dayScoped || keep) };
+}
+
 // What a menu row says about prep. A made-ahead meal (`ahead`, from bsPlanMealsOn) is prepped
 // only when a prep covers it on its day (bsPrepCovers). On today's menu, until the meal's time
-// (noon when it has none), one that is not says "Not prepped last night", because it cannot be
-// made in time now; once the meal has passed, the note would only be noise. Every other meal keeps
+// (its own, else the member's time for its slot, bsMealSchedTime; noon only when it has neither),
+// one that is not says "Not prepped last night", because it cannot be made in time now; once the
+// meal has passed, the note would only be noise, and the morning swap is no longer offered (Codex
+// P2 on #2563: a breakfast with no time of its own read as due at noon). Every other meal keeps
 // the PREPPED stamp's own rule (bsPrepMatch). A logged meal, or records that have not loaded, say
 // nothing.
 function bsMenuPrepState({ meal, logged, entries, ahead, viewYmd, todayYmd, now }) {
@@ -12691,7 +12707,7 @@ function bsMenuPrepState({ meal, logged, entries, ahead, viewYmd, todayYmd, now 
   if (ahead) {
     const info = BS_MAKE_AHEAD.get(ahead.slug);
     const covered = bsPrepCovers(entries, ahead, info ? info.keeps : 1, bsLocalDay, now);
-    const hm = /^(\d{1,2}):(\d{2})/.exec(String(meal.time || ''));
+    const hm = /^(\d{1,2}):(\d{2})/.exec(String(bsMealSchedTime(meal) || ''));
     const dueMin = hm ? Number(hm[1]) * 60 + Number(hm[2]) : 12 * 60;
     const d = new Date(now);
     const upcoming = d.getHours() * 60 + d.getMinutes() < dueMin;
@@ -14775,16 +14791,15 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         ];
         return <BSSwapSheet title={tr('nutrition:eat.swapAction', { defaultValue: 'Swap meal' })} subtitle={orig.title} options={options} onClose={() => setSwapMealId(null)}
           onPick={(o) => {
-            // Phase 2: a meal the member planned is theirs, so swapping it is that day's swap (by its
-            // id), never a title swap that would follow every meal of that name; and keeping a meal
-            // swapped for the day undoes that day's swap as well as any title swap.
-            if (orig._own || (o._keep && orig._daySwap)) {
-              const swap = o._keep ? null : { title: o._alt.title, kcal: o._alt.kcal, p: o._alt.p, c: o._alt.c, f: o._alt.f };
-              bsWriteMealDays((doc, today) => bsMealDaysSwap(doc, eatViewYmd, orig.id, swap, today)).then((saved) => {
+            // Phase 2: a planned or day-swapped meal is swapped (or kept) as that day's swap; a plan
+            // meal kept also drops its title swap (bsSwapPickWrites).
+            const writes = bsSwapPickWrites(orig, o);
+            if (writes.day !== undefined) {
+              bsWriteMealDays((doc, today) => bsMealDaysSwap(doc, eatViewYmd, orig.id, writes.day, today)).then((saved) => {
                 if (saved) setMyDays(saved);
                 else if (window.__bsToast) window.__bsToast(tr('cook:morningSwap.failed', { defaultValue: 'The swap was not saved. Try again.' }), 'error');
               });
-              if (orig._own) {
+              if (!writes.title) {
                 if (!o._keep && window.__bsToast) window.__bsToast(tr('nutrition:eat.toastSwapped', { defaultValue: 'Swapped to {title}', title: o._alt.title }), 'ok');
                 setSwapMealId(null);
                 return;
