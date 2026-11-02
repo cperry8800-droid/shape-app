@@ -585,6 +585,21 @@ async function updateProfileName(name) {
   return data;
 }
 
+// Read the signed-in account's profile row again into the cache, and nothing else: no session
+// work, presence, push or awards (getCurrentSession does those at mount). For a change made to
+// profiles outside Settings → Edit profile, as Nora's account setup makes to full_name, so
+// bsMyName() and every avatar that reads the cache show the name now stored. Bound to the account
+// it started for: a switch mid-read leaves the cache alone.
+async function reloadProfile() {
+  const user = state.user;
+  if (!supabase || !user?.id) return null;
+  let profile = null;
+  try { profile = await fetchProfile(user); } catch (e) { return null; }
+  if (!profile || !state.user || state.user.id !== user.id) return null;
+  setCached({ profile });
+  return profile;
+}
+
 async function getCurrentSession() {
   if (!authConfigured) return setCached({});
 
@@ -4978,6 +4993,7 @@ window.ShapeAuth = {
   getCurrentSession,
   updateProfileRoles,
   updateProfileName,
+  reloadProfile,
   checkUsername: checkUsernameAvailable,
   claimUsername,
   getCachedState: () => ({ ...state }),

@@ -189,3 +189,38 @@ test('website: Settings, the notification centre, the dashboard\'s setup lines, 
   assert.match(ident.slice(0, ident.indexOf('}, [') + 20), /\}, \[setupRev\]\);/, 'the own profile\'s name and goal');
   assert.match(prof, /\}, \[st\.isSelf, st\.uid, setupRev\]\);/, 'and its units');
 });
+
+// Codex on 940ecd8 (P2): a setup that changes the name writes profiles.full_name, and bsMyName() and
+// every avatar read it from the auth cache, which only Settings → Edit profile refreshed. After a
+// setup the app reads the profile row again into the cache (ShapeAuth.reloadProfile), which tells the
+// avatars itself (setCached's shape:identity on a changed name). Lifted out of shapeBackend.js and run.
+test('reloadProfile reads the account\'s profile row into the cache, and leaves it for an account that switched', async () => {
+  const src = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const cut = (from, to) => { const a = src.indexOf(from); const b = src.indexOf(to, a); assert.ok(a >= 0 && b > a, from); return src.slice(a, b); };
+  const code = cut('async function fetchProfile(user) {', '\nasync function upsertProfile(') + cut('async function reloadProfile() {', '\nasync function getCurrentSession() {');
+  const make = (state, supabase, cached) => new Function('state', 'supabase', 'setCached', `${code}; return reloadProfile;`)(state, supabase, (next) => { cached.push(next); Object.assign(state, next); return state; });
+  const db = (row, onRead) => ({ from: (t) => { assert.equal(t, 'profiles'); const q = { select: () => q, eq: (c, v) => { q.id = v; return q; }, maybeSingle: async () => { if (onRead) onRead(); return { data: row && row.id === q.id ? row : null, error: null }; } }; return q; } });
+  const state = { user: { id: 'u-1' }, profile: { id: 'u-1', full_name: 'Sam Lee' } };
+  const cached = [];
+  const got = await make(state, db({ id: 'u-1', full_name: 'Samantha Lee' }), cached)();
+  assert.equal(got.full_name, 'Samantha Lee');
+  assert.deepEqual(cached, [{ profile: { id: 'u-1', full_name: 'Samantha Lee' } }], 'the profile, through setCached (which tells the avatars), and nothing else');
+  // Another account signs in while the row is read: the cache is left alone.
+  const s2 = { user: { id: 'u-1' }, profile: { id: 'u-1', full_name: 'Sam Lee' } };
+  const c2 = [];
+  assert.equal(await make(s2, db({ id: 'u-1', full_name: 'Samantha Lee' }, () => { s2.user = { id: 'u-2' }; }), c2)(), null);
+  assert.deepEqual(c2, []);
+  // Signed out, or a failed read: nothing.
+  assert.equal(await make({ user: null }, db(null), [])(), null);
+  const failing = { from: () => ({ select() { return this; }, eq() { return this; }, maybeSingle: async () => ({ data: null, error: new Error('offline') }) }) };
+  const c3 = [];
+  assert.equal(await make({ user: { id: 'u-1' } }, failing, c3)(), null);
+  assert.deepEqual(c3, []);
+  assert.match(src, /\n {2}reloadProfile,\n/, 'published on window.ShapeAuth');
+});
+
+test('the setup card reads the profile row again after Confirm and Undo', () => {
+  const src = readFileSync(join(DIR, 'iosAppBroadsheetClient.jsx'), 'utf8');
+  const fn = src.slice(src.indexOf('function bsAfterAccountSetup('), src.indexOf('\n}\n', src.indexOf('function bsAfterAccountSetup(')));
+  assert.match(fn, /window\.ShapeAuth\?\.reloadProfile\?\.\(\)/);
+});

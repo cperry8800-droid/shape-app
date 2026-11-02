@@ -26497,6 +26497,10 @@ function bsAfterAccountSetup(undone) {
   } catch (e) {}
   try { bsHydrateIdentity(); } catch (e) {}
   try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+  // The name lives in profiles.full_name too, which bsMyName() reads from the auth cache: read the
+  // row again (Codex on #2566). A changed name is told to every avatar by the cache itself
+  // (setCached's shape:identity).
+  try { Promise.resolve(window.ShapeAuth?.reloadProfile?.()).catch(() => {}); } catch (e) {}
   try { window.dispatchEvent(new CustomEvent('shape:notifyprefs')); } catch (e) {}
   try { window.dispatchEvent(new CustomEvent('shape:accountSetup', { detail: { undone: !!undone } })); } catch (e) {}
 }

@@ -90,7 +90,10 @@ test('app card: each change before → after; a setting Nora could not set is st
 test('app card: a confirmed setup says where to change it, and the app reads again what it changed', async () => {
   const fired = [];
   const unitsSet = [];
+  let reloads = 0;
   await withGlobals({
+    // Codex on 940ecd8 (P2): the name's cached profile row is read again too (bsMyName reads it).
+    ShapeAuth: { reloadProfile: async () => { reloads += 1; return { full_name: 'Samantha Lee' }; }, getCachedState: () => ({}) },
     ShapeSupport: { confirm: async (token) => { assert.equal(token, 'tok-setup'); return { ok: true, auditId: 'aud-9' }; }, undo: async (id) => { assert.equal(id, 'aud-9'); return { ok: true }; } },
     shapeDb: { getUserGoals: async (kind) => (kind === 'client_settings' ? { units: 'Metric · kg / km', dailyCheckin: 'Off' } : null) },
     ShapeUnits: { set: (v) => unitsSet.push(v) },
@@ -107,6 +110,7 @@ test('app card: a confirmed setup says where to change it, and the app reads aga
     assert.deepEqual(setup[0].detail, { undone: false });
     assert.ok(fired.some((e) => e.type === 'shape:identity') && fired.some((e) => e.type === 'shape:notifyprefs'));
     assert.deepEqual(unitsSet, ['Metric · kg / km'], 'the units the account now holds');
+    assert.equal(reloads, 1, 'the cached profile row is read again');
     // Codex on #2566 (P2): every mounted screen holding a copy of what the setup writes reads it again.
     const announced = () => fired.filter((e) => e.type === 'shape:userGoals').map((e) => e.detail.kinds);
     assert.deepEqual(announced(), [[...BS_ACCOUNT_SETUP_KINDS]], 'the setup\'s documents are announced on Confirm');
@@ -122,6 +126,7 @@ test('app card: a confirmed setup says where to change it, and the app reads aga
     assert.ok(d.text.includes('Undone'));
     assert.deepEqual(fired.filter((e) => e.type === 'shape:accountSetup').map((e) => e.detail), [{ undone: false }, { undone: true }]);
     assert.deepEqual(announced(), [[...BS_ACCOUNT_SETUP_KINDS], [...BS_ACCOUNT_SETUP_KINDS]], 'and again on Undo');
+    assert.equal(reloads, 2, 'and the profile row again on Undo');
     const third = drive(BSNoraProposal, { a: SETUP_CARD, t: THEME });
     assert.ok(third.text.includes('Undone') && !third.buttons().some((b) => b.label === 'Confirm' || b.label === 'Undo'), 'an undone card stays undone');
   });

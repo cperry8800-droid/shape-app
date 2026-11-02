@@ -9,6 +9,7 @@ const APP = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const HOME = 'mobile-app/src/broadsheet/BSHomeSections.jsx';
 const GOALS = 'mobile-app/src/broadsheet/BSGoals.jsx';
 const COACH = 'mobile-app/src/broadsheet/BSTrainerProfile.jsx';
+const BACKEND = 'mobile-app/src/services/shapeBackend.js';
 const W_ME = 'public/newdesign/clientMeSettings.jsx';
 const W_DATA = 'public/newdesign/dashData.jsx';
 const W_CLIENT = 'public/newdesign/dashClient.jsx';
@@ -49,6 +50,11 @@ export default {
     { name: 'the Notification center keeps its first read', file: APP, find: '  }, [centerRev]);', replace: '  }, []);' },
     { name: 'the Notification center does not listen for a setup', file: APP, find: "    window.addEventListener('shape:notifyprefs', again);\n", replace: '' },
     { name: 'the setup does not tell the Notification center', file: APP, find: "  try { window.dispatchEvent(new CustomEvent('shape:notifyprefs')); } catch (e) {}\n", replace: '' },
+
+    // ── The cached profile name (Codex on 940ecd8) ──
+    { name: 'the setup does not read the profile row again', file: APP, find: "  try { Promise.resolve(window.ShapeAuth?.reloadProfile?.()).catch(() => {}); } catch (e) {}\n", replace: '' },
+    { name: "reloadProfile caches the row for an account that switched", file: BACKEND, find: '  if (!profile || !state.user || state.user.id !== user.id) return null;', replace: '  if (!profile) return null;' },
+    { name: 'reloadProfile is not published', file: BACKEND, find: '  reloadProfile,\n  checkUsername', replace: '  checkUsername' },
 
     // ── The website (Codex on a569e48) ──
     { name: 'web Settings is not told of a setup', file: W_ME, find: '    window.addEventListener("shape:accountSetup",refresh);\n', replace: '' },
