@@ -169,10 +169,33 @@ const cwIsRefused = (d) => !!d && typeof d === "object" && typeof d.refused === 
 // lines and the member's own profile each read what they show once, so they would keep the old values
 // while the card says saved. Each listens for `shape:accountSetup` and reads again, as the app does.
 const cwAfterAccountSetup = (undone) => { try { window.dispatchEvent(new CustomEvent("shape:accountSetup", { detail: { undone: !!undone } })); } catch (e) {} };
+// ⚠ A CARD'S OUTCOME OUTLIVES THE CARD, AS THE THREAD DOES (Codex on #2566). The thread is kept in
+// localStorage, so closing the widget, another page or another tab draws every card anew; kept only in
+// the card, a confirmed change offered Confirm again (which answers "already applied") and its Undo was
+// gone. The app keeps the same (_bsNoraCardDone). Keyed by the token's signature, which names one
+// proposal; the newest 50 are kept.
+const CW_CARD_DONE_KEY = "shape.nora.cardDone";
+const cwCardId = (token) => (typeof token === "string" && token ? token.slice(token.lastIndexOf(".") + 1) || null : null);
+const cwCardDoneRead = (token) => {
+  const id = cwCardId(token);
+  if (!id) return null;
+  try { const m = JSON.parse(localStorage.getItem(CW_CARD_DONE_KEY) || "{}"); const v = m && m[id]; return v && (v.status === "done" || v.status === "undone") ? v : null; } catch (e) { return null; }
+};
+const cwCardDoneKeep = (token, status, auditId) => {
+  const id = cwCardId(token);
+  if (!id) return;
+  try {
+    const m = JSON.parse(localStorage.getItem(CW_CARD_DONE_KEY) || "{}") || {};
+    m[id] = { status, auditId: auditId || null, at: Date.now() };
+    Object.keys(m).sort((x, y) => (m[y].at || 0) - (m[x].at || 0)).slice(50).forEach((k) => { delete m[k]; });
+    localStorage.setItem(CW_CARD_DONE_KEY, JSON.stringify(m));
+  } catch (e) {}
+};
 function CwProposalCard({ a }) {
-  const [status, setStatus] = React.useState("idle"); // idle|busy|done|undoing|undone|error
+  const kept = cwCardDoneRead(a && a.token);
+  const [status, setStatus] = React.useState(kept ? kept.status : "idle"); // idle|busy|done|undoing|undone|error
   const [err, setErr] = React.useState("");
-  const [auditId, setAuditId] = React.useState(null);
+  const [auditId, setAuditId] = React.useState(kept ? kept.auditId : null);
   const mono = "'JetBrains Mono', monospace";
   const ink = "var(--sh-ink, #f2ede4)", muted = "var(--sh-ink2, #a09b94)", hair = "rgba(var(--sh-ink-rgb, 242,237,228),0.14)";
   const diff = Array.isArray(a.diff) ? a.diff : [];
@@ -187,13 +210,13 @@ function CwProposalCard({ a }) {
   const confirm = async () => {
     if (status === "busy" || status === "done") return;
     setStatus("busy"); setErr("");
-    try { const r = await post("/api/ai/proposals/confirm", { token: a.token }); setAuditId(r && r.auditId); setStatus("done"); if (a.action === "set_up_account") cwAfterAccountSetup(false); }
+    try { const r = await post("/api/ai/proposals/confirm", { token: a.token }); setAuditId(r && r.auditId); setStatus("done"); cwCardDoneKeep(a.token, "done", r && r.auditId); if (a.action === "set_up_account") cwAfterAccountSetup(false); }
     catch (e) { setErr(String(e && e.message || "Could not apply that change.")); setStatus("error"); }
   };
   const undo = async () => {
     if (!auditId || status === "undoing" || status === "undone") return;
     setStatus("undoing"); setErr("");
-    try { await post("/api/ai/audit/undo", { auditId }); setStatus("undone"); if (a.action === "set_up_account") cwAfterAccountSetup(true); }
+    try { await post("/api/ai/audit/undo", { auditId }); setStatus("undone"); cwCardDoneKeep(a.token, "undone", auditId); if (a.action === "set_up_account") cwAfterAccountSetup(true); }
     catch (e) { setErr(String(e && e.message || "Could not undo.")); setStatus("done"); }
   };
   return (

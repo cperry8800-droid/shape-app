@@ -176,9 +176,15 @@ export default {
 
     // ── The website and the tours ──
     { name: 'the website draws a refused row as a line', file: WEB, find: '{diff.map((d, i) => cwIsRefused(d) ? (', replace: '{diff.map((d, i) => false ? (' },
-    { name: 'the page under the website card is not told of a setup', file: WEB, find: 'setStatus("done"); if (a.action === "set_up_account") cwAfterAccountSetup(false); }', replace: 'setStatus("done"); }' },
-    { name: 'the page under the website card is not told of an Undo', file: WEB, find: 'setStatus("undone"); if (a.action === "set_up_account") cwAfterAccountSetup(true); }', replace: 'setStatus("undone"); }' },
-    { name: 'the page under the website card is told of every card', file: WEB, find: 'setStatus("done"); if (a.action === "set_up_account") cwAfterAccountSetup(false); }', replace: 'setStatus("done"); cwAfterAccountSetup(false); }' },
+    { name: 'the page under the website card is not told of a setup', file: WEB, find: ' if (a.action === "set_up_account") cwAfterAccountSetup(false); }', replace: ' }' },
+    { name: 'the page under the website card is not told of an Undo', file: WEB, find: ' if (a.action === "set_up_account") cwAfterAccountSetup(true); }', replace: ' }' },
+    { name: 'the page under the website card is told of every card', file: WEB, find: ' if (a.action === "set_up_account") cwAfterAccountSetup(false); }', replace: ' cwAfterAccountSetup(false); }' },
+    // ── A website card's outcome outlives the card (Codex on 08677b3) ──
+    { name: 'a website card forgets it was applied', file: WEB, find: 'const [status, setStatus] = React.useState(kept ? kept.status : "idle");', replace: 'const [status, setStatus] = React.useState("idle");' },
+    { name: 'a website card forgets its Undo', file: WEB, find: 'const [auditId, setAuditId] = React.useState(kept ? kept.auditId : null);', replace: 'const [auditId, setAuditId] = React.useState(null);' },
+    { name: 'a confirmed website card is not kept', file: WEB, find: ' cwCardDoneKeep(a.token, "done", r && r.auditId);', replace: '' },
+    { name: 'an undone website card is not kept', file: WEB, find: ' cwCardDoneKeep(a.token, "undone", auditId);', replace: '' },
+    { name: 'every website card is kept as one', file: WEB, find: 'token.slice(token.lastIndexOf(".") + 1) || null', replace: '"all"' },
     { name: 'every confirmed web card says "saved to your account"', file: WEB, find: '{status === "done" && a.action === "set_up_account" && (', replace: '{status === "done" && (' },
     { name: "the tour's other way on runs before the tour is marked seen", file: TOUR, find: "other.onclick = () => { finish(); try { step.onAlt(); } catch (_) {} };", replace: "other.onclick = () => { try { step.onAlt(); } catch (_) {} finish(); };" },
     { name: 'the tour never draws the other way on', file: TOUR, find: '`${alt ? `<button data-st="alt"', replace: '`${false ? `<button data-st="alt"' },
