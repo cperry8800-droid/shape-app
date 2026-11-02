@@ -196,6 +196,19 @@ function CwProposalCard({ a }) {
   const [status, setStatus] = React.useState(kept ? kept.status : "idle"); // idle|busy|done|undoing|undone|error
   const [err, setErr] = React.useState("");
   const [auditId, setAuditId] = React.useState(kept ? kept.auditId : null);
+  // The same card open in another tab: its Confirm or Undo there lands here too (the storage event
+  // fires in every other tab of the origin), so this one never offers Confirm again (Codex on #2566).
+  React.useEffect(() => {
+    const onStore = (e) => {
+      if (e && e.key != null && e.key !== CW_CARD_DONE_KEY) return;
+      const k = cwCardDoneRead(a && a.token);
+      if (!k) return;
+      setStatus((st) => (st === "busy" || st === "undoing" ? st : k.status));
+      setAuditId(k.auditId || null);
+    };
+    try { window.addEventListener("storage", onStore); } catch (e) { return undefined; }
+    return () => { try { window.removeEventListener("storage", onStore); } catch (e) {} };
+  }, [a && a.token]);
   const mono = "'JetBrains Mono', monospace";
   const ink = "var(--sh-ink, #f2ede4)", muted = "var(--sh-ink2, #a09b94)", hair = "rgba(var(--sh-ink-rgb, 242,237,228),0.14)";
   const diff = Array.isArray(a.diff) ? a.diff : [];

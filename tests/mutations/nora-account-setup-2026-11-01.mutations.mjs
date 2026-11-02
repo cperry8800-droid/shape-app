@@ -184,6 +184,15 @@ export default {
     { name: 'a website card forgets its Undo', file: WEB, find: 'const [auditId, setAuditId] = React.useState(kept ? kept.auditId : null);', replace: 'const [auditId, setAuditId] = React.useState(null);' },
     { name: 'a confirmed website card is not kept', file: WEB, find: ' cwCardDoneKeep(a.token, "done", r && r.auditId);', replace: '' },
     { name: 'an undone website card is not kept', file: WEB, find: ' cwCardDoneKeep(a.token, "undone", auditId);', replace: '' },
+    { name: 'a website card does not hear another tab', file: WEB, find: '    try { window.addEventListener("storage", onStore); } catch (e) { return undefined; }', replace: '    return undefined;' },
+    {
+      name: "a website card takes any key's change as its own", file: WEB, find: 'if (e && e.key != null && e.key !== CW_CARD_DONE_KEY) return;', replace: 'if (false) return;',
+      // PROOF OF NO-OP: on any storage event the card re-reads its own outcome from the one store
+      // (cwCardDoneRead), so another key's change reads back what it already shows; the key check
+      // only spares that read. The test's other-key event confirms the card is unchanged either way.
+      expectSurvive: true,
+    },
+    { name: 'a website card hears another tab but keeps its Undo away', file: WEB, find: '      setAuditId(k.auditId || null);\n    };', replace: '    };' },
     { name: 'every website card is kept as one', file: WEB, find: 'token.slice(token.lastIndexOf(".") + 1) || null', replace: '"all"' },
     { name: 'every confirmed web card says "saved to your account"', file: WEB, find: '{status === "done" && a.action === "set_up_account" && (', replace: '{status === "done" && (' },
     { name: "the tour's other way on runs before the tour is marked seen", file: TOUR, find: "other.onclick = () => { finish(); try { step.onAlt(); } catch (_) {} };", replace: "other.onclick = () => { try { step.onAlt(); } catch (_) {} finish(); };" },

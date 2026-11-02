@@ -146,14 +146,14 @@ test('app card: any other card is unchanged by this — no "saved" line, no setu
 // ── The website's card ───────────────────────────────────────────────────────────────────────
 // An in-memory localStorage, as a browser's: the website's thread and its cards' outcomes live there.
 function memStorage() { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); }, removeItem: (k) => { m.delete(k); }, _m: m }; }
-function webCard(fetchImpl, win = undefined, storage = undefined) {
+function webCard(fetchImpl, win = undefined, storage = undefined, react = SHIM) {
   const babel = require_('next/dist/compiled/babel/core');
   const presetReact = require_('next/dist/compiled/babel/preset-react');
   const src = read('public/newdesign/chatWidget.jsx');
   const start = src.indexOf('const cwIsLine =');
   const end = src.indexOf('function ChatWidget(props)');
   const { code } = babel.transformSync(src.slice(start, end) + '\nthis.CwProposalCard = CwProposalCard;', { presets: [presetReact], babelrc: false, configFile: false });
-  const ctx = { React: SHIM, TEAL: 'teal', TEAL_BRIGHT: 'teal', PAPER: 'paper', sans: 'sans', cwHexA: () => 'rgba(0,0,0,0.1)', fetch: fetchImpl, ...(win ? { window: win, CustomEvent } : {}), ...(storage ? { localStorage: storage } : {}) };
+  const ctx = { React: react, TEAL: 'teal', TEAL_BRIGHT: 'teal', PAPER: 'paper', sans: 'sans', cwHexA: () => 'rgba(0,0,0,0.1)', fetch: fetchImpl, ...(win ? { window: win, CustomEvent } : {}), ...(storage ? { localStorage: storage } : {}) };
   vm.runInNewContext(code, ctx);
   return ctx.CwProposalCard;
 }
@@ -198,6 +198,41 @@ test('website card: refusals said as such; a confirmed setup says where to chang
   other.render();
   assert.ok(other.text.includes('Applied ✓') && !other.text.includes('Saved to your account'), 'only a setup card says it');
   assert.equal(told.length, 2, 'nor is the page told of any other card');
+});
+
+// Codex on 3037b0a (P2): the same card open in two tabs. Confirming it in one writes the outcome to
+// localStorage, and the storage event fires in the other; the card there reads it and offers Undo,
+// never Confirm again. The harness's React runs no effects, so this one runs each as it mounts.
+test('website card: a card open in another tab follows its Confirm and Undo there', async () => {
+  const store = memStorage();
+  const listeners = [];
+  const win = {
+    dispatchEvent: () => true,
+    addEventListener: (type, fn) => { listeners.push([type, fn]); },
+    removeEventListener: (type, fn) => { const i = listeners.findIndex(([t, f]) => t === type && f === fn); if (i >= 0) listeners.splice(i, 1); },
+  };
+  const ran = new Set();
+  const React = { ...SHIM, useEffect: (fn, deps) => { const key = JSON.stringify(deps); if (!ran.has(key)) { ran.add(key); fn(); } } };
+  const Card = webCard(async () => ({ ok: true, json: async () => ({ ok: true }) }), win, store, React);
+  const other = drive(Card, { a: { ...SETUP_CARD, token: 'tok-tabs' } });
+  assert.ok(other.buttons().some((b) => b.label === 'Confirm'));
+  assert.deepEqual(listeners.map(([t]) => t), ['storage'], 'the card listens for the other tabs');
+  // The first tab confirms: its outcome lands in storage, and this tab hears it.
+  store.setItem('shape.nora.cardDone.v1', JSON.stringify({ 'tok-tabs': { status: 'done', auditId: 'aud-7', at: 1 } }));
+  listeners.forEach(([t, fn]) => fn({ key: 'shape.nora.cardDone.v1' }));
+  other.render();
+  assert.ok(other.text.includes('Applied ✓'), 'applied here too');
+  assert.ok(!other.buttons().some((b) => b.label === 'Confirm'), 'never Confirm again');
+  assert.ok(other.buttons().some((b) => b.label === 'Undo'), 'with its Undo');
+  // Another key changing is not this card's news.
+  listeners.forEach(([t, fn]) => fn({ key: 'shape.something.else.v1' }));
+  other.render();
+  assert.ok(other.text.includes('Applied ✓'));
+  // Undone in the first tab: undone here.
+  store.setItem('shape.nora.cardDone.v1', JSON.stringify({ 'tok-tabs': { status: 'undone', auditId: 'aud-7', at: 2 } }));
+  listeners.forEach(([t, fn]) => fn({ key: 'shape.nora.cardDone.v1' }));
+  other.render();
+  assert.ok(other.text.includes('Undone') && !other.buttons().some((b) => b.label === 'Undo' || b.label === 'Confirm'));
 });
 
 // ── The tours ────────────────────────────────────────────────────────────────────────────────
