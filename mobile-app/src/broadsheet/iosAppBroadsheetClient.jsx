@@ -27113,21 +27113,35 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         if (!live) return;
         const stored = res && res.data && res.data.conversation_id === id && Array.isArray(res.data.messages) ? res.data.messages : null;
         if (!stored) { readIfWaiting(); return; }
+        // The other side's rows take the thread's own name for them, as a live row does.
+        const rows = stored.map((m) => (!m || m.me || m.shape ? m : { ...m, who: thread.who || m.who }));
         const shown = shownIdsRef.current;
-        const missed = stored.filter((m) => m && m.id && !shown.has(String(m.id)))
-          .map((m) => (m.me || m.shape ? m : { ...m, who: thread.who || m.who }));
-        // A row of yours whose send is still waiting on its answer is that message: it takes the stored id
-        // in place, rather than showing twice (Codex P2 on #2565).
-        if (missed.length) setExtras((e) => {
-          const next = e.slice();
-          for (const m of missed) {
-            if (next.some((x) => x && x.id === m.id)) continue;
-            const pending = m.me ? next.findIndex((x) => x && x.me && x.tmpId && !x.id && x.t === m.t) : -1;
-            if (pending >= 0) next[pending] = { ...next[pending], id: m.id, at: m.at || next[pending].at };
-            else next.push(m);
-          }
-          return next;
-        });
+        const missed = rows.filter((m) => m && m.id && !shown.has(String(m.id)));
+        // A message of yours still waiting on its send's answer, whose stored row is here, is that row: it
+        // takes the stored id in place rather than showing twice (Codex P2 on #2565).
+        const claim = (e) => {
+          const taken = new Set(e.filter((x) => x && x.id).map((x) => String(x.id)));
+          return e.map((x) => {
+            if (!(x && x.me && x.tmpId && !x.id)) return x;
+            const row = rows.find((m) => m && m.me && m.id && !taken.has(String(m.id)) && m.t === x.t);
+            if (!row) return x;
+            taken.add(String(row.id));
+            return { ...x, id: row.id, at: row.at || x.at };
+          });
+        };
+        if (thread.messages && thread.messages.length) {
+          // The thread's messages came with it: what it missed joins them.
+          if (missed.length) setExtras((e) => {
+            const next = claim(e);
+            const have = new Set(next.filter((x) => x && x.id).map((x) => String(x.id)));
+            return [...next, ...missed.filter((m) => !have.has(String(m.id)))];
+          });
+        } else {
+          // It was showing the history it loaded, or only the list's id-less preview line: the stored
+          // history replaces either, so the preview never stands beside its stored copy (Codex P2 on #2565).
+          setHistory({ id, messages: rows.filter(Boolean) });
+          setExtras(claim);
+        }
         if (missed.length || unreadWhileHiddenRef.current) read();
       }).catch(readIfWaiting);
     };

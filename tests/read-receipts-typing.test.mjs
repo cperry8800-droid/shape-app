@@ -820,6 +820,41 @@ test('back in view while your own send is still on its way: the stored row is th
   });
 });
 
+test('opened with only the list\'s preview and a history that failed: back in view, the stored history replaces the preview (Codex P2 on #2565)', async () => {
+  wire();
+  const page = pageStandIn('visible');
+  const marks = [];
+  let calls = 0;
+  const stored = [
+    { id: 'h1', who: 'Trainer', userId: 'u-maya', t: 'Earlier', at: '2026-11-02T08:00:00Z', me: false },
+    { id: 'h2', who: 'Trainer', userId: 'u-maya', t: 'See you at six', at: '2026-11-02T09:00:00Z', me: false },
+  ];
+  await withPage(page, {
+    ShapeUnread: { markConversationRead: (id) => { marks.push(id); return Promise.resolve(true); } },
+    ShapeMessages: {
+      subscribeMessages: () => () => {},
+      getConversationThread: async (id) => { calls += 1; if (calls === 1) throw new Error('suspended'); return { data: { conversation_id: id, messages: stored } }; },
+    },
+  }, async () => {
+    // A notification opens it by id: no messages, only the list's last line.
+    const { d, effects } = mount({ who: MAYA, role: 'Trainer', conversationId: 'c-1', userId: 'u-maya', messages: [], last: 'See you at six', time: '1h' });
+    effects.forEach((fn) => fn());
+    await tick(); await tick();
+    d.render();
+    assert.equal(calls, 1, 'the first history read failed');
+    assert.equal(d.text.split('See you at six').length - 1, 1, 'the preview line alone');
+    page.onVis();
+    await tick(); await tick();
+    d.render();
+    assert.equal(calls, 2);
+    assert.equal(d.text.split('See you at six').length - 1, 1, 'its stored copy replaces it, never beside it');
+    assert.ok(d.text.includes('Earlier'), 'and the rest of the history comes with it');
+    const bylines = d.nodes().filter((n) => n.type === 'button' && !withAttr(flat(n), 'data-thread-name').length && !withAttr(flat(n), 'data-thread-quote').length);
+    assert.ok(!bylines.some((b) => textOf(b).includes('Trainer')), 'in the thread\'s name for her');
+    assert.ok(marks.length >= 1, 'read');
+  });
+});
+
 function flat(node, out = []) {
   if (node == null || typeof node !== 'object') return out;
   if (Array.isArray(node)) { for (const c of node) flat(c, out); return out; }
