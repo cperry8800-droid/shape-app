@@ -14,7 +14,7 @@ import { bsMakeAheadIndex, bsYmdAdd, bsYmdIn } from '../mobile-app/src/services/
 
 globalThis.BSPlate = ({ children }) => React.createElement('div', { 'data-plate': '' }, children);
 const MOD = await loadBroadsheet(['BSPrepTonightCard', 'BSPlanMealSheet', 'BSMorningSwapCard', 'BSNotifyPrefs', 'BSShapeKitchenRecipe',
-  'bsEatByTime', 'bsWriteMealDays', 'bsPlanRecipe', 'bsLoadPrepTonight', 'bsPlanDayChoices', 'bsSwapPickWrites', 'bsMenuPrepState'], React);
+  'bsEatByTime', 'bsWriteMealDays', 'bsPlanRecipe', 'bsLoadPrepTonight', 'bsPlanDayChoices', 'bsSwapPickWrites', 'bsMenuPrepState', 'bsSwapSheetBase'], React);
 const dom = new JSDOM('<div id="root"></div><div id="bs-phone-surface"></div>', { url: 'https://shape.test' });
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
@@ -329,6 +329,7 @@ test('Eat and the recipe page are wired to the day plan, the morning swap and th
   assert.ok(CLIENT.includes('const writes = bsSwapPickWrites(orig, o);\n            if (writes.day !== undefined) {'));
   assert.ok(CLIENT.includes('bsMealDaysSwap(doc, eatViewYmd, orig.id, writes.day, today)'));
   assert.ok(CLIENT.includes('              if (!writes.title) {'));
+  assert.ok(CLIENT.includes('const base = bsSwapSheetBase(swapMealId, cur.meals, ownMeals, orig);'));
   // The recipe's own page plans it, signed in only.
   assert.ok(CLIENT.includes("{bsEatSignedInNow() && (\n          <button type=\"button\" data-plan-recipe=\"\" onClick={() => setPlanning(true)}"));
 });
@@ -363,4 +364,18 @@ test('⚠ the morning swap and its note end at the meal\'s own slot time, not no
   assert.equal(state({ ...breakfast, time: '10:00' }, local(9)).notPrepped, true);
   assert.equal(state({ id: 'live-3-0', title: OATS }, local(11)).notPrepped, true);
   assert.equal(state({ id: 'live-3-0', title: OATS }, local(13)).notPrepped, false);
+});
+
+test('the swap sheet\'s current dish is the meal as planned, never the day\'s swap of it', () => {
+  const plan = [{ id: 'live-1-0', title: 'Overnight oats' }];
+  const own = [{ id: 'own-a', title: 'Salmon tray' }];
+  // A meal the member planned, swapped for the day: Keep it offers their planned dish, and keeping
+  // that undoes the day's swap, as its label says.
+  const ownSwapped = { id: 'own-a', title: 'Greek yogurt power bowl', _own: true, _daySwap: true };
+  assert.equal(MOD.bsSwapSheetBase('own-a', plan, own, ownSwapped).title, 'Salmon tray');
+  // A plan meal swapped for the day: the plan's row.
+  assert.equal(MOD.bsSwapSheetBase('live-1-0', plan, own, { id: 'live-1-0', title: 'Greek yogurt power bowl', _daySwap: true }).title, 'Overnight oats');
+  // Neither list has it: what is shown.
+  assert.equal(MOD.bsSwapSheetBase('x', plan, own, { id: 'x', title: 'Shown' }).title, 'Shown');
+  assert.equal(MOD.bsSwapSheetBase('x', null, undefined, { id: 'x', title: 'Shown' }).title, 'Shown');
 });

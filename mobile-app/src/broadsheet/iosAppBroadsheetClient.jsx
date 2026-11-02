@@ -12680,6 +12680,14 @@ function bsPrepDays(dates) {
 }
 
 
+// The dish the swap sheet offers as "current" (Keep it): the meal as planned, before any swap. A
+// plan meal is the day's plan row; a meal the member planned is their own row, never the day's swap
+// of it, which Keep it would undo while its label said it kept it (Codex P2 on #2563).
+function bsSwapSheetBase(id, planMeals, ownMeals, shown) {
+  const find = (list) => (Array.isArray(list) ? list.find((m) => m && m.id === id) : null);
+  return find(planMeals) || find(ownMeals) || shown;
+}
+
 // Where a pick in Eat's swap sheet is written (night-before prep, Phase 2). A meal the member planned
 // is theirs, and a plan meal swapped for the day is that day's: either one is swapped, or kept, as
 // that day's swap (`day`: the swap, or null to undo it), never as a title swap that follows every
@@ -14784,7 +14792,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         const macroSub = (x) => tr('nutrition:eat.macroRow', { defaultValue: '{kcal} kcal · {p}P · {c}C · {f}F', kcal: x.kcal, p: x.p, c: x.c, f: x.f });
         const orig = effMeals.find(m => m.id === swapMealId);
         if (!orig) return null;
-        const base = cur.meals.find(m => m.id === swapMealId) || orig;
+        const base = bsSwapSheetBase(swapMealId, cur.meals, ownMeals, orig);
         const options = [
           { label: base.title, sub: macroSub(base), current: true, _keep: true },
           ...BS_MEAL_SWAPS.filter(a => a.title !== orig.title).map(a => ({ label: a.title, sub: macroSub(a), _alt: a })),
