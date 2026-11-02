@@ -593,7 +593,8 @@ test('app: both coach shells open the client\'s thread first, with their own rol
 test('app: the thread view loads its history by id, shows the welcome as a note, and a member never lists a client thread', () => {
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   assert.match(client, /import \{ isShapeWelcome, shapeWelcomeShown \} from '\.\.\/services\/shapeWelcome\.mjs';/);
-  const thread = client.slice(client.indexOf('function BSChatThread('), client.indexOf('function BSChatThread(') + 9000);
+  // To the function's end: read receipts and typing (2026-11-02) put their own lines above these.
+  const thread = client.slice(client.indexOf('function BSChatThread('), client.indexOf('\n}\n', client.indexOf('function BSChatThread(')));
   assert.match(thread, /if \(!thread\.conversationId \|\| \(thread\.messages && thread\.messages\.length\) \|\| !window\.ShapeMessages\?\.getConversationThread\) return;/);
   assert.match(thread, /: \(historyHere && historyHere\.length\) \? historyHere/);
   // One conversation's history never shows in another (Codex on #2360).
@@ -697,14 +698,15 @@ test('a Messages page opens the thread it asked for, or none: never another clie
 
 test('the app\'s thread shows a message once when the history and the live messages overlap', () => {
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  const thread = client.slice(client.indexOf('function BSChatThread('), client.indexOf('function BSChatThread(') + 12000);
+  const thread = client.slice(client.indexOf('function BSChatThread('), client.indexOf('\n}\n', client.indexOf('function BSChatThread(')));
   assert.match(thread, /const seedIds = new Set\(seed\.map\(m => m && m\.id\)\.filter\(Boolean\)\);\s+const allMessages = \[\.\.\.seed, \.\.\.extras\.filter\(e => !\(e && e\.id && seedIds\.has\(e\.id\)\)\)\];/);
   // Every source carries the id: the backend's mapping, the list rows, a live row, a sent row once stored.
   assert.match(read('mobile-app/src/services/shapeBackend.js'), /messages: ordered\.map\(message => \(\{\s+id: message\.id \|\| null,/);
   assert.match(client, /messages: \(th\.messages \|\| \[\]\)\.map\(m => \(\{ id: m\.id \|\| null, userId: m\.userId \|\| null, who:/);
   assert.match(thread, /setExtras\(e => \[\.\.\.e, \{ id: row\.id \|\| null, who: thread\.who \|\| 'Member'/);
   assert.match(thread, /setExtras\(e => \[\.\.\.e, \{ id: row\.id \|\| null, who: 'Shape'/);
-  assert.match(thread, /sent\.then\(res => \{ const id = res && res\.data && res\.data\.id; if \(id\) setExtras\(e => e\.map\(x => x\.tmpId === tmpId \? \{ \.\.\.x, id \} : x\)\); \}\)/);
+  // With its stored time too, which Seen compares against (read receipts, 2026-11-02).
+  assert.match(thread, /sent\.then\(res => \{ const id = res && res\.data && res\.data\.id; const at = res && res\.data && res\.data\.created_at; if \(id\) setExtras\(e => e\.map\(x => x\.tmpId === tmpId \? \{ \.\.\.x, id, \.\.\.\(at \? \{ at \} : \{\}\) \} : x\)\); \}\)/);
 });
 
 test('a tapped push opens the thread in the coach apps too', () => {
@@ -805,7 +807,8 @@ test('an open thread that receives Shape\'s welcome keeps it read, as it does an
   const handler = src.slice(start, src.indexOf('\n      });', start));
   const welcome = handler.slice(handler.indexOf('if (isShapeWelcome(row)) {'));
   const branch = welcome.slice(0, welcome.indexOf('return; }'));
-  assert.match(branch, /window\.ShapeUnread\?\.markConversationRead\?\.\(thread\.conversationId\);\s*$/, 'the welcome branch marks the open thread read before it returns');
+  // Marked, then announced to the other side once stored (read receipts, 2026-11-02).
+  assert.match(branch, /announceRead\(window\.ShapeUnread\?\.markConversationRead\?\.\(thread\.conversationId\)\);\s*$/, 'the welcome branch marks the open thread read before it returns');
   assert.equal(handler.split('markConversationRead?.(thread.conversationId)').length - 1, 2, 'the welcome and every other message');
 });
 

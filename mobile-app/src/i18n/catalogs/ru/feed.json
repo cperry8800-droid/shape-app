@@ -361,5 +361,12 @@
   "thread.reply": "Ответить",
   "thread.replyingTo": "Ответ для {name}",
   "thread.cancelReply": "Отменить ответ",
-  "thread.goToQuoted": "Показать сообщение, на которое это ответ"
+  "thread.goToQuoted": "Показать сообщение, на которое это ответ",
+  "thread.sent": "Отправлено",
+  "thread.seen": "Просмотрено",
+  "thread.seenBy": "Просмотрели: {count}",
+  "thread.typing": "{name} печатает",
+  "thread.typingTwo": "{a} и {b} печатают",
+  "thread.typingMany": "Несколько человек печатают",
+  "thread.someone": "Кто-то"
 }

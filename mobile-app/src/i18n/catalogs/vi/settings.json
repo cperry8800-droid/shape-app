@@ -67,6 +67,8 @@
   "privacy.visibilityDesc": "Ai có thể mở hồ sơ đầy đủ của bạn — hoạt động, hành trình và số liệu của bạn. Công khai: mọi người trên Shape. Chỉ bạn bè: chỉ những thành viên bạn có chung cuộc trò chuyện. Riêng tư: ẩn, nên người khác chỉ thấy tên và cấp bậc của bạn.",
   "privacy.online": "Hiển thị khi tôi trực tuyến",
   "privacy.onlineDesc": "Khi bật, một chấm trực tiếp hiện trên avatar để người khác biết bạn đang hoạt động trong ứng dụng ngay bây giờ. Tắt để duyệt riêng tư: sự hiện diện của bạn không bao giờ được hiển thị.",
+  "privacy.readReceipts": "Thông báo đã đọc",
+  "privacy.readReceiptsDesc": "Khi bật, những người bạn nhắn tin sẽ thấy khi bạn đã đọc tin nhắn của họ, và bạn thấy khi họ đã đọc tin nhắn của bạn. Tắt đi thì không ai trong hai người thấy. Kênh không bao giờ hiển thị ai đã đọc gì.",
   "privacy.shareWorkout": "Chia sẻ dữ liệu tập luyện",
   "privacy.shareFriends": "Bạn bè",
   "privacy.shareWorkoutDesc": "Ai thấy các buổi tập đã ghi và đồng bộ, kỷ lục và hoạt động của bạn, và có thể mở một buổi tập để xem tốc độ, các chặng, nhịp tim và lộ trình. Bật: mọi người, trong bảng tin cộng đồng và trên hồ sơ của bạn; chỉ người theo dõi bạn nếu hồ sơ của bạn ở chế độ Chỉ bạn bè. Bạn bè: chỉ những người bạn theo dõi và cũng theo dõi lại bạn. Tắt: chỉ bạn và các huấn luyện viên đã liên kết. Hồ sơ Riêng tư giữ chúng cho bạn và huấn luyện viên, dù bạn chọn gì ở đây.",

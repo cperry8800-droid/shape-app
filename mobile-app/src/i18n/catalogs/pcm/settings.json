@@ -67,6 +67,8 @@
   "privacy.visibilityDesc": "Who fit open your full profile — your activity, your climb and your stats. Public: anybody wey dey Shape. Only friends: na only members wey una dey share chat. Private: e go hide, so people go just see your name and your tier.",
   "privacy.online": "Show me when I dey online",
   "privacy.onlineDesc": "When e on, one live dot go show for your avatar so people go sabi say you dey active for the app now. Off am make you fit browse quiet-quiet — dem no go ever show say you dey around.",
+  "privacy.readReceipts": "Read receipt",
+  "privacy.readReceiptsDesc": "When e on, the people wey you dey message go see when you don read their message, and you go see when dem don read your own. Off am and nobody for una go see am. Channel no dey ever show who don read wetin.",
   "privacy.shareWorkout": "Share training data",
   "privacy.shareFriends": "Friends",
   "privacy.shareWorkoutDesc": "Who go see the workouts wey you log and sync, your PRs and your activity, and fit open one workout see im pace, splits, heart rate and route. On: everybody, for di community feed and your profile; only your followers if your profile na Just friends. Friends: only people wey you follow wey follow you back. Off: only you and the coach wey you connect. Private profile go keep dem for only you and your coach, anything wey you pick here.",

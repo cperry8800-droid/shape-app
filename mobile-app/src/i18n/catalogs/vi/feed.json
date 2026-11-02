@@ -361,5 +361,12 @@
   "thread.reply": "Trả lời",
   "thread.replyingTo": "Đang trả lời {name}",
   "thread.cancelReply": "Hủy trả lời",
-  "thread.goToQuoted": "Xem tin nhắn được trả lời"
+  "thread.goToQuoted": "Xem tin nhắn được trả lời",
+  "thread.sent": "Đã gửi",
+  "thread.seen": "Đã xem",
+  "thread.seenBy": "{count} người đã xem",
+  "thread.typing": "{name} đang soạn tin",
+  "thread.typingTwo": "{a} và {b} đang soạn tin",
+  "thread.typingMany": "Vài người đang soạn tin",
+  "thread.someone": "Ai đó"
 }

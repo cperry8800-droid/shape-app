@@ -67,6 +67,8 @@
   "privacy.visibilityDesc": "Quem pode abrir seu perfil completo: sua atividade, sua evolução e suas estatísticas. Público: qualquer pessoa no Shape. Só amigos: apenas membros com quem você compartilha um chat. Privado: oculto, então os outros veem só seu nome e seu nível.",
   "privacy.online": "Mostrar quando estou on-line",
   "privacy.onlineDesc": "Quando ativado, um ponto ao vivo aparece no seu avatar para que outros vejam que você está ativo no app agora. Desative para navegar em modo privado: sua presença nunca é mostrada.",
+  "privacy.readReceipts": "Confirmações de leitura",
+  "privacy.readReceiptsDesc": "Quando ativado, as pessoas com quem você conversa veem quando você leu as mensagens delas, e você vê quando elas leram as suas. Desative e nenhum de vocês vê. Os canais nunca mostram quem leu o quê.",
   "privacy.shareWorkout": "Compartilhar dados de treino",
   "privacy.shareFriends": "Amigos",
   "privacy.shareWorkoutDesc": "Quem vê seus treinos registrados e sincronizados, recordes e atividades, e pode abrir um treino para ver ritmo, parciais, frequência cardíaca e percurso. Ativado: todos, no feed da comunidade e no seu perfil; só seus seguidores se o seu perfil estiver em Só amigos. Amigos: só as pessoas que você segue e que seguem você de volta. Desativado: só você e seus coaches vinculados. Um perfil privado os mantém só para você e seus coaches, seja qual for a escolha aqui.",

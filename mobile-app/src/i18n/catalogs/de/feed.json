@@ -361,5 +361,12 @@
   "thread.reply": "Antworten",
   "thread.replyingTo": "Antwort an {name}",
   "thread.cancelReply": "Antwort abbrechen",
-  "thread.goToQuoted": "Die beantwortete Nachricht zeigen"
+  "thread.goToQuoted": "Die beantwortete Nachricht zeigen",
+  "thread.sent": "Gesendet",
+  "thread.seen": "Gesehen",
+  "thread.seenBy": "Gesehen von {count}",
+  "thread.typing": "{name} schreibt",
+  "thread.typingTwo": "{a} und {b} schreiben",
+  "thread.typingMany": "Mehrere Personen schreiben",
+  "thread.someone": "Jemand"
 }

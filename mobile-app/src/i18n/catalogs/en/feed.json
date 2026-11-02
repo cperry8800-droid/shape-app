@@ -361,5 +361,12 @@
   "thread.reply": "Reply",
   "thread.replyingTo": "Replying to {name}",
   "thread.cancelReply": "Cancel reply",
-  "thread.goToQuoted": "Show the message this answers"
+  "thread.goToQuoted": "Show the message this answers",
+  "thread.sent": "Sent",
+  "thread.seen": "Seen",
+  "thread.seenBy": "Seen by {count}",
+  "thread.typing": "{name} is typing",
+  "thread.typingTwo": "{a} and {b} are typing",
+  "thread.typingMany": "Several people are typing",
+  "thread.someone": "Someone"
 }
