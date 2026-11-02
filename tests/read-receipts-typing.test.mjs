@@ -177,7 +177,7 @@ test('one broadcast channel per thread, shared by every join, closed a beat afte
   assert.equal(w.supabase.channels.length, 1, 'a remount never subscribes the topic twice');
   const [ch] = w.supabase.channels;
   assert.equal(ch.topic, 'thread-signals:dm:c1');
-  assert.deepEqual(ch.opts, { config: { broadcast: { self: false } } });
+  assert.deepEqual(ch.opts, { config: { broadcast: { self: false }, private: true } }, 'private: only the thread\'s people are admitted (Codex P1 on #2565)');
   assert.deepEqual(Object.keys(ch.handlers).sort(), ['seen', 'typing']);
   w.store.typing('dm:c1', { userId: 'u-maya', on: true });
   a.leave();
@@ -746,7 +746,45 @@ test('the migration closes the read time to clients and opens one door that hono
   assert.match(MIGRATION, /^grant execute on function public\.conversation_seen\(uuid\) to authenticated;$/m);
   assert.match(MIGRATION, /has_column_privilege\('authenticated', 'public\.conversation_participants', 'last_read_at', 'select'\)/);
   assert.match(MIGRATION, /raise exception 'conversation_seen\(uuid\) has the wrong grants'/);
-  assert.doesNotMatch(MIGRATION, /\bdrop\b/i, 'nothing is dropped');
+  assert.deepEqual(MIGRATION.match(/^\s*drop .*$/gim).map((l) => l.trim()), [
+    'drop policy if exists "thread signals: listen" on realtime.messages;',
+    'drop policy if exists "thread signals: speak" on realtime.messages;',
+  ], 'nothing is dropped but a policy about to be created again');
+});
+
+test('the typing channels are private: only a thread\'s people may listen, and only those who may write in it may speak (Codex P1 on #2565)', () => {
+  assert.match(MIGRATION, /create or replace function public\.thread_signal_topic_ok\(p_topic text, p_speak boolean\)\nreturns boolean\nlanguage plpgsql\nstable\nsecurity definer\nset search_path = public, pg_temp/);
+  assert.match(MIGRATION, /p_topic !~ '\^thread-signals:\(dm\|ch\):\[0-9a-fA-F\]\{8\}-/, 'a topic of this shape only, so the id cast cannot fail');
+  assert.match(MIGRATION, /if auth\.uid\(\) is null or p_topic is null/);
+  assert.match(MIGRATION, /if split_part\(p_topic, ':', 2\) = 'dm' then\n\s+return public\.can_access_conversation\(v_id\);/, 'a conversation: whoever may open it');
+  assert.match(MIGRATION, /return public\.is_channel_member\(v_id\) or public\.is_channel_host\(v_id\)\n\s+or \(not coalesce\(p_speak, true\) and public\.is_public_channel\(v_id\)\);/, 'a channel: its members and host, and a public one\'s viewers may only listen');
+  assert.match(MIGRATION, /create policy "thread signals: listen" on realtime\.messages\n\s+for select to authenticated\n\s+using \(realtime\.messages\.extension = 'broadcast' and public\.thread_signal_topic_ok\(realtime\.topic\(\), false\)\);/);
+  assert.match(MIGRATION, /create policy "thread signals: speak" on realtime\.messages\n\s+for insert to authenticated\n\s+with check \(realtime\.messages\.extension = 'broadcast' and public\.thread_signal_topic_ok\(realtime\.topic\(\), true\)\);/);
+  assert.match(MIGRATION, /^revoke all on function public\.thread_signal_topic_ok\(text, boolean\) from public, anon;$/m);
+  assert.match(MIGRATION, /raise exception 'the thread-signals policies on realtime\.messages are missing or changed'/);
+});
+
+test('a history that lands after the thread has moved on is dropped, never added or read (Codex P2 on #2565)', async () => {
+  wire();
+  const page = pageStandIn('visible');
+  const marks = [];
+  let release = null;
+  await withPage(page, {
+    ShapeUnread: { markConversationRead: (id) => { marks.push(id); return Promise.resolve(true); } },
+    ShapeMessages: { subscribeMessages: () => () => {}, getConversationThread: (id) => new Promise((r) => { release = () => r({ data: { conversation_id: id, messages: [...talk(), { id: 'late', who: MAYA, userId: 'u-maya', t: 'From the old thread', at: '2026-11-02T11:00:00Z', me: false }] } }); }) },
+  }, async () => {
+    const { d, effects } = mount(DM());
+    const cleanups = effects.map((fn) => fn()).filter((x) => typeof x === 'function');
+    await tick();
+    marks.length = 0;
+    page.onVis();          // its history is on the way...
+    cleanups.forEach((fn) => fn()); // ...and the thread moves on (or closes)
+    release();
+    await tick(); await tick();
+    d.render();
+    assert.ok(!d.text.includes('From the old thread'), 'nothing added');
+    assert.deepEqual(marks, [], 'and nothing read');
+  });
 });
 
 function flat(node, out = []) {

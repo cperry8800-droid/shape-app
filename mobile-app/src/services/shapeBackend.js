@@ -8614,8 +8614,10 @@ window.ShapeUnread = {
 //   · seen { u }: "I've just read this", sent once a read is stored. It carries nothing to trust: it
 //     only makes the other side ask conversation_seen() again, which reads the stored times and each
 //     side's switch, and is never sent by someone whose read receipts are off.
-// The topic names a conversation or channel id, which only its people can read. One channel per topic,
-// shared by everything that joins it here, so a thread that remounts never subscribes the topic twice.
+// The channel is PRIVATE: Realtime admits a client only if realtime.messages' policies let it listen
+// (anyone who may open the conversation or see the channel) and speak (anyone who may open the
+// conversation, or a channel's member or host). One channel per topic, shared by everything that joins
+// it here, so a thread that remounts never subscribes the topic twice.
 const _threadSignals = createThreadSignalStore();
 const _sigChannels = new Map(); // topic → { channel, refs, ready, queue, waits, openTimer, closeTimer }
 const _seenOn = new Map();      // key → true | false, from conversation_seen()'s last answer
@@ -8661,7 +8663,8 @@ function _sigOpen(key, topic, entry) {
   if (leaving && entry.waits < 20) { entry.waits += 1; entry.openTimer = setTimeout(() => { entry.openTimer = null; _sigOpen(key, topic, entry); }, 100); return; }
   let channel = null;
   try {
-    channel = supabase.channel(topic, { config: { broadcast: { self: false } } });
+    // Private (Codex P1 on #2565): Realtime admits only the thread's people (2026-11-02-read-receipts.sql).
+    channel = supabase.channel(topic, { config: { broadcast: { self: false }, private: true } });
     channel
       .on('broadcast', { event: 'typing' }, (msg) => {
         const sig = bsTypingFromPayload(msg && msg.payload, { myId: state.user?.id });

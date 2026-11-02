@@ -21,8 +21,16 @@
 --    'readReceipts', 'On' or 'Off'), which the Settings screen already writes; anything but 'Off'
 --    (no document, no key) is on, the default.
 --
--- Typing needs nothing here: it rides a Realtime broadcast channel. One transaction, re-runnable, a
--- guard at the end. Not run by this PR.
+-- 3. Typing and the read nudge ride PRIVATE Realtime broadcast channels (Codex P1 on #2565), topic
+--    thread-signals:dm:<conversation> or thread-signals:ch:<channel>, and only that thread's people may
+--    join one. Listening: whoever may open the conversation, or see the channel (public, a member or
+--    its host). Speaking: whoever may open the conversation, or a member or the host of the channel.
+--    Realtime checks these policies when a client joins; they apply to private channels only, so the
+--    app's public channels (presence, the database feeds) are untouched. Until this runs, the app's
+--    private joins are refused and no typing shows.
+--
+-- One transaction, re-runnable (a policy is dropped only to be created again), a guard at the end.
+-- Not run by this PR.
 
 begin;
 set local lock_timeout = '10s';
@@ -62,6 +70,43 @@ $$;
 revoke all on function public.conversation_seen(uuid) from public, anon;
 grant execute on function public.conversation_seen(uuid) to authenticated;
 
+-- Whether the caller may listen on (p_speak false) or speak on (p_speak true) a thread-signals topic.
+create or replace function public.thread_signal_topic_ok(p_topic text, p_speak boolean)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_id uuid;
+begin
+  if auth.uid() is null or p_topic is null
+     or p_topic !~ '^thread-signals:(dm|ch):[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
+    return false;
+  end if;
+  v_id := split_part(p_topic, ':', 3)::uuid;
+  if split_part(p_topic, ':', 2) = 'dm' then
+    return public.can_access_conversation(v_id);
+  end if;
+  return public.is_channel_member(v_id) or public.is_channel_host(v_id)
+    or (not coalesce(p_speak, true) and public.is_public_channel(v_id));
+end;
+$$;
+
+revoke all on function public.thread_signal_topic_ok(text, boolean) from public, anon;
+grant execute on function public.thread_signal_topic_ok(text, boolean) to authenticated;
+
+drop policy if exists "thread signals: listen" on realtime.messages;
+create policy "thread signals: listen" on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast' and public.thread_signal_topic_ok(realtime.topic(), false));
+
+drop policy if exists "thread signals: speak" on realtime.messages;
+create policy "thread signals: speak" on realtime.messages
+  for insert to authenticated
+  with check (realtime.messages.extension = 'broadcast' and public.thread_signal_topic_ok(realtime.topic(), true));
+
 -- Guard: the read time is closed to clients, the rest of the row is not, and the one door is there.
 do $$
 begin
@@ -84,6 +129,19 @@ begin
   if not has_function_privilege('authenticated', 'public.conversation_seen(uuid)', 'execute')
      or has_function_privilege('anon', 'public.conversation_seen(uuid)', 'execute') then
     raise exception 'conversation_seen(uuid) has the wrong grants';
+  end if;
+  if not exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'thread_signal_topic_ok' and p.prosecdef
+      and pg_get_function_identity_arguments(p.oid) = 'p_topic text, p_speak boolean'
+  ) or has_function_privilege('anon', 'public.thread_signal_topic_ok(text, boolean)', 'execute') then
+    raise exception 'thread_signal_topic_ok(text, boolean) is missing, not security definer, or open to anon';
+  end if;
+  if (select count(*) from pg_policies
+      where schemaname = 'realtime' and tablename = 'messages'
+        and ((policyname = 'thread signals: listen' and cmd = 'SELECT' and qual like '%thread_signal_topic_ok(realtime.topic(), false)%')
+          or (policyname = 'thread signals: speak' and cmd = 'INSERT' and with_check like '%thread_signal_topic_ok(realtime.topic(), true)%'))) <> 2 then
+    raise exception 'the thread-signals policies on realtime.messages are missing or changed';
   end if;
 end $$;
 

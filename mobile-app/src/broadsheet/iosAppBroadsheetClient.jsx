@@ -27100,13 +27100,17 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   React.useEffect(() => {
     if (!thread.conversationId || typeof document === 'undefined' || !document.addEventListener) return undefined;
     const id = thread.conversationId;
+    // Live only while this conversation is the thread's: a history that lands after the thread moved on
+    // (or closed) is dropped, never added to the next conversation or read for this one (Codex P2 on #2565).
+    let live = true;
     const read = () => { unreadWhileHiddenRef.current = false; announceRead(window.ShapeUnread?.markConversationRead?.(id)); };
-    const readIfWaiting = () => { if (unreadWhileHiddenRef.current) read(); };
+    const readIfWaiting = () => { if (live && unreadWhileHiddenRef.current) read(); };
     const onShown = () => {
       if (bsPageHidden()) return;
       const load = window.ShapeMessages?.getConversationThread;
       if (!load) { readIfWaiting(); return; }
       Promise.resolve(load(id)).then((res) => {
+        if (!live) return;
         const stored = res && res.data && res.data.conversation_id === id && Array.isArray(res.data.messages) ? res.data.messages : null;
         if (!stored) { readIfWaiting(); return; }
         const shown = shownIdsRef.current;
@@ -27117,7 +27121,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
       }).catch(readIfWaiting);
     };
     document.addEventListener('visibilitychange', onShown);
-    return () => document.removeEventListener('visibilitychange', onShown);
+    return () => { live = false; document.removeEventListener('visibilitychange', onShown); };
   }, [thread.conversationId]);
   // ⚠ AN OPEN CONVERSATION IS READ, HOWEVER IT WAS OPENED (Codex on #2360, carried to the
   // notification audit): only the list's own tap marked it, so a thread opened from a notification,
