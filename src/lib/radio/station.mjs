@@ -6,6 +6,8 @@
 // provider 'shape' and the stream, now-playing coming from Shape's own records. Pure, but for
 // probeStream, which asks the stream itself.
 
+import { MAX_TRACK_SEC } from './library.mjs';
+
 const STATION_ID_RE = /^s[a-z0-9]{6,16}$/i;
 
 /** radio.co's public status for a station (current song with its start time, and recent plays). */
@@ -77,4 +79,15 @@ export async function probeStream(url, { fetchFn = fetch, timeoutMs = 8000 } = {
   if (!res.ok) return { ok: false, error: 'station_unreachable' };
   const type = String((res.headers && res.headers.get && res.headers.get('content-type')) || '').toLowerCase();
   return type.startsWith('audio/mpeg') ? { ok: true } : { ok: false, error: 'station_not_audio' };
+}
+
+// ⚠ A HEALTHY ENGINE IS QUIET FOR AS LONG AS THE LONGEST SONG THE LIBRARY TAKES (Codex, #2574). It
+// reports as each song starts, and a song may run MAX_TRACK_SEC: quiet past that (with two minutes
+// for the blend and the report's way), it is not playing, and listeners hear the standby loop.
+export const ENGINE_QUIET_MS = (MAX_TRACK_SEC + 120) * 1000;
+
+/** Has the engine been quiet too long to be playing? `lastAt` is its latest report's time, or null. */
+export function engineQuiet(lastAt, now) {
+  const at = lastAt ? Date.parse(lastAt) : NaN;
+  return !Number.isFinite(at) || now - at > ENGINE_QUIET_MS;
 }

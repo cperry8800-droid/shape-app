@@ -58,6 +58,13 @@ export default {
       find: '      album: heard.item.album || null,\n      isNora: false,', replace: '      album: null,\n      isNora: false,' },
     { name: 'a block not yet started is read', file: AIR,
       find: ".select('id,starts_at,programme')\n    .lte('starts_at', new Date(now).toISOString())", replace: ".select('id,starts_at,programme')\n    .lte('starts_at', new Date(now + 3600000).toISOString())" },
+    // ── the dashboard's word on the engine ──
+    { name: '⚠ a healthy engine in a long song is called quiet (Codex, #2574)', file: ST,
+      find: 'export const ENGINE_QUIET_MS = (MAX_TRACK_SEC + 120) * 1000;', replace: 'export const ENGINE_QUIET_MS = 15 * 60000;' },
+    { name: 'an engine that never reported is not called quiet', file: ST,
+      find: '  return !Number.isFinite(at) || now - at > ENGINE_QUIET_MS;', replace: '  return now - at > ENGINE_QUIET_MS;' },
+    { name: 'the panel keeps its own threshold', file: 'src/app/dashboard/radio/StationPanel.tsx',
+      find: '  const quiet = own && engineQuiet(lastAt, now);', replace: '  const quiet = own && (!lastAt || now - Date.parse(lastAt) > 15 * 60000);' },
     // ── the route ──
     { name: '⚠ the rotation is named on any station', file: ROUTE,
       find: '  if (cfg.provider === OWN_PROVIDER) {', replace: '  if (true) {' },

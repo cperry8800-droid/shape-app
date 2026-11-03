@@ -6,7 +6,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { checkOwnStation, checkStation, probeStream, OWN_PROVIDER, OWN_MOUNT } from '../src/lib/radio/station.mjs';
+import { checkOwnStation, checkStation, probeStream, engineQuiet, ENGINE_QUIET_MS, OWN_PROVIDER, OWN_MOUNT } from '../src/lib/radio/station.mjs';
+import { MAX_TRACK_SEC } from '../src/lib/radio/library.mjs';
 import { rotationOnAir, HEARD_LAG_SEC } from '../src/lib/radio/noraOnAir.mjs';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
@@ -165,6 +166,21 @@ test('⚠ a song deleted from the library while it plays is named on, by the tit
   // Another song's copied names do not stand in for it.
   const other = fakeDb({ radio_rotation_blocks: [block(B1, start)], nora_engine_log: [logRow(B1, 'started', null, 0), logRow(B1, 'song', null, 1, { title: 'A', artist: 'Someone else' })] });
   assert.equal(await rotationOnAir(other, { now: at(start, 60) }), null);
+});
+
+test('⚠ the dashboard calls the engine quiet only past the longest song the library takes (Codex, #2574)', () => {
+  const now = Date.parse('2026-11-03T22:00:00Z');
+  const ago = (min) => new Date(now - min * 60000).toISOString();
+  assert.equal(MAX_TRACK_SEC, 1800, 'the library\'s longest song, 30 min');
+  assert.equal(ENGINE_QUIET_MS, (MAX_TRACK_SEC + 120) * 1000);
+  assert.equal(engineQuiet(ago(1), now), false);
+  assert.equal(engineQuiet(ago(25), now), false, 'a healthy engine in a 25-minute song');
+  assert.equal(engineQuiet(ago(31), now), false, 'a 30-minute song and its blend');
+  assert.equal(engineQuiet(ago(33), now), true);
+  assert.equal(engineQuiet(null, now), true, 'never reported');
+  assert.equal(engineQuiet('not a time', now), true);
+  const panel = read('src/app/dashboard/radio/StationPanel.tsx');
+  assert.match(panel, /const quiet = own && engineQuiet\(lastAt, now\);/);
 });
 
 test('the newest block on the air wins; one that has not started, or is long over, is not read', async () => {

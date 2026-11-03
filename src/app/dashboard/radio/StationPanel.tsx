@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { rotationOnAir } from '@/lib/radio/noraOnAir.mjs';
-import { OWN_PROVIDER, stationIdOf } from '@/lib/radio/station.mjs';
+import { OWN_PROVIDER, engineQuiet, stationIdOf } from '@/lib/radio/station.mjs';
 import { connectOwnStation, connectStation, disconnectStation } from './actions';
 
 // The station card on Nora's page (./NoraSets.tsx): where Shape Radio streams from, Shape's own
@@ -35,8 +35,8 @@ export default async function StationPanel({ station }: { station: Station }) {
   let onAir: { title: string | null; artist: string | null } | null = null;
   try { onAir = own ? await rotationOnAir(db, { now }) : null; } catch { onAir = null; }
   const lastAt = !lastReport.error && lastReport.data ? (lastReport.data as { logged_at: string }).logged_at : null;
-  // The engine reports at every song; one quiet for longer than a long song is not playing.
-  const quiet = own && (!lastAt || now - Date.parse(lastAt) > 15 * 60000);
+  // The engine reports at every song; one quiet for longer than the longest song is not playing.
+  const quiet = own && engineQuiet(lastAt, now);
 
   return (
     <div className="rounded-xl border border-neutral-800 p-4 flex flex-col gap-4">
