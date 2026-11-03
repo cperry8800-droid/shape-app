@@ -10,6 +10,8 @@ Drafts for the owner's review; nothing in the app or the website uses these yet.
   over CLUB SHAPE and as an app icon. Exploration only: no lockup files are made from them.
 - `pulse-preview.png` (from `pulse.mjs`) — the pulse mark (idea D) refined into the wordmark's own
   strokes: stacked over CLUB SHAPE, and on one line between CLUB and SHAPE, plus app icons.
+- `pulse-looks.png` (from `pulse-looks.mjs`) — six other looks for the pulse between CLUB and SHAPE
+  (climb, double beat, triangle beat, soundwave, LED, rounded), each beside the line and as an icon.
 - `png/` — each SVG at 2400 px wide: transparent, except the tiles, which carry their own background.
 
 Both lockups come in every colour version below, each with the same sizing and spacing (the stacked
