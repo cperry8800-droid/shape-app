@@ -13,6 +13,7 @@ import { BS_WORKOUT_VIEWS, bsWorkoutView, bsReadWorkoutView, bsSaveWorkoutView, 
 import { bsSdSplitUnit, bsSdFigure, bsSdFigureText, bsSdNeedle, bsSdPaceTraceIn, bsSdElevTraceIn, bsSdUnitizeStat, bsSdRankStats } from '../services/sessionLedger.mjs';
 import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
 import { bsHomeSlateSort, bsHomeTimeMinutes } from '../services/homeSlate.mjs';
+import { bsTierRidgeGeom } from '../services/tierRidge.mjs';
 import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsValidLivePayload } from '../services/liveProgress.mjs';
@@ -18586,40 +18587,6 @@ function bsProfileDistLabel(t, km) {
   return m.unit === 'mi' ? `${m.value} mi` : `${m.value}K`;
 }
 
-// The tier ridge on the member profile's cover, in a W×H frame: the base low on the left, the summit
-// high on the right, in the shape the head's mountain drew until 2026-10-31 (its knee and shoulder as
-// fractions of the rise). `earned` is the same route cut at `pct` of its length and `now` the point it
-// stops on, both from one sampled polyline, so the dot sits exactly where the heat ends.
-function bsTierRidgeGeom(W, H, pct) {
-  const base = [6, H - 26], peak = [W - 10, 30];
-  const rise = base[1] - peak[1];
-  const c1 = [W * 0.4, base[1] - rise * (12 / 102)];
-  const mid = [W * 0.62, base[1] - rise * (53 / 102)];
-  const c2 = [2 * mid[0] - c1[0], 2 * mid[1] - c1[1]]; // T reflects the first control point through mid
-  const d = `M ${base[0]} ${base[1]} Q ${c1[0]} ${c1[1]}, ${mid[0]} ${mid[1]} T ${peak[0]} ${peak[1]}`;
-  const q = (a, cp, b, t) => [0, 1].map((k) => (1 - t) * (1 - t) * a[k] + 2 * (1 - t) * t * cp[k] + t * t * b[k]);
-  const N = 40, pts = [];
-  for (let i = 0; i <= N; i++) pts.push(q(base, c1, mid, i / N));
-  for (let i = 1; i <= N; i++) pts.push(q(mid, c2, peak, i / N));
-  const lens = [0];
-  for (let i = 1; i < pts.length; i++) lens.push(lens[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-  const want = Math.max(0, Math.min(1, Number(pct) || 0)) * lens[lens.length - 1];
-  const out = [pts[0]];
-  let now = pts[0];
-  for (let i = 1; i < pts.length; i++) {
-    if (lens[i] >= want) {
-      const f = (want - lens[i - 1]) / ((lens[i] - lens[i - 1]) || 1);
-      now = [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f];
-      out.push(now);
-      break;
-    }
-    out.push(pts[i]);
-    now = pts[i];
-  }
-  const r2 = (v) => Math.round(v * 100) / 100;
-  return { d, earned: out.map((p, i) => `${i ? 'L' : 'M'} ${r2(p[0])} ${r2(p[1])}`).join(' '), now, base, peak };
-}
-
 function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = null, meMode = false, onOpenSettings = () => {}, onOpenScore = null }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
@@ -19214,17 +19181,23 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 </div>
               ) : null}
               {/* The tier ridge: the dashed route, the heat to their %, the base square and the summit flag,
-                  each end's tier name underlined in its tier's colour, and the % under the dot. */}
+                  each end's tier name underlined in its tier's colour, and the % under the dot. ⚠ The heat
+                  draws by pathLength, so it takes NO non-scaling stroke: that measures the dash on the screen
+                  and pathLength on the path, and once the frame stretches the heat broke into dashes (Codex
+                  P2 on #2571; tests/member-profile-coach-look.test.mjs holds the trajectory to the same). */}
               <div data-member-ridge="" role="img" aria-label={`${tierClimb.baseName} → ${tierClimb.summitName} · ${ridgePct}`}
                 style={{ position: 'absolute', left: gutter + 118, right: gutter, bottom: 0, height: RH, pointerEvents: 'none' }}>
                 <svg width="100%" height={RH} viewBox={`0 0 ${RW} ${RH}`} preserveAspectRatio="none" aria-hidden style={{ display: 'block', overflow: 'visible' }}>
                   <path d={rg.d} fill="none" stroke={bsTHexA(rINK, heroCover ? 0.62 : 0.35)} strokeWidth="1.5" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
-                  <path data-ridge-earned="" d={rg.earned} fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" pathLength={1} strokeDasharray="1 1"
+                  <path data-ridge-earned="" d={rg.earned} fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1"
                     style={{ '--sd-len': 1, filter: heroCover ? 'drop-shadow(0 1px 3px rgba(0,0,0,0.55))' : undefined, ...(ridgeReduced ? { strokeDashoffset: 0 } : { animation: 'bsSdDrawLine 1100ms cubic-bezier(.4,0,.2,1) 400ms both' }) }} />
-                  <line x1={rg.peak[0]} y1={rg.peak[1]} x2={rg.peak[0]} y2={rg.peak[1] - 18} stroke={tierClimb.targetC || c} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-                  <path data-ridge-flag="" d={`M ${rg.peak[0]} ${rg.peak[1] - 18} l 12 4 l -12 4 z`} fill={tierClimb.targetC || c} />
                 </svg>
-                {/* The base square, drawn in HTML so the stretched frame cannot squash it */}
+                {/* The summit flag and the base square, drawn outside the stretched frame so neither is
+                    widened or squashed at any width */}
+                <svg aria-hidden width="14" height="20" viewBox="0 0 14 20" style={{ position: 'absolute', left: `${(rg.peak[0] / RW) * 100}%`, top: rg.peak[1] - 19, marginLeft: -0.75, overflow: 'visible' }}>
+                  <line x1="0.75" y1="1" x2="0.75" y2="19" stroke={tierClimb.targetC || c} strokeWidth="1.5" />
+                  <path data-ridge-flag="" d="M 0.75 1 l 12 4 l -12 4 z" fill={tierClimb.targetC || c} />
+                </svg>
                 <span aria-hidden style={{ position: 'absolute', left: `${(rg.base[0] / RW) * 100}%`, top: rg.base[1], width: 8, height: 8, transform: 'translate(-50%, -50%)', border: `1.5px solid ${tierClimb.baseC}`, boxSizing: 'border-box', background: heroCover ? 'rgba(0,0,0,0.25)' : 'transparent' }} />
                 {/* Where they are: the heat dot, popping in as the route reaches it */}
                 <span data-ridge-now="" aria-hidden style={{ position: 'absolute', left: `${nowX}%`, top: rg.now[1], width: 12, height: 12, marginLeft: -6, marginTop: -6, borderRadius: 99, background: c, border: `2px solid ${heroCover ? '#f2ede4' : (tTheme.PAPER_BG || BG)}`, boxSizing: 'border-box', ...(ridgeReduced ? null : { '--sd-glow': bsTHexA(c, 0.55), transformOrigin: 'center', animation: 'bsSdPop 400ms cubic-bezier(.2,1.1,.3,1) 1450ms both, bsSdPrBreath 3.2s ease-in-out 2050ms infinite' }) }} />

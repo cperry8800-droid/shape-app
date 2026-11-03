@@ -158,7 +158,7 @@ test('the app profile climb flies the next tier on the tier ridge\'s target', ()
   const src = stripComments(read(APP))
   assert.match(src, /targetC: last \? c : bsTierColor\(nextName\),/, 'the tier ridge\'s target is the next tier\'s colour')
   assert.match(src, /baseC: last \? bsTierColor\(NM\[0\]\) : c \}/, 'the base is their own tier, or the first rung at the top')
-  assert.match(src, /<path data-ridge-flag="" d=\{`[^`]+`\} fill=\{tierClimb\.targetC \|\| c\} \/>/, 'the cover\'s summit flag flies the next tier')
+  assert.match(src, /<path data-ridge-flag="" d="[^"]+" fill=\{tierClimb\.targetC \|\| c\} \/>/, 'the cover\'s summit flag flies the next tier')
   assert.match(src, /<circle cx=\{xs\[2\]\} cy=\{ys\[2\]\} r="4\.5" fill="none" stroke=\{climbCfg\.targetC \|\| c\} /, 'the target ring flies the member\'s own tier again')
   // The ridge's own ladder for the Shape Score aspect.
   assert.match(src, /NM = \['Raw', 'Tempo', 'Form', 'Peak', 'Legend'\];/)

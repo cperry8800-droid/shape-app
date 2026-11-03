@@ -17,8 +17,9 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { loadBroadsheet, drive, textOf, SRC } from './helpers/broadsheet-mount.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
+import { bsTierRidgeGeom } from '../mobile-app/src/services/tierRidge.mjs';
 
-const mod = await loadBroadsheet(['BSTerrainProfile', 'BSFollowBlock', 'bsReadableOn', 'BSProfilePlaylists', 'bsTierRidgeGeom', 'bsTierColor']);
+const mod = await loadBroadsheet(['BSTerrainProfile', 'BSFollowBlock', 'bsReadableOn', 'BSProfilePlaylists', 'bsTierColor']);
 const CLIENT = stripComments(readFileSync(SRC, 'utf8'));
 const BACKEND = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');
 const named = (name) => (n) => n && typeof n.type === 'function' && n.type.name === name;
@@ -152,6 +153,26 @@ test('the cover draws the tier line again: from the tier held to the next, the h
   assert.ok(d.text.includes(`pts · ${pct}`), `the Climb tab's Now does not read ${pct}`);
 });
 
+test('the cover\'s heat is drawn to the dot at any width, and its flag keeps its shape', () => {
+  // Codex P2 on #2571: the heat draws by pathLength, and with a non-scaling stroke the dash is measured on
+  // the screen while pathLength scales it on the path, so once the frame stretched (820 px, a phone on its
+  // side) the heat broke into dashes short of the dot. The flag, drawn in the stretched frame, widened.
+  signedOut();
+  const d = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
+  const nodes = d.nodes();
+  const [earned] = withAttr(nodes, 'data-ridge-earned');
+  assert.equal(earned.props.pathLength, 1);
+  assert.equal(earned.props.strokeDasharray, '1 1');
+  assert.equal(earned.props.vectorEffect, undefined, 'the heat has a non-scaling stroke');
+  const [ridge] = withAttr(nodes, 'data-member-ridge');
+  const frame = nodes.find((n) => n && n.type === 'svg' && n.props && n.props.preserveAspectRatio === 'none' && contains(ridge, n));
+  assert.ok(frame, 'the ridge lost its frame');
+  assert.ok(contains(frame, earned), 'the heat is not in the route\'s frame');
+  const [flag] = withAttr(nodes, 'data-ridge-flag');
+  assert.ok(!contains(frame, flag), 'the flag is drawn in the stretched frame');
+  assert.ok(contains(ridge, flag));
+});
+
 test('at the top of the ladder the cover draws the whole ladder climbed', () => {
   signedOut();
   const d = drive(mod.BSTerrainProfile, { person: { who: 'Ade Bello', kind: 'CLIENT', tier: 'LEGEND', init: 'AB' }, onBack() {} });
@@ -164,14 +185,14 @@ test('at the top of the ladder the cover draws the whole ladder climbed', () => 
 });
 
 test('the ridge\'s heat stops where its dot sits, at its share of the route', () => {
-  const g0 = mod.bsTierRidgeGeom(220, 148, 0);
+  const g0 = bsTierRidgeGeom(220, 148, 0);
   assert.deepEqual(g0.now, g0.base, 'at 0 the dot is on the base');
-  const whole = polyLen(mod.bsTierRidgeGeom(220, 148, 1).earned);
-  const g1 = mod.bsTierRidgeGeom(220, 148, 1);
+  const whole = polyLen(bsTierRidgeGeom(220, 148, 1).earned);
+  const g1 = bsTierRidgeGeom(220, 148, 1);
   assert.ok(Math.hypot(g1.now[0] - g1.peak[0], g1.now[1] - g1.peak[1]) < 0.01, 'at 1 the dot is on the summit');
   let prev = g0.now;
   for (const pct of [0.1, 0.25, 0.43, 0.6, 0.8, 0.97]) {
-    const g = mod.bsTierRidgeGeom(220, 148, pct);
+    const g = bsTierRidgeGeom(220, 148, pct);
     const e = polyLen(g.earned);
     assert.ok(Math.abs(e.n / whole.n - pct) < 0.01, `at ${pct} the heat covers ${(e.n / whole.n).toFixed(3)} of the route`);
     assert.ok(Math.hypot(e.last[0] - g.now[0], e.last[1] - g.now[1]) < 0.02, `at ${pct} the heat does not end on the dot`);

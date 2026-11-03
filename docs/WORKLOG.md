@@ -54,8 +54,9 @@ or past 12 KB.
 ## Where the code lives
 
 - **Website: `public/newdesign/`**, one live page per `*.html`; shared `pageShell.jsx`,
-  `living*.jsx`, `chatWidget.jsx`. Never bump `?v=` (`scripts/build-newdesign.mjs` hashes it
-  at deploy); check a legacy `*.jsx` is still loaded before editing it. `coachForecast.js`
+  `living*.jsx`, `chatWidget.jsx`. Never bump a script's `?v=` (`scripts/build-newdesign.mjs`
+  hashes it at deploy), but an image replaced under its own name takes a new `?v=` by hand (the
+  build never touches images); check a legacy `*.jsx` is still loaded before editing it. `coachForecast.js`
   holds the coach Business figures for the app too, and `splitGlassMark.js` the 3D mark. A
   coach's public page is `coachProfileWeb.jsx` (kit `coachProfileKit.mjs`): the app profile
   for the web, selling through `livingShared.jsx`'s `useLvCoachCommerce` like the old layout.
