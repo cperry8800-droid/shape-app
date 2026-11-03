@@ -51,6 +51,10 @@ test('960px and below: a bottom drawer from "Filters", over the chat launcher, a
   assert.match(src, /else if \(e\.shiftKey && at === first\) \{ e\.preventDefault\(\); last\.focus\(\); \}/);
   assert.match(src, /else if \(!e\.shiftKey && at === last\) \{ e\.preventDefault\(\); first\.focus\(\); \}/);
   assert.match(src, /matchMedia\("\(min-width: 961px\)"\)/);
+  // widening with the drawer open moves focus off a control that hides (its ×, its footer) to the
+  // column's first visible one before closing (Codex on #2577)
+  assert.match(src, /if \(side && side\.contains\(at\) && at\.offsetParent === null\) \{/);
+  assert.match(src, /\.find\(\(el\) => el\.offsetParent !== null\);\n\s*try \{ if \(to\) to\.focus\(\{ preventScroll: true \}\); \} catch \(e\) \{\}\n\s*\}\n\s*setDrawer\(false\);/);
   assert.match(src, /className="km-side-bg" aria-hidden onClick=\{closeDrawer\}/);
   assert.match(src, /<button type="button" className="km-btn p" onClick=\{closeDrawer\}>Show \{shown\.length\}/);
 });

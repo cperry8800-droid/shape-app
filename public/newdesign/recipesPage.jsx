@@ -353,7 +353,17 @@ function RecipesPage() {
       else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
     };
     const wide = window.matchMedia ? window.matchMedia("(min-width: 961px)") : null;
-    const onWide = () => { if (wide && wide.matches) setDrawer(false); };
+    // Widened to the column with the drawer open (a rotated tablet): its × and footer hide, so focus
+    // on one of them moves to the column's first control before the drawer state clears.
+    const onWide = () => {
+      if (!(wide && wide.matches)) return;
+      const side = document.getElementById("km-side"), at = document.activeElement;
+      if (side && side.contains(at) && at.offsetParent === null) {
+        const to = [...side.querySelectorAll("button:not([disabled]), a[href], input:not([disabled])")].find((el) => el.offsetParent !== null);
+        try { if (to) to.focus({ preventScroll: true }); } catch (e) {}
+      }
+      setDrawer(false);
+    };
     document.addEventListener("keydown", onKey);
     if (wide && wide.addEventListener) wide.addEventListener("change", onWide);
     return () => {
