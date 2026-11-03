@@ -1109,7 +1109,7 @@ function BSNowPlaying({ onOpen }) {
             onClick={(e) => { e.stopPropagation(); if (homeKey) r.voteSong(homeTrack, item.key); }}
             disabled={!homeKey}
             style={{
-              minWidth: 30, height: 44, flexShrink: 0, border: 0, padding: '0 3px', borderRadius: 4,
+              minWidth: 44, height: 44, flexShrink: 0, border: 0, padding: '0 3px', borderRadius: 4,
               background: active ? `${t.ACCENT}22` : 'transparent', color: t.INK,
               cursor: homeKey ? 'pointer' : 'default', opacity: homeKey ? 1 : 0.6,
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2,
