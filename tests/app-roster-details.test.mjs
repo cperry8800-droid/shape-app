@@ -105,7 +105,9 @@ test('a row carries the program, the streak, since when, and the week as a numbe
     const week = ana.querySelector('[data-roster-week]');
     assert.ok(week, 'no week figure');
     assert.match(week.textContent, /^91%Adherence$/);
-    assert.equal(week.querySelector('[aria-hidden] > span').style.width, '91%');
+    // A ten-tick meter (direction A): 91% fills nine.
+    assert.equal(week.querySelector('[data-meter]').getAttribute('data-meter'), '9');
+    assert.equal([...week.querySelectorAll('[data-meter] > span')].length, 10);
     // No streak to show, no start date: those facts are left out, not invented.
     const ben = rowOf(m.host, 'Ben Tal');
     assert.equal(ben.querySelector('[data-roster-facts]').textContent, 'Cut Block');

@@ -47,12 +47,14 @@ test('Open their file asks for the booking\'s client by id, else by name, throug
   }
 });
 
-test('the Up next card is a little smaller, its buttons still 44 to tap', () => {
+test('Up next is the plate: the role\'s rule, a cut corner, the time to it, its buttons still 44 to tap', () => {
+  // Direction A (owner, 2026-11-03), after "make this a little smaller" (2026-10-31): the name stays 17.
   const at = PROS.indexOf('<div data-up-next=""');
   const card = PROS.slice(at, PROS.indexOf('{/* TO DO', at));
-  assert.match(card, /padding: '12px 14px'/);
+  assert.match(card, /\.\.\.bsProPlate\(t, heat\)/);
   assert.match(card, /fontFamily: BS_PRO_HEAD, fontSize: 17,/, 'the name at 17');
-  assert.doesNotMatch(card, /fontSize: 20/);
+  assert.match(card, /data-up-countdown=""[\s\S]*tr\('coach:today\.toGo'/, 'the countdown');
+  assert.match(card, /\{upIn != null && \(/, 'no countdown for a booking already under way');
   const buttons = card.match(/<button [^\n]*/g) || [];
   assert.ok(buttons.length >= 2);
   for (const b of buttons) assert.match(b, /minHeight: 44/, 'a button under 44');
@@ -60,7 +62,7 @@ test('the Up next card is a little smaller, its buttons still 44 to tap', () => 
 
 test('the week strip sits at the top, under Today, above Up next and To do', () => {
   // Owner, 2026-11-03, of the strip below To do: "this should be towards top of coaches home page".
-  const head = PROS.indexOf('<div data-tour="hero-today"');
+  const head = PROS.indexOf('<BSProDeck t={t} role={role} tour="hero-today"');
   const week = PROS.indexOf('{/* THIS WEEK — the day strip');
   const live = PROS.indexOf('{/* LIVE — a client training');
   const up = PROS.indexOf('{/* UP NEXT — today\'s next booking');
