@@ -14,6 +14,14 @@ It also updates the station's song title at each change, so radio.co's own playe
 right song. It reports every song it plays back to Shape. That log feeds the monthly SoundExchange report
 (Admin → Nora's library → *Play reports*).
 
+**On Shape's own station** (`../station`, `NORA_MODE=station`) the engine plays the station around
+the clock instead: Nora's sets at their times and, between them, the rotation Shape plans from the
+same library. It keeps one stream open, asks for each next block two minutes before the current one
+ends, and checks with Shape every minute (a licence withdrawn stops the music; a set scheduled
+inside a block cuts the block at her start). If it has nothing to play, it hangs up and the
+station's standby loop plays until it is back. `../station/README.md` sets it all up; the rest of
+this page is the radio.co setup.
+
 **It fails to the AutoDJ, never to silence.** If a song can't be loaded in time or the connection
 drops, the engine hangs up and the station's own rotation takes over. A dropped connection is
 retried on the next poll, joining the set where it is by then.
@@ -62,6 +70,7 @@ The engine then records the next set to that file instead of broadcasting it.
 |---|---|
 | `SHAPE_URL` | Shape's address |
 | `NORA_ENGINE_TOKEN` | the shared token from step 2 |
+| `NORA_MODE` | `station` on Shape's own station (`../station`); unset on radio.co |
 | `NORA_STREAM_URL` | the live input (`icecast://…`) or a file path |
 | `NORA_BITRATE` | MP3 bitrate, default `192k` |
 | `NORA_LEGACY_ICECAST` | `1` for a server that takes only the SOURCE method |

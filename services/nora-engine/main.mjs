@@ -1,10 +1,12 @@
 // main.mjs — Nora's engine as a service: polls Shape for her next set and plays it into the
-// station's live input. The logic is in engine.mjs; this file wires the real world to it:
-// fetch for the Shape API, ffmpeg for decoding the songs and for the live stream.
+// station's live input (radio.co), or, with NORA_MODE=station, plays Shape's own station around the
+// clock. The logic is in engine.mjs; this file wires the real world to it: fetch for the Shape API,
+// ffmpeg for decoding the songs and for the live stream.
 //
 // Environment (README.md says where each comes from):
 //   SHAPE_URL           https://www.theshapecommunity.com
 //   NORA_ENGINE_TOKEN   the same secret as the Shape app's NORA_ENGINE_TOKEN
+//   NORA_MODE           optional: `station` on Shape's own station (services/station); unset on radio.co
 //   NORA_STREAM_URL     the station's live input, icecast://user:password@host:port/mount
 //                       (or a file path to record a set instead, for a test)
 //   NORA_BITRATE        optional, default 192k
@@ -14,7 +16,7 @@
 //   NORA_POLL_SEC       optional, default 20
 
 import { spawn } from 'node:child_process';
-import { pollOnce, SAMPLE_RATE } from './engine.mjs';
+import { pollOnce, runStation, SAMPLE_RATE } from './engine.mjs';
 
 const env = (k, d) => (process.env[k] && process.env[k].trim()) || d;
 const SHAPE_URL = env('SHAPE_URL', '').replace(/\/+$/, '');
@@ -25,19 +27,72 @@ const FFMPEG = env('FFMPEG', 'ffmpeg');
 const POLL_MS = Number(env('NORA_POLL_SEC', '20')) * 1000;
 const LEGACY = env('NORA_LEGACY_ICECAST', '') === '1';
 const TLS = env('NORA_ICECAST_TLS', '') === '1';
+const STATION = env('NORA_MODE', '') === 'station';
+const API_TIMEOUT_MS = 20000;
 
 const log = (msg) => console.log(`${new Date().toISOString()} ${msg}`);
 // Never print the stream URL: it carries the station's password.
 const redact = (s) => String(s).replace(/\/\/[^@/]*@/, '//***@');
 
-async function api(method, body) {
-  const res = await fetch(`${SHAPE_URL}/api/radio/nora/engine`, {
+// ⚠ EVERY CALL TO SHAPE HAS A TIME LIMIT. A request that never answers would otherwise hold the
+// engine for good: on the station's stream, that is the music stopping.
+async function api(method, body, { query = '', fetchFn = fetch } = {}) {
+  const res = await fetchFn(`${SHAPE_URL}/api/radio/nora/engine${query}`, {
     method,
     headers: { authorization: `Bearer ${TOKEN}`, ...(body ? { 'content-type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Shape answered ${res.status}`);
   return res.json();
+}
+
+/** The station's question to Shape (?mode=station): its answer whatever the status, an error's body included. */
+export async function stationAsk(params, { fetchFn = fetch, shapeUrl = SHAPE_URL, token = TOKEN } = {}) {
+  const q = new URLSearchParams({ mode: 'station' });
+  for (const [k, v] of Object.entries(params)) {
+    const value = Array.isArray(v) ? v.join(',') : v == null ? '' : String(v);
+    if (value !== '') q.set(k, value);
+  }
+  const res = await fetchFn(`${shapeUrl}/api/radio/nora/engine?${q}`, {
+    headers: { authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
+  });
+  let body = null;
+  try { body = await res.json(); } catch { /* not JSON */ }
+  if (!body || typeof body !== 'object') throw new Error(`Shape answered ${res.status}`);
+  if (res.status === 401 || (res.status === 503 && body.error === 'engine_not_configured')) throw new Error(`Shape answered ${res.status} (${body.error || 'the engine token'})`);
+  return { ...body, httpStatus: res.status };
+}
+
+/**
+ * The engine's reports, in order, sent behind the music: a report waits in the queue, never the
+ * stream. A report Shape does not take is tried again (it is the play record the licence report
+ * reads); one that keeps failing is written to the log in full, so it can be entered by hand.
+ */
+export function createReporter({ send, log, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), tries = 6 }) {
+  const queue = [];
+  let busy = false;
+  const work = async () => {
+    if (busy) return;
+    busy = true;
+    while (queue.length) {
+      const event = queue[0];
+      let sent = false;
+      for (let i = 0; i < tries && !sent; i++) {
+        try { await send(event); sent = true; } catch (e) {
+          if (i < tries - 1) await sleep(Math.min(60000, 2000 * 2 ** i));
+          else log(`report not taken after ${tries} tries (${e && e.message}): ${JSON.stringify(event)}`);
+        }
+      }
+      queue.shift();
+    }
+    busy = false;
+  };
+  return {
+    report(event) { queue.push(event); work(); return Promise.resolve(); },
+    get pending() { return queue.length; },
+  };
 }
 
 /** Decode a song (a signed URL) to 44.1 kHz stereo 16-bit, split into channels. */
@@ -68,7 +123,7 @@ export function openOutput({ ffmpeg = FFMPEG, target = STREAM_URL, bitrate = BIT
   const live = /^icecast:\/\//.test(target);
   const args = ['-hide_banner', '-v', 'error', '-f', 'f32le', '-ar', String(SAMPLE_RATE), '-ac', '2', '-i', '-',
     '-c:a', 'libmp3lame', '-b:a', bitrate, '-f', 'mp3'];
-  if (live) args.push('-content_type', 'audio/mpeg', '-ice_name', 'Shape Radio', '-ice_description', 'DJ set · Nora', ...(legacy ? ['-legacy_icecast', '1'] : []));
+  if (live) args.push('-content_type', 'audio/mpeg', '-ice_name', 'Shape Radio', '-ice_description', STATION ? 'Shape Radio' : 'DJ set · Nora', ...(legacy ? ['-legacy_icecast', '1'] : []));
   else args.push('-y');
   args.push(target);
   const p = spawn(ffmpeg, args, { stdio: ['pipe', 'ignore', 'pipe'] });
@@ -117,18 +172,35 @@ export function metadataRequest(target, item, { tls = TLS } = {}) {
   return { url, auth };
 }
 
-export async function announce(item, { target = STREAM_URL, fetchFn = fetch } = {}) {
+let titleSeq = 0;
+/**
+ * ⚠ THE FIRST SONG'S TITLE IS SENT AS THE STREAM CONNECTS, and Icecast answers 400 ("Source does
+ * not exist") until it has registered the stream: measured against a real server, the first song
+ * went unnamed. A 400 is tried again a few times, a second apart, unless a newer title has been
+ * sent meanwhile (an old title must never land on a new song).
+ */
+export async function announce(item, { target = STREAM_URL, fetchFn = fetch, tries = 5, waitMs = 1000 } = {}) {
   const req = metadataRequest(target, item);
   if (!req) return;
-  const res = await fetchFn(req.url, { headers: { authorization: req.auth } });
-  if (!res.ok) throw new Error(`title update answered ${res.status}`);
+  const seq = ++titleSeq;
+  for (let i = 1; ; i++) {
+    const res = await fetchFn(req.url, { headers: { authorization: req.auth }, signal: AbortSignal.timeout(5000) });
+    if (res.ok) return;
+    if (res.status !== 400 || i >= tries || seq !== titleSeq) throw new Error(`title update answered ${res.status}`);
+    await new Promise((r) => setTimeout(r, waitMs));
+    if (seq !== titleSeq) throw new Error('a newer title was sent');
+  }
 }
+
+const reporter = createReporter({ send: (event) => api('POST', event), log });
 
 export const realDeps = {
   now: () => Date.now(),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
   fetchJob: () => api('GET'),
-  report: (event) => api('POST', event).catch((e) => log(`report failed: ${e.message}`)),
+  fetchStationJob: ({ after, skip }) => stationAsk({ after, skip }),
+  checkSegment: ({ kind, id, skip }) => stationAsk({ check: `${kind}:${id}`, skip }),
+  report: (event) => reporter.report(event),
   decode: (url) => decode(url),
   openOutput: () => openOutput(),
   announce: (item) => announce(item),
@@ -139,6 +211,11 @@ async function main() {
   if (!SHAPE_URL || !TOKEN || !STREAM_URL) {
     console.error('Set SHAPE_URL, NORA_ENGINE_TOKEN and NORA_STREAM_URL (see README.md).');
     process.exit(2);
+  }
+  if (STATION) {
+    log(`Shape Radio's station: playing ${SHAPE_URL}'s rotation and Nora's sets into ${redact(STREAM_URL)}`);
+    await runStation(realDeps);
+    return;
   }
   log(`Nora's engine: polling ${SHAPE_URL} every ${POLL_MS / 1000} s; streaming to ${redact(STREAM_URL)}`);
   const state = { running: null, done: new Set() };

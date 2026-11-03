@@ -2,8 +2,13 @@
 // the next. The result (a "programme") is what her engine plays into the station and what the
 // booth replays, so it holds every time the mix needs, in seconds from the set's start.
 //
-//   planSet({ tracks, set, history, seed }) → programme
-//   checkProgramme(programme, history)     → [] or the rules it breaks
+//   planSet({ tracks, set, history, future, seed, hardEnd }) → programme
+//   checkProgramme(programme, history, { future })          → [] or the rules it breaks
+//
+// The station's rotation (src/lib/radio/rotation.mjs) is planned the same way, an hour at a time.
+// `future` is what is already planned to follow (the next Nora set or rotation block): a song
+// chosen now must break no rule with those plays either. `hardEnd` fills to the set's last
+// second and fades out on it, for a block that has to hand over to a Nora set on time.
 //
 // HOW SHE CHOOSES. One song at a time, the best-scoring candidate that breaks no rule:
 //   - the set follows an energy arc (warm up, build, peak, ease off), read against the library's
@@ -35,6 +40,9 @@ const RECENT_SEC = 24 * 3600;            // a song heard within this is passed o
 const END_SLACK_SEC = 90;                // stop adding once a song would start this close to the end
 const OVERRUN_SEC = 60;                  // a last song running past the end by more fades at the end
 const END_FADE_SEC = 8;
+// With hardEnd: a song may start until this close to the end, the set is filled to its end, and
+// a last song running past it by any amount fades out on it.
+export const HARD_END_SLACK_SEC = 15;
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 const round = (v, d = 3) => { const k = 10 ** d; return Math.round(v * k) / k; };
@@ -87,6 +95,18 @@ export function complementViolations(plays, { fromIndex = 0 } = {}) {
   }
   return out;
 }
+
+/**
+ * The rules the plays `ahead` (already planned to follow) break after `plays`, as keys that do
+ * not depend on how many plays come before them. Comparing the keys with and without a new play
+ * finds what that play adds; a break the plan ahead already had is not the new play's doing.
+ */
+function aheadBreaks(plays, ahead) {
+  const seq = [...plays, ...ahead];
+  const from = plays.length;
+  return new Set(complementViolations(seq, { fromIndex: from }).map((v) => `${v.index - from}|${v.rule}|${v.artist ?? v.album ?? v.trackId}`));
+}
+const addsTo = (base, next) => [...next].filter((k) => !base.has(k));
 
 // ── Keys and tempo ─────────────────────────────────────────────────────────────────────────
 function parseCamelot(c) {
@@ -202,12 +222,15 @@ export function planTransition(prev, next, { prevStart, prevCueIn, prevRate }) {
  * @param {Array<{id,title,artist,album,label,isrc,analysis}>} p.tracks  ready, enabled songs
  * @param {{id: string, startsAt: string, durationMin: number}} p.set
  * @param {Array<{trackId?, artist, album, playedAt: string}>} [p.history]  the station's plays before the set
+ * @param {Array<{trackId?, artist, album, playedAt: string}>} [p.future]  plays already planned after it
  * @param {string} [p.seed]  defaults to the set's id
+ * @param {boolean} [p.hardEnd]  fill to the end and fade out on it (a block handing over on time)
  */
-export function planSet({ tracks, set, history = [], seed }) {
+export function planSet({ tracks, set, history = [], future = [], seed, hardEnd = false }) {
   const startMs = Date.parse(set.startsAt);
   const durationSec = Math.round(Number(set.durationMin) * 60);
   if (!Number.isFinite(startMs) || !(durationSec > 0)) throw new Error('planSet: the set needs startsAt and durationMin');
+  const slack = hardEnd ? HARD_END_SLACK_SEC : END_SLACK_SEC;
   const rand = mulberry32(hashSeed(seed ?? set.id ?? set.startsAt));
   const pool = (Array.isArray(tracks) ? tracks : []).filter((t) => t && t.id && t.analysis && t.analysis.durationSec > 0 && t.artist);
   const sortedIntensity = pool.map((t) => Number(t.analysis.intensity) || 0).sort((a, b) => a - b);
@@ -219,6 +242,13 @@ export function planSet({ tracks, set, history = [], seed }) {
     .sort((a, b) => a.at - b.at);
   const plays = past.filter((h) => h.at > -COMPLEMENT.windowSec);
   const recentlyHeard = new Set(past.map((h) => h.trackId).filter(Boolean));
+  // What follows, on the set's clock. Only a song sharing a track, an artist or an album with it
+  // can break a rule with it, so only those candidates pay for the full check.
+  const ahead = playsAfter(future, startMs, durationSec);
+  const aheadIds = new Set(ahead.map((p) => p.trackId).filter(Boolean));
+  const aheadNames = new Set(ahead.flatMap((p) => artistsOf(p.artist)));
+  const aheadAlbums = new Set(ahead.map(albumOf).filter(Boolean));
+  const touchesAhead = (t) => aheadIds.has(t.id) || artistsOf(t.artist).some((n) => aheadNames.has(n)) || aheadAlbums.has(albumOf(t));
 
   const items = [];
   const used = new Set();
@@ -227,15 +257,17 @@ export function planSet({ tracks, set, history = [], seed }) {
   let prev = null, prevStart = 0, prevCueIn = 0, prevRate = 1;
 
   while (true) {
-    // Score every candidate that breaks no rule.
+    // Score every candidate that breaks no rule, with what came before or with what follows.
     let best = null;
+    const aheadBase = ahead.length ? aheadBreaks(plays, ahead) : null;
     for (const t of pool) {
       if (used.has(t.id)) continue;
       const tr = prev ? planTransition(prev, t, { prevStart, prevCueIn, prevRate }) : null;
       const at = tr ? tr.startSec : 0;
-      if (at >= durationSec - END_SLACK_SEC && items.length) continue;
+      if (at >= durationSec - slack && items.length) continue;
       const play = { trackId: t.id, artist: t.artist, album: t.album || null, at };
       if (complementViolations([...plays, play], { fromIndex: plays.length }).length) continue;
+      if (aheadBase && touchesAhead(t) && addsTo(aheadBase, aheadBreaks([...plays, play], ahead)).length) continue;
       const target = quantile(sortedIntensity, arcQuantile(at / durationSec));
       const energy = 1 - Math.min(1, Math.abs((Number(t.analysis.intensity) || 0) - target) * 2.5);
       const playedBpm = prev && grid(prev) ? grid(prev).bpm * prevRate : null;
@@ -247,7 +279,7 @@ export function planSet({ tracks, set, history = [], seed }) {
       if (!best || score > best.score) best = { t, tr, score };
     }
     if (!best) {
-      if (cursor < durationSec - END_SLACK_SEC) short = items.length ? 'rules-or-library' : 'empty-library';
+      if (cursor < durationSec - slack) short = items.length ? 'rules-or-library' : 'empty-library';
       break;
     }
     const { t, tr } = best;
@@ -274,13 +306,14 @@ export function planSet({ tracks, set, history = [], seed }) {
     plays.push({ trackId: t.id, artist: t.artist, album: t.album || null, at: startSec });
     prev = t; prevStart = startSec; prevCueIn = cueIn; prevRate = rate;
     cursor = naturalEnd;
-    if (naturalEnd >= durationSec - END_SLACK_SEC) break;
+    if (naturalEnd >= durationSec - (hardEnd ? 0 : END_SLACK_SEC)) break;
   }
 
-  // The last song: past the end by more than a minute, it fades out at the end.
+  // The last song: past the end by more than a minute (with hardEnd, by anything), it fades out
+  // at the end.
   const last = items[items.length - 1];
   let endsSec = last ? last.endSec : 0;
-  if (last && last.endSec > durationSec + OVERRUN_SEC) {
+  if (last && last.endSec > durationSec + (hardEnd ? 0 : OVERRUN_SEC)) {
     const outAt = durationSec;
     last.cueOutSec = round(last.cueInSec + (outAt - last.startSec) * last.rate);
     last.endSec = round(outAt);
@@ -304,8 +337,19 @@ export function planSet({ tracks, set, history = [], seed }) {
   };
 }
 
-/** Every rule a stored programme breaks, against the history it was planned with. [] when clean. */
-export function checkProgramme(programme, history = []) {
+/** `future` plays on a set's clock: from its start to a window past its end, in order. */
+function playsAfter(future, startMs, durationSec) {
+  return (Array.isArray(future) ? future : [])
+    .map((h) => ({ trackId: h.trackId || null, artist: h.artist || '', album: h.album || null, at: (Date.parse(h.playedAt) - startMs) / 1000 }))
+    .filter((h) => Number.isFinite(h.at) && h.at >= 0 && h.at < durationSec + OVERRUN_SEC + COMPLEMENT.windowSec)
+    .sort((a, b) => a.at - b.at);
+}
+
+/**
+ * Every rule a stored programme breaks, against the history it was planned with and the plays
+ * planned after it (`future`). [] when clean.
+ */
+export function checkProgramme(programme, history = [], { future = [] } = {}) {
   const problems = [];
   const items = programme && Array.isArray(programme.items) ? programme.items : [];
   const startMs = Date.parse(programme && programme.startsAt);
@@ -313,6 +357,13 @@ export function checkProgramme(programme, history = []) {
     .filter((h) => Number.isFinite(h.at) && h.at < 0 && h.at > -COMPLEMENT.windowSec).sort((a, b) => a.at - b.at);
   const plays = [...past, ...items.map((it) => ({ trackId: it.trackId, artist: it.artist, album: it.album, at: it.startSec }))];
   for (const v of complementViolations(plays, { fromIndex: past.length })) problems.push(v);
+  const ahead = playsAfter(future, startMs, Number(programme && programme.durationSec) || 0);
+  if (ahead.length) {
+    for (const k of addsTo(aheadBreaks(past, ahead), aheadBreaks(plays, ahead))) {
+      const [i, rule, name] = k.split('|');
+      problems.push({ rule, ahead: Number(i), name });
+    }
+  }
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
     if (!(it.rate >= 1 - BEATMATCH_MAX - 1e-6 && it.rate <= 1 + BEATMATCH_MAX + 1e-6)) problems.push({ rule: 'rate', index: i });

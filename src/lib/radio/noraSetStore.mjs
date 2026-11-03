@@ -65,26 +65,57 @@ export async function syncNoraSets(db, { now }) {
   return { ok: true, done, clashes: plan.clashes };
 }
 
-/** The plays before `startsAt` from Nora's own planned sets, as the planner's history. */
-export async function readHistory(db, startsAt, { excludeSetId } = {}) {
-  const start = Date.parse(startsAt);
-  const { data: sets, error } = await db.from('nora_sets').select('id,starts_at')
-    .eq('host_kind', 'nora').gte('starts_at', new Date(start - HISTORY_MS - 6 * HOUR).toISOString()).lt('starts_at', new Date(start).toISOString());
-  if (error) return { error };
-  const ids = (sets || []).map((s) => s.id).filter((id) => id !== excludeSetId);
-  if (!ids.length) return { history: [] };
-  const { data: progs, error: pErr } = await db.from('nora_set_programmes').select('set_id,programme').in('set_id', ids);
-  if (pErr) return { error: pErr };
-  const startOf = new Map((sets || []).map((s) => [s.id, Date.parse(s.starts_at)]));
-  const history = [];
-  for (const p of progs || []) {
-    const base = startOf.get(p.set_id);
-    for (const it of (p.programme && p.programme.items) || []) {
+// Before 2026-11-03-radio-rotation.sql runs there is no rotation table: no block was ever planned,
+// so "none" is the truthful answer there, and only there.
+const missingTable = (e) => !!e && (e.code === '42P01' || e.code === 'PGRST205');
+
+/**
+ * Every play planned in Nora's sets and the station's rotation blocks (src/lib/radio/rotation.mjs)
+ * that START in [fromMs, toMs), from programmes starting in [fromMs − 7 h, toMs). Planned, not
+ * logged: a set or block that did not air still counts, which only makes the rules stricter.
+ */
+export async function readPlannedPlays(db, fromMs, toMs, { excludeSetId, excludeBlockId } = {}) {
+  const lo = new Date(fromMs - 7 * HOUR).toISOString(), hi = new Date(toMs).toISOString();
+  const [setsRes, blocksRes] = await Promise.all([
+    db.from('nora_sets').select('id,starts_at').eq('host_kind', 'nora').gte('starts_at', lo).lt('starts_at', hi),
+    db.from('radio_rotation_blocks').select('id,starts_at,programme').gte('starts_at', lo).lt('starts_at', hi),
+  ]);
+  if (setsRes.error) return { error: setsRes.error };
+  if (blocksRes.error && !missingTable(blocksRes.error)) return { error: blocksRes.error };
+  const segments = [];
+  const sets = (setsRes.data || []).filter((s) => s.id !== excludeSetId);
+  if (sets.length) {
+    const { data: progs, error: pErr } = await db.from('nora_set_programmes').select('set_id,programme').in('set_id', sets.map((s) => s.id));
+    if (pErr) return { error: pErr };
+    const startOf = new Map(sets.map((s) => [s.id, Date.parse(s.starts_at)]));
+    for (const p of progs || []) segments.push({ base: startOf.get(p.set_id), programme: p.programme });
+  }
+  for (const b of (blocksRes.error ? [] : blocksRes.data || [])) {
+    if (b.id !== excludeBlockId) segments.push({ base: Date.parse(b.starts_at), programme: b.programme });
+  }
+  const plays = [];
+  for (const { base, programme } of segments) {
+    for (const it of (programme && programme.items) || []) {
       const at = base + Number(it.startSec) * 1000;
-      if (Number.isFinite(at) && at < start && at > start - HISTORY_MS) history.push({ trackId: it.trackId, artist: it.artist, album: it.album, playedAt: new Date(at).toISOString() });
+      if (Number.isFinite(at) && at >= fromMs && at < toMs) plays.push({ trackId: it.trackId, artist: it.artist, album: it.album, playedAt: new Date(at).toISOString() });
     }
   }
-  return { history };
+  plays.sort((a, b) => Date.parse(a.playedAt) - Date.parse(b.playedAt));
+  return { plays };
+}
+
+/** The plays before `startsAt` (Nora's sets and the rotation), as the planner's history. */
+export async function readHistory(db, startsAt, { excludeSetId, excludeBlockId } = {}) {
+  const start = Date.parse(startsAt);
+  const r = await readPlannedPlays(db, start - HISTORY_MS + 1, start, { excludeSetId, excludeBlockId });
+  return r.error ? { error: r.error } : { history: r.plays };
+}
+
+/** The plays already planned from `endsAt` on, within the rules' window: the planner's `future`. */
+export async function readFuture(db, endsAt, { excludeSetId, excludeBlockId } = {}) {
+  const end = Date.parse(endsAt);
+  const r = await readPlannedPlays(db, end, end + COMPLEMENT.windowSec * 1000 + 2 * 60000, { excludeSetId, excludeBlockId });
+  return r.error ? { error: r.error } : { future: r.plays };
 }
 
 /** Every ready, enabled song, with what the planner reads. */
@@ -95,16 +126,23 @@ export async function readPlayable(db) {
 }
 
 /**
- * Plan a set from the library and the plays before it. `externalHistory` is the station's other
- * plays (radio.co's own rotation) in the same shape, when the caller has them.
+ * Plan a set from the library, the plays before it and any already planned after it (Shape's own
+ * rotation, src/lib/radio/rotation.mjs). `externalHistory` is the station's other plays (radio.co's
+ * own rotation) in the same shape, when the caller has them.
  * Returns { programme, problems } without storing anything.
  */
 export async function draftProgramme(db, set, { externalHistory = [] } = {}) {
-  const [lib, hist] = await Promise.all([readPlayable(db), readHistory(db, set.starts_at, { excludeSetId: set.id })]);
-  if (lib.error || hist.error) return { error: 'read_failed' };
+  const endsAt = new Date(Date.parse(set.starts_at) + Number(set.duration_min) * 60000).toISOString();
+  const [lib, hist, fut] = await Promise.all([
+    readPlayable(db),
+    readHistory(db, set.starts_at, { excludeSetId: set.id }),
+    readFuture(db, endsAt, { excludeSetId: set.id }),
+  ]);
+  if (lib.error || hist.error || fut.error) return { error: 'read_failed' };
   const history = [...hist.history, ...(Array.isArray(externalHistory) ? externalHistory : [])];
-  const programme = planSet({ tracks: lib.tracks, set: { id: set.id, startsAt: set.starts_at, durationMin: set.duration_min }, history });
-  return { programme, problems: checkProgramme(programme, history), libraryCount: lib.tracks.length };
+  const future = fut.future;
+  const programme = planSet({ tracks: lib.tracks, set: { id: set.id, startsAt: set.starts_at, durationMin: set.duration_min }, history, future });
+  return { programme, problems: checkProgramme(programme, history, { future }), libraryCount: lib.tracks.length };
 }
 
 /**

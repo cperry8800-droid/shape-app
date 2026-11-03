@@ -4,7 +4,13 @@
 //
 //   engineJob(db, { now })          the set due now or next: its programme and a signed link to
 //                                   each song's file, or { set: null }
-//   recordEngineEvent(db, body, { now })  a set started / a song played / a set ended or failed
+//   setJob(db, set, { now })        that job for one set
+//   signSources(db, programme, ttl) the signed links alone (a rotation block's too)
+//   recordEngineEvent(db, body, { now })  a set or rotation block started / a song played / it
+//                                   ended or failed
+//
+// On Shape's own station the engine asks src/lib/radio/rotation.mjs instead (?mode=station),
+// which hands out Nora's sets through setJob and fills the time between them.
 //
 // ⚠ NOTHING GOES ON THE AIR WITHOUT THE LICENCES. The engine is handed a set only while the owner's
 // licence confirmation stands AND the set is published (which the schedule does only then); a
@@ -34,53 +40,89 @@ export async function engineJob(db, { now }) {
   const set = (sets || []).find((s) => Date.parse(s.starts_at) + s.duration_min * 60000 + OVERRUN_MS > now);
   if (!set) return { status: 200, body: { nowMs: now, set: null } };
 
-  const prog = await ensureProgramme(db, set.id);
-  if (prog.error) return { status: 503, body: { error: prog.error, setId: set.id } };
-  const ids = [...new Set(prog.programme.items.map((it) => it.trackId))];
+  return setJob(db, set, { now });
+}
+
+/** A signed link to each song of a programme, lasting `ttlSec`. */
+export async function signSources(db, programme, ttlSec) {
+  const ids = [...new Set(((programme && programme.items) || []).map((it) => it.trackId))];
   const { data: rows, error: tErr } = await db.from('radio_tracks').select('id,storage_path').in('id', ids);
   if (tErr) return { status: 503, body: { error: 'read_failed' } };
   const pathOf = new Map((rows || []).map((r) => [r.id, r.storage_path]));
-  const endMs = Date.parse(set.starts_at) + prog.programme.endsSec * 1000 + OVERRUN_MS;
-  const ttl = Math.max(LINK_TTL_MIN_SEC, Math.ceil((endMs - now) / 1000) + LINK_TTL_MIN_SEC);
   const sources = {};
   for (const id of ids) {
     const path = pathOf.get(id);
-    // A song deleted since the plan: the engine refuses a set with a missing source, so the
-    // station's AutoDJ plays instead of a set with a hole in it.
-    if (!path) return { status: 409, body: { error: 'song_missing', trackId: id, setId: set.id } };
-    const { data, error: sErr } = await db.storage.from(LIBRARY_BUCKET).createSignedUrl(path, ttl);
+    // A song deleted since the plan: the engine refuses a programme with a missing source, so the
+    // station falls back (radio.co's AutoDJ, or Shape's standby) instead of airing a hole.
+    if (!path) return { status: 409, body: { error: 'song_missing', trackId: id } };
+    const { data, error: sErr } = await db.storage.from(LIBRARY_BUCKET).createSignedUrl(path, ttlSec);
     if (sErr || !data || !data.signedUrl) return { status: 503, body: { error: 'sign_failed' } };
     sources[id] = data.signedUrl;
   }
+  return { sources };
+}
+
+/** The engine's job for one Nora set: its programme (planned now if the cron missed it) and links. */
+export async function setJob(db, set, { now }) {
+  const prog = await ensureProgramme(db, set.id);
+  if (prog.error) return { status: 503, body: { error: prog.error, setId: set.id } };
+  const endMs = Date.parse(set.starts_at) + prog.programme.endsSec * 1000 + OVERRUN_MS;
+  const ttl = Math.max(LINK_TTL_MIN_SEC, Math.ceil((endMs - now) / 1000) + LINK_TTL_MIN_SEC);
+  const signed = await signSources(db, prog.programme, ttl);
+  if (!signed.sources) return { status: signed.status, body: { ...signed.body, setId: set.id } };
   return {
     status: 200,
-    body: { nowMs: now, set: { id: set.id, startsAt: new Date(Date.parse(set.starts_at)).toISOString(), durationMin: set.duration_min }, programme: prog.programme, sources },
+    body: { nowMs: now, set: { id: set.id, startsAt: new Date(Date.parse(set.starts_at)).toISOString(), durationMin: set.duration_min }, programme: prog.programme, sources: signed.sources },
   };
 }
 
-/** Check and store one engine report. */
+/**
+ * Check and store one engine report: about a Nora set (`setId`) or a block of the station's own
+ * rotation (`blockId`, src/lib/radio/rotation.mjs), never both.
+ */
 export async function recordEngineEvent(db, body, { now }) {
   const b = body && typeof body === 'object' ? body : {};
   if (!ENGINE_EVENTS.includes(b.event)) return { status: 400, body: { error: 'event' } };
-  if (!isUuid(b.setId)) return { status: 400, body: { error: 'set_id' } };
+  const isBlock = b.blockId != null;
+  if (isBlock && (b.setId != null || !isUuid(b.blockId))) return { status: 400, body: { error: 'block_id' } };
+  if (!isBlock && !isUuid(b.setId)) return { status: 400, body: { error: 'set_id' } };
   const atSec = Number(b.atSec);
   if (b.atSec != null && !(Number.isFinite(atSec) && atSec >= 0 && atSec < 7 * 3600)) return { status: 400, body: { error: 'at' } };
 
-  const { data: set, error } = await db.from('nora_sets').select('id,starts_at,host_kind').eq('id', b.setId).maybeSingle();
-  if (error) return { status: 503, body: { error: 'read_failed' } };
-  if (!set || set.host_kind !== 'nora') return { status: 404, body: { error: 'not_a_nora_set' } };
-  const at = Number.isFinite(atSec) ? new Date(Date.parse(set.starts_at) + atSec * 1000) : new Date(now);
+  // The segment: when it started, and (for a song) the programme the song must be in.
+  let startsAt, readItems, row;
+  if (isBlock) {
+    const { data: blk, error } = await db.from('radio_rotation_blocks').select('id,starts_at,programme').eq('id', b.blockId).maybeSingle();
+    if (error) return { status: 503, body: { error: 'read_failed' } };
+    if (!blk) return { status: 404, body: { error: 'not_a_block' } };
+    startsAt = blk.starts_at;
+    readItems = async () => ({ items: (blk.programme && blk.programme.items) || [] });
+    row = { block_id: blk.id };
+  } else {
+    const { data: set, error } = await db.from('nora_sets').select('id,starts_at,host_kind').eq('id', b.setId).maybeSingle();
+    if (error) return { status: 503, body: { error: 'read_failed' } };
+    if (!set || set.host_kind !== 'nora') return { status: 404, body: { error: 'not_a_nora_set' } };
+    startsAt = set.starts_at;
+    readItems = async () => {
+      const { data: prog, error: pErr } = await db.from('nora_set_programmes').select('programme').eq('set_id', set.id).maybeSingle();
+      if (pErr) return { error: pErr };
+      return { items: (prog && prog.programme && prog.programme.items) || [] };
+    };
+    row = { set_id: set.id };
+  }
+  const at = Number.isFinite(atSec) ? new Date(Date.parse(startsAt) + atSec * 1000) : new Date(now);
 
-  const row = { set_id: set.id, event: b.event, played_at: at.toISOString(), detail: b.detail == null ? null : cleanText(String(b.detail), 300) || null };
+  Object.assign(row, { event: b.event, played_at: at.toISOString(), detail: b.detail == null ? null : cleanText(String(b.detail), 300) || null });
   if (b.event === 'song') {
     if (!isUuid(b.trackId)) return { status: 400, body: { error: 'track_id' } };
-    // The song must be one this set planned: the log is a licence record, not a free-form list.
-    const { data: prog, error: pErr } = await db.from('nora_set_programmes').select('programme').eq('set_id', set.id).maybeSingle();
-    if (pErr) return { status: 503, body: { error: 'read_failed' } };
-    if (!prog || !((prog.programme && prog.programme.items) || []).some((it) => it.trackId === b.trackId)) return { status: 409, body: { error: 'not_in_programme' } };
+    // The song must be one this set or block planned: the log is a licence record, not a
+    // free-form list.
+    const got = await readItems();
+    if (got.error) return { status: 503, body: { error: 'read_failed' } };
+    const item = got.items.find((it) => it.trackId === b.trackId);
+    if (!item) return { status: 409, body: { error: 'not_in_programme' } };
     const { data: t, error: tErr } = await db.from('radio_tracks').select('id,title,artist,album,label,isrc').eq('id', b.trackId).maybeSingle();
     if (tErr) return { status: 503, body: { error: 'read_failed' } };
-    const item = prog.programme.items.find((it) => it.trackId === b.trackId);
     Object.assign(row, {
       track_id: t ? t.id : null,
       title: (t && t.title) || item.title, artist: (t && t.artist) || item.artist,
@@ -109,18 +151,21 @@ export function monthRange(month) {
 }
 
 /**
- * Every song Nora played in a month, as CSV, in the order SoundExchange's report of use asks for
- * its per-play fields. Listener counts are the station's own figure (radio.co's statistics) and
- * are not here.
+ * Every song the engine played in a month (Nora's sets and, on Shape's own station, its rotation),
+ * as CSV, in the order SoundExchange's report of use asks for its per-play fields. Listener counts
+ * are the station's own figure and are not here.
  */
 export async function playsCsv(db, month) {
   const range = monthRange(month);
   if (!range) return { status: 400, body: 'month must be YYYY-MM' };
-  const { data, error } = await db.from('nora_engine_log').select('played_at,artist,title,isrc,album,label,set_id')
+  const read = (cols) => db.from('nora_engine_log').select(cols)
     .eq('event', 'song').gte('played_at', range[0]).lt('played_at', range[1]).order('played_at', { ascending: true }).limit(50000);
+  let { data, error } = await read('played_at,artist,title,isrc,album,label,set_id,block_id');
+  // Before 2026-11-03-radio-rotation.sql there is no block column, and no rotation play to report.
+  if (error && error.code === '42703') ({ data, error } = await read('played_at,artist,title,isrc,album,label,set_id'));
   if (error) return { status: 503, body: 'read failed' };
-  const head = ['Played at (UTC)', 'Featured artist', 'Sound recording title', 'ISRC', 'Album title', 'Marketing label', 'Nora set'];
+  const head = ['Played at (UTC)', 'Featured artist', 'Sound recording title', 'ISRC', 'Album title', 'Marketing label', 'Nora set', 'Rotation block'];
   const lines = [head.join(',')];
-  for (const r of data || []) lines.push([r.played_at, r.artist, r.title, r.isrc, r.album, r.label, r.set_id].map(csvCell).join(','));
+  for (const r of data || []) lines.push([r.played_at, r.artist, r.title, r.isrc, r.album, r.label, r.set_id, r.block_id].map(csvCell).join(','));
   return { status: 200, body: `${lines.join('\r\n')}\r\n`, count: (data || []).length };
 }

@@ -1,0 +1,89 @@
+<!--
+  Shape Radio's stream server (services/station). entrypoint.sh fills the placeholders from the
+  environment when the container starts; the passwords never live in this file.
+
+  Two mounts:
+    /live      what listeners connect to. Nora's engine (NORA_MODE=station) plays into it around
+               the clock: her sets and, between them, the rotation Shape plans.
+    /standby   a loop (standby/standby.sh) that is always on. When /live has no source (the engine
+               is restarting, Shape is out of reach, nothing is licensed to play) its listeners are
+               moved here, and moved back the moment /live returns (fallback-override). A listener
+               who tunes in meanwhile is served the loop too. The station fails to the loop, never
+               to silence and never to a dropped connection.
+
+  Both mounts carry the same format (MP3, 44.1 kHz stereo, the same bitrate) so a player moved
+  between them carries on without a hitch.
+-->
+<icecast>
+    <location>Shape Radio</location>
+    <admin>${ICECAST_ADMIN_EMAIL}</admin>
+    <hostname>${STATION_HOST}</hostname>
+
+    <limits>
+        <clients>${ICECAST_MAX_LISTENERS}</clients>
+        <sources>4</sources>
+        <queue-size>524288</queue-size>
+        <client-timeout>30</client-timeout>
+        <header-timeout>15</header-timeout>
+        <!-- A source that sends nothing for this long is dropped, and its listeners go to the loop. -->
+        <source-timeout>10</source-timeout>
+        <burst-on-connect>1</burst-on-connect>
+        <burst-size>65535</burst-size>
+    </limits>
+
+    <authentication>
+        <!-- Only the engine and the standby loop, on the station's private network, use these. -->
+        <source-password>${ICECAST_SOURCE_PASSWORD}</source-password>
+        <relay-password>${ICECAST_ADMIN_PASSWORD}</relay-password>
+        <admin-user>admin</admin-user>
+        <admin-password>${ICECAST_ADMIN_PASSWORD}</admin-password>
+    </authentication>
+
+    <listen-socket>
+        <port>${ICECAST_PORT}</port>
+    </listen-socket>
+
+    <http-headers>
+        <!-- The website's player reads the stream from another origin. -->
+        <header name="Access-Control-Allow-Origin" value="*" />
+    </http-headers>
+
+    <mount type="normal">
+        <mount-name>/live</mount-name>
+        <fallback-mount>/standby</fallback-mount>
+        <fallback-override>1</fallback-override>
+        <public>0</public>
+        <stream-name>Shape Radio</stream-name>
+        <stream-description>Shape Radio</stream-description>
+        <stream-url>https://www.theshapecommunity.com/radio</stream-url>
+    </mount>
+
+    <mount type="normal">
+        <mount-name>/standby</mount-name>
+        <public>0</public>
+        <hidden>1</hidden>
+        <stream-name>Shape Radio</stream-name>
+    </mount>
+
+    <fileserve>1</fileserve>
+
+    <paths>
+        <basedir>/usr/share/icecast2</basedir>
+        <logdir>${ICECAST_LOG_DIR}</logdir>
+        <webroot>/usr/share/icecast2/web</webroot>
+        <adminroot>/usr/share/icecast2/admin</adminroot>
+        <alias source="/" destination="/status.xsl"/>
+    </paths>
+
+    <logging>
+        <accesslog>access.log</accesslog>
+        <errorlog>error.log</errorlog>
+        <!-- 2 = warnings and errors -->
+        <loglevel>2</loglevel>
+        <logsize>10000</logsize>
+    </logging>
+
+    <security>
+        <chroot>0</chroot>
+    </security>
+</icecast>
