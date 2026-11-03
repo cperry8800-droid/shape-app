@@ -1,12 +1,14 @@
 // src/lib/radio/index.ts
 import { mockProvider } from './mock';
 import { httpProvider } from './http';
+import { shapeProvider } from './shape';
 import type { RadioProvider } from './provider';
 
 export type { NowPlaying, RadioProvider } from './provider';
 
 export function getProvider(config: { provider?: string | null; nowPlayingUrl?: string | null }): RadioProvider {
   if (config.provider === 'http' && config.nowPlayingUrl) return httpProvider(config.nowPlayingUrl);
+  if (config.provider === 'shape') return shapeProvider;
   return mockProvider;
 }
 

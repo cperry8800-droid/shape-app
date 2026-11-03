@@ -62,11 +62,25 @@ To use your own standby loop (an ident or an ambient bed you have the rights to)
   `ssh -L 8000:127.0.0.1:8000 <server>`, then `http://localhost:8000/` (user `admin`, the
   `ICECAST_ADMIN_PASSWORD`).
 
-## While radio.co is still in use
+## Switching Shape Radio over to it
 
-The website and app keep playing radio.co's stream until the station is switched over on Shape's
-side. Until then this station can run alongside, for checking. Don't run Nora's engine for
-radio.co at the same time as this one: both would play her sets and log them twice.
+Once the station answers at its address (you hear the standby loop at `https://<STATION_HOST>/live`):
+
+1. Open **Admin → Nora's library → The station**.
+2. Enter the stream, e.g. `https://radio.theshapecommunity.com/live`, and press **Use Shape's own**.
+   Shape listens to the address first, and saves it only if it answers with audio.
+
+The website and the app then play it, and their "now playing" names the song from Shape's own
+plan: Nora's set while she plays, the rotation between her sets. The same panel shows what the
+rotation is playing and when the engine last reported. **Disconnect** takes the website and app
+off the station; the radio.co form there switches back to radio.co.
+
+Don't run Nora's engine for radio.co at the same time as this one: both would play her sets and
+log them twice.
+
+**Privacy:** the station's server sees each listener's IP address and device, as radio.co did.
+When you switch, the subprocessors page (`public/subprocessors.html`) should name your station's
+host in radio.co's place.
 
 ## Testing it here
 

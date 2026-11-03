@@ -43,10 +43,11 @@
         <port>${ICECAST_PORT}</port>
     </listen-socket>
 
-    <http-headers>
-        <!-- The website's player reads the stream from another origin. -->
-        <header name="Access-Control-Allow-Origin" value="*" />
-    </http-headers>
+    <!-- ⚠ THE PLAYERS LOAD THE STREAM WITH crossOrigin="anonymous" (the website's and the app's
+         analysers need it), so every mount answers with exactly one Access-Control-Allow-Origin:
+         without it a browser refuses the stream outright, and doubled ("*, *") it refuses it too.
+         Measured on Icecast 2.4.4: a top-level <http-headers> block never reached a listener, so
+         each mount carries its own, and there is no top-level one to double it. -->
 
     <mount type="normal">
         <mount-name>/live</mount-name>
@@ -56,6 +57,9 @@
         <stream-name>Shape Radio</stream-name>
         <stream-description>Shape Radio</stream-description>
         <stream-url>https://www.theshapecommunity.com/radio</stream-url>
+        <http-headers>
+            <header name="Access-Control-Allow-Origin" value="*" />
+        </http-headers>
     </mount>
 
     <mount type="normal">
@@ -63,6 +67,9 @@
         <public>0</public>
         <hidden>1</hidden>
         <stream-name>Shape Radio</stream-name>
+        <http-headers>
+            <header name="Access-Control-Allow-Origin" value="*" />
+        </http-headers>
     </mount>
 
     <fileserve>1</fileserve>

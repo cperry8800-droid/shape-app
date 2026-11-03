@@ -4,6 +4,8 @@
 //
 //   heardNow(programme, setStartMs, nowMs, { lagSec }) → { index, item, mixing, playedBpm } | null
 //   noraOnAir(db, { now })                              → the now-playing payload, or null
+//   rotationOnAir(db, { now })                          → the same for Shape's own station's
+//                                                         rotation between her sets (below)
 //
 // ⚠ ONLY WHAT HAS BEEN HEARD, NEVER WHAT IS NEXT. The licence forbids naming a recording before it
 // airs, and listeners hear the stream a few seconds behind the engine. So the song shown is the
@@ -61,6 +63,40 @@ export async function noraOnAir(db, { now }) {
       isNora: true,
       simulated: false,
       nora: { setId: set.id, bpm: heard.playedBpm, mixing: heard.mixing },
+    };
+  }
+  return null;
+}
+
+// ── Shape's own station: the rotation between her sets (src/lib/radio/rotation.mjs) ──────────
+// The same rules as her sets, and one more:
+// ⚠ ONLY A SONG THE ENGINE SAYS IT PLAYED. A block is planned for an hour; an engine that died in
+// it never reports the songs after, and the station's standby loop plays instead. So the song
+// heard by the plan's clock is named only once the engine has reported that song as started (it
+// reports each as it starts, ahead of the listener's lag), and only while its last word on the
+// block is not that it ended or stopped.
+const ROTATION_LOOKBACK_MS = 2 * 3600000 + 120000;   // a block lasts at most 2 h
+
+/** The now-playing payload while a rotation block is on the air, or null when none is. */
+export async function rotationOnAir(db, { now }) {
+  const { data: blocks, error } = await db.from('radio_rotation_blocks').select('id,starts_at,programme')
+    .lte('starts_at', new Date(now).toISOString()).gt('starts_at', new Date(now - ROTATION_LOOKBACK_MS).toISOString())
+    .order('starts_at', { ascending: false }).limit(3);
+  if (error || !blocks || !blocks.length) return null;
+  for (const block of blocks) {
+    const heard = heardNow(block.programme, Date.parse(block.starts_at), now);
+    if (!heard) continue;
+    const { data: log, error: lErr } = await db.from('nora_engine_log').select('event,track_id')
+      .eq('block_id', block.id).order('logged_at', { ascending: false }).limit(60);
+    if (lErr || !log || !log.length) continue;
+    if (!['started', 'song'].includes(log[0].event)) continue;
+    if (!log.some((r) => r.event === 'song' && r.track_id === heard.item.trackId)) continue;
+    return {
+      title: heard.item.title || null,
+      artist: heard.item.artist || null,
+      album: heard.item.album || null,
+      isNora: false,
+      simulated: false,
     };
   }
   return null;

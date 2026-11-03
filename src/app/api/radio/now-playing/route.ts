@@ -5,7 +5,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getProvider, isSimulated } from '@/lib/radio';
-import { noraOnAir } from '@/lib/radio/noraOnAir.mjs';
+import { noraOnAir, rotationOnAir } from '@/lib/radio/noraOnAir.mjs';
+import { OWN_PROVIDER } from '@/lib/radio/station.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -41,6 +42,18 @@ export async function GET() {
     .eq('id', 1)
     .maybeSingle();
   const cfg = error ? {} : { provider: data?.provider, nowPlayingUrl: data?.now_playing_url };
+  // Shape's own station (services/station): between her sets it plays the rotation Shape planned,
+  // so the song comes from that plan, on the same rules as hers (only what has been heard, and
+  // only a song the engine reported playing). Off the rotation, its provider names nothing: the
+  // station's standby loop is playing, or nothing is.
+  if (cfg.provider === OWN_PROVIDER) {
+    try {
+      const rotation = await rotationOnAir(createAdminClient(), { now: Date.now() });
+      if (rotation) return NextResponse.json({ ...rotation, simulated: false }, { headers: { 'cache-control': 'no-store, max-age=0' } });
+    } catch {
+      /* nothing named, below */
+    }
+  }
   const simulated = !!error || isSimulated(cfg);
   try {
     const np = await getProvider(cfg).getNowPlaying();

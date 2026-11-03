@@ -12,7 +12,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
 import { checkSlot } from '@/lib/radio/noraSlots.mjs';
 import { syncNoraSets } from '@/lib/radio/noraSetStore.mjs';
-import { checkStation } from '@/lib/radio/station.mjs';
+import { checkOwnStation, checkStation, probeStream } from '@/lib/radio/station.mjs';
 
 const PAGE = '/dashboard/radio';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -93,7 +93,7 @@ export async function syncNow(): Promise<void> {
   done((await sync(createAdminClient())) ? 'synced' : 'sync_failed');
 }
 
-// ── The station (radio.co) ─────────────────────────────────────────────────────────────────
+// ── The station: radio.co, or Shape's own ───────────────────────────────────────────────────
 export async function connectStation(formData: FormData): Promise<void> {
   await requireAdminUser();
   const checked = checkStation({ streamUrl: String(formData.get('stream_url') ?? ''), stationId: String(formData.get('station_id') ?? '') });
@@ -102,6 +102,21 @@ export async function connectStation(formData: FormData): Promise<void> {
     .update({ ...checked.value, updated_at: new Date().toISOString() }).eq('id', 1);
   if (error) failed('station_write_failed');
   done('station_connected');
+}
+
+// Shape's own station (services/station). ⚠ Saved only once its stream answers with audio, so the
+// website and app are never handed a stream that is not there (its standby loop answers even while
+// nothing else plays).
+export async function connectOwnStation(formData: FormData): Promise<void> {
+  await requireAdminUser();
+  const checked = checkOwnStation({ streamUrl: String(formData.get('stream_url') ?? '') });
+  if (!checked.ok) failed(`station_${checked.error}`);
+  const probed = await probeStream(checked.value.stream_url);
+  if (!probed.ok) failed(probed.error);
+  const { error } = await createAdminClient().from('radio_station')
+    .update({ ...checked.value, updated_at: new Date().toISOString() }).eq('id', 1);
+  if (error) failed('station_write_failed');
+  done('own_station_connected');
 }
 
 export async function disconnectStation(): Promise<void> {
