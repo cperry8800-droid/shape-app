@@ -319,6 +319,18 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     W.ShapeListingAsks.forListing(role, providerId).then((r) => { if (on) setAsks(r && Array.isArray(r.rows) ? r : null); }).catch(() => { if (on) setAsks(null); });
     return () => { on = false; };
   }, [isSelf, providerId, providerState, role, demo]);
+  // The coach's certificates as Shape verified them (owner, 2026-11-03: "the about me should have more
+  // things to add. certificates, accolades"): read for a verified listing with an account, names only.
+  // A sample, the demo or a private profile reads none, and a failed read shows nothing.
+  const certsFor = listed && provider.verified && !sample && !demo && !isPrivate ? (person.userId || null) : null;
+  const [certs, setCerts] = React.useState([]);
+  React.useEffect(() => {
+    setCerts([]);
+    if (!certsFor || typeof W.ShapeProfiles?.getCoachCerts !== 'function') return undefined;
+    let on = true;
+    W.ShapeProfiles.getCoachCerts(certsFor).then((list) => { if (on && Array.isArray(list)) setCerts(list); }).catch(() => {});
+    return () => { on = false; };
+  }, [certsFor]);
   const listedMedia = (listed && provider.listing_media) || { cover: null, gallery: [] };
   // A sample shows its listing's own photos when it has any, and the sample's where it has none.
   const media = sample
@@ -587,7 +599,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const aboutDoc = isPrivate ? null : bsProfileAbout(custom && custom.about);
   const aboutPrompts = isPrivate ? [] : bsProfilePrompts(custom && custom.prompts);
   const aboutLinks = isPrivate || sample ? null : bsProfileLinkable(custom && custom.links);
-  const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks);
+  const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks || certs.length);
   // Tabs a visitor sees only when there is something in them; the coach always sees them all.
   // Activity is a tab of its own, last (owner, 2026-10-31: "the coaches activity feed shouldn't be
   // under replays, they should have a separate tab for activity"); it sat under the tabs.
@@ -784,7 +796,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                   ownerKey={person.userId || person.providerId || null} stapleKeys={(demo && demo.stapleKeys) || null} onRecipe={(r) => setOwnRecipe(r)} onFill={(section) => openEdit('kitchen', section)}
                   sec={kitchenSec} setSec={setKitchenSec} />
               ) : tabNow === 'about' ? (
-                <AboutTab t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} isSelf={isSelf} first={first}
+                <AboutTab t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} certs={certs} isSelf={isSelf} first={first}
                   onEdit={() => openEdit('about')} />
               ) : tabNow === 'plates' ? (
                 <PlateNotesTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} days={plateDays} isSelf={isSelf} first={first} onOpen={(day) => setSheet({ kind: 'plateDay', day, i: 0 })} />
@@ -1806,7 +1818,7 @@ function plateMacros(tr, m) {
 }
 // ── About: the coach's story and details, their questions and answers, and their socials ─────
 const LINK_NAMES = { instagram: 'Instagram', x: 'X', tiktok: 'TikTok', youtube: 'YouTube', substack: 'Substack' };
-function AboutTab({ t, tr, ACC, ink, DISPLAY, MONO, about, prompts, links, isSelf, first, onEdit }) {
+function AboutTab({ t, tr, ACC, ink, DISPLAY, MONO, about, prompts, links, certs = [], isSelf, first, onEdit }) {
   const how = !about || !about.how ? null
     : about.how === 'online' ? tr('profile:about.howOnline', { defaultValue: 'Coaches online' })
     : about.how === 'in_person' ? tr('profile:about.howInPerson', { defaultValue: 'Coaches in person' })
@@ -1829,6 +1841,38 @@ function AboutTab({ t, tr, ACC, ink, DISPLAY, MONO, about, prompts, links, isSel
       {facts.map((f, i) => <li key={i} style={{ padding: '11px 0', borderTop: `1px solid ${ink(0.14)}`, fontSize: 14.5, lineHeight: 1.4, color: t.INK }}>{f}</li>)}
     </ul>
   )]);
+  // Certificates as Shape verified them, then the coach's own lists: each row what it is, then what it
+  // was or who gave it, and the year at the row's end.
+  if (certs.length) sections.push(['certs', 26, <>
+    {head(tr('profile:about.certs', { defaultValue: 'Certificates' }))}
+    <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0 }}>
+      {certs.map((name, i) => (
+        <li key={i} data-about-cert="" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 48, borderTop: `1px solid ${ink(0.14)}` }}>
+          <span style={{ fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, minWidth: 0, overflowWrap: 'anywhere' }}>{name}</span>
+          <span style={{ flexShrink: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: ACC }}>{tr('profile:about.certVerified', { defaultValue: '✓ Verified by Shape' })}</span>
+        </li>
+      ))}
+    </ul>
+  </>]);
+  const list = (key, label, rows) => {
+    if (!rows || !rows.length) return;
+    sections.push([key, 26, <>
+      {head(label)}
+      <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0 }}>
+        {rows.map((r, i) => (
+          <li key={i} data-about-item="" style={{ display: 'flex', alignItems: 'baseline', gap: 12, padding: '11px 0', borderTop: `1px solid ${ink(0.14)}` }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, lineHeight: 1.3, color: t.INK, overflowWrap: 'anywhere' }}>{r.title}</span>
+              {r.detail ? <span style={{ display: 'block', marginTop: 2, fontSize: 13.5, lineHeight: 1.35, color: ink(0.72), overflowWrap: 'anywhere' }}>{r.detail}</span> : null}
+            </span>
+            {r.year ? <span style={{ flexShrink: 0, fontFamily: MONO, fontSize: 11, letterSpacing: '0.06em', color: ink(0.64), fontVariantNumeric: 'tabular-nums' }}>{r.year}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </>]);
+  };
+  list('accolades', tr('profile:about.accolades', { defaultValue: 'Accolades' }), about && about.accolades);
+  list('education', tr('profile:about.education', { defaultValue: 'Education and training' }), about && about.education);
   if (prompts.length) sections.push(['qa', 26, <>
     {head(tr('profile:about.qa', { defaultValue: 'In {name}\'s words', name: first }))}
     {prompts.map((p, i) => (

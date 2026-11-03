@@ -159,6 +159,13 @@ export const BS_ABOUT_STORY_MAX = 1200;
 export const BS_ABOUT_FACT_MAX = 80;
 export const BS_ABOUT_YEARS_MAX = 60;
 export const BS_ABOUT_HOW = ['online', 'in_person', 'both'];
+// A coach's own lists on About (owner, 2026-11-03: "the about me should have more things to add.
+// certificates, accolades, things like that"): accolades, and education and training. Certificates
+// are not one of them: a coach's certificates show as Shape verified them (get_coach_certs), so a
+// certificate is never only the coach's word.
+export const BS_ABOUT_LIST_MAX = 8;
+export const BS_ABOUT_ITEM_MAX = 80;
+export const BS_ABOUT_YEAR_MIN = 1950;
 export const BS_PROFILE_LINK_KEYS = ['instagram', 'x', 'tiktok', 'youtube', 'substack', 'website'];
 // A link is kept whole: a cap shorter than a real address would cut it silently in the member
 // editors, which save through this with no length check (Codex P2 on #2540). 2,048 holds any address
@@ -177,7 +184,30 @@ export function bsCleanStory(v, max) {
   return (max && out.length > max) ? out.slice(0, max).trim() : out;
 }
 
-// The coach's story and facts. Field by field (extra keys never ride through); null when empty.
+// One of the coach's lists: each row a title, then what it was or who gave it, then the year, both
+// optional; a row with no title is dropped, and so is a year that is not one (before 1950 or past next
+// year). Rows keep their order, eight at most. An empty list is [].
+export function bsAboutItems(v) {
+  if (!Array.isArray(v)) return [];
+  const yearMax = new Date().getFullYear() + 1;
+  const out = [];
+  for (const it of v) {
+    if (out.length >= BS_ABOUT_LIST_MAX) break;
+    if (!it || typeof it !== 'object' || Array.isArray(it)) continue;
+    const title = bsCleanText(it.title, BS_ABOUT_ITEM_MAX);
+    if (!title) continue;
+    const detail = bsCleanText(it.detail, BS_ABOUT_ITEM_MAX);
+    const y = Number(it.year);
+    const year = Number.isInteger(y) && y >= BS_ABOUT_YEAR_MIN && y <= yearMax ? y : null;
+    const row = { title };
+    if (detail) row.detail = detail;
+    if (year) row.year = year;
+    out.push(row);
+  }
+  return out;
+}
+
+// The coach's story, facts and lists. Field by field (extra keys never ride through); null when empty.
 export function bsProfileAbout(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const story = bsCleanStory(v.story, BS_ABOUT_STORY_MAX);
@@ -186,13 +216,17 @@ export function bsProfileAbout(v) {
   const how = BS_ABOUT_HOW.includes(v.how) ? v.how : null;
   const where = bsCleanText(v.where, BS_ABOUT_FACT_MAX);
   const languages = bsCleanText(v.languages, BS_ABOUT_FACT_MAX);
-  if (!story && !years && !how && !where && !languages) return null;
+  const accolades = bsAboutItems(v.accolades);
+  const education = bsAboutItems(v.education);
+  if (!story && !years && !how && !where && !languages && !accolades.length && !education.length) return null;
   const out = {};
   if (story) out.story = story;
   if (years) out.years = years;
   if (how) out.how = how;
   if (where) out.where = where;
   if (languages) out.languages = languages;
+  if (accolades.length) out.accolades = accolades;
+  if (education.length) out.education = education;
   return out;
 }
 

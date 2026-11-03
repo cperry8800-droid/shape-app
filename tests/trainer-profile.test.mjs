@@ -1438,6 +1438,79 @@ test('Make it yours, About me: saves the story, details, questions and socials o
   await m.unmount();
 });
 
+// Owner, 2026-11-03: "the about me should have more things to add. certificates, accolades, things like
+// that". Certificates are the ones Shape verified (get_coach_certs, names only), read for a verified
+// listing; accolades and education and training are the coach's own lists.
+test('About me: certificates as Shape verified them, then the coach\'s accolades and education', async () => {
+  const had = window.ShapeProfiles.getCoachCerts;
+  window.ShapeProfiles.getCoachCerts = async (uid) => { world.certsFor = uid; return world.certs; };
+  try {
+    reset({ certs: ['NSCA-CSCS', 'Precision Nutrition L1'], custom: { about: {
+      story: 'I coach beginners.',
+      accolades: [{ title: 'Coach of the Year', detail: 'Brooklyn Fitness Awards', year: 2024 }, { title: 'Featured in a magazine' }],
+      education: [{ title: 'BSc Kinesiology', detail: 'Rutgers', year: 2014 }],
+    } } });
+    let m = await mount(page());
+    await click(button(/^About me$/));
+    assert.equal(world.certsFor, 'u-maya', 'the certificates were read for the coach');
+    const tab = document.querySelector('[data-about-tab]');
+    assert.deepEqual([...tab.querySelectorAll('[data-about]')].map((n) => n.getAttribute('data-about')), ['story', 'certs', 'accolades', 'education'], 'certificates, then accolades, then education, after the story');
+    assert.match(tab.querySelector('[data-about="certs"]').textContent, /^Certificates/);
+    assert.deepEqual([...tab.querySelectorAll('[data-about-cert]')].map((li) => li.textContent), ['NSCA-CSCS✓ Verified by Shape', 'Precision Nutrition L1✓ Verified by Shape']);
+    assert.deepEqual([...tab.querySelectorAll('[data-about="accolades"] [data-about-item]')].map((li) => li.textContent), ['Coach of the YearBrooklyn Fitness Awards2024', 'Featured in a magazine']);
+    assert.match(tab.querySelector('[data-about="accolades"]').textContent, /^Accolades/);
+    assert.deepEqual([...tab.querySelectorAll('[data-about="education"] [data-about-item]')].map((li) => li.textContent), ['BSc KinesiologyRutgers2014']);
+    assert.match(tab.querySelector('[data-about="education"]').textContent, /^Education and training/);
+    await m.unmount();
+    // A listing Shape has not verified reads no certificates, and certificates alone open the tab.
+    reset({ certs: ['NSCA-CSCS'], custom: null, provider: { ...world.provider, verified: false } });
+    m = await mount(page());
+    assert.ok(!button(/^About me$/), 'nothing to show: no tab');
+    assert.equal(world.certsFor, undefined, 'certificates were read for an unverified listing');
+    await m.unmount();
+    reset({ certs: ['NSCA-CSCS'], custom: null });
+    m = await mount(page());
+    await click(button(/^About me$/));
+    assert.deepEqual([...document.querySelectorAll('[data-about-cert]')].map((li) => li.textContent), ['NSCA-CSCS✓ Verified by Shape'], 'certificates alone open the tab');
+    await m.unmount();
+  } finally { window.ShapeProfiles.getCoachCerts = had; }
+});
+
+test('Make it yours, About me: accolades and education save as lists; a row it would drop is said', async () => {
+  reset({ me: 'u-maya', custom: null, stored: { look: { paper: 'dark', accent: 'teal' } } });
+  const m = await mount(page({ isSelf: true }));
+  await click(button(/^Make it yours$/));
+  await click([...document.querySelectorAll('[data-make-it-yours] button')].find((b) => /^About me$/.test(b.textContent)));
+  assert.match(m.text(), /Your certificates show on About me once Shape has verified them\./, 'where certificates come from');
+  await click(document.querySelector('[data-about-list="accolades"] [data-about-item-add]'));
+  await click(document.querySelector('[data-about-list="accolades"] [data-about-item-add]'));
+  const acc = () => [...document.querySelectorAll('[data-about-list="accolades"] [data-about-item]')];
+  assert.equal(acc().length, 2);
+  await type(acc()[0].querySelector('[data-about-item-title]'), 'Coach of the Year');
+  await type(acc()[0].querySelector('[data-about-item-detail]'), 'Brooklyn Fitness Awards');
+  await type(acc()[0].querySelector('[data-about-item-year]'), '20x24');
+  assert.equal(acc()[0].querySelector('[data-about-item-year]').value, '2024', 'digits only, four at most');
+  // A row with a detail and no title would be dropped: said at save.
+  await type(acc()[1].querySelector('[data-about-item-detail]'), 'Somewhere');
+  await click(document.querySelector('[data-save-mine]'));
+  assert.equal(world.saved, null, 'nothing saved with a row it would drop');
+  assert.match(m.text(), /Each accolade and course needs a title, or remove it\./);
+  await click(acc()[1].querySelector('[data-about-item-remove]'));
+  assert.equal(acc().length, 1);
+  await click(document.querySelector('[data-about-list="education"] [data-about-item-add]'));
+  const edu = () => [...document.querySelectorAll('[data-about-list="education"] [data-about-item]')];
+  await type(edu()[0].querySelector('[data-about-item-title]'), 'BSc Kinesiology');
+  await type(edu()[0].querySelector('[data-about-item-year]'), '1890');
+  await click(document.querySelector('[data-save-mine]'));
+  assert.equal(world.saved, null, 'nothing saved with a year it would drop');
+  assert.match(m.text(), new RegExp(`A year from 1950 to ${new Date().getFullYear() + 1}\\.`));
+  await type(edu()[0].querySelector('[data-about-item-year]'), '2014');
+  await click(document.querySelector('[data-save-mine]'));
+  assert.ok(world.saved, 'saved');
+  assert.deepEqual(world.saved.d.about, { accolades: [{ title: 'Coach of the Year', detail: 'Brooklyn Fitness Awards', year: 2024 }], education: [{ title: 'BSc Kinesiology', year: 2014 }] });
+  await m.unmount();
+});
+
 // Owner, 2026-10-31: "make coach profile cards show the full byline too". The coach's cards ask the
 // shared card for the member profile's byline (onAuthorPage: face, name, coach tier, time; the name
 // opens nothing on their own page), with the page's avatar and the tier keyed by the id the posts are

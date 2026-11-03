@@ -6,7 +6,7 @@ import {
   BS_KITCHEN_RULES_MAX, BS_KITCHEN_RULE_MAX, BS_KITCHEN_STAPLES_MAX, BS_STAPLE_MAX, BS_KITCHEN_RECIPES_MAX, BS_RECIPE_TITLE_MAX, BS_RECIPE_NOTE_MAX,
   BS_RECIPE_INGS_MAX, BS_RECIPE_ING_MAX, BS_RECIPE_QTY_MAX, BS_RECIPE_STEPS_MAX, BS_RECIPE_STEP_MAX, BS_RECIPE_NUMS, bsKitchenRecipeItem, bsProfileKitchen, bsCleanText,
   BS_ABOUT_STORY_MAX, BS_ABOUT_FACT_MAX, BS_ABOUT_YEARS_MAX, BS_ABOUT_HOW, BS_PROFILE_LINK_KEYS, BS_LINK_MAX, BS_PROMPTS_MAX, BS_PROMPT_A_MAX, BS_COACH_PROMPTS,
-  bsProfileAbout, bsProfileLinks, bsProfilePrompts, bsProfileLinkHref, bsPromptLabel, bsPromptToken,
+  BS_ABOUT_LIST_MAX, BS_ABOUT_ITEM_MAX, BS_ABOUT_YEAR_MIN, bsProfileAbout, bsProfileLinks, bsProfilePrompts, bsProfileLinkHref, bsPromptLabel, bsPromptToken,
 } from '../services/profileCustom.mjs';
 import { bsSplitPaste, bsSplitLongStep } from '../services/clientRecipes.mjs';
 import { bsCoachFirstName } from '../services/coachPronoun.mjs';
@@ -815,12 +815,53 @@ const STAPLE_GROUPS = [['fridge', 'groupFridge', 'Fridge'], ['pantry', 'groupPan
 // links), so whatever a coach wrote there before is here to edit.
 const BS_LINK_NAMES = { instagram: 'Instagram', x: 'X', tiktok: 'TikTok', youtube: 'YouTube', substack: 'Substack' };
 export const bsLinkName = (k, tr) => (k === 'website' ? tr('profile:editor.link.website', { defaultValue: 'Website' }) : BS_LINK_NAMES[k] || k);
+// A list's rows as the editor holds them (the year as typed text), and as the doc stores them.
+export const bsAboutRowsIn = (rows) => (Array.isArray(rows) ? rows : []).map((r) => ({ title: r.title || '', detail: r.detail || '', year: r.year ? String(r.year) : '' }));
+const bsAboutRowsOut = (rows) => rows.map((r) => ({ title: r.title, detail: r.detail, year: r.year === '' ? null : Number(r.year) }));
 // The editor's about, as the doc stores it (years typed as text).
-export const bsAboutDoc = (a) => ({ story: a.story, years: a.years === '' ? null : Number(a.years), how: a.how || null, where: a.where, languages: a.languages });
+export const bsAboutDoc = (a) => ({ story: a.story, years: a.years === '' ? null : Number(a.years), how: a.how || null, where: a.where, languages: a.languages,
+  accolades: bsAboutRowsOut(a.accolades || []), education: bsAboutRowsOut(a.education || []) });
 // A typed social the page could not link: the network's key, or null.
 // Years the page would drop (0, or past 60): said at save, not dropped (Codex P2 on #2540).
 export const bsYearsProblem = (years) => years !== '' && !bsProfileAbout({ years });
+// A list row the page would drop is said at save, as years are: 'title' for a row with something in it
+// but no title, 'year' for a year it would not keep; null when every row would be kept.
+export const bsAboutListProblem = (about) => {
+  for (const r of [...(about.accolades || []), ...(about.education || [])]) {
+    const has = String(r.title || '').trim() || String(r.detail || '').trim() || r.year;
+    if (has && !String(r.title || '').trim()) return 'title';
+    if (r.year && !bsProfileAbout({ accolades: [{ title: 'x', year: r.year }] }).accolades[0].year) return 'year';
+  }
+  return null;
+};
 export const bsLinkProblem = (links) => BS_PROFILE_LINK_KEYS.find((k) => String(links[k] || '').trim() && !bsProfileLinkHref(k, String(links[k]).trim())) || null;
+// One of the coach's lists (owner, 2026-11-03: "certificates, accolades, things like that"): a row is
+// what it is, then what it was or who gave it, then the year, each row removable, eight at most.
+function AboutList({ kind, tr, rows, setRows, titlePh, detailPh, addLabel }) {
+  const setRow = (i, k, v) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+  const inp = { ...field, fontSize: 16 };
+  return (
+    <div data-about-list={kind}>
+      {rows.map((r, i) => (
+        <div key={i} data-about-item="" style={{ marginTop: i ? 10 : 0, padding: 12, borderRadius: 12, background: E.BG2, border: `1px solid ${ea(0.14)}` }}>
+          <input data-about-item-title="" value={r.title} maxLength={BS_ABOUT_ITEM_MAX} onChange={(e) => setRow(i, 'title', e.target.value)}
+            aria-label={tr('profile:mine.itemTitle', { defaultValue: 'What it is' })} placeholder={titlePh} style={{ ...inp, background: E.BG }} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 88px', gap: 8, marginTop: 8 }}>
+            <input data-about-item-detail="" value={r.detail} maxLength={BS_ABOUT_ITEM_MAX} onChange={(e) => setRow(i, 'detail', e.target.value)}
+              aria-label={tr('profile:mine.itemDetail', { defaultValue: 'From or where' })} placeholder={detailPh} style={{ ...inp, background: E.BG }} />
+            <input data-about-item-year="" inputMode="numeric" value={r.year} onChange={(e) => setRow(i, 'year', e.target.value.replace(/\D/g, '').slice(0, 4))}
+              aria-label={tr('profile:mine.itemYear', { defaultValue: 'Year' })} placeholder={tr('profile:mine.itemYear', { defaultValue: 'Year' })} style={{ ...inp, background: E.BG }} />
+          </div>
+          <button type="button" data-about-item-remove="" onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))} style={{ ...smallBtn, marginTop: 8, border: 0, padding: 0, color: ea(0.7) }}>{tr('profile:mine.qaRemove', { defaultValue: 'Remove' })}</button>
+        </div>
+      ))}
+      {rows.length < BS_ABOUT_LIST_MAX ? (
+        <button type="button" data-about-item-add="" onClick={() => setRows((prev) => [...prev, { title: '', detail: '', year: '' }])} style={{ ...smallBtn, marginTop: rows.length ? 12 : 0 }}>＋ {addLabel}</button>
+      ) : null}
+    </div>
+  );
+}
+
 function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks }) {
   const set = (k, v) => setAbout((a) => ({ ...a, [k]: v }));
   const inp = { ...field, fontSize: 16 };
@@ -850,6 +891,20 @@ function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks })
       <input id="mine-about-where" data-about-where="" value={about.where} maxLength={BS_ABOUT_FACT_MAX} onChange={(e) => set('where', e.target.value)} placeholder={tr('profile:mine.wherePh', { defaultValue: 'City, gym or area' })} style={inp} />
       <label style={lab} htmlFor="mine-about-languages">{tr('profile:mine.languages', { defaultValue: 'Languages you coach in' })}</label>
       <input id="mine-about-languages" data-about-languages="" value={about.languages} maxLength={BS_ABOUT_FACT_MAX} onChange={(e) => set('languages', e.target.value)} placeholder={tr('profile:mine.languagesPh', { defaultValue: 'English, Spanish' })} style={inp} />
+
+      <Eyebrow right={`${about.accolades.length} / ${BS_ABOUT_LIST_MAX}`}>{tr('profile:mine.accolades', { defaultValue: 'Accolades' })}</Eyebrow>
+      <AboutList kind="accolades" tr={tr} rows={about.accolades} setRows={(fn) => setAbout((a) => ({ ...a, accolades: fn(a.accolades) }))}
+        titlePh={tr('profile:mine.accoladePh', { defaultValue: 'Coach of the Year, a meet won, a feature' })}
+        detailPh={tr('profile:mine.accoladeFromPh', { defaultValue: 'Who gave it, or where' })}
+        addLabel={tr('profile:mine.accoladeAdd', { defaultValue: 'Add an accolade' })} />
+
+      <Eyebrow right={`${about.education.length} / ${BS_ABOUT_LIST_MAX}`}>{tr('profile:mine.education', { defaultValue: 'Education and training' })}</Eyebrow>
+      <AboutList kind="education" tr={tr} rows={about.education} setRows={(fn) => setAbout((a) => ({ ...a, education: fn(a.education) }))}
+        titlePh={tr('profile:mine.educationPh', { defaultValue: 'A degree, a course or a mentorship' })}
+        detailPh={tr('profile:mine.educationFromPh', { defaultValue: 'School or teacher' })}
+        addLabel={tr('profile:mine.educationAdd', { defaultValue: 'Add a degree or course' })} />
+      {/* Certificates are the ones Shape verified, not typed here (owner, 2026-11-03: "certificates"). */}
+      <p data-about-certs-note="" style={{ margin: '10px 0 0', fontSize: 13, lineHeight: 1.45, color: ea(0.66) }}>{tr('profile:mine.certsNote', { defaultValue: 'Your certificates show on About once Shape has verified them.' })}</p>
 
       <Eyebrow right={`${prompts.length} / ${BS_PROMPTS_MAX}`}>{tr('profile:mine.qa', { defaultValue: 'Questions members ask' })}</Eyebrow>
       {prompts.map((p, i) => {
@@ -1118,7 +1173,8 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     return {
       // The About: the story and details as typed (years as text), the questions as the coach's
       // tokens, the socials as written.
-      about: { story: ab.story || '', years: ab.years ? String(ab.years) : '', how: ab.how || '', where: ab.where || '', languages: ab.languages || '' },
+      about: { story: ab.story || '', years: ab.years ? String(ab.years) : '', how: ab.how || '', where: ab.where || '', languages: ab.languages || '',
+        accolades: bsAboutRowsIn(ab.accolades), education: bsAboutRowsIn(ab.education) },
       prompts: bsProfilePrompts(initial && initial.prompts).map((p) => ({ q: bsPromptToken(p.q), a: p.a })),
       links: { ...(bsProfileLinks(initial && initial.links) || {}) },
       // A nutritionist starts amber (Shape's nutritionist gold), as their page does.
@@ -1153,7 +1209,8 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const trimmedLinks = Object.fromEntries(BS_PROFILE_LINK_KEYS.map((k) => [k, String(links[k] || '').trim()]).filter(([, v]) => v));
   // Years typed as their only edit count too, though the doc would drop them, so the save bar shows
   // and save says why (Codex P2 on #2540: a 75 with nothing else changed got no save bar).
-  const aboutChanged = !sameJson(bsProfileAbout(bsAboutDoc(about)), bsProfileAbout(bsAboutDoc(seed.about))) || (about.years !== seed.about.years && bsYearsProblem(about.years));
+  const aboutChanged = !sameJson(bsProfileAbout(bsAboutDoc(about)), bsProfileAbout(bsAboutDoc(seed.about))) || (about.years !== seed.about.years && bsYearsProblem(about.years))
+    || !!bsAboutListProblem(about);
   const promptsChanged = !sameJson(bsProfilePrompts(prompts), bsProfilePrompts(seed.prompts));
   const linksChanged = !sameJson(trimmedLinks, Object.fromEntries(Object.entries(seed.links).filter(([, v]) => v)));
   // The recipe being written (kept here, so it waits while the coach looks at another tab). Save
@@ -1221,6 +1278,9 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     if (recipeOpen) { setErr(tr('profile:mine.errRecipeOpen', { defaultValue: 'Finish the recipe you are writing first: Done or Cancel.' })); return; }
     // Years or a social the page could not keep is said, not dropped at save.
     if (bsYearsProblem(about.years)) { setTab('about'); setErr(tr('profile:mine.errYears', { defaultValue: 'Years coaching: a number from 1 to {max}.', max: BS_ABOUT_YEARS_MAX })); return; }
+    const listProblem = bsAboutListProblem(about);
+    if (listProblem === 'title') { setTab('about'); setErr(tr('profile:mine.errItemTitle', { defaultValue: 'Each accolade and course needs a title, or remove it.' })); return; }
+    if (listProblem === 'year') { setTab('about'); setErr(tr('profile:mine.errItemYear', { defaultValue: 'A year from {min} to {max}.', min: BS_ABOUT_YEAR_MIN, max: new Date().getFullYear() + 1 })); return; }
     const badLink = linksChanged ? bsLinkProblem(links) : null;
     if (badLink) { setTab('about'); setErr(tr('profile:mine.errLink', { defaultValue: 'Check {network}: a handle like @you, or an address starting with https://', network: bsLinkName(badLink, tr) })); return; }
     // The demo also says which keys were changed here, so its page keeps only those over its own

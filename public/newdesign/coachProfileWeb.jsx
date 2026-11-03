@@ -1157,6 +1157,27 @@ function CpwAboutTab({ T, K, about, prompts, links, certs, onEdit }) {
       ))}
     </div>
   </React.Fragment>]);
+  // The coach's own lists (owner, 2026-11-03: "certificates, accolades, things like that"): each row what
+  // it is, then what it was or who gave it, and the year at the row's end, as the app draws them.
+  const list = (key, label, rows) => {
+    if (!rows || !rows.length) return;
+    sections.push([key, 26, <React.Fragment>
+      {head(label)}
+      <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, maxWidth: 680 }}>
+        {rows.map((r, i) => (
+          <li key={i} data-about-item="" style={{ display: "flex", alignItems: "baseline", gap: 12, padding: "11px 0", borderTop: `1px solid ${ink(0.14)}` }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontFamily: CPW_DISPLAY, fontSize: 15.5, fontWeight: 600, lineHeight: 1.3, overflowWrap: "anywhere" }}>{r.title}</span>
+              {r.detail ? <span style={{ display: "block", marginTop: 2, fontSize: 14, lineHeight: 1.35, color: ink(0.72), overflowWrap: "anywhere" }}>{r.detail}</span> : null}
+            </span>
+            {r.year ? <span style={{ flexShrink: 0, fontFamily: CPW_MONO, fontSize: 12, letterSpacing: "0.06em", color: ink(0.64), fontVariantNumeric: "tabular-nums" }}>{r.year}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </React.Fragment>]);
+  };
+  list("accolades", "Accolades", about && about.accolades);
+  list("education", "Education and training", about && about.education);
   if (socials.length) sections.push(["socials", 26, <React.Fragment>
     {head(`Find ${first} online`)}
     <div style={{ marginTop: 8, maxWidth: 680 }}>
