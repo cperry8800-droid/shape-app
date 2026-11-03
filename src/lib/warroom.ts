@@ -620,6 +620,22 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Radio: Shape\'s own station, part 1 of 4: the rotation and the stream server (#2570). Migration: 2026-11-03-radio-rotation.sql',
+      items: [
+        { label: 'Owner, 2026-11-03: "would you be able to build your own internet/app radio streaming platform where i can upload songs to stream instead of using radio.co" ("on shape"), then "yes" to the four-part plan', status: 'done' },
+        { label: '#2570 the rotation (src/lib/radio/rotation.mjs): the library an hour at a time between Nora\'s sets, under her rules both ways (the planner\'s future plays and hard end); her sets first; a block a set is scheduled over never played; the engine route\'s ?mode=station job and in-play check; the play log and the SoundExchange report take blocks', status: 'done' },
+        { label: '#2570 the engine\'s NORA_MODE=station: one stream, the next segment asked for and loaded two minutes ahead, short gaps bridged, long ones and failures to the standby loop with growing waits, one check clock a minute apart across hand-overs, reports queued behind the music', status: 'done' },
+        { label: '#2570 services/station: Icecast (/live falls back to the always-on /standby loop and back), the standby loop, Caddy with only /live public, docker-compose and README; run end to end against a real Icecast 2.4.4 (tests/radio-station-e2e.test.mjs)', status: 'done' },
+        { label: '#2570 review: Codex found two on 1663c51 (the check clock restarted at each hand-over; the admin\'s engine panel would show rotation rows as Nora\'s), both fixed; Codex clean on 95f47a0; mutations 66/66; CI green', status: 'done' },
+        { label: 'OWNER: run supabase-migrations/2026-11-03-radio-rotation.sql', status: 'manual' },
+        { label: 'OWNER: set up the station server (services/station/README.md): an always-on machine with Docker and plenty of included bandwidth (about 86 MB a listener-hour at 192 kbps), a DNS record, the .env, docker compose up', status: 'manual' },
+        { label: 'Part 2: the website and app play Shape\'s station (station.mjs accepts it), now-playing comes from the rotation\'s plan, and the dashboard shows the rotation', status: 'pending' },
+        { label: 'Part 3: a member-only pass on the stream (closes "anyone with the URL can listen") and the US/UK check', status: 'pending' },
+        { label: 'Part 4: listening hours in the SoundExchange report, from Icecast\'s listener log', status: 'pending' },
+        { label: 'A first Docker build of services/station, on the server (none here: the e2e ran its scripts and config on a real Icecast)', status: 'pending' },
+      ],
+    },
+    {
       section: 'App: the tier line over the member profile\'s cover again; Website: the app captures re-shot and a coach\'s page on the app page (#2571). No migration',
       items: [
         { label: 'Owner, 2026-11-03: "make sure screenshots on website on app page and home page are updated to most recent. Also include a section on app page with a screen shot of coaches profile", "also member/client profile look changed", and of the profile\'s cover, "this top section should show the tier line graph we had"', status: 'done' },

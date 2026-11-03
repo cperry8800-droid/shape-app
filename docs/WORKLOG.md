@@ -112,8 +112,7 @@ or past 12 KB.
   go to members only (`/api/coaches/reviews`). Also: `src/lib/calendar-activities.ts`,
   `api/nutrition/meal-note` (private `meal-notes` bucket), `api/nutrition/voice` (Whisper),
   and the War Room board (`/warroom`). Nora's account setup: `src/lib/ai/accountSetup.mjs`.
-- **Own radio station:** `services/station` and the engine's `NORA_MODE=station`; the rotation is
-  `src/lib/radio/rotation.mjs`.
+- **Own radio station:** `services/station`, the engine's `NORA_MODE=station`, `radio/rotation.mjs`.
 - ⚠ **A screen holding a copy of a `user_goals` doc** reads it again when something else writes
   it: `services/userGoalsRefresh.mjs`'s hook in its read's deps (`tests/user-goals-refresh.test.mjs`
   holds every broadsheet reader to it); website pages listen for `shape:accountSetup`.
@@ -148,7 +147,7 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
 - Decide night-before prep's open calls (#2563's War Room section): a second push for a meal
   planned after tonight's reminder, and a planned-day total on Eat beside Fuel left.
 - A trademark search on "Club Shape", its domain and handles, before the rename ships (#2568's War Room).
-- Set up the radio station (`services/station/README.md`).
+- Set up the radio station (`services/station`).
 - Add the `localhost` hostname to the Turnstile widget.
 - A native speaker reads the PAR-Q, Nora hint, sample coach and Friends translations
   (Hausa and Pidgin first).
