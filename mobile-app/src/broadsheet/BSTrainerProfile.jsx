@@ -321,8 +321,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   }, [isSelf, providerId, providerState, role, demo]);
   // The coach's certificates as Shape verified them (owner, 2026-11-03: "the about me should have more
   // things to add. certificates, accolades"): read for a verified listing with an account, names only.
-  // A sample, the demo or a private profile reads none, and a failed read shows nothing.
-  const certsFor = listed && provider.verified && !sample && !demo && !isPrivate ? (person.userId || null) : null;
+  // A sample, the demo or a private profile reads none, and a failed read shows nothing. They wait for
+  // the profile's own read to say the viewer may see it: a private profile answers a visitor with no
+  // account with no row at all, which is not "public" (Codex on #2576).
+  const certsFor = listed && provider.verified && !sample && !demo && !!live && !isPrivate ? (person.userId || null) : null;
   const [certs, setCerts] = React.useState([]);
   React.useEffect(() => {
     setCerts([]);

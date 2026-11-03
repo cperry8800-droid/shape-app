@@ -90,7 +90,8 @@ function reset(over = {}) {
 }
 reset();
 window.ShapeAuth = { getCachedState: () => ({ user: { id: world.me } }) };
-window.ShapeProfiles = { getPublicProfile: async () => ({ name: 'Maya Okafor', pronouns: world.pronouns, bio: 'I teach people to lift well.', points: 6200, custom: world.custom, can_view: world.canView }) };
+// noCard: the read answers no row, as get_public_profile does a visitor with no account on a private profile.
+window.ShapeProfiles = { getPublicProfile: async () => (world.noCard ? null : { name: 'Maya Okafor', pronouns: world.pronouns, bio: 'I teach people to lift well.', points: 6200, custom: world.custom, can_view: world.canView }) };
 // byIdFails / availFails: the listing's or the hours' read fails ('null' answers null, as the
 // backend does on a non-2xx; anything else rejects, as a lost connection does).
 const failing = (how) => { if (how === 'null') return null; throw new Error('offline'); };
@@ -1473,6 +1474,16 @@ test('About me: certificates as Shape verified them, then the coach\'s accolades
     await click(button(/^About me$/));
     assert.deepEqual([...document.querySelectorAll('[data-about-cert]')].map((li) => li.textContent), ['NSCA-CSCS✓ Verified by Shape'], 'certificates alone open the tab');
     await m.unmount();
+    // A private profile reads none: one the viewer may not see, and one that answers a visitor with no
+    // account with no row at all (Codex on #2576).
+    for (const over of [{ canView: false }, { noCard: true }]) {
+      reset({ certs: ['NSCA-CSCS'], custom: null, ...over });
+      m = await mount(page());
+      await flush();
+      assert.equal(world.certsFor, undefined, `certificates were read for ${JSON.stringify(over)}`);
+      assert.ok(!document.querySelector('[data-about-cert]'), 'a certificate shows');
+      await m.unmount();
+    }
   } finally { window.ShapeProfiles.getCoachCerts = had; }
 });
 
