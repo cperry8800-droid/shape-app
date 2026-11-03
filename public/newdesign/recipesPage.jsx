@@ -364,9 +364,15 @@ function RecipesPage() {
       }
       setDrawer(false);
     };
+    // The page under the backdrop doesn't scroll while the drawer is open, so closing it returns the
+    // list where it was. On the root, not <body>: this page clips the root's overflow-x, so <body>'s
+    // overflow no longer reaches the viewport (pageShell's drawer locks <body> on other pages).
+    const root = document.documentElement, rootOverflow = root.style.overflow;
+    root.style.overflow = "hidden";
     document.addEventListener("keydown", onKey);
     if (wide && wide.addEventListener) wide.addEventListener("change", onWide);
     return () => {
+      root.style.overflow = rootOverflow;
       document.removeEventListener("keydown", onKey);
       if (wide && wide.removeEventListener) wide.removeEventListener("change", onWide);
     };
@@ -709,7 +715,7 @@ function RecipesPage() {
           .km .km-layout { display: block; padding-top: 0; }
           .km .km-side { display: none; }
           .km .km-side.open { display: grid; position: fixed; z-index: 2147483647; top: auto !important; left: 0; right: 0; bottom: 0; max-width: 560px; max-height: 86vh !important; margin: 0 auto; padding: 0 20px; gap: 20px; background: ${KM_PAPER2}; border-radius: 18px 18px 0 0; box-shadow: 0 -12px 40px -12px rgba(30,42,38,0.35); overscroll-behavior: contain; }
-          .km .km-side-bg { display: block; position: fixed; inset: 0; z-index: 2147483646; background: rgba(30,42,38,0.38); }
+          .km .km-side-bg { display: block; position: fixed; inset: 0; z-index: 2147483646; background: rgba(30,42,38,0.38); touch-action: none; }
           .km .km-side-ph { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 1; background: ${KM_PAPER2}; padding: 14px 0 10px; margin-bottom: -6px; border-bottom: 1px solid ${KM_LINE2}; }
           .km .km-side-ph b { font-family: ${kmDisp}; font-weight: 500; font-variation-settings: 'wdth' 104; font-size: 22px; letter-spacing: -.01em; }
           .km .km-side-x { width: 44px; height: 44px; margin-right: -12px; border: 0; background: transparent; font-size: 24px; line-height: 1; color: ${KM_INK2}; cursor: pointer; }

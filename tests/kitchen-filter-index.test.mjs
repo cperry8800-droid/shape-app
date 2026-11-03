@@ -56,6 +56,12 @@ test('960px and below: a bottom drawer from "Filters", over the chat launcher, a
   assert.match(src, /if \(side && side\.contains\(at\) && at\.offsetParent === null\) \{/);
   assert.match(src, /\.find\(\(el\) => el\.offsetParent !== null\);\n\s*try \{ if \(to\) to\.focus\(\{ preventScroll: true \}\); \} catch \(e\) \{\}\n\s*\}\n\s*setDrawer\(false\);/);
   assert.match(src, /className="km-side-bg" aria-hidden onClick=\{closeDrawer\}/);
+  // the page behind doesn't scroll while it is open, and gets its overflow back on close (Codex on
+  // #2577): on the root, since this page clips the root's overflow-x and <body>'s would not reach
+  // the viewport; a touch on the backdrop doesn't pan it either
+  assert.match(src, /const root = document\.documentElement, rootOverflow = root\.style\.overflow;\n\s*root\.style\.overflow = "hidden";/);
+  assert.match(src, /return \(\) => \{\n\s*root\.style\.overflow = rootOverflow;/);
+  assert.match(tablet, /\.km \.km-side-bg \{[^}]*touch-action: none;/);
   assert.match(src, /<button type="button" className="km-btn p" onClick=\{closeDrawer\}>Show \{shown\.length\}/);
 });
 
