@@ -77,8 +77,13 @@ export async function probeStream(url, { fetchFn = fetch, timeoutMs = 8000 } = {
   }
   try { await res.body?.cancel(); } catch { /* the headers are all that was wanted */ }
   if (!res.ok) return { ok: false, error: 'station_unreachable' };
-  const type = String((res.headers && res.headers.get && res.headers.get('content-type')) || '').toLowerCase();
-  return type.startsWith('audio/mpeg') ? { ok: true } : { ok: false, error: 'station_not_audio' };
+  const header = (name) => String((res.headers && res.headers.get && res.headers.get(name)) || '');
+  if (!header('content-type').toLowerCase().startsWith('audio/mpeg')) return { ok: false, error: 'station_not_audio' };
+  // ⚠ AND THE PLAYERS MAY READ IT (Codex, #2574). Both load the stream with crossOrigin="anonymous"
+  // (their analysers need it), and a browser refuses a stream without exactly one
+  // Access-Control-Allow-Origin. `*` is the only value that serves the website and the app alike;
+  // a doubled header reads here as "*, *" and is refused like a missing one.
+  return header('access-control-allow-origin').trim() === '*' ? { ok: true } : { ok: false, error: 'station_no_cors' };
 }
 
 // ⚠ A HEALTHY ENGINE IS QUIET FOR AS LONG AS THE LONGEST SONG THE LIBRARY TAKES (Codex, #2574). It

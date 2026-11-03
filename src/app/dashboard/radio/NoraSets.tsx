@@ -31,6 +31,7 @@ const MESSAGES: Record<string, string> = {
 const ERRORS: Record<string, string> = {
   station_unreachable: 'the station did not answer at that address. Is the server up, with its DNS record in place?',
   station_not_audio: 'that address answered, but not with audio. The stream is the station’s /live.',
+  station_no_cors: 'that address answered with audio, but without the one Access-Control-Allow-Origin: * the players need. Is it Shape’s station server (services/station)?',
   station_stream_not_live: 'Shape’s own station streams at /live, e.g. https://radio.theshapecommunity.com/live.',
   station_stream_is_radio_co: 'that is a radio.co address: use the radio.co form for it.',
   station_stream_host: 'the stream needs the station’s own name, e.g. radio.theshapecommunity.com, not an address.',

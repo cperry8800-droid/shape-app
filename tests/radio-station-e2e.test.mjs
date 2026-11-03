@@ -13,6 +13,7 @@ import { chownSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { probeStream } from '../src/lib/radio/station.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HAS = spawnSync('icecast2', ['-v']).status === 0 && spawnSync('ffmpeg', ['-version']).status === 0;
@@ -126,6 +127,8 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
       return out;
     };
     assert.deepEqual(await corsOf(), [200, 'audio/mpeg', '*'], 'the standby loop, as a browser asks for it');
+    // And the dashboard's own check of the stream passes it, on this real server.
+    assert.deepEqual(await probeStream(`http://127.0.0.1:${port}/live`), { ok: true }, 'the dashboard\'s check');
 
     // 3. One listener, from before the music to after it.
     const listener = run('ffmpeg', ['-hide_banner', '-v', 'error', '-i', `http://127.0.0.1:${port}/live`, '-ac', '1', '-ar', '8000', '-f', 's16le', 'pipe:1'], {});

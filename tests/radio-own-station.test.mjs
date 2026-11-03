@@ -46,13 +46,15 @@ test('⚠ Shape\'s own stream: https, its own name, the /live mount, nothing els
 
 test('⚠ the stream is asked before it is saved: only an answer with audio passes, headers only', async () => {
   const calls = [];
-  const res = (status, type) => {
-    const r = { ok: status >= 200 && status < 300, status, headers: new Headers(type ? { 'content-type': type } : {}), cancelled: false };
+  const res = (status, type, acao = ['*']) => {
+    const headers = new Headers(type ? { 'content-type': type } : {});
+    for (const v of acao) headers.append('access-control-allow-origin', v);
+    const r = { ok: status >= 200 && status < 300, status, headers, cancelled: false };
     r.body = { cancel: async () => { r.cancelled = true; } };
     return r;
   };
   let last;
-  const fetchFn = (status, type) => async (url, init) => { calls.push({ url, init }); last = res(status, type); return last; };
+  const fetchFn = (status, type, acao) => async (url, init) => { calls.push({ url, init }); last = res(status, type, acao); return last; };
   assert.deepEqual(await probeStream('https://radio.example.com/live', { fetchFn: fetchFn(200, 'audio/mpeg') }), { ok: true });
   assert.equal(last.cancelled, true, 'the stream is not read, only its headers');
   assert.equal(calls[0].init.redirect, 'error', 'a redirect elsewhere is not followed');
@@ -62,6 +64,12 @@ test('⚠ the stream is asked before it is saved: only an answer with audio pass
   assert.deepEqual(await probeStream('u', { fetchFn: fetchFn(200, 'text/html') }), { ok: false, error: 'station_not_audio' });
   assert.deepEqual(await probeStream('u', { fetchFn: fetchFn(200, null) }), { ok: false, error: 'station_not_audio' });
   assert.deepEqual(await probeStream('u', { fetchFn: async () => { throw new Error('ENOTFOUND'); } }), { ok: false, error: 'station_unreachable' });
+  // ⚠ The players load the stream cross-origin: exactly one `*`, or it is not saved (Codex, #2574).
+  assert.deepEqual(await probeStream('u', { fetchFn: fetchFn(200, 'audio/mpeg', []) }), { ok: false, error: 'station_no_cors' }, 'no header');
+  assert.deepEqual(await probeStream('u', { fetchFn: fetchFn(200, 'audio/mpeg', ['*', '*']) }), { ok: false, error: 'station_no_cors' }, 'the header twice');
+  assert.deepEqual(await probeStream('u', { fetchFn: fetchFn(200, 'audio/mpeg', ['https://www.theshapecommunity.com']) }), { ok: false, error: 'station_no_cors' }, 'the website alone (the app is another origin)');
+  assert.deepEqual(await probeStream('u', { fetchFn: fetchFn(200, 'audio/mpeg', [' * ']) }), { ok: true });
+  assert.match(read('src/app/dashboard/radio/NoraSets.tsx'), /  station_no_cors: '/, 'said in words');
 });
 
 test('the provider: Shape\'s own is a measured station, never the mock, and names nothing by itself', () => {
