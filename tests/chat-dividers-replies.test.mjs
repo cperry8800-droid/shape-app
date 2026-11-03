@@ -412,8 +412,8 @@ test('channel history keeps each row\'s id and its reply, reading every column',
 test('a message arriving live keeps its reply, and a channel\'s its id', () => {
   const CLIENT = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
   // (and its voice note, 2026-11-02)
-  assert.match(CLIENT, /setExtras\(e => \[\.\.\.e, \{ id: row\.id \|\| null, who: row\.author_name \|\| 'Member', t: row\.body, time: 'now', at: row\.created_at \|\| null, me: false, userId: row\.sender_id \|\| null, reply: bsReplyFromMetadata\(row\.metadata\), voice: bsVoiceFromMetadata\(row\.metadata, \{ kind: 'ch', threadId: thread\.channelId \}\) \}\]\);/, 'a channel row');
-  assert.match(CLIENT, /grocery: bsGroceryFromMetadata\(row\.metadata\), reply: bsReplyFromMetadata\(row\.metadata\), voice: bsVoiceFromMetadata\(row\.metadata, \{ kind: 'dm', threadId: thread\.conversationId \}\) \}\]\);/, 'a direct row');
+  assert.match(CLIENT, /setExtras\(e => \[\.\.\.e, \{ id: row\.id \|\| null, who: row\.author_name \|\| 'Member', t: row\.body, time: 'now', at: row\.created_at \|\| null, me: false, userId: row\.sender_id \|\| null, reply: bsReplyFromMetadata\(row\.metadata\), voice: bsVoiceFromMetadata\(row\.metadata, \{ kind: 'ch', threadId: thread\.channelId, senderId: row\.sender_id \}\) \}\]\);/, 'a channel row');
+  assert.match(CLIENT, /grocery: bsGroceryFromMetadata\(row\.metadata\), reply: bsReplyFromMetadata\(row\.metadata\), voice: bsVoiceFromMetadata\(row\.metadata, \{ kind: 'dm', threadId: thread\.conversationId, senderId: row\.sender_id \}\) \}\]\);/, 'a direct row');
 });
 
 test('both direct-message readers keep the sender\'s account, so a reply names it (Codex P2 on #2561)', async () => {

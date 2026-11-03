@@ -40,9 +40,9 @@ export const BS_VOICE_PATH = new RegExp(`^(dm|ch)/(${UUID})/(${UUID})/[A-Za-z0-9
 // Where a note is stored: under its thread, then its sender, so the bucket's rules can say who may
 // write it (the sender, while they may post in the thread) and who may play it (whoever may read it).
 export function bsVoicePath({ kind, threadId, userId, name, ext } = {}) {
-  const k = kind === 'ch' ? 'ch' : kind === 'dm' ? 'dm' : null;
-  const path = k && `${k}/${String(threadId || '').toLowerCase()}/${String(userId || '').toLowerCase()}/${name}.${ext}`;
-  return path && BS_VOICE_PATH.test(path) ? path : null;
+  // BS_VOICE_PATH is the whole check: a kind other than dm or ch, or any other part out of shape, is no path.
+  const path = `${kind}/${String(threadId || '').toLowerCase()}/${String(userId || '').toLowerCase()}/${name}.${ext}`;
+  return BS_VOICE_PATH.test(path) ? path : null;
 }
 
 // A recording's levels (0..1, sampled as it was made) as PEAKS bars: the loudest moment of each slice,
@@ -64,9 +64,12 @@ export function bsVoicePeaks(levels, n = BS_VOICE.PEAKS) {
 }
 
 // A note's metadata, read back strictly (it is another member's input). Its file must sit under the
-// thread it was sent in, its length must be one a note can have, its waveform at most PEAKS_MAX bars
-// of 0..1, its type one the app records. Anything else reads as no note at all.
-export function bsVoiceFromMetadata(md, { kind = null, threadId = null } = {}) {
+// thread it was sent in AND in the folder of the member who sent the message (a member who copied
+// someone else's path into their own message would otherwise play that voice under their own name;
+// Codex P1 on #2567), its length must be one a note can have, its waveform at most PEAKS_MAX bars of
+// 0..1, its type one the app records. Anything else reads as no note at all, and so does a message
+// read without its sender: every reader passes the row's sender_id.
+export function bsVoiceFromMetadata(md, { kind = null, threadId = null, senderId = null } = {}) {
   const v = md && typeof md === 'object' && !Array.isArray(md) ? md.voice : null;
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const path = typeof v.path === 'string' ? v.path : '';
@@ -74,6 +77,7 @@ export function bsVoiceFromMetadata(md, { kind = null, threadId = null } = {}) {
   if (!m) return null;
   if (kind && m[1] !== kind) return null;
   if (threadId && m[2] !== String(threadId).toLowerCase()) return null;
+  if (!senderId || m[3] !== String(senderId).toLowerCase()) return null;
   const duration = Number(v.duration);
   if (!Number.isFinite(duration) || duration <= 0 || duration > BS_VOICE.MAX_SEC + 5) return null;
   const mime = typeof v.mime === 'string' && MIMES.has(v.mime) ? v.mime : null;

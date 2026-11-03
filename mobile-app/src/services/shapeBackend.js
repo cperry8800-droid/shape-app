@@ -2295,7 +2295,7 @@ function conversationToThread(conversation, messages = [], names = {}) {
       // The id the sender's view gave it (read receipts, 2026-11-02): its own thread knows the row by it.
       cid: bsViewIdOf(message.metadata),
       // A voice note (2026-11-02): read strictly, and only one stored under this conversation.
-      voice: bsVoiceFromMetadata(message.metadata, { kind: 'dm', threadId: conversation.id }),
+      voice: bsVoiceFromMetadata(message.metadata, { kind: 'dm', threadId: conversation.id, senderId: message.sender_id }),
     })),
     updatedAt: conversation.updated_at || conversation.last_message_at || conversation.created_at,
   };
@@ -2349,7 +2349,7 @@ function memberThreadFromRow(row, messages = []) {
       // The id the sender's view gave it (read receipts, 2026-11-02): its own thread knows the row by it.
       cid: bsViewIdOf(message.metadata),
       // A voice note (2026-11-02): read strictly, and only one stored under this conversation.
-      voice: bsVoiceFromMetadata(message.metadata, { kind: 'dm', threadId: row.conversation_id }),
+      voice: bsVoiceFromMetadata(message.metadata, { kind: 'dm', threadId: row.conversation_id, senderId: message.sender_id }),
     })),
     updatedAt: row.last_message_at,
   };
@@ -8363,7 +8363,7 @@ async function listChannelMessages(channelId) {
       userId: m.sender_id || null,
       reply: bsReplyFromMetadata(m.metadata),
       // A voice note (2026-11-02), only one stored under this channel.
-      voice: bsVoiceFromMetadata(m.metadata, { kind: 'ch', threadId: channelId }),
+      voice: bsVoiceFromMetadata(m.metadata, { kind: 'ch', threadId: channelId, senderId: m.sender_id }),
     })),
   };
 }
@@ -8825,7 +8825,20 @@ async function voiceNoteUrl(path) {
   _voiceUrls.set(path, { url: data.signedUrl, until: now + (BS_VOICE.SIGNED_SEC - 300) * 1000 });
   return data.signedUrl;
 }
-window.ShapeVoiceNotes = { upload: uploadVoiceNote, url: voiceNoteUrl };
+// An upload whose message could not be stored is removed, so no recording is left with nothing pointing
+// at it (Codex P2 on #2567). The bucket's rules let a sender remove only their own. It answers whether
+// the note is gone and never throws: the caller is already handling a failed send.
+async function removeVoiceNote(path) {
+  if (!supabase || !path) return false;
+  _voiceUrls.delete(path);
+  try {
+    const { error } = await supabase.storage.from(BS_VOICE.BUCKET).remove([path]);
+    return !error;
+  } catch (e) {
+    return false;
+  }
+}
+window.ShapeVoiceNotes = { upload: uploadVoiceNote, url: voiceNoteUrl, remove: removeVoiceNote };
 
 // ── Live presence — "N online now". Everyone with the app open joins one
 //    Supabase Realtime presence channel keyed by user id; the count is the

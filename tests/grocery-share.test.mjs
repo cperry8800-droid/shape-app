@@ -416,7 +416,7 @@ test('every way a message reaches a thread reads the list strictly, and the thre
   assert.equal((BACKEND.match(/\n\s+id: message\.id \|\| null,\n/g) || []).length, 2, 'both thread readers keep the message id');
   // (and the reply it answers, swipe to reply, 2026-11-01)
   // (and its voice note, 2026-11-02)
-  assert.match(CLIENT, /grocery: bsGroceryFromMetadata\(row\.metadata\), reply: bsReplyFromMetadata\(row\.metadata\), voice: bsVoiceFromMetadata\(row\.metadata, \{ kind: 'dm', threadId: thread\.conversationId \}\) \}\]\);/, 'and a message arriving live');
+  assert.match(CLIENT, /grocery: bsGroceryFromMetadata\(row\.metadata\), reply: bsReplyFromMetadata\(row\.metadata\), voice: bsVoiceFromMetadata\(row\.metadata, \{ kind: 'dm', threadId: thread\.conversationId, senderId: row\.sender_id \}\) \}\]\);/, 'and a message arriving live');
   assert.match(CLIENT, /coachInvite: m\.coachInvite \|\| null, grocery: m\.grocery \|\| null, reply: m\.reply \|\| null, voice: m\.voice \|\| null \}\)\),/, 'and the thread keeps it');
   assert.match(CLIENT, /\{m\.grocery && <BSGroceryShareCard shared=\{m\.grocery\} me=\{!!me\} saveTo=\{grocerySaveTo\} messageId=\{m\.id\} from=\{me \? '' : senderName\} \/>\}/);
   // The coach apps mount the same chat (BSClientChat → BSClientFeed): a member saves to the Eat lists, a

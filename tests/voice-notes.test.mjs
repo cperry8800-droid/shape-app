@@ -55,20 +55,31 @@ test('a waveform: PEAKS bars, each its slice\'s loudest moment, scaled to the no
 });
 
 const VOICE = { path: `dm/${CONV}/${HER}/n1.m4a`, duration: 7.26, mime: 'audio/mp4', peaks: [0.2, 0.501, 1.7, -3, 'x'] };
+const AS_HER = { senderId: HER };
 test('a note\'s metadata is read strictly, and only under the thread it was sent in', () => {
-  assert.deepEqual(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'dm', threadId: CONV }), { path: VOICE.path, duration: 7.3, mime: 'audio/mp4', peaks: [0.2, 0.5, 1, 0, 0], sender: HER });
-  assert.equal(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'dm', threadId: CONV.toUpperCase() }).sender, HER, 'the thread id compares case-blind');
-  assert.equal(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'ch', threadId: CONV }), null, 'a conversation\'s note in a channel');
-  assert.equal(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'dm', threadId: 'bbbbbbbb-0000-4000-8000-000000000001' }), null, 'another conversation\'s note');
+  assert.deepEqual(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'dm', threadId: CONV, senderId: HER }), { path: VOICE.path, duration: 7.3, mime: 'audio/mp4', peaks: [0.2, 0.5, 1, 0, 0], sender: HER });
+  assert.equal(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'dm', threadId: CONV.toUpperCase(), senderId: HER }).sender, HER, 'the thread id compares case-blind');
+  assert.equal(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'ch', threadId: CONV, senderId: HER }), null, 'a conversation\'s note in a channel');
+  assert.equal(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'dm', threadId: 'bbbbbbbb-0000-4000-8000-000000000001', senderId: HER }), null, 'another conversation\'s note');
   for (const bad of [
     { ...VOICE, path: '../etc/passwd' }, { ...VOICE, path: `dm/${CONV}/${HER}/n1.exe` }, { ...VOICE, path: 7 },
     { ...VOICE, duration: 0 }, { ...VOICE, duration: -1 }, { ...VOICE, duration: BS_VOICE.MAX_SEC + 6 }, { ...VOICE, duration: 'long' },
     { ...VOICE, mime: 'text/html' }, { ...VOICE, mime: undefined },
-  ]) assert.equal(bsVoiceFromMetadata({ voice: bad }), null, JSON.stringify(bad));
-  for (const md of [null, {}, [], { voice: [] }, { voice: 'x' }, 'x']) assert.equal(bsVoiceFromMetadata(md), null, JSON.stringify(md));
-  assert.equal(bsVoiceFromMetadata({ voice: { ...VOICE, peaks: Array(200).fill(0.5) } }).peaks.length, BS_VOICE.PEAKS_MAX, 'at most PEAKS_MAX bars');
-  assert.deepEqual(bsVoiceFromMetadata({ voice: { ...VOICE, peaks: 'loud' } }).peaks, [], 'no waveform is a flat one');
+  ]) assert.equal(bsVoiceFromMetadata({ voice: bad }, AS_HER), null, JSON.stringify(bad));
+  for (const md of [null, {}, [], { voice: [] }, { voice: 'x' }, 'x']) assert.equal(bsVoiceFromMetadata(md, AS_HER), null, JSON.stringify(md));
+  assert.equal(bsVoiceFromMetadata({ voice: { ...VOICE, peaks: Array(200).fill(0.5) } }, AS_HER).peaks.length, BS_VOICE.PEAKS_MAX, 'at most PEAKS_MAX bars');
+  assert.deepEqual(bsVoiceFromMetadata({ voice: { ...VOICE, peaks: 'loud' } }, AS_HER).peaks, [], 'no waveform is a flat one');
   assert.ok(BS_VOICE_PATH.test(`ch/${CHAN}/${ME}/a_b-1.webm`));
+});
+
+test('a note plays only as the voice of the member who sent the message (Codex P1 on #2567)', () => {
+  // ME copies HER path into a message of my own: it is no note, not her voice under my name.
+  assert.equal(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'dm', threadId: CONV, senderId: ME }), null, 'someone else\'s recording');
+  assert.equal(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'dm', threadId: CONV, senderId: HER.toUpperCase() }).sender, HER, 'the sender compares case-blind');
+  for (const senderId of [undefined, null, '']) {
+    assert.equal(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'dm', threadId: CONV, senderId }), null, `read without its sender (${senderId})`);
+  }
+  assert.equal(bsVoiceFromMetadata({ voice: VOICE }), null, 'read with nothing to compare');
 });
 
 test('the clock and the words a note leaves', () => {
@@ -86,18 +97,19 @@ const VOICE_BLOCK = (() => {
   assert.ok(start > 0 && end > start, 'the voice-notes block moved');
   return BACKEND.slice(start, BACKEND.indexOf('\n', end) + 1);
 })();
-function loadVoiceWire({ user = { id: ME }, upload = async () => ({ error: null }), sign = async () => ({ data: { signedUrl: 'https://s/1' }, error: null }) } = {}) {
-  const calls = { upload: [], sign: [] };
+function loadVoiceWire({ user = { id: ME }, upload = async () => ({ error: null }), sign = async () => ({ data: { signedUrl: 'https://s/1' }, error: null }), remove = async () => ({ data: [], error: null }) } = {}) {
+  const calls = { upload: [], sign: [], remove: [] };
   const supabase = { storage: { from: (bucket) => ({
     upload: (path, blob, opts) => { calls.upload.push({ bucket, path, blob, opts }); return upload(path, blob, opts); },
     createSignedUrl: (path, sec) => { calls.sign.push({ bucket, path, sec }); return sign(path, sec); },
+    remove: (paths) => { calls.remove.push({ bucket, paths }); return remove(paths); },
   }) } };
   const window = {};
   let now = 1_000_000;
   const RealDate = Date;
   const FakeDate = { now: () => now };
   const api = new Function('supabase', 'state', 'window', 'BS_VOICE', 'bsVoicePath', 'Date',
-    `${VOICE_BLOCK}; return { uploadVoiceNote, voiceNoteUrl, _voiceUrls };`)(supabase, { user }, window, BS_VOICE, bsVoicePath, { now: () => FakeDate.now(), prototype: RealDate.prototype });
+    `${VOICE_BLOCK}; return { uploadVoiceNote, voiceNoteUrl, removeVoiceNote, _voiceUrls };`)(supabase, { user }, window, BS_VOICE, bsVoicePath, { now: () => FakeDate.now(), prototype: RealDate.prototype });
   return { ...api, calls, window, advance: (ms) => { now += ms; } };
 }
 const blob = (size = 10) => ({ size });
@@ -130,6 +142,21 @@ test('the playable link: signed for an hour, kept until five minutes before it e
   await assert.rejects(bad.voiceNoteUrl(VOICE.path), /not found/);
   await assert.rejects(w.voiceNoteUrl(''), /No voice note/);
   assert.match(BACKEND, /\/\/ \.\.\.and so are the voice notes' signed links\.\n  try \{ _voiceUrls\.clear\(\); \} catch \(e\) \{\}/, 'sign-out forgets the links');
+});
+
+test('remove: an upload whose message was never stored is taken back out, and its link forgotten', async () => {
+  const w = loadVoiceWire();
+  await w.voiceNoteUrl(VOICE.path);
+  assert.equal(w.window.ShapeVoiceNotes.remove, w.removeVoiceNote);
+  assert.equal(await w.removeVoiceNote(VOICE.path), true);
+  assert.deepEqual(w.calls.remove, [{ bucket: 'voice-notes', paths: [VOICE.path] }]);
+  assert.equal(w._voiceUrls.has(VOICE.path), false, 'its link is forgotten');
+  assert.equal(await w.removeVoiceNote(''), false, 'nothing to remove');
+  assert.equal(w.calls.remove.length, 1);
+  const refused = loadVoiceWire({ remove: async () => ({ data: null, error: new Error('denied') }) });
+  assert.equal(await refused.removeVoiceNote(VOICE.path), false, 'a refusal is a no');
+  const offline = loadVoiceWire({ remove: async () => { throw new TypeError('Failed to fetch'); } });
+  assert.equal(await offline.removeVoiceNote(VOICE.path), false, 'and so is no network: it never throws');
 });
 
 const fnSrc = (name) => {
@@ -174,21 +201,30 @@ test('every reader keeps a note, and only one stored under its own thread', asyn
   const msgs = [
     { id: 'a', sender_id: HER, body: 'Voice note · 0:07', metadata: { voice: VOICE }, created_at: '2026-11-02T09:00:00Z' },
     { id: 'b', sender_id: HER, body: 'Voice note · 0:07', metadata: { voice: { ...VOICE, path: `dm/bbbbbbbb-0000-4000-8000-000000000001/${HER}/x.m4a` } }, created_at: '2026-11-02T09:01:00Z' },
+    { id: 'c', sender_id: ME, body: 'Voice note · 0:07', metadata: { voice: VOICE }, created_at: '2026-11-02T09:02:00Z' },
   ];
   const coach = load('conversationToThread')({ id: CONV, provider_role: 'trainer', client_id: ME, title: 'Tom' }, msgs);
   const member = load('memberThreadFromRow')({ conversation_id: CONV, other_name: 'Ana' }, msgs);
   for (const th of [coach, member]) {
     assert.equal(th.messages[0].voice.path, VOICE.path);
     assert.equal(th.messages[1].voice, null, 'a path under another conversation is no note here');
+    assert.equal(th.messages[2].voice, null, 'her recording in my message is no note');
   }
-  const rows = [{ id: 'r', sender_id: HER, author_name: 'Ana', body: 'Voice note · 0:03', metadata: { voice: { path: `ch/${CHAN}/${HER}/c.ogg`, duration: 3, mime: 'audio/ogg', peaks: [] } }, created_at: '2026-11-02T09:00:00Z' }];
+  const chVoice = { path: `ch/${CHAN}/${HER}/c.ogg`, duration: 3, mime: 'audio/ogg', peaks: [] };
+  const rows = [
+    { id: 'r', sender_id: HER, author_name: 'Ana', body: 'Voice note · 0:03', metadata: { voice: chVoice }, created_at: '2026-11-02T09:00:00Z' },
+    { id: 's', sender_id: ME, author_name: 'Quinn', body: 'Voice note · 0:03', metadata: { voice: chVoice }, created_at: '2026-11-02T09:01:00Z' },
+  ];
   const q = { select: () => q, eq: () => q, order: () => q, limit: async () => ({ data: rows, error: null }) };
   const list = new Function('supabase', 'state', 'bsChatStamp', 'bsReplyFromMetadata', 'bsVoiceFromMetadata', `${fnSrc('chatTimeOf')}; ${fnSrc('listChannelMessages')}; return listChannelMessages;`)({ from: () => q }, { user: { id: ME } }, () => '', bsReplyFromMetadata, bsVoiceFromMetadata);
   assert.equal((await list(CHAN)).data[0].voice.path, `ch/${CHAN}/${HER}/c.ogg`);
+  assert.equal((await list(CHAN)).data[1].voice, null, 'her recording in my channel message is no note');
   assert.equal((await list('dddddddd-0000-4000-8000-000000000001')).data[0].voice, null, 'another channel\'s note');
   // Live rows and the chat page's copy keep it too.
-  assert.match(CLIENT, /voice: bsVoiceFromMetadata\(row\.metadata, \{ kind: 'ch', threadId: thread\.channelId \}\) \}\]\);/);
-  assert.match(CLIENT, /voice: bsVoiceFromMetadata\(row\.metadata, \{ kind: 'dm', threadId: thread\.conversationId \}\) \}\]\);/);
+  assert.match(CLIENT, /voice: bsVoiceFromMetadata\(row\.metadata, \{ kind: 'ch', threadId: thread\.channelId, senderId: row\.sender_id \}\) \}\]\);/);
+  assert.match(CLIENT, /voice: bsVoiceFromMetadata\(row\.metadata, \{ kind: 'dm', threadId: thread\.conversationId, senderId: row\.sender_id \}\) \}\]\);/);
+  assert.equal((CLIENT.match(/bsVoiceFromMetadata\(/g) || []).length, 2, 'no other reader of a note in the client');
+  assert.equal((BACKEND.match(/bsVoiceFromMetadata\((?:message|m)\.metadata, \{ kind: '(?:dm|ch)', threadId: [\w.]+, senderId: (?:message|m)\.sender_id \}\)/g) || []).length, 3, 'each backend reader names the row\'s sender');
   assert.match(CLIENT, /reply: m\.reply \|\| null, voice: m\.voice \|\| null \}\)\),/);
 });
 
@@ -472,12 +508,13 @@ test('a voice note draws its player where the words would be, and the composer o
   assert.equal(named(none, 'BSMessageComposer')[0].props.voiceNote, null, 'a thread with nowhere to store a note offers none');
 });
 
-async function sendThrough(thread, globals) {
+async function sendThrough(thread, globals, before = null) {
   const saved = {};
   for (const k of Object.keys(globals)) saved[k] = window[k];
   Object.assign(window, globals);
   try {
     const d = mountThread(thread);
+    if (before) { before(d); d.render(); }
     named(d, 'BSMessageComposer')[0].props.voiceNote.onSend({ blob: new Blob(['opus'], { type: 'audio/mp4' }), duration: 4.2, peaks: [0.3, 0.6], mime: 'audio/mp4', ext: 'm4a' });
     d.render();
     const pending = named(d, 'BSVoiceNotePlayer').find((p) => p.props.mine);
@@ -519,6 +556,75 @@ test('a channel note goes as the channel\'s voice; a note that fails says Not se
   });
   assert.equal(after.props.voice.failed, true);
   assert.deepEqual(toasts, ['Couldn’t send the voice note.']);
+});
+
+// Long-press her note and tap Reply, as a member does before recording an answer.
+const replyToHers = (d) => {
+  withAttr(d.nodes(), 'data-thread-theirs')[0].props.onContextMenu({ preventDefault() {} });
+  d.render();
+  named(d, 'BSReactionPicker')[0].props.onReply();
+};
+
+test('a note recorded while replying answers that message, in a conversation and in a channel (Codex P2 on #2567)', async () => {
+  const sends = [];
+  const { d } = await sendThrough(DM(), {
+    ShapeVoiceNotes: { upload: async () => ({ path: `dm/${CONV}/${ME}/r.m4a` }) },
+    ShapeMessages: { sendMessage: async (a) => { sends.push(a); return { data: { id: 'm10' } }; } },
+  }, replyToHers);
+  assert.equal(sends.length, 1);
+  assert.equal(sends[0].metadata.reply.id, 'm1', 'the reply rides with the note');
+  assert.equal(sends[0].metadata.voice.path, `dm/${CONV}/${ME}/r.m4a`);
+  const mine = withAttr(d.nodes(), 'data-thread-mine');
+  assert.ok(textOf(mine[mine.length - 1]).includes(MAYA), 'the sent note shows what it answers');
+  assert.doesNotMatch(textOf(named(d, 'BSMessageComposer')[0].props.above || ''), /Replying to/, 'and the reply bar is cleared');
+  const chSends = [];
+  const CH = { who: '# Runs', role: 'Channel', group: true, channelId: CHAN, messages: [
+    { id: 'c1', who: 'Ana', userId: HER, t: 'Six tomorrow?', at: '2026-11-02T09:00:00Z', me: false },
+  ] };
+  await sendThrough(CH, {
+    ShapeVoiceNotes: { upload: async () => ({ path: `ch/${CHAN}/${ME}/r.m4a` }) },
+    ShapeChannels: { sendMessage: async (a) => { chSends.push(a); return { data: { id: 'c10' } }; } },
+  }, replyToHers);
+  assert.equal(chSends.length, 1);
+  assert.equal(chSends[0].reply.id, 'c1');
+  assert.equal(chSends[0].voice.path, `ch/${CHAN}/${ME}/r.m4a`);
+  const plain = [];
+  await sendThrough(DM(), {
+    ShapeVoiceNotes: { upload: async () => ({ path: `dm/${CONV}/${ME}/p.m4a` }) },
+    ShapeMessages: { sendMessage: async (a) => { plain.push(a); return { data: { id: 'm11' } }; } },
+  });
+  assert.equal('reply' in plain[0].metadata, false, 'a note that answers nothing carries no reply');
+});
+
+test('an uploaded note whose message is never stored is removed, not left behind (Codex P2 on #2567)', async () => {
+  const removed = [];
+  const { after } = await sendThrough(DM(), {
+    ShapeVoiceNotes: { upload: async () => ({ path: `dm/${CONV}/${ME}/o.m4a` }), remove: async (p) => { removed.push(p); return true; } },
+    ShapeMessages: { sendMessage: async () => { throw new Error('insert failed'); } },
+    __bsToast: () => {},
+  });
+  assert.deepEqual(removed, [`dm/${CONV}/${ME}/o.m4a`]);
+  assert.equal(after.props.voice.failed, true);
+  const none = [];
+  await sendThrough(DM(), {
+    ShapeVoiceNotes: { upload: async () => { throw new Error('upload refused'); }, remove: async (p) => { none.push(p); return true; } },
+    ShapeMessages: { sendMessage: async () => ({ data: { id: 'x' } }) },
+    __bsToast: () => {},
+  });
+  assert.deepEqual(none, [], 'nothing uploaded, nothing to remove');
+  const kept = [];
+  await sendThrough(DM(), {
+    ShapeVoiceNotes: { upload: async () => ({ path: `dm/${CONV}/${ME}/k.m4a` }), remove: async (p) => { kept.push(p); return true; } },
+    ShapeMessages: { sendMessage: async () => ({ data: { id: 'm12' } }) },
+  });
+  assert.deepEqual(kept, [], 'a stored note is kept');
+  const chRemoved = [];
+  await sendThrough({ who: '# Runs', role: 'Channel', group: true, channelId: CHAN, messages: [] }, {
+    ShapeVoiceNotes: { upload: async () => ({ path: `ch/${CHAN}/${ME}/o.m4a` }), remove: async (p) => { chRemoved.push(p); return true; } },
+    ShapeChannels: { sendMessage: async () => { throw new Error('new row violates row-level security policy'); } },
+    __bsToast: () => {},
+  });
+  assert.deepEqual(chRemoved, [`ch/${CHAN}/${ME}/o.m4a`], 'and in a channel');
 });
 
 test('the composer: the recorder beside the field, and while it records the field steps aside', () => {

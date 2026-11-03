@@ -27332,15 +27332,21 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     let localUrl = null;
     try { localUrl = URL.createObjectURL(rec.blob); } catch (e) { localUrl = null; }
     const body = bsVoiceBody(rec.duration);
+    // A note recorded while replying answers that message, as a typed one does (Codex P2 on #2567).
+    const reply = replyTo;
+    setReplyTo(null);
     stopTyping();
-    setExtras(e => [...e, { tmpId, who: 'You', t: body, time: 'now', at: new Date().toISOString(), me: true, voice: { localUrl, duration: rec.duration, peaks: rec.peaks, mime: rec.mime, pending: true } }]);
+    setExtras(e => [...e, { tmpId, who: 'You', t: body, time: 'now', at: new Date().toISOString(), me: true, reply, voice: { localUrl, duration: rec.duration, peaks: rec.peaks, mime: rec.mime, pending: true } }]);
     const mark = (patch, voicePatch) => setExtras(e => e.map(x => x.tmpId === tmpId ? { ...x, ...patch, voice: { ...x.voice, ...voicePatch } } : x));
     Promise.resolve(notes.upload({ kind, threadId, blob: rec.blob, ext: rec.ext, mime: rec.mime }))
       .then(({ path }) => {
         const voice = { path, duration: rec.duration, peaks: rec.peaks, mime: rec.mime };
-        return kind === 'dm'
-          ? window.ShapeMessages.sendMessage({ conversationId: thread.conversationId, body, metadata: { voice, cid: tmpId } })
-          : window.ShapeChannels.sendMessage({ channelId: thread.channelId, body, voice });
+        const sent = kind === 'dm'
+          ? window.ShapeMessages.sendMessage({ conversationId: thread.conversationId, body, metadata: { voice, cid: tmpId, ...(reply ? { reply } : {}) } })
+          : window.ShapeChannels.sendMessage({ channelId: thread.channelId, body, voice, ...(reply ? { reply } : {}) });
+        // Uploaded but never stored: the recording is removed rather than left with no message pointing
+        // at it (Codex P2 on #2567). remove() never rejects.
+        return Promise.resolve(sent).catch((err) => { notes.remove(path); throw err; });
       })
       .then(res => { const id = res && res.data && res.data.id; const at = res && res.data && res.data.created_at; mark({ ...(id ? { id } : {}), ...(at ? { at } : {}) }, { pending: false }); })
       .catch(() => {
@@ -27357,7 +27363,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     if (thread.channelId && window.ShapeChannels?.subscribeMessages) {
       unsub = window.ShapeChannels.subscribeMessages((row) => {
         if (!row || row.channel_id !== thread.channelId || row.sender_id === myId) return;
-        setExtras(e => [...e, { id: row.id || null, who: row.author_name || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, reply: bsReplyFromMetadata(row.metadata), voice: bsVoiceFromMetadata(row.metadata, { kind: 'ch', threadId: thread.channelId }) }]);
+        setExtras(e => [...e, { id: row.id || null, who: row.author_name || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, reply: bsReplyFromMetadata(row.metadata), voice: bsVoiceFromMetadata(row.metadata, { kind: 'ch', threadId: thread.channelId, senderId: row.sender_id }) }]);
         if (row.sender_id) window.ShapeThreadSignals?.typing?.(sigKey, { userId: row.sender_id, on: false }); // they sent it: no longer typing
         window.ShapeUnread?.markChannelRead?.(thread.channelId);  // it's open → keep it read
       });
@@ -27370,7 +27376,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         // Carry the live-boost stamp on realtime appends too — a boost landing
         // while this thread is OPEN (the time-sensitive case) must render with
         // its eyebrow immediately, not only after a reload re-maps metadata.
-        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null, grocery: bsGroceryFromMetadata(row.metadata), reply: bsReplyFromMetadata(row.metadata), voice: bsVoiceFromMetadata(row.metadata, { kind: 'dm', threadId: thread.conversationId }) }]);
+        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null, grocery: bsGroceryFromMetadata(row.metadata), reply: bsReplyFromMetadata(row.metadata), voice: bsVoiceFromMetadata(row.metadata, { kind: 'dm', threadId: thread.conversationId, senderId: row.sender_id }) }]);
         if (row.sender_id) window.ShapeThreadSignals?.typing?.(sigKey, { userId: row.sender_id, on: false }); // they sent it: no longer typing
         // Read while open and in view: stored, then announced, so their Sent turns to Seen.
         if (bsPageHidden()) unreadWhileHiddenRef.current = true;
