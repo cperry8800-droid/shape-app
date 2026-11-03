@@ -2,6 +2,10 @@
 
 Drafts for the owner's review; nothing in the app or the website uses these yet.
 
+**Chosen (owner, 2026-11-03: "move forward with this design"): the two triangles stacked over CLUB
+SHAPE**, `club-shape-stacked*.svg`, in the colour versions below. The soundwave (`wave/`) and the
+triangle beat (`triangle-beat/`) stay as explorations.
+
 - `copy.md` — the landing hero and the App Store and Google Play listings.
 - `preview.png` — every lockup in every colour version, on the background it is for.
 - `club-shape-stacked*.svg` — the mark over CLUB SHAPE, as the Shape logo sets it over SHAPE.

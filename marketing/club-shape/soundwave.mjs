@@ -2,8 +2,9 @@
 // owner 2026-11-03: "i like this", then "lets perfect it").
 //
 // Perfected from the sketch in three ways:
-//   - mirrored about the line, so the beat clears the letters by the same amount above the cap line
-//     and below the baseline (the line runs at the letters' middle-bar height, MID);
+//   - mirrored about the line, which runs at the letters' middle-bar height (MID, 0.528 caps), so the
+//     tallest bar clears the cap line by 0.33 caps and the baseline by 0.27 (the sketch's shallower
+//     fall left 0.33 and 0.11);
 //   - the quiet bars are exactly the letters' bar thickness (TH), so the quiet stretch reads as a line
 //     in the letters' own pen, not dashes of three lengths;
 //   - the loud bars climb and fall in an even rhythm (a small bump, then the beat), the three loudest in
