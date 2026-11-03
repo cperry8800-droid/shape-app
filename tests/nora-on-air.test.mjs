@@ -82,6 +82,14 @@ test('while her engine is on the air, the song, artist and album come from her s
   assert.equal(await noraOnAir(fakeDb(tables([])), { now: at(30) }), null);
   assert.equal(await noraOnAir(fakeDb(tables(['started', 'song', 'failed'])), { now: at(30) }), null);
   assert.equal(await noraOnAir(fakeDb(tables(['started', 'ended'])), { now: at(30) }), null);
+  // ⚠ Her set's end takes effect when listeners hear it (Codex, #2574): the engine stopped sending
+  // at 25 s into the set, and listeners hear its last seconds HEARD_LAG_SEC later.
+  for (const last of ['ended', 'failed']) {
+    const t = tables(['started', 'song', last]);
+    t.nora_engine_log[2].played_at = new Date(START + 25000).toISOString();
+    assert.equal((await noraOnAir(fakeDb(t), { now: START + 25000 + (HEARD_LAG_SEC - 1) * 1000 })).title, 'First', `${last}: still heard`);
+    assert.equal(await noraOnAir(fakeDb(t), { now: START + 25000 + (HEARD_LAG_SEC + 1) * 1000 }), null, `${last}: and then not`);
+  }
   // A guest set, or an unpublished one, is not hers.
   assert.equal(await noraOnAir(fakeDb(tables(['started'], { nora_sets: [{ ...tables([]).nora_sets[0], host_kind: 'guest' }] })), { now: at(30) }), null);
   assert.equal(await noraOnAir(fakeDb(tables(['started'], { nora_sets: [{ ...tables([]).nora_sets[0], published: false }] })), { now: at(30) }), null);

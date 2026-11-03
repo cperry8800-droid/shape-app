@@ -1,8 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { describeSlot, WEEKDAYS } from '@/lib/radio/noraSlots.mjs';
 import { draftProgramme } from '@/lib/radio/noraSetStore.mjs';
-import { addSlot, confirmLicences, connectStation, deleteSlot, disconnectStation, setSlotEnabled, syncNow, withdrawLicences } from './actions';
-import { stationIdOf } from '@/lib/radio/station.mjs';
+import { addSlot, confirmLicences, deleteSlot, setSlotEnabled, syncNow, withdrawLicences } from './actions';
+import StationPanel from './StationPanel';
 
 // When Nora is the DJ (./page.tsx, under the library): the licence switch, the owner's slots,
 // the sets they put on the schedule this week, and what Nora will play in the next one.
@@ -24,7 +24,17 @@ const MESSAGES: Record<string, string> = {
   licences_withdrawn: 'Licences withdrawn: Nora’s sets are private again.',
   synced: 'Schedule updated.',
   station_connected: 'Shape Radio now plays your radio.co station on the website and in the app.',
-  station_disconnected: 'Shape Radio is disconnected from radio.co.',
+  own_station_connected: 'Shape Radio now plays Shape’s own station on the website and in the app.',
+  station_disconnected: 'Shape Radio is disconnected: the website and app have no station to play.',
+};
+// Why a station was not saved, in words (the rest read from their codes).
+const ERRORS: Record<string, string> = {
+  station_unreachable: 'the station did not answer at that address. Is the server up, with its DNS record in place?',
+  station_not_audio: 'that address answered, but not with audio. The stream is the station’s /live.',
+  station_no_cors: 'that address answered with audio, but without the one Access-Control-Allow-Origin: * the players need. Is it Shape’s station server (services/station)?',
+  station_stream_not_live: 'Shape’s own station streams at /live, e.g. https://radio.theshapecommunity.com/live.',
+  station_stream_is_radio_co: 'that is a radio.co address: use the radio.co form for it.',
+  station_stream_host: 'the stream needs the station’s own name, e.g. radio.theshapecommunity.com, not an address.',
 };
 
 const clock = (iso: string, zone: string) =>
@@ -91,31 +101,9 @@ export default async function NoraSets({ updated, error }: { updated?: string; e
       </div>
 
       {updated && <div className="rounded-lg border border-teal-400/30 bg-teal-400/10 text-teal-200 text-sm px-4 py-3">{MESSAGES[updated] ?? 'Saved, but the schedule could not be updated just now. It updates on the hour.'}</div>}
-      {error && <div className="rounded-lg border border-red-400/30 bg-red-400/10 text-red-200 text-sm px-4 py-3">Could not save: {error.replace(/_/g, ' ')}.</div>}
+      {error && <div className="rounded-lg border border-red-400/30 bg-red-400/10 text-red-200 text-sm px-4 py-3">Could not save: {ERRORS[error] ?? `${error.replace(/_/g, ' ')}.`}</div>}
 
-      <div className="rounded-xl border border-neutral-800 p-4 flex flex-col gap-3">
-        <div className="text-sm text-neutral-300">The station (radio.co)</div>
-        {station.data?.provider === 'http' && station.data?.stream_url ? (
-          <div className="flex items-center justify-between gap-3 flex-wrap text-sm">
-            <span className="text-neutral-200 break-all">Streaming {station.data.stream_url}{stationIdOf(station.data.now_playing_url) ? ` · station ${stationIdOf(station.data.now_playing_url)}` : ''}</span>
-            <form action={disconnectStation}><button type="submit" className="rounded-full border border-neutral-700 text-neutral-300 px-3 py-1 text-xs hover:border-neutral-500">Disconnect</button></form>
-          </div>
-        ) : (
-          <div className="text-sm text-amber-200">Not connected: the website and app have no station to play.</div>
-        )}
-        <form action={connectStation} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-2 items-end">
-          <label className="flex flex-col gap-1 text-xs text-neutral-500">Stream URL (radio.co → your station → Share / Stream URL)
-            <input name="stream_url" required placeholder="https://s5.radio.co/s0a1b2c3d4/listen" defaultValue={station.data?.stream_url ?? ''} className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-sm text-neutral-100" />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-neutral-500">Station ID
-            <input name="station_id" required placeholder="s0a1b2c3d4" defaultValue={stationIdOf(station.data?.now_playing_url) ?? ''} className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-sm text-neutral-100" />
-          </label>
-          <button type="submit" className="rounded-full border border-teal-400 bg-teal-400 text-neutral-950 px-4 py-1.5 text-sm">Connect</button>
-        </form>
-        <div className="text-xs text-neutral-500">
-          Nora’s engine broadcasts into the same station through radio.co’s live input during her slots (services/nora-engine/README.md).
-        </div>
-      </div>
+      <StationPanel station={station.data ?? null} />
 
       {licensedAt ? (
         <div className="rounded-xl border border-teal-400/30 bg-teal-400/5 p-4 flex items-center justify-between gap-4 flex-wrap">

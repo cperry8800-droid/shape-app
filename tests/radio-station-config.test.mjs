@@ -35,6 +35,14 @@ test('⚠ the server\'s config: the listeners\' mount falls back to the standby 
   assert.match(mount('/live'), /<fallback-mount>\/standby<\/fallback-mount>/);
   assert.match(mount('/live'), /<fallback-override>1<\/fallback-override>/);
   assert.match(mount('/standby'), /<hidden>1<\/hidden>/);
+  // ⚠ The players load the stream with crossOrigin="anonymous": each mount answers with exactly one
+  // Access-Control-Allow-Origin (Icecast 2.4.4 never applied a top-level block to a listener, and
+  // one there could double the header, which browsers refuse as surely as a missing one).
+  for (const m of ['/live', '/standby']) {
+    assert.equal((mount(m).match(/<header name="Access-Control-Allow-Origin" value="\*" \/>/g) || []).length, 1, `${m} carries the header once`);
+  }
+  const outside = r.xml.replace(/<mount[\s\S]*?<\/mount>/g, '').replace(/<!--[\s\S]*?-->/g, '');
+  assert.ok(!/<http-headers>/.test(outside), 'no top-level header block to double it');
   assert.match(r.xml, new RegExp(`<source-password>${GOOD.ICECAST_SOURCE_PASSWORD}</source-password>`));
   assert.match(r.xml, new RegExp(`<admin-password>${GOOD.ICECAST_ADMIN_PASSWORD}</admin-password>`));
   assert.match(r.xml, /<hostname>radio\.theshapecommunity\.com<\/hostname>/);

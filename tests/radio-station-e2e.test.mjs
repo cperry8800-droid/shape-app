@@ -13,6 +13,7 @@ import { chownSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { probeStream } from '../src/lib/radio/station.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HAS = spawnSync('icecast2', ['-v']).status === 0 && spawnSync('ffmpeg', ['-version']).status === 0;
@@ -115,6 +116,20 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
     run('sh', [join(ROOT, 'services/station/standby/standby.sh')], { ICECAST_SOURCE_PASSWORD: SOURCE_PW, ICECAST_HOST: `127.0.0.1:${port}`, TMPDIR: dir });
     await sleep(5000);
 
+    // ⚠ THE PLAYERS LOAD THE STREAM WITH crossOrigin="anonymous" (their analysers need it), so a
+    // response without exactly one Access-Control-Allow-Origin is no stream at all to a browser:
+    // missing, it is refused; doubled ("*, *"), it is refused too. Measured: Icecast's top-level
+    // <http-headers> never reached a listener; each mount carries its own.
+    const corsOf = async () => {
+      const res = await fetch(`http://127.0.0.1:${port}/live`, { headers: { Origin: 'https://www.theshapecommunity.com' }, signal: AbortSignal.timeout(4000) });
+      const out = [res.status, res.headers.get('content-type'), res.headers.get('access-control-allow-origin')];
+      try { await res.body.cancel(); } catch { /* headers only */ }
+      return out;
+    };
+    assert.deepEqual(await corsOf(), [200, 'audio/mpeg', '*'], 'the standby loop, as a browser asks for it');
+    // And the dashboard's own check of the stream passes it, on this real server.
+    assert.deepEqual(await probeStream(`http://127.0.0.1:${port}/live`), { ok: true }, 'the dashboard\'s check');
+
     // 3. One listener, from before the music to after it.
     const listener = run('ffmpeg', ['-hide_banner', '-v', 'error', '-i', `http://127.0.0.1:${port}/live`, '-ac', '1', '-ar', '8000', '-f', 's16le', 'pipe:1'], {});
     const chunks = [];
@@ -129,8 +144,10 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
       NORA_STREAM_URL: `icecast://source:${SOURCE_PW}@127.0.0.1:${port}/live`,
     });
     const titles = [];
+    let corsLive = null;
     const until = Date.now() + 6000 + 38000 + 14000;
     while (Date.now() < until) {
+      if (!corsLive && titles.length) corsLive = await corsOf();
       const st = await status();
       const srcs = st && st.source ? [].concat(st.source) : [];
       const live = srcs.find((s) => /\/live$/.test(s.listenurl || ''));
@@ -138,6 +155,7 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
       await sleep(500);
     }
     assert.equal(listenerEnded, false, `the listener was never dropped (${listener.err.slice(0, 300)})`);
+    assert.deepEqual(corsLive, [200, 'audio/mpeg', '*'], 'the music, as a browser asks for it');
 
     // What the listener heard, second by second.
     const buf = Buffer.concat(chunks);
