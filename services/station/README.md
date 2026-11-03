@@ -47,8 +47,11 @@ GMR, and PRS and PPL for the UK. Nothing plays until they are confirmed on that 
    ```
    docker compose up -d --build
    ```
-   Then open `https://radio.theshapecommunity.com/live`. You hear the standby loop until the
-   licences are confirmed and the library has songs, then the music.
+   Then check the door: `curl -sI https://radio.theshapecommunity.com/live` answers
+   **401**. That's right. The station lets in only members, each with the ticket Shape gives
+   their player (below), so an address without one is refused. Listen from the website or the app once the
+   station is switched over: the standby loop until the licences are confirmed and the library
+   has songs, then the music.
 
 To use your own standby loop (an ident or an ambient bed you have the rights to), put the file in
 `standby-audio/` and set `STANDBY_FILE=/standby/<its name>` in `.env`.
@@ -64,11 +67,12 @@ To use your own standby loop (an ident or an ambient bed you have the rights to)
 
 ## Switching Shape Radio over to it
 
-Once the station answers at its address (you hear the standby loop at `https://<STATION_HOST>/live`):
+Once the station answers at its address (`curl -sI https://<STATION_HOST>/live` answers 401):
 
 1. Open **Admin → Nora's library → The station**.
 2. Enter the stream, e.g. `https://radio.theshapecommunity.com/live`, and press **Use Shape's own**.
-   Shape listens to the address first, and saves it only if it answers with audio.
+   Shape listens to the address first, with a minute's ticket of its own, and saves it only if
+   it answers with audio.
 
 The website and the app then play it, and their "now playing" names the song from Shape's own
 plan: Nora's set while she plays, the rotation between her sets. The same panel shows what the
@@ -77,6 +81,22 @@ off the station; the radio.co form there switches back to radio.co.
 
 Don't run Nora's engine for radio.co at the same time as this one: both would play her sets and
 log them twice.
+
+## Members only, and only where the licences reach
+
+- **The pass and the ticket.** Shape hands each member Shape's own address for the stream, with
+  a pass on it (`/api/radio/listen?pass=`), signed by Shape and good for six hours. Each time a
+  player connects there, Shape checks the pass and the listener's own country, and sends the
+  player on to the station with a ticket (`?ticket=`): good for two minutes, and naming no one.
+  The station asks Shape whether the ticket is good (`/api/radio/pass`) before it lets the
+  listener in. The station's own address is never handed out, and its access log holds only
+  tickets. Both are checked at the door only: an expired one ends no stream already playing.
+- **The key.** Passes are signed with `RADIO_PASS_SECRET` if it is set in Vercel (32 or more
+  characters), or else with a key Shape derives from its database service key. Changing either
+  ends every pass out there; members' players simply ask for a new one.
+- **The territory.** Members outside the US and the UK get no stream: the app and website say
+  Shape Radio isn't available in their region yet. The country is the one Vercel measures for each
+  connection, so a shared address plays nowhere else either.
 
 **Privacy:** the station's server sees each listener's IP address and device, as radio.co did.
 When you switch, the subprocessors page (`public/subprocessors.html`) should name your station's

@@ -98,5 +98,6 @@
   "social.dAgo": "{n} d",
   "strip.live": "En vivo",
   "strip.nora": "Nora",
-  "strip.sets": "Shape Sets"
+  "strip.sets": "Shape Sets",
+  "region.unavailable": "Shape Radio todavía no está disponible en tu región."
 }

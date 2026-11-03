@@ -35,6 +35,8 @@ const ERRORS: Record<string, string> = {
   station_stream_not_live: 'Shape’s own station streams at /live, e.g. https://radio.theshapecommunity.com/live.',
   station_stream_is_radio_co: 'that is a radio.co address: use the radio.co form for it.',
   station_stream_host: 'the stream needs the station’s own name, e.g. radio.theshapecommunity.com, not an address.',
+  station_refused_pass: 'the station refused this Shape’s pass. Its SHAPE_URL must be this Shape’s address (services/station/.env).',
+  station_no_pass_key: 'this Shape has no key to sign listeners’ passes: set RADIO_PASS_SECRET (32+ characters) or the service-role key.',
 };
 
 const clock = (iso: string, zone: string) =>

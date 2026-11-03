@@ -6,6 +6,8 @@
 #   ICECAST_SOURCE_PASSWORD  the engine's and the standby loop's password (letters and digits, 16+)
 #   ICECAST_ADMIN_PASSWORD   Icecast's admin password (letters and digits, 16+)
 #   STATION_HOST             the station's public name, e.g. radio.theshapecommunity.com
+#   SHAPE_URL                Shape's address, which checks each listener's pass, e.g.
+#                            https://www.theshapecommunity.com (https; plain http only on this machine)
 #   ICECAST_ADMIN_EMAIL      optional, shown on Icecast's status page
 #   ICECAST_MAX_LISTENERS    optional, default 2000
 #   ICECAST_PORT             optional, default 8000
@@ -26,6 +28,12 @@ safe "${ICECAST_SOURCE_PASSWORD:-}" || fail 'ICECAST_SOURCE_PASSWORD must be 16 
 safe "${ICECAST_ADMIN_PASSWORD:-}" || fail 'ICECAST_ADMIN_PASSWORD must be 16 or more letters and digits (openssl rand -hex 24)'
 [ "$ICECAST_SOURCE_PASSWORD" != "$ICECAST_ADMIN_PASSWORD" ] || fail 'the two passwords must differ'
 printf '%s' "${STATION_HOST:-}" | grep -Eq '^[A-Za-z0-9.-]{1,253}$' || fail 'STATION_HOST must be a host name, e.g. radio.theshapecommunity.com'
+# The listeners' door: each pass goes to Shape over HTTPS (a pass in clear text is a pass anyone on
+# the way could reuse), but for a Shape on this same machine.
+SHAPE_URL=${SHAPE_URL:-}
+printf '%s' "$SHAPE_URL" | grep -Eq '^(https://[A-Za-z0-9.-]+|http://(127\.0\.0\.1|localhost))(:[0-9]{2,5})?$' \
+  || fail 'SHAPE_URL must be https://<host> (Shape, which checks each listener’s pass)'
+LISTENER_AUTH_URL="$SHAPE_URL/api/radio/pass"
 ICECAST_ADMIN_EMAIL=${ICECAST_ADMIN_EMAIL:-radio@theshapecommunity.com}
 printf '%s' "$ICECAST_ADMIN_EMAIL" | grep -Eq '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$' || fail 'ICECAST_ADMIN_EMAIL is not an email address'
 ICECAST_MAX_LISTENERS=${ICECAST_MAX_LISTENERS:-2000}
@@ -44,6 +52,7 @@ sed -e "s|\${ICECAST_SOURCE_PASSWORD}|$ICECAST_SOURCE_PASSWORD|g" \
     -e "s|\${ICECAST_MAX_LISTENERS}|$ICECAST_MAX_LISTENERS|g" \
     -e "s|\${ICECAST_LOG_DIR}|$ICECAST_LOG_DIR|g" \
     -e "s|\${ICECAST_PORT}|$ICECAST_PORT|g" \
+    -e "s|\${LISTENER_AUTH_URL}|$LISTENER_AUTH_URL|g" \
     "$template" > "$out"
 chmod 600 "$out"
 if grep -q '\${' "$out"; then fail "a value in $template was left unfilled"; fi

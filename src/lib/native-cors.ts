@@ -19,7 +19,9 @@ import { NextResponse } from 'next/server';
 export const NATIVE_APP_ORIGINS: readonly string[] = ['capacitor://localhost', 'https://localhost'];
 
 // Routes that answer CORS themselves; two sources for one header would be a conflict.
-const SELF_CORS_PREFIXES = ['/api/apply'];
+// /api/radio/listen answers `*` (the players load the stream cross-origin, and the redirect to the
+// station must allow every origin they load from).
+const SELF_CORS_PREFIXES = ['/api/apply', '/api/radio/listen'];
 
 const ALLOW_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
 // Cache-Control and Pragma: a WebView can add both to a `cache: 'no-store'` fetch and name them

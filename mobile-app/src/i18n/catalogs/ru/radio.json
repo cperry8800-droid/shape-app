@@ -98,5 +98,6 @@
   "social.dAgo": "{n} дн",
   "strip.live": "В эфире",
   "strip.nora": "Nora",
-  "strip.sets": "Shape Sets"
+  "strip.sets": "Shape Sets",
+  "region.unavailable": "Shape Radio пока недоступно в вашем регионе."
 }

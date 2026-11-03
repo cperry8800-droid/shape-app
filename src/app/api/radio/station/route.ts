@@ -11,16 +11,22 @@
 // away. Closing anonymous access was only half of it — a free signed-in account
 // is exactly the non-subscriber listening the rate ruling forbids.
 //
-// ⚠ HONEST RESIDUAL — this narrows the exposure, it does not eliminate it. The
-// URL points at our provider's public endpoint, so anyone who has already
-// resolved it can keep hitting the provider directly; what changes is that
-// SHAPE no longer distributes it to unauthenticated callers. Closing it fully
-// needs a subscriber-scoped stream token or a proxy in front of the provider,
-// which is a provider capability question — tracked, not solved here.
+// ⚠ HONEST RESIDUAL, ON radio.co ONLY. There the URL is the provider's public
+// endpoint, so anyone who has already resolved it can keep hitting it directly;
+// what changes is that SHAPE no longer distributes it to unauthenticated callers.
+// ON SHAPE'S OWN STATION IT IS CLOSED (part 3, src/lib/radio/pass.mjs): the stream
+// handed out carries a pass signed for this member, good for a few hours, and the
+// station lets no listener in without a good one. An address someone shared stops
+// working when its pass does.
+//
+// ⚠ AND ONLY WHERE THE LICENCES REACH: the US and the UK. A member elsewhere gets
+// 451 and no stream; in production a request with no measured country is refused.
 import { NextResponse, type NextRequest } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { refuseKnownMinor } from '@/lib/age-gate';
 import { computeMembership } from '@/lib/membership-core';
+import { OWN_PROVIDER } from '@/lib/radio/station.mjs';
+import { listenUrl, makePass, passKey, regionAllowed } from '@/lib/radio/pass.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -85,6 +91,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // The territory: the country Vercel measured for this request.
+  const region = regionAllowed(request.headers.get('x-vercel-ip-country'), { production: process.env.NODE_ENV === 'production' });
+  if (!region.ok) {
+    return NextResponse.json(
+      { error: 'Shape Radio isn’t available in your region yet.', code: region.reason },
+      { status: 451, headers: { 'cache-control': 'no-store' } }
+    );
+  }
+
   // ⚠ THE QUERY ERROR IS READ, AND DROPPING IT MANUFACTURED A FALSE 200 (Codex,
   // #2101 round 4). The Supabase client RESOLVES rather than throws on a query
   // fault — a statement timeout, an RLS change, a column that moved — so
@@ -110,10 +125,34 @@ export async function GET(request: NextRequest) {
       { status: 503 }
     );
   }
-  return NextResponse.json({
-    name: data?.station_name || 'Shape Radio',
-    streamUrl: data?.stream_url || null,
-    provider: data?.provider || 'mock',
-    configured: !!data?.stream_url,
-  });
+  // Shape's own station: the stream is Shape's own address, with this member's pass on it
+  // (/api/radio/listen checks the pass and the listener's country at every connection, and
+  // sends the player on to the station with a short ticket); the station's own address is
+  // never handed out. No key, no pass, and no stream either: the station would refuse it,
+  // so the player says it could not reach the station rather than playing nothing.
+  let streamUrl: string | null = data?.stream_url || null;
+  let passExpiresAt: string | null = null;
+  if (streamUrl && data?.provider === OWN_PROVIDER) {
+    const key = passKey();
+    const issued = key ? makePass({ userId: user.id, now: Date.now(), key }) : null;
+    if (!issued) {
+      console.error('[radio/station] no key to sign a stream pass with — failing CLOSED');
+      return NextResponse.json(
+        { error: 'Radio is unavailable right now.', code: 'station_unavailable' },
+        { status: 503 }
+      );
+    }
+    streamUrl = listenUrl(new URL(request.url).origin, issued.pass);
+    passExpiresAt = issued.expiresAt;
+  }
+  return NextResponse.json(
+    {
+      name: data?.station_name || 'Shape Radio',
+      streamUrl,
+      provider: data?.provider || 'mock',
+      configured: !!data?.stream_url,
+      ...(passExpiresAt ? { passExpiresAt } : {}),
+    },
+    { headers: { 'cache-control': 'no-store' } }
+  );
 }

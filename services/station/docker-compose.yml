@@ -15,6 +15,8 @@ services:
       STATION_HOST: ${STATION_HOST:?set it in .env}
       ICECAST_ADMIN_EMAIL: ${ICECAST_ADMIN_EMAIL:-}
       ICECAST_MAX_LISTENERS: ${ICECAST_MAX_LISTENERS:-2000}
+      # Shape checks each listener's pass (src/lib/radio/pass.mjs)
+      SHAPE_URL: ${SHAPE_URL:-https://www.theshapecommunity.com}
     # Reachable from this machine only (for a look at Icecast's status page over an SSH tunnel);
     # the public reach it through Caddy.
     ports:

@@ -333,6 +333,9 @@ test('a cached station read lets a retry reach audio.play() with no await in fro
   const decl = 'let stationCache = null;';
   assert.ok(src.includes(decl), 'the station cache is gone — a retry awaits the station again, outside the gesture');
   const fnSrc = braceBlock(src, 'async function play() {');
+  // play() also reads the pass's freshness and records why it was refused (part 3 of Shape's own
+  // radio): both are lifted with it, as written.
+  const helpers = `const radioApi = { lastRefusal: null };\n${braceBlock(src, 'const passFresh = (cfg) => {')};`;
   const make = (cfg) => {
     const log = [];
     const playbackGate = { begin: () => { const live = () => true; live.mustStop = () => false; return live; } };
@@ -340,8 +343,8 @@ test('a cached station read lets a retry reach audio.play() with no await in fro
     const station = () => new Promise((r) => { reads += 1; setTimeout(() => r(cfg), 0); });
     const a = { src: '', play: () => { log.push('play'); return Promise.resolve(); }, pause() {} };
     // eslint-disable-next-line no-new-func
-    const f = new Function('playbackGate', 'station', 'audio', `${decl}\n${fnSrc}\nreturn { play, cache: () => stationCache };`)(playbackGate, station, () => a);
-    return { play: f.play, cache: f.cache, log, reads: () => reads, a };
+    const f = new Function('playbackGate', 'station', 'audio', `${decl}\n${helpers}\n${fnSrc}\nreturn { play, cache: () => stationCache, refusal: () => radioApi.lastRefusal };`)(playbackGate, station, () => a);
+    return { play: f.play, cache: f.cache, refusal: f.refusal, log, reads: () => reads, a, set: (c) => { cfg = c; } };
   };
   const good = make({ configured: true, streamUrl: 'https://stream.example/live' });
   const p1 = good.play();
@@ -363,6 +366,24 @@ test('a cached station read lets a retry reach audio.play() with no await in fro
   const refused = make(null);
   assert.equal(await refused.play(), false);
   assert.equal(refused.cache(), null);
+  // ⚠ A cached read whose pass has run out is not replayed (the station would refuse its address):
+  // the next play asks again, for a fresh pass.
+  const old = make({ configured: true, streamUrl: 'https://radio.example/live?pass=old', passExpiresAt: new Date(Date.now() + 30000).toISOString() });
+  assert.equal(await old.play(), true);
+  old.set({ configured: true, streamUrl: 'https://radio.example/live?pass=new', passExpiresAt: new Date(Date.now() + 6 * 3600000).toISOString() });
+  const p3 = old.play();
+  assert.deepEqual(old.log, ['play'], 'a read with a spent pass was replayed without asking again');
+  assert.equal(await p3, true);
+  assert.equal(old.a.src, 'https://radio.example/live?pass=new');
+  // A fresh pass is cached like any good read: the retry reaches audio.play() at once.
+  const p4 = old.play();
+  assert.deepEqual(old.log, ['play', 'play', 'play']);
+  await p4;
+  // A country the licences do not reach is said as such.
+  const away = make({ configured: false, refusal: 'region' });
+  assert.equal(await away.play(), false);
+  assert.equal(away.refusal(), 'region');
+  assert.equal(away.cache(), null);
 });
 
 test('the figure is re-measured on the frame cadence, and a moved box forces a draw', () => {

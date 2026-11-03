@@ -3,8 +3,9 @@
   environment when the container starts; the passwords never live in this file.
 
   Two mounts:
-    /live      what listeners connect to. Nora's engine (NORA_MODE=station) plays into it around
-               the clock: her sets and, between them, the rotation Shape plans.
+    /live      what listeners connect to, each with the pass Shape gave them. Nora's engine
+               (NORA_MODE=station) plays into it around the clock: her sets and, between them,
+               the rotation Shape plans.
     /standby   a loop (standby/standby.sh) that is always on. When /live has no source (the engine
                is restarting, Shape is out of reach, nothing is licensed to play) its listeners are
                moved here, and moved back the moment /live returns (fallback-override). A listener
@@ -51,6 +52,15 @@
 
     <mount type="normal">
         <mount-name>/live</mount-name>
+        <!-- ⚠ MEMBERS ONLY, AT THE DOOR. Each listener arrives with a two-minute ticket Shape gave
+             their player as it connected (?ticket=, src/lib/radio/pass.mjs: Shape checked their
+             membership and their country first); Icecast asks Shape whether it is good before
+             letting them in, falling back to the standby loop or not. Shape answers with the
+             header below to admit; anything else, or no answer at all, refuses. -->
+        <authentication type="url">
+            <option name="listener_add" value="${LISTENER_AUTH_URL}" />
+            <option name="auth_header" value="icecast-auth-user: 1" />
+        </authentication>
         <fallback-mount>/standby</fallback-mount>
         <fallback-override>1</fallback-override>
         <public>0</public>

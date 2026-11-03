@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { probeStream } from '../src/lib/radio/station.mjs';
+import { checkListener, listenRedirect, listenUrl, makePass, makeTicket } from '../src/lib/radio/pass.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HAS = spawnSync('icecast2', ['-v']).status === 0 && spawnSync('ffmpeg', ['-version']).status === 0;
@@ -21,6 +22,11 @@ const HAS = spawnSync('icecast2', ['-v']).status === 0 && spawnSync('ffmpeg', ['
 const SOURCE_PW = 's'.repeat(24);
 const ADMIN_PW = 'a'.repeat(24);
 const TOKEN = 't'.repeat(40);
+// The stand-in Shape's pass key, and a member's pass as /api/radio/station would hand it out.
+const PASS_KEY = Buffer.from('k'.repeat(40));
+const MEMBER = '12345678-1234-4123-8123-123456789abc';
+const goodPass = () => makePass({ userId: MEMBER, now: Date.now(), key: PASS_KEY }).pass;
+const goodTicket = () => makeTicket({ now: Date.now(), key: PASS_KEY }).ticket;
 const BLOCK_ID = 'cccccccc-1111-4111-8111-111111111111';
 const TA = 'aaaaaaaa-1111-4111-8111-111111111111';
 const TB = 'bbbbbbbb-2222-4222-8222-222222222222';
@@ -71,11 +77,35 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
   // The stand-in Shape: one block, starting a few seconds after the engine first asks; then nothing.
   const songs = { [TA]: toneWav(1000, 20), [TB]: toneWav(2000, 20) };
   let block = null;
-  const reports = [], asks = [];
+  const reports = [], asks = [], doors = [];
   const shape = createServer((req, res) => {
     const u = new URL(req.url, 'http://x');
     const json = (code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
     if (u.pathname.startsWith('/song/')) { res.writeHead(200, { 'content-type': 'audio/wav' }); res.end(songs[u.pathname.slice(6)]); return; }
+    // Shape's own address for the stream: /api/radio/listen, with Shape's own check. The listener's
+    // country is the one Vercel would measure; here, the test names it.
+    if (u.pathname === '/api/radio/listen') {
+      listenRedirect({
+        pass: u.searchParams.get('pass'), country: req.headers['x-test-country'] || null, production: true,
+        readStation: async () => ({ provider: 'shape', stream_url: `http://127.0.0.1:${port}/live` }), now: Date.now(), key: PASS_KEY,
+      }).then((r) => {
+        res.writeHead(r.status, r.status === 302 ? { location: r.location, 'access-control-allow-origin': '*' } : { 'access-control-allow-origin': '*' });
+        res.end();
+      });
+      return;
+    }
+    // The station's door: /api/radio/pass, with Shape's own check.
+    if (u.pathname === '/api/radio/pass') {
+      let b = '';
+      req.on('data', (c) => { b += c; });
+      req.on('end', () => {
+        const v = checkListener(new URLSearchParams(b), { now: Date.now(), key: PASS_KEY });
+        doors.push(v.ok ? 'in' : v.reason);
+        res.writeHead(200, v.ok ? { 'icecast-auth-user': '1' } : { 'icecast-auth-message': v.reason });
+        res.end();
+      });
+      return;
+    }
     if (req.headers.authorization !== `Bearer ${TOKEN}`) return json(401, { error: 'Unauthorized' });
     if (req.method === 'POST') { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => { reports.push(JSON.parse(b)); json(200, { ok: true }); }); return; }
     const now = Date.now();
@@ -104,7 +134,7 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
 
   try {
     // 1. The server, as the container starts it.
-    const iceEnv = { ICECAST_SOURCE_PASSWORD: SOURCE_PW, ICECAST_ADMIN_PASSWORD: ADMIN_PW, STATION_HOST: 'localhost', ICECAST_PORT: String(port), ICECAST_CONFIG: join(dir, 'icecast.xml'), ICECAST_LOG_DIR: dir };
+    const iceEnv = { ICECAST_SOURCE_PASSWORD: SOURCE_PW, ICECAST_ADMIN_PASSWORD: ADMIN_PW, STATION_HOST: 'localhost', ICECAST_PORT: String(port), ICECAST_CONFIG: join(dir, 'icecast.xml'), ICECAST_LOG_DIR: dir, SHAPE_URL: `http://127.0.0.1:${shapePort}` };
     const entry = join(ROOT, 'services/station/icecast/entrypoint.sh');
     const ice = asRoot
       ? run('runuser', ['-u', 'nobody', '--', 'env', ...Object.entries(iceEnv).map(([k, v]) => `${k}=${v}`), 'sh', entry], {})
@@ -120,18 +150,47 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
     // response without exactly one Access-Control-Allow-Origin is no stream at all to a browser:
     // missing, it is refused; doubled ("*, *"), it is refused too. Measured: Icecast's top-level
     // <http-headers> never reached a listener; each mount carries its own.
-    const corsOf = async () => {
-      const res = await fetch(`http://127.0.0.1:${port}/live`, { headers: { Origin: 'https://www.theshapecommunity.com' }, signal: AbortSignal.timeout(4000) });
+    const corsOf = async (ticket = goodTicket()) => {
+      const q = ticket == null ? '' : `?ticket=${encodeURIComponent(ticket)}`;
+      const res = await fetch(`http://127.0.0.1:${port}/live${q}`, { headers: { Origin: 'https://www.theshapecommunity.com' }, signal: AbortSignal.timeout(4000) });
       const out = [res.status, res.headers.get('content-type'), res.headers.get('access-control-allow-origin')];
       try { await res.body.cancel(); } catch { /* headers only */ }
       return out;
     };
     assert.deepEqual(await corsOf(), [200, 'audio/mpeg', '*'], 'the standby loop, as a browser asks for it');
-    // And the dashboard's own check of the stream passes it, on this real server.
-    assert.deepEqual(await probeStream(`http://127.0.0.1:${port}/live`), { ok: true }, 'the dashboard\'s check');
+    // ⚠ Members only, at the door (part 3): no ticket, a forged one, an expired one, and a member's
+    // pass taken straight to the station, all refused.
+    assert.equal((await corsOf(null))[0], 401, 'no ticket');
+    assert.equal((await corsOf(goodTicket().replace(/.$/, (c) => (c === 'A' ? 'B' : 'A'))))[0], 401, 'a forged ticket');
+    assert.equal((await corsOf(makeTicket({ now: Date.now() - 600000, key: PASS_KEY }).ticket))[0], 401, 'an expired ticket');
+    const straight = await fetch(`http://127.0.0.1:${port}/live?pass=${encodeURIComponent(goodPass())}`, { signal: AbortSignal.timeout(4000) });
+    try { await straight.body.cancel(); } catch { /* headers only */ }
+    assert.equal(straight.status, 401, 'a member\'s pass does not open the station');
+    assert.deepEqual(doors.slice(0, 5), ['in', 'malformed', 'signature', 'expired', 'malformed'], 'Shape was asked each time, and said why');
+    // ⚠ Every connection goes through Shape's own address, which checks this listener's country
+    // (Codex, #2579): from the US, on to the station with a ticket, every answer allowing the
+    // players' cross-origin load; from abroad, or with a bad pass, no station address at all.
+    const listen = async (pass, country) => {
+      const res = await fetch(listenUrl(`http://127.0.0.1:${shapePort}`, pass), { redirect: 'manual', headers: { Origin: 'https://www.theshapecommunity.com', ...(country ? { 'x-test-country': country } : {}) }, signal: AbortSignal.timeout(4000) });
+      return [res.status, res.headers.get('access-control-allow-origin'), res.headers.get('location')];
+    };
+    const [st, acao, to] = await listen(goodPass(), 'US');
+    assert.deepEqual([st, acao], [302, '*']);
+    assert.ok(to.startsWith(`http://127.0.0.1:${port}/live?ticket=t1.`) && !to.includes('pass='), to);
+    const there = await fetch(to, { headers: { Origin: 'null' }, signal: AbortSignal.timeout(4000) });
+    try { await there.body.cancel(); } catch { /* headers only */ }
+    assert.deepEqual([there.status, there.headers.get('content-type'), there.headers.get('access-control-allow-origin')], [200, 'audio/mpeg', '*'], 'followed, the stream itself');
+    assert.deepEqual(await listen(goodPass(), 'FR'), [451, '*', null], 'a shared address, abroad');
+    assert.deepEqual(await listen(goodPass(), null), [451, '*', null], 'no country measured');
+    assert.deepEqual(await listen('nope', 'US'), [401, '*', null]);
+    // And the dashboard's own check of the stream passes it on this real server, with a ticket;
+    // without one, the station's refusal is said as that.
+    assert.deepEqual(await probeStream(`http://127.0.0.1:${port}/live?ticket=${encodeURIComponent(goodTicket())}`), { ok: true }, 'the dashboard\'s check');
+    assert.deepEqual(await probeStream(`http://127.0.0.1:${port}/live`), { ok: false, error: 'station_refused_pass' }, 'the dashboard\'s check, with no ticket');
 
     // 3. One listener, from before the music to after it.
-    const listener = run('ffmpeg', ['-hide_banner', '-v', 'error', '-i', `http://127.0.0.1:${port}/live`, '-ac', '1', '-ar', '8000', '-f', 's16le', 'pipe:1'], {});
+    // Through Shape's own address, as the players connect: the redirect, then the station.
+    const listener = run('ffmpeg', ['-hide_banner', '-v', 'error', '-headers', 'X-Test-Country: US\r\n', '-i', listenUrl(`http://127.0.0.1:${shapePort}`, goodPass()), '-ac', '1', '-ar', '8000', '-f', 's16le', 'pipe:1'], {});
     const chunks = [];
     let listenerEnded = false;
     listener.p.stdout.on('data', (c) => chunks.push(c));
