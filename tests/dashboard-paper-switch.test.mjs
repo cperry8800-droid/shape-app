@@ -315,7 +315,7 @@ test('the shared header and footer swap the logo lockup with the paper', () => {
   const shell = stripComments(read('pageShell.jsx'));
   for (const which of ['header', 'footer']) {
     const seg = which === 'header' ? shell.slice(shell.indexOf('<header className="shape-header"'), shell.indexOf('</header>')) : shell.slice(shell.indexOf('<footer className="shape-footer"'), shell.indexOf('</footer>'));
-    assert.match(seg, /shape-logo-nav-black\.png"[^>]*display: "var\(--sh-logo-light, none\)"/, `${which}: the black lockup is not gated on the light paper`);
+    assert.match(seg, /club-shape-logo-black\.svg"[^>]*display: "var\(--sh-logo-light, none\)"/, `${which}: the black lockup is not gated on the light paper`);
     assert.match(seg, /display: "var\(--sh-logo-dark, block\)"/, `${which}: the white lockup is not gated on the dark paper`);
   }
   const root = /:root \{([\s\S]*?)\n\}/.exec(CSS)[1];
