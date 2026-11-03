@@ -374,5 +374,17 @@
   "thread.typing": "{name} is typing",
   "thread.typingTwo": "{a} and {b} are typing",
   "thread.typingMany": "Several people are typing",
-  "thread.someone": "Someone"
+  "thread.someone": "Someone",
+  "thread.voiceRecord": "Record a voice note",
+  "thread.voiceRecordingLabel": "Recording a voice note",
+  "thread.voiceCancel": "Cancel recording",
+  "thread.voiceSend": "Send voice note",
+  "thread.voiceUnsupported": "Voice notes aren’t available on this device.",
+  "thread.voiceMicBlocked": "Allow the microphone to record a voice note.",
+  "thread.voicePlay": "Play voice note, {time}",
+  "thread.voicePause": "Pause voice note",
+  "thread.voiceSpeed": "Playback speed",
+  "thread.voiceUnplayable": "This voice note can’t be played right now.",
+  "thread.voiceNotSent": "Not sent",
+  "thread.voiceFailed": "Couldn’t send the voice note."
 }

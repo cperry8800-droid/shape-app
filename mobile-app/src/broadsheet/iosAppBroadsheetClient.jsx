@@ -97,6 +97,8 @@ import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSTrainerProfile } from './BSTrainerProfile.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
+import { BSVoiceRecorder, BSVoiceNotePlayer } from './BSVoiceNote.jsx';
+import { bsVoiceBody, bsVoiceFromMetadata } from '../services/voiceNote.mjs';
 import { BSSearchKitchenRecipe } from './BSSearchKitchenRecipe.jsx';
 import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
 import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot, bsGroceryCheckedKeys } from '../services/focusLayout.mjs';
@@ -24365,7 +24367,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     last: th.last,
     at: th.at || null,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ id: m.id || null, userId: m.userId || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', at: m.at || null, me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null, grocery: m.grocery || null, reply: m.reply || null })),
+    messages: (th.messages || []).map(m => ({ id: m.id || null, userId: m.userId || null, who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', at: m.at || null, me: m.me || m.who === 'You', coach: m.coach, shape: m.shape || null, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null, grocery: m.grocery || null, reply: m.reply || null, voice: m.voice || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land
@@ -26630,7 +26632,7 @@ function useBSCanChat() {
   return v;
 }
 
-function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false, holdToTalk = false, onVoiceComplete, mag = false, tray = false, above = null }) {
+function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false, holdToTalk = false, onVoiceComplete, mag = false, tray = false, above = null, voiceNote = null }) {
   // `mag`: the chat page's composer in the Wall's magazine look (owner, 2026-10-24): square, an ink send
   // button, the magazine's teal, no lock emoji and no floating shadow.
   // `tray`: Nora's sheet (the concierge desk, 2026-10-31): one rounded tray holds the mic, the field and a
@@ -26639,6 +26641,9 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   const canSend = value.trim().length > 0 || (tags && tags.length > 0);
   const canChat = useBSCanChat();
   const TEALB = mag ? bsWsAccent(t) : (t.isLight ? '#0a8f87' : '#34d6c5');
+  // `voiceNote` (a chat thread's, 2026-11-02): the tray's voice-note recorder, whose bar takes the
+  // field's place while it records (BSVoiceNote.jsx).
+  const [voiceActive, setVoiceActive] = useStateBSC(false);
 
   // ── Voice input (push-to-talk) — only when `voice` (Nora's support composer). ──
   // Produces text into THIS composer's onChange → the SAME onSend, so speaking a
@@ -26927,6 +26932,8 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
               : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0" /><line x1="12" y1="18" x2="12" y2="22" /></svg>}
           </button>
         )}
+        {voiceNote && !voiceOk && <BSVoiceRecorder t={t} active={voiceActive} onActive={setVoiceActive} onSend={voiceNote.onSend} />}
+        {!voiceActive && (<>
         <textarea
           ref={taRef}
           value={value}
@@ -26936,7 +26943,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
           }}
           placeholder={placeholder}
           rows={1}
-          style={{ flex: 1, minWidth: 0, minHeight: 40, maxHeight: COMPOSER_MAX_H, boxSizing: 'border-box', resize: 'none', display: 'block', background: 'transparent', border: 0, padding: voiceOk ? '10px 4px' : '10px 4px 10px 12px', fontFamily: t.BODY, fontSize: 15, lineHeight: 1.35, color: t.INK, outline: 'none', letterSpacing: '-0.005em', overflowY: 'hidden' }}
+          style={{ flex: 1, minWidth: 0, minHeight: 40, maxHeight: COMPOSER_MAX_H, boxSizing: 'border-box', resize: 'none', display: 'block', background: 'transparent', border: 0, padding: (voiceOk || voiceNote) ? '10px 4px' : '10px 4px 10px 12px', fontFamily: t.BODY, fontSize: 15, lineHeight: 1.35, color: t.INK, outline: 'none', letterSpacing: '-0.005em', overflowY: 'hidden' }}
         />
         <button type="button" onClick={onSend} disabled={!canSend} aria-label="Send" style={{
           flex: 'none', width: 40, height: 40, borderRadius: '50%', border: 0,
@@ -26945,6 +26952,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
         </button>
+        </>)}
       </div>
     );
     // `above`: what rides over the field, a chat thread's reply quote (2026-11-01).
@@ -27312,6 +27320,36 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     } else if (sent && sent.catch) sent.catch(() => {});
   };
 
+  // ── VOICE NOTES (owner, 2026-11-02: "build voice notes next"). The note shows at once, playing from
+  // the phone's own copy, while it uploads to the thread's folder and its message is stored; a note that
+  // fails says Not sent. The words it leaves (for previews and pushes) are bsVoiceBody's.
+  const sendVoice = (rec) => {
+    const kind = thread.conversationId ? 'dm' : thread.channelId ? 'ch' : null;
+    const threadId = thread.conversationId || thread.channelId;
+    const notes = window.ShapeVoiceNotes;
+    if (!kind || !threadId || !notes || !rec || !rec.blob) return;
+    const tmpId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    let localUrl = null;
+    try { localUrl = URL.createObjectURL(rec.blob); } catch (e) { localUrl = null; }
+    const body = bsVoiceBody(rec.duration);
+    stopTyping();
+    setExtras(e => [...e, { tmpId, who: 'You', t: body, time: 'now', at: new Date().toISOString(), me: true, voice: { localUrl, duration: rec.duration, peaks: rec.peaks, mime: rec.mime, pending: true } }]);
+    const mark = (patch, voicePatch) => setExtras(e => e.map(x => x.tmpId === tmpId ? { ...x, ...patch, voice: { ...x.voice, ...voicePatch } } : x));
+    Promise.resolve(notes.upload({ kind, threadId, blob: rec.blob, ext: rec.ext, mime: rec.mime }))
+      .then(({ path }) => {
+        const voice = { path, duration: rec.duration, peaks: rec.peaks, mime: rec.mime };
+        return kind === 'dm'
+          ? window.ShapeMessages.sendMessage({ conversationId: thread.conversationId, body, metadata: { voice, cid: tmpId } })
+          : window.ShapeChannels.sendMessage({ channelId: thread.channelId, body, voice });
+      })
+      .then(res => { const id = res && res.data && res.data.id; const at = res && res.data && res.data.created_at; mark({ ...(id ? { id } : {}), ...(at ? { at } : {}) }, { pending: false }); })
+      .catch(() => {
+        mark({}, { pending: false, failed: true });
+        try { window.__bsToast?.(tr('feed:thread.voiceFailed', { defaultValue: 'Couldn’t send the voice note.' }), 'err'); } catch (e) { /* no toast here */ }
+      });
+  };
+  const voiceNote = (thread.conversationId || thread.channelId) ? { onSend: sendVoice } : null;
+
   // Realtime: new messages from others drop into the open thread live.
   React.useEffect(() => {
     const myId = window.ShapeAuth?.getCachedState?.()?.user?.id;
@@ -27319,7 +27357,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     if (thread.channelId && window.ShapeChannels?.subscribeMessages) {
       unsub = window.ShapeChannels.subscribeMessages((row) => {
         if (!row || row.channel_id !== thread.channelId || row.sender_id === myId) return;
-        setExtras(e => [...e, { id: row.id || null, who: row.author_name || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, reply: bsReplyFromMetadata(row.metadata) }]);
+        setExtras(e => [...e, { id: row.id || null, who: row.author_name || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, reply: bsReplyFromMetadata(row.metadata), voice: bsVoiceFromMetadata(row.metadata, { kind: 'ch', threadId: thread.channelId }) }]);
         if (row.sender_id) window.ShapeThreadSignals?.typing?.(sigKey, { userId: row.sender_id, on: false }); // they sent it: no longer typing
         window.ShapeUnread?.markChannelRead?.(thread.channelId);  // it's open → keep it read
       });
@@ -27332,7 +27370,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         // Carry the live-boost stamp on realtime appends too — a boost landing
         // while this thread is OPEN (the time-sensitive case) must render with
         // its eyebrow immediately, not only after a reload re-maps metadata.
-        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null, grocery: bsGroceryFromMetadata(row.metadata), reply: bsReplyFromMetadata(row.metadata) }]);
+        setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null, grocery: bsGroceryFromMetadata(row.metadata), reply: bsReplyFromMetadata(row.metadata), voice: bsVoiceFromMetadata(row.metadata, { kind: 'dm', threadId: thread.conversationId }) }]);
         if (row.sender_id) window.ShapeThreadSignals?.typing?.(sigKey, { userId: row.sender_id, on: false }); // they sent it: no longer typing
         // Read while open and in view: stored, then announced, so their Sent turns to Seen.
         if (bsPageHidden()) unreadWhileHiddenRef.current = true;
@@ -27597,7 +27635,8 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                       <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.PAPER, 0.78), marginBottom: 5, fontWeight: 800 }}>▲ Live boost · {m.boost === 'cooking' ? 'mid-cook' : 'mid-workout'}</div>
                     )}
                     {quoteBlock(m, true)}
-                    {m.t}
+                    {/* A voice note draws its player where the words would be; the words are for previews. */}
+                    {m.voice ? <BSVoiceNotePlayer voice={m.voice} mine t={t} accent={teal} /> : m.t}
                     {m.clip && (
                       <div style={{ marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${teal}66`, borderRadius: 9 }}>
                         <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginBottom: 5, fontWeight: 800 }}>Program tweak · applied</div>
@@ -27669,7 +27708,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: m.boost === 'cooking' ? t.AMBER : teal, marginBottom: 5, fontWeight: 800 }}>▲ Live boost · {m.boost === 'cooking' ? 'mid-cook' : 'mid-workout'}</div>
                   )}
                   {quoteBlock(m, false)}
-                  {m.t}
+                  {m.voice ? <BSVoiceNotePlayer voice={m.voice} t={t} accent={teal} /> : m.t}
                   {m.clip && (
                     <div style={{ marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${teal}66`, borderRadius: 9 }}>
                       <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginBottom: 5, fontWeight: 800 }}>Program tweak · applied</div>
@@ -27735,7 +27774,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
 
       {/* The tray composer, as Nora's sheet docks it, pinned to the foot of the screen; a reply's quote
           rides over its field. */}
-      <BSMessageComposer value={text} onChange={onType} onSend={send} pinned tray above={quoteBar} />
+      <BSMessageComposer value={text} onChange={onType} onSend={send} pinned tray above={quoteBar} voiceNote={voiceNote} />
     </BSPage>
   );
 }

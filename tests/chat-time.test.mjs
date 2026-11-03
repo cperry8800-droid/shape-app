@@ -8,6 +8,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { bsChatStamp, bsChatClock, bsChatDayLabel } from '../mobile-app/src/services/chatTime.mjs';
 import { bsReplyFromMetadata } from '../mobile-app/src/services/chatReply.mjs';
+// The readers keep a voice note too (2026-11-02).
+import { bsVoiceFromMetadata } from '../mobile-app/src/services/voiceNote.mjs';
 import { bsGroceryFromMetadata } from '../mobile-app/src/services/groceryShare.mjs';
 import { isShapeWelcome } from '../mobile-app/src/services/shapeWelcome.mjs';
 
@@ -66,7 +68,7 @@ const fakeSupabase = (rows) => {
 };
 
 test('a channel\'s messages keep their stamp and read a time, not SYNCED', async () => {
-  const listChannelMessages = load('listChannelMessages', { state: { user: { id: 'u-me' } }, supabase: fakeSupabase(ROWS), bsChatStamp, bsReplyFromMetadata });
+  const listChannelMessages = load('listChannelMessages', { state: { user: { id: 'u-me' } }, supabase: fakeSupabase(ROWS), bsChatStamp, bsReplyFromMetadata, bsVoiceFromMetadata });
   const { data } = await listChannelMessages('ch-1');
   assert.deepEqual(data.map((m) => m.at), ROWS.map((r) => r.created_at));
   for (const m of data) {
@@ -81,7 +83,7 @@ test('a channel\'s messages keep their stamp and read a time, not SYNCED', async
 
 test('coach and member threads keep the last message\'s stamp, and a thread with none reads now', () => {
   const state = { user: { id: 'u-me' } };
-  const deps = { state, isShapeWelcome, bsGroceryFromMetadata, bsReplyFromMetadata, bsChatStamp };
+  const deps = { state, isShapeWelcome, bsGroceryFromMetadata, bsReplyFromMetadata, bsVoiceFromMetadata, bsChatStamp };
   const conversationToThread = load('conversationToThread', deps);
   const memberThreadFromRow = load('memberThreadFromRow', deps);
   const msgs = [{ id: 'a', sender_id: 'u-coach', body: 'Hi', metadata: {}, created_at: ROWS[0].created_at }];
@@ -103,7 +105,7 @@ const { loadBroadsheet, drive } = await import('./helpers/broadsheet-mount.mjs')
 const { BSChatThread } = await loadBroadsheet(['BSChatThread']);
 
 test('a channel opened in German says each message\'s time in German', async () => {
-  const listChannelMessages = load('listChannelMessages', { state: { user: { id: 'u-me' } }, supabase: fakeSupabase(ROWS), bsChatStamp, bsReplyFromMetadata });
+  const listChannelMessages = load('listChannelMessages', { state: { user: { id: 'u-me' } }, supabase: fakeSupabase(ROWS), bsChatStamp, bsReplyFromMetadata, bsVoiceFromMetadata });
   const { data } = await listChannelMessages('ch-1');
   const had = globalThis.ShapeI18n;
   globalThis.ShapeI18n = { intlLocale: () => 'de-DE', current: () => 'de', t: () => undefined };

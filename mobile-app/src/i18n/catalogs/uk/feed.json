@@ -374,5 +374,17 @@
   "thread.typing": "{name} друкує",
   "thread.typingTwo": "{a} і {b} друкують",
   "thread.typingMany": "Кілька людей друкують",
-  "thread.someone": "Хтось"
+  "thread.someone": "Хтось",
+  "thread.voiceRecord": "Записати голосове повідомлення",
+  "thread.voiceRecordingLabel": "Триває запис голосового повідомлення",
+  "thread.voiceCancel": "Скасувати запис",
+  "thread.voiceSend": "Надіслати голосове повідомлення",
+  "thread.voiceUnsupported": "Голосові повідомлення недоступні на цьому пристрої.",
+  "thread.voiceMicBlocked": "Дозвольте доступ до мікрофона, щоб записати голосове повідомлення.",
+  "thread.voicePlay": "Відтворити голосове повідомлення, {time}",
+  "thread.voicePause": "Призупинити голосове повідомлення",
+  "thread.voiceSpeed": "Швидкість відтворення",
+  "thread.voiceUnplayable": "Це голосове повідомлення зараз неможливо відтворити.",
+  "thread.voiceNotSent": "Не надіслано",
+  "thread.voiceFailed": "Не вдалося надіслати голосове повідомлення."
 }
