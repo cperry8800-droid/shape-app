@@ -14,6 +14,10 @@
 --   · removing (delete): your own notes only. There is no update: a note is never overwritten.
 -- A path of any other shape is refused, so the id casts below cannot fail.
 --
+-- Deleting an account erases its notes too (src/lib/account-erasure.ts). They sit under their thread,
+-- not under a <uid>/ folder, so the erasure asks voice_note_paths_of() (service role only) for the
+-- names whose sender is that account and removes them through the storage API.
+--
 -- One transaction, re-runnable (the bucket is upserted, a policy is dropped only to be created again),
 -- a guard at the end. Not run by this PR.
 
@@ -61,6 +65,26 @@ $$;
 revoke all on function public.voice_note_path_ok(text, boolean) from public, anon;
 grant execute on function public.voice_note_path_ok(text, boolean) to authenticated;
 
+-- The names of an account's notes, by their sender segment, 1000 at a time (the erasure asks again
+-- until none are left). Service role only: it reads every thread's folder.
+create or replace function public.voice_note_paths_of(p_user uuid)
+returns setof text
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select o.name
+  from storage.objects o
+  where o.bucket_id = 'voice-notes'
+    and split_part(o.name, '/', 3) = p_user::text
+  order by o.name
+  limit 1000
+$$;
+
+revoke all on function public.voice_note_paths_of(uuid) from public, anon, authenticated;
+grant execute on function public.voice_note_paths_of(uuid) to service_role;
+
 drop policy if exists "voice notes: a thread's people play them" on storage.objects;
 create policy "voice notes: a thread's people play them" on storage.objects
   for select to authenticated
@@ -76,7 +100,8 @@ create policy "voice notes: a sender removes their own" on storage.objects
   for delete to authenticated
   using (bucket_id = 'voice-notes' and (storage.foldername(name))[3] = auth.uid()::text);
 
--- Guard: the bucket is private with the three types, the door is there, and the rules use it.
+-- Guard: the bucket is private with the three types, the door and the erasure's lookup are there
+-- (the lookup for the service role alone), and the rules use the door.
 do $$
 begin
   if not exists (
@@ -93,6 +118,15 @@ begin
       and pg_get_function_identity_arguments(p.oid) = 'p_name text, p_write boolean'
   ) or has_function_privilege('anon', 'public.voice_note_path_ok(text, boolean)', 'execute') then
     raise exception 'voice_note_path_ok(text, boolean) is missing, not security definer, or open to anon';
+  end if;
+  if not exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'voice_note_paths_of' and p.prosecdef
+      and pg_get_function_identity_arguments(p.oid) = 'p_user uuid'
+  ) or has_function_privilege('anon', 'public.voice_note_paths_of(uuid)', 'execute')
+    or has_function_privilege('authenticated', 'public.voice_note_paths_of(uuid)', 'execute')
+    or not has_function_privilege('service_role', 'public.voice_note_paths_of(uuid)', 'execute') then
+    raise exception 'voice_note_paths_of(uuid) is missing, not security definer, or not service-role only';
   end if;
   if (select count(*) from pg_policies
       where schemaname = 'storage' and tablename = 'objects'

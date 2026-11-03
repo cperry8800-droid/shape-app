@@ -90,6 +90,11 @@ const PURGE: { table: string; col: string }[] = [
 // `website/<applicationId>/`, which POST purges with the application (applicationIdsFor below).
 const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-media', 'coach-credentials', 'member-films', 'provider-credentials'];
 const APPLICATION_BUCKET = 'provider-credentials';
+// ⚠ VOICE NOTES ARE NOT UNDER `<uid>/`. A chat voice note is stored under its thread, then its sender
+// (`<kind>/<thread>/<sender>/<file>`, supabase-migrations/2026-11-03-voice-notes.sql), so no prefix walk
+// finds an account's notes. purgeVoiceNotes asks voice_note_paths_of() (service role only) for the names
+// whose sender is the account, and removes them (Codex P1 on #2567).
+const VOICE_BUCKET = 'voice-notes';
 
 // Remove every object under `<uid>/` (files AND anything nested in sub-folders), and
 // only report success if nothing errored — so a "purged" result can't hide files left
@@ -142,6 +147,32 @@ async function purgeBucket(admin: Admin, bucket: string, uid: string): Promise<b
   };
   try {
     return await purgePrefix(uid);
+  } catch {
+    return false;
+  }
+}
+
+// Remove every voice note the account sent, and only report success when none is left. The lookup
+// answers 1000 at a time, so it is asked again until it answers none; a pass that removes nothing new
+// bails as false, so an object that cannot be removed can't spin the loop. A name not in the
+// account's own sender folder is never removed, whatever the lookup answers. Before the voice-notes
+// migration runs there is no lookup, no bucket and no note, so an absent lookup is already purged.
+async function purgeVoiceNotes(admin: Admin, uid: string): Promise<boolean> {
+  try {
+    let last = '';
+    for (;;) {
+      const { data, error } = await admin.rpc('voice_note_paths_of', { p_user: uid });
+      if (error) {
+        const e = error as { code?: string };
+        return e.code === 'PGRST202' || e.code === '42883';
+      }
+      const names = ((data ?? []) as unknown[]).map((n) => String(n)).filter((n) => n.split('/')[2] === uid);
+      if (!names.length) return true;
+      if (names[0] === last) return false;
+      last = names[0];
+      const { error: rmErr } = await admin.storage.from(VOICE_BUCKET).remove(names);
+      if (rmErr) return false;
+    }
   } catch {
     return false;
   }
@@ -207,6 +238,8 @@ export async function eraseAccount(
     if (await purgeBucket(admin, b, uid)) bucketsPurged.push(b);
     else allBucketsPurged = false;
   }
+  if (await purgeVoiceNotes(admin, uid)) bucketsPurged.push(VOICE_BUCKET);
+  else allBucketsPurged = false;
   // The account's coach applications: their website uploads now, their rows in step 2.
   const applicationIds = await applicationIdsFor(admin, user);
   if (applicationIds === null) allBucketsPurged = false;
@@ -269,6 +302,7 @@ export async function eraseAccount(
   //    still valid until its expiry is caught by the platform-wide orphan-GC follow-up).
   if (authDeleted) {
     for (const b of BUCKETS) { await purgeBucket(admin, b, uid); }
+    await purgeVoiceNotes(admin, uid);
   }
 
   // 5. Close the audit row.

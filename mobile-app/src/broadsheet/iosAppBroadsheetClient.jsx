@@ -27443,11 +27443,13 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   const byId = new Map(allMessages.filter((x) => x && x.id).map((x) => [String(x.id), x]));
   // The quote a reply draws: the quoted message itself when it is loaded (its own sender and words,
   // so a stored quote cannot misquote it), else the snippet stored with the reply.
+  // A voice note's words are said in the app's language (Codex P2 on #2567): a loaded message's only
+  // when it is a note (it carries one), a stored snippet's by their shape.
   const quoteOf = (r) => {
     if (!r) return null;
     const q = r.id ? byId.get(String(r.id)) : null;
-    if (q) return { id: String(r.id), who: q.me ? youWord : (q.who || thread.who), t: bsReplySnippet(q.t) };
-    return { id: null, who: (r.from && myId && r.from === myId) ? youWord : (r.who || 'Member'), t: r.t };
+    if (q) return { id: String(r.id), who: q.me ? youWord : (q.who || thread.who), t: q.voice ? bsVoicePreview(q.t, tr) : bsReplySnippet(q.t) };
+    return { id: null, who: (r.from && myId && r.from === myId) ? youWord : (r.who || 'Member'), t: bsVoicePreview(r.t, tr) };
   };
   const jumpTo = (id) => {
     try {

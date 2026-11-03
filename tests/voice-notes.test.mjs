@@ -14,6 +14,7 @@ import {
 import { noticeText, triggerCopy } from '../mobile-app/src/services/noticeCopy.mjs';
 import { SILENT_CLIP } from '../public/newdesign/noraVoiceLoop.mjs';
 import { loadBroadsheet, loadCarved, drive, textOf, ROOT, SHIM, THEME } from './helpers/broadsheet-mount.mjs';
+import { loadRealModule } from './helpers/load-real-module.mjs';
 
 const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
 const CLIENT = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
@@ -291,6 +292,76 @@ test('every reader keeps a note, and only one stored under its own thread', asyn
   assert.equal((CLIENT.match(/bsVoiceFromMetadata\(/g) || []).length, 2, 'no other reader of a note in the client');
   assert.equal((BACKEND.match(/bsVoiceFromMetadata\((?:message|m)\.metadata, \{ kind: '(?:dm|ch)', threadId: [\w.]+, senderId: (?:message|m)\.sender_id \}\)/g) || []).length, 3, 'each backend reader names the row\'s sender');
   assert.match(CLIENT, /reply: m\.reply \|\| null, voice: m\.voice \|\| null \}\)\),/);
+});
+
+// ── Account erasure ────────────────────────────────────────────────────────────────────────────
+const erasure = await loadRealModule(join(ROOT, 'src/lib/account-erasure.ts'), { typescript: true, registry: new Map([['@/lib/supabase/admin', {}]]) });
+// A service-role client: no tables or <uid>/ folders to speak of, a voice-notes bucket of `voice`.
+function erasureAdmin({ voice = [], rpc = null, removeError = null, stuck = false } = {}) {
+  const objects = new Set(voice);
+  const log = [];
+  const chain = { select: () => chain, maybeSingle: async () => ({ data: { id: 'audit-1' }, error: null }), eq: async () => ({ error: null }), in: async () => ({ data: [], error: null }) };
+  const admin = {
+    from: () => ({ insert: () => chain, update: () => chain, delete: () => chain, select: () => chain }),
+    storage: { from: (bucket) => ({
+      list: async () => ({ data: [], error: null }),
+      remove: async (names) => {
+        log.push(['remove', bucket, names.length]);
+        if (bucket !== 'voice-notes') return { error: null };
+        if (removeError) return { error: removeError };
+        if (!stuck) names.forEach((n) => objects.delete(n));
+        return { error: null };
+      },
+    }) },
+    rpc: async (name, args) => {
+      log.push(['rpc', name, args.p_user]);
+      if (rpc) return rpc(name, args, objects);
+      return { data: [...objects].filter((n) => n.split('/')[2] === args.p_user).sort().slice(0, 1000), error: null };
+    },
+    auth: { admin: { deleteUser: async (id) => { log.push(['deleteUser', id]); return { error: null }; } } },
+  };
+  return { admin, objects, log };
+}
+const OTHER_CONV = 'bbbbbbbb-0000-4000-8000-000000000002';
+const mine = [`dm/${CONV}/${ME}/a.m4a`, `ch/${CHAN}/${ME}/b.webm`, `dm/${OTHER_CONV}/${ME}/c.ogg`];
+const hers = [`dm/${CONV}/${HER}/d.m4a`];
+
+test('deleting an account erases every voice note it sent, in every thread, before the account goes (Codex P1 on #2567)', async () => {
+  const w = erasureAdmin({ voice: [...mine, ...hers] });
+  const res = await erasure.eraseAccount(w.admin, { id: ME });
+  assert.equal(res.ok, true);
+  assert.deepEqual([...w.objects], hers, 'hers stay; none of mine is left');
+  const at = (pred) => w.log.findIndex(pred);
+  assert.ok(at((e) => e[0] === 'remove' && e[1] === 'voice-notes') < at((e) => e[0] === 'deleteUser'), 'removed before the account is deleted');
+  assert.deepEqual(w.log.filter((e) => e[0] === 'rpc').map((e) => e.slice(1)), [['voice_note_paths_of', ME], ['voice_note_paths_of', ME], ['voice_note_paths_of', ME]], 'asked until none, then swept once more after');
+  assert.equal(res.bucketsPurged, 8, 'counted with the other buckets');
+  // More than a page: asked again until none is left.
+  const many = erasureAdmin({ voice: Array.from({ length: 1500 }, (_, i) => `dm/${CONV}/${ME}/n${String(i).padStart(4, '0')}.m4a`) });
+  assert.equal((await erasure.eraseAccount(many.admin, { id: ME })).ok, true);
+  assert.equal(many.objects.size, 0);
+  assert.deepEqual(many.log.filter((e) => e[0] === 'remove' && e[1] === 'voice-notes').map((e) => e[2]), [1000, 500]);
+});
+
+test('the voice-note purge stops the deletion when it cannot finish, and never removes another sender\'s note (Codex P1 on #2567)', async () => {
+  const refused = erasureAdmin({ voice: mine, rpc: () => ({ data: null, error: { code: '42501', message: 'permission denied' } }) });
+  assert.deepEqual(await erasure.eraseAccount(refused.admin, { id: ME }), { ok: false, stage: 'storage', tablesPurged: 0, bucketsPurged: 7 });
+  assert.equal(refused.log.some((e) => e[0] === 'deleteUser'), false, 'the account stays for a clean retry');
+  const failing = erasureAdmin({ voice: mine, removeError: { message: 'storage down' } });
+  assert.equal((await erasure.eraseAccount(failing.admin, { id: ME })).stage, 'storage');
+  const stuck = erasureAdmin({ voice: mine, stuck: true });
+  assert.equal((await erasure.eraseAccount(stuck.admin, { id: ME })).stage, 'storage', 'a note that will not go stops it, without spinning');
+  assert.equal(stuck.log.filter((e) => e[0] === 'remove' && e[1] === 'voice-notes').length, 1);
+  const thrown = erasureAdmin({ voice: mine, rpc: () => { throw new Error('network'); } });
+  assert.equal((await erasure.eraseAccount(thrown.admin, { id: ME })).stage, 'storage');
+  // Before the migration runs there is no lookup (and no bucket, no note): nothing to erase.
+  for (const code of ['PGRST202', '42883']) {
+    const before = erasureAdmin({ rpc: () => ({ data: null, error: { code } }) });
+    assert.equal((await erasure.eraseAccount(before.admin, { id: ME })).ok, true, code);
+  }
+  // Whatever the lookup answers, only names in the account's own sender folder are removed.
+  const loose = erasureAdmin({ voice: [...mine, ...hers], rpc: (n, a, objs) => ({ data: [...objs].sort().slice(0, 1000), error: null }) });
+  assert.equal((await erasure.eraseAccount(loose.admin, { id: ME })).ok, true);
+  assert.deepEqual([...loose.objects], hers, 'hers survive a lookup that answered too much');
 });
 
 // ── The recorder and the player ────────────────────────────────────────────────────────────────
@@ -750,6 +821,32 @@ test('a channel note goes as the channel\'s voice; a note that fails says Not se
   assert.deepEqual(toasts, ['Couldn’t send the voice note.']);
 });
 
+test('a reply quoting a voice note says it in the reader\'s language, a typed one as written (Codex P2 on #2567)', () => {
+  const savedT = globalThis.window.ShapeI18n.t;
+  const de = catTr('de');
+  globalThis.window.ShapeI18n.t = (key, opts) => de(key, opts);
+  try {
+    const at = '2026-11-02T09:00:00Z';
+    const d = mountThread(DM({ messages: [
+      { id: 'm1', who: MAYA, userId: HER, t: 'Voice note · 0:07', at, me: false, voice: { path: VOICE.path, duration: 7, peaks: [0.4], mime: 'audio/mp4' } },
+      { id: 'm2', who: 'You', t: 'Klingt gut.', at, me: true, reply: { id: 'm1', who: MAYA, t: 'Voice note · 0:07' } },
+      { id: 'm3', who: 'You', t: 'Und?', at, me: true, reply: { id: 'gone', who: MAYA, t: 'Voice note · 0:07' } },
+      { id: 'm4', who: MAYA, userId: HER, t: 'Voice note · 0:09', at, me: false },
+      { id: 'm5', who: 'You', t: 'Ha', at, me: true, reply: { id: 'm4', who: MAYA, t: 'Voice note · 0:09' } },
+    ] }));
+    const quotes = withAttr(d.nodes(), 'data-thread-quote').map(textOf);
+    assert.equal(quotes.length, 3);
+    assert.ok(quotes[0].includes('Sprachnachricht · 0:07'), `a loaded note: ${quotes[0]}`);
+    assert.ok(quotes[1].includes('Sprachnachricht · 0:07'), `a stored snippet: ${quotes[1]}`);
+    assert.ok(quotes[2].includes('Voice note · 0:09'), `a loaded message that only says so, as written: ${quotes[2]}`);
+    withAttr(d.nodes(), 'data-thread-theirs')[0].props.onContextMenu({ preventDefault() {} });
+    d.render();
+    named(d, 'BSReactionPicker')[0].props.onReply();
+    d.render();
+    assert.match(textOf(named(d, 'BSMessageComposer')[0].props.above), /Sprachnachricht · 0:07/, 'and the bar above the composer');
+  } finally { globalThis.window.ShapeI18n.t = savedT; }
+});
+
 // Long-press her note and tap Reply, as a member does before recording an answer.
 const replyToHers = (d) => {
   withAttr(d.nodes(), 'data-thread-theirs')[0].props.onContextMenu({ preventDefault() {} });
@@ -899,6 +996,13 @@ test('the migration: a private bucket of three audio types, and rules that follo
   assert.match(MIGRATION, /for delete to authenticated\n\s+using \(bucket_id = 'voice-notes' and \(storage\.foldername\(name\)\)\[3\] = auth\.uid\(\)::text\);/);
   assert.doesNotMatch(MIGRATION, /for update/, 'a note is never overwritten');
   assert.match(MIGRATION, /raise exception 'a voice note must never be overwritten/);
+  // The erasure's lookup: an account's notes by their sender segment, for the service role alone.
+  assert.match(MIGRATION, /create or replace function public\.voice_note_paths_of\(p_user uuid\)\nreturns setof text\nlanguage sql\nstable\nsecurity definer\nset search_path = public, pg_temp/);
+  assert.match(MIGRATION, /where o\.bucket_id = 'voice-notes'\n\s+and split_part\(o\.name, '\/', 3\) = p_user::text\n\s+order by o\.name\n\s+limit 1000/);
+  assert.match(MIGRATION, /^revoke all on function public\.voice_note_paths_of\(uuid\) from public, anon, authenticated;$/m);
+  assert.match(MIGRATION, /^grant execute on function public\.voice_note_paths_of\(uuid\) to service_role;$/m);
+  assert.match(MIGRATION, /or has_function_privilege\('authenticated', 'public\.voice_note_paths_of\(uuid\)', 'execute'\)/);
+  assert.match(MIGRATION, /raise exception 'voice_note_paths_of\(uuid\) is missing, not security definer, or not service-role only'/);
   assert.match(MIGRATION, /raise exception 'the voice-notes policies on storage\.objects are missing or changed'/);
   assert.deepEqual(MIGRATION.match(/^\s*drop .*$/gim).map((l) => l.trim().split(' on ')[0]), [
     'drop policy if exists "voice notes: a thread\'s people play them"',

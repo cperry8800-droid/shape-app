@@ -9,6 +9,7 @@ const BACKEND = 'mobile-app/src/services/shapeBackend.js';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const SQL = 'supabase-migrations/2026-11-03-voice-notes.sql';
 const NOTICE = 'mobile-app/src/services/noticeCopy.mjs';
+const ERASURE = 'src/lib/account-erasure.ts';
 
 export default {
   test: 'node --test tests/voice-notes.test.mjs tests/chat-dividers-replies.test.mjs tests/grocery-share.test.mjs tests/chat-time.test.mjs tests/chat-header-magazine.test.mjs tests/server-notices.test.mjs',
@@ -110,9 +111,9 @@ export default {
     { name: 'remove is not offered', file: BACKEND,
       find: 'url: voiceNoteUrl, remove: removeVoiceNote };', replace: 'url: voiceNoteUrl };' },
     { name: 'remove asks storage with no path', file: BACKEND,
-      find: '  if (!supabase || !path) return false;\n  _voiceUrls.delete(path);', replace: '  if (!supabase) return false;\n  _voiceUrls.delete(path);' },
+      find: '  if (!supabase || !path) return false;\n  _voiceUrls.delete(`${state.user?.id}|${path}`);', replace: '  if (!supabase) return false;\n  _voiceUrls.delete(`${state.user?.id}|${path}`);' },
     { name: 'a removed note\'s link is kept', file: BACKEND,
-      find: '  if (!supabase || !path) return false;\n  _voiceUrls.delete(path);', replace: '  if (!supabase || !path) return false;' },
+      find: '  if (!supabase || !path) return false;\n  _voiceUrls.delete(`${state.user?.id}|${path}`);', replace: '  if (!supabase || !path) return false;' },
     { name: 'a refused remove reads as gone', file: BACKEND,
       find: '    return !error;\n  } catch (e) {\n    return false;', replace: '    return true;\n  } catch (e) {\n    return false;' },
     { name: 'remove throws with no network', file: BACKEND,
@@ -221,6 +222,34 @@ export default {
       find: "{ kind: 'dm', threadId: thread.conversationId, senderId: row.sender_id }", replace: "{ kind: 'dm', threadId: thread.conversationId, senderId: String(row.metadata?.voice?.path || '').split('/')[2] }" },
     { name: 'the chat page drops the note', file: CLIENT,
       find: 'reply: m.reply || null, voice: m.voice || null })),', replace: 'reply: m.reply || null })),' },
+    // ── account erasure: a deleted account's voice notes
+    { name: 'deleting an account leaves its voice notes', file: ERASURE,
+      find: '  if (await purgeVoiceNotes(admin, uid)) bucketsPurged.push(VOICE_BUCKET);\n  else allBucketsPurged = false;\n', replace: '' },
+    { name: 'an unfinished voice purge deletes the account anyway', file: ERASURE,
+      find: '  if (await purgeVoiceNotes(admin, uid)) bucketsPurged.push(VOICE_BUCKET);\n  else allBucketsPurged = false;', replace: '  if (await purgeVoiceNotes(admin, uid)) bucketsPurged.push(VOICE_BUCKET);' },
+    { name: 'the sweep after deletion skips voice notes', file: ERASURE,
+      find: '    await purgeVoiceNotes(admin, uid);\n', replace: '' },
+    { name: 'a refused lookup reads as purged', file: ERASURE,
+      find: "        return e.code === 'PGRST202' || e.code === '42883';", replace: '        return true;' },
+    { name: 'one way of saying no lookup stops every deletion', file: ERASURE,
+      find: "        return e.code === 'PGRST202' || e.code === '42883';", replace: "        return e.code === 'PGRST202';" },
+    { name: 'one page is taken for all', file: ERASURE,
+      find: '      if (rmErr) return false;\n    }\n  } catch {', replace: '      if (rmErr) return false;\n      return true;\n    }\n  } catch {' },
+    { name: 'a note that will not go reads as gone', file: ERASURE,
+      find: '      if (names[0] === last) return false;', replace: '      if (names[0] === last) return true;' },
+    { name: 'a failed remove reads as done', file: ERASURE,
+      find: '      if (rmErr) return false;\n    }\n  } catch {', replace: '      if (rmErr) return true;\n    }\n  } catch {' },
+    { name: 'another sender\'s note is removed', file: ERASURE,
+      find: ".filter((n) => n.split('/')[2] === uid);", replace: ';' },
+    { name: 'a thrown lookup reads as purged', file: ERASURE,
+      find: '  } catch {\n    return false;\n  }\n}\n\n// ⚠ A COACH APPLICATION', replace: '  } catch {\n    return true;\n  }\n}\n\n// ⚠ A COACH APPLICATION' },
+    // ── reply quotes
+    { name: 'a quoted voice note stays English', file: CLIENT,
+      find: 't: q.voice ? bsVoicePreview(q.t, tr) : bsReplySnippet(q.t) };', replace: 't: bsReplySnippet(q.t) };' },
+    { name: 'a quoted typed message is said as a note', file: CLIENT,
+      find: 't: q.voice ? bsVoicePreview(q.t, tr) : bsReplySnippet(q.t) };', replace: 't: bsVoicePreview(bsReplySnippet(q.t), tr) };' },
+    { name: 'a stored quote of a note stays English', file: CLIENT,
+      find: "t: bsVoicePreview(r.t, tr) };", replace: 't: r.t };' },
     // ── the migration
     { name: 'the bucket is public', file: SQL,
       find: "values ('voice-notes', 'voice-notes', false, 5242880,", replace: "values ('voice-notes', 'voice-notes', true, 5242880," },
@@ -234,6 +263,12 @@ export default {
       find: "  using (bucket_id = 'voice-notes' and (storage.foldername(name))[3] = auth.uid()::text);", replace: "  using (bucket_id = 'voice-notes');" },
     { name: 'anon may call the door', file: SQL,
       find: 'revoke all on function public.voice_note_path_ok(text, boolean) from public, anon;', replace: 'revoke all on function public.voice_note_path_ok(text, boolean) from public;' },
+    { name: 'members may list every account\'s notes', file: SQL,
+      find: 'revoke all on function public.voice_note_paths_of(uuid) from public, anon, authenticated;', replace: 'revoke all on function public.voice_note_paths_of(uuid) from public, anon;' },
+    { name: 'the lookup reads every bucket', file: SQL,
+      find: "  where o.bucket_id = 'voice-notes'\n    and split_part", replace: '  where split_part' },
+    { name: 'the guard passes a lookup open to members', file: SQL,
+      find: "    or has_function_privilege('authenticated', 'public.voice_note_paths_of(uuid)', 'execute')\n", replace: '' },
     { name: 'the guard passes a changed policy', file: SQL,
       find: "    raise exception 'the voice-notes policies on storage.objects are missing or changed';", replace: '    null;' },
   ],
