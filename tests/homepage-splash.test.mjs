@@ -172,6 +172,11 @@ test('the line under the mark is the owner\'s, and nothing rewrites it', () => {
   // the old line followed the visitor's clock ("Tonight," / "Today,")
   assert.doesNotMatch(stripComments(SCRIPT), /getHours\(\)|shape-intro-word/, 'a clock rewrite of the line is back');
   assert.doesNotMatch(stripComments(MARKUP), /Tonight|we train/, 'the retired line is back');
+  // And under it, "Join the Community" (owner, 2026-11-03), rising in after the line above.
+  const sub = arrive().el().querySelector('.iline + .isub');
+  assert.ok(sub, '"Join the Community" sits right under the line');
+  assert.equal(sub.textContent.trim(), 'Join the Community');
+  assert.match(SRC, /#shape-intro \.isub\{[^}]*color:var\(--teal\)[^}]*animation:siUp \.55s \.6s/);
 });
 
 test('the hand-off lands the mark on the summit flag, and only where the flag really is', () => {

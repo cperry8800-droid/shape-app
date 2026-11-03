@@ -83,6 +83,8 @@
   "launch.enterAria": "Enter the app",
   "launch.entering": "Entering…",
   "launch.loading": "Loading",
+  "launch.climbAlone": "Don’t climb alone.",
+  "launch.joinCommunity": "Join the Community",
   "launch.masthead": "The Shape Community",
   "launch.member": "Member",
   "launch.pitch1": "The Shape Wire lands every morning",
