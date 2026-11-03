@@ -448,9 +448,10 @@ function LoginStyles() {
   .lgA-sitefoot{padding:16px 20px 28px}
   .lgA-sitefoot .lgA-row{flex-direction:column;align-items:flex-start;gap:12px}
 }
-/* Turnstile is 300px at its narrowest; under 360px the card leaves it less, so the card takes more of the
-   screen and the widget's row borrows the card's side padding (a 304px card at 320 gives it 302px). */
-@media (max-width:359px){.lgA-main{padding-left:8px;padding-right:8px}.lgA-captcha{margin-left:-20px;margin-right:-20px}}
+/* Turnstile is 300px at its narrowest. On a phone the card leaves it the screen less 74px (the page's 16px
+   sides, the card's 20px padding and 1px border), short of 300 below 374px, so there the card takes more of
+   the screen and the widget's row borrows the card's side padding: the screen less 18px (302px at 320). */
+@media (max-width:373px){.lgA-main{padding-left:8px;padding-right:8px}.lgA-captcha{margin-left:-20px;margin-right:-20px}}
 `}</style>;
 }
 

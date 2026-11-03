@@ -41,9 +41,10 @@ test('the bot check: dark, the card\'s width, and 300px of room on a 320px phone
   assert.match(shared, /if \(look && look\.theme\) params\.theme = look\.theme;/);
   assert.match(shared, /if \(look && look\.size\) params\.size = look\.size;/);
   assert.match(shared, /return ts\.render\(el, params\);/);
-  // Turnstile is 300px at its narrowest: under 360px the card widens and the widget's row takes
-  // the card's side padding (a 304px card at 320 gives it 302px, measured in Chromium)
-  assert.match(src, /@media \(max-width:359px\)\{\.lgA-main\{padding-left:8px;padding-right:8px\}\.lgA-captcha\{margin-left:-20px;margin-right:-20px\}\}/);
+  // Turnstile is 300px at its narrowest, and the phone card leaves it the screen less 74px, short
+  // below 374px (Codex on #2577: 286px at 360). There the card widens and the widget's row takes
+  // the card's side padding: the screen less 18px (302px at 320, measured in Chromium)
+  assert.match(src, /@media \(max-width:373px\)\{\.lgA-main\{padding-left:8px;padding-right:8px\}\.lgA-captcha\{margin-left:-20px;margin-right:-20px\}\}/);
   // it still falls open: a check that can't load never blocks a sign-in
   assert.match(src, /Couldn't load the human-check — you can still sign in\./);
 });
