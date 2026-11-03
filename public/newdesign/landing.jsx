@@ -57,7 +57,7 @@ function MinimalHeader() {
   return (
     <header className="lp-head" style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 20, padding: "16px 72px 16px 44px" }}>
       <div style={{ maxWidth: 1480, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <a href="index.html" aria-label="Club Shape home" style={{ flex: "none", display: "inline-flex" }}><Logo variant="teal" size={32} /></a>
+        <a href="index.html" aria-label="Club Shape home" style={{ flex: "none", display: "inline-flex" }}><Logo variant="teal" height={42} /></a>
         <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
           <span style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.5)" }}>Already have an account?</span>
           <a href="Login.html" className="shape-nav-link" style={{ fontFamily: mono, fontSize: 11.5, letterSpacing: "0.16em", textTransform: "uppercase", color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 4 }}>Log in</a>
@@ -265,12 +265,13 @@ function LandingPage() {
            (233px at 58) and "Already have an account? Log in" (108px, wrapped) put Log in's right
            edge at 385px whatever the window, past every phone. Below 900 it takes signup's 16px
            sides; below 560 the logo narrows to (100vw - 148px) / 4.02, which keeps 8px spare
-           beside the cluster (measured in Chromium, 320 to 560). */
+           beside the cluster (measured in Chromium, 320 to 560). The logo is 42px now, the bar's
+           (owner, 2026-11-03), which this keeps from 317px up. */
         @media (max-width: 900px) {
           .lp-head { padding-left: 16px !important; padding-right: 16px !important; }
         }
         @media (max-width: 560px) {
-          .lp-head .shape-brand-logo { height: min(58px, calc((100vw - 148px) / 4.02)) !important; }
+          .lp-head .shape-brand-logo { height: min(42px, calc((100vw - 148px) / 4.02)) !important; }
         }
       `}</style>
     </div>

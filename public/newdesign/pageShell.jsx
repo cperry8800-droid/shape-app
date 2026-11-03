@@ -56,7 +56,7 @@ function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
   );
 }
 
-function Logo({ variant = "black", size = 28 }) {
+function Logo({ variant = "black", size = 28, height = null }) {
   // The Club Shape logo (owner, 2026-11-03): the two triangles stacked over CLUB SHAPE, drawn by
   // marketing/club-shape/build-logo.mjs --site. It is about 4:1, twice as wide as the SHAPE lockup
   // it replaced at the same height, its letters a little smaller (11.8px against 12.8 at 52px).
@@ -66,7 +66,9 @@ function Logo({ variant = "black", size = 28 }) {
     : "/club-shape-logo-white.svg";
   // The play-icon stacked above the wordmark, not inline like the old one.
   // Scale so the overall mark reads at a comparable visual weight to the previous inline logo.
-  const h = Math.round(size * 1.8);
+  // `height` sets it exactly: the standalone headers (login, landing, signup) draw it at the bar's
+  // 42px (owner, 2026-11-03: "make logo smaller here also").
+  const h = height || Math.round(size * 1.8);
   // Size inline (not just via the external .shape-brand-logo rule) so standalone
   // pages that don't load pageShell's stylesheet (login, landing) still constrain
   // the logo — otherwise the high-res source renders at its full intrinsic size.

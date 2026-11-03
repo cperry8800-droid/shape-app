@@ -10,8 +10,8 @@ const LOGIN_DESTS = {
 
 function LoginMark() {
   return (
-    <a href="Landing.html" aria-label="Shape home" style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-      <Logo variant="white" size={28} />
+    <a href="index.html" aria-label="Club Shape home" style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+      <Logo variant="white" height={42} />
     </a>
   );
 }
@@ -462,7 +462,7 @@ function LoginPage() {
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <LoginMark />
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
-            <a href="Landing.html" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>← Back to home</a>
+            <a href="index.html" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>← Back to home</a>
           </div>
         </div>
       </header>
