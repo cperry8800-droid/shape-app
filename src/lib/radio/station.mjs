@@ -76,6 +76,9 @@ export async function probeStream(url, { fetchFn = fetch, timeoutMs = 8000 } = {
     return { ok: false, error: 'station_unreachable' };
   }
   try { await res.body?.cancel(); } catch { /* the headers are all that was wanted */ }
+  // The station lets no listener in without a good pass (part 3): a refusal there is Shape and its
+  // station disagreeing about passes (its SHAPE_URL is another Shape), not a station that is down.
+  if (res.status === 401 || res.status === 403) return { ok: false, error: 'station_refused_pass' };
   if (!res.ok) return { ok: false, error: 'station_unreachable' };
   const header = (name) => String((res.headers && res.headers.get && res.headers.get(name)) || '');
   if (!header('content-type').toLowerCase().startsWith('audio/mpeg')) return { ok: false, error: 'station_not_audio' };

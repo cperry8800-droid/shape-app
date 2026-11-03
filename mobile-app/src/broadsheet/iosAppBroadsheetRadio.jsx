@@ -412,11 +412,20 @@ function BSRadioProvider({ children }) {
   // attempt; cancelling it is flipping `live`. A newer attempt supersedes an
   // older one the same way, so two taps cannot stamp twice.
   const attemptRef = useRefBR(null);
+  // ⚠ A COUNTRY THE LICENCES DO NOT REACH IS SAID AS SUCH (the US and the UK: the station route's
+  // 451, ShapeRadioLive.lastRefusal). Once a session: playback is asked again on its own (an
+  // auth change, a resume), and the member needs telling once, not at every ask.
+  const regionToldRef = useRefBR(false);
   const startPlay = () => {
     if (attemptRef.current) attemptRef.current.live = false;
     const token = { live: true };
     attemptRef.current = token;
     Promise.resolve(window.ShapeRadioLive?.play?.()).then((ok) => {
+      if (ok !== true && window.ShapeRadioLive?.lastRefusal === 'region' && !regionToldRef.current) {
+        regionToldRef.current = true;
+        const said = window.ShapeI18n?.t?.('radio:region.unavailable');
+        window.__bsToast?.(said && said !== 'radio:region.unavailable' ? said : 'Shape Radio isn’t available in your region yet.', 'info');
+      }
       if (!token.live || ok !== true) return;
       setPlayingSince((v) => (v == null ? Date.now() : v));
     }).catch(() => { /* play() already reports failure by resolving false */ });

@@ -153,9 +153,12 @@ function useRadioStation() {
   const [signedIn, setSignedIn] = React.useState(null);   // null = not resolved yet
   const [playing, setPlaying] = React.useState(false);
   const [configured, setConfigured] = React.useState(null); // null = unread
-  const [refusal, setRefusal] = React.useState(null);        // null | "signin" | "age" | "unavailable"
+  const [refusal, setRefusal] = React.useState(null);        // null | "signin" | "age" | "region" | "unavailable"
   const [nowPlaying, setNowPlaying] = React.useState(null);
   const audioRef = React.useRef(null);
+  // When the pass on the stream's address runs out (Shape's own station hands each member one,
+  // src/lib/radio/pass.mjs), in ms; null for a station without passes.
+  const passExpiresRef = React.useRef(null);
   const analyserRef = React.useRef(null);
   const binsRef = React.useRef(null);
   const startedAtRef = React.useRef(null);
@@ -386,6 +389,14 @@ function useRadioStation() {
       rdCountListening(audio);
       audioRef.current = audio;
     }
+    // ⚠ A SOURCE WHOSE PASS HAS RUN OUT IS NO SOURCE. The station checks the pass as a listener
+    // connects, so resuming on an old address would be refused, and the key would read "Couldn't
+    // reach the station" for a member who did nothing wrong. Within a minute of its end it is
+    // dropped here, and the fetch below asks for a fresh one.
+    if (audio.src && passExpiresRef.current != null && passExpiresRef.current - Date.now() < 60000) {
+      audio.removeAttribute("src");
+      passExpiresRef.current = null;
+    }
     if (!audio.src) {
       try {
         // ⚠ THE BEARER, WHEN WE HAVE ONE (Codex, round 10). `credentials: "include"`
@@ -442,6 +453,9 @@ function useRadioStation() {
         if (!isCurrent()) return false;
         if (r.status === 401) { setRefusal("signin"); return false; }
         if (r.status === 403) { setRefusal("age"); return false; }
+        // 451: a country the licences do not reach (the US and the UK). Said as such, never as a
+        // fault to retry.
+        if (r.status === 451) { setRefusal("region"); return false; }
         // ⚠ AND EVERY OTHER NON-OK ANSWER IS AN ATTEMPT WE COULD NOT COMPLETE, NOT A
         // FACT ABOUT THE BROADCAST (Codex, round 3). `fetch` RESOLVES on an HTTP
         // error, so the catch below never runs for one — which meant the previous
@@ -460,6 +474,8 @@ function useRadioStation() {
         setConfigured(!!(cfg && cfg.configured));
         if (!cfg || !cfg.configured || !cfg.streamUrl) return false;
         audio.src = cfg.streamUrl;
+        const passEnds = cfg.passExpiresAt ? Date.parse(cfg.passExpiresAt) : NaN;
+        passExpiresRef.current = Number.isFinite(passEnds) ? passEnds : null;
       } catch (e) {
         // ⚠ A FETCH THAT NEVER LANDED IS NOT EVIDENCE THERE IS NO STATION, and this
         // used to answer `setConfigured(false)` — which renders "No station on the
@@ -1157,6 +1173,9 @@ function RadioInstrument() {
               )}
               {st.refusal === "age" && (
                 <span style={{ ...eb, color: RD_CREAM50 }}>Shape is for adults 18 and over</span>
+              )}
+              {st.refusal === "region" && (
+                <span style={{ ...eb, color: RD_CREAM50 }}>Shape Radio isn&rsquo;t available in your region yet</span>
               )}
               {st.refusal === "unavailable" && (
                 <span style={{ ...eb, color: RD_CREAM50 }}>Couldn&rsquo;t reach the station &mdash; press again</span>

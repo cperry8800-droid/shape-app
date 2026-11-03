@@ -15,7 +15,7 @@ const read = (p) => readFileSync(join(ROOT, p), 'utf8');
 const ENTRY = join(ROOT, 'services/station/icecast/entrypoint.sh');
 // Stand-in passwords, plainly not real ones (the secret scan reads tests too).
 const FAKE_SOURCE = 's'.repeat(24), FAKE_ADMIN = 'a'.repeat(24);
-const GOOD = { ICECAST_SOURCE_PASSWORD: FAKE_SOURCE, ICECAST_ADMIN_PASSWORD: FAKE_ADMIN, STATION_HOST: 'radio.theshapecommunity.com' };
+const GOOD = { ICECAST_SOURCE_PASSWORD: FAKE_SOURCE, ICECAST_ADMIN_PASSWORD: FAKE_ADMIN, STATION_HOST: 'radio.theshapecommunity.com', SHAPE_URL: 'https://www.theshapecommunity.com' };
 
 function render(env) {
   const dir = mkdtempSync(join(tmpdir(), 'station-cfg-'));
@@ -41,6 +41,11 @@ test('⚠ the server\'s config: the listeners\' mount falls back to the standby 
   for (const m of ['/live', '/standby']) {
     assert.equal((mount(m).match(/<header name="Access-Control-Allow-Origin" value="\*" \/>/g) || []).length, 1, `${m} carries the header once`);
   }
+  // ⚠ Members only, at the door: /live asks Shape about each listener's pass; /standby (not public:
+  // Caddy passes /live alone) needs none, and a listener falling back to it was let in at /live.
+  const door = mount('/live').replace(/<!--[\s\S]*?-->/g, '');
+  assert.match(door, /<authentication type="url">\s*<option name="listener_add" value="https:\/\/www\.theshapecommunity\.com\/api\/radio\/pass" \/>\s*<option name="auth_header" value="icecast-auth-user: 1" \/>\s*<\/authentication>/);
+  assert.ok(!/<authentication/.test(mount('/standby')));
   const outside = r.xml.replace(/<mount[\s\S]*?<\/mount>/g, '').replace(/<!--[\s\S]*?-->/g, '');
   assert.ok(!/<http-headers>/.test(outside), 'no top-level header block to double it');
   assert.match(r.xml, new RegExp(`<source-password>${GOOD.ICECAST_SOURCE_PASSWORD}</source-password>`));
@@ -68,6 +73,11 @@ test('⚠ it refuses to start on a missing, short, unsafe or shared password, or
   refused({ ICECAST_PORT: 'eighty' }, 'a port that is not a number');
   refused({ ICECAST_MAX_LISTENERS: '-1' }, 'a listener cap that is not a number');
   refused({ ICECAST_ADMIN_EMAIL: 'not an email' }, 'an admin address that is not one');
+  refused({ SHAPE_URL: '' }, 'no Shape to check passes with');
+  refused({ SHAPE_URL: 'http://www.theshapecommunity.com' }, 'passes sent in clear text');
+  refused({ SHAPE_URL: 'https://www.theshapecommunity.com/api' }, 'a path on Shape’s address');
+  refused({ SHAPE_URL: 'https://evil.example|x' }, 'a sed delimiter');
+  assert.equal(render({ ...GOOD, SHAPE_URL: 'http://127.0.0.1:3000' }).status, 0, 'a Shape on this machine, for a test');
 });
 
 test('the standby loop checks its password and bitrate before it connects, and loops a file the station owns', () => {

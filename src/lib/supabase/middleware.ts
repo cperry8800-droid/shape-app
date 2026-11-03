@@ -53,6 +53,10 @@ const RATE_LIMIT_SKIP = [
   '/api/push/dispatch',
   '/api/health',
   '/api/ai/notify/cron',
+  // Shape's own radio station asks here as each listener connects, all from its one server's
+  // address: on a per-address limit, a busy minute (or every listener reconnecting after a
+  // restart) would lock members out. It checks a signature and touches no database.
+  '/api/radio/pass',
 ];
 
 // Max request body size (App Router has no default). Upload + server-to-server

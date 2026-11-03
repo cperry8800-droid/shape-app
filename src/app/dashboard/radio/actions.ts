@@ -13,6 +13,7 @@ import { requireAdminUser } from '@/lib/admin-access';
 import { checkSlot } from '@/lib/radio/noraSlots.mjs';
 import { syncNoraSets } from '@/lib/radio/noraSetStore.mjs';
 import { checkOwnStation, checkStation, probeStream } from '@/lib/radio/station.mjs';
+import { makePass, passKey, streamWithPass } from '@/lib/radio/pass.mjs';
 
 const PAGE = '/dashboard/radio';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -108,10 +109,15 @@ export async function connectStation(formData: FormData): Promise<void> {
 // website and app are never handed a stream that is not there (its standby loop answers even while
 // nothing else plays).
 export async function connectOwnStation(formData: FormData): Promise<void> {
-  await requireAdminUser();
+  const admin = await requireAdminUser();
   const checked = checkOwnStation({ streamUrl: String(formData.get('stream_url') ?? '') });
   if (!checked.ok) failed(`station_${checked.error}`);
-  const probed = await probeStream(checked.value.stream_url);
+  // The station lets no listener in without a pass (part 3), the dashboard's check included: a
+  // minute's pass, the admin's own.
+  const key = passKey();
+  const probePass = key ? makePass({ userId: admin.id, now: Date.now(), key, ttlSec: 60 }) : null;
+  if (!probePass) failed('station_no_pass_key');
+  const probed = await probeStream(streamWithPass(checked.value.stream_url, probePass.pass));
   if (!probed.ok) failed(probed.error);
   const { error } = await createAdminClient().from('radio_station')
     .update({ ...checked.value, updated_at: new Date().toISOString() }).eq('id', 1);

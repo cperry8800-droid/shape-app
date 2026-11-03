@@ -10314,10 +10314,23 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
       const headers = {};
       if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
       const r = await fetch(api('/api/radio/station'), { cache: 'no-store', headers });
+      // 451: a country the licences do not reach (the US and the UK). Kept as the reason, so the
+      // radio can say so instead of a fault to retry (ShapeRadioLive.lastRefusal).
+      if (r.status === 451) return { configured: false, refusal: 'region' };
       return r.ok ? r.json() : null;
     }
     catch { return null; }
   }
+  // Why the last play() did not start, when the station said: 'region', or null.
+  const radioApi = { lastRefusal: null };
+  // ⚠ A READ WHOSE PASS HAS RUN OUT IS NO READ. Shape's own station hands each member the stream
+  // with a pass on it, checked as a listener connects (src/lib/radio/pass.mjs). A cached read that
+  // close to its pass's end would play an address the station refuses, so it is not kept.
+  const passFresh = (cfg) => {
+    if (!cfg || !cfg.passExpiresAt) return true;
+    const ends = Date.parse(cfg.passExpiresAt);
+    return !Number.isFinite(ends) || ends - Date.now() > 60000;
+  };
   async function nowPlaying(signal) {
     try { const r = await fetch(api('/api/radio/now-playing'), { cache: 'no-store', signal }); return r.ok ? r.json() : null; }
     catch { return null; }
@@ -10357,11 +10370,14 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
   async function play() {
     const live = playbackGate.begin();
     if (!live()) return false;
+    radioApi.lastRefusal = null;
+    if (stationCache && !passFresh(stationCache)) stationCache = null;
     let cfg = stationCache;
     if (cfg) {
       station().then((fresh) => { if (fresh && fresh.configured && fresh.streamUrl) stationCache = fresh; }).catch(() => { /* keep the last good read */ });
     } else {
       cfg = await station();
+      if (cfg && cfg.refusal) radioApi.lastRefusal = cfg.refusal;
       if (!live() || !cfg || !cfg.configured) return false;
       if (cfg.streamUrl) stationCache = cfg;
     }
@@ -10421,7 +10437,7 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
     if (!_srcWired) { try { const s = _ac.createMediaElementSource(a); s.connect(_analyser); _analyser.connect(_ac.destination); _srcWired = true; } catch (e) {} }
     return _analyser;
   }
-  window.ShapeRadioLive = { station, nowPlaying, audio, play, pause, startPolling, stopPolling, analyser };
+  window.ShapeRadioLive = Object.assign(radioApi, { station, nowPlaying, audio, play, pause, startPolling, stopPolling, analyser });
 })();
 
 // Shape Sets broadcast schedule (spec 2026-07-19). Public read — the table's RLS
