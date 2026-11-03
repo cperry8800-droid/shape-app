@@ -183,6 +183,7 @@ export function BSVoiceNotePlayer({ voice, mine = false, t, accent }) {
   const goneRef = useRef(false);
   const srcRef = useRef(null);   // the note's own source once set (the element may hold a moment of silence first)
   const genRef = useRef(0);      // the latest tap; an older one still waiting for its link stops there
+  const waitingRef = useRef(false); // a play is waiting for its link (or its start)
   if (idRef.current == null) { _voicePlayerSeq += 1; idRef.current = `vn-${_voicePlayerSeq}`; }
   const duration = Number(voice && voice.duration) || 0;
   const peaks = voice && Array.isArray(voice.peaks) && voice.peaks.length ? voice.peaks : Array(BS_VOICE.PEAKS).fill(0);
@@ -196,6 +197,7 @@ export function BSVoiceNotePlayer({ voice, mine = false, t, accent }) {
     const other = (e) => {
       if (!e || e.detail === idRef.current) return;
       genRef.current += 1;
+      waitingRef.current = false;
       setLoading(false);
       if (audioRef.current) { try { audioRef.current.pause(); } catch (err) { /* paused */ } }
     };
@@ -233,8 +235,18 @@ export function BSVoiceNotePlayer({ voice, mine = false, t, accent }) {
     if (e && e.stopPropagation) e.stopPropagation();
     const a = audio();
     if (!a || voice.failed) return;
+    // A tap while a play still waits for its link stops that play: the spinner is a stop (Codex P2 on
+    // #2567), whether or not the moment of silence is still sounding.
+    if (waitingRef.current) {
+      waitingRef.current = false;
+      genRef.current += 1;
+      setLoading(false);
+      try { a.pause(); } catch (err) { /* paused */ }
+      return;
+    }
     if (playing) { a.pause(); return; }
     const gen = ++genRef.current;
+    waitingRef.current = true;
     try { window.dispatchEvent(new CustomEvent('shape:voicePlay', { detail: idRef.current })); } catch (err) { /* no events here */ }
     try {
       // ⚠ UNLOCKED IN THE TAP. iOS's WebView plays an element only once a tap has started it, and the
@@ -260,7 +272,7 @@ export function BSVoiceNotePlayer({ voice, mine = false, t, accent }) {
     } catch (err) {
       if (goneRef.current || gen !== genRef.current) return;
       toast(tr('feed:thread.voiceUnplayable', { defaultValue: 'This voice note can’t be played right now.' }));
-    } finally { if (gen === genRef.current) setLoading(false); }
+    } finally { if (gen === genRef.current) { waitingRef.current = false; setLoading(false); } }
   };
   const seek = (e) => {
     if (e && e.stopPropagation) e.stopPropagation();

@@ -709,7 +709,49 @@ test('the latest tap wins: a note still waiting for its link never starts over t
     A.d.render();
     assert.ok(!flat(byAttr(A.d, 'data-voice-play')).some((n) => n.props && n.props.style && /bsspin/.test(n.props.style.animation || '')), 'A stops spinning');
     assert.deepEqual(st.toasts, []);
+    // And A, tapped again later, plays: being passed over left no stop behind.
+    const again = byAttr(A.d, 'data-voice-play').props.onClick({ stopPropagation() {} });
+    releaseA();
+    await again;
+    assert.equal(a.src, `https://s/dm/${CONV}/${HER}/slow.m4a`, 'A takes its link now');
+    assert.equal(a.played, 3, 'and plays (unlocked again in this tap, then the note)');
     cleanups.forEach((fn) => fn());
+  } finally { st.restore(); }
+});
+
+test('the player: a tap on the spinner stops a play still waiting for its link; a note plays again after it ends (Codex P2 on #2567)', async () => {
+  let release;
+  const st = playerRig({ url: () => new Promise((r) => { release = () => r(`https://s/${VOICE.path}`); }) });
+  try {
+    const { d } = mountPlayer({ path: VOICE.path, duration: 6, peaks: [0.5], mime: 'audio/mp4' });
+    const tap = () => byAttr(d, 'data-voice-play').props.onClick({ stopPropagation() {} });
+    const first = tap();
+    d.render();
+    const a = st.audios[0];
+    assert.equal(a.played, 1, 'the silence is sounding');
+    await tap();                       // the spinner, tapped: stop
+    d.render();
+    release();
+    await first;
+    d.render();
+    assert.deepEqual(a.srcs, [SILENT_CLIP], 'the note never takes its link');
+    assert.equal(a.played, 1, 'nor plays');
+    assert.ok(!flat(byAttr(d, 'data-voice-play')).some((n) => n.props && n.props.style && /bsspin/.test(n.props.style.animation || '')), 'no spinner left');
+    assert.deepEqual(st.toasts, [], 'nothing said');
+    // Tapped again, it plays.
+    const second = tap();
+    release();
+    await second;
+    d.render();
+    assert.equal(a.src, `https://s/${VOICE.path}`);
+    assert.equal(a.played, 3, 'the silence again, then the note');
+    // It ends; a tap plays it again (no stop left waiting).
+    a.emit('ended');
+    d.render();
+    const third = tap();
+    release();
+    await third;
+    assert.equal(a.played, 4, 'played again after it ended');
   } finally { st.restore(); }
 });
 
