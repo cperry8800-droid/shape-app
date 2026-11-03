@@ -90,7 +90,8 @@ function reset(over = {}) {
 }
 reset();
 window.ShapeAuth = { getCachedState: () => ({ user: { id: world.me } }) };
-window.ShapeProfiles = { getPublicProfile: async () => ({ name: 'Maya Okafor', pronouns: world.pronouns, bio: 'I teach people to lift well.', points: 6200, custom: world.custom, can_view: world.canView }) };
+// noCard: the read answers no row, as get_public_profile does a visitor with no account on a private profile.
+window.ShapeProfiles = { getPublicProfile: async () => (world.noCard ? null : { name: 'Maya Okafor', pronouns: world.pronouns, bio: 'I teach people to lift well.', points: 6200, custom: world.custom, can_view: world.canView }) };
 // byIdFails / availFails: the listing's or the hours' read fails ('null' answers null, as the
 // backend does on a non-2xx; anything else rejects, as a lost connection does).
 const failing = (how) => { if (how === 'null') return null; throw new Error('offline'); };
@@ -1435,6 +1436,134 @@ test('Make it yours, About me: saves the story, details, questions and socials o
   assert.deepEqual(d.links, { instagram: '@maya.lifts', website: 'mayaokafor.com' });
   assert.equal(d.bio, 'Saved elsewhere', 'the rest of the doc is kept');
   assert.deepEqual(d.look, { paper: 'dark', accent: 'teal' }, 'and a key not changed here is not written');
+  await m.unmount();
+});
+
+// Owner, 2026-11-03: "the about me should have more things to add. certificates, accolades, things like
+// that". Certificates are the ones Shape verified (get_coach_certs, names only), read for a verified
+// listing; accolades and education and training are the coach's own lists.
+test('About me: certificates as Shape verified them, then the coach\'s accolades and education', async () => {
+  const had = window.ShapeProfiles.getCoachCerts;
+  window.ShapeProfiles.getCoachCerts = async (uid) => { world.certsFor = uid; return world.certs; };
+  try {
+    reset({ certs: ['NSCA-CSCS', 'Precision Nutrition L1'], custom: { about: {
+      story: 'I coach beginners.',
+      accolades: [{ title: 'Coach of the Year', detail: 'Brooklyn Fitness Awards', year: 2024 }, { title: 'Featured in a magazine' }],
+      education: [{ title: 'BSc Kinesiology', detail: 'Rutgers', year: 2014 }],
+    } } });
+    let m = await mount(page());
+    await click(button(/^About me$/));
+    assert.equal(world.certsFor, 'u-maya', 'the certificates were read for the coach');
+    const tab = document.querySelector('[data-about-tab]');
+    assert.deepEqual([...tab.querySelectorAll('[data-about]')].map((n) => n.getAttribute('data-about')), ['story', 'certs', 'accolades', 'education'], 'certificates, then accolades, then education, after the story');
+    assert.match(tab.querySelector('[data-about="certs"]').textContent, /^Certificates/);
+    assert.deepEqual([...tab.querySelectorAll('[data-about-cert]')].map((li) => li.textContent), ['NSCA-CSCS✓ Verified by Shape', 'Precision Nutrition L1✓ Verified by Shape']);
+    assert.deepEqual([...tab.querySelectorAll('[data-about="accolades"] [data-about-item]')].map((li) => li.textContent), ['Coach of the YearBrooklyn Fitness Awards2024', 'Featured in a magazine']);
+    assert.match(tab.querySelector('[data-about="accolades"]').textContent, /^Accolades/);
+    assert.deepEqual([...tab.querySelectorAll('[data-about="education"] [data-about-item]')].map((li) => li.textContent), ['BSc KinesiologyRutgers2014']);
+    assert.match(tab.querySelector('[data-about="education"]').textContent, /^Education and training/);
+    await m.unmount();
+    // A listing Shape has not verified reads no certificates, and certificates alone open the tab.
+    reset({ certs: ['NSCA-CSCS'], custom: null, provider: { ...world.provider, verified: false } });
+    m = await mount(page());
+    assert.ok(!button(/^About me$/), 'nothing to show: no tab');
+    assert.equal(world.certsFor, undefined, 'certificates were read for an unverified listing');
+    await m.unmount();
+    reset({ certs: ['NSCA-CSCS'], custom: null });
+    m = await mount(page());
+    await click(button(/^About me$/));
+    assert.deepEqual([...document.querySelectorAll('[data-about-cert]')].map((li) => li.textContent), ['NSCA-CSCS✓ Verified by Shape'], 'certificates alone open the tab');
+    await m.unmount();
+    // A private profile reads none: one the viewer may not see, and one that answers a visitor with no
+    // account with no row at all (Codex on #2576).
+    for (const over of [{ canView: false }, { noCard: true }]) {
+      reset({ certs: ['NSCA-CSCS'], custom: null, ...over });
+      m = await mount(page());
+      await flush();
+      assert.equal(world.certsFor, undefined, `certificates were read for ${JSON.stringify(over)}`);
+      assert.ok(!document.querySelector('[data-about-cert]'), 'a certificate shows');
+      await m.unmount();
+    }
+  } finally { window.ShapeProfiles.getCoachCerts = had; }
+});
+
+test('Make it yours, About me: accolades and education save as lists; a row it would drop is said', async () => {
+  reset({ me: 'u-maya', custom: null, stored: { look: { paper: 'dark', accent: 'teal' } } });
+  const m = await mount(page({ isSelf: true }));
+  await click(button(/^Make it yours$/));
+  await click([...document.querySelectorAll('[data-make-it-yours] button')].find((b) => /^About me$/.test(b.textContent)));
+  assert.match(m.text(), /Your certificates show on About me once Shape has verified them\./, 'where certificates come from');
+  await click(document.querySelector('[data-about-list="accolades"] [data-about-item-add]'));
+  await click(document.querySelector('[data-about-list="accolades"] [data-about-item-add]'));
+  const acc = () => [...document.querySelectorAll('[data-about-list="accolades"] [data-about-item]')];
+  assert.equal(acc().length, 2);
+  await type(acc()[0].querySelector('[data-about-item-title]'), 'Coach of the Year');
+  await type(acc()[0].querySelector('[data-about-item-detail]'), 'Brooklyn Fitness Awards');
+  await type(acc()[0].querySelector('[data-about-item-year]'), '20x24');
+  assert.equal(acc()[0].querySelector('[data-about-item-year]').value, '2024', 'digits only, four at most');
+  // A row with a detail and no title would be dropped: said at save.
+  await type(acc()[1].querySelector('[data-about-item-detail]'), 'Somewhere');
+  await click(document.querySelector('[data-save-mine]'));
+  assert.equal(world.saved, null, 'nothing saved with a row it would drop');
+  assert.match(m.text(), /Each accolade and course needs a title, or remove it\./);
+  await click(acc()[1].querySelector('[data-about-item-remove]'));
+  assert.equal(acc().length, 1);
+  await click(document.querySelector('[data-about-list="education"] [data-about-item-add]'));
+  const edu = () => [...document.querySelectorAll('[data-about-list="education"] [data-about-item]')];
+  await type(edu()[0].querySelector('[data-about-item-title]'), 'BSc Kinesiology');
+  await type(edu()[0].querySelector('[data-about-item-year]'), '1890');
+  await click(document.querySelector('[data-save-mine]'));
+  assert.equal(world.saved, null, 'nothing saved with a year it would drop');
+  assert.match(m.text(), new RegExp(`A year from 1950 to ${new Date().getFullYear() + 1}\\.`));
+  await type(edu()[0].querySelector('[data-about-item-year]'), '2014');
+  await click(document.querySelector('[data-save-mine]'));
+  assert.ok(world.saved, 'saved');
+  assert.deepEqual(world.saved.d.about, { accolades: [{ title: 'Coach of the Year', detail: 'Brooklyn Fitness Awards', year: 2024 }], education: [{ title: 'BSc Kinesiology', year: 2014 }] });
+  await m.unmount();
+});
+
+// Owner, 2026-11-03 (of the profile's head): "coaches socials should be shown somewhere in this section if
+// they choose to". Off unless the coach turns it on; then the links About draws, as icons under the rating.
+test('the head shows the coach\'s socials only when they chose it, as the links About draws', async () => {
+  const links = { instagram: '@maya.lifts', website: 'https://mayaokafor.com/', x: 'javascript:alert(1)' };
+  reset({ custom: { links } });
+  let m = await mount(page());
+  assert.ok(!document.querySelector('[data-head-socials]'), 'shown without the coach choosing it');
+  await m.unmount();
+  reset({ custom: { links, headLinks: true } });
+  m = await mount(page());
+  const row = document.querySelector('[data-head-socials]');
+  assert.ok(row, 'no socials in the head');
+  assert.equal(row.getAttribute('aria-label'), 'Find Maya online');
+  const a = [...row.querySelectorAll('[data-head-social]')];
+  assert.deepEqual(a.map((x) => [x.getAttribute('data-head-social'), x.getAttribute('href')]), [['instagram', 'https://instagram.com/maya.lifts'], ['website', 'https://mayaokafor.com/']], 'the links About draws, and only those');
+  assert.deepEqual(a.map((x) => x.getAttribute('aria-label')), ['Instagram @maya.lifts', 'Website mayaokafor.com']);
+  for (const x of a) { assert.equal(x.getAttribute('target'), '_blank'); assert.equal(x.getAttribute('rel'), 'noopener noreferrer'); assert.equal(x.style.width, '44px'); assert.equal(x.style.height, '44px'); }
+  await m.unmount();
+});
+
+test('Make it yours, About me: the head-socials switch saves the choice, and turning it off removes it', async () => {
+  reset({ me: 'u-maya', custom: null, stored: { look: { paper: 'dark', accent: 'teal' }, links: { instagram: '@maya.lifts' } } });
+  let m = await mount(page({ isSelf: true }));
+  await click(button(/^Make it yours$/));
+  await click([...document.querySelectorAll('[data-make-it-yours] button')].find((b) => /^About me$/.test(b.textContent)));
+  const sw = () => document.querySelector('[data-about-head-links]');
+  assert.equal(sw().getAttribute('aria-checked'), 'false', 'on before the coach chose it');
+  assert.match(sw().textContent, /^Show them at the top of your page/);
+  await click(sw());
+  assert.equal(sw().getAttribute('aria-checked'), 'true');
+  await click(document.querySelector('[data-save-mine]'));
+  assert.equal(world.saved.d.headLinks, true);
+  assert.deepEqual(world.saved.d.links, { instagram: '@maya.lifts' }, 'the links as they were');
+  await m.unmount();
+  reset({ me: 'u-maya', custom: null, stored: { look: { paper: 'dark', accent: 'teal' }, links: { instagram: '@maya.lifts' }, headLinks: true } });
+  m = await mount(page({ isSelf: true }));
+  await click(button(/^Make it yours$/));
+  await click([...document.querySelectorAll('[data-make-it-yours] button')].find((b) => /^About me$/.test(b.textContent)));
+  assert.equal(sw().getAttribute('aria-checked'), 'true', 'the saved choice');
+  await click(sw());
+  await click(document.querySelector('[data-save-mine]'));
+  assert.ok(world.saved && !('headLinks' in world.saved.d), 'turned off, the key is gone');
   await m.unmount();
 });
 

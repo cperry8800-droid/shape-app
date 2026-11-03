@@ -4,7 +4,7 @@
 // "Open their file": "this should take you right to the client file", then "also make this a little
 // smaller". A booking with no client id (an intake with someone new, the preview's samples) opened the
 // Clients list; it now asks the Clients tab for the booked name, which opens the one roster client of
-// that name. And the week strip sits right on the schedule it picks (To do above it).
+// that name. And the week strip sits at the top, under Today (owner, 2026-11-03).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -58,13 +58,17 @@ test('the Up next card is a little smaller, its buttons still 44 to tap', () => 
   for (const b of buttons) assert.match(b, /minHeight: 44/, 'a button under 44');
 });
 
-test('the week strip sits right on the schedule it picks; To do comes before it', () => {
-  const todo = PROS.indexOf('{/* TO DO — paid sessions to book');
+test('the week strip sits at the top, under Today, above Up next and To do', () => {
+  // Owner, 2026-11-03, of the strip below To do: "this should be towards top of coaches home page".
+  const head = PROS.indexOf('<div data-tour="hero-today"');
   const week = PROS.indexOf('{/* THIS WEEK — the day strip');
+  const live = PROS.indexOf('{/* LIVE — a client training');
+  const up = PROS.indexOf('{/* UP NEXT — today\'s next booking');
+  const todo = PROS.indexOf('{/* TO DO — paid sessions to book');
   const sched = PROS.indexOf('{/* SCHEDULE — the selected day');
-  assert.ok(todo > 0 && week > todo && sched > week, 'To do, then the week strip, then the schedule');
-  const between = PROS.slice(week, sched);
-  assert.equal((between.match(/<section /g) || []).length, 0, 'nothing between the strip and the schedule');
+  assert.ok(head > 0 && week > head, 'the strip is under the Today header');
+  assert.ok(live > week && up > week && todo > week && sched > todo, 'Today, the strip, then Up next, To do and the schedule');
+  assert.equal((PROS.slice(head, week).match(/<section /g) || []).length, 0, 'nothing between Today and the strip');
 });
 
 test('the sample trainer\'s week books clients on the sample trainer\'s roster', () => {

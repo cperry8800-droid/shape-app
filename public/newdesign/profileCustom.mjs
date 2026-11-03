@@ -159,7 +159,25 @@ export const BS_ABOUT_STORY_MAX = 1200;
 export const BS_ABOUT_FACT_MAX = 80;
 export const BS_ABOUT_YEARS_MAX = 60;
 export const BS_ABOUT_HOW = ['online', 'in_person', 'both'];
+// A coach's own lists on About (owner, 2026-11-03: "the about me should have more things to add.
+// certificates, accolades, things like that"): accolades, and education and training. Certificates
+// are not one of them: a coach's certificates show as Shape verified them (get_coach_certs), so a
+// certificate is never only the coach's word.
+export const BS_ABOUT_LIST_MAX = 8;
+export const BS_ABOUT_ITEM_MAX = 80;
+export const BS_ABOUT_YEAR_MIN = 1950;
 export const BS_PROFILE_LINK_KEYS = ['instagram', 'x', 'tiktok', 'youtube', 'substack', 'website'];
+// Each social as a small monochrome glyph for the profile's head (owner, 2026-11-03: "coaches socials
+// should be shown somewhere in this section if they choose to"): a 24x24 stroke drawing in the page's
+// ink, never a brand's colours. Each is a list of SVG path data drawn with the same stroke.
+export const BS_PROFILE_LINK_GLYPHS = {
+  instagram: ['M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4z', 'M12 8.5a3.5 3.5 0 1 1 0 7a3.5 3.5 0 0 1 0-7z', 'M17.3 6.7h.01'],
+  x: ['M4 4l16 16', 'M20 4L4 20'],
+  tiktok: ['M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5', 'M14 3c.4 2.6 2.2 4.4 5 4.6'],
+  youtube: ['M3.5 7.5c.2-1.6 1.3-2.6 2.9-2.7C8 4.6 10 4.5 12 4.5s4 .1 5.6.3c1.6.1 2.7 1.1 2.9 2.7.2 1.5.2 3 .2 4.5s0 3-.2 4.5c-.2 1.6-1.3 2.6-2.9 2.7-1.6.2-3.6.3-5.6.3s-4-.1-5.6-.3c-1.6-.1-2.7-1.1-2.9-2.7C3.3 15 3.3 13.5 3.3 12s0-3 .2-4.5z', 'M10 9l5 3-5 3z'],
+  substack: ['M5 4h14', 'M5 8h14', 'M5 12h14v8l-7-4-7 4z'],
+  website: ['M12 3a9 9 0 1 1 0 18a9 9 0 0 1 0-18z', 'M3 12h18', 'M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9s1.3-6.3 3.8-9z'],
+};
 // A link is kept whole: a cap shorter than a real address would cut it silently in the member
 // editors, which save through this with no length check (Codex P2 on #2540). 2,048 holds any address
 // a browser opens.
@@ -177,7 +195,30 @@ export function bsCleanStory(v, max) {
   return (max && out.length > max) ? out.slice(0, max).trim() : out;
 }
 
-// The coach's story and facts. Field by field (extra keys never ride through); null when empty.
+// One of the coach's lists: each row a title, then what it was or who gave it, then the year, both
+// optional; a row with no title is dropped, and so is a year that is not one (before 1950 or past next
+// year). Rows keep their order, eight at most. An empty list is [].
+export function bsAboutItems(v) {
+  if (!Array.isArray(v)) return [];
+  const yearMax = new Date().getFullYear() + 1;
+  const out = [];
+  for (const it of v) {
+    if (out.length >= BS_ABOUT_LIST_MAX) break;
+    if (!it || typeof it !== 'object' || Array.isArray(it)) continue;
+    const title = bsCleanText(it.title, BS_ABOUT_ITEM_MAX);
+    if (!title) continue;
+    const detail = bsCleanText(it.detail, BS_ABOUT_ITEM_MAX);
+    const y = Number(it.year);
+    const year = Number.isInteger(y) && y >= BS_ABOUT_YEAR_MIN && y <= yearMax ? y : null;
+    const row = { title };
+    if (detail) row.detail = detail;
+    if (year) row.year = year;
+    out.push(row);
+  }
+  return out;
+}
+
+// The coach's story, facts and lists. Field by field (extra keys never ride through); null when empty.
 export function bsProfileAbout(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const story = bsCleanStory(v.story, BS_ABOUT_STORY_MAX);
@@ -186,13 +227,17 @@ export function bsProfileAbout(v) {
   const how = BS_ABOUT_HOW.includes(v.how) ? v.how : null;
   const where = bsCleanText(v.where, BS_ABOUT_FACT_MAX);
   const languages = bsCleanText(v.languages, BS_ABOUT_FACT_MAX);
-  if (!story && !years && !how && !where && !languages) return null;
+  const accolades = bsAboutItems(v.accolades);
+  const education = bsAboutItems(v.education);
+  if (!story && !years && !how && !where && !languages && !accolades.length && !education.length) return null;
   const out = {};
   if (story) out.story = story;
   if (years) out.years = years;
   if (how) out.how = how;
   if (where) out.where = where;
   if (languages) out.languages = languages;
+  if (accolades.length) out.accolades = accolades;
+  if (education.length) out.education = education;
   return out;
 }
 
@@ -555,6 +600,8 @@ export function bsNormalizeProfileCustom(doc, ownerUid, opts) {
   const about = bsProfileAbout(base.about);
   if (about) base.about = about; else delete base.about;
   if ('links' in base) { const links = bsProfileLinks(base.links); if (links) base.links = links; else delete base.links; }
+  // The coach's choice to show their socials in the profile's head too: kept only as true.
+  if ('headLinks' in base) { if (base.headLinks === true) base.headLinks = true; else delete base.headLinks; }
   if ('prompts' in base) { const prompts = bsProfilePrompts(base.prompts); if (prompts.length) base.prompts = prompts; else delete base.prompts; }
   const filmBucket = (opts && typeof opts.filmBucket === 'string') ? opts.filmBucket : null;
   const filmKey = (opts && typeof opts.filmKey === 'string') ? opts.filmKey : 'film';

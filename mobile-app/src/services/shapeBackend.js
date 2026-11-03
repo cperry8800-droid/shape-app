@@ -8122,7 +8122,26 @@ async function getUserAvatars(ids) {
   list.forEach((id) => { if (_avatarCache[id]) out[id] = _avatarCache[id]; });
   return out;
 }
-window.ShapeProfiles = { getPublicProfile, getUserPoints, getUserAvatars };
+// A verified coach's certificates, by name, as Shape approved them: get_coach_certs returns rows only
+// for an approved review of a verified coach. Names only (the app shows no certificate numbers),
+// each once. A failed read is [], so the page claims nothing.
+async function getCoachCerts(userId) {
+  if (!supabase || !userId) return [];
+  try {
+    const { data, error } = await supabase.rpc('get_coach_certs', { p_user_id: userId });
+    if (error || !Array.isArray(data)) return [];
+    const seen = new Set();
+    const out = [];
+    for (const r of data) {
+      const name = String((r && r.cert_type) || '').trim().slice(0, 80);
+      if (!name || seen.has(name.toLowerCase())) continue;
+      seen.add(name.toLowerCase());
+      out.push(name);
+    }
+    return out.slice(0, 12);
+  } catch (e) { return []; }
+}
+window.ShapeProfiles = { getPublicProfile, getUserPoints, getUserAvatars, getCoachCerts };
 
 // Progress hub — the same rollups the website Progress / Train / Nutrition pages
 // read (KPIs, trend series, PRs, volume, macros). Each returns null on no-data so
