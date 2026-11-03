@@ -1484,17 +1484,22 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     siteKey: function () { return window.SHAPE_TURNSTILE_SITEKEY || ''; },
     // Render an explicit widget into `el`. onToken(token) fires on solve;
     // onToken('') on expire/error so the caller can re-block submit. Resolves to
-    // the widget id (or null when disabled / the script can't load).
-    render: function (el, onToken) {
+    // the widget id (or null when disabled / the script can't load). `look` is
+    // optional: { theme, size } go to Cloudflare as render parameters, the only
+    // way an explicit widget takes them (data-* attributes are for implicit ones).
+    render: function (el, onToken, look) {
       if (!el || !window.SHAPE_TURNSTILE_SITEKEY) return Promise.resolve(null);
       var cb = function (tok) { try { onToken(tok || ''); } catch (e) {} };
+      var params = {
+        sitekey: window.SHAPE_TURNSTILE_SITEKEY,
+        callback: cb,
+        'expired-callback': function () { cb(''); },
+        'error-callback': function () { cb(''); },
+      };
+      if (look && look.theme) params.theme = look.theme;
+      if (look && look.size) params.size = look.size;
       return _tsLoad().then(function (ts) {
-        return ts.render(el, {
-          sitekey: window.SHAPE_TURNSTILE_SITEKEY,
-          callback: cb,
-          'expired-callback': function () { cb(''); },
-          'error-callback': function () { cb(''); },
-        });
+        return ts.render(el, params);
       }).catch(function (e) { console.warn('[shape] turnstile render failed', e); return null; });
     },
     // Clear a widget's token so the next submit re-solves (tokens are single-use).

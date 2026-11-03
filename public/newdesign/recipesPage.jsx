@@ -338,7 +338,20 @@ function RecipesPage() {
     // Open: focus moves into the drawer (its ×), and the drawer closes if the
     // window widens back to the column (past 960px it is no longer a drawer).
     try { if (sideXRef.current) sideXRef.current.focus({ preventScroll: true }); } catch (e) {}
-    const onKey = (e) => { if (e.key === "Escape") closeDrawer(); };
+    // A modal: Tab and Shift+Tab go round the drawer's own controls, never out to the page
+    // behind the backdrop.
+    const onKey = (e) => {
+      if (e.key === "Escape") { closeDrawer(); return; }
+      if (e.key !== "Tab") return;
+      const side = document.getElementById("km-side");
+      if (!side) return;
+      const els = [...side.querySelectorAll("button:not([disabled]), a[href], input:not([disabled])")].filter((el) => el.offsetParent !== null);
+      if (!els.length) return;
+      const first = els[0], last = els[els.length - 1], at = document.activeElement;
+      if (!side.contains(at)) { e.preventDefault(); first.focus(); }
+      else if (e.shiftKey && at === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
+    };
     const wide = window.matchMedia ? window.matchMedia("(min-width: 961px)") : null;
     const onWide = () => { if (wide && wide.matches) setDrawer(false); };
     document.addEventListener("keydown", onKey);

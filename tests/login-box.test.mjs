@@ -33,7 +33,14 @@ test('the switches say which choice is on, the role under its label; errors are 
 });
 
 test('the bot check: dark, the card\'s width, and 300px of room on a 320px phone', () => {
-  assert.match(src, /<div ref=\{captchaRef\} data-theme="dark" data-size="flexible"/);
+  // an explicit widget takes its look as render parameters, not data-* attributes (Codex on #2577)
+  assert.match(src, /window\.ShapeTurnstile\.render\(captchaRef\.current, setCaptchaToken, \{ theme: "dark", size: "flexible" \}\)/);
+  assert.doesNotMatch(src, /data-theme=|data-size=/);
+  const shared = readFileSync(new URL('../public/supabase.js', import.meta.url), 'utf8');
+  assert.match(shared, /render: function \(el, onToken, look\) \{/);
+  assert.match(shared, /if \(look && look\.theme\) params\.theme = look\.theme;/);
+  assert.match(shared, /if \(look && look\.size\) params\.size = look\.size;/);
+  assert.match(shared, /return ts\.render\(el, params\);/);
   // Turnstile is 300px at its narrowest: under 360px the card widens and the widget's row takes
   // the card's side padding (a 304px card at 320 gives it 302px, measured in Chromium)
   assert.match(src, /@media \(max-width:359px\)\{\.lgA-main\{padding-left:8px;padding-right:8px\}\.lgA-captcha\{margin-left:-20px;margin-right:-20px\}\}/);

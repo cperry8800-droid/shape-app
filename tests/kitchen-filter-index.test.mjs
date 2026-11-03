@@ -44,7 +44,12 @@ test('960px and below: a bottom drawer from "Filters", over the chat launcher, a
   // the backdrop, × and "Show N" close it
   assert.match(src, /sideXRef\.current\.focus\(\{ preventScroll: true \}\)/);
   assert.match(src, /fbtnRef\.current\.focus\(\{ preventScroll: true \}\)/);
-  assert.match(src, /if \(e\.key === "Escape"\) closeDrawer\(\)/);
+  assert.match(src, /if \(e\.key === "Escape"\) \{ closeDrawer\(\); return; \}/);
+  // and Tab stays inside it while open (Codex on #2577): it wraps at both ends, and focus that
+  // got out goes back to its first control
+  assert.match(src, /if \(!side\.contains\(at\)\) \{ e\.preventDefault\(\); first\.focus\(\); \}/);
+  assert.match(src, /else if \(e\.shiftKey && at === first\) \{ e\.preventDefault\(\); last\.focus\(\); \}/);
+  assert.match(src, /else if \(!e\.shiftKey && at === last\) \{ e\.preventDefault\(\); first\.focus\(\); \}/);
   assert.match(src, /matchMedia\("\(min-width: 961px\)"\)/);
   assert.match(src, /className="km-side-bg" aria-hidden onClick=\{closeDrawer\}/);
   assert.match(src, /<button type="button" className="km-btn p" onClick=\{closeDrawer\}>Show \{shown\.length\}/);

@@ -76,7 +76,8 @@ function LoginCard() {
     if (!captchaRef.current || captchaIdRef.current != null) return;
     setCaptchaUnavailable(false);
     let alive = true;
-    window.ShapeTurnstile.render(captchaRef.current, setCaptchaToken).then((id) => {
+    // Dark, and the card's full width (Turnstile's 300px minimum still holds).
+    window.ShapeTurnstile.render(captchaRef.current, setCaptchaToken, { theme: "dark", size: "flexible" }).then((id) => {
       if (!alive) return;
       captchaIdRef.current = id;
       if (id == null) setCaptchaUnavailable(true); // the Turnstile script never loaded
@@ -322,11 +323,11 @@ function LoginCard() {
         ) : null}
 
         {/* Turnstile bot challenge — hidden at the phone code-entry step (verify needs no token).
-            Falls open if it can't load/connect, so it can't lock anyone out. data-theme / data-size
-            are read by Turnstile's explicit render from the container: dark, the card's full width. */}
+            Falls open if it can't load/connect, so it can't lock anyone out. Its theme and size go
+            through ShapeTurnstile.render's render parameters (the effect above). */}
         {captchaOn && !(method === "phone" && otpSent) ? (
           <div className="lgA-captcha">
-            <div ref={captchaRef} data-theme="dark" data-size="flexible" style={{ minHeight: captchaUnavailable ? 0 : 65, display: captchaUnavailable ? "none" : "block" }} />
+            <div ref={captchaRef} style={{ minHeight: captchaUnavailable ? 0 : 65, display: captchaUnavailable ? "none" : "block" }} />
             {captchaUnavailable ? (
               <div className="lgA-note">Couldn't load the human-check — you can still sign in.</div>
             ) : null}
