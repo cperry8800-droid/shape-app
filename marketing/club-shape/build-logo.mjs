@@ -48,8 +48,8 @@ export const COLORS = {
 
 // The lockups, in caps.
 export const LOCKUP = {
-  markCaps: 2.8,              // the mark's height over a ten-letter word: the club screen's (screenArt.mjs
-                              //   ART.markCaps; the brand's five-letter lockup is 2.32)
+  markCaps: 2.4,              // the mark's height, a touch over the brand's own 2.32 for a word twice as
+                              //   long (owner, 2026-11-03: the club screen's 2.8 read too big here)
   markGap: 0.75,              // mark to cap line (the brand's is 0.74)
   markShift: 0.074,           // the mark sits this far right of the word's centre, as in the brand art
   inlineMarkCaps: 1.3,        // the horizontal lockup's mark, a little taller than a cap,
