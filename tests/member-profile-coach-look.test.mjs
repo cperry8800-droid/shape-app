@@ -5,7 +5,8 @@
 // improvements", and "improve design of these pages" (the Signals and Climb tabs); of the choices, "Cover
 // photo; climb in its tab". The head is the coach page's: a cover, the round photo over its edge, the name,
 // one meta line, the counts, Follow and Message (or Log activity and Edit profile on your own). The tier's
-// climb, which the mountain at the top drew, is the Climb tab's first source.
+// climb, which the mountain at the top drew, is the Climb tab's first source, and is drawn over the cover
+// again (owner, 2026-11-03: "this top section should show the tier line graph we had").
 //
 // It also holds the fixes from the review of the page that came with it: a profile opened from your own
 // Me page could show a Message that did nothing; getPublicProfile dropped whether the profile is public
@@ -17,7 +18,7 @@ import { createRequire } from 'node:module';
 import { loadBroadsheet, drive, textOf, SRC } from './helpers/broadsheet-mount.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
-const mod = await loadBroadsheet(['BSTerrainProfile', 'BSFollowBlock', 'bsReadableOn', 'BSProfilePlaylists']);
+const mod = await loadBroadsheet(['BSTerrainProfile', 'BSFollowBlock', 'bsReadableOn', 'BSProfilePlaylists', 'bsTierRidgeGeom', 'bsTierColor']);
 const CLIENT = stripComments(readFileSync(SRC, 'utf8'));
 const BACKEND = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');
 const named = (name) => (n) => n && typeof n.type === 'function' && n.type.name === name;
@@ -116,6 +117,69 @@ test('someone else\'s real profile shows no coach it does not have', () => {
   assert.match(fn, /const showCoachBand = !signedIn \|\| !!coachReal \|\| hasRealProgram;/);
   assert.match(fn, /const showCoachLink = !signedIn \|\| !!coachReal;/);
   assert.match(fn, /const hasRealProgram = !!\(isSelf && prog && /, 'a program shows only on your own page');
+});
+
+// Whether `child` is somewhere under `parent` in the rendered tree.
+const contains = (parent, child) => {
+  const walk = (n) => n === child || (n && typeof n === 'object' && (Array.isArray(n) ? n.some(walk) : !!(n.props && walk(n.props.children))));
+  return walk(parent && parent.props && parent.props.children);
+};
+const polyLen = (d) => {
+  const p = [...d.matchAll(/[ML] (-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+  let n = 0; for (let i = 1; i < p.length; i++) n += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
+  return { n, last: p[p.length - 1] };
+};
+
+test('the cover draws the tier line again: from the tier held to the next, the heat to their %', () => {
+  signedOut();
+  const d = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
+  const nodes = d.nodes();
+  const [cover] = withAttr(nodes, 'data-member-cover');
+  const [ridge] = withAttr(nodes, 'data-member-ridge');
+  assert.ok(ridge, 'the cover has no tier line');
+  assert.ok(contains(cover, ridge), 'the tier line is not on the cover');
+  assert.equal(textOf(withAttr(nodes, 'data-ridge-base')[0]), 'Tempo', 'the base is the tier they hold');
+  assert.equal(textOf(withAttr(nodes, 'data-ridge-summit')[0]), 'Form', 'the summit is the next tier');
+  const pct = textOf(withAttr(nodes, 'data-ridge-pct')[0]);
+  assert.match(pct, /^\d+%$/);
+  assert.equal(ridge.props['aria-label'], `Tempo → Form · ${pct}`, 'the line says what it draws');
+  // The flag flies the next tier's colour; the base is their own.
+  assert.equal(withAttr(nodes, 'data-ridge-flag')[0].props.fill, mod.bsTierColor('form'));
+  assert.match(withAttr(nodes, 'data-ridge-base')[0].props.style.borderBottom, new RegExp(`${mod.bsTierColor('tempo')}$`));
+  // The same % the Climb tab's tier reads on Now.
+  d.nodes().find(named('BSTerrainTabs')).props.onPick('climb');
+  d.render();
+  assert.ok(d.text.includes(`pts · ${pct}`), `the Climb tab's Now does not read ${pct}`);
+});
+
+test('at the top of the ladder the cover draws the whole ladder climbed', () => {
+  signedOut();
+  const d = drive(mod.BSTerrainProfile, { person: { who: 'Ade Bello', kind: 'CLIENT', tier: 'LEGEND', init: 'AB' }, onBack() {} });
+  const nodes = d.nodes();
+  assert.equal(textOf(withAttr(nodes, 'data-ridge-base')[0]), 'Raw', 'the first rung, not Legend twice');
+  assert.equal(textOf(withAttr(nodes, 'data-ridge-summit')[0]), 'Legend');
+  assert.equal(textOf(withAttr(nodes, 'data-ridge-pct')[0]), 'Top of the ladder', 'not "100%" of a span with no far end');
+  assert.equal(withAttr(nodes, 'data-ridge-flag')[0].props.fill, mod.bsTierColor('legend'), 'the summit is the tier they hold');
+  assert.match(withAttr(nodes, 'data-ridge-base')[0].props.style.borderBottom, new RegExp(`${mod.bsTierColor('raw')}$`));
+});
+
+test('the ridge\'s heat stops where its dot sits, at its share of the route', () => {
+  const g0 = mod.bsTierRidgeGeom(220, 148, 0);
+  assert.deepEqual(g0.now, g0.base, 'at 0 the dot is on the base');
+  const whole = polyLen(mod.bsTierRidgeGeom(220, 148, 1).earned);
+  const g1 = mod.bsTierRidgeGeom(220, 148, 1);
+  assert.ok(Math.hypot(g1.now[0] - g1.peak[0], g1.now[1] - g1.peak[1]) < 0.01, 'at 1 the dot is on the summit');
+  let prev = g0.now;
+  for (const pct of [0.1, 0.25, 0.43, 0.6, 0.8, 0.97]) {
+    const g = mod.bsTierRidgeGeom(220, 148, pct);
+    const e = polyLen(g.earned);
+    assert.ok(Math.abs(e.n / whole.n - pct) < 0.01, `at ${pct} the heat covers ${(e.n / whole.n).toFixed(3)} of the route`);
+    assert.ok(Math.hypot(e.last[0] - g.now[0], e.last[1] - g.now[1]) < 0.02, `at ${pct} the heat does not end on the dot`);
+    assert.ok(g.now[0] > prev[0] && g.now[1] < prev[1], `at ${pct} the dot does not climb`);
+    prev = g.now;
+  }
+  // The route is the head's old mountain: a knee then a shoulder, as fractions of the rise.
+  assert.match(g0.d, /^M 6 122 Q 88 [\d.]+, 136\.4 [\d.]+ T 210 30$/);
 });
 
 test('the Climb tab opens on the tier, the climb the mountain at the top used to draw', () => {

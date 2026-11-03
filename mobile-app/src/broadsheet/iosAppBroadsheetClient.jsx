@@ -18586,6 +18586,40 @@ function bsProfileDistLabel(t, km) {
   return m.unit === 'mi' ? `${m.value} mi` : `${m.value}K`;
 }
 
+// The tier ridge on the member profile's cover, in a W×H frame: the base low on the left, the summit
+// high on the right, in the shape the head's mountain drew until 2026-10-31 (its knee and shoulder as
+// fractions of the rise). `earned` is the same route cut at `pct` of its length and `now` the point it
+// stops on, both from one sampled polyline, so the dot sits exactly where the heat ends.
+function bsTierRidgeGeom(W, H, pct) {
+  const base = [6, H - 26], peak = [W - 10, 30];
+  const rise = base[1] - peak[1];
+  const c1 = [W * 0.4, base[1] - rise * (12 / 102)];
+  const mid = [W * 0.62, base[1] - rise * (53 / 102)];
+  const c2 = [2 * mid[0] - c1[0], 2 * mid[1] - c1[1]]; // T reflects the first control point through mid
+  const d = `M ${base[0]} ${base[1]} Q ${c1[0]} ${c1[1]}, ${mid[0]} ${mid[1]} T ${peak[0]} ${peak[1]}`;
+  const q = (a, cp, b, t) => [0, 1].map((k) => (1 - t) * (1 - t) * a[k] + 2 * (1 - t) * t * cp[k] + t * t * b[k]);
+  const N = 40, pts = [];
+  for (let i = 0; i <= N; i++) pts.push(q(base, c1, mid, i / N));
+  for (let i = 1; i <= N; i++) pts.push(q(mid, c2, peak, i / N));
+  const lens = [0];
+  for (let i = 1; i < pts.length; i++) lens.push(lens[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const want = Math.max(0, Math.min(1, Number(pct) || 0)) * lens[lens.length - 1];
+  const out = [pts[0]];
+  let now = pts[0];
+  for (let i = 1; i < pts.length; i++) {
+    if (lens[i] >= want) {
+      const f = (want - lens[i - 1]) / ((lens[i] - lens[i - 1]) || 1);
+      now = [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f];
+      out.push(now);
+      break;
+    }
+    out.push(pts[i]);
+    now = pts[i];
+  }
+  const r2 = (v) => Math.round(v * 100) / 100;
+  return { d, earned: out.map((p, i) => `${i ? 'L' : 'M'} ${r2(p[0])} ${r2(p[1])}`).join(' '), now, base, peak };
+}
+
 function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = null, meMode = false, onOpenSettings = () => {}, onOpenScore = null }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
@@ -19020,7 +19054,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       // The % the head's mountain carried, now on "Now" (owner, 2026-10-31: the climb in its tab).
       const nowFig = last ? ptsOf(pts) : `${ptsOf(pts)} · ${Math.round(tierPct * 100)}%`;
       // The target flies the next tier's colour, as the head's summit flag did; at the top, their own.
-      return { arc: [startRung, [tr('profile:ridge.now', { defaultValue: 'Now' }), nowFig, 'now'], [nextName, ptsOf(next), 'target']], pct: tierPct, summit: last ? 'Legend tier' : `${nextName} tier`, targetC: last ? c : bsTierColor(nextName) };
+      // The cover's ridge reads the same climb: its two ends' names and colours, and the top state.
+      return { arc: [startRung, [tr('profile:ridge.now', { defaultValue: 'Now' }), nowFig, 'now'], [nextName, ptsOf(next), 'target']], pct: tierPct, summit: last ? 'Legend tier' : `${nextName} tier`, targetC: last ? c : bsTierColor(nextName),
+        top: last, baseName: startRung[0], summitName: nextName, baseC: last ? bsTierColor(NM[0]) : c };
     }
     if (aspect === 'streak') {
       const s = Number(streakEff) || 0, target = Math.max(7, Math.ceil((s + 1) / 7) * 7);
@@ -19109,8 +19145,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           chose the cover with the climb moved into its tab). Their cover photo (the preview's mountain,
           else their tier's colour) under the masthead in white, the round avatar over its edge, who they
           are and their bio, one line of tier · points · streak, the counts, and two buttons: Follow and
-          Message, or on your own page Log activity and Edit profile. The tier ridge is the Climb tab's
-          first climb now, and the Shape Score is that one line (its four bars live on the Score page). ── */}
+          Message, or on your own page Log activity and Edit profile. The tier ridge is drawn over the cover
+          again (owner, 2026-11-03: "this top section should show the tier line graph we had") and is the
+          Climb tab's first climb too; the Shape Score is that one line (its four bars live on the Score page). ── */}
       {(() => {
         const gutter = bsGutter(tTheme);
         const corner = BS_HEADER_AVATAR;
@@ -19134,6 +19171,20 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         if (heroStartState) { const v = bsValidStartDate(heroStart.date); try { startDate = new Date(v.y, v.m - 1, v.d, 12).toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' }); } catch (e) {} }
         const memberFilm = bsProfileFilm(customEff && customEff.filmMember, person.userId, 'member-films');
         const btn = (primary) => ({ flex: primary ? 1.2 : 1, minHeight: 46, border: primary ? 0 : `1px solid ${bsTHexA(INK, 0.22)}`, background: primary ? c : 'transparent', color: primary ? bsReadableOn(c) : INK, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' });
+        // The tier ridge over the cover (owner, 2026-11-03: "this top section should show the tier line
+        // graph we had"): the climb from the tier they hold to the next, the heat drawn to their %, the
+        // summit flag in the next tier's colour; at the top of the ladder, the whole ladder climbed. It
+        // starts right of the photo, which covers the cover's bottom-left corner. Over a photo the ink is
+        // a fixed cream with a shadow (a light paper's ink would not read on it).
+        const tierClimb = climbCfgFor('score');
+        const RW = 220, RH = 148;
+        const rg = bsTierRidgeGeom(RW, RH, tierClimb.pct);
+        const rINK = heroCover ? '#f2ede4' : INK;
+        const rShadow = heroCover ? '0 1px 5px rgba(0,0,0,0.75)' : undefined;
+        const nowX = (rg.now[0] / RW) * 100;
+        const ridgeReduced = bsSdReduced();
+        const ridgePct = tierClimb.top ? tr('profile:ladder.top', { defaultValue: 'Top of the ladder' }) : `${Math.round(tierClimb.pct * 100)}%`;
+        const ridgeLabel = { position: 'absolute', fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: rINK, textShadow: rShadow, paddingBottom: 1, whiteSpace: 'nowrap', lineHeight: 1.2 };
         return (
           <div data-member-head="" data-tour={meMode ? 'hero-me' : undefined}>
             {/* The cover, with the masthead (and Back) over it in white */}
@@ -19162,6 +19213,25 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   <BSBackRow onBack={onBack} ink={WHITE} buttonStyle={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }} />
                 </div>
               ) : null}
+              {/* The tier ridge: the dashed route, the heat to their %, the base square and the summit flag,
+                  each end's tier name underlined in its tier's colour, and the % under the dot. */}
+              <div data-member-ridge="" role="img" aria-label={`${tierClimb.baseName} → ${tierClimb.summitName} · ${ridgePct}`}
+                style={{ position: 'absolute', left: gutter + 118, right: gutter, bottom: 0, height: RH, pointerEvents: 'none' }}>
+                <svg width="100%" height={RH} viewBox={`0 0 ${RW} ${RH}`} preserveAspectRatio="none" aria-hidden style={{ display: 'block', overflow: 'visible' }}>
+                  <path d={rg.d} fill="none" stroke={bsTHexA(rINK, heroCover ? 0.62 : 0.35)} strokeWidth="1.5" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+                  <path data-ridge-earned="" d={rg.earned} fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" pathLength={1} strokeDasharray="1 1"
+                    style={{ '--sd-len': 1, filter: heroCover ? 'drop-shadow(0 1px 3px rgba(0,0,0,0.55))' : undefined, ...(ridgeReduced ? { strokeDashoffset: 0 } : { animation: 'bsSdDrawLine 1100ms cubic-bezier(.4,0,.2,1) 400ms both' }) }} />
+                  <line x1={rg.peak[0]} y1={rg.peak[1]} x2={rg.peak[0]} y2={rg.peak[1] - 18} stroke={tierClimb.targetC || c} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                  <path data-ridge-flag="" d={`M ${rg.peak[0]} ${rg.peak[1] - 18} l 12 4 l -12 4 z`} fill={tierClimb.targetC || c} />
+                </svg>
+                {/* The base square, drawn in HTML so the stretched frame cannot squash it */}
+                <span aria-hidden style={{ position: 'absolute', left: `${(rg.base[0] / RW) * 100}%`, top: rg.base[1], width: 8, height: 8, transform: 'translate(-50%, -50%)', border: `1.5px solid ${tierClimb.baseC}`, boxSizing: 'border-box', background: heroCover ? 'rgba(0,0,0,0.25)' : 'transparent' }} />
+                {/* Where they are: the heat dot, popping in as the route reaches it */}
+                <span data-ridge-now="" aria-hidden style={{ position: 'absolute', left: `${nowX}%`, top: rg.now[1], width: 12, height: 12, marginLeft: -6, marginTop: -6, borderRadius: 99, background: c, border: `2px solid ${heroCover ? '#f2ede4' : (tTheme.PAPER_BG || BG)}`, boxSizing: 'border-box', ...(ridgeReduced ? null : { '--sd-glow': bsTHexA(c, 0.55), transformOrigin: 'center', animation: 'bsSdPop 400ms cubic-bezier(.2,1.1,.3,1) 1450ms both, bsSdPrBreath 3.2s ease-in-out 2050ms infinite' }) }} />
+                <span data-ridge-pct="" aria-hidden style={{ ...ridgeLabel, fontSize: tierClimb.top ? 8 : 10, ...(tierClimb.pct < 0.3 ? { top: rg.now[1] - 26 } : { top: rg.now[1] + 10 }), ...(nowX > 78 ? { right: `calc(${100 - nowX}% - 6px)` } : { left: `${nowX}%`, transform: 'translateX(-50%)' }), borderBottom: `1px solid ${c}` }}>{ridgePct}</span>
+                <span data-ridge-base="" aria-hidden style={{ ...ridgeLabel, left: 0, bottom: 4, borderBottom: `1.5px solid ${tierClimb.baseC}` }}>{tierClimb.baseName}</span>
+                <span data-ridge-summit="" aria-hidden style={{ ...ridgeLabel, right: `calc(${((RW - rg.peak[0]) / RW) * 100}% + 6px)`, top: rg.peak[1] - 20, borderBottom: `1.5px solid ${tierClimb.targetC || c}` }}>{tierClimb.summitName}</span>
+              </div>
             </div>
 
             {/* The avatar over the cover's edge, and who they are */}

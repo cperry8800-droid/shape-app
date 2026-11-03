@@ -505,11 +505,17 @@ test('a moments ring points at the same pixels of the capture, whatever the wind
   // set 01 up with its LOAD/REPS/RPE labels; and on the Wall the NEW PR line, the
   // headline and the 245 lb record in ONE ring. Grocery's window moved up (--y 34%)
   // so it stops above the floating tab bar.
+  // Re-shot 2026-11-03 (owner: "make sure screenshots on website on app page and home
+  // page are updated to most recent"). Eat and the session did not move. Grocery's plan
+  // card and Prep the week now sit above the aisles, so AISLE 1 OF 5, Produce and its
+  // first item ring 74 px lower in the same window; the Wall's PR opens as its own page,
+  // so its ring is the headline, the 245 lb top set and the member's note, at the
+  // stylesheet's inset (the page's content starts 26 px in).
   const EXPECTED = [
-    { file: 'home-eat-v3.jpg', top: 480, height: 363, left: 15, right: 585 },
-    { file: 'home-grocery-v3.jpg', top: 824, height: 206, left: 15, right: 585 },
-    { file: 'home-session-v3.jpg', top: 482, height: 134, left: 15, right: 585 },
-    { file: 'home-feed-v3.jpg', top: 135, height: 247, left: 7.5, right: 592.5 },
+    { file: 'home-eat-v4.jpg', top: 480, height: 363, left: 15, right: 585 },
+    { file: 'home-grocery-v4.jpg', top: 898, height: 219, left: 15, right: 585 },
+    { file: 'home-session-v4.jpg', top: 482, height: 134, left: 15, right: 585 },
+    { file: 'home-feed-v4.jpg', top: 353, height: 303, left: 15, right: 585 },
   ];
 
   for (const [i, got] of momentsRings().entries()) {
@@ -599,7 +605,7 @@ test('the price phone is not a screen the journey rail already showed', () => {
   //
   // ⚠ AND "NO CAPTURE TWICE ON THE PAGE" WOULD FAIL CORRECT CODE, which is why
   // this is scoped to these two blocks. The moments strip and the rail SHARE
-  // home-session-v3.jpg and home-feed-v3.jpg deliberately, under different
+  // home-session-v4.jpg and home-feed-v4.jpg deliberately, under different
   // headlines, and the rail's stage 0 is the seeded markup by design — the test
   // above asserts that sameness. What must not repeat is the standing phone
   // beside the price showing a stage the rail has already walked the reader
