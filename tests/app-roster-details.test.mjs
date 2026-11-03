@@ -81,11 +81,12 @@ const rowOf = (host, name) => [...host.querySelectorAll('button')].find((b) => b
 const tabs = (host) => [...host.querySelectorAll('[role="tab"]')];
 const open = async (host, i) => { await React.act(async () => { tabs(host)[i].click(); }); };
 
-test('the tabs open with All, every current client, and its count', async () => {
+test('the tabs end with All, every current client, and its count', async () => {
   const m = await mount(rows());
   try {
-    assert.deepEqual(tabs(m.host).map((b) => b.textContent.replace(/\s+/g, ' ').trim()), ['All 3', 'Needs you 1', 'On track 2', 'Past 2']);
-    await open(m.host, 0);
+    // Concept A's order (owner, 2026-11-03: "the filter options looks much different"): All comes last.
+    assert.deepEqual(tabs(m.host).map((b) => b.textContent.replace(/\s+/g, ' ').trim()), ['Needs you 1', 'On track 2', 'Past 2', 'All 3']);
+    await open(m.host, 3);
     const all = m.host.querySelector('[data-roster-group="all"]');
     assert.ok(all, 'the All list');
     assert.match(all.querySelector('h2').textContent, /^Current clients\s*3$/);
@@ -99,7 +100,7 @@ test('the tabs open with All, every current client, and its count', async () => 
 test('a row carries the program, the streak, since when, and the week as a number and a bar', async () => {
   const m = await mount(rows());
   try {
-    await open(m.host, 0);
+    await open(m.host, 3);
     const ana = rowOf(m.host, 'Ana Reyes');
     assert.equal(ana.querySelector('[data-roster-facts]').textContent, 'Hypertrophy · 12-day streak · Since Feb 2026');
     const week = ana.querySelector('[data-roster-week]');
@@ -124,7 +125,7 @@ test('a program named as the phase line already reads is said once', () => {
   assert.equal(c.r, 'BUILD · 2400');
   return mount([c], { role: 'nutritionist' }).then(async (m) => {
     try {
-      await open(m.host, 0);
+      await open(m.host, 3);
       assert.equal(rowOf(m.host, 'Dee Ko').querySelector('[data-roster-facts]').textContent, '3-day streak');
     } finally { await m.close(); }
   });
@@ -133,7 +134,7 @@ test('a program named as the phase line already reads is said once', () => {
 test("a nutritionist's figure is days logged in the last week", async () => {
   const m = await mount(rows('nutritionist'), { role: 'nutritionist' });
   try {
-    await open(m.host, 0);
+    await open(m.host, 3);
     const week = rowOf(m.host, 'Ana Reyes').querySelector('[data-roster-week]');
     assert.match(week.textContent, /^86%Logged · 7d$/, '6 of 7 days');
   } finally { await m.close(); }
@@ -142,7 +143,7 @@ test("a nutritionist's figure is days logged in the last week", async () => {
 test('the All tab keeps the Message button for whoever needs reaching today (Codex on #2532)', async () => {
   const m = await mount(rows());
   try {
-    await open(m.host, 0);
+    await open(m.host, 3);
     const all = m.host.querySelector('[data-roster-group="all"]');
     assert.ok(all.querySelector('[aria-label="Message Ben Tal"]'), 'Ben (red) lost his Message button in All');
     assert.ok(!all.querySelector('[aria-label="Message Ana Reyes"]'), 'an on-track row got one');
@@ -159,7 +160,7 @@ test('a figure that falls back to the other measure is labelled as that measure 
   for (const [c, role, want] of [[t1, 'trainer', /^71%Logged · 7d$/], [n1, 'nutritionist', /^80%Adherence$/]]) {
     const m = await mount([c], { role });
     try {
-      await open(m.host, 0);
+      await open(m.host, 3);
       assert.match(rowOf(m.host, c.n).querySelector('[data-roster-week]').textContent, want, role);
     } finally { await m.close(); }
   }
@@ -178,7 +179,7 @@ test('a live row says what the live reads hold: workouts in six weeks, or averag
   {
     const m = await mount([live('trainer', rec('l1', 'Hal Ry'))]);
     try {
-      await open(m.host, 0);
+      await open(m.host, 3);
       const row = rowOf(m.host, 'Hal Ry');
       assert.equal(row.querySelector('[data-roster-facts]').textContent, '14 workouts in 6 wk · Since Mar 2026');
       assert.match(row.querySelector('[data-roster-week]').textContent, /^90%Adherence$/);
@@ -187,7 +188,7 @@ test('a live row says what the live reads hold: workouts in six weeks, or averag
   {
     const m = await mount([live('nutritionist', rec('l2', 'Ida Vu'))], { role: 'nutritionist' });
     try {
-      await open(m.host, 0);
+      await open(m.host, 3);
       const row = rowOf(m.host, 'Ida Vu');
       assert.equal(row.querySelector('[data-roster-facts]').textContent, 'Avg 1,850 kcal · Since Mar 2026');
       assert.match(row.querySelector('[data-roster-week]').textContent, /^86%Logged · 7d$/);
@@ -199,7 +200,7 @@ test('a live row says what the live reads hold: workouts in six weeks, or averag
     assert.equal(fresh._sig.sev, 'new');
     const m = await mount([fresh]);
     try {
-      await open(m.host, 0);
+      await open(m.host, 3);
       assert.equal(rowOf(m.host, 'Jo Bee').querySelector('[data-roster-facts]').textContent, 'Since Mar 2026');
     } finally { await m.close(); }
   }
@@ -211,7 +212,7 @@ test('a client who logged on all eight dates the rollup counts reads 100%, never
   assert.deepEqual([c.adh, c.d], [100, '100%']);
   const m = await mount([c], { role: 'nutritionist' });
   try {
-    await open(m.host, 0);
+    await open(m.host, 3);
     assert.match(rowOf(m.host, 'Eve Ng').querySelector('[data-roster-week]').textContent, /^100%Logged · 7d$/);
   } finally { await m.close(); }
   // The case file holds it the same way.

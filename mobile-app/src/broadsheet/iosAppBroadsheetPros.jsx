@@ -1975,10 +1975,12 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         compact
         thinRule
         noTopRule
-        // The Club Shape wordmark (club-shape-wordmark.svg, 14.2:1, cropped close): 300px wide sets its
-        // letters 17px tall (SHAPE's were 22, and CLUB SHAPE at 22 runs past a phone), shrinking on a
-        // narrower one; the margins keep the letters' middle, and the masthead's height, where they were.
-        title={<img src={`${import.meta.env.BASE_URL}club-shape-wordmark.svg`} alt="Club Shape" style={{ display: 'block', margin: '23px auto 16px', width: 'min(300px, 100%)', height: 'auto', aspectRatio: '1764 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
+        // The Club Shape wordmark (club-shape-wordmark.svg, 14.2:1, cropped close), condensed (owner,
+        // 2026-11-03: "lets condense the Club Shape at the top for coaches and member accounts", then
+        // "make the club shape masthead more condensed"): 200px wide sets its letters about 11px tall,
+        // with 4px above and 2px below, so the masthead is some 40px shorter. It was 300px wide with
+        // 23px above and 16px below.
+        title={<img src={`${import.meta.env.BASE_URL}club-shape-wordmark.svg`} alt="Club Shape" style={{ display: 'block', margin: '4px auto 2px', width: 'min(200px, 100%)', height: 'auto', aspectRatio: '1764 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         showDoubleRule={false}
         trailing={<span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}{typeof window !== 'undefined' && window.BSSettingsCorner ? React.createElement(window.BSSettingsCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, onClick: onProfile }) : null}</span>}
         showDotTexture={false}
@@ -2597,9 +2599,13 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
   const tab = (key, label, count, onPick) => {
     const on = activeView === key;
     return (
+      // A compact chip, as concept A drew them (owner, 2026-11-03: "the filter options looks much
+      // different"): 34px to see, the button around it 44px to tap.
       <button key={key} type="button" role="tab" aria-selected={on} onClick={onPick}
-        style={{ position: 'relative', minHeight: 44, minWidth: 0, border: `1px solid ${on ? t.INK : t.RULE}`, borderRadius: 4, background: on ? t.INK : 'transparent', boxShadow: 'none', color: on ? t.PAPER : t.INK, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 650, letterSpacing: '-0.01em', cursor: 'pointer', padding: '0 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {label}{count != null ? <span style={{ color: !on && key === 'needs' && count > 0 ? sevText('red') : 'inherit' }}> {count}</span> : null}
+        style={{ flexShrink: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', height: 34, padding: '0 12px', boxSizing: 'border-box', border: `1px solid ${on ? t.INK : t.INK50}`, borderRadius: 4, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 650, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+          {label}{count != null ? <span style={{ color: !on && key === 'needs' && count > 0 ? sevText('red') : 'inherit' }}>&nbsp;{count}</span> : null}
+        </span>
       </button>
     );
   };
@@ -2721,18 +2727,18 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
         <div style={{ padding: `0 ${t.padX}px` }}><BSProRosterStatus status={status} onRetry={onRetry} /></div>
       </BSProDeck>
 
-      {/* The four tabs — every current client, what needs the coach, who is holding, and past clients: boxes
-          across the page, the pick in ink. */}
-      <div role="tablist" aria-label={tr('coach:roster.viewAria', { defaultValue: 'Roster view' })} data-roster-view={activeView}
-        style={{ margin: `18px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '0.8fr 1.25fr 1.1fr 0.85fr', gap: 6 }}>
-        {tab('all', tr('coach:roster.tabAll', { defaultValue: 'All' }), pastMode ? null : allRows.length, () => { setView('all'); if (pastMode) setRoster('active'); })}
+      {/* The four tabs — what needs the coach, who is holding, past clients, and every current client:
+          compact chips in concept A's order, the pick in ink. */}
+      <div role="tablist" aria-label={tr('coach:roster.viewAria', { defaultValue: 'Roster view' })} data-roster-view={activeView} className="bs-hide-scroll"
+        style={{ margin: `12px ${t.padX}px 0`, display: 'flex', gap: 6, overflowX: 'auto' }}>
         {tab('needs', tr('coach:roster.tabNeeds', { defaultValue: 'Needs you' }), pastMode ? null : k, () => { setExpanded(false); setView('needs'); if (pastMode) setRoster('active'); })}
         {tab('track', tr('coach:roster.tabTrack', { defaultValue: 'On track' }), pastMode ? null : m, () => { setView('track'); if (pastMode) setRoster('active'); })}
         {tab('past', tr('coach:roster.tabPast', { defaultValue: 'Past' }), pastCount, () => { if (!pastMode) setRoster('past'); })}
+        {tab('all', tr('coach:roster.tabAll', { defaultValue: 'All' }), pastMode ? null : allRows.length, () => { setView('all'); if (pastMode) setRoster('active'); })}
       </div>
 
       {/* Search, then the phase filters. */}
-      <label style={{ margin: `12px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, padding: '0 14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', boxSizing: 'border-box' }}>
+      <label style={{ margin: `6px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '0 12px', borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', boxSizing: 'border-box' }}>
         <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 16, color: t.INK70 }}>⌕</span>
         <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label={tr('coach:roster.searchAria', { defaultValue: 'Search clients' })} placeholder={tr('coach:roster.searchPlaceholder', { defaultValue: 'Search {count} clients', count: totalCount })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16 }} />
       </label>
@@ -3278,7 +3284,7 @@ function bsProCreateButtons(t, heat, tr, onDraft, onScratch) {
 // The library search: one field over every list on the page.
 function bsProLibrarySearch(t, tr, value, setValue, placeholder) {
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, padding: '0 14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', boxSizing: 'border-box' }}>
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '0 12px', borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', boxSizing: 'border-box' }}>
       <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 16, color: t.INK70 }}>⌕</span>
       <input type="search" value={value} onChange={(e) => setValue(e.target.value)} aria-label={tr('coach:plans.searchAria', { defaultValue: 'Search your library' })} placeholder={placeholder || tr('coach:plans.searchPlaceholder', { defaultValue: 'Search plans, workouts, music' })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16 }} />
     </label>
