@@ -620,6 +620,20 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: a coach\'s About me (certificates Shape verified, accolades, education) and socials in the head, This week at the top of coach Today, the morning card condensed; Website: the app page\'s coach section from the trainer preview (#2576). No migration',
+      items: [
+        { label: 'Owner, 2026-11-03: "use the trainer preview\'s coach profile instead"; of coach Today\'s week strip, "this should be towards top of coaches home page"; of the member Home\'s morning card, "this also needs to be condensed on client home page"; of About me, "the about me should have more things to add. certificates, accolades, things like that"; and "coaches socials should be shown somewhere in this section if they choose to"', status: 'done' },
+        { label: '#2576 About me: a verified coach\'s certificates by name with "✓ Verified by Shape" (get_coach_certs; none for a sample, the demo or a private profile, and only once the profile read says the viewer may see it), then Accolades and Education and training, lists the coach writes in Make it yours (what, from whom or where, the year; eight each; bsAboutItems cleans them, a row it would drop is said at save). A coach cannot type a certificate. App and website', status: 'done' },
+        { label: '#2576 the head\'s socials: Make it yours\' "Show them at the top of your page" (headLinks, off until turned on) draws About\'s links as 44px monochrome icons under the rating line (BS_PROFILE_LINK_GLYPHS), app and website; none for a sample or a private profile', status: 'done' },
+        { label: '#2576 coach Today: This week sits under the Today header, above Up next and To do; the member Home\'s morning card in two rows (Start at the title row\'s end, Same as yesterday on one line), 178px tall from 217 on bone paper', status: 'done' },
+        { label: '#2576 the website: Get App\'s 12:15 beat is the trainer preview\'s own page (getapp-coach-v2.png, "Example coach · the trainer preview, sample numbers"); the Home capture re-shot with the condensed card at ?v=20261103b on Get App and the homepage. The profile Activity feed already renders the Wall\'s card (checked, no change)', status: 'done' },
+        { label: 'Review: Codex clean on 2a4bf36 (on open); on 650681c a P2 (a private profile answers a visitor with no account with no row, so certificates were read as if public) fixed in 37625fa with a test that fails without it; Codex clean on 37625fa. CI\'s Tests job failed on 2a4bf36 (a live DOM node in three assertions, one fallback string unlike its catalog), fixed in 650681c. CI green on the final head', status: 'done' },
+        { label: 'OWNER — decide: whether coaches may also list certificates Shape has not verified, labelled as their own (today only verified ones show)', status: 'manual' },
+        { label: 'OWNER — on hold: the member-profile redesign, with the cover\'s tier-line colours, and with it whether the Activity tab\'s photo strip and Shelf move', status: 'manual' },
+        { label: 'OWNER: on a phone, signed in: the condensed morning card; a coach\'s About with accolades, education and verified certificates; the head\'s socials (seen only in headless Chromium, signed out)', status: 'manual' },
+      ],
+    },
+    {
       section: 'Splash: "Don\'t climb alone." and under it "Join the Community", on the website and the app\'s launch (#2572). No migration',
       items: [
         { label: 'Owner, 2026-11-03: "also have the splash page say "dont climb alone" and then below it "Join the Community"", "on both app and website"', status: 'done' },
