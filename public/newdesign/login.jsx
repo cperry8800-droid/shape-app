@@ -259,7 +259,7 @@ function LoginCard() {
     <div className="lgA-card">
       <div aria-hidden className="lgA-edge" />
       <div className="lgA-eyebrow">Welcome back</div>
-      <h1 className="lgA-title">Log in to <em>Shape</em>.</h1>
+      <h1 className="lgA-title">Log in to <em>Club&nbsp;Shape</em>.</h1>
       <p className="lgA-sub">Pick up where you left off. Your coaches, your plans, your progress.</p>
 
       {/* Email / Phone method toggle */}
@@ -338,7 +338,7 @@ function LoginCard() {
       </form>
 
       <div className="lgA-foot">
-        <span>New to Shape?</span>
+        <span>New to Club Shape?</span>
         <a href="Landing.html">Create an account →</a>
       </div>
     </div>

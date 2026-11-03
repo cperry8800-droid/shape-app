@@ -19,6 +19,13 @@ test('Back to home and the logo go to the homepage, not the path chooser (#2573)
   assert.match(src, /<a href="Landing\.html">Create an account →<\/a>/);
 });
 
+test('the card says Club Shape (owner, 2026-11-03: "change log in to club shape")', () => {
+  // the name stays on one line: a narrow phone wraps after "Log in to", never inside Club Shape
+  assert.match(src, /<h1 className="lgA-title">Log in to <em>Club&nbsp;Shape<\/em>\.<\/h1>/);
+  assert.match(src, /<span>New to Club Shape\?<\/span>/);
+  assert.match(readFileSync(new URL('../public/newdesign/Login.html', import.meta.url), 'utf8'), /<title>Log in — Club Shape<\/title>/);
+});
+
 test('the fields a password manager and a phone keyboard read are kept', () => {
   for (const [id, ac] of [['email', 'username'], ['password', 'current-password'], ['phone', 'tel'], ['otp', 'one-time-code']]) {
     assert.match(src, new RegExp(`id="${id}"[^>]*autoComplete="${ac}"|autoComplete="${ac}"[^>]*id="${id}"`), `#${id} with autocomplete ${ac}`);
