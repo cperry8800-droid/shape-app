@@ -38,7 +38,7 @@ export default {
     { name: 'a message with no voice throws', file: VN,
       find: '  const v = md && md.voice;\n  if (!v) return null;', replace: '  const v = md && md.voice;' },
     { name: 'any path is a note', file: VN,
-      find: '  const m = BS_VOICE_PATH.exec(path);\n  if (!m) return null;', replace: "  const m = BS_VOICE_PATH.exec(path) || ['', 'dm', '', ''];" },
+      find: '  const m = BS_VOICE_PATH.exec(path);\n  if (!m) return null;', replace: "  const m = BS_VOICE_PATH.exec(path) || ['', kind || 'dm', String(threadId || '').toLowerCase(), String(senderId || '').toLowerCase()];" },
     { name: 'a conversation\'s note plays in a channel', file: VN,
       find: '  if (kind && m[1] !== kind) return null;\n', replace: '' },
     { name: 'another thread\'s note plays here', file: VN,

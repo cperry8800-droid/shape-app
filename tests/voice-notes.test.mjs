@@ -79,7 +79,9 @@ test('a note\'s metadata is read strictly, and only under the thread it was sent
 test('a note plays only as the voice of the member who sent the message (Codex P1 on #2567)', () => {
   // ME copies HER path into a message of my own: it is no note, not her voice under my name.
   assert.equal(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'dm', threadId: CONV, senderId: ME }), null, 'someone else\'s recording');
-  assert.equal(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'dm', threadId: CONV, senderId: HER.toUpperCase() }).sender, HER, 'the sender compares case-blind');
+  const LETTERS = 'abcdef12-3456-4789-8abc-def012345678';
+  const theirs = { ...VOICE, path: `dm/${CONV}/${LETTERS}/n1.m4a` };
+  assert.equal(bsVoiceFromMetadata({ voice: theirs }, { kind: 'dm', threadId: CONV, senderId: LETTERS.toUpperCase() }).sender, LETTERS, 'the sender compares case-blind');
   for (const senderId of [undefined, null, '']) {
     assert.equal(bsVoiceFromMetadata({ voice: VOICE }, { kind: 'dm', threadId: CONV, senderId }), null, `read without its sender (${senderId})`);
   }
@@ -486,6 +488,19 @@ test('the recorder stops once: a tick before the last chunk never finishes it ea
     assert.equal(props.sent.length, 1);
     assert.equal(props.sent[0].duration, 2, 'its length is when send was tapped, not when the chunk came');
   } finally { st.restore(); }
+  const st3 = rig({ deferStop: true });
+  try {
+    const { d, props } = mountRecorder();
+    await byAttr(d, 'data-voice-record').props.onClick();
+    d.render();
+    st3.advance(2000);
+    const send = byAttr(d, 'data-voice-send').props.onClick;
+    send(); send();                    // a double tap, before the last chunk comes
+    assert.equal(props.sent.length, 0, 'the second tap does not finish it early');
+    st3.flush();
+    assert.equal(props.sent.length, 1, 'and the note goes, with its chunk');
+    assert.ok(props.sent[0].blob.size > 0);
+  } finally { st3.restore(); }
   const st2 = rig({ deferStop: true });
   try {
     const { d, props } = mountRecorder();
@@ -708,6 +723,9 @@ test('the player: your own unsent note plays from the phone; pending spins; fail
     assert.deepEqual(st.urls, [], 'no link asked for');
     const failed = mountPlayer({ localUrl: 'blob:x', duration: 4, peaks: [], failed: true, mime: 'audio/mp4' }, { mine: true });
     assert.equal(byAttr(failed.d, 'data-voice-play').props.disabled, true);
+    const before = st.audios.length;
+    await byAttr(failed.d, 'data-voice-play').props.onClick({ stopPropagation() {} });
+    assert.equal(st.audios.slice(before).some((a) => a.played), false, 'a failed note never plays, its copy already let go');
     assert.equal(textOf(byAttr(failed.d, 'data-voice-failed')), 'Not sent');
     const gone = mountPlayer({ path: VOICE.path, duration: 4, peaks: [], mime: 'audio/mp4' });
     await byAttr(gone.d, 'data-voice-play').props.onClick({ stopPropagation() {} });
