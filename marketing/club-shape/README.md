@@ -8,6 +8,8 @@ Drafts for the owner's review; nothing in the app or the website uses these yet.
 - `club-shape-horizontal*.svg` — CLUB ▸◂ SHAPE on one line, as SHAPE ▸◂ RADIO sets its mark.
 - `mark-ideas.png` (from `mark-ideas.mjs`) — six other marks to weigh against the triangles, each
   over CLUB SHAPE and as an app icon. Exploration only: no lockup files are made from them.
+- `pulse-preview.png` (from `pulse.mjs`) — the pulse mark (idea D) refined into the wordmark's own
+  strokes: stacked over CLUB SHAPE, and on one line between CLUB and SHAPE, plus app icons.
 - `png/` — each SVG at 2400 px wide: transparent, except the tiles, which carry their own background.
 
 Both lockups come in every colour version below, each with the same sizing and spacing (the stacked
