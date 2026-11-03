@@ -138,6 +138,7 @@
   "coach.amber.titleAnon": "Клиент — стоит взглянуть",
   "coach.amber.body": "Близко к жёлтой зоне в сортировке клиентов.",
   "message.title": "Новое сообщение",
+  "message.voiceBody": "Голосовое сообщение · {time}",
   "workout.title": "Новая тренировка от тренера",
   "exercise.title": "Новое упражнение от тренера",
   "week.title": "Ваша неделя от тренера",

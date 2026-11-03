@@ -374,5 +374,18 @@
   "thread.typing": "{name} печатает",
   "thread.typingTwo": "{a} и {b} печатают",
   "thread.typingMany": "Несколько человек печатают",
-  "thread.someone": "Кто-то"
+  "thread.someone": "Кто-то",
+  "thread.voiceRecord": "Записать голосовое сообщение",
+  "thread.voiceRecordingLabel": "Идёт запись голосового сообщения",
+  "thread.voiceCancel": "Отменить запись",
+  "thread.voiceSend": "Отправить голосовое сообщение",
+  "thread.voiceUnsupported": "Голосовые сообщения недоступны на этом устройстве.",
+  "thread.voiceMicBlocked": "Разрешите доступ к микрофону, чтобы записать голосовое сообщение.",
+  "thread.voicePlay": "Воспроизвести голосовое сообщение, {time}",
+  "thread.voicePause": "Приостановить голосовое сообщение",
+  "thread.voiceSpeed": "Скорость воспроизведения",
+  "thread.voiceUnplayable": "Это голосовое сообщение сейчас нельзя воспроизвести.",
+  "thread.voiceNotSent": "Не отправлено",
+  "thread.voiceFailed": "Не удалось отправить голосовое сообщение.",
+  "thread.voicePreview": "Голосовое сообщение · {time}"
 }

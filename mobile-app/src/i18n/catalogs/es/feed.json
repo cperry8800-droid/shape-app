@@ -374,5 +374,18 @@
   "thread.typing": "{name} está escribiendo",
   "thread.typingTwo": "{a} y {b} están escribiendo",
   "thread.typingMany": "Varias personas están escribiendo",
-  "thread.someone": "Alguien"
+  "thread.someone": "Alguien",
+  "thread.voiceRecord": "Grabar una nota de voz",
+  "thread.voiceRecordingLabel": "Grabando una nota de voz",
+  "thread.voiceCancel": "Cancelar grabación",
+  "thread.voiceSend": "Enviar nota de voz",
+  "thread.voiceUnsupported": "Las notas de voz no están disponibles en este dispositivo.",
+  "thread.voiceMicBlocked": "Permite el micrófono para grabar una nota de voz.",
+  "thread.voicePlay": "Reproducir nota de voz, {time}",
+  "thread.voicePause": "Pausar nota de voz",
+  "thread.voiceSpeed": "Velocidad de reproducción",
+  "thread.voiceUnplayable": "Esta nota de voz no se puede reproducir ahora.",
+  "thread.voiceNotSent": "No enviada",
+  "thread.voiceFailed": "No se pudo enviar la nota de voz.",
+  "thread.voicePreview": "Nota de voz · {time}"
 }

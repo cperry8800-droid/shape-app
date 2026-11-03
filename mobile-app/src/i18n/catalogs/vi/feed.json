@@ -374,5 +374,18 @@
   "thread.typing": "{name} đang soạn tin",
   "thread.typingTwo": "{a} và {b} đang soạn tin",
   "thread.typingMany": "Vài người đang soạn tin",
-  "thread.someone": "Ai đó"
+  "thread.someone": "Ai đó",
+  "thread.voiceRecord": "Ghi tin nhắn thoại",
+  "thread.voiceRecordingLabel": "Đang ghi tin nhắn thoại",
+  "thread.voiceCancel": "Hủy ghi âm",
+  "thread.voiceSend": "Gửi tin nhắn thoại",
+  "thread.voiceUnsupported": "Tin nhắn thoại không khả dụng trên thiết bị này.",
+  "thread.voiceMicBlocked": "Cho phép micrô để ghi tin nhắn thoại.",
+  "thread.voicePlay": "Phát tin nhắn thoại, {time}",
+  "thread.voicePause": "Tạm dừng tin nhắn thoại",
+  "thread.voiceSpeed": "Tốc độ phát",
+  "thread.voiceUnplayable": "Không thể phát tin nhắn thoại này lúc này.",
+  "thread.voiceNotSent": "Chưa gửi",
+  "thread.voiceFailed": "Không gửi được tin nhắn thoại.",
+  "thread.voicePreview": "Tin nhắn thoại · {time}"
 }

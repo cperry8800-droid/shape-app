@@ -265,6 +265,7 @@ test('every notice reads cleanly in every language: no brace left, no shaming, t
     amount: usdOf(4999), points: 12, reasons: listOf([phrase('score.reason.workout'), phrase('score.reason.checkin')]),
     slot: phrase('prep.slot.dinner'), days: listOf([weekdayOf(0), weekdayOf(4)]), list: 'Costco', what: phrase('payment.aProgram'),
     topic: 'Knee pain', state: 'CA', tier: 'Form', activity: phrase('activity.hike'), site: 'theshapecommunity.com',
+    time: '0:12',
   };
   const argsOf = (v) => [...new Set([...v.matchAll(/\{\s*([A-Za-z_]\w*)\s*[,}]/g)].map((m) => m[1]))];
   for (const loc of ACTIVE_LOCALES) {

@@ -374,5 +374,18 @@
   "thread.typing": "{name} yazıyor",
   "thread.typingTwo": "{a} ve {b} yazıyor",
   "thread.typingMany": "Birkaç kişi yazıyor",
-  "thread.someone": "Biri"
+  "thread.someone": "Biri",
+  "thread.voiceRecord": "Sesli mesaj kaydet",
+  "thread.voiceRecordingLabel": "Sesli mesaj kaydediliyor",
+  "thread.voiceCancel": "Kaydı iptal et",
+  "thread.voiceSend": "Sesli mesajı gönder",
+  "thread.voiceUnsupported": "Bu cihazda sesli mesajlar kullanılamıyor.",
+  "thread.voiceMicBlocked": "Sesli mesaj kaydetmek için mikrofona izin ver.",
+  "thread.voicePlay": "Sesli mesajı oynat, {time}",
+  "thread.voicePause": "Sesli mesajı duraklat",
+  "thread.voiceSpeed": "Oynatma hızı",
+  "thread.voiceUnplayable": "Bu sesli mesaj şu anda oynatılamıyor.",
+  "thread.voiceNotSent": "Gönderilmedi",
+  "thread.voiceFailed": "Sesli mesaj gönderilemedi.",
+  "thread.voicePreview": "Sesli mesaj · {time}"
 }

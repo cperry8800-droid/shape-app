@@ -32,6 +32,7 @@ import { bsHwWeekWindow, bsHwLocalDayOf } from './homeWeek.mjs';
 import { bsGroceryFromMetadata } from './groceryShare.mjs';
 import { bsReplyFromMetadata } from './chatReply.mjs';
 import { createThreadSignalStore, bsTypingFromPayload, bsSeenFromRpc } from './chatSignals.mjs';
+import { BS_VOICE, bsVoicePath, bsVoiceFromMetadata } from './voiceNote.mjs';
 // The SHARED nora_memory doc normalizer (pure ESM, cross-root import — the
 // dashSignals.js precedent): one implementation of the {rev, notes} semantics
 // for the server tools AND this Settings mirror, so they can't drift.
@@ -753,6 +754,8 @@ async function signOut() {
   } catch (e) {}
   // The open threads' typing and read-receipt channels, and what they hold, are the last account's.
   try { _teardownThreadSignals(); } catch (e) {}
+  // ...and so are the voice notes' signed links.
+  try { _voiceUrls.clear(); } catch (e) {}
   try {
     _activity.gen += 1; // invalidate an in-flight hydrate the same way
     if (_activity.channel && supabase) { try { supabase.removeChannel(_activity.channel); } catch (e) {} }
@@ -2291,6 +2294,8 @@ function conversationToThread(conversation, messages = [], names = {}) {
       reply: bsReplyFromMetadata(message.metadata),
       // The id the sender's view gave it (read receipts, 2026-11-02): its own thread knows the row by it.
       cid: bsViewIdOf(message.metadata),
+      // A voice note (2026-11-02): read strictly, and only one stored under this conversation.
+      voice: bsVoiceFromMetadata(message.metadata, { kind: 'dm', threadId: conversation.id, senderId: message.sender_id }),
     })),
     updatedAt: conversation.updated_at || conversation.last_message_at || conversation.created_at,
   };
@@ -2343,6 +2348,8 @@ function memberThreadFromRow(row, messages = []) {
       reply: bsReplyFromMetadata(message.metadata),
       // The id the sender's view gave it (read receipts, 2026-11-02): its own thread knows the row by it.
       cid: bsViewIdOf(message.metadata),
+      // A voice note (2026-11-02): read strictly, and only one stored under this conversation.
+      voice: bsVoiceFromMetadata(message.metadata, { kind: 'dm', threadId: row.conversation_id, senderId: message.sender_id }),
     })),
     updatedAt: row.last_message_at,
   };
@@ -8355,6 +8362,8 @@ async function listChannelMessages(channelId) {
       // and the sender's face by it (#2556), so two members who share a name are two people.
       userId: m.sender_id || null,
       reply: bsReplyFromMetadata(m.metadata),
+      // A voice note (2026-11-02), only one stored under this channel.
+      voice: bsVoiceFromMetadata(m.metadata, { kind: 'ch', threadId: channelId, senderId: m.sender_id }),
     })),
   };
 }
@@ -8362,14 +8371,16 @@ async function listChannelMessages(channelId) {
 // migration has run the column is not there: the message still goes, without its quote, rather than
 // failing the send. A message that is no reply sends exactly as it always did.
 const bsMissingMetadataColumn = (e) => !!e && (e.code === 'PGRST204' || e.code === '42703' || (/metadata/i.test(e.message || '') && /column/i.test(e.message || '')));
-async function sendChannelMessage({ channelId, body, reply = null } = {}) {
+async function sendChannelMessage({ channelId, body, reply = null, voice = null } = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to post.');
   const clean = String(body || '').trim();
   if (!clean) throw new Error('Message is empty.');
   const row = { channel_id: channelId, sender_id: state.user.id, author_name: channelDisplayName(), body: clean };
   const insert = (r) => supabase.from('channel_messages').insert(r).select('id').maybeSingle();
-  let { data, error } = await insert(reply ? { ...row, metadata: { reply } } : row);
-  if (error && reply && bsMissingMetadataColumn(error)) ({ data, error } = await insert(row));
+  const metadata = { ...(reply ? { reply } : {}), ...(voice ? { voice } : {}) };
+  let { data, error } = await insert(reply || voice ? { ...row, metadata } : row);
+  // Without the column a reply still goes, without its quote; a voice note never goes as its words alone.
+  if (error && reply && !voice && bsMissingMetadataColumn(error)) ({ data, error } = await insert(row));
   if (error) throw error;
   return { stored: 'supabase', data };
 }
@@ -8787,6 +8798,53 @@ window.ShapeThreadSignals = {
   typing: _threadSignals.typing,
   refreshSeen: refreshConversationSeen,
 };
+
+// ── Voice notes (owner, 2026-11-02: "build voice notes next"). A note goes from the phone straight into
+// the private voice-notes bucket, under <kind>/<thread>/<sender>/ (2026-11-03-voice-notes.sql lets the
+// sender record only into their own folder, in a thread they may post in), and plays through a link
+// storage signs for an hour, asked for when it is first played and kept until shortly before it ends.
+async function uploadVoiceNote({ kind, threadId, blob, ext, mime } = {}) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in to send a voice note.');
+  if (!blob || !blob.size) throw new Error('The voice note is empty.');
+  if (blob.size > BS_VOICE.MAX_BYTES) throw new Error('The voice note is too long.');
+  const name = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const path = bsVoicePath({ kind, threadId, userId: state.user.id, name, ext });
+  if (!path) throw new Error('This thread cannot take a voice note.');
+  const { error } = await supabase.storage.from(BS_VOICE.BUCKET).upload(path, blob, { contentType: mime, upsert: false });
+  if (error) throw error;
+  return { path };
+}
+const _voiceUrls = new Map(); // `${user}|${path}` → { url, until }
+async function voiceNoteUrl(path) {
+  // A link is one account's: kept under it, asked for only while signed in, and never kept or handed
+  // on when the account changed while it was being signed (sign-out clears the cache, and a request
+  // still in flight must not fill it again; Codex P1 on #2567).
+  const who = state.user?.id;
+  if (!supabase || !path || !who) throw new Error('No voice note.');
+  const key = `${who}|${path}`;
+  const now = Date.now();
+  const hit = _voiceUrls.get(key);
+  if (hit && hit.until > now) return hit.url;
+  const { data, error } = await supabase.storage.from(BS_VOICE.BUCKET).createSignedUrl(path, BS_VOICE.SIGNED_SEC);
+  if (error || !data || !data.signedUrl) throw error || new Error('No link for this voice note.');
+  if (state.user?.id !== who) throw new Error('Signed out.');
+  _voiceUrls.set(key, { url: data.signedUrl, until: now + (BS_VOICE.SIGNED_SEC - 300) * 1000 });
+  return data.signedUrl;
+}
+// An upload whose message could not be stored is removed, so no recording is left with nothing pointing
+// at it (Codex P2 on #2567). The bucket's rules let a sender remove only their own. It answers whether
+// the note is gone and never throws: the caller is already handling a failed send.
+async function removeVoiceNote(path) {
+  if (!supabase || !path) return false;
+  _voiceUrls.delete(`${state.user?.id}|${path}`);
+  try {
+    const { error } = await supabase.storage.from(BS_VOICE.BUCKET).remove([path]);
+    return !error;
+  } catch (e) {
+    return false;
+  }
+}
+window.ShapeVoiceNotes = { upload: uploadVoiceNote, url: voiceNoteUrl, remove: removeVoiceNote };
 
 // ── Live presence — "N online now". Everyone with the app open joins one
 //    Supabase Realtime presence channel keyed by user id; the count is the

@@ -138,6 +138,7 @@
   "coach.amber.titleAnon": "Un client — à surveiller",
   "coach.amber.body": "Passe à l’orange dans votre triage.",
   "message.title": "Nouveau message",
+  "message.voiceBody": "Message vocal · {time}",
   "workout.title": "Nouvelle séance de votre coach",
   "exercise.title": "Nouvel exercice de votre coach",
   "week.title": "Votre semaine, par votre coach",

@@ -374,5 +374,18 @@
   "thread.typing": "{name} sedang mengetik",
   "thread.typingTwo": "{a} dan {b} sedang mengetik",
   "thread.typingMany": "Beberapa orang sedang mengetik",
-  "thread.someone": "Seseorang"
+  "thread.someone": "Seseorang",
+  "thread.voiceRecord": "Rekam pesan suara",
+  "thread.voiceRecordingLabel": "Merekam pesan suara",
+  "thread.voiceCancel": "Batalkan rekaman",
+  "thread.voiceSend": "Kirim pesan suara",
+  "thread.voiceUnsupported": "Pesan suara tidak tersedia di perangkat ini.",
+  "thread.voiceMicBlocked": "Izinkan mikrofon untuk merekam pesan suara.",
+  "thread.voicePlay": "Putar pesan suara, {time}",
+  "thread.voicePause": "Jeda pesan suara",
+  "thread.voiceSpeed": "Kecepatan putar",
+  "thread.voiceUnplayable": "Pesan suara ini tidak dapat diputar sekarang.",
+  "thread.voiceNotSent": "Tidak terkirim",
+  "thread.voiceFailed": "Pesan suara tidak dapat dikirim.",
+  "thread.voicePreview": "Pesan suara · {time}"
 }

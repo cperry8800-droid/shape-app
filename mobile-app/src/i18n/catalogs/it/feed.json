@@ -374,5 +374,18 @@
   "thread.typing": "{name} sta scrivendo",
   "thread.typingTwo": "{a} e {b} stanno scrivendo",
   "thread.typingMany": "Più persone stanno scrivendo",
-  "thread.someone": "Qualcuno"
+  "thread.someone": "Qualcuno",
+  "thread.voiceRecord": "Registra un messaggio vocale",
+  "thread.voiceRecordingLabel": "Registrazione di un messaggio vocale",
+  "thread.voiceCancel": "Annulla registrazione",
+  "thread.voiceSend": "Invia messaggio vocale",
+  "thread.voiceUnsupported": "I messaggi vocali non sono disponibili su questo dispositivo.",
+  "thread.voiceMicBlocked": "Consenti il microfono per registrare un messaggio vocale.",
+  "thread.voicePlay": "Riproduci messaggio vocale, {time}",
+  "thread.voicePause": "Metti in pausa il messaggio vocale",
+  "thread.voiceSpeed": "Velocità di riproduzione",
+  "thread.voiceUnplayable": "Questo messaggio vocale non può essere riprodotto ora.",
+  "thread.voiceNotSent": "Non inviato",
+  "thread.voiceFailed": "Impossibile inviare il messaggio vocale.",
+  "thread.voicePreview": "Messaggio vocale · {time}"
 }

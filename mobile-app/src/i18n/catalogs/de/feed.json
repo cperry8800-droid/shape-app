@@ -374,5 +374,18 @@
   "thread.typing": "{name} schreibt",
   "thread.typingTwo": "{a} und {b} schreiben",
   "thread.typingMany": "Mehrere Personen schreiben",
-  "thread.someone": "Jemand"
+  "thread.someone": "Jemand",
+  "thread.voiceRecord": "Sprachnachricht aufnehmen",
+  "thread.voiceRecordingLabel": "Sprachnachricht wird aufgenommen",
+  "thread.voiceCancel": "Aufnahme abbrechen",
+  "thread.voiceSend": "Sprachnachricht senden",
+  "thread.voiceUnsupported": "Sprachnachrichten sind auf diesem Gerät nicht verfügbar.",
+  "thread.voiceMicBlocked": "Erlaube das Mikrofon, um eine Sprachnachricht aufzunehmen.",
+  "thread.voicePlay": "Sprachnachricht abspielen, {time}",
+  "thread.voicePause": "Sprachnachricht pausieren",
+  "thread.voiceSpeed": "Wiedergabegeschwindigkeit",
+  "thread.voiceUnplayable": "Diese Sprachnachricht kann gerade nicht abgespielt werden.",
+  "thread.voiceNotSent": "Nicht gesendet",
+  "thread.voiceFailed": "Die Sprachnachricht konnte nicht gesendet werden.",
+  "thread.voicePreview": "Sprachnachricht · {time}"
 }

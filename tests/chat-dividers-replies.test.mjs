@@ -13,6 +13,7 @@ import {
   bsReplySwipeDecide, bsReplySwipeOffset, bsReplySwipeCommits,
 } from '../mobile-app/src/services/chatReply.mjs';
 import { loadBroadsheet, drive, textOf, ROOT } from './helpers/broadsheet-mount.mjs';
+import { bsVoiceFromMetadata } from '../mobile-app/src/services/voiceNote.mjs';
 
 const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
 const MIGRATION = readFileSync(join(ROOT, 'supabase-migrations/2026-11-01-channel-message-replies.sql'), 'utf8');
@@ -401,7 +402,7 @@ test('channel history keeps each row\'s id and its reply, reading every column',
   ];
   let selected = null;
   const q = { select: (c) => { selected = c; return q; }, eq: () => q, order: () => q, limit: async () => ({ data: rows, error: null }) };
-  const list = new Function('supabase', 'state', 'bsChatStamp', 'bsReplyFromMetadata', `${fnSrc('chatTimeOf')}; ${fnSrc('listChannelMessages')}; return listChannelMessages;`)({ from: () => q }, { user: { id: 'u-me' } }, () => '', bsReplyFromMetadata);
+  const list = new Function('supabase', 'state', 'bsChatStamp', 'bsReplyFromMetadata', 'bsVoiceFromMetadata', `${fnSrc('chatTimeOf')}; ${fnSrc('listChannelMessages')}; return listChannelMessages;`)({ from: () => q }, { user: { id: 'u-me' } }, () => '', bsReplyFromMetadata, bsVoiceFromMetadata);
   const { data } = await list('ch-1');
   assert.equal(selected, '*', 'naming metadata before the migration has run would fail the read');
   assert.deepEqual(data.map((m) => m.id), ['r1', 'r2', 'r3']);
@@ -410,14 +411,15 @@ test('channel history keeps each row\'s id and its reply, reading every column',
 
 test('a message arriving live keeps its reply, and a channel\'s its id', () => {
   const CLIENT = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
-  assert.match(CLIENT, /setExtras\(e => \[\.\.\.e, \{ id: row\.id \|\| null, who: row\.author_name \|\| 'Member', t: row\.body, time: 'now', at: row\.created_at \|\| null, me: false, userId: row\.sender_id \|\| null, reply: bsReplyFromMetadata\(row\.metadata\) \}\]\);/, 'a channel row');
-  assert.match(CLIENT, /grocery: bsGroceryFromMetadata\(row\.metadata\), reply: bsReplyFromMetadata\(row\.metadata\) \}\]\);/, 'a direct row');
+  // (and its voice note, 2026-11-02)
+  assert.match(CLIENT, /setExtras\(e => \[\.\.\.e, \{ id: row\.id \|\| null, who: row\.author_name \|\| 'Member', t: row\.body, time: 'now', at: row\.created_at \|\| null, me: false, userId: row\.sender_id \|\| null, reply: bsReplyFromMetadata\(row\.metadata\), voice: bsVoiceFromMetadata\(row\.metadata, \{ kind: 'ch', threadId: thread\.channelId, senderId: row\.sender_id \}\) \}\]\);/, 'a channel row');
+  assert.match(CLIENT, /grocery: bsGroceryFromMetadata\(row\.metadata\), reply: bsReplyFromMetadata\(row\.metadata\), voice: bsVoiceFromMetadata\(row\.metadata, \{ kind: 'dm', threadId: thread\.conversationId, senderId: row\.sender_id \}\) \}\]\);/, 'a direct row');
 });
 
 test('both direct-message readers keep the sender\'s account, so a reply names it (Codex P2 on #2561)', async () => {
   const { isShapeWelcome } = await import('../mobile-app/src/services/shapeWelcome.mjs');
   const { bsGroceryFromMetadata } = await import('../mobile-app/src/services/groceryShare.mjs');
-  const deps = { state: { user: { id: 'u-me' } }, isShapeWelcome, bsGroceryFromMetadata, bsReplyFromMetadata, bsChatStamp };
+  const deps = { state: { user: { id: 'u-me' } }, isShapeWelcome, bsGroceryFromMetadata, bsReplyFromMetadata, bsVoiceFromMetadata, bsChatStamp };
   const load = (name) => new Function(...Object.keys(deps), `${fnSrc('chatTimeOf')}; ${fnSrc('bsViewIdOf')}; ${fnSrc(name)}; return ${name};`)(...Object.values(deps));
   const msgs = [
     { id: 'a', sender_id: 'u-coach', body: 'Hi', metadata: {}, created_at: day(2026, 10, 31, 9) },

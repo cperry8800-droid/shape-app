@@ -374,5 +374,18 @@
   "thread.typing": "{name} na rubutu",
   "thread.typingTwo": "{a} da {b} suna rubutu",
   "thread.typingMany": "Mutane da dama suna rubutu",
-  "thread.someone": "Wani"
+  "thread.someone": "Wani",
+  "thread.voiceRecord": "Naɗi saƙon murya",
+  "thread.voiceRecordingLabel": "Ana naɗar saƙon murya",
+  "thread.voiceCancel": "Soke naɗi",
+  "thread.voiceSend": "Aika saƙon murya",
+  "thread.voiceUnsupported": "Saƙonnin murya ba sa samuwa a wannan na'ura.",
+  "thread.voiceMicBlocked": "Ba da izinin makirufo don naɗar saƙon murya.",
+  "thread.voicePlay": "Kunna saƙon murya, {time}",
+  "thread.voicePause": "Dakatar da saƙon murya",
+  "thread.voiceSpeed": "Saurin kunnawa",
+  "thread.voiceUnplayable": "Ba za a iya kunna wannan saƙon murya yanzu ba.",
+  "thread.voiceNotSent": "Ba a aika ba",
+  "thread.voiceFailed": "Ba a iya aika saƙon murya ba.",
+  "thread.voicePreview": "Saƙon murya · {time}"
 }
