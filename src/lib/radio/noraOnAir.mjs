@@ -73,8 +73,8 @@ export async function noraOnAir(db, { now }) {
 // ⚠ ONLY A SONG THE ENGINE SAYS IT PLAYED. A block is planned for an hour; an engine that died in
 // it never reports the songs after, and the station's standby loop plays instead. So the song
 // heard by the plan's clock is named only once the engine has reported that song as started (it
-// reports each as it starts, ahead of the listener's lag), and only while its last word on the
-// block is not that it ended or stopped.
+// reports each as it starts, ahead of the listener's lag), and only while listeners have not yet
+// heard its last word on the block be that it ended or stopped.
 const ROTATION_LOOKBACK_MS = 2 * 3600000 + 120000;   // a block lasts at most 2 h
 
 /** The now-playing payload while a rotation block is on the air, or null when none is. */
@@ -86,11 +86,23 @@ export async function rotationOnAir(db, { now }) {
   for (const block of blocks) {
     const heard = heardNow(block.programme, Date.parse(block.starts_at), now);
     if (!heard) continue;
-    const { data: log, error: lErr } = await db.from('nora_engine_log').select('event,track_id')
+    const { data: log, error: lErr } = await db.from('nora_engine_log').select('event,track_id,title,artist,played_at')
       .eq('block_id', block.id).order('logged_at', { ascending: false }).limit(60);
     if (lErr || !log || !log.length) continue;
-    if (!['started', 'song'].includes(log[0].event)) continue;
-    if (!log.some((r) => r.event === 'song' && r.track_id === heard.item.trackId)) continue;
+    // ⚠ A BLOCK'S END TAKES EFFECT WHEN LISTENERS HEAR IT (Codex, #2574). The engine reports it
+    // ended (or stopped, or was cut for her set) at the moment it stopped sending, and listeners
+    // hear its last seconds HEARD_LAG_SEC later: until then, the song still sounding is named.
+    if (!['started', 'song'].includes(log[0].event)) {
+      const stoppedAt = Date.parse(log[0].played_at);
+      if (!(Number.isFinite(stoppedAt) && now - HEARD_LAG_SEC * 1000 < stoppedAt)) continue;
+    }
+    // ⚠ MATCHED BY ITS TRACK, OR, FOR A TRACK DELETED FROM THE LIBRARY SINCE (its id set null), BY
+    // THE TITLE AND ARTIST THE REPORT COPIED (Codex, #2574): the engine has the song decoded and
+    // plays it on, and so it is named on.
+    const item = heard.item;
+    const reported = log.some((r) => r.event === 'song' && (r.track_id === item.trackId
+      || (r.track_id == null && r.title === item.title && r.artist === item.artist)));
+    if (!reported) continue;
     return {
       title: heard.item.title || null,
       artist: heard.item.artist || null,

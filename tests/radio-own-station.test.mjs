@@ -109,7 +109,7 @@ const programme = {
 };
 const at = (startMs, sec) => startMs + (sec + HEARD_LAG_SEC) * 1000;   // when listeners hear set time `sec`
 const block = (id, startMs) => ({ id, starts_at: iso(startMs), programme });
-const logRow = (blockId, event, trackId, n) => ({ block_id: blockId, event, track_id: trackId || null, logged_at: iso(NOW - 100000 + n * 1000) });
+const logRow = (blockId, event, trackId, n, extra = {}) => ({ block_id: blockId, event, track_id: trackId || null, logged_at: iso(NOW - 100000 + n * 1000), ...extra });
 
 test('⚠ the rotation\'s song is the one listeners hear, from Shape\'s own plan, with its album', async () => {
   const start = NOW - 100000;
@@ -143,6 +143,28 @@ test('⚠ only while the engine is on the air for that block: ended, stopped or 
   // A failed read names nothing.
   assert.equal(await rotationOnAir(fakeDb({}, { fail: ['radio_rotation_blocks'] }), { now: NOW }), null);
   assert.equal(await rotationOnAir(fakeDb({ radio_rotation_blocks: [block(B1, start)] }, { fail: ['nora_engine_log'] }), { now: at(start, 60) }), null);
+});
+
+test('⚠ a block\'s end is heard HEARD_LAG_SEC after the engine reports it, and the song sounding till then is named (Codex, #2574)', async () => {
+  const start = NOW - 100000;
+  // The engine stopped sending at 60 s into the block (its end, a cut for her set, or a fault).
+  for (const last of ['ended', 'failed']) {
+    const db = fakeDb({ radio_rotation_blocks: [block(B1, start)], nora_engine_log: [logRow(B1, 'started', null, 0), logRow(B1, 'song', TA, 1), logRow(B1, last, null, 2, { played_at: iso(start + 60000) })] });
+    assert.equal((await rotationOnAir(db, { now: start + 60000 + (HEARD_LAG_SEC - 1) * 1000 })).title, 'A', `${last}: listeners still hear A`);
+    assert.equal(await rotationOnAir(db, { now: start + 60000 + (HEARD_LAG_SEC + 1) * 1000 }), null, `${last}: and then nothing`);
+  }
+  // A terminal report with no time on it names nothing.
+  const blind = fakeDb({ radio_rotation_blocks: [block(B1, start)], nora_engine_log: [logRow(B1, 'song', TA, 1), logRow(B1, 'ended', null, 2)] });
+  assert.equal(await rotationOnAir(blind, { now: at(start, 60) }), null);
+});
+
+test('⚠ a song deleted from the library while it plays is named on, by the title and artist its report copied (Codex, #2574)', async () => {
+  const start = NOW - 100000;
+  const gone = fakeDb({ radio_rotation_blocks: [block(B1, start)], nora_engine_log: [logRow(B1, 'started', null, 0), logRow(B1, 'song', null, 1, { title: 'A', artist: 'X' })] });
+  assert.equal((await rotationOnAir(gone, { now: at(start, 60) })).title, 'A');
+  // Another song's copied names do not stand in for it.
+  const other = fakeDb({ radio_rotation_blocks: [block(B1, start)], nora_engine_log: [logRow(B1, 'started', null, 0), logRow(B1, 'song', null, 1, { title: 'A', artist: 'Someone else' })] });
+  assert.equal(await rotationOnAir(other, { now: at(start, 60) }), null);
 });
 
 test('the newest block on the air wins; one that has not started, or is long over, is not read', async () => {
