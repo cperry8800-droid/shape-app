@@ -220,9 +220,15 @@ export function BSVoiceNotePlayer({ voice, mine = false, t, accent }) {
     if (!a || voice.failed) return;
     if (playing) { a.pause(); return; }
     try {
-      if (!a.src) {
-        setLoading(true);
-        a.src = await source();
+      // Every play asks for its source: the phone's own copy, or the hour's link, which the backend keeps
+      // until five minutes before it ends. A note left open longer is handed a new link and takes it up
+      // where it was (Codex P2 on #2567); the same source is never set again (that would reload it).
+      if (!a.src) setLoading(true);
+      const src = await source();
+      if (src !== a.src) {
+        const at = a.src ? a.currentTime || 0 : 0;
+        a.src = src;
+        if (at > 0) a.addEventListener('loadedmetadata', () => { try { a.currentTime = at; } catch (err) { /* not seekable yet */ } }, { once: true });
       }
       a.playbackRate = rate;
       try { window.dispatchEvent(new CustomEvent('shape:voicePlay', { detail: idRef.current })); } catch (err) { /* no events here */ }

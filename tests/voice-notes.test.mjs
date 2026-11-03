@@ -443,7 +443,8 @@ test('the recorder leaving mid-note throws the note away and releases the microp
 function playerRig({ url = async (p) => `https://s/${p}` } = {}) {
   const saved = { Audio: window.Audio, notes: window.ShapeVoiceNotes, add: window.addEventListener, remove: window.removeEventListener, dispatch: window.dispatchEvent, toast: window.__bsToast };
   const st = { audios: [], urls: [], toasts: [], listeners: {} };
-  window.Audio = class { constructor() { this.src = ''; this.l = {}; this.playbackRate = 1; this.currentTime = 0; this.duration = NaN; st.audios.push(this); } addEventListener(t, f) { (this.l[t] ||= []).push(f); } emit(t) { (this.l[t] || []).forEach((f) => f()); } async play() { this.emit('play'); } pause() { this.emit('pause'); } };
+  // Setting a source (even the same one) reloads it from the top, as a real player does.
+  window.Audio = class { constructor() { this._src = ''; this.l = {}; this.playbackRate = 1; this.currentTime = 0; this.duration = NaN; st.audios.push(this); } get src() { return this._src; } set src(v) { this._src = v; this.currentTime = 0; this.sets = (this.sets || 0) + 1; } addEventListener(t, f) { (this.l[t] ||= []).push(f); } emit(t) { (this.l[t] || []).forEach((f) => f()); } async play() { this.emit('play'); } pause() { this.emit('pause'); } };
   window.ShapeVoiceNotes = { url: async (p) => { st.urls.push(p); return url(p); } };
   window.addEventListener = (type, fn) => { (st.listeners[type] ||= []).push(fn); };
   window.removeEventListener = (type, fn) => { st.listeners[type] = (st.listeners[type] || []).filter((f) => f !== fn); };
@@ -454,7 +455,7 @@ function playerRig({ url = async (p) => `https://s/${p}` } = {}) {
 }
 const mountPlayer = (voice, extra = {}) => { EFFECTS.length = 0; const d = drive(BSVoiceNotePlayer, { voice, t: THEME, accent: '#0a8f87', ...extra }); return { d, effects: EFFECTS.splice(0) }; };
 
-test('the player: its waveform and length; play fetches the hour\'s link once and plays at the chosen speed', async () => {
+test('the player: its waveform and length; play fetches the hour\'s link and plays at the chosen speed', async () => {
   const st = playerRig();
   try {
     const { d } = mountPlayer({ path: VOICE.path, duration: 7, peaks: [0.2, 0.9, 0.4], mime: 'audio/mp4' });
@@ -478,7 +479,8 @@ test('the player: its waveform and length; play fetches the hour\'s link once an
     byAttr(d, 'data-voice-play').props.onClick({ stopPropagation() {} });
     d.render();
     await byAttr(d, 'data-voice-play').props.onClick({ stopPropagation() {} });
-    assert.equal(st.urls.length, 1, 'the link is asked for once');
+    assert.equal(st.audios[0].src, `https://s/${VOICE.path}`, 'the same link while it is fresh (the backend keeps it)');
+    assert.equal(st.audios[0].currentTime, 3.5, 'and the place it was paused');
     byAttr(d, 'data-voice-rate').props.onClick({ stopPropagation() {} });
     d.render();
     assert.equal(textOf(byAttr(d, 'data-voice-rate')), '2×');
@@ -486,6 +488,37 @@ test('the player: its waveform and length; play fetches the hour\'s link once an
     d.render();
     assert.equal(textOf(byAttr(d, 'data-voice-rate')), '1×', '1 → 1.5 → 2 → 1');
     assert.equal(st.audios[0].playbackRate, 1, 'and the playing note follows');
+  } finally { st.restore(); }
+});
+
+test('the player: a note left open past its hour is handed a new link, and takes it up where it was (Codex P2 on #2567)', async () => {
+  let n = 1;
+  const st = playerRig({ url: async (p) => `https://s/${p}?v=${n}` });
+  try {
+    const { d } = mountPlayer({ path: VOICE.path, duration: 7, peaks: [0.4], mime: 'audio/mp4' });
+    const tap = async () => { await byAttr(d, 'data-voice-play').props.onClick({ stopPropagation() {} }); d.render(); };
+    await tap();
+    const a = st.audios[0];
+    assert.equal(a.src, `https://s/${VOICE.path}?v=1`);
+    a.currentTime = 4.2;
+    await tap();                     // pause
+    n = 2;                           // an hour on: the backend signs a new link
+    await tap();
+    assert.equal(st.urls.length, 2, 'asked again on the next play');
+    assert.equal(a.src, `https://s/${VOICE.path}?v=2`, 'the new link replaces the old');
+    assert.equal(a.currentTime, 0, 'a new source starts at the top...');
+    a.emit('loadedmetadata');
+    assert.equal(a.currentTime, 4.2, '...and is taken up where it was');
+    // The phone's own copy never asks.
+    const mine = mountPlayer({ localUrl: 'blob:mine', duration: 3, peaks: [], mime: 'audio/mp4' }, { mine: true });
+    await byAttr(mine.d, 'data-voice-play').props.onClick({ stopPropagation() {} });
+    mine.d.render();
+    byAttr(mine.d, 'data-voice-play').props.onClick({ stopPropagation() {} });
+    mine.d.render();
+    await byAttr(mine.d, 'data-voice-play').props.onClick({ stopPropagation() {} });
+    assert.equal(st.urls.length, 2, 'no link asked for the phone\'s copy');
+    assert.equal(st.audios[1].src, 'blob:mine');
+    assert.equal(st.audios[1].sets, 1, 'and its copy is set once, never reloaded');
   } finally { st.restore(); }
 });
 
