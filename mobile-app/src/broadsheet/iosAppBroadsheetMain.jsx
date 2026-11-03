@@ -1021,7 +1021,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: WIRE_BG }}>
         <BSWireGround dim />
         <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(40px, calc(env(safe-area-inset-top, 0px) + 24px)) 24px calc(28px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16 }}>
-          <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 110, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -12 }} />
+          <img src={`${import.meta.env.BASE_URL}club-shape-logo.svg`} alt="Club Shape" style={{ width: 178, height: 'auto', aspectRatio: '1764 / 439', alignSelf: 'flex-start', marginLeft: -4 }} />
           <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>{tr('login.verifyEyebrow')}</div>
           <div style={{ fontFamily: BS_LAUNCH_HEAD, fontWeight: 300, fontSize: 34, lineHeight: 1.04, letterSpacing: '-0.03em', color: CREAM }}>{tr('login.verifyTitlePre')}<br/><span style={{ fontWeight: 400, color: '#2ee0c4' }}>{tr('login.verifyTitleAccent')}</span></div>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.5, color: 'rgba(244,239,230,0.8)' }}>
@@ -1053,7 +1053,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
         {/* Logo lockup — top-left. marginTop:auto (+ the footer's marginBottom:auto)
             centers the column when it's short and top-aligns it when the create
             form overflows — a plain justify-content:center clips the top. */}
-        <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 132, height: 'auto', aspectRatio: '3696 / 1782', display: 'block', marginLeft: -13, marginTop: 'auto', filter: 'brightness(1.3) contrast(1.12) drop-shadow(0 0 12px rgba(46,224,196,0.4))' }} />
+        <img src={`${import.meta.env.BASE_URL}club-shape-logo.svg`} alt="Club Shape" style={{ width: 214, height: 'auto', aspectRatio: '1764 / 439', display: 'block', marginLeft: -4, marginTop: 'auto', filter: 'brightness(1.3) contrast(1.12) drop-shadow(0 0 12px rgba(46,224,196,0.4))' }} />
 
         {/* Eyebrow + heading */}
         <div style={{ marginTop: 10 }}>
@@ -1336,7 +1336,7 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
     <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF }}>
       <BSWireGround dim />
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '52px 26px 34px' }}>
-        <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 124, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -2, marginTop: 10, filter: 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
+        <img src={`${import.meta.env.BASE_URL}club-shape-logo.svg`} alt="Club Shape" style={{ width: 201, height: 'auto', aspectRatio: '1764 / 439', alignSelf: 'flex-start', marginLeft: 6, marginTop: 10, filter: 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 8 }}>
           <h1 style={{ fontFamily: BS_LAUNCH_HEAD, fontSize: 36, fontWeight: 300, letterSpacing: '-0.03em', lineHeight: 1.04, margin: '4px 0 0' }}>{tr('paywall.titlePre')} <span style={{ fontWeight: 400, color: teal }}>{tr('paywall.titleAccent')}</span></h1>
           <div style={{ margin: '18px 0 0', fontFamily: mono, fontSize: 9.5, fontWeight: 500, lineHeight: 2.15, letterSpacing: '0.1em', textTransform: 'uppercase', color: INKF }}>

@@ -12,6 +12,8 @@
 // Run from the repository root:
 //   node marketing/club-shape/build-logo.mjs           writes the SVGs, PNGs and preview.png
 //   node marketing/club-shape/build-logo.mjs --check   scores the rebuilt SHAPE against the brand PNG
+//   node marketing/club-shape/build-logo.mjs --site    writes the chosen logo where the site and the
+//                                                      app serve it (SITE_FILES)
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -210,7 +212,7 @@ const build = (name, s) => LOCKUPS[name](s.bg ? LOCKUP.tilePad : LOCKUP.pad);
 
 export function svgOf(l, s) {
   const W = n2(l.W), H = n2(l.H);
-  const fill = (color, polys) => `<path fill="${color}" d="${pathOf(polys)}"/>`;
+  const fill = (color, polys) => (polys.length ? `<path fill="${color}" d="${pathOf(polys)}"/>` : '');
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Club Shape">`,
     s.bg ? `<rect width="${W}" height="${H}" fill="${s.bg}"/>` : '',
@@ -248,10 +250,40 @@ async function check(sharp) {
   return { ours, theirs, width: meta.width, height: meta.height };
 }
 
+// ── The served files: the chosen logo (owner, 2026-11-03: the stacked triangles) ───────────────────
+// Cropped close, as the nav PNGs they replace are (the site and the app size a logo by its height).
+// The wordmark alone is the app masthead's title, as shape-wordmark.png was.
+const SITE_PAD = 0.12;
+function wordmark(padCaps) {
+  const pad = padCaps * CAP, baseline = pad + CAP;
+  const shapeAt = places('CLUB SHAPE')[4][1] * CAP;
+  return {
+    W: wordPolys('CLUB SHAPE', { x: 0, y: 0, cap: CAP }).width + 2 * pad, H: CAP + 2 * pad,
+    mark: { teal: [], white: [] },
+    club: wordPolys('CLUB', { x: pad, y: baseline, cap: CAP }).polys,
+    shape: wordPolys('SHAPE', { x: pad + shapeAt, y: baseline, cap: CAP }).polys,
+  };
+}
+export const SITE_FILES = {
+  'public/club-shape-logo-white.svg': () => [stacked(SITE_PAD), SCHEMES['-mono-white']],
+  'public/club-shape-logo-black.svg': () => [stacked(SITE_PAD), SCHEMES['-mono-black']],
+  'public/club-shape-logo-teal-white.svg': () => [stacked(SITE_PAD), SCHEMES['']],
+  'mobile-app/public/club-shape-logo.svg': () => [stacked(SITE_PAD), SCHEMES['']],
+  'mobile-app/public/club-shape-wordmark.svg': () => [wordmark(SITE_PAD), SCHEMES['-mono-white']],
+};
+
 async function main() {
   const require = createRequire(join(ROOT, 'package.json'));
   let sharp = null;
   try { sharp = require('sharp'); } catch { /* the SVGs still build without it */ }
+  if (process.argv.includes('--site')) {
+    for (const [file, make] of Object.entries(SITE_FILES)) {
+      const [l, s] = make();
+      writeFileSync(join(ROOT, file), svgOf(l, s));
+      console.log(`${file}  ${n2(l.W)} × ${n2(l.H)}  (aspect ${(l.W / l.H).toFixed(3)})`);
+    }
+    return;
+  }
   if (process.argv.includes('--check')) {
     if (!sharp) throw new Error('--check needs sharp (npm ci at the repository root)');
     await check(sharp);

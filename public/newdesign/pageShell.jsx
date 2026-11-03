@@ -54,17 +54,20 @@ function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
 }
 
 function Logo({ variant = "black", size = 28 }) {
-  const src = variant === "white" ? "/shape-logo-nav-white.png"
-    : variant === "black" ? "/shape-logo-nav-black.png"
-    : variant === "teal" ? "/shape-logo-nav-teal-white.png"
-    : "/shape-logo-nav-white.png";
-  // New logo has the play-icon stacked above the SHAPE wordmark (aspect ~1.87:1), not inline like the old one.
+  // The Club Shape logo (owner, 2026-11-03): the two triangles stacked over CLUB SHAPE, drawn by
+  // marketing/club-shape/build-logo.mjs --site. It is about 4:1, twice as wide as the SHAPE lockup
+  // it replaced at the same height, its letters a little smaller (11.8px against 12.8 at 52px).
+  const src = variant === "white" ? "/club-shape-logo-white.svg"
+    : variant === "black" ? "/club-shape-logo-black.svg"
+    : variant === "teal" ? "/club-shape-logo-teal-white.svg"
+    : "/club-shape-logo-white.svg";
+  // The play-icon stacked above the wordmark, not inline like the old one.
   // Scale so the overall mark reads at a comparable visual weight to the previous inline logo.
   const h = Math.round(size * 1.8);
   // Size inline (not just via the external .shape-brand-logo rule) so standalone
   // pages that don't load pageShell's stylesheet (login, landing) still constrain
   // the logo — otherwise the high-res source renders at its full intrinsic size.
-  return <img className="shape-brand-logo" src={src} alt="Shape" style={{ "--shape-logo-h": `${h}px`, height: `${h}px`, width: "auto", maxWidth: "none", maxHeight: "none", objectFit: "contain", display: "block" }} />;
+  return <img className="shape-brand-logo" src={src} alt="Club Shape" style={{ "--shape-logo-h": `${h}px`, height: `${h}px`, width: "auto", maxWidth: "none", maxHeight: "none", objectFit: "contain", display: "block" }} />;
 }
 
 // Typeset Shape Radio wordmark for the nav — replaces the washed-out PNG
@@ -1228,7 +1231,9 @@ function MobileDrawer({ open, onClose, active, authUser, staffLevel, onLogout })
   if (!open) return null;
   const groups = navGroupsFor(authUser);
   const linkBase = { display: "block", padding: "18px 0", fontFamily: sans, fontSize: 22, letterSpacing: "0.02em", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", textDecoration: "none" };
-  const logoH = Math.round(44 * 1.8);
+  // 60px: the Club Shape logo is about 4:1, so at the 79px this drawer used for the SHAPE lockup it
+  // would run 318px wide, past a 360px phone with the close button beside it. At 60 it is 241px.
+  const logoH = 60;
   // ⚠ PORTALED TO <body>, THE WAY SiteSearch's OVERLAY ALREADY IS. `.shape-header`
   // carries `backdrop-filter`, and a backdrop-filter makes an element the
   // containing block for its position:fixed descendants — so while this rendered
@@ -1267,8 +1272,8 @@ function MobileDrawer({ open, onClose, active, authUser, staffLevel, onLogout })
             near-white sheet. Bare <img>s, not <Logo>: its class carries
             `display: block !important`, which beats the token. */}
         <a href="index.html" style={{ display: "inline-flex", alignItems: "center" }}>
-          <img src="/shape-logo-nav-white.png" alt="Shape" style={{ height: logoH, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} />
-          <img src="/shape-logo-nav-black.png" alt="Shape" style={{ height: logoH, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} />
+          <img src="/club-shape-logo-white.svg" alt="Club Shape" style={{ height: logoH, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} />
+          <img src="/club-shape-logo-black.svg" alt="Club Shape" style={{ height: logoH, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} />
         </a>
         <button ref={closeRef} onClick={onClose} aria-label="Close menu"
           style={{ background: "transparent", color: INK, border: 0, fontSize: 30, lineHeight: 1, padding: 8, cursor: "pointer", fontFamily: sans }}>×</button>
@@ -1573,7 +1578,7 @@ function Header({ active }) {
           lines at 1180px. */}
       <div className="shape-header-inner" style={{ maxWidth: 1440, margin: "0 auto", display: "flex", alignItems: "center", height: NAV_H, padding: "0 32px", gap: 26 }}>
         <a href="index.html" className="shape-nav-logo" style={{ flex: "1 1 0", minWidth: "max-content", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-          <img src="/shape-logo-nav-teal-white.png" alt="Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} /><img src="/shape-logo-nav-black.png" alt="Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} />
+          <img src="/club-shape-logo-teal-white.svg" alt="Club Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} /><img src="/club-shape-logo-black.svg" alt="Club Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} />
         </a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", flex: "0 1 auto", minWidth: 0 }}>
           {navGroupsFor(authUser).map(g => g.kind === "drop"
@@ -1692,11 +1697,11 @@ function Footer({ logoHeight = 44 } = {}) {
         <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, paddingBottom: 20, textAlign: "center" }}>
           {/* Two lockups, one visible per paper: the dashboards' light footer shows the
               black mark, the dark paper and every marketing page the white one. BOTH
-              carry alt="Shape", as the header's pair does: display:none already drops
+              carry alt="Club Shape", as the header's pair does: display:none already drops
               the hidden one from the accessibility tree, so an aria-hidden on either
               strips the name from whichever paper shows it. */}
-          <img src="/shape-logo-nav-white.png" alt="Shape" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-dark, block)", margin: "0 auto", objectFit: "contain" }} />
-          <img src="/shape-logo-nav-black.png" alt="Shape" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-light, none)", margin: "0 auto", objectFit: "contain" }} />
+          <img src="/club-shape-logo-white.svg" alt="Club Shape" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-dark, block)", margin: "0 auto", objectFit: "contain" }} />
+          <img src="/club-shape-logo-black.svg" alt="Club Shape" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-light, none)", margin: "0 auto", objectFit: "contain" }} />
           <div style={{ fontFamily: serif, fontSize: 17, fontStyle: "italic", letterSpacing: "-0.02em", color: INK }}>Join the community</div>
         </div>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24, paddingTop: 20, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", justifyItems: "center", textAlign: "center" }}>

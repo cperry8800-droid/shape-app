@@ -39,6 +39,9 @@ const BRAND = new Set([
   // the descriptive 'The Shape Community', which IS localized (feed:chip.community
   // translates 'Community' in every locale, so leaving it literal would be drift).
   'Shape Wire',
+  // 'Club Shape' is the name the brand takes (owner, 2026-11-03), literal in every locale as
+  // 'Shape' is: the logo's alt text on the app's masthead and welcome screens says it.
+  'Club Shape',
   'Vol. 1 · No. 1', 'Nora', 'Spotify', 'Apple Music', 'Instacart', 'Strava', 'Whoop',
   // ⚠ 'WHOOP' AND 'Apple Health' ARE THE SAME NOUNS THE SET ALREADY CARRIES,
   // MISSED ON A CASE AND A SIBLING. BRAND.has() is exact, so the all-caps
@@ -811,7 +814,10 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // The member profile in the coach profile's look (owner, 2026-10-31): its head and tabs are rewritten
   // through tr(), and the profile's last literal goes with the old head: 166 -> 165, and
   // BSTerrainProfile leaves PARTIAL.
-  assert.equal(partStrings, 165, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // Club Shape as the brand's name (owner, 2026-11-03), a brand noun in BRAND above: the logo's new
+  // alt text adds nothing, and the Radio page's two existing "Club Shape" literals (the venue, in
+  // Shape Sets) stop counting as copy: 165 -> 163.
+  assert.equal(partStrings, 163, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
