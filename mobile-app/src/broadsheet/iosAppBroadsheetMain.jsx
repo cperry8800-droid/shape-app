@@ -1355,7 +1355,7 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
     <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF }}>
       <BSWireGround dim />
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '52px 26px 34px' }}>
-        <img src={`${import.meta.env.BASE_URL}club-shape-logo.svg`} alt="Club Shape" style={{ width: 201, height: 'auto', aspectRatio: '1764 / 439', alignSelf: 'flex-start', marginLeft: 6, marginTop: 10, filter: 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
+        <img src={`${import.meta.env.BASE_URL}club-shape-logo.svg`} alt="Club Shape" style={{ width: 170, height: 'auto', aspectRatio: '1764 / 439', alignSelf: 'flex-start', marginLeft: 6, marginTop: 10, filter: 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 8 }}>
           <h1 style={{ fontFamily: BS_LAUNCH_HEAD, fontSize: 36, fontWeight: 300, letterSpacing: '-0.03em', lineHeight: 1.04, margin: '4px 0 0' }}>{tr('paywall.titlePre')} <span style={{ fontWeight: 400, color: teal }}>{tr('paywall.titleAccent')}</span></h1>
           <div style={{ margin: '18px 0 0', fontFamily: mono, fontSize: 9.5, fontWeight: 500, lineHeight: 2.15, letterSpacing: '0.1em', textTransform: 'uppercase', color: INKF }}>

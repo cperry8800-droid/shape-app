@@ -38,7 +38,10 @@ const navDisp = "'Anybody', 'Anybody Fallback', system-ui, sans-serif";
 // mobile drawer, the app banner's offset) and a number typed eight times is a
 // number that only moves in seven of them.
 const NAV_H = 72;
-const NAV_LOGO_H = 52;
+// 42: the Club Shape logo is twice the SHAPE lockup's width, and the owner asked for it smaller
+// in the bar (2026-11-03: "make new logo smaller in these places"); 169px wide. The homepage's
+// `.brand img` draws it at the same height (tests/site-nav.test.mjs).
+const NAV_LOGO_H = 42;
 
 function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
   const bg = tone === "dark" ? "#0f1513" : "var(--sh-ink-soft, #efece6)";
@@ -53,7 +56,7 @@ function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
   );
 }
 
-function Logo({ variant = "black", size = 28 }) {
+function Logo({ variant = "black", size = 28, height = null }) {
   // The Club Shape logo (owner, 2026-11-03): the two triangles stacked over CLUB SHAPE, drawn by
   // marketing/club-shape/build-logo.mjs --site. It is about 4:1, twice as wide as the SHAPE lockup
   // it replaced at the same height, its letters a little smaller (11.8px against 12.8 at 52px).
@@ -63,7 +66,9 @@ function Logo({ variant = "black", size = 28 }) {
     : "/club-shape-logo-white.svg";
   // The play-icon stacked above the wordmark, not inline like the old one.
   // Scale so the overall mark reads at a comparable visual weight to the previous inline logo.
-  const h = Math.round(size * 1.8);
+  // `height` sets it exactly: the standalone headers (login, landing, signup) draw it at the bar's
+  // 42px (owner, 2026-11-03: "make logo smaller here also").
+  const h = height || Math.round(size * 1.8);
   // Size inline (not just via the external .shape-brand-logo rule) so standalone
   // pages that don't load pageShell's stylesheet (login, landing) still constrain
   // the logo — otherwise the high-res source renders at its full intrinsic size.
@@ -1692,7 +1697,8 @@ function HeroBg() {
 // against the homepage's hand-written copy by label AND by target, and a footer
 // that quietly dropped a link would take a page with it (six of them are linked
 // from nowhere else). Only spacing and the logo size move.
-function Footer({ logoHeight = 44 } = {}) {
+// 36: the Club Shape logo, smaller (owner, 2026-11-03), as the homepage's footer draws it.
+function Footer({ logoHeight = 36 } = {}) {
   return (
     <footer className="shape-footer" style={{ position: "relative", padding: "36px 72px 22px", background: "var(--sh-footer-bg, #0b0e0c)", color: INK }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.55 }} />
@@ -2007,10 +2013,10 @@ function ShapeMobileStyles() {
         .shape-header-inner { padding: 0 18px !important; gap: 12px !important; }
         /* ⚠ THE LOGO NARROWS WITH A PHONE THIS SMALL. Signed in, this row is the logo, the bell
            (33px) and the burger (40px) with 18px sides and two 12px gaps: the logo plus 133px.
-           The Club Shape logo is 209px at 52, so it overflowed below 342 (measured in Chromium:
+           At 52px the Club Shape logo was 209px and overflowed below 342 (measured in Chromium:
            the burger ended at 324 on a 320px window; Codex, #2569). (100vw - 139px) / 4.02 keeps
-           8px spare; from 347px up it is NAV_LOGO_H again. */
-        .shape-nav-logo img { height: min(52px, calc((100vw - 139px) / 4.02)) !important; }
+           8px spare; at NAV_LOGO_H's 42 (169px) that only bites below 308. */
+        .shape-nav-logo img { height: min(${NAV_LOGO_H}px, calc((100vw - 139px) / 4.02)) !important; }
 
         /* Dashboard layout (240px sidebar + main): collapse to one column and
            turn the sidebar into a horizontal scrolling nav bar so signed-in

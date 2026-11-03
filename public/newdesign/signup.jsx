@@ -34,7 +34,7 @@ const ROLE_CONFIG = {
     submitLabel: "Submit application",
     doneTitle: "Application submitted.",
     doneBody: "Our team will review your credentials and reach out within 2–3 business days.",
-    doneCta: { label: "Back to home", href: "Landing.html" },
+    doneCta: { label: "Back to home", href: "index.html" },
   },
   nutritionist: {
     kicker: "Build a nutrition practice",
@@ -51,7 +51,7 @@ const ROLE_CONFIG = {
     submitLabel: "Submit application",
     doneTitle: "Application submitted.",
     doneBody: "Our team will review your credentials and reach out within 2–3 business days.",
-    doneCta: { label: "Back to home", href: "Landing.html" },
+    doneCta: { label: "Back to home", href: "index.html" },
   },
 };
 
@@ -1143,15 +1143,16 @@ function SignupPage({ role }) {
 /* ON A PHONE THE LOGO SCALES WITH THE WINDOW. The Club Shape logo (2026-11-03) is 4.02:1, so at
    this header's 90px it is 362px wide, and beside "Already have an account? Log in" it overflowed
    by 93px at 390 and 123 at 360 (measured in Chromium). From 360 to 480 the largest height that fit
-   was (100vw - 122px) / 4.02; this keeps 8px spare, and is 90px again on a wider window. */
+   was (100vw - 122px) / 4.02; this keeps 8px spare. The logo is 42px now, the bar's (owner,
+   2026-11-03: "make logo smaller"), which fits from 299px up, so this only guards a narrower one. */
 @media (max-width: 560px) {
-  header .shape-brand-logo { height: min(90px, calc((100vw - 130px) / 4.02)) !important; }
+  header .shape-brand-logo { height: min(42px, calc((100vw - 130px) / 4.02)) !important; }
 }
 `}</style>
       {/* Minimal header */}
       <header className="su-pad" style={{ padding: "24px 72px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <a href="Landing.html" aria-label="Club Shape" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" size={50} /></a>
+          <a href="Landing.html" aria-label="Club Shape" style={{ flex: "none", display: "inline-flex" }}><Logo variant="white" height={42} /></a>
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
             <span style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.55)" }}>Already have an account?</span>
             <a href={suLoginHref()} style={{ fontFamily: sans, fontSize: 13, color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 3 }}>Log in</a>

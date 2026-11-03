@@ -168,7 +168,9 @@ test('the line under the mark is the owner\'s, and nothing rewrites it', () => {
   const line = arrive().el().querySelector('.iline');
   assert.ok(line, 'no line under the mark');
   assert.equal(line.textContent.replace(/\s+/g, ' ').trim(), 'Don’t climb alone.', 'the owner\'s line, not "You don\'t climb alone." (2026-10-13)');
-  assert.equal(line.querySelector('b')?.textContent, 'alone.', 'the teal word moved');
+  assert.equal(line.querySelector('b')?.textContent, 'alone.', 'the bold word moved');
+  // "alone." is in the line's white, not the teal (owner, 2026-11-03: "the "alone" should be white font").
+  assert.match(SRC, /#shape-intro \.iline b\{[^}]*color:var\(--fg\)/, '"alone." is no longer the line\'s white');
   // the old line followed the visitor's clock ("Tonight," / "Today,")
   assert.doesNotMatch(stripComments(SCRIPT), /getHours\(\)|shape-intro-word/, 'a clock rewrite of the line is back');
   assert.doesNotMatch(stripComments(MARKUP), /Tonight|we train/, 'the retired line is back');
