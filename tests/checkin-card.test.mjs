@@ -431,9 +431,10 @@ test('the morning panel holds the card over water, with a hairline between them'
 });
 
 // Owner, 2026-10-21: "condense the size of this. taking up way to much space on home page"; owner,
-// 2026-10-22, Option A: it "look[s] analog and outdated". No headline and no row of step bars: the
-// title row, then Same as yesterday as the one filled button with Start as a link under it.
-test('the card on Home is compact: a title row, Same as yesterday as the one big button, the steps in the title once one is in', async () => {
+// 2026-10-22, Option A: it "look[s] analog and outdated"; owner, 2026-11-03: "this also needs to be
+// condensed on client home page". No headline and no row of step bars: the title row with Start at its
+// end, then Same as yesterday as the one filled button, on one line.
+test('the card on Home is compact: a title row ending in Start, Same as yesterday as the one button, the steps in the title once one is in', async () => {
   env({ days: { [YDAY]: { energy: 7, sleep: 6.5, sleepQuality: 9 } } });
   let m = await mount();
   try {
@@ -443,9 +444,15 @@ test('the card on Home is compact: a title row, Same as yesterday as the one big
     assert.equal(card.style.border, '', 'the card draws its own box again: the morning panel holds it');
     assert.equal(card.style.clipPath, '', 'the notched corner came back');
     const row = card.querySelector('[data-bs-checkin-actions]');
-    assert.deepEqual([...row.querySelectorAll('button')].map((b) => b.textContent), ['Same as yesterdayGood · 6h 30 · Fresh', 'Start check-in →'], 'Same as yesterday leads, Start under it');
+    assert.deepEqual([...row.querySelectorAll('button')].map((b) => b.textContent), ['Same as yesterday · Good · 6h 30 · Fresh'], 'Same as yesterday is the one button under the title');
     assert.equal(row.querySelector('button').style.minHeight, '44px', 'the one big button (a step down, owner 2026-10-24: "make these smaller")');
-    assert.equal(m.text(), 'Morning check-in2 checks · 15 secSame as yesterdayGood · 6h 30 · FreshStart check-in →');
+    const label = row.querySelector('button').lastElementChild;
+    assert.equal(label.style.whiteSpace, 'nowrap', 'Same as yesterday and its answers are one line (owner, 2026-11-03)');
+    const start = card.querySelector('[data-bs-checkin-start]');
+    assert.equal(start?.textContent, 'Start check-in →', 'Start is not at the end of the title row');
+    assert.equal(start.parentElement, card.firstElementChild, 'Start left the title row');
+    assert.equal(start.style.minHeight, '44px');
+    assert.equal(m.text(), 'Morning check-in2 checks · 15 secStart check-in →Same as yesterday · Good · 6h 30 · Fresh');
   } finally { m.unmount(); }
   // Nothing to repeat: Start is the big button.
   env();
@@ -455,6 +462,7 @@ test('the card on Home is compact: a title row, Same as yesterday as the one big
     const only = [...row.querySelectorAll('button')];
     assert.deepEqual(only.map((b) => b.textContent), ['Start check-in →']);
     assert.equal(only[0].style.minHeight, '44px');
+    assert.equal(document.querySelector('[data-bs-checkin-start]'), null, 'a second Start in the title row');
   } finally { m.unmount(); }
   // Energy in: the steps take the title row's place for "2 checks · 15 sec", and Continue opens the night.
   env({ days: { [TODAY]: { energy: 8 } } });
@@ -478,7 +486,7 @@ test('the Same as yesterday line names only what the tap writes (review on this 
   const calls = env({ days: { [YDAY]: { energy: 7, sleep: 6.5, sleepQuality: 9 }, [TODAY]: { sleep: 7.5, sleepQuality: 4 } } });
   const m = await mount();
   try {
-    assert.match(m.text(), /Same as yesterdayGood(?! ·)/, 'the line offers a night and a Rested the tap will not write');
+    assert.match(m.text(), /Same as yesterday · Good(?! ·)/, 'the line offers a night and a Rested the tap will not write');
     await m.click(/Same as yesterday/);
     assert.deepEqual(calls.log, [{ energy: 7 }]);
   } finally { m.unmount(); }
@@ -644,7 +652,7 @@ test('Same as yesterday after a skip copies the morning only, never the skipped 
     await m.click(/Start check-in/);
     await m.click(/^Skip$/);
     await m.click(/^Close$/);
-    assert.match(m.text(), /Same as yesterdayGood/);
+    assert.match(m.text(), /Same as yesterday · Good/);
     assert.doesNotMatch(m.text(), /6h 30|Fresh/, 'the card offers to fill the skipped night');
     await m.click(/Same as yesterday/);
     assert.deepEqual(calls.log, [{ sleepSkipped: true }, { energy: 7 }], "Same as yesterday typed over the night the member skipped");
