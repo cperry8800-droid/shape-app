@@ -18,7 +18,7 @@ export default {
   mutations: [
     // ── Shape's own stream ──
     { name: '⚠ an http stream is taken', file: ST,
-      find: "  if (u.protocol !== 'https:') return { ok: false, error: 'stream_https' };\n  if (u.username", replace: '  if (u.username' },
+      find: "  if (u.protocol !== 'https:') return { ok: false, error: 'stream_https' };\n  if (u.username || u.password || u.search", replace: '  if (u.username || u.password || u.search' },
     { name: 'credentials, a query or a port are taken', file: ST,
       find: "  if (u.username || u.password || u.search || u.hash || u.port) return { ok: false, error: 'stream_url' };\n  if (u.pathname !== OWN_MOUNT)", replace: '  if (u.pathname !== OWN_MOUNT)' },
     { name: 'any path is taken', file: ST,

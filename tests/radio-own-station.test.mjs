@@ -157,6 +157,10 @@ test('the newest block on the air wins; one that has not started, or is long ove
   };
   assert.equal((await rotationOnAir(fakeDb(tables), { now: at(newer, 60) })).title, 'A');
   assert.equal(await rotationOnAir(fakeDb({ radio_rotation_blocks: [block(B1, NOW + 60000)], nora_engine_log: tables.nora_engine_log }), { now: NOW }), null);
+  // Blocks stored ahead (the engine asks for the next one early) never crowd out the one on the air.
+  const ahead = [1, 2, 3].map((k) => ({ ...block(`a${k}a${k}a${k}a${k}-0000-4000-8000-00000000000${k}`, NOW + k * 600000) }));
+  const crowded = fakeDb({ radio_rotation_blocks: [block(B1, newer), ...ahead], nora_engine_log: tables.nora_engine_log });
+  assert.equal((await rotationOnAir(crowded, { now: at(newer, 60) })).title, 'A');
   assert.equal(await rotationOnAir(fakeDb({ radio_rotation_blocks: [block(B1, NOW - 3 * 3600000)], nora_engine_log: tables.nora_engine_log }), { now: NOW }), null);
 });
 
