@@ -904,7 +904,7 @@ function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks, h
         detailPh={tr('profile:mine.educationFromPh', { defaultValue: 'School or teacher' })}
         addLabel={tr('profile:mine.educationAdd', { defaultValue: 'Add a degree or course' })} />
       {/* Certificates are the ones Shape verified, not typed here (owner, 2026-11-03: "certificates"). */}
-      <p data-about-certs-note="" style={{ margin: '10px 0 0', fontSize: 13, lineHeight: 1.45, color: ea(0.66) }}>{tr('profile:mine.certsNote', { defaultValue: 'Your certificates show on About once Shape has verified them.' })}</p>
+      <p data-about-certs-note="" style={{ margin: '10px 0 0', fontSize: 13, lineHeight: 1.45, color: ea(0.66) }}>{tr('profile:mine.certsNote', { defaultValue: 'Your certificates show on About me once Shape has verified them.' })}</p>
 
       <Eyebrow right={`${prompts.length} / ${BS_PROMPTS_MAX}`}>{tr('profile:mine.qa', { defaultValue: 'Questions members ask' })}</Eyebrow>
       {prompts.map((p, i) => {

@@ -207,7 +207,7 @@ test('About me on the website: the coach\'s accolades and education; the head\'s
   const about = { story: 'Ten years on the floor.', accolades: [{ title: 'Coach of the Year', detail: 'Portland Fitness Awards', year: 2024 }], education: [{ title: 'BSc Exercise Science', year: 2015 }] };
   const links = { instagram: '@tom.lifts', x: 'javascript:alert(1)' };
   let p = await mount({ ...LIVE, row: { ...LIVE.row, custom: { about, links } } });
-  assert.equal(document.querySelector('[data-head-socials]'), null, 'socials in the head the coach did not choose');
+  assert.ok(!document.querySelector('[data-head-socials]'), 'socials in the head the coach did not choose');
   const aboutTab = [...document.querySelectorAll('[data-profile-tab]')].find((b) => b.getAttribute('data-profile-tab') === 'about');
   await React.act(async () => aboutTab.click());
   await settle();

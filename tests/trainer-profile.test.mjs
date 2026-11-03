@@ -1517,7 +1517,7 @@ test('the head shows the coach\'s socials only when they chose it, as the links 
   const links = { instagram: '@maya.lifts', website: 'https://mayaokafor.com/', x: 'javascript:alert(1)' };
   reset({ custom: { links } });
   let m = await mount(page());
-  assert.equal(document.querySelector('[data-head-socials]'), null, 'shown without the coach choosing it');
+  assert.ok(!document.querySelector('[data-head-socials]'), 'shown without the coach choosing it');
   await m.unmount();
   reset({ custom: { links, headLinks: true } });
   m = await mount(page());

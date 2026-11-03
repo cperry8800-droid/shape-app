@@ -450,7 +450,7 @@ test('the card on Home is compact: a title row ending in Start, Same as yesterda
     assert.equal(label.style.whiteSpace, 'nowrap', 'Same as yesterday and its answers are one line (owner, 2026-11-03)');
     const start = card.querySelector('[data-bs-checkin-start]');
     assert.equal(start?.textContent, 'Start check-in →', 'Start is not at the end of the title row');
-    assert.equal(start.parentElement, card.firstElementChild, 'Start left the title row');
+    assert.ok(start.parentElement === card.firstElementChild, 'Start left the title row');
     assert.equal(start.style.minHeight, '44px');
     assert.equal(m.text(), 'Morning check-in2 checks · 15 secStart check-in →Same as yesterday · Good · 6h 30 · Fresh');
   } finally { m.unmount(); }
@@ -462,7 +462,7 @@ test('the card on Home is compact: a title row ending in Start, Same as yesterda
     const only = [...row.querySelectorAll('button')];
     assert.deepEqual(only.map((b) => b.textContent), ['Start check-in →']);
     assert.equal(only[0].style.minHeight, '44px');
-    assert.equal(document.querySelector('[data-bs-checkin-start]'), null, 'a second Start in the title row');
+    assert.ok(!document.querySelector('[data-bs-checkin-start]'), 'a second Start in the title row');
   } finally { m.unmount(); }
   // Energy in: the steps take the title row's place for "2 checks · 15 sec", and Continue opens the night.
   env({ days: { [TODAY]: { energy: 8 } } });
