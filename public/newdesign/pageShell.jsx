@@ -1232,8 +1232,11 @@ function MobileDrawer({ open, onClose, active, authUser, staffLevel, onLogout })
   const groups = navGroupsFor(authUser);
   const linkBase = { display: "block", padding: "18px 0", fontFamily: sans, fontSize: 22, letterSpacing: "0.02em", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", textDecoration: "none" };
   // 60px: the Club Shape logo is about 4:1, so at the 79px this drawer used for the SHAPE lockup it
-  // would run 318px wide, past a 360px phone with the close button beside it. At 60 it is 241px.
-  const logoH = 60;
+  // would run 318px wide, past a 360px phone with the close button beside it. At 60 it is 241px, and
+  // below 336px it narrows with the window: measured in Chromium, the close button's left edge sits
+  // at 100vw - 59px and the logo starts at 24, so (100vw - 95px) / 4.02 keeps a 12px gap (Codex, #2569:
+  // at 320 the two touched).
+  const logoH = "min(60px, calc((100vw - 95px) / 4.02))";
   // ⚠ PORTALED TO <body>, THE WAY SiteSearch's OVERLAY ALREADY IS. `.shape-header`
   // carries `backdrop-filter`, and a backdrop-filter makes an element the
   // containing block for its position:fixed descendants — so while this rendered
@@ -2002,6 +2005,12 @@ function ShapeMobileStyles() {
            moving it. This block keeps the dashboard-layout rules, which are
            genuinely about a phone. */
         .shape-header-inner { padding: 0 18px !important; gap: 12px !important; }
+        /* ⚠ THE LOGO NARROWS WITH A PHONE THIS SMALL. Signed in, this row is the logo, the bell
+           (33px) and the burger (40px) with 18px sides and two 12px gaps: the logo plus 133px.
+           The Club Shape logo is 209px at 52, so it overflowed below 342 (measured in Chromium:
+           the burger ended at 324 on a 320px window; Codex, #2569). (100vw - 139px) / 4.02 keeps
+           8px spare; from 347px up it is NAV_LOGO_H again. */
+        .shape-nav-logo img { height: min(52px, calc((100vw - 139px) / 4.02)) !important; }
 
         /* Dashboard layout (240px sidebar + main): collapse to one column and
            turn the sidebar into a horizontal scrolling nav bar so signed-in
