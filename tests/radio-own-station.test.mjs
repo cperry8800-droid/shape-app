@@ -253,7 +253,7 @@ test('⚠ the route: her set first, then, on Shape\'s own station only, the rota
 test('⚠ the dashboard saves Shape\'s own station only after checking it and hearing it answer; admin only', () => {
   const actions = read('src/app/dashboard/radio/actions.ts');
   const fn = actions.slice(actions.indexOf('export async function connectOwnStation'), actions.indexOf('export async function disconnectStation'));
-  const order = ['await requireAdminUser();', 'checkOwnStation(', 'if (!checked.ok) failed(', 'await probeStream(streamWithPass(checked.value.stream_url, probePass.pass))', 'if (!probed.ok) failed(probed.error);', ".from('radio_station')"].map((s) => fn.indexOf(s));
+  const order = ['await requireAdminUser();', 'checkOwnStation(', 'if (!checked.ok) failed(', 'await probeStream(streamWithTicket(checked.value.stream_url, probeTicket.ticket))', 'if (!probed.ok) failed(probed.error);', ".from('radio_station')"].map((s) => fn.indexOf(s));
   assert.ok(order.every((i, k) => i > 0 && (k === 0 || i > order[k - 1])), `in order: ${order.join(', ')}`);
   const panel = read('src/app/dashboard/radio/StationPanel.tsx');
   assert.match(panel, /<form action=\{connectOwnStation\}/);

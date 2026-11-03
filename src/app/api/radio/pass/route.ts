@@ -1,12 +1,13 @@
 // The station's door (part 3 of Shape's own radio, src/lib/radio/pass.mjs). Shape's own station
 // server (services/station, Icecast's url auth) posts here each time a listener connects, with
-// the address they asked for; a good pass on it, for the station's own mount, lets them in.
+// the address they asked for; a good ticket on it (src/app/api/radio/listen/route.ts gave it to
+// their player, two minutes ago at most), for the station's own mount, lets them in.
 //
 // Icecast reads the answer from a header, not the status: `icecast-auth-user: 1` admits, its
 // absence refuses (the reason goes back in `icecast-auth-message`, for its log). So every answer
 // is a 200, and a fault refuses: no key, no listener.
 //
-// No session and no database: the pass is signed by Shape and checked by its signature alone, so
+// No session and no database: the ticket is signed by Shape and checked by its signature alone, so
 // this route does no work an attacker could multiply, and it is kept off the per-address rate
 // limit (src/lib/supabase/middleware.ts), since every check comes from the one station server.
 import { NextResponse } from 'next/server';

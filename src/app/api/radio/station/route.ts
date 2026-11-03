@@ -26,7 +26,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { refuseKnownMinor } from '@/lib/age-gate';
 import { computeMembership } from '@/lib/membership-core';
 import { OWN_PROVIDER } from '@/lib/radio/station.mjs';
-import { makePass, passKey, regionAllowed, streamWithPass } from '@/lib/radio/pass.mjs';
+import { listenUrl, makePass, passKey, regionAllowed } from '@/lib/radio/pass.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -125,9 +125,11 @@ export async function GET(request: NextRequest) {
       { status: 503 }
     );
   }
-  // Shape's own station: this member's pass on the stream. No key, no pass, and no
-  // stream either: the station would refuse it, so the player says it could not
-  // reach the station rather than playing nothing.
+  // Shape's own station: the stream is Shape's own address, with this member's pass on it
+  // (/api/radio/listen checks the pass and the listener's country at every connection, and
+  // sends the player on to the station with a short ticket); the station's own address is
+  // never handed out. No key, no pass, and no stream either: the station would refuse it,
+  // so the player says it could not reach the station rather than playing nothing.
   let streamUrl: string | null = data?.stream_url || null;
   let passExpiresAt: string | null = null;
   if (streamUrl && data?.provider === OWN_PROVIDER) {
@@ -140,7 +142,7 @@ export async function GET(request: NextRequest) {
         { status: 503 }
       );
     }
-    streamUrl = streamWithPass(streamUrl, issued.pass);
+    streamUrl = listenUrl(new URL(request.url).origin, issued.pass);
     passExpiresAt = issued.expiresAt;
   }
   return NextResponse.json(

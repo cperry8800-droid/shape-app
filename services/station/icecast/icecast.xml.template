@@ -52,8 +52,9 @@
 
     <mount type="normal">
         <mount-name>/live</mount-name>
-        <!-- ⚠ MEMBERS ONLY, AT THE DOOR. Each listener's address carries the pass Shape gave that
-             member (?pass=, src/lib/radio/pass.mjs); Icecast asks Shape whether it is good before
+        <!-- ⚠ MEMBERS ONLY, AT THE DOOR. Each listener arrives with a two-minute ticket Shape gave
+             their player as it connected (?ticket=, src/lib/radio/pass.mjs: Shape checked their
+             membership and their country first); Icecast asks Shape whether it is good before
              letting them in, falling back to the standby loop or not. Shape answers with the
              header below to admit; anything else, or no answer at all, refuses. -->
         <authentication type="url">
