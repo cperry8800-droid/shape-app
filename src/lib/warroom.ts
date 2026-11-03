@@ -620,6 +620,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the tier line over the member profile\'s cover again; Website: the app captures re-shot and a coach\'s page on the app page (#2571). No migration',
+      items: [
+        { label: 'Owner, 2026-11-03: "make sure screenshots on website on app page and home page are updated to most recent. Also include a section on app page with a screen shot of coaches profile", "also member/client profile look changed", and of the profile\'s cover, "this top section should show the tier line graph we had"', status: 'done' },
+        { label: '#2571 the member profile: the tier ridge #2546 moved into the Climb tab is drawn over the cover again, right of the round photo: the dashed route, the heat to the member\'s % (the Climb tab\'s own figure), the base in their tier\'s colour and the summit flag in the next tier\'s; at Legend, Raw → Legend and "Top of the ladder". The geometry is services/tierRidge.mjs (pure). No new copy', status: 'done' },
+        { label: '#2571 the website: every app capture re-shot from the signed-out preview by the recorded method (375×867 at 1.6, the clock at Fri 2026-09-11 09:30 New York): Get App\'s ten PNGs in place at ?v=20261103, the homepage\'s seven JPEGs as -v4; Grocery\'s and the Wall\'s rings re-measured. Get App\'s eleventh beat, 12:15, is a coach\'s page (Jordan Chen, the sample listing, labelled so); the copy follows the screens (the Wall is the members\' feed; no running cost on the grocery screen; habit ticks ask for an account in the preview)', status: 'done' },
+        { label: 'Review: Codex on 866aea4: the P2 (the heat\'s non-scaling stroke broke it into dashes once the cover stretched, 820 px) fixed in 8cdd3ce with a test that fails on 866aea4, and the flag drawn outside the stretched frame; the P1 to move BSTerrainProfile out of the client answered (943 lines reading 39 client helpers; the pure geometry moved); the P1 to revert the images\' ?v= answered (the deploy build versions scripts and dash.css only; WORKLOG\'s line now says so). Codex clean on 8cdd3ce. Checks: the full suite 9,413 of 9,413 on 866aea4, the touched suites 191 of 191 on 8cdd3ce; the /m/ build in headless Chromium at 320, 375 and 820 px; GetApp.html at 390 and 1440 px', status: 'done' },
+        { label: 'OWNER — decide: a real coach\'s page, with their own photo, in place of the sample listing on the Get App page once one is live and agrees; and whether the member profile gets its own extraction PR out of the client', status: 'manual' },
+        { label: 'OWNER: on a phone, signed in: the tier line on your own profile and someone else\'s (a notched screen, a light paper, your own cover, the phone on its side, a Legend profile); seen only in headless Chromium, signed out', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: voice notes in chat threads (#2567). Migration: 2026-11-03-voice-notes.sql',
       items: [
         { label: 'Owner, 2026-11-02: "build voice notes next" (the next of the ideas offered for the chat after #2565)', status: 'done' },
