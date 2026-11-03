@@ -177,6 +177,20 @@ test('⚠ a block is cut where one of Nora\'s sets now starts, fading out, and h
   assert.ok(around(82) > 0.1, 'and her set plays straight after');
 });
 
+test('⚠ a check every minute across hand-overs too, not a minute into each segment (Codex, #2570)', LIMIT, async () => {
+  let n = 0;
+  const h = station({
+    stopAt: 420000,
+    // Blocks of four songs (114 s) back to back: hand-overs fall between checks.
+    shape: (ask, now) => (n < 3 ? segment('block', uuid(200 + n++), ask.after ? Date.parse(ask.after) : now + 10000, [TA, TB, TC, TD]) : { set: null, block: null, reason: 'empty_library' }),
+  });
+  await h.done;
+  assert.ok(h.checks.length >= 4, `${h.checks.length} checks`);
+  const gaps = h.checks.slice(1).map((c, i) => (c.at - h.checks[i].at) / 1000);
+  assert.ok(gaps.every((g) => g <= CHECK_EVERY_SEC + 1), `seconds between checks: ${gaps.map((g) => g.toFixed(1)).join(', ')}`);
+  assert.ok(new Set(h.checks.map((c) => c.id)).size >= 2, 'the checks span more than one block');
+});
+
 test('⚠ the licences withdrawn mid-block: it stops within a minute and hands the stream to the standby loop', LIMIT, async () => {
   let blk, withdrawn = false;
   const h = station({

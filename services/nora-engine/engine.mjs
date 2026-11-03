@@ -329,6 +329,10 @@ export async function runStation(deps, { running = () => true } = {}) {
   const segOf = (job) => (job && (job.set || job.block)) || null;
   let after = null, next = null, lastNextAt = null;
   let failures = 0, lastFailed = null, overAgain = false;
+  // ⚠ ONE CHECK CLOCK FOR THE WHOLE STATION, not one per segment (Codex, #2570): restarted at each
+  // hand-over, a check made just before one and the next segment's first, a minute into it, left
+  // nearly two minutes in which a withdrawn licence, or a set scheduled over a block, went unseen.
+  let lastCheck = deps.now();
   const backOff = async () => { await deps.sleep(RETRY_SEC[Math.min(failures, RETRY_SEC.length) - 1] * 1000); };
 
   while (running()) {
@@ -358,7 +362,7 @@ export async function runStation(deps, { running = () => true } = {}) {
     if (line.out && line.writtenTo != null && startMs - line.writtenTo > PAD_MAX_SEC * 1000) await hangUp();
 
     const kind = job.block ? 'block' : 'set';
-    let cutAt = null, stopped = false, fetching = null, checking = false, lastCheck = deps.now();
+    let cutAt = null, stopped = false, fetching = null, checking = false;
     const onTick = (t, endSec) => {
       if (!fetching && endSec - t <= PREFETCH_SEC) {
         const nextAfter = iso(startMs + endSec * 1000);

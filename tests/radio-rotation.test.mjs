@@ -378,6 +378,11 @@ test('the play report lists the rotation\'s plays beside her sets\', and still r
   assert.equal(before.body.trim().split('\r\n')[1], `2026-11-03T10:00:00.000Z,A,a,,,,${SET},`);
 });
 
+test('the admin\'s engine panel shows her sets\' reports, never the rotation\'s as hers (Codex, #2570)', LIMIT, () => {
+  const panel = read('src/app/dashboard/radio/NoraSets.tsx');
+  assert.match(panel, /from\('nora_engine_log'\)\.select\('event,played_at,title,artist,detail'\)\.not\('set_id', 'is', null\)\.order\('logged_at'/);
+});
+
 // ── The route and the migration ────────────────────────────────────────────────────────────
 test('the route: the engine\'s token before anything, ?mode=station to the rotation, and a malformed check refused', LIMIT, () => {
   const route = read('src/app/api/radio/nora/engine/route.ts');
