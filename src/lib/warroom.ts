@@ -620,6 +620,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Brand: the Club Shape logo and launch copy (#2568). marketing/club-shape/, nothing live yet',
+      items: [
+        { label: 'Owner, 2026-11-03: Club Shape as the umbrella name (the coaching marketplace, with Shape Radio and the virtual club as the twist); the logo chosen: the two triangles stacked over CLUB SHAPE ("move forward with this design")', status: 'done' },
+        { label: '#2568 the wordmark: build-logo.mjs sets CLUB SHAPE in the brand face (prototypes/nora-booth wordmarkGlyphs.mjs, SHAPE at the brand PNG\'s own spacing; --check S 0.911 · H 0.955 · A 0.939 · P 0.946 · E 0.958), the stacked lockup (the mark 2.4 caps tall) and one line, each in seven colour versions (dark, light, white tile, teal tile, all white, all black, CLUB in teal), SVG and PNG', status: 'done' },
+        { label: '#2568 explorations kept for the record: mark-ideas.png, pulse-preview.png, pulse-looks.png, and the soundwave and triangle beat as full sets (wave/, triangle-beat/, written by markset.mjs)', status: 'done' },
+        { label: '#2568 copy.md: the homepage hero, and the App Store and Google Play listings, every field within its limit, with what each claim rests on', status: 'done' },
+        { label: 'OWNER: a trademark clearance search on "Club Shape", and its domain and handles, before the rename ships', status: 'manual' },
+        { label: 'OWNER: confirm copy.md\'s open points: the price by region, Shape Sets once scheduled, Nora as DJ (Phase 2)', status: 'manual' },
+        { label: 'The logo on the website (pageShell.jsx\'s Logo, the homepage bar and footer) and in the app (the masthead wordmark, the welcome screens): CLUB SHAPE is about 70% wider than SHAPE at one height, so each bar\'s fit is measured at every width', status: 'pending' },
+        { label: 'The rename\'s copy pass, the app\'s display name (capacitor appName; the bundle id stays), and the store listings in the other 12 languages', status: 'pending' },
+      ],
+    },
+    {
       section: 'App: voice notes in chat threads (#2567). Migration: 2026-11-03-voice-notes.sql',
       items: [
         { label: 'Owner, 2026-11-02: "build voice notes next" (the next of the ideas offered for the chat after #2565)', status: 'done' },

@@ -144,6 +144,7 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
   and her confirm cards in the member's language.
 - Decide night-before prep's open calls (#2563's War Room section): a second push for a meal
   planned after tonight's reminder, and a planned-day total on Eat beside Fuel left.
+- A trademark search on "Club Shape", its domain and handles, before the rename ships (#2568's War Room).
 - Add the `localhost` hostname to the Turnstile widget.
 - A native speaker reads the PAR-Q, Nora hint, sample coach and Friends translations
   (Hausa and Pidgin first).
