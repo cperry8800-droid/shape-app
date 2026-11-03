@@ -98,10 +98,17 @@ export async function rotationOnAir(db, { now }) {
     }
     // ⚠ MATCHED BY ITS TRACK, OR, FOR A TRACK DELETED FROM THE LIBRARY SINCE (its id set null), BY
     // THE TITLE AND ARTIST THE REPORT COPIED (Codex, #2574): the engine has the song decoded and
-    // plays it on, and so it is named on.
+    // plays it on, and so it is named on. ⚠ AND BY WHEN (Codex, #2574): two songs of a block can
+    // share a title and artist, so a copied report vouches only for the song whose own span it was
+    // made in (the engine reports a song as it starts, or later if it joined the block mid-song).
     const item = heard.item;
+    const startMs = Date.parse(block.starts_at);
+    const inItsSpan = (r) => {
+      const t = Date.parse(r.played_at);
+      return t >= startMs + item.startSec * 1000 - 1000 && t < startMs + item.endSec * 1000;
+    };
     const reported = log.some((r) => r.event === 'song' && (r.track_id === item.trackId
-      || (r.track_id == null && r.title === item.title && r.artist === item.artist)));
+      || (r.track_id == null && r.title === item.title && r.artist === item.artist && inItsSpan(r))));
     if (!reported) continue;
     return {
       title: heard.item.title || null,

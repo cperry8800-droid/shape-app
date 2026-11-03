@@ -169,11 +169,36 @@ test('⚠ a block\'s end is heard HEARD_LAG_SEC after the engine reports it, and
 
 test('⚠ a song deleted from the library while it plays is named on, by the title and artist its report copied (Codex, #2574)', async () => {
   const start = NOW - 100000;
-  const gone = fakeDb({ radio_rotation_blocks: [block(B1, start)], nora_engine_log: [logRow(B1, 'started', null, 0), logRow(B1, 'song', null, 1, { title: 'A', artist: 'X' })] });
+  const gone = fakeDb({ radio_rotation_blocks: [block(B1, start)], nora_engine_log: [logRow(B1, 'started', null, 0), logRow(B1, 'song', null, 1, { title: 'A', artist: 'X', played_at: iso(start) })] });
   assert.equal((await rotationOnAir(gone, { now: at(start, 60) })).title, 'A');
+  // The engine joined the block mid-song: its report, made then, still vouches for it.
+  const late = fakeDb({ radio_rotation_blocks: [block(B1, start)], nora_engine_log: [logRow(B1, 'started', null, 0), logRow(B1, 'song', null, 1, { title: 'A', artist: 'X', played_at: iso(start + 40000) })] });
+  assert.equal((await rotationOnAir(late, { now: at(start, 60) })).title, 'A');
   // Another song's copied names do not stand in for it.
-  const other = fakeDb({ radio_rotation_blocks: [block(B1, start)], nora_engine_log: [logRow(B1, 'started', null, 0), logRow(B1, 'song', null, 1, { title: 'A', artist: 'Someone else' })] });
+  const other = fakeDb({ radio_rotation_blocks: [block(B1, start)], nora_engine_log: [logRow(B1, 'started', null, 0), logRow(B1, 'song', null, 1, { title: 'A', artist: 'Someone else', played_at: iso(start) })] });
   assert.equal(await rotationOnAir(other, { now: at(start, 60) }), null);
+});
+
+test('⚠ two songs of a block with the same title and artist: the earlier one\'s copied report never vouches for the later (Codex, #2574)', async () => {
+  const start = NOW - 1000000;
+  const twin = {
+    endsSec: 800,
+    items: [
+      { trackId: TA, title: 'Same', artist: 'X', album: 'First LP', startSec: 0, endSec: 400, rate: 1, mixIn: { type: 'open', lengthSec: 0 } },
+      { trackId: TB, title: 'Same', artist: 'X', album: 'Second LP', startSec: 400, endSec: 800, rate: 1, mixIn: { type: 'open', lengthSec: 0 } },
+    ],
+  };
+  const blk = { id: B1, starts_at: iso(start), programme: twin };
+  // The first was reported, then deleted (its id set null); the engine stopped before the second.
+  const log = [logRow(B1, 'started', null, 0), logRow(B1, 'song', null, 1, { title: 'Same', artist: 'X', played_at: iso(start) })];
+  assert.equal((await rotationOnAir(fakeDb({ radio_rotation_blocks: [blk], nora_engine_log: log }), { now: at(start, 100) })).album, 'First LP', 'the first, while it plays');
+  assert.equal(await rotationOnAir(fakeDb({ radio_rotation_blocks: [blk], nora_engine_log: log }), { now: at(start, 500) }), null, 'the second was never reported');
+  // Once the second is reported (deleted too, say), it is named, with its own album.
+  const both = [...log, logRow(B1, 'song', null, 2, { title: 'Same', artist: 'X', played_at: iso(start + 400000) })];
+  assert.equal((await rotationOnAir(fakeDb({ radio_rotation_blocks: [blk], nora_engine_log: both }), { now: at(start, 500) })).album, 'Second LP');
+  // Nor does the later one's vouch for the earlier.
+  const onlySecond = [logRow(B1, 'started', null, 0), logRow(B1, 'song', null, 2, { title: 'Same', artist: 'X', played_at: iso(start + 400000) })];
+  assert.equal(await rotationOnAir(fakeDb({ radio_rotation_blocks: [blk], nora_engine_log: onlySecond }), { now: at(start, 100) }), null);
 });
 
 test('⚠ the dashboard calls the engine quiet only past the longest song the library takes (Codex, #2574)', () => {
