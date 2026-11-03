@@ -61,8 +61,10 @@ export default async function NoraSets({ updated, error }: { updated?: string; e
   if (progs.error) throw new Error('Could not read Nora’s plans.');
   const planOf = new Map(((progs.data ?? []) as { set_id: string; programme: Programme }[]).map((p) => [p.set_id, p.programme]));
 
-  // What her engine last reported (services/nora-engine), and the months that have plays.
-  const engineLog = await db.from('nora_engine_log').select('event,played_at,title,artist,detail').order('logged_at', { ascending: false }).limit(6);
+  // What her engine last reported about HER SETS (services/nora-engine), and the months that have
+  // plays. On Shape's own station the same log also holds the rotation's blocks (block_id, not
+  // set_id): they would crowd her sets out of six rows and read as hers, so they are left out here.
+  const engineLog = await db.from('nora_engine_log').select('event,played_at,title,artist,detail').not('set_id', 'is', null).order('logged_at', { ascending: false }).limit(6);
   const logRows = (engineLog.error ? [] : engineLog.data ?? []) as { event: string; played_at: string; title: string | null; artist: string | null; detail: string | null }[];
   const thisMonth = new Date(now).toISOString().slice(0, 7);
   const lastMonth = new Date(Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth() - 1, 1)).toISOString().slice(0, 7);

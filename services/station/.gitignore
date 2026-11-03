@@ -1,0 +1,3 @@
+# Your own standby audio stays on the server.
+standby-audio/*
+!standby-audio/README.md

@@ -1,0 +1,14 @@
+# Shape Radio's public front door (services/station): HTTPS for STATION_HOST, with its certificate
+# fetched and renewed by Caddy. Only the stream is passed through; Icecast's admin and status pages
+# stay on the station's private network.
+{$STATION_HOST} {
+	# The stream: passed through as it comes, never buffered.
+	handle /live {
+		reverse_proxy icecast:8000 {
+			flush_interval -1
+		}
+	}
+	handle {
+		respond "Shape Radio" 404
+	}
+}
