@@ -479,6 +479,23 @@ async function bsBuildDailyDigest() {
   return { signedIn: true, name: name, score: r[0], training: r[1], coach: r[2], nutrition: r[3], streak: r[4].streak, challenge: r[4].challenge, directive: r[5] };
 }
 
+// "Don't climb alone." and under it "Join the Community" (owner, 2026-11-03: "have the splash page
+// say "dont climb alone" and then below it "Join the Community"", "on both app and website"),
+// under the mark on the launch beat and on the hold that follows it; the website's splash says the
+// same (public/newdesign/index.html). On the beat the two lines rise in after the mark; the hold
+// shows them still, so the hand-over from one to the other never jumps.
+function BSClimbTagline({ rise = false }) {
+  const { tr } = useTr('onboarding');
+  ensureWireStyles();
+  const line = rise ? 'bs-wire-line' : undefined;
+  return (
+    <div data-bs-climb-tagline="" style={{ marginTop: 34, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
+      <div className={line} style={{ fontFamily: "'Saira', 'Arial Narrow', 'Helvetica Neue', sans-serif", fontWeight: 600, fontSize: 15, lineHeight: 1.25, letterSpacing: '0.26em', textIndent: '0.26em', textTransform: 'uppercase', color: '#f2ede4', animationDelay: rise ? '0.5s' : undefined }}>{tr('launch.climbAlone')}</div>
+      <div className={line} style={{ fontFamily: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`, fontSize: 9, fontWeight: 700, lineHeight: 1.3, letterSpacing: '0.24em', textIndent: '0.24em', textTransform: 'uppercase', color: '#34d6c5', animationDelay: rise ? '0.8s' : undefined }}>{tr('launch.joinCommunity')}</div>
+    </div>
+  );
+}
+
 function BSSplash({ onDone, style = 'wire-beat' }) {
   const t = useBS();
   const { tr, locale } = useTr('onboarding');
@@ -551,6 +568,7 @@ function BSSplash({ onDone, style = 'wire-beat' }) {
             <span className="bs-wire-mark-halo" aria-hidden="true" />
             <BSShapeMark size={112} calm />
           </div>
+          <BSClimbTagline rise />
         </div>
         {/* The loading readout sits higher off the bottom (owner call 2026-07-20:
             the ON AIR tuning dial is gone; lift the loading a bit). */}
@@ -1283,6 +1301,7 @@ function BSWireHold() {
           <span className="bs-wire-mark-halo" aria-hidden="true" />
           <BSShapeMark size={112} calm />
         </div>
+        <BSClimbTagline />
       </div>
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', paddingBottom: 'max(112px, calc(96px + env(safe-area-inset-bottom, 0px)))' }}>
         <BSWireLoading top={0} />

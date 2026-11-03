@@ -694,6 +694,12 @@
     letter-spacing:.3em;text-indent:.3em;text-transform:uppercase;color:var(--fg);font-variation-settings:'ROND' 30;
     opacity:0;transform:translateY(8px);animation:siUp .55s .35s cubic-bezier(.2,.7,.2,1) forwards}
   #shape-intro .iline b{font-weight:700;color:var(--teal)}
+  /* Under it, "Join the Community" (owner, 2026-11-03: "have the splash page say "dont climb
+     alone" and then below it "Join the Community"", on the app's launch too). Smaller, in the
+     teal, rising in just after the line above. */
+  #shape-intro .isub{margin-top:14px;font-family:var(--num);font-weight:700;font-size:clamp(10px,1vw,12px);
+    letter-spacing:.3em;text-indent:.3em;text-transform:uppercase;color:var(--teal);font-variation-settings:'ROND' 30;
+    opacity:0;transform:translateY(8px);animation:siUp .55s .6s cubic-bezier(.2,.7,.2,1) forwards}
   body.intro-lock{overflow:hidden}
   /* The chat launcher claims a max z-index by design, so it is kept off the WHOLE
      intro, the fade included: intro-active outlives intro-lock, which drops the
@@ -751,6 +757,7 @@
       <g class="ig3"></g>
     </svg>
     <div class="iline">Don&rsquo;t climb <b>alone.</b></div>
+    <div class="isub">Join the Community</div>
   </div>
 </div>
 <script>
