@@ -42,7 +42,7 @@ const scope = {
   useDashInboxFeed: noop, useStaffLevel: () => null, ShapeMobileStyles: noop, SiteSearch: noop, DashInbox: noop, RadioWordmark: noop,
   navSans: 'sans-serif', navDisp: 'sans-serif', sans: 'sans-serif', navChamfer: 'none',
   INK: '#f2ede4', TEAL: '#0ac5a8', TEAL_BRIGHT: '#2ee0c4', TEAL_APP: '#34d6c5', RUST: '#c0533b',
-  NAV_PILL_H: 30, NAV_H: 72, NAV_LOGO_H: 40,
+  NAV_PILL_H: 30, NAV_H: 72, NAV_LOGO_H: 40, useNavGlass: noop, NAV_MARK_WRAP: {}, NAV_GLASS_IDLE: {},
 };
 const C = new Function(...Object.keys(scope), compiled + '\nreturn { Header };')(...Object.values(scope));
 window.ShapePortalSession = { peek: () => null, clear: noop };

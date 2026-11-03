@@ -165,6 +165,28 @@ function dashRailGroups(items, role) {
 function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   const role = dsbRoleFromNav(navItems);
   const live = useDashSidebarLive(role);
+  // The rail's mark turns as the website bar's and the app's masthead do (owner, 2026-11-03: "apply
+  // the same triangle effect there"): splitGlassMark.js's mountMark, in the paper's colours (white
+  // and teal when the rail's ink is light, the ink and the deep teal when it is dark), drawn again
+  // when the paper switches. The flat triangles stay in the markup until it mounts, or for good if
+  // the script never arrives.
+  const railMarkRef = React.useRef(null);
+  React.useEffect(() => {
+    const svg = railMarkRef.current;
+    if (!svg || typeof loadSplitGlass !== "function") return undefined;
+    let SG = null, stop = null, gone = false;
+    const mount = () => {
+      if (gone || !SG || typeof SG.mountMark !== "function") return;
+      if (stop) stop();
+      const c = /(\d+)\D+(\d+)\D+(\d+)/.exec(getComputedStyle(svg).color || "");
+      const dark = c ? (0.2126 * c[1] + 0.7152 * c[2] + 0.0722 * c[3]) / 255 > 0.5 : true;
+      stop = SG.mountMark(svg, { dark });
+    };
+    loadSplitGlass().then((sg) => { SG = sg; mount(); });
+    const mo = typeof MutationObserver === "function" ? new MutationObserver(mount) : null;
+    if (mo) mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-paper"] });
+    return () => { gone = true; if (mo) mo.disconnect(); if (stop) stop(); };
+  }, []);
   // ⚠ THE DEMO CARD IS RECOGNISED BY A MARK ON THE DATA, not by object identity.
   // The three literals carry `demo: true` (coachNav.jsx / clientNav.jsx); a
   // clone, a spread, or a page that loads neither nav module would all miss an
@@ -196,13 +218,20 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   return (
     <aside className="dash-rail">
       <div className="dash-rail-panel">
-        <a href={homeHref} className="dash-rail-brand" aria-label="Shape home">
-          <svg aria-hidden viewBox="8 8 79 98" width="20" height="24" style={{ flex: "0 0 auto", display: "block" }}>
-            <polygon points="14,47 14,100 51,73" fill={TEAL_BRIGHT} />
-            <polygon points="81,14 81,65 44,39" fill={INK} />
+        <a href={homeHref} className="dash-rail-brand" aria-label="Club Shape home">
+          {/* The app masthead's mark (viewBox 0 0 99 113): the flat triangles, then the glass in their place. */}
+          <svg ref={railMarkRef} aria-hidden viewBox="0 0 99 113" width="21" height="24" style={{ flex: "0 0 auto", display: "block", overflow: "visible" }}>
+            <g className="flat">
+              <polygon points="17,49 56,73 17,97" fill={TEAL_BRIGHT} />
+              <polygon points="43,39 82,15 82,63" fill={INK} />
+            </g>
+            <g className="glass" />
           </svg>
-          <span className="dash-rail-label dash-rail-wordmark">SHAPE</span>
-          {roleName && <span className="dash-rail-label dash-rail-role">{roleName}</span>}
+          {/* CLUB SHAPE over the role: the wordmark is long, so the chip sits under it (dash.css). */}
+          <span className="dash-rail-label dash-rail-name">
+            <span className="dash-rail-wordmark" aria-hidden />
+            {roleName && <span className="dash-rail-role">{roleName}</span>}
+          </span>
         </a>
         <nav aria-label="Dashboard" className="dash-rail-nav">
           {groups.map((g) => (

@@ -140,6 +140,9 @@
      mark rendered 25% narrow with the height rule still satisfied. Pinned as
      intrinsic, the column floors at the logo's real width instead. */
   .brand img{height:42px;width:auto;max-width:none;display:block}
+  /* The lockup and the glass over its triangles (the script under the bar): zero-size until mounted. */
+  .brand .nav-mark{position:relative;display:inline-block;line-height:0}
+  .brand .nav-glass{position:absolute;width:0;height:0}
   /* ⚠ ON A PHONE THE LOGO SCALES WITH THE WINDOW. The Club Shape logo (2026-11-03) is 4.02:1,
      twice the SHAPE lockup's width at one height, and this bar also carries search, Get started
      and the burger, about 240px with the gaps. Measured in Chromium at 52px it overflowed by 21px
@@ -865,7 +868,19 @@
 <nav>
   <div class="wrap navr">
     <!-- 3.6 KB / 265x128, not the 226 KB 3696px original for a 26px slot. -->
-    <a class="brand" href="/newdesign/index.html"><img src="/club-shape-logo-teal-white.svg" width="1764" height="439" alt="Club Shape" /></a>
+    <a class="brand" href="/newdesign/index.html"><span class="nav-mark"><img src="/club-shape-logo-teal-white.svg" width="1764" height="439" alt="Club Shape" /><svg class="nav-glass"></svg></span></a>
+    <script>
+      /* The bar's triangles turn as the app's masthead mark does (owner, 2026-11-03: "add the same
+         effect to the triangles in top left logo on nav bar that we did on the app"): the split-glass
+         prisms, laid over the lockup's triangles by splitGlassMark.js (loaded above for the splash).
+         Without that script the flat lockup stays. pageShell.jsx's header does the same. */
+      (function () {
+        var m = document.querySelector('.brand .nav-mark'), SG = window.SplitGlassMark;
+        if (m && SG && typeof SG.mountNav === 'function') {
+          SG.mountNav(m.querySelector('svg'), m.querySelector('img'), { dark: true, bare: '/club-shape-logo-bare-white.svg' });
+        }
+      })();
+    </script>
     <div class="nlinks">
       <span class="ndrop"><a href="/newdesign/Coaches.html">Coaches<span class="car" aria-hidden="true"></span></a><div class="nmenu"><a href="/newdesign/Marketplace.html">Marketplace</a></div></span>
       <a href="/newdesign/Client.html" data-signed-out-only>Members</a>
