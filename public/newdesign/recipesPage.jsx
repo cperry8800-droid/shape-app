@@ -212,13 +212,25 @@ function RecipeRow({ recipe, saved, onToggleSave }) {
   );
 }
 
-function KmToggle({ label, on, onClick, count }) {
+// `mark` draws a decorative indicator (aria-hidden): "one" a radio dot for the
+// one-at-a-time Diet/Protein axis, "any" a check box for everything that stacks.
+function KmToggle({ label, on, onClick, count, mark }) {
   return (
     <button type="button" className={`km-tg${on ? " on" : ""}`} onClick={onClick} aria-pressed={!!on}>
+      {mark ? <span className={`km-mk km-mk-${mark}`} aria-hidden /> : null}
       {label}{typeof count === "number" ? <span className="km-tg-ct">{count}</span> : null}
     </button>
   );
 }
+
+// The four filter groups, labelled. Diet + Protein are ONE single-select axis
+// (`diet`); Free from + Macros the multi-select layer (`needs`).
+const KM_FILTER_GROUPS = [
+  { id: "diet", label: "Diet", items: KM_DIETS, single: true },
+  { id: "protein", label: "Protein", items: KM_PROTEINS, single: true },
+  { id: "free", label: "Free from", items: KM_FREE_FROM },
+  { id: "macros", label: "Macros", items: KM_GOALS },
+];
 
 function RecipesPage() {
   const all = (typeof SHAPE_RECIPES !== "undefined" ? SHAPE_RECIPES : []);
@@ -311,6 +323,44 @@ function RecipesPage() {
   // A count in a toggle can change its width.
   React.useEffect(() => { tgsEdges.current(); });
 
+  // Desktop: the filters are a sticky index down the left. Phone: the same
+  // aside is a bottom drawer, opened from "Filters" beside the search; Escape,
+  // the backdrop, × and "Show N recipes" close it.
+  const [drawer, setDrawer] = React.useState(false);
+  const fbtnRef = React.useRef(null);
+  const closeDrawer = () => {
+    setDrawer(false);
+    try { if (fbtnRef.current) fbtnRef.current.focus({ preventScroll: true }); } catch (e) {}
+  };
+  const sideXRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!drawer) return undefined;
+    // Open: focus moves into the drawer (its ×), and the drawer closes if the
+    // window widens back to the column (past 960px it is no longer a drawer).
+    try { if (sideXRef.current) sideXRef.current.focus({ preventScroll: true }); } catch (e) {}
+    const onKey = (e) => { if (e.key === "Escape") closeDrawer(); };
+    const wide = window.matchMedia ? window.matchMedia("(min-width: 961px)") : null;
+    const onWide = () => { if (wide && wide.matches) setDrawer(false); };
+    document.addEventListener("keydown", onKey);
+    if (wide && wide.addEventListener) wide.addEventListener("change", onWide);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (wide && wide.removeEventListener) wide.removeEventListener("change", onWide);
+    };
+  }, [drawer]);
+  const onSaved = () => { setSavedOnly((v) => !v); if (!loggedIn && !savedOnly) setAuthNudge(true); };
+  const onPros = () => setPros((v) => !v);
+  const groupOn = (g, x) => (g.single ? diet === x : needs.includes(x));
+  const groupPick = (g, x) => (g.single ? pickDiet(x) : toggleNeed(x));
+  // What is on, as chips that remove themselves (the phone's summary of the
+  // closed drawer). Each calls the same handler as its switch in the aside.
+  const activeChips = [
+    ...(savedOnly ? [{ k: "saved", label: "♡ Saved", name: "Saved", off: onSaved }] : []),
+    ...(pros ? [{ k: "pros", label: "Shape pros", off: onPros }] : []),
+    ...(diet !== "All" ? [{ k: "diet", label: diet, off: () => pickDiet(diet) }] : []),
+    ...needs.map((n) => ({ k: n, label: n, off: () => toggleNeed(n) })),
+  ];
+
   // Scroll spy for the jump row: the last course whose head has passed the
   // sticky row is the one you are reading.
   React.useEffect(() => {
@@ -361,36 +411,68 @@ function RecipesPage() {
           </p>
         </div>
 
-        <a href="/newdesign/Cook.html?mode=together" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, marginBottom: 20, padding: '10px 16px', border: '1px solid currentColor', borderRadius: 4 }}>Cook several dishes · plan a serving time →</a>
+        <div className="km-layout">
+        {/* The filter index: the library switches, then the four groups, each
+            labelled, one option per line (a radio dot where it is one at a
+            time, a check box where they stack), and the plan door under them.
+            A sticky column on a desktop; a bottom drawer on a phone. */}
+        {drawer ? <div className="km-side-bg" aria-hidden onClick={closeDrawer} /> : null}
+        <aside id="km-side" className={`km-side${drawer ? " open" : ""}`} aria-label="Filter the menu" role={drawer ? "dialog" : undefined} aria-modal={drawer ? "true" : undefined} style={{ top: stickyTop + 20, maxHeight: `calc(100vh - ${stickyTop + 40}px)` }}>
+          <div className="km-side-ph">
+            <b>Filters</b>
+            <button type="button" ref={sideXRef} className="km-side-x" onClick={closeDrawer} aria-label="Close filters">×</button>
+          </div>
+          <div className="km-sg" role="group" aria-labelledby="km-sg-lib">
+            <div className="km-sg-h" id="km-sg-lib">Show only</div>
+            <KmToggle label={"♡ Saved"} mark="any" on={savedOnly} count={savedCount} onClick={onSaved} />
+            <KmToggle label="Shape pros" mark="any" on={pros} count={prosCount} onClick={onPros} />
+          </div>
+          {KM_FILTER_GROUPS.map((g) => (
+            <div key={g.id} className="km-sg" role="group" aria-labelledby={`km-sg-${g.id}`}>
+              <div className="km-sg-h" id={`km-sg-${g.id}`}>{g.label}</div>
+              {g.items.map((x) => (
+                <KmToggle key={x} label={x} mark={g.single ? "one" : "any"} on={groupOn(g, x)} onClick={() => groupPick(g, x)} />
+              ))}
+            </div>
+          ))}
+          <div className="km-side-plan">
+            <span>Cooking for a table?</span>
+            <a href="/newdesign/Cook.html?mode=together">Cook several dishes · plan a serving time →</a>
+          </div>
+          <div className="km-side-ft">
+            <button type="button" className="km-btn" onClick={clearAll} disabled={!(anyFilter || searching)}>Clear all</button>
+            <button type="button" className="km-btn p" onClick={closeDrawer}>Show {shown.length} {shown.length === 1 ? "recipe" : "recipes"}</button>
+          </div>
+        </aside>
 
-        {/* Tools: search + the filters as toggles. Diet and Protein share one
-            single-select axis; Free From and Goals stack. */}
+        <div className="km-main">
+        {/* Over the results: search, the phone's Filters button, the count and
+            Clear all; on a phone, what is on as removable chips. */}
         <div className="km-tools">
           <label className="km-search">
             <span aria-hidden>{"⌕"}</span>
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search the menu" aria-label="Search the menu" />
             {q ? <button type="button" onClick={() => setQ("")} aria-label="Clear search">×</button> : null}
           </label>
-          <div className="km-tgs" ref={tgsRef}>
-            <KmToggle label={"♡ Saved"} on={savedOnly} count={savedCount} onClick={() => { setSavedOnly((v) => !v); if (!loggedIn && !savedOnly) setAuthNudge(true); }} />
-            <KmToggle label="Shape pros" on={pros} count={prosCount} onClick={() => setPros((v) => !v)} />
-            <span className="km-sep" aria-hidden />
-            {KM_DIETS.map((d) => <KmToggle key={d} label={d} on={diet === d} onClick={() => pickDiet(d)} />)}
-            <span className="km-sep" aria-hidden />
-            {KM_PROTEINS.map((d) => <KmToggle key={d} label={d} on={diet === d} onClick={() => pickDiet(d)} />)}
-            <span className="km-sep" aria-hidden />
-            {KM_FREE_FROM.map((n) => <KmToggle key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} />)}
-            <span className="km-sep" aria-hidden />
-            {KM_GOALS.map((n) => <KmToggle key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} />)}
-          </div>
+          <button type="button" ref={fbtnRef} className={`km-fbtn${activeChips.length ? " on" : ""}`} onClick={() => setDrawer(true)} aria-expanded={drawer} aria-controls="km-side">
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden><path d="M2 4h12M4.5 8h7M7 12h2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+            Filters{activeChips.length ? <b>{activeChips.length}</b> : null}
+          </button>
           <div className="km-tools-end">
-            {(anyFilter || searching) ? (
-              <button type="button" className="km-clear" onClick={clearAll}>Clear ×</button>
-            ) : null}
             <span className="km-total">
               {(anyFilter || searching) ? `${shown.length} of ${all.length}` : `${all.length}`}
               {" "}{shown.length === 1 && !(anyFilter || searching) ? "recipe" : "recipes"}
             </span>
+            {(anyFilter || searching) ? (
+              <button type="button" className="km-clear" onClick={clearAll}>Clear all</button>
+            ) : null}
+          </div>
+          <div className="km-tgs" ref={tgsRef}>
+            {activeChips.map((c) => (
+              <button type="button" key={c.k} className="km-chip" onClick={c.off} aria-label={`Remove ${c.name || c.label}`}>
+                {c.label}<span aria-hidden>×</span>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -485,6 +567,8 @@ function RecipesPage() {
             ))}
           </section>
         ) : null}
+        </div>{/* .km-main */}
+        </div>{/* .km-layout */}
 
         <div className="km-foot">
           Public-domain recipes come from USDA MyPlate Kitchen and are credited on every line and every page.
@@ -503,26 +587,51 @@ function RecipesPage() {
            scrolls away, which is the page as it was. */
         html, body { overflow-x: clip; }
         .km a { color: inherit; }
-        .km .km-wrap { max-width: 1060px; margin: 0 auto; padding: 0 48px; }
+        .km .km-wrap { max-width: 1240px; margin: 0 auto; padding: 0 48px; }
         .km .km-top { padding: 52px 0 18px; text-align: center; border-bottom: 1px solid ${KM_LINE}; }
         .km .km-eyebrow { font-family: ${kmNum}; font-weight: 700; font-variation-settings: 'ROND' 30; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: ${KM_ACC}; }
         .km .km-h1 { font-family: ${kmDisp}; font-weight: 500; font-variation-settings: 'wdth' 110; font-size: clamp(40px, 6vw, 60px); letter-spacing: -.02em; line-height: 1.02; margin: 10px 0 0; text-wrap: balance; }
         .km .km-sub { margin: 14px auto 0; font-size: 16.5px; color: ${KM_INK2}; max-width: 60ch; line-height: 1.5; }
-        .km .km-tools { display: flex; align-items: center; gap: 10px; padding: 16px 0; border-bottom: 1px solid ${KM_LINE}; flex-wrap: wrap; }
-        .km .km-search { display: flex; align-items: center; gap: 8px; border: 1px solid ${KM_LINE}; border-radius: 999px; background: ${KM_PAPER2}; padding: 0 12px 0 16px; height: 40px; min-width: 260px; flex: 1 1 260px; max-width: 360px; color: ${KM_INK3}; }
+        .km .km-layout { display: grid; grid-template-columns: 212px minmax(0, 1fr); column-gap: 56px; align-items: start; padding-top: 26px; }
+        .km .km-main { min-width: 0; }
+        .km .km-side { position: sticky; display: grid; gap: 14px; align-content: start; overflow-y: auto; scrollbar-width: thin; scrollbar-color: ${KM_LINE} transparent; padding: 2px 10px 12px; margin: -2px -10px 0; }
+        .km .km-sg { display: grid; gap: 1px; }
+        .km .km-sg-h { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: ${KM_INK3}; padding-bottom: 6px; margin-bottom: 3px; border-bottom: 1px solid ${KM_LINE}; }
+        .km .km-side .km-tg { width: calc(100% + 16px); margin: 0 -8px; justify-content: flex-start; gap: 10px; border: 0; border-radius: 6px; min-height: 28px; padding: 0 8px; font-size: 14px; font-weight: 500; color: ${KM_INK2}; background: transparent; }
+        .km .km-side .km-tg:hover { background: ${KM_LINE2}; color: ${KM_INK}; }
+        .km .km-side .km-tg.on { color: ${KM_INK}; font-weight: 600; background: transparent; }
+        .km .km-side .km-tg.on:hover { background: ${KM_LINE2}; }
+        .km .km-side .km-tg-ct { margin-left: auto; }
+        .km .km-side .km-tg.on .km-tg-ct { color: ${KM_INK3}; }
+        .km .km-mk { width: 15px; height: 15px; box-sizing: border-box; border: 1.5px solid currentColor; opacity: .45; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; font-size: 10px; font-weight: 800; line-height: 1; }
+        .km .km-mk-one { border-radius: 999px; }
+        .km .km-mk-any { border-radius: 4px; }
+        .km .km-tg.on .km-mk { opacity: 1; border-color: ${KM_INK}; background: ${KM_INK}; color: ${KM_PAPER}; }
+        .km .km-tg.on .km-mk-any::after { content: "✓"; }
+        .km .km-tg.on .km-mk-one::after { content: ""; width: 6px; height: 6px; border-radius: 999px; background: ${KM_PAPER}; }
+        .km .km-side-plan { display: grid; gap: 6px; border-top: 2px solid ${KM_INK}; padding-top: 12px; }
+        .km .km-side-plan span { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: ${KM_INK3}; }
+        .km .km-side-plan a { font-size: 14px; font-weight: 600; line-height: 1.4; color: ${KM_TEAL}; text-decoration: underline; text-decoration-color: rgba(10,143,135,0.35); text-underline-offset: 3px; }
+        .km .km-side-plan a:hover { text-decoration-color: ${KM_TEAL}; }
+        .km .km-side-ph, .km .km-side-ft, .km .km-side-bg, .km .km-fbtn { display: none; }
+        .km .km-chip { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px 0 13px; border: 0; border-radius: 999px; background: ${KM_INK}; color: ${KM_PAPER}; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        .km .km-chip span { font-size: 14px; line-height: 1; opacity: .65; }
+        .km .km-chip:hover span { opacity: 1; }
+        .km .km-tools { display: flex; align-items: center; gap: 10px; padding: 0 0 16px; border-bottom: 1px solid ${KM_LINE}; flex-wrap: wrap; }
+        .km .km-search { display: flex; align-items: center; gap: 8px; border: 1px solid ${KM_LINE}; border-radius: 999px; background: ${KM_PAPER2}; padding: 0 12px 0 16px; height: 42px; min-width: 260px; flex: 1 1 320px; max-width: 520px; color: ${KM_INK3}; }
         .km .km-search input { flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; font-size: 14px; color: ${KM_INK}; outline: none; }
         .km .km-search input::placeholder { color: ${KM_INK3}; }
         .km .km-search button { border: 0; background: transparent; color: ${KM_INK3}; font-size: 18px; line-height: 1; cursor: pointer; padding: 6px; }
         .km .km-search:focus-within { border-color: ${KM_TEAL}; box-shadow: 0 0 0 3px ${KM_TEAL_SOFT}; }
-        .km .km-tgs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .km .km-tgs { display: none; }
         .km .km-tg { border: 1px solid ${KM_LINE}; border-radius: 999px; padding: 8px 12px; font: inherit; font-size: 12.5px; font-weight: 600; color: ${KM_INK2}; background: transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; line-height: 1; min-height: 32px; }
         .km .km-tg:hover { border-color: ${KM_INK3}; }
         .km .km-tg.on { border-color: ${KM_ACC}; color: ${KM_ACC}; background: ${KM_ACC_SOFT}; }
         .km .km-tg-ct { font-family: ${kmNum}; font-weight: 700; font-variation-settings: 'ROND' 30; font-size: 10px; letter-spacing: .06em; color: ${KM_INK3}; }
         .km .km-tg.on .km-tg-ct { color: ${KM_ACC}; }
         .km .km-sep { width: 1px; height: 22px; background: ${KM_LINE}; margin: 0 4px; }
-        .km .km-tools-end { margin-left: auto; display: flex; align-items: center; gap: 12px; }
-        .km .km-clear { border: 0; background: transparent; color: ${KM_TEAL}; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 6px 0; }
+        .km .km-tools-end { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+        .km .km-clear { border: 0; background: transparent; color: ${KM_TEAL}; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 6px 0; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(10,143,135,0.35); }
         .km .km-total { font-family: ${kmNum}; font-weight: 700; font-variation-settings: 'ROND' 30; font-size: 12px; letter-spacing: .06em; color: ${KM_INK3}; white-space: nowrap; }
         .km .km-nudge { margin-top: 14px; padding: 14px 16px; border-radius: 10px; background: ${KM_TEAL_SOFT}; border: 1px solid rgba(10,143,135,0.3); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; }
         .km .km-nudge-b { display: flex; gap: 10px; }
@@ -570,17 +679,42 @@ function RecipesPage() {
         .km .km-empty p { color: ${KM_INK2}; font-size: 15px; margin: 0 0 18px; }
         .km .km-foot { padding: 52px 0 60px; text-align: center; font-size: 13px; color: ${KM_INK3}; }
         .km button:focus-visible, .km a:focus-visible, .km input:focus-visible { outline: 2px solid ${KM_TEAL}; outline-offset: 2px; }
+        /* Below a laptop the index would squeeze the rows, so the aside becomes
+           a bottom drawer opened from "Filters"; it sits over the site-wide
+           chat launcher (globalChatButton.js puts its host at 2147483646). */
+        @media (max-width: 960px) {
+          .km .km-layout { display: block; padding-top: 0; }
+          .km .km-side { display: none; }
+          .km .km-side.open { display: grid; position: fixed; z-index: 2147483647; top: auto !important; left: 0; right: 0; bottom: 0; max-width: 560px; max-height: 86vh !important; margin: 0 auto; padding: 0 20px; gap: 20px; background: ${KM_PAPER2}; border-radius: 18px 18px 0 0; box-shadow: 0 -12px 40px -12px rgba(30,42,38,0.35); overscroll-behavior: contain; }
+          .km .km-side-bg { display: block; position: fixed; inset: 0; z-index: 2147483646; background: rgba(30,42,38,0.38); }
+          .km .km-side-ph { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 1; background: ${KM_PAPER2}; padding: 14px 0 10px; margin-bottom: -6px; border-bottom: 1px solid ${KM_LINE2}; }
+          .km .km-side-ph b { font-family: ${kmDisp}; font-weight: 500; font-variation-settings: 'wdth' 104; font-size: 22px; letter-spacing: -.01em; }
+          .km .km-side-x { width: 44px; height: 44px; margin-right: -12px; border: 0; background: transparent; font-size: 24px; line-height: 1; color: ${KM_INK2}; cursor: pointer; }
+          .km .km-side .km-tg { min-height: 44px; font-size: 15px; }
+          .km .km-side-ft { display: flex; gap: 10px; position: sticky; bottom: 0; background: ${KM_PAPER2}; padding: 12px 0 calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid ${KM_LINE2}; }
+          .km .km-side-ft .km-btn { flex: 1 1 0; padding: 13px 14px; }
+          .km .km-side-ft .km-btn:disabled { opacity: .4; cursor: default; }
+          .km .km-tools { padding: 16px 0; }
+          .km .km-fbtn { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 16px 0 14px; border: 1px solid ${KM_LINE}; border-radius: 999px; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: ${KM_INK}; cursor: pointer; flex: 0 0 auto; }
+          .km .km-fbtn.on { border-color: ${KM_INK}; }
+          .km .km-fbtn b { font-family: ${kmNum}; font-variation-settings: 'ROND' 30; font-size: 11px; min-width: 18px; height: 18px; border-radius: 999px; background: ${KM_INK}; color: ${KM_PAPER}; display: inline-flex; align-items: center; justify-content: center; }
+          .km .km-tgs { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+          .km .km-tgs:empty { display: none; }
+        }
         @media (max-width: 760px) {
           .km .km-wrap { padding: 0 18px; }
           .km .km-top { padding: 28px 0 14px; }
           .km .km-sub { font-size: 14.5px; }
-          .km .km-tools { padding: 12px 0; gap: 10px; }
-          .km .km-search { max-width: none; flex-basis: 100%; height: 42px; }
-          .km .km-tgs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; width: 100%; padding-bottom: 2px; --fl: 0px; --fr: 0px; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--fl), #000 calc(100% - var(--fr)), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 var(--fl), #000 calc(100% - var(--fr)), transparent 100%); }
+          .km .km-tools { padding: 12px 0; gap: 8px; }
+          .km .km-search { max-width: none; min-width: 0; flex: 1 1 0; height: 44px; }
+          .km .km-tgs { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; width: 100%; padding-bottom: 2px; --fl: 0px; --fr: 0px; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--fl), #000 calc(100% - var(--fr)), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 var(--fl), #000 calc(100% - var(--fr)), transparent 100%); }
           .km .km-tgs[data-l="1"] { --fl: 24px; }
           .km .km-tgs[data-r="1"] { --fr: 48px; }
           .km .km-tgs::-webkit-scrollbar { display: none; }
+          .km .km-tgs:empty { display: none; }
           .km .km-tg { flex: 0 0 auto; min-height: 44px; padding: 0 14px; }
+          .km .km-chip { flex: 0 0 auto; height: 40px; }
+          .km .km-fbtn { height: 44px; }
           .km .km-tools-end { margin-left: 0; width: 100%; justify-content: space-between; }
           .km .km-jump { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 6px 0; }
           .km .km-jump a, .km .km-jump .off { flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 44px; padding: 4px 2px; white-space: nowrap; }
