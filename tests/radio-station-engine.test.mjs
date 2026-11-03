@@ -91,7 +91,7 @@ test('two rotation blocks play back to back on one stream: asked for, and loaded
   const ahead = h.asks.find((a) => a.after);
   assert.equal(ahead.after, iso(endOf(first)));
   assert.ok(endOf(first) - ahead.at >= (Math.min(PREFETCH_SEC, first.programme.endsSec) - 2) * 1000, 'asked two minutes ahead (here, the block being shorter, as it began)');
-  assert.ok(h.decodes.find((d) => d.url === `u:${TC}`).at < endOf(first), 'its first song was loaded before the first block ended');
+  assert.ok(h.decodes.find((d) => d.url === `u:${TC}`).at <= endOf(first) - 30000, 'its first song was loaded well before the first block ended, not at the hand-over');
   assert.deepEqual([TA, TB, TC, TD].map((x) => h.decodes.filter((d) => d.url === `u:${x}`).length), [1, 1, 1, 1], 'and each song decoded once: the one loaded ahead is the one played');
   // Then nothing to play: the stream is handed to the standby loop.
   assert.equal(out.closed, true);

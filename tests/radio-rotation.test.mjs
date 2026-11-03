@@ -254,6 +254,31 @@ test('skip, a short gap, a late or early ask, and a block another ask stored fir
   assert.equal(raced._t.radio_rotation_blocks.length, 1);
 });
 
+test('⚠ a plan that breaks a rule is never stored or played (a song whose analysis is broken)', LIMIT, async () => {
+  // A song measured as ending where it starts: the plan holds an item of no length.
+  const broken = { ...track(200, 'B', 'Bx'), analysis: { ...track(200, 'B', 'Bx').analysis, soundStartSec: 5, soundEndSec: 5 } };
+  const db = fakeDb(tables({ radio_tracks: [broken] }));
+  const r = await stationJob(db, { now: NOW });
+  assert.deepEqual([r.status, r.body.error], [409, 'plan_breaks_rules']);
+  assert.ok(r.body.problems.some((p) => p.rule === 'empty'));
+  assert.equal(db._t.radio_rotation_blocks.length, 0, 'nothing stored');
+});
+
+test('⚠ her set is planned against a rotation block already stored after it', LIMIT, async () => {
+  // Z dominates the library; the block stored after her set plays Z four times.
+  const z = Array.from({ length: 6 }, (_, i) => ({ ...track(300 + i, 'Z', `Z${i}`), analysis: { ...track(300 + i, 'Z', `Z${i}`).analysis, intensity: 0.5 } }));
+  const lib = [...z, ...LIBRARY.slice(0, 8)].map((t) => ({ ...t }));
+  const setStart = NOW, setEnd = NOW + 3600000;
+  const after = { startsAt: iso(setEnd), durationSec: 3600, endsSec: 1000, items: [0, 1, 2, 3].map((k) => ({ trackId: z[k].id, artist: 'Z', album: `Z${k}`, startSec: k * 240, endSec: k * 240 + 240 })) };
+  const db = fakeDb(tables({ radio_tracks: lib, radio_rotation_blocks: [{ id: BLK, starts_at: iso(setEnd), duration_sec: 3600, programme: after, planner_version: 1 }] }));
+  const draft = await draftProgramme(db, { id: SET, starts_at: iso(setStart), duration_min: 60 });
+  assert.deepEqual(draft.problems, []);
+  assert.ok(!draft.programme.items.some((it) => it.artist === 'Z'), 'no fifth Z within 3 hours of the block\'s four');
+  // Without the block, she plays Z (the test bites).
+  const free = await draftProgramme(fakeDb(tables({ radio_tracks: lib })), { id: SET, starts_at: iso(setStart), duration_min: 60 });
+  assert.ok(free.programme.items.some((it) => it.artist === 'Z'));
+});
+
 test('a set that cannot be played gives its time to the rotation; an empty library, a missing table or a failed read gives nothing', LIMIT, async () => {
   // Her set's programme names a song since deleted.
   const programme = { startsAt: iso(NOW - 600000), durationSec: 3600, endsSec: 3600, items: [{ trackId: uuid('d', 1), artist: 'Gone', startSec: 0, endSec: 3600 }] };

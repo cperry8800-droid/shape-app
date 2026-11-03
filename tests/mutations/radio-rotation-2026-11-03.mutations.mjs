@@ -122,7 +122,7 @@ export default {
     { name: '⚠ no wait after a failure', file: ENG,
       find: '    await backOff();\n', replace: '' },
     { name: 'a finished segment is not named to Shape', file: ENG,
-      find: '      failures = 0; lastFailed = null;\n      remember(seg.id);', replace: '      failures = 0; lastFailed = null;' },
+      find: '      failures = 0; lastFailed = null; overAgain = false;\n      remember(seg.id);', replace: '      failures = 0; lastFailed = null; overAgain = false;' },
     { name: 'a segment Shape cannot hand out is asked for again', file: ENG,
       find: '      if (failedId) remember(failedId);', replace: '      void failedId;' },
     { name: 'a finished line is not handed to standby when there is nothing to play', file: ENG,
