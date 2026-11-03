@@ -438,10 +438,10 @@ test('every logo lockup in the shared chrome keeps its accessible name', () => {
   // display:none already drops the hidden lockup from the accessibility tree, so an
   // aria-hidden (or an empty alt) strips the name from whichever paper shows that one.
   const shell = read('pageShell.jsx');
-  const imgs = [...shell.matchAll(/<img src="\/shape-logo-nav-[^"]+"[^>]*display: "var\(--sh-logo-(?:light|dark)[^>]*\/>/g)].map(m => m[0]);
+  const imgs = [...shell.matchAll(/<img src="\/club-shape-logo-[^"]+"[^>]*display: "var\(--sh-logo-(?:light|dark)[^>]*\/>/g)].map(m => m[0]);
   assert.ok(imgs.length >= 4, `found ${imgs.length} paper-gated lockups — the header and the footer carry two each`);
   for (const i of imgs) {
-    assert.match(i, /alt="Shape"/, 'a lockup lost its name: ' + i.slice(0, 80));
+    assert.match(i, /alt="Club Shape"/, 'a lockup lost its name: ' + i.slice(0, 80));
     assert.doesNotMatch(i, /aria-hidden/, 'a lockup is hidden from assistive tech: ' + i.slice(0, 80));
   }
 });

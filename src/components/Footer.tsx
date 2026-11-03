@@ -97,7 +97,7 @@ export default async function Footer() {
       <footer className="site-footer">
         <div className="footer-inner">
           <div className="footer-cta">
-            <img src="/shape-logo-black.png" alt="Shape" />
+            <img src="/club-shape-logo-black.svg" alt="Club Shape" />
             <div className="footer-cta-text">Join the community</div>
           </div>
           <div className="footer-grid">

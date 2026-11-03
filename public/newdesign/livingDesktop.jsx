@@ -102,7 +102,7 @@ function DesktopNav({ d, direction }) {
       <div style={{ maxWidth: 1240, margin: "0 auto", padding: "0 40px", height: 72, display: "flex", alignItems: "center", gap: 28 }}>
         {/* wordmark — site logo */}
         <a href="/newdesign/index.html" style={{ display: "flex", alignItems: "center", lineHeight: 0, flex: "none" }}>
-          <img src="/SHAPE-logo-teal-white.png?v=1" alt="Shape" style={{ height: 38, width: "auto", display: "block" }} />
+          <img src="/club-shape-logo-teal-white.svg" alt="Club Shape" style={{ height: 38, width: "auto", display: "block" }} />
         </a>
         {/* nav links */}
         <nav style={{ display: "flex", gap: 22, marginLeft: 6 }}>

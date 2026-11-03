@@ -140,6 +140,12 @@
      mark rendered 25% narrow with the height rule still satisfied. Pinned as
      intrinsic, the column floors at the logo's real width instead. */
   .brand img{height:52px;width:auto;max-width:none;display:block}
+  /* ⚠ ON A PHONE THE LOGO SCALES WITH THE WINDOW. The Club Shape logo (2026-11-03) is 4.02:1,
+     twice the SHAPE lockup's width at one height, and this bar also carries search, Get started
+     and the burger, about 240px with the gaps. Measured in Chromium at 52px it overflowed by 21px
+     at 430, 57 at 390 and 87 at 360; at every width from 360 to 430 the largest height that fits
+     was (100vw - 240px) / 4.02, so this keeps 8px spare. At 480 and up it is 52px again. */
+  @media (max-width:480px){.brand img{height:min(52px,calc((100vw - 248px) / 4.02))}}
   .nlinks{display:flex;align-items:center;justify-content:center;gap:22px;flex:0 1 auto}
   .nlinks a{font-size:13.5px;font-weight:500;color:var(--fg-2);transition:color .16s}
   .nlinks a:hover{color:var(--fg)}
@@ -849,7 +855,7 @@
 <nav>
   <div class="wrap navr">
     <!-- 3.6 KB / 265x128, not the 226 KB 3696px original for a 26px slot. -->
-    <a class="brand" href="/newdesign/index.html"><img src="/shape-logo-nav-teal-white.png" width="265" height="128" alt="Shape" /></a>
+    <a class="brand" href="/newdesign/index.html"><img src="/club-shape-logo-teal-white.svg" width="1764" height="439" alt="Club Shape" /></a>
     <div class="nlinks">
       <span class="ndrop"><a href="/newdesign/Coaches.html">Coaches<span class="car" aria-hidden="true"></span></a><div class="nmenu"><a href="/newdesign/Marketplace.html">Marketplace</a></div></span>
       <a href="/newdesign/Client.html" data-signed-out-only>Members</a>
@@ -1123,7 +1129,7 @@
 <div class="wrap">
 <div class="ftg">
 <div class="fbrand">
-<img class="logo" src="/shape-logo-nav-white.png" width="265" height="128" alt="Shape" />
+<img class="logo" src="/club-shape-logo-white.svg" width="1764" height="439" alt="Club Shape" />
 <p class="tag2">Real coaches. One app. The whole loop.</p>
 </div>
 <div><h5>Product</h5>
