@@ -620,6 +620,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Website: the Kitchen\'s filters as an index, and the login box as a glass card (#2577). No migration',
+      items: [
+        { label: 'Owner, 2026-11-03: the Kitchen\'s filters "looks like shit on website, lets improve this filter layout" and new designs "for this login box on website"; of three options each, the filters\' C (a sidebar index) and the login box\'s A ("do a")', status: 'done' },
+        { label: '#2577 Kitchen (recipesPage.jsx): Show only, Diet, Protein, Free from and Macros as labelled groups in a sticky column beside the results (a radio dot for the Diet/Protein axis, check boxes for the rest), the plan link at its foot; at 960px and below a bottom drawer from Filters with removable chips, a dialog that keeps Tab inside it, locks the page behind it, and hands focus back on close or on widening', status: 'done' },
+        { label: '#2577 login (login.jsx): a glass card in the spotlight, sentence-case labels, one segmented control for Email/Phone and the role, the teal button the only solid shape; the sign-in logic untouched and #2573\'s homepage links kept; Turnstile dark and the card\'s width through ShapeTurnstile.render\'s new { theme, size } (supabase.js), with 300px of room from 320 to 373px', status: 'done' },
+        { label: '#2577 review: Codex\'s five findings fixed (focus trap, Turnstile parameters, the 360–373px widget room, focus on widening, background scroll) and clean on f316c97; CI green', status: 'done' },
+        { label: 'OWNER: sign in once on the deployed login (Turnstile can\'t finish on localhost), and look at the Kitchen signed in', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: a coach\'s About me (certificates Shape verified, accolades, education) and socials in the head, This week at the top of coach Today, the morning card condensed; Website: the app page\'s coach section from the trainer preview (#2576). No migration',
       items: [
         { label: 'Owner, 2026-11-03: "use the trainer preview\'s coach profile instead"; of coach Today\'s week strip, "this should be towards top of coaches home page"; of the member Home\'s morning card, "this also needs to be condensed on client home page"; of About me, "the about me should have more things to add. certificates, accolades, things like that"; and "coaches socials should be shown somewhere in this section if they choose to"', status: 'done' },

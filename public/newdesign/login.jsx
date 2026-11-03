@@ -76,7 +76,8 @@ function LoginCard() {
     if (!captchaRef.current || captchaIdRef.current != null) return;
     setCaptchaUnavailable(false);
     let alive = true;
-    window.ShapeTurnstile.render(captchaRef.current, setCaptchaToken).then((id) => {
+    // Dark, and the card's full width (Turnstile's 300px minimum still holds).
+    window.ShapeTurnstile.render(captchaRef.current, setCaptchaToken, { theme: "dark", size: "flexible" }).then((id) => {
       if (!alive) return;
       captchaIdRef.current = id;
       if (id == null) setCaptchaUnavailable(true); // the Turnstile script never loaded
@@ -252,95 +253,51 @@ function LoginCard() {
     }
   };
 
-  const fieldWrap = { position: "relative" };
-  const inputStyle = {
-    width: "100%",
-    background: "rgba(8,7,6,0.76)",
-    border: "1px solid rgba(242,237,228,0.2)",
-    color: INK,
-    padding: "13px 14px",
-    borderRadius: 6,
-    fontFamily: sans,
-    fontSize: 14.5,
-    transition: "border-color 0.15s ease, background 0.15s ease",
-  };
-  const labelStyle = { display: "block", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.66)", marginBottom: 8, fontWeight: 700 };
+  const submitLabel = submitting ? "Working…" : method === "phone" ? (otpSent ? "Verify & sign in →" : "Text me a code →") : "Log in →";
 
   return (
-    <div style={{
-      width: "100%",
-      maxWidth: 360,
-      background: "linear-gradient(180deg, rgba(10,9,8,0.45) 0%, rgba(11,10,9,0.40) 100%)",
-      backdropFilter: "blur(14px) saturate(1.05)",
-      WebkitBackdropFilter: "blur(14px) saturate(1.05)",
-      border: "1px solid rgba(242,237,228,0.16)",
-      borderRadius: 10,
-      padding: "20px 24px 18px",
-      boxShadow: "0 28px 90px rgba(0,0,0,0.56), 0 0 0 1px rgba(255,255,255,0.02) inset",
-      position: "relative",
-    }}>
-      <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, borderTopLeftRadius: 10, borderTopRightRadius: 10, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 16%, ${TEAL} 84%, transparent 100%)`, opacity: 0.62 }} />
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>Welcome back</div>
-      <h1 style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.03em", fontWeight: 500, margin: "0 0 6px", lineHeight: 0.98 }}>
-        Log in to <em style={{ fontStyle: "italic", color: "transparent", WebkitTextStroke: "1.4px #f2ede4" }}>Shape</em>.
-      </h1>
-      <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.68)", margin: "0 0 16px", lineHeight: 1.45 }}>Pick up where you left off. Your coaches, your plans, your progress.</p>
+    <div className="lgA-card">
+      <div aria-hidden className="lgA-edge" />
+      <div className="lgA-eyebrow">Welcome back</div>
+      <h1 className="lgA-title">Log in to <em>Shape</em>.</h1>
+      <p className="lgA-sub">Pick up where you left off. Your coaches, your plans, your progress.</p>
 
       {/* Email / Phone method toggle */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, background: "rgba(8,7,6,0.76)", border: "1px solid rgba(242,237,228,0.2)", borderRadius: 7, padding: 4, marginBottom: 14 }}>
-        {[["email", "Email"], ["phone", "Phone"]].map(([v, l]) => (
-          <button key={v} type="button" onClick={() => { setMethod(v); setErrMsg(""); setOtpSent(false); setOtp(""); }} style={{
-            padding: "9px 10px", borderRadius: 5, border: 0,
-            background: method === v ? INK : "transparent", color: method === v ? PAPER : "rgba(242,237,228,0.7)",
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase",
-            fontWeight: method === v ? 700 : 500, cursor: "pointer",
-          }}>{l}</button>
-        ))}
-      </div>
+      <LoginSeg ariaLabel="Sign in with" value={method}
+        options={[["email", "Email"], ["phone", "Phone"]]}
+        onChange={(v) => { setMethod(v); setErrMsg(""); setOtpSent(false); setOtp(""); }} />
 
       {/* Form */}
-      <form onSubmit={method === "phone" ? (otpSent ? verifyPhoneOtp : sendPhoneOtp) : submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <form onSubmit={method === "phone" ? (otpSent ? verifyPhoneOtp : sendPhoneOtp) : submit} className="lgA-form">
         {method === "phone" ? (
           <>
-            <div>
-              <label style={labelStyle} htmlFor="phone">Phone</label>
-              <div style={fieldWrap}>
-                <input id="phone" type="tel" autoComplete="tel" required value={phone} disabled={otpSent} onChange={(e) => setPhone(e.target.value)} placeholder="+1 555 123 4567" style={{ ...inputStyle, opacity: otpSent ? 0.6 : 1 }}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; }} onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; }} />
-              </div>
+            <div className="lgA-field">
+              <label className="lgA-label" htmlFor="phone">Phone</label>
+              <input id="phone" className="lgA-input" type="tel" autoComplete="tel" required value={phone} disabled={otpSent} onChange={(e) => setPhone(e.target.value)} placeholder="+1 555 123 4567" />
             </div>
             {otpSent && (
-              <div>
-                <label style={labelStyle} htmlFor="otp">6-digit code</label>
-                <div style={fieldWrap}>
-                  <input id="otp" type="text" inputMode="numeric" autoComplete="one-time-code" required value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="••••••" style={{ ...inputStyle, letterSpacing: "0.3em", fontSize: 18 }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; }} onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; }} />
-                </div>
-                <button type="button" onClick={() => { setOtpSent(false); setOtp(""); setErrMsg(""); }} style={{ marginTop: 8, background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer" }}>← Change number</button>
+              <div className="lgA-field">
+                <label className="lgA-label" htmlFor="otp">6-digit code</label>
+                <input id="otp" className="lgA-input lgA-otp" type="text" inputMode="numeric" autoComplete="one-time-code" required value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="••••••" />
+                <button type="button" className="lgA-textbtn" onClick={() => { setOtpSent(false); setOtp(""); setErrMsg(""); }}>← Change number</button>
               </div>
             )}
           </>
         ) : (
           <>
-            <div>
-              <label style={labelStyle} htmlFor="email">Email or username</label>
-              <div style={fieldWrap}>
-                <input id="email" type="text" autoComplete="username" autoCapitalize="none" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com or your.handle" style={inputStyle}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(10,9,8,0.95)"; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; e.currentTarget.style.background = "rgba(8,7,6,0.76)"; }} />
-              </div>
+            <div className="lgA-field">
+              <label className="lgA-label" htmlFor="email">Email or username</label>
+              <input id="email" className="lgA-input" type="text" autoComplete="username" autoCapitalize="none" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com or your.handle" />
             </div>
 
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <label style={labelStyle} htmlFor="password">Password</label>
-                <a href="/forgot-password" style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.6)", marginBottom: 9 }}>Forgot?</a>
+            <div className="lgA-field">
+              <div className="lgA-labelrow">
+                <label className="lgA-label" htmlFor="password">Password</label>
+                <a href="/forgot-password" className="lgA-link">Forgot?</a>
               </div>
-              <div style={fieldWrap}>
-                <input id="password" type={showPass ? "text" : "password"} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" style={{ ...inputStyle, paddingRight: 52 }}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(10,9,8,0.95)"; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; e.currentTarget.style.background = "rgba(8,7,6,0.76)"; }} />
-                <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "transparent", border: 0, padding: "6px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.58)", cursor: "pointer" }}>
+              <div className="lgA-pw">
+                <input id="password" className="lgA-input" type={showPass ? "text" : "password"} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" style={{ paddingRight: 64 }} />
+                <button type="button" className="lgA-reveal" onClick={() => setShowPass(s => !s)}>
                   {showPass ? "Hide" : "Show"}
                 </button>
               </div>
@@ -349,87 +306,159 @@ function LoginCard() {
         )}
 
         {/* Role (dev switcher for prototype) */}
-        <div>
-          <label style={labelStyle}>Log in as</label>
-          <div style={{ display: "flex", gap: 6, background: "rgba(8,7,6,0.76)", border: "1px solid rgba(242,237,228,0.2)", borderRadius: 7, padding: 4 }}>
-            {[
-              ["client", "Client"],
-              ["trainer", "Trainer"],
-              ["nutritionist", "Nutritionist"],
-            ].map(([v, l]) => (
-              <button key={v} type="button" onClick={() => setRole(v)} style={{
-                flex: 1,
-                padding: "8px 10px",
-                borderRadius: 5,
-                background: role === v ? INK : "transparent",
-                color: role === v ? PAPER : "rgba(242,237,228,0.7)",
-                border: 0,
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 10,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                fontWeight: role === v ? 700 : 500,
-                cursor: "pointer",
-                transition: "background 0.2s ease",
-              }}>{l}</button>
-            ))}
-          </div>
+        <div className="lgA-field">
+          <div className="lgA-label" id="login-role-label">Log in as</div>
+          <LoginSeg labelledBy="login-role-label" value={role}
+            options={[["client", "Client"], ["trainer", "Trainer"], ["nutritionist", "Nutritionist"]]}
+            onChange={(v) => setRole(v)} />
         </div>
 
-        <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer", marginTop: 2 }}>
-          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)}
-            style={{ width: 16, height: 16, accentColor: TEAL, margin: 0 }} />
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.75)" }}>Remember me for 30 days</span>
+        <label className="lgA-check">
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+          <span>Remember me for 30 days</span>
         </label>
 
         {errMsg ? (
-          <div style={{ marginTop: 4, padding: "10px 14px", borderRadius: 6, background: "rgba(220,80,80,0.1)", border: "1px solid rgba(220,80,80,0.3)", color: "#e27a7a", fontFamily: sans, fontSize: 13 }}>{errMsg}</div>
+          <div role="alert" className="lgA-err">{errMsg}</div>
         ) : null}
 
         {/* Turnstile bot challenge — hidden at the phone code-entry step (verify needs no token).
-            Falls open if it can't load/connect, so it can't lock anyone out. */}
+            Falls open if it can't load/connect, so it can't lock anyone out. Its theme and size go
+            through ShapeTurnstile.render's render parameters (the effect above). */}
         {captchaOn && !(method === "phone" && otpSent) ? (
-          <div>
+          <div className="lgA-captcha">
             <div ref={captchaRef} style={{ minHeight: captchaUnavailable ? 0 : 65, display: captchaUnavailable ? "none" : "block" }} />
             {captchaUnavailable ? (
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "rgba(242,237,228,0.5)" }}>Couldn't load the human-check — you can still sign in.</div>
+              <div className="lgA-note">Couldn't load the human-check — you can still sign in.</div>
             ) : null}
           </div>
         ) : null}
 
-        <button type="submit" disabled={submitting} style={{
-          marginTop: 8,
-          padding: "14px 20px",
-          borderRadius: 6,
-          background: INK,
-          color: PAPER,
-          border: 0,
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 11,
-          fontWeight: 800,
-          letterSpacing: "0.2em",
-          textTransform: "uppercase",
-          cursor: submitting ? "wait" : "pointer",
-          opacity: submitting ? 0.7 : 1,
-          transition: "transform 0.15s ease",
-        }}
-          onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.99)"}
-          onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
-          onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-        >{submitting ? "Working…" : method === "phone" ? (otpSent ? "Verify & sign in →" : "Text me a code →") : "Log in →"}</button>
+        <button type="submit" className="lgA-submit" disabled={submitting} style={{ cursor: submitting ? "wait" : "pointer" }}>{submitLabel}</button>
       </form>
 
-      <div style={{ marginTop: 26, paddingTop: 18, borderTop: "1px solid rgba(242,237,228,0.14)", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)" }}>
+      <div className="lgA-foot">
         <span>New to Shape?</span>
-        <a href="Landing.html" style={{ color: INK, fontWeight: 500, borderBottom: `1.5px solid ${TEAL}`, paddingBottom: 2 }}>Create an account →</a>
+        <a href="Landing.html">Create an account →</a>
       </div>
     </div>
   );
 }
 
+// A segmented control: one sliding thumb under a row of buttons. Used for the email/phone
+// method and the role, so both read as the same calm control and the only solid fill on the
+// card is the submit button.
+function LoginSeg({ options, value, onChange, labelledBy, ariaLabel }) {
+  const i = Math.max(0, options.findIndex(([v]) => v === value));
+  return (
+    <div role="group" aria-labelledby={labelledBy} aria-label={ariaLabel} className="lg-seg" style={{ "--n": options.length, "--i": i }}>
+      <span aria-hidden className="lg-seg-thumb" />
+      {options.map(([v, l]) => (
+        <button key={v} type="button" aria-pressed={value === v} className="lg-seg-btn" onClick={() => onChange(v)}>{l}</button>
+      ))}
+    </div>
+  );
+}
+
+// Option A, "Spotlight glass": the card stands right of centre, where the photograph's beam lands. Pseudo-classes
+// (focus, autofill, hover) and the phone layout need a stylesheet, so the look lives here.
+function LoginStyles() {
+  return <style>{`
+.lgA-page{position:relative;min-height:100vh;display:flex;flex-direction:column;overflow:hidden;font-family:${sans};color:#f2ede4}
+.lgA-head{position:relative;z-index:10;padding:26px 72px}
+.lgA-row{max-width:1320px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.lgA-back{font-family:${sans};font-size:13px;color:rgba(242,237,228,.7);white-space:nowrap;transition:color .15s}
+.lgA-back:hover{color:#f2ede4}
+.lgA-main{position:relative;z-index:10;flex:1;display:flex;align-items:center;padding:4px 72px 40px}
+.lgA-mainrow{width:100%;max-width:1320px;margin:0 auto;display:flex;justify-content:center}
+.lgA-sitefoot{position:relative;z-index:10;padding:18px 72px 28px;font-family:${mono};font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(242,237,228,.5)}
+.lgA-sitefoot .lgA-row{flex-wrap:wrap}
+.lgA-legal{display:flex;gap:24px}
+.lgA-sitefoot a:hover{color:#f2ede4}
+
+.lgA-card{position:relative;width:100%;max-width:408px;margin-left:clamp(0px,30vw,520px);padding:30px 32px 24px;border-radius:18px;
+  background:linear-gradient(180deg,rgba(18,16,14,.66) 0%,rgba(10,9,8,.74) 100%);
+  backdrop-filter:blur(22px) saturate(1.15);-webkit-backdrop-filter:blur(22px) saturate(1.15);
+  border:1px solid rgba(242,237,228,.12);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 40px 120px rgba(0,0,0,.6),0 8px 24px rgba(0,0,0,.35)}
+.lgA-edge{position:absolute;top:-1px;left:28px;right:28px;height:1px;background:linear-gradient(90deg,transparent,#34d6c5 30%,#34d6c5 70%,transparent);opacity:.8}
+.lgA-eyebrow{font-family:${mono};font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#34d6c5;margin-bottom:12px}
+.lgA-title{font-family:${serif};font-size:38px;font-weight:400;letter-spacing:-.025em;line-height:1.02;margin:0 0 8px;color:#f2ede4}
+.lgA-title em{font-style:italic;font-weight:400;color:#34d6c5}
+.lgA-sub{font-family:${sans};font-size:14px;line-height:1.5;color:rgba(242,237,228,.62);margin:0 0 20px;max-width:32ch}
+.lgA-form{display:flex;flex-direction:column;gap:16px;margin-top:20px}
+.lgA-field{display:flex;flex-direction:column}
+.lgA-labelrow{display:flex;justify-content:space-between;align-items:baseline}
+.lgA-label{display:block;font-family:${sans};font-size:13px;font-weight:500;color:rgba(242,237,228,.78);margin-bottom:7px}
+.lgA-link{font-family:${sans};font-size:12.5px;color:rgba(242,237,228,.55);transition:color .15s}
+.lgA-link:hover{color:#34d6c5}
+.lgA-input{width:100%;height:46px;padding:0 15px;border-radius:11px;background:#110f0e;border:1px solid rgba(242,237,228,.14);color:#f2ede4;
+  font-family:${sans};font-size:15px;caret-color:#34d6c5;transition:border-color .15s,box-shadow .15s}
+.lgA-input::placeholder{color:rgba(242,237,228,.32)}
+.lgA-input:hover{border-color:rgba(242,237,228,.24)}
+.lgA-input:focus{outline:none;border-color:#34d6c5;box-shadow:0 0 0 3px rgba(52,214,197,.18)}
+.lgA-input:disabled{opacity:.6}
+.lgA-input:-webkit-autofill,.lgA-input:-webkit-autofill:hover{-webkit-text-fill-color:#f2ede4;-webkit-box-shadow:0 0 0 60px #110f0e inset;box-shadow:0 0 0 60px #110f0e inset;transition:background-color 99999s}
+.lgA-input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 60px #110f0e inset,0 0 0 3px rgba(52,214,197,.18);box-shadow:0 0 0 60px #110f0e inset,0 0 0 3px rgba(52,214,197,.18)}
+.lgA-otp{letter-spacing:.3em;font-size:18px}
+.lgA-pw{position:relative}
+.lgA-reveal{position:absolute;right:6px;top:50%;transform:translateY(-50%);height:34px;padding:0 12px;border:0;border-radius:8px;background:transparent;
+  font-family:${sans};font-size:12.5px;font-weight:500;color:rgba(242,237,228,.55);cursor:pointer}
+.lgA-reveal:hover{color:#f2ede4;background:rgba(242,237,228,.06)}
+.lgA-textbtn{align-self:flex-start;margin-top:10px;padding:0;border:0;background:transparent;font-family:${sans};font-size:12.5px;color:rgba(242,237,228,.6);cursor:pointer}
+.lgA-textbtn:hover{color:#f2ede4}
+
+.lg-seg{position:relative;display:grid;grid-template-columns:repeat(var(--n),1fr);padding:3px;border-radius:12px;background:#0d0c0b;border:1px solid rgba(242,237,228,.1)}
+.lg-seg-thumb{position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 6px) / var(--n));transform:translateX(calc(100% * var(--i)));border-radius:9px;
+  background:linear-gradient(180deg,rgba(242,237,228,.13),rgba(242,237,228,.08));box-shadow:0 0 0 1px rgba(242,237,228,.12) inset,0 2px 6px rgba(0,0,0,.35);transition:transform .28s cubic-bezier(.3,.7,.2,1)}
+.lg-seg-btn{position:relative;z-index:1;height:34px;padding:0 8px;border:0;background:transparent;border-radius:9px;font-family:${sans};font-size:13px;font-weight:500;
+  color:rgba(242,237,228,.55);cursor:pointer;transition:color .2s}
+.lg-seg-btn:hover{color:rgba(242,237,228,.85)}
+.lg-seg-btn[aria-pressed="true"]{color:#f2ede4}
+
+.lgA-check{display:flex;gap:10px;align-items:center;cursor:pointer;font-family:${sans};font-size:13px;color:rgba(242,237,228,.72);user-select:none}
+.lgA-check input{appearance:none;-webkit-appearance:none;flex:none;width:18px;height:18px;margin:0;border-radius:5px;border:1px solid rgba(242,237,228,.28);background:#110f0e;cursor:pointer;
+  display:grid;place-content:center;transition:background .15s,border-color .15s}
+.lgA-check input::after{content:"";width:10px;height:10px;background:no-repeat center/contain url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='%2304110f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");transform:scale(0);transition:transform .15s}
+.lgA-check input:checked{background:#34d6c5;border-color:#34d6c5}
+.lgA-check input:checked::after{transform:scale(1)}
+
+.lgA-err{padding:11px 14px;border-radius:10px;background:rgba(226,96,96,.1);border:1px solid rgba(226,96,96,.32);color:#ec8c8c;font-family:${sans};font-size:13px;line-height:1.45}
+.lgA-captcha{display:flex;flex-direction:column;align-items:stretch}
+.lgA-captcha iframe{border-radius:8px}
+.lgA-note{font-family:${sans};font-size:12px;color:rgba(242,237,228,.5)}
+.lgA-submit{margin-top:2px;height:48px;border:0;border-radius:11px;background:#34d6c5;color:#04110f;font-family:${sans};font-size:15px;font-weight:600;letter-spacing:.01em;
+  box-shadow:0 10px 30px rgba(52,214,197,.22),0 1px 0 rgba(255,255,255,.35) inset;transition:background .15s,transform .15s,box-shadow .15s}
+.lgA-submit:hover{background:#4ce4d4;box-shadow:0 14px 36px rgba(52,214,197,.3),0 1px 0 rgba(255,255,255,.35) inset}
+.lgA-submit:active{transform:translateY(1px) scale(.995)}
+.lgA-submit:disabled{opacity:.7}
+.lgA-card :focus-visible{outline:2px solid #34d6c5;outline-offset:2px}
+.lgA-card .lgA-input:focus-visible{outline:none}
+.lgA-foot{margin-top:20px;padding-top:16px;border-top:1px solid rgba(242,237,228,.1);display:flex;justify-content:center;gap:8px;flex-wrap:wrap;font-family:${sans};font-size:13.5px;color:rgba(242,237,228,.55)}
+.lgA-foot a{color:#f2ede4;font-weight:500;transition:color .15s}
+.lgA-foot a:hover{color:#34d6c5}
+
+@media (max-width:1100px){.lgA-card{margin-left:0}}
+@media (max-width:640px){
+  .lgA-head{padding:18px 20px}
+  .lgA-mark .shape-brand-logo{height:36px!important}
+  .lgA-main{padding:12px 16px 28px;align-items:flex-start}
+  .lgA-card{padding:28px 20px 20px;border-radius:16px}
+  .lgA-title{font-size:34px}
+  .lgA-sitefoot{padding:16px 20px 28px}
+  .lgA-sitefoot .lgA-row{flex-direction:column;align-items:flex-start;gap:12px}
+}
+/* Turnstile is 300px at its narrowest. On a phone the card leaves it the screen less 74px (the page's 16px
+   sides, the card's 20px padding and 1px border), short of 300 below 374px, so there the card takes more of
+   the screen and the widget's row borrows the card's side padding: the screen less 18px (302px at 320). */
+@media (max-width:373px){.lgA-main{padding-left:8px;padding-right:8px}.lgA-captcha{margin-left:-20px;margin-right:-20px}}
+`}</style>;
+}
+
 function LoginPage() {
   return (
-    <div style={{ position: "relative", minHeight: "100vh", overflow: "hidden", fontFamily: sans, color: INK }}>
+    <div className="lgA-page">
+      <LoginStyles />
       {/* Background */}
       <div aria-hidden style={{
         position: "fixed",
@@ -439,11 +468,11 @@ function LoginPage() {
         backgroundPosition: "center",
         zIndex: 0,
       }} />
-      {/* Subtle darkening gradient on the left to lift card legibility if shifted */}
+      {/* Darken the edges and the left, so the card in the light on the right reads first */}
       <div aria-hidden style={{
         position: "fixed",
         inset: 0,
-        background: "radial-gradient(ellipse 70% 60% at 70% 40%, rgba(0,0,0,0) 0%, rgba(5,4,3,0.2) 70%, rgba(5,4,3,0.5) 100%)",
+        background: "radial-gradient(ellipse 60% 70% at 74% 52%, rgba(0,0,0,0) 0%, rgba(5,4,3,0.25) 62%, rgba(5,4,3,0.6) 100%)",
         zIndex: 1,
       }} />
       {/* Grain */}
@@ -458,25 +487,24 @@ function LoginPage() {
       }} />
 
       {/* Top bar */}
-      <header style={{ position: "relative", zIndex: 10, padding: "26px 72px" }}>
-        <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <LoginMark />
-          <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
-            <a href="index.html" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>← Back to home</a>
-          </div>
+      <header className="lgA-head">
+        <div className="lgA-row">
+          <span className="lgA-mark"><LoginMark /></span>
+          <a href="index.html" className="lgA-back">← Back to home</a>
         </div>
       </header>
 
-      {/* Centered card */}
-      <main style={{ position: "relative", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px 80px", minHeight: "calc(100vh - 180px)" }}>
-        <LoginCard />
+      <main className="lgA-main">
+        <div className="lgA-mainrow">
+          <LoginCard />
+        </div>
       </main>
 
       {/* Footer */}
-      <footer style={{ position: "relative", zIndex: 10, padding: "20px 72px 30px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>
-        <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+      <footer className="lgA-sitefoot">
+        <div className="lgA-row">
           <span>© 2026 Shape</span>
-          <div style={{ display: "flex", gap: 24 }}>
+          <div className="lgA-legal">
             <a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/help">Help</a>
           </div>
         </div>
