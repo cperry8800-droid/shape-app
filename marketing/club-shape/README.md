@@ -12,6 +12,11 @@ Drafts for the owner's review; nothing in the app or the website uses these yet.
   strokes: stacked over CLUB SHAPE, and on one line between CLUB and SHAPE, plus app icons.
 - `pulse-looks.png` (from `pulse-looks.mjs`) — six other looks for the pulse between CLUB and SHAPE
   (climb, double beat, triangle beat, soundwave, LED, rounded), each beside the line and as an icon.
+- **`wave/` (from `soundwave.mjs`) — the soundwave mark, the owner's pick, perfected**: the pulse as
+  slanted audio bars, mirrored about the letters' middle bars, its quiet bars the letters' bar weight.
+  `club-shape-wave-horizontal*.svg` (CLUB, the wave, SHAPE) and `club-shape-wave-stacked*.svg` in the
+  same seven colour versions as below, `club-shape-wave-icon-{dark,teal,white}.svg` (1024 px,
+  square, full-bleed: the stores round the corners), each also in `wave/png/`, and `wave/preview.png`.
 - `png/` — each SVG at 2400 px wide: transparent, except the tiles, which carry their own background.
 
 Both lockups come in every colour version below, each with the same sizing and spacing (the stacked

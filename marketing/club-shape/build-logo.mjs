@@ -194,9 +194,9 @@ function horizontal(padCaps = LOCKUP.pad) {
 // Each file's colours (CLUB, SHAPE, the teal ▸, the white ◂), its own background if it is a tile,
 // and the sheet preview.png shows it on. Every scheme sets the same lockup, so the sizing and the
 // spacing are the same in all of them (a tile only has more room round it).
-const DARK = '#15110d', LIGHT = '#f2ede4';
+export const DARK = '#15110d', LIGHT = '#f2ede4';
 const all = (c) => ({ club: c, shape: c, teal: c, white: c });
-const SCHEMES = {
+export const SCHEMES = {
   '':            { label: 'white and teal, for dark backgrounds', club: COLORS.white, shape: COLORS.white, teal: COLORS.teal, white: COLORS.white, sheet: DARK },
   '-ink':        { label: 'ink and teal, for light backgrounds', club: COLORS.ink, shape: COLORS.ink, teal: COLORS.teal, white: COLORS.ink, sheet: LIGHT },
   '-on-white':   { label: 'a white tile: ink and teal', club: COLORS.ink, shape: COLORS.ink, teal: COLORS.teal, white: COLORS.ink, bg: '#FFFFFF', sheet: DARK },
@@ -208,7 +208,7 @@ const SCHEMES = {
 const LOCKUPS = { stacked, horizontal };
 const build = (name, s) => LOCKUPS[name](s.bg ? LOCKUP.tilePad : LOCKUP.pad);
 
-function svgOf(l, s) {
+export function svgOf(l, s) {
   const W = n2(l.W), H = n2(l.H);
   const fill = (color, polys) => `<path fill="${color}" d="${pathOf(polys)}"/>`;
   return [
