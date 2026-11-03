@@ -386,5 +386,6 @@
   "thread.voiceSpeed": "Wiedergabegeschwindigkeit",
   "thread.voiceUnplayable": "Diese Sprachnachricht kann gerade nicht abgespielt werden.",
   "thread.voiceNotSent": "Nicht gesendet",
-  "thread.voiceFailed": "Die Sprachnachricht konnte nicht gesendet werden."
+  "thread.voiceFailed": "Die Sprachnachricht konnte nicht gesendet werden.",
+  "thread.voicePreview": "Sprachnachricht · {time}"
 }

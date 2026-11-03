@@ -386,5 +386,6 @@
   "thread.voiceSpeed": "Playback speed",
   "thread.voiceUnplayable": "This voice note can’t be played right now.",
   "thread.voiceNotSent": "Not sent",
-  "thread.voiceFailed": "Couldn’t send the voice note."
+  "thread.voiceFailed": "Couldn’t send the voice note.",
+  "thread.voicePreview": "Voice note · {time}"
 }

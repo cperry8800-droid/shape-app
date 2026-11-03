@@ -386,5 +386,6 @@
   "thread.voiceSpeed": "Saurin kunnawa",
   "thread.voiceUnplayable": "Ba za a iya kunna wannan saƙon murya yanzu ba.",
   "thread.voiceNotSent": "Ba a aika ba",
-  "thread.voiceFailed": "Ba a iya aika saƙon murya ba."
+  "thread.voiceFailed": "Ba a iya aika saƙon murya ba.",
+  "thread.voicePreview": "Saƙon murya · {time}"
 }

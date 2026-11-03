@@ -9,7 +9,9 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import {
   BS_VOICE, BS_VOICE_PATH, bsVoicePickType, bsVoicePath, bsVoicePeaks, bsVoiceFromMetadata, bsVoiceClock, bsVoiceBody,
+  bsVoiceBodyTime, bsVoicePreview,
 } from '../mobile-app/src/services/voiceNote.mjs';
+import { noticeText, triggerCopy } from '../mobile-app/src/services/noticeCopy.mjs';
 import { loadBroadsheet, loadCarved, drive, textOf, ROOT, SHIM, THEME } from './helpers/broadsheet-mount.mjs';
 
 const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
@@ -88,6 +90,43 @@ test('the clock and the words a note leaves', () => {
   assert.equal(bsVoiceClock(102), '1:42');
   assert.equal(bsVoiceClock(-3), '0:00');
   assert.equal(bsVoiceBody(12.2), 'Voice note · 0:12');
+});
+
+// A catalog's translator, as the app's i18next answers (a missing key: undefined).
+const catTr = (locale) => {
+  const cats = {};
+  const load = (ns) => (cats[ns] ||= JSON.parse(readFileSync(join(ROOT, `mobile-app/src/i18n/catalogs/${locale}/${ns}.json`), 'utf8')));
+  return (key, opts = {}) => {
+    const [ns, k] = key.split(':');
+    const msg = load(ns)[k];
+    if (msg == null) return opts.defaultValue === '' ? k : opts.defaultValue;
+    return new IntlMessageFormatR(msg, locale).format(opts);
+  };
+};
+const { IntlMessageFormat: IntlMessageFormatR } = createRequire(import.meta.url)('intl-messageformat');
+
+test('a note\'s words are said again in the reader\'s language: the preview line and the push (Codex P2 on #2567)', () => {
+  assert.equal(bsVoiceBodyTime('Voice note · 0:12'), '0:12');
+  assert.equal(bsVoiceBodyTime(bsVoiceBody(BS_VOICE.MAX_SEC + 5)), '2:05', 'the longest a note reads');
+  for (const other of ['Voice note · 12', 'Voice note: 0:12', 'voice note · 0:12', 'Sam: Voice note · 0:12', 'Voice note · 0:12 later', null, 7]) {
+    assert.equal(bsVoiceBodyTime(other), null, JSON.stringify(other));
+  }
+  const de = catTr('de');
+  assert.equal(bsVoicePreview('Voice note · 0:12', de), 'Sprachnachricht · 0:12');
+  assert.equal(bsVoicePreview('Voice note · 0:12', catTr('en')), 'Voice note · 0:12');
+  assert.equal(bsVoicePreview('See you at 6', de), 'See you at 6', 'a member\'s own words, as written');
+  assert.equal(bsVoicePreview('Voice note · 0:12', null), 'Voice note · 0:12', 'no translator, as stored');
+  assert.equal(bsVoicePreview('Voice note · 0:12', () => ''), 'Voice note · 0:12', 'a translator with no answer, as stored');
+  // The push and the bell: the trigger's row (notify_on_new_message) is said again from its shape.
+  const row = { type: 'message', title: 'New message', body: 'Voice note · 0:12', data: { conversationId: CONV } };
+  assert.deepEqual(triggerCopy(row), { title: ['message.title'], body: ['message.voiceBody', { time: '0:12' }] });
+  assert.deepEqual(noticeText(row, de, { english: false, locale: 'de' }), { title: 'Neue Nachricht', body: 'Sprachnachricht · 0:12' });
+  assert.deepEqual(noticeText(row, catTr('vi'), { english: false, locale: 'vi' }), { title: 'Tin nhắn mới', body: 'Tin nhắn thoại · 0:12' });
+  assert.deepEqual(noticeText(row, de, { english: true, locale: 'en' }), { title: 'New message', body: 'Voice note · 0:12' }, 'English as stored');
+  assert.deepEqual(noticeText({ ...row, body: 'Sam: see you at 6' }, de, { english: false, locale: 'de' }), { title: 'Neue Nachricht', body: 'Sam: see you at 6' }, 'typed words as written');
+  // The chat list's preview line and a thread seeded from it both say it so.
+  assert.match(CLIENT, /const last = bsVoicePreview\(f\.last \|\| \(f\.messages && f\.messages\.length \? \(f\.messages\[f\.messages\.length - 1\]\.t \|\| ''\) : ''\), tr\);/);
+  assert.match(CLIENT, /\{ who: thread\.who, t: bsVoicePreview\(thread\.last, tr\), time:/);
 });
 
 // ── The wire ───────────────────────────────────────────────────────────────────────────────────
@@ -643,13 +682,51 @@ test('the composer: the recorder beside the field, and while it records the fiel
   assert.equal(plain.nodes().filter((n) => n && typeof n.type === 'function' && n.type.name === 'BSVoiceRecorder').length, 0, 'no recorder where no voiceNote is offered');
 });
 
+test('a note\'s copy on the phone is let go: a failed one at once, the rest when the thread closes (Codex P2 on #2567)', async () => {
+  const saved = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
+  const made = [], revoked = [];
+  URL.createObjectURL = () => { const u = `blob:n${made.length}`; made.push(u); return u; };
+  URL.revokeObjectURL = (u) => revoked.push(u);
+  const globals = {
+    ShapeVoiceNotes: { upload: async () => ({ path: `dm/${CONV}/${ME}/a.m4a` }), remove: async () => true },
+    ShapeMessages: { sendMessage: async (a) => (a.body === 'Voice note · 0:09' ? Promise.reject(new Error('insert failed')) : { data: { id: 'm' + made.length } }) },
+    __bsToast: () => {},
+  };
+  const keep = {};
+  for (const k of Object.keys(globals)) keep[k] = window[k];
+  Object.assign(window, globals);
+  try {
+    const d = mountThread(DM());
+    const release = EFFECTS.find((fn) => String(fn).includes('localUrlsRef'));
+    assert.ok(release, 'the thread lets its copies go when it closes');
+    const cleanup = release();
+    const send = (duration) => named(d, 'BSMessageComposer')[0].props.voiceNote.onSend({ blob: new Blob(['opus'], { type: 'audio/mp4' }), duration, peaks: [0.5], mime: 'audio/mp4', ext: 'm4a' });
+    send(4); await tick(); await tick(); await tick(); d.render();
+    assert.deepEqual(revoked, [], 'a sent note keeps playing from the phone while the thread is open');
+    send(9); await tick(); await tick(); await tick(); d.render();
+    assert.deepEqual(revoked, ['blob:n1'], 'a note that failed lets its copy go at once');
+    cleanup();
+    assert.deepEqual(revoked, ['blob:n1', 'blob:n0'], 'the rest when the thread closes, each once');
+    cleanup();
+    assert.equal(revoked.length, 2, 'never twice');
+  } finally {
+    for (const k of Object.keys(globals)) window[k] = keep[k];
+    URL.createObjectURL = saved.create; URL.revokeObjectURL = saved.revoke;
+  }
+});
+
 test('the iOS microphone purpose names voice notes; the copy is in all 13 catalogs', () => {
   assert.match(readFileSync(join(ROOT, 'mobile-app/ios/App/App/Info.plist'), 'utf8'), /<key>NSMicrophoneUsageDescription<\/key>\s*<string>Shape uses your microphone for voice notes in chat, for talking to Nora, and for video calls with your coach\.<\/string>/);
   const keys = ['voiceRecord', 'voiceRecordingLabel', 'voiceCancel', 'voiceSend', 'voiceUnsupported', 'voiceMicBlocked', 'voicePlay', 'voicePause', 'voiceSpeed', 'voiceUnplayable', 'voiceNotSent', 'voiceFailed'];
   for (const l of ['en', 'de', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
     const cat = JSON.parse(readFileSync(join(ROOT, `mobile-app/src/i18n/catalogs/${l}/feed.json`), 'utf8'));
-    for (const k of keys) assert.ok(typeof cat[`thread.${k}`] === 'string' && cat[`thread.${k}`], `${l} thread.${k}`);
+    for (const k of [...keys, 'voicePreview']) assert.ok(typeof cat[`thread.${k}`] === 'string' && cat[`thread.${k}`], `${l} thread.${k}`);
     assert.ok(cat['thread.voicePlay'].includes('{time}'), `${l} keeps {time}`);
+    const notice = JSON.parse(readFileSync(join(ROOT, `mobile-app/src/i18n/catalogs/${l}/notice.json`), 'utf8'));
+    for (const said of [cat['thread.voicePreview'], notice['message.voiceBody']]) {
+      assert.ok(typeof said === 'string' && /^[^{}]+ · \{time\}$/.test(said), `${l}: ${said}`);
+    }
+    assert.equal(notice['message.voiceBody'], cat['thread.voicePreview'], `${l}: the push says what the list says`);
   }
 });
 

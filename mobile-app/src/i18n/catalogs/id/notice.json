@@ -138,6 +138,7 @@
   "coach.amber.titleAnon": "Seorang klien — perlu dicek",
   "coach.amber.body": "Mulai mendekati kuning di triase klienmu.",
   "message.title": "Pesan baru",
+  "message.voiceBody": "Pesan suara · {time}",
   "workout.title": "Latihan baru dari coach-mu",
   "exercise.title": "Gerakan baru dari coach-mu",
   "week.title": "Jadwal minggumu dari coach-mu",

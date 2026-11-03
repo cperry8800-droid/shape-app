@@ -138,6 +138,7 @@
   "coach.amber.titleAnon": "Un cliente — merece un vistazo",
   "coach.amber.body": "Se acerca al ámbar en tu triaje.",
   "message.title": "Nuevo mensaje",
+  "message.voiceBody": "Nota de voz · {time}",
   "workout.title": "Nuevo entrenamiento de tu coach",
   "exercise.title": "Nuevo ejercicio de tu coach",
   "week.title": "Tu semana, de parte de tu coach",

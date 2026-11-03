@@ -98,7 +98,7 @@ import { BSTrainerProfile } from './BSTrainerProfile.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 import { BSVoiceRecorder, BSVoiceNotePlayer } from './BSVoiceNote.jsx';
-import { bsVoiceBody, bsVoiceFromMetadata } from '../services/voiceNote.mjs';
+import { bsVoiceBody, bsVoiceFromMetadata, bsVoicePreview } from '../services/voiceNote.mjs';
 import { BSSearchKitchenRecipe } from './BSSearchKitchenRecipe.jsx';
 import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
 import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot, bsGroceryCheckedKeys } from '../services/focusLayout.mjs';
@@ -25273,7 +25273,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           const teal = t.isLight ? '#0a8f87' : '#34d6c5';
           const Row = (f, i, arr) => {
             const count = (unread && unread['dm:' + (f.conversation_id || '')]) || 0;
-            const last = f.last || (f.messages && f.messages.length ? (f.messages[f.messages.length - 1].t || '') : '');
+            // A voice note's words are said in the app's language (Codex P2 on #2567); any other line as written.
+            const last = bsVoicePreview(f.last || (f.messages && f.messages.length ? (f.messages[f.messages.length - 1].t || '') : ''), tr);
             // The last message's time (the thread's, with none loaded), said in the app's language from its
             // stamp when it has one.
             const lastM = f.messages && f.messages.length ? f.messages[f.messages.length - 1] : null;
@@ -27266,7 +27267,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   const seed = (thread.messages && thread.messages.length)
     ? thread.messages
     : (historyHere && historyHere.length) ? historyHere
-    : (thread.last ? [{ who: thread.who, t: thread.last, time: thread.time || 'now', at: thread.at || null, me: false }] : []);
+    : (thread.last ? [{ who: thread.who, t: bsVoicePreview(thread.last, tr), time: thread.time || 'now', at: thread.at || null, me: false }] : []);
   // ⚠ MERGED BY MESSAGE ID (Codex on #2360): a message that arrives, or that this view sends,
   // while the history is loading can be in both the snapshot and `extras`. A sent message gets its
   // id when the insert answers (send, below); one still in flight has none and is shown.
@@ -27323,6 +27324,13 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   // ── VOICE NOTES (owner, 2026-11-02: "build voice notes next"). The note shows at once, playing from
   // the phone's own copy, while it uploads to the thread's folder and its message is stored; a note that
   // fails says Not sent. The words it leaves (for previews and pushes) are bsVoiceBody's.
+  // Each note's own copy on the phone is let go once nothing can play it (Codex P2 on #2567): a failed
+  // note's at once (its bubble can't be played), the rest when the thread closes and their bubbles go.
+  // A sent note plays from storage the next time. (A device that made no copy leaves null here, and
+  // letting null go does nothing.)
+  const localUrlsRef = React.useRef(new Set());
+  const releaseLocal = (u) => { localUrlsRef.current.delete(u); try { URL.revokeObjectURL(u); } catch (e) { /* already gone */ } };
+  React.useEffect(() => () => { for (const u of [...localUrlsRef.current]) releaseLocal(u); }, []);
   const sendVoice = (rec) => {
     const kind = thread.conversationId ? 'dm' : thread.channelId ? 'ch' : null;
     const threadId = thread.conversationId || thread.channelId;
@@ -27331,6 +27339,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
     const tmpId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
     let localUrl = null;
     try { localUrl = URL.createObjectURL(rec.blob); } catch (e) { localUrl = null; }
+    localUrlsRef.current.add(localUrl);
     const body = bsVoiceBody(rec.duration);
     // A note recorded while replying answers that message, as a typed one does (Codex P2 on #2567).
     const reply = replyTo;
@@ -27351,6 +27360,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
       .then(res => { const id = res && res.data && res.data.id; const at = res && res.data && res.data.created_at; mark({ ...(id ? { id } : {}), ...(at ? { at } : {}) }, { pending: false }); })
       .catch(() => {
         mark({}, { pending: false, failed: true });
+        releaseLocal(localUrl);
         try { window.__bsToast?.(tr('feed:thread.voiceFailed', { defaultValue: 'Couldn’t send the voice note.' }), 'err'); } catch (e) { /* no toast here */ }
       });
   };

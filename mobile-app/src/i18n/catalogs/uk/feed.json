@@ -386,5 +386,6 @@
   "thread.voiceSpeed": "Швидкість відтворення",
   "thread.voiceUnplayable": "Це голосове повідомлення зараз неможливо відтворити.",
   "thread.voiceNotSent": "Не надіслано",
-  "thread.voiceFailed": "Не вдалося надіслати голосове повідомлення."
+  "thread.voiceFailed": "Не вдалося надіслати голосове повідомлення.",
+  "thread.voicePreview": "Голосове повідомлення · {time}"
 }

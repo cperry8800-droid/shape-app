@@ -386,5 +386,6 @@
   "thread.voiceSpeed": "Kecepatan putar",
   "thread.voiceUnplayable": "Pesan suara ini tidak dapat diputar sekarang.",
   "thread.voiceNotSent": "Tidak terkirim",
-  "thread.voiceFailed": "Pesan suara tidak dapat dikirim."
+  "thread.voiceFailed": "Pesan suara tidak dapat dikirim.",
+  "thread.voicePreview": "Pesan suara · {time}"
 }

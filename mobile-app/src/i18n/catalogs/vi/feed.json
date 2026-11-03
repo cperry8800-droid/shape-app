@@ -386,5 +386,6 @@
   "thread.voiceSpeed": "Tốc độ phát",
   "thread.voiceUnplayable": "Không thể phát tin nhắn thoại này lúc này.",
   "thread.voiceNotSent": "Chưa gửi",
-  "thread.voiceFailed": "Không gửi được tin nhắn thoại."
+  "thread.voiceFailed": "Không gửi được tin nhắn thoại.",
+  "thread.voicePreview": "Tin nhắn thoại · {time}"
 }

@@ -94,7 +94,23 @@ export function bsVoiceClock(sec) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-// The words a note leaves where only words go (a thread's preview line, a push).
+// The words a note leaves where only words go (a thread's preview line, a push). They are stored in
+// English, as every message body is; a reader in another language is told them again from their shape
+// (bsVoicePreview here, noticeCopy.mjs's triggerCopy for a push; Codex P2 on #2567).
 export function bsVoiceBody(duration) {
   return `Voice note · ${bsVoiceClock(duration)}`;
+}
+
+// The length in a note's words ("Voice note · 0:12" → "0:12"), or null for any other text.
+const BODY = /^Voice note · (\d{1,2}:\d{2})$/;
+export function bsVoiceBodyTime(text) {
+  const m = typeof text === 'string' ? BODY.exec(text) : null;
+  return m ? m[1] : null;
+}
+
+// A preview line in the reader's language: a note's words said again, any other text as written.
+export function bsVoicePreview(text, tr) {
+  const time = bsVoiceBodyTime(text);
+  if (!time || typeof tr !== 'function') return text;
+  return tr('feed:thread.voicePreview', { time, defaultValue: 'Voice note · {time}' }) || text;
 }

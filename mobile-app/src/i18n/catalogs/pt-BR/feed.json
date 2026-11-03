@@ -386,5 +386,6 @@
   "thread.voiceSpeed": "Velocidade de reprodução",
   "thread.voiceUnplayable": "Esta mensagem de voz não pode ser reproduzida agora.",
   "thread.voiceNotSent": "Não enviada",
-  "thread.voiceFailed": "Não foi possível enviar a mensagem de voz."
+  "thread.voiceFailed": "Não foi possível enviar a mensagem de voz.",
+  "thread.voicePreview": "Mensagem de voz · {time}"
 }

@@ -8,9 +8,10 @@ const UI = 'mobile-app/src/broadsheet/BSVoiceNote.jsx';
 const BACKEND = 'mobile-app/src/services/shapeBackend.js';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const SQL = 'supabase-migrations/2026-11-03-voice-notes.sql';
+const NOTICE = 'mobile-app/src/services/noticeCopy.mjs';
 
 export default {
-  test: 'node --test tests/voice-notes.test.mjs tests/chat-dividers-replies.test.mjs tests/grocery-share.test.mjs tests/chat-time.test.mjs tests/chat-header-magazine.test.mjs',
+  test: 'node --test tests/voice-notes.test.mjs tests/chat-dividers-replies.test.mjs tests/grocery-share.test.mjs tests/chat-time.test.mjs tests/chat-header-magazine.test.mjs tests/server-notices.test.mjs',
   timeoutMs: 600_000,
   mutations: [
     // ── voiceNote.mjs: the type, the path, the waveform
@@ -57,6 +58,14 @@ export default {
       find: '    ? v.peaks.slice(0, BS_VOICE.PEAKS_MAX).map(', replace: '    ? v.peaks.map(' },
     { name: 'a stored bar is not clamped', file: VN,
       find: '(Number.isFinite(x) ? Math.min(1, Math.max(0, Math.round(x * 100) / 100)) : 0)', replace: '(Number.isFinite(x) ? Math.round(x * 100) / 100 : 0)' },
+    { name: 'a note\'s words are never said again', file: VN,
+      find: '  return m ? m[1] : null;\n}', replace: '  return null;\n}' },
+    { name: 'words around a note\'s read as a note\'s', file: VN,
+      find: 'const BODY = /^Voice note · (\\d{1,2}:\\d{2})$/;', replace: 'const BODY = /Voice note · (\\d{1,2}:\\d{2})/;' },
+    { name: 'a preview with no translator throws', file: VN,
+      find: "  if (!time || typeof tr !== 'function') return text;", replace: '  if (!time) return text;' },
+    { name: 'a translator with no answer blanks the preview', file: VN,
+      find: "defaultValue: 'Voice note · {time}' }) || text;", replace: "defaultValue: 'Voice note · {time}' });" },
     { name: 'the clock does not round', file: VN,
       find: '  const s = Math.max(0, Math.round(Number(sec) || 0));', replace: '  const s = Math.max(0, Math.floor(Number(sec) || 0));' },
     // ── shapeBackend.js: upload, link, send, readers
@@ -102,6 +111,13 @@ export default {
       find: '    return !error;\n  } catch (e) {\n    return false;', replace: '    return true;\n  } catch (e) {\n    return false;' },
     { name: 'remove throws with no network', file: BACKEND,
       find: '    return !error;\n  } catch (e) {\n    return false;\n  }', replace: '    return !error;\n  } finally {\n    /* nothing */\n  }' },
+    // ── noticeCopy.mjs: a voice note's push
+    { name: 'a voice note\'s push stays English', file: NOTICE,
+      find: "      return { title: np('message.title'), ...(time ? { body: np('message.voiceBody', { time }) } : {}) };", replace: "      return { title: np('message.title') };" },
+    { name: 'every message\'s push is said as a voice note', file: NOTICE,
+      find: "...(time ? { body: np('message.voiceBody', { time }) } : {})", replace: "body: np('message.voiceBody', { time })" },
+    { name: 'any title\'s message push is matched', file: NOTICE,
+      find: "      if (title !== 'New message') return null;\n      const time = bsVoiceBodyTime(body);", replace: '      const time = bsVoiceBodyTime(body);' },
     // ── BSVoiceNote.jsx: the recorder
     { name: 'a second stop finishes early', file: UI,
       find: '    if (r.stopping) return;\n    r.stopping = true;', replace: '    r.stopping = true;' },
@@ -155,6 +171,18 @@ export default {
       find: '.catch((err) => { notes.remove(path); throw err; });', replace: '.catch(() => { notes.remove(path); });' },
     { name: 'a failed note looks sent', file: CLIENT,
       find: '        mark({}, { pending: false, failed: true });', replace: '        mark({}, { pending: false });' },
+    { name: 'the chat list\'s preview stays English', file: CLIENT,
+      find: "            const last = bsVoicePreview(f.last || (f.messages && f.messages.length ? (f.messages[f.messages.length - 1].t || '') : ''), tr);", replace: "            const last = f.last || (f.messages && f.messages.length ? (f.messages[f.messages.length - 1].t || '') : '');" },
+    { name: 'a thread seeded from its preview stays English', file: CLIENT,
+      find: 't: bsVoicePreview(thread.last, tr), time:', replace: 't: thread.last, time:' },
+    { name: 'a note\'s copy is kept when the thread closes', file: CLIENT,
+      find: '  React.useEffect(() => () => { for (const u of [...localUrlsRef.current]) releaseLocal(u); }, []);\n', replace: '' },
+    { name: 'a failed note keeps its copy', file: CLIENT,
+      find: '        releaseLocal(localUrl);\n', replace: '' },
+    { name: 'a note\'s copy is not tracked', file: CLIENT,
+      find: '    localUrlsRef.current.add(localUrl);\n', replace: '' },
+    { name: 'a copy is let go twice', file: CLIENT,
+      find: '  const releaseLocal = (u) => { localUrlsRef.current.delete(u); try', replace: '  const releaseLocal = (u) => { try' },
     { name: 'a live channel note arrives as words', file: CLIENT,
       find: ", voice: bsVoiceFromMetadata(row.metadata, { kind: 'ch', threadId: thread.channelId, senderId: row.sender_id }) }]);", replace: ' }]);' },
     { name: 'a live note plays whoever recorded it', file: CLIENT,

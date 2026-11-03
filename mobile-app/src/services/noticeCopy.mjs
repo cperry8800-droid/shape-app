@@ -15,6 +15,8 @@
 //     (triggerCopy, below), the names in it read back out.
 // A row the AI notify layer writes (ai_*) is already in its reader's language (notifications.mjs).
 
+import { bsVoiceBodyTime } from './voiceNote.mjs';
+
 // ── the parts a writer stores ──────────────────────────────────────────────
 export const np = (key, vars) => (vars ? [key, vars] : [key]);
 // A moment in a zone: "Oct 21, 9:00 AM" in the reader's language, on the clock the writer named.
@@ -108,9 +110,14 @@ export function triggerCopy(row) {
   const body = String((row && row.body) || '');
   const data = row && isObj(row.data) ? row.data : {};
   switch (type) {
-    // notify_on_new_message (2026-10-18-coach-access-past-due.sql): the body is the message.
-    case 'message':
-      return title === 'New message' ? { title: np('message.title') } : null;
+    // notify_on_new_message (2026-10-18-coach-access-past-due.sql): the body is the message, said as
+    // written, except a voice note's words (voiceNote.mjs bsVoiceBody), which are the app's, not the
+    // sender's (Codex P2 on #2567).
+    case 'message': {
+      if (title !== 'New message') return null;
+      const time = bsVoiceBodyTime(body);
+      return { title: np('message.title'), ...(time ? { body: np('message.voiceBody', { time }) } : {}) };
+    }
     // notify_on_client_workout, notify_on_pushed_item, publish_client_week: the body is the coach's
     // title for it, or the week's count.
     case 'workout':

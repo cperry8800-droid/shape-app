@@ -386,5 +386,6 @@
   "thread.voiceSpeed": "Скорость воспроизведения",
   "thread.voiceUnplayable": "Это голосовое сообщение сейчас нельзя воспроизвести.",
   "thread.voiceNotSent": "Не отправлено",
-  "thread.voiceFailed": "Не удалось отправить голосовое сообщение."
+  "thread.voiceFailed": "Не удалось отправить голосовое сообщение.",
+  "thread.voicePreview": "Голосовое сообщение · {time}"
 }

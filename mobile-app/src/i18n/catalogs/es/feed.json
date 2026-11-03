@@ -386,5 +386,6 @@
   "thread.voiceSpeed": "Velocidad de reproducción",
   "thread.voiceUnplayable": "Esta nota de voz no se puede reproducir ahora.",
   "thread.voiceNotSent": "No enviada",
-  "thread.voiceFailed": "No se pudo enviar la nota de voz."
+  "thread.voiceFailed": "No se pudo enviar la nota de voz.",
+  "thread.voicePreview": "Nota de voz · {time}"
 }

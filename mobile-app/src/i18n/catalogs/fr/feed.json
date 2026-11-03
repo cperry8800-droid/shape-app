@@ -386,5 +386,6 @@
   "thread.voiceSpeed": "Vitesse de lecture",
   "thread.voiceUnplayable": "Ce message vocal ne peut pas être lu pour le moment.",
   "thread.voiceNotSent": "Non envoyé",
-  "thread.voiceFailed": "Le message vocal n’a pas pu être envoyé."
+  "thread.voiceFailed": "Le message vocal n’a pas pu être envoyé.",
+  "thread.voicePreview": "Message vocal · {time}"
 }

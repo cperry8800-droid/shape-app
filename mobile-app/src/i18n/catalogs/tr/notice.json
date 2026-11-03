@@ -138,6 +138,7 @@
   "coach.amber.titleAnon": "Bir danışan — göz atmaya değer",
   "coach.amber.body": "Öncelik listende sarıya dönüyor.",
   "message.title": "Yeni mesaj",
+  "message.voiceBody": "Sesli mesaj · {time}",
   "workout.title": "Koçundan yeni antrenman",
   "exercise.title": "Koçundan yeni egzersiz",
   "week.title": "Koçundan haftalık planın",
