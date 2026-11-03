@@ -620,6 +620,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Splash: "Don\'t climb alone." and under it "Join the Community", on the website and the app\'s launch (#2572). No migration',
+      items: [
+        { label: 'Owner, 2026-11-03: "also have the splash page say "dont climb alone" and then below it "Join the Community"", "on both app and website"', status: 'done' },
+        { label: '#2572 website: the splash keeps "Don\'t climb alone." and gains "Join the Community" under it, smaller, in the teal, rising in after it; the glide onto the summit flag is unchanged', status: 'done' },
+        { label: '#2572 app: BSClimbTagline under the mark on the launch beat (rising in) and the hold after it (still); launch.climbAlone and launch.joinCommunity in all 13 catalogs, each in its own register; checked in Chromium down to a 320 px phone in Russian, Indonesian, Ukrainian, Portuguese and German', status: 'done' },
+        { label: '#2572 review: Codex clean on 1993883; CI green; homepage-splash and the new launch-climb-tagline pin both surfaces, every locale and the same English', status: 'done' },
+        { label: 'A native speaker reads the Hausa and Pidgin lines', status: 'manual' },
+      ],
+    },
+    {
       section: 'Radio: Shape\'s own station, part 1 of 4: the rotation and the stream server (#2570). Migration: 2026-11-03-radio-rotation.sql',
       items: [
         { label: 'Owner, 2026-11-03: "would you be able to build your own internet/app radio streaming platform where i can upload songs to stream instead of using radio.co" ("on shape"), then "yes" to the four-part plan', status: 'done' },
