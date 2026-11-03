@@ -4,8 +4,10 @@
 // redirects every phone to, and until 2026-09-17 it was a ten-click carousel
 // behind its own two-link bar — the single nav destination where the site's nav
 // disappeared, writing ONE of its ten steps into the DOM at a time. It is now a
-// static page: ten beats of a member's day, one real capture each, all of it in
+// static page: eleven beats of a member's day, one real capture each, all of it in
 // the markup at first paint, under the shared header and the canonical footer.
+// The eleventh, a coach's page, joined on 2026-11-03 (owner: "include a section on
+// app page with a screen shot of coaches profile").
 //
 // The rules below are the ones that make it that page rather than a page that
 // merely looks like it. Every one is DERIVED from the file (the captures, the
@@ -50,7 +52,7 @@ test('the comment stripper removes comments and nothing else', () => {
   // below would then pass on a page it had never read.
   assert.ok(BODY.length > HTML.length * 0.55,
     'the stripper removed ' + Math.round((1 - BODY.length / HTML.length) * 100) + '% of the file — it has run away, and every absence check below is vacuous');
-  assert.equal((BODY.match(/<div class="ph-scr"><img /g) || []).length, 10, 'the stripper ate the page\'s captures');
+  assert.equal((BODY.match(/<div class="ph-scr"><img /g) || []).length, 11, 'the stripper ate the page\'s captures');
   assert.ok(BODY.includes('<main class="ga-main">'), 'the stripper ate the page body');
   assert.ok(BODY.includes('<section class="doors" id="notify">'), 'the stripper ate the doors');
   // and it really does remove a comment this page carries
@@ -90,13 +92,13 @@ function pngSize(absPath) {
   return [b.readUInt32BE(16), b.readUInt32BE(20)];
 }
 
-test('every one of the ten screens is in the markup, and each file is the site geometry', () => {
-  // ⚠ EXACTLY TEN, NEVER `>= 1`. The page this replaced had all ten in the DOM
-  // too — stacked at inset:0 inside one visible frame, nine of them invisible and
-  // 1.82 MB of them loading at once. The count is the point: ten screens, laid
+test('every one of the eleven screens is in the markup, and each file is the site geometry', () => {
+  // ⚠ EXACTLY ELEVEN, NEVER `>= 1`. The page this replaced had all ten of its own in
+  // the DOM too — stacked at inset:0 inside one visible frame, nine of them invisible
+  // and 1.82 MB of them loading at once. The count is the point: every screen laid
   // out down the page, and a guard that accepted "at least one" would pass on the
   // carousel coming back.
-  assert.equal(SHOTS.length, 10, 'the page shows ' + SHOTS.length + ' screens, not ten');
+  assert.equal(SHOTS.length, 11, 'the page shows ' + SHOTS.length + ' screens, not eleven');
 
   for (const s of SHOTS) {
     assert.match(s.file, /^\/newdesign\/getapp-[a-z0-9-]+\.png$/, 'a screen is not one of the app captures: ' + s.file);
@@ -110,7 +112,7 @@ test('every one of the ten screens is in the markup, and each file is the site g
     assert.equal(s.h, '1387', s.file + ' declares the wrong height');
     assert.ok(s.query.startsWith('v='), s.file + ' carries no ?v= cache key');
     // ⚠ An <img> with no alt is a screen a screen reader cannot know is there,
-    // and this page is ten screens.
+    // and this page is eleven screens.
     assert.ok(s.alt.length > 20, s.file + ' has no useful alt text');
   }
 
@@ -118,11 +120,11 @@ test('every one of the ten screens is in the markup, and each file is the site g
   // on the carousel: there, `loading="lazy"` on images stacked inside the visible
   // frame does nothing at all, which is how the page came to load 1.82 MB at once.
   assert.equal(SHOTS[0].lazy, false, 'the first screen is lazy — it is above the fold');
-  assert.deepEqual(SHOTS.slice(1).map((s) => s.lazy), new Array(9).fill(true),
+  assert.deepEqual(SHOTS.slice(1).map((s) => s.lazy), new Array(10).fill(true),
     'a screen below the fold is not lazy-loaded');
 
   const files = SHOTS.map((s) => s.file);
-  assert.equal(new Set(files).size, 10, 'the page shows the same capture twice: ' + files.join(', '));
+  assert.equal(new Set(files).size, 11, 'the page shows the same capture twice: ' + files.join(', '));
 });
 
 test('the carousel is gone, and so is the cream bezel it flipped to', () => {
