@@ -620,7 +620,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
-      section: 'Brand: the Club Shape logo and launch copy (#2568). marketing/club-shape/, nothing live yet',
+      section: 'Brand: the Club Shape logo (#2568, live on the site and in the app #2569) and launch copy. marketing/club-shape/',
       items: [
         { label: 'Owner, 2026-11-03: Club Shape as the umbrella name (the coaching marketplace, with Shape Radio and the virtual club as the twist); the logo chosen: the two triangles stacked over CLUB SHAPE ("move forward with this design")', status: 'done' },
         { label: '#2568 the wordmark: build-logo.mjs sets CLUB SHAPE in the brand face (prototypes/nora-booth wordmarkGlyphs.mjs, SHAPE at the brand PNG\'s own spacing; --check S 0.911 · H 0.955 · A 0.939 · P 0.946 · E 0.958), the stacked lockup (the mark 2.4 caps tall) and one line, each in seven colour versions (dark, light, white tile, teal tile, all white, all black, CLUB in teal), SVG and PNG', status: 'done' },
@@ -628,8 +628,10 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '#2568 copy.md: the homepage hero, and the App Store and Google Play listings, every field within its limit, with what each claim rests on', status: 'done' },
         { label: 'OWNER: a trademark clearance search on "Club Shape", and its domain and handles, before the rename ships', status: 'manual' },
         { label: 'OWNER: confirm copy.md\'s open points: the price by region, Shape Sets once scheduled, Nora as DJ (Phase 2)', status: 'manual' },
-        { label: 'The logo on the website (pageShell.jsx\'s Logo, the homepage bar and footer) and in the app (the masthead wordmark, the welcome screens): CLUB SHAPE is about 70% wider than SHAPE at one height, so each bar\'s fit is measured at every width', status: 'pending' },
-        { label: 'The rename\'s copy pass, the app\'s display name (capacitor appName; the bundle id stays), and the store listings in the other 12 languages', status: 'pending' },
+        { label: '#2569 the logo live: close-cropped SVGs (build-logo.mjs --site; public/club-shape-logo-{white,black,teal-white}.svg, mobile-app/public/club-shape-logo.svg and club-shape-wordmark.svg) on pageShell.jsx\'s Logo, the shared header, footer and burger drawer, the homepage bar and footer, the coach public page, the Next.js Nav, Footer, subscribe and purchase, the app masthead (the wordmark alone) and its three welcome screens; alt text and labels say Club Shape, and \'Club Shape\' is a brand noun in the translation inventory (partStrings 165 -> 163)', status: 'done' },
+        { label: '#2569 the fit, measured in Chromium (the logo is 4.02:1, twice the SHAPE lockup\'s width): desktop and tablet keep their heights; on a phone the homepage bar, the shared header (signed in, with the bell), the signup and Landing headers and the burger drawer narrow the logo as min(height, (100vw - the row\'s other width) / 4.02), fitting from 480 to 320; the app masthead\'s wordmark is 300px wide at most, the masthead 120px tall as before', status: 'done' },
+        { label: 'OWNER: sign in on a #2569 preview or the live /m/ and look at the member and coach masthead (checked here in a mock with its exact styles; the sandbox cannot sign in)', status: 'manual' },
+        { label: 'The rename\'s copy pass (page titles "· Shape", the app\'s "Shape Wire" and "Shape is for members."), the app\'s display name (capacitor appName; the bundle id stays), the native apps\' next store release for the new logo, and the store listings in the other 12 languages', status: 'pending' },
       ],
     },
     {
