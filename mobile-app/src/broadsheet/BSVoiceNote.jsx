@@ -1,5 +1,6 @@
 import React from 'react';
 import { BS_VOICE, bsVoicePickType, bsVoicePeaks, bsVoiceClock } from '../services/voiceNote.mjs';
+import { SILENT_CLIP } from '../../../public/newdesign/noraVoiceLoop.mjs';
 // ─── VOICE NOTES (owner, 2026-11-02: "build voice notes next") ───────────────────────────────────
 // The recorder that sits in a chat thread's tray composer, and the player a note draws in its bubble.
 //
@@ -180,16 +181,24 @@ export function BSVoiceNotePlayer({ voice, mine = false, t, accent }) {
   const audioRef = useRef(null);
   const idRef = useRef(null);
   const goneRef = useRef(false);
+  const srcRef = useRef(null);   // the note's own source once set (the element may hold a moment of silence first)
+  const genRef = useRef(0);      // the latest tap; an older one still waiting for its link stops there
   if (idRef.current == null) { _voicePlayerSeq += 1; idRef.current = `vn-${_voicePlayerSeq}`; }
   const duration = Number(voice && voice.duration) || 0;
   const peaks = voice && Array.isArray(voice.peaks) && voice.peaks.length ? voice.peaks : Array(BS_VOICE.PEAKS).fill(0);
 
-  // One note at a time: another one starting pauses this one.
+  // One note at a time: another one tapped pauses this one, and stops a play of this one still waiting
+  // for its link, so the latest tap wins whatever order the links come back in (Codex P2 on #2567).
   // And a player that has gone never starts: a play still waiting for its link when the thread closes
   // stops there (Codex P2 on #2567).
   useEffect(() => {
     goneRef.current = false;
-    const other = (e) => { if (e && e.detail !== idRef.current && audioRef.current) { try { audioRef.current.pause(); } catch (err) { /* paused */ } } };
+    const other = (e) => {
+      if (!e || e.detail === idRef.current) return;
+      genRef.current += 1;
+      setLoading(false);
+      if (audioRef.current) { try { audioRef.current.pause(); } catch (err) { /* paused */ } }
+    };
     try { window.addEventListener('shape:voicePlay', other); } catch (e) { /* no window events here */ }
     return () => {
       goneRef.current = true;
@@ -205,6 +214,7 @@ export function BSVoiceNotePlayer({ voice, mine = false, t, accent }) {
     const a = new A();
     a.preload = 'auto';
     a.addEventListener('timeupdate', () => {
+      if (!srcRef.current) return; // the moment of silence that unlocked it
       const total = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : duration;
       setProgress(total ? Math.min(1, a.currentTime / total) : 0);
     });
@@ -224,29 +234,38 @@ export function BSVoiceNotePlayer({ voice, mine = false, t, accent }) {
     const a = audio();
     if (!a || voice.failed) return;
     if (playing) { a.pause(); return; }
+    const gen = ++genRef.current;
+    try { window.dispatchEvent(new CustomEvent('shape:voicePlay', { detail: idRef.current })); } catch (err) { /* no events here */ }
     try {
+      // ⚠ UNLOCKED IN THE TAP. iOS's WebView plays an element only once a tap has started it, and the
+      // link may come after a network wait, outside the tap: the first play starts a moment of silence
+      // on this element now, as Nora's player does (shapeBackend.js primeVoice; Codex P2 on #2567).
+      if (!srcRef.current) {
+        setLoading(true);
+        try { a.src = SILENT_CLIP; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (err) { /* unlocked or not, the play below says */ }
+      }
       // Every play asks for its source: the phone's own copy, or the hour's link, which the backend keeps
       // until five minutes before it ends. A note left open longer is handed a new link and takes it up
       // where it was (Codex P2 on #2567); the same source is never set again (that would reload it).
-      if (!a.src) setLoading(true);
       const src = await source();
-      if (goneRef.current) return;
-      if (src !== a.src) {
-        const at = a.src ? a.currentTime || 0 : 0;
+      if (goneRef.current || gen !== genRef.current) return;
+      if (src !== srcRef.current) {
+        const at = srcRef.current ? a.currentTime || 0 : 0;
+        srcRef.current = src;
         a.src = src;
         if (at > 0) a.addEventListener('loadedmetadata', () => { try { a.currentTime = at; } catch (err) { /* not seekable yet */ } }, { once: true });
       }
       a.playbackRate = rate;
-      try { window.dispatchEvent(new CustomEvent('shape:voicePlay', { detail: idRef.current })); } catch (err) { /* no events here */ }
       await a.play();
     } catch (err) {
+      if (goneRef.current || gen !== genRef.current) return;
       toast(tr('feed:thread.voiceUnplayable', { defaultValue: 'This voice note can’t be played right now.' }));
-    } finally { setLoading(false); }
+    } finally { if (gen === genRef.current) setLoading(false); }
   };
   const seek = (e) => {
     if (e && e.stopPropagation) e.stopPropagation();
     const a = audioRef.current;
-    if (!a || !a.src || !e || !e.currentTarget || !e.currentTarget.getBoundingClientRect) return;
+    if (!a || !srcRef.current || !e || !e.currentTarget || !e.currentTarget.getBoundingClientRect) return;
     const box = e.currentTarget.getBoundingClientRect();
     const f = Math.min(1, Math.max(0, (e.clientX - box.left) / (box.width || 1)));
     const total = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : duration;
@@ -272,7 +291,7 @@ export function BSVoiceNotePlayer({ voice, mine = false, t, accent }) {
         style={{ flex: 'none', width: 36, height: 36, borderRadius: '50%', border: 0, background: mine ? hexA(t.PAPER, 0.16) : hexA(fg, 0.14), color: fg, cursor: voice && voice.failed ? 'default' : 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
         {busy ? <span aria-hidden style={{ width: 14, height: 14, border: `2px solid ${fg}`, borderTopColor: 'transparent', borderRadius: 999, display: 'inline-block', animation: 'bsspin 0.7s linear infinite' }} /> : playing ? PAUSE(15) : PLAY(15)}
       </button>
-      <span data-voice-wave="" aria-hidden onClick={seek} style={{ flex: 1, minWidth: 0, height: 30, display: 'flex', alignItems: 'center', gap: 2, cursor: audioRef.current && audioRef.current.src ? 'pointer' : 'default' }}>
+      <span data-voice-wave="" aria-hidden onClick={seek} style={{ flex: 1, minWidth: 0, height: 30, display: 'flex', alignItems: 'center', gap: 2, cursor: srcRef.current ? 'pointer' : 'default' }}>
         {peaks.map((v, i) => <span key={i} style={{ flex: 1, minWidth: 2, height: `${Math.max(14, Math.round(v * 100))}%`, borderRadius: 2, background: (i + 0.5) / peaks.length <= progress ? fg : dim }} />)}
       </span>
       <span style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>

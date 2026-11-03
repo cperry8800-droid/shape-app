@@ -12,6 +12,7 @@ import {
   bsVoiceBodyTime, bsVoicePreview,
 } from '../mobile-app/src/services/voiceNote.mjs';
 import { noticeText, triggerCopy } from '../mobile-app/src/services/noticeCopy.mjs';
+import { SILENT_CLIP } from '../public/newdesign/noraVoiceLoop.mjs';
 import { loadBroadsheet, loadCarved, drive, textOf, ROOT, SHIM, THEME } from './helpers/broadsheet-mount.mjs';
 
 const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
@@ -469,7 +470,7 @@ function playerRig({ url = async (p) => `https://s/${p}` } = {}) {
   const saved = { Audio: window.Audio, notes: window.ShapeVoiceNotes, add: window.addEventListener, remove: window.removeEventListener, dispatch: window.dispatchEvent, toast: window.__bsToast };
   const st = { audios: [], urls: [], toasts: [], listeners: {} };
   // Setting a source (even the same one) reloads it from the top, as a real player does.
-  window.Audio = class { constructor() { this._src = ''; this.l = {}; this.playbackRate = 1; this.currentTime = 0; this.duration = NaN; st.audios.push(this); } get src() { return this._src; } set src(v) { this._src = v; this.currentTime = 0; this.sets = (this.sets || 0) + 1; } addEventListener(t, f) { (this.l[t] ||= []).push(f); } emit(t) { (this.l[t] || []).forEach((f) => f()); } async play() { this.played = (this.played || 0) + 1; this.emit('play'); } pause() { this.emit('pause'); } };
+  window.Audio = class { constructor() { this._src = ''; this.l = {}; this.playbackRate = 1; this.currentTime = 0; this.duration = NaN; st.audios.push(this); } get src() { return this._src; } set src(v) { this._src = v; this.currentTime = 0; this.sets = (this.sets || 0) + 1; (this.srcs ||= []).push(v); } addEventListener(t, f) { (this.l[t] ||= []).push(f); } emit(t) { (this.l[t] || []).forEach((f) => f()); } async play() { this.played = (this.played || 0) + 1; this.emit('play'); } pause() { this.paused = (this.paused || 0) + 1; this.emit('pause'); } };
   window.ShapeVoiceNotes = { url: async (p) => { st.urls.push(p); return url(p); } };
   window.addEventListener = (type, fn) => { (st.listeners[type] ||= []).push(fn); };
   window.removeEventListener = (type, fn) => { st.listeners[type] = (st.listeners[type] || []).filter((f) => f !== fn); };
@@ -543,7 +544,7 @@ test('the player: a note left open past its hour is handed a new link, and takes
     await byAttr(mine.d, 'data-voice-play').props.onClick({ stopPropagation() {} });
     assert.equal(st.urls.length, 2, 'no link asked for the phone\'s copy');
     assert.equal(st.audios[1].src, 'blob:mine');
-    assert.equal(st.audios[1].sets, 1, 'and its copy is set once, never reloaded');
+    assert.deepEqual(st.audios[1].srcs, [SILENT_CLIP, 'blob:mine'], 'unlocked once, then its copy set once, never reloaded');
   } finally { st.restore(); }
 });
 
@@ -558,9 +559,71 @@ test('the player: a play still waiting for its link when the thread closes never
     release();
     await tapped;
     const a = st.audios[0];
-    assert.equal(a.src, '', 'no source set');
-    assert.equal(a.played, undefined, 'and it never plays');
+    assert.deepEqual(a.srcs, [SILENT_CLIP], 'only the tap\'s moment of silence, never the note');
+    assert.equal(a.played, 1, 'and the note itself never plays');
     assert.deepEqual(st.toasts, [], 'nor says it could not');
+  } finally { st.restore(); }
+  let fail;
+  const st2 = playerRig({ url: () => new Promise((r, j) => { fail = () => j(new Error('Signed out.')); }) });
+  try {
+    const { d, effects } = mountPlayer({ path: VOICE.path, duration: 5, peaks: [], mime: 'audio/mp4' });
+    const cleanups = effects.map((fn) => fn()).filter((x) => typeof x === 'function');
+    const tapped = byAttr(d, 'data-voice-play').props.onClick({ stopPropagation() {} });
+    cleanups.forEach((fn) => fn());
+    fail();
+    await tapped;
+    assert.deepEqual(st2.toasts, [], 'a link refused after it closed says nothing either');
+  } finally { st2.restore(); }
+});
+
+test('the player is unlocked inside the tap: a moment of silence starts before the link comes back (Codex P2 on #2567)', async () => {
+  let release;
+  const st = playerRig({ url: () => new Promise((r) => { release = () => r(`https://s/${VOICE.path}`); }) });
+  try {
+    const { d } = mountPlayer({ path: VOICE.path, duration: 6, peaks: [0.5], mime: 'audio/mp4' });
+    const tapped = byAttr(d, 'data-voice-play').props.onClick({ stopPropagation() {} });
+    const a = st.audios[0];
+    // Synchronously, still inside the tap:
+    assert.deepEqual(a.srcs, [SILENT_CLIP], 'silence first');
+    assert.equal(a.played, 1, 'started in the tap');
+    a.duration = 0.05; a.currentTime = 0.05; a.emit('timeupdate');
+    d.render();
+    assert.equal(withAttr(flat(byAttr(d, 'data-voice-wave')), 'style').filter((n) => n.props.style.background === '#0a8f87').length, 0, 'the silence never fills the waveform');
+    release();
+    await tapped;
+    assert.deepEqual(a.srcs, [SILENT_CLIP, `https://s/${VOICE.path}`], 'then the note');
+    assert.equal(a.played, 2);
+    a.pause();
+    d.render();
+    const again = byAttr(d, 'data-voice-play').props.onClick({ stopPropagation() {} });
+    assert.equal(a.srcs.length, 2, 'unlocked once: a later play does not prime again');
+    release();
+    await again;
+    assert.equal(a.srcs.length, 2, 'nor reload the same link');
+    assert.equal(a.played, 3);
+  } finally { st.restore(); }
+});
+
+test('the latest tap wins: a note still waiting for its link never starts over the one tapped after it (Codex P2 on #2567)', async () => {
+  let releaseA;
+  const st = playerRig({ url: (p) => (p.includes('/slow.') ? new Promise((r) => { releaseA = () => r(`https://s/${p}`); }) : Promise.resolve(`https://s/${p}`)) });
+  try {
+    const A = mountPlayer({ path: `dm/${CONV}/${HER}/slow.m4a`, duration: 4, peaks: [], mime: 'audio/mp4' });
+    const B = mountPlayer({ path: `dm/${CONV}/${HER}/fast.m4a`, duration: 5, peaks: [], mime: 'audio/mp4' });
+    const cleanups = [...A.effects, ...B.effects].map((fn) => fn()).filter((x) => typeof x === 'function');
+    const tapA = byAttr(A.d, 'data-voice-play').props.onClick({ stopPropagation() {} });
+    await byAttr(B.d, 'data-voice-play').props.onClick({ stopPropagation() {} });
+    const [a, b] = st.audios;
+    assert.equal(b.src, `https://s/dm/${CONV}/${HER}/fast.m4a`, 'B plays');
+    releaseA();
+    await tapA;
+    assert.deepEqual(a.srcs, [SILENT_CLIP], 'A, superseded, never takes its link');
+    assert.equal(a.played, 1, 'nor plays');
+    assert.equal(b.paused, undefined, 'and B plays on');
+    A.d.render();
+    assert.ok(!flat(byAttr(A.d, 'data-voice-play')).some((n) => n.props && n.props.style && /bsspin/.test(n.props.style.animation || '')), 'A stops spinning');
+    assert.deepEqual(st.toasts, []);
+    cleanups.forEach((fn) => fn());
   } finally { st.restore(); }
 });
 
