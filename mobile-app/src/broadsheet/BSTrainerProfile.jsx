@@ -1,7 +1,7 @@
 import React from 'react';
 import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
 import { createPortal } from 'react-dom';
-import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS } from '../services/profileCustom.mjs';
+import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS } from '../services/profileCustom.mjs';
 import { STUDIO_WORDS, STUDIO_KIT, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, bsStudioFrame, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
 import { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsWorkPaid, bsPlateNoteDays, energySplit } from '../services/coachWork.mjs';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
@@ -178,7 +178,7 @@ export function BSTrainerProfile(props) {
   const [demoOwn, setDemoOwn] = React.useState(null);
   const saveDemo = (doc, changed) => setDemoOwn((prev) => {
     const next = { ...(prev || {}) };
-    for (const k of ['look', 'cover', 'studio', 'kitchen', 'about', 'prompts', 'links']) if (changed && changed[k]) next[k] = doc && doc[k] ? doc[k] : null;
+    for (const k of ['look', 'cover', 'studio', 'kitchen', 'about', 'prompts', 'links', 'headLinks']) if (changed && changed[k]) next[k] = doc && doc[k] ? doc[k] : null;
     return next;
   });
   const [live, setLive] = React.useState(null);
@@ -600,6 +600,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const aboutPrompts = isPrivate ? [] : bsProfilePrompts(custom && custom.prompts);
   const aboutLinks = isPrivate || sample ? null : bsProfileLinkable(custom && custom.links);
   const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks || certs.length);
+  // The socials in the head too, when the coach chose it in Make it yours (owner, 2026-11-03: "coaches
+  // socials should be shown somewhere in this section if they choose to"): the same links About draws.
+  const headSocials = custom && custom.headLinks === true && aboutLinks
+    ? BS_PROFILE_LINK_KEYS.map((k) => [k, aboutLinks[k] ? bsProfileLinkHref(k, aboutLinks[k]) : null]).filter(([, href]) => href) : [];
   // Tabs a visitor sees only when there is something in them; the coach always sees them all.
   // Activity is a tab of its own, last (owner, 2026-10-31: "the coaches activity feed shouldn't be
   // under replays, they should have a separate tab for activity"); it sat under the tabs.
@@ -708,6 +712,19 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                 {verified ? <span style={{ color: ACC }}>✓ </span> : null}
                 {[verified ? tr('profile:trainer.verifiedTier', { defaultValue: 'Verified {tier} coach', tier: tierName }) : tierName, ratingBit].filter(Boolean).join(' · ')}
               </button>
+              {headSocials.length ? (
+                <div data-head-socials="" role="group" aria-label={tr('profile:about.socials', { defaultValue: 'Find {name} online', name: first })} style={{ display: 'flex', flexWrap: 'wrap', margin: '2px 0 0 -12px' }}>
+                  {headSocials.map(([k, href]) => (
+                    <a key={k} data-head-social={k} href={href} target="_blank" rel="noopener noreferrer"
+                      aria-label={`${k === 'website' ? tr('profile:editor.link.website', { defaultValue: 'Website' }) : LINK_NAMES[k]} ${bsProfileLinkText(k, aboutLinks[k])}`}
+                      style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: ink(0.78) }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        {BS_PROFILE_LINK_GLYPHS[k].map((d, i) => <path key={i} d={d} />)}
+                      </svg>
+                    </a>
+                  ))}
+                </div>
+              ) : null}
               {sample ? <p data-sample-note="" style={{ margin: '10px 0 0', padding: '8px 10px', borderLeft: `2px solid ${ACC}`, background: t.PAPER2, fontSize: 12.5, lineHeight: 1.45, color: ink(0.74) }}>{nutri
                 ? tr('profile:nutri.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the kitchen, plate notes, reviews and times here are samples.', name: first })
                 : tr('profile:trainer.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the studio, replays, reviews and times here are samples.', name: first })}</p> : null}

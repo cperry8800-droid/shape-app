@@ -1107,5 +1107,6 @@
   "mine.itemDetail": "Ким або де",
   "mine.itemYear": "Рік",
   "mine.errItemTitle": "Кожна нагорода й курс потребують назви — або приберіть їх.",
-  "mine.errItemYear": "Рік від {min} до {max}."
+  "mine.errItemYear": "Рік від {min} до {max}.",
+  "mine.socialsInHead": "Показувати вгорі вашої сторінки"
 }

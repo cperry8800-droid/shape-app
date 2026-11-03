@@ -1107,5 +1107,6 @@
   "mine.itemDetail": "From or where",
   "mine.itemYear": "Year",
   "mine.errItemTitle": "Each accolade and course needs a title, or remove it.",
-  "mine.errItemYear": "A year from {min} to {max}."
+  "mine.errItemYear": "A year from {min} to {max}.",
+  "mine.socialsInHead": "Show them at the top of your page"
 }

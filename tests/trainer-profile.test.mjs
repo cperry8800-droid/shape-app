@@ -1511,6 +1511,51 @@ test('Make it yours, About me: accolades and education save as lists; a row it w
   await m.unmount();
 });
 
+// Owner, 2026-11-03 (of the profile's head): "coaches socials should be shown somewhere in this section if
+// they choose to". Off unless the coach turns it on; then the links About draws, as icons under the rating.
+test('the head shows the coach\'s socials only when they chose it, as the links About draws', async () => {
+  const links = { instagram: '@maya.lifts', website: 'https://mayaokafor.com/', x: 'javascript:alert(1)' };
+  reset({ custom: { links } });
+  let m = await mount(page());
+  assert.equal(document.querySelector('[data-head-socials]'), null, 'shown without the coach choosing it');
+  await m.unmount();
+  reset({ custom: { links, headLinks: true } });
+  m = await mount(page());
+  const row = document.querySelector('[data-head-socials]');
+  assert.ok(row, 'no socials in the head');
+  assert.equal(row.getAttribute('aria-label'), 'Find Maya online');
+  const a = [...row.querySelectorAll('[data-head-social]')];
+  assert.deepEqual(a.map((x) => [x.getAttribute('data-head-social'), x.getAttribute('href')]), [['instagram', 'https://instagram.com/maya.lifts'], ['website', 'https://mayaokafor.com/']], 'the links About draws, and only those');
+  assert.deepEqual(a.map((x) => x.getAttribute('aria-label')), ['Instagram @maya.lifts', 'Website mayaokafor.com']);
+  for (const x of a) { assert.equal(x.getAttribute('target'), '_blank'); assert.equal(x.getAttribute('rel'), 'noopener noreferrer'); assert.equal(x.style.width, '44px'); assert.equal(x.style.height, '44px'); }
+  await m.unmount();
+});
+
+test('Make it yours, About me: the head-socials switch saves the choice, and turning it off removes it', async () => {
+  reset({ me: 'u-maya', custom: null, stored: { look: { paper: 'dark', accent: 'teal' }, links: { instagram: '@maya.lifts' } } });
+  let m = await mount(page({ isSelf: true }));
+  await click(button(/^Make it yours$/));
+  await click([...document.querySelectorAll('[data-make-it-yours] button')].find((b) => /^About me$/.test(b.textContent)));
+  const sw = () => document.querySelector('[data-about-head-links]');
+  assert.equal(sw().getAttribute('aria-checked'), 'false', 'on before the coach chose it');
+  assert.match(sw().textContent, /^Show them at the top of your page/);
+  await click(sw());
+  assert.equal(sw().getAttribute('aria-checked'), 'true');
+  await click(document.querySelector('[data-save-mine]'));
+  assert.equal(world.saved.d.headLinks, true);
+  assert.deepEqual(world.saved.d.links, { instagram: '@maya.lifts' }, 'the links as they were');
+  await m.unmount();
+  reset({ me: 'u-maya', custom: null, stored: { look: { paper: 'dark', accent: 'teal' }, links: { instagram: '@maya.lifts' }, headLinks: true } });
+  m = await mount(page({ isSelf: true }));
+  await click(button(/^Make it yours$/));
+  await click([...document.querySelectorAll('[data-make-it-yours] button')].find((b) => /^About me$/.test(b.textContent)));
+  assert.equal(sw().getAttribute('aria-checked'), 'true', 'the saved choice');
+  await click(sw());
+  await click(document.querySelector('[data-save-mine]'));
+  assert.ok(world.saved && !('headLinks' in world.saved.d), 'turned off, the key is gone');
+  await m.unmount();
+});
+
 // Owner, 2026-10-31: "make coach profile cards show the full byline too". The coach's cards ask the
 // shared card for the member profile's byline (onAuthorPage: face, name, coach tier, time; the name
 // opens nothing on their own page), with the page's avatar and the tier keyed by the id the posts are

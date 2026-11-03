@@ -1107,5 +1107,6 @@
   "mine.itemDetail": "Kimden ya da nerede",
   "mine.itemYear": "Yıl",
   "mine.errItemTitle": "Her ödül ve kursun bir başlığı olmalı ya da onu kaldır.",
-  "mine.errItemYear": "{min} ile {max} arasında bir yıl."
+  "mine.errItemYear": "{min} ile {max} arasında bir yıl.",
+  "mine.socialsInHead": "Sayfanın üstünde göster"
 }

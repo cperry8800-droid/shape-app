@@ -517,6 +517,9 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const aboutDoc = isPrivate ? null : K.bsProfileAbout(custom && custom.about);
   const aboutPrompts = isPrivate ? [] : K.bsProfilePrompts(custom && custom.prompts);
   const aboutLinks = isPrivate || sample ? null : K.bsProfileLinkable(custom && custom.links);
+  // The socials in the head too, when the coach chose it in Make it yours (owner, 2026-11-03), as the app.
+  const headSocials = custom && custom.headLinks === true && aboutLinks
+    ? K.BS_PROFILE_LINK_KEYS.map((k) => [k, aboutLinks[k] ? K.bsProfileLinkHref(k, aboutLinks[k]) : null]).filter(([, href]) => href) : [];
   const credList = isPrivate ? [] : (Array.isArray(certs) ? certs : []);
   const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks || credList.length);
   const aboutTab = isSelf || hasAbout ? [["about", "About me"]] : [];
@@ -663,6 +666,18 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                     {verified ? <span style={{ color: ACC }}>✓ </span> : null}
                     {[verified ? `Verified ${tier} coach` : tier, ratingBit].filter(Boolean).join(" · ")}
                   </button>
+                  {headSocials.length ? (
+                    <div data-head-socials="" role="group" aria-label={`Find ${first} online`} style={{ display: "flex", flexWrap: "wrap", margin: "4px 0 0 -12px" }}>
+                      {headSocials.map(([k, href]) => (
+                        <a key={k} data-head-social={k} href={href} target="_blank" rel="noopener noreferrer" aria-label={`${CPW_LINK_NAMES[k] || k} ${K.bsProfileLinkText(k, aboutLinks[k])}`}
+                          style={{ width: 44, height: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", color: ink(0.78) }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            {K.BS_PROFILE_LINK_GLYPHS[k].map((d, i) => <path key={i} d={d} />)}
+                          </svg>
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
                   {sample && !demo ? <p data-sample-note="" style={{ margin: "12px 0 0", padding: "9px 12px", borderLeft: `2px solid ${ACC}`, background: pal.PAPER2, fontSize: 13, lineHeight: 1.45, color: ink(0.74), maxWidth: 680 }}>{nutri
                     ? `${first} hasn't set up a Shape account yet, so the kitchen, plate notes, reviews and times here are samples.`
                     : `${first} hasn't set up a Shape account yet, so the studio, replays, reviews and times here are samples.`}</p> : null}

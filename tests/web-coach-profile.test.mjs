@@ -199,6 +199,29 @@ test('a real coach\'s page has the app profile\'s sections, in its order', async
   await p.unmount();
 });
 
+// Owner, 2026-11-03: "the about me should have more things to add. certificates, accolades" and
+// "coaches socials should be shown somewhere in this section if they choose to": the website draws the
+// coach's lists on About and the socials in the head, as the app does.
+test('About me on the website: the coach\'s accolades and education; the head\'s socials only when chosen', async () => {
+  WIDE = true; backend();
+  const about = { story: 'Ten years on the floor.', accolades: [{ title: 'Coach of the Year', detail: 'Portland Fitness Awards', year: 2024 }], education: [{ title: 'BSc Exercise Science', year: 2015 }] };
+  const links = { instagram: '@tom.lifts', x: 'javascript:alert(1)' };
+  let p = await mount({ ...LIVE, row: { ...LIVE.row, custom: { about, links } } });
+  assert.equal(document.querySelector('[data-head-socials]'), null, 'socials in the head the coach did not choose');
+  const aboutTab = [...document.querySelectorAll('[data-profile-tab]')].find((b) => b.getAttribute('data-profile-tab') === 'about');
+  await React.act(async () => aboutTab.click());
+  await settle();
+  assert.deepEqual([...document.querySelectorAll('[data-about="accolades"] [data-about-item]')].map((li) => li.textContent), ['Coach of the YearPortland Fitness Awards2024']);
+  assert.match(document.querySelector('[data-about="accolades"]').textContent, /^Accolades/);
+  assert.deepEqual([...document.querySelectorAll('[data-about="education"] [data-about-item]')].map((li) => li.textContent), ['BSc Exercise Science2015']);
+  await p.unmount();
+  p = await mount({ ...LIVE, row: { ...LIVE.row, custom: { about, links, headLinks: true } } });
+  const row = document.querySelector('[data-head-socials]');
+  assert.ok(row, 'the socials the coach chose for the head');
+  assert.deepEqual([...row.querySelectorAll('[data-head-social]')].map((a) => [a.getAttribute('data-head-social'), a.getAttribute('href'), a.getAttribute('aria-label')]), [['instagram', 'https://instagram.com/tom.lifts', 'Instagram @tom.lifts']], 'only a link the page can use');
+  await p.unmount();
+});
+
 test('Subscribe goes through the one checkout path, with the code typed before the redirect', async () => {
   WIDE = true; const calls = backend();
   const p = await mount(LIVE);

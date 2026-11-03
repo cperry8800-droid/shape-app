@@ -1107,5 +1107,6 @@
   "mine.itemDetail": "De quién o dónde",
   "mine.itemYear": "Año",
   "mine.errItemTitle": "Cada reconocimiento y curso necesita un título, o quítalo.",
-  "mine.errItemYear": "Un año del {min} al {max}."
+  "mine.errItemYear": "Un año del {min} al {max}.",
+  "mine.socialsInHead": "Mostrarlas arriba en tu página"
 }

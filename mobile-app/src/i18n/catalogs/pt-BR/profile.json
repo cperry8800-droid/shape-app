@@ -1107,5 +1107,6 @@
   "mine.itemDetail": "De quem ou onde",
   "mine.itemYear": "Ano",
   "mine.errItemTitle": "Cada prêmio e curso precisa de um título, ou remova.",
-  "mine.errItemYear": "Um ano de {min} a {max}."
+  "mine.errItemYear": "Um ano de {min} a {max}.",
+  "mine.socialsInHead": "Mostrar no topo da sua página"
 }

@@ -1107,5 +1107,6 @@
   "mine.itemDetail": "Dari siapa atau di mana",
   "mine.itemYear": "Tahun",
   "mine.errItemTitle": "Setiap penghargaan dan kursus perlu judul, atau hapus saja.",
-  "mine.errItemYear": "Tahun dari {min} sampai {max}."
+  "mine.errItemYear": "Tahun dari {min} sampai {max}.",
+  "mine.socialsInHead": "Tampilkan di bagian atas halamanmu"
 }

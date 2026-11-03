@@ -862,7 +862,7 @@ function AboutList({ kind, tr, rows, setRows, titlePh, detailPh, addLabel }) {
   );
 }
 
-function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks }) {
+function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks, headLinks = false, setHeadLinks = () => {} }) {
   const set = (k, v) => setAbout((a) => ({ ...a, [k]: v }));
   const inp = { ...field, fontSize: 16 };
   const area = { ...field, minHeight: 132, padding: '10px 12px', fontSize: 16, lineHeight: 1.5, resize: 'vertical', display: 'block' };
@@ -935,6 +935,14 @@ function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks })
             placeholder={k === 'website' ? tr('profile:editor.ph.linkSite', { defaultValue: 'yoursite.com' }) : `@${tr('profile:editor.ph.linkHandle', { defaultValue: 'you' })}`} style={inp} />
         </div>
       ))}
+      {/* The head shows them too, if the coach chooses (owner, 2026-11-03). Off unless turned on. */}
+      <button type="button" role="switch" aria-checked={headLinks} data-about-head-links="" onClick={() => setHeadLinks(!headLinks)}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%', minHeight: 48, marginTop: 12, padding: '0 2px', border: 0, background: 'transparent', color: E.INK, cursor: 'pointer', textAlign: 'left', fontFamily: BODY, fontSize: 14.5 }}>
+        <span>{tr('profile:mine.socialsInHead', { defaultValue: 'Show them at the top of your page' })}</span>
+        <span aria-hidden style={{ flex: 'none', width: 42, height: 24, borderRadius: 999, background: headLinks ? E.ED : ea(0.22), position: 'relative', transition: 'background 160ms ease' }}>
+          <span style={{ position: 'absolute', top: 3, left: headLinks ? 21 : 3, width: 18, height: 18, borderRadius: 999, background: headLinks ? E.ON_ED : E.INK, transition: 'left 160ms ease' }} />
+        </span>
+      </button>
     </div>
   );
 }
@@ -1177,6 +1185,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         accolades: bsAboutRowsIn(ab.accolades), education: bsAboutRowsIn(ab.education) },
       prompts: bsProfilePrompts(initial && initial.prompts).map((p) => ({ q: bsPromptToken(p.q), a: p.a })),
       links: { ...(bsProfileLinks(initial && initial.links) || {}) },
+      headLinks: !!(initial && initial.headLinks === true),
       // A nutritionist starts amber (Shape's nutritionist gold), as their page does.
       look: { paper: look.paper || 'dark', accent: look.accent || (nutri ? 'amber' : 'teal'), focus: look.focus || 'center' }, wall: cover ? cover.image : null,
       // A nutritionist's empty plan is a kitchen, so a piece added before any layout is picked
@@ -1195,6 +1204,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const [about, setAbout] = React.useState(seed.about);
   const [prompts, setPrompts] = React.useState(seed.prompts);
   const [links, setLinks] = React.useState(seed.links);
+  const [headLinks, setHeadLinks] = React.useState(seed.headLinks);
   const [sel, setSel] = React.useState(null);
   const [uploading, setUploading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -1217,7 +1227,8 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   // asks for Done or Cancel first, so it never drops one unseen.
   const [recipeDraft, setRecipeDraft] = React.useState(null);
   const recipeOpen = !!recipeDraft;
-  const dirty = lookChanged || wallChanged || studioChanged || kitchenChanged || aboutChanged || promptsChanged || linksChanged;
+  const headLinksChanged = headLinks !== seed.headLinks;
+  const dirty = lookChanged || wallChanged || studioChanged || kitchenChanged || aboutChanged || promptsChanged || linksChanged || headLinksChanged;
   const first = who.first || bsCoachFirstName(who.name);
   const w = words || { day: tr('profile:trainer.dayName', { defaultValue: "{name}'s day", name: first }), work: tr('profile:trainer.workName', { defaultValue: 'Work with {name}', name: first }) };
 
@@ -1267,6 +1278,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     if (aboutChanged) doc.about = bsAboutDoc(about);
     if (promptsChanged) doc.prompts = prompts.map((p) => ({ q: bsPromptToken(p.q), a: p.a }));
     if (linksChanged) doc.links = trimmedLinks;
+    if (headLinksChanged) { if (headLinks) doc.headLinks = true; else delete doc.headLinks; }
     if (wallChanged) {
       const cover = wall ? coverOf(wall) : null;
       if (cover) doc.cover = cover; else delete doc.cover;
@@ -1285,7 +1297,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     if (badLink) { setTab('about'); setErr(tr('profile:mine.errLink', { defaultValue: 'Check {network}: a handle like @you, or an address starting with https://', network: bsLinkName(badLink, tr) })); return; }
     // The demo also says which keys were changed here, so its page keeps only those over its own
     // sample (whose station names follow the language; Codex P2 on #2486).
-    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null), { look: lookChanged, cover: wallChanged, studio: studioChanged, kitchen: kitchenChanged, about: aboutChanged, prompts: promptsChanged, links: linksChanged }); return; }
+    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null), { look: lookChanged, cover: wallChanged, studio: studioChanged, kitchen: kitchenChanged, about: aboutChanged, prompts: promptsChanged, links: linksChanged, headLinks: headLinksChanged }); return; }
     const uid = owner;
     if (!uid || signedInUid() !== uid) { setErr(tr('profile:mine.errSignIn', { defaultValue: 'Sign in to save your page.' })); return; }
     if (uploading) { setErr(tr('profile:mine.errBusy', { defaultValue: 'Hang on, your photo is still uploading.' })); return; }
@@ -1355,7 +1367,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         {tab === 'wall' ? <WallTab tr={tr} look={look} setLook={setLook} wall={wall} setWall={(u) => { setWall(u); setErr(null); }} choices={photos} uploading={uploading} onUpload={onUpload} noUpload={demo ? demoNoUpload : null} /> : null}
         {tab === 'space' ? <SpaceTab tr={tr} look={look} studio={studio} setStudio={setStudio} sel={sel} setSel={setSel} programs={programs} /> : null}
         {tab === 'kitchen' ? <KitchenTab tr={tr} look={look} kitchen={kitchen} setKitchen={setKitchen} startSection={startSection} owner={owner} uploadPhoto={uploadRecipePhoto} draft={recipeDraft} setDraft={setRecipeDraft} /> : null}
-        {tab === 'about' ? <AboutTab tr={tr} about={about} setAbout={setAbout} prompts={prompts} setPrompts={setPrompts} links={links} setLinks={(f) => { setLinks(f); setErr(null); }} /> : null}
+        {tab === 'about' ? <AboutTab tr={tr} about={about} setAbout={setAbout} prompts={prompts} setPrompts={setPrompts} links={links} setLinks={(f) => { setLinks(f); setErr(null); }} headLinks={headLinks} setHeadLinks={setHeadLinks} /> : null}
         {err && !unsaved ? <p role="alert" style={{ margin: '14px 0 0', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
       </div>
       {unsaved ? (

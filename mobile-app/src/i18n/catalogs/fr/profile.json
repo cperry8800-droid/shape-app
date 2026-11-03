@@ -1107,5 +1107,6 @@
   "mine.itemDetail": "De qui ou où",
   "mine.itemYear": "Année",
   "mine.errItemTitle": "Chaque distinction et chaque cours ont besoin d’un titre, sinon retirez-les.",
-  "mine.errItemYear": "Une année de {min} à {max}."
+  "mine.errItemYear": "Une année de {min} à {max}.",
+  "mine.socialsInHead": "Les afficher en haut de votre page"
 }

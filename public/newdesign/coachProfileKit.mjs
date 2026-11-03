@@ -23,7 +23,7 @@ export { bsTrainerDemo, bsTrainerSampleOf } from './trainerDemo.mjs';
 export { bsNutritionistDemo, bsNutritionistSampleOf } from './nutritionistDemo.mjs';
 export {
   bsProfileLook, bsProfileCover, bsProfileStudio, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileLinkable,
-  bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, bsProfileBizCard, BS_PROFILE_LINK_KEYS,
+  bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, bsProfileBizCard, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS,
 } from './profileCustom.mjs';
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);

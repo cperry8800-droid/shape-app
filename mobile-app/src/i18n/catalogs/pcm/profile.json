@@ -1107,5 +1107,6 @@
   "mine.itemDetail": "From who or where",
   "mine.itemYear": "Year",
   "mine.errItemTitle": "Every award and course need title, or comot am.",
-  "mine.errItemYear": "Year from {min} reach {max}."
+  "mine.errItemYear": "Year from {min} reach {max}.",
+  "mine.socialsInHead": "Show dem for the top of your page"
 }

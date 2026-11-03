@@ -1107,5 +1107,6 @@
   "mine.itemDetail": "Кем или где",
   "mine.itemYear": "Год",
   "mine.errItemTitle": "У каждой награды и курса должно быть название — или уберите их.",
-  "mine.errItemYear": "Год от {min} до {max}."
+  "mine.errItemYear": "Год от {min} до {max}.",
+  "mine.socialsInHead": "Показывать вверху вашей страницы"
 }

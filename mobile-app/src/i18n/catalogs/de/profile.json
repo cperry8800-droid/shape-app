@@ -1107,5 +1107,6 @@
   "mine.itemDetail": "Von wem oder wo",
   "mine.itemYear": "Jahr",
   "mine.errItemTitle": "Jede Auszeichnung und jeder Kurs braucht einen Titel – oder entferne den Eintrag.",
-  "mine.errItemYear": "Ein Jahr von {min} bis {max}."
+  "mine.errItemYear": "Ein Jahr von {min} bis {max}.",
+  "mine.socialsInHead": "Oben auf deiner Seite zeigen"
 }

@@ -1107,5 +1107,6 @@
   "mine.itemDetail": "Từ ai hoặc ở đâu",
   "mine.itemYear": "Năm",
   "mine.errItemTitle": "Mỗi giải thưởng và khóa học cần có tên, hoặc hãy xóa đi.",
-  "mine.errItemYear": "Năm từ {min} đến {max}."
+  "mine.errItemYear": "Năm từ {min} đến {max}.",
+  "mine.socialsInHead": "Hiển thị ở đầu trang của bạn"
 }

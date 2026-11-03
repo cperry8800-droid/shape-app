@@ -11,7 +11,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   bsProfileAbout, bsProfileLinks, bsProfileLinkable, bsProfilePrompts, bsProfileLinkHref, bsProfileLinkText, bsCleanStory, bsNormalizeProfileCustom,
-  BS_ABOUT_STORY_MAX, BS_PROMPTS_MAX, BS_PROMPT_A_MAX, BS_ABOUT_LIST_MAX, BS_ABOUT_ITEM_MAX, bsAboutItems,
+  BS_ABOUT_STORY_MAX, BS_PROMPTS_MAX, BS_PROMPT_A_MAX, BS_ABOUT_LIST_MAX, BS_ABOUT_ITEM_MAX, bsAboutItems, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS,
 } from '../mobile-app/src/services/profileCustom.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -51,6 +51,14 @@ test('accolades and education: a title each, a detail and a year if given, eight
   assert.deepEqual(bsProfileAbout(about), about);
   assert.deepEqual(bsProfileAbout({ education: [{ title: 'BSc' }] }), { education: [{ title: 'BSc' }] }, 'a list alone is an About');
   assert.equal(bsProfileAbout({ accolades: [{ detail: 'no title' }] }), null);
+});
+
+// Owner, 2026-11-03: "coaches socials should be shown somewhere in this section if they choose to".
+test('the socials in the head: the coach\'s choice kept only as true, a glyph for every network', () => {
+  assert.deepEqual(bsNormalizeProfileCustom({ headLinks: true, links: { instagram: '@maya' } }, null), { headLinks: true, links: { instagram: '@maya' } });
+  for (const v of [false, 'yes', 1, null, {}]) assert.ok(!('headLinks' in bsNormalizeProfileCustom({ headLinks: v }, null)), `headLinks ${JSON.stringify(v)} kept`);
+  assert.deepEqual(Object.keys(BS_PROFILE_LINK_GLYPHS).sort(), [...BS_PROFILE_LINK_KEYS].sort(), 'a network with no glyph, or a glyph with no network');
+  for (const k of BS_PROFILE_LINK_KEYS) for (const d of BS_PROFILE_LINK_GLYPHS[k]) assert.match(d, /^M[\d.\s,a-zA-Z-]+$/, `${k}: not SVG path data`);
 });
 
 test('socials: the known networks, a handle or a web address, never another scheme', () => {
@@ -118,7 +126,7 @@ test("About me's words in all 13 languages, each one formatting", () => {
     'mine.tabAbout', 'mine.aboutTitle', 'mine.aboutSub', 'mine.story', 'mine.storyPh', 'mine.details', 'mine.years', 'mine.how', 'mine.howOnline', 'mine.howInPerson', 'mine.howBoth',
     'mine.where', 'mine.wherePh', 'mine.languages', 'mine.languagesPh', 'mine.qa', 'mine.qaQuestion', 'mine.qaAnswer', 'mine.qaAdd', 'mine.qaRemove', 'mine.socials', 'mine.errLink', 'mine.errYears',
     'about.certs', 'about.certVerified', 'about.accolades', 'about.education', 'mine.accolades', 'mine.accoladePh', 'mine.accoladeFromPh', 'mine.accoladeAdd',
-    'mine.education', 'mine.educationPh', 'mine.educationFromPh', 'mine.educationAdd', 'mine.certsNote', 'mine.itemTitle', 'mine.itemDetail', 'mine.itemYear', 'mine.errItemTitle', 'mine.errItemYear'];
+    'mine.education', 'mine.educationPh', 'mine.educationFromPh', 'mine.educationAdd', 'mine.certsNote', 'mine.itemTitle', 'mine.itemDetail', 'mine.itemYear', 'mine.errItemTitle', 'mine.errItemYear', 'mine.socialsInHead'];
   const locales = readdirSync(dir);
   assert.equal(locales.length, 13);
   for (const l of locales) {

@@ -1107,5 +1107,6 @@
   "mine.itemDetail": "Daga wa ko a ina",
   "mine.itemYear": "Shekara",
   "mine.errItemTitle": "Kowace kyauta da kwas suna buƙatar suna, ko ka cire su.",
-  "mine.errItemYear": "Shekara daga {min} zuwa {max}."
+  "mine.errItemYear": "Shekara daga {min} zuwa {max}.",
+  "mine.socialsInHead": "Nuna su a saman shafinka"
 }
