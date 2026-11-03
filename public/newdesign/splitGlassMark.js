@@ -239,5 +239,105 @@
     };
   }
 
-  return { SITE, APP, REST, STILL, MAST, SPIN, SETTLE, TURN, logo, pose, turn, blend, render, play };
+  // ── The website bar's mark (owner, 2026-11-03: "add the same effect to the triangles in top left
+  // logo on nav bar that we did on the app") ──────────────────────────────────────────────────────
+  // The bar's logo is the Club Shape lockup (/club-shape-logo-*.svg: the two triangles stacked over
+  // CLUB SHAPE, from marketing/club-shape/build-logo.mjs --site). mountNav() lays the app masthead's
+  // turning glass (logo(), MAST, turn()) over the lockup's triangles and hands the <img> the same
+  // lockup without them, so the prisms take the triangles' place.
+  // NAV_BOX is the lockup's geometry in its own units (tests/club-shape-nav-mark.test.mjs checks it
+  // against build-logo's layout): the file's size, the triangles' centre and their height. The glass
+  // is the 99 x 113 masthead mark, whose triangles span 82 units of height centred at (49.5, 56),
+  // scaled so they are the lockup's triangles' height and centred where they are.
+  const NAV_BOX = { w: 1763.85, h: 439, cx: 889.33, cy: 132, markH: 240 };
+  function navPlace() {
+    const k = NAV_BOX.markH / 82, pct = (v, of) => `${r2((v / of) * 100)}%`;
+    return {
+      left: pct(NAV_BOX.cx - 49.5 * k, NAV_BOX.w), top: pct(NAV_BOX.cy - 56 * k, NAV_BOX.h),
+      width: pct(99 * k, NAV_BOX.w), height: pct(113 * k, NAV_BOX.h),
+    };
+  }
+  // The app's colours for the masthead's paper: the splash's white and teal on a dark ground, the
+  // page's ink and the deep teal on a light one.
+  const navSpec = (dark) => (dark ? logo([255, 255, 255], [52, 214, 197]) : logo([26, 26, 26], [10, 143, 135]));
+  const NAV_T0 = typeof performance !== "undefined" ? performance.now() : 0; // one clock for every mark
+
+  /** The turning itself, shared by mountNav and mountMark: draw `spec` into `g`, from the still pose,
+   *  a whole turn every TURN seconds, about 30 frames a second, only while `watch` is on screen, and
+   *  the still pose under reduced motion. Returns stop(), which stops the frames and the watching. */
+  function turnInto(g, spec, watch) {
+    const still = render(spec, STILL, MAST);
+    const mq = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+    let raf = 0, last = -Infinity, on = typeof IntersectionObserver !== "function", live = true;
+    const tick = (now) => {
+      raf = 0;
+      if (!live || !on || (mq && mq.matches)) return;
+      if (now - last >= 32) { last = now; g.innerHTML = render(spec, turn((now - NAV_T0) / 1000), MAST); }
+      raf = requestAnimationFrame(tick);
+    };
+    const sync = () => {
+      if (!live) return;
+      if (on && !(mq && mq.matches) && typeof requestAnimationFrame === "function") { if (!raf) raf = requestAnimationFrame(tick); return; }
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      g.innerHTML = still;
+    };
+    g.innerHTML = still;
+    const io = on ? null : new IntersectionObserver((es) => { on = es[es.length - 1].isIntersecting; sync(); });
+    if (io) io.observe(watch);
+    if (mq) { if (mq.addEventListener) mq.addEventListener("change", sync); else if (mq.addListener) mq.addListener(sync); }
+    sync();
+    return () => {
+      live = false;
+      if (io) io.disconnect();
+      if (mq) { if (mq.removeEventListener) mq.removeEventListener("change", sync); else if (mq.removeListener) mq.removeListener(sync); }
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    };
+  }
+
+  /** Turn the glass in `svg` (an empty <svg> beside `img`, both in one positioned wrapper) over the
+   *  lockup's triangles, as the app's masthead turns (turnInto). `img` is handed `bare` (the lockup
+   *  without its triangles) once that file has loaded, so the flat triangles never show under the
+   *  glass, and if anything is missing the flat lockup simply stays. Returns stop(), which puts the
+   *  flat lockup back. */
+  function mountNav(svg, img, opts) {
+    const o = opts || {};
+    if (!svg || !img || !o.bare || typeof document === "undefined") return () => {};
+    const spec = navSpec(!!o.dark);
+    const full = img.getAttribute("src");
+    const place = navPlace();
+    svg.setAttribute("viewBox", "0 0 99 113");
+    svg.setAttribute("aria-hidden", "true");
+    Object.assign(svg.style, { position: "absolute", left: place.left, top: place.top, width: place.width,
+      height: place.height, overflow: "visible", pointerEvents: "none" });
+    let g = svg.querySelector("g");
+    if (!g) g = svg.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "g"));
+    let live = true, stopTurn = null;
+    const pre = new Image();
+    pre.onload = () => {
+      if (!live) return;
+      img.setAttribute("src", o.bare);
+      stopTurn = turnInto(g, spec, svg);
+    };
+    pre.src = o.bare;
+    return () => {
+      live = false;
+      if (stopTurn) stopTurn();
+      g.innerHTML = "";
+      img.setAttribute("src", full);
+    };
+  }
+
+  /** The same turning glass in a mark of its own (the dashboard rail's): `svg` has viewBox
+   *  0 0 99 113 and holds a `.flat` group (the flat triangles, the fallback) and an empty `.glass`
+   *  group. The glass draws into `.glass` and the flat group hides; stop() shows it again. */
+  function mountMark(svg, opts) {
+    const o = opts || {};
+    const flat = svg && svg.querySelector(".flat"), glass = svg && svg.querySelector(".glass");
+    if (!flat || !glass) return () => {};
+    const stopTurn = turnInto(glass, navSpec(!!o.dark), svg);
+    flat.style.display = "none";
+    return () => { stopTurn(); glass.innerHTML = ""; flat.style.display = ""; };
+  }
+
+  return { SITE, APP, REST, STILL, MAST, SPIN, SETTLE, TURN, NAV_BOX, logo, pose, turn, blend, render, play, navPlace, mountNav, mountMark };
 });

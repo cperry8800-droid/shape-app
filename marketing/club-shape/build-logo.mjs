@@ -268,8 +268,14 @@ export const SITE_FILES = {
   'public/club-shape-logo-white.svg': () => [stacked(SITE_PAD), SCHEMES['-mono-white']],
   'public/club-shape-logo-black.svg': () => [stacked(SITE_PAD), SCHEMES['-mono-black']],
   'public/club-shape-logo-teal-white.svg': () => [stacked(SITE_PAD), SCHEMES['']],
+  // The lockup without its triangles, same box: the website bar hands its <img> these once the
+  // turning glass mark (splitGlassMark.js's mountNav) has taken the triangles' place.
+  'public/club-shape-logo-bare-white.svg': () => [{ ...stacked(SITE_PAD), mark: { teal: [], white: [] } }, SCHEMES['-mono-white']],
+  'public/club-shape-logo-bare-black.svg': () => [{ ...stacked(SITE_PAD), mark: { teal: [], white: [] } }, SCHEMES['-mono-black']],
   'mobile-app/public/club-shape-logo.svg': () => [stacked(SITE_PAD), SCHEMES['']],
   'mobile-app/public/club-shape-wordmark.svg': () => [wordmark(SITE_PAD), SCHEMES['-mono-white']],
+  // The website dashboard rail's wordmark, drawn as a CSS mask so it takes the paper's ink (dash.css).
+  'public/club-shape-wordmark.svg': () => [wordmark(SITE_PAD), SCHEMES['-mono-white']],
 };
 
 async function main() {

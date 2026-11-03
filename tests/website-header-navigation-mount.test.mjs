@@ -30,7 +30,7 @@ test('account controls survive remount; first pointer click opens switcher; fail
       ShapeMobileStyles: noop, NavDropdown: noop, SiteSearch: noop, DashInbox: noop, RadioWordmark: noop, MobileDrawer: noop,
       navSans: 'sans-serif', navDisp: 'sans-serif', sans: 'sans-serif', navChamfer: 'none',
       INK: '#111', TEAL: '#099', TEAL_BRIGHT: '#0bb', TEAL_APP: '#0aa', RUST: '#800',
-      NAV_PILL_H: 30, NAV_H: 72, NAV_LOGO_H: 40,
+      NAV_PILL_H: 30, NAV_H: 72, NAV_LOGO_H: 40, useNavGlass: noop, NAV_MARK_WRAP: {}, NAV_GLASS_IDLE: {},
       alert: text => alerts.push(text),
       fetch: () => { calls++; return new Promise(resolve => { finish = resolve; }); },
     };

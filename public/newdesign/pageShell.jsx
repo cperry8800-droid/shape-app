@@ -56,6 +56,42 @@ function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
   );
 }
 
+// ── The bar's turning mark (owner, 2026-11-03: "add the same effect to the triangles in top left
+// logo on nav bar that we did on the app. Some same effects as the splash pages") ──────────────────
+// splitGlassMark.js's mountNav lays the app masthead's split-glass prisms, turning, over the
+// lockup's triangles (see there). The homepage loads that script for its splash; other pages load it
+// here, once. If it never arrives, the flat lockup stays.
+let _shapeSplitGlass = null;
+function loadSplitGlass() {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  if (window.SplitGlassMark) return Promise.resolve(window.SplitGlassMark);
+  if (!_shapeSplitGlass) _shapeSplitGlass = new Promise((resolve) => {
+    const tag = document.createElement("script");
+    tag.src = "/newdesign/splitGlassMark.js";
+    tag.async = true;
+    tag.onload = () => resolve(window.SplitGlassMark || null);
+    tag.onerror = () => resolve(null);
+    document.head.appendChild(tag);
+  });
+  return _shapeSplitGlass;
+}
+/** Turn the glass in `ref`'s wrapper (an <img> of the lockup and an empty <svg>) for one paper. */
+function useNavGlass(ref, dark, bare) {
+  React.useEffect(() => {
+    let stop = null, gone = false;
+    loadSplitGlass().then((SG) => {
+      const el = ref.current;
+      if (gone || !el || !SG || typeof SG.mountNav !== "function") return;
+      stop = SG.mountNav(el.querySelector("svg"), el.querySelector("img"), { dark, bare });
+    });
+    return () => { gone = true; if (stop) stop(); };
+  }, []);
+}
+// Each paper's lockup in its wrapper: the <img> keeps its paper's display token (and so the
+// paper switch), and the glass sits over its triangles once mounted (zero-size until then).
+const NAV_MARK_WRAP = { position: "relative", lineHeight: 0 };
+const NAV_GLASS_IDLE = { position: "absolute", width: 0, height: 0 };
+
 function Logo({ variant = "black", size = 28, height = null }) {
   // The Club Shape logo (owner, 2026-11-03): the two triangles stacked over CLUB SHAPE, drawn by
   // marketing/club-shape/build-logo.mjs --site. It is about 4:1, twice as wide as the SHAPE lockup
@@ -1453,6 +1489,10 @@ function useStaffLevel(authUser) {
 function Header({ active }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const burgerRef = React.useRef(null);
+  const markDarkRef = React.useRef(null);
+  const markLightRef = React.useRef(null);
+  useNavGlass(markDarkRef, true, "/club-shape-logo-bare-white.svg");
+  useNavGlass(markLightRef, false, "/club-shape-logo-bare-black.svg");
   // ⚠ THE DRAWER IS THE NARROW SCREEN'S NAV, SO IT CLOSES WHEN THE SCREEN STOPS BEING ONE.
   // Widened past the collapse width (1020px, or 1120 and 1170 for the wider signed-in
   // headers), the burger hides and the tabs come back, but the drawer stayed open over
@@ -1586,7 +1626,7 @@ function Header({ active }) {
           lines at 1180px. */}
       <div className="shape-header-inner" style={{ maxWidth: 1440, margin: "0 auto", display: "flex", alignItems: "center", height: NAV_H, padding: "0 32px", gap: 26 }}>
         <a href="index.html" className="shape-nav-logo" style={{ flex: "1 1 0", minWidth: "max-content", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-          <img src="/club-shape-logo-teal-white.svg" alt="Club Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} /><img src="/club-shape-logo-black.svg" alt="Club Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} />
+          <span ref={markDarkRef} className="shape-nav-mark" style={{ ...NAV_MARK_WRAP, display: "var(--sh-logo-dark, block)" }}><img src="/club-shape-logo-teal-white.svg" alt="Club Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} /><svg className="shape-nav-glass" style={NAV_GLASS_IDLE} /></span><span ref={markLightRef} className="shape-nav-mark" style={{ ...NAV_MARK_WRAP, display: "var(--sh-logo-light, none)" }}><img src="/club-shape-logo-black.svg" alt="Club Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} /><svg className="shape-nav-glass" style={NAV_GLASS_IDLE} /></span>
         </a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", flex: "0 1 auto", minWidth: 0 }}>
           {navGroupsFor(authUser).map(g => g.kind === "drop"
