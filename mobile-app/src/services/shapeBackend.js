@@ -8814,15 +8814,21 @@ async function uploadVoiceNote({ kind, threadId, blob, ext, mime } = {}) {
   if (error) throw error;
   return { path };
 }
-const _voiceUrls = new Map(); // path → { url, until }
+const _voiceUrls = new Map(); // `${user}|${path}` → { url, until }
 async function voiceNoteUrl(path) {
-  if (!supabase || !path) throw new Error('No voice note.');
+  // A link is one account's: kept under it, asked for only while signed in, and never kept or handed
+  // on when the account changed while it was being signed (sign-out clears the cache, and a request
+  // still in flight must not fill it again; Codex P1 on #2567).
+  const who = state.user?.id;
+  if (!supabase || !path || !who) throw new Error('No voice note.');
+  const key = `${who}|${path}`;
   const now = Date.now();
-  const hit = _voiceUrls.get(path);
+  const hit = _voiceUrls.get(key);
   if (hit && hit.until > now) return hit.url;
   const { data, error } = await supabase.storage.from(BS_VOICE.BUCKET).createSignedUrl(path, BS_VOICE.SIGNED_SEC);
   if (error || !data || !data.signedUrl) throw error || new Error('No link for this voice note.');
-  _voiceUrls.set(path, { url: data.signedUrl, until: now + (BS_VOICE.SIGNED_SEC - 300) * 1000 });
+  if (state.user?.id !== who) throw new Error('Signed out.');
+  _voiceUrls.set(key, { url: data.signedUrl, until: now + (BS_VOICE.SIGNED_SEC - 300) * 1000 });
   return data.signedUrl;
 }
 // An upload whose message could not be stored is removed, so no recording is left with nothing pointing
@@ -8830,7 +8836,7 @@ async function voiceNoteUrl(path) {
 // the note is gone and never throws: the caller is already handling a failed send.
 async function removeVoiceNote(path) {
   if (!supabase || !path) return false;
-  _voiceUrls.delete(path);
+  _voiceUrls.delete(`${state.user?.id}|${path}`);
   try {
     const { error } = await supabase.storage.from(BS_VOICE.BUCKET).remove([path]);
     return !error;

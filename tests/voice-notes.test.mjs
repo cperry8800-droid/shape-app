@@ -147,9 +147,10 @@ function loadVoiceWire({ user = { id: ME }, upload = async () => ({ error: null 
   let now = 1_000_000;
   const RealDate = Date;
   const FakeDate = { now: () => now };
+  const state = { user };
   const api = new Function('supabase', 'state', 'window', 'BS_VOICE', 'bsVoicePath', 'Date',
-    `${VOICE_BLOCK}; return { uploadVoiceNote, voiceNoteUrl, removeVoiceNote, _voiceUrls };`)(supabase, { user }, window, BS_VOICE, bsVoicePath, { now: () => FakeDate.now(), prototype: RealDate.prototype });
-  return { ...api, calls, window, advance: (ms) => { now += ms; } };
+    `${VOICE_BLOCK}; return { uploadVoiceNote, voiceNoteUrl, removeVoiceNote, _voiceUrls };`)(supabase, state, window, BS_VOICE, bsVoicePath, { now: () => FakeDate.now(), prototype: RealDate.prototype });
+  return { ...api, calls, window, state, advance: (ms) => { now += ms; } };
 }
 const blob = (size = 10) => ({ size });
 
@@ -180,6 +181,9 @@ test('the playable link: signed for an hour, kept until five minutes before it e
   const bad = loadVoiceWire({ sign: async () => ({ data: null, error: new Error('Object not found') }) });
   await assert.rejects(bad.voiceNoteUrl(VOICE.path), /not found/);
   await assert.rejects(w.voiceNoteUrl(''), /No voice note/);
+  const out = loadVoiceWire({ user: null });
+  await assert.rejects(out.voiceNoteUrl(VOICE.path), /No voice note/, 'signed out, no link');
+  assert.equal(out.calls.sign.length, 0, 'and none asked for');
   assert.match(BACKEND, /\/\/ \.\.\.and so are the voice notes' signed links\.\n  try \{ _voiceUrls\.clear\(\); \} catch \(e\) \{\}/, 'sign-out forgets the links');
 });
 
@@ -189,13 +193,34 @@ test('remove: an upload whose message was never stored is taken back out, and it
   assert.equal(w.window.ShapeVoiceNotes.remove, w.removeVoiceNote);
   assert.equal(await w.removeVoiceNote(VOICE.path), true);
   assert.deepEqual(w.calls.remove, [{ bucket: 'voice-notes', paths: [VOICE.path] }]);
-  assert.equal(w._voiceUrls.has(VOICE.path), false, 'its link is forgotten');
+  assert.equal(w._voiceUrls.size, 0, 'its link is forgotten');
   assert.equal(await w.removeVoiceNote(''), false, 'nothing to remove');
   assert.equal(w.calls.remove.length, 1);
   const refused = loadVoiceWire({ remove: async () => ({ data: null, error: new Error('denied') }) });
   assert.equal(await refused.removeVoiceNote(VOICE.path), false, 'a refusal is a no');
   const offline = loadVoiceWire({ remove: async () => { throw new TypeError('Failed to fetch'); } });
   assert.equal(await offline.removeVoiceNote(VOICE.path), false, 'and so is no network: it never throws');
+});
+
+test('a link is one account\'s: one signed as the account changed is never kept or handed on (Codex P1 on #2567)', async () => {
+  let release;
+  const w = loadVoiceWire({ sign: () => new Promise((r) => { release = () => r({ data: { signedUrl: 'https://s/A' }, error: null }); }) });
+  const asked = w.voiceNoteUrl(VOICE.path);
+  w.state.user = null;              // signed out while it was being signed
+  release();
+  await assert.rejects(asked, /Signed out/);
+  assert.equal(w._voiceUrls.size, 0, 'not kept');
+  const ab = loadVoiceWire({ sign: () => new Promise((r) => { release = () => r({ data: { signedUrl: 'https://s/A' }, error: null }); }) });
+  const forA = ab.voiceNoteUrl(VOICE.path);
+  ab.state.user = { id: HER };      // switched to another account
+  release();
+  await assert.rejects(forA, /Signed out/, 'nor handed to the next account');
+  // A link kept for one account is not the next one's: it asks again under its own.
+  const two = loadVoiceWire();
+  await two.voiceNoteUrl(VOICE.path);
+  two.state.user = { id: HER };
+  await two.voiceNoteUrl(VOICE.path);
+  assert.equal(two.calls.sign.length, 2, 'each account signs its own');
 });
 
 const fnSrc = (name) => {
@@ -444,7 +469,7 @@ function playerRig({ url = async (p) => `https://s/${p}` } = {}) {
   const saved = { Audio: window.Audio, notes: window.ShapeVoiceNotes, add: window.addEventListener, remove: window.removeEventListener, dispatch: window.dispatchEvent, toast: window.__bsToast };
   const st = { audios: [], urls: [], toasts: [], listeners: {} };
   // Setting a source (even the same one) reloads it from the top, as a real player does.
-  window.Audio = class { constructor() { this._src = ''; this.l = {}; this.playbackRate = 1; this.currentTime = 0; this.duration = NaN; st.audios.push(this); } get src() { return this._src; } set src(v) { this._src = v; this.currentTime = 0; this.sets = (this.sets || 0) + 1; } addEventListener(t, f) { (this.l[t] ||= []).push(f); } emit(t) { (this.l[t] || []).forEach((f) => f()); } async play() { this.emit('play'); } pause() { this.emit('pause'); } };
+  window.Audio = class { constructor() { this._src = ''; this.l = {}; this.playbackRate = 1; this.currentTime = 0; this.duration = NaN; st.audios.push(this); } get src() { return this._src; } set src(v) { this._src = v; this.currentTime = 0; this.sets = (this.sets || 0) + 1; } addEventListener(t, f) { (this.l[t] ||= []).push(f); } emit(t) { (this.l[t] || []).forEach((f) => f()); } async play() { this.played = (this.played || 0) + 1; this.emit('play'); } pause() { this.emit('pause'); } };
   window.ShapeVoiceNotes = { url: async (p) => { st.urls.push(p); return url(p); } };
   window.addEventListener = (type, fn) => { (st.listeners[type] ||= []).push(fn); };
   window.removeEventListener = (type, fn) => { st.listeners[type] = (st.listeners[type] || []).filter((f) => f !== fn); };
@@ -519,6 +544,23 @@ test('the player: a note left open past its hour is handed a new link, and takes
     assert.equal(st.urls.length, 2, 'no link asked for the phone\'s copy');
     assert.equal(st.audios[1].src, 'blob:mine');
     assert.equal(st.audios[1].sets, 1, 'and its copy is set once, never reloaded');
+  } finally { st.restore(); }
+});
+
+test('the player: a play still waiting for its link when the thread closes never starts (Codex P2 on #2567)', async () => {
+  let release;
+  const st = playerRig({ url: () => new Promise((r) => { release = () => r(`https://s/${VOICE.path}`); }) });
+  try {
+    const { d, effects } = mountPlayer({ path: VOICE.path, duration: 5, peaks: [], mime: 'audio/mp4' });
+    const cleanups = effects.map((fn) => fn()).filter((x) => typeof x === 'function');
+    const tapped = byAttr(d, 'data-voice-play').props.onClick({ stopPropagation() {} });
+    cleanups.forEach((fn) => fn());   // the thread closes
+    release();
+    await tapped;
+    const a = st.audios[0];
+    assert.equal(a.src, '', 'no source set');
+    assert.equal(a.played, undefined, 'and it never plays');
+    assert.deepEqual(st.toasts, [], 'nor says it could not');
   } finally { st.restore(); }
 });
 
@@ -611,6 +653,21 @@ test('sending a note: shown at once from the phone, uploaded to the thread\'s fo
   assert.match(calls.send[0].metadata.cid, /^tmp-/);
   assert.equal(after.props.voice.pending, false);
   assert.equal(after.props.voice.failed, undefined);
+  assert.equal(after.props.voice.path, `dm/${CONV}/${ME}/new.m4a`, 'it keeps where it is stored');
+});
+
+test('a phone that makes no copy of its own still plays the note it sent, from storage (Codex P2 on #2567)', async () => {
+  const saved = URL.createObjectURL;
+  URL.createObjectURL = () => { throw new Error('not here'); };
+  try {
+    const { pending, after } = await sendThrough(DM(), {
+      ShapeVoiceNotes: { upload: async () => ({ path: `dm/${CONV}/${ME}/nc.m4a` }), remove: async () => true },
+      ShapeMessages: { sendMessage: async () => ({ data: { id: 'm20' } }) },
+    });
+    assert.equal(pending.props.voice.localUrl, null, 'no copy on the phone');
+    assert.equal(after.props.voice.localUrl, null);
+    assert.equal(after.props.voice.path, `dm/${CONV}/${ME}/nc.m4a`, 'so it plays from where it is stored');
+  } finally { URL.createObjectURL = saved; }
 });
 
 test('a channel note goes as the channel\'s voice; a note that fails says Not sent and why', async () => {

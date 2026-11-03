@@ -70,8 +70,10 @@ export function bsVoicePeaks(levels, n = BS_VOICE.PEAKS) {
 // 0..1, its type one the app records. Anything else reads as no note at all, and so does a message
 // read without its sender: every reader passes the row's sender_id.
 export function bsVoiceFromMetadata(md, { kind = null, threadId = null, senderId = null } = {}) {
-  const v = md && typeof md === 'object' && !Array.isArray(md) ? md.voice : null;
-  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  // Anything that isn't an object with a path of the bucket's shape (an array, a string, a number, from
+  // JSON) has no such path, so it falls out below as no note.
+  const v = md && md.voice;
+  if (!v) return null;
   const path = typeof v.path === 'string' ? v.path : '';
   const m = BS_VOICE_PATH.exec(path);
   if (!m) return null;

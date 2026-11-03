@@ -179,15 +179,20 @@ export function BSVoiceNotePlayer({ voice, mine = false, t, accent }) {
   const [rate, setRate] = useState(1);
   const audioRef = useRef(null);
   const idRef = useRef(null);
+  const goneRef = useRef(false);
   if (idRef.current == null) { _voicePlayerSeq += 1; idRef.current = `vn-${_voicePlayerSeq}`; }
   const duration = Number(voice && voice.duration) || 0;
   const peaks = voice && Array.isArray(voice.peaks) && voice.peaks.length ? voice.peaks : Array(BS_VOICE.PEAKS).fill(0);
 
   // One note at a time: another one starting pauses this one.
+  // And a player that has gone never starts: a play still waiting for its link when the thread closes
+  // stops there (Codex P2 on #2567).
   useEffect(() => {
+    goneRef.current = false;
     const other = (e) => { if (e && e.detail !== idRef.current && audioRef.current) { try { audioRef.current.pause(); } catch (err) { /* paused */ } } };
     try { window.addEventListener('shape:voicePlay', other); } catch (e) { /* no window events here */ }
     return () => {
+      goneRef.current = true;
       try { window.removeEventListener('shape:voicePlay', other); } catch (e) { /* as above */ }
       if (audioRef.current) { try { audioRef.current.pause(); } catch (e) { /* paused */ } }
     };
@@ -225,6 +230,7 @@ export function BSVoiceNotePlayer({ voice, mine = false, t, accent }) {
       // where it was (Codex P2 on #2567); the same source is never set again (that would reload it).
       if (!a.src) setLoading(true);
       const src = await source();
+      if (goneRef.current) return;
       if (src !== a.src) {
         const at = a.src ? a.currentTime || 0 : 0;
         a.src = src;

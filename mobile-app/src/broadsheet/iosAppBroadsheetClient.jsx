@@ -27355,9 +27355,11 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
           : window.ShapeChannels.sendMessage({ channelId: thread.channelId, body, voice, ...(reply ? { reply } : {}) });
         // Uploaded but never stored: the recording is removed rather than left with no message pointing
         // at it (Codex P2 on #2567). remove() never rejects.
-        return Promise.resolve(sent).catch((err) => { notes.remove(path); throw err; });
+        return Promise.resolve(sent).then((res) => ({ res, path }), (err) => { notes.remove(path); throw err; });
       })
-      .then(res => { const id = res && res.data && res.data.id; const at = res && res.data && res.data.created_at; mark({ ...(id ? { id } : {}), ...(at ? { at } : {}) }, { pending: false }); })
+      // Stored: the note keeps where it is, so it plays from storage when the phone made no copy of its
+      // own (Codex P2 on #2567).
+      .then(({ res, path }) => { const id = res && res.data && res.data.id; const at = res && res.data && res.data.created_at; mark({ ...(id ? { id } : {}), ...(at ? { at } : {}) }, { pending: false, path }); })
       .catch(() => {
         mark({}, { pending: false, failed: true });
         releaseLocal(localUrl);
