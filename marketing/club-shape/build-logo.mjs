@@ -56,6 +56,7 @@ export const LOCKUP = {
   inlineMarkDrop: 0.06,       //   its middle this far under the caps' middle (as SHAPE ▸◂ RADIO sits)
   inlineGap: 1.3,             //   and a word space from the words on each side
   pad: 0.6,                   // clear space round each file
+  tilePad: 1.4,               // and round the logo on a tile (a file with its own background)
 };
 
 // ── Strokes → outlines ───────────────────────────────────────────────────────────────────────────
@@ -146,9 +147,9 @@ function markPolys({ x, y, height }) {
 // ── The lockups ──────────────────────────────────────────────────────────────────────────────────
 const CAP = 100;   // the files' cap height, in SVG units
 
-// The mark over CLUB SHAPE.
-function stacked() {
-  const pad = LOCKUP.pad * CAP;
+// The mark over CLUB SHAPE, with `padCaps` of clear space round it.
+function stacked(padCaps = LOCKUP.pad) {
+  const pad = padCaps * CAP;
   const markH = LOCKUP.markCaps * CAP;
   const all = places('CLUB SHAPE');
   const shapeAt = all[4][1] * CAP;
@@ -166,9 +167,9 @@ function stacked() {
   };
 }
 
-// CLUB ▸◂ SHAPE on one line.
-function horizontal() {
-  const pad = LOCKUP.pad * CAP;
+// CLUB ▸◂ SHAPE on one line, with `padCaps` of clear space round it.
+function horizontal(padCaps = LOCKUP.pad) {
+  const pad = padCaps * CAP;
   const g = LOCKUP.inlineGap * CAP;
   const club = wordPolys('CLUB', { x: 0, y: 0, cap: CAP });
   const mark0 = markPolys({ x: 0, y: 0, height: LOCKUP.inlineMarkCaps * CAP });
@@ -190,21 +191,29 @@ function horizontal() {
   };
 }
 
-// Each file's colours: [CLUB, SHAPE, ▸, ◂].
+// Each file's colours (CLUB, SHAPE, the teal ▸, the white ◂), its own background if it is a tile,
+// and the sheet preview.png shows it on. Every scheme sets the same lockup, so the sizing and the
+// spacing are the same in all of them (a tile only has more room round it).
+const DARK = '#15110d', LIGHT = '#f2ede4';
+const all = (c) => ({ club: c, shape: c, teal: c, white: c });
 const SCHEMES = {
-  '':            { label: 'for dark backgrounds', club: COLORS.white, shape: COLORS.white, teal: COLORS.teal, white: COLORS.white },
-  '-ink':        { label: 'for light backgrounds', club: COLORS.ink, shape: COLORS.ink, teal: COLORS.teal, white: COLORS.ink },
-  '-teal':       { label: 'CLUB in teal, for dark backgrounds', club: COLORS.teal, shape: COLORS.white, teal: COLORS.teal, white: COLORS.white },
-  '-mono-white': { label: 'one colour, white', club: COLORS.white, shape: COLORS.white, teal: COLORS.white, white: COLORS.white },
-  '-mono-black': { label: 'one colour, black', club: '#000000', shape: '#000000', teal: '#000000', white: '#000000' },
+  '':            { label: 'white and teal, for dark backgrounds', club: COLORS.white, shape: COLORS.white, teal: COLORS.teal, white: COLORS.white, sheet: DARK },
+  '-ink':        { label: 'ink and teal, for light backgrounds', club: COLORS.ink, shape: COLORS.ink, teal: COLORS.teal, white: COLORS.ink, sheet: LIGHT },
+  '-on-white':   { label: 'a white tile: ink and teal', club: COLORS.ink, shape: COLORS.ink, teal: COLORS.teal, white: COLORS.ink, bg: '#FFFFFF', sheet: DARK },
+  '-on-teal':    { label: 'a teal tile: all white (a teal ▸ would vanish on it)', ...all(COLORS.white), bg: COLORS.teal, sheet: DARK },
+  '-mono-white': { label: 'all white', ...all(COLORS.white), sheet: DARK },
+  '-mono-black': { label: 'all black', ...all('#000000'), sheet: LIGHT },
+  '-teal':       { label: 'CLUB in teal, for dark backgrounds (an alternate)', club: COLORS.teal, shape: COLORS.white, teal: COLORS.teal, white: COLORS.white, sheet: DARK },
 };
+const LOCKUPS = { stacked, horizontal };
+const build = (name, s) => LOCKUPS[name](s.bg ? LOCKUP.tilePad : LOCKUP.pad);
 
-function svgOf(l, s, { background = null } = {}) {
+function svgOf(l, s) {
   const W = n2(l.W), H = n2(l.H);
   const fill = (color, polys) => `<path fill="${color}" d="${pathOf(polys)}"/>`;
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Club Shape">`,
-    background ? `<rect width="${W}" height="${H}" fill="${background}"/>` : '',
+    s.bg ? `<rect width="${W}" height="${H}" fill="${s.bg}"/>` : '',
     fill(s.teal, l.mark.teal),
     fill(s.white, l.mark.white),
     fill(s.club, l.club),
@@ -248,12 +257,11 @@ async function main() {
     await check(sharp);
     return;
   }
-  const lockups = { stacked: stacked(), horizontal: horizontal() };
   mkdirSync(join(HERE, 'png'), { recursive: true });
   const written = [];
-  for (const [name, l] of Object.entries(lockups)) {
+  for (const name of Object.keys(LOCKUPS)) {
     for (const [suffix, s] of Object.entries(SCHEMES)) {
-      if (name === 'horizontal' && suffix.startsWith('-mono')) continue;
+      const l = build(name, s);
       const file = `club-shape-${name}${suffix}.svg`;
       const svg = svgOf(l, s);
       writeFileSync(join(HERE, file), svg);
@@ -263,32 +271,29 @@ async function main() {
       }
     }
   }
-  if (sharp) await preview(sharp, lockups);
+  if (sharp) await preview(sharp);
   console.log('wrote ' + written.join(', ') + (sharp ? ', png/*.png, preview.png' : ' (no sharp: SVGs only)'));
 }
 
-// One sheet with every lockup on the backgrounds it is for.
-async function preview(sharp, lockups) {
-  const DARK = '#15110d', LIGHT = '#f2ede4';
-  const rows = [
-    ['stacked', '', DARK], ['stacked', '-ink', LIGHT], ['stacked', '-teal', DARK],
-    ['horizontal', '', DARK], ['horizontal', '-ink', LIGHT], ['horizontal', '-teal', DARK],
-  ];
-  const W = 1600, panels = [];
-  let y = 0;
-  for (const [name, suffix, bg] of rows) {
-    const l = lockups[name];
-    const h = name === 'stacked' ? 560 : 260;
-    const svg = svgOf(l, SCHEMES[suffix]);
-    const scale = Math.min((W - 240) / l.W, (h - 80) / l.H);
-    const w = Math.round(l.W * scale), hh = Math.round(l.H * scale);
-    const img = await sharp(Buffer.from(svg), { density: 72 * scale * 1.0 }).resize({ width: w, height: hh, fit: 'fill' }).png().toBuffer();
-    const panel = await sharp({ create: { width: W, height: h, channels: 4, background: bg } })
-      .composite([{ input: img, left: Math.round((W - w) / 2), top: Math.round((h - hh) / 2) }]).png().toBuffer();
-    panels.push({ input: panel, left: 0, top: y });
-    y += h;
+// One sheet: a row per colour scheme (in SCHEMES' order), the stacked lockup on the left and the
+// one-line lockup on the right, each on the background it is for.
+async function preview(sharp) {
+  const COL = 1000, ROW = 300, M = 70, panels = [];
+  const order = Object.keys(SCHEMES);
+  for (const [r, suffix] of order.entries()) {
+    const s = SCHEMES[suffix];
+    for (const [c, name] of Object.keys(LOCKUPS).entries()) {
+      const l = build(name, s);
+      const scale = Math.min((COL - 2 * M) / l.W, (ROW - 2 * M) / l.H);
+      const w = Math.round(l.W * scale), h = Math.round(l.H * scale);
+      const img = await sharp(Buffer.from(svgOf(l, s)), { density: 72 * scale }).resize({ width: w, height: h, fit: 'fill' }).png().toBuffer();
+      const panel = await sharp({ create: { width: COL, height: ROW, channels: 4, background: s.sheet } })
+        .composite([{ input: img, left: Math.round((COL - w) / 2), top: Math.round((ROW - h) / 2) }]).png().toBuffer();
+      panels.push({ input: panel, left: c * COL, top: r * ROW });
+    }
   }
-  await sharp({ create: { width: W, height: y, channels: 4, background: DARK } }).composite(panels).png().toFile(join(HERE, 'preview.png'));
+  await sharp({ create: { width: 2 * COL, height: order.length * ROW, channels: 4, background: DARK } })
+    .composite(panels).png().toFile(join(HERE, 'preview.png'));
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
