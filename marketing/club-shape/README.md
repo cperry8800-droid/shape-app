@@ -6,6 +6,8 @@ Drafts for the owner's review; nothing in the app or the website uses these yet.
 - `preview.png` — every lockup in every colour version, on the background it is for.
 - `club-shape-stacked*.svg` — the mark over CLUB SHAPE, as the Shape logo sets it over SHAPE.
 - `club-shape-horizontal*.svg` — CLUB ▸◂ SHAPE on one line, as SHAPE ▸◂ RADIO sets its mark.
+- `mark-ideas.png` (from `mark-ideas.mjs`) — six other marks to weigh against the triangles, each
+  over CLUB SHAPE and as an app icon. Exploration only: no lockup files are made from them.
 - `png/` — each SVG at 2400 px wide: transparent, except the tiles, which carry their own background.
 
 Both lockups come in every colour version below, each with the same sizing and spacing (the stacked

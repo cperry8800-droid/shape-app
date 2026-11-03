@@ -14,7 +14,7 @@
 //   node marketing/club-shape/build-logo.mjs --check   scores the rebuilt SHAPE against the brand PNG
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { SLANT, GLYPHS, TH, TV } from '../../prototypes/nora-booth/src/wordmarkGlyphs.mjs';
 import { MARK_PNG } from '../../prototypes/nora-booth/src/screenArt.mjs';
@@ -62,7 +62,7 @@ export const LOCKUP = {
 // ── Strokes → outlines ───────────────────────────────────────────────────────────────────────────
 // Upright cap units, y up; the face's oblique is the shear x' = x + SLANT·y.
 const ARC_STEPS = 40;
-function partPolygon(p) {
+export function partPolygon(p) {
   if (p.k === 'seg') {
     const dx = p.b[0] - p.a[0], dy = p.b[1] - p.a[1], L = Math.hypot(dx, dy);
     const nx = (-dy / L) * p.t / 2, ny = (dx / L) * p.t / 2;
@@ -85,16 +85,16 @@ function partPolygon(p) {
 }
 
 // Every outline wound the same way, so overlapping strokes stay filled under the nonzero rule.
-function wind(poly) {
+export function wind(poly) {
   let s = 0;
   for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; s += a[0] * b[1] - b[0] * a[1]; }
   return s < 0 ? poly.slice().reverse() : poly;
 }
 const n2 = (v) => (Math.round(v * 100) / 100).toString();
-const pathOf = (polys) => polys.map((q) => 'M' + q.map(([x, y]) => n2(x) + ' ' + n2(y)).join('L') + 'Z').join('');
+export const pathOf = (polys) => polys.map((q) => 'M' + q.map(([x, y]) => n2(x) + ' ' + n2(y)).join('L') + 'Z').join('');
 
 // The letters' box positions for a word, in caps from its first box.
-function places(word) {
+export function places(word) {
   if (word === 'SHAPE') return Object.entries(SPACING.SHAPE);
   if (word === 'CLUB') {
     const g = SPACING.CLUB, at = { C: 0 };
@@ -120,7 +120,7 @@ const STEM_CORNERS = {
 };
 
 /** A word's outlines in SVG space: cap height `cap` px, first upright box at `x`, baseline at `y`. */
-function wordPolys(word, { x, y, cap }) {
+export function wordPolys(word, { x, y, cap }) {
   const polys = [];
   let right = 0;
   for (const [ch, at] of places(word)) {
@@ -145,7 +145,7 @@ function markPolys({ x, y, height }) {
 }
 
 // ── The lockups ──────────────────────────────────────────────────────────────────────────────────
-const CAP = 100;   // the files' cap height, in SVG units
+export const CAP = 100;   // the files' cap height, in SVG units
 
 // The mark over CLUB SHAPE, with `padCaps` of clear space round it.
 function stacked(padCaps = LOCKUP.pad) {
@@ -296,4 +296,7 @@ async function preview(sharp) {
     .composite(panels).png().toFile(join(HERE, 'preview.png'));
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+// Run as a script; imported (marketing/club-shape/mark-ideas.mjs), it only lends its letters.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}
