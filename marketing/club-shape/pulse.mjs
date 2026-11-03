@@ -27,7 +27,8 @@ const A_SLOPE = (() => { const p = GLYPHS.A.parts[0]; return (p.x1 - p.x0) / (p.
 // its own, scaled to the mark's height; INLINE is in caps, the line at the letters' middle bars.
 export const PULSE = {
   STACKED: { lead: 0.45, bump: 0.28, run: 0.2, rise: 1.0, fall: 0.56, legSlope: 0.26, tail: 0.55 },
-  INLINE: { lead: 0.55, bump: 0.3, run: 0.22, rise: 1.0, fall: 0.8, legSlope: 0.26, tail: 0.6 },
+  // a fifth smaller than first drawn (owner, 2026-11-03: "make the energy logo a little smaller")
+  INLINE: { lead: 0.44, bump: 0.24, run: 0.18, rise: 0.8, fall: 0.64, legSlope: 0.26, tail: 0.48 },
 };
 // lead: the line before the bump · bump: the small Λ's height, at the A's angle · run: the line from
 // the bump to the beat · rise, fall: the beat above the line and the dip below it · legSlope: the
