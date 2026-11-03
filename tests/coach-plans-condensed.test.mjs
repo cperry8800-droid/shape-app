@@ -1,4 +1,5 @@
-// The coach's Programs / Plans page, condensed (owner, 2026-10-31, of the Most popular card and the
+// The coach's Programs / Plans page, redrawn in direction A, the Instrument (owner, 2026-11-03), after it
+// was condensed (owner, 2026-10-31, of the Most popular card and the
 // "✦ Draft with Nora" / "＋ From scratch" buttons: "these can be condensed more").
 //
 // The Most popular card was an 88px band in the role's colour carrying the length at 34px ("12 wk")
@@ -49,7 +50,7 @@ for (const chrome of ['BSPage', 'BSFooter', 'BSBackButton', 'BSBackRow', 'BSMast
 
 const PROS = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), {
   registry: new Map([['react', React], ['react-dom', { createPortal: (n) => n }]]),
-  appendExports: 'export { BSProFeaturedPlan, bsProCreateButtons };',
+  appendExports: 'export { BSProFeaturedPlan, bsProCreateButtons, bsProDeckTheme };',
 });
 
 async function mount(el) {
@@ -61,59 +62,62 @@ async function mount(el) {
 }
 const nb = (s) => s.replace(/ /g, ' ');
 
-test('Most popular is one row: the length on a tile, the name, its price, clients and rating, and Assign', async () => {
+test('Most popular is the plate: the length on a block, "Most popular", the name, clients and rating, the weeks, the price and Assign', async () => {
+  // Direction A (owner, 2026-11-03). The words keep the condensed sizes (none over 20px); the length on
+  // its block is the one figure set large.
   let assigned = 0, opened = 0;
   const plan = { n: 'Push / Pull / Legs', meta: '12 wk · 48 on it · 4.9 ★', price: '$120/mo' };
   const m = await mount(React.createElement(PROS.BSProFeaturedPlan, { plan, heat: '#c0533b', t: theme, onOpen: () => { opened++; }, onAssign: () => { assigned++; } }));
   try {
     const card = m.host.querySelector('[data-featured-plan]');
-    assert.equal(card.style.display, 'grid', 'one card: the tile down the left, the name across the top');
-    assert.equal(card.style.gridTemplateColumns, '56px minmax(0, 1fr) auto');
-    const tile = card.children[0];
+    assert.equal(card.style.display, 'grid');
+    assert.equal(card.style.gridTemplateColumns, '72px minmax(0, 1fr)');
+    const [block, body] = card.children;
+    assert.equal(nb(block.textContent), '12WK');
+    assert.equal(block.style.background, 'rgb(192, 83, 59)', 'the block in the role\'s heat');
     const name = m.host.querySelector('[data-featured-name]');
     const assign = m.host.querySelector('[data-featured-assign]');
-    assert.equal(nb(tile.textContent), '12WK');
-    assert.equal(tile.style.width, '56px');
-    assert.equal(tile.style.height, '56px');
+    assert.match(body.textContent, /^Most popular/);
     assert.equal(name.textContent, 'Push / Pull / Legs');
-    assert.equal(name.style.gridColumn, '2 / span 2', 'the name has the card\'s width, not the space beside Assign');
     assert.equal(m.host.querySelector('[data-featured-price]').textContent, '$120/mo');
     const facts = m.host.querySelector('[data-featured-facts]').textContent;
     assert.equal(nb(facts), '48 clients · 4.9 ★');
-    assert.ok(facts.includes('4.9\u00a0★') && facts.includes('48\u00a0clients'), 'a fact breaks only between facts');
-    for (const el of card.querySelectorAll('[style*="font-size"]')) assert.ok(parseFloat(el.style.fontSize) <= 20, el.textContent + ' ' + el.style.fontSize);
+    assert.ok(facts.includes('4.9 ★') && facts.includes('48 clients'), 'a fact breaks only between facts');
+    assert.equal(m.host.querySelector('[data-featured-spine]').children.length, 12, 'a tick a week');
+    for (const el of body.querySelectorAll('[style*="font-size"]')) assert.ok(parseFloat(el.style.fontSize) <= 20, el.textContent + ' ' + el.style.fontSize);
     assert.equal(assign.textContent, 'Assign');
     assert.equal(assign.style.minHeight, '44px');
     name.click(); assign.click();
     assert.equal(opened, 1, 'the name opens it, and Assign does not');
     assert.equal(assigned, 1);
     m.host.querySelector('[data-featured-facts]').click();
-    assert.equal(opened, 2, 'the rest of the card opens it too');
+    assert.equal(opened, 2, 'the rest of the plate opens it too');
   } finally { await m.close(); }
 });
 
-test('a plan with no length has a ★ tile, and a plan with no price, clients or rating no facts line', async () => {
+test('a plan with no length has a ★ block, and a plan with no price, clients or rating no facts line', async () => {
   const m = await mount(React.createElement(PROS.BSProFeaturedPlan, { plan: { n: 'Lean Cut', meta: '2,400 kcal' }, heat: '#a07a2e', t: theme, onOpen: () => {}, onAssign: () => {} }));
   try {
-    const tile = m.host.querySelector('[data-featured-plan]').children[0];
-    assert.equal(tile.textContent, '★');
+    const block = m.host.querySelector('[data-featured-plan]').children[0];
+    assert.equal(block.textContent, '★');
     assert.ok(!m.host.querySelector('[data-featured-facts]'), 'no facts line');
     assert.ok(!m.host.querySelector('[data-featured-price]'), 'no price line');
+    assert.ok(!m.host.querySelector('[data-featured-spine]'), 'no weeks to draw');
   } finally { await m.close(); }
 });
 
-test('Draft with Nora and From scratch: 40px at 13.5 / 650, From scratch on a hairline', async () => {
+test('Nora\'s line on the deck: the line drafts, From scratch at its end builds blank, both 44 to tap', async () => {
   const calls = [];
-  const m = await mount(React.createElement('div', null, PROS.bsProCreateButtons(theme, '#c0533b', (k, o) => (o && o.defaultValue) || k, () => calls.push('nora'), () => calls.push('scratch'))));
+  const deck = PROS.bsProDeckTheme(theme);
+  const m = await mount(React.createElement('div', null, PROS.bsProCreateButtons(deck, '#c0533b', (k, o) => (o && o.defaultValue) || k, () => calls.push('nora'), () => calls.push('scratch'))));
   try {
     const nora = m.host.querySelector('[data-create="nora"]');
     const scratch = m.host.querySelector('[data-create="scratch"]');
-    for (const b of [nora, scratch]) {
-      assert.equal(b.style.minHeight, '40px');
-      assert.equal(b.style.fontSize, '13.5px');
-      assert.equal(b.style.fontWeight, '650');
-    }
-    assert.equal(scratch.style.border, '1px solid rgb(204, 204, 204)', 'a hairline (RULE), not the ink outline');
+    for (const b of [nora, scratch]) assert.ok(parseFloat(b.style.minHeight) >= 44, b.textContent + ' ' + b.style.minHeight);
+    assert.equal(nb(nora.textContent), '✦Draft with Nora…');
+    assert.equal(scratch.textContent, '＋ From scratch');
+    assert.equal(deck.PAPER, '#111', 'the deck is the paper\'s ink on a light paper');
+    assert.equal(m.host.querySelector('[data-create-line]').style.background.replace(/\s/g, ''), 'rgba(255,255,255,0.08)', 'the line on the deck\'s raised tone');
     nora.click(); scratch.click();
     assert.deepEqual(calls, ['nora', 'scratch']);
   } finally { await m.close(); }
