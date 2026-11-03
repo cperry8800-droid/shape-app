@@ -42,6 +42,16 @@ export function heardNow(programme, setStartMs, nowMs, { lagSec = HEARD_LAG_SEC 
   };
 }
 
+// ⚠ A SET'S OR BLOCK'S END TAKES EFFECT WHEN LISTENERS HEAR IT (Codex, #2574). The engine reports
+// it ended (or stopped, or was cut for the next) at the moment it stopped sending, and listeners
+// hear its last seconds HEARD_LAG_SEC later: until then, the song still sounding is named. A last
+// word with no time on it ends it at once.
+function stillOnAir(last, now) {
+  if (['started', 'song'].includes(last.event)) return true;
+  const stoppedAt = Date.parse(last.played_at);
+  return Number.isFinite(stoppedAt) && now - HEARD_LAG_SEC * 1000 < stoppedAt;
+}
+
 /** The now-playing payload while a Nora set is on the air, or null when none is. */
 export async function noraOnAir(db, { now }) {
   const { data: sets, error } = await db.from('nora_sets').select('id,starts_at,duration_min')
@@ -50,8 +60,8 @@ export async function noraOnAir(db, { now }) {
     .order('starts_at', { ascending: false }).limit(3);
   if (error || !sets || !sets.length) return null;
   for (const set of sets) {
-    const { data: last } = await db.from('nora_engine_log').select('event').eq('set_id', set.id).order('logged_at', { ascending: false }).limit(1).maybeSingle();
-    if (!last || !['started', 'song'].includes(last.event)) continue;
+    const { data: last } = await db.from('nora_engine_log').select('event,played_at').eq('set_id', set.id).order('logged_at', { ascending: false }).limit(1).maybeSingle();
+    if (!last || !stillOnAir(last, now)) continue;
     const { data: prog } = await db.from('nora_set_programmes').select('programme').eq('set_id', set.id).maybeSingle();
     if (!prog) continue;
     const heard = heardNow(prog.programme, Date.parse(set.starts_at), now);
@@ -89,13 +99,8 @@ export async function rotationOnAir(db, { now }) {
     const { data: log, error: lErr } = await db.from('nora_engine_log').select('event,track_id,title,artist,played_at')
       .eq('block_id', block.id).order('logged_at', { ascending: false }).limit(60);
     if (lErr || !log || !log.length) continue;
-    // ⚠ A BLOCK'S END TAKES EFFECT WHEN LISTENERS HEAR IT (Codex, #2574). The engine reports it
-    // ended (or stopped, or was cut for her set) at the moment it stopped sending, and listeners
-    // hear its last seconds HEARD_LAG_SEC later: until then, the song still sounding is named.
-    if (!['started', 'song'].includes(log[0].event)) {
-      const stoppedAt = Date.parse(log[0].played_at);
-      if (!(Number.isFinite(stoppedAt) && now - HEARD_LAG_SEC * 1000 < stoppedAt)) continue;
-    }
+    // Its end, as her sets' (stillOnAir): once listeners have heard it.
+    if (!stillOnAir(log[0], now)) continue;
     // ⚠ MATCHED BY ITS TRACK, OR, FOR A TRACK DELETED FROM THE LIBRARY SINCE (its id set null), BY
     // THE TITLE AND ARTIST THE REPORT COPIED (Codex, #2574): the engine has the song decoded and
     // plays it on, and so it is named on. ⚠ AND BY WHEN (Codex, #2574): two songs of a block can
