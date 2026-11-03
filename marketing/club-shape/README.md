@@ -17,6 +17,10 @@ Drafts for the owner's review; nothing in the app or the website uses these yet.
   `club-shape-wave-horizontal*.svg` (CLUB, the wave, SHAPE) and `club-shape-wave-stacked*.svg` in the
   same seven colour versions as below, `club-shape-wave-icon-{dark,teal,white}.svg` (1024 px,
   square, full-bleed: the stores round the corners), each also in `wave/png/`, and `wave/preview.png`.
+- **`triangle-beat/` (from `trianglebeat.mjs`) — the triangle beat, the owner's other pick, perfected**:
+  the pulse's beat as Shape's two triangles, upright and even-sided, split by a stem-wide channel
+  along the beat's fall as the Shape mark splits its pair. The same files as `wave/`
+  (`club-shape-beat-*`). Both sets are written by `markset.mjs`.
 - `png/` — each SVG at 2400 px wide: transparent, except the tiles, which carry their own background.
 
 Both lockups come in every colour version below, each with the same sizing and spacing (the stacked

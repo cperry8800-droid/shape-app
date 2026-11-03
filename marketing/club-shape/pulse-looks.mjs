@@ -8,7 +8,7 @@
 //
 //   node marketing/club-shape/pulse-looks.mjs   writes marketing/club-shape/pulse-looks.png
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { SLANT, GLYPHS, TH, TV, MID } from '../../prototypes/nora-booth/src/wordmarkGlyphs.mjs';
 import { partPolygon, wind, pathOf, wordPolys, places, CAP, LOCKUP, COLORS } from './build-logo.mjs';
@@ -58,7 +58,7 @@ function pulsePoints(L0 = 0, L1 = 0, { bump = true, beats = [[P.rise, P.fall]] }
 }
 
 // ── The looks: each returns { white, teal, dim } outline lists (upright caps, line at v = 0) ──────
-const LOOKS = [
+export const LOOKS = [
   {
     name: 'Line', line: ['The pulse as it stands: a teal', 'beat on a white line.'],
     draw: (k) => { const { pts, beatLegs } = pulsePoints(); const b = new Set(beatLegs.flat().slice(0, 3));
@@ -214,4 +214,7 @@ async function main() {
   console.log('wrote marketing/club-shape/pulse-looks.png (' + LOOKS.length + ' looks)');
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+// Run as a script; imported (trianglebeat.mjs shows the sketch), it only lends its looks.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}
