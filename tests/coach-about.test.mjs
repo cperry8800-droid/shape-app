@@ -11,7 +11,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   bsProfileAbout, bsProfileLinks, bsProfileLinkable, bsProfilePrompts, bsProfileLinkHref, bsProfileLinkText, bsCleanStory, bsNormalizeProfileCustom,
-  BS_ABOUT_STORY_MAX, BS_PROMPTS_MAX, BS_PROMPT_A_MAX,
+  BS_ABOUT_STORY_MAX, BS_PROMPTS_MAX, BS_PROMPT_A_MAX, BS_ABOUT_LIST_MAX, BS_ABOUT_ITEM_MAX, bsAboutItems, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS,
 } from '../mobile-app/src/services/profileCustom.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -26,6 +26,39 @@ test('the story keeps its paragraphs; the facts are what they say, or left out',
   assert.equal(bsProfileAbout({ how: 'sometimes' }), null);
   assert.equal(bsProfileAbout({ story: '   ' }), null, 'nothing in it, no key');
   assert.equal(bsProfileAbout(['story']), null);
+});
+
+// Owner, 2026-11-03: "the about me should have more things to add. certificates, accolades, things like
+// that". Accolades and education and training are the coach's own lists; certificates are the ones Shape
+// verified (get_coach_certs), never a list the coach types.
+test('accolades and education: a title each, a detail and a year if given, eight at most, in order', () => {
+  const next = new Date().getFullYear() + 1;
+  assert.deepEqual(bsAboutItems([
+    { title: ' Coach of the Year ', detail: ' Brooklyn Fitness Awards ', year: '2024', extra: 'dropped' },
+    { title: '', detail: 'no title' }, null, 'text', ['x'],
+    { title: 'Featured', year: 1949 }, { title: 'Next year', year: next }, { title: 'Too far', year: next + 1 }, { title: 'Half', year: 2020.5 },
+  ]), [
+    { title: 'Coach of the Year', detail: 'Brooklyn Fitness Awards', year: 2024 },
+    { title: 'Featured' }, { title: 'Next year', year: next }, { title: 'Too far' }, { title: 'Half' },
+  ]);
+  assert.equal(bsAboutItems(Array.from({ length: 12 }, (_, i) => ({ title: `A${i}` }))).length, BS_ABOUT_LIST_MAX);
+  assert.equal(bsAboutItems([{ title: 'x'.repeat(BS_ABOUT_ITEM_MAX + 9) }])[0].title.length, BS_ABOUT_ITEM_MAX);
+  assert.deepEqual(bsAboutItems('nope'), []);
+  // In the About doc: kept after the facts, dropped when empty, and the cleaned doc cleans to itself (Nora's
+  // account setup refuses a write the cleaner would reshape).
+  const about = bsProfileAbout({ story: 'Hi', accolades: [{ title: 'A' }], education: [], certs: ['typed'] });
+  assert.deepEqual(about, { story: 'Hi', accolades: [{ title: 'A' }] }, 'no certificates the coach typed, no empty list');
+  assert.deepEqual(bsProfileAbout(about), about);
+  assert.deepEqual(bsProfileAbout({ education: [{ title: 'BSc' }] }), { education: [{ title: 'BSc' }] }, 'a list alone is an About');
+  assert.equal(bsProfileAbout({ accolades: [{ detail: 'no title' }] }), null);
+});
+
+// Owner, 2026-11-03: "coaches socials should be shown somewhere in this section if they choose to".
+test('the socials in the head: the coach\'s choice kept only as true, a glyph for every network', () => {
+  assert.deepEqual(bsNormalizeProfileCustom({ headLinks: true, links: { instagram: '@maya' } }, null), { headLinks: true, links: { instagram: '@maya' } });
+  for (const v of [false, 'yes', 1, null, {}]) assert.ok(!('headLinks' in bsNormalizeProfileCustom({ headLinks: v }, null)), `headLinks ${JSON.stringify(v)} kept`);
+  assert.deepEqual(Object.keys(BS_PROFILE_LINK_GLYPHS).sort(), [...BS_PROFILE_LINK_KEYS].sort(), 'a network with no glyph, or a glyph with no network');
+  for (const k of BS_PROFILE_LINK_KEYS) for (const d of BS_PROFILE_LINK_GLYPHS[k]) assert.match(d, /^M[\d.\s,a-zA-Z-]+$/, `${k}: not SVG path data`);
 });
 
 test('socials: the known networks, a handle or a web address, never another scheme', () => {
@@ -91,14 +124,16 @@ test("About me's words in all 13 languages, each one formatting", () => {
   const dir = join(ROOT, 'mobile-app/src/i18n/catalogs');
   const keys = ['trainer.tabAbout', 'about.title', 'about.years', 'about.howOnline', 'about.howInPerson', 'about.howBoth', 'about.languages', 'about.qa', 'about.socials', 'about.emptySelf', 'about.write', 'about.edit',
     'mine.tabAbout', 'mine.aboutTitle', 'mine.aboutSub', 'mine.story', 'mine.storyPh', 'mine.details', 'mine.years', 'mine.how', 'mine.howOnline', 'mine.howInPerson', 'mine.howBoth',
-    'mine.where', 'mine.wherePh', 'mine.languages', 'mine.languagesPh', 'mine.qa', 'mine.qaQuestion', 'mine.qaAnswer', 'mine.qaAdd', 'mine.qaRemove', 'mine.socials', 'mine.errLink', 'mine.errYears'];
+    'mine.where', 'mine.wherePh', 'mine.languages', 'mine.languagesPh', 'mine.qa', 'mine.qaQuestion', 'mine.qaAnswer', 'mine.qaAdd', 'mine.qaRemove', 'mine.socials', 'mine.errLink', 'mine.errYears',
+    'about.certs', 'about.certVerified', 'about.accolades', 'about.education', 'mine.accolades', 'mine.accoladePh', 'mine.accoladeFromPh', 'mine.accoladeAdd',
+    'mine.education', 'mine.educationPh', 'mine.educationFromPh', 'mine.educationAdd', 'mine.certsNote', 'mine.itemTitle', 'mine.itemDetail', 'mine.itemYear', 'mine.errItemTitle', 'mine.errItemYear', 'mine.socialsInHead'];
   const locales = readdirSync(dir);
   assert.equal(locales.length, 13);
   for (const l of locales) {
     const cat = JSON.parse(readFileSync(join(dir, l, 'profile.json'), 'utf8'));
     for (const k of keys) {
       assert.ok(cat[k], `${l} has no profile:${k}`);
-      const out = new IntlMessageFormat(cat[k], l === 'pt-BR' ? 'pt' : l).format({ name: 'Ana', count: 3, languages: 'X', n: 2, network: 'X', max: 60 });
+      const out = new IntlMessageFormat(cat[k], l === 'pt-BR' ? 'pt' : l).format({ name: 'Ana', count: 3, languages: 'X', n: 2, network: 'X', max: 60, min: 1950 });
       assert.ok(String(out).trim(), `${l} ${k} formats to nothing`);
     }
   }
