@@ -49,7 +49,8 @@ function fakeDb(tables, { fail = [], missing = [], noBlockColumn = false, race =
           rows().push({ ...st.payload });
           return { data: null, error: null };
         }
-        const hit = rows().filter((r) => st.filters.every((f) => f(r)));
+        let hit = rows().filter((r) => st.filters.every((f) => f(r)));
+        if (st.range) hit = hit.slice(st.range[0], st.range[1] + 1);
         return { data: st.single ? (hit[0] ? { ...hit[0] } : null) : hit.map((r) => ({ ...r })), error: null };
       };
       const chain = {
@@ -61,7 +62,11 @@ function fakeDb(tables, { fail = [], missing = [], noBlockColumn = false, race =
         gte(c, v) { st.filters.push((r) => String(r[c]) >= String(v)); return chain; },
         lt(c, v) { st.filters.push((r) => String(r[c]) < String(v)); return chain; },
         lte(c, v) { st.filters.push((r) => String(r[c]) <= String(v)); return chain; },
+        neq(c, v) { st.filters.push((r) => r[c] !== v); return chain; },
+        is(c, v) { st.filters.push((r) => (v === null ? r[c] == null : r[c] === v)); return chain; },
+        or() { return chain; },
         order() { return chain; },
+        range(a, b) { st.range = [a, b]; return chain; },
         limit() { return chain; },
         maybeSingle() { st.single = true; return chain; },
         then(res, rej) { return Promise.resolve(run()).then(res, rej); },
@@ -370,12 +375,13 @@ test('the play report lists the rotation\'s plays beside her sets\', and still r
   ];
   const r = await playsCsv(fakeDb({ nora_engine_log: log }), '2026-11');
   const lines = r.body.trim().split('\r\n');
-  assert.equal(lines[0], 'Played at (UTC),Featured artist,Sound recording title,ISRC,Album title,Marketing label,Nora set,Rotation block');
-  assert.equal(lines[1], `2026-11-03T10:00:00.000Z,A,a,,,,${SET},`);
-  assert.equal(lines[2], `2026-11-03T11:00:00.000Z,B,b,,,,,${BLK}`);
-  const before = await playsCsv(fakeDb({ nora_engine_log: [log[0]] }, { noBlockColumn: true }), '2026-11');
+  assert.equal(lines[0], 'Played at (UTC),Featured artist,Sound recording title,ISRC,Album title,Marketing label,Actual total performances,Nora set,Rotation block');
+  // No session yet: her set is not measured (blank); a block is Shape's own, and nobody heard it (0).
+  assert.equal(lines[1], `2026-11-03T10:00:00.000Z,A,a,,,,,${SET},`);
+  assert.equal(lines[2], `2026-11-03T11:00:00.000Z,B,b,,,,0,,${BLK}`);
+  const before = await playsCsv(fakeDb({ nora_engine_log: [log[0]] }, { noBlockColumn: true, missing: ['radio_listens'] }), '2026-11');
   assert.equal(before.status, 200);
-  assert.equal(before.body.trim().split('\r\n')[1], `2026-11-03T10:00:00.000Z,A,a,,,,${SET},`);
+  assert.equal(before.body.trim().split('\r\n')[1], `2026-11-03T10:00:00.000Z,A,a,,,,,${SET},`);
 });
 
 test('the admin\'s engine panel shows her sets\' reports, never the rotation\'s as hers (Codex, #2570)', LIMIT, () => {

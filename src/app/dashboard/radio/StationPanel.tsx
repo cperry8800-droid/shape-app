@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { rotationOnAir } from '@/lib/radio/noraOnAir.mjs';
 import { OWN_PROVIDER, engineQuiet, stationIdOf } from '@/lib/radio/station.mjs';
+import { listeningNow } from '@/lib/radio/listens.mjs';
 import { connectOwnStation, connectStation, disconnectStation } from './actions';
 
 // The station card on Nora's page (./NoraSets.tsx): where Shape Radio streams from, Shape's own
@@ -37,6 +38,9 @@ export default async function StationPanel({ station }: { station: Station }) {
   const lastAt = !lastReport.error && lastReport.data ? (lastReport.data as { logged_at: string }).logged_at : null;
   // The engine reports at every song; one quiet for longer than the longest song is not playing.
   const quiet = own && engineQuiet(lastAt, now);
+  // Who listens now, from the station's own word as each one joins and leaves (part 4).
+  let listening: { listening: number; openLong: number } | null = null;
+  try { listening = own ? await listeningNow(db, { now }) : null; } catch { listening = null; }
 
   return (
     <div className="rounded-xl border border-neutral-800 p-4 flex flex-col gap-4">
@@ -67,6 +71,14 @@ export default async function StationPanel({ station }: { station: Station }) {
             {lastAt ? `The station’s engine last reported ${ago(lastAt, now)}.` : 'The station’s engine has not reported yet.'}
             {quiet ? ' Listeners hear the standby loop until it plays again: check the server (docker compose logs engine), the licences below, and that the library has songs.' : ''}
           </div>
+          {listening && (
+            <div className={`text-xs ${listening.openLong > 0 ? 'text-amber-200' : 'text-neutral-500'}`}>
+              {`Listening now: ${listening.listening}.`}
+              {listening.openLong > 0
+                ? ` ${listening.openLong} of them joined over 12 hours ago: a listener that long, or the station’s word as listeners leave is not reaching Shape (its SHAPE_URL and NORA_ENGINE_TOKEN). Until it does, each is counted until the station next starts.`
+                : ''}
+            </div>
+          )}
           {rows.length > 0 && (
             <ul className="text-sm flex flex-col gap-1">
               {rows.map((r, i) => (

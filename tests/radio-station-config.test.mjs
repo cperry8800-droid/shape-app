@@ -15,7 +15,8 @@ const read = (p) => readFileSync(join(ROOT, p), 'utf8');
 const ENTRY = join(ROOT, 'services/station/icecast/entrypoint.sh');
 // Stand-in passwords, plainly not real ones (the secret scan reads tests too).
 const FAKE_SOURCE = 's'.repeat(24), FAKE_ADMIN = 'a'.repeat(24);
-const GOOD = { ICECAST_SOURCE_PASSWORD: FAKE_SOURCE, ICECAST_ADMIN_PASSWORD: FAKE_ADMIN, STATION_HOST: 'radio.theshapecommunity.com', SHAPE_URL: 'https://www.theshapecommunity.com' };
+const FAKE_ENGINE = 'e'.repeat(40);
+const GOOD = { ICECAST_SOURCE_PASSWORD: FAKE_SOURCE, ICECAST_ADMIN_PASSWORD: FAKE_ADMIN, STATION_HOST: 'radio.theshapecommunity.com', SHAPE_URL: 'https://www.theshapecommunity.com', NORA_ENGINE_TOKEN: FAKE_ENGINE };
 
 function render(env) {
   const dir = mkdtempSync(join(tmpdir(), 'station-cfg-'));
@@ -44,7 +45,14 @@ test('⚠ the server\'s config: the listeners\' mount falls back to the standby 
   // ⚠ Members only, at the door: /live asks Shape about each listener's pass; /standby (not public:
   // Caddy passes /live alone) needs none, and a listener falling back to it was let in at /live.
   const door = mount('/live').replace(/<!--[\s\S]*?-->/g, '');
-  assert.match(door, /<authentication type="url">\s*<option name="listener_add" value="https:\/\/www\.theshapecommunity\.com\/api\/radio\/pass" \/>\s*<option name="auth_header" value="icecast-auth-user: 1" \/>\s*<\/authentication>/);
+  // ⚠ And every session is kept (part 4): Shape hears each listener leave too, from the station
+  // alone (it signs in with the engine's token), and each call names this start of the station.
+  const auth = /<authentication type="url">\s*<option name="listener_add" value="https:\/\/www\.theshapecommunity\.com\/api\/radio\/pass\?boot=(\d{9,11}\.[0-9a-f]{16})" \/>\s*<option name="listener_remove" value="https:\/\/www\.theshapecommunity\.com\/api\/radio\/pass\?boot=(\d{9,11}\.[0-9a-f]{16})" \/>\s*<option name="username" value="station" \/>\s*<option name="password" value="([^"]+)" \/>\s*<option name="auth_header" value="icecast-auth-user: 1" \/>\s*<\/authentication>/.exec(door);
+  assert.ok(auth, door);
+  assert.equal(auth[1], auth[2], 'one start, named on both');
+  assert.ok(Math.abs(Number(auth[1].split('.')[0]) - Date.now() / 1000) < 60, 'named by its own time');
+  assert.equal(auth[3], FAKE_ENGINE, 'the engine\'s token');
+  assert.notEqual(render(GOOD).xml.match(/boot=([0-9a-f.]+)/)[1], auth[1], 'each start its own name');
   assert.ok(!/<authentication/.test(mount('/standby')));
   const outside = r.xml.replace(/<mount[\s\S]*?<\/mount>/g, '').replace(/<!--[\s\S]*?-->/g, '');
   assert.ok(!/<http-headers>/.test(outside), 'no top-level header block to double it');
@@ -74,6 +82,10 @@ test('⚠ it refuses to start on a missing, short, unsafe or shared password, or
   refused({ ICECAST_MAX_LISTENERS: '-1' }, 'a listener cap that is not a number');
   refused({ ICECAST_ADMIN_EMAIL: 'not an email' }, 'an admin address that is not one');
   refused({ SHAPE_URL: '' }, 'no Shape to check passes with');
+  refused({ NORA_ENGINE_TOKEN: '' }, 'no token to sign in to Shape with');
+  refused({ NORA_ENGINE_TOKEN: 'e'.repeat(20) }, 'a short token');
+  refused({ NORA_ENGINE_TOKEN: `${'e'.repeat(40)}|x` }, 'a sed delimiter in the token');
+  refused({ NORA_ENGINE_TOKEN: `${'e'.repeat(40)}"/>` }, 'markup in the token');
   refused({ SHAPE_URL: 'http://www.theshapecommunity.com' }, 'passes sent in clear text');
   refused({ SHAPE_URL: 'https://www.theshapecommunity.com/api' }, 'a path on Shape’s address');
   refused({ SHAPE_URL: 'https://evil.example|x' }, 'a sed delimiter');

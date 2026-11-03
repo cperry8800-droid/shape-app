@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHmac } from 'node:crypto';
 import {
-  passKey, makePass, verifyPass, makeTicket, verifyTicket, listenUrl, listenRedirect, checkListener, streamWithTicket, regionAllowed,
+  passKey, makePass, verifyPass, makeTicket, verifyTicket, listenUrl, listenRedirect, checkListener, leavingListener, streamWithTicket, regionAllowed,
   PASS_TTL_SEC, TICKET_TTL_SEC, RADIO_COUNTRIES,
 } from '../src/lib/radio/pass.mjs';
 
@@ -87,6 +87,21 @@ test('⚠ the door: only the station\'s own mount, with a good ticket, on a list
   assert.deepEqual(checkListener(form({ action: 'mount_add', mount: `/live?ticket=${ticket}` }), { now: NOW, key: KEY }), { ok: false, reason: 'action' });
   assert.deepEqual(checkListener(new URLSearchParams(), { now: NOW, key: KEY }), { ok: false, reason: 'action' });
   assert.equal(checkListener(form({ mount: `/live?ticket=${ticket}` }), { now: NOW, key: null }).ok, false, 'no key, no listener');
+  // Icecast's number for the connection comes back with it (part 4 keeps each session by it).
+  assert.equal(checkListener(form({ mount: `/live?ticket=${ticket}`, client: '42' }), { now: NOW, key: KEY }).client, 42);
+  assert.deepEqual(checkListener(form({ mount: `/live?ticket=${ticket}`, client: 'x' }), { now: NOW, key: KEY }), { ok: false, reason: 'numbers' });
+  // Leaving: the same ticket, whatever its age now (it was checked at the door), with the length.
+  const leave = (o) => new URLSearchParams({ action: 'listener_remove', server: 'localhost', port: '8000', client: '42', duration: '7200', mount: `/live?ticket=${encodeURIComponent(ticket)}`, ...o });
+  assert.deepEqual(leavingListener(leave({}), { key: KEY }), { ok: true, client: 42, durationSec: 7200 });
+  const spent = makeTicket({ now: NOW - 7 * 3600000, key: KEY }).ticket;
+  assert.equal(leavingListener(leave({ mount: `/live?ticket=${spent}` }), { key: KEY }).ok, true, 'a ticket run out since still left');
+  assert.deepEqual(leavingListener(leave({ mount: `/live?ticket=${ticket.replace(/.$/, (c) => (c === 'A' ? 'B' : 'A'))}` }), { key: KEY }), { ok: false, reason: 'signature' });
+  assert.deepEqual(leavingListener(leave({ mount: `/live?pass=${encodeURIComponent(pass)}` }), { key: KEY }), { ok: false, reason: 'malformed' }, 'a member\'s pass is no ticket');
+  assert.deepEqual(leavingListener(leave({ mount: `/standby?ticket=${ticket}` }), { key: KEY }), { ok: false, reason: 'mount' });
+  assert.deepEqual(leavingListener(leave({ action: 'listener_add' }), { key: KEY }), { ok: false, reason: 'action' });
+  assert.deepEqual(leavingListener(leave({ duration: '-1' }), { key: KEY }), { ok: false, reason: 'numbers' });
+  assert.deepEqual(leavingListener(leave({ client: '' }), { key: KEY }), { ok: false, reason: 'numbers' });
+  assert.deepEqual(leavingListener(leave({}), { key: null }), { ok: false, reason: 'no_key' });
   // The station's address with a ticket on it (a stale one replaced, a pass never carried on).
   assert.equal(streamWithTicket('https://radio.example.com/live', ticket), `https://radio.example.com/live?ticket=${encodeURIComponent(ticket)}`);
   const u = new URL(streamWithTicket('https://radio.example.com/live?ticket=old&pass=p', ticket));
@@ -167,10 +182,10 @@ test('⚠ the station route: membership, then the territory, then the pass; no k
 
 test('⚠ the door\'s route: always a 200, the admitting header only for a good pass, off the address rate limit', () => {
   const route = read('src/app/api/radio/pass/route.ts');
-  assert.match(route, /const verdict = checkListener\(form, \{ now: Date\.now\(\), key: passKey\(\) \}\);/);
-  assert.match(route, /if \(verdict\.ok\) headers\['icecast-auth-user'\] = '1';\n\s+else headers\['icecast-auth-message'\]/);
+  assert.match(route, /const verdict = checkListener\(form, \{ now, key: passKey\(\) \}\);\n\s+if \(verdict\.ok\) \{\n\s+headers\['icecast-auth-user'\] = '1';/);
+  assert.match(route, /\} else \{\n\s+headers\['icecast-auth-message'\] = String\(\(verdict as \{ reason\?: string \}\)\.reason \?\? 'refused'\);/);
   assert.equal((route.match(/icecast-auth-user/g) || []).length, 2, 'set in one place (and named once in the header comment)');
-  assert.match(route, /return new NextResponse\(null, \{ status: 200, headers \}\);/);
+  assert.match(route, /const answer = \(\) => new NextResponse\(null, \{ status: 200, headers \}\);/);
   assert.match(route, /\(await request\.text\(\)\)\.slice\(0, 4096\)/);
   assert.ok(!/export async function GET/.test(route), 'Icecast posts');
   const mw = read('src/lib/supabase/middleware.ts');

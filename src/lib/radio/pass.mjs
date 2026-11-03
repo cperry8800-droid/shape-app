@@ -20,6 +20,7 @@
 //   listenUrl(origin, pass)                 Shape's own address for the stream, with the pass on it
 //   listenRedirect({ pass, country, ... })  /api/radio/listen's answer: the station, or a refusal
 //   checkListener(form, { now, key })       Icecast's listener_add, checked
+//   leavingListener(form, { key })          Icecast's listener_remove, read (part 4: performances)
 //   streamWithTicket(streamUrl, ticket)     the station's address with a ticket on it
 //   regionAllowed(country, { production })  may this request's country hear the station?
 //
@@ -94,7 +95,8 @@ export function makeTicket({ now, key, ttlSec = TICKET_TTL_SEC }) {
   return { ticket: `${body}.${sign(key, body)}`, expiresAt: new Date(exp * 1000).toISOString() };
 }
 
-export function verifyTicket(ticket, { now, key }) {
+/** A ticket Shape signed, whatever its age: { ok: true, expMs } | { ok: false, reason }. */
+function signedTicket(ticket, key) {
   if (!key) return { ok: false, reason: 'no_key' };
   const m = /^t1\.([0-9a-f]{16})\.(\d{9,11})\.([A-Za-z0-9_-]{43})$/.exec(String(ticket || ''));
   if (!m) return { ok: false, reason: 'malformed' };
@@ -102,7 +104,13 @@ export function verifyTicket(ticket, { now, key }) {
   const want = Buffer.from(sign(key, `t1.${nonce}.${exp}`));
   const got = Buffer.from(sig);
   if (got.length !== want.length || !timingSafeEqual(got, want)) return { ok: false, reason: 'signature' };
-  const expMs = Number(exp) * 1000;
+  return { ok: true, expMs: Number(exp) * 1000 };
+}
+
+export function verifyTicket(ticket, { now, key }) {
+  const signed = signedTicket(ticket, key);
+  if (!signed.ok) return signed;
+  const { expMs } = signed;
   if (expMs <= now) return { ok: false, reason: 'expired' };
   if (expMs > now + (TICKET_TTL_SEC + 60) * 1000) return { ok: false, reason: 'too_long' };
   return { ok: true, expiresAt: new Date(expMs).toISOString() };
@@ -146,7 +154,33 @@ export function checkListener(form, { now, key }) {
   let u;
   try { u = new URL(String(form.get('mount') || ''), 'http://station'); } catch { return { ok: false, reason: 'mount' }; }
   if (u.pathname !== STATION_MOUNT) return { ok: false, reason: 'mount' };
-  return verifyTicket(u.searchParams.get(TICKET_PARAM), { now, key });
+  const verdict = verifyTicket(u.searchParams.get(TICKET_PARAM), { now, key });
+  if (!verdict.ok) return verdict;
+  // Icecast's number for the connection, which its word that the listener left will carry too.
+  const client = String(form.get('client') || '');
+  if (!/^\d{1,15}$/.test(client)) return { ok: false, reason: 'numbers' };
+  return { ...verdict, client: Number(client) };
+}
+
+/**
+ * The station's word that a listener left (Icecast's url auth, `listener_remove`), with Icecast's
+ * number for the connection and how long it lasted. ⚠ THE TICKET HAS RUN OUT SINCE, MOST LIKELY: it
+ * was checked at the door two minutes at most after it was made, and an expired ticket ends no
+ * stream, so a listener who stayed on still left, and is still counted. The ticket must still be
+ * one Shape signed, for the station's own mount.
+ * @param {URLSearchParams} form
+ * @returns {{ok: true, client: number, durationSec: number} | {ok: false, reason: string}}
+ */
+export function leavingListener(form, { key }) {
+  if (form.get('action') !== 'listener_remove') return { ok: false, reason: 'action' };
+  let u;
+  try { u = new URL(String(form.get('mount') || ''), 'http://station'); } catch { return { ok: false, reason: 'mount' }; }
+  if (u.pathname !== STATION_MOUNT) return { ok: false, reason: 'mount' };
+  const signed = signedTicket(u.searchParams.get(TICKET_PARAM), key);
+  if (!signed.ok) return signed;
+  const client = String(form.get('client') || ''), duration = String(form.get('duration') || '');
+  if (!/^\d{1,15}$/.test(client) || !/^\d{1,9}$/.test(duration)) return { ok: false, reason: 'numbers' };
+  return { ok: true, client: Number(client), durationSec: Number(duration) };
 }
 
 export function streamWithTicket(streamUrl, ticket) {

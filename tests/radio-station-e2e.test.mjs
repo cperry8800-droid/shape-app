@@ -14,7 +14,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { probeStream } from '../src/lib/radio/station.mjs';
-import { checkListener, listenRedirect, listenUrl, makePass, makeTicket } from '../src/lib/radio/pass.mjs';
+import { checkListener, leavingListener, listenRedirect, listenUrl, makePass, makeTicket } from '../src/lib/radio/pass.mjs';
+import { parseBoot, recordListen, stationCaller } from '../src/lib/radio/listens.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HAS = spawnSync('icecast2', ['-v']).status === 0 && spawnSync('ffmpeg', ['-version']).status === 0;
@@ -78,6 +79,28 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
   const songs = { [TA]: toneWav(1000, 20), [TB]: toneWav(2000, 20) };
   let block = null;
   const reports = [], asks = [], doors = [];
+  // The stand-in Shape's sessions (radio_listens), kept by Shape's own recordListen.
+  const sessions = [];
+  const listensDb = {
+    from: () => {
+      const st = { op: 'select', f: [], p: null };
+      const hit = () => sessions.filter((r) => st.f.every((g) => g(r)));
+      const chain = {
+        select: () => chain,
+        upsert: (p) => { st.op = 'upsert'; st.p = p; return chain; },
+        update: (p) => { st.op = 'update'; st.p = p; return chain; },
+        eq: (c, v) => { st.f.push((r) => r[c] === v); return chain; },
+        is: (c) => { st.f.push((r) => r[c] == null); return chain; },
+        maybeSingle: () => { st.single = true; return chain; },
+        then: (res) => {
+          if (st.op === 'upsert') { if (!sessions.some((r) => r.boot === st.p.boot && r.client === st.p.client)) sessions.push({ id: sessions.length + 1, ended_at: null, ...st.p }); return res({ error: null }); }
+          if (st.op === 'update') { for (const r of hit()) Object.assign(r, st.p); return res({ error: null }); }
+          return res({ data: st.single ? (hit()[0] || null) : hit(), error: null });
+        },
+      };
+      return chain;
+    },
+  };
   const shape = createServer((req, res) => {
     const u = new URL(req.url, 'http://x');
     const json = (code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
@@ -94,13 +117,26 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
       });
       return;
     }
-    // The station's door: /api/radio/pass, with Shape's own check.
+    // The station's door: /api/radio/pass, with Shape's own checks, keeping each session.
     if (u.pathname === '/api/radio/pass') {
       let b = '';
       req.on('data', (c) => { b += c; });
-      req.on('end', () => {
-        const v = checkListener(new URLSearchParams(b), { now: Date.now(), key: PASS_KEY });
+      req.on('end', async () => {
+        const boot = parseBoot(u.searchParams.get('boot'));
+        if (!stationCaller(req.headers.authorization, { NORA_ENGINE_TOKEN: TOKEN }) || !boot) {
+          doors.push('station');
+          res.writeHead(200, { 'icecast-auth-message': 'station' }); res.end(); return;
+        }
+        const form = new URLSearchParams(b);
+        if (form.get('action') === 'listener_remove') {
+          const l = leavingListener(form, { key: PASS_KEY });
+          if (l.ok) await recordListen(listensDb, { action: 'leave', ...boot, client: l.client, durationSec: l.durationSec, now: Date.now() });
+          doors.push(l.ok ? 'left' : `left:${l.reason}`);
+          res.writeHead(200); res.end(); return;
+        }
+        const v = checkListener(form, { now: Date.now(), key: PASS_KEY });
         doors.push(v.ok ? 'in' : v.reason);
+        if (v.ok) await recordListen(listensDb, { action: 'join', ...boot, client: v.client, now: Date.now() });
         res.writeHead(200, v.ok ? { 'icecast-auth-user': '1' } : { 'icecast-auth-message': v.reason });
         res.end();
       });
@@ -134,7 +170,7 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
 
   try {
     // 1. The server, as the container starts it.
-    const iceEnv = { ICECAST_SOURCE_PASSWORD: SOURCE_PW, ICECAST_ADMIN_PASSWORD: ADMIN_PW, STATION_HOST: 'localhost', ICECAST_PORT: String(port), ICECAST_CONFIG: join(dir, 'icecast.xml'), ICECAST_LOG_DIR: dir, SHAPE_URL: `http://127.0.0.1:${shapePort}` };
+    const iceEnv = { ICECAST_SOURCE_PASSWORD: SOURCE_PW, ICECAST_ADMIN_PASSWORD: ADMIN_PW, STATION_HOST: 'localhost', ICECAST_PORT: String(port), ICECAST_CONFIG: join(dir, 'icecast.xml'), ICECAST_LOG_DIR: dir, SHAPE_URL: `http://127.0.0.1:${shapePort}`, NORA_ENGINE_TOKEN: TOKEN };
     const entry = join(ROOT, 'services/station/icecast/entrypoint.sh');
     const ice = asRoot
       ? run('runuser', ['-u', 'nobody', '--', 'env', ...Object.entries(iceEnv).map(([k, v]) => `${k}=${v}`), 'sh', entry], {})
@@ -166,7 +202,7 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
     const straight = await fetch(`http://127.0.0.1:${port}/live?pass=${encodeURIComponent(goodPass())}`, { signal: AbortSignal.timeout(4000) });
     try { await straight.body.cancel(); } catch { /* headers only */ }
     assert.equal(straight.status, 401, 'a member\'s pass does not open the station');
-    assert.deepEqual(doors.slice(0, 5), ['in', 'malformed', 'signature', 'expired', 'malformed'], 'Shape was asked each time, and said why');
+    assert.deepEqual(doors.filter((d) => d !== 'left').slice(0, 5), ['in', 'malformed', 'signature', 'expired', 'malformed'], 'Shape was asked each time, and said why');
     // ⚠ Every connection goes through Shape's own address, which checks this listener's country
     // (Codex, #2579): from the US, on to the station with a ticket, every answer allowing the
     // players' cross-origin load; from abroad, or with a bad pass, no station address at all.
@@ -190,6 +226,7 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
 
     // 3. One listener, from before the music to after it.
     // Through Shape's own address, as the players connect: the redirect, then the station.
+    const listenerFrom = Date.now();
     const listener = run('ffmpeg', ['-hide_banner', '-v', 'error', '-headers', 'X-Test-Country: US\r\n', '-i', listenUrl(`http://127.0.0.1:${shapePort}`, goodPass()), '-ac', '1', '-ar', '8000', '-f', 's16le', 'pipe:1'], {});
     const chunks = [];
     let listenerEnded = false;
@@ -244,6 +281,21 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
     // It asked for what came next before the block ended, and named the block it had finished.
     assert.ok(asks.some((a) => a.after && Math.abs(Date.parse(a.after) - (Date.parse(block.block.startsAt) + 38000)) < 1500), JSON.stringify(asks));
     assert.ok(asks.some((a) => (a.skip || '').includes(BLOCK_ID)), JSON.stringify(asks));
+
+    // 5. ⚠ Every session kept (part 4): the listener leaves, and Shape has each one who came in,
+    // each ended, all from this one start of the station, every call signed in as the station.
+    listener.p.kill('SIGTERM');
+    const listenedMs = Date.now() - listenerFrom;
+    for (let i = 0; i < 20 && sessions.some((r) => !r.ended_at); i++) await sleep(250);
+    assert.ok(!doors.includes('station'), `every call signed in, with its start: ${doors.join(',')}`);
+    assert.equal(sessions.length, doors.filter((d) => d === 'in').length, 'one session for each listener let in');
+    assert.equal(doors.filter((d) => d === 'left').length, sessions.length, `each one heard leaving: ${doors.join(',')}`);
+    assert.ok(sessions.every((r) => r.ended_at && r.duration_sec != null), JSON.stringify(sessions));
+    assert.equal(new Set(sessions.map((r) => r.boot)).size, 1, 'one start of the station');
+    const longest = sessions.reduce((a, r) => (r.duration_sec > a.duration_sec ? r : a));
+    t.diagnostic(`the listener's session: ${longest.duration_sec} s, listened ${Math.round(listenedMs / 1000)} s`);
+    assert.ok(Math.abs(longest.duration_sec * 1000 - listenedMs) < 3000, `the length Icecast measured (${longest.duration_sec} s) is how long they listened (${Math.round(listenedMs / 1000)} s)`);
+    assert.ok(Math.abs(Date.parse(longest.ended_at) - Date.parse(longest.started_at) - listenedMs) < 3000);
   } finally {
     for (const p of procs.reverse()) { try { p.kill('SIGTERM'); } catch { /* gone */ } }
     // runuser's child (Icecast) and the standby loop's ffmpeg outlive their parents' SIGTERM.

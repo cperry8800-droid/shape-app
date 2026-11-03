@@ -21,6 +21,7 @@
 
 import { ensureProgramme, readLicensed } from './noraSetStore.mjs';
 import { LIBRARY_BUCKET, cleanText, isUuid } from './library.mjs';
+import { performanceReport } from './listens.mjs';
 
 export const CONNECT_WINDOW_MS = 10 * 60000;   // a set is handed out this long before it starts
 const OVERRUN_MS = 10 * 60000;                  // and until this long after its planned end
@@ -152,20 +153,35 @@ export function monthRange(month) {
 
 /**
  * Every song the engine played in a month (Nora's sets and, on Shape's own station, its rotation),
- * as CSV, in the order SoundExchange's report of use asks for its per-play fields. Listener counts
- * are the station's own figure and are not here.
+ * as CSV, in the order SoundExchange's report of use asks for its per-play fields, each with its
+ * performances: the listeners who heard any part of it (src/lib/radio/listens.mjs). Blank where
+ * Shape's own station was not measuring (radio.co's plays). Every play, a page at a time.
  */
-export async function playsCsv(db, month) {
+export async function playsCsv(db, month, { now = Date.now() } = {}) {
   const range = monthRange(month);
   if (!range) return { status: 400, body: 'month must be YYYY-MM' };
-  const read = (cols) => db.from('nora_engine_log').select(cols)
-    .eq('event', 'song').gte('played_at', range[0]).lt('played_at', range[1]).order('played_at', { ascending: true }).limit(50000);
-  let { data, error } = await read('played_at,artist,title,isrc,album,label,set_id,block_id');
-  // Before 2026-11-03-radio-rotation.sql there is no block column, and no rotation play to report.
-  if (error && error.code === '42703') ({ data, error } = await read('played_at,artist,title,isrc,album,label,set_id'));
-  if (error) return { status: 503, body: 'read failed' };
-  const head = ['Played at (UTC)', 'Featured artist', 'Sound recording title', 'ISRC', 'Album title', 'Marketing label', 'Nora set', 'Rotation block'];
+  const report = await performanceReport(db, range, { now });
+  if (!report.ok) return { status: 503, body: 'read failed' };
+  const head = ['Played at (UTC)', 'Featured artist', 'Sound recording title', 'ISRC', 'Album title', 'Marketing label', 'Actual total performances', 'Nora set', 'Rotation block'];
   const lines = [head.join(',')];
-  for (const r of data || []) lines.push([r.played_at, r.artist, r.title, r.isrc, r.album, r.label, r.set_id, r.block_id].map(csvCell).join(','));
-  return { status: 200, body: `${lines.join('\r\n')}\r\n`, count: (data || []).length };
+  for (const r of report.plays) {
+    lines.push([r.played_at, r.artist, r.title, r.isrc, r.album, r.label, r.performances, r.set_id, r.block_id].map(csvCell).join(','));
+  }
+  return { status: 200, body: `${lines.join('\r\n')}\r\n`, count: report.plays.length };
+}
+
+/**
+ * The month's totals, as one CSV row: its plays, its performances, its listening hours (aggregate
+ * tuning hours) and its sessions, with those whose end never reached Shape (each counted until its
+ * station started again: a number that grows means the station's word on leaving is being lost).
+ */
+export async function playsSummaryCsv(db, month, { now = Date.now() } = {}) {
+  const range = monthRange(month);
+  if (!range) return { status: 400, body: 'month must be YYYY-MM' };
+  const report = await performanceReport(db, range, { now });
+  if (!report.ok) return { status: 503, body: 'read failed' };
+  const t = report.totals;
+  const head = ['Month (UTC)', 'Plays', 'Plays measured', 'Actual total performances', 'Aggregate tuning hours', 'Listening sessions', 'Sessions with no reported end'];
+  const row = [month, t.plays, t.measuredPlays, t.performances, t.tuningHours == null ? null : t.tuningHours.toFixed(2), t.sessions, t.openSessions];
+  return { status: 200, body: `${head.join(',')}\r\n${row.map(csvCell).join(',')}\r\n`, totals: t };
 }

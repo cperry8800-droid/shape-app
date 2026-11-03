@@ -15,8 +15,10 @@ services:
       STATION_HOST: ${STATION_HOST:?set it in .env}
       ICECAST_ADMIN_EMAIL: ${ICECAST_ADMIN_EMAIL:-}
       ICECAST_MAX_LISTENERS: ${ICECAST_MAX_LISTENERS:-2000}
-      # Shape checks each listener's pass (src/lib/radio/pass.mjs)
+      # Shape checks each listener's pass (src/lib/radio/pass.mjs) and keeps each session
+      # (src/lib/radio/listens.mjs); the station signs in with the engine's token
       SHAPE_URL: ${SHAPE_URL:-https://www.theshapecommunity.com}
+      NORA_ENGINE_TOKEN: ${NORA_ENGINE_TOKEN:?set it in .env}
     # Reachable from this machine only (for a look at Icecast's status page over an SSH tunnel);
     # the public reach it through Caddy.
     ports:
