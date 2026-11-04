@@ -37,29 +37,20 @@ function bsHdDate(iso, opts) {
   try { return dt.toLocaleDateString(bsHdLocale(), opts); } catch (e) { return dt.toDateString(); }
 }
 
-// The member's accent, made to read on the ink: a light paper's accent is its darker pair, so it is
-// lifted toward white; a dark paper's is already the light one.
-function bsHdLift(hex, by = 0.35) {
-  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
-  if (!m) return BS_DECK_TEAL;
-  const n = parseInt(m[1], 16);
-  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => Math.round(c + (255 - c) * by));
-  return `#${ch.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
-}
-
-// The band: dark on every paper (bsProDeckTheme), handing its theme to what it holds so the radio's
-// box and the climb read on it, with the hairline from ink to teal along its foot.
+// The band: glass in the paper's own colour (bsProDeckTheme, bsGlassFill; owner, 2026-11-04: "make sure
+// the glassy look matches the print color"), handing its theme to what it holds so the radio's box and
+// the climb read on it, with the hairline from ink to teal along its foot. The paper's accent reads on it
+// as it is; it was lifted toward white while the band was dark on a light paper.
 export function BSHomeDeck({ radio = null, children }) {
   const t = window.useBS();
-  const base = bsProDeckTheme(t);
-  const d = { ...base, ACCENT: t.isLight ? bsHdLift(t.ACCENT) : t.ACCENT };
+  const d = bsProDeckTheme(t);
   const Ctx = typeof window !== 'undefined' ? window.BSContext : null;
   const band = (
-    <section data-bs-home-deck="" data-glass={t.isLight ? undefined : ''} style={{ position: 'relative', background: d.PAPER, color: d.INK, padding: '2px 0 16px', ...(t.isLight ? null : { ...bsGlassFill(t), borderTop: bsGlassBorder(t), borderBottom: bsGlassBorder(t) }) }}>
-      {t.isLight ? null : <BSGlassEdge />}
+    <section data-bs-home-deck="" data-glass="" style={{ position: 'relative', color: d.INK, padding: '2px 0 16px', ...bsGlassFill(t), borderTop: bsGlassBorder(t), borderBottom: bsGlassBorder(t) }}>
+      <BSGlassEdge t={t} />
       {radio}
       {children}
-      <span aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: `linear-gradient(90deg, ${d.INK}, ${BS_DECK_TEAL})`, opacity: 0.9 }} />
+      <span aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: `linear-gradient(90deg, ${d.INK}, ${d.TEAL})`, opacity: 0.9 }} />
     </section>
   );
   return Ctx ? <Ctx.Provider value={d}>{band}</Ctx.Provider> : band;

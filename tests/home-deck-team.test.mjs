@@ -239,7 +239,7 @@ test('the climb says only what it can: reached, a start with no target, a target
   }
 }));
 
-test('the deck hands its own dark theme to what it holds: the radio first, then the climb and the week', () => {
+test('the deck hands its own theme to what it holds: the radio first, then the climb and the week', () => {
   const seen = [];
   const prevCtx = globalThis.BSContext;
   globalThis.BSContext = { Provider: function Provider() {} };
@@ -249,9 +249,13 @@ test('the deck hands its own dark theme to what it holds: the radio first, then 
     assert.equal(provider.type, globalThis.BSContext.Provider, 'the band provides its theme');
     seen.push(provider.props.value);
     const band = d.nodes().find((n) => n.props && n.props['data-bs-home-deck'] != null);
-    const kids = [].concat(band.props.children).filter(Boolean);
+    // The glass's teal edge is drawn first; of what the band holds, Shape Radio sits first.
+    const kids = [].concat(band.props.children).filter(Boolean).filter((k) => !(typeof k.type === 'function' && k.type.name === 'BSGlassEdge'));
     assert.ok(kids[0].props['data-radio'] != null, 'Shape Radio sits first, above the climb (owner, 2026-11-03)');
-    assert.equal(band.props.style.background, seen[0].PAPER, 'the band is the deck theme\'s paper');
+    // Glass in the paper's own colour (owner, 2026-11-04: "make sure the glassy look matches the print color").
+    assert.ok(String(band.props.style.background).endsWith(`, ${seen[0].PAPER}`), 'the band is glass over the deck theme\'s paper');
+    assert.equal(seen[0].PAPER, THEME.PAPER, 'the deck is the paper\'s own colour, not a dark band');
+    assert.equal(seen[0].INK, THEME.INK, 'its words are the paper\'s own ink');
   } finally { globalThis.BSContext = prevCtx; }
 });
 

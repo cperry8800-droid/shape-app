@@ -25,7 +25,7 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { bsGroceryFromCoachList } from '../services/groceryShare.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 import { BS_CLEAN_HEAD as BS_PRO_HEAD, BS_CLEAN_SANS as BS_PRO_SANS, useBSClean as useBSProClean, BSCleanType as BSProCleanType } from './bsCleanType.jsx';
-import { BSProDeck, BSProDeckWeek, BSProDeckSegments, BSProDeckGauges, BSProMeter, bsProDeckTheme, bsProDeckHeat, bsDeckEyebrow, bsGlassFill, bsProPlate, bsProLedgerTop, bsProLedgerNo, bsProNo, BS_DECK_TEAL, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
+import { BSProDeck, BSProDeckWeek, BSProDeckSegments, BSProDeckGauges, BSProMeter, bsProDeckTheme, bsProDeckHeat, bsDeckEyebrow, bsDeckTeal, bsGlassFill, bsProPlate, bsProLedgerTop, bsProLedgerNo, bsProNo, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -2037,11 +2037,11 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           2026-10-31 question, "are to dos and tasks supposed to be updating when you choose a different
           day"). The onboarding tour anchors here. */}
       <BSProDeck t={t} role={role} tour="hero-today" title={tr('coach:today.title', { defaultValue: 'Today' })}
-        aside={<span style={bsDeckEyebrow(BS_DECK_TEAL)}>{dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' })}</span>}>
+        aside={<span style={bsDeckEyebrow(bsDeckTeal(t))}>{dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' })}</span>}>
         <p style={{ ...bsProLede(deckT), padding: `0 ${t.padX}px` }}>
           {headLead ? <b style={{ fontWeight: 600, color: deckT.INK }}>{headLead} </b> : null}{dayRest}
         </p>
-        {coachSignedIn && calendarStatus === 'error' && <div style={{ padding: `0 ${t.padX}px` }}><button type="button" onClick={() => setCalendarReload((n) => n + 1)} style={{ ...LINK, color: BS_DECK_TEAL }}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button></div>}
+        {coachSignedIn && calendarStatus === 'error' && <div style={{ padding: `0 ${t.padX}px` }}><button type="button" onClick={() => setCalendarReload((n) => n + 1)} style={{ ...LINK, color: bsDeckTeal(t) }}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button></div>}
         <div style={{ padding: `0 ${t.padX}px` }}><BSProRosterStatus status={rosterStatus} onRetry={retryRoster} /></div>
         {/* THIS WEEK — the day strip, at the top under Today. */}
         <BSProDeckWeek t={t} role={role} dates={dates} todayIdx={todayIdx} selDay={selDay} onSelectDay={setSelDay} dayWord={dayWord}
@@ -2730,7 +2730,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <BSProCleanType t={t}>
       <BSProDeck t={t} role={role} tour="hero-clients" title={tr('coach:nav.clients', { defaultValue: 'Clients' })}
-        aside={<button type="button" onClick={goGrowRoster} style={{ flexShrink: 0, minHeight: 44, padding: '0 2px', border: 0, background: 'transparent', cursor: 'pointer', ...bsDeckEyebrow(BS_DECK_TEAL) }}>＋ {tr('coach:head.add', { defaultValue: 'Add' })}</button>}>
+        aside={<button type="button" onClick={goGrowRoster} style={{ flexShrink: 0, minHeight: 44, padding: '0 2px', border: 0, background: 'transparent', cursor: 'pointer', ...bsDeckEyebrow(bsDeckTeal(t)) }}>＋ {tr('coach:head.add', { defaultValue: 'Add' })}</button>}>
         <BSProDeckGauges t={t} items={[
           { key: 'need', value: deckReady ? String(deckNeed) : '—', label: tr('coach:today.needYou', { defaultValue: 'NEED YOU' }), color: deckReady && deckNeed ? '#f08f76' : undefined },
           { key: 'avg', value: deckReady && deckAvg != null ? `${deckAvg}%` : '—', label: role === 'nutritionist' ? tr('coach:roster.kpiAvgLogged', { defaultValue: 'Avg logged · 7d' }) : tr('coach:roster.kpiAvgAdherence', { defaultValue: 'Avg adherence' }) },
@@ -3316,7 +3316,7 @@ function BSProFeaturedPlan({ plan, heat, t, onOpen, onAssign }) {
     rating ? `${rating} ★` : null,
   ].filter(Boolean).map((f) => f.replace(/ /g, '\u00a0')).join(' · '); // a fact breaks only between facts ("4.9" kept with its ★)
   return (
-    <div data-featured-plan="" onClick={onOpen} style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr)', ...(t.isLight ? { background: t.PAPER2 } : bsGlassFill(t)), clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)', cursor: 'pointer' }}>
+    <div data-featured-plan="" onClick={onOpen} style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr)', ...bsGlassFill(t), clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)', cursor: 'pointer' }}>
       <span aria-hidden style={{ background: heat, color: '#f6f0e3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: '10px 0' }}>
         <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 30, fontWeight: 300, letterSpacing: '-0.03em' }}>{sw.unit ? sw.big : '★'}</span>
         {sw.unit && <span style={{ marginTop: 4, fontFamily: BS_DECK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em' }}>{sw.unit}</span>}
@@ -7199,7 +7199,7 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } =
       {/* The deck (direction A): the title, what is published on its baseline, and From scratch to build the
           kind on show blank (Nora drafts from the masthead's ✦). */}
       <BSProDeck t={t} role={heatRole} tour="hero-plans" title={tr('coach:shortcut.programs', { defaultValue: 'Programs' })}
-        aside={<span data-deck-published="" style={{ ...bsDeckEyebrow(BS_DECK_TEAL), whiteSpace: 'normal', textAlign: 'right' }}>{publishedLead}{publishedRest ? ` · ${publishedRest}` : ''}</span>}>
+        aside={<span data-deck-published="" style={{ ...bsDeckEyebrow(bsDeckTeal(t)), whiteSpace: 'normal', textAlign: 'right' }}>{publishedLead}{publishedRest ? ` · ${publishedRest}` : ''}</span>}>
         {tab === 'library' && <div style={{ padding: `14px ${t.padX}px 0` }}>{bsProCreateButton(bsProDeckTheme(t), tr, () => openDraft(libBuild, true))}</div>}
       </BSProDeck>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
@@ -8328,7 +8328,7 @@ function BSNutriPlans() {
       {/* The deck (direction A): the title, what is published on its baseline, and From scratch to build the
           kind on show blank (Nora drafts from the masthead's ✦). */}
       <BSProDeck t={t} role={heatRole} tour="hero-plans" title={tr('coach:shortcut.plans', { defaultValue: 'Plans' })}
-        aside={<span data-deck-published="" style={{ ...bsDeckEyebrow(BS_DECK_TEAL), whiteSpace: 'normal', textAlign: 'right' }}>{publishedLead}{publishedRest ? ` · ${publishedRest}` : ''}</span>}>
+        aside={<span data-deck-published="" style={{ ...bsDeckEyebrow(bsDeckTeal(t)), whiteSpace: 'normal', textAlign: 'right' }}>{publishedLead}{publishedRest ? ` · ${publishedRest}` : ''}</span>}>
         {tab === 'library' && <div style={{ padding: `14px ${t.padX}px 0` }}>{bsProCreateButton(bsProDeckTheme(t), tr, () => openDraft(libBuild, true))}</div>}
       </BSProDeck>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>

@@ -116,8 +116,8 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
   if (!coaches.length && !workout && !hasFuel && !showFindCoach) return null;
 
   const mono = { fontFamily: BS_DECK_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap' };
-  // On a dark paper a card is glass in the page's colour (owner, 2026-11-04: "apply that to all the boxes that had the grey coloring").
-  const card = { marginTop: 8, padding: '12px 14px 14px', borderRadius: 6, ...(t.isLight ? { background: 'rgba(255,255,255,0.42)', border: `1px solid ${t.HAIR || t.RULE}` } : { ...bsGlassFill(t), border: bsGlassBorder(t) }) };
+  // A card is glass in the paper's own colour (owner, 2026-11-04: "apply that to all the boxes that had the grey coloring", "make sure the glassy look matches the print color").
+  const card = { marginTop: 8, padding: '12px 14px 14px', borderRadius: 6, ...bsGlassFill(t), border: bsGlassBorder(t) };
   const btn = (primary) => ({ minHeight: 44, borderRadius: 4, border: primary ? 0 : `1px solid ${t.INK50}`, background: primary ? t.INK : 'transparent', color: primary ? t.PAPER : t.INK, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 650, cursor: 'pointer', padding: '0 12px' });
   const message = (c) => {
     const n = nNew(c);

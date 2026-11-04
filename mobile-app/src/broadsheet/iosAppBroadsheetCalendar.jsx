@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WORKOUTS } from './bsClientWeekDemo.js';
 import { BSCalendarWeeks, bsCalWeeksOf, bsCalIso } from './BSCalendarWeeks.jsx';
-import { BSProDeck, BSProDeckGauges, bsProDeckTheme, bsDeckEyebrow, bsProLedgerTop, BS_DECK_TEAL, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
+import { BSProDeck, BSProDeckGauges, bsProDeckTheme, bsDeckEyebrow, bsDeckTeal, bsProLedgerTop, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
 const _BS_CAL_KIND_ICON = { WORKOUT: '🏋', MEAL: '🍽', CHECKIN: '✅', CONSULT: '💬', REVIEW: '📋', PLAN: '🗺', REST: '😴', ADMIN: '✦' };
 // iosAppBroadsheetCalendar.jsx — Sheet overlay system + the calendar screen (Month | Weeks).
 // Newspaper-styled. Role-aware events (client / trainer / nutritionist).
@@ -443,9 +443,11 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   return (
     <BSPageCal>
       <BSPageHeaderCal
+        // A client's calendar names whose it is; the coach's or member's own has no kicker (owner, 2026-11-04:
+        // "and remove this" of "Section · Calendar").
         kicker={forClient
           ? tr('calendar:client.kicker', { defaultValue: 'Calendar · {name}', name: clientName || tr('calendar:client.fallbackName', { defaultValue: 'Client' }) })
-          : tr('calendar:view.kicker', { defaultValue: 'Section · Calendar' })}
+          : undefined}
         trailing={trailing}
         onBack={onBack}
       />
@@ -633,7 +635,7 @@ function BSCalMonthHead({ viewYear, viewMonth, monthName, zone = null, role = 'c
     </button>
   );
   return (
-    <BSProDeck t={t} role={role} stopColor={role === 'client' ? BS_DECK_TEAL : undefined} label={`${monthName} ${viewYear}`}
+    <BSProDeck t={t} role={role} stopColor={role === 'client' ? bsDeckTeal(t) : undefined} label={`${monthName} ${viewYear}`}
       title={`${monthName} ${viewYear}`}
       aside={<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {navBtn(onPrev, tr('calendar:nav.prevMonth', { defaultValue: 'Previous month' }), prevAbbr, 'M15 5l-7 7 7 7')}
@@ -693,7 +695,7 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
 
   // The deck's own theme for what sits on it (the grid, the legend, the figures).
   const d = bsProDeckTheme(t);
-  const heat = role === 'nutritionist' ? '#d8b25a' : role === 'client' ? BS_DECK_TEAL : '#e0654b';
+  const heat = role === 'nutritionist' ? (t.isLight ? '#a07a2e' : '#d8b25a') : role === 'client' ? bsDeckTeal(t) : (t.isLight ? '#c0533b' : '#e0654b');
 
   return (
     <>
@@ -754,11 +756,11 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
           <>
             <BSProDeckGauges t={t} items={[
               { key: 'month', value: monthTotal, label: tr('calendar:register.thisMonth', { defaultValue: 'This month' }) },
-              { key: 'done', value: doneCount, label: tr('calendar:register.done', { defaultValue: 'Done' }), color: BS_DECK_TEAL },
+              { key: 'done', value: doneCount, label: tr('calendar:register.done', { defaultValue: 'Done' }), color: d.TEAL },
               { key: 'open', value: monthTotal - doneCount, label: tr('calendar:register.open', { defaultValue: 'Open' }) },
             ]} />
             <div aria-hidden data-cal-done-bar="" style={{ margin: `10px ${t.padX}px 0`, height: 4, borderRadius: 1, background: d.RULE, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${Math.round((doneCount / monthTotal) * 100)}%`, background: BS_DECK_TEAL }} />
+              <div style={{ height: '100%', width: `${Math.round((doneCount / monthTotal) * 100)}%`, background: d.TEAL }} />
             </div>
           </>
         )}
@@ -775,7 +777,7 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
             {/* The picked day as a ledger under a 2px ink rule, as the coach pages' lists open. */}
             <div data-cal-day-head="" style={{ margin: `16px ${t.padX}px 0`, padding: '10px 0 8px', ...bsProLedgerTop(t), display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ fontFamily: t.HEAD || t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: t.INK }}>
-                {selDow} {selMonShort} {selDay}<span aria-hidden style={{ color: heat === BS_DECK_TEAL ? bsCalTeal(t) : heat }}>.</span>
+                {selDow} {selMonShort} {selDay}<span aria-hidden style={{ color: heat }}>.</span>
               </div>
               <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
                 {tr('calendar:day.items', { count: dayEv.length, defaultValue: '{count, plural, one {# item} other {# items}}' })}

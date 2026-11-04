@@ -1113,10 +1113,9 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
 export function BSMorningPanel({ children }) {
   const t = window.useBS();
   return (
-    <section data-bs-morning="" style={{ margin: `8px ${t.padX}px 4px`, padding: '12px 12px 11px', borderRadius: 14, ...(t.isLight
-      ? { background: t.PAPER2 || t.PAPER, border: 0, boxShadow: '0 10px 24px -18px rgba(15,14,12,0.45)' }
-      // On a dark paper, glass in the page's colour (owner, 2026-11-04: "apply that to all the boxes that had the grey coloring").
-      : { ...bsGlassFill(t), border: bsGlassBorder(t) }) }}>
+    // Glass in the paper's own colour (owner, 2026-11-04: "apply that to all the boxes that had the grey
+    // coloring", "make sure the glassy look matches the print color").
+    <section data-bs-morning="" style={{ margin: `8px ${t.padX}px 4px`, padding: '12px 12px 11px', borderRadius: 14, ...bsGlassFill(t), border: bsGlassBorder(t) }}>
       {children}
       <style>{`[data-bs-morning] [data-bs-checkin-card] + [data-bs-water]{margin-top:10px;padding-top:10px;border-top:1px solid ${t.HAIR}}`}</style>
     </section>
