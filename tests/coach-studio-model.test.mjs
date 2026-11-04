@@ -34,6 +34,34 @@ test('the model: each program with the coach\'s line, else its own note, and who
   assert.deepEqual(m.programs[0].forWho, { id: 'new' });
 });
 
+test('the model: a program of one day is one workout, though its preview reads as a single session', () => {
+  // Codex P2 on #2592: bsPlanPreview reads a one-day program as a session, and its day was missing from
+  // Workouts (no pick, no line of its own).
+  const ONE = { id: 'plan2', kind: 'program', name: 'Leg day', price: 19, detail: {
+    preview: true, weeks: 4, blocks: [mv(0, 0, 'Legs', 'Back squat', 'Quads'), mv(0, 0, 'Legs', 'Romanian deadlift', 'Hamstrings')],
+    firstWeek: [{ week: 0, day: 0, weekday: 0, dayName: 'Legs', moves: 3 }],
+  } };
+  const programs = bsCoachPrograms([PLAN, ONE]);
+  assert.equal(programs.find((p) => p.id === 'plan2').preview.kind, 'session', 'the preview this guards');
+  const m = bsStudioModel({ programs, videos: [], monthly: 0, picks: ['d:plan2:0'], descriptions: { 'd:plan2:0': 'Ten minutes, then heavy.' } });
+  const w = m.workouts.find((x) => x.key === 'd:plan2:0');
+  assert.ok(w, 'the one day is a workout');
+  assert.equal(w.pick, true, 'and can be a pick');
+  assert.equal(m.workouts[0].key, 'd:plan2:0');
+  assert.equal(w.desc, 'Ten minutes, then heavy.', 'with the coach\'s line');
+  assert.equal(w.label, 'MON');
+  assert.equal(w.title, 'Legs');
+  assert.deepEqual(w.moves.map((x) => x.name), ['Back squat', 'Romanian deadlift']);
+  assert.equal(w.more, 1, 'the third move the preview did not name');
+  assert.equal(w.focus, 'lower');
+  assert.deepEqual(w.program, { id: 'plan2', name: 'Leg day' });
+  // A session with no day of its own (no builder's first week) stays a program only.
+  const BARE = { ...ONE, id: 'plan3', detail: { ...ONE.detail, firstWeek: undefined } };
+  const m2 = bsStudioModel({ programs: bsCoachPrograms([BARE]), videos: [], monthly: 0 });
+  assert.equal(m2.programs.length, 1);
+  assert.equal(m2.workouts.length, 0);
+});
+
 test('the model: every program day and video is a workout, the picks first in the coach\'s order', () => {
   let m = model();
   assert.deepEqual(m.workouts.map((w) => w.key), ['d:plan1:0', 'd:plan1:1', 'v:v1']);

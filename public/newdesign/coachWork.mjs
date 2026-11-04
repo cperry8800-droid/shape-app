@@ -177,20 +177,33 @@ export function bsWorkFocus(moves) {
 
 // A program's days, as its preview lists them, with each day's moves and their muscles: the first
 // week's days in the order the preview has them (bsPlanPreview's own filter), keyed by their place.
+const DAY_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 function programDaysOf(pr) {
   const units = isObj(pr.preview) && Array.isArray(pr.preview.units) ? pr.preview.units : [];
-  if (!(pr.preview && (pr.preview.kind === 'program' || pr.preview.kind === 'split'))) return [];
+  const kind = isObj(pr.preview) ? pr.preview.kind : null;
+  if (!(kind === 'program' || kind === 'split' || kind === 'session')) return [];
   const detail = isObj(pr.plan) && isObj(pr.plan.detail) ? pr.plan.detail : {};
   const blocks = Array.isArray(detail.blocks) ? detail.blocks.slice(0, ROW_SCAN) : [];
   const days = Array.isArray(detail.firstWeek)
     ? detail.firstWeek.slice(0, 14).filter((d) => isObj(d) && Number.isInteger(d.week) && Number.isInteger(d.day)) : [];
+  const movesOf = (d) => blocks.filter((b) => isObj(b) && b.week === d.week && b.day === d.day && typeof b.name === 'string')
+    .map((b) => ({ name: clean(b.name, 80), ...(typeof b.muscle === 'string' && clean(b.muscle, 40) ? { muscle: clean(b.muscle, 40) } : {}) }))
+    .filter((m) => m.name);
+  // A program of one day previews as a single session (bsPlanPreview), its day still in `firstWeek`:
+  // that day is its one workout, labelled as a program's day is (Codex P2 on #2592).
+  if (kind === 'session') {
+    if (days.length !== 1) return [];
+    const d = days[0];
+    const moves = movesOf(d);
+    const total = Number.isInteger(d.moves) && d.moves >= 0 ? Math.min(d.moves, 999) : moves.length;
+    const label = Number.isInteger(d.weekday) && d.weekday >= 0 && d.weekday < 7 ? DAY_LABELS[d.weekday] : `DAY ${d.day + 1}`;
+    return [{ i: 0, label, title: clean(d.dayName, 80), moves: moves.slice(0, 20), more: Math.max(0, total - Math.min(moves.length, 20)) }];
+  }
   const out = [];
   units.slice(0, 14).forEach((u, i) => {
     if (!isObj(u) || u.locked || u.rest) return;
     const d = days[i] || null;
-    const moves = d ? blocks.filter((b) => isObj(b) && b.week === d.week && b.day === d.day && typeof b.name === 'string')
-      .map((b) => ({ name: clean(b.name, 80), ...(typeof b.muscle === 'string' && clean(b.muscle, 40) ? { muscle: clean(b.muscle, 40) } : {}) }))
-      .filter((m) => m.name) : (Array.isArray(u.moves) ? u.moves.map((m) => ({ name: clean(m, 80) })).filter((m) => m.name) : []);
+    const moves = d ? movesOf(d) : (Array.isArray(u.moves) ? u.moves.map((m) => ({ name: clean(m, 80) })).filter((m) => m.name) : []);
     out.push({ i, label: clean(u.label, 12), title: clean(u.title, 80), moves: moves.slice(0, 20), more: Math.max(0, (Number(u.more) || 0) + (moves.length > 20 ? moves.length - 20 : 0)) });
   });
   return out;
