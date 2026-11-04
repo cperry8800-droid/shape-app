@@ -1,7 +1,7 @@
 import React from 'react';
 import { bsProDeckTheme, bsRaised, BSGlassEdge, BS_DECK_TEAL, BS_GAUGE_FACE, BS_DECK_MONO } from './BSProInstrument.jsx';
 import { bsHomeGoalRead } from '../services/homeWeek.mjs';
-import { bsHomeClimbState, bsClimbPoint, bsClimbPath, bsClimbRidge, BS_CLIMB_W, BS_CLIMB_H, BS_CLIMB_MILESTONES } from '../services/homeClimb.mjs';
+import { bsHomeClimbState, bsClimbPoint, bsClimbPath, bsClimbRidge, bsClimbMilestones, bsClimbGold, bsClimbMix, BS_CLIMB_W, BS_CLIMB_H, BS_CLIMB_MILESTONES } from '../services/homeClimb.mjs';
 import { bsCiIso } from './BSCheckinCard.jsx';
 import { useBSHomeGoalData, useBSHomeWeek } from './BSHomeSections.jsx';
 
@@ -74,12 +74,37 @@ export function BSHomeClimb({ demo = null, ...view }) {
 
 // The climb off `data` (the goal document, its words and the weigh-ins; null while it reads or after a
 // read that failed, which draws the ridge alone and says nothing). The tests draw it directly.
+//
+// ⚠ IN COLOUR, WITH THE MILESTONES (owner, 2026-11-04: "add a little more info here, either milestones, and
+// percentage progress, be creative, just not too much", then "lets maybe add a little more color to this
+// graph, home page looking a little bland", and of the options, "this design but with option C coloring
+// scheme on graph"). The route runs from Shape's teal at the foot to gold at the summit, the goal: teal
+// light pools under the walked part, the walked line and the passed ticks glow, the next milestone's tick
+// wears a lit ring, and a gold glow stands behind the flag. Under the route, a goal on its way reads one
+// slim strip: the share walked as a ring, the next milestone with its weight and what is left to it, and
+// the four milestones as dots on the same teal → gold scale. Every figure is the goal read's own: the share
+// is the route's (st.pct), the milestones are the goal page's (homeClimb.mjs's bsClimbMilestones, BSGoals'
+// rule), and what is left runs from the latest weigh-in.
 export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, tour, todayIso = bsCiIso(new Date()) }) {
   const t = window.useBS();
   const tr = useShapeTr();
+  // The gradients' ids, one set per climb drawn.
+  const gid = `bshc${String(React.useId()).replace(/[^a-zA-Z0-9]/g, '')}`;
   const teal = t.ACCENT || BS_DECK_TEAL;
+  const gold = bsClimbGold(t);
+  const along = (f) => bsClimbMix(teal, gold, f);
   const fg = t.INK;
   const faint = t.INK50;
+  const ink = (a) => `rgba(${t.inkRGB || (t.isLight ? '20,18,15' : '245,240,230')},${a})`;
+  // A colour at an alpha (the theme's colours are hex).
+  const ha = (hex, a) => {
+    const h = String(hex || '').replace('#', '');
+    if (!/^[0-9a-f]{6}$/i.test(h)) return hex;
+    const n = parseInt(h, 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  };
+  // The glow is light on a dark paper; on a light one it would only smudge.
+  const glow = (c, r = 4, a = 0.85) => (t.isLight ? undefined : { filter: `drop-shadow(0 0 ${r}px ${ha(c, a)})` });
   const overall = (data && data.overall) || {};
   const toKg = (v) => (typeof docKg === 'function' ? docKg(v, overall) : null);
   const read = data ? bsHomeGoalRead({ weighIns: data.weighIns, startKg: toKg(overall.start), targetKg: toKg(overall.target), todayIso }) : null;
@@ -94,12 +119,23 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
   };
   const pct = st.pct || 0;
   const walked = st.kind === 'progress' || st.kind === 'reached';
+  const pctOf = (n) => tr('home:mornings.unitPct', { defaultValue: '{n}%', n });
+  // The milestones, for a goal on its way only (the other states have no route walked to measure).
+  const ms = st.kind === 'progress' ? bsClimbMilestones(read) : null;
+  const msName = (m) => ({
+    25: tr('goal:terms.mQuarter', { defaultValue: '25% there' }),
+    50: tr('goal:terms.mHalf', { defaultValue: 'Halfway' }),
+    75: tr('goal:terms.mThree', { defaultValue: '75% there' }),
+    100: tr('goal:terms.mGoal', { defaultValue: 'Goal' }),
+  })[m];
+  const next = ms && ms.next ? { m: ms.next.m, name: msName(ms.next.m), weight: `${fmt(ms.next.kg)} ${unit}`, left: tr('home:goal.toGo', { defaultValue: '{amount} {unit} to go', amount: fmt(ms.away), unit }) } : null;
+  const nextHead = next ? `${tr('goal:terms.next', { defaultValue: 'Next' })} · ${next.name}` : '';
   const mono = { fontFamily: BS_DECK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: faint, whiteSpace: 'nowrap' };
-  // ⚠ THE CLIMB SAYS THREE THINGS (owner, 2026-11-04: "simplify some of the data on the hill climb/chart.
-  // looks like too much and can be a little overwhelming"): the goal in the member's words, what is left,
-  // and the goal by the flag; the route shows how far. The pace, its date, the start, the weight now and the
-  // milestones' shares went; they are on the goal page the climb opens. The goal's words over the climb,
-  // unless they are its big line already (the words state).
+  // ⚠ OVER THE ROUTE, STILL THREE THINGS (owner, 2026-11-04: "simplify some of the data on the hill
+  // climb/chart. looks like too much and can be a little overwhelming"): the goal in the member's words,
+  // what is left, and the goal by the flag. The pace, its date, the start and the weight now stay on the
+  // goal page the climb opens; the share and the next milestone are the strip's, once each. The goal's
+  // words over the climb, unless they are its big line already (the words state).
   const eyebrow = words && st.kind !== 'words' ? `“${words}”` : '';
   const link = (label) => (
     <button type="button" onClick={(e) => { e.stopPropagation(); if (typeof onOpen === 'function') onOpen(); }}
@@ -133,6 +169,9 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
   const aria = st.kind === 'progress'
     ? tr('home:climb.aria', { defaultValue: 'Your goal: {pct}% of the way, {amount} {unit} to go', pct, amount: fmt(read.toGoKg ?? 0), unit })
     : (typeof big === 'string' ? big : '');
+  // The door's name carries the strip too, so a screen reader hears the next milestone as well.
+  const doorName = next ? [aria, nextHead, next.weight, next.left].join(' · ') : aria;
+  const R = 13, RING = 2 * Math.PI * R;
 
   return (
     // ⚠ THE CLIMB IS A DOOR FOR EVERY HAND (Codex P2 on #2583): a state with its own link (reached, start
@@ -142,7 +181,7 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
     // otherwise (Codex P2 on #2583).
     <div data-bs-home-climb={st.kind} data-tour={tour || undefined} onClick={typeof onOpen === 'function' && st.kind !== 'loading' ? onOpen : undefined}
       {...(typeof onOpen === 'function' && !action && st.kind === 'progress' && aria ? {
-        role: 'button', tabIndex: 0, 'aria-label': aria || undefined,
+        role: 'button', tabIndex: 0, 'aria-label': doorName || undefined,
         onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } },
       } : null)}
       // 22px under the radio box: at 8px the ridge and the flag ran up against the box's foot (owner,
@@ -152,16 +191,34 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
       {/* Named by what it shows; still reading, it shows nothing yet and is hidden from a screen reader,
           never an unnamed graphic in browse mode (Codex P2 on #2583). */}
       <svg {...(aria ? { role: 'img', 'aria-label': aria } : { 'aria-hidden': true, focusable: 'false' })} viewBox={`0 0 ${BS_CLIMB_W} ${BS_CLIMB_H}`} width="100%" style={{ display: 'block', height: 'auto' }}>
-        <polygon points={bsClimbRidge()} fill={`rgba(${t.inkRGB || '245,240,230'},0.07)`} />
+        <defs>
+          <linearGradient id={`${gid}w`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor={teal} stopOpacity={t.isLight ? 0.26 : 0.42} />
+            <stop offset="1" stopColor={teal} stopOpacity="0" />
+          </linearGradient>
+          <radialGradient id={`${gid}g`} gradientUnits="userSpaceOnUse" cx="302" cy="30" r="62">
+            <stop offset="0" stopColor={gold} stopOpacity={t.isLight ? 0.28 : 0.42} />
+            <stop offset="0.45" stopColor={gold} stopOpacity={t.isLight ? 0.1 : 0.14} />
+            <stop offset="1" stopColor={gold} stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        {st.kind !== 'loading' ? <circle data-climb-summit-glow="" cx="302" cy="30" r="62" fill={`url(#${gid}g)`} /> : null}
+        <polygon points={bsClimbRidge()} fill={ink(0.07)} />
+        {walked && pct > 0 ? (() => {
+          const p = bsClimbPoint(pct / 100);
+          return <polygon data-climb-walked-area="" points={`${bsClimbPath(0, pct / 100)} ${p.x},${BS_CLIMB_H} ${bsClimbPoint(0).x},${BS_CLIMB_H}`} fill={`url(#${gid}w)`} />;
+        })() : null}
         <polyline points={bsClimbPath(walked ? pct / 100 : 0, 1)} fill="none" stroke={faint} strokeWidth="1.4" strokeDasharray="3 4" strokeLinecap="round" />
-        {walked && pct > 0 ? <polyline data-climb-walked={pct} points={bsClimbPath(0, pct / 100)} fill="none" stroke={teal} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /> : null}
-        {st.kind !== 'loading' ? BS_CLIMB_MILESTONES.map((m) => {
+        {walked && pct > 0 ? <polyline data-climb-walked={pct} points={bsClimbPath(0, pct / 100)} fill="none" stroke={teal} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" style={glow(teal)} /> : null}
+        {st.kind !== 'loading' ? BS_CLIMB_MILESTONES.map((m, i) => {
           const p = bsClimbPoint(m / 100);
-          const passed = walked && pct >= m;
-          // A tick at each quarter, in the teal once passed; their shares went with the rest of the numbers.
+          // Passed by the goal page's test when there is one to run (so a tick and its dot agree), else by
+          // the share walked.
+          const passed = ms ? ms.stops[i].done : (walked && pct >= m);
           return (
             <g key={m} data-climb-milestone={m} data-climb-passed={passed ? '' : undefined}>
-              <line x1={p.x} y1={p.y - 5} x2={p.x} y2={p.y + 5} stroke={passed ? teal : faint} strokeWidth="1.4" />
+              <line x1={p.x} y1={p.y - 5} x2={p.x} y2={p.y + 5} stroke={passed ? teal : faint} strokeWidth="2" style={passed ? glow(teal, 3, 0.9) : undefined} />
+              {next && next.m === m ? <circle data-climb-next-ring="" cx={p.x} cy={p.y} r="7" fill="none" stroke={teal} strokeWidth="1.5" style={glow(teal, 4, 0.9)} /> : null}
             </g>
           );
         }) : null}
@@ -171,14 +228,14 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
           return (
             <g data-climb-flag={planted ? 'planted' : 'open'}>
               <line x1={p.x} y1={p.y} x2={p.x} y2={p.y - 20} stroke={fg} strokeWidth="1.5" />
-              <polygon points={`${p.x},${p.y - 20} ${p.x + 14},${p.y - 15} ${p.x},${p.y - 10}`} fill={planted ? teal : fg} fillOpacity={planted ? 1 : (st.kind === 'none' || st.kind === 'words' ? 0 : 0.9)} stroke={fg} strokeWidth="1" />
+              <polygon points={`${p.x},${p.y - 20} ${p.x + 14},${p.y - 15} ${p.x},${p.y - 10}`} fill={planted ? teal : gold} fillOpacity={planted ? 1 : (st.kind === 'none' || st.kind === 'words' ? 0 : 1)} stroke={planted ? fg : gold} strokeWidth="1" style={glow(planted ? teal : gold, 5, 0.8)} />
             </g>
           );
         })()}
-        {walked && pct < 100 ? (() => { const p = bsClimbPoint(pct / 100); return <circle data-climb-now="" cx={p.x} cy={p.y} r="4.5" fill={teal} stroke={t.PAPER} strokeWidth="2" />; })() : null}
+        {walked && pct < 100 ? (() => { const p = bsClimbPoint(pct / 100); return <circle data-climb-now="" cx={p.x} cy={p.y} r="4.5" fill={teal} stroke={t.PAPER} strokeWidth="2" style={glow(teal, 5, 0.95)} />; })() : null}
       </svg>
 
-      {/* The words over the sky, top left, and the target by the flag. */}
+      {/* The words over the sky, top left, and the target by the flag, in the goal's gold. */}
       <div style={{ position: 'absolute', left: t.padX, right: t.padX, top: 0, pointerEvents: 'none' }}>
         {eyebrow ? <div style={{ ...mono, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '70%' }}>{eyebrow}</div> : null}
         {big != null ? (
@@ -191,7 +248,45 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
         {action ? <div style={{ pointerEvents: 'auto' }}>{action}</div> : null}
       </div>
       {st.kind === 'progress' && read.targetKg != null ? (
-        <div style={{ position: 'absolute', right: t.padX, top: 0, ...mono, color: fg }}>{tr('home:goal.target', { defaultValue: 'Goal' })} {fmt(read.targetKg)}</div>
+        <div data-climb-goal="" style={{ position: 'absolute', right: t.padX, top: 0, ...mono, color: gold, textShadow: t.isLight ? undefined : `0 0 8px ${ha(gold, 0.6)}` }}>{tr('home:goal.target', { defaultValue: 'Goal' })} {fmt(read.targetKg)}</div>
+      ) : null}
+
+      {/* The strip: the share walked as a ring, the next milestone and what is left to it, the four
+          milestones as dots (met ones filled, the next one ringed and lit). */}
+      {ms ? (
+        <div data-climb-strip="" style={{ margin: '4px 14px 0', padding: '9px 12px', borderRadius: 14, display: 'flex', alignItems: 'center', gap: 11, background: ink(t.isLight ? 0.045 : 0.06), border: `1px solid ${ink(t.isLight ? 0.08 : 0.1)}` }}>
+          <span aria-hidden="true" style={{ position: 'relative', width: 34, height: 34, flex: 'none' }}>
+            <svg width="34" height="34" viewBox="0 0 34 34" style={{ display: 'block', transform: 'rotate(-90deg)' }}>
+              <defs>
+                <linearGradient id={`${gid}k`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor={teal} />
+                  <stop offset="1" stopColor={along(pct / 100)} />
+                </linearGradient>
+              </defs>
+              <circle cx="17" cy="17" r={R} fill="none" stroke={ink(0.14)} strokeWidth="3" />
+              <circle data-climb-ring={pct} cx="17" cy="17" r={R} fill="none" stroke={`url(#${gid}k)`} strokeWidth="3" strokeLinecap="round" strokeDasharray={`${(RING * pct) / 100} ${RING}`} />
+            </svg>
+            <span data-climb-strip-pct="" style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontFamily: BS_DECK_MONO, fontSize: 8.5, fontWeight: 800, color: fg, fontVariantNumeric: 'tabular-nums' }}>{pctOf(pct)}</span>
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span data-climb-next={next ? next.m : undefined} style={{ display: 'block', ...mono, fontSize: 8.5, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {next ? nextHead : tr('home:goal.pctThere', { defaultValue: '{pct}% there', pct })}
+            </span>
+            {next ? (
+              <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 14, color: fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span data-climb-next-weight="">{next.weight}</span><span data-climb-next-left="" style={{ color: faint }}> · {next.left}</span>
+              </span>
+            ) : null}
+          </span>
+          <span aria-hidden="true" style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+            {ms.stops.map((s) => {
+              const isNext = !!next && s.m === next.m;
+              const c = along(s.m / 100);
+              const sz = s.m === 100 ? 9 : 7;
+              return <span key={s.m} data-climb-pip={s.m} data-climb-pip-state={s.done ? 'done' : isNext ? 'next' : 'ahead'} data-climb-pip-color={c} style={{ width: sz, height: sz, borderRadius: s.m === 100 ? 2 : 99, boxSizing: 'border-box', background: s.done ? c : 'transparent', border: `1.5px solid ${s.done || isNext ? c : ha(c, 0.55)}`, boxShadow: isNext && !t.isLight ? `0 0 6px ${ha(c, 0.85)}` : 'none' }} />;
+            })}
+          </span>
+        </div>
       ) : null}
     </div>
   );

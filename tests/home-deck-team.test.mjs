@@ -110,8 +110,10 @@ test('the climb: the goal in the member\'s words, what is left in their units, t
   assert.match(text, /“Lean, and quick on the bike again”/, 'the goal in the member\'s own words');
   assert.match(text, /5\.7lb to go/, '2.6 kg left reads in pounds');
   assert.match(text, /Goal 165\.3/, 'the target by the flag');
-  // What went: the date it started, the pace and its date, the weight now, the start, the milestones' shares.
-  assert.doesNotMatch(text, /Since|lb\/wk|Dec 12|171\.1|176\.4|Aug 27|%/, 'nothing else on the climb');
+  // What went: the date it started, the pace and its date, the weight now, the start. The share walked is
+  // the strip's alone (below), once.
+  assert.doesNotMatch(text, /Since|lb\/wk|Dec 12|171\.1|176\.4|Aug 27/, 'nothing else on the climb');
+  assert.equal(text.split('48%').length - 1, 1, 'the share walked shows once, in the strip');
   const svg = d.nodes().find((n) => n.type === 'svg');
   assert.equal(svg.props.role, 'img');
   assert.equal(svg.props['aria-label'], 'Your goal: 48% of the way, 5.7 lb to go');
@@ -138,6 +140,96 @@ test('the climb early on: what is left and the goal, no pace and no placeholder 
   assert.match(d.text, /lb to go/);
   assert.doesNotMatch(d.text, /Pace after a week of weigh-ins|lb\/wk/);
   assert.ok(!d.nodes().some((n) => n.props && n.props['data-climb-pace'] != null), 'no pace line');
+}));
+
+// Owner, 2026-11-04: "add a little more info here, either milestones, and percentage progress", "add a little
+// more color to this graph", then "this design but with option C coloring scheme on graph".
+test('the climb\'s milestones are the goal page\'s: a quarter, a half, three quarters and the target, met from the latest weigh-in', () => {
+  const cut = C.bsClimbMilestones({ startKg: 80, targetKg: 75, nowKg: 77.6 });
+  assert.deepEqual(cut.stops.map((s) => s.m), [25, 50, 75, 100]);
+  assert.deepEqual(cut.stops.map((s) => s.kg), [78.75, 77.5, 76.25, 75], 'start + (target − start) × share, as BSGoals.jsx');
+  assert.deepEqual(cut.stops.map((s) => s.done), [true, false, false, false]);
+  assert.equal(cut.next.m, 50);
+  assert.equal(cut.away, 0.1, 'from the latest weigh-in to the next one');
+  // The goal page's own test: within 0.05 kg counts as met.
+  assert.equal(C.bsClimbMilestones({ startKg: 80, targetKg: 75, nowKg: 77.54 }).next.m, 75);
+  // A build climbs the same way.
+  const build = C.bsClimbMilestones({ startKg: 60, targetKg: 70, nowKg: 66 });
+  assert.deepEqual(build.stops.map((s) => s.done), [true, true, false, false]);
+  assert.equal(build.next.m, 75);
+  assert.equal(build.away, 1.5);
+  // Nothing to measure: no start, no target, no weigh-in, or a target that is the start.
+  for (const read of [null, { startKg: 80, targetKg: null, nowKg: 79 }, { startKg: 80, targetKg: 75, nowKg: null }, { startKg: 75, targetKg: 75, nowKg: 75 }]) {
+    assert.equal(C.bsClimbMilestones(read), null);
+  }
+  // The two colours, and the scale between them.
+  assert.equal(C.bsClimbGold({ isLight: false }), '#e2ac44');
+  assert.equal(C.bsClimbGold({ isLight: true }), '#b9861f');
+  assert.equal(C.bsClimbMix('#000000', '#ffffff', 0), '#000000');
+  assert.equal(C.bsClimbMix('#000000', '#ffffff', 1), '#ffffff');
+  assert.equal(C.bsClimbMix('#000000', '#ffffff', 0.5), '#808080');
+  assert.equal(C.bsClimbMix('nope', '#ffffff', 0.5), 'nope', 'a colour it cannot read is left as it is');
+});
+
+test('the climb in colour, with the strip: the share walked, the next milestone, its weight and what is left, and the four milestones', () => withPounds(() => {
+  const data = { primary: 'fat_loss', overall: { title: 'Lean', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
+  const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data, onOpen: () => {} }));
+  const one = (k) => d.nodes().find((n) => n.props && n.props[k] != null);
+  const teal = THEME.ACCENT;
+  const gold = C.bsClimbGold(THEME);
+  // The strip: 48% in the ring, Halfway next at 77.5 kg (170.9 lb), 0.1 kg (0.2 lb) from the latest weigh-in.
+  assert.ok(one('data-climb-strip'), 'no strip under a goal on its way');
+  assert.equal(textOf(one('data-climb-strip-pct')), '48%');
+  assert.equal(one('data-climb-ring').props['data-climb-ring'], 48);
+  assert.equal(one('data-climb-next').props['data-climb-next'], 50);
+  assert.equal(textOf(one('data-climb-next')), 'Next · Halfway');
+  assert.equal(textOf(one('data-climb-next-weight')), '170.9 lb');
+  assert.equal(textOf(one('data-climb-next-left')), ' · 0.2 lb to go');
+  // The four milestones: a quarter met, Halfway next, the rest ahead; teal at the foot, gold at the goal.
+  const pips = d.nodes().filter((n) => n.props && n.props['data-climb-pip'] != null);
+  assert.deepEqual(pips.map((p) => p.props['data-climb-pip']), [25, 50, 75, 100]);
+  assert.deepEqual(pips.map((p) => p.props['data-climb-pip-state']), ['done', 'next', 'ahead', 'ahead']);
+  assert.deepEqual(pips.map((p) => p.props['data-climb-pip-color']), [0.25, 0.5, 0.75, 1].map((f) => C.bsClimbMix(teal, gold, f)));
+  assert.equal(pips[3].props['data-climb-pip-color'], gold);
+  assert.equal(pips[0].props.style.background, C.bsClimbMix(teal, gold, 0.25), 'a met milestone is filled');
+  assert.equal(pips[1].props.style.background, 'transparent', 'one ahead is an outline');
+  // The route: the walked line and the light under it in teal, the next milestone's tick ringed, the flag
+  // and the goal by it in gold, a gold glow behind the flag.
+  assert.equal(one('data-climb-walked').props.stroke, teal);
+  assert.ok(one('data-climb-walked-area'), 'no light under the walked part');
+  const ring = one('data-climb-next-ring');
+  assert.equal(ring.props.cx, C.bsClimbPoint(0.5).x, 'the ring sits on the Halfway tick');
+  assert.equal(ring.props.stroke, teal);
+  const flag = d.nodes().find((n) => n.type === 'polygon' && n.props.fillOpacity != null);
+  assert.equal(flag.props.fill, gold);
+  assert.equal(one('data-climb-goal').props.style.color, gold);
+  assert.ok(one('data-climb-summit-glow'));
+  const stops = d.nodes().filter((n) => n.type === 'stop').map((n) => n.props.stopColor);
+  assert.ok(stops.includes(teal) && stops.includes(gold), 'the gradients run from the teal to the gold');
+  // A tick and its dot agree on what is met.
+  assert.deepEqual(milestones(d).map((l) => l.props.stroke === teal), pips.slice(0, 3).map((p) => p.props['data-climb-pip-state'] === 'done'));
+  // A screen reader hears the strip with the rest.
+  assert.equal(climbOf(d).props['aria-label'], 'Your goal: 48% of the way, 5.7 lb to go · Next · Halfway · 170.9 lb · 0.2 lb to go');
+}));
+
+test('the strip is for a goal on its way: none when it is reached, before a weigh-in, or for a goal without numbers', () => withPounds(() => {
+  const noStrip = (d) => !d.nodes().some((n) => n.props && (n.props['data-climb-strip'] != null || n.props['data-climb-next-ring'] != null));
+  const reached = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: { unit: 'kg', start: 80, target: 78 }, weighIns: LOSING } }));
+  assert.equal(climbOf(reached).props['data-bs-home-climb'], 'reached');
+  assert.ok(noStrip(reached), 'a reached goal has no next milestone');
+  assert.doesNotMatch(reached.text, /%/);
+  // Reached plants the flag in the teal; every tick is passed.
+  assert.equal(reached.nodes().find((n) => n.type === 'polygon' && n.props.fillOpacity != null).props.fill, THEME.ACCENT);
+  assert.deepEqual(milestones(reached).map((l) => l.props.stroke === THEME.ACCENT), [true, true, true]);
+  const target = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: { unit: 'lb', target: 165 }, weighIns: [] } }));
+  assert.equal(climbOf(target).props['data-bs-home-climb'], 'target');
+  assert.ok(noStrip(target), 'no weigh-in: nothing walked to measure');
+  assert.doesNotMatch(target.text, /%|Next/);
+  for (const data of [{ primary: 'race', overall: {}, weighIns: [] }, { primary: '', overall: {}, weighIns: [] }, { primary: 'fat_loss', overall: {}, weighIns: LOSING }]) {
+    const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data }));
+    assert.ok(noStrip(d), `${climbOf(d).props['data-bs-home-climb']}: a strip`);
+  }
+  assert.ok(noStrip(drive(D.BSHomeClimbView, GOAL_PROPS({ data: null }))), 'still reading: no strip');
 }));
 
 // Codex P2 on #2583: a climb with no link of its own is itself a button for the keyboard and switch devices;

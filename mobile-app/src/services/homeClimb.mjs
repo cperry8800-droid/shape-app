@@ -76,3 +76,34 @@ export function bsClimbRidge(steps = 60) {
 }
 
 export const BS_CLIMB_MILESTONES = [25, 50, 75];
+
+// The goal page's milestones off the goal read (BSGoals.jsx's rule; owner, 2026-11-04: "add a little more
+// info here, either milestones, and percentage progress"): a quarter, a half and three quarters of the way
+// from the start weight to the target, then the target. Each is met once the latest weigh-in is at or past
+// it, within 0.05 kg, the goal page's own test, so Home and the goal page agree on which are done. `next`
+// is the first not met and `away` the kilograms from the latest weigh-in to it. null without a start, a
+// target and a weigh-in, or with a target equal to the start.
+export function bsClimbMilestones(read) {
+  const r = read || {};
+  const num = (v) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
+  const start = num(r.startKg), target = num(r.targetKg), now = num(r.nowKg);
+  if (start == null || target == null || now == null || start === target) return null;
+  const losing = target < start;
+  const stops = [...BS_CLIMB_MILESTONES, 100].map((m) => {
+    const kg = start + (target - start) * (m / 100);
+    return { m, kg, done: losing ? now <= kg + 0.05 : now >= kg - 0.05 };
+  });
+  const next = stops.find((s) => !s.done) || null;
+  return { stops, next, away: next ? Math.round(Math.abs(next.kg - now) * 100) / 100 : 0 };
+}
+
+// The climb's two colours: Shape's teal at the foot and gold at the summit, the goal (owner, 2026-11-04:
+// "add a little more color to this graph"). A point `f` (0 to 1) of the way along is mixed between them.
+export const bsClimbGold = (t) => (t && t.isLight ? '#b9861f' : '#e2ac44');
+export function bsClimbMix(a, b, f) {
+  const pa = String(a || '').replace('#', ''), pb = String(b || '').replace('#', '');
+  if (!/^[0-9a-f]{6}$/i.test(pa) || !/^[0-9a-f]{6}$/i.test(pb)) return a;
+  const na = parseInt(pa, 16), nb = parseInt(pb, 16), k = Math.max(0, Math.min(1, Number(f) || 0));
+  const ch = (s) => Math.round(((na >> s) & 255) + ((((nb >> s) & 255) - ((na >> s) & 255)) * k));
+  return `#${[16, 8, 0].map((s) => ch(s).toString(16).padStart(2, '0')).join('')}`;
+}
