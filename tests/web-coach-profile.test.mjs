@@ -54,8 +54,8 @@ test('a trainer is teal and a nutritionist amber until they pick; a mono accent 
 });
 
 test('the words for a coach follow the pronouns they wrote, or their first name', () => {
-  assert.deepEqual(K.bsCoachWords('her', 'Maya'), { day: 'Her day', work: 'Work with her', kitchen: 'Her kitchen' });
-  assert.deepEqual(K.bsCoachWords(null, 'Quinn'), { day: "Quinn's day", work: 'Work with Quinn', kitchen: "Quinn's kitchen" });
+  assert.deepEqual(K.bsCoachWords('her', 'Maya'), { day: 'Her day', work: 'Work with her', kitchen: 'My kitchen' });
+  assert.deepEqual(K.bsCoachWords(null, 'Quinn'), { day: "Quinn's day", work: 'Work with Quinn', kitchen: 'My kitchen' });
   assert.equal(K.bsCoachWords(K.bsCoachPronoun('they/them'), 'Sam').day, 'Their day');
 });
 
@@ -435,7 +435,7 @@ test('a nutritionist\'s page: amber until they pick, the kitchen and plate notes
   const p = await mount({ mode: 'sample', role: 'nutritionist', name: 'Quinn Avery', sampleKey: 'Quinn Avery', follow: null });
   const tabs = [...document.querySelectorAll('[data-profile-tab]')].map((b) => [b.getAttribute('data-profile-tab'), b.textContent]);
   assert.deepEqual(tabs.map((t) => t[0]), ['day', 'kitchen', 'plates', 'activity']);
-  assert.equal(tabs[1][1], "Quinn's kitchen");
+  assert.equal(tabs[1][1], 'My kitchen');
   assert.match(document.querySelector('.cpw-h1').innerHTML, /#e3a544|rgb\(227, 165, 68\)/, 'the name\'s accent dot is the nutritionist gold');
   await React.act(async () => document.querySelector('[data-profile-tab=plates]').click());
   await React.act(async () => document.querySelector('[data-plate-day]').click());

@@ -1294,7 +1294,6 @@
   "grocery.loadFailed": "Не вдалося завантажити ваші списки.",
   "grocery.clientsFailed": "Не вдалося завантажити клієнтів.",
   "plans.clientsCount": "{count, plural, one {# клієнт} few {# клієнти} many {# клієнтів} other {# клієнта}}",
-  "plans.draftWithNora": "✦ Чернетка з Nora",
   "plans.fromScratch": "＋ З нуля",
   "plans.noMatch": "Нічого не знайдено за запитом «{query}».",
   "plans.searchAria": "Пошук у вашій бібліотеці",

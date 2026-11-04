@@ -50,7 +50,7 @@ for (const chrome of ['BSPage', 'BSFooter', 'BSBackButton', 'BSBackRow', 'BSMast
 
 const PROS = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), {
   registry: new Map([['react', React], ['react-dom', { createPortal: (n) => n }]]),
-  appendExports: 'export { BSProFeaturedPlan, bsProCreateButtons, bsProDeckTheme };',
+  appendExports: 'export { BSProFeaturedPlan, bsProCreateButton, bsProDeckTheme };',
 });
 
 async function mount(el) {
@@ -106,19 +106,20 @@ test('a plan with no length has a ★ block, and a plan with no price, clients o
   } finally { await m.close(); }
 });
 
-test('Nora\'s line on the deck: the line drafts, From scratch at its end builds blank, both 44 to tap', async () => {
+test('the deck holds From scratch alone: no Nora line (she drafts from the masthead), 44 to tap, builds blank', async () => {
+  // Owner, 2026-11-04: "remove this nora box from program and plan page since coach should just be able
+  // to ask nora from click nora button in mast head".
   const calls = [];
   const deck = PROS.bsProDeckTheme(theme);
-  const m = await mount(React.createElement('div', null, PROS.bsProCreateButtons(deck, '#c0533b', (k, o) => (o && o.defaultValue) || k, () => calls.push('nora'), () => calls.push('scratch'))));
+  const m = await mount(React.createElement('div', null, PROS.bsProCreateButton(deck, (k, o) => (o && o.defaultValue) || k, () => calls.push('scratch'))));
   try {
-    const nora = m.host.querySelector('[data-create="nora"]');
+    assert.ok(!m.host.querySelector('[data-create="nora"]'), 'Nora\'s draft line is back on the deck');
+    assert.doesNotMatch(m.host.textContent, /Nora/);
     const scratch = m.host.querySelector('[data-create="scratch"]');
-    for (const b of [nora, scratch]) assert.ok(parseFloat(b.style.minHeight) >= 44, b.textContent + ' ' + b.style.minHeight);
-    assert.equal(nb(nora.textContent), '✦Draft with Nora…');
+    assert.ok(parseFloat(scratch.style.minHeight) >= 44, scratch.style.minHeight);
     assert.equal(scratch.textContent, '＋ From scratch');
     assert.equal(deck.PAPER, '#111', 'the deck is the paper\'s ink on a light paper');
-    assert.equal(m.host.querySelector('[data-create-line]').style.background.replace(/\s/g, ''), 'rgba(255,255,255,0.08)', 'the line on the deck\'s raised tone');
-    nora.click(); scratch.click();
-    assert.deepEqual(calls, ['nora', 'scratch']);
+    scratch.click();
+    assert.deepEqual(calls, ['scratch']);
   } finally { await m.close(); }
 });

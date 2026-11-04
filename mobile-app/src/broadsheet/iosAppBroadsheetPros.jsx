@@ -3256,21 +3256,12 @@ function bsProTypoIndex(t, items, activeKey, onPick, { ariaLabel = 'Sections', h
     </div>
   );
 }
-// The two ways to make something, side by side: Nora drafts it, or the coach builds it blank. 40px
-// at 13.5 / 650, as the page's other actions (owner, 2026-10-31: "these can be condensed more"; they
-// were 48px at 15 / 700, and From scratch had an ink outline).
-function bsProCreateButtons(t, heat, tr, onDraft, onScratch) {
-  // Direction A: Nora's line on the deck (`t` is the deck's theme), as a command line: the whole line asks
-  // Nora to draft the kind on show; From scratch, at its end, builds it blank. Both 44 to tap.
-  const nora = tr('coach:plans.draftWithNora', { defaultValue: '✦ Draft with Nora' });
-  const star = nora.startsWith('✦');
+// Build the kind on show blank. Nora's draft line beside it is gone (owner, 2026-11-04: "remove this
+// nora box from program and plan page since coach should just be able to ask nora from click nora
+// button in mast head"); the masthead's ✦ opens her on every coach page. 44 to tap, on the deck.
+function bsProCreateButton(t, tr, onScratch) {
   return (
-    <div data-create-line="" style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 48, padding: '0 4px 0 0', borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, boxSizing: 'border-box' }}>
-      <button type="button" data-create="nora" onClick={onDraft} style={{ flex: 1, minWidth: 0, minHeight: 46, display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px', border: 0, background: 'transparent', color: t.INK70, textAlign: 'left', fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {star ? <><span aria-hidden="true" style={{ color: BS_DECK_TEAL, fontSize: 16 }}>✦</span>{nora.slice(1).trim()}…</> : `${nora}…`}
-      </button>
-      <button type="button" data-create="scratch" onClick={onScratch} style={{ flexShrink: 0, minHeight: 44, padding: '0 10px', borderRadius: 4, border: `1px solid ${t.INK30}`, background: 'transparent', color: t.INK, fontFamily: BS_DECK_MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('coach:plans.fromScratch', { defaultValue: '＋ From scratch' })}</button>
-    </div>
+    <button type="button" data-create="scratch" onClick={onScratch} style={{ flexShrink: 0, minHeight: 44, padding: '0 14px', borderRadius: 4, border: `1px solid ${t.INK30}`, background: 'transparent', color: t.INK, fontFamily: BS_DECK_MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('coach:plans.fromScratch', { defaultValue: '＋ From scratch' })}</button>
   );
 }
 // The library search: one field over every list on the page.
@@ -7184,11 +7175,11 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } =
       {/* §1.1 Header — mast row (the standard inset, #1574 rule), then "Programs" and its line. */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <BSProCleanType t={t}>
-      {/* The deck (direction A): the title, what is published on its baseline, and Nora's line to draft the
-          kind on show (or build it blank). */}
+      {/* The deck (direction A): the title, what is published on its baseline, and From scratch to build the
+          kind on show blank (Nora drafts from the masthead's ✦). */}
       <BSProDeck t={t} role={heatRole} tour="hero-plans" title={tr('coach:shortcut.programs', { defaultValue: 'Programs' })}
         aside={<span data-deck-published="" style={{ ...bsDeckEyebrow(BS_DECK_TEAL), whiteSpace: 'normal', textAlign: 'right' }}>{publishedLead}{publishedRest ? ` · ${publishedRest}` : ''}</span>}>
-        {tab === 'library' && <div style={{ padding: `14px ${t.padX}px 0` }}>{bsProCreateButtons(bsProDeckTheme(t), heat, tr, () => openDraft(libBuild), () => openDraft(libBuild, true))}</div>}
+        {tab === 'library' && <div style={{ padding: `14px ${t.padX}px 0` }}>{bsProCreateButton(bsProDeckTheme(t), tr, () => openDraft(libBuild, true))}</div>}
       </BSProDeck>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {note && <div role="status" style={{ marginTop: 12, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: t.isLight ? '#07706a' : teal, padding: '10px 14px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.04em' }}>✓ {note}</div>}
@@ -8313,11 +8304,11 @@ function BSNutriPlans() {
       {/* §1.1 Header — mast row (the standard inset), then "Plans" and its line. */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <BSProCleanType t={t}>
-      {/* The deck (direction A): the title, what is published on its baseline, and Nora's line to draft the
-          kind on show (or build it blank). */}
+      {/* The deck (direction A): the title, what is published on its baseline, and From scratch to build the
+          kind on show blank (Nora drafts from the masthead's ✦). */}
       <BSProDeck t={t} role={heatRole} tour="hero-plans" title={tr('coach:shortcut.plans', { defaultValue: 'Plans' })}
         aside={<span data-deck-published="" style={{ ...bsDeckEyebrow(BS_DECK_TEAL), whiteSpace: 'normal', textAlign: 'right' }}>{publishedLead}{publishedRest ? ` · ${publishedRest}` : ''}</span>}>
-        {tab === 'library' && <div style={{ padding: `14px ${t.padX}px 0` }}>{bsProCreateButtons(bsProDeckTheme(t), heat, tr, () => openDraft(libBuild), () => openDraft(libBuild, true))}</div>}
+        {tab === 'library' && <div style={{ padding: `14px ${t.padX}px 0` }}>{bsProCreateButton(bsProDeckTheme(t), tr, () => openDraft(libBuild, true))}</div>}
       </BSProDeck>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {note && <div role="status" style={{ marginTop: 12, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: t.isLight ? '#07706a' : teal, padding: '10px 14px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.04em' }}>✓ {note}</div>}

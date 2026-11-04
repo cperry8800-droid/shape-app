@@ -233,6 +233,55 @@ export function BSTrainerProfile(props) {
   );
 }
 
+// The tabs fit the row whole (owner, 2026-11-04, of a nutritionist's five: "these tabs are also going
+// off page"). Set at their size, then half a point smaller at a time down to TAB_FIT_MIN until the row
+// holds them; a row that still can't (a long name, a long language) scrolls, and `more` says so, for the
+// fades at its edges. Measured in the DOM, so it holds for any label in any locale; where nothing lays
+// out (no width), the tabs keep their size.
+const TAB_FIT_MIN = 11.5;
+function useTabFit(nav, key, max) {
+  const [fit, setFit] = React.useState({ key: null, max, size: max, more: false });
+  React.useLayoutEffect(() => {
+    if (!nav) return undefined;
+    let live = true;
+    const run = () => {
+      const tabs = nav.querySelectorAll('[data-profile-tab]');
+      if (!live || !tabs.length || !nav.clientWidth) return;
+      let size = max;
+      for (;;) {
+        tabs.forEach((b) => { b.style.fontSize = `${size}px`; });
+        if (nav.scrollWidth <= nav.clientWidth + 1 || size <= TAB_FIT_MIN) break;
+        size -= 0.5;
+      }
+      const more = nav.scrollWidth > nav.clientWidth + 1;
+      setFit((f) => (f.key === key && f.max === max && f.size === size && f.more === more ? f : { key, max, size, more }));
+    };
+    run();
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(run) : null;
+    if (ro) ro.observe(nav);
+    // The face may land after the first measure, and Saira sets wider than the fallback.
+    if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(run, () => {});
+    return () => { live = false; if (ro) ro.disconnect(); };
+  }, [nav, key, max]);
+  return fit.key === key && fit.max === max ? fit : { size: max, more: false };
+}
+// The row's scroll, for its fades: whether there is more to its left and to its right.
+function useTabEdges(nav, on) {
+  const [edges, setEdges] = React.useState({ left: false, right: false });
+  React.useEffect(() => {
+    if (!nav || !on) { setEdges((e) => (e.left || e.right ? { left: false, right: false } : e)); return undefined; }
+    const read = () => {
+      const left = nav.scrollLeft > 1;
+      const right = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1;
+      setEdges((e) => (e.left === left && e.right === right ? e : { left, right }));
+    };
+    read();
+    nav.addEventListener('scroll', read, { passive: true });
+    return () => nav.removeEventListener('scroll', read);
+  }, [nav, on]);
+  return edges;
+}
+
 function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {}, demo = null, onListing = null }) {
   const W = window;
   const t = W.useBS();
@@ -262,7 +311,9 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const words = {
     day: pron === 'her' ? tr('profile:trainer.dayHer', { defaultValue: 'Her day' }) : pron === 'him' ? tr('profile:trainer.dayHim', { defaultValue: 'His day' }) : pron === 'them' ? tr('profile:trainer.dayThem', { defaultValue: 'Their day' }) : tr('profile:trainer.dayName', { defaultValue: "{name}'s day", name: first }),
     work: pron === 'her' ? tr('profile:trainer.workHer', { defaultValue: 'Work with her' }) : pron === 'him' ? tr('profile:trainer.workHim', { defaultValue: 'Work with him' }) : pron === 'them' ? tr('profile:trainer.workThem', { defaultValue: 'Work with them' }) : tr('profile:trainer.workName', { defaultValue: 'Work with {name}', name: first }),
-    kitchen: pron === 'her' ? tr('profile:nutri.kitchenHer', { defaultValue: 'Her kitchen' }) : pron === 'him' ? tr('profile:nutri.kitchenHim', { defaultValue: 'His kitchen' }) : pron === 'them' ? tr('profile:nutri.kitchenThem', { defaultValue: 'Their kitchen' }) : tr('profile:nutri.kitchenName', { defaultValue: "{name}'s kitchen", name: first }),
+    // The kitchen tab in the coach's own voice, as About me (owner, 2026-11-04: "just have it say my
+    // kitchen", "not persons name"). A recipe's eyebrow and a grocery list still name whose it is.
+    kitchen: tr('profile:nutri.tabKitchen', { defaultValue: 'My kitchen' }),
   };
   const points = live && Number.isFinite(live.points) ? live.points : null;
   const tierKey = points != null && W.bsTierForPoints ? W.bsTierForPoints(points) : (person.tier || 'base');
@@ -628,6 +679,9 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     ...(isSelf || activity.length ? [['activity', tr('profile:tab.activity', { defaultValue: 'Activity' })]] : []),
   ];
   const tabNow = tabs.some(([k]) => k === tab) ? tab : 'day';
+  const [tabNav, setTabNav] = React.useState(null);
+  const tabFit = useTabFit(tabNav, tabs.map(([k, l]) => `${k}:${l}`).join('|'), tabs.length > 3 ? 13 : 15);
+  const tabEdges = useTabEdges(tabNav, tabFit.more);
 
   if (page === 'edit' && editReady) {
     const photos = demo ? demo.photos : [media.cover, ...(gallery.map((g) => g && g.url))].filter((u) => typeof u === 'string' && /^https:\/\//.test(u));
@@ -766,22 +820,26 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
         {/* Tabs */}
         {!isPrivate ? (
           <>
-            <nav aria-label={tr('profile:trainer.sections', { defaultValue: 'Profile sections' })} className="bs-hide-scroll" style={{ position: 'sticky', top: pinnedTop, zIndex: 4, marginTop: 18, background: t.PAPER, borderBottom: `1px solid ${ink(0.18)}`, display: 'flex', padding: '0 8px', overflowX: 'auto', overscrollBehaviorX: 'contain' }}>
-              {tabs.map(([k, label]) => {
+            <nav ref={setTabNav} aria-label={tr('profile:trainer.sections', { defaultValue: 'Profile sections' })} className="bs-hide-scroll" style={{ position: 'sticky', top: pinnedTop, zIndex: 4, marginTop: 18, background: t.PAPER, borderBottom: `1px solid ${ink(0.18)}`, display: 'flex', padding: '0 6px', overflowX: 'auto', overscrollBehaviorX: 'contain' }}>
+              {/* A row that still runs past the screen fades at the edge with more to show. */}
+              {tabFit.more ? <span aria-hidden="true" data-profile-tab-fade="left" style={{ position: 'sticky', left: 0, zIndex: 1, flex: '0 0 20px', marginRight: -20, pointerEvents: 'none', background: `linear-gradient(to right, ${t.PAPER}, transparent)`, opacity: tabEdges.left ? 1 : 0, transition: 'opacity 160ms ease' }} /> : null}
+              {tabs.map(([k, label], i) => {
                 const on = k === tabNow;
                 return (
                   // One line each (owner, 2026-10-31: "make this fit on one line" of "Quinn's kitchen"):
-                  // a tab takes the width its words need and shares what is left, and a name too long for
-                  // the row ends in … rather than wrapping. Four tabs (with About me) read at 13px with
-                  // 4px sides, so a nutritionist's "Quinn's day / About me / Quinn's kitchen / Plate notes"
-                  // fits a phone's row whole (at 15px with 6px sides it needs 358px of 334). Five (About me
-                  // and Activity, owner, 2026-10-31) can't fit at any size worth reading, so a tab never
-                  // shrinks below its words: the row scrolls sideways, with no bar, and the picked tab
-                  // comes into view.
-                  <button key={k} type="button" aria-pressed={on} onClick={(e) => { setTab(k); try { e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) {} }} title={label} data-profile-tab={k}
-                    style={{ flex: '1 0 auto', minHeight: 48, padding: tabs.length > 3 ? '0 4px' : '0 6px', border: 0, borderBottom: `2px solid ${on ? ACC : 'transparent'}`, marginBottom: -1, background: 'transparent', color: on ? INK : ink(0.55), fontFamily: DISPLAY, fontWeight: on ? 600 : 400, fontSize: tabs.length > 3 ? 13 : 15, whiteSpace: 'nowrap', cursor: 'pointer' }}>{label}</button>
+                  // a tab takes the width its words need and shares what is left, never wraps and never
+                  // shrinks below its words. The row sets them at 15px for three or fewer, 13px for more,
+                  // and smaller still, down to 11.5px, until the row holds them all (useTabFit). A hairline
+                  // stands between two tabs (owner, 2026-11-04: "add slight spacers in between these tabs,
+                  // or some subtle sectioning").
+                  <React.Fragment key={k}>
+                    {i > 0 ? <span aria-hidden="true" data-profile-tab-rule="" style={{ flex: '0 0 1px', alignSelf: 'center', height: 14, background: ink(0.16) }} /> : null}
+                    <button type="button" aria-pressed={on} onClick={(e) => { setTab(k); try { e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) {} }} title={label} data-profile-tab={k}
+                      style={{ flex: '1 0 auto', minHeight: 48, padding: tabs.length > 3 ? '0 5px' : '0 6px', border: 0, borderBottom: `2px solid ${on ? ACC : 'transparent'}`, marginBottom: -1, background: 'transparent', color: on ? INK : ink(0.55), fontFamily: DISPLAY, fontWeight: on ? 600 : 400, fontSize: tabFit.size, whiteSpace: 'nowrap', cursor: 'pointer' }}>{label}</button>
+                  </React.Fragment>
                 );
               })}
+              {tabFit.more ? <span aria-hidden="true" data-profile-tab-fade="right" style={{ position: 'sticky', right: 0, zIndex: 1, flex: '0 0 20px', marginLeft: -20, pointerEvents: 'none', background: `linear-gradient(to left, ${t.PAPER}, transparent)`, opacity: tabEdges.right ? 1 : 0, transition: 'opacity 160ms ease' }} /> : null}
             </nav>
             {/* Activity draws its cards edge to edge, as the member profile's do, so it stands in
                 for the padded body rather than inside it. */}

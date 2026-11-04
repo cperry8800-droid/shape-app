@@ -99,12 +99,13 @@ export function bsOnColor(hex) {
 }
 
 // ── The words for a coach ────────────────────────────────────────────────────────────────────
-/** "Her day" / "Work with him" / "Their kitchen", or by first name (the app's `words`). */
+/** "Her day" / "Work with him", or by first name, and "My kitchen" (the app's `words`). */
 export function bsCoachWords(pron, first) {
   const name = String(first || '').trim() || 'Coach';
-  const by = { her: ['Her day', 'Work with her', 'Her kitchen'], him: ['His day', 'Work with him', 'His kitchen'], them: ['Their day', 'Work with them', 'Their kitchen'] }[pron];
-  const [day, work, kitchen] = by || [`${name}'s day`, `Work with ${name}`, `${name}'s kitchen`];
-  return { day, work, kitchen };
+  const by = { her: ['Her day', 'Work with her'], him: ['His day', 'Work with him'], them: ['Their day', 'Work with them'] }[pron];
+  const [day, work] = by || [`${name}'s day`, `Work with ${name}`];
+  // The kitchen tab in the coach's own voice, as About me (owner, 2026-11-04: "just have it say my kitchen").
+  return { day, work, kitchen: 'My kitchen' };
 }
 
 // ── A coach's posts as the profile's cards ───────────────────────────────────────────────────
