@@ -622,6 +622,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: Make it yours\' About me, Your goal and the primary-goal picker redesigned, each with the standard masthead; one pinned ← for every pinned bar (#2595). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of the coach editor\'s About me: "update design of this page", "with correct masthead as well", "mast head needs to be the same as current ones, with rotating triangles"; of the goal sheet, "the your goal page needs to have updated design"; of the goal picker, "improve this, needs new layout"', status: 'done' },
+        { label: '#2595 masthead: Make it yours, Your goal and the picker draw the mark, Vol·No and the ✦ ⌕ ⚙ pill, then ← Back with the eyebrow (the ✕ and the picker\'s Close went); each tool leaves the takeover first, and in Make it yours with unsaved changes it asks as Back does and runs on Save or Leave. A pinned bar comes in once a takeover scrolls 64px', status: 'done' },
+        { label: '#2595 chrome: BSPinBackButton is the one pinned ← (BSPage\'s bar draws it) and BSPinnedBar the pinned bar for a takeover with a scroller of its own; tests/back-placement.test.mjs holds every pinned ← to the chrome', status: 'done' },
+        { label: '#2595 About me: six numbered parts over the ledger rule, each one quiet card of rows with a teal spine on the row being typed in; the story and answers grow; every data-about-* hook kept. Your goal in the goals page\'s look: the live read (ring, verdict, target and date), the goal card, Start / Now / Target tiles, the why; what it saves is unchanged. The picker: twelve tiles two across with line marks, the own goal a wide tile, all thirteen in one radio group. No new copy', status: 'done' },
+        { label: '#2595 review: Codex\'s P1 on af0060b (a hand-drawn pinned ←) fixed in c2d335b; its P2 on 4d5a83e (the own-goal radio outside the group) fixed in 4b17800; Codex clean on 4b17800. Merged main\'s #2592 into it (its work prop and focus/picks block kept). npm test 9,584/9,584 on the merged head', status: 'done' },
+        { label: 'About me: #2592\'s focus words and picks keep their own small-label style above the numbered parts', status: 'pending' },
+        { label: 'The goal sheets have no unsaved-changes prompt: Back, Cancel and the tools all discard edits, as Cancel always did', status: 'pending' },
+        { label: 'OWNER: on a phone, the pinned bars under the notch and the borderless fields with the keyboard', status: 'manual' },
+      ],
+    },
+    {
       section: 'App and website: the radio tempo reads "—" just outside 100–160 instead of the edge, so the Radio page\'s floor never steps off the beat (#2596). No migration',
       items: [
         { label: 'Owner, 2026-11-04: "on the radio page, the towers moving with the music and the floor stepping on the beat - can you make sure this works"', status: 'done' },
