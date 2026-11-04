@@ -18,6 +18,8 @@ import { bsPlanPreview, bsProgramLine } from './planPreview.mjs';
 
 export const BS_WORK_PROGRAMS_MAX = 12;
 export const BS_WORK_VIDEOS_MAX = 12;
+// A program's days read for the Studio (its first week's): each a workout the coach can describe.
+export const BS_WORK_DAYS_MAX = 14;
 export const BS_WORK_MOVES_MAX = 60;
 const PLAN_SCAN = 40;
 const ROW_SCAN = 120;
@@ -185,7 +187,7 @@ function programDaysOf(pr) {
   const detail = isObj(pr.plan) && isObj(pr.plan.detail) ? pr.plan.detail : {};
   const blocks = Array.isArray(detail.blocks) ? detail.blocks.slice(0, ROW_SCAN) : [];
   const days = Array.isArray(detail.firstWeek)
-    ? detail.firstWeek.slice(0, 14).filter((d) => isObj(d) && Number.isInteger(d.week) && Number.isInteger(d.day)) : [];
+    ? detail.firstWeek.slice(0, BS_WORK_DAYS_MAX).filter((d) => isObj(d) && Number.isInteger(d.week) && Number.isInteger(d.day)) : [];
   const movesOf = (d) => blocks.filter((b) => isObj(b) && b.week === d.week && b.day === d.day && typeof b.name === 'string')
     .map((b) => ({ name: clean(b.name, 80), ...(typeof b.muscle === 'string' && clean(b.muscle, 40) ? { muscle: clean(b.muscle, 40) } : {}) }))
     .filter((m) => m.name);
@@ -200,7 +202,7 @@ function programDaysOf(pr) {
     return [{ i: 0, label, title: clean(d.dayName, 80), moves: moves.slice(0, 20), more: Math.max(0, total - Math.min(moves.length, 20)) }];
   }
   const out = [];
-  units.slice(0, 14).forEach((u, i) => {
+  units.slice(0, BS_WORK_DAYS_MAX).forEach((u, i) => {
     if (!isObj(u) || u.locked || u.rest) return;
     const d = days[i] || null;
     const moves = d ? movesOf(d) : (Array.isArray(u.moves) ? u.moves.map((m) => ({ name: clean(m, 80) })).filter((m) => m.name) : []);

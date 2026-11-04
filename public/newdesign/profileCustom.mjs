@@ -587,7 +587,11 @@ export const BS_FOCUS_WORD_MAX = 24;
 export const BS_FOCUS_PRESETS = ['strength', 'conditioning', 'beginners', 'hypertrophy', 'cut', 'return', '5k', 'mobility'];
 export const BS_PICKS_MAX = 2;
 export const BS_DESC_MAX = 140;
-export const BS_DESCS_MAX = 60;
+// Every line the editor offers is kept (Codex P2 on #2592): a line for each program, each of its days
+// and each video the Studio reads, and one for coaching, so coachWork.mjs's BS_WORK_PROGRAMS_MAX ×
+// (1 + BS_WORK_DAYS_MAX) + BS_WORK_VIDEOS_MAX + 1 (tests/coach-studio-model.test.mjs holds the two
+// together). At 140 characters a line that is under 30 KB of words, in the doc the coach writes.
+export const BS_DESCS_MAX = 12 * (1 + 14) + 12 + 1;
 export const BS_FOR_WORDS_MAX = 40;
 export const BS_FOR_PRESETS = ['new', 'lifting'];
 const BS_FOR_MAX = 24;

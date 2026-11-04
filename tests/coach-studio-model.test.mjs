@@ -5,9 +5,9 @@
 // words in tests/studio-editor.test.mjs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bsCoachPrograms, bsWorkoutVideos, bsStudioModel } from '../mobile-app/src/services/coachWork.mjs';
+import { bsCoachPrograms, bsWorkoutVideos, bsStudioModel, BS_WORK_PROGRAMS_MAX, BS_WORK_DAYS_MAX, BS_WORK_VIDEOS_MAX } from '../mobile-app/src/services/coachWork.mjs';
 import {
-  BS_FOCUS_MAX, BS_FOCUS_PRESETS, BS_PICKS_MAX, BS_DESC_MAX, BS_FOR_PRESETS,
+  BS_FOCUS_MAX, BS_FOCUS_PRESETS, BS_PICKS_MAX, BS_DESC_MAX, BS_DESCS_MAX, BS_FOR_PRESETS,
   bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor, bsNormalizeProfileCustom,
 } from '../mobile-app/src/services/profileCustom.mjs';
 
@@ -21,6 +21,24 @@ const PLAN = { id: 'plan1', kind: 'program', name: 'Lift 3', price: 49, detail: 
 const model = (over = {}) => bsStudioModel({
   programs: bsCoachPrograms([PLAN]), videos: bsWorkoutVideos([{ key: 'v1', title: 'Walkthrough', video: CLIP, ago: '2d' }]),
   monthly: 180, offer: { includes: ['Custom programming'], blurb: 'The offer\'s own blurb.' }, ...over,
+});
+
+test('every line the editor offers is kept: as many as the Studio has programs, days, videos and coaching', () => {
+  // Codex P2 on #2592: the cap was 60, under what the editor shows (five 14-day programs is 75 lines).
+  assert.equal(BS_DESCS_MAX, BS_WORK_PROGRAMS_MAX * (1 + BS_WORK_DAYS_MAX) + BS_WORK_VIDEOS_MAX + 1);
+  const words = {};
+  for (let p = 0; p < BS_WORK_PROGRAMS_MAX; p += 1) {
+    words[`p:plan${p}`] = `Program ${p}.`;
+    for (let d = 0; d < BS_WORK_DAYS_MAX; d += 1) words[`d:plan${p}:${d}`] = `Day ${d} of ${p}.`;
+  }
+  for (let v = 0; v < BS_WORK_VIDEOS_MAX; v += 1) words[`v:post${v}`] = `Video ${v}.`;
+  words.coaching = 'Monthly, written for you.';
+  const kept = bsProfileDescriptions(words);
+  assert.equal(Object.keys(kept).length, BS_DESCS_MAX, 'a line the editor offered was dropped');
+  assert.equal(kept['d:plan11:13'], 'Day 13 of 11.');
+  assert.equal(kept.coaching, 'Monthly, written for you.');
+  // Past that, nothing more.
+  assert.equal(Object.keys(bsProfileDescriptions({ ...words, 'v:extra': 'One more.' })).length, BS_DESCS_MAX);
 });
 
 test('the model: each program with the coach\'s line, else its own note, and who it is for', () => {
