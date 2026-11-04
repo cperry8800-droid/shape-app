@@ -63,9 +63,10 @@ export const bsDeckEyebrow = (color) => ({ fontFamily: BS_DECK_MONO, fontSize: 1
 // puts in it, and a hairline from ink to teal along its foot. A step tighter (owner, 2026-11-04: "condense
 // these boxes slightly"): 12px over and 14px under (16 and 18 before), the title 30px (34), the week's days
 // 54px tall (64), the gauges 28px (32).
-export function BSProDeck({ t, role, title, aside, tour, label, children }) {
+export function BSProDeck({ t, role, title, aside, tour, label, children, stopColor }) {
   const d = bsProDeckTheme(t);
-  const heat = bsProDeckHeat(role);
+  // The full stop: the role's heat, or what the page asks (the member's calendar takes teal).
+  const heat = stopColor || bsProDeckHeat(role);
   const Ctx = typeof window !== 'undefined' ? window.BSContext : null;
   const band = (
     <section data-pro-deck="" data-glass={t.isLight ? undefined : ''} aria-label={label || (typeof title === 'string' ? title : undefined)} style={{ position: 'relative', background: d.PAPER, color: d.INK, padding: '12px 0 14px', marginTop: 4, ...(t.isLight ? null : { ...bsGlassFill(t), borderTop: bsGlassBorder(t), borderBottom: bsGlassBorder(t) }) }}>
