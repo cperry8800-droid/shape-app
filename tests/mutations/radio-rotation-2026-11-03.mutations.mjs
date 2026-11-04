@@ -133,7 +133,7 @@ export default {
       find: ".select('event,played_at,title,artist,detail').not('set_id', 'is', null).order(", replace: ".select('event,played_at,title,artist,detail').order(" },
     { name: 'segments already over, again and again, spin the loop', file: ENG,
       find: '      if (overAgain) await deps.sleep(RETRY_SEC[0] * 1000);\n', replace: '' },
-    { name: 'radio.co mode: a set never hangs up', file: ENG,
+    { name: 'without a line, a set never hangs up', file: ENG,
       find: '  if (!line) {\n    try { await out.close(); }', replace: '  if (false) {\n    try { await out.close(); }' },
     // ── the line to Shape ──
     { name: 'an empty skip is sent', file: MAIN,

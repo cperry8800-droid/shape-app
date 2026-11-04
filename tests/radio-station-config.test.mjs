@@ -122,7 +122,9 @@ test('⚠ only the stream is public: Caddy passes /live alone; Icecast\'s admin 
   const compose = read('services/station/docker-compose.yml');
   assert.match(compose, /"127\.0\.0\.1:8000:8000"/, 'Icecast is reachable from the machine only');
   assert.ok(!/"8000:8000"/.test(compose));
-  assert.match(compose, /NORA_MODE: station/);
+  // The engine has one mode, the station (radio.co was taken out, 2026-11-04).
+  assert.ok(!/NORA_MODE|NORA_LEGACY_ICECAST|NORA_POLL_SEC/.test(compose + read('services/nora-engine/main.mjs')));
+  assert.match(read('services/nora-engine/main.mjs'), /\n  await runStation\(realDeps\);\n\}/, 'main runs the station, and nothing else');
   assert.match(compose, /NORA_STREAM_URL: icecast:\/\/source:\$\{ICECAST_SOURCE_PASSWORD:\?set it in \.env\}@icecast:8000\/live/);
   assert.match(compose, /image: caddy:\d+\.\d+\.\d+/, 'a pinned Caddy');
   for (const s of ['icecast', 'standby', 'engine', 'caddy']) assert.match(compose, new RegExp(`\\n  ${s}:[\\s\\S]*?restart: always`), `${s} restarts`);

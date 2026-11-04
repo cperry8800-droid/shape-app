@@ -1,6 +1,6 @@
 // rotation.mjs — Shape Radio on Shape's own station (owner, 2026-11-03: "build your own
 // internet/app radio streaming platform where i can upload songs to stream instead of using
-// radio.co"). Nora's engine (services/nora-engine, NORA_MODE=station) keeps the station's stream
+// radio.co"). Nora's engine (services/nora-engine) keeps the station's stream
 // on around the clock and asks this module, through its token-gated route, what to play next:
 //
 //   stationJob(db, { now, after, skip })    the segment that plays from `after` (or now): a Nora

@@ -86,7 +86,7 @@ export default {
     { name: '⚠ a failed read reads as no planned sets', file: STORE,
       find: "    if (p.error) return { ok: false, error: 'read_failed' };\n    planned = new Set", replace: '    planned = new Set' },
     { name: 'the earlier sets are not history', file: STORE,
-      find: '  const history = [...hist.history, ...(Array.isArray(externalHistory) ? externalHistory : [])];', replace: '  const history = [];' },
+      find: '  const history = hist.history;', replace: '  const history = [];' },
     { name: 'a second plan replaces the first', file: STORE,
       find: "  if (got.data) return { programme: got.data.programme, stored: true };\n", replace: '' },
     { name: 'a guest set is planned', file: STORE,

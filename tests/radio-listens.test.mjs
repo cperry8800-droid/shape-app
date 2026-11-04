@@ -262,15 +262,15 @@ test('⚠ every play of the month, a page at a time, each with its performances;
   assert.ok(Math.abs(r.totals.tuningHours - hours) < 1e-6, `${r.totals.tuningHours} vs ${hours}`);
 });
 
-test('⚠ radio.co\'s plays are not measured (blank), Shape\'s own are (zero is a count); before the migration, all blank', async () => {
+test('⚠ every play is Shape\'s own station\'s, counted (zero is a count), one before the first listener too; before the migration, all blank', async () => {
   nextId = 1;
   const t = NOV + 86400000;
   const log = [ev('song', t, 'set'), ev('ended', t + 200000, 'set'), ev('song', t + 9000000, 'set'), ev('ended', t + 9200000, 'set'), ev('song', t + 9500000, BLK), ev('ended', t + 9700000, BLK)];
-  const firstBoot = t + 5000000;
-  const db = fakeDb({ nora_engine_log: log, radio_listens: [listen(1, BOOT1, firstBoot, 1, t + 9100000, t + 9150000)] });
+  const db = fakeDb({ nora_engine_log: log, radio_listens: [listen(1, BOOT1, t + 5000000, 1, t + 9100000, t + 9150000)] });
   const r = await performanceReport(db, monthRange('2026-11'), { now: NOW });
-  assert.deepEqual(r.plays.map((p) => p.performances), [null, 1, 0], 'radio.co\'s set, then her set and a block on Shape\'s own');
-  assert.equal(r.totals.measuredPlays, 2);
+  // radio.co was taken out (2026-11-04): a set before the station's first listener was Shape's own too.
+  assert.deepEqual(r.plays.map((p) => p.performances), [0, 1, 0], 'her set before anyone listened, her set heard once, a block nobody heard');
+  assert.equal(r.totals.measuredPlays, 3);
   const before = await performanceReport(fakeDb({ nora_engine_log: log }, { missing: ['radio_listens'] }), monthRange('2026-11'), { now: NOW });
   assert.equal(before.ok, true);
   assert.deepEqual(before.plays.map((p) => p.performances), [null, null, null]);

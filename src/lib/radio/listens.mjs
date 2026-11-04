@@ -203,8 +203,9 @@ const missingTable = (e) => !!e && (e.code === '42P01' || e.code === 'PGRST205')
 
 /**
  * Every song played in [fromIso, toIso), each with its performances, and the range's totals.
- * `performances` is null for a play before Shape's own station was measuring (radio.co's, or before
- * the first listener reached it); a rotation block is always Shape's own.
+ * Every play is Shape's own station's (radio.co was taken out, 2026-11-04: the engine plays nothing
+ * else), so nobody listening is 0. `performances` is null only before 2026-11-03-radio-listens.sql,
+ * when there were no sessions to count.
  */
 export async function performanceReport(db, [fromIso, toIso], { now }) {
   const from = Date.parse(fromIso), to = Date.parse(toIso);
@@ -227,12 +228,8 @@ export async function performanceReport(db, [fromIso, toIso], { now }) {
     measured = false;
     rows = [];
   }
-  let firstBoot = null;
   const nextBoot = new Map();
   if (measured) {
-    const { data: first, error: fErr } = await db.from('radio_listens').select('boot_at').order('boot_at', { ascending: true }).limit(1);
-    if (fErr) return { ok: false, error: 'read_failed' };
-    firstBoot = first && first[0] ? Date.parse(first[0].boot_at) : null;
     for (const r of rows) {
       if (r.ended_at || nextBoot.has(r.boot)) continue;
       const { data: nb, error: nErr } = await db.from('radio_listens').select('boot_at')
@@ -245,20 +242,16 @@ export async function performanceReport(db, [fromIso, toIso], { now }) {
   const windows = playWindows(ev.rows);
   const spans = sessionSpans(rows, nextBoot, { now });
   const plays = ev.rows.filter((r) => r.event === 'song' && Date.parse(r.played_at) >= from && Date.parse(r.played_at) < to);
-  const counted = plays.map((r) => {
-    const at = Date.parse(r.played_at);
-    return measured && (!!r.block_id || (firstBoot != null && at >= firstBoot));
-  });
   const counts = countPerformances(plays.map((r) => windows.get(r)
     || { start: Date.parse(r.played_at), end: Date.parse(r.played_at) + (MAX_TRACK_SEC + HEARD_LAG_SEC) * 1000 }), spans);
-  const out = plays.map((r, i) => ({ ...r, performances: counted[i] ? counts[i] : null }));
+  const out = plays.map((r, i) => ({ ...r, performances: measured ? counts[i] : null }));
   const inRange = spans.filter((s) => s.start < to && s.end > from);
   return {
     ok: true,
     plays: out,
     totals: {
       plays: out.length,
-      measuredPlays: counted.filter(Boolean).length,
+      measuredPlays: measured ? out.length : 0,
       performances: out.reduce((n, p) => n + (p.performances || 0), 0),
       tuningHours: measured ? tuningHours(spans, [from, Math.min(to, now)]) : null,
       sessions: measured ? inRange.length : null,

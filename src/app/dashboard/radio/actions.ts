@@ -12,7 +12,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
 import { checkSlot } from '@/lib/radio/noraSlots.mjs';
 import { syncNoraSets } from '@/lib/radio/noraSetStore.mjs';
-import { checkOwnStation, checkStation, probeStream } from '@/lib/radio/station.mjs';
+import { checkOwnStation, probeStream } from '@/lib/radio/station.mjs';
 import { makeTicket, passKey, streamWithTicket } from '@/lib/radio/pass.mjs';
 
 const PAGE = '/dashboard/radio';
@@ -94,18 +94,8 @@ export async function syncNow(): Promise<void> {
   done((await sync(createAdminClient())) ? 'synced' : 'sync_failed');
 }
 
-// ── The station: radio.co, or Shape's own ───────────────────────────────────────────────────
-export async function connectStation(formData: FormData): Promise<void> {
-  await requireAdminUser();
-  const checked = checkStation({ streamUrl: String(formData.get('stream_url') ?? ''), stationId: String(formData.get('station_id') ?? '') });
-  if (!checked.ok) failed(`station_${checked.error}`);
-  const { error } = await createAdminClient().from('radio_station')
-    .update({ ...checked.value, updated_at: new Date().toISOString() }).eq('id', 1);
-  if (error) failed('station_write_failed');
-  done('station_connected');
-}
-
-// Shape's own station (services/station). ⚠ Saved only once its stream answers with audio, so the
+// ── The station: Shape's own (services/station; radio.co was taken out, 2026-11-04) ──────────
+// Shape's own station. ⚠ Saved only once its stream answers with audio, so the
 // website and app are never handed a stream that is not there (its standby loop answers even while
 // nothing else plays).
 export async function connectOwnStation(formData: FormData): Promise<void> {

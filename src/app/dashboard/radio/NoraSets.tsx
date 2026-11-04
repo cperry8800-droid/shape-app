@@ -23,7 +23,6 @@ const MESSAGES: Record<string, string> = {
   licences_confirmed: 'Licences confirmed: Nora’s sets now show in Coming up.',
   licences_withdrawn: 'Licences withdrawn: Nora’s sets are private again.',
   synced: 'Schedule updated.',
-  station_connected: 'Shape Radio now plays your radio.co station on the website and in the app.',
   own_station_connected: 'Shape Radio now plays Shape’s own station on the website and in the app.',
   station_disconnected: 'Shape Radio is disconnected: the website and app have no station to play.',
 };
@@ -33,7 +32,6 @@ const ERRORS: Record<string, string> = {
   station_not_audio: 'that address answered, but not with audio. The stream is the station’s /live.',
   station_no_cors: 'that address answered with audio, but without the one Access-Control-Allow-Origin: * the players need. Is it Shape’s station server (services/station)?',
   station_stream_not_live: 'Shape’s own station streams at /live, e.g. https://radio.theshapecommunity.com/live.',
-  station_stream_is_radio_co: 'that is a radio.co address: use the radio.co form for it.',
   station_stream_host: 'the stream needs the station’s own name, e.g. radio.theshapecommunity.com, not an address.',
   station_refused_pass: 'the station refused this Shape’s pass. Its SHAPE_URL must be this Shape’s address (services/station/.env).',
   station_no_pass_key: 'this Shape has no key to sign listeners’ passes: set RADIO_PASS_SECRET (32+ characters) or the service-role key.',
@@ -46,7 +44,7 @@ const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec %
 export default async function NoraSets({ updated, error }: { updated?: string; error?: string }) {
   const db = createAdminClient();
   const now = Date.now();
-  const station = await db.from('radio_station').select('provider,stream_url,now_playing_url').eq('id', 1).maybeSingle();
+  const station = await db.from('radio_station').select('provider,stream_url').eq('id', 1).maybeSingle();
   const [slots, settings, sets] = await Promise.all([
     db.from('nora_slots').select('id,days,start_minute,duration_min,zone,enabled').order('created_at'),
     db.from('nora_dj_settings').select('licences_confirmed_at,licences_confirmed_by').eq('id', 1).maybeSingle(),
@@ -227,7 +225,7 @@ export default async function NoraSets({ updated, error }: { updated?: string; e
           {')'}
           <div>
             Every song played, each with its performances: the listeners who heard any part of it, counted by Shape’s own station.
-            The totals add the month’s listening hours. On radio.co, the listener counts come from radio.co’s statistics, and the column is blank.
+            The totals add the month’s listening hours. Before the station’s listening sessions were kept (2026-11-03-radio-listens.sql), the column is blank.
           </div>
         </div>
       </div>

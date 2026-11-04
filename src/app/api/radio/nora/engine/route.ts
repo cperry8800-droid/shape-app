@@ -1,11 +1,12 @@
-// Nora's engine's line to Shape (services/nora-engine): GET hands it the set due now or next, with
-// the programme and a signed link to each song; POST takes its reports (a set started, a song
-// played, a set ended or failed). The work is in src/lib/radio/noraEngineApi.mjs.
+// Nora's engine's line to Shape (services/nora-engine), the music of Shape's own station. GET, with
+// `?mode=station`, hands it the segment that plays from `after` (a Nora set, or a block of the
+// rotation), not handing out any id in `skip`; with `check=set:<id>` or `check=block:<id>` it says
+// whether the segment playing goes on (src/lib/radio/rotation.mjs). POST takes its reports (a
+// segment started, a song played, a segment ended or failed; src/lib/radio/noraEngineApi.mjs).
 //
-// On Shape's own station (the engine's NORA_MODE=station) GET takes `?mode=station`: the segment
-// that plays from `after` (a Nora set, or a block of the rotation), not handing out any id in
-// `skip`; with `check=set:<id>` or `check=block:<id>` it says whether the segment playing goes on
-// (src/lib/radio/rotation.mjs).
+// A GET without `?mode=station` was radio.co's engine asking for Nora's next set alone; radio.co
+// was taken out (owner, 2026-11-04: "yes remove radio.co"), and such an engine is refused (400)
+// rather than handed sets it would play somewhere Shape no longer streams from.
 //
 // Auth: `Authorization: Bearer <NORA_ENGINE_TOKEN>`, compared in constant time. No token
 // configured means the route is closed (503), never open.
@@ -13,7 +14,7 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { engineJob, recordEngineEvent } from '@/lib/radio/noraEngineApi.mjs';
+import { recordEngineEvent } from '@/lib/radio/noraEngineApi.mjs';
 import { stationCheck, stationJob } from '@/lib/radio/rotation.mjs';
 
 export const runtime = 'nodejs';
@@ -37,17 +38,14 @@ export async function GET(request: Request) {
   if (refused) return refused;
   const q = new URL(request.url).searchParams;
   const now = Date.now();
+  if (q.get('mode') !== 'station') return NextResponse.json({ error: 'mode' }, { status: 400, headers: NO_STORE });
+  const skip = (q.get('skip') || '').split(',').filter(Boolean);
+  const check = /^(set|block):(.+)$/.exec(q.get('check') || '');
+  const db = createAdminClient();
   let r;
-  if (q.get('mode') === 'station') {
-    const skip = (q.get('skip') || '').split(',').filter(Boolean);
-    const check = /^(set|block):(.+)$/.exec(q.get('check') || '');
-    const db = createAdminClient();
-    if (check) r = await stationCheck(db, { now, skip, ...(check[1] === 'set' ? { setId: check[2] } : { blockId: check[2] }) });
-    else if (q.has('check')) r = { status: 400, body: { error: 'check' } };
-    else r = await stationJob(db, { now, after: q.get('after'), skip });
-  } else {
-    r = await engineJob(createAdminClient(), { now });
-  }
+  if (check) r = await stationCheck(db, { now, skip, ...(check[1] === 'set' ? { setId: check[2] } : { blockId: check[2] }) });
+  else if (q.has('check')) r = { status: 400, body: { error: 'check' } };
+  else r = await stationJob(db, { now, after: q.get('after'), skip });
   return NextResponse.json(r.body, { status: r.status, headers: NO_STORE });
 }
 

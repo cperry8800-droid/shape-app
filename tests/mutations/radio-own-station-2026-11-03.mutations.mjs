@@ -23,8 +23,6 @@ export default {
       find: "  if (u.username || u.password || u.search || u.hash || u.port) return { ok: false, error: 'stream_url' };\n  if (u.pathname !== OWN_MOUNT)", replace: '  if (u.pathname !== OWN_MOUNT)' },
     { name: 'any path is taken', file: ST,
       find: "  if (u.pathname !== OWN_MOUNT) return { ok: false, error: 'stream_not_live' };\n", replace: '' },
-    { name: 'a radio.co address is taken as Shape\'s own', file: ST,
-      find: "  if (/(^|\\.)radio\\.co$/.test(host)) return { ok: false, error: 'stream_is_radio_co' };\n", replace: '' },
     { name: '⚠ an address or a local name is taken', file: ST,
       find: "  if (!/^[a-z0-9-]+(\\.[a-z0-9-]+)*\\.[a-z]{2,}$/.test(host) || /(^|\\.)(localhost|local|internal)$/.test(host)) {", replace: '  if (false) {' },
     { name: '⚠ a stream that answers with anything is taken', file: ST,

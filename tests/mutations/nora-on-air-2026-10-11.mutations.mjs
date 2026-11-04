@@ -1,19 +1,17 @@
-// Mutation spec for Shape Radio on radio.co while Nora is the DJ: what listeners are told is
-// playing (only what has been heard, with its album, only while her engine is on the air), the
-// station's own payload (radio.co's "Artist - Title", never Nora by name), connecting the
-// station, and both surfaces treating her own set as hers. Every one must be killed.
+// Mutation spec for Shape Radio while Nora is the DJ: what listeners are told is playing (only what
+// has been heard, with its album, only while her engine is on the air), and both surfaces treating
+// her own set as hers. Every one must be killed. (radio.co's payload and its connection were taken
+// out with radio.co, 2026-11-04; Shape's own station's are in radio-own-station-2026-11-03.)
 // Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/nora-on-air-2026-10-11.mutations.mjs --fail-on-skipped
 const AIR = 'src/lib/radio/noraOnAir.mjs';
-const NP = 'src/lib/radio/now-playing.mjs';
 const ROUTE = 'src/app/api/radio/now-playing/route.ts';
-const STATION = 'src/lib/radio/station.mjs';
 const WEB = 'public/newdesign/radio.jsx';
 const APP = 'mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx';
 const INSTR = 'public/newdesign/radioInstrument.jsx';
 
 export default {
-  test: 'node --test tests/nora-on-air.test.mjs tests/radio-now-playing.test.mjs',
+  test: 'node --test tests/nora-on-air.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── only what has been heard ──
@@ -33,24 +31,6 @@ export default {
       find: '      album: heard.item.album || null,', replace: '      album: null,' },
     { name: 'the route asks the station first', file: ROUTE,
       find: '    const nora = await noraOnAir(createAdminClient(), { now: Date.now() });\n    if (nora)', replace: '    const nora = null as unknown as Record<string, unknown> | null;\n    if (nora)' },
-    // ── the station's own payload ──
-    { name: '⚠ an artist called Nora… is Nora', file: NP,
-      find: '  return album ? { title, artist, album, isNora: false } : { title, artist, isNora: false };', replace: "  const isNora = !!artist && artist.toLowerCase().includes('nora');\n  return album ? { title, artist, album, isNora } : { title, artist, isNora };" },
-    { name: "radio.co's one-field title is not split", file: NP,
-      find: '  if (!artist && title) {', replace: '  if (false) {' },
-    { name: 'the split takes the last " - "', file: NP,
-      find: "    const cut = title.indexOf(' - ');", replace: "    const cut = title.lastIndexOf(' - ');" },
-    { name: 'the album is not read', file: NP,
-      find: "  return album ? { title, artist, album, isNora: false } : { title, artist, isNora: false };", replace: "  return { title, artist, isNora: false };" },
-    // ── connecting the station ──
-    { name: 'an http stream is taken', file: STATION,
-      find: "  if (u.protocol !== 'https:') return { ok: false, error: 'stream_https' };\n", replace: '' },
-    { name: 'any host is taken', file: STATION,
-      find: "  if (!/(^|\\.)radio\\.co$/i.test(u.hostname)) return { ok: false, error: 'stream_not_radio_co' };\n", replace: '' },
-    { name: 'a host merely containing radio.co is taken', file: STATION,
-      find: '  if (!/(^|\\.)radio\\.co$/i.test(u.hostname))', replace: '  if (!/radio\\.co/i.test(u.hostname))' },
-    { name: 'a stream URL with credentials is taken', file: STATION,
-      find: "  if (u.username || u.password) return { ok: false, error: 'stream_url' };\n", replace: '' },
     // ── both surfaces ──
     { name: '⚠ the website reads her set as a guest set', file: WEB,
       find: '  const guestDj = stationConfigured && liveSet && liveSet.dj && !noraSet ? String(liveSet.dj) : null;', replace: '  const guestDj = stationConfigured && liveSet && liveSet.dj ? String(liveSet.dj) : null;' },

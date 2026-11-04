@@ -11,13 +11,14 @@
 // away. Closing anonymous access was only half of it — a free signed-in account
 // is exactly the non-subscriber listening the rate ruling forbids.
 //
-// ⚠ HONEST RESIDUAL, ON radio.co ONLY. There the URL is the provider's public
-// endpoint, so anyone who has already resolved it can keep hitting it directly;
-// what changes is that SHAPE no longer distributes it to unauthenticated callers.
-// ON SHAPE'S OWN STATION IT IS CLOSED (part 3, src/lib/radio/pass.mjs): the stream
-// handed out carries a pass signed for this member, good for a few hours, and the
-// station lets no listener in without a good one. An address someone shared stops
-// working when its pass does.
+// ⚠ AND THE STATION'S DOOR IS CLOSED TOO (part 3, src/lib/radio/pass.mjs): the stream
+// handed out is Shape's own address with a pass signed for this member, good for a
+// few hours, and the station lets no listener in without a good one. An address
+// someone shared stops working when its pass does.
+//
+// ⚠ SHAPE'S OWN STATION IS THE ONLY ONE (owner, 2026-11-04: "yes remove radio.co").
+// Any other provider stored in radio_station (the placeholder 'mock', or a radio.co
+// row from before) is no station: no stream is handed out for it.
 //
 // ⚠ AND ONLY WHERE THE LICENCES REACH: the US and the UK. A member elsewhere gets
 // 451 and no stream; in production a request with no measured country is refused.
@@ -130,9 +131,10 @@ export async function GET(request: NextRequest) {
   // sends the player on to the station with a short ticket); the station's own address is
   // never handed out. No key, no pass, and no stream either: the station would refuse it,
   // so the player says it could not reach the station rather than playing nothing.
-  let streamUrl: string | null = data?.stream_url || null;
+  const own = data?.provider === OWN_PROVIDER && !!data?.stream_url;
+  let streamUrl: string | null = null;
   let passExpiresAt: string | null = null;
-  if (streamUrl && data?.provider === OWN_PROVIDER) {
+  if (own) {
     const key = passKey();
     const issued = key ? makePass({ userId: user.id, now: Date.now(), key }) : null;
     if (!issued) {
@@ -149,8 +151,8 @@ export async function GET(request: NextRequest) {
     {
       name: data?.station_name || 'Shape Radio',
       streamUrl,
-      provider: data?.provider || 'mock',
-      configured: !!data?.stream_url,
+      provider: own ? OWN_PROVIDER : 'mock',
+      configured: own,
       ...(passExpiresAt ? { passExpiresAt } : {}),
     },
     { headers: { 'cache-control': 'no-store' } }

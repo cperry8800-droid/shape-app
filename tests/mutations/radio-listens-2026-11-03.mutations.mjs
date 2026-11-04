@@ -74,10 +74,13 @@ export default {
       find: ".lt('started_at', readTo).or(", replace: ".lt('started_at', toIso).or(" },
     { name: '⚠ a fault reading the sessions is a month of no listeners', file: L,
       find: "    if (!missingTable(listens.error)) return { ok: false, error: 'read_failed' };\n", replace: '' },
-    { name: '⚠ radio.co\'s plays are counted as nobody listening', file: L,
-      find: '    return measured && (!!r.block_id || (firstBoot != null && at >= firstBoot));', replace: '    return measured;' },
-    { name: 'a rotation block before its first listener is not measured', file: L,
-      find: '    return measured && (!!r.block_id || (firstBoot != null && at >= firstBoot));', replace: '    return measured && firstBoot != null && at >= firstBoot;' },
+    // radio.co was taken out (2026-11-04): every play is Shape's own station's.
+    { name: '⚠ a play with sessions kept is left blank', file: L,
+      find: '  const out = plays.map((r, i) => ({ ...r, performances: measured ? counts[i] : null }));', replace: '  const out = plays.map((r, i) => ({ ...r, performances: measured && r.block_id ? counts[i] : null }));' },
+    { name: '⚠ before the migration, a play reads as nobody listening', file: L,
+      find: '  const out = plays.map((r, i) => ({ ...r, performances: measured ? counts[i] : null }));', replace: '  const out = plays.map((r, i) => ({ ...r, performances: counts[i] }));' },
+    { name: 'the measured plays are miscounted', file: L,
+      find: '      measuredPlays: measured ? out.length : 0,', replace: '      measuredPlays: out.length,' },
     { name: 'an open session is not counted open', file: L,
       find: '      openSessions: measured ? inRange.filter((s) => s.open).length : null,', replace: '      openSessions: measured ? 0 : null,' },
     // ── the dashboard ──

@@ -172,7 +172,8 @@ test('⚠ the station route: membership, then the territory, then the pass; no k
     at("const region = regionAllowed(request.headers.get('x-vercel-ip-country'), { production: process.env.NODE_ENV === 'production' });"),
     at('{ status: 451'),
     at(".from('radio_station')"),
-    at('if (streamUrl && data?.provider === OWN_PROVIDER) {'),
+    at('const own = data?.provider === OWN_PROVIDER && !!data?.stream_url;'),
+    at('if (own) {'),
     at('streamUrl = listenUrl(new URL(request.url).origin, issued.pass);'),
   ];
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'in that order');
@@ -182,6 +183,10 @@ test('⚠ the station route: membership, then the territory, then the pass; no k
   assert.match(route, /\.\.\.\(passExpiresAt \? \{ passExpiresAt \} : \{\}\),\n\s+\},\n\s+\{ headers: \{ 'cache-control': 'no-store' \} \}/);
   assert.match(route, /const issued = key \? makePass\(\{ userId: user\.id, now: Date\.now\(\), key \}\) : null;/, 'the pass is the caller\'s own');
   assert.match(route, /\.\.\.\(passExpiresAt \? \{ passExpiresAt \} : \{\}\),/);
+  // ⚠ Shape's own station is the only one (radio.co taken out, 2026-11-04): no other row's address is handed out.
+  assert.match(route, /let streamUrl: string \| null = null;/, 'no stream unless Shape\'s own');
+  assert.match(route, /provider: own \? OWN_PROVIDER : 'mock',\n\s+configured: own,/);
+  assert.ok(!/data\?\.stream_url \|\| null|configured: !!data/.test(route), 'a stored address alone is no station');
 });
 
 test('⚠ the door\'s route: always a 200, the admitting header only for a good pass, off the address rate limit', () => {
